@@ -2,24 +2,28 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Seed the application's database.
+     * Catalogues de référence (doc 12 §5) — données seedées, jamais modifiées
+     * en jeu : l'IA habille (renomme/redécrit) sans toucher aux effets (Q6).
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            ClasseHerosSeeder::class,
+            CompetenceSeeder::class,
+            ConditionSeeder::class,
+            ObjetSeeder::class,
+            ForgeAmeliorationSeeder::class,
+            SortSeeder::class,
+            SortDreadSeeder::class,
+            MonstreSeeder::class,
+            PiegeSeeder::class,
+            TuileSeeder::class,
+            GabaritQueteSeeder::class,
         ]);
     }
 }

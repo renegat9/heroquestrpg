@@ -1,0 +1,72 @@
+<script setup>
+// Onglet Fiche perso — port de FicheTab (manette-app.jsx).
+import MSym from '../ui/MSym.vue';
+import PipsGauge from './PipsGauge.vue';
+import { HEROES } from '../../data/demo';
+
+defineProps({
+    hero: { type: Object, required: true },
+    heroKey: { type: String, required: true },
+    body: { type: Object, required: true },
+    mind: { type: Object, required: true },
+});
+
+const emit = defineEmits(['select-hero']);
+
+const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
+</script>
+
+<template>
+    <div>
+        <div class="sect-title"><MSym n="groups" :size="16" /> Roster du joueur</div>
+        <div class="roster">
+            <div
+                v-for="h in HEROES"
+                :key="h.key"
+                class="r"
+                :class="{ on: h.key === heroKey }"
+                @click="emit('select-hero', h.key)"
+            >
+                <MSym :n="h.crest" :fill="h.key === heroKey" /><span class="rn">{{ h.cls }}</span>
+            </div>
+        </div>
+
+        <div class="fiche-head">
+            <div class="portrait"><MSym :n="hero.icon" fill :size="44" /><span class="ph-tag">portrait classe</span></div>
+            <div><h2>{{ hero.name }}</h2><div class="lvl">{{ hero.cls }} · Niveau {{ hero.lvl }}</div></div>
+        </div>
+
+        <div class="sect-title"><MSym n="casino" :size="16" /> Attributs (dés de jet)</div>
+        <div class="stat-grid">
+            <div class="stat"><div class="k">Attaque</div><div class="v" style="color: var(--torch)">{{ hero.atk }}<span class="die-n">dés crâne</span></div></div>
+            <div class="stat"><div class="k">Défense</div><div class="v" style="color: var(--mind-bright)">{{ hero.def }}<span class="die-n">dés bouclier</span></div></div>
+            <div class="stat"><div class="k">Body (attr.)</div><div class="v" style="color: var(--body-bright)">{{ hero.atkAttr }}</div></div>
+            <div class="stat"><div class="k">Mind (attr.)</div><div class="v" style="color: var(--mind-bright)">{{ hero.mindAttr }}</div></div>
+        </div>
+
+        <div class="sect-title"><MSym n="ecg_heart" :size="16" /> Points de vie</div>
+        <div class="gauge">
+            <div class="top">
+                <span class="nm" style="color: var(--body-bright)"><MSym n="favorite" fill :size="18" /> Body</span>
+                <span class="val" style="color: var(--body-bright)">{{ body.cur }} / {{ body.max }}</span>
+            </div>
+            <PipsGauge :cur="body.cur" :max="body.max" kind="body" />
+        </div>
+        <div class="gauge">
+            <div class="top">
+                <span class="nm" style="color: var(--mind-bright)"><MSym n="psychology" fill :size="18" /> Mind</span>
+                <span class="val" style="color: var(--mind-bright)">{{ mind.cur }} / {{ mind.max }}</span>
+            </div>
+            <PipsGauge :cur="mind.cur" :max="mind.max" kind="mind" />
+        </div>
+
+        <div class="sect-title" style="margin-top: 18px"><MSym n="emergency_heat" :size="16" /> Conditions</div>
+        <div v-if="hero.conds.length" class="badges">
+            <span v-for="(c, i) in hero.conds" :key="i" class="badge" :class="'b-' + c.t">
+                <MSym :n="condIcon(c.t)" fill :size="16" />
+                {{ c.l }} <span class="dur">{{ c.d }}t</span>
+            </span>
+        </div>
+        <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>
+    </div>
+</template>

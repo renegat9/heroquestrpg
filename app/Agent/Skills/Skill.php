@@ -39,8 +39,7 @@ abstract class Skill
     public function __construct(
         protected readonly AnthropicClient $client,
         protected readonly ValidationSortie $validation,
-    ) {
-    }
+    ) {}
 
     /** Nom de l'outil forcé côté API (snake_case). */
     abstract public function nomOutil(): string;

@@ -160,3 +160,76 @@ export const ROSTER = [
     { n: 'Durik Forgefer', c: 'Nain', ic: 'construction', lvl: 3, gold: 740 },
     { n: 'Sylanwë', c: 'Elfe', ic: 'park', lvl: 3, gold: 610 },
 ];
+
+/* ------------------------------------------------- manette (narration) */
+export const NARRATION_OUVERTURE =
+    "Une lueur d'ambre danse sur les murs suintants. Trois ombres trapues se redressent en grognant…";
+
+/* ------------------------------------------------- sélection de quête */
+export const QUEST_NODES = {
+    q1: { x: 10, y: 30, state: 'done', ic: 'door_front', label: 'Le Porche' },
+    q2: { x: 26, y: 62, state: 'done', ic: 'water_drop', label: 'Les Égouts' },
+    q3: { x: 42, y: 38, state: 'current', ic: 'castle', label: 'La Crypte' },
+    qa: { x: 66, y: 20, state: 'avail', ic: 'local_fire_department', label: 'La Forge Maudite' },
+    qb: { x: 66, y: 54, state: 'avail', ic: 'sentiment_very_dissatisfied', label: 'Le Nid Gobelin' },
+    qc: { x: 66, y: 84, state: 'avail', ic: 'water', label: 'Les Catacombes Noyées' },
+    qf: { x: 90, y: 50, state: 'locked', ic: 'lock', label: '???' },
+};
+export const QUEST_EDGES = [
+    ['q1', 'q2'], ['q2', 'q3'], ['q3', 'qa'], ['q3', 'qb'], ['q3', 'qc'],
+    ['qa', 'qf'], ['qb', 'qf'], ['qc', 'qf'],
+];
+export const QUESTS = {
+    qa: {
+        name: 'La Forge Maudite', diff: 3, dl: 'Périlleuse', lvl: 'Niv. 3-4', dur: '~50 min', el: 'Feu',
+        hook: "Une forge naine, jadis glorieuse, crache désormais une chaleur qui n'a rien de naturel. Les enclumes frappent seules dans le noir.",
+        rewards: [['gold', '450 or'], ['item', 'Marteau runique']],
+    },
+    qb: {
+        name: 'Le Nid Gobelin', diff: 2, dl: 'Risquée', lvl: 'Niv. 3', dur: '~35 min', el: 'Terre',
+        hook: "Les gobelins se sont multipliés dans les galeries est. Leur chef, une brute balafrée, garde un butin volé aux marchands.",
+        rewards: [['gold', '280 or'], ['item', "Bottes de l'éclaireur"]],
+    },
+    qc: {
+        name: 'Les Catacombes Noyées', diff: 3, dl: 'Périlleuse', lvl: 'Niv. 4', dur: '~55 min', el: 'Eau',
+        hook: "L'eau monte dans les galeries inférieures, et quelque chose d'ancien remue sous la surface. Le silence y est plus dangereux que le bruit.",
+        rewards: [['gold', '520 or'], ['item', 'Amulette du Spectre']],
+    },
+};
+export const QUEST_PLAYERS = [
+    { k: 'barb', ic: 'sports_martial_arts', n: 'Bar' },
+    { k: 'mage', ic: 'auto_fix_high', n: 'Mag' },
+    { k: 'dwarf', ic: 'construction', n: 'Nai' },
+    { k: 'elf', ic: 'park', n: 'Elf' },
+];
+
+/* ------------------------------------------------- montée de niveau */
+export const LEVELUP_HERO = {
+    name: 'Eldra Sombrelune', cls: 'Magicienne', icon: 'auto_fix_high', from: 3, to: 4,
+    done: "Eldra grave une nouvelle rune dans son grimoire. Sa puissance s'épanouit.",
+};
+export const LEVELUP_GAINS = [
+    { kind: 'mind', ic: 'psychology', t: 'Esprit aiguisé', d: 'Réserve de Mind maximale', from: 6, to: 7 },
+    { kind: 'body', ic: 'favorite', t: 'Endurance', d: 'Réserve de Body maximale', from: 4, to: 5 },
+];
+export const LEVELUP_TALENTS = [
+    { k: 't1', ic: 'local_fire_department', t: 'Maîtrise du Feu', d: "Tes sorts de Feu lancent 1 dé d'attaque supplémentaire.", el: 'fire', elt: 'Élément Feu', eli: 'bolt' },
+    { k: 't2', ic: 'menu_book', t: 'Nouveau sort — Givre noyé', d: "Apprends un sort d'Eau : gèle un ennemi sur place pour 1 tour.", el: 'water', elt: 'Nouveau sort', eli: 'ac_unit' },
+    { k: 't3', ic: 'shield_with_heart', t: 'Ward arcanique', d: 'Une fois par quête, annule entièrement une attaque qui te cible.' },
+];
+
+/* ------------------------------------------------- clôture de campagne */
+export const CLOTURE_HEROES = [
+    { k: 'barb', ic: 'sports_martial_arts', n: 'Bar' },
+    { k: 'mage', ic: 'auto_fix_high', n: 'Mag' },
+    { k: 'dwarf', ic: 'construction', n: 'Nai' },
+    { k: 'elf', ic: 'park', n: 'Elf' },
+];
+export const CLOTURE_REWARDS = [
+    { n: 'Lame du Spectre', rar: 'unique', ic: 'colorize', to: 'barb' },
+    { n: 'Grimoire Noyé', rar: 'rare', ic: 'auto_stories', to: 'mage' },
+    { n: 'Heaume runique', rar: 'rare', ic: 'sports_motorsports', to: 'dwarf' },
+    { n: 'Carquois sans fin', rar: 'uncommon', ic: 'arrow_outward', to: 'elf' },
+    { n: "Amulette d'Ambre", rar: 'unique', ic: 'diamond', to: 'mage' },
+    { n: 'Potion de soin majeure', rar: 'uncommon', ic: 'science', to: 'barb' },
+];

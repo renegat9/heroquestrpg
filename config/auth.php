@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\JoueurAuthentifiable;
 use App\Models\User;
 
 return [
@@ -42,6 +43,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Login simple des joueurs (cadre interne, doc 11 §11) : session +
+        // table `joueurs` via l'adaptateur App\Auth\JoueurAuthentifiable.
+        'joueur' => [
+            'driver' => 'session',
+            'provider' => 'joueurs',
+        ],
     ],
 
     /*
@@ -65,6 +73,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'joueurs' => [
+            'driver' => 'eloquent',
+            'model' => JoueurAuthentifiable::class,
         ],
 
         // 'users' => [
