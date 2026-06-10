@@ -6,6 +6,9 @@ defineProps({
     map: { type: Object, required: true },
     /** Figurines : [{ x, y, k: 'hero'|'foe'|'chest', l, ic, hp?, cur?, tgt? }] */
     entities: { type: Array, required: true },
+    /** Pièges visibles : [{ x, y, etat: 'detecte'|'desarme'|'declenche', nom, titre }]
+     *  — voir piegesVersMarqueurs() (les cachés n'arrivent jamais au client). */
+    traps: { type: Array, default: () => [] },
 });
 </script>
 
@@ -18,6 +21,17 @@ defineProps({
             :class="[cell.t, { range: cell.range }]"
             :style="{ gridColumn: cell.x + 1, gridRow: cell.y + 1 }"
         />
+        <!-- couche pièges : sous les figurines, au-dessus des cases -->
+        <div
+            v-for="(t, i) in traps"
+            :key="`trap-${i}`"
+            class="trap-holder"
+            :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
+        >
+            <div class="trap" :class="t.etat" :title="t.titre ?? t.nom">
+                <MSym v-if="t.etat !== 'declenche'" n="warning" fill />
+            </div>
+        </div>
         <div
             v-for="(e, i) in entities"
             :key="`ent-${i}`"

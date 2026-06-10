@@ -25,13 +25,16 @@ defineProps({
 
 const emit = defineEmits(['attack', 'open-spells', 'move', 'search', 'pass', 'choose']);
 
-/** Icône par type d'option du contrat. */
+/** Icône par type d'option du contrat (+ pièges doc 10 : désamorcer /
+ *  franchir une fosse détectée — des jets de Body proposés en menu). */
 const ICONE_TYPE = {
     action: 'touch_app',
     dialogue: 'forum',
     jet: 'casino',
     attaque: 'swords',
     deplacement: 'directions_walk',
+    desamorcer: 'handyman',
+    franchir: 'sprint',
 };
 </script>
 

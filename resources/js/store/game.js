@@ -50,6 +50,12 @@ const state = reactive({
     /** Résultat (.vote.resultat : {option_id, applique}) — la feuille reste
      *  affichée jusqu'à fermeture manuelle. */
     voteResultat: null,
+
+    /** Dernier .niveau.monte ({personnages: [{id, nom, niveau,
+     *  points_competence, gains}]}) — null tant qu'aucun jalon franchi. */
+    niveauMonte: null,
+    /** Catalogue des arbres de compétences (GET /api/competences). */
+    competences: null,
 });
 
 export function useGameStore() {
@@ -138,6 +144,22 @@ export function useGameStore() {
             state.voteDecompte = null;
             state.voteResultat = null;
         },
+
+        // ---- montée de niveau ----
+
+        /** .niveau.monte ({personnages: [...]}) — émis à la clôture
+         *  victorieuse d'une quête à jalon, avant .groupe.etat. */
+        setNiveauMonte(payload) {
+            state.niveauMonte = payload ?? null;
+        },
+        /** Fermeture du bandeau/celebration (table et manette). */
+        fermerNiveauMonte() {
+            state.niveauMonte = null;
+        },
+        /** Catalogue GET /api/competences (toléré : enrobage {competences}). */
+        setCompetences(catalogue) {
+            state.competences = catalogue?.competences ?? catalogue ?? null;
+        },
     };
 }
 
@@ -204,6 +226,28 @@ export function entitesVersFigurines(entites, initiative) {
             ic: e.type === 'heros' ? classeDe(e)?.ic : 'sentiment_very_dissatisfied',
             hp: e.type === 'monstre' ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
+        }));
+}
+
+/** Libellés des états de piège visibles (les cachés n'arrivent jamais). */
+export const PIEGE_ETATS = {
+    detecte: 'détecté',
+    desarme: 'désarmé',
+    declenche: 'déclenché',
+};
+
+/** carte.pieges (contrat « Pièges ») → marqueurs [{x, y, etat, nom, titre}]
+ *  pour la couche pièges de DungeonMap. Seuls les états du contrat sont
+ *  rendus — un état inconnu est ignoré plutôt que mal affiché. */
+export function piegesVersMarqueurs(carte) {
+    return (carte?.pieges ?? [])
+        .filter((p) => PIEGE_ETATS[p.etat])
+        .map((p) => ({
+            x: p.x,
+            y: p.y,
+            etat: p.etat,
+            nom: p.nom ?? 'Piège',
+            titre: `${p.nom ?? 'Piège'} — ${PIEGE_ETATS[p.etat]}`,
         }));
 }
 
@@ -450,4 +494,125 @@ export function voteVersFeuille(vote, decompte, resultat, monBulletin, joueurId,
             ? (resultat.applique ? 'Décision appliquée — Fermer' : 'Décision prise — Fermer')
             : null,
     };
+}
+
+/* =========================================================================
+   Mapping montée de niveau (contrat « Montée de niveau ») →
+   bandeau de table, manette et MonteeNiveauView
+   ========================================================================= */
+
+/** Habillage par type de nœud (passif appliqué par le moteur, actif et
+ *  déblocage seulement enregistrés — résolution ultérieure). */
+export const TYPES_COMPETENCE = {
+    passif: { l: 'Passif', ic: 'trending_up' },
+    actif: { l: 'Actif', ic: 'bolt' },
+    deblocage: { l: 'Déblocage', ic: 'key' },
+};
+
+/** Effets passifs chiffrés du contrat (effet JSON : clé → +n). */
+const EFFETS_PASSIFS = {
+    attribut_body: { l: 'Body (attr.)', ic: 'fitness_center' },
+    attribut_mind: { l: 'Mind (attr.)', ic: 'psychology' },
+    des_attaque: { l: "dé d'attaque", ic: 'swords' },
+    des_defense: { l: 'dé de défense', ic: 'shield' },
+    pv_body_max: { l: 'PV Body max', ic: 'favorite' },
+    pv_mind_max: { l: 'PV Mind max', ic: 'psychology' },
+    deplacement_base: { l: 'déplacement', ic: 'directions_walk' },
+    bonus_sac: { l: 'capacité de sac', ic: 'backpack' },
+};
+
+/** effet du catalogue (JSON, chaîne JSON ou texte libre) → [{texte, ic}]. */
+export function effetVersListe(effet) {
+    let e = effet;
+    if (typeof e === 'string') {
+        try { e = JSON.parse(e); } catch { return e ? [{ texte: e, ic: null }] : []; }
+    }
+    if (e == null) return [];
+    if (typeof e !== 'object') return [{ texte: String(e), ic: null }];
+    const lignes = [];
+    for (const [k, v] of Object.entries(e)) {
+        const connu = EFFETS_PASSIFS[k];
+        if (connu && typeof v === 'number') {
+            lignes.push({ texte: `${v > 0 ? '+' : ''}${v} ${connu.l}`, ic: connu.ic });
+        } else if (typeof v === 'string' && (k === 'description' || k === 'texte' || k === 'libelle')) {
+            lignes.push({ texte: v, ic: null });
+        }
+    }
+    return lignes;
+}
+
+/**
+ * Catalogue (GET /api/competences) + personnage (/moi enrichi) → l'arbre
+ * du héros, aplati en ordre parent → enfants avec profondeur.
+ * États : `acquis` / `dispo` (prérequis OK + point disponible) /
+ * `verrouille` (verrou = 'prerequis' ou 'points').
+ */
+export function competencesVersArbre(catalogue, classe, acquis = [], points = 0) {
+    const cls = (classe ?? '').toLowerCase();
+    const noeuds = (catalogue ?? []).filter((c) => (c.classe ?? '').toLowerCase() === cls);
+    const parId = new Map(noeuds.map((n) => [n.id, n]));
+    const enfants = new Map();
+    const racines = [];
+    for (const n of noeuds) {
+        if (n.prerequis_id != null && parId.has(n.prerequis_id)) {
+            if (!enfants.has(n.prerequis_id)) enfants.set(n.prerequis_id, []);
+            enfants.get(n.prerequis_id).push(n);
+        } else {
+            racines.push(n);
+        }
+    }
+    // ids acquis : tolère une liste d'ids ou d'objets {id}.
+    const acquisSet = new Set((acquis ?? []).map((c) => (typeof c === 'object' ? c.id : c)));
+
+    const liste = [];
+    const visiter = (n, profondeur) => {
+        const type = (n.type ?? 'passif').toLowerCase();
+        const estAcquis = acquisSet.has(n.id);
+        const prerequisOk = n.prerequis_id == null || acquisSet.has(n.prerequis_id);
+        const effets = effetVersListe(n.effet);
+        liste.push({
+            id: n.id,
+            nom: n.nom,
+            type: TYPES_COMPETENCE[type] ? type : 'passif',
+            profondeur,
+            effets,
+            ic: (type === 'passif' && effets.find((e) => e.ic)?.ic)
+                || TYPES_COMPETENCE[type]?.ic || 'hub',
+            etat: estAcquis ? 'acquis' : (prerequisOk && points > 0 ? 'dispo' : 'verrouille'),
+            verrou: estAcquis || (prerequisOk && points > 0)
+                ? null
+                : (prerequisOk ? 'points' : 'prerequis'),
+            prerequisNom: n.prerequis_id != null ? (parId.get(n.prerequis_id)?.nom ?? null) : null,
+        });
+        for (const e of enfants.get(n.id) ?? []) visiter(e, profondeur + 1);
+    };
+    for (const r of racines) visiter(r, 0);
+    return liste;
+}
+
+/** Un gain du payload .niveau.monte → texte affichable (format serveur
+ *  libre : chaîne, {libelle|texte|nom} ou effet passif {clé: +n}). */
+function gainVersTexte(gain) {
+    if (typeof gain === 'string') return gain;
+    if (gain == null || typeof gain !== 'object') return null;
+    if (gain.libelle || gain.texte || gain.nom) return gain.libelle ?? gain.texte ?? gain.nom;
+    const lignes = effetVersListe(gain);
+    return lignes.length ? lignes.map((l) => l.texte).join(' · ') : null;
+}
+
+/** .niveau.monte ({personnages}) → cartes du bandeau de célébration
+ *  [{id, nom, niveau, points, ic, gains: [textes]}] — l'icône de classe
+ *  vient des entités d'EtatGroupe quand elles sont connues. */
+export function niveauMonteVersListe(payload, entites = []) {
+    const classes = new Map((entites ?? [])
+        .filter((e) => e.type === 'heros')
+        .map((e) => [e.id, (e.classe ?? '').toLowerCase()]));
+    return (payload?.personnages ?? []).map((p) => ({
+        id: p.id,
+        nom: p.nom,
+        niveau: p.niveau,
+        points: p.points_competence ?? 0,
+        ic: CLASSES[classes.get(p.id) ?? (p.classe ?? '').toLowerCase()]?.ic ?? 'person',
+        gains: (p.gains ?? []).map(gainVersTexte).filter(Boolean),
+    }));
 }

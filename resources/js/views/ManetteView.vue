@@ -21,7 +21,8 @@ import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
     acteurCourant, CLASSES, initiativeVersMini, inventaireVendable, labelCourt,
-    marcheVersEchoppe, montantPanier, panierDuJoueur, useGameStore, voteVersFeuille,
+    marcheVersEchoppe, montantPanier, niveauMonteVersListe, panierDuJoueur,
+    useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -50,6 +51,11 @@ onMounted(async () => {
                 '.vote.lance': (e) => store.appliquerVote(e?.vote ?? e),
                 '.vote.maj': (e) => store.setVoteDecompte(e),
                 '.vote.resultat': (e) => store.setVoteResultat(e),
+                '.niveau.monte': (e) => {
+                    store.setNiveauMonte(e);
+                    // /moi rafraîchi : niveau + points_competence à jour.
+                    api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+                },
             }),
             souscrireJoueur(joueur.id, {
                 '.menu.propose': (e) => store.setMenu(e.menu),
@@ -95,7 +101,27 @@ const hero = computed(() => {
     const e = monEntite.value;
     if (!e) return HEROES[heroKey.value];
     const base = HEROES[CLASSES[(e.classe ?? '').toLowerCase()]?.demo ?? 'barb'];
-    return { ...base, name: e.nom, cls: CLASSES[(e.classe ?? '').toLowerCase()]?.l ?? e.classe };
+    return {
+        ...base,
+        name: e.nom,
+        cls: CLASSES[(e.classe ?? '').toLowerCase()]?.l ?? e.classe,
+        lvl: e.niveau ?? base.lvl,
+    };
+});
+
+/* ---- montée de niveau : mon personnage (/moi enrichi : niveau,
+   points_competence) + toast .niveau.monte → écran /niveau/:groupe ---- */
+const monPerso = computed(() => (monEntite.value
+    ? store.state.personnages?.find((p) => p.id === monEntite.value.id) ?? null
+    : null));
+const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
+
+const lvlupToast = computed(() => {
+    if (enDemo.value || !store.state.niveauMonte) return null;
+    const liste = niveauMonteVersListe(store.state.niveauMonte, store.state.etat?.entites);
+    if (!liste.length) return null;
+    const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
+    return liste.find((h) => ids.has(h.id)) ?? liste[0];
 });
 const body = computed(() => (monEntite.value
     ? { cur: monEntite.value.tombe ? 0 : monEntite.value.pv_body, max: monEntite.value.pv_body_max }
@@ -506,6 +532,9 @@ const navItems = computed(() => (scene.value === 'marche'
                             :hero-key="heroKey"
                             :body="body"
                             :mind="mind"
+                            :niveau="monEntite?.niveau ?? null"
+                            :points="pointsCompetence"
+                            :groupe="enDemo ? null : groupe"
                             @select-hero="heroKey = $event"
                         />
                         <SpellsTab v-else-if="tab === 'sorts'" :hero="hero" :mind="mind" @cast="beginSpell" />

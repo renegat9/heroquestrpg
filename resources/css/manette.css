@@ -116,6 +116,10 @@
 .fiche-head h2 { font-family: var(--font-display); font-size: 22px; margin: 0; color: var(--parch-100); letter-spacing: 0.02em; }
 .fiche-head .lvl { font-size: 13px; color: var(--torch); font-weight: 700; margin-top: 2px; }
 
+.fiche-head .pts-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 9px;
+  border-radius: 99px; font-size: 11px; font-weight: 800; text-decoration: none;
+  background: linear-gradient(180deg, var(--gold), var(--ember-deep)); color: var(--stone-950); box-shadow: var(--sh-1); }
+
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .stat { background: var(--stone-850); border: var(--line); border-radius: var(--r-md); padding: 12px 14px; }
 .stat .k { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; }
@@ -240,6 +244,22 @@
 .botnav button.on { color: var(--torch); }
 .botnav button.on .msym { font-variation-settings: 'FILL' 1,'wght' 500,'opsz' 24; }
 .botnav button .badge-dot { position: absolute; }
+
+/* ---- montée de niveau (toast .niveau.monte sur la manette) ---- */
+.lvlup-toast { position: absolute; left: 12px; right: 12px; bottom: 86px; z-index: 55;
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md);
+  background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.55), var(--stone-850)); border: var(--line-gold);
+  box-shadow: 0 0 22px oklch(0.80 0.135 88 / 0.3), var(--sh-2); animation: slideup .3s cubic-bezier(.2,.9,.3,1); }
+.lvlup-toast .seal { width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950); }
+.lvlup-toast .seal .msym { font-size: 22px; }
+.lvlup-toast .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lvlup-toast .tx b { font-family: var(--font-display); font-size: 13.5px; color: var(--gold); letter-spacing: 0.03em; }
+.lvlup-toast .tx span { font-size: 11.5px; color: var(--ink-300); font-weight: 600; }
+.lvlup-toast .go { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 9px 12px; border-radius: var(--r-sm);
+  font-size: 12.5px; font-weight: 800; text-decoration: none;
+  background: linear-gradient(180deg, var(--gold), var(--ember-deep)); color: var(--stone-950); box-shadow: var(--sh-1); }
+.lvlup-toast .x { flex: none; background: none; border: none; color: var(--ink-500); cursor: pointer; padding: 6px; display: grid; place-items: center; }
 
 /* MJ réfléchit bandeau */
 .think { display: inline-flex; align-items: center; gap: 9px; padding: 7px 13px; border-radius: 99px;

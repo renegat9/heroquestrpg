@@ -54,6 +54,15 @@ class Personnage extends Model
         return $this->belongsToMany(Competence::class, 'personnage_competences', 'personnage_id', 'competence_id');
     }
 
+    /**
+     * Points de compétence disponibles — JAMAIS stockés, toujours dérivés
+     * (contrat) : 1 point par niveau gagné, moins les nœuds déjà acquis.
+     */
+    public function pointsCompetence(): int
+    {
+        return max(0, ((int) $this->niveau - 1) - $this->competences()->count());
+    }
+
     /** Lignes d'inventaire (équipé + sac + consommables). */
     public function inventaire(): HasMany
     {

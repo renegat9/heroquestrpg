@@ -114,6 +114,90 @@ Broadcasts canal `groupe.{identifiant}` : `.vote.lance` ({vote}), `.vote.maj`
 ({decompte, exprimes, attendus}), `.vote.resultat` ({option_id, applique}) puis
 `.groupe.etat` si l'état a changé.
 
+## Pièges (doc 10 — tout passe par les menus, pas de nouvel endpoint)
+
+Cycle : **caché** (placé à l'assemblage) → **détecté** (action Fouiller réussie
+sur la zone ; auto pour un héros adjacent possédant le nœud *Œil du mineur*) →
+**désamorcé** / **franchi** / **déclenché**. L'état des pièges vit dans la carte
+de la quête.
+
+- **Déclenchement** : un héros qui entre sur la case d'un piège **caché**
+  (déplacement traversant inclus) le déclenche : effet immédiat (−1 PV Body de
+  départ, doc 10 §6), `fosse` = immobilisé (le déplacement s'arrête sur la
+  case), `piege_a_lances`/`chute_de_blocs` à usage unique. Journal + narration.
+- **Désamorcer** (option de menu si adjacent à un piège détecté) : jet de Body
+  difficulté 1, réservé au Nain OU à un porteur de la Trousse à outils ; échec
+  → le piège se déclenche sur le désamorceur (choix MVP, question ouverte n°3).
+- **Franchir une fosse détectée** (option de menu si adjacente) : jet de Body
+  difficulté 2 (départ playtest) ; échec = chute (effet de la fosse).
+- **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|desarme|declenche",
+  nom}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
+  pas). EtatGroupe.entites héros gagne `niveau`.
+
+## Montée de niveau (doc 01 §5 — par jalons)
+
+Déclencheur : quête `sous_boss` ou `boss_final` **terminée** (victoire). Chaque
+héros actif : **+1 niveau** ; à chaque niveau **pair**, +1 PV max (Body pour
+barbare/nain, Mind pour elfe/magicien — départ playtest). Les **points de
+compétence ne sont pas stockés** : `points_competence = (niveau − 1) −
+nb de nœuds acquis` (dérivé, toujours juste).
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert un nœud d'arbre (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
+| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [ids acquis]` |
+| GET | /api/competences | — | catalogue des arbres : `[{id, classe, nom, type, effet, prerequis_id}]` |
+
+À l'acquisition, les effets **passifs chiffrés** du nœud (`effet` JSON :
+`attribut_body/attribut_mind/des_attaque/des_defense/pv_body_max/pv_mind_max/
+deplacement_base/bonus_sac` +n) sont appliqués au personnage ; les nœuds
+`actif`/`deblocage` sont seulement enregistrés (résolution ultérieure). *Œil du
+mineur* (Nain) est lu par le moteur de pièges dès acquisition.
+
+Broadcast canal `groupe.{identifiant}` : `.niveau.monte`
+({personnages: [{id, nom, niveau, points_competence, gains: [...]}]}) émis à la
+clôture victorieuse d'une quête à jalon, avant `.groupe.etat`.
+
+## Sorts des héros (doc 02 — tout par les menus)
+
+**Connaissance par éléments** (connaître un élément = ses 3 sorts, pivot
+`personnage_sorts.disponible`) : le **Magicien** choisit **2 éléments** à la
+création (`POST joueurs` accepte `elements: ["feu","eau"]` — défaut feu+eau) ;
+l'**Elfe** gagne 1 élément en acquérant *Première magie* (`POST competences`
+accepte alors `element` — défaut eau) puis un autre via *Second élément* ;
+Barbare/Nain : parchemins seulement. Les nœuds *Écoles* du Magicien débloquent
+les éléments restants (même mécanique `element`).
+
+**Récupération (S5/S6)** : chaque sort est lançable **1×/quête** ; tout
+redevient disponible au démarrage d'une quête ; aucun repos en cours de quête.
+*Concentration* (nœud Magicien) : option de menu « Se concentrer » si le nœud
+est acquis, qu'un sort est épuisé et qu'elle n'a pas servi cette quête —
+sacrifie le tour, récupère UN sort au choix (`parametres: {sort_id}`).
+
+**Résolution (moteur, jamais l'IA)** — options de menu `type: "sort"`
+(`parametres: {sort_id, cible?}`) proposées au héros en quête :
+- `degats` (Boule de Feu 2 dés, Trait de Feu 1 dé, Génie 4 dés — départ
+  playtest) : dés de combat vs défense de la cible (règles de combat de base) ;
+  **tir ami possible (S3)** : les héros figurent dans les cibles légales.
+- `mental` (Sommeil, Tempête) : jet de Mind de la cible, binaire (S2), Mind 0
+  immunisé ; effet = condition (`endormi` : hors combat jusqu'à attaque ;
+  `tempete` : n'attaque pas à son prochain tour).
+- `utilitaire` : Soin du Corps / Eau de Guérison +4 PV Body (plafonné au max) ;
+  Courage +2 dés d'attaque (prochaine attaque) ; Peau de Pierre +2 dés de
+  défense (fin du combat) ; Voile de Brume inattaquable (prochain tour) ;
+  Vent Véloce déplacement ×2 (ce tour) ; Traverser la Pierre franchit un mur
+  (vaut le déplacement). Les effets temporaires vivent en
+  `personnage_conditions` (durée en tours) et sont appliqués par le moteur.
+
+**Parchemins (S1/S4)** : option `type: "parchemin"` (`parametres:
+{inventaire_id, cible?}`) si le héros en a au sac — lanceur (magicien/elfe) :
+réussite auto ; non-lanceur : jet de Mind à la difficulté du sort (1-3) ;
+**consommé dans tous les cas**, échec = gaspillé.
+
+`GET /api/moi` : chaque personnage expose `sorts: [{sort_id, nom, element,
+type, disponible}]` (et l'onglet Sorts de la manette s'en nourrit ; rafraîchi
+aussi via `.groupe.etat` → re-GET).
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

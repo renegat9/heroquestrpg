@@ -49,7 +49,7 @@ final class AssembleurCarte
      *   cases: list<list<string>>,
      *   salles: list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>,
      *   portes: list<array{x: int, y: int}>,
-     *   pieges: list<array{x: int, y: int, piege_id: int|null, declenche: bool}>,
+     *   pieges: list<array{x: int, y: int, piege_id: int|null, etat: string}>,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>
      * }
@@ -159,9 +159,13 @@ final class AssembleurCarte
      * Pièges du gabarit (structure.pieges.min), un par couloir, au milieu —
      * le premier piège du catalogue sert de bloc d'effet (l'IA habillera).
      *
+     * Cycle de vie (doc 10 §2) : chaque piège démarre `cache`, puis passe à
+     * `detecte` (fouille / Œil du mineur), `desarme`, ou `declenche` — l'état
+     * vit ici, dans la grille JSON de la carte de la quête (MoteurPieges).
+     *
      * @param  array<string, mixed>  $structure
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>  $salles
-     * @return list<array{x: int, y: int, piege_id: int|null, declenche: bool}>
+     * @return list<array{x: int, y: int, piege_id: int|null, etat: string}>
      */
     private function placerPieges(array $structure, array $salles, int $ligneMediane): array
     {
@@ -175,7 +179,7 @@ final class AssembleurCarte
                 'x' => $salles[$i]['x'] + $salles[$i]['largeur'] + intdiv(self::LONGUEUR_COULOIR, 2),
                 'y' => $ligneMediane,
                 'piege_id' => $piegeId,
-                'declenche' => false,
+                'etat' => 'cache',
             ];
         }
 

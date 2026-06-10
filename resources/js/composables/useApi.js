@@ -149,6 +149,19 @@ export function useApi() {
         /** DELETE /groupes/{id}/marche — annule la phase (rien appliqué). */
         annulerMarche: (identifiant) => request('DELETE', `/groupes/${identifiant}/marche`),
 
+        // ---- montée de niveau (contrat « Montée de niveau ») ----
+
+        /** GET /api/competences → catalogue des arbres [{id, classe, nom, type, effet, prerequis_id}]. */
+        getCompetences: () => request('GET', '/competences'),
+
+        /**
+         * POST /groupes/{id}/competences {personnage_id, competence_id} —
+         * acquiert un nœud d'arbre (422 : pas son héros, classe différente,
+         * prérequis manquant, aucun point).
+         */
+        acquerirCompetence: (identifiant, payload) =>
+            request('POST', `/groupes/${identifiant}/competences`, payload),
+
         // ---- votes de groupe (contrat « Votes de groupe ») ----
 
         /** POST /groupes/{id}/votes {type, question?, options?, cible_joueur_id?} → lance le vote. */

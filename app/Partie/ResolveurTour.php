@@ -25,9 +25,13 @@ use Illuminate\Validation\ValidationException;
  * le moteur fait autorité, l'IA ne résout jamais une mécanique :
  *
  *  - deplacement : Engine\Deplacement (base + 1d6) + plus court chemin
- *    orthogonal sur la grille (cases occupées infranchissables) ;
+ *    orthogonal sur la grille (cases occupées infranchissables) — chaque
+ *    case TRAVERSÉE peut déclencher un piège caché (MoteurPieges) ;
  *  - attaque     : Engine\Combat, cible monstre actif ADJACENT (orthogonal) ;
- *  - jet         : Engine\JetCompetence (Body/Mind, difficulté 1-4) ;
+ *  - jet         : Engine\JetCompetence (Body/Mind, difficulté 1-4) — la
+ *    fouille réussie révèle les pièges cachés autour du héros ;
+ *  - desamorcage / franchissement : options de piège du MenuMoteur (doc 10
+ *    §4), jets de Body résolus ici ;
  *  - dialogue / action / attente : journal seulement.
  *
  * Le héros est marqué a_joue ; l'ordre d'initiative figé (C1) est imposé.
@@ -35,14 +39,23 @@ use Illuminate\Validation\ValidationException;
  * (C2 : se rapprocher du héros le plus proche, attaquer si adjacent — résolu
  * par le moteur, jamais par le LLM), puis un nouveau tour commence.
  * Fin de quête détectée : tous les monstres vaincus → quête terminée, retour
- * au hub, or du butin du gabarit versé au pot commun. Tous les héros tombés
- * → quête échouée, retour au hub.
+ * au hub, or du butin du gabarit versé au pot commun — et montée de niveau
+ * si la quête est un jalon (sous_boss / boss_final, MonteeNiveau). Tous les
+ * héros tombés → quête échouée, retour au hub.
  */
 final class ResolveurTour
 {
+    /** Difficulté du jet de Body pour désamorcer (départ playtest, doc 10 §10). */
+    public const DIFFICULTE_DESAMORCAGE = 1;
+
+    /** Difficulté du jet de Body pour franchir une fosse (départ playtest). */
+    public const DIFFICULTE_FRANCHISSEMENT = 2;
+
     public function __construct(
         private readonly LanceurDes $des,
         private readonly EtatGroupe $etatGroupe,
+        private readonly MoteurPieges $pieges,
+        private readonly MonteeNiveau $monteeNiveau,
     ) {}
 
     /**
@@ -76,10 +89,21 @@ final class ResolveurTour
         $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
+            // Œil du mineur (nœud nain) : détection automatique des pièges
+            // adjacents au début de chaque action du héros (doc 10 §3).
+            if ($quete->carte !== null && $etat->position_x !== null) {
+                $this->pieges->detecterAdjacents(
+                    $groupe, $quete->carte, $personnage,
+                    (int) $etat->position_x, (int) $etat->position_y,
+                );
+            }
+
             $resultat = match ($option['type']) {
                 'deplacement' => $this->resoudreDeplacement($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'attaque' => $this->resoudreAttaque($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
-                'jet' => $this->resoudreJet($groupe, $personnage, $option, $acteur),
+                'jet' => $this->resoudreJet($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'desamorcage' => $this->resoudreDesamorcage($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -171,18 +195,33 @@ final class ResolveurTour
         $mouvement = (new Deplacement($this->des))->calculer((int) $personnage->deplacement_base);
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
-        $distance = $grille->distance((int) $etat->position_x, (int) $etat->position_y, $x, $y);
+        $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
-        if ($distance === null || $distance === 0) {
+        if ($chemin === null || $chemin === []) {
             throw ValidationException::withMessages(['parametres' => 'Destination inaccessible (mur, case occupée ou sur place).']);
         }
+
+        $distance = count($chemin);
+
         if ($distance > $mouvement->total) {
             throw ValidationException::withMessages([
                 'parametres' => "Destination hors de portée : {$distance} cases pour {$mouvement->total} de déplacement.",
             ]);
         }
 
-        $etat->update(['position_x' => $x, 'position_y' => $y]);
+        // Pièges cachés sur les cases TRAVERSÉES (chemin BFS, arrivée incluse) :
+        // déclenchement immédiat ; une fosse (ou un héros tombé) arrête le
+        // déplacement sur la case du piège (doc 10 §5).
+        $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin);
+        $arrivee = $controle['arret'] ?? ['x' => $x, 'y' => $y];
+
+        $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+
+        // Œil du mineur : les pièges adjacents à la case d'arrivée sont
+        // auto-détectés (doc 10 §3).
+        if (! $etat->tombe) {
+            $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
+        }
 
         $payload = [
             'type' => 'deplacement',
@@ -191,7 +230,9 @@ final class ResolveurTour
             'de' => $mouvement->de,
             'deplacement_total' => $mouvement->total,
             'distance' => $distance,
-            'vers' => ['x' => $x, 'y' => $y],
+            'vers' => $arrivee,
+            'interrompu' => $controle['arret'] !== null,
+            'pieges_declenches' => $controle['declenchements'],
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -272,8 +313,14 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    private function resoudreJet(Groupe $groupe, Personnage $personnage, array $option, array $acteur): array
-    {
+    private function resoudreJet(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
         $attribut = $option['jet']['attribut'] ?? null;
         $difficulte = (int) ($option['jet']['difficulte'] ?? 0);
 
@@ -295,6 +342,16 @@ final class ResolveurTour
             'issue' => $resultat->issue->value,
             'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
         ];
+
+        // Fouille RÉUSSIE : les pièges cachés dans le rayon de fouille
+        // autour du héros sont révélés (doc 10 §3, MoteurPieges).
+        if ($option['id'] === 'fouiller' && $resultat->estReussi()
+            && $quete->carte !== null && $etat->position_x !== null) {
+            $payload['pieges_reveles'] = $this->pieges->revelerAutour(
+                $groupe, $quete->carte, $personnage,
+                (int) $etat->position_x, (int) $etat->position_y,
+            );
+        }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
 

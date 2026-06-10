@@ -9,6 +9,12 @@ defineProps({
     heroKey: { type: String, required: true },
     body: { type: Object, required: true },
     mind: { type: Object, required: true },
+    /** Niveau réel (EtatGroupe.entites héros) — null en démo (hero.lvl). */
+    niveau: { type: Number, default: null },
+    /** Points de compétence disponibles (/moi : points_competence). */
+    points: { type: Number, default: 0 },
+    /** Identifiant du groupe (lien vers l'écran montée de niveau). */
+    groupe: { type: String, default: null },
 });
 
 const emit = defineEmits(['select-hero']);
@@ -33,7 +39,19 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
 
         <div class="fiche-head">
             <div class="portrait"><MSym :n="hero.icon" fill :size="44" /><span class="ph-tag">portrait classe</span></div>
-            <div><h2>{{ hero.name }}</h2><div class="lvl">{{ hero.cls }} · Niveau {{ hero.lvl }}</div></div>
+            <div>
+                <h2>{{ hero.name }}</h2>
+                <div class="lvl">{{ hero.cls }} · Niveau {{ niveau ?? hero.lvl }}</div>
+                <RouterLink
+                    v-if="points > 0 && groupe"
+                    class="pts-badge"
+                    :to="{ name: 'montee-niveau', params: { groupe } }"
+                >
+                    <MSym n="hub" fill :size="14" />
+                    +{{ points }} point{{ points > 1 ? 's' : '' }} de compétence
+                    <MSym n="chevron_right" :size="14" />
+                </RouterLink>
+            </div>
         </div>
 
         <div class="sect-title"><MSym n="casino" :size="16" /> Attributs (dés de jet)</div>

@@ -111,6 +111,13 @@ export const TABLE_ENTITIES = [
     { x: 4, y: 1, k: 'chest', ic: 'inventory_2' },
 ];
 
+/** Pièges visibles (contrat carte.pieges — les cachés n'arrivent jamais). */
+export const TABLE_TRAPS = [
+    { x: 9, y: 2, etat: 'detecte', nom: 'Fosse', titre: 'Fosse — détectée' },
+    { x: 2, y: 5, etat: 'desarme', nom: 'Piège à lances', titre: 'Piège à lances — désarmé' },
+    { x: 8, y: 5, etat: 'declenche', nom: 'Chute de blocs', titre: 'Chute de blocs — déclenchée' },
+];
+
 /** Construit le terrain de la maquette Table.html (14 × 9). */
 export function buildTableMap() {
     const C = 14;

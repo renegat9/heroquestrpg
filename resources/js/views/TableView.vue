@@ -13,12 +13,12 @@ import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import CombatOverlay from '../components/table/CombatOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
-import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY } from '../data/demo';
+import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRAPS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
     carteVersMap, entitesVersFigurines, entitesVersGroupe, initiativeVersBarre,
-    useGameStore, voteVersFeuille,
+    niveauMonteVersListe, piegesVersMarqueurs, useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -44,6 +44,7 @@ onMounted(async () => {
             '.vote.lance': (e) => store.appliquerVote(e?.vote ?? e),
             '.vote.maj': (e) => store.setVoteDecompte(e),
             '.vote.resultat': (e) => store.setVoteResultat(e),
+            '.niveau.monte': (e) => store.setNiveauMonte(e),
         }));
         // Rattrapage : phase marché ou vote déjà en cours (rechargement).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
@@ -65,6 +66,7 @@ const enQuete = computed(() => !!etat.value?.carte);
 
 const demoMap = buildTableMap();
 const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : demoMap));
+const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : TABLE_TRAPS));
 const entities = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : TABLE_ENTITIES));
@@ -142,6 +144,20 @@ watch(() => store.state.voteResultat, (r) => {
 });
 onUnmounted(() => clearTimeout(voteTimer));
 
+/* ---- montée de niveau (.niveau.monte, avant .groupe.etat) : bandeau de
+   célébration doré (style maquette Montee de niveau.html) avec les gains
+   par héros, refermé après quelques secondes ou d'un clic. ---- */
+const niveauMonte = computed(() => {
+    const heros = niveauMonteVersListe(store.state.niveauMonte, store.state.etat?.entites);
+    return heros.length ? heros : null;
+});
+let lvlTimer = null;
+watch(() => store.state.niveauMonte, (p) => {
+    clearTimeout(lvlTimer);
+    if (p) lvlTimer = setTimeout(() => store.fermerNiveauMonte(), 14000);
+});
+onUnmounted(() => clearTimeout(lvlTimer));
+
 /* ---- overlay de combat (séquence visuelle, mode démo) ---- */
 const combatRef = ref(null);
 </script>
@@ -189,7 +205,30 @@ const combatRef = ref(null);
                         <p v-if="erreurLancement" class="hub-err">{{ erreurLancement }}</p>
                         <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
                     </div>
-                    <DungeonMap v-else :map="map" :entities="entities" />
+                    <DungeonMap v-else :map="map" :entities="entities" :traps="traps" />
+                    <!-- montée de niveau : célébration dorée (gains par héros) -->
+                    <div v-if="niveauMonte" class="lvlup-ov" @click="store.fermerNiveauMonte()">
+                        <div class="panel">
+                            <div class="seal"><MSym n="military_tech" fill /></div>
+                            <h2>Montée de niveau&nbsp;!</h2>
+                            <p class="sub">Le jalon est franchi — les héros gagnent en puissance.</p>
+                            <div class="lv-heroes">
+                                <div v-for="h in niveauMonte" :key="h.id" class="lv-hero">
+                                    <span class="crest"><MSym :n="h.ic" fill /></span>
+                                    <div class="hn">{{ h.nom }}</div>
+                                    <div class="lv">Niv. {{ h.niveau }}</div>
+                                    <ul v-if="h.gains.length" class="gains">
+                                        <li v-for="(g, i) in h.gains" :key="i">
+                                            <MSym n="auto_awesome" fill :size="13" /> {{ g }}
+                                        </li>
+                                    </ul>
+                                    <span v-if="h.points > 0" class="pts">
+                                        <MSym n="hub" fill :size="14" /> +{{ h.points }} point{{ h.points > 1 ? 's' : '' }} de compétence
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <!-- vote de groupe : bandeau de décompte en direct -->
                     <div v-if="voteTable" class="vote-band">
                         <MSym n="how_to_vote" fill :size="20" />
@@ -288,6 +327,21 @@ const combatRef = ref(null);
 .table-screen .fig .hp { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5px; }
 .table-screen .fig .hp i { width: 4px; height: 4px; border-radius: 1px; background: var(--body-bright); border: 0.5px solid oklch(0 0 0 / 0.4); }
 
+/* pièges (couche dédiée — contrat « Pièges » : detecte / desarme / declenche) */
+.table-screen .trap-holder { position: relative; z-index: 3; pointer-events: none; }
+.table-screen .trap { position: absolute; inset: 10%; border-radius: 6px; display: grid; place-items: center; }
+.table-screen .trap .msym { font-size: clamp(12px, 1.3vw, 20px); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+.table-screen .trap.detecte { color: var(--warn); background: oklch(0.78 0.15 75 / 0.13);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); animation: trappulse 2.2s ease-in-out infinite; }
+@keyframes trappulse { 50% { box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.95); } }
+.table-screen .trap.desarme { color: var(--ink-600); background: oklch(0.3 0.01 255 / 0.4);
+  box-shadow: inset 0 0 0 1px oklch(0.4 0.01 255 / 0.5); opacity: 0.75; }
+.table-screen .trap.desarme::after { content: ""; position: absolute; left: 14%; right: 14%; top: 50%; height: 2px;
+  background: var(--ink-500); transform: rotate(-24deg); border-radius: 2px; }
+.table-screen .trap.declenche { inset: 6%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
+  box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
+
 /* halos de torche sur la carte */
 .table-screen .torchspot { position: absolute; width: 30%; height: 36%; border-radius: 50%; pointer-events: none; z-index: 1;
   background: radial-gradient(circle, oklch(0.76 0.155 65 / 0.16), transparent 70%); animation: flick 3s ease-in-out infinite; }
@@ -369,6 +423,33 @@ const combatRef = ref(null);
 .table-screen .hub-panel .msym { color: var(--torch); }
 .table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
+
+/* ---- montée de niveau (célébration dorée, style Montee de niveau.html) ---- */
+.table-screen .lvlup-ov { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: oklch(0.16 0.012 255 / 0.78); backdrop-filter: blur(3px); animation: fadein .25s ease; cursor: pointer; }
+.table-screen .lvlup-ov .panel { background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.45), var(--stone-900));
+  border: var(--line-gold); border-radius: var(--r-xl); box-shadow: 0 0 40px oklch(0.80 0.135 88 / 0.25), var(--sh-3);
+  padding: 26px 34px 28px; text-align: center; max-width: min(860px, 92%); }
+.table-screen .lvlup-ov .seal { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 12px;
+  background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950);
+  box-shadow: 0 0 28px oklch(0.80 0.135 88 / 0.5); animation: lvlpop .4s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes lvlpop { from { transform: scale(0.4); opacity: 0; } }
+.table-screen .lvlup-ov .seal .msym { font-size: 40px; }
+.table-screen .lvlup-ov h2 { font-family: var(--font-display); font-size: 26px; color: var(--gold); margin: 0 0 4px; letter-spacing: 0.04em; }
+.table-screen .lvlup-ov .sub { font-family: var(--font-narr); font-style: italic; color: var(--ink-300); font-size: 15px; margin: 0 0 18px; }
+.table-screen .lv-heroes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.table-screen .lv-hero { background: var(--stone-850); border: 1px solid oklch(0.62 0.08 80 / 0.4); border-radius: var(--r-md);
+  padding: 14px 16px; min-width: 160px; max-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.table-screen .lv-hero .crest { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950); margin-bottom: 4px; }
+.table-screen .lv-hero .crest .msym { font-size: 24px; }
+.table-screen .lv-hero .hn { font-family: var(--font-display); font-size: 14px; color: var(--parch-100); letter-spacing: 0.02em; }
+.table-screen .lv-hero .lv { font-size: 12px; font-weight: 800; color: var(--gold); }
+.table-screen .lv-hero .gains { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.table-screen .lv-hero .gains li { font-size: 11.5px; color: var(--ink-300); display: flex; align-items: center; gap: 5px; }
+.table-screen .lv-hero .gains .msym { color: var(--gold); }
+.table-screen .lv-hero .pts { margin-top: 8px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800;
+  color: var(--stone-950); background: var(--gold); border-radius: 99px; padding: 3px 10px; }
 
 /* ---- bandeau de vote (décompte en direct) ---- */
 .table-screen .vote-band { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20;
