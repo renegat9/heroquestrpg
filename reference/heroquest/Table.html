@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heroquest IA — Écran de table</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { font-family: var(--font-ui); background: #000; color: var(--ink-100); overflow: hidden; --ambiance: 0.62; }
+  .msym { font-family: 'Material Symbols Outlined'; font-weight: normal; line-height: 1; display: inline-block;
+    white-space: nowrap; -webkit-font-feature-settings: 'liga'; vertical-align: middle; font-variation-settings: 'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings: 'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .table { position: relative; width: 100vw; height: 100vh; display: grid;
+    grid-template-rows: auto 1fr auto; gap: 14px; padding: 16px 20px 18px; }
+  .table.tex-stone::before { content:""; position:absolute; inset:0;
+    background: radial-gradient(70% 60% at 30% 0%, oklch(0.76 0.155 65 / 0.12), transparent 60%),
+                radial-gradient(60% 50% at 95% 10%, oklch(0.62 0.17 42 / 0.10), transparent 60%); pointer-events:none; }
+
+  /* ---- top bar ---- */
+  .top { display: flex; align-items: center; gap: 22px; z-index: 3; }
+  .quest { display: flex; flex-direction: column; }
+  .quest .ep { font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ember); font-weight: 700; }
+  .quest h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 2vw, 30px); margin: 2px 0 0;
+    color: var(--parch-100); letter-spacing: 0.03em; }
+  .init { display: flex; align-items: center; gap: 10px; margin: 0 auto; }
+  .init .ttl { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; margin-right: 4px; }
+  .tok { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px;
+    background: var(--stone-800); border: 2px solid var(--stone-600); color: var(--ink-300); position: relative; transition: all .3s; }
+  .tok.cur { border-color: var(--torch); background: var(--torch); color: var(--stone-950); box-shadow: var(--glow-torch); transform: scale(1.14); }
+  .tok.foe { border-color: var(--body); color: var(--body-bright); }
+  .tok .no { position: absolute; bottom: -7px; right: -4px; font-size: 9px; background: var(--stone-900); border: 1px solid var(--stone-600);
+    border-radius: 99px; padding: 1px 5px; color: var(--ink-400); }
+  .init .arrow { color: var(--ink-700); }
+  .status-top { display: flex; align-items: center; gap: 14px; }
+  .think { display: inline-flex; align-items: center; gap: 9px; padding: 8px 15px; border-radius: 99px;
+    background: var(--stone-850); border: var(--line-gold); color: var(--torch); font-size: 13px; font-weight: 700; }
+  .think .dots { display: inline-flex; gap: 4px; } .think .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--torch); animation: bd 1.2s ease-in-out infinite; }
+  .think .dots i:nth-child(2){animation-delay:.2s} .think .dots i:nth-child(3){animation-delay:.4s}
+  @keyframes bd { 0%,100%{opacity:.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+  .conn { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ok); }
+  .conn .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+
+  /* ---- main : map + group panel ---- */
+  .main { display: grid; grid-template-columns: 1fr 320px; gap: 18px; min-height: 0; z-index: 2; }
+  .map-wrap { position: relative; display: grid; place-items: center; min-height: 0; }
+  .map { display: grid; gap: 3px; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
+    grid-template-columns: repeat(14, 1fr); grid-template-rows: repeat(9, 1fr);
+    padding: 14px; border-radius: var(--r-lg); background: oklch(0.12 0.01 255);
+    box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6); }
+  .cell { border-radius: 3px; position: relative; }
+  .cell.void { background: transparent; }
+  .cell.wall { background:
+      linear-gradient(160deg, oklch(0.30 0.014 255), oklch(0.22 0.012 255));
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -2px 3px oklch(0 0 0 / 0.5);
+      border: 1px solid oklch(0.34 0.016 255 / 0.5); }
+  .cell.floor, .cell.door { background:
+      linear-gradient(150deg, oklch(0.235 0.013 255), oklch(0.20 0.012 255));
+      box-shadow: inset 0 0 0 1px oklch(0.3 0.014 255 / 0.35); }
+  .cell.door::after { content:""; position:absolute; inset: 18% 30%; border-radius: 2px;
+      background: repeating-linear-gradient(90deg, var(--ember-deep) 0 3px, oklch(0.3 0.05 40) 3px 6px); opacity: 0.8; }
+  .cell.fog { background: oklch(0.16 0.01 255); }
+  .cell.fog::after { content:""; position:absolute; inset:0; border-radius:3px;
+      background: radial-gradient(circle at 50% 40%, oklch(0.26 0.015 255 / 0.6), oklch(0.1 0.008 255 / 0.95));
+      backdrop-filter: blur(1px); }
+  .cell.range { box-shadow: inset 0 0 0 2px oklch(0.76 0.155 65 / 0.45); background:
+      linear-gradient(150deg, oklch(0.28 0.04 75), oklch(0.235 0.025 75)); animation: rangepulse 2.4s ease-in-out infinite; }
+  @keyframes rangepulse { 50% { box-shadow: inset 0 0 0 2px oklch(0.76 0.155 65 / 0.85); } }
+
+  /* figurines */
+  .fig { position: absolute; inset: 8%; border-radius: 50%; display: grid; place-items: center; z-index: 4;
+    font-weight: 800; font-size: clamp(10px, 1vw, 15px); box-shadow: var(--sh-2); border: 2px solid; }
+  .fig .msym { font-size: clamp(14px, 1.4vw, 22px); }
+  .fig.hero { background: linear-gradient(160deg, var(--stone-300), var(--stone-500)); color: var(--stone-950); border-color: var(--parch-100); }
+  .fig.foe { background: linear-gradient(160deg, var(--body-bright), var(--ember-deep)); color: var(--parch-100); border-color: oklch(0.7 0.18 28); }
+  .fig.cur { box-shadow: var(--glow-torch), var(--sh-2); border-color: var(--torch); animation: figpulse 2s ease-in-out infinite; }
+  @keyframes figpulse { 50% { box-shadow: 0 0 0 3px oklch(0.76 0.155 65 / 0.7), 0 0 28px oklch(0.76 0.155 65 / 0.5); } }
+  .fig.chest { background: linear-gradient(160deg, var(--gold), var(--ember-deep)); border-color: var(--gold); color: var(--stone-950); }
+  .fig.tgt::before { content:""; position:absolute; inset:-7px; border-radius:50%; border:2px dashed var(--body-bright); animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fig .hp { position:absolute; bottom:-3px; left:50%; transform:translateX(-50%); display:flex; gap:1.5px; }
+  .fig .hp i { width:4px; height:4px; border-radius:1px; background: var(--body-bright); border:0.5px solid oklch(0 0 0 /0.4); }
+
+  /* torch flicker light spots on map */
+  .torchspot { position:absolute; width: 30%; height: 36%; border-radius:50%; pointer-events:none; z-index:1;
+    background: radial-gradient(circle, oklch(0.76 0.155 65 / 0.16), transparent 70%); animation: flick 3s ease-in-out infinite; }
+
+  @keyframes flick { 0%,100%{opacity:.7} 45%{opacity:1} 70%{opacity:.55} }
+
+  /* ---- group panel ---- */
+  .group { background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); border: var(--line); border-radius: var(--r-lg);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .group h2 { font-family: var(--font-display); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-300);
+    margin: 2px 4px 4px; display: flex; align-items: center; gap: 8px; }
+  .hcard { background: var(--stone-850); border: var(--line); border-radius: var(--r-md); padding: 10px 12px; transition: all .25s; }
+  .hcard.acting { border-color: var(--torch); box-shadow: var(--glow-torch); background: oklch(0.27 0.02 75 / 0.5); }
+  .hcard.downed { opacity: 0.6; border-color: var(--danger); }
+  .hcard .hh { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .hcard .crest { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none;
+    background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); }
+  .hcard .hn { font-family: var(--font-display); font-size: 14px; color: var(--parch-100); letter-spacing: 0.02em; line-height: 1.05; }
+  .hcard .hc { font-size: 10.5px; color: var(--ink-500); font-weight: 600; }
+  .hcard .conds { margin-left: auto; display: flex; gap: 4px; }
+  .mini-badge { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; border: 1px solid currentColor; }
+  .mini-badge .msym { font-size: 14px; }
+  .b-poison{color:var(--cond-poison);background:oklch(0.68 0.165 145/0.14)} .b-buff{color:var(--cond-buff);background:oklch(0.8 0.13 90/0.14)}
+  .b-burn{color:var(--cond-burn);background:oklch(0.64 0.19 45/0.14)}
+  .pv-line { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+  .pv-line .lab { width: 38px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; }
+  .pv-line .pips { display: flex; gap: 2px; flex: 1; }
+  .pv-line .pip { height: 9px; flex: 1; border-radius: 2px; background: oklch(0.3 0.01 255); }
+  .pv-line .pip.b { background: linear-gradient(180deg, var(--body-bright), var(--body)); }
+  .pv-line .pip.m { background: linear-gradient(180deg, var(--mind-bright), var(--mind)); }
+  .pv-line .num { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; width: 30px; text-align: right; color: var(--ink-300); }
+  .downed-tag { font-size: 10px; color: var(--danger); font-weight: 800; display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+
+  /* ---- narration band ---- */
+  .narr { z-index: 3; display: flex; align-items: center; gap: 16px; padding: 16px 22px; border-radius: var(--r-lg);
+    background: linear-gradient(180deg, oklch(0.22 0.014 255 / 0.96), oklch(0.17 0.012 255 / 0.96));
+    border: var(--line); border-left: 4px solid var(--torch); box-shadow: var(--sh-2); }
+  .narr .av { width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); box-shadow: var(--sh-1); }
+  .narr .av .msym { font-size: 28px; }
+  .narr .body { flex: 1; min-width: 0; }
+  .narr .who { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.12em; color: var(--torch); font-weight: 700; }
+  .narr p { font-family: var(--font-narr); font-size: clamp(16px, 1.5vw, 22px); line-height: 1.4; margin: 4px 0 0; color: var(--ink-100); }
+  .narr .tts { display: flex; align-items: flex-end; gap: 3px; height: 26px; flex: none; }
+  .narr .tts i { width: 4px; background: var(--torch); border-radius: 2px; animation: eq 0.9s ease-in-out infinite; }
+  .narr .tts i:nth-child(2){animation-delay:.12s} .narr .tts i:nth-child(3){animation-delay:.24s}
+  .narr .tts i:nth-child(4){animation-delay:.36s} .narr .tts i:nth-child(5){animation-delay:.48s}
+  @keyframes eq { 0%,100%{height:5px} 50%{height:26px} }
+  .replay { margin-left: auto; }
+  .btn { border: none; border-radius: var(--r-md); padding: 11px 17px; font-family: var(--font-ui); font-weight: 700; font-size: 14px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: var(--stone-800); color: var(--ink-100); border: var(--line-strong); transition: transform .1s; }
+  .btn:active { transform: scale(0.97); } .btn.torch { background: var(--torch); color: var(--stone-950); border: none; }
+
+  /* ---- combat resolution overlay ---- */
+  .combat { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity .3s; }
+  .combat.show { opacity: 1; }
+  .combat .panel { background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); border: var(--line-strong); border-radius: var(--r-xl);
+    padding: 26px 36px; box-shadow: var(--sh-3); text-align: center; min-width: 460px; transform: translateY(12px); transition: transform .3s; }
+  .combat.show .panel { transform: translateY(0); }
+  .combat .ctitle { font-family: var(--font-display); font-size: 19px; color: var(--parch-100); letter-spacing: 0.03em; margin-bottom: 18px; }
+  .combat .ctitle b { color: var(--torch); } .combat .ctitle .foe { color: var(--body-bright); }
+  .dice-stage { display: flex; align-items: center; justify-content: center; gap: 26px; }
+  .dgrp { text-align: center; } .dgrp .gl { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--ink-500); margin-bottom: 10px; }
+  .dice-row { display: flex; gap: 12px; justify-content: center; }
+  .die { width: 58px; height: 58px; border-radius: 13px; display: grid; place-items: center;
+    background: linear-gradient(150deg, var(--parch-100), var(--parch-300)); box-shadow: var(--sh-2), var(--sh-inset); border: 1px solid oklch(0.55 0.05 70 / 0.6); }
+  .die .msym { font-size: 32px; }
+  .die.skull .msym { color: var(--body); } .die.shield .msym { color: var(--mind); } .die.blank .msym { color: oklch(0.6 0.04 70); }
+  .die.rolling { animation: roll .45s cubic-bezier(.3,1.3,.6,1) infinite; }
+  @keyframes roll { 0%{transform:rotate(0) scale(1)} 50%{transform:rotate(180deg) scale(.88)} 100%{transform:rotate(360deg) scale(1)} }
+  .die.reveal { animation: pop .35s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } }
+  .vs { font-family: var(--font-display); color: var(--ink-500); font-size: 22px; }
+  .verdict { margin-top: 20px; font-family: var(--font-display); font-size: 24px; color: var(--parch-100); opacity: 0; transition: opacity .3s .2s; }
+  .verdict.show { opacity: 1; } .verdict .dmg { color: var(--body-bright); }
+</style>
+</head>
+<body>
+<div class="table tex-stone tex-vignette" style="position:relative;">
+
+  <!-- top -->
+  <div class="top">
+    <div class="quest">
+      <a href="index.html" style="text-decoration:none;color:var(--ink-500);font-size:11px;font-weight:700;letter-spacing:0.08em;display:inline-flex;align-items:center;gap:4px;margin-bottom:4px;"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a>
+      <span class="ep">Quête III · La crypte d'ambre</span>
+      <h1>Le Seuil des Ombres</h1>
+    </div>
+    <div class="init" id="init"></div>
+    <div class="status-top">
+      <div class="think"><span class="dots"><i></i><i></i><i></i></span> Le MJ réfléchit…</div>
+      <div class="conn"><span class="dot"></span>4 joueurs connectés</div>
+    </div>
+  </div>
+
+  <!-- main -->
+  <div class="main">
+    <div class="map-wrap">
+      <div class="torchspot" style="left:8%;top:20%"></div>
+      <div class="torchspot" style="right:14%;bottom:14%;animation-delay:1.2s"></div>
+      <div class="map" id="map"></div>
+      <!-- combat overlay -->
+      <div class="combat" id="combat">
+        <div class="panel">
+          <div class="ctitle" id="ctitle"><b>Sylanwë</b> attaque le <span class="foe">Gobelin</span></div>
+          <div class="dice-stage">
+            <div class="dgrp"><div class="gl">Attaque · crânes</div><div class="dice-row" id="atkRow"></div></div>
+            <div class="vs">vs</div>
+            <div class="dgrp"><div class="gl">Défense · boucliers</div><div class="dice-row" id="defRow"></div></div>
+          </div>
+          <div class="verdict" id="verdict"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- group panel -->
+    <div class="group">
+      <h2><span class="msym fill">groups</span> Le groupe</h2>
+      <div id="party"></div>
+    </div>
+  </div>
+
+  <!-- narration -->
+  <div class="narr">
+    <div class="av"><span class="msym fill">menu_book</span></div>
+    <div class="body">
+      <div class="who">LE MAÎTRE DE JEU</div>
+      <p id="narrText">Une lueur d'ambre danse sur les murs suintants. Trois ombres trapues se redressent en grognant — l'Elfe encoche déjà une flèche…</p>
+    </div>
+    <div class="tts"><i></i><i></i><i></i><i></i><i></i></div>
+    <button class="btn torch replay" id="replay"><span class="msym">replay</span> Rejouer le combat</button>
+  </div>
+</div>
+
+<script>
+const C=14, R=9;
+// --- terrain ---
+const g = Array.from({length:R},()=>Array.from({length:C},()=>'void'));
+const fill=(x,y,w,h,t)=>{for(let j=y;j<y+h;j++)for(let i=x;i<x+w;i++) if(g[j]&&g[j][i]!==undefined) g[j][i]=t;};
+fill(0,0,C,R,'void');
+// rooms (with wall borders drawn by ring)
+function room(x,y,w,h){ fill(x,y,w,h,'wall'); fill(x+1,y+1,w-2,h-2,'floor'); }
+room(0,0,6,5);        // Room A (haut-gauche)
+room(6,0,6,5);        // Room C (haut-centre)
+room(0,4,8,5);        // Hall (bas-gauche)
+room(7,4,7,5);        // Room D (bas-droite)
+// corridors / doors
+g[2][5]='door'; g[2][6]='floor';       // A <-> C
+g[4][2]='door';                         // A <-> Hall
+g[4][9]='door';                         // C <-> D
+g[5][7]='floor'; g[6][7]='floor';       // hall <-> D open
+g[2][8]='floor';
+// fog room (droite haut, inexploré)
+fill(11,1,3,3,'fog'); g[2][11]='floor'; g[2][10]='door';
+// some inner walls for texture
+g[6][4]='wall'; g[5][4]='wall';
+
+// --- entities ---
+const ENT = [
+  {x:1,y:1, k:'hero', l:'BAR', ic:'sports_martial_arts'},
+  {x:2,y:6, k:'hero', l:'NAI', ic:'construction'},
+  {x:3,y:6, k:'hero', l:'MAG', ic:'auto_fix_high'},
+  {x:7,y:1, k:'hero', l:'ELF', ic:'park', cur:true},
+  {x:9,y:1, k:'foe', l:'G1', ic:'sentiment_very_dissatisfied', hp:1, tgt:true},
+  {x:8,y:6, k:'foe', l:'G2', ic:'sentiment_very_dissatisfied', hp:1},
+  {x:10,y:6,k:'foe', l:'ORC', ic:'crew', hp:3},
+  {x:4,y:1, k:'chest', ic:'inventory_2'},
+];
+// movement range for current hero (ELF at 7,1)
+const RANGE = [[8,1],[8,2],[7,2],[9,2],[6,2],[6,3]];
+
+const mapEl = document.getElementById('map');
+const inRange = (x,y)=>RANGE.some(c=>c[0]===x&&c[1]===y);
+for(let y=0;y<R;y++) for(let x=0;x<C;x++){
+  const d=document.createElement('div');
+  let t=g[y][x];
+  d.className='cell '+t + (inRange(x,y)&&(t==='floor'||t==='door')?' range':'');
+  d.style.gridColumn=(x+1); d.style.gridRow=(y+1);
+  mapEl.appendChild(d);
+}
+// place entities
+for(const e of ENT){
+  const f=document.createElement('div');
+  f.className='fig '+e.k + (e.cur?' cur':'') + (e.tgt?' tgt':'');
+  f.style.gridColumn=(e.x+1); f.style.gridRow=(e.y+1);
+  f.style.position='relative';
+  let inner = e.ic ? `<span class="msym fill">${e.ic}</span>` : (e.l||'');
+  f.innerHTML = inner;
+  if(e.hp){ let hp='<div class="hp">'; for(let i=0;i<e.hp;i++) hp+='<i></i>'; hp+='</div>'; f.innerHTML+=hp; }
+  // wrap in a cell-positioned holder so inset works
+  const holder=document.createElement('div');
+  holder.style.gridColumn=(e.x+1); holder.style.gridRow=(e.y+1); holder.style.position='relative';
+  f.style.position='absolute';
+  holder.appendChild(f);
+  mapEl.appendChild(holder);
+}
+
+// --- initiative ---
+const ORDER=[{l:'ELF',cur:true},{l:'NAI'},{l:'BAR'},{l:'G1',foe:true},{l:'MAG'},{l:'G2',foe:true}];
+const initEl=document.getElementById('init');
+initEl.innerHTML='<span class="ttl">Initiative</span>';
+ORDER.forEach((o,i)=>{
+  const t=document.createElement('div');
+  t.className='tok'+(o.cur?' cur':'')+(o.foe?' foe':'');
+  t.textContent=o.l;
+  initEl.appendChild(t);
+  if(i<ORDER.length-1){ const a=document.createElement('span'); a.className='msym arrow'; a.textContent='chevron_right'; initEl.appendChild(a); }
+});
+
+// --- party panel ---
+const PARTY=[
+  {l:'Sylanwë', c:'Elfe', ic:'park', body:[6,6], mind:[4,4], conds:[{t:'poison',i:'coronavirus'}], acting:true},
+  {l:'Gorrim Tuevague', c:'Barbare', ic:'sports_martial_arts', body:[5,8], mind:[2,2], conds:[{t:'burn',i:'local_fire_department'}]},
+  {l:'Durik Forgefer', c:'Nain', ic:'construction', body:[7,7], mind:[3,3], conds:[]},
+  {l:'Eldra Sombrelune', c:'Magicienne', ic:'auto_fix_high', body:[1,4], mind:[4,6], conds:[{t:'buff',i:'shield_with_heart'}], low:true},
+];
+const partyEl=document.getElementById('party');
+PARTY.forEach(p=>{
+  const pips=(cur,max,cls)=>{let s='';for(let i=0;i<max;i++)s+=`<div class="pip${i<cur?' '+cls:''}"></div>`;return s;};
+  const conds=p.conds.map(c=>`<span class="mini-badge b-${c.t}"><span class="msym fill">${c.i}</span></span>`).join('');
+  const card=document.createElement('div');
+  card.className='hcard'+(p.acting?' acting':'')+(p.body[0]===0?' downed':'');
+  card.innerHTML=`
+    <div class="hh"><span class="crest"><span class="msym fill">${p.ic}</span></span>
+      <div><div class="hn">${p.l}</div><div class="hc">${p.c}</div></div>
+      <div class="conds">${conds}</div></div>
+    <div class="pv-line"><span class="lab" style="color:var(--body-bright)">BODY</span><div class="pips">${pips(p.body[0],p.body[1],'b')}</div><span class="num">${p.body[0]}/${p.body[1]}</span></div>
+    <div class="pv-line"><span class="lab" style="color:var(--mind-bright)">MIND</span><div class="pips">${pips(p.mind[0],p.mind[1],'m')}</div><span class="num">${p.mind[0]}/${p.mind[1]}</span></div>
+    ${p.low?'<div class="downed-tag"><span class="msym fill">warning</span> Gravement blessée — à protéger</div>':''}`;
+  partyEl.appendChild(card);
+});
+
+// --- combat resolution ---
+const combat=document.getElementById('combat'), atkRow=document.getElementById('atkRow'),
+      defRow=document.getElementById('defRow'), verdict=document.getElementById('verdict');
+function die(face, rolling){
+  const ic = rolling?'casino':(face==='skull'?'skull':face==='shield'?'shield':'remove');
+  return `<div class="die ${rolling?'rolling':face} ${rolling?'':'reveal'}"><span class="msym ${rolling?'':'fill'}">${ic}</span></div>`;
+}
+function playCombat(){
+  combat.classList.add('show'); verdict.classList.remove('show'); verdict.textContent='';
+  const nAtk=2, nDef=1;
+  atkRow.innerHTML=Array.from({length:nAtk},()=>die(null,true)).join('');
+  defRow.innerHTML=Array.from({length:nDef},()=>die(null,true)).join('');
+  setTimeout(()=>{
+    const atk=Array.from({length:nAtk},()=>Math.random()<0.62?'skull':'blank');
+    const def=Array.from({length:nDef},()=>Math.random()<0.34?'shield':'blank');
+    atkRow.innerHTML=atk.map(f=>die(f,false)).join('');
+    defRow.innerHTML=def.map(f=>die(f,false)).join('');
+    const sk=atk.filter(d=>d==='skull').length, sh=def.filter(d=>d==='shield').length;
+    const dmg=Math.max(0,sk-sh);
+    setTimeout(()=>{
+      verdict.innerHTML = dmg>0 ? `Touché — <span class="dmg">${dmg} blessure${dmg>1?'s':''}</span> au Gobelin`
+                                : `Le Gobelin pare le coup`;
+      verdict.classList.add('show');
+      document.getElementById('narrText').textContent = dmg>0
+        ? `La flèche de Sylanwë siffle et se fiche dans l'épaule du gobelin, qui titube en hurlant.`
+        : `Le gobelin lève son écu rouillé juste à temps ; la flèche ricoche dans l'ombre.`;
+    },420);
+    setTimeout(()=>combat.classList.remove('show'), 3200);
+  }, 900);
+}
+document.getElementById('replay').addEventListener('click', playCombat);
+setTimeout(playCombat, 1200);
+</script>
+</body>
+</html>

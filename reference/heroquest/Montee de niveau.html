@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Heroquest IA — Montée de niveau</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin:0; }
+  body { font-family:var(--font-ui); background:radial-gradient(80% 60% at 50% -10%, oklch(0.24 0.015 255), transparent 60%), var(--stone-950);
+    color:var(--ink-100); min-height:100vh; display:grid; place-items:center; padding:24px; --ambiance:0.6; -webkit-font-smoothing:antialiased; }
+  .msym { font-family:'Material Symbols Outlined'; line-height:1; display:inline-block; white-space:nowrap;
+    -webkit-font-feature-settings:'liga'; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings:'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .phone { --w:412px; --h:880px; width:var(--w); height:var(--h); max-height:calc(100vh - 36px); position:relative; border-radius:44px; padding:12px;
+    background:linear-gradient(160deg, oklch(0.26 0.012 255), oklch(0.14 0.01 255)); box-shadow:var(--sh-3), inset 0 0 0 1px oklch(1 0 0 /0.05); }
+  .screen { position:relative; width:100%; height:100%; border-radius:33px; overflow:hidden; background:var(--stone-900); display:flex; flex-direction:column; }
+  @media (max-width:480px){ body{padding:0} .phone{--w:100vw;--h:100vh;width:100vw;height:100vh;max-height:100vh;border-radius:0;padding:0} .screen{border-radius:0} }
+
+  /* sparks */
+  .sparks { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
+  .spark { position:absolute; width:5px; height:5px; border-radius:50%; background:var(--gold); box-shadow:0 0 8px var(--gold); opacity:0; }
+  @keyframes rise { 0%{transform:translateY(0) scale(1);opacity:0} 12%{opacity:1} 100%{transform:translateY(-110%) scale(0.3);opacity:0} }
+
+  /* hero banner */
+  .banner { flex:none; position:relative; overflow:hidden; padding:30px 24px 22px; text-align:center; z-index:2;
+    background:linear-gradient(180deg, oklch(0.24 0.02 75 / 0.55), var(--stone-900)); border-bottom:var(--line-gold); }
+  .banner::before { content:""; position:absolute; inset:0; background:radial-gradient(70% 80% at 50% -10%, oklch(0.80 0.135 88 / 0.28), transparent 62%); pointer-events:none; }
+  .banner .home { position:absolute; top:16px; left:16px; color:var(--ink-500); text-decoration:none; font-size:11px; font-weight:700; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:4px; z-index:3; }
+  .crest-wrap { position:relative; width:96px; height:96px; margin:6px auto 14px; z-index:2; }
+  .crest-ring { position:absolute; inset:-8px; border-radius:50%; border:2px solid var(--gold); opacity:0.6; animation:halo 2.4s ease-in-out infinite; }
+  @keyframes halo { 0%,100%{transform:scale(1);opacity:0.5} 50%{transform:scale(1.08);opacity:0.85} }
+  .crest { width:96px; height:96px; border-radius:50%; display:grid; place-items:center;
+    background:linear-gradient(150deg, var(--gold), var(--ember-deep)); color:var(--stone-950); box-shadow:0 0 28px oklch(0.80 0.135 88 / 0.5); }
+  .crest .msym { font-size:50px; }
+  .levelpill { position:absolute; bottom:-4px; right:-4px; background:var(--stone-950); border:2px solid var(--gold); color:var(--gold);
+    border-radius:99px; padding:3px 10px; font-family:var(--font-display); font-weight:800; font-size:14px; }
+  .banner .lvlup { font-size:12px; letter-spacing:0.34em; text-transform:uppercase; color:var(--gold); font-weight:700; position:relative; z-index:2; }
+  .banner h1 { font-family:var(--font-display); font-weight:800; font-size:26px; margin:8px 0 2px; color:var(--parch-100); letter-spacing:0.02em; position:relative; z-index:2; }
+  .banner .arc { position:relative; z-index:2; font-size:14px; color:var(--ink-300); font-weight:600; display:inline-flex; align-items:center; gap:8px; }
+  .banner .arc b { color:var(--torch); } .banner .arc .msym { font-size:16px; color:var(--ink-500); }
+
+  /* body scroll */
+  .body { flex:1; overflow-y:auto; padding:18px; -webkit-overflow-scrolling:touch; position:relative; z-index:2; }
+  .body::-webkit-scrollbar { width:0; }
+  .sect { font-family:var(--font-display); font-size:13px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-300);
+    font-weight:600; margin:4px 0 12px; display:flex; align-items:center; gap:8px; }
+  .sect.gold { color:var(--gold); }
+
+  /* automatic gains */
+  .gains { display:flex; flex-direction:column; gap:8px; margin-bottom:22px; }
+  .gain { display:flex; align-items:center; gap:13px; padding:12px 14px; border-radius:var(--r-md);
+    background:linear-gradient(180deg, oklch(0.24 0.02 90 / 0.4), var(--stone-850)); border:1px solid oklch(0.62 0.08 80 / 0.4); }
+  .gain .ic { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; flex:none; }
+  .gain .ic.body { background:oklch(0.58 0.185 25 / 0.16); color:var(--body-bright); }
+  .gain .ic.mind { background:oklch(0.64 0.14 270 / 0.16); color:var(--mind-bright); }
+  .gain .ic.atk { background:oklch(0.76 0.155 65 / 0.16); color:var(--torch); }
+  .gain .gt { font-size:14px; font-weight:700; color:var(--parch-100); }
+  .gain .gd { font-size:11.5px; color:var(--ink-500); margin-top:1px; }
+  .gain .delta { margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-weight:800; font-size:14px; font-variant-numeric:tabular-nums; }
+  .gain .delta .old { color:var(--ink-700); } .gain .delta .new { color:var(--gold); }
+  .gain .delta .msym { font-size:15px; color:var(--ink-600); }
+
+  /* talent choice */
+  .talents { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+  .talent { position:relative; display:flex; align-items:flex-start; gap:13px; padding:15px 15px; border-radius:var(--r-md); cursor:pointer;
+    background:var(--stone-850); border:1px solid var(--stone-700); transition:all .15s; text-align:left; width:100%; -webkit-tap-highlight-color:transparent; }
+  .talent:active { transform:scale(0.99); }
+  .talent .ti { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; flex:none; background:var(--stone-800); color:var(--torch); }
+  .talent .ti .msym { font-size:25px; }
+  .talent .tt { font-size:15.5px; font-weight:700; color:var(--parch-100); }
+  .talent .td { font-size:12.5px; color:var(--ink-400); margin-top:3px; line-height:1.4; }
+  .talent .tcheck { position:absolute; top:13px; right:13px; width:22px; height:22px; border-radius:50%; border:2px solid var(--stone-600); display:grid; place-items:center; transition:all .15s; }
+  .talent .tcheck .msym { font-size:14px; color:transparent; }
+  .talent.sel { border-color:var(--torch); background:oklch(0.76 0.155 65 / 0.10); box-shadow:var(--glow-torch); }
+  .talent.sel .ti { background:var(--torch); color:var(--stone-950); }
+  .talent.sel .tcheck { border-color:var(--torch); background:var(--torch); }
+  .talent.sel .tcheck .msym { color:var(--stone-950); }
+  .talent .el-tag { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-top:7px; padding:2px 7px; border-radius:99px; }
+  .el-fire { color:var(--elem-fire); background:oklch(0.64 0.205 35 / 0.14); }
+  .el-water { color:var(--elem-water); background:oklch(0.66 0.150 245 / 0.14); }
+
+  /* footer confirm */
+  .foot { flex:none; padding:14px 18px calc(16px + env(safe-area-inset-bottom)); border-top:var(--line); background:linear-gradient(180deg, var(--stone-900), var(--stone-850)); position:relative; z-index:3; }
+  .foot .hint { font-size:11.5px; color:var(--ink-500); text-align:center; margin:0 0 10px; }
+  .btn { border:none; border-radius:var(--r-md); padding:15px; font-family:var(--font-ui); font-weight:700; font-size:16px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:9px; width:100%; transition:transform .1s; text-decoration:none; }
+  .btn:active { transform:scale(0.98); } .btn:disabled { opacity:0.4; pointer-events:none; }
+  .btn-gold { background:linear-gradient(180deg, var(--gold), var(--ember-deep)); color:var(--stone-950); box-shadow:var(--sh-2); }
+
+  /* confirmed overlay */
+  .done-ov { position:absolute; inset:0; z-index:60; background:oklch(0.16 0.012 255 / 0.92); backdrop-filter:blur(4px);
+    display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:30px; animation:fadein .25s ease; }
+  .done-ov.show { display:flex; }
+  @keyframes fadein { from{opacity:0} }
+  .done-ov .seal { width:96px; height:96px; border-radius:50%; display:grid; place-items:center; margin-bottom:20px;
+    background:linear-gradient(150deg, var(--gold), var(--ember-deep)); color:var(--stone-950); box-shadow:0 0 30px oklch(0.80 0.135 88 / 0.5); animation:pop .4s cubic-bezier(.2,1.5,.4,1); }
+  @keyframes pop { from{transform:scale(0.4);opacity:0} }
+  .done-ov .seal .msym { font-size:50px; }
+  .done-ov h2 { font-family:var(--font-display); font-size:24px; color:var(--parch-100); margin:0 0 8px; letter-spacing:0.02em; }
+  .done-ov p { font-family:var(--font-narr); font-style:italic; color:var(--ink-300); font-size:15px; line-height:1.5; max-width:280px; margin:0 0 24px; }
+
+  /* demo */
+  .demo { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:200; display:flex; gap:6px;
+    background:oklch(0.16 0.012 255 / 0.92); border:var(--line); border-radius:99px; padding:6px; backdrop-filter:blur(8px); box-shadow:var(--sh-2); }
+  .demo button { background:none; border:none; color:var(--ink-500); font-family:var(--font-ui); font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:99px; cursor:pointer; }
+  .demo button.on { background:var(--torch); color:var(--stone-950); }
+  .demo .lbl { color:var(--ink-700); font-size:10px; padding:6px 4px 6px 8px; letter-spacing:0.08em; text-transform:uppercase; align-self:center; }
+  .demo a { color:var(--ink-300); text-decoration:none; display:grid; place-items:center; width:30px; height:30px; border-radius:50%; }
+  @media (max-width:480px){ .demo{bottom:8px} }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="screen">
+      <div class="sparks" id="sparks"></div>
+
+      <!-- banner -->
+      <div class="banner">
+        <a class="home" href="index.html"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a>
+        <div class="lvlup">Montée de niveau</div>
+        <div class="crest-wrap">
+          <div class="crest-ring"></div>
+          <div class="crest"><span class="msym fill" id="heroIcon">auto_fix_high</span></div>
+          <div class="levelpill" id="levelPill">Niv. 4</div>
+        </div>
+        <h1 id="heroName">Eldra Sombrelune</h1>
+        <div class="arc">Magicienne · <span style="color:var(--ink-500)">Niv. 3</span> <span class="msym">east</span> <b>Niv. 4</b></div>
+      </div>
+
+      <!-- body -->
+      <div class="body">
+        <div class="sect gold"><span class="msym fill">auto_awesome</span> Gains automatiques</div>
+        <div class="gains">
+          <div class="gain">
+            <span class="ic mind"><span class="msym fill">psychology</span></span>
+            <div><div class="gt">Esprit aiguisé</div><div class="gd">Réserve de Mind maximale</div></div>
+            <span class="delta"><span class="old">6</span><span class="msym">east</span><span class="new">7</span></span>
+          </div>
+          <div class="gain">
+            <span class="ic body"><span class="msym fill">favorite</span></span>
+            <div><div class="gt">Endurance</div><div class="gd">Réserve de Body maximale</div></div>
+            <span class="delta"><span class="old">4</span><span class="msym">east</span><span class="new">5</span></span>
+          </div>
+        </div>
+
+        <div class="sect"><span class="msym fill">hub</span> Choisis un talent <span style="margin-left:auto;font-size:11px;color:var(--ink-600);letter-spacing:0;text-transform:none;font-weight:600">1 sur 3</span></div>
+        <div class="talents" id="talents">
+          <button class="talent" data-k="t1" onclick="pickTalent('t1')">
+            <span class="ti"><span class="msym fill">local_fire_department</span></span>
+            <div><div class="tt">Maîtrise du Feu</div><div class="td">Tes sorts de Feu lancent 1 dé d'attaque supplémentaire.</div>
+              <span class="el-tag el-fire"><span class="msym" style="font-size:12px">bolt</span> Élément Feu</span></div>
+            <span class="tcheck"><span class="msym fill">check</span></span>
+          </button>
+          <button class="talent" data-k="t2" onclick="pickTalent('t2')">
+            <span class="ti"><span class="msym fill">menu_book</span></span>
+            <div><div class="tt">Nouveau sort — Givre noyé</div><div class="td">Apprends un sort d'Eau : gèle un ennemi sur place pour 1 tour.</div>
+              <span class="el-tag el-water"><span class="msym" style="font-size:12px">ac_unit</span> Nouveau sort</span></div>
+            <span class="tcheck"><span class="msym fill">check</span></span>
+          </button>
+          <button class="talent" data-k="t3" onclick="pickTalent('t3')">
+            <span class="ti"><span class="msym fill">shield_with_heart</span></span>
+            <div><div class="tt">Ward arcanique</div><div class="td">Une fois par quête, annule entièrement une attaque qui te cible.</div></div>
+            <span class="tcheck"><span class="msym fill">check</span></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div class="foot">
+        <p class="hint" id="hint">Sélectionne un talent pour continuer</p>
+        <button class="btn btn-gold" id="confirm" disabled onclick="confirmLevel()"><span class="msym fill">verified</span> Valider la progression</button>
+      </div>
+
+      <!-- done overlay -->
+      <div class="done-ov" id="doneOv">
+        <div class="seal"><span class="msym fill">verified</span></div>
+        <h2>Progression scellée</h2>
+        <p id="doneText">Eldra grave une nouvelle rune dans son grimoire. Sa puissance s'épanouit.</p>
+        <a class="btn btn-gold" href="Manette.html"><span class="msym">login</span> Reprendre la partie</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <a href="index.html" title="Hub"><span class="msym" style="font-size:18px">home</span></a>
+    <span class="lbl">Classe</span>
+    <button class="on" onclick="setHero('mage',this)">Magicienne</button>
+    <button onclick="setHero('barb',this)">Barbare</button>
+    <button onclick="setHero('elf',this)">Elfe</button>
+  </div>
+
+<script>
+  const HERO_SETS = {
+    mage: { name:'Eldra Sombrelune', cls:'Magicienne', icon:'auto_fix_high', from:3, to:4,
+      done:'Eldra grave une nouvelle rune dans son grimoire. Sa puissance s\'épanouit.' },
+    barb: { name:'Gorrim Tuevague', cls:'Barbare', icon:'sports_martial_arts', from:3, to:4,
+      done:'Gorrim pousse un rugissement — ses muscles et sa fureur n\'ont jamais été aussi redoutables.' },
+    elf:  { name:'Sylanwë', cls:'Elfe', icon:'park', from:3, to:4,
+      done:'Sylanwë sent la forêt couler en elle. Sa flèche ne manquera plus sa cible.' },
+  };
+  // talents per class (3 each)
+  const TALENTS = {
+    mage: [
+      {k:'t1', ic:'local_fire_department', t:'Maîtrise du Feu', d:'Tes sorts de Feu lancent 1 dé d\'attaque supplémentaire.', el:'fire', elt:'Élément Feu', eli:'bolt'},
+      {k:'t2', ic:'menu_book', t:'Nouveau sort — Givre noyé', d:'Apprends un sort d\'Eau : gèle un ennemi sur place pour 1 tour.', el:'water', elt:'Nouveau sort', eli:'ac_unit'},
+      {k:'t3', ic:'shield_with_heart', t:'Ward arcanique', d:'Une fois par quête, annule entièrement une attaque qui te cible.'},
+    ],
+    barb: [
+      {k:'t1', ic:'sports_martial_arts', t:'Frappe sauvage', d:'Ton attaque de mêlée lance 1 dé de crâne supplémentaire.'},
+      {k:'t2', ic:'directions_run', t:'Charge', d:'Tu peux te déplacer puis attaquer dans le même tour.'},
+      {k:'t3', ic:'health_and_safety', t:'Cuir épais', d:'Tu gagnes 1 dé de défense permanent contre la mêlée.'},
+    ],
+    elf: [
+      {k:'t1', ic:'arrow_outward', t:'Tir précis', d:'Tes tirs à l\'arc ignorent 1 bouclier de l\'ennemi.', el:'fire', elt:'Affinité', eli:'bolt'},
+      {k:'t2', ic:'forest', t:'Pas sylvestre', d:'Tu te déplaces de 2 cases supplémentaires par tour.', el:'water', elt:'Affinité', eli:'eco'},
+      {k:'t3', ic:'visibility', t:'Œil de l\'aigle', d:'Tu révèles les pièges et passages cachés à 3 cases.'},
+    ],
+  };
+  const GAINS = {
+    mage: [['mind','psychology','Esprit aiguisé','Réserve de Mind maximale',6,7],['body','favorite','Endurance','Réserve de Body maximale',4,5]],
+    barb: [['body','favorite','Carrure','Réserve de Body maximale',8,9],['atk','swords','Force brute','Dés d\'attaque de base',3,4]],
+    elf:  [['body','favorite','Souffle','Réserve de Body maximale',6,7],['atk','swords','Adresse','Dés d\'attaque de base',2,3]],
+  };
+
+  let current='mage', selected=null;
+
+  function setHero(k, el){
+    current=k; selected=null;
+    document.querySelectorAll('.demo button').forEach(b=>b.classList.remove('on'));
+    el.classList.add('on');
+    const h=HERO_SETS[k];
+    document.getElementById('heroIcon').textContent=h.icon;
+    document.getElementById('heroName').textContent=h.name;
+    document.getElementById('levelPill').textContent='Niv. '+h.to;
+    document.querySelector('.arc').innerHTML=`${h.cls} · <span style="color:var(--ink-500)">Niv. ${h.from}</span> <span class="msym">east</span> <b>Niv. ${h.to}</b>`;
+    // gains
+    document.querySelector('.gains').innerHTML = GAINS[k].map(g=>`
+      <div class="gain"><span class="ic ${g[0]}"><span class="msym fill">${g[1]}</span></span>
+        <div><div class="gt">${g[2]}</div><div class="gd">${g[3]}</div></div>
+        <span class="delta"><span class="old">${g[4]}</span><span class="msym">east</span><span class="new">${g[5]}</span></span></div>`).join('');
+    // talents
+    document.getElementById('talents').innerHTML = TALENTS[k].map(t=>`
+      <button class="talent" data-k="${t.k}" onclick="pickTalent('${t.k}')">
+        <span class="ti"><span class="msym fill">${t.ic}</span></span>
+        <div><div class="tt">${t.t}</div><div class="td">${t.d}</div>
+          ${t.el?`<span class="el-tag el-${t.el}"><span class="msym" style="font-size:12px">${t.eli}</span> ${t.elt}</span>`:''}</div>
+        <span class="tcheck"><span class="msym fill">check</span></span>
+      </button>`).join('');
+    document.getElementById('confirm').disabled=true;
+    document.getElementById('hint').textContent='Sélectionne un talent pour continuer';
+    document.getElementById('hint').style.color='var(--ink-500)';
+  }
+
+  function pickTalent(k){
+    selected=k;
+    document.querySelectorAll('.talent').forEach(t=>t.classList.toggle('sel', t.dataset.k===k));
+    document.getElementById('confirm').disabled=false;
+    const t=TALENTS[current].find(x=>x.k===k);
+    document.getElementById('hint').textContent='Talent choisi : '+t.t;
+    document.getElementById('hint').style.color='var(--torch)';
+  }
+
+  function confirmLevel(){
+    document.getElementById('doneText').textContent=HERO_SETS[current].done;
+    document.getElementById('doneOv').classList.add('show');
+    burst();
+  }
+
+  // sparks
+  const sp=document.getElementById('sparks');
+  function seedSparks(){
+    for(let i=0;i<20;i++){
+      const s=document.createElement('div'); s.className='spark';
+      s.style.left=Math.random()*100+'%'; s.style.bottom='-6px';
+      s.style.width=s.style.height=(2+Math.random()*4)+'px';
+      s.style.animation=`rise ${4+Math.random()*5}s linear ${-Math.random()*6}s infinite`;
+      sp.appendChild(s);
+    }
+  }
+  function burst(){
+    for(let i=0;i<24;i++){
+      const s=document.createElement('div'); s.className='spark';
+      s.style.left=(40+Math.random()*20)+'%'; s.style.top='40%';
+      const ang=Math.random()*Math.PI*2, dist=80+Math.random()*120;
+      s.style.setProperty('transition','none');
+      s.animate([
+        {transform:'translate(0,0) scale(1)', opacity:1},
+        {transform:`translate(${Math.cos(ang)*dist}px, ${Math.sin(ang)*dist}px) scale(0.2)`, opacity:0}
+      ], {duration:900+Math.random()*500, easing:'cubic-bezier(.2,.8,.3,1)'});
+      sp.appendChild(s); setTimeout(()=>s.remove(),1500);
+    }
+  }
+  seedSparks();
+</script>
+</body>
+</html>

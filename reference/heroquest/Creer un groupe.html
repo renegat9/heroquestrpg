@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heroquest IA — Créer / rejoindre un groupe</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin:0; min-height:100%; }
+  body { font-family: var(--font-ui); background: var(--stone-950); color: var(--ink-100); --ambiance:0.62;
+    min-height:100vh; display:grid; place-items:center; padding:28px; -webkit-font-smoothing:antialiased; }
+  .msym { font-family:'Material Symbols Outlined'; line-height:1; display:inline-block; white-space:nowrap;
+    -webkit-font-feature-settings:'liga'; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings:'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .card { width:100%; max-width:540px; position:relative; border-radius:var(--r-xl); overflow:hidden;
+    border:var(--line-strong); box-shadow:var(--sh-3); }
+  .card-head { position:relative; overflow:hidden; padding:34px 32px 26px; text-align:center; }
+  .card-head.tex-stone::before { content:""; position:absolute; inset:0;
+    background: radial-gradient(70% 90% at 50% -20%, oklch(0.76 0.155 65 / 0.22), transparent 62%); pointer-events:none; }
+  .home { position:absolute; top:16px; left:16px; color:var(--ink-500); text-decoration:none; font-size:11px; font-weight:700;
+    letter-spacing:0.08em; display:inline-flex; align-items:center; gap:4px; z-index:2; }
+  .seal { width:64px; height:64px; border-radius:50%; margin:0 auto 16px; display:grid; place-items:center;
+    background:linear-gradient(150deg, var(--ember), var(--ember-deep)); color:var(--parch-100); box-shadow:var(--glow-torch); position:relative; z-index:1; }
+  .seal .msym { font-size:34px; }
+  .card-head .ep { font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:var(--ember); font-weight:700; }
+  .card-head h1 { font-family:var(--font-display); font-weight:800; font-size:30px; margin:8px 0 0; color:var(--parch-100); letter-spacing:0.02em; position:relative; z-index:1; }
+
+  .tabs { display:flex; background:var(--stone-850); border-top:var(--line); border-bottom:var(--line); }
+  .tabs button { flex:1; background:none; border:none; cursor:pointer; padding:15px; font-family:var(--font-ui); font-weight:700;
+    font-size:15px; color:var(--ink-500); display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border-bottom:2px solid transparent; transition:color .15s, border-color .15s; }
+  .tabs button.on { color:var(--torch); border-bottom-color:var(--torch); }
+
+  .body { background:linear-gradient(180deg, var(--stone-900), var(--stone-950)); padding:26px 32px 30px; }
+  .field { margin-bottom:20px; }
+  .field > label { display:block; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-500); font-weight:700; margin-bottom:9px; }
+  .input { width:100%; background:var(--stone-850); border:var(--line-strong); border-radius:var(--r-md); padding:13px 15px;
+    color:var(--parch-100); font-family:var(--font-ui); font-size:16px; outline:none; transition:border-color .15s, box-shadow .15s; }
+  .input:focus { border-color:var(--torch); box-shadow:var(--glow-torch); }
+  .input::placeholder { color:var(--ink-700); }
+
+  .seg { display:flex; gap:8px; }
+  .seg button { flex:1; background:var(--stone-850); border:var(--line-strong); border-radius:var(--r-md); padding:12px 8px;
+    cursor:pointer; font-family:var(--font-ui); font-weight:700; font-size:13.5px; color:var(--ink-300);
+    display:flex; flex-direction:column; align-items:center; gap:6px; transition:all .15s; }
+  .seg button .msym { font-size:22px; color:var(--ink-500); }
+  .seg button .sub { font-size:10.5px; font-weight:600; color:var(--ink-700); }
+  .seg button.on { border-color:var(--torch); background:oklch(0.76 0.155 65 / 0.12); color:var(--torch); }
+  .seg button.on .msym { color:var(--torch); }
+
+  .heroes { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .heroes .h { background:var(--stone-850); border:var(--line-strong); border-radius:var(--r-md); padding:12px 6px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:6px; transition:all .15s; position:relative; }
+  .heroes .h .msym { font-size:26px; color:var(--ink-300); }
+  .heroes .h .hn { font-size:11px; font-weight:700; color:var(--ink-500); }
+  .heroes .h.on { border-color:var(--torch); background:oklch(0.76 0.155 65 / 0.12); }
+  .heroes .h.on .msym, .heroes .h.on .hn { color:var(--torch); }
+  .heroes .h.taken { opacity:0.4; pointer-events:none; }
+  .heroes .h.taken::after { content:"pris"; position:absolute; top:5px; right:5px; font-size:8px; color:var(--ink-500); }
+
+  .btn { border:none; border-radius:var(--r-md); padding:15px; font-family:var(--font-ui); font-weight:700; font-size:16px;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:9px; width:100%; transition:transform .1s; }
+  .btn:active { transform:scale(0.98); } .btn:disabled { opacity:0.4; pointer-events:none; }
+  .btn-torch { background:linear-gradient(180deg, var(--torch-bright), var(--torch)); color:var(--stone-950); box-shadow:var(--sh-2); }
+
+  .code-display { background:var(--stone-850); border:1px dashed var(--torch); border-radius:var(--r-md); padding:16px;
+    text-align:center; margin-bottom:20px; }
+  .code-display .k { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-500); font-weight:700; }
+  .code-display .code { font-family:var(--font-display); font-size:30px; font-weight:800; color:var(--torch); letter-spacing:0.3em; margin-top:6px; }
+
+  .note { font-size:12px; color:var(--ink-500); text-align:center; margin-top:14px; line-height:1.5; }
+  .ph-pane { display:none; } .ph-pane.on { display:block; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-head tex-stone">
+      <a class="home" href="index.html"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a>
+      <div class="seal"><span class="msym fill">groups</span></div>
+      <div class="ep">La Lanterne du Donjon</div>
+      <h1 id="headTitle">Rassembler un groupe</h1>
+    </div>
+
+    <div class="tabs">
+      <button id="tabCreate" class="on" onclick="setMode('create')"><span class="msym">add_circle</span> Créer</button>
+      <button id="tabJoin" onclick="setMode('join')"><span class="msym">login</span> Rejoindre</button>
+    </div>
+
+    <div class="body">
+      <!-- CREATE -->
+      <div id="pane-create" class="ph-pane on">
+        <div class="field">
+          <label>Nom de la campagne</label>
+          <input class="input" id="campName" value="La Crypte d'Ambre" oninput="updateCode()">
+        </div>
+        <div class="field">
+          <label>Ton narratif</label>
+          <div class="seg" id="toneSeg">
+            <button class="on" data-v="hero" onclick="pick('toneSeg',this)"><span class="msym fill">military_tech</span>Héroïque<span class="sub">flamboyant</span></button>
+            <button data-v="dark" onclick="pick('toneSeg',this)"><span class="msym fill">dark_mode</span>Sombre<span class="sub">oppressant</span></button>
+            <button data-v="comic" onclick="pick('toneSeg',this)"><span class="msym fill">mood</span>Comique<span class="sub">décalé</span></button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Longueur de campagne</label>
+          <div class="seg" id="lenSeg">
+            <button data-v="court" onclick="pick('lenSeg',this)"><span class="msym fill">bolt</span>Court<span class="sub">3 quêtes</span></button>
+            <button class="on" data-v="moyen" onclick="pick('lenSeg',this)"><span class="msym fill">route</span>Moyen<span class="sub">8 quêtes</span></button>
+            <button data-v="long" onclick="pick('lenSeg',this)"><span class="msym fill">explore</span>Épique<span class="sub">15+ quêtes</span></button>
+          </div>
+        </div>
+        <div class="code-display">
+          <div class="k">Code du groupe — à partager</div>
+          <div class="code" id="groupCode">AMBR-3K</div>
+        </div>
+        <button class="btn btn-torch" onclick="alert('Démo — la campagne serait créée et l\'écran de table ouvert.')"><span class="msym">auto_stories</span> Forger la campagne</button>
+        <p class="note">Le maître de jeu IA générera le donjon et la première quête selon le ton choisi.</p>
+      </div>
+
+      <!-- JOIN -->
+      <div id="pane-join" class="ph-pane">
+        <div class="field">
+          <label>Code du groupe</label>
+          <input class="input" id="joinCode" placeholder="ex. AMBR-3K" style="text-transform:uppercase; letter-spacing:0.2em; text-align:center; font-family:var(--font-display); font-size:22px;" oninput="checkJoin()">
+        </div>
+        <div class="field">
+          <label>Choisis ton héros</label>
+          <div class="heroes" id="heroPick">
+            <div class="h" data-v="barb" onclick="pick('heroPick',this);checkJoin()"><span class="msym fill">sports_martial_arts</span><span class="hn">Barbare</span></div>
+            <div class="h" data-v="mage" onclick="pick('heroPick',this);checkJoin()"><span class="msym fill">auto_fix_high</span><span class="hn">Magicien</span></div>
+            <div class="h taken" data-v="dwarf"><span class="msym fill">construction</span><span class="hn">Nain</span></div>
+            <div class="h" data-v="elf" onclick="pick('heroPick',this);checkJoin()"><span class="msym fill">park</span><span class="hn">Elfe</span></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Ton nom de joueur</label>
+          <input class="input" id="playerName" placeholder="Comment t'appellent tes compagnons ?" oninput="checkJoin()">
+        </div>
+        <button class="btn btn-torch" id="joinBtn" disabled onclick="alert('Démo — tu rejoindrais la table avec ce héros.')"><span class="msym">login</span> Rejoindre la table</button>
+        <p class="note">Une seule session active par joueur. Une nouvelle connexion remplace l'ancienne.</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function setMode(m){
+    document.getElementById('pane-create').classList.toggle('on', m==='create');
+    document.getElementById('pane-join').classList.toggle('on', m==='join');
+    document.getElementById('tabCreate').classList.toggle('on', m==='create');
+    document.getElementById('tabJoin').classList.toggle('on', m==='join');
+    document.getElementById('headTitle').textContent = m==='create'?'Rassembler un groupe':'Rejoindre une table';
+  }
+  function pick(group, el){
+    [...document.getElementById(group).children].forEach(c=>c.classList.remove('on'));
+    el.classList.add('on');
+    if(group==='campName'||group==='toneSeg'||group==='lenSeg') updateCode();
+  }
+  function updateCode(){
+    const n=(document.getElementById('campName').value||'CAMP').replace(/[^A-Za-zÀ-ÿ]/g,'').toUpperCase().slice(0,4)||'CAMP';
+    const suffix = Math.random().toString(36).slice(2,4).toUpperCase();
+    // keep stable-ish: derive from name length + tone
+    const tone=document.querySelector('#toneSeg .on')?.dataset.v||'hero';
+    const map={hero:'3K',dark:'9X',comic:'7Q'};
+    document.getElementById('groupCode').textContent = n+'-'+(map[tone]||'3K');
+  }
+  function checkJoin(){
+    const code=document.getElementById('joinCode').value.trim().length>=4;
+    const hero=!!document.querySelector('#heroPick .on');
+    const name=document.getElementById('playerName').value.trim().length>0;
+    document.getElementById('joinBtn').disabled = !(code&&hero&&name);
+  }
+  updateCode();
+</script>
+</body>
+</html>

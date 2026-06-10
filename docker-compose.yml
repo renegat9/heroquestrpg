@@ -1,0 +1,134 @@
+# docker-compose.yml — RPG HeroQuest MJ IA
+# Basé sur le doc 11 : Laravel (app + reverb + queue), MariaDB, Qdrant, nginx, Vite (dev).
+# Lancer en dev :   docker compose --profile dev up -d
+# Lancer en "prod" LAN :  docker compose up -d
+
+services:
+
+  # ── Application Laravel (API, moteur, agent IA) ─────────────
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile   # PHP-FPM 8.3 + extensions (pdo_mysql, pcntl, redis si besoin)
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/html
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_URL: ${APP_URL:-http://localhost}   # ⚠ en LAN : http://IP_LAN
+      DB_HOST: mariadb
+      DB_DATABASE: ${DB_DATABASE:-heroquest}
+      DB_USERNAME: ${DB_USERNAME:-heroquest}
+      DB_PASSWORD: ${DB_PASSWORD}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      REVERB_HOST: ${REVERB_HOST:-localhost}  # ⚠ en LAN : IP_LAN (côté client Echo)
+      REVERB_PORT: 8080
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY} # clé LLM : .env uniquement, jamais dans l'image
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks: [game]
+
+  # ── Reverb (WebSocket temps réel) ───────────────────────────
+  # Conteneur dédié (même image que app) : isole la charge WS,
+  # répond à la question ouverte §14.5 du doc 11.
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    volumes:
+      - ./:/var/www/html
+    env_file: .env
+    ports:
+      - "8080:8080"            # ⚠ à ouvrir dans le pare-feu pour le jeu en LAN
+    depends_on: [app]
+    networks: [game]
+
+  # ── Worker de files (jobs IA : narration, menus, compactage) ─
+  queue:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    restart: unless-stopped
+    command: php artisan queue:work --tries=3 --backoff=5 --timeout=120
+    volumes:
+      - ./:/var/www/html
+    env_file: .env
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks: [game]
+
+  # ── Reverse proxy + front buildé ────────────────────────────
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"                # ⚠ à ouvrir dans le pare-feu pour le jeu en LAN
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public:/var/www/html/public:ro
+    depends_on: [app]
+    networks: [game]
+
+  # ── MariaDB (état exact, journal, snapshots, catalogues) ────
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE:-heroquest}
+      MARIADB_USER: ${DB_USERNAME:-heroquest}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql      # volume = état des campagnes (à sauvegarder)
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      retries: 5
+    networks: [game]
+    # Aucun port publié : la base n'est JAMAIS exposée hors du réseau compose (doc 11 §13).
+
+  # ── Qdrant (bible RAG, isolée par payload group_id) ─────────
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage      # volume = bibles des groupes (à sauvegarder avec mariadb_data)
+    networks: [game]
+    # Pas de port publié non plus : seul `app` lui parle.
+
+  # ── Outils de dev (profil "dev" uniquement) ─────────────────
+  phpmyadmin:
+    image: phpmyadmin:5
+    profiles: [dev]
+    environment:
+      PMA_HOST: mariadb
+    ports:
+      - "127.0.0.1:8081:80"    # bind localhost : jamais accessible depuis le LAN/WAN
+    depends_on: [mariadb]
+    networks: [game]
+
+  vite:
+    image: node:20-alpine
+    profiles: [dev]
+    working_dir: /var/www/html
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./:/var/www/html       # bind mount = hot reload
+    ports:
+      - "5173:5173"
+    networks: [game]
+
+networks:
+  game:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  qdrant_data:

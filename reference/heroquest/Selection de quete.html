@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heroquest IA — Choix de la quête</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin:0; height:100%; }
+  body { font-family:var(--font-ui); background:#000; color:var(--ink-100); overflow:hidden; --ambiance:0.6; }
+  .msym { font-family:'Material Symbols Outlined'; line-height:1; display:inline-block; white-space:nowrap;
+    -webkit-font-feature-settings:'liga'; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings:'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .stage { position:relative; width:100vw; height:100vh; display:grid; grid-template-rows:auto 1fr auto; padding:16px 22px 18px; gap:12px; }
+  .stage.tex-stone::before { content:""; position:absolute; inset:0;
+    background: radial-gradient(60% 70% at 30% -10%, oklch(0.76 0.155 65 / 0.14), transparent 60%),
+                radial-gradient(50% 50% at 95% 0%, oklch(0.62 0.17 42 / 0.10), transparent 60%); pointer-events:none; }
+
+  /* header */
+  .top { position:relative; z-index:3; display:flex; align-items:center; gap:20px; }
+  .home { color:var(--ink-500); text-decoration:none; font-size:11px; font-weight:700; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:4px; }
+  .ttl { display:flex; flex-direction:column; }
+  .ttl .ep { font-size:12px; letter-spacing:0.28em; text-transform:uppercase; color:var(--ember); font-weight:700; }
+  .ttl h1 { font-family:var(--font-display); font-weight:700; font-size:clamp(20px,2.1vw,30px); margin:2px 0 0; color:var(--parch-100); letter-spacing:0.03em; }
+  .think { margin-left:auto; display:inline-flex; align-items:center; gap:9px; padding:8px 15px; border-radius:99px;
+    background:var(--stone-850); border:var(--line-gold); color:var(--torch); font-size:13px; font-weight:700; }
+  .think .dots { display:inline-flex; gap:4px; } .think .dots i { width:6px;height:6px;border-radius:50%;background:var(--torch); animation:bd 1.2s ease-in-out infinite; }
+  .think .dots i:nth-child(2){animation-delay:.2s} .think .dots i:nth-child(3){animation-delay:.4s}
+  @keyframes bd { 0%,100%{opacity:.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+
+  .main { position:relative; z-index:2; display:grid; grid-template-columns:1.45fr 1fr; gap:20px; min-height:0; }
+
+  /* quest map */
+  .mapcard { position:relative; border-radius:var(--r-lg); border:var(--line); overflow:hidden;
+    background:linear-gradient(180deg, oklch(0.20 0.013 255), oklch(0.155 0.011 255)); box-shadow:inset 0 0 60px oklch(0 0 0 /0.6); }
+  .mapcard .maplabel { position:absolute; top:14px; left:16px; z-index:5; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-500); font-weight:700; }
+  svg.paths { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  .node { position:absolute; transform:translate(-50%,-50%); z-index:2; width:108px; text-align:center; cursor:pointer; }
+  .node .dot { width:54px; height:54px; border-radius:50%; margin:0 auto; display:grid; place-items:center; position:relative;
+    background:var(--stone-800); border:2px solid var(--stone-600); color:var(--ink-300); transition:all .18s; }
+  .node .dot .msym { font-size:26px; }
+  .node .nl { font-size:11px; font-weight:700; color:var(--ink-400); margin-top:7px; line-height:1.2; }
+  .node.done .dot { background:linear-gradient(150deg, var(--stone-600), var(--stone-700)); border-color:var(--stone-500); color:var(--parch-200); }
+  .node.done .dot::after { content:"check"; font-family:'Material Symbols Outlined'; position:absolute; bottom:-4px; right:-4px;
+    font-size:13px; background:var(--ok); color:var(--stone-950); border-radius:50%; width:18px; height:18px; display:grid; place-items:center; font-variation-settings:'FILL' 1; }
+  .node.current .dot { border-color:var(--gold); color:var(--gold); box-shadow:0 0 0 4px oklch(0.80 0.135 88 / 0.18); }
+  .node.avail .dot { background:linear-gradient(150deg, var(--ember), var(--ember-deep)); border-color:var(--torch); color:var(--parch-100); }
+  .node.avail.sel .dot { box-shadow:var(--glow-torch); transform:scale(1.12); }
+  .node.avail .nl { color:var(--torch); }
+  .node.locked { cursor:not-allowed; }
+  .node.locked .dot { background:var(--stone-850); border-style:dashed; border-color:var(--stone-700); color:var(--ink-700); }
+  .node.locked .nl { color:var(--ink-700); }
+  .node .votedots { display:flex; gap:3px; justify-content:center; margin-top:5px; height:8px; }
+  .node .votedots i { width:7px; height:7px; border-radius:50%; background:var(--torch); box-shadow:0 0 6px var(--torch); animation:pop .3s ease; }
+  @keyframes pop { from{transform:scale(0)} }
+
+  /* detail panel */
+  .detail { border-radius:var(--r-lg); border:var(--line); background:linear-gradient(180deg, var(--stone-850), var(--stone-900));
+    padding:20px 22px; display:flex; flex-direction:column; min-height:0; }
+  .detail .imgph { height:128px; border-radius:var(--r-md); margin-bottom:16px; position:relative; overflow:hidden;
+    background:repeating-linear-gradient(45deg, var(--stone-800) 0 10px, var(--stone-850) 10px 20px); border:var(--line); display:grid; place-items:center; }
+  .detail .imgph .tag { font-family:ui-monospace,monospace; font-size:11px; color:var(--ink-500); background:oklch(0 0 0/0.4); padding:4px 10px; border-radius:99px; }
+  .detail .imgph .badge-diff { position:absolute; top:10px; right:10px; display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:800;
+    padding:5px 11px; border-radius:99px; background:oklch(0 0 0/0.55); backdrop-filter:blur(3px); }
+  .detail h2 { font-family:var(--font-display); font-size:24px; color:var(--parch-100); margin:0 0 4px; letter-spacing:0.02em; }
+  .detail .qmeta { display:flex; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+  .detail .qmeta .m { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-400); font-weight:600; }
+  .detail .qmeta .m .msym { font-size:16px; color:var(--ink-500); }
+  .detail .hook { font-family:var(--font-narr); font-style:italic; font-size:15.5px; line-height:1.55; color:var(--ink-200); margin:0 0 16px; }
+  .detail .rewards { margin-top:auto; }
+  .detail .rewards .rh { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-500); font-weight:700; margin-bottom:9px; }
+  .reward-chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .rchip { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:99px; background:var(--stone-800); border:var(--line); font-size:12.5px; font-weight:600; }
+  .rchip .msym { font-size:16px; }
+  .rchip.gold { color:var(--gold); } .rchip.gold .msym { color:var(--gold); }
+  .rchip.item { color:var(--rar-rare); } .rchip.item .msym { color:var(--rar-rare); }
+
+  .diff-1 { color:var(--ok); } .diff-2 { color:var(--warn); } .diff-3 { color:var(--body-bright); }
+
+  /* vote footer */
+  .votebar { position:relative; z-index:3; display:flex; align-items:center; gap:20px; padding:14px 22px; border-radius:var(--r-lg);
+    background:linear-gradient(180deg, oklch(0.22 0.014 255 / 0.96), oklch(0.17 0.012 255 / 0.96)); border:var(--line); }
+  .votebar .vlabel { display:flex; align-items:center; gap:10px; }
+  .votebar .vlabel .ic { width:42px; height:42px; border-radius:11px; display:grid; place-items:center; background:oklch(0.76 0.155 65 / 0.14); border:var(--line-gold); color:var(--torch); }
+  .votebar .vlabel .vt { font-family:var(--font-display); font-size:15px; color:var(--parch-100); letter-spacing:0.02em; }
+  .votebar .vlabel .vs { font-size:11.5px; color:var(--ink-500); }
+  .players { display:flex; gap:10px; margin-left:auto; }
+  .pv { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .pv .av { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; background:var(--stone-800); border:2px solid var(--stone-600); color:var(--ink-400); transition:all .25s; position:relative; }
+  .pv .av .msym { font-size:22px; }
+  .pv.voted .av { border-color:var(--torch); color:var(--torch); background:oklch(0.76 0.155 65 / 0.12); }
+  .pv.voted .av::after { content:"how_to_vote"; font-family:'Material Symbols Outlined'; position:absolute; bottom:-5px; right:-5px;
+    font-size:11px; background:var(--torch); color:var(--stone-950); border-radius:50%; width:18px; height:18px; display:grid; place-items:center; font-variation-settings:'FILL' 1; }
+  .pv .pn { font-size:9.5px; font-weight:700; color:var(--ink-500); }
+  .pv .pn.choice { color:var(--torch); }
+  .votebar .status { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .votebar .waiting { font-size:12px; color:var(--ink-500); display:flex; align-items:center; gap:7px; }
+  .btn { border:none; border-radius:var(--r-md); padding:13px 22px; font-family:var(--font-ui); font-weight:700; font-size:15px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:9px; transition:transform .1s; }
+  .btn:active { transform:scale(0.98); } .btn:disabled { opacity:0.4; pointer-events:none; }
+  .btn-torch { background:linear-gradient(180deg, var(--torch-bright), var(--torch)); color:var(--stone-950); box-shadow:var(--sh-2); }
+</style>
+</head>
+<body>
+<div class="stage tex-stone tex-vignette">
+  <!-- header -->
+  <div class="top">
+    <a class="home" href="index.html"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a>
+    <div class="ttl"><span class="ep">Conseil de Pierregivre · Carte de campagne</span><h1>Quelle voie prendre ?</h1></div>
+    <div class="think"><span class="dots"><i></i><i></i><i></i></span> Le MJ prépare les voies…</div>
+  </div>
+
+  <!-- main -->
+  <div class="main">
+    <div class="mapcard">
+      <div class="maplabel">La Crypte d'Ambre · 3 / 8</div>
+      <svg class="paths" id="paths" preserveAspectRatio="none"></svg>
+      <div id="nodes"></div>
+    </div>
+
+    <div class="detail" id="detail"></div>
+  </div>
+
+  <!-- vote -->
+  <div class="votebar">
+    <div class="vlabel"><span class="ic"><span class="msym fill">how_to_vote</span></span>
+      <div><div class="vt">Vote — quête suivante</div><div class="vs">Le groupe choisit ensemble la prochaine descente</div></div></div>
+    <div class="players" id="players"></div>
+    <div class="status">
+      <div class="waiting" id="waiting"><span class="msym" style="font-size:16px">hourglass_top</span> En attente de 4 joueurs…</div>
+      <button class="btn btn-torch" id="confirmBtn" disabled><span class="msym">play_arrow</span> Lancer la quête</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // node layout in % of map area
+  const NODES = {
+    q1:{x:10,y:30, state:'done', ic:'door_front', label:'Le Porche', },
+    q2:{x:26,y:62, state:'done', ic:'water_drop', label:'Les Égouts'},
+    q3:{x:42,y:38, state:'current', ic:'castle', label:'La Crypte'},
+    qa:{x:66,y:20, state:'avail', ic:'local_fire_department', label:'La Forge Maudite'},
+    qb:{x:66,y:54, state:'avail', ic:'sentiment_very_dissatisfied', label:'Le Nid Gobelin'},
+    qc:{x:66,y:84, state:'avail', ic:'water', label:'Les Catacombes Noyées'},
+    qf:{x:90,y:50, state:'locked', ic:'lock', label:'???'},
+  };
+  const EDGES = [['q1','q2'],['q2','q3'],['q3','qa'],['q3','qb'],['q3','qc'],['qa','qf'],['qb','qf'],['qc','qf']];
+
+  const QUESTS = {
+    qa:{ name:'La Forge Maudite', diff:3, dl:'Périlleuse', lvl:'Niv. 3-4', dur:'~50 min', el:'Feu',
+      hook:"Une forge naine, jadis glorieuse, crache désormais une chaleur qui n'a rien de naturel. Les enclumes frappent seules dans le noir.",
+      rewards:[['gold','450 or'],['item','Marteau runique']] },
+    qb:{ name:'Le Nid Gobelin', diff:2, dl:'Risquée', lvl:'Niv. 3', dur:'~35 min', el:'Terre',
+      hook:"Les gobelins se sont multipliés dans les galeries est. Leur chef, un brute balafrée, garde un butin volé aux marchands.",
+      rewards:[['gold','280 or'],['item','Bottes de l\'éclaireur']] },
+    qc:{ name:'Les Catacombes Noyées', diff:3, dl:'Périlleuse', lvl:'Niv. 4', dur:'~55 min', el:'Eau',
+      hook:"L'eau monte dans les galeries inférieures, et quelque chose d'ancien remue sous la surface. Le silence y est plus dangereux que le bruit.",
+      rewards:[['gold','520 or'],['item','Amulette du Spectre']] },
+  };
+
+  const PLAYERS = [
+    {k:'barb', ic:'sports_martial_arts', n:'Bar'},
+    {k:'mage', ic:'auto_fix_high', n:'Mag'},
+    {k:'dwarf', ic:'construction', n:'Nai'},
+    {k:'elf', ic:'park', n:'Elf'},
+  ];
+
+  let selected='qc';
+  const votes={}; // playerKey -> questKey
+
+  // build paths svg (after layout we use % coords with viewBox 0..100)
+  const svg=document.getElementById('paths');
+  svg.setAttribute('viewBox','0 0 100 100');
+  EDGES.forEach(([a,b])=>{
+    const A=NODES[a], B=NODES[b];
+    const done = NODES[a].state==='done' && (NODES[b].state==='done'||NODES[b].state==='current');
+    const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1',A.x); ln.setAttribute('y1',A.y); ln.setAttribute('x2',B.x); ln.setAttribute('y2',B.y);
+    ln.setAttribute('stroke', done?'oklch(0.5 0.015 255)':'oklch(0.34 0.016 255 / 0.7)');
+    ln.setAttribute('stroke-width', done?'0.7':'0.5');
+    ln.setAttribute('stroke-dasharray', NODES[b].state==='locked'?'1.4 1.4':'none');
+    svg.appendChild(ln);
+  });
+
+  const nodesEl=document.getElementById('nodes');
+  Object.entries(NODES).forEach(([k,n])=>{
+    const el=document.createElement('div');
+    el.className='node '+n.state+(k===selected?' sel':'');
+    el.style.left=n.x+'%'; el.style.top=n.y+'%';
+    el.dataset.k=k;
+    el.innerHTML=`<div class="dot"><span class="msym fill">${n.ic}</span></div><div class="nl">${n.label}</div><div class="votedots" data-vd="${k}"></div>`;
+    if(n.state==='avail') el.addEventListener('click', ()=>selectQuest(k));
+    nodesEl.appendChild(el);
+  });
+
+  function renderDetail(k){
+    const q=QUESTS[k];
+    document.getElementById('detail').innerHTML=`
+      <div class="imgph"><span class="tag">illustration · ${q.el}</span>
+        <span class="badge-diff diff-${q.diff}"><span class="msym fill" style="font-size:14px">skull</span> ${q.dl}</span></div>
+      <h2>${q.name}</h2>
+      <div class="qmeta">
+        <span class="m"><span class="msym fill">groups</span> ${q.lvl}</span>
+        <span class="m"><span class="msym">schedule</span> ${q.dur}</span>
+        <span class="m"><span class="msym fill">bolt</span> Élément ${q.el}</span>
+      </div>
+      <p class="hook">${q.hook}</p>
+      <div class="rewards"><div class="rh">Récompenses attendues</div>
+        <div class="reward-chips">
+          ${q.rewards.map(r=>`<span class="rchip ${r[0]}"><span class="msym ${r[0]==='gold'?'':'fill'}">${r[0]==='gold'?'paid':'workspace_premium'}</span>${r[1]}</span>`).join('')}
+        </div></div>`;
+  }
+  function selectQuest(k){
+    selected=k;
+    document.querySelectorAll('.node').forEach(n=>n.classList.toggle('sel', n.dataset.k===k));
+    renderDetail(k);
+    // my vote (barbare as the local player) follows selection
+    castVote('barb', k);
+  }
+
+  // players panel
+  const playersEl=document.getElementById('players');
+  function renderPlayers(){
+    playersEl.innerHTML=PLAYERS.map(p=>{
+      const v=votes[p.k];
+      const choiceLabel = v?QUESTS[v].name.split(' ').slice(-1)[0]:'';
+      return `<div class="pv ${v?'voted':''}"><div class="av"><span class="msym fill">${p.ic}</span></div>
+        <div class="pn ${v?'choice':''}">${v?choiceLabel:p.n}</div></div>`;
+    }).join('');
+  }
+  function renderVoteDots(){
+    document.querySelectorAll('[data-vd]').forEach(el=>{
+      const k=el.dataset.vd;
+      const n=Object.values(votes).filter(v=>v===k).length;
+      el.innerHTML=Array.from({length:n},()=>'<i></i>').join('');
+    });
+  }
+  function tally(){
+    const missing=PLAYERS.length-Object.keys(votes).length;
+    const w=document.getElementById('waiting');
+    if(missing>0){ w.style.display='flex'; w.innerHTML=`<span class="msym" style="font-size:16px">hourglass_top</span> En attente de ${missing} joueur${missing>1?'s':''}…`; }
+    else {
+      // winner
+      const counts={}; Object.values(votes).forEach(v=>counts[v]=(counts[v]||0)+1);
+      const win=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
+      w.style.display='flex'; w.innerHTML=`<span class="msym fill" style="font-size:16px;color:var(--ok)">check_circle</span> Décision : <b style="color:var(--torch);margin-left:3px">${QUESTS[win].name}</b>`;
+      document.getElementById('confirmBtn').disabled=false;
+    }
+  }
+  function castVote(pk, qk){ votes[pk]=qk; renderPlayers(); renderVoteDots(); tally(); }
+
+  // init
+  renderDetail(selected); renderPlayers(); renderVoteDots();
+  castVote('barb', selected); // local player pre-votes their selection
+  // simulate other players trickling in
+  setTimeout(()=>castVote('elf','qc'), 1400);
+  setTimeout(()=>castVote('mage','qa'), 2700);
+  setTimeout(()=>castVote('dwarf','qc'), 4000);
+  document.getElementById('confirmBtn').addEventListener('click',()=>{ window.location.href='Table.html'; });
+</script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heroquest IA — Clôture de campagne</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin:0; height:100%; }
+  body { font-family:var(--font-ui); background:#000; color:var(--ink-100); overflow:hidden; --ambiance:0.7; }
+  .msym { font-family:'Material Symbols Outlined'; line-height:1; display:inline-block; white-space:nowrap;
+    -webkit-font-feature-settings:'liga'; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings:'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .stage { position:relative; width:100vw; height:100vh; display:grid; grid-template-rows:auto 1fr auto;
+    padding:0; }
+  .stage.tex-stone::before { content:""; position:absolute; inset:0;
+    background: radial-gradient(60% 70% at 50% -10%, oklch(0.80 0.135 88 / 0.18), transparent 60%); pointer-events:none; }
+
+  /* embers */
+  .embers { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
+  .ember { position:absolute; bottom:-10px; width:4px; height:4px; border-radius:50%; background:var(--torch);
+    box-shadow:0 0 8px var(--torch); opacity:0; animation:rise linear infinite; }
+  @keyframes rise { 0%{ transform:translateY(0) scale(1); opacity:0; } 10%{opacity:.9} 100%{ transform:translateY(-100vh) scale(0.3); opacity:0; } }
+
+  /* header */
+  .head { position:relative; z-index:3; text-align:center; padding:46px 32px 12px; }
+  .head .crumb { font-size:12px; letter-spacing:0.4em; text-transform:uppercase; color:var(--gold); font-weight:700; }
+  .head h1 { font-family:var(--font-display); font-weight:800; font-size:clamp(34px, 5vw, 58px); margin:12px 0 0; letter-spacing:0.04em;
+    background:linear-gradient(180deg, var(--parch-100), var(--gold) 150%); -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 4px 40px oklch(0.80 0.135 88 / 0.25); }
+  .laurel { display:flex; align-items:center; justify-content:center; gap:16px; margin-top:10px; color:var(--gold); }
+  .laurel .ln { width:80px; height:1px; background:linear-gradient(90deg, transparent, var(--gold)); }
+  .laurel .ln.r { background:linear-gradient(90deg, var(--gold), transparent); }
+
+  /* main grid */
+  .main { position:relative; z-index:2; display:grid; grid-template-columns:1.1fr 1fr; gap:24px; padding:18px 40px; min-height:0; }
+  @media (max-width:1100px){ .main { grid-template-columns:1fr; overflow-y:auto; } }
+
+  .epilogue { background:linear-gradient(180deg, oklch(0.22 0.014 255 / 0.9), oklch(0.17 0.012 255 / 0.92)); border:var(--line);
+    border-left:4px solid var(--gold); border-radius:var(--r-lg); padding:26px 28px; display:flex; flex-direction:column; }
+  .epilogue .who { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+  .epilogue .who .av { width:48px; height:48px; border-radius:50%; display:grid; place-items:center;
+    background:linear-gradient(150deg, var(--gold), var(--ember-deep)); color:var(--stone-950); }
+  .epilogue .who .av .msym { font-size:26px; }
+  .epilogue .who .lbl { font-family:var(--font-display); font-size:12px; letter-spacing:0.12em; color:var(--gold); font-weight:700; }
+  .epilogue .who .sub { font-size:11px; color:var(--ink-500); }
+  .epilogue p { font-family:var(--font-narr); font-size:clamp(16px,1.5vw,20px); line-height:1.62; color:var(--ink-100); margin:0 0 14px; }
+  .epilogue p .drop { font-family:var(--font-display); font-size:2.6em; float:left; line-height:0.8; margin:6px 10px 0 0; color:var(--gold); }
+  .campstats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:auto; padding-top:20px; border-top:var(--line); }
+  .campstats .cs { text-align:center; }
+  .campstats .cs .v { font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--parch-100); }
+  .campstats .cs .v.gold { color:var(--gold); }
+  .campstats .cs .k { font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-500); font-weight:700; margin-top:3px; }
+
+  /* loot distribution */
+  .loot { display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .loot-head { display:flex; align-items:center; justify-content:space-between; }
+  .loot-head h2 { font-family:var(--font-display); font-size:16px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-300); margin:0; display:flex; align-items:center; gap:9px; }
+  .loot-head .pool { display:flex; align-items:center; gap:7px; font-size:14px; font-weight:800; color:var(--gold); background:oklch(0.80 0.135 88 / 0.12); border:var(--line-gold); padding:6px 13px; border-radius:99px; }
+
+  .reward-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; overflow-y:auto; padding-right:4px; }
+  .reward { background:linear-gradient(180deg, var(--stone-850), var(--stone-900)); border:var(--line); border-radius:var(--r-md); padding:13px; }
+  .reward .rh { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+  .reward .ic { width:40px; height:40px; border-radius:10px; display:grid; place-items:center; flex:none; background:var(--stone-800); color:var(--torch); }
+  .reward .ic.unique { color:var(--rar-unique); background:oklch(0.74 0.15 78 / 0.14); }
+  .reward .ic.rare { color:var(--rar-rare); background:oklch(0.66 0.15 245 / 0.14); }
+  .reward .rn { font-size:14px; font-weight:700; color:var(--parch-100); line-height:1.15; }
+  .reward .rr { font-size:10.5px; font-weight:700; letter-spacing:0.04em; }
+  .rar-uncommon{color:var(--rar-uncommon)} .rar-rare{color:var(--rar-rare)} .rar-unique{color:var(--rar-unique)}
+  .assign { display:flex; gap:5px; }
+  .assign button { flex:1; background:var(--stone-800); border:var(--line); border-radius:8px; padding:7px 4px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:3px; transition:all .14s; }
+  .assign button .msym { font-size:18px; color:var(--ink-500); }
+  .assign button .an { font-size:9px; font-weight:700; color:var(--ink-700); }
+  .assign button.on { border-color:var(--torch); background:oklch(0.76 0.155 65 / 0.16); }
+  .assign button.on .msym, .assign button.on .an { color:var(--torch); }
+
+  /* footer */
+  .foot { position:relative; z-index:3; display:flex; align-items:center; gap:16px; justify-content:center; padding:18px 40px 26px; }
+  .btn { border:none; border-radius:var(--r-md); padding:15px 28px; font-family:var(--font-ui); font-weight:700; font-size:16px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:10px; transition:transform .1s; text-decoration:none; }
+  .btn:active { transform:scale(0.98); }
+  .btn-gold { background:linear-gradient(180deg, var(--gold), var(--ember-deep)); color:var(--stone-950); box-shadow:var(--sh-2); }
+  .btn-ghost { background:var(--stone-800); color:var(--ink-100); border:var(--line-strong); }
+  .home { position:absolute; top:18px; left:24px; z-index:4; color:var(--ink-500); text-decoration:none; font-size:11px; font-weight:700; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:4px; }
+</style>
+</head>
+<body>
+<div class="stage tex-stone tex-vignette">
+  <a class="home" href="index.html"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a>
+  <div class="embers" id="embers"></div>
+
+  <div class="head">
+    <div class="crumb">Campagne achevée · 8 quêtes · La Crypte d'Ambre</div>
+    <h1>La Lumière Revient</h1>
+    <div class="laurel"><span class="ln"></span><span class="msym fill">military_tech</span><span class="ln r"></span></div>
+  </div>
+
+  <div class="main">
+    <!-- epilogue -->
+    <div class="epilogue">
+      <div class="who">
+        <span class="av"><span class="msym fill">menu_book</span></span>
+        <div><div class="lbl">LE MAÎTRE DE JEU · ÉPILOGUE</div><div class="sub">Narration finale de la campagne</div></div>
+      </div>
+      <p><span class="drop">L</span>e Spectre d'Ambre s'effondre en une pluie d'étincelles froides, et pour la première fois depuis des siècles, la crypte se tait. Vous remontez les galeries noyées, trempés et meurtris, mais vivants — porteurs d'une lumière que les ténèbres croyaient avoir éteinte.</p>
+      <p>On chantera votre nom à Pierregivre. Mais d'autres seuils, ailleurs, attendent déjà qu'on les franchisse…</p>
+      <div class="campstats">
+        <div class="cs"><div class="v">8</div><div class="k">Quêtes</div></div>
+        <div class="cs"><div class="v">137</div><div class="k">Ennemis vaincus</div></div>
+        <div class="cs"><div class="v gold">5 940</div><div class="k">Or amassé</div></div>
+      </div>
+    </div>
+
+    <!-- loot -->
+    <div class="loot">
+      <div class="loot-head">
+        <h2><span class="msym fill">workspace_premium</span> Partage du butin</h2>
+        <div class="pool"><span class="msym" style="font-size:16px">paid</span><span id="poolGold">1 200</span> or · 4 parts</div>
+      </div>
+      <div class="reward-grid" id="rewardGrid"></div>
+      <div style="font-size:12px;color:var(--ink-500);display:flex;align-items:center;gap:7px;margin-top:2px;">
+        <span class="msym" style="font-size:15px">how_to_vote</span> Le groupe assigne chaque objet ; un vote tranche les égalités.
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <a class="btn btn-ghost" href="index.html"><span class="msym">holiday_village</span> Retour à la ville</a>
+    <button class="btn btn-gold" onclick="alert('Démo — une nouvelle campagne serait proposée.')"><span class="msym fill">auto_stories</span> Nouvelle campagne</button>
+  </div>
+</div>
+
+<script>
+  const HEROES=[
+    {k:'barb', ic:'sports_martial_arts', n:'Bar'},
+    {k:'mage', ic:'auto_fix_high', n:'Mag'},
+    {k:'dwarf', ic:'construction', n:'Nai'},
+    {k:'elf', ic:'park', n:'Elf'},
+  ];
+  const REWARDS=[
+    {n:'Lame du Spectre', rar:'unique', ic:'colorize', to:'barb'},
+    {n:'Grimoire Noyé', rar:'rare', ic:'auto_stories', to:'mage'},
+    {n:'Heaume runique', rar:'rare', ic:'sports_motorsports', to:'dwarf'},
+    {n:'Carquois sans fin', rar:'uncommon', ic:'arrow_outward', to:'elf'},
+    {n:'Amulette d\'Ambre', rar:'unique', ic:'diamond', to:'mage'},
+    {n:'Potion de soin majeure', rar:'uncommon', ic:'science', to:'barb'},
+  ];
+  const RAR_LABEL={uncommon:'Peu commun',rare:'Rare',unique:'Unique'};
+  document.getElementById('rewardGrid').innerHTML = REWARDS.map((r,idx)=>`
+    <div class="reward">
+      <div class="rh"><span class="ic ${r.rar}"><span class="msym fill">${r.ic}</span></span>
+        <div><div class="rn">${r.n}</div><div class="rr rar-${r.rar}">${RAR_LABEL[r.rar]}</div></div></div>
+      <div class="assign" data-idx="${idx}">
+        ${HEROES.map(h=>`<button class="${h.k===r.to?'on':''}" data-h="${h.k}" onclick="assign(${idx},'${h.k}',this)"><span class="msym fill">${h.ic}</span><span class="an">${h.n}</span></button>`).join('')}
+      </div>
+    </div>`).join('');
+  function assign(idx, hk, el){
+    el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    el.classList.add('on');
+  }
+  // embers
+  const em=document.getElementById('embers');
+  for(let i=0;i<26;i++){
+    const e=document.createElement('div'); e.className='ember';
+    e.style.left=Math.random()*100+'%';
+    e.style.animationDuration=(5+Math.random()*7)+'s';
+    e.style.animationDelay=(-Math.random()*8)+'s';
+    e.style.width=e.style.height=(2+Math.random()*4)+'px';
+    e.style.opacity=0.5+Math.random()*0.5;
+    em.appendChild(e);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+/* =========================================================================
+   HEROQUEST IA — Tokens de design partagés
+   Dark fantasy de donjon · pierre, torche, parchemin, métal
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Public+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* ---- Familles ---- */
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;   /* titres, capitales romaines gravées */
+  --font-narr: 'Spectral', Georgia, 'Times New Roman', serif; /* narration, parchemin */
+  --font-ui: 'Public Sans', system-ui, -apple-system, sans-serif; /* données de jeu, UI */
+
+  /* ---- Pierre & charbon (base sombre, bleu-gris profond) ---- */
+  --stone-950: oklch(0.16 0.012 255);
+  --stone-900: oklch(0.20 0.013 255);
+  --stone-850: oklch(0.235 0.014 255);
+  --stone-800: oklch(0.27 0.015 255);
+  --stone-700: oklch(0.34 0.016 255);
+  --stone-600: oklch(0.44 0.016 255);
+  --stone-500: oklch(0.55 0.015 255);
+  --stone-400: oklch(0.66 0.013 255);
+  --stone-300: oklch(0.78 0.010 255);
+  --stone-200: oklch(0.87 0.008 255);
+
+  /* ---- Parchemin (menus, fiches, cartes de choix) ---- */
+  --parch-100: oklch(0.95 0.022 82);
+  --parch-200: oklch(0.91 0.030 82);
+  --parch-300: oklch(0.86 0.035 80);
+  --parch-400: oklch(0.78 0.040 78);
+  --parch-ink: oklch(0.30 0.030 60);     /* encre sur parchemin */
+  --parch-ink-soft: oklch(0.44 0.028 60);
+
+  /* ---- Torche (accent chaud : ambre, cuivre, braise) ---- */
+  --torch: oklch(0.76 0.155 65);          /* ambre lumineux */
+  --torch-bright: oklch(0.83 0.150 80);
+  --ember: oklch(0.62 0.170 42);          /* braise / cuivre */
+  --ember-deep: oklch(0.50 0.150 38);
+  --gold: oklch(0.80 0.135 88);
+
+  /* ---- Éléments de magie ---- */
+  --elem-fire: oklch(0.64 0.205 35);      /* feu — rouge/orange */
+  --elem-water: oklch(0.66 0.150 245);    /* eau — bleu */
+  --elem-earth: oklch(0.60 0.115 145);    /* terre — vert/brun */
+  --elem-air: oklch(0.86 0.075 215);      /* air — cyan/blanc */
+
+  /* ---- États / conditions (toujours doublés d'une icône+texte) ---- */
+  --cond-poison: oklch(0.68 0.165 145);   /* poison — vert toxique */
+  --cond-fear: oklch(0.60 0.145 305);     /* peur — violet */
+  --cond-sleep: oklch(0.62 0.115 270);    /* sommeil — indigo */
+  --cond-buff: oklch(0.80 0.130 90);      /* renforcé — or */
+  --cond-burn: oklch(0.64 0.190 45);      /* brûlure — orange */
+  --cond-bleed: oklch(0.55 0.190 25);     /* saignement — rouge */
+
+  /* ---- PV : Body (physique) & Mind (mental) ---- */
+  --body: oklch(0.58 0.185 25);           /* Body — cramoisi */
+  --body-bright: oklch(0.66 0.195 28);
+  --mind: oklch(0.64 0.140 270);          /* Mind — indigo/azur */
+  --mind-bright: oklch(0.72 0.140 272);
+
+  /* ---- Sémantique ---- */
+  --ok: oklch(0.70 0.140 150);
+  --warn: oklch(0.78 0.150 75);
+  --danger: oklch(0.60 0.200 25);
+
+  /* ---- Texte ---- */
+  --ink-100: oklch(0.93 0.010 255);
+  --ink-300: oklch(0.80 0.012 255);
+  --ink-500: oklch(0.64 0.013 255);
+  --ink-700: oklch(0.50 0.013 255);
+
+  /* ---- Rareté objets ---- */
+  --rar-common: var(--stone-400);
+  --rar-uncommon: oklch(0.68 0.130 150);
+  --rar-rare: oklch(0.66 0.150 245);
+  --rar-unique: oklch(0.74 0.150 78);
+
+  /* ---- Rayons, ombres, traits ---- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  --line: 1px solid oklch(0.34 0.016 255 / 0.7);
+  --line-strong: 1px solid oklch(0.44 0.020 255 / 0.9);
+  --line-gold: 1px solid oklch(0.62 0.080 80 / 0.5);
+
+  --sh-1: 0 1px 2px oklch(0 0 0 / 0.4);
+  --sh-2: 0 4px 14px oklch(0 0 0 / 0.45);
+  --sh-3: 0 14px 40px oklch(0 0 0 / 0.55);
+  --sh-inset: inset 0 1px 0 oklch(1 0 0 / 0.06), inset 0 -1px 0 oklch(0 0 0 / 0.3);
+
+  /* lueur de torche pour focus / sélection */
+  --glow-torch: 0 0 0 1px oklch(0.76 0.155 65 / 0.6), 0 0 18px oklch(0.76 0.155 65 / 0.35);
+
+  /* espacements */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+}
+
+/* ---- Matières (textures procédurales, légères & performantes) ---- */
+.tex-stone {
+  background-color: var(--stone-900);
+  background-image:
+    radial-gradient(120% 90% at 50% 0%, oklch(0.27 0.018 255 / 0.6), transparent 60%),
+    repeating-linear-gradient(115deg, oklch(1 0 0 / 0.012) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(60deg, oklch(0 0 0 / 0.05) 0 3px, transparent 3px 9px);
+}
+.tex-parch {
+  background-color: var(--parch-200);
+  background-image:
+    radial-gradient(140% 120% at 30% 0%, oklch(0.97 0.02 82 / 0.7), transparent 55%),
+    radial-gradient(120% 120% at 100% 100%, oklch(0.74 0.05 70 / 0.45), transparent 60%),
+    repeating-linear-gradient(92deg, oklch(0.5 0.03 60 / 0.025) 0 1px, transparent 1px 7px);
+  color: var(--parch-ink);
+}
+/* vignettage / grain — superposable, piloté par --ambiance (0..1) */
+.tex-vignette::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 50;
+  background:
+    radial-gradient(130% 110% at 50% 35%, transparent 45%, oklch(0 0 0 / calc(0.55 * var(--ambiance, 0.6))) 100%);
+  mix-blend-mode: multiply;
+}
+
+*, *::before, *::after { box-sizing: border-box; }

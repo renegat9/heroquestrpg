@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Heroquest IA — Reconnexion</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0" />
+<style>
+  html, body { margin:0; }
+  body { font-family:var(--font-ui); background:radial-gradient(80% 60% at 50% -10%, oklch(0.24 0.015 255), transparent 60%), var(--stone-950);
+    color:var(--ink-100); min-height:100vh; display:grid; place-items:center; padding:24px; --ambiance:0.6; -webkit-font-smoothing:antialiased; }
+  .msym { font-family:'Material Symbols Outlined'; line-height:1; display:inline-block; white-space:nowrap;
+    -webkit-font-feature-settings:'liga'; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'opsz' 24; }
+  .fill { font-variation-settings:'FILL' 1,'wght' 500,'opsz' 24; }
+
+  .phone { --w:412px; --h:880px; width:var(--w); height:var(--h); max-height:calc(100vh - 36px); position:relative; border-radius:44px; padding:12px;
+    background:linear-gradient(160deg, oklch(0.26 0.012 255), oklch(0.14 0.01 255)); box-shadow:var(--sh-3), inset 0 0 0 1px oklch(1 0 0 /0.05); }
+  .screen { position:relative; width:100%; height:100%; border-radius:33px; overflow:hidden; background:var(--stone-900); display:flex; flex-direction:column; }
+  @media (max-width:480px){ body{padding:0} .phone{--w:100vw;--h:100vh;width:100vw;height:100vh;max-height:100vh;border-radius:0;padding:0} .screen{border-radius:0} }
+
+  .screen.tex-stone::before { content:""; position:absolute; inset:0;
+    background:radial-gradient(70% 50% at 50% 0%, oklch(0.76 0.155 65 / 0.10), transparent 60%); pointer-events:none; }
+
+  .top { flex:none; padding:18px 18px 0; display:flex; align-items:center; }
+  .top .home { color:var(--ink-500); text-decoration:none; font-size:11px; font-weight:700; letter-spacing:0.08em; display:inline-flex; align-items:center; gap:4px; }
+
+  .core { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 28px; text-align:center; position:relative; z-index:1; }
+
+  /* lantern reconnect animation */
+  .lantern { width:120px; height:120px; border-radius:50%; display:grid; place-items:center; margin-bottom:28px; position:relative; }
+  .lantern .ring { position:absolute; inset:0; border-radius:50%; border:2px solid oklch(0.76 0.155 65 / 0.25); }
+  .lantern .ring.spin { border-top-color:var(--torch); animation:spin 1.1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .lantern .core-ic { width:80px; height:80px; border-radius:50%; display:grid; place-items:center;
+    background:linear-gradient(150deg, var(--ember), var(--ember-deep)); color:var(--parch-100); box-shadow:var(--glow-torch); transition:all .4s; }
+  .lantern .core-ic .msym { font-size:42px; }
+  .lantern.ok .core-ic { background:linear-gradient(150deg, var(--ok), oklch(0.5 0.12 150)); box-shadow:0 0 0 1px var(--ok), 0 0 24px oklch(0.7 0.14 150 / 0.5); }
+  .lantern.flicker .core-ic { animation:flick 0.9s ease-in-out infinite; }
+  @keyframes flick { 0%,100%{opacity:1} 50%{opacity:0.55} }
+
+  .core h1 { font-family:var(--font-display); font-size:26px; color:var(--parch-100); margin:0 0 8px; letter-spacing:0.02em; }
+  .core .sub { font-family:var(--font-narr); font-style:italic; font-size:16px; color:var(--ink-300); line-height:1.5; margin:0 0 6px; max-width:300px; }
+
+  .steps { width:100%; max-width:300px; margin:24px 0 0; display:flex; flex-direction:column; gap:10px; }
+  .step { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:var(--r-md); background:var(--stone-850); border:var(--line); text-align:left; transition:all .3s; }
+  .step .si { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; flex:none; background:var(--stone-800); color:var(--ink-500); border:var(--line); }
+  .step .si .msym { font-size:16px; }
+  .step .st { font-size:13px; font-weight:600; color:var(--ink-400); }
+  .step.done { border-color:oklch(0.7 0.14 150 / 0.4); }
+  .step.done .si { background:var(--ok); color:var(--stone-950); border-color:var(--ok); }
+  .step.done .st { color:var(--ink-200); }
+  .step.active { border-color:var(--torch); box-shadow:var(--glow-torch); }
+  .step.active .si { background:var(--torch); color:var(--stone-950); border-color:var(--torch); }
+  .step.active .si .msym { animation:spin 1s linear infinite; }
+  .step.active .st { color:var(--parch-100); }
+
+  /* resume card (state when reconnected) */
+  .resume { width:100%; max-width:320px; margin-top:8px; opacity:0; transform:translateY(10px); transition:all .4s; display:none; }
+  .resume.show { display:block; opacity:1; transform:translateY(0); }
+  .resume-card { background:linear-gradient(180deg, var(--stone-850), var(--stone-900)); border:var(--line-strong); border-radius:var(--r-lg); padding:18px; text-align:left; margin-bottom:14px; }
+  .resume-card .rl { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-500); font-weight:700; margin-bottom:12px; }
+  .rrow { display:flex; align-items:center; gap:11px; margin-bottom:11px; }
+  .rrow:last-child { margin-bottom:0; }
+  .rrow .ic { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; flex:none; background:var(--stone-800); color:var(--torch); }
+  .rrow .rt { font-size:11px; color:var(--ink-500); font-weight:700; text-transform:uppercase; letter-spacing:0.05em; }
+  .rrow .rv { font-size:14.5px; font-weight:700; color:var(--parch-100); }
+  .rrow .rv.turn { color:var(--torch); }
+
+  .btn { border:none; border-radius:var(--r-md); padding:15px; font-family:var(--font-ui); font-weight:700; font-size:16px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:9px; width:100%; transition:transform .1s; text-decoration:none; }
+  .btn:active { transform:scale(0.98); }
+  .btn-torch { background:linear-gradient(180deg, var(--torch-bright), var(--torch)); color:var(--stone-950); box-shadow:var(--sh-2); }
+
+  /* takeover warning variant */
+  .core.warn .lantern .core-ic { background:linear-gradient(150deg, var(--warn), var(--ember-deep)); }
+  .warn-box { background:oklch(0.78 0.150 75 / 0.10); border:1px solid oklch(0.78 0.15 75 / 0.4); border-radius:var(--r-md); padding:13px 15px;
+    display:flex; gap:11px; align-items:flex-start; text-align:left; max-width:320px; margin-top:20px; }
+  .warn-box .msym { color:var(--warn); flex:none; }
+  .warn-box .wt { font-size:12.5px; color:var(--ink-200); line-height:1.5; }
+  .warn-box .wt b { color:var(--warn); }
+
+  /* footer status */
+  .foot { flex:none; padding:14px 18px calc(14px + env(safe-area-inset-bottom)); border-top:var(--line); display:flex; align-items:center; justify-content:center; gap:8px;
+    font-size:11.5px; color:var(--ink-500); font-weight:600; }
+  .foot .dot { width:7px; height:7px; border-radius:50%; background:var(--warn); box-shadow:0 0 6px currentColor; color:var(--warn); transition:all .3s; }
+  .foot.ok .dot { background:var(--ok); color:var(--ok); }
+
+  /* demo control */
+  .demo { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:200; display:flex; gap:6px;
+    background:oklch(0.16 0.012 255 / 0.92); border:var(--line); border-radius:99px; padding:6px; backdrop-filter:blur(8px); box-shadow:var(--sh-2); }
+  .demo button { background:none; border:none; color:var(--ink-500); font-family:var(--font-ui); font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:99px; cursor:pointer; }
+  .demo button.on { background:var(--torch); color:var(--stone-950); }
+  .demo .lbl { color:var(--ink-700); font-size:10px; padding:6px 4px 6px 8px; letter-spacing:0.08em; text-transform:uppercase; align-self:center; }
+  @media (max-width:480px){ .demo{bottom:8px} }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="screen tex-stone">
+      <div class="top"><a class="home" href="index.html"><span class="msym" style="font-size:14px">arrow_back</span> HUB</a></div>
+
+      <!-- RECONNECTING -->
+      <div class="core" id="coreReconnect">
+        <div class="lantern flicker" id="lantern">
+          <div class="ring spin"></div>
+          <div class="core-ic"><span class="msym fill">wifi_tethering</span></div>
+        </div>
+        <h1 id="title">Reconnexion…</h1>
+        <p class="sub" id="subtitle">La lanterne vacille — on rétablit ton lien avec la table.</p>
+
+        <div class="steps" id="steps">
+          <div class="step done"><span class="si"><span class="msym fill">link</span></span><span class="st">Lien au serveur de la table</span></div>
+          <div class="step active"><span class="si"><span class="msym">progress_activity</span></span><span class="st">Synchronisation de l'état de jeu</span></div>
+          <div class="step"><span class="si"><span class="msym">person</span></span><span class="st">Restauration de ton héros</span></div>
+        </div>
+
+        <!-- resume (hidden until reconnected) -->
+        <div class="resume" id="resume">
+          <div class="resume-card">
+            <div class="rl">Reprise de session</div>
+            <div class="rrow"><span class="ic"><span class="msym fill">auto_fix_high</span></span><div><div class="rt">Ton héros</div><div class="rv">Eldra Sombrelune · Magicienne</div></div></div>
+            <div class="rrow"><span class="ic"><span class="msym fill">castle</span></span><div><div class="rt">Quête en cours</div><div class="rv">Le Seuil des Ombres</div></div></div>
+            <div class="rrow"><span class="ic"><span class="msym fill">bolt</span></span><div><div class="rt">État</div><div class="rv turn">À toi de jouer — tour 7</div></div></div>
+          </div>
+          <a class="btn btn-torch" href="Manette.html"><span class="msym fill">login</span> Reprendre la partie</a>
+        </div>
+      </div>
+
+      <!-- TAKEOVER (hidden variant) -->
+      <div class="core warn" id="coreTakeover" style="display:none;">
+        <div class="lantern"><div class="ring"></div><div class="core-ic"><span class="msym fill">devices_other</span></div></div>
+        <h1>Session reprise ailleurs</h1>
+        <p class="sub">Ton héros vient d'être ouvert sur un autre appareil.</p>
+        <div class="warn-box">
+          <span class="msym fill">info</span>
+          <span class="wt">Une seule session active par joueur. <b>Eldra Sombrelune</b> est maintenant contrôlée depuis « iPhone de Léa ». Reprends la main pour fermer l'autre session.</span>
+        </div>
+        <div style="width:100%;max-width:320px;margin-top:22px;">
+          <button class="btn btn-torch" onclick="setState('reconnect')"><span class="msym">swap_horiz</span> Reprendre ici</button>
+        </div>
+      </div>
+
+      <div class="foot" id="foot"><span class="dot"></span><span id="footText">Connexion instable — reprise automatique</span></div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <span class="lbl">État</span>
+    <button class="on" id="b-reconnect" onclick="setState('reconnect')">Reconnexion</button>
+    <button id="b-resume" onclick="setState('resume')">Reprise prête</button>
+    <button id="b-takeover" onclick="setState('takeover')">Reprise ailleurs</button>
+  </div>
+
+<script>
+  let timers=[];
+  function clearTimers(){ timers.forEach(t=>clearTimeout(t)); timers=[]; }
+  const steps=document.querySelectorAll('#steps .step');
+  const lantern=document.getElementById('lantern');
+  const foot=document.getElementById('foot');
+
+  function setState(s){
+    clearTimers();
+    document.querySelectorAll('.demo button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('b-'+s)?.classList.add('on');
+    document.getElementById('coreReconnect').style.display = s==='takeover'?'none':'flex';
+    document.getElementById('coreTakeover').style.display = s==='takeover'?'flex':'none';
+
+    if(s==='reconnect'){ runReconnect(); }
+    if(s==='resume'){ showResume(true); }
+  }
+
+  function resetSteps(){
+    steps.forEach((st,i)=>{ st.className='step'+(i===0?' done':''); });
+    steps[0].querySelector('.si .msym').textContent='link';
+    steps[1].querySelector('.si .msym').textContent='progress_activity';
+    steps[2].querySelector('.si .msym').textContent='person';
+  }
+
+  function runReconnect(){
+    document.getElementById('resume').classList.remove('show');
+    document.getElementById('title').textContent='Reconnexion…';
+    document.getElementById('subtitle').textContent='La lanterne vacille — on rétablit ton lien avec la table.';
+    lantern.className='lantern flicker';
+    lantern.querySelector('.ring').classList.add('spin');
+    lantern.querySelector('.core-ic .msym').textContent='wifi_tethering';
+    foot.className='foot'; document.getElementById('footText').textContent='Connexion instable — reprise automatique';
+    resetSteps();
+    // step 1 done, step 2 active already
+    steps[1].classList.add('active');
+    timers.push(setTimeout(()=>{
+      steps[1].classList.remove('active'); steps[1].classList.add('done');
+      steps[1].querySelector('.si .msym').textContent='check';
+      steps[2].classList.add('active');
+    }, 1500));
+    timers.push(setTimeout(()=>{
+      steps[2].classList.remove('active'); steps[2].classList.add('done');
+      steps[2].querySelector('.si .msym').textContent='check';
+      showResume(false);
+    }, 3000));
+  }
+
+  function showResume(instant){
+    document.getElementById('coreReconnect').style.display='flex';
+    document.getElementById('coreTakeover').style.display='none';
+    if(instant){ resetSteps(); steps.forEach(st=>{ st.classList.remove('active'); st.classList.add('done'); }); 
+      steps[1].querySelector('.si .msym').textContent='check'; steps[2].querySelector('.si .msym').textContent='check'; }
+    lantern.className='lantern ok';
+    lantern.querySelector('.ring').classList.remove('spin');
+    lantern.querySelector('.core-ic .msym').textContent='check';
+    document.getElementById('title').textContent='Te revoilà !';
+    document.getElementById('subtitle').textContent='La table t\'a gardé ta place. Rien n\'a été perdu.';
+    foot.className='foot ok'; document.getElementById('footText').textContent='Connecté — session restaurée';
+    document.getElementById('resume').classList.add('show');
+  }
+
+  // auto-run reconnect on load
+  runReconnect();
+</script>
+</body>
+</html>
