@@ -35,4 +35,29 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Anthropic (MJ IA)
+    |--------------------------------------------------------------------------
+    | Clé en .env uniquement, jamais dans l'image (doc 11 §2).
+    */
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-6'),
+        'base_url' => env('ANTHROPIC_BASE_URL', 'https://api.anthropic.com'),
+        'max_tokens' => (int) env('ANTHROPIC_MAX_TOKENS', 4096),
+        'timeout' => (int) env('ANTHROPIC_TIMEOUT', 120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Qdrant (bible RAG, doc 12 §7)
+    |--------------------------------------------------------------------------
+    */
+    'qdrant' => [
+        'host' => env('QDRANT_HOST', 'qdrant'),
+        'port' => (int) env('QDRANT_PORT', 6333),
+        'collection' => env('QDRANT_COLLECTION', 'bible'),
+    ],
+
 ];
