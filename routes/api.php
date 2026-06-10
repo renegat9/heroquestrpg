@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\GroupeController;
+use App\Http\Controllers\Api\MarcheController;
+use App\Http\Controllers\Api\VoteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,4 +34,19 @@ Route::middleware('auth:joueur')->group(function () {
     // Choix de menu : validation contre le dernier menu proposé + résolution
     // moteur (ResolveurTour), puis narration/menus en jobs.
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
+
+    // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
+    // application atomique quand TOUS les joueurs ont confirmé.
+    Route::post('/groupes/{identifiant}/marche', [MarcheController::class, 'ouvrir']);
+    Route::get('/groupes/{identifiant}/marche', [MarcheController::class, 'etat']);
+    Route::put('/groupes/{identifiant}/marche/panier', [MarcheController::class, 'panier']);
+    Route::post('/groupes/{identifiant}/marche/confirmation', [MarcheController::class, 'confirmer']);
+    Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annuler']);
+
+    // Votes de groupe (doc 05 §5) : un seul vote actif par groupe ; au hub,
+    // le départ est libre avec sa part du pot commun.
+    Route::post('/groupes/{identifiant}/votes', [VoteController::class, 'lancer']);
+    Route::post('/groupes/{identifiant}/votes/bulletin', [VoteController::class, 'bulletin']);
+    Route::get('/groupes/{identifiant}/votes', [VoteController::class, 'actif']);
+    Route::post('/groupes/{identifiant}/depart', [VoteController::class, 'depart']);
 });

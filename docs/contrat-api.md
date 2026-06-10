@@ -55,6 +55,65 @@ middleware `auth` sauf connexion.
 Autorisations (routes/channels.php) : `groupe.{identifiant}` → le joueur a un
 personnage actif dans ce groupe ; `joueur.{id}` → id === joueur connecté.
 
+## Phase marché (doc 04 §5 — au hub uniquement)
+
+La phase vit en cache serveur (comme les menus) ; rien n'est appliqué avant la
+confirmation de TOUS les joueurs membres, puis application **atomique** en
+transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/marche | {profil?} | ouvre la phase (422 si pas au hub ou déjà ouverte) |
+| GET | /groupes/{identifiant}/marche | — | EtatMarche |
+| PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
+| POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
+| DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) |
+
+**EtatMarche** : `{profil, multiplicateur, inventaire: [{objet_id, nom, categorie,
+rarete, prix, stock}], paniers: [{joueur_id, pseudo, achats: [...], ventes: [...],
+confirme, inventaire: [{inventaire_id, personnage_id, objet_id, nom, categorie,
+rarete, emplacement, quantite, revente}]}], total_projete, or_courant}` — le
+`inventaire` de chaque panier liste ce que ce joueur peut vendre (héros actifs),
+avec le prix de revente M1 déjà calculé. Prix d'achat = prix_base × multiplicateur
+du profil (doc 04 §3) ; revente = 50 % du prix marchand courant (M1) ; rareté
+`unique` jamais en stock. Garde-fous à l'application : total ≥ 0, stock, objets
+vendus réellement possédés, **capacité de sac** (PV Body max ÷ 2 arrondi
+inférieur + bonus_sac de classe — doc 01) respectée pour chaque personnage.
+
+Précisions serveur : stocks de départ playtest par rareté (commun = illimité,
+peu_commun = 3, rare = 1) ; chaque ligne d'achat accepte un `personnage_id`
+optionnel (un des héros du joueur — son premier par défaut) ; les achats non
+consommables vont au **sac**, les consommables s'empilent hors capacité.
+
+Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
+`.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
+({applique: bool}) suivi de `.groupe.etat`.
+
+## Votes de groupe (doc 05 §5)
+
+Un seul vote actif par groupe (cache + journal). Types MVP : `retrait_joueur`
+(en quête ; le joueur visé ne vote pas ; majorité requise, **égalité = il
+reste**) et `choix_groupe` (question + options posées par le MJ ou un joueur ;
+résolution à complétude des votants, majorité simple — **égalité = la première
+option au décompte stable** (ordre de déclaration), choix déterministe MVP à
+raffiner en playtest).
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/votes | {type, question?, options?: [{id, libelle}], cible_joueur_id?} | lance le vote (422 si un vote est actif) |
+| POST | /groupes/{identifiant}/votes/bulletin | {option_id} | vote du joueur ; à complétude → résolution |
+| GET | /groupes/{identifiant}/votes | — | vote actif ou null |
+
+Résolution `retrait_joueur` : option `oui` majoritaire → le joueur quitte le
+groupe avec **sa part de l'or d'avant la quête** (`quetes.or_initial` ÷ membres,
+doc 05 §5) versée à son personnage ; personnages détachés (groupe_actif_id null).
+Hors quête, pas de vote : `POST /groupes/{identifiant}/depart` (part du pot
+commun ÷ membres présents).
+
+Broadcasts canal `groupe.{identifiant}` : `.vote.lance` ({vote}), `.vote.maj`
+({decompte, exprimes, attendus}), `.vote.resultat` ({option_id, applique}) puis
+`.groupe.etat` si l'état a changé.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

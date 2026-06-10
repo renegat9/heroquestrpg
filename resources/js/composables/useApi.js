@@ -88,6 +88,8 @@ export function useApi() {
     return {
         get: (path) => request('GET', path),
         post: (path, body) => request('POST', path, body),
+        put: (path, body) => request('PUT', path, body),
+        delete: (path) => request('DELETE', path),
 
         // ---- authentification (session Laravel, guard `joueur`) ----
 
@@ -122,5 +124,45 @@ export function useApi() {
          */
         envoyerChoix: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/choix`, payload),
+
+        // ---- phase marché (contrat « Phase marché », au hub uniquement) ----
+
+        /** POST /groupes/{id}/marche {profil?} → ouvre la phase (broadcast .marche.ouvert). */
+        ouvrirMarche: (identifiant, payload = {}) =>
+            request('POST', `/groupes/${identifiant}/marche`, payload),
+
+        /** GET /groupes/{id}/marche → EtatMarche. */
+        getMarche: (identifiant) => request('GET', `/groupes/${identifiant}/marche`),
+
+        /**
+         * PUT /groupes/{id}/marche/panier {achats: [{objet_id, quantite}],
+         * ventes: [{inventaire_id}]} — remplace le panier du joueur et
+         * annule sa confirmation (broadcast .marche.maj).
+         */
+        majPanier: (identifiant, { achats = [], ventes = [] } = {}) =>
+            request('PUT', `/groupes/${identifiant}/marche/panier`, { achats, ventes }),
+
+        /** POST /groupes/{id}/marche/confirmation — si tous confirmés → application + clôture. */
+        confirmerPanier: (identifiant) =>
+            request('POST', `/groupes/${identifiant}/marche/confirmation`),
+
+        /** DELETE /groupes/{id}/marche — annule la phase (rien appliqué). */
+        annulerMarche: (identifiant) => request('DELETE', `/groupes/${identifiant}/marche`),
+
+        // ---- votes de groupe (contrat « Votes de groupe ») ----
+
+        /** POST /groupes/{id}/votes {type, question?, options?, cible_joueur_id?} → lance le vote. */
+        lancerVote: (identifiant, payload) =>
+            request('POST', `/groupes/${identifiant}/votes`, payload),
+
+        /** POST /groupes/{id}/votes/bulletin {option_id} — bulletin du joueur. */
+        voterBulletin: (identifiant, optionId) =>
+            request('POST', `/groupes/${identifiant}/votes/bulletin`, { option_id: optionId }),
+
+        /** GET /groupes/{id}/votes → vote actif ou null. */
+        getVote: (identifiant) => request('GET', `/groupes/${identifiant}/votes`),
+
+        /** POST /groupes/{id}/depart — départ hors quête (part du pot commun). */
+        quitterGroupe: (identifiant) => request('POST', `/groupes/${identifiant}/depart`),
     };
 }

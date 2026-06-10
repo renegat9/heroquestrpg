@@ -20,7 +20,8 @@ import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    acteurCourant, CLASSES, initiativeVersMini, labelCourt, useGameStore,
+    acteurCourant, CLASSES, initiativeVersMini, inventaireVendable, labelCourt,
+    marcheVersEchoppe, montantPanier, panierDuJoueur, useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -43,11 +44,23 @@ onMounted(async () => {
                 '.groupe.etat': (e) => store.appliquerEtat(e),
                 '.narration.diffusee': (e) => store.setNarration(e.texte),
                 '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
+                '.marche.ouvert': (e) => store.appliquerMarche(e),
+                '.marche.maj': (e) => store.appliquerMarche(e),
+                '.marche.finalise': (e) => store.fermerMarche(e?.applique ?? null),
+                '.vote.lance': (e) => store.appliquerVote(e?.vote ?? e),
+                '.vote.maj': (e) => store.setVoteDecompte(e),
+                '.vote.resultat': (e) => store.setVoteResultat(e),
             }),
             souscrireJoueur(joueur.id, {
                 '.menu.propose': (e) => store.setMenu(e.menu),
             }),
         );
+        // Rattrapage : phase marché ou vote déjà en cours (reconnexion).
+        api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
+        api.getVote(props.groupe).then((r) => {
+            const v = r?.vote ?? r;
+            if (v && (v.type || v.options)) store.appliquerVote(v);
+        }).catch(() => {});
     } catch (e) {
         store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
     }
@@ -227,25 +240,169 @@ function launchVote() {
         if (v) vote.value = { ...v, opts: v.opts.map((o) => (o.k === 'reload' ? { ...o, c: o.c + 1 } : o)), missing: v.mine != null ? 0 : 1 };
     }, 2800);
 }
-function castVote(k) {
-    const v = vote.value;
-    if (!v) return;
-    vote.value = {
-        ...v,
-        mine: k,
-        opts: v.opts.map((o) => (o.k === k ? { ...o, c: o.c + 1 } : o)),
-        missing: Math.max(0, v.missing - 1),
-    };
-    // Les votes ne sont pas encore au contrat API : démo locale uniquement.
+/* ---- vote (mode connecté) : .vote.lance ouvre la feuille, bulletin
+   POSTé, .vote.maj fait vivre le décompte, .vote.resultat ferme avec le
+   résultat ; la cible d'un retrait_joueur ne vote pas (lecture seule). ---- */
+const monBulletin = ref(null);
+watch(() => store.state.vote, () => { monBulletin.value = null; });
+
+const voteAffiche = computed(() => (enDemo.value
+    ? vote.value
+    : voteVersFeuille(
+        store.state.vote, store.state.voteDecompte, store.state.voteResultat,
+        monBulletin.value, store.state.joueur?.id, store.state.etat,
+    )));
+
+async function castVote(k) {
+    if (enDemo.value) {
+        const v = vote.value;
+        if (!v) return;
+        vote.value = {
+            ...v,
+            mine: k,
+            opts: v.opts.map((o) => (o.k === k ? { ...o, c: o.c + 1 } : o)),
+            missing: Math.max(0, v.missing - 1),
+        };
+        return;
+    }
+    monBulletin.value = k; // optimiste — le décompte arrive par .vote.maj
+    try {
+        await api.voterBulletin(props.groupe, k);
+    } catch (e) {
+        monBulletin.value = null;
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else store.setNarration(e.message);
+    }
+}
+function fermerVote() {
+    if (enDemo.value) {
+        vote.value = null;
+        return;
+    }
+    store.fermerVote();
+    monBulletin.value = null;
 }
 
-/* ---- marché ---- */
+/* ---- marché (démo) ---- */
 const projected = computed(() =>
     basket.value.reduce((s, id) => s + (SHOP.find((x) => x.id === id)?.price || 0), 0));
 function toggleBasket(id) {
     basket.value = basket.value.includes(id)
         ? basket.value.filter((x) => x !== id)
         : [...basket.value, id];
+}
+
+/* ---- marché (mode connecté, doc 04 §5 — saisie individuelle) : le
+   panier local du joueur est la source de vérité de SON panier ; chaque
+   modification est PUT (débouncée) et annule sa confirmation. Le total
+   projeté du groupe = total serveur corrigé du delta local. ---- */
+const panierLocal = ref(null); // { achats: [{objet_id, quantite}], ventes: [inventaire_id…] }
+const confirmEnvoyee = ref(false);
+const marcheErreur = ref('');
+let panierTimer = null;
+let panierDirty = false;
+
+watch(() => store.state.marche, (m) => {
+    if (!m) {
+        panierLocal.value = null;
+        confirmEnvoyee.value = false;
+        marcheErreur.value = '';
+        panierDirty = false;
+        clearTimeout(panierTimer);
+        return;
+    }
+    if (panierLocal.value === null) {
+        const mien = panierDuJoueur(m, store.state.joueur?.id);
+        panierLocal.value = {
+            achats: (mien?.achats ?? []).map((a) => ({ objet_id: a.objet_id, quantite: a.quantite ?? 1 })),
+            ventes: (mien?.ventes ?? []).map((v) => (typeof v === 'object' ? v.inventaire_id : v)),
+        };
+    }
+}, { immediate: true });
+onUnmounted(() => clearTimeout(panierTimer));
+
+const marcheLive = computed(() => {
+    if (enDemo.value || !store.state.marche || !panierLocal.value) return null;
+    const m = store.state.marche;
+    const joueurId = store.state.joueur?.id;
+    const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages);
+    const mienServeur = panierDuJoueur(m, joueurId);
+    const local = montantPanier(panierLocal.value, m, inventaire);
+    const serveur = montantPanier(mienServeur, m, inventaire);
+    const paniers = m.paniers ?? [];
+    return {
+        profil: m.profil,
+        pseudo: mienServeur?.pseudo ?? store.state.joueur?.pseudo,
+        or: m.or_courant ?? 0,
+        items: marcheVersEchoppe(m),
+        inventaire,
+        achats: panierLocal.value.achats,
+        ventes: panierLocal.value.ventes,
+        confirme: !!mienServeur?.confirme || confirmEnvoyee.value,
+        confirmes: paniers.filter((p) => p.confirme).length,
+        membres: paniers.length,
+        totalAchats: local.achats,
+        totalVentes: local.ventes,
+        totalProjete: (m.total_projete ?? m.or_courant ?? 0) + (local.net - serveur.net),
+        erreur: marcheErreur.value,
+    };
+});
+
+async function envoyerPanier() {
+    clearTimeout(panierTimer);
+    if (!panierDirty || !panierLocal.value) return;
+    panierDirty = false;
+    try {
+        const r = await api.majPanier(props.groupe, {
+            achats: panierLocal.value.achats,
+            ventes: panierLocal.value.ventes.map((id) => ({ inventaire_id: id })),
+        });
+        if (r) store.appliquerMarche(r);
+    } catch (e) {
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else marcheErreur.value = e.message;
+    }
+}
+function planifierEnvoiPanier() {
+    confirmEnvoyee.value = false; // toute modification annule la confirmation
+    marcheErreur.value = '';
+    panierDirty = true;
+    clearTimeout(panierTimer);
+    panierTimer = setTimeout(envoyerPanier, 400);
+}
+function changerQuantite(objetId, delta) {
+    const achats = [...panierLocal.value.achats];
+    const i = achats.findIndex((a) => a.objet_id === objetId);
+    const stock = store.state.marche?.inventaire?.find((it) => it.objet_id === objetId)?.stock ?? 0;
+    const q = Math.max(0, Math.min(stock, (i >= 0 ? achats[i].quantite : 0) + delta));
+    if (q === 0) {
+        if (i >= 0) achats.splice(i, 1);
+    } else if (i >= 0) {
+        achats[i] = { ...achats[i], quantite: q };
+    } else {
+        achats.push({ objet_id: objetId, quantite: q });
+    }
+    panierLocal.value = { ...panierLocal.value, achats };
+    planifierEnvoiPanier();
+}
+function basculerVente(inventaireId) {
+    const ventes = panierLocal.value.ventes.includes(inventaireId)
+        ? panierLocal.value.ventes.filter((id) => id !== inventaireId)
+        : [...panierLocal.value.ventes, inventaireId];
+    panierLocal.value = { ...panierLocal.value, ventes };
+    planifierEnvoiPanier();
+}
+async function confirmerMonPanier() {
+    await envoyerPanier(); // pousse le panier en attente avant de confirmer
+    confirmEnvoyee.value = true;
+    try {
+        const r = await api.confirmerPanier(props.groupe);
+        if (r) store.appliquerMarche(r);
+    } catch (e) {
+        confirmEnvoyee.value = false;
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else marcheErreur.value = e.message;
+    }
 }
 
 /* scène → onglet par défaut */
@@ -321,13 +478,28 @@ const navItems = computed(() => (scene.value === 'marche'
                             @pass="quickAction('passe', 'Tu restes sur tes gardes, arme levée.', 2000)"
                         />
                         <MarketTab
-                            v-else-if="tab === 'action' && scene === 'marche'"
+                            v-else-if="tab === 'action' && scene === 'marche' && (enDemo || marcheLive)"
                             :hero="hero"
                             :gold="gold"
                             :basket="basket"
                             :projected="projected"
+                            :live="marcheLive"
                             @toggle="toggleBasket"
+                            @qty="changerQuantite"
+                            @vendre="basculerVente"
+                            @confirmer="confirmerMonPanier"
                         />
+                        <!-- hub connecté, marché pas (ou plus) ouvert -->
+                        <div v-else-if="tab === 'action' && scene === 'marche'" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym n="storefront" :size="34" style="color: var(--torch)" />
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 10px 0 0">
+                                {{ store.state.marcheFinalise
+                                    ? (store.state.marcheFinalise.applique
+                                        ? 'Marché conclu — les paniers ont été appliqués.'
+                                        : 'La phase de marché a été annulée.')
+                                    : "Le marché n'est pas encore ouvert. Le groupe se repose au hub…" }}
+                            </p>
+                        </div>
                         <FicheTab
                             v-else-if="tab === 'fiche'"
                             :hero="hero"
@@ -356,7 +528,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         @confirm="confirmResolve"
                         @close="flow = null"
                     />
-                    <VoteSheet v-if="vote" :vote="vote" @cast="castVote" @close="vote = null" />
+                    <VoteSheet v-if="voteAffiche" :vote="voteAffiche" @cast="castVote" @close="fermerVote" />
                 </div>
             </div>
 

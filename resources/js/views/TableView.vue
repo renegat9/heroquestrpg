@@ -4,7 +4,7 @@
 // `groupe.{identifiant}` (.groupe.etat, .narration.diffusee, .mj.reflechit).
 // Repli : si l'API est injoignable ou refuse la session (401), on bascule
 // sur les données de démo (store.modeDemo + badge « démo »).
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MSym from '../components/ui/MSym.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
@@ -12,11 +12,13 @@ import DungeonMap from '../components/table/DungeonMap.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import CombatOverlay from '../components/table/CombatOverlay.vue';
+import MarketPanel from '../components/table/MarketPanel.vue';
 import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    carteVersMap, entitesVersFigurines, entitesVersGroupe, initiativeVersBarre, useGameStore,
+    carteVersMap, entitesVersFigurines, entitesVersGroupe, initiativeVersBarre,
+    useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -36,7 +38,19 @@ onMounted(async () => {
             '.groupe.etat': (e) => store.appliquerEtat(e),
             '.narration.diffusee': (e) => store.setNarration(e.texte),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
+            '.marche.ouvert': (e) => store.appliquerMarche(e),
+            '.marche.maj': (e) => store.appliquerMarche(e),
+            '.marche.finalise': (e) => store.fermerMarche(e?.applique ?? null),
+            '.vote.lance': (e) => store.appliquerVote(e?.vote ?? e),
+            '.vote.maj': (e) => store.setVoteDecompte(e),
+            '.vote.resultat': (e) => store.setVoteResultat(e),
         }));
+        // Rattrapage : phase marché ou vote déjà en cours (rechargement).
+        api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
+        api.getVote(props.groupe).then((r) => {
+            const v = r?.vote ?? r;
+            if (v && (v.type || v.options)) store.appliquerVote(v);
+        }).catch(() => {});
     } catch (e) {
         // 401 / API absente → on continue sur la démo (badge à l'écran).
         store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
@@ -88,6 +102,46 @@ async function lancerQuete() {
     }
 }
 
+/* ---- phase marché (vue partagée, doc 04 §5) : or commun, panier
+   consolidé étiqueté, total projeté, confirmations — MarketPanel. ---- */
+const marche = computed(() => (etat.value ? store.state.marche : null));
+const ouvertureMarche = ref(false);
+const erreurMarche = ref('');
+async function ouvrirMarche() {
+    ouvertureMarche.value = true;
+    erreurMarche.value = '';
+    try {
+        // Sans profil : le MJ IA choisit (repli serveur : bourg).
+        const r = await api.ouvrirMarche(props.groupe);
+        if (r) store.appliquerMarche(r); // .marche.ouvert arrive aussi par Reverb
+    } catch (e) {
+        erreurMarche.value = e.message;
+    } finally {
+        ouvertureMarche.value = false;
+    }
+}
+async function annulerMarche() {
+    try {
+        await api.annulerMarche(props.groupe);
+        store.fermerMarche(false); // confirmé par .marche.finalise
+    } catch (e) {
+        erreurMarche.value = e.message;
+    }
+}
+
+/* ---- vote de groupe : bandeau de décompte en direct (.vote.maj),
+   résultat affiché quelques secondes (.vote.resultat) puis fermé. ---- */
+const voteTable = computed(() => (etat.value
+    ? voteVersFeuille(store.state.vote, store.state.voteDecompte, store.state.voteResultat,
+        null, null, store.state.etat)
+    : null));
+let voteTimer = null;
+watch(() => store.state.voteResultat, (r) => {
+    clearTimeout(voteTimer);
+    if (r) voteTimer = setTimeout(() => store.fermerVote(), 6000);
+});
+onUnmounted(() => clearTimeout(voteTimer));
+
 /* ---- overlay de combat (séquence visuelle, mode démo) ---- */
 const combatRef = ref(null);
 </script>
@@ -118,16 +172,38 @@ const combatRef = ref(null);
                 <div class="map-wrap">
                     <div class="torchspot" style="left: 8%; top: 20%" />
                     <div class="torchspot" style="right: 14%; bottom: 14%; animation-delay: 1.2s" />
+                    <!-- phase marché (mode connecté) : vue partagée des paniers -->
+                    <MarketPanel v-if="marche" :marche="marche" @annuler="annulerMarche" />
                     <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
-                    <div v-if="phaseHub" class="hub-panel">
+                    <div v-else-if="phaseHub" class="hub-panel">
                         <MSym n="map" :size="40" fill />
                         <p>Le groupe se tient prêt au hub. La prochaine descente attend.</p>
-                        <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
-                            <MSym n="play_arrow" /> {{ lancementEnCours ? 'Préparation…' : 'Lancer la quête' }}
-                        </button>
+                        <div style="display: flex; gap: 10px">
+                            <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
+                                <MSym n="play_arrow" /> {{ lancementEnCours ? 'Préparation…' : 'Lancer la quête' }}
+                            </button>
+                            <button class="btn" :disabled="ouvertureMarche" @click="ouvrirMarche">
+                                <MSym n="storefront" /> {{ ouvertureMarche ? 'Ouverture…' : 'Ouvrir le marché' }}
+                            </button>
+                        </div>
                         <p v-if="erreurLancement" class="hub-err">{{ erreurLancement }}</p>
+                        <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
                     </div>
                     <DungeonMap v-else :map="map" :entities="entities" />
+                    <!-- vote de groupe : bandeau de décompte en direct -->
+                    <div v-if="voteTable" class="vote-band">
+                        <MSym n="how_to_vote" fill :size="20" />
+                        <span class="vq">{{ voteTable.q }}</span>
+                        <span v-for="o in voteTable.opts" :key="o.k" class="vopt" :class="{ win: o.gagnant }">
+                            {{ o.l }} <b>{{ o.c }}</b>
+                        </span>
+                        <span v-if="voteTable.done" class="vst done">
+                            <MSym n="check_circle" fill :size="15" /> Décision prise
+                        </span>
+                        <span v-else class="vst">
+                            <MSym n="hourglass_top" :size="15" /> {{ voteTable.missing }} bulletin{{ voteTable.missing > 1 ? 's' : '' }} manquant{{ voteTable.missing > 1 ? 's' : '' }}
+                        </span>
+                    </div>
                     <CombatOverlay ref="combatRef" @narrate="store.setNarration($event)" />
                 </div>
                 <GroupPanel :party="party" />
@@ -293,4 +369,22 @@ const combatRef = ref(null);
 .table-screen .hub-panel .msym { color: var(--torch); }
 .table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
+
+/* ---- bandeau de vote (décompte en direct) ---- */
+.table-screen .vote-band { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 14px; padding: 10px 18px; border-radius: 99px; max-width: 92%;
+  background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); border: var(--line-gold);
+  box-shadow: var(--sh-3); animation: fadein .25s ease; }
+.table-screen .vote-band .msym { color: var(--torch); }
+.table-screen .vote-band .vq { font-family: var(--font-display); font-size: 15px; color: var(--parch-100);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-screen .vote-band .vopt { font-size: 13px; font-weight: 700; color: var(--ink-300); white-space: nowrap;
+  background: var(--stone-800); border: var(--line); border-radius: 99px; padding: 4px 12px; }
+.table-screen .vote-band .vopt b { color: var(--torch); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.table-screen .vote-band .vopt.win { border-color: var(--ok); color: var(--ok); }
+.table-screen .vote-band .vst { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
+  color: var(--ink-500); white-space: nowrap; }
+.table-screen .vote-band .vst.done { color: var(--ok); }
+.table-screen .vote-band .vst .msym { color: currentColor; }
+/* (keyframes fadein : déjà défini globalement dans manette.css) */
 </style>
