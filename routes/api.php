@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
+use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\VoteController;
@@ -34,6 +35,11 @@ Route::middleware('auth:joueur')->group(function () {
     // Choix de menu : validation contre le dernier menu proposé + résolution
     // moteur (ResolveurTour), puis narration/menus en jobs.
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
+
+    // Arbres de compétences (montée de niveau par jalons, contrat) :
+    // catalogue + acquisition d'un nœud (points dérivés du niveau).
+    Route::get('/competences', [CompetenceController::class, 'catalogue']);
+    Route::post('/groupes/{identifiant}/competences', [CompetenceController::class, 'acquerir']);
 
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
     // application atomique quand TOUS les joueurs ont confirmé.

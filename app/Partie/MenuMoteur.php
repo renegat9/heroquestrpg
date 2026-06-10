@@ -13,11 +13,14 @@ use App\Models\Personnage;
  * de la boucle de jeu (contrat : « l'API ne dépend jamais du LLM »).
  *
  * En quête : Se déplacer / Attaquer (un bouton par monstre actif adjacent) /
+ * Désamorcer / Franchir (un bouton par piège DÉTECTÉ adjacent, doc 10 §4) /
  * Fouiller (jet de Mind 1) / Attendre. Au hub : options d'attente neutres.
  * Toutes les options sont exécutables telles quelles par ResolveurTour.
  */
 final class MenuMoteur
 {
+    public function __construct(private readonly MoteurPieges $pieges) {}
+
     /**
      * @return array{situation: string, options: list<array<string, mixed>>}
      */
@@ -63,6 +66,40 @@ final class MenuMoteur
                     'type' => 'attaque',
                     'cible_id' => $instance->id,
                 ];
+            }
+
+            // Pièges DÉTECTÉS adjacents (doc 10 §4) : Désamorcer — réservé au
+            // Nain ou au porteur d'une trousse à outils (permet_desamorcage) —
+            // et Franchir pour une fosse. Exécutables tels quels (ResolveurTour).
+            if ($quete->carte !== null) {
+                $detectes = $this->pieges->detectesAdjacents(
+                    $quete->carte, (int) $etat->position_x, (int) $etat->position_y,
+                );
+                $peutDesamorcer = $detectes !== [] && $this->pieges->peutDesamorcer($personnage);
+
+                foreach ($detectes as $adjacent) {
+                    $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
+
+                    if ($peutDesamorcer) {
+                        $options[] = [
+                            'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
+                            'libelle' => "Désamorcer {$nomPiege} — jet de Body",
+                            'type' => 'desamorcage',
+                            'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_DESAMORCAGE],
+                            'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                        ];
+                    }
+
+                    if ($this->pieges->estFosse($adjacent['piege'])) {
+                        $options[] = [
+                            'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
+                            'libelle' => "Franchir {$nomPiege} — jet de Body",
+                            'type' => 'franchissement',
+                            'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_FRANCHISSEMENT],
+                            'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                        ];
+                    }
+                }
             }
         }
 

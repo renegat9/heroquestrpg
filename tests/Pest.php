@@ -1,9 +1,12 @@
 <?php
 
 use App\Auth\JoueurAuthentifiable;
+use App\Engine\Des\LanceurDes;
+use App\Engine\Des\LanceurDeterministe;
 use App\Models\Groupe;
 use App\Models\Joueur;
 use App\Models\Personnage;
+use App\Models\Quete;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -113,4 +116,59 @@ function creerHeros(
     $groupe->personnages()->attach($personnage->id, ['ordre_initiative' => $ordre, 'actif' => true]);
 
     return $personnage;
+}
+
+/**
+ * Fige la file de dés servie au moteur (LanceurDeterministe au conteneur).
+ *
+ * @param  list<int>  $valeurs  valeurs de d6 (1-3 = crâne, 4-5 = bouclier blanc, 6 = noir)
+ */
+function desFiges(array $valeurs): LanceurDeterministe
+{
+    $lanceur = new LanceurDeterministe($valeurs);
+    app()->instance(LanceurDes::class, $lanceur);
+
+    return $lanceur;
+}
+
+/**
+ * La case (x, y) de la carte de la quête est-elle traversable et inoccupée ?
+ */
+function caseQueteLibre(Quete $quete, int $x, int $y): bool
+{
+    $cases = $quete->carte->grille['cases'];
+
+    if (! in_array($cases[$y][$x] ?? 'm', ['s', 'p'], true)) {
+        return false;
+    }
+
+    foreach ($quete->etatsPersonnages()->get() as $e) {
+        if ((int) $e->position_x === $x && (int) $e->position_y === $y) {
+            return false;
+        }
+    }
+
+    foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $i) {
+        if ((int) $i->position_x === $x && (int) $i->position_y === $y) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Première case traversable LIBRE orthogonalement adjacente à (x, y).
+ *
+ * @return array{x: int, y: int}
+ */
+function caseAdjacenteLibre(Quete $quete, int $x, int $y): array
+{
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        if (caseQueteLibre($quete, $x + $dx, $y + $dy)) {
+            return ['x' => $x + $dx, 'y' => $y + $dy];
+        }
+    }
+
+    throw new RuntimeException('Aucune case libre adjacente — scénario de test invalide.');
 }

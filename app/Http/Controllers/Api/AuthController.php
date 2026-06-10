@@ -75,12 +75,16 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
+                ->with('competences:competences.id')
                 ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id'])
                 ->map(fn ($p) => [
                     'id' => $p->id,
                     'nom' => $p->nom,
                     'classe' => $p->classe,
-                    'niveau' => $p->niveau,
+                    'niveau' => (int) $p->niveau,
+                    // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
+                    'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
+                    'competences' => $p->competences->pluck('id')->values()->all(),
                     'disponible' => $p->groupe_actif_id === null,
                 ])
                 ->values()

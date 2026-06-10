@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Models\Carte;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Models\Piege;
 use App\Models\Quete;
 use Illuminate\Support\Facades\Cache;
 
@@ -58,10 +60,11 @@ final class EtatGroupe
     }
 
     /**
-     * Carte jouable — seules les cases sont exposées (les pièges non
-     * déclenchés restent secrets côté serveur).
+     * Carte jouable — cases + pièges CONNUS (détectés / désarmés /
+     * déclenchés) : les pièges encore cachés n'y figurent JAMAIS, la table
+     * ne doit pas les montrer (contrat).
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -75,7 +78,33 @@ final class EtatGroupe
             'largeur' => (int) $carte->largeur,
             'hauteur' => (int) $carte->hauteur,
             'cases' => $carte->grille['cases'] ?? [],
+            'pieges' => $this->pieges($carte),
         ];
+    }
+
+    /**
+     * @return list<array{x: int, y: int, etat: string, nom: string}>
+     */
+    private function pieges(Carte $carte): array
+    {
+        $connus = collect($carte->grille['pieges'] ?? [])
+            ->filter(fn (array $entree) => in_array($entree['etat'] ?? null, [
+                MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+            ], true));
+
+        $noms = Piege::query()
+            ->whereIn('id', $connus->pluck('piege_id')->filter()->unique())
+            ->pluck('nom', 'id');
+
+        return $connus
+            ->map(fn (array $entree) => [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'etat' => (string) $entree['etat'],
+                'nom' => $noms[$entree['piege_id']] ?? 'Piège',
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -97,6 +126,7 @@ final class EtatGroupe
                     'id' => $p->id,
                     'nom' => $p->nom,
                     'classe' => $p->classe,
+                    'niveau' => (int) $p->niveau,
                     'x' => $etat?->position_x,
                     'y' => $etat?->position_y,
                     'pv_body' => (int) $p->pv_body,

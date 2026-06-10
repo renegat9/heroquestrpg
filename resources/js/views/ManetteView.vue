@@ -548,6 +548,25 @@ const navItems = computed(() => (scene.value === 'marche'
                         </button>
                     </div>
 
+                    <!-- toast montée de niveau (.niveau.monte sur groupe.{id}) -->
+                    <div v-if="lvlupToast" class="lvlup-toast">
+                        <span class="seal"><MSym n="military_tech" fill /></span>
+                        <div class="tx">
+                            <b>Niveau {{ lvlupToast.niveau }} — {{ lvlupToast.nom }}</b>
+                            <span>{{ lvlupToast.gains.length ? lvlupToast.gains.join(' · ') : 'Le jalon est franchi !' }}</span>
+                        </div>
+                        <RouterLink
+                            v-if="lvlupToast.points > 0 || pointsCompetence > 0"
+                            class="go"
+                            :to="{ name: 'montee-niveau', params: { groupe } }"
+                        >
+                            <MSym n="hub" fill :size="15" /> Dépenser mes points
+                        </RouterLink>
+                        <button class="x" aria-label="Fermer" @click="store.fermerNiveauMonte()">
+                            <MSym n="close" :size="18" />
+                        </button>
+                    </div>
+
                     <!-- overlays -->
                     <FlowSheet
                         v-if="flow"

@@ -1,19 +1,135 @@
 <script setup>
-// MONTÉE DE NIVEAU (joueur, portrait) — stub cohérent avec
-// reference/heroquest/"Montee de niveau.html" (version Magicienne).
-// Gains automatiques + choix d'un talent, puis sceau de confirmation.
-import { ref } from 'vue';
+// MONTÉE DE NIVEAU (joueur, portrait) — style porté de
+// reference/heroquest/"Montee de niveau.html".
+//
+// Mode connecté (contrat « Montée de niveau ») : GET /api/moi (mon héros :
+// niveau, points_competence, competences acquises) + GET /api/competences
+// (catalogue) → arbre de la classe rendu via competencesVersArbre (nœuds
+// acquis / disponibles / verrouillés, types passif/actif/deblocage). Tap
+// sur un nœud disponible → POST acquerirCompetence (maj optimiste, puis
+// re-GET /moi ; 422 affiché et état rétabli). Quand le dernier point est
+// dépensé : sceau « Progression scellée » (maquette).
+//
+// Repli : API injoignable / 401 (estErreurDemo) ou modeDemo déjà actif →
+// rendu démo d'origine (gains + choix d'un talent, data/demo.js).
+import { computed, onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import DemoBadge from '../components/ui/DemoBadge.vue';
 import { LEVELUP_HERO, LEVELUP_GAINS, LEVELUP_TALENTS } from '../data/demo';
+import { estErreurDemo, useApi } from '../composables/useApi';
+import { CLASSES, competencesVersArbre, TYPES_COMPETENCE, useGameStore } from '../store/game';
 
 const props = defineProps({
     groupe: { type: String, required: true },
 });
 
+const store = useGameStore();
+store.setGroupe(props.groupe);
+const api = useApi();
+
+/* ---- chargement (mode connecté) : /moi + catalogue + état du groupe ---- */
+const pret = ref(false);
+const erreurChargement = ref('');
+async function charger() {
+    pret.value = false;
+    erreurChargement.value = '';
+    try {
+        const r = await api.moi();
+        store.setJoueur(r.joueur, r.personnages ?? r.joueur?.personnages ?? []);
+        store.setCompetences(await api.getCompetences());
+        // L'état sert seulement à relier mon personnage au groupe (toléré en échec).
+        api.getEtat(props.groupe).then((e) => store.appliquerEtat(e)).catch(() => {});
+    } catch (e) {
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else erreurChargement.value = e.message;
+    } finally {
+        pret.value = true;
+    }
+}
+onMounted(() => {
+    store.fermerNiveauMonte(); // le toast de la manette a fait son office
+    charger();
+});
+
+const enDemo = computed(() => store.state.modeDemo);
+
+/* ---- mon héros : personnage de /moi présent dans ce groupe ---- */
+const monPerso = computed(() => {
+    const persos = store.state.personnages ?? [];
+    const idsHeros = new Set((store.state.etat?.entites ?? [])
+        .filter((e) => e.type === 'heros')
+        .map((e) => e.id));
+    return persos.find((p) => idsHeros.has(p.id))
+        ?? persos.find((p) => p.groupe_actif_id != null || p.disponible === false)
+        ?? persos[0]
+        ?? null;
+});
+
+const heros = computed(() => {
+    const p = monPerso.value;
+    if (!p) return null;
+    const cls = CLASSES[(p.classe ?? '').toLowerCase()];
+    return {
+        nom: p.nom,
+        classe: cls?.l ?? p.classe,
+        ic: cls?.ic ?? 'person',
+        niveau: p.niveau ?? 1,
+    };
+});
+
+/* ---- arbre + points (maj optimiste : points_competence est dérivé
+   serveur = (niveau − 1) − nœuds acquis, donc −1 par acquisition) ---- */
+const acquisOptimistes = ref([]);
+const points = computed(() => Math.max(
+    0,
+    (monPerso.value?.points_competence ?? 0) - acquisOptimistes.value.length,
+));
+const arbre = computed(() => {
+    const p = monPerso.value;
+    if (!p) return [];
+    const acquis = [...(p.competences ?? []), ...acquisOptimistes.value];
+    return competencesVersArbre(store.state.competences, p.classe, acquis, points.value);
+});
+
+/* ---- acquisition : optimiste, puis re-GET /moi ; 422 affiché ---- */
+const enAttente = ref(null); // competence_id en cours d'acquisition
+const erreurAction = ref('');
+const aAcquis = ref(false); // au moins un nœud scellé sur cet écran
+
+async function acquerir(noeud) {
+    if (noeud.etat !== 'dispo' || enAttente.value || !monPerso.value) return;
+    erreurAction.value = '';
+    enAttente.value = noeud.id;
+    acquisOptimistes.value = [...acquisOptimistes.value, noeud.id];
+    try {
+        await api.acquerirCompetence(props.groupe, {
+            personnage_id: monPerso.value.id,
+            competence_id: noeud.id,
+        });
+        aAcquis.value = true;
+        const r = await api.moi(); // source de vérité : niveau/points/acquis frais
+        store.setJoueur(r.joueur, r.personnages ?? r.joueur?.personnages ?? []);
+        acquisOptimistes.value = [];
+    } catch (e) {
+        acquisOptimistes.value = acquisOptimistes.value.filter((id) => id !== noeud.id);
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else erreurAction.value = e.message; // 422 : prérequis, points, classe…
+    } finally {
+        enAttente.value = null;
+    }
+}
+
+/* sceau final : plus de point après au moins une acquisition */
+const scelle = computed(() => aAcquis.value && points.value === 0 && !enAttente.value);
+
+const verrouLibelle = (n) => (n.verrou === 'prerequis'
+    ? `Prérequis : ${n.prerequisNom ?? 'nœud précédent'}`
+    : 'Aucun point de compétence disponible');
+
+/* ---- mode démo : stub d'origine (maquette, version Magicienne) ---- */
 const hero = LEVELUP_HERO;
 const gains = LEVELUP_GAINS;
 const talents = LEVELUP_TALENTS;
-
 const selected = ref(null);
 const confirmed = ref(false);
 const talentChoisi = () => talents.find((t) => t.k === selected.value);
@@ -22,7 +138,8 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
 <template>
     <div class="lvlup-screen stage">
         <div class="phone">
-            <div class="screen">
+            <!-- ================= MODE DÉMO (stub maquette) ================= -->
+            <div v-if="enDemo" class="screen">
                 <!-- bannière -->
                 <div class="banner">
                     <RouterLink class="home" to="/"><MSym n="arrow_back" :size="14" /> HUB</RouterLink>
@@ -93,12 +210,121 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
                     </RouterLink>
                 </div>
             </div>
+
+            <!-- ================= MODE CONNECTÉ (arbre du héros) ================= -->
+            <div v-else class="screen">
+                <!-- bannière -->
+                <div class="banner">
+                    <RouterLink class="home" to="/"><MSym n="arrow_back" :size="14" /> HUB</RouterLink>
+                    <div class="lvlup">Montée de niveau</div>
+                    <div class="crest-wrap">
+                        <div class="crest-ring" />
+                        <div class="crest"><MSym :n="heros?.ic ?? 'person'" fill /></div>
+                        <div class="levelpill">Niv. {{ heros?.niveau ?? '—' }}</div>
+                    </div>
+                    <h1>{{ heros?.nom ?? '…' }}</h1>
+                    <div class="arc">{{ heros?.classe ?? '' }}</div>
+                    <div class="pts-pill" :class="{ vide: points === 0 }">
+                        <MSym n="hub" fill :size="14" />
+                        {{ points }} point{{ points > 1 ? 's' : '' }} de compétence à dépenser
+                    </div>
+                </div>
+
+                <!-- corps -->
+                <div class="body">
+                    <!-- chargement / erreur -->
+                    <div v-if="!pret" class="state-note">
+                        <MSym n="hourglass_top" :size="26" />
+                        <p>Consultation des arbres de compétences…</p>
+                    </div>
+                    <div v-else-if="erreurChargement" class="state-note err">
+                        <MSym n="error" fill :size="26" />
+                        <p>{{ erreurChargement }}</p>
+                        <button class="btn btn-gold" style="width: auto" @click="charger">
+                            <MSym n="refresh" /> Réessayer
+                        </button>
+                    </div>
+                    <template v-else>
+                        <div v-if="erreurAction" class="err-band">
+                            <MSym n="block" fill :size="16" /> {{ erreurAction }}
+                        </div>
+
+                        <div class="sect gold">
+                            <MSym n="hub" fill /> Arbre de compétences
+                            <span class="sect-note">{{ heros?.classe ?? '' }}</span>
+                        </div>
+
+                        <div v-if="!arbre.length" class="state-note">
+                            <MSym n="forest" :size="26" />
+                            <p>Aucun arbre publié pour cette classe.</p>
+                        </div>
+                        <div v-else class="talents tree">
+                            <button
+                                v-for="n in arbre"
+                                :key="n.id"
+                                class="talent"
+                                :class="['st-' + n.etat, { busy: enAttente === n.id, child: n.profondeur > 0 }]"
+                                :style="n.profondeur ? { marginLeft: Math.min(n.profondeur, 3) * 16 + 'px' } : null"
+                                :disabled="n.etat !== 'dispo' || enAttente !== null"
+                                @click="acquerir(n)"
+                            >
+                                <span class="ti"><MSym :n="n.ic" fill /></span>
+                                <div>
+                                    <div class="tt">
+                                        {{ n.nom }}
+                                        <span class="type-tag" :class="'tp-' + n.type">
+                                            <MSym :n="TYPES_COMPETENCE[n.type].ic" :size="11" />
+                                            {{ TYPES_COMPETENCE[n.type].l }}
+                                        </span>
+                                    </div>
+                                    <div v-if="n.effets.length" class="td">
+                                        <span v-for="(e, i) in n.effets" :key="i" class="fx">
+                                            <MSym v-if="e.ic" :n="e.ic" :size="12" /> {{ e.texte }}
+                                        </span>
+                                    </div>
+                                    <div v-if="n.etat === 'verrouille'" class="lockline">
+                                        <MSym n="lock" :size="12" /> {{ verrouLibelle(n) }}
+                                    </div>
+                                    <div v-else-if="n.etat === 'dispo'" class="dispoline">
+                                        <MSym n="touch_app" :size="12" />
+                                        {{ enAttente === n.id ? 'Acquisition…' : 'Disponible — touche pour acquérir' }}
+                                    </div>
+                                </div>
+                                <span class="tcheck"><MSym :n="n.etat === 'verrouille' ? 'lock' : 'check'" fill /></span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- pied : retour -->
+                <div class="foot">
+                    <p class="hint" :style="points > 0 ? 'color: var(--torch)' : ''">
+                        {{ points > 0
+                            ? 'Touche un nœud disponible pour le sceller.'
+                            : 'Aucun point à dépenser — reviens après le prochain jalon.' }}
+                    </p>
+                    <RouterLink class="btn btn-gold" :to="{ name: 'manette', params: { groupe } }">
+                        <MSym n="login" /> Reprendre la partie
+                    </RouterLink>
+                </div>
+
+                <!-- sceau : tous les points dépensés -->
+                <div v-if="scelle" class="done-ov">
+                    <div class="seal"><MSym n="verified" fill /></div>
+                    <h2>Progression scellée</h2>
+                    <p>{{ heros?.nom ?? 'Ton héros' }} grave sa nouvelle puissance. L'aventure peut reprendre.</p>
+                    <RouterLink class="btn btn-gold" :to="{ name: 'manette', params: { groupe } }">
+                        <MSym n="login" /> Reprendre la partie
+                    </RouterLink>
+                </div>
+            </div>
         </div>
+        <DemoBadge />
     </div>
 </template>
 
 <style>
-/* Stub porté de "Montee de niveau.html" — préfixé .lvlup-screen
+/* Port de "Montee de niveau.html" — préfixé .lvlup-screen
    (le cadre téléphone .stage/.phone/.screen vient de manette.css). */
 .lvlup-screen .banner { flex: none; position: relative; text-align: center; padding: 26px 18px 20px;
   background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.35), var(--stone-900)); border-bottom: var(--line-gold); }
@@ -120,10 +346,17 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
 .lvlup-screen .banner .arc b { color: var(--torch); }
 .lvlup-screen .banner .arc .msym { font-size: 16px; color: var(--ink-500); }
 
+/* compteur de points (mode connecté) */
+.lvlup-screen .pts-pill { display: flex; align-items: center; justify-content: center; gap: 5px; width: fit-content; margin: 10px auto 0;
+  padding: 4px 12px; border-radius: 99px; font-size: 11.5px; font-weight: 800;
+  background: linear-gradient(180deg, var(--gold), var(--ember-deep)); color: var(--stone-950); box-shadow: var(--sh-1); }
+.lvlup-screen .pts-pill.vide { background: var(--stone-800); color: var(--ink-400); box-shadow: none; border: var(--line); }
+
 .lvlup-screen .body { padding: 18px; }
 .lvlup-screen .sect { font-family: var(--font-display); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-300);
   font-weight: 600; margin: 4px 0 12px; display: flex; align-items: center; gap: 8px; }
 .lvlup-screen .sect.gold { color: var(--gold); }
+.lvlup-screen .sect .sect-note { margin-left: auto; font-size: 11px; color: var(--ink-600); letter-spacing: 0; text-transform: none; font-weight: 600; }
 
 .lvlup-screen .gains { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
 .lvlup-screen .gain { display: flex; align-items: center; gap: 13px; padding: 12px 14px; border-radius: var(--r-md);
@@ -157,6 +390,44 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
 .lvlup-screen .talent.sel .tcheck .msym { color: var(--stone-950); }
 .lvlup-screen .el-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.04em; margin-top: 7px; padding: 2px 7px; border-radius: 99px; }
+
+/* ---- arbre (mode connecté) : états acquis / dispo / verrouillé ---- */
+.lvlup-screen .tree .talent.child::before { content: ""; position: absolute; left: -12px; top: -11px; bottom: 50%; width: 12px;
+  border-left: 2px solid var(--stone-700); border-bottom: 2px solid var(--stone-700); border-bottom-left-radius: 8px; }
+.lvlup-screen .talent .tt { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.lvlup-screen .type-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; padding: 2px 7px; border-radius: 99px; border: 1px solid currentColor; }
+.lvlup-screen .type-tag.tp-passif { color: var(--ok); background: oklch(0.7 0.14 150 / 0.1); }
+.lvlup-screen .type-tag.tp-actif { color: var(--torch); background: oklch(0.76 0.155 65 / 0.1); }
+.lvlup-screen .type-tag.tp-deblocage { color: var(--gold); background: oklch(0.80 0.135 88 / 0.1); }
+.lvlup-screen .talent .td .fx { display: inline-flex; align-items: center; gap: 3px; margin-right: 9px; }
+.lvlup-screen .talent .lockline { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--ink-600); margin-top: 6px; }
+.lvlup-screen .talent .dispoline { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--torch); margin-top: 6px; }
+
+.lvlup-screen .talent.st-acquis { border-color: oklch(0.62 0.08 80 / 0.55); background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.4), var(--stone-850)); cursor: default; }
+.lvlup-screen .talent.st-acquis .ti { background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950); }
+.lvlup-screen .talent.st-acquis .tcheck { border-color: var(--gold); background: var(--gold); }
+.lvlup-screen .talent.st-acquis .tcheck .msym { color: var(--stone-950); }
+.lvlup-screen .talent.st-acquis:active { transform: none; }
+
+.lvlup-screen .talent.st-dispo { border-color: var(--torch); box-shadow: 0 0 0 1px oklch(0.76 0.155 65 / 0.25); }
+.lvlup-screen .talent.st-dispo .ti { background: oklch(0.76 0.155 65 / 0.16); }
+.lvlup-screen .talent.st-dispo.busy { opacity: 0.7; }
+
+.lvlup-screen .talent.st-verrouille { opacity: 0.55; cursor: default; }
+.lvlup-screen .talent.st-verrouille .ti { color: var(--ink-500); }
+.lvlup-screen .talent.st-verrouille .tcheck { border-color: var(--stone-700); }
+.lvlup-screen .talent.st-verrouille .tcheck .msym { color: var(--ink-600); font-size: 12px; }
+.lvlup-screen .talent.st-verrouille:active { transform: none; }
+
+/* ---- erreur d'acquisition (422) + états de chargement ---- */
+.lvlup-screen .err-band { display: flex; align-items: center; gap: 7px; margin: 0 0 14px; padding: 10px 13px; border-radius: var(--r-md);
+  font-size: 12.5px; font-weight: 700; color: var(--danger, oklch(0.62 0.2 25));
+  background: oklch(0.58 0.185 25 / 0.12); border: 1px solid oklch(0.58 0.185 25 / 0.45); animation: fadein .2s ease; }
+.lvlup-screen .state-note { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 16px; text-align: center; color: var(--ink-500); }
+.lvlup-screen .state-note .msym { color: var(--torch); }
+.lvlup-screen .state-note p { font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 0; }
+.lvlup-screen .state-note.err .msym { color: var(--danger, oklch(0.62 0.2 25)); }
 
 .lvlup-screen .foot { flex: none; padding: 14px 18px calc(16px + env(safe-area-inset-bottom)); border-top: var(--line);
   background: linear-gradient(180deg, var(--stone-900), var(--stone-850)); position: relative; z-index: 3; }

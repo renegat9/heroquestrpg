@@ -14,6 +14,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Models\Piege;
 use App\Models\Quete;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
@@ -359,6 +360,170 @@ final class ResolveurTour
     }
 
     /**
+     * Désamorcer un piège DÉTECTÉ adjacent (doc 10 §4) : réservé au Nain ou
+     * au porteur d'un objet `permet_desamorcage` (Trousse à outils), jet de
+     * Body difficulté 1 — succès : piège désarmé ; échec : il se déclenche
+     * sur le désamorceur (choix MVP, question ouverte n°3).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDesamorcage(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $cible = $this->piegeCible($quete, $etat, $option);
+
+        if (! $this->pieges->peutDesamorcer($personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Désamorçage réservé au Nain ou au porteur d\'une trousse à outils.',
+            ]);
+        }
+
+        $resultat = (new JetCompetence($this->des))
+            ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_DESAMORCAGE);
+
+        if ($resultat->estReussi()) {
+            $this->pieges->changerEtat($quete->carte, $cible['index'], MoteurPieges::ETAT_DESARME);
+        }
+
+        $payload = [
+            'type' => 'desamorcage',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'piege' => ['nom' => $cible['piege']?->nom ?? 'Piège', 'x' => $cible['x'], 'y' => $cible['y']],
+            'attribut' => 'body',
+            'difficulte' => self::DIFFICULTE_DESAMORCAGE,
+            'des_lances' => (int) $personnage->attribut_body,
+            'succes' => $resultat->succes,
+            'issue' => $resultat->issue->value,
+            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            'desarme' => $resultat->estReussi(),
+        ];
+
+        // Échec : le piège se déclenche sur le désamorceur (doc 10 §4).
+        if (! $resultat->estReussi()) {
+            $payload['declenchement'] = $this->pieges->declencher(
+                $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
+            );
+        }
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Franchir une fosse DÉTECTÉE adjacente (doc 10 §4) : jet de Body
+     * difficulté 2 (départ playtest) — succès : le héros atterrit de l'autre
+     * côté (case libre exigée) ; échec : chute, effet de la fosse, le héros
+     * reste sur sa case.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreFranchissement(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $cible = $this->piegeCible($quete, $etat, $option);
+
+        if (! $this->pieges->estFosse($cible['piege'])) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Seule une fosse détectée peut être franchie.',
+            ]);
+        }
+
+        // Case de réception : le prolongement de l'élan, de l'autre côté de
+        // la fosse (héros → fosse → réception, alignés).
+        $arrivee = [
+            'x' => 2 * $cible['x'] - (int) $etat->position_x,
+            'y' => 2 * $cible['y'] - (int) $etat->position_y,
+        ];
+
+        if (! $this->grille($quete, exceptPersonnageId: $personnage->id)
+            ->estTraversable($arrivee['x'], $arrivee['y'])) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Impossible de franchir : la case de réception n\'est pas libre.',
+            ]);
+        }
+
+        $resultat = (new JetCompetence($this->des))
+            ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_FRANCHISSEMENT);
+
+        $payload = [
+            'type' => 'franchissement',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'piege' => ['nom' => $cible['piege']?->nom ?? 'Fosse', 'x' => $cible['x'], 'y' => $cible['y']],
+            'attribut' => 'body',
+            'difficulte' => self::DIFFICULTE_FRANCHISSEMENT,
+            'des_lances' => (int) $personnage->attribut_body,
+            'succes' => $resultat->succes,
+            'issue' => $resultat->issue->value,
+            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            'franchi' => $resultat->estReussi(),
+        ];
+
+        if ($resultat->estReussi()) {
+            $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+
+            // Œil du mineur : détection automatique autour de la réception.
+            $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
+
+            $payload['vers'] = $arrivee;
+        } else {
+            // Chute : le héros tombe DANS la fosse (effet du catalogue) et
+            // y reste — la fosse persistante demeure en jeu (doc 10 §5).
+            $etat->update(['position_x' => $cible['x'], 'position_y' => $cible['y']]);
+
+            $payload['declenchement'] = $this->pieges->declencher(
+                $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'franchissement_rate',
+            );
+            $payload['vers'] = ['x' => $cible['x'], 'y' => $cible['y']];
+        }
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Piège visé par une option Désamorcer / Franchir : il doit être DÉTECTÉ
+     * et orthogonalement adjacent au héros (parametres.piege du MenuMoteur).
+     *
+     * @param  array<string, mixed>  $option
+     * @return array{index: int, x: int, y: int, piege: Piege|null}
+     */
+    private function piegeCible(Quete $quete, EtatPersonnageQuete $etat, array $option): array
+    {
+        $x = (int) data_get($option, 'parametres.piege.x', -1);
+        $y = (int) data_get($option, 'parametres.piege.y', -1);
+
+        if ($quete->carte !== null && $etat->position_x !== null) {
+            foreach ($this->pieges->detectesAdjacents($quete->carte, (int) $etat->position_x, (int) $etat->position_y) as $candidat) {
+                if ($candidat['x'] === $x && $candidat['y'] === $y) {
+                    return $candidat;
+                }
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'option_id' => 'Aucun piège détecté adjacent à cette position.',
+        ]);
+    }
+
+    /**
      * Dialogue / action narrative / attente : journal seulement, la mise en
      * récit revient au MJ IA (avec repli neutre).
      *
@@ -539,7 +704,12 @@ final class ResolveurTour
             'or' => (int) $groupe->or + $orButin,
         ]);
 
-        return ['etat' => 'terminee', 'or_butin' => $orButin];
+        // Montée de niveau par jalon (doc 01 §5) : quête sous_boss/boss_final
+        // gagnée → +1 niveau par héros actif, broadcast `.niveau.monte` émis
+        // AVANT le `.groupe.etat` final (null pour une quête normale).
+        $niveaux = $this->monteeNiveau->appliquer($groupe, $quete);
+
+        return ['etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux];
     }
 
     /**
