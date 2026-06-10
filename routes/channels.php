@@ -11,18 +11,17 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 |--------------------------------------------------------------------------
 | Canaux temps réel du jeu (doc 11 §7)
 |--------------------------------------------------------------------------
-| - `groupe.{id}` : écran de table (narration, état partagé, MJ réfléchit).
-|   Écouté en canal public par la table ; l'autorisation ci-dessous couvre
-|   une éventuelle souscription privée : il faut être membre du groupe
-|   (y contrôler au moins un personnage).
+| - `groupe.{identifiant}` : écran de table (narration, état partagé, MJ
+|   réfléchit). L'identifiant est le code du groupe (docs/contrat-api.md) ;
+|   il faut être membre du groupe (y contrôler au moins un personnage).
 | - `joueur.{id}` : canal PRIVÉ de la manette — chaque téléphone reçoit
 |   SON menu (menu.propose) ; seul le propriétaire peut s'y abonner.
 | Les deux s'authentifient via le guard de session `joueur`.
 */
 
-Broadcast::channel('groupe.{groupeId}', function ($joueur, int $groupeId) {
+Broadcast::channel('groupe.{identifiant}', function ($joueur, string $identifiant) {
     return Groupe::query()
-        ->whereKey($groupeId)
+        ->where('identifiant', $identifiant)
         ->whereHas('personnages', fn ($requete) => $requete->where('joueur_id', $joueur->id))
         ->exists();
 }, ['guards' => ['joueur']]);

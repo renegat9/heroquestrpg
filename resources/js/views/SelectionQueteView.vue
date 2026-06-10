@@ -6,7 +6,6 @@ import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import { QUEST_NODES, QUEST_EDGES, QUESTS, QUEST_PLAYERS } from '../data/demo';
 import { useGroupChannel } from '../composables/useEcho';
-import { useApi } from '../composables/useApi';
 import { useGameStore } from '../store/game';
 
 const props = defineProps({
@@ -14,7 +13,6 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const api = useApi();
 const store = useGameStore();
 store.setGroupe(props.groupe);
 
@@ -47,10 +45,7 @@ function selectQuest(k) {
 }
 function castVote(joueur, quete) {
     votes[joueur] = quete;
-    if (joueur === 'barb') {
-        // POINT D'INTÉGRATION API : envoi du vote (non bloquant en démo).
-        api.voter(props.groupe, { type: 'quete', joueur, choix: quete }).catch(() => {});
-    }
+    // Les votes de quête ne sont pas encore au contrat API : démo locale.
 }
 function lancerQuete() {
     router.push({ name: 'table', params: { groupe: props.groupe } });

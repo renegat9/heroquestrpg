@@ -49,7 +49,7 @@ class MenuChoix extends Skill
                         ],
                         'type' => [
                             'type' => 'string',
-                            'enum' => ['action', 'dialogue', 'jet', 'attaque', 'attente'],
+                            'enum' => ['action', 'dialogue', 'jet', 'attaque', 'deplacement', 'attente'],
                         ],
                         'jet' => [
                             'type' => 'object',
@@ -64,6 +64,10 @@ class MenuChoix extends Skill
                             'type' => 'integer',
                             'minimum' => 1,
                             'description' => 'Obligatoire si type=attaque : instance_id d\'un monstre ACTIF de l\'état vivant.',
+                        ],
+                        'parametres' => [
+                            'type' => 'object',
+                            'description' => 'Paramètres libres affichés par la manette (ex. portée de déplacement).',
                         ],
                     ],
                 ],
@@ -148,6 +152,13 @@ class MenuChoix extends Skill
 
     protected function repli(array $contexte): ?array
     {
+        // Repli privilégié : le menu générique construit PAR LE MOTEUR depuis
+        // l'état exact (Se déplacer / Attaquer / Fouiller / Attendre), fourni
+        // dans le contexte par GenererMenu — toujours exécutable.
+        if (isset($contexte['menu_moteur']['options'])) {
+            return $contexte['menu_moteur'];
+        }
+
         return [
             'situation' => 'Le danger rôde, le groupe reste sur ses gardes.',
             'options' => self::OPTIONS_GENERIQUES,

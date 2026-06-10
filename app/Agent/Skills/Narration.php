@@ -75,6 +75,25 @@ class Narration extends Skill
     {
         $resultat = $contexte['resultat_moteur'] ?? [];
 
+        // Étapes de la boucle de partie (résolues par le moteur) : narration
+        // neutre dédiée, le jeu reste jouable sans LLM.
+        switch ($resultat['type'] ?? null) {
+            case 'quete_demarree':
+                return [
+                    'texte' => 'Le groupe franchit le seuil du donjon. Les torches crépitent, et quelque part dans l\'obscurité, quelque chose attend.',
+                    'ambiance' => 'mystere',
+                ];
+            case 'deplacement':
+                return ['texte' => 'Vous progressez dans le donjon, pas à pas, attentifs au moindre bruit.', 'ambiance' => 'tension'];
+        }
+
+        if (($resultat['quete']['etat'] ?? null) === 'terminee') {
+            return [
+                'texte' => 'Le dernier adversaire s\'effondre : le donjon retombe dans le silence. Le groupe rassemble le butin et reprend le chemin du hub, victorieux.',
+                'ambiance' => 'victoire',
+            ];
+        }
+
         $texte = match ($resultat['issue'] ?? null) {
             'reussite' => 'Le geste est sûr et la tentative réussit : le groupe reprend l\'avantage et peut poursuivre.',
             'reussite_mixte' => 'La tentative aboutit, mais quelque chose accroche au passage — le groupe progresse, sur ses gardes.',

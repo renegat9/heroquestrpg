@@ -1,10 +1,14 @@
 <script setup>
 // MANETTE JOUEUR (portrait, téléphone) — port fidèle de
 // reference/heroquest/manette-app.jsx (+ manette.css, importé globalement).
-// Données de démo locales ; les points d'intégration temps réel / API sont
-// isolés ci-dessous (usePlayerChannel + useApi), comme dans TableView.
-import { computed, onUnmounted, ref, watch } from 'vue';
+// Mode connecté : GET /moi + GET etat au montage, abonnement aux canaux
+// privés `groupe.{identifiant}` (état, narration, MJ) et `joueur.{id}`
+// (.menu.propose → onglet Action) ; chaque tap envoie POST choix
+// {option_id} et gèle les boutons jusqu'au prochain .groupe.etat.
+// Repli : API injoignable / 401 → démo locale (badge « démo »).
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import DemoBadge from '../components/ui/DemoBadge.vue';
 import ActionTab from '../components/manette/ActionTab.vue';
 import FicheTab from '../components/manette/FicheTab.vue';
 import SpellsTab from '../components/manette/SpellsTab.vue';
@@ -13,9 +17,11 @@ import MarketTab from '../components/manette/MarketTab.vue';
 import FlowSheet from '../components/manette/FlowSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
-import { usePlayerChannel } from '../composables/useEcho';
-import { useApi } from '../composables/useApi';
-import { useGameStore } from '../store/game';
+import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
+import { estErreurDemo, useApi } from '../composables/useApi';
+import {
+    acteurCourant, CLASSES, initiativeVersMini, labelCourt, useGameStore,
+} from '../store/game';
 
 const props = defineProps({
     groupe: { type: String, required: true },
@@ -25,20 +31,94 @@ const store = useGameStore();
 store.setGroupe(props.groupe);
 const api = useApi();
 
-/* ---- état local (données de démo, remplacées à terme par le serveur) ---- */
-const heroKey = ref('mage');
-const hero = computed(() => HEROES[heroKey.value]);
-const tab = ref('action');
-const scene = ref('combat'); // combat | marche
-const thinking = ref(false);
-const conn = ref('ok'); // 'ok' | 'warn'
-
-const body = ref({ ...HEROES[heroKey.value].body });
-const mind = ref({ ...HEROES[heroKey.value].mind });
-watch(heroKey, (k) => {
-    body.value = { ...HEROES[k].body };
-    mind.value = { ...HEROES[k].mind };
+/* ---- chargement de l'état + abonnements temps réel ---- */
+const desabonnements = [];
+onMounted(async () => {
+    try {
+        const { joueur, personnages } = await api.moi();
+        store.setJoueur(joueur, personnages);
+        store.appliquerEtat(await api.getEtat(props.groupe));
+        desabonnements.push(
+            souscrireGroupe(props.groupe, {
+                '.groupe.etat': (e) => store.appliquerEtat(e),
+                '.narration.diffusee': (e) => store.setNarration(e.texte),
+                '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
+            }),
+            souscrireJoueur(joueur.id, {
+                '.menu.propose': (e) => store.setMenu(e.menu),
+            }),
+        );
+    } catch (e) {
+        store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
+    }
 });
+onUnmounted(() => desabonnements.forEach((off) => off()));
+
+const enDemo = computed(() => store.state.modeDemo || !store.state.etat);
+
+/* ---- mon héros (mode connecté) : entité EtatGroupe ↔ personnage /moi.
+   L'habillage statique (icônes, équipement des onglets Fiche/Sac) vient
+   du gabarit de démo de la même classe ; nom et PV sont les vrais. ---- */
+const monEntite = computed(() => {
+    if (enDemo.value) return null;
+    const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
+    return store.state.etat.entites?.find((e) => e.type === 'heros' && ids.has(e.id)) ?? null;
+});
+
+/* ---- état local (mode démo) ---- */
+const heroKey = ref('mage');
+const tab = ref('action');
+const demoScene = ref('combat'); // combat | marche
+const demoThinking = ref(false);
+
+const demoBody = ref({ ...HEROES[heroKey.value].body });
+const demoMind = ref({ ...HEROES[heroKey.value].mind });
+watch(heroKey, (k) => {
+    demoBody.value = { ...HEROES[k].body };
+    demoMind.value = { ...HEROES[k].mind };
+});
+
+const hero = computed(() => {
+    const e = monEntite.value;
+    if (!e) return HEROES[heroKey.value];
+    const base = HEROES[CLASSES[(e.classe ?? '').toLowerCase()]?.demo ?? 'barb'];
+    return { ...base, name: e.nom, cls: CLASSES[(e.classe ?? '').toLowerCase()]?.l ?? e.classe };
+});
+const body = computed(() => (monEntite.value
+    ? { cur: monEntite.value.tombe ? 0 : monEntite.value.pv_body, max: monEntite.value.pv_body_max }
+    : demoBody.value));
+const mind = computed(() => (monEntite.value
+    ? { cur: monEntite.value.pv_mind, max: monEntite.value.pv_mind_max }
+    : demoMind.value));
+
+const scene = computed(() => (enDemo.value
+    ? demoScene.value
+    : (store.state.etat.groupe?.phase === 'hub' ? 'marche' : 'combat')));
+const thinking = computed(() => (enDemo.value ? demoThinking.value : store.state.mjReflechit));
+const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
+const narration = computed(() => (enDemo.value ? narr.value : store.state.narration));
+
+/* ---- menu réel (.menu.propose) + envoi du choix (POST choix) ---- */
+const menuCourant = computed(() => (enDemo.value ? null : store.state.menu));
+const menuEnAttente = computed(() => store.state.menuEnAttente);
+const initMini = computed(() => (enDemo.value ? null : initiativeVersMini(store.state.etat.initiative)));
+const initCur = computed(() => {
+    if (enDemo.value) return null;
+    const cur = acteurCourant(store.state.etat.initiative);
+    return cur ? labelCourt(cur.nom) : null;
+});
+
+async function choisirOption(option) {
+    if (store.state.menuEnAttente) return;
+    store.choixEnvoye(); // optimiste : boutons gelés jusqu'au prochain .groupe.etat
+    try {
+        await api.envoyerChoix(props.groupe, { option_id: option.id, parametres: option.parametres });
+    } catch (e) {
+        store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else store.setNarration(e.message);
+    }
+}
 
 const myTurn = ref(true);
 const narr = ref(NARRATION_OUVERTURE);
@@ -55,30 +135,12 @@ const later = (fn, ms) => timers.push(setTimeout(fn, ms));
 onUnmounted(() => timers.forEach(clearTimeout));
 
 function think(ms = 1400) {
-    thinking.value = true;
-    later(() => { thinking.value = false; }, ms);
+    demoThinking.value = true;
+    later(() => { demoThinking.value = false; }, ms);
 }
 
-/* ---- POINT D'INTÉGRATION temps réel : canal privé `joueur.{id}` ----
-   La manette y recevra SON menu de choix, la narration, l'état du héros
-   et les votes en cours diffusés par le moteur (Reverb). En démo, l'id
-   du joueur n'existe pas encore : on s'abonne avec le héros courant. */
-usePlayerChannel(`${props.groupe}.${heroKey.value}`, {
-    '.menu.propose': (e) => { myTurn.value = e.monTour; },
-    '.narration.diffusee': (e) => { narr.value = e.texte; },
-    '.heros.etat': (e) => { body.value = e.body; mind.value = e.mind; },
-    '.vote.lance': (e) => { vote.value = e.vote; },
-    '.mj.reflechit': (e) => { thinking.value = e.actif; },
-});
-
-/* ---- POINT D'INTÉGRATION API : le choix part au moteur, la suite
-   (narration, nouveau menu) reviendra par Reverb. Tant que l'API
-   n'existe pas, l'échec est silencieux et la démo continue en local. */
-function envoyerChoix(payload) {
-    api.envoyerChoix(props.groupe, { heros: heroKey.value, ...payload }).catch(() => {});
-}
-
-/* ---- résolution attaque / sort (démo locale, cf. manette-app.jsx) ---- */
+/* ---- résolution attaque / sort (démo locale, cf. manette-app.jsx ;
+   en mode connecté, le vrai envoi passe par choisirOption ci-dessus) ---- */
 const rng = Math.random;
 function rollDice(nAtk, nDef) {
     const atk = Array.from({ length: nAtk }, () => (rng() < 0.5 ? 'skull' : 'blank'));
@@ -121,16 +183,13 @@ function confirmResolve() {
         txt = dmg > 0
             ? `Ton arme s'abat sur ${f.target.name} — ${dmg} blessure${dmg > 1 ? 's' : ''} !`
             : `${f.target.name} pare le coup de justesse.`;
-        envoyerChoix({ action: 'attaque', cible: f.target.id });
     } else if (f.heal) {
-        mind.value = { ...mind.value, cur: Math.max(0, mind.value.cur - 1) };
+        demoMind.value = { ...demoMind.value, cur: Math.max(0, demoMind.value.cur - 1) };
         txt = 'Une eau claire enveloppe ton allié — +2 Body.';
-        envoyerChoix({ action: 'sort', sort: f.spell.id, cible: f.target?.id });
     } else {
         const sk = f.dice.atk.filter((d) => d === 'skull').length;
-        mind.value = { ...mind.value, cur: Math.max(0, mind.value.cur - 1) };
+        demoMind.value = { ...demoMind.value, cur: Math.max(0, demoMind.value.cur - 1) };
         txt = `${f.spell.name} frappe ${f.target ? f.target.name : 'la zone'} — ${sk} dégât${sk > 1 ? 's' : ''} !`;
-        envoyerChoix({ action: 'sort', sort: f.spell.id, cible: f.target?.id });
     }
     narr.value = txt;
     flow.value = null;
@@ -140,7 +199,6 @@ function confirmResolve() {
 /* actions simples (déplacement, fouille, passe) */
 function quickAction(action, texte, backMs = 2200) {
     narr.value = texte;
-    envoyerChoix({ action });
     endTurn(1400, backMs);
 }
 function endTurn(thinkMs, backMs) {
@@ -178,8 +236,7 @@ function castVote(k) {
         opts: v.opts.map((o) => (o.k === k ? { ...o, c: o.c + 1 } : o)),
         missing: Math.max(0, v.missing - 1),
     };
-    // POINT D'INTÉGRATION API : le vote part au moteur (non bloquant en démo).
-    api.voter(props.groupe, { heros: heroKey.value, choix: k }).catch(() => {});
+    // Les votes ne sont pas encore au contrat API : démo locale uniquement.
 }
 
 /* ---- marché ---- */
@@ -243,15 +300,20 @@ const navItems = computed(() => (scene.value === 'marche'
                             <span class="who">LE MAÎTRE DE JEU</span>
                             <span class="bars"><i /><i /><i /></span>
                         </div>
-                        <p>{{ narr }}</p>
+                        <p>{{ narration }}</p>
                     </div>
 
                     <!-- zone principale -->
                     <div class="body">
                         <ActionTab
                             v-if="tab === 'action' && scene === 'combat'"
-                            :my-turn="myTurn"
+                            :my-turn="enDemo ? myTurn : !!menuCourant"
                             :hero="hero"
+                            :menu="menuCourant"
+                            :pending="menuEnAttente"
+                            :init-order="initMini"
+                            :init-cur="initCur"
+                            @choose="choisirOption"
                             @attack="beginAttack"
                             @open-spells="tab = 'sorts'"
                             @move="quickAction('deplacement', 'Tu avances prudemment entre les colonnes brisées.')"
@@ -298,7 +360,7 @@ const navItems = computed(() => (scene.value === 'marche'
                 </div>
             </div>
 
-            <!-- contrôle de démo (comme dans la maquette) -->
+            <!-- contrôle de démo (comme dans la maquette ; masqué en mode connecté) -->
             <div class="scene-ctrl">
                 <RouterLink
                     to="/"
@@ -307,12 +369,15 @@ const navItems = computed(() => (scene.value === 'marche'
                 >
                     <MSym n="home" :size="18" />
                 </RouterLink>
-                <span class="lbl">Démo</span>
-                <button :class="{ on: scene === 'combat' }" @click="scene = 'combat'">Combat</button>
-                <button :class="{ on: scene === 'marche' }" @click="scene = 'marche'">Marché</button>
-                <button @click="launchVote">Vote</button>
-                <button @click="body = { ...body, cur: Math.max(0, body.cur - 1) }; narr = 'Une griffe te lacère — tu encaisses 1 blessure.'">Subir</button>
+                <template v-if="enDemo">
+                    <span class="lbl">Démo</span>
+                    <button :class="{ on: demoScene === 'combat' }" @click="demoScene = 'combat'">Combat</button>
+                    <button :class="{ on: demoScene === 'marche' }" @click="demoScene = 'marche'">Marché</button>
+                    <button @click="launchVote">Vote</button>
+                    <button @click="demoBody = { ...demoBody, cur: Math.max(0, demoBody.cur - 1) }; narr = 'Une griffe te lacère — tu encaisses 1 blessure.'">Subir</button>
+                </template>
             </div>
         </div>
+        <DemoBadge />
     </div>
 </template>

@@ -1,5 +1,9 @@
 <?php
 
+use App\Auth\JoueurAuthentifiable;
+use App\Models\Groupe;
+use App\Models\Joueur;
+use App\Models\Personnage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,7 +19,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
- // ->use(RefreshDatabase::class)
+    ->use(RefreshDatabase::class)
     ->in('Feature');
 
 /*
@@ -44,7 +48,69 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Joueur authentifiable connecté sur le guard `joueur` (tests Feature).
+ */
+function connecterJoueur(string $pseudo = 'rene'): JoueurAuthentifiable
 {
-    // ..
+    $joueur = JoueurAuthentifiable::create([
+        'pseudo' => $pseudo,
+        'identifiant' => $pseudo,
+        'mot_de_passe' => 'secret',
+    ]);
+
+    test()->actingAs($joueur, 'joueur');
+
+    return $joueur;
+}
+
+/**
+ * Groupe au hub, prêt à recevoir des héros (création directe en base —
+ * la création via l'API est couverte par les tests du flux complet).
+ */
+function creerGroupe(string $identifiant = 'table-1', int $nbQuetes = 3): Groupe
+{
+    return Groupe::create([
+        'identifiant' => $identifiant,
+        'nom' => 'Les Lames du Crépuscule',
+        'theme' => 'Cryptes maudites sous la cité',
+        'longueur' => 'courte',
+        'nb_quetes_total' => $nbQuetes,
+        'phase' => 'hub',
+    ]);
+}
+
+/**
+ * Héros actif du groupe (stats barbare niveau 1 par défaut, doc 01 §4),
+ * attaché au pivot avec son ordre d'initiative.
+ *
+ * @param  array<string, mixed>  $attributs
+ */
+function creerHeros(
+    Joueur $joueur,
+    Groupe $groupe,
+    string $nom,
+    int $ordre,
+    array $attributs = [],
+): Personnage {
+    $personnage = Personnage::create(array_merge([
+        'joueur_id' => $joueur->id,
+        'groupe_actif_id' => $groupe->id,
+        'nom' => $nom,
+        'classe' => 'barbare',
+        'niveau' => 1,
+        'attribut_body' => 4,
+        'attribut_mind' => 2,
+        'pv_body_max' => 8,
+        'pv_body' => 8,
+        'pv_mind_max' => 2,
+        'pv_mind' => 2,
+        'des_attaque' => 3,
+        'des_defense' => 2,
+        'deplacement_base' => 4,
+    ], $attributs));
+
+    $groupe->personnages()->attach($personnage->id, ['ordre_initiative' => $ordre, 'actif' => true]);
+
+    return $personnage;
 }

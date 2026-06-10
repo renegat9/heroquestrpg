@@ -1,19 +1,28 @@
 <script setup>
 // CRÉER / REJOINDRE UN GROUPE — port de reference/heroquest/"Creer un groupe.html".
-// Onglet « Créer » : nom, ton narratif, longueur de campagne → code de groupe.
-// Onglet « Rejoindre » : code + héros + nom de joueur.
+// Onglet « Créer »    : POST /api/groupes {nom, theme, longueur, ton} → {groupe},
+//                       puis navigation vers l'écran de table.
+// Onglet « Rejoindre »: POST /api/groupes/{code}/joueurs {nom, classe} → {personnage},
+//                       puis navigation vers la manette.
+// Repli : API injoignable / 401 → mode démo (code local, badge à l'écran).
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
-import { useApi } from '../composables/useApi';
+import DemoBadge from '../components/ui/DemoBadge.vue';
+import { estErreurDemo, useApi } from '../composables/useApi';
+import { useGameStore } from '../store/game';
 
 const router = useRouter();
 const api = useApi();
+const store = useGameStore();
 
 const mode = ref('create'); // 'create' | 'join'
+const enCours = ref(false);
+const erreur = ref('');
 
 /* ---- création ---- */
 const campName = ref("La Crypte d'Ambre");
+const theme = ref('Donjon classique');
 const tone = ref('hero'); // hero | dark | comic
 const len = ref('moyen'); // court | moyen | long
 const tones = [
@@ -27,7 +36,8 @@ const lengths = [
     { v: 'long', ic: 'explore', l: 'Épique', sub: '15+ quêtes' },
 ];
 
-/* code dérivé du nom + du ton (comme la maquette) */
+/* code local de la maquette — n'est utilisé qu'en repli démo : en mode
+   connecté, l'identifiant du groupe est attribué par le serveur. */
 const code = computed(() => {
     const n = (campName.value || 'CAMP').replace(/[^A-Za-zÀ-ÿ]/g, '').toUpperCase().slice(0, 4) || 'CAMP';
     const map = { hero: '3K', dark: '9X', comic: '7Q' };
@@ -35,14 +45,26 @@ const code = computed(() => {
 });
 
 async function forger() {
-    // POINT D'INTÉGRATION API : création de la campagne par le moteur.
-    // Tant que l'API n'existe pas, on continue en démo vers l'écran de table.
+    enCours.value = true;
+    erreur.value = '';
     try {
-        await api.creerGroupe({ nom: campName.value, ton: tone.value, longueur: len.value, code: code.value });
-    } catch {
-        /* mode démo : non bloquant */
+        const { groupe } = await api.creerGroupe({
+            nom: campName.value,
+            theme: theme.value,
+            longueur: len.value,
+            ton: tone.value,
+        });
+        router.push({ name: 'table', params: { groupe: groupe.identifiant } });
+    } catch (e) {
+        if (estErreurDemo(e)) {
+            store.activerModeDemo(e.message);
+            router.push({ name: 'table', params: { groupe: code.value } });
+        } else {
+            erreur.value = e.message;
+        }
+    } finally {
+        enCours.value = false;
     }
-    router.push({ name: 'table', params: { groupe: code.value } });
 }
 
 /* ---- rejoindre ---- */
@@ -50,23 +72,31 @@ const joinCode = ref('');
 const heroPick = ref(null);
 const playerName = ref('');
 const heroes = [
-    { v: 'barb', ic: 'sports_martial_arts', l: 'Barbare', taken: false },
-    { v: 'mage', ic: 'auto_fix_high', l: 'Magicien', taken: false },
-    { v: 'dwarf', ic: 'construction', l: 'Nain', taken: true },
-    { v: 'elf', ic: 'park', l: 'Elfe', taken: false },
+    { v: 'barbare', ic: 'sports_martial_arts', l: 'Barbare', taken: false },
+    { v: 'magicien', ic: 'auto_fix_high', l: 'Magicien', taken: false },
+    { v: 'nain', ic: 'construction', l: 'Nain', taken: false },
+    { v: 'elfe', ic: 'park', l: 'Elfe', taken: false },
 ];
 const canJoin = computed(() =>
     joinCode.value.trim().length >= 4 && !!heroPick.value && playerName.value.trim().length > 0);
 
 async function rejoindre() {
     const groupe = joinCode.value.trim().toUpperCase();
-    // POINT D'INTÉGRATION API : inscription du joueur dans le groupe.
+    enCours.value = true;
+    erreur.value = '';
     try {
-        await api.rejoindreGroupe(groupe, { heros: heroPick.value, joueur: playerName.value.trim() });
-    } catch {
-        /* mode démo : non bloquant */
+        await api.rejoindreGroupe(groupe, { nom: playerName.value.trim(), classe: heroPick.value });
+        router.push({ name: 'manette', params: { groupe } });
+    } catch (e) {
+        if (estErreurDemo(e)) {
+            store.activerModeDemo(e.message);
+            router.push({ name: 'manette', params: { groupe } });
+        } else {
+            erreur.value = e.message;
+        }
+    } finally {
+        enCours.value = false;
     }
-    router.push({ name: 'manette', params: { groupe } });
 }
 </script>
 
@@ -93,6 +123,10 @@ async function rejoindre() {
                         <input id="campName" v-model="campName" class="input" />
                     </div>
                     <div class="field">
+                        <label for="campTheme">Thème</label>
+                        <input id="campTheme" v-model="theme" class="input" placeholder="ex. Donjon classique, cité engloutie…" />
+                    </div>
+                    <div class="field">
                         <label>Ton narratif</label>
                         <div class="seg">
                             <button v-for="t in tones" :key="t.v" :class="{ on: tone === t.v }" @click="tone = t.v">
@@ -108,12 +142,12 @@ async function rejoindre() {
                             </button>
                         </div>
                     </div>
-                    <div class="code-display">
-                        <div class="k">Code du groupe — à partager</div>
-                        <div class="code">{{ code }}</div>
-                    </div>
-                    <button class="btn btn-torch" @click="forger"><MSym n="auto_stories" /> Forger la campagne</button>
-                    <p class="note">Le maître de jeu IA générera le donjon et la première quête selon le ton choisi.</p>
+                    <button class="btn btn-torch" :disabled="enCours" @click="forger">
+                        <MSym n="auto_stories" /> {{ enCours ? 'Forge en cours…' : 'Forger la campagne' }}
+                    </button>
+                    <p v-if="erreur" class="note err">{{ erreur }}</p>
+                    <p class="note">Le serveur attribue le code du groupe — il s'affichera sur l'écran de table, à partager.<br>
+                        Le maître de jeu IA générera le donjon et la première quête selon le ton choisi.</p>
                 </template>
 
                 <!-- REJOINDRE -->
@@ -146,11 +180,15 @@ async function rejoindre() {
                         <label for="playerName">Ton nom de joueur</label>
                         <input id="playerName" v-model="playerName" class="input" placeholder="Comment t'appellent tes compagnons ?" />
                     </div>
-                    <button class="btn btn-torch" :disabled="!canJoin" @click="rejoindre"><MSym n="login" /> Rejoindre la table</button>
+                    <button class="btn btn-torch" :disabled="!canJoin || enCours" @click="rejoindre">
+                        <MSym n="login" /> {{ enCours ? 'Connexion…' : 'Rejoindre la table' }}
+                    </button>
+                    <p v-if="erreur" class="note err">{{ erreur }}</p>
                     <p class="note">Une seule session active par joueur. Une nouvelle connexion remplace l'ancienne.</p>
                 </template>
             </div>
         </div>
+        <DemoBadge />
     </div>
 </template>
 
@@ -218,4 +256,5 @@ async function rejoindre() {
 .creation .code-display .code { font-family: var(--font-display); font-size: 30px; font-weight: 800; color: var(--torch); letter-spacing: 0.3em; margin-top: 6px; }
 
 .creation .note { font-size: 12px; color: var(--ink-500); text-align: center; margin-top: 14px; line-height: 1.5; }
+.creation .note.err { color: var(--danger, #c33); font-weight: 600; }
 </style>

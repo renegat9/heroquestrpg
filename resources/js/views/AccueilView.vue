@@ -1,10 +1,66 @@
 <script setup>
 // ACCUEIL / HUB — porte d'entrée de la SPA, port de reference/heroquest/index.html.
-// On y choisit son rôle (écran de table ou manette joueur) et le code du
-// groupe à rejoindre ; les autres moments de campagne sont accessibles dessous.
-import { computed, ref } from 'vue';
+// On s'y connecte (POST /api/connexion, session Laravel), on choisit son rôle
+// (écran de table ou manette joueur) et le code du groupe à rejoindre.
+// Au montage, GET /api/moi restaure une session existante ; si l'API est
+// injoignable, on bascule en mode démo (badge à l'écran).
+import { computed, onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import DemoBadge from '../components/ui/DemoBadge.vue';
 import { ROSTER } from '../data/demo';
+import { ApiError, useApi } from '../composables/useApi';
+import { useGameStore } from '../store/game';
+
+const api = useApi();
+const store = useGameStore();
+
+/* ---- connexion (session Laravel — voir useApi.js) ---- */
+const joueur = computed(() => store.state.joueur);
+const identifiant = ref('');
+const motDePasse = ref('');
+const connexionEnCours = ref(false);
+const erreurConnexion = ref('');
+
+onMounted(async () => {
+    try {
+        const { joueur: moi, personnages } = await api.moi();
+        store.setJoueur(moi, personnages ?? []);
+    } catch (e) {
+        // 401 = simplement pas connecté ; erreur réseau = API absente → démo.
+        if (e instanceof ApiError && e.status === 0) store.activerModeDemo(e.message);
+    }
+});
+
+async function seConnecter() {
+    connexionEnCours.value = true;
+    erreurConnexion.value = '';
+    try {
+        const { joueur: moi } = await api.connexion(identifiant.value.trim(), motDePasse.value);
+        store.setJoueur(moi);
+        motDePasse.value = '';
+        // les personnages arrivent par /moi (la réponse de connexion n'a que {joueur})
+        try {
+            const { joueur: complet, personnages } = await api.moi();
+            store.setJoueur(complet, personnages ?? []);
+        } catch { /* non bloquant */ }
+    } catch (e) {
+        if (e instanceof ApiError && e.status === 0) {
+            store.activerModeDemo(e.message);
+            erreurConnexion.value = 'API injoignable — la démo continue sans connexion.';
+        } else {
+            erreurConnexion.value = e.message;
+        }
+    } finally {
+        connexionEnCours.value = false;
+    }
+}
+
+async function seDeconnecter() {
+    try {
+        await api.deconnexion();
+    } catch { /* non bloquant */ }
+    store.setJoueur(null, []);
+}
 
 /* Code du groupe : saisi ici puis injecté dans toutes les routes. */
 const codeBrut = ref('AMBR-3K');
@@ -69,6 +125,20 @@ const moments = computed(() => [
         </header>
 
         <div class="wrap">
+            <div class="sec-title">Connexion <span class="ln" /></div>
+            <div v-if="joueur" class="login-row">
+                <span class="login-ok"><MSym n="person" fill :size="18" /> Connecté : <b>{{ joueur.pseudo }}</b></span>
+                <button class="btn btn-ghost" @click="seDeconnecter"><MSym n="logout" /> Se déconnecter</button>
+            </div>
+            <form v-else class="login-row" @submit.prevent="seConnecter">
+                <input v-model="identifiant" class="login-input" placeholder="Identifiant" autocomplete="username" spellcheck="false" />
+                <input v-model="motDePasse" class="login-input" type="password" placeholder="Mot de passe" autocomplete="current-password" />
+                <button class="btn btn-torch" type="submit" :disabled="connexionEnCours || !identifiant.trim()">
+                    <MSym n="login" /> {{ connexionEnCours ? 'Connexion…' : 'Se connecter' }}
+                </button>
+                <span v-if="erreurConnexion" class="login-err">{{ erreurConnexion }}</span>
+            </form>
+
             <div class="sec-title">Rejoindre la table — choisis ton rôle <span class="ln" /></div>
             <div class="code-row">
                 <label class="code-label" for="codeGroupe">Code du groupe</label>
@@ -149,12 +219,23 @@ const moments = computed(() => [
                 </div>
             </div>
         </div>
+        <DemoBadge />
     </div>
 </template>
 
 <style>
 /* Port de index.html — préfixé .accueil (le bundle CSS est partagé). */
 .accueil { min-height: 100vh; background: var(--stone-950); color: var(--ink-100); }
+
+/* connexion */
+.accueil .login-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.accueil .login-input { background: var(--stone-850); border: var(--line-strong); border-radius: var(--r-md);
+  padding: 11px 14px; color: var(--parch-100); font-family: var(--font-ui); font-size: 15px; outline: none; width: 200px; }
+.accueil .login-input:focus { border-color: var(--torch); box-shadow: var(--glow-torch); }
+.accueil .login-input::placeholder { color: var(--ink-700); }
+.accueil .login-ok { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-300); font-size: 14px; }
+.accueil .login-ok b { color: var(--parch-100); }
+.accueil .login-err { font-size: 12.5px; font-weight: 600; color: var(--danger, #c33); }
 
 .accueil .hero { position: relative; overflow: hidden; padding: 60px 40px 44px; }
 .accueil .hero.tex-stone::before { content: ""; position: absolute; inset: 0;

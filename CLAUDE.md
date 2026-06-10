@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-HeroQuest-based tabletop RPG with an AI game master ("MJ IA"). Self-hosted, internal project (LAN play between friends — no public deployment). **Game code is not written yet**: the repo contains a fresh Laravel skeleton, the design documents (`reference/`, in French), UI mockups (`reference/heroquest/` HTML/JSX prototypes, `reference/screenshots/`), and the Docker/deployment scaffolding. The next steps per `reference/00_synthese.md` §9: Laravel migrations + seeders for the catalogs, then a vertical prototype (one playable quest validating the AI-GM loop).
+HeroQuest-based tabletop RPG with an AI game master ("MJ IA"). Self-hosted, internal project (LAN play between friends — no public deployment). Implemented so far: deterministic engine (`app/Engine`, Pest-tested), full DB layer (migrations/models/seeders per `reference/12_schema_donnees.md`), AI GM module (`app/Agent`: Anthropic client, per-task skills with JSON schemas, Qdrant bible client, queue jobs, Reverb events), REST API, and the Vue front ported from the `reference/heroquest/` mockups. The API/front/realtime contract lives in `docs/contrat-api.md` — change it there first. Embeddings provider is still undecided (`EmbeddingsNuls` placeholder); the GM needs `ANTHROPIC_API_KEY` in `.env`, but the game must stay playable without it (engine-built fallback menus).
 
 ## Commands
 
@@ -16,7 +16,19 @@ docker compose exec app php artisan   # any artisan command (migrate, test, etc.
 docker compose logs -f app queue      # follow the app and AI jobs
 ```
 
-Engine tests are planned with **Pest** (`php artisan test` inside the `app` container). Front is Vue via Vite (`npm run dev` / `npm run build`, run in the `vite` container).
+PHP, Composer and Node are NOT installed on the host — everything runs through containers. When the compose stack isn't up, use throwaway containers (these are the proven incantations):
+
+```bash
+# composer / artisan / Pest against sqlite (database/database.sqlite):
+docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
+  -e DB_CONNECTION=sqlite -e DB_DATABASE=/app/database/database.sqlite \
+  composer:2 <composer …|php artisan …|./vendor/bin/pest …>
+# front build:
+docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
+  node:20-alpine sh -c "npm install && npm run build"
+```
+
+Tests are **Pest** (`./vendor/bin/pest`; engine suite under `tests/Unit/Engine`, run a single file by path). `composer.json` pins `platform.php` to 8.3 (the runtime image) — keep it when resolving deps.
 
 ## Architecture
 
@@ -24,10 +36,11 @@ Stack (design doc 11): modular **Laravel monolith** + **Vue SPA** clients + **Re
 
 **Founding principle (enforced everywhere): the deterministic engine is authoritative on all mechanics; the AI only narrates and proposes.** Dice, HP, combat, skill checks are resolved in code. AI outputs are constrained by JSON schemas (structured outputs) and then validated by the engine against the catalogs — reject/retry on invalid. Players never type free text: the loop is *AI narrates → AI generates a contextual choice menu → engine resolves the chosen option*.
 
-Planned Laravel modules:
-- **engine** — pure PHP rule classes (dice, combat, checks, event application), no HTTP plumbing, heavily tested. The authoritative core.
-- **agent** — single GM agent with per-task skills (quest skeleton, quest detail, menus, market/combat narration). Prompt assembly + RAG retrieval + LLM calls, always run as queue jobs (the `queue` container), never blocking the API.
-- **memory** — layered: living state always in context (MariaDB, exact), event journal + snapshots (MariaDB), per-group lore bible in Qdrant. One Qdrant collection, isolated per group via `group_id` payload filtering. When agent context fills past a threshold, a job flushes old events into Qdrant and compacts the rest.
+Laravel modules (all French naming, matching the design docs):
+- **`app/Engine`** — pure PHP rule classes (dice, skill checks, combat, movement, mental spells), no HTTP/Eloquent. The authoritative core; dice roller is injectable and seedable (`LanceurDeterministe` for tests). Heavily Pest-tested — don't change behavior without updating `tests/Unit/Engine`.
+- **`app/Agent`** — single GM agent: `AnthropicClient` (forced tool use), `Skills/` (one per task: SqueletteCampagne, DetailQuete, MenuChoix, Narration — each = JSON schema + prompt assembly + catalog validation with retry then hard-coded fallback), `Memoire/` (ContexteAssembleur, BibleQdrant with `group_id` payload filtering, `Embeddings` interface). Runs only in queue jobs (`app/Jobs`), never blocking the API.
+- **`app/Partie`** — game-loop services orchestrating Engine + Models (quest start, map assembly from seeded tiles, encounter budget from group power score, turn resolution, scripted monsters).
+- **`app/Models`** — French-named Eloquent models over the doc-12 schema; catalogs are seed-only reference data.
 
 Turn flow: phone (Vue) sends a menu choice → API validates legality via engine → engine resolves deterministically, updates state + journal → job dispatched for next narration/menu → result broadcast via Reverb (group channel `groupe.{id}` for the host "table" screen, private per-player channels for each phone's menu).
 

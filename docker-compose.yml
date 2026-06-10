@@ -22,8 +22,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
-      REVERB_HOST: ${REVERB_HOST:-localhost}  # ⚠ en LAN : IP_LAN (côté client Echo)
+      # Cible de broadcast côté SERVEUR : le conteneur reverb sur le réseau compose.
+      # (Le client Echo, lui, utilise VITE_REVERB_HOST issu du .env : localhost ou IP LAN.)
+      REVERB_HOST: reverb
       REVERB_PORT: 8080
+      REVERB_SCHEME: http
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY} # clé LLM : .env uniquement, jamais dans l'image
     depends_on:
       mariadb:
@@ -59,6 +62,9 @@ services:
     volumes:
       - ./:/var/www/html
     env_file: .env
+    environment:
+      REVERB_HOST: reverb        # broadcast serveur → conteneur reverb (jobs IA)
+      REVERB_SCHEME: http
     depends_on:
       mariadb:
         condition: service_healthy

@@ -1,17 +1,23 @@
 <script setup>
 // ÉCRAN DE TABLE (hôte, paysage) — port fidèle de reference/heroquest/Table.html.
-// Données de démo locales ; les points d'intégration temps réel / API sont
-// regroupés ci-dessous (useGroupChannel + useGameStore).
-import { onMounted, ref } from 'vue';
+// Au montage : GET /api/groupes/{id}/etat + abonnement au canal privé
+// `groupe.{identifiant}` (.groupe.etat, .narration.diffusee, .mj.reflechit).
+// Repli : si l'API est injoignable ou refuse la session (401), on bascule
+// sur les données de démo (store.modeDemo + badge « démo »).
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import DemoBadge from '../components/ui/DemoBadge.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import CombatOverlay from '../components/table/CombatOverlay.vue';
 import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY } from '../data/demo';
-import { useGroupChannel } from '../composables/useEcho';
-import { useGameStore } from '../store/game';
+import { souscrireGroupe } from '../composables/useEcho';
+import { estErreurDemo, useApi } from '../composables/useApi';
+import {
+    carteVersMap, entitesVersFigurines, entitesVersGroupe, initiativeVersBarre, useGameStore,
+} from '../store/game';
 
 const props = defineProps({
     groupe: { type: String, required: true },
@@ -19,31 +25,71 @@ const props = defineProps({
 
 const store = useGameStore();
 store.setGroupe(props.groupe);
+const api = useApi();
 
-/* ---- données de démo (remplacées à terme par l'état serveur) ---- */
-const map = buildTableMap();
-const entities = ref(TABLE_ENTITIES);
-const initOrder = ref(TABLE_INIT_ORDER);
-const party = ref(TABLE_PARTY);
-const narration = ref("Une lueur d'ambre danse sur les murs suintants. Trois ombres trapues se redressent en grognant — l'Elfe encoche déjà une flèche…");
-const mjReflechit = ref(true);
-const joueursConnectes = ref(4);
-
-/* ---- POINT D'INTÉGRATION temps réel : canal de groupe `groupe.{id}` ----
-   La table écoute ici narration, état du groupe, déplacements et
-   résolutions de combat diffusés par le moteur (Reverb). */
-useGroupChannel(props.groupe, {
-    '.narration.diffusee': (e) => { narration.value = e.texte; },
-    '.groupe.etat': (e) => { party.value = e.party; initOrder.value = e.initiative; },
-    '.combat.resolu': () => combatRef.value?.play(),
-    '.mj.reflechit': (e) => { mjReflechit.value = e.actif; },
+/* ---- chargement de l'état + abonnement temps réel ---- */
+const desabonnements = [];
+onMounted(async () => {
+    try {
+        store.appliquerEtat(await api.getEtat(props.groupe));
+        desabonnements.push(souscrireGroupe(props.groupe, {
+            '.groupe.etat': (e) => store.appliquerEtat(e),
+            '.narration.diffusee': (e) => store.setNarration(e.texte),
+            '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
+        }));
+    } catch (e) {
+        // 401 / API absente → on continue sur la démo (badge à l'écran).
+        store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
+        setTimeout(() => combatRef.value?.play(), 1200); // séquence de la maquette
+    }
 });
+onUnmounted(() => desabonnements.forEach((off) => off()));
 
-/* ---- combat (démo : rejoué localement) ---- */
+/* ---- état serveur mappé vers les composants (démo en repli) ---- */
+const etat = computed(() => (store.state.modeDemo ? null : store.state.etat));
+const enQuete = computed(() => !!etat.value?.carte);
+
+const demoMap = buildTableMap();
+const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : demoMap));
+const entities = computed(() => (etat.value
+    ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
+    : TABLE_ENTITIES));
+const initOrder = computed(() => (etat.value
+    ? initiativeVersBarre(etat.value.initiative)
+    : TABLE_INIT_ORDER));
+const party = computed(() => (etat.value
+    ? entitesVersGroupe(etat.value.entites, etat.value.initiative)
+    : TABLE_PARTY));
+const narration = computed(() => store.state.narration);
+const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : true));
+const joueursConnectes = computed(() => (etat.value
+    ? etat.value.entites?.filter((e) => e.type === 'heros').length ?? 0
+    : 4));
+
+const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Le Seuil des Ombres');
+const sousTitre = computed(() => (etat.value
+    ? etat.value.groupe?.nom ?? ''
+    : "Quête III · La crypte d'ambre"));
+
+/* ---- phase hub (mode connecté) : lancer la quête suivante ---- */
+const lancementEnCours = ref(false);
+const erreurLancement = ref('');
+const phaseHub = computed(() => !!etat.value && etat.value.groupe?.phase === 'hub');
+async function lancerQuete() {
+    lancementEnCours.value = true;
+    erreurLancement.value = '';
+    try {
+        await api.demarrerQuete(props.groupe);
+        store.appliquerEtat(await api.getEtat(props.groupe));
+    } catch (e) {
+        erreurLancement.value = e.message;
+    } finally {
+        lancementEnCours.value = false;
+    }
+}
+
+/* ---- overlay de combat (séquence visuelle, mode démo) ---- */
 const combatRef = ref(null);
-onMounted(() => {
-    setTimeout(() => combatRef.value?.play(), 1200);
-});
 </script>
 
 <template>
@@ -55,8 +101,8 @@ onMounted(() => {
                     <RouterLink to="/" class="hub-link">
                         <MSym n="arrow_back" :size="14" /> HUB
                     </RouterLink>
-                    <span class="ep">Quête III · La crypte d'ambre</span>
-                    <h1>Le Seuil des Ombres</h1>
+                    <span class="ep">{{ sousTitre }}</span>
+                    <h1>{{ titreQuete }}</h1>
                 </div>
                 <InitiativeBar :order="initOrder" />
                 <div class="status-top">
@@ -72,8 +118,17 @@ onMounted(() => {
                 <div class="map-wrap">
                     <div class="torchspot" style="left: 8%; top: 20%" />
                     <div class="torchspot" style="right: 14%; bottom: 14%; animation-delay: 1.2s" />
-                    <DungeonMap :map="map" :entities="entities" />
-                    <CombatOverlay ref="combatRef" @narrate="narration = $event" />
+                    <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
+                    <div v-if="phaseHub" class="hub-panel">
+                        <MSym n="map" :size="40" fill />
+                        <p>Le groupe se tient prêt au hub. La prochaine descente attend.</p>
+                        <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
+                            <MSym n="play_arrow" /> {{ lancementEnCours ? 'Préparation…' : 'Lancer la quête' }}
+                        </button>
+                        <p v-if="erreurLancement" class="hub-err">{{ erreurLancement }}</p>
+                    </div>
+                    <DungeonMap v-else :map="map" :entities="entities" />
+                    <CombatOverlay ref="combatRef" @narrate="store.setNarration($event)" />
                 </div>
                 <GroupPanel :party="party" />
             </div>
@@ -81,6 +136,7 @@ onMounted(() => {
             <!-- narration -->
             <NarrationBand :text="narration" @replay="combatRef?.play()" />
         </div>
+        <DemoBadge />
     </div>
 </template>
 
@@ -229,4 +285,12 @@ onMounted(() => {
 .table-screen .verdict { margin-top: 20px; font-family: var(--font-display); font-size: 24px; color: var(--parch-100); opacity: 0; transition: opacity .3s .2s; }
 .table-screen .verdict.show { opacity: 1; }
 .table-screen .verdict .dmg { color: var(--body-bright); }
+
+/* ---- panneau de hub (mode connecté, avant la première quête) ---- */
+.table-screen .hub-panel { display: grid; place-items: center; gap: 14px; text-align: center; padding: 40px;
+  border-radius: var(--r-lg); border: var(--line); background: linear-gradient(180deg, var(--stone-850), var(--stone-900));
+  color: var(--ink-300); max-width: 460px; }
+.table-screen .hub-panel .msym { color: var(--torch); }
+.table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
+.table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 </style>

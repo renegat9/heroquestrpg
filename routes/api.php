@@ -25,6 +25,11 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes/{identifiant}/joueurs', [GroupeController::class, 'rejoindre']);
     Route::get('/groupes/{identifiant}/etat', [GroupeController::class, 'etat']);
 
-    // Choix de menu : validation + résolution moteur, puis narration/menu en jobs.
+    // Démarrer la quête suivante : carte assemblée, monstres au budget,
+    // initiative figée — entièrement moteur (App\Partie\DemarreurQuete).
+    Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrerQuete']);
+
+    // Choix de menu : validation contre le dernier menu proposé + résolution
+    // moteur (ResolveurTour), puis narration/menus en jobs.
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
 });

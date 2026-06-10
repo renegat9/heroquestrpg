@@ -16,9 +16,9 @@ class DatabaseSeeder extends Seeder
             ClasseHerosSeeder::class,
             CompetenceSeeder::class,
             ConditionSeeder::class,
+            SortSeeder::class, // avant ObjetSeeder : les parchemins sont générés depuis Sort::all()
             ObjetSeeder::class,
             ForgeAmeliorationSeeder::class,
-            SortSeeder::class,
             SortDreadSeeder::class,
             MonstreSeeder::class,
             PiegeSeeder::class,

@@ -52,13 +52,13 @@ class GenererNarration implements ShouldQueue
             ]);
 
             broadcast(new NarrationDiffusee(
-                $groupe->id,
+                $groupe,
                 (string) $sortie['texte'],
                 ambiance: $sortie['ambiance'] ?? null,
                 queteId: $evenement->quete_id,
             ));
         } finally {
-            broadcast(new MjReflechit($groupe->id, false));
+            broadcast(new MjReflechit($groupe, false));
         }
     }
 }

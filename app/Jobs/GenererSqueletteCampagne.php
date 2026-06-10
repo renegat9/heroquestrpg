@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\Exceptions\SortieInvalideException;
 use App\Agent\Memoire\BibleQdrant;
 use App\Agent\Memoire\ContexteAssembleur;
 use App\Agent\Skills\SqueletteCampagne;
@@ -36,11 +38,33 @@ class GenererSqueletteCampagne implements ShouldQueue
     {
         $groupe = Groupe::findOrFail($this->groupeId);
 
-        broadcast(new MjReflechit($groupe->id, true));
+        broadcast(new MjReflechit($groupe, true));
 
         try {
             $contexte = $assembleur->assembler($groupe, requeteScene: $groupe->theme);
-            $squelette = $skill->generer($contexte);
+
+            try {
+                $squelette = $skill->generer($contexte);
+            } catch (AppelLlmException|SortieInvalideException $e) {
+                // Repli silencieux (contrat : l'API ne dépend jamais du LLM) :
+                // sans squelette, la campagne reste jouable — les jalons sont
+                // dérivés par défaut (DemarreurQuete) et le fil rouge pourra
+                // être regénéré plus tard.
+                Log::warning('Squelette de campagne indisponible (LLM) — la campagne démarre sans fil rouge.', [
+                    'groupe_id' => $groupe->id,
+                    'erreur' => $e->getMessage(),
+                ]);
+
+                Journal::ajouter($groupe, 'systeme', ['action' => 'squelette_campagne_indisponible']);
+
+                broadcast(new NarrationDiffusee(
+                    $groupe,
+                    'La campagne commence : le groupe se rassemble, prêt à répondre à l\'appel de l\'aventure.',
+                    ambiance: 'mystere',
+                ));
+
+                return;
+            }
 
             $groupe->plan_campagne = $squelette;
             $groupe->save();
@@ -53,9 +77,9 @@ class GenererSqueletteCampagne implements ShouldQueue
 
             $this->amorcerBible($bible, $groupe, $squelette);
 
-            broadcast(new NarrationDiffusee($groupe->id, (string) $squelette['premisse'], ambiance: 'mystere'));
+            broadcast(new NarrationDiffusee($groupe, (string) $squelette['premisse'], ambiance: 'mystere'));
         } finally {
-            broadcast(new MjReflechit($groupe->id, false));
+            broadcast(new MjReflechit($groupe, false));
         }
     }
 

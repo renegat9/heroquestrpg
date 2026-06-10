@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\Exceptions\SortieInvalideException;
 use App\Agent\Memoire\ContexteAssembleur;
 use App\Agent\Skills\DetailQuete;
 use App\Events\MjReflechit;
@@ -18,6 +20,7 @@ use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -46,7 +49,7 @@ class GenererDetailQuete implements ShouldQueue
     {
         $groupe = Groupe::findOrFail($this->groupeId);
 
-        broadcast(new MjReflechit($groupe->id, true));
+        broadcast(new MjReflechit($groupe, true));
 
         try {
             $positionArc = (int) $groupe->quetes()->count() + 1;
@@ -63,7 +66,19 @@ class GenererDetailQuete implements ShouldQueue
                 'catalogue' => $catalogue,
             ]);
 
-            $detail = $skill->generer($contexte);
+            try {
+                $detail = $skill->generer($contexte);
+            } catch (AppelLlmException|SortieInvalideException $e) {
+                // Repli silencieux (contrat : l'API ne dépend jamais du LLM) :
+                // le démarrage MOTEUR (App\Partie\DemarreurQuete, POST quetes)
+                // assemble une quête jouable sans habillage IA.
+                Log::warning('Détail de quête IA indisponible — démarrage moteur seul (POST quetes).', [
+                    'groupe_id' => $groupe->id,
+                    'erreur' => $e->getMessage(),
+                ]);
+
+                return;
+            }
 
             $quete = $this->persister($groupe, $gabarit, $detail, $positionArc, $typeJalon);
 
@@ -76,14 +91,14 @@ class GenererDetailQuete implements ShouldQueue
                 'budget' => $budget,
             ]);
 
-            broadcast(new NarrationDiffusee($groupe->id, (string) $detail['introduction'], ambiance: 'mystere', queteId: $quete->id));
+            broadcast(new NarrationDiffusee($groupe, (string) $detail['introduction'], ambiance: 'mystere', queteId: $quete->id));
 
             // Premier menu de la quête pour chaque héros actif (canal privé).
             foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $personnage) {
                 GenererMenu::dispatch($groupe->id, (int) $personnage->joueur_id, (int) $personnage->id);
             }
         } finally {
-            broadcast(new MjReflechit($groupe->id, false));
+            broadcast(new MjReflechit($groupe, false));
         }
     }
 

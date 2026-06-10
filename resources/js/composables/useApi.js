@@ -1,32 +1,87 @@
 /* =========================================================================
-   useApi — point d'intégration HTTP vers l'API Laravel (routes/api.php).
+   useApi — client HTTP réel vers l'API Laravel (docs/contrat-api.md).
 
-   Boucle de jeu prévue (CLAUDE.md) : la manette envoie un choix de menu
-   → l'API valide via le moteur → résolution déterministe → la suite
-   (narration, nouveau menu) arrive par Reverb (voir useEcho).
+   Session & CSRF : la SPA est servie par Laravel sur la même origine
+   (app.blade.php). L'auth est en SESSION (cookie) et le groupe `api`
+   reçoit les middlewares session + CSRF dans bootstrap/app.php — Sanctum
+   n'est pas installé. Le choix le plus simple est donc :
+   - `credentials: 'same-origin'` pour envoyer le cookie de session ;
+   - en-tête `X-XSRF-TOKEN` lu dans le cookie `XSRF-TOKEN` que Laravel
+     pose/rafraîchit à chaque réponse. Surtout PAS la <meta csrf-token> :
+     le login régénère la session, le jeton du blade devient périmé et
+     tous les POST suivants seraient rejetés (419) sans rechargement.
+     Repli sur la meta tant que le cookie n'existe pas (premier appel).
 
-   Tant que l'API n'existe pas, les vues utilisent leurs données de démo ;
-   ce composable centralise déjà les appels pour ne brancher qu'ici.
+   La boucle de jeu (contrat) : la manette POSTe un choix → 202 → le
+   moteur résout → l'état (.groupe.etat) et le prochain menu
+   (.menu.propose) reviennent par Reverb (voir useEcho).
    ========================================================================= */
 
 const BASE = '/api';
 
+/** Erreur API typée : `status` 0 = erreur réseau (serveur injoignable). */
+export class ApiError extends Error {
+    constructor(status, message, donnees = null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.donnees = donnees;
+    }
+}
+
+/**
+ * Vrai si l'erreur justifie le repli en mode démo : API injoignable
+ * (erreur réseau) ou session refusée (401). Les autres statuts (422
+ * option illégale, 404, 500…) sont des erreurs « réelles » à afficher.
+ */
+export function estErreurDemo(e) {
+    return e instanceof ApiError && (e.status === 0 || e.status === 401);
+}
+
+function jetonCsrf() {
+    const cookie = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('XSRF-TOKEN='));
+
+    if (cookie) {
+        return { 'X-XSRF-TOKEN': decodeURIComponent(cookie.slice('XSRF-TOKEN='.length)) };
+    }
+
+    const meta = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    return meta ? { 'X-CSRF-TOKEN': meta } : {};
+}
+
 async function request(method, path, body = undefined) {
-    const response = await fetch(`${BASE}${path}`, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-        },
-        credentials: 'same-origin',
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    let response;
+    try {
+        response = await fetch(`${BASE}${path}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                ...jetonCsrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+        });
+    } catch (e) {
+        throw new ApiError(0, `API injoignable (${method} ${path}) : ${e.message}`);
+    }
+
+    // 204 (deconnexion) et 202 (choix accepté) peuvent être sans corps.
+    const texte = await response.text();
+    const donnees = texte ? JSON.parse(texte) : null;
 
     if (!response.ok) {
-        throw new Error(`API ${method} ${path} → ${response.status}`);
+        throw new ApiError(
+            response.status,
+            donnees?.message ?? `API ${method} ${path} → ${response.status}`,
+            donnees,
+        );
     }
-    return response.json();
+    return donnees;
 }
 
 export function useApi() {
@@ -34,21 +89,38 @@ export function useApi() {
         get: (path) => request('GET', path),
         post: (path, body) => request('POST', path, body),
 
-        // ---- intentions métier, à brancher sur routes/api.php ----
+        // ---- authentification (session Laravel, guard `joueur`) ----
 
-        /** Créer une campagne (écran /direction, onglet « Créer »). */
+        /** POST /api/connexion {identifiant, mot_de_passe} → {joueur}. */
+        connexion: (identifiant, motDePasse) =>
+            request('POST', '/connexion', { identifiant, mot_de_passe: motDePasse }),
+
+        /** POST /api/deconnexion → 204. */
+        deconnexion: () => request('POST', '/deconnexion'),
+
+        /** GET /api/moi → {joueur, personnages: [...]}. */
+        moi: () => request('GET', '/moi'),
+
+        // ---- groupes / campagne ----
+
+        /** POST /api/groupes {nom, theme, longueur, ton} → {groupe}. */
         creerGroupe: (payload) => request('POST', '/groupes', payload),
 
-        /** Rejoindre une table avec un héros (onglet « Rejoindre »). */
-        rejoindreGroupe: (code, payload) => request('POST', `/groupes/${code}/joueurs`, payload),
+        /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe} → {personnage}. */
+        rejoindreGroupe: (identifiant, payload) =>
+            request('POST', `/groupes/${identifiant}/joueurs`, payload),
 
-        /** État courant d'un groupe (reprise table / reconnexion). */
-        etatGroupe: (groupe) => request('GET', `/groupes/${groupe}/etat`),
+        /** GET /api/groupes/{identifiant}/etat → EtatGroupe. */
+        getEtat: (identifiant) => request('GET', `/groupes/${identifiant}/etat`),
 
-        /** Envoyer le choix de menu du joueur — le moteur valide et résout. */
-        envoyerChoix: (groupe, payload) => request('POST', `/groupes/${groupe}/choix`, payload),
+        /** POST /api/groupes/{identifiant}/quetes → {quete} (démarre la quête suivante). */
+        demarrerQuete: (identifiant) => request('POST', `/groupes/${identifiant}/quetes`),
 
-        /** Voter (kick, TPK, abandon, quête suivante…). */
-        voter: (groupe, payload) => request('POST', `/groupes/${groupe}/votes`, payload),
+        /**
+         * POST /api/groupes/{identifiant}/choix {option_id, parametres?} → 202.
+         * La résolution arrive ensuite par Reverb (.groupe.etat / .menu.propose).
+         */
+        envoyerChoix: (identifiant, payload) =>
+            request('POST', `/groupes/${identifiant}/choix`, payload),
     };
 }

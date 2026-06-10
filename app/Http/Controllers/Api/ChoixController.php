@@ -4,44 +4,35 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Engine\Combat;
-use App\Engine\Des\LanceurDes;
-use App\Engine\JetCompetence;
-use App\Engine\TypeFigurine;
 use App\Events\MjReflechit;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Models\Groupe;
-use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Réception d'un choix de menu (doc 11 §4, flux d'un tour) :
+ * Réception d'un choix de menu (contrat docs/contrat-api.md ; doc 11 §4) :
  *
- *  1. le téléphone envoie l'option choisie ;
- *  2. l'API VALIDE via le moteur (l'option est-elle légale / exécutable ?) ;
- *  3. si jet / attaque : le MOTEUR résout (déterministe), met à jour l'état
- *     vivant et journalise ;
- *  4. dispatch des jobs IA (narration + menu suivant) — rien ne bloque ;
- *  5. la suite arrive par Reverb (« le MJ réfléchit… » pendant le job).
- *
- * Le résultat moteur est aussi renvoyé immédiatement au téléphone (echo)
- * pour afficher les dés sans attendre la narration.
- *
- * TODO (garde-fou strict, doc 08 §2) : conserver le dernier menu proposé
- * par joueur pour n'accepter QUE ses options ; en attendant, la légalité
- * est vérifiée structurellement (bornes du jet, cible active…).
+ *  1. le téléphone envoie {option_id, parametres?} ;
+ *  2. l'API valide l'option contre le DERNIER MENU PROPOSÉ au joueur
+ *     (mémorisé en cache par GenererMenu — garde-fou strict, doc 08 §2) :
+ *     option absente du menu → 422 ;
+ *  3. le MOTEUR résout (ResolveurTour : déplacement, attaque, jet…), met à
+ *     jour l'état, journalise et diffuse `.groupe.etat` ;
+ *  4. dispatch des jobs IA (narration + menus suivants) — rien ne bloque ;
+ *  5. réponse 202, la suite arrive par Reverb (« le MJ réfléchit… »).
  */
 class ChoixController extends Controller
 {
-    public function __construct(private readonly LanceurDes $des) {}
+    public function __construct(private readonly ResolveurTour $resolveur) {}
 
     /** POST /api/groupes/{identifiant}/choix */
     public function choisir(Request $request, string $identifiant): JsonResponse
@@ -50,45 +41,68 @@ class ChoixController extends Controller
         $joueur = Auth::guard('joueur')->user();
 
         $donnees = $request->validate([
-            'personnage_id' => ['required', 'integer'],
-            'option' => ['required', 'array'],
-            'option.id' => ['required', 'string', 'max:64'],
-            'option.libelle' => ['nullable', 'string', 'max:200'],
-            'option.type' => ['required', Rule::in(['action', 'dialogue', 'jet', 'attaque', 'attente'])],
-            'option.jet' => ['required_if:option.type,jet', 'array'],
-            'option.jet.attribut' => ['required_with:option.jet', Rule::in(['body', 'mind'])],
-            'option.jet.difficulte' => ['required_with:option.jet', 'integer', 'min:1', 'max:4'],
-            'option.cible_id' => ['required_if:option.type,attaque', 'integer'],
+            'option_id' => ['required', 'string', 'max:64'],
+            'parametres' => ['nullable', 'array'],
+            'parametres.x' => ['sometimes', 'integer', 'min:0'],
+            'parametres.y' => ['sometimes', 'integer', 'min:0'],
+            'parametres.cible_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
-        $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $donnees['personnage_id']);
-        $option = $donnees['option'];
+        // Le moteur fait autorité : seule une option du dernier menu proposé
+        // à CE joueur est légale.
+        $cleMenu = GenererMenu::cleMenu($groupe->id, (int) $joueur->id);
+        $dernierMenu = Cache::get($cleMenu);
+
+        if (! is_array($dernierMenu)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.',
+            ]);
+        }
+
+        $option = collect($dernierMenu['menu']['options'] ?? [])
+            ->first(fn ($o) => ($o['id'] ?? null) === $donnees['option_id']);
+
+        if ($option === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Option illégale : elle ne figure pas dans le dernier menu proposé.',
+            ]);
+        }
+
+        $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $dernierMenu['personnage_id']);
         $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
         // Le choix lui-même entre au journal (source de vérité rejouable).
         Journal::ajouter($groupe, 'choix', [
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
-            'type' => $option['type'],
+            'type' => $option['type'] ?? null,
         ], $acteur);
 
         // Résolution déterministe par le moteur (jamais par l'IA).
-        $resultatMoteur = match ($option['type']) {
-            'jet' => $this->resoudreJet($groupe, $personnage, $option, $acteur),
-            'attaque' => $this->resoudreAttaque($groupe, $personnage, $option, $acteur),
-            default => [
-                'type' => $option['type'],
+        if ($groupe->phase === 'quete') {
+            $resultat = $this->resolveur->resoudre($groupe, $personnage, $option, $donnees['parametres'] ?? []);
+        } else {
+            $resultat = [
+                'type' => $option['type'] ?? 'action',
                 'option_id' => $option['id'],
                 'libelle' => $option['libelle'] ?? null,
-            ],
-        };
+            ];
+        }
 
-        // Suite du tour en jobs : narration puis nouveau menu (doc 11 §4).
-        broadcast(new MjReflechit($groupe->id, true));
-        GenererNarration::dispatch($groupe->id, $resultatMoteur);
-        GenererMenu::dispatch($groupe->id, (int) $joueur->id, $personnage->id);
+        // Un menu = un choix : il est consommé, un nouveau sera proposé.
+        Cache::forget($cleMenu);
 
-        return response()->json(['resultat' => $resultatMoteur]);
+        // Suite du tour en jobs : narration puis nouveaux menus (doc 11 §4).
+        broadcast(new MjReflechit($groupe, true));
+        GenererNarration::dispatch($groupe->id, $resultat);
+
+        foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+        }
+
+        // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.
+        // Le résultat moteur est renvoyé en echo (affichage immédiat des dés).
+        return response()->json(['resultat' => $resultat], 202);
     }
 
     /**
@@ -104,98 +118,10 @@ class ChoixController extends Controller
 
         if ($personnage === null) {
             throw ValidationException::withMessages([
-                'personnage_id' => 'Ce personnage n\'est pas un héros actif de ce groupe contrôlé par vous.',
+                'option_id' => 'Ce personnage n\'est pas un héros actif de ce groupe contrôlé par vous.',
             ]);
         }
 
         return $personnage;
-    }
-
-    /**
-     * Jet de compétence Body/Mind (doc 01 §3, P4) — moteur seul.
-     *
-     * @param  array<string, mixed>  $option
-     * @param  array<string, mixed>  $acteur
-     * @return array<string, mixed>
-     */
-    private function resoudreJet(Groupe $groupe, Personnage $personnage, array $option, array $acteur): array
-    {
-        $attribut = $option['jet']['attribut'];
-        $difficulte = (int) $option['jet']['difficulte'];
-        $nbDes = $attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind;
-
-        $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
-
-        $payload = [
-            'type' => 'jet',
-            'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? null,
-            'attribut' => $attribut,
-            'difficulte' => $difficulte,
-            'des_lances' => $nbDes,
-            'succes' => $resultat->succes,
-            'issue' => $resultat->issue->value,
-            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
-        ];
-
-        Journal::ajouter($groupe, 'jet', $payload, $acteur);
-
-        return $payload;
-    }
-
-    /**
-     * Attaque d'un monstre actif de la quête courante (doc 03 §4-6) — moteur seul.
-     *
-     * @param  array<string, mixed>  $option
-     * @param  array<string, mixed>  $acteur
-     * @return array<string, mixed>
-     */
-    private function resoudreAttaque(Groupe $groupe, Personnage $personnage, array $option, array $acteur): array
-    {
-        $instance = InstanceMonstre::query()
-            ->where('id', (int) $option['cible_id'])
-            ->where('quete_id', $groupe->quete_courante_id)
-            ->where('etat', 'actif')
-            ->with('monstre')
-            ->first();
-
-        if ($instance === null) {
-            throw ValidationException::withMessages([
-                'option.cible_id' => 'Cible invalide : ce monstre n\'est pas actif dans la quête en cours.',
-            ]);
-        }
-
-        $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: (int) $personnage->des_attaque,
-            desDefense: (int) $instance->monstre->defense,
-            typeDefenseur: TypeFigurine::Monstre,
-            pvBodyDefenseur: (int) $instance->pv_body,
-        );
-
-        $instance->update([
-            'pv_body' => $resultat->pvBodyApres,
-            'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-        ]);
-
-        $payload = [
-            'type' => 'attaque',
-            'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? null,
-            'cible' => [
-                'instance_id' => $instance->id,
-                'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
-            ],
-            'touches' => $resultat->touches,
-            'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_vaincue' => $resultat->pvBodyApres === 0,
-            'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
-        ];
-
-        Journal::ajouter($groupe, 'combat', $payload, $acteur);
-
-        return $payload;
     }
 }

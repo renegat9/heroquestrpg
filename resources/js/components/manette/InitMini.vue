@@ -1,12 +1,16 @@
 <script setup>
 // File d'initiative compacte de la manette (composant Init de manette-app.jsx).
+// `order` : initiative réelle ([{k, foe}], voir initiativeVersMini) ;
+// sans `order`, on retombe sur la file de démo.
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import { INIT_ORDER_MINI } from '../../data/demo';
 
 const props = defineProps({
-    /** Jeton courant : 'MAGE' | 'BARB' | 'DWARF' | 'ELF' | 'orc' | … */
+    /** Jeton courant : 'MAGE' | 'BARB' | 'DWARF' | 'ELF' | 'orc' | label court réel. */
     cur: { type: String, required: true },
+    /** File réelle [{k, foe}] (mode connecté) — défaut : démo. */
+    order: { type: Array, default: null },
 });
 
 const norm = (s) => {
@@ -15,14 +19,14 @@ const norm = (s) => {
 };
 const c = computed(() => norm(props.cur));
 
-const order = INIT_ORDER_MINI;
+const ordre = computed(() => props.order ?? INIT_ORDER_MINI);
 </script>
 
 <template>
     <div class="init-mini">
-        <template v-for="(o, i) in order" :key="i">
+        <template v-for="(o, i) in ordre" :key="i">
             <div class="tok" :class="{ cur: o.k === c, foe: o.foe }">{{ o.k }}</div>
-            <MSym v-if="i < order.length - 1" n="chevron_right" class="arrow" />
+            <MSym v-if="i < ordre.length - 1" n="chevron_right" class="arrow" />
         </template>
     </div>
 </template>
