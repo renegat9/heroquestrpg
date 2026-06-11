@@ -8,6 +8,7 @@ use App\Engine\Combat;
 use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
 use App\Engine\JetCompetence;
+use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\EtatGroupeDiffuse;
 use App\Models\EtatPersonnageQuete;
@@ -16,6 +17,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Models\Sort;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +35,12 @@ use Illuminate\Validation\ValidationException;
  *    fouille réussie révèle les pièges cachés autour du héros ;
  *  - desamorcage / franchissement : options de piège du MenuMoteur (doc 10
  *    §4), jets de Body résolus ici ;
+ *  - sort / parchemin / concentration : sorts des héros (doc 02, MoteurSorts) —
+ *    degats à DISTANCE via Engine\Combat (tir ami possible, S3), mental via
+ *    Engine\SortMental (binaire S2, Mind 0 immunisé), utilitaires en
+ *    conditions (`personnage_conditions`) relues ici même ; parchemin
+ *    consommé dans TOUS les cas (jet de Mind pour un non-lanceur, S1) ;
+ *    concentration (S6) sacrifie le tour pour récupérer un sort épuisé ;
  *  - dialogue / action / attente : journal seulement.
  *
  * Le héros est marqué a_joue ; l'ordre d'initiative figé (C1) est imposé.
@@ -56,6 +64,7 @@ final class ResolveurTour
         private readonly LanceurDes $des,
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurPieges $pieges,
+        private readonly MoteurSorts $sorts,
         private readonly MonteeNiveau $monteeNiveau,
     ) {}
 
@@ -105,6 +114,9 @@ final class ResolveurTour
                 'jet' => $this->resoudreJet($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'desamorcage' => $this->resoudreDesamorcage($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -195,6 +207,10 @@ final class ResolveurTour
 
         $mouvement = (new Deplacement($this->des))->calculer((int) $personnage->deplacement_base);
 
+        // Vent Véloce (doc 02 §7) : déplacement ×2, buff consommé à l'usage.
+        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
+        $total = $mouvement->total * $multiplicateur;
+
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
@@ -204,10 +220,14 @@ final class ResolveurTour
 
         $distance = count($chemin);
 
-        if ($distance > $mouvement->total) {
+        if ($distance > $total) {
             throw ValidationException::withMessages([
-                'parametres' => "Destination hors de portée : {$distance} cases pour {$mouvement->total} de déplacement.",
+                'parametres' => "Destination hors de portée : {$distance} cases pour {$total} de déplacement.",
             ]);
+        }
+
+        if ($multiplicateur > 1) {
+            $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
         }
 
         // Pièges cachés sur les cases TRAVERSÉES (chemin BFS, arrivée incluse) :
@@ -229,7 +249,8 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'de' => $mouvement->de,
-            'deplacement_total' => $mouvement->total,
+            'deplacement_total' => $total,
+            'multiplicateur_sort' => $multiplicateur,
             'distance' => $distance,
             'vers' => $arrivee,
             'interrompu' => $controle['arret'] !== null,
@@ -275,22 +296,33 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
         }
 
+        // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
+        $bonusAttaque = $this->sorts->bonusDes($personnage, 'bonus_des_attaque');
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: (int) $personnage->des_attaque,
+            desAttaque: (int) $personnage->des_attaque + $bonusAttaque,
             desDefense: (int) $instance->monstre->defense,
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: (int) $instance->pv_body,
         );
+
+        if ($bonusAttaque > 0) {
+            $this->sorts->consommerBuffs($personnage, 'bonus_des_attaque');
+        }
 
         $instance->update([
             'pv_body' => $resultat->pvBodyApres,
             'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
         ]);
 
+        // Une attaque réveille un monstre endormi (Sommeil, doc 02 §7).
+        $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
+
         $payload = [
             'type' => 'attaque',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
+            'bonus_des_attaque' => $bonusAttaque,
             'cible' => [
                 'instance_id' => $instance->id,
                 'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
@@ -499,6 +531,510 @@ final class ResolveurTour
     }
 
     /**
+     * Lancer un sort CONNU et DISPONIBLE (doc 02 §4-5) : résolution par type
+     * (degats / mental / utilitaire), puis le sort est ÉPUISÉ pour la quête
+     * (pivot personnage_sorts.disponible = false). Aucune adjacence requise :
+     * les sorts se lancent à distance.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSort(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $sort = $this->sortDeLOption($option);
+
+        $connu = $personnage->sorts()->whereKey($sort->id)->first();
+
+        if ($connu === null || ! $connu->pivot->disponible) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Sort inconnu ou épuisé : chaque sort est lançable une fois par quête (S5).',
+            ]);
+        }
+
+        $payload = [
+            'type' => 'sort',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'sort' => ['id' => $sort->id, 'nom' => $sort->nom, 'element' => $sort->element, 'type' => $sort->type],
+            ...$this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres),
+        ];
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+
+        Journal::ajouter($groupe, $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Utiliser un parchemin du sac (doc 02 §6, S1/S4) : lanceur (magicien /
+     * elfe) → réussite automatique ; non-lanceur → jet de Mind à la
+     * difficulté du sort (1-3). CONSOMMÉ dans tous les cas — échec =
+     * gaspillé. La résolution de l'effet est celle du sort (sans toucher au
+     * répertoire du héros).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreParchemin(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $ligne = $personnage->inventaire()
+            ->with('objet')
+            ->whereKey((int) data_get($option, 'parametres.inventaire_id', 0))
+            ->first();
+
+        $sort = $ligne === null ? null : Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
+
+        if ($sort === null) {
+            throw ValidationException::withMessages(['option_id' => 'Parchemin introuvable dans le sac de ce héros.']);
+        }
+
+        $estLanceur = in_array($personnage->classe, MoteurSorts::LANCEURS, true);
+
+        $payload = [
+            'type' => 'parchemin',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'sort' => ['id' => $sort->id, 'nom' => $sort->nom, 'element' => $sort->element, 'type' => $sort->type],
+            'lanceur_de_sorts' => $estLanceur,
+        ];
+
+        $reussi = true;
+
+        if (! $estLanceur) {
+            $difficulte = max(1, (int) $sort->difficulte_parchemin);
+            $jet = (new JetCompetence($this->des))->resoudre((int) $personnage->attribut_mind, $difficulte);
+            $reussi = $jet->estReussi();
+
+            $payload['jet'] = [
+                'attribut' => 'mind',
+                'difficulte' => $difficulte,
+                'des_lances' => (int) $personnage->attribut_mind,
+                'succes' => $jet->succes,
+                'issue' => $jet->issue->value,
+                'faces' => array_map(fn ($face) => $face->value, $jet->faces),
+            ];
+        }
+
+        if ($reussi) {
+            $payload += $this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres);
+        }
+
+        // Consommé dans TOUS les cas (S1) — échec = parchemin gaspillé.
+        (int) $ligne->quantite > 1 ? $ligne->decrement('quantite') : $ligne->delete();
+        $payload['consomme'] = true;
+        $payload['gaspille'] = ! $reussi;
+
+        Journal::ajouter($groupe, $reussi && $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * « Se concentrer » (S6, nœud magicien) : sacrifie le tour (a_joue est
+     * marqué par l'appelant) pour rendre disponible UN sort épuisé au choix
+     * (parametres.sort_id) — une seule fois par quête (marqueur en cache,
+     * réarmé par DemarreurQuete).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreConcentration(
+        Groupe $groupe,
+        Personnage $personnage,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        if (! $this->sorts->concentrationDisponible($groupe, $personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Concentration indisponible : nœud magicien requis, une seule fois par quête (S6).',
+            ]);
+        }
+
+        $sort = $personnage->sorts()->whereKey((int) ($parametres['sort_id'] ?? 0))->first();
+
+        if ($sort === null || $sort->pivot->disponible) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer : parametres.sort_id.',
+            ]);
+        }
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => true]);
+        $this->sorts->marquerConcentrationUtilisee($groupe, $personnage);
+
+        $payload = [
+            'type' => 'concentration',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'sort_recupere' => ['id' => $sort->id, 'nom' => $sort->nom],
+            'tour_sacrifie' => true,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Résolution de l'EFFET d'un sort (commune au sort connu et au
+     * parchemin) — par type de catalogue.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function lancerSort(
+        Quete $quete,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        array $option,
+        array $parametres,
+    ): array {
+        return match ($sort->type) {
+            'degats' => $this->sortDegats($quete, $sort, $option, $parametres),
+            'mental' => $this->sortMental($quete, $sort, $option, $parametres),
+            default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $option, $parametres),
+        };
+    }
+
+    /**
+     * Sort de dégâts (Boule de Feu, Trait de Feu, Génie) : dés de combat de
+     * l'effet JSON du catalogue contre la défense de la cible (règles de
+     * combat de base), À DISTANCE — et tir ami possible (S3) : un héros visé
+     * se défend exactement comme face à un monstre.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres): array
+    {
+        $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
+        $cible = $this->cibleSort($quete, $option, $parametres);
+
+        if ($cible['type'] === 'monstre') {
+            /** @var InstanceMonstre $instance */
+            $instance = $cible['monstre'];
+
+            $resultat = (new Combat($this->des))->resoudreAttaque(
+                desAttaque: $des,
+                desDefense: (int) $instance->monstre->defense,
+                typeDefenseur: TypeFigurine::Monstre,
+                pvBodyDefenseur: (int) $instance->pv_body,
+            );
+
+            $instance->update([
+                'pv_body' => $resultat->pvBodyApres,
+                'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
+            ]);
+
+            // Être attaqué réveille un monstre endormi (doc 02 §7).
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
+
+            return [
+                'des_degats' => $des,
+                'cible' => [
+                    'type' => 'monstre',
+                    'instance_id' => $instance->id,
+                    'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
+                ],
+                'touches' => $resultat->touches,
+                'boucliers' => $resultat->boucliers,
+                'degats' => $resultat->degats,
+                'pv_body_apres' => $resultat->pvBodyApres,
+                'cible_vaincue' => $resultat->pvBodyApres === 0,
+                'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
+                'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
+            ];
+        }
+
+        /** @var Personnage $heros */
+        $heros = $cible['personnage'];
+
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: $des,
+            desDefense: (int) $heros->des_defense + $this->sorts->bonusDes($heros, 'bonus_des_defense'),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $heros->pv_body,
+        );
+
+        $heros->update(['pv_body' => $resultat->pvBodyApres]);
+        $this->sorts->reveillerHeros($heros); // être attaqué réveille
+
+        if ($resultat->cibleTombee) {
+            $cible['etat']->update(['tombe' => true]); // C4
+        }
+
+        return [
+            'des_degats' => $des,
+            'tir_ami' => true,
+            'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $resultat->degats,
+            'pv_body_apres' => $resultat->pvBodyApres,
+            'cible_tombee' => $resultat->cibleTombee,
+            'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
+            'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
+        ];
+    }
+
+    /**
+     * Sort mental (Sommeil, Tempête — S2 binaire) : la cible résiste avec un
+     * jet de Mind (PV de Mind pour un monstre, attribut Mind pour un héros ;
+     * Mind 0 = immunisé). Échec → condition :
+     *  - monstre endormi : ne joue plus tant qu'il n'est pas attaqué ;
+     *  - monstre sous Tempête : n'attaque pas à son prochain tour ;
+     *  - héros (tir ami) : condition du catalogue posée (Endormi / Étourdi),
+     *    levée à l'attaque pour Endormi — sans blocage d'action côté héros
+     *    au MVP (documenté).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function sortMental(Quete $quete, Sort $sort, array $option, array $parametres): array
+    {
+        $cible = $this->cibleSort($quete, $option, $parametres);
+
+        $mind = $cible['type'] === 'monstre'
+            ? (int) $cible['monstre']->pv_mind
+            : (int) $cible['personnage']->attribut_mind;
+
+        $resultat = (new SortMental($this->des))->resoudre($mind);
+
+        $payload = [
+            'cible' => $cible['type'] === 'monstre'
+                ? [
+                    'type' => 'monstre',
+                    'instance_id' => $cible['monstre']->id,
+                    'nom' => $cible['monstre']->habillage['nom'] ?? $cible['monstre']->monstre->nom_base,
+                ]
+                : ['type' => 'heros', 'personnage_id' => $cible['personnage']->id, 'nom' => $cible['personnage']->nom],
+            'mind_cible' => $mind,
+            'issue' => $resultat->issue->value,
+            'succes' => $resultat->succes,
+            'difficulte' => $resultat->difficulte,
+            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            'effet_applique' => $resultat->effetApplique(),
+        ];
+
+        if (! $resultat->effetApplique()) {
+            return $payload;
+        }
+
+        $conditionNom = data_get($sort->effet, 'condition_appliquee');
+
+        if ($cible['type'] === 'monstre') {
+            if ($conditionNom === 'Endormi') {
+                $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_ENDORMI);
+            }
+            if ((bool) data_get($sort->effet, 'empeche_attaque', false)) {
+                $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+                $conditionNom ??= 'Étourdi';
+            }
+        } else {
+            $conditionNom ??= 'Étourdi'; // Tempête côté héros : perd_prochain_tour (catalogue)
+            $this->sorts->appliquerConditionCatalogue($cible['personnage'], $conditionNom, $sort);
+        }
+
+        $payload['condition'] = $conditionNom;
+
+        return $payload;
+    }
+
+    /**
+     * Sort utilitaire (effet direct, sans opposition — doc 02 §5) : soins
+     * plafonnés, Traverser la Pierre, ou buff posé en personnage_conditions
+     * (source `sort:{Nom}`) et relu aux résolutions d'attaque / défense /
+     * déplacement.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function sortUtilitaire(
+        Quete $quete,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        array $option,
+        array $parametres,
+    ): array {
+        $effet = $sort->effet ?? [];
+
+        // Soin du Corps / Eau de Guérison : +4 PV Body, PLAFONNÉ au maximum.
+        if (isset($effet['soin_pv_body'])) {
+            $cible = $this->cibleSort($quete, $option, $parametres);
+            /** @var Personnage $heros */
+            $heros = $cible['personnage'];
+
+            $avant = (int) $heros->pv_body;
+            $apres = min((int) $heros->pv_body_max, $avant + (int) $effet['soin_pv_body']);
+            $heros->update(['pv_body' => $apres]);
+
+            // Un héros tombé soigné au-dessus de 0 PV est relevé (C4).
+            if ($apres > 0 && $cible['etat']->tombe) {
+                $cible['etat']->update(['tombe' => false]);
+            }
+
+            return [
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'soin' => $apres - $avant,
+                'pv_body_apres' => $apres,
+            ];
+        }
+
+        // Traverser la Pierre : franchir UN mur adjacent — vaut le déplacement.
+        if (isset($effet['franchit_mur'])) {
+            return $this->franchirMur($quete, $lanceur, $etat, $parametres);
+        }
+
+        // Buff (Courage, Peau de Pierre, Voile de Brume, Vent Véloce) : cible
+        // héros si le sort est ciblé, sinon le lanceur lui-même.
+        $cibleBuff = isset($option['parametres']['cibles'])
+            ? $this->cibleSort($quete, $option, $parametres)['personnage']
+            : $lanceur;
+
+        $condition = $this->sorts->appliquerBuff($cibleBuff, $sort);
+
+        return [
+            'cible' => ['type' => 'heros', 'personnage_id' => $cibleBuff->id, 'nom' => $cibleBuff->nom],
+            'condition' => $condition->nom,
+            'source' => MoteurSorts::PREFIXE_SOURCE.$sort->nom,
+        ];
+    }
+
+    /**
+     * Traverser la Pierre (doc 02 §7) : le héros passe de l'autre côté d'un
+     * mur ORTHOGONALEMENT adjacent — destination à 2 cases, mur au milieu,
+     * case de sortie libre. « Vaut son déplacement » (l'action du tour).
+     *
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function franchirMur(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $parametres): array
+    {
+        $x = $parametres['x'] ?? null;
+        $y = $parametres['y'] ?? null;
+
+        if (! is_numeric($x) || ! is_numeric($y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Destination requise de l\'autre côté du mur : parametres.x et parametres.y.',
+            ]);
+        }
+
+        $x = (int) $x;
+        $y = (int) $y;
+        $dx = $x - (int) $etat->position_x;
+        $dy = $y - (int) $etat->position_y;
+
+        if (! (abs($dx) === 2 && $dy === 0) && ! ($dx === 0 && abs($dy) === 2)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Traverser la Pierre : destination à 2 cases orthogonales, derrière un mur adjacent.',
+            ]);
+        }
+
+        $murX = (int) $etat->position_x + intdiv($dx, 2);
+        $murY = (int) $etat->position_y + intdiv($dy, 2);
+        $cases = $quete->carte?->grille['cases'] ?? [];
+
+        if (($cases[$murY][$murX] ?? null) !== 'm') {
+            throw ValidationException::withMessages(['parametres' => 'Aucun mur à traverser dans cette direction.']);
+        }
+
+        if (! $this->grille($quete, exceptPersonnageId: $personnage->id)->estTraversable($x, $y)) {
+            throw ValidationException::withMessages(['parametres' => 'La case de sortie derrière le mur n\'est pas libre.']);
+        }
+
+        $etat->update(['position_x' => $x, 'position_y' => $y]);
+
+        return ['mur' => ['x' => $murX, 'y' => $murY], 'vers' => ['x' => $x, 'y' => $y]];
+    }
+
+    /**
+     * Cible d'un sort : parametres.cible_id (+ cible_type monstre|heros si
+     * un monstre et un héros partagent le même id) doit figurer dans les
+     * CIBLES LÉGALES de l'option (le menu fait autorité, S3 : les héros y
+     * figurent pour les sorts offensifs — tir ami).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array{type: string, monstre?: InstanceMonstre, personnage?: Personnage, etat?: EtatPersonnageQuete}
+     */
+    private function cibleSort(Quete $quete, array $option, array $parametres): array
+    {
+        $cibleId = (int) ($parametres['cible_id'] ?? 0);
+        $cibleType = $parametres['cible_type'] ?? null;
+
+        $candidats = array_values(array_filter(
+            (array) data_get($option, 'parametres.cibles', []),
+            fn ($c) => (int) ($c['id'] ?? 0) === $cibleId
+                && ($cibleType === null || ($c['type'] ?? null) === $cibleType),
+        ));
+
+        if ($cibleId < 1 || count($candidats) !== 1) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible requise : parametres.cible_id (et cible_type monstre|heros si ambigu) parmi les cibles légales du sort.',
+            ]);
+        }
+
+        if ($candidats[0]['type'] === 'monstre') {
+            $instance = $quete->instancesMonstres()
+                ->whereKey($cibleId)
+                ->where('etat', 'actif')
+                ->with('monstre')
+                ->first();
+
+            if ($instance === null) {
+                throw ValidationException::withMessages(['parametres' => 'Cible invalide : ce monstre n\'est plus actif.']);
+            }
+
+            return ['type' => 'monstre', 'monstre' => $instance];
+        }
+
+        $etatCible = $quete->etatsPersonnages()
+            ->where('personnage_id', $cibleId)
+            ->with('personnage')
+            ->first();
+
+        if ($etatCible === null) {
+            throw ValidationException::withMessages(['parametres' => 'Cible invalide : ce héros ne participe pas à la quête.']);
+        }
+
+        return ['type' => 'heros', 'personnage' => $etatCible->personnage, 'etat' => $etatCible];
+    }
+
+    /** Sort du catalogue pointé par l'option (parametres.sort_id du menu). */
+    private function sortDeLOption(array $option): Sort
+    {
+        return Sort::find((int) data_get($option, 'parametres.sort_id', 0))
+            ?? throw ValidationException::withMessages(['option_id' => 'Option de sort invalide (sort_id inconnu).']);
+    }
+
+    /**
      * Piège visé par une option Désamorcer / Franchir : il doit être DÉTECTÉ
      * et orthogonalement adjacent au héros (parametres.piege du MenuMoteur).
      *
@@ -557,10 +1093,14 @@ final class ResolveurTour
         $actions = [];
 
         foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->orderBy('id')->get() as $instance) {
-            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get();
+            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+                // Voile de Brume : un héros caché (condition « inattaquable »)
+                // est ignoré du ciblage jusqu'à son prochain tour.
+                ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+                ->values();
 
             if ($cibles->isEmpty()) {
-                break; // plus personne debout
+                break; // plus personne debout (ou tout le monde est caché)
             }
 
             $actions[] = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
@@ -568,6 +1108,10 @@ final class ResolveurTour
 
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
         $quete->etatsPersonnages()->update(['a_joue' => false]);
+
+        // Fin de tour : décompte des durées des conditions de sorts des héros
+        // (Caché expire ici ; Vent Véloce survit jusqu'au déplacement suivant).
+        $this->sorts->decrementerDurees($quete);
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
@@ -594,6 +1138,23 @@ final class ResolveurTour
     {
         $nomMonstre = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
+
+        // Sommeil (doc 02 §7) : le monstre endormi NE JOUE PAS tant qu'il
+        // n'est pas attaqué — une attaque le réveille (resoudreAttaque /
+        // sortDegats retirent la condition).
+        if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENDORMI)) {
+            $payload = ['type' => 'monstre_endormi', 'monstre' => $nomMonstre, 'action' => 'endormi'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        // Tempête : « n'attaque pas à son prochain tour » — l'empêchement est
+        // consommé à cette activation-ci (le monstre se déplace librement).
+        $attaqueEmpechee = $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+        if ($attaqueEmpechee) {
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+        }
 
         $grille = $this->grille($quete, exceptInstanceId: $instance->id);
 
@@ -649,16 +1210,29 @@ final class ResolveurTour
             return $payload;
         }
 
-        // Attaque du héros adjacent — moteur seul.
+        if ($attaqueEmpechee) {
+            $payload = [
+                'type' => 'attaque_empechee',
+                'monstre' => $nomMonstre,
+                'cible' => ['personnage_id' => $cible->personnage->id, 'nom' => $cible->personnage->nom],
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        // Attaque du héros adjacent — moteur seul. La défense intègre les
+        // buffs de sorts (Peau de Pierre : bonus_des_defense, source sort:).
         $personnage = $cible->personnage;
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: (int) $instance->monstre->attaque,
-            desDefense: (int) $personnage->des_defense,
+            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
 
         $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+        $this->sorts->reveillerHeros($personnage); // être attaqué réveille (Endormi)
 
         if ($resultat->cibleTombee) {
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable

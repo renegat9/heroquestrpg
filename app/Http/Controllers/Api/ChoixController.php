@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -32,10 +33,15 @@ use Illuminate\Validation\ValidationException;
  */
 class ChoixController extends Controller
 {
-    public function __construct(private readonly ResolveurTour $resolveur) {}
-
-    /** POST /api/groupes/{identifiant}/choix */
-    public function choisir(Request $request, string $identifiant): JsonResponse
+    /**
+     * POST /api/groupes/{identifiant}/choix
+     *
+     * ResolveurTour est injecté PAR MÉTHODE (pas au constructeur) : Laravel
+     * met en cache l'instance du contrôleur sur la route entre les requêtes
+     * d'un même process, et le lanceur de dés doit être résolu à CHAQUE
+     * requête (les tests le re-bindent via desFiges()).
+     */
+    public function choisir(Request $request, string $identifiant, ResolveurTour $resolveur): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
@@ -46,6 +52,10 @@ class ChoixController extends Controller
             'parametres.x' => ['sometimes', 'integer', 'min:0'],
             'parametres.y' => ['sometimes', 'integer', 'min:0'],
             'parametres.cible_id' => ['sometimes', 'integer', 'min:1'],
+            // Sorts (doc 02) : type de la cible si un monstre et un héros
+            // partagent le même id, et sort à récupérer (Concentration).
+            'parametres.cible_type' => ['sometimes', Rule::in(['monstre', 'heros'])],
+            'parametres.sort_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         // Le moteur fait autorité : seule une option du dernier menu proposé
@@ -80,7 +90,7 @@ class ChoixController extends Controller
 
         // Résolution déterministe par le moteur (jamais par l'IA).
         if ($groupe->phase === 'quete') {
-            $resultat = $this->resolveur->resoudre($groupe, $personnage, $option, $donnees['parametres'] ?? []);
+            $resultat = $resolveur->resoudre($groupe, $personnage, $option, $donnees['parametres'] ?? []);
         } else {
             $resultat = [
                 'type' => $option['type'] ?? 'action',

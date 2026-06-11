@@ -10,6 +10,7 @@ use App\Models\Competence;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\EtatGroupe;
+use App\Partie\MoteurSorts;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -82,8 +83,13 @@ class CompetenceController extends Controller
      * (contrat) : héros du joueur connecté actif dans CE groupe, classe du
      * nœud = classe du héros, prérequis acquis, point disponible, pas déjà
      * acquis — sinon 422. Rediffuse `.groupe.etat` si le groupe est en quête.
+     *
+     * Nœud `emplacement_element` (Première magie / Second élément de l'Elfe,
+     * Écoles du Magicien — doc 02 §2-3) : `element` choisit l'élément
+     * débloqué (défaut eau ; 422 s'il est déjà connu) → les 3 sorts de
+     * l'élément sont attachés au héros (MoteurSorts).
      */
-    public function acquerir(Request $request, string $identifiant, EtatGroupe $etatGroupe): JsonResponse
+    public function acquerir(Request $request, string $identifiant, EtatGroupe $etatGroupe, MoteurSorts $sorts): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
@@ -91,6 +97,7 @@ class CompetenceController extends Controller
         $donnees = $request->validate([
             'personnage_id' => ['required', 'integer'],
             'competence_id' => ['required', 'integer', Rule::exists('competences', 'id')],
+            'element' => ['sometimes', 'string', Rule::in(MoteurSorts::ELEMENTS)],
         ]);
 
         $personnage = $groupe->personnages()
@@ -132,9 +139,27 @@ class CompetenceController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($personnage, $competence) {
+        $elementAttache = null;
+
+        // Nœud de déblocage d'élément : valider l'élément AVANT d'attacher
+        // quoi que ce soit (422 → rien n'est acquis, transaction).
+        if (($competence->effet['mecanique'] ?? null) === MoteurSorts::MECANIQUE_ELEMENT) {
+            $elementAttache = $donnees['element'] ?? MoteurSorts::ELEMENT_DEFAUT;
+
+            if (in_array($elementAttache, $sorts->elementsConnus($personnage), true)) {
+                throw ValidationException::withMessages([
+                    'element' => "L'élément {$elementAttache} est déjà connu de ce héros : choisissez-en un autre.",
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($personnage, $competence, $sorts, $elementAttache) {
             $personnage->competences()->attach($competence->id);
             $this->appliquerEffetsPassifs($personnage, $competence);
+
+            if ($elementAttache !== null) {
+                $sorts->attacherElement($personnage, $elementAttache);
+            }
         });
 
         Journal::ajouter($groupe, 'systeme', [
@@ -143,6 +168,7 @@ class CompetenceController extends Controller
             'competence_id' => $competence->id,
             'nom' => $competence->nom,
             'type' => $competence->type,
+            'element' => $elementAttache,
         ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
 
         // En quête, le nouveau profil du héros (PV max, déplacement…) doit
@@ -165,6 +191,7 @@ class CompetenceController extends Controller
                 'id' => $competence->id,
                 'nom' => $competence->nom,
                 'type' => $competence->type,
+                'element' => $elementAttache,
             ],
         ], 201);
     }

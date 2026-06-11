@@ -9,8 +9,9 @@
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
+import { elementInfo, TYPES_SORT } from '../../store/game';
 
-defineProps({
+const props = defineProps({
     myTurn: { type: Boolean, required: true },
     hero: { type: Object, required: true },
     /** Menu réel ({contexte, options}) — null en mode démo. */
@@ -21,12 +22,16 @@ defineProps({
     initOrder: { type: Array, default: null },
     /** Jeton courant de la file d'initiative (mode connecté). */
     initCur: { type: String, default: null },
+    /** Sorts du héros (GET /moi) — sert à l'icône par élément des options
+     *  type "sort" quand l'option ne porte pas elle-même son élément. */
+    sorts: { type: Array, default: null },
 });
 
 const emit = defineEmits(['attack', 'open-spells', 'move', 'search', 'pass', 'choose']);
 
 /** Icône par type d'option du contrat (+ pièges doc 10 : désamorcer /
- *  franchir une fosse détectée — des jets de Body proposés en menu). */
+ *  franchir une fosse détectée — des jets de Body proposés en menu ;
+ *  + sorts doc 02 : sort / parchemin / concentration). */
 const ICONE_TYPE = {
     action: 'touch_app',
     dialogue: 'forum',
@@ -35,7 +40,44 @@ const ICONE_TYPE = {
     deplacement: 'directions_walk',
     desamorcer: 'handyman',
     franchir: 'sprint',
+    sort: 'auto_awesome',
+    parchemin: 'description',
+    concentration: 'self_improvement',
 };
+
+/** Élément d'une option type "sort" : porté par l'option ou retrouvé
+ *  dans les sorts du héros (/moi) via sort_id. */
+function elementOption(o) {
+    if (o.type !== 'sort') return null;
+    const direct = elementInfo(o.parametres?.element);
+    if (direct) return direct;
+    const sortId = o.parametres?.sort_id;
+    const sort = (props.sorts ?? []).find((s) => String(s.sort_id) === String(sortId));
+    return elementInfo(sort?.element);
+}
+
+function iconeOption(o) {
+    return elementOption(o)?.ic ?? ICONE_TYPE[o.type] ?? 'touch_app';
+}
+
+function classeOption(o) {
+    const el = elementOption(o);
+    return el ? `el-${el.cle}` : '';
+}
+
+/** Méta contextuelle des nouveaux types (sort/parchemin/concentration). */
+function metaOption(o) {
+    if (o.type === 'sort') {
+        const el = elementOption(o);
+        const sortId = o.parametres?.sort_id;
+        const type = (props.sorts ?? []).find((s) => String(s.sort_id) === String(sortId))?.type;
+        const badge = TYPES_SORT[(type ?? '').toLowerCase()]?.l;
+        return [el?.l, badge, 'Sort — 1×/quête'].filter(Boolean).join(' · ');
+    }
+    if (o.type === 'parchemin') return 'Parchemin — consommé dans tous les cas';
+    if (o.type === 'concentration') return 'Sacrifie le tour — récupère un sort épuisé';
+    return '';
+}
 </script>
 
 <template>
@@ -49,8 +91,10 @@ const ICONE_TYPE = {
             <ChoiceCard
                 v-for="o in menu.options"
                 :key="o.id"
-                :icon="ICONE_TYPE[o.type] ?? 'touch_app'"
+                :icon="iconeOption(o)"
                 :title="o.libelle"
+                :meta="metaOption(o)"
+                :el-class="classeOption(o)"
                 :disabled="pending"
                 @click="emit('choose', o)"
             />

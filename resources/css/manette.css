@@ -92,6 +92,9 @@
   background: oklch(0.78 0.05 75 / 0.6); color: var(--ember-deep); }
 .choice .ic .msym { font-size: 26px; }
 .choice .ttl { display: block; line-height: 1.1; }
+.choice .ttl .badge { display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 99px; font-size: 9.5px;
+  font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid currentColor;
+  color: var(--parch-ink-soft); vertical-align: 1px; }
 .choice .meta { display: block; font-weight: 500; font-size: 12px; color: var(--parch-ink-soft); margin-top: 3px; }
 .choice .chev { margin-left: auto; color: var(--parch-ink-soft); }
 .choice.sel { box-shadow: var(--glow-torch); border-color: var(--torch); }
@@ -182,6 +185,7 @@
 .btn:active { transform: scale(0.97); }
 .btn-torch { background: linear-gradient(180deg, var(--torch-bright), var(--torch)); color: var(--stone-950); box-shadow: var(--sh-2); }
 .btn-ghost { background: var(--stone-800); color: var(--ink-100); border: var(--line-strong); }
+.btn-danger { background: linear-gradient(180deg, oklch(0.62 0.2 25), oklch(0.5 0.19 25)); color: var(--parch-100); box-shadow: var(--sh-2); }
 .btn-block { width: 100%; }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
 .btn-sm { padding: 8px 12px; font-size: 13px; border-radius: 9px; }

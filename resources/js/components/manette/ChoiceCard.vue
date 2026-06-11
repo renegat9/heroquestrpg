@@ -6,6 +6,8 @@ defineProps({
     icon: { type: String, required: true },
     title: { type: String, required: true },
     meta: { type: String, default: '' },
+    /** Petit badge inline après le titre (ex. type de sort du contrat). */
+    badge: { type: String, default: '' },
     sel: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false },
     danger: { type: Boolean, default: false },
@@ -24,7 +26,7 @@ const emit = defineEmits(['click']);
     >
         <span class="ic"><MSym :n="icon" /></span>
         <span style="flex: 1">
-            <span class="ttl">{{ title }}</span>
+            <span class="ttl">{{ title }}<span v-if="badge" class="badge">{{ badge }}</span></span>
             <span v-if="meta" class="meta">{{ meta }}</span>
         </span>
         <MSym v-if="chev" n="chevron_right" />

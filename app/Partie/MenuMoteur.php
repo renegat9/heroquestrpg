@@ -14,12 +14,18 @@ use App\Models\Personnage;
  *
  * En quête : Se déplacer / Attaquer (un bouton par monstre actif adjacent) /
  * Désamorcer / Franchir (un bouton par piège DÉTECTÉ adjacent, doc 10 §4) /
- * Fouiller (jet de Mind 1) / Attendre. Au hub : options d'attente neutres.
+ * Lancer {sort} (un bouton par sort DISPONIBLE, cibles légales jointes) /
+ * Utiliser un parchemin (un bouton par parchemin au sac) / Se concentrer
+ * (magicien, nœud Concentration — doc 02, MoteurSorts) / Fouiller (jet de
+ * Mind 1) / Attendre. Au hub : options d'attente neutres.
  * Toutes les options sont exécutables telles quelles par ResolveurTour.
  */
 final class MenuMoteur
 {
-    public function __construct(private readonly MoteurPieges $pieges) {}
+    public function __construct(
+        private readonly MoteurPieges $pieges,
+        private readonly MoteurSorts $sorts,
+    ) {}
 
     /**
      * @return array{situation: string, options: list<array<string, mixed>>}
@@ -100,6 +106,15 @@ final class MenuMoteur
                         ];
                     }
                 }
+            }
+        }
+
+        // Sorts des héros (doc 02) : un bouton par sort disponible (cibles
+        // légales jointes — tir ami compris, S3), parchemins du sac, et
+        // « Se concentrer » (S6) quand le nœud magicien le permet.
+        if ($etat !== null) {
+            foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
+                $options[] = $option;
             }
         }
 

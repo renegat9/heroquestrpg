@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import { estErreurDemo, useApi } from '../composables/useApi';
-import { useGameStore } from '../store/game';
+import { ELEMENTS, useGameStore } from '../store/game';
 
 const router = useRouter();
 const api = useApi();
@@ -77,15 +77,32 @@ const heroes = [
     { v: 'nain', ic: 'construction', l: 'Nain', taken: false },
     { v: 'elfe', ic: 'park', l: 'Elfe', taken: false },
 ];
+/* Magicien (contrat « Sorts des héros ») : 2 éléments au choix à la
+   création (défaut feu + eau) — POST joueurs accepte elements: [...]. */
+const elementsChoisis = ref(['feu', 'eau']);
+function basculerElement(el) {
+    if (elementsChoisis.value.includes(el)) {
+        elementsChoisis.value = elementsChoisis.value.filter((e) => e !== el);
+        return;
+    }
+    // au-delà de 2 : le plus ancien cède sa place
+    elementsChoisis.value = [...elementsChoisis.value, el].slice(-2);
+}
+
 const canJoin = computed(() =>
-    joinCode.value.trim().length >= 4 && !!heroPick.value && playerName.value.trim().length > 0);
+    joinCode.value.trim().length >= 4
+    && !!heroPick.value
+    && playerName.value.trim().length > 0
+    && (heroPick.value !== 'magicien' || elementsChoisis.value.length === 2));
 
 async function rejoindre() {
     const groupe = joinCode.value.trim().toUpperCase();
     enCours.value = true;
     erreur.value = '';
     try {
-        await api.rejoindreGroupe(groupe, { nom: playerName.value.trim(), classe: heroPick.value });
+        const payload = { nom: playerName.value.trim(), classe: heroPick.value };
+        if (heroPick.value === 'magicien') payload.elements = [...elementsChoisis.value];
+        await api.rejoindreGroupe(groupe, payload);
         router.push({ name: 'manette', params: { groupe } });
     } catch (e) {
         if (estErreurDemo(e)) {
@@ -176,6 +193,23 @@ async function rejoindre() {
                             </div>
                         </div>
                     </div>
+                    <div v-if="heroPick === 'magicien'" class="field">
+                        <label>Éléments du grimoire — choisis-en 2</label>
+                        <div class="elems">
+                            <button
+                                v-for="(e, k) in ELEMENTS"
+                                :key="k"
+                                class="el"
+                                :class="['elc-' + e.cle, { on: elementsChoisis.includes(k) }]"
+                                @click="basculerElement(k)"
+                            >
+                                <MSym :n="e.ic" fill /><span class="en">{{ e.l }}</span>
+                            </button>
+                        </div>
+                        <p class="note" style="margin-top: 8px; text-align: left">
+                            Connaître un élément, c'est maîtriser ses 3 sorts. Chaque sort se lance une fois par quête.
+                        </p>
+                    </div>
                     <div class="field">
                         <label for="playerName">Ton nom de joueur</label>
                         <input id="playerName" v-model="playerName" class="input" placeholder="Comment t'appellent tes compagnons ?" />
@@ -243,6 +277,19 @@ async function rejoindre() {
 .creation .heroes .h.on .msym, .creation .heroes .h.on .hn { color: var(--torch); }
 .creation .heroes .h.taken { opacity: 0.4; pointer-events: none; }
 .creation .heroes .h.taken::after { content: "pris"; position: absolute; top: 5px; right: 5px; font-size: 8px; color: var(--ink-500); }
+
+/* sélecteur d'éléments du Magicien (2 parmi feu/eau/terre/air) */
+.creation .elems { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.creation .elems .el { background: var(--stone-850); border: var(--line-strong); border-radius: var(--r-md); padding: 11px 6px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; transition: all .15s; font-family: var(--font-ui); }
+.creation .elems .el .msym { font-size: 24px; color: var(--ink-300); }
+.creation .elems .el .en { font-size: 11px; font-weight: 700; color: var(--ink-500); }
+.creation .elems .el.on { border-color: currentColor; }
+.creation .elems .el.elc-fire.on { color: var(--elem-fire); background: oklch(0.64 0.205 35 / 0.12); }
+.creation .elems .el.elc-water.on { color: var(--elem-water); background: oklch(0.66 0.150 245 / 0.12); }
+.creation .elems .el.elc-earth.on { color: var(--elem-earth); background: oklch(0.60 0.115 145 / 0.14); }
+.creation .elems .el.elc-air.on { color: var(--elem-air); background: oklch(0.86 0.075 215 / 0.14); }
+.creation .elems .el.on .msym, .creation .elems .el.on .en { color: currentColor; }
 
 .creation .btn { border: none; border-radius: var(--r-md); padding: 15px; font-family: var(--font-ui); font-weight: 700; font-size: 16px;
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 9px; width: 100%; transition: transform .1s; }

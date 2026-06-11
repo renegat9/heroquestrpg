@@ -283,6 +283,109 @@ export function initiativeVersMini(initiative) {
 }
 
 /* =========================================================================
+   Mapping sorts (contrat « Sorts des héros ») → SpellsTab / ActionTab
+   ========================================================================= */
+
+/** Les 4 éléments du contrat (doc 02) : libellé, clé CSS des maquettes
+ *  (var(--elem-*) / .el-*) et icône Material Symbols. */
+export const ELEMENTS = {
+    feu: { l: 'Feu', cle: 'fire', ic: 'local_fire_department' },
+    eau: { l: 'Eau', cle: 'water', ic: 'water_drop' },
+    terre: { l: 'Terre', cle: 'earth', ic: 'landscape' },
+    air: { l: 'Air', cle: 'air', ic: 'air' },
+};
+
+/** element (contrat, FR) → entrée ELEMENTS ; tolère les clés EN des démos. */
+export function elementInfo(element) {
+    const e = (element ?? '').toLowerCase();
+    const alias = { fire: 'feu', water: 'eau', earth: 'terre', wind: 'air' };
+    return ELEMENTS[e] ?? ELEMENTS[alias[e]] ?? null;
+}
+
+/** Types de sort du contrat → badge + icône. */
+export const TYPES_SORT = {
+    degats: { l: 'Dégâts', ic: 'swords' },
+    mental: { l: 'Mental', ic: 'psychology' },
+    utilitaire: { l: 'Utilitaire', ic: 'auto_fix_high' },
+};
+
+/** sorts de /moi ([{sort_id, nom, element, type, disponible}]) → groupes
+ *  par élément dans l'ordre canonique [{element, l, cle, ic, sorts}]. */
+export function sortsParElement(sorts) {
+    const groupes = new Map();
+    for (const s of sorts ?? []) {
+        const info = elementInfo(s.element);
+        const cle = info ? Object.keys(ELEMENTS).find((k) => ELEMENTS[k] === info) : (s.element ?? 'autre');
+        if (!groupes.has(cle)) {
+            groupes.set(cle, {
+                element: cle,
+                l: info?.l ?? (s.element ?? 'Autre'),
+                cle: info?.cle ?? '',
+                ic: info?.ic ?? 'auto_awesome',
+                sorts: [],
+            });
+        }
+        groupes.get(cle).sorts.push(s);
+    }
+    const ordre = Object.keys(ELEMENTS);
+    return [...groupes.values()].sort((a, b) => {
+        const ia = ordre.indexOf(a.element);
+        const ib = ordre.indexOf(b.element);
+        return (ia === -1 ? ordre.length : ia) - (ib === -1 ? ordre.length : ib);
+    });
+}
+
+/** L'option de menu type "sort" qui lance ce sort_id, ou null (pas son
+ *  tour / sort non proposé) — c'est elle que la manette envoie au moteur. */
+export function optionPourSort(menu, sortId) {
+    return (menu?.options ?? []).find((o) => o.type === 'sort'
+        && String(o.parametres?.sort_id ?? o.sort_id ?? '') === String(sortId)) ?? null;
+}
+
+/** Sorts épuisés (disponible === false) — candidats à la Concentration. */
+export function sortsEpuises(sorts) {
+    return (sorts ?? []).filter((s) => s.disponible === false);
+}
+
+/**
+ * parametres.cibles d'une option (sort/parchemin/attaque ciblés) → liste
+ * affichable pour la feuille de ciblage. Le contrat ne fige pas la forme
+ * d'une cible : on tolère un id scalaire ou un objet {type|entite,
+ * id|cible_id, nom?} et on complète depuis EtatGroupe.entites. `brut` est
+ * l'entrée telle que reçue — c'est elle qu'on renvoie au moteur
+ * (parametres.cible), pour matcher sa propre liste. Les héros sont des
+ * cibles légales (tir ami S3) → `ami` pilote la confirmation « ⚠ allié ».
+ */
+export function ciblesVersListe(cibles, entites = []) {
+    const parCle = new Map((entites ?? [])
+        .map((e) => [`${e.type === 'heros' ? 'heros' : 'monstre'}:${e.id}`, e]));
+
+    return (cibles ?? []).map((c, i) => {
+        const objet = c !== null && typeof c === 'object';
+        const id = objet ? (c.id ?? c.cible_id ?? c.entite_id ?? null) : c;
+        let type = objet ? String(c.type ?? c.entite ?? '').toLowerCase() : '';
+        const entite = type
+            ? parCle.get(`${type}:${id}`)
+            : (entites ?? []).find((e) => e.type === 'monstre' && e.id === id)
+                ?? (entites ?? []).find((e) => e.id === id);
+        if (!type) type = entite?.type === 'heros' ? 'heros' : 'monstre';
+        const ami = type === 'heros';
+        const nom = (objet && c.nom) || entite?.nom || `${ami ? 'Héros' : 'Cible'} n°${id ?? i + 1}`;
+        const pv = entite && entite.pv_body != null ? `PV ${entite.pv_body}/${entite.pv_body_max}` : '';
+        return {
+            brut: c,
+            cle: `${type}:${id ?? i}`,
+            nom,
+            ami,
+            ic: ami
+                ? (CLASSES[((objet ? c.classe : null) ?? entite?.classe ?? '').toLowerCase()]?.ic ?? 'person')
+                : 'sentiment_very_dissatisfied',
+            meta: ami ? `⚠ allié${pv ? ` · ${pv}` : ''}` : pv,
+        };
+    });
+}
+
+/* =========================================================================
    Mapping EtatMarche (contrat « Phase marché ») → MarketTab / écran de table
    ========================================================================= */
 

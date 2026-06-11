@@ -15,14 +15,15 @@ import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import FlowSheet from '../components/manette/FlowSheet.vue';
+import CibleSheet from '../components/manette/CibleSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    acteurCourant, CLASSES, initiativeVersMini, inventaireVendable, labelCourt,
+    acteurCourant, ciblesVersListe, CLASSES, initiativeVersMini, inventaireVendable, labelCourt,
     marcheVersEchoppe, montantPanier, niveauMonteVersListe, panierDuJoueur,
-    useGameStore, voteVersFeuille,
+    sortsEpuises, useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -42,7 +43,9 @@ onMounted(async () => {
         store.appliquerEtat(await api.getEtat(props.groupe));
         desabonnements.push(
             souscrireGroupe(props.groupe, {
-                '.groupe.etat': (e) => store.appliquerEtat(e),
+                // /moi re-GET (contrat « Sorts des héros ») : la disponibilité
+                // des sorts (1×/quête) suit chaque résolution du moteur.
+                '.groupe.etat': (e) => { store.appliquerEtat(e); rafraichirMoi(); },
                 '.narration.diffusee': (e) => store.setNarration(e.texte),
                 '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
                 '.marche.ouvert': (e) => store.appliquerMarche(e),
@@ -72,6 +75,16 @@ onMounted(async () => {
     }
 });
 onUnmounted(() => desabonnements.forEach((off) => off()));
+
+/* re-GET /moi débouncé (un .groupe.etat peut arriver en rafale) */
+let moiTimer = null;
+function rafraichirMoi() {
+    clearTimeout(moiTimer);
+    moiTimer = setTimeout(() => {
+        api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
+    }, 300);
+}
+onUnmounted(() => clearTimeout(moiTimer));
 
 const enDemo = computed(() => store.state.modeDemo || !store.state.etat);
 
@@ -109,12 +122,26 @@ const hero = computed(() => {
     };
 });
 
-/* ---- montée de niveau : mon personnage (/moi enrichi : niveau,
-   points_competence) + toast .niveau.monte → écran /niveau/:groupe ---- */
-const monPerso = computed(() => (monEntite.value
-    ? store.state.personnages?.find((p) => p.id === monEntite.value.id) ?? null
-    : null));
+/* ---- mon personnage (/moi enrichi : niveau, points_competence, sorts).
+   En quête : via mon entité d'EtatGroupe ; au hub (entites vides) : mon
+   personnage rattaché au groupe, à défaut le premier. ---- */
+const monPerso = computed(() => {
+    const persos = store.state.personnages ?? [];
+    if (monEntite.value) return persos.find((p) => p.id === monEntite.value.id) ?? null;
+    if (enDemo.value) return null;
+    return persos.find((p) => p.groupe_actif_id != null || p.disponible === false)
+        ?? persos[0]
+        ?? null;
+});
 const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
+
+/* ---- sorts du héros (contrat « Sorts des héros ») : /moi expose
+   sorts: [{sort_id, nom, element, type, disponible}] — null tant que le
+   serveur ne les fournit pas (SpellsTab retombe alors sur la démo). ---- */
+const mesSorts = computed(() => {
+    const s = monPerso.value?.sorts;
+    return Array.isArray(s) ? s : null;
+});
 
 const lvlupToast = computed(() => {
     if (enDemo.value || !store.state.niveauMonte) return null;
@@ -147,11 +174,66 @@ const initCur = computed(() => {
     return cur ? labelCourt(cur.nom) : null;
 });
 
-async function choisirOption(option) {
+/* Feuille de ciblage / concentration (CibleSheet) ouverte par une option :
+   { option, mode: 'cible'|'concentration', cibles?|sorts? }. Un nouveau
+   menu (.menu.propose) la referme — l'option ne serait plus légale. */
+const feuilleOption = ref(null);
+watch(() => store.state.menu, () => { feuilleOption.value = null; });
+
+function choisirOption(option) {
     if (store.state.menuEnAttente) return;
+
+    // Option ciblée (sort / parchemin / attaque) : le moteur fournit les
+    // cibles légales dans parametres.cibles (les héros y figurent — tir
+    // ami S3) → choix de cible avant l'envoi.
+    const cibles = option.parametres?.cibles;
+    if (Array.isArray(cibles) && cibles.length) {
+        feuilleOption.value = {
+            option,
+            mode: 'cible',
+            cibles: ciblesVersListe(cibles, store.state.etat?.entites),
+        };
+        return;
+    }
+
+    // Concentration (nœud Magicien) : récupère UN sort épuisé au choix
+    // (parametres: {sort_id}) — liste fournie par l'option ou déduite de /moi.
+    if (option.type === 'concentration' && option.parametres?.sort_id == null) {
+        const fournis = option.parametres?.sorts;
+        const epuises = Array.isArray(fournis) && fournis.length
+            ? fournis.map((s) => (typeof s === 'object' ? s : (
+                (mesSorts.value ?? []).find((m) => String(m.sort_id) === String(s)) ?? { sort_id: s }
+            )))
+            : sortsEpuises(mesSorts.value);
+        if (epuises.length) {
+            feuilleOption.value = { option, mode: 'concentration', sorts: epuises };
+            return;
+        }
+    }
+
+    envoyerOption(option, option.parametres);
+}
+
+/** Cible choisie dans la feuille → POST {option_id, parametres: {…, cible}}
+ *  (cible = l'entrée de parametres.cibles telle que reçue du moteur). */
+function ciblerOption(cible) {
+    const { option } = feuilleOption.value;
+    const { cibles, ...reste } = option.parametres ?? {};
+    envoyerOption(option, { ...reste, cible: cible.brut });
+}
+
+/** Sort à récupérer choisi (concentration) → parametres: {sort_id}. */
+function concentrerSort(sort) {
+    const { option } = feuilleOption.value;
+    const { sorts, ...reste } = option.parametres ?? {};
+    envoyerOption(option, { ...reste, sort_id: sort.sort_id });
+}
+
+async function envoyerOption(option, parametres) {
+    feuilleOption.value = null;
     store.choixEnvoye(); // optimiste : boutons gelés jusqu'au prochain .groupe.etat
     try {
-        await api.envoyerChoix(props.groupe, { option_id: option.id, parametres: option.parametres });
+        await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
     } catch (e) {
         store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
         if (estErreurDemo(e)) store.activerModeDemo(e.message);
@@ -496,6 +578,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :pending="menuEnAttente"
                             :init-order="initMini"
                             :init-cur="initCur"
+                            :sorts="mesSorts"
                             @choose="choisirOption"
                             @attack="beginAttack"
                             @open-spells="tab = 'sorts'"
@@ -537,7 +620,16 @@ const navItems = computed(() => (scene.value === 'marche'
                             :groupe="enDemo ? null : groupe"
                             @select-hero="heroKey = $event"
                         />
-                        <SpellsTab v-else-if="tab === 'sorts'" :hero="hero" :mind="mind" @cast="beginSpell" />
+                        <SpellsTab
+                            v-else-if="tab === 'sorts'"
+                            :hero="hero"
+                            :mind="mind"
+                            :sorts="mesSorts"
+                            :menu="menuCourant"
+                            :pending="menuEnAttente"
+                            @cast="beginSpell"
+                            @choose="choisirOption"
+                        />
                         <SacTab v-else-if="tab === 'sac'" :hero="hero" />
                     </div>
 
@@ -575,6 +667,13 @@ const navItems = computed(() => (scene.value === 'marche'
                         @target="chooseTarget"
                         @confirm="confirmResolve"
                         @close="flow = null"
+                    />
+                    <CibleSheet
+                        v-if="feuilleOption"
+                        :feuille="feuilleOption"
+                        @cible="ciblerOption"
+                        @sort="concentrerSort"
+                        @close="feuilleOption = null"
                     />
                     <VoteSheet v-if="voteAffiche" :vote="voteAffiche" @cast="castVote" @close="fermerVote" />
                 </div>

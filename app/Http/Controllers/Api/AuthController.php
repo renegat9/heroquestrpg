@@ -75,7 +75,7 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
-                ->with('competences:competences.id')
+                ->with(['competences:competences.id', 'sorts'])
                 ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id'])
                 ->map(fn ($p) => [
                     'id' => $p->id,
@@ -85,6 +85,18 @@ class AuthController extends Controller
                     // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                     'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                     'competences' => $p->competences->pluck('id')->values()->all(),
+                    // Répertoire de sorts (contrat) : l'onglet Sorts de la
+                    // manette s'en nourrit, disponibilité par quête comprise.
+                    'sorts' => $p->sorts
+                        ->map(fn ($s) => [
+                            'sort_id' => $s->id,
+                            'nom' => $s->nom,
+                            'element' => $s->element,
+                            'type' => $s->type,
+                            'disponible' => (bool) $s->pivot->disponible,
+                        ])
+                        ->values()
+                        ->all(),
                     'disponible' => $p->groupe_actif_id === null,
                 ])
                 ->values()

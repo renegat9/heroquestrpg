@@ -108,7 +108,9 @@ export function useApi() {
         /** POST /api/groupes {nom, theme, longueur, ton} → {groupe}. */
         creerGroupe: (payload) => request('POST', '/groupes', payload),
 
-        /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe} → {personnage}. */
+        /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe,
+         *  elements?} → {personnage}. `elements` (magicien) : 2 éléments du
+         *  grimoire parmi feu/eau/terre/air — contrat « Sorts des héros ». */
         rejoindreGroupe: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/joueurs`, payload),
 
@@ -155,9 +157,10 @@ export function useApi() {
         getCompetences: () => request('GET', '/competences'),
 
         /**
-         * POST /groupes/{id}/competences {personnage_id, competence_id} —
-         * acquiert un nœud d'arbre (422 : pas son héros, classe différente,
-         * prérequis manquant, aucun point).
+         * POST /groupes/{id}/competences {personnage_id, competence_id,
+         * element?} — acquiert un nœud d'arbre (422 : pas son héros, classe
+         * différente, prérequis manquant, aucun point). `element` requis par
+         * les nœuds Première magie / Second élément / École (défaut eau).
          */
         acquerirCompetence: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/competences`, payload),

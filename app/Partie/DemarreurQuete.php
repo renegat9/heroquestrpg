@@ -35,7 +35,10 @@ use RuntimeException;
  *  4. initiative figée pour toute la quête (C1) : héros dans l'ordre
  *     d'arrivée (pivot ordre_initiative renuméroté), monstres après ;
  *  5. etat_personnage_quete créé (positions de spawn, a_joue=false) ;
- *  6. groupe passé en phase « quete », journal, broadcast `.groupe.etat`,
+ *  6. sorts des héros actifs RÉINITIALISÉS (S5 : tout redevient disponible
+ *     au démarrage d'une quête ; buffs de sorts purgés ; usage de
+ *     Concentration réarmé — MoteurSorts) ;
+ *  7. groupe passé en phase « quete », journal, broadcast `.groupe.etat`,
  *     dispatch GenererNarration + GenererMenu (un par héros actif).
  */
 final class DemarreurQuete
@@ -44,6 +47,7 @@ final class DemarreurQuete
         private readonly AssembleurCarte $assembleur,
         private readonly ScorePuissance $puissance,
         private readonly EtatGroupe $etatGroupe,
+        private readonly MoteurSorts $sorts,
     ) {}
 
     public function demarrer(Groupe $groupe): Quete
@@ -110,6 +114,10 @@ final class DemarreurQuete
             // Initiative figée pour toute la quête (C1) : renumérotation 1..n.
             foreach ($heros as $i => $personnage) {
                 $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
+
+                // Récupération par quête (S5/S6) : sorts disponibles, buffs
+                // de sorts purgés, Concentration réarmée.
+                $this->sorts->reinitialiserQuete($groupe, $personnage);
 
                 $quete->etatsPersonnages()->create([
                     'personnage_id' => $personnage->id,

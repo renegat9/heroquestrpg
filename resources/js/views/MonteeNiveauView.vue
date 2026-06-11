@@ -17,7 +17,7 @@ import MSym from '../components/ui/MSym.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import { LEVELUP_HERO, LEVELUP_GAINS, LEVELUP_TALENTS } from '../data/demo';
 import { estErreurDemo, useApi } from '../composables/useApi';
-import { CLASSES, competencesVersArbre, TYPES_COMPETENCE, useGameStore } from '../store/game';
+import { CLASSES, competencesVersArbre, ELEMENTS, TYPES_COMPETENCE, useGameStore } from '../store/game';
 
 const props = defineProps({
     groupe: { type: String, required: true },
@@ -96,7 +96,29 @@ const enAttente = ref(null); // competence_id en cours d'acquisition
 const erreurAction = ref('');
 const aAcquis = ref(false); // au moins un nœud scellé sur cet écran
 
-async function acquerir(noeud) {
+/* ---- nœuds à élément (contrat « Sorts des héros ») : Première magie /
+   Second élément (Elfe) et Écoles (Magicien) exigent `element` dans le
+   POST competences — mini-sélecteur, défaut eau. ---- */
+const NOEUD_A_ELEMENT = /premi[èe]re\s+magie|second\s+[ée]l[ée]ment|[ée]cole/i;
+const exigeElement = (noeud) => NOEUD_A_ELEMENT.test(noeud.nom ?? '');
+const choixElement = ref(null); // { noeud, element } — sélecteur ouvert
+
+function taper(noeud) {
+    if (noeud.etat !== 'dispo' || enAttente.value || !monPerso.value) return;
+    if (exigeElement(noeud)) {
+        choixElement.value = { noeud, element: 'eau' }; // défaut contrat
+        return;
+    }
+    acquerir(noeud);
+}
+
+function confirmerElement() {
+    const { noeud, element } = choixElement.value;
+    choixElement.value = null;
+    acquerir(noeud, element);
+}
+
+async function acquerir(noeud, element = null) {
     if (noeud.etat !== 'dispo' || enAttente.value || !monPerso.value) return;
     erreurAction.value = '';
     enAttente.value = noeud.id;
@@ -105,6 +127,7 @@ async function acquerir(noeud) {
         await api.acquerirCompetence(props.groupe, {
             personnage_id: monPerso.value.id,
             competence_id: noeud.id,
+            ...(element ? { element } : {}),
         });
         aAcquis.value = true;
         const r = await api.moi(); // source de vérité : niveau/points/acquis frais
@@ -266,7 +289,7 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
                                 :class="['st-' + n.etat, { busy: enAttente === n.id, child: n.profondeur > 0 }]"
                                 :style="n.profondeur ? { marginLeft: Math.min(n.profondeur, 3) * 16 + 'px' } : null"
                                 :disabled="n.etat !== 'dispo' || enAttente !== null"
-                                @click="acquerir(n)"
+                                @click="taper(n)"
                             >
                                 <span class="ti"><MSym :n="n.ic" fill /></span>
                                 <div>
@@ -306,6 +329,29 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
                     <RouterLink class="btn btn-gold" :to="{ name: 'manette', params: { groupe } }">
                         <MSym n="login" /> Reprendre la partie
                     </RouterLink>
+                </div>
+
+                <!-- mini-sélecteur d'élément (Première magie / Second élément / École) -->
+                <div v-if="choixElement" class="elem-ov" @click.self="choixElement = null">
+                    <div class="elem-card">
+                        <h3><MSym n="auto_awesome" fill :size="18" /> {{ choixElement.noeud.nom }}</h3>
+                        <p>Choisis l'élément à apprendre — ses 3 sorts rejoignent ton grimoire.</p>
+                        <div class="elems">
+                            <button
+                                v-for="(e, k) in ELEMENTS"
+                                :key="k"
+                                class="el"
+                                :class="['elc-' + e.cle, { on: choixElement.element === k }]"
+                                @click="choixElement = { ...choixElement, element: k }"
+                            >
+                                <MSym :n="e.ic" fill /><span class="en">{{ e.l }}</span>
+                            </button>
+                        </div>
+                        <button class="btn btn-gold" @click="confirmerElement">
+                            <MSym n="verified" fill /> Sceller — élément {{ ELEMENTS[choixElement.element].l }}
+                        </button>
+                        <button class="annuler" @click="choixElement = null">Annuler</button>
+                    </div>
                 </div>
 
                 <!-- sceau : tous les points dépensés -->
@@ -419,6 +465,29 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
 .lvlup-screen .talent.st-verrouille .tcheck { border-color: var(--stone-700); }
 .lvlup-screen .talent.st-verrouille .tcheck .msym { color: var(--ink-600); font-size: 12px; }
 .lvlup-screen .talent.st-verrouille:active { transform: none; }
+
+/* ---- mini-sélecteur d'élément (nœuds Première magie / Second élément / École) ---- */
+.lvlup-screen .elem-ov { position: absolute; inset: 0; z-index: 55; background: oklch(0.16 0.012 255 / 0.88); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 24px; animation: lvlup-fadein .2s ease; }
+.lvlup-screen .elem-card { width: 100%; max-width: 320px; background: var(--stone-900); border: var(--line-gold); border-radius: var(--r-xl);
+  padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--sh-3); }
+.lvlup-screen .elem-card h3 { font-family: var(--font-display); font-size: 18px; color: var(--parch-100); margin: 0;
+  display: flex; align-items: center; gap: 7px; letter-spacing: 0.02em; }
+.lvlup-screen .elem-card h3 .msym { color: var(--gold); }
+.lvlup-screen .elem-card p { font-family: var(--font-narr); font-style: italic; font-size: 13.5px; color: var(--ink-300); margin: 0; line-height: 1.45; }
+.lvlup-screen .elem-card .elems { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.lvlup-screen .elem-card .el { background: var(--stone-850); border: var(--line-strong); border-radius: var(--r-md); padding: 11px 4px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; transition: all .15s; font-family: var(--font-ui); }
+.lvlup-screen .elem-card .el .msym { font-size: 23px; color: var(--ink-300); }
+.lvlup-screen .elem-card .el .en { font-size: 10.5px; font-weight: 700; color: var(--ink-500); }
+.lvlup-screen .elem-card .el.on { border-color: currentColor; }
+.lvlup-screen .elem-card .el.elc-fire.on { color: var(--elem-fire); background: oklch(0.64 0.205 35 / 0.12); }
+.lvlup-screen .elem-card .el.elc-water.on { color: var(--elem-water); background: oklch(0.66 0.150 245 / 0.12); }
+.lvlup-screen .elem-card .el.elc-earth.on { color: var(--elem-earth); background: oklch(0.60 0.115 145 / 0.14); }
+.lvlup-screen .elem-card .el.elc-air.on { color: var(--elem-air); background: oklch(0.86 0.075 215 / 0.14); }
+.lvlup-screen .elem-card .el.on .msym, .lvlup-screen .elem-card .el.on .en { color: currentColor; }
+.lvlup-screen .elem-card .annuler { background: none; border: none; color: var(--ink-500); font-family: var(--font-ui); font-weight: 700;
+  font-size: 12.5px; cursor: pointer; padding: 2px; }
 
 /* ---- erreur d'acquisition (422) + états de chargement ---- */
 .lvlup-screen .err-band { display: flex; align-items: center; gap: 7px; margin: 0 0 14px; padding: 10px 13px; border-radius: var(--r-md);

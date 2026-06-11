@@ -11,6 +11,7 @@ use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\DemarreurQuete;
 use App\Partie\EtatGroupe;
+use App\Partie\MoteurSorts;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -71,11 +72,13 @@ class GroupeController extends Controller
      * POST /api/groupes/{identifiant}/joueurs — rejoindre avec ses héros.
      *
      * Trois formes acceptées (docs/contrat-api.md) :
-     * - {nom, classe} : crée un héros du roster depuis le catalogue de classes ;
+     * - {nom, classe} : crée un héros du roster depuis le catalogue de classes —
+     *   un MAGICIEN choisit ses 2 éléments de départ via `elements:
+     *   ["feu","eau"]` (optionnel, défaut feu+eau — doc 02 §2) ;
      * - {personnage_id} : engage un héros existant du roster ;
      * - {personnage_ids: [...]} : plusieurs héros (un joueur peut en contrôler plusieurs).
      */
-    public function rejoindre(Request $request, string $identifiant): JsonResponse
+    public function rejoindre(Request $request, string $identifiant, MoteurSorts $sorts): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
@@ -86,10 +89,19 @@ class GroupeController extends Controller
             'personnage_id' => ['required_without_all:personnage_ids,classe', 'integer'],
             'nom' => ['required_with:classe', 'string', 'max:120'],
             'classe' => ['required_without_all:personnage_ids,personnage_id', Rule::exists('classes_heros', 'nom')],
+            // Éléments de départ du Magicien : exactement 2, distincts (doc 02 §2).
+            'elements' => ['sometimes', 'array', 'size:2'],
+            'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
         ]);
 
         if (isset($donnees['classe'])) {
-            $personnages = collect([$this->creerHeros($joueur->id, $donnees['nom'], $donnees['classe'])]);
+            $personnages = collect([$this->creerHeros(
+                $sorts,
+                $joueur->id,
+                $donnees['nom'],
+                $donnees['classe'],
+                $donnees['elements'] ?? null,
+            )]);
         } else {
             $ids = $donnees['personnage_ids'] ?? [$donnees['personnage_id']];
 
@@ -158,12 +170,19 @@ class GroupeController extends Controller
         ]);
     }
 
-    /** Crée un héros du roster aux valeurs de départ du catalogue (doc 01). */
-    private function creerHeros(int $joueurId, string $nom, string $classe): Personnage
+    /**
+     * Crée un héros du roster aux valeurs de départ du catalogue (doc 01).
+     * Un MAGICIEN reçoit les 6 sorts de ses 2 éléments de départ (doc 02 §2,
+     * `elements` validé en amont — défaut feu+eau) ; l'Elfe acquiert les
+     * siens via les nœuds d'arbre (CompetenceController).
+     *
+     * @param  list<string>|null  $elements
+     */
+    private function creerHeros(MoteurSorts $sorts, int $joueurId, string $nom, string $classe, ?array $elements = null): Personnage
     {
         $base = ClasseHeros::where('nom', $classe)->firstOrFail();
 
-        return Personnage::create([
+        $personnage = Personnage::create([
             'joueur_id' => $joueurId,
             'nom' => $nom,
             'classe' => $classe,
@@ -179,6 +198,14 @@ class GroupeController extends Controller
             'deplacement_base' => $base->deplacement_base,
             'or' => 0,
         ]);
+
+        if ($classe === 'magicien') {
+            foreach ($elements ?? MoteurSorts::ELEMENTS_DEFAUT_MAGICIEN as $element) {
+                $sorts->attacherElement($personnage, $element);
+            }
+        }
+
+        return $personnage;
     }
 
     /** Dérive un code de groupe unique et lisible depuis le nom. */
