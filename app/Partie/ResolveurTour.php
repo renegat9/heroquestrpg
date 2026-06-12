@@ -66,6 +66,7 @@ final class ResolveurTour
         private readonly MoteurPieges $pieges,
         private readonly MoteurSorts $sorts,
         private readonly MonteeNiveau $monteeNiveau,
+        private readonly ClotureCampagne $cloture,
     ) {}
 
     /**
@@ -1282,6 +1283,13 @@ final class ResolveurTour
         // gagnée → +1 niveau par héros actif, broadcast `.niveau.monte` émis
         // AVANT le `.groupe.etat` final (null pour une quête normale).
         $niveaux = $this->monteeNiveau->appliquer($groupe, $quete);
+
+        // Clôture de campagne (doc 05 §6) : la victoire du BOSS FINAL ouvre
+        // automatiquement la fenêtre de clôture (broadcast `.cloture.ouverte`,
+        // butin déjà versé au pot — l'or à partager l'inclut).
+        if ($quete->type_jalon === 'boss_final') {
+            $this->cloture->ouvrirVictoire($groupe);
+        }
 
         return ['etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux];
     }

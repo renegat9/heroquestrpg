@@ -11,6 +11,7 @@ use App\Events\VoteResultat;
 use App\Models\Groupe;
 use App\Models\Joueur;
 use App\Models\Personnage;
+use App\Partie\ClotureCampagne;
 use App\Partie\EtatGroupe;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
@@ -42,7 +43,10 @@ final class VoteGroupe
     /** Durée de vie d'un vote sans résolution (séance de jeu). */
     public const TTL_MINUTES = 360;
 
-    public function __construct(private readonly EtatGroupe $etatGroupe) {}
+    public function __construct(
+        private readonly EtatGroupe $etatGroupe,
+        private readonly ClotureCampagne $cloture,
+    ) {}
 
     /** Clé du cache du vote actif d'un groupe. */
     public static function cle(int $groupeId): string
@@ -184,6 +188,15 @@ final class VoteGroupe
             'part' => $part,
         ]);
 
+        // Groupe VIDE (doc 05 §6) : le dernier joueur parti → purge complète
+        // silencieuse (données + caches + bible Qdrant), sans résumé ni
+        // cérémonie — les personnages sont déjà revenus au roster.
+        if ($this->membres($groupe)->isEmpty()) {
+            $this->cloture->purger($groupe);
+
+            return ['part' => $part];
+        }
+
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
 
         return ['part' => $part];
@@ -294,7 +307,13 @@ final class VoteGroupe
             broadcast(new VoteResultat($groupe, $resultat));
 
             if ($applique) {
-                broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
+                // Groupe VIDE après le retrait (doc 05 §6) : purge complète
+                // silencieuse — sinon, état rediffusé normalement.
+                if ($this->membres($groupe)->isEmpty()) {
+                    $this->cloture->purger($groupe);
+                } else {
+                    broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
+                }
             }
 
             return $resultat;

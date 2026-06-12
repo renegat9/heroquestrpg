@@ -56,6 +56,14 @@ const state = reactive({
     niveauMonte: null,
     /** Catalogue des arbres de compétences (GET /api/competences). */
     competences: null,
+
+    /** EtatCloture brut (contrat « Clôture de campagne » : issue,
+     *  or_a_partager, parts, equipements, confirmations) — null hors
+     *  fenêtre de clôture. */
+    cloture: null,
+    /** Payload .cloture.terminee ({resumes: [{personnage_id, resume}]}) —
+     *  le groupe n'existe plus, les clients retournent à l'accueil. */
+    clotureTerminee: null,
 });
 
 export function useGameStore() {
@@ -159,6 +167,43 @@ export function useGameStore() {
         /** Catalogue GET /api/competences (toléré : enrobage {competences}). */
         setCompetences(catalogue) {
             state.competences = catalogue?.competences ?? catalogue ?? null;
+        },
+
+        // ---- clôture de campagne ----
+
+        /** EtatCloture (GET cloture, .cloture.ouverte, .cloture.maj). Les
+         *  broadcasts portent l'EtatCloture directement ; on tolère un
+         *  éventuel enrobage {cloture: …}. */
+        appliquerCloture(etatCloture) {
+            const c = etatCloture?.issue || etatCloture?.confirmations
+                ? etatCloture
+                : etatCloture?.cloture;
+            if (c) state.cloture = c;
+        },
+        /** Annulation (DELETE cloture) : la fenêtre se referme, rien appliqué. */
+        fermerCloture() {
+            state.cloture = null;
+        },
+        /** .cloture.terminee ({resumes}) — finalisation appliquée, groupe purgé. */
+        setClotureTerminee(payload) {
+            state.clotureTerminee = payload ?? { resumes: [] };
+        },
+        /** Le groupe n'existe plus (clôture terminée) : purge de tout
+         *  l'état rattaché avant le retour à l'accueil. */
+        purgerGroupe() {
+            state.groupe = null;
+            state.etat = null;
+            state.menu = null;
+            state.menuEnAttente = false;
+            state.mjReflechit = false;
+            state.marche = null;
+            state.marcheFinalise = null;
+            state.vote = null;
+            state.voteDecompte = null;
+            state.voteResultat = null;
+            state.niveauMonte = null;
+            state.cloture = null;
+            state.clotureTerminee = null;
         },
     };
 }
@@ -701,6 +746,102 @@ function gainVersTexte(gain) {
     if (gain.libelle || gain.texte || gain.nom) return gain.libelle ?? gain.texte ?? gain.nom;
     const lignes = effetVersListe(gain);
     return lignes.length ? lignes.map((l) => l.texte).join(' · ') : null;
+}
+
+/* =========================================================================
+   Mapping EtatCloture (contrat « Clôture de campagne ») →
+   ClotureCampagneView, bandeaux de table et toast de manette
+   ========================================================================= */
+
+/** Habillage par issue (doc 05 §6) : la victoire brille (braises dorées),
+ *  l'échec et l'abandon retombent en cendres — fidèle à la maquette
+ *  "Cloture de campagne.html" (ton `cendres` = variante grise). */
+export const ISSUES_CLOTURE = {
+    victoire: {
+        crumb: 'Campagne achevée · Victoire',
+        titre: 'La Lumière Revient',
+        sous: 'Le boss final est tombé — la compagnie partage ses trophées.',
+        ic: 'military_tech',
+        ton: 'or',
+    },
+    echec: {
+        crumb: 'Campagne perdue · Défaite',
+        titre: 'Les Cendres Retombent',
+        sous: 'La quête a échoué — la compagnie remonte, vaincue mais vivante.',
+        ic: 'skull',
+        ton: 'cendres',
+    },
+    abandon: {
+        crumb: 'Campagne close · Abandon',
+        titre: 'La Compagnie se Sépare',
+        sous: 'Les héros rangent leurs armes — chacun reprend sa route.',
+        ic: 'wb_twilight',
+        ton: 'cendres',
+    },
+};
+
+/** issue (contrat) → habillage ; issue inconnue = victoire (ton doré). */
+export function issueCloture(issue) {
+    return ISSUES_CLOTURE[(issue ?? '').toLowerCase()] ?? ISSUES_CLOTURE.victoire;
+}
+
+/** EtatCloture.parts → liste affichable [{personnage_id, joueur_id, nom,
+ *  court, montant, ic}] — l'icône de classe vient des entités d'EtatGroupe
+ *  quand elles sont connues (au hub la liste peut être vide). */
+export function clotureVersParts(cloture, entites = []) {
+    const classes = new Map((entites ?? [])
+        .filter((e) => e.type === 'heros')
+        .map((e) => [e.id, (e.classe ?? '').toLowerCase()]));
+    return (cloture?.parts ?? []).map((p) => ({
+        personnage_id: p.personnage_id,
+        joueur_id: p.joueur_id,
+        nom: p.nom,
+        court: labelCourt(p.nom),
+        montant: p.montant ?? 0,
+        ic: CLASSES[classes.get(p.personnage_id) ?? '']?.ic ?? 'person',
+    }));
+}
+
+/** EtatCloture.equipements → cartes du partage du butin [{inventaire_id,
+ *  nom, rar, rarLabel, ic, personnage_id}] (rareté/catégorie : mêmes clés
+ *  CSS et icônes que le marché). */
+export function clotureVersEquipements(cloture) {
+    return (cloture?.equipements ?? []).map((e) => {
+        const rar = rareteVersCle(e.rarete);
+        return {
+            inventaire_id: e.inventaire_id,
+            nom: e.nom,
+            rar,
+            rarLabel: RARETE_LABELS[rar],
+            ic: CATEGORIE_ICONES[(e.categorie ?? '').toLowerCase()] ?? 'category',
+            personnage_id: e.personnage_id ?? null,
+        };
+    });
+}
+
+/** EtatCloture.confirmations → {liste, confirmes, total, mienne} —
+ *  alimente le « Confirmer (k/n) » par joueur. */
+export function clotureVersConfirmations(cloture, joueurId = null) {
+    const liste = (cloture?.confirmations ?? []).map((c) => ({
+        joueur_id: c.joueur_id,
+        pseudo: c.pseudo,
+        confirme: !!c.confirme,
+    }));
+    return {
+        liste,
+        confirmes: liste.filter((c) => c.confirme).length,
+        total: liste.length,
+        mienne: joueurId != null
+            ? (liste.find((c) => c.joueur_id === joueurId)?.confirme ?? false)
+            : false,
+    };
+}
+
+/** Payload .cloture.terminee ({resumes: [{personnage_id, resume}]}) →
+ *  le résumé du héros du joueur connecté (ses personnages /moi), ou null. */
+export function resumeDuJoueur(payload, personnages = []) {
+    const ids = new Set((personnages ?? []).map((p) => p.id));
+    return (payload?.resumes ?? []).find((r) => ids.has(r.personnage_id)) ?? null;
 }
 
 /** .niveau.monte ({personnages}) → cartes du bandeau de célébration

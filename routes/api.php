@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
+use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
@@ -55,4 +56,13 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes/{identifiant}/votes/bulletin', [VoteController::class, 'bulletin']);
     Route::get('/groupes/{identifiant}/votes', [VoteController::class, 'actif']);
     Route::post('/groupes/{identifiant}/depart', [VoteController::class, 'depart']);
+
+    // Clôture de campagne (doc 05 §6) : fenêtre en cache, finalisation en
+    // job (or réparti, équipements, résumé, historique, purge complète)
+    // quand TOUS les joueurs ont confirmé.
+    Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
+    Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat']);
+    Route::put('/groupes/{identifiant}/cloture/repartition', [ClotureController::class, 'repartition']);
+    Route::post('/groupes/{identifiant}/cloture/confirmation', [ClotureController::class, 'confirmer']);
+    Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
 });

@@ -21,9 +21,9 @@ import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    acteurCourant, ciblesVersListe, CLASSES, initiativeVersMini, inventaireVendable, labelCourt,
-    marcheVersEchoppe, montantPanier, niveauMonteVersListe, panierDuJoueur,
-    sortsEpuises, useGameStore, voteVersFeuille,
+    acteurCourant, ciblesVersListe, CLASSES, initiativeVersMini, inventaireVendable,
+    issueCloture, labelCourt, marcheVersEchoppe, montantPanier, niveauMonteVersListe,
+    panierDuJoueur, sortsEpuises, useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -59,17 +59,21 @@ onMounted(async () => {
                     // /moi rafraîchi : niveau + points_competence à jour.
                     api.moi().then((r) => store.setJoueur(r.joueur, r.personnages)).catch(() => {});
                 },
+                '.cloture.ouverte': (e) => store.appliquerCloture(e),
+                '.cloture.maj': (e) => store.appliquerCloture(e),
+                '.cloture.terminee': (e) => store.setClotureTerminee(e),
             }),
             souscrireJoueur(joueur.id, {
                 '.menu.propose': (e) => store.setMenu(e.menu),
             }),
         );
-        // Rattrapage : phase marché ou vote déjà en cours (reconnexion).
+        // Rattrapage : phase marché, vote ou clôture déjà en cours (reconnexion).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
         api.getVote(props.groupe).then((r) => {
             const v = r?.vote ?? r;
             if (v && (v.type || v.options)) store.appliquerVote(v);
         }).catch(() => {});
+        api.getCloture(props.groupe).then((c) => store.appliquerCloture(c)).catch(() => {});
     } catch (e) {
         store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
     }
@@ -513,6 +517,25 @@ async function confirmerMonPanier() {
     }
 }
 
+/* ---- clôture de campagne (mode connecté) : .cloture.ouverte → toast
+   routant vers l'écran de clôture (/cloture/:groupe) ; .cloture.terminee
+   → même toast vers l'épilogue (le groupe n'existe plus). Mode démo : le
+   toast n'apparaît jamais. ---- */
+const clotureToastFermee = ref(false);
+watch(() => !!store.state.cloture, (ouverte) => { if (ouverte) clotureToastFermee.value = false; });
+watch(() => !!store.state.clotureTerminee, (fin) => { if (fin) clotureToastFermee.value = false; });
+
+const clotureToast = computed(() => {
+    if (enDemo.value || clotureToastFermee.value) return null;
+    if (store.state.clotureTerminee) {
+        return { titre: 'Campagne terminée', texte: "L'épilogue du MJ vous attend.", lien: "Voir l'épilogue" };
+    }
+    if (store.state.cloture) {
+        return { titre: 'Clôture de campagne', texte: issueCloture(store.state.cloture.issue).sous, lien: 'Ouvrir' };
+    }
+    return null;
+});
+
 /* scène → onglet par défaut */
 watch(scene, (s) => { if (s === 'marche') tab.value = 'action'; });
 
@@ -655,6 +678,21 @@ const navItems = computed(() => (scene.value === 'marche'
                             <MSym n="hub" fill :size="15" /> Dépenser mes points
                         </RouterLink>
                         <button class="x" aria-label="Fermer" @click="store.fermerNiveauMonte()">
+                            <MSym n="close" :size="18" />
+                        </button>
+                    </div>
+
+                    <!-- toast clôture de campagne (.cloture.ouverte / .cloture.terminee) -->
+                    <div v-if="clotureToast" class="lvlup-toast">
+                        <span class="seal"><MSym n="workspace_premium" fill /></span>
+                        <div class="tx">
+                            <b>{{ clotureToast.titre }}</b>
+                            <span>{{ clotureToast.texte }}</span>
+                        </div>
+                        <RouterLink class="go" :to="{ name: 'cloture', params: { groupe } }">
+                            <MSym n="arrow_forward" fill :size="15" /> {{ clotureToast.lien }}
+                        </RouterLink>
+                        <button class="x" aria-label="Fermer" @click="clotureToastFermee = true">
                             <MSym n="close" :size="18" />
                         </button>
                     </div>

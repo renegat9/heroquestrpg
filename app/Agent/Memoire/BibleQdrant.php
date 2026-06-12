@@ -153,6 +153,26 @@ class BibleQdrant
         return $extraits;
     }
 
+    /**
+     * Supprime TOUS les points d'un groupe (clôture de campagne / groupe
+     * vide, doc 05 §6, doc 12 §8) : delete par filtre `group_id` — la
+     * collection partagée ne garde aucune trace de la campagne purgée.
+     */
+    public function purgerGroupe(int $groupeId): void
+    {
+        $reponse = $this->http()->post('/collections/'.$this->collection().'/points/delete?wait=true', [
+            'filter' => [
+                'must' => [
+                    ['key' => 'group_id', 'match' => ['value' => $groupeId]],
+                ],
+            ],
+        ]);
+
+        if ($reponse->failed()) {
+            throw new RuntimeException("Qdrant : purge du groupe {$groupeId} refusée ({$reponse->status()}).");
+        }
+    }
+
     private function http(): PendingRequest
     {
         $host = $this->host ?? (string) config('services.qdrant.host', 'qdrant');

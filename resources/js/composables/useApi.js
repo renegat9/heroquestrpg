@@ -180,5 +180,34 @@ export function useApi() {
 
         /** POST /groupes/{id}/depart — départ hors quête (part du pot commun). */
         quitterGroupe: (identifiant) => request('POST', `/groupes/${identifiant}/depart`),
+
+        // ---- clôture de campagne (contrat « Clôture de campagne ») ----
+
+        /**
+         * POST /groupes/{id}/cloture {abandon?: bool} — ouvre la fenêtre de
+         * clôture (broadcast .cloture.ouverte). `abandon: true` après une
+         * quête échouée (TPK doc 05 §6) ; 422 si une quête est en cours.
+         */
+        ouvrirCloture: (identifiant, { abandon = false } = {}) =>
+            request('POST', `/groupes/${identifiant}/cloture`, abandon ? { abandon: true } : {}),
+
+        /** GET /groupes/{id}/cloture → EtatCloture. */
+        getCloture: (identifiant) => request('GET', `/groupes/${identifiant}/cloture`),
+
+        /**
+         * PUT /groupes/{id}/cloture/repartition {inventaire_id, personnage_id}
+         * — réassigne un équipement (annule les confirmations,
+         * broadcast .cloture.maj).
+         */
+        reassignerEquipement: (identifiant, { inventaire_id, personnage_id }) =>
+            request('PUT', `/groupes/${identifiant}/cloture/repartition`, { inventaire_id, personnage_id }),
+
+        /** POST /groupes/{id}/cloture/confirmation — confirme ; tous
+         *  confirmés → finalisation (job) puis .cloture.terminee. */
+        confirmerCloture: (identifiant) =>
+            request('POST', `/groupes/${identifiant}/cloture/confirmation`),
+
+        /** DELETE /groupes/{id}/cloture — annule la fenêtre (rien appliqué). */
+        annulerCloture: (identifiant) => request('DELETE', `/groupes/${identifiant}/cloture`),
     };
 }

@@ -198,6 +198,73 @@ réussite auto ; non-lanceur : jet de Mind à la difficulté du sort (1-3) ;
 type, disponible}]` (et l'onglet Sorts de la manette s'en nourrit ; rafraîchi
 aussi via `.groupe.etat` → re-GET).
 
+## Clôture de campagne (doc 05 §6)
+
+Fenêtre de clôture (cache, comme le marché) ouverte : automatiquement à la
+**victoire du boss final** (broadcast `.cloture.ouverte`), ou par un membre —
+au **hub** (fin décidée) ou après une quête **échouée** (`abandon`, TPK doc 05
+§6 : l'or à partager est alors `quetes.or_initial` de la quête échouée,
+plafonné à l'or restant). 422 si une quête est en cours.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/cloture | {abandon?: bool} | ouvre la fenêtre |
+| GET | /groupes/{identifiant}/cloture | — | EtatCloture |
+| PUT | /groupes/{identifiant}/cloture/repartition | {inventaire_id, personnage_id} | réassigne un équipement (annule les confirmations) |
+| POST | /groupes/{identifiant}/cloture/confirmation | — | confirme ; tous confirmés → finalisation |
+| DELETE | /groupes/{identifiant}/cloture | — | annule la fenêtre (rien appliqué) |
+
+**EtatCloture** : `{issue: "victoire|echec|abandon", or_a_partager,
+parts: [{personnage_id, nom, joueur_id, montant}] (parts égales, reste réparti
+unité par unité aux premiers), equipements: [{inventaire_id, nom, categorie,
+rarete, personnage_id}], confirmations: [{joueur_id, pseudo, confirme}]}`.
+
+**Finalisation** (job, atomique côté données) :
+1. réassignations d'équipement appliquées ; 2. or commun réparti vers
+`personnages.or` ; 3. **résumé de campagne généré AVANT la purge** (skill MJ
+`ResumeCampagne` depuis le journal ; repli sans LLM : résumé factuel — quêtes,
+boss, or, issue) ; 4. une ligne `personnage_historique` par héros (groupe_nom,
+theme, resume, issue, niveau_atteint, termine_le) ; 5. détachement
+(`groupe_actif_id` null) puis **purge complète** : quetes, cartes,
+instances_monstres, etat_personnage_quete, evenements, snapshots, caches de
+phase, le groupe lui-même, et les points **Qdrant** du group_id (best-effort
+si Qdrant est joignable). Broadcast final `.cloture.terminee`
+({resumes: [{personnage_id, resume}]}) — les clients retournent à l'accueil.
+
+**Groupe vide** (doc 05 §6) : quand le dernier joueur quitte (départ libre ou
+retrait voté), même purge automatique, sans cérémonie ni résumé.
+
+Broadcasts canal `groupe.{identifiant}` : `.cloture.ouverte` (EtatCloture),
+`.cloture.maj` (EtatCloture), `.cloture.terminee`.
+
+## Snapshots & reprise (doc 12 §4, doc 05 §6 TPK)
+
+Le moteur **snapshotte automatiquement** l'état vivant dans la table
+`snapshots` (`groupe_id, sequence_evenement, etat JSON`) : au **démarrage de
+chaque quête** (étiquette `debut_quete`) et à chaque **nouveau tour** (étiquette
+`nouveau_tour`, après la phase des monstres). L'état sérialisé contient tout ce
+qu'il faut pour rejouer : groupe (or, phase, quete_courante_id), quête, carte
+(grille + état des pièges), instances de monstres (PV, positions, états,
+conditions), etat_personnage_quete, et pour chaque héros actif : PV, sorts
+(disponible), conditions, inventaire (lignes + quantités). Rétention : les
+snapshots d'une quête sont **purgés à la fin de la quête** (seul celui de
+`debut_quete` de la quête courante et le dernier `nouveau_tour` sont
+conservés pendant la quête — départ playtest).
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| GET | /groupes/{identifiant}/snapshots | — | liste : [{id, etiquette, sequence_evenement, created_at}] |
+| POST | /groupes/{identifiant}/reprise | {snapshot_id?} | restaure l'état (défaut : snapshot `debut_quete` de la dernière quête échouée — le « recharger » après TPK) |
+
+**Reprise** : 422 si une quête est en cours ET non échouée (on ne recharge pas
+en pleine partie réussie) ; restauration atomique en transaction : l'état
+vivant est réécrit depuis le snapshot, la quête repasse `en_cours`, le journal
+reçoit un événement `systeme` `{action: "reprise", snapshot_id}` (le journal
+n'est JAMAIS tronqué — source de vérité, doc 07), broadcast `.groupe.etat` +
+re-dispatch narration/menus. Le TPK (doc 03/05) devient donc : quête `echouee`
+→ le groupe **vote ou choisit** : `POST reprise` (recharger) ou
+`POST cloture {abandon: true}` (abandonner).
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

@@ -5,6 +5,7 @@
 // Repli : si l'API est injoignable ou refuse la session (401), on bascule
 // sur les données de démo (store.modeDemo + badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
@@ -17,8 +18,9 @@ import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRA
 import { souscrireGroupe } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    carteVersMap, entitesVersFigurines, entitesVersGroupe, initiativeVersBarre,
-    niveauMonteVersListe, piegesVersMarqueurs, useGameStore, voteVersFeuille,
+    carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
+    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
+    useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -28,6 +30,7 @@ const props = defineProps({
 const store = useGameStore();
 store.setGroupe(props.groupe);
 const api = useApi();
+const router = useRouter();
 
 /* ---- chargement de l'état + abonnement temps réel ---- */
 const desabonnements = [];
@@ -45,13 +48,17 @@ onMounted(async () => {
             '.vote.maj': (e) => store.setVoteDecompte(e),
             '.vote.resultat': (e) => store.setVoteResultat(e),
             '.niveau.monte': (e) => store.setNiveauMonte(e),
+            '.cloture.ouverte': (e) => store.appliquerCloture(e),
+            '.cloture.maj': (e) => store.appliquerCloture(e),
+            '.cloture.terminee': (e) => store.setClotureTerminee(e),
         }));
-        // Rattrapage : phase marché ou vote déjà en cours (rechargement).
+        // Rattrapage : phase marché, vote ou clôture déjà en cours (rechargement).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
         api.getVote(props.groupe).then((r) => {
             const v = r?.vote ?? r;
             if (v && (v.type || v.options)) store.appliquerVote(v);
         }).catch(() => {});
+        api.getCloture(props.groupe).then((c) => store.appliquerCloture(c)).catch(() => {});
     } catch (e) {
         // 401 / API absente → on continue sur la démo (badge à l'écran).
         store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
@@ -158,6 +165,37 @@ watch(() => store.state.niveauMonte, (p) => {
 });
 onUnmounted(() => clearTimeout(lvlTimer));
 
+/* ---- clôture de campagne (contrat « Clôture de campagne ») : au hub
+   « Clôturer » (fin décidée), après une quête échouée « Abandonner »
+   (TPK doc 05 §6) ; .cloture.ouverte → bandeau routant vers l'écran de
+   clôture ; .cloture.terminee → épilogue (écran de clôture) puis accueil. ---- */
+const cloture = computed(() => (etat.value ? store.state.cloture : null));
+const queteEchouee = computed(() => (etat.value?.quete?.etat ?? '') === 'echouee');
+const habillageCloture = computed(() => issueCloture(cloture.value?.issue));
+const clotureConfirmations = computed(() => clotureVersConfirmations(cloture.value));
+const ouvertureCloture = ref(false);
+const erreurCloture = ref('');
+async function ouvrirCloture(abandon = false) {
+    ouvertureCloture.value = true;
+    erreurCloture.value = '';
+    try {
+        const r = await api.ouvrirCloture(props.groupe, { abandon });
+        if (r) store.appliquerCloture(r); // .cloture.ouverte arrive aussi par Reverb
+        router.push({ name: 'cloture', params: { groupe: props.groupe } });
+    } catch (e) {
+        erreurCloture.value = e.message;
+    } finally {
+        ouvertureCloture.value = false;
+    }
+}
+// Finalisation (.cloture.terminee) : l'écran de clôture porte l'épilogue
+// (résumés) et le « Retour à l'accueil » qui purge le store.
+watch(() => store.state.clotureTerminee, (t) => {
+    if (t && !store.state.modeDemo) {
+        router.push({ name: 'cloture', params: { groupe: props.groupe } });
+    }
+}, { immediate: true });
+
 /* ---- overlay de combat (séquence visuelle, mode démo) ---- */
 const combatRef = ref(null);
 </script>
@@ -201,9 +239,13 @@ const combatRef = ref(null);
                             <button class="btn" :disabled="ouvertureMarche" @click="ouvrirMarche">
                                 <MSym n="storefront" /> {{ ouvertureMarche ? 'Ouverture…' : 'Ouvrir le marché' }}
                             </button>
+                            <button class="btn" :disabled="ouvertureCloture" @click="ouvrirCloture(false)">
+                                <MSym n="workspace_premium" /> {{ ouvertureCloture ? 'Ouverture…' : 'Clôturer' }}
+                            </button>
                         </div>
                         <p v-if="erreurLancement" class="hub-err">{{ erreurLancement }}</p>
                         <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
+                        <p v-if="erreurCloture" class="hub-err">{{ erreurCloture }}</p>
                     </div>
                     <DungeonMap v-else :map="map" :entities="entities" :traps="traps" />
                     <!-- montée de niveau : célébration dorée (gains par héros) -->
@@ -242,6 +284,23 @@ const combatRef = ref(null);
                         <span v-else class="vst">
                             <MSym n="hourglass_top" :size="15" /> {{ voteTable.missing }} bulletin{{ voteTable.missing > 1 ? 's' : '' }} manquant{{ voteTable.missing > 1 ? 's' : '' }}
                         </span>
+                    </div>
+                    <!-- clôture ouverte (.cloture.ouverte) : bandeau vers l'écran de clôture -->
+                    <div v-if="cloture" class="cloture-band" :class="{ cendres: habillageCloture.ton === 'cendres' }">
+                        <MSym :n="habillageCloture.ic" fill :size="20" />
+                        <span class="cq">{{ habillageCloture.crumb }} — {{ clotureConfirmations.confirmes }}/{{ clotureConfirmations.total || '?' }} confirmation{{ clotureConfirmations.total > 1 ? 's' : '' }}</span>
+                        <RouterLink class="btn torch" :to="{ name: 'cloture', params: { groupe } }">
+                            <MSym n="workspace_premium" :size="16" /> Clôturer la campagne
+                        </RouterLink>
+                    </div>
+                    <!-- quête échouée (TPK doc 05 §6) : abandonner la campagne -->
+                    <div v-else-if="queteEchouee" class="cloture-band cendres">
+                        <MSym n="skull" fill :size="20" />
+                        <span class="cq">Quête échouée — la compagnie peut abandonner la campagne.</span>
+                        <button class="btn" :disabled="ouvertureCloture" @click="ouvrirCloture(true)">
+                            <MSym n="flag" :size="16" /> {{ ouvertureCloture ? 'Ouverture…' : 'Abandonner' }}
+                        </button>
+                        <span v-if="erreurCloture" class="cerr">{{ erreurCloture }}</span>
                     </div>
                     <CombatOverlay ref="combatRef" @narrate="store.setNarration($event)" />
                 </div>
@@ -467,5 +526,17 @@ const combatRef = ref(null);
   color: var(--ink-500); white-space: nowrap; }
 .table-screen .vote-band .vst.done { color: var(--ok); }
 .table-screen .vote-band .vst .msym { color: currentColor; }
+/* ---- bandeau de clôture de campagne (.cloture.ouverte / quête échouée) ---- */
+.table-screen .cloture-band { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 14px; padding: 10px 18px; border-radius: 99px; max-width: 92%;
+  background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); border: var(--line-gold);
+  box-shadow: var(--sh-3); animation: fadein .25s ease; }
+.table-screen .cloture-band > .msym { color: var(--gold); }
+.table-screen .cloture-band.cendres { border: var(--line-strong); }
+.table-screen .cloture-band.cendres > .msym { color: var(--ink-500); }
+.table-screen .cloture-band .cq { font-family: var(--font-display); font-size: 15px; color: var(--parch-100);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-screen .cloture-band .btn { padding: 8px 13px; font-size: 12.5px; text-decoration: none; white-space: nowrap; }
+.table-screen .cloture-band .cerr { font-size: 12px; font-weight: 700; color: var(--danger, #c33); white-space: nowrap; }
 /* (keyframes fadein : déjà défini globalement dans manette.css) */
 </style>
