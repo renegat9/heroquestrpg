@@ -48,6 +48,7 @@ final class DemarreurQuete
         private readonly ScorePuissance $puissance,
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurSorts $sorts,
+        private readonly Sauvegarde $sauvegarde,
     ) {}
 
     public function demarrer(Groupe $groupe): Quete
@@ -142,6 +143,10 @@ final class DemarreurQuete
             'budget' => $budget,
             'nb_monstres' => count($monstres),
         ]);
+
+        // Snapshot `debut_quete` (contrat « Snapshots & reprise ») : l'état
+        // vivant complet, base du « recharger » après TPK (doc 05 §6).
+        $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_DEBUT_QUETE);
 
         // Toute mutation d'état → journal puis broadcast `.groupe.etat` (contrat).
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));

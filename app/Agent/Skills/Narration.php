@@ -83,6 +83,11 @@ class Narration extends Skill
                     'texte' => 'Le groupe franchit le seuil du donjon. Les torches crépitent, et quelque part dans l\'obscurité, quelque chose attend.',
                     'ambiance' => 'mystere',
                 ];
+            case 'reprise':
+                return [
+                    'texte' => 'Le fil du destin se rembobine : le groupe se retrouve là où tout pouvait encore basculer, armes en main et souffle court. L\'aventure reprend.',
+                    'ambiance' => 'mystere',
+                ];
             case 'deplacement':
                 return ['texte' => 'Vous progressez dans le donjon, pas à pas, attentifs au moindre bruit.', 'ambiance' => 'tension'];
         }

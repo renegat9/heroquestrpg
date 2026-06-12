@@ -67,6 +67,7 @@ final class ResolveurTour
         private readonly MoteurSorts $sorts,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
+        private readonly Sauvegarde $sauvegarde,
     ) {}
 
     /**
@@ -1116,13 +1117,20 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
-        // Tous les héros tombés → quête échouée, retour au hub (le TPK complet
-        // — vote recharger/abandonner — viendra avec les sauvegardes).
+        // Tous les héros tombés → quête échouée, retour au hub : le groupe
+        // vote recharger (POST reprise) ou abandonner (doc 05 §6) — les
+        // snapshots de la quête sont CONSERVÉS pour la reprise.
         if (! $quete->etatsPersonnages()->where('tombe', false)->exists()) {
             $quete->update(['etat' => 'echouee']);
             Journal::ajouter($groupe, 'systeme', ['action' => 'quete_echouee', 'quete_id' => $quete->id]);
             $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+
+            return ['actions' => $actions];
         }
+
+        // Snapshot `nouveau_tour` après la phase des monstres (contrat
+        // « Snapshots & reprise ») : seul le dernier est conservé.
+        $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
 
         return ['actions' => $actions];
     }
@@ -1278,6 +1286,11 @@ final class ResolveurTour
             'quete_courante_id' => null,
             'or' => (int) $groupe->or + $orButin,
         ]);
+
+        // Fin de quête : les snapshots de la quête sont purgés (rétention
+        // du contrat « Snapshots & reprise » — on ne recharge pas une
+        // quête gagnée).
+        $this->sauvegarde->purgerQuete($groupe, $quete);
 
         // Montée de niveau par jalon (doc 01 §5) : quête sous_boss/boss_final
         // gagnée → +1 niveau par héros actif, broadcast `.niveau.monte` émis

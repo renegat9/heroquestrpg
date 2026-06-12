@@ -166,9 +166,10 @@ watch(() => store.state.niveauMonte, (p) => {
 onUnmounted(() => clearTimeout(lvlTimer));
 
 /* ---- clôture de campagne (contrat « Clôture de campagne ») : au hub
-   « Clôturer » (fin décidée), après une quête échouée « Abandonner »
-   (TPK doc 05 §6) ; .cloture.ouverte → bandeau routant vers l'écran de
-   clôture ; .cloture.terminee → épilogue (écran de clôture) puis accueil. ---- */
+   « Clôturer » (fin décidée), après une quête échouée le choix double
+   recharger/abandonner (TPK doc 05 §6, l'abandon = cloture {abandon}) ;
+   .cloture.ouverte → bandeau routant vers l'écran de clôture ;
+   .cloture.terminee → épilogue (écran de clôture) puis accueil. ---- */
 const cloture = computed(() => (etat.value ? store.state.cloture : null));
 const queteEchouee = computed(() => (etat.value?.quete?.etat ?? '') === 'echouee');
 const habillageCloture = computed(() => issueCloture(cloture.value?.issue));
@@ -188,6 +189,26 @@ async function ouvrirCloture(abandon = false) {
         ouvertureCloture.value = false;
     }
 }
+/* ---- reprise après TPK (contrat « Snapshots & reprise ») : POST reprise
+   sans snapshot_id → le serveur restaure le snapshot `debut_quete` de la
+   quête échouée. L'état restauré revient par .groupe.etat (la quête
+   repasse en_cours → le bandeau cendres se referme de lui-même) ; on
+   re-GET l'état en rattrapage, comme pour le lancement de quête. ---- */
+const repriseEnCours = ref(false);
+const erreurReprise = ref('');
+async function rechargerQuete() {
+    repriseEnCours.value = true;
+    erreurReprise.value = '';
+    try {
+        await api.reprendrePartie(props.groupe);
+        store.appliquerEtat(await api.getEtat(props.groupe));
+    } catch (e) {
+        erreurReprise.value = e.message; // 422 : quête en cours non échouée, etc.
+    } finally {
+        repriseEnCours.value = false;
+    }
+}
+
 // Finalisation (.cloture.terminee) : l'écran de clôture porte l'épilogue
 // (résumés) et le « Retour à l'accueil » qui purge le store.
 watch(() => store.state.clotureTerminee, (t) => {
@@ -293,14 +314,18 @@ const combatRef = ref(null);
                             <MSym n="workspace_premium" :size="16" /> Clôturer la campagne
                         </RouterLink>
                     </div>
-                    <!-- quête échouée (TPK doc 05 §6) : abandonner la campagne -->
+                    <!-- quête échouée (TPK doc 05 §6) : recharger (POST reprise)
+                         ou abandonner la campagne (POST cloture {abandon}) -->
                     <div v-else-if="queteEchouee" class="cloture-band cendres">
                         <MSym n="skull" fill :size="20" />
-                        <span class="cq">Quête échouée — la compagnie peut abandonner la campagne.</span>
-                        <button class="btn" :disabled="ouvertureCloture" @click="ouvrirCloture(true)">
-                            <MSym n="flag" :size="16" /> {{ ouvertureCloture ? 'Ouverture…' : 'Abandonner' }}
+                        <span class="cq">☠ Le groupe est tombé — recharger la quête, ou abandonner ?</span>
+                        <button class="btn torch" :disabled="repriseEnCours || ouvertureCloture" @click="rechargerQuete">
+                            <MSym n="replay" :size="16" /> {{ repriseEnCours ? 'Le donjon se reforme…' : 'Recharger la quête' }}
                         </button>
-                        <span v-if="erreurCloture" class="cerr">{{ erreurCloture }}</span>
+                        <button class="btn" :disabled="repriseEnCours || ouvertureCloture" @click="ouvrirCloture(true)">
+                            <MSym n="flag" :size="16" /> {{ ouvertureCloture ? 'Ouverture…' : 'Abandonner la campagne' }}
+                        </button>
+                        <span v-if="erreurReprise || erreurCloture" class="cerr">{{ erreurReprise || erreurCloture }}</span>
                     </div>
                     <CombatOverlay ref="combatRef" @narrate="store.setNarration($event)" />
                 </div>

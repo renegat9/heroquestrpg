@@ -92,6 +92,12 @@ onUnmounted(() => clearTimeout(moiTimer));
 
 const enDemo = computed(() => store.state.modeDemo || !store.state.etat);
 
+/* ---- quête échouée (TPK, contrat « Snapshots & reprise ») : la décision
+   recharger/abandonner se prend à la table — la manette retire le menu et
+   affiche une attente sobre (jamais en mode démo). ---- */
+const queteEchouee = computed(() => !enDemo.value
+    && (store.state.etat?.quete?.etat ?? '') === 'echouee');
+
 /* ---- mon héros (mode connecté) : entité EtatGroupe ↔ personnage /moi.
    L'habillage statique (icônes, équipement des onglets Fiche/Sac) vient
    du gabarit de démo de la même classe ; nom et PV sont les vrais. ---- */
@@ -593,8 +599,16 @@ const navItems = computed(() => (scene.value === 'marche'
 
                     <!-- zone principale -->
                     <div class="body">
+                        <!-- quête échouée (TPK) : pas de menu, le sort du
+                             groupe se joue sur l'écran de table -->
+                        <div v-if="tab === 'action' && queteEchouee" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym n="skull" :size="34" />
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 10px 0 0">
+                                Le destin du groupe se décide à la table…
+                            </p>
+                        </div>
                         <ActionTab
-                            v-if="tab === 'action' && scene === 'combat'"
+                            v-else-if="tab === 'action' && scene === 'combat'"
                             :my-turn="enDemo ? myTurn : !!menuCourant"
                             :hero="hero"
                             :menu="menuCourant"

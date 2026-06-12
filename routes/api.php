@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
+use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\VoteController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +50,12 @@ Route::middleware('auth:joueur')->group(function () {
     Route::put('/groupes/{identifiant}/marche/panier', [MarcheController::class, 'panier']);
     Route::post('/groupes/{identifiant}/marche/confirmation', [MarcheController::class, 'confirmer']);
     Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annuler']);
+
+    // Snapshots & reprise (contrat, doc 12 §4, doc 05 §6) : snapshots
+    // automatiques du moteur (debut_quete / nouveau_tour) ; la reprise
+    // restaure l'état vivant — le « recharger » après TPK.
+    Route::get('/groupes/{identifiant}/snapshots', [SauvegardeController::class, 'index']);
+    Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'reprendre']);
 
     // Votes de groupe (doc 05 §5) : un seul vote actif par groupe ; au hub,
     // le départ est libre avec sa part du pot commun.

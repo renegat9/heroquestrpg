@@ -209,5 +209,21 @@ export function useApi() {
 
         /** DELETE /groupes/{id}/cloture — annule la fenêtre (rien appliqué). */
         annulerCloture: (identifiant) => request('DELETE', `/groupes/${identifiant}/cloture`),
+
+        // ---- snapshots & reprise (contrat « Snapshots & reprise », TPK doc 05 §6) ----
+
+        /** GET /groupes/{id}/snapshots → [{id, etiquette, sequence_evenement, created_at}]. */
+        getSnapshots: (identifiant) => request('GET', `/groupes/${identifiant}/snapshots`),
+
+        /**
+         * POST /groupes/{id}/reprise {snapshot_id?} — restaure l'état depuis
+         * un snapshot (défaut serveur : `debut_quete` de la dernière quête
+         * échouée — le « recharger » après TPK). 422 si une quête est en
+         * cours ET non échouée. L'état restauré revient par .groupe.etat
+         * (la quête repasse en_cours), puis narration/menus sont redispatchés.
+         */
+        reprendrePartie: (identifiant, { snapshot_id } = {}) =>
+            request('POST', `/groupes/${identifiant}/reprise`,
+                snapshot_id != null ? { snapshot_id } : {}),
     };
 }
