@@ -8,6 +8,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
+use App\Jobs\HabillerMonstres;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -163,6 +164,10 @@ final class DemarreurQuete
             'titre' => $quete->titre,
             'type_jalon' => $typeJalon,
         ]);
+
+        // Habillage IA des monstres spawnés (Q6) : renomme/redécrit les
+        // instances sans toucher aux stats — best effort, sans bloquer le jeu.
+        HabillerMonstres::dispatch($groupe->id, $quete->id);
 
         foreach ($heros as $personnage) {
             GenererMenu::dispatch($groupe->id, (int) $personnage->joueur_id, (int) $personnage->id);
