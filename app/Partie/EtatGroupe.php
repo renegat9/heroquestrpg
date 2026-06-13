@@ -134,6 +134,7 @@ final class EtatGroupe
                     'pv_mind' => (int) $p->pv_mind,
                     'pv_mind_max' => (int) $p->pv_mind_max,
                     'tombe' => (bool) ($etat?->tombe ?? false),
+                    'conditions' => $this->conditionsHeros($p),
                 ];
             })
             ->values()
@@ -158,9 +159,45 @@ final class EtatGroupe
                 'pv_body' => (int) $i->pv_body,
                 'pv_body_max' => (int) $i->monstre->pv_body,
                 'etat' => $i->etat,
+                'conditions' => $this->conditionsMonstre($i),
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Conditions actives d'un héros (pivot personnage_conditions).
+     *
+     * @return list<array{nom: string, duree: int}>
+     */
+    private function conditionsHeros(Personnage $personnage): array
+    {
+        return $personnage->conditions()
+            ->get()
+            ->map(fn (\App\Models\Condition $c) => [
+                'nom' => $c->nom,
+                'duree' => (int) $c->pivot->duree,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Conditions actives d'un monstre (habillage.conditions JSON).
+     *
+     * @return list<array{nom: string, duree: int}>
+     */
+    private function conditionsMonstre(InstanceMonstre $instance): array
+    {
+        $conditions = [];
+
+        foreach ((array) data_get($instance->habillage, 'conditions', []) as $cle => $valeur) {
+            if ($valeur) {
+                $conditions[] = ['nom' => (string) $cle, 'duree' => 0];
+            }
+        }
+
+        return $conditions;
     }
 
     /**

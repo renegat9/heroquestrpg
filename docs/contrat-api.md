@@ -265,6 +265,37 @@ re-dispatch narration/menus. Le TPK (doc 03/05) devient donc : quête `echouee`
 → le groupe **vote ou choisit** : `POST reprise` (recharger) ou
 `POST cloture {abandon: true}` (abandonner).
 
+## Sorts de Dread & capacités des boss (doc 09 §4 — tout dans le tour scripté)
+
+Aucun nouvel endpoint : le **comportement scripté (C2)** des sous-boss/boss
+s'enrichit. Priorité d'un lanceur à son tour : sort de Dread s'il reste des
+**usages** (cache par instance et par rencontre — départ playtest : sous-boss
+2, boss 3) et qu'une cible vaut le coup, sinon capacité, sinon
+déplacement+attaque normal. Le moteur décide et résout ; l'IA ne fait que
+narrer (les payloads de narration portent le détail).
+
+**Sorts de Dread** (résolution identique aux sorts héros — le **jet de Mind du
+héros** utilise son `attribut_mind`, S2 binaire) :
+Trait de Chaos (2 dés à distance, défense applicable) ; Frayeur (résiste sinon
+condition `frayeur` : −1 dé d'attaque 2 tours) ; Sommeil (résiste sinon
+`endormi` : ne joue pas, une attaque subie le réveille) ; Tempête de feu (zone :
+la case ciblée + adjacentes orthogonales, 2 dés chacun, défense applicable —
+peut toucher plusieurs héros) ; Invocation de morts-vivants (2 squelettes sur
+cases libres adjacentes au lanceur, 1×/rencontre) ; Commandement (résiste sinon
+`commande` : à son prochain tour le héros est joué par le moteur — il attaque
+l'allié adjacent sinon avance vers le plus proche allié) ; Fuite (le lanceur se
+téléporte sur la case libre la plus éloignée des héros).
+
+**Capacités** (`monstres.capacites` JSON) : Invocation (comme le sort, sbires
+de base) ; Frappe de zone (l'attaque touche TOUS les héros adjacents, un jet
+par cible) ; Régénération (+1 PV Body au début de son tour, plafonné) ;
+Résistance magique (+2 dés de défense contre les sorts de dégâts des héros) ;
+Charge (si hors contact et joignable : déplacement + attaque à +1 dé).
+
+**EtatGroupe** : `entites` (héros ET monstres) gagnent
+`conditions: [{nom, duree}]` — la table et la manette affichent les états ;
+un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

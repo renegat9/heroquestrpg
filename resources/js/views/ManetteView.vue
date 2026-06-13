@@ -21,9 +21,10 @@ import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import {
-    acteurCourant, ciblesVersListe, CLASSES, initiativeVersMini, inventaireVendable,
-    issueCloture, labelCourt, marcheVersEchoppe, montantPanier, niveauMonteVersListe,
-    panierDuJoueur, sortsEpuises, useGameStore, voteVersFeuille,
+    acteurCourant, ciblesVersListe, CLASSES, conditionControle, conditionsVersBadges,
+    initiativeVersMini, inventaireVendable, issueCloture, labelCourt, marcheVersEchoppe,
+    montantPanier, niveauMonteVersListe, panierDuJoueur, sortsEpuises, useGameStore,
+    voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -98,6 +99,16 @@ const enDemo = computed(() => store.state.modeDemo || !store.state.etat);
 const queteEchouee = computed(() => !enDemo.value
     && (store.state.etat?.quete?.etat ?? '') === 'echouee');
 
+/* ---- condition de contrôle (Dread, doc 09 §4) : si mon héros est endormi
+   (il saute son tour) ou commandé (le moteur le joue), la manette retire le
+   menu et affiche un état sobre — le tour se résout sans moi. ---- */
+const controleManette = computed(() => (enDemo.value ? null : conditionControle(monEntite.value)));
+const ETATS_CONTROLE = {
+    endormi: { ic: 'bedtime', titre: 'Endormi', detail: 'Tu sautes ton tour — une attaque subie te réveillera.' },
+    commande: { ic: 'cyclone', titre: 'Commandé', detail: 'Ta volonté t\'échappe — le destin guide ta main ce tour.' },
+};
+const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? null);
+
 /* ---- mon héros (mode connecté) : entité EtatGroupe ↔ personnage /moi.
    L'habillage statique (icônes, équipement des onglets Fiche/Sac) vient
    du gabarit de démo de la même classe ; nom et PV sont les vrais. ---- */
@@ -129,6 +140,7 @@ const hero = computed(() => {
         name: e.nom,
         cls: CLASSES[(e.classe ?? '').toLowerCase()]?.l ?? e.classe,
         lvl: e.niveau ?? base.lvl,
+        conds: conditionsVersBadges(e.conditions), // vraies conditions (Dread, pièges, sorts)
     };
 });
 
@@ -605,6 +617,14 @@ const navItems = computed(() => (scene.value === 'marche'
                             <MSym n="skull" :size="34" />
                             <p style="font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 10px 0 0">
                                 Le destin du groupe se décide à la table…
+                            </p>
+                        </div>
+                        <!-- contrôle Dread (endormi / commandé) : le tour se résout sans moi -->
+                        <div v-else-if="tab === 'action' && etatControle" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym :n="etatControle.ic" :size="34" />
+                            <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">{{ etatControle.titre }}</p>
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; margin: 0">
+                                {{ etatControle.detail }}
                             </p>
                         </div>
                         <ActionTab

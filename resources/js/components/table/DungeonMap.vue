@@ -4,7 +4,9 @@ import MSym from '../ui/MSym.vue';
 defineProps({
     /** { C, R, cells: [{ x, y, t, range }] } — voir buildTableMap(). */
     map: { type: Object, required: true },
-    /** Figurines : [{ x, y, k: 'hero'|'foe'|'chest', l, ic, hp?, cur?, tgt? }] */
+    /** Figurines : [{ x, y, k: 'hero'|'foe'|'chest', l, ic, hp?, cur?, tgt?, cond? }]
+     *  — cond ({t, ic, titre}) : pictogramme d'état discret sur le jeton
+     *  (endormi, frayeur, commandé… — voir conditionDeJeton()). */
     entities: { type: Array, required: true },
     /** Pièges visibles : [{ x, y, etat: 'detecte'|'desarme'|'declenche', nom, titre }]
      *  — voir piegesVersMarqueurs() (les cachés n'arrivent jamais au client). */
@@ -43,6 +45,9 @@ defineProps({
                 <template v-else>{{ e.l }}</template>
                 <div v-if="e.hp" class="hp">
                     <i v-for="p in e.hp" :key="p" />
+                </div>
+                <div v-if="e.cond" class="cond" :class="e.cond.t ? `b-${e.cond.t}` : null" :title="e.cond.titre">
+                    <MSym :n="e.cond.ic" fill />
                 </div>
             </div>
         </div>

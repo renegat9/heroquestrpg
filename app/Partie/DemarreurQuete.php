@@ -14,6 +14,7 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Quete;
+use App\Partie\MoteurDread;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +49,7 @@ final class DemarreurQuete
         private readonly ScorePuissance $puissance,
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurSorts $sorts,
+        private readonly MoteurDread $dread,
         private readonly Sauvegarde $sauvegarde,
     ) {}
 
@@ -133,6 +135,9 @@ final class DemarreurQuete
 
             return $quete;
         });
+
+        // Usages de Dread réarmés pour cette nouvelle quête (MoteurDread).
+        $this->dread->reinitialiserUsages($quete);
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'quete_demarree',

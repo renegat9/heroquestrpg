@@ -25,8 +25,15 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                     <div class="hc">{{ p.c }}</div>
                 </div>
                 <div class="conds">
-                    <span v-for="(c, i) in p.conds" :key="i" class="mini-badge" :class="`b-${c.t}`">
-                        <MSym :n="c.i || condIcon[c.t]" fill />
+                    <span
+                        v-for="(c, i) in p.conds"
+                        :key="i"
+                        class="mini-badge"
+                        :class="c.t ? `b-${c.t}` : null"
+                        :title="c.l ? (c.d != null ? `${c.l} — ${c.d} tour${c.d > 1 ? 's' : ''}` : c.l) : null"
+                    >
+                        <MSym :n="c.ic || c.i || condIcon[c.t]" fill />
+                        <i v-if="c.d != null" class="d">{{ c.d }}</i>
                     </span>
                 </div>
             </div>

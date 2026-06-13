@@ -22,6 +22,7 @@ use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Models\Condition;
 
 /**
  * Résolution d'une option de menu VALIDÉE pendant une quête (doc 11 §4) —
@@ -65,6 +66,7 @@ final class ResolveurTour
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurPieges $pieges,
         private readonly MoteurSorts $sorts,
+        private readonly MoteurDread $dread,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
@@ -100,6 +102,34 @@ final class ResolveurTour
 
         $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
+
+            // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
+            // saute son tour, réveillé uniquement par une attaque subie.
+            if ($this->dread->herosSousCondition($personnage, 'Endormi')) {
+                $payload = ['type' => 'heros_endormi', 'personnage' => $personnage->nom, 'action' => 'endormi'];
+                Journal::ajouter($groupe, 'action', $payload, $acteur);
+                $etat->update(['a_joue' => true]);
+
+                return $this->apresActionHeros($payload, $groupe, $quete);
+            }
+
+            // Commandé (Commandement de Dread) : le moteur joue à la place du héros.
+            if ($this->dread->herosSousCondition($personnage, 'Commandé')) {
+                $allies = $quete->etatsPersonnages()
+                    ->where('tombe', false)
+                    ->with('personnage')
+                    ->get()
+                    ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage_id !== (int) $personnage->id)
+                    ->values();
+
+                $payload = $this->dread->jouerHerosSousCommandement(
+                    $groupe, $quete, $personnage, $etat, $allies,
+                ) ?? ['type' => 'commandement_sans_effet', 'personnage' => $personnage->nom];
+
+                $etat->update(['a_joue' => true]);
+
+                return $this->apresActionHeros($payload, $groupe, $quete);
+            }
 
             // Œil du mineur (nœud nain) : détection automatique des pièges
             // adjacents au début de chaque action du héros (doc 10 §3).
@@ -301,8 +331,13 @@ final class ResolveurTour
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         $bonusAttaque = $this->sorts->bonusDes($personnage, 'bonus_des_attaque');
 
+        // Frayeur (Dread) : condition Apeuré → −1 dé d'attaque (min 0), 2 tours.
+        $malusFrayeur = $this->dread->malusDesAttaqueFrayeur($personnage);
+
+        $desAttaqueEffectifs = max(0, (int) $personnage->des_attaque + $bonusAttaque - $malusFrayeur);
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: (int) $personnage->des_attaque + $bonusAttaque,
+            desAttaque: $desAttaqueEffectifs,
             desDefense: (int) $instance->monstre->defense,
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: (int) $instance->pv_body,
@@ -325,6 +360,8 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'bonus_des_attaque' => $bonusAttaque,
+            'malus_frayeur' => $malusFrayeur,
+            'des_attaque_effectifs' => $desAttaqueEffectifs,
             'cible' => [
                 'instance_id' => $instance->id,
                 'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
@@ -740,9 +777,12 @@ final class ResolveurTour
             /** @var InstanceMonstre $instance */
             $instance = $cible['monstre'];
 
+            // Résistance magique (capacité boss) : +2 dés de défense contre les sorts de dégâts.
+            $bonusResistance = $this->dread->bonusDefenseResistanceMagique($instance);
+
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $des,
-                desDefense: (int) $instance->monstre->defense,
+                desDefense: (int) $instance->monstre->defense + $bonusResistance,
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
             );
@@ -757,6 +797,7 @@ final class ResolveurTour
 
             return [
                 'des_degats' => $des,
+                'bonus_resistance_magique' => $bonusResistance,
                 'cible' => [
                     'type' => 'monstre',
                     'instance_id' => $instance->id,
@@ -1083,6 +1124,33 @@ final class ResolveurTour
     }
 
     /**
+     * Logique partagée après qu'un héros a joué (via une condition ou une
+     * action normale) : détection fin de quête + déclenchement phase monstres.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, mixed>
+     */
+    private function apresActionHeros(array $resultat, Groupe $groupe, Quete $quete): array
+    {
+        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            $resultat['quete'] = $this->terminerQuete($groupe, $quete);
+
+            return $resultat;
+        }
+
+        $enAttente = $quete->etatsPersonnages()
+            ->where('a_joue', false)
+            ->where('tombe', false)
+            ->exists();
+
+        if (! $enAttente) {
+            $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
+        }
+
+        return $resultat;
+    }
+
+    /**
      * Phase des monstres SCRIPTÉS (C2), résolue par le moteur : chaque
      * monstre actif rejoint le héros debout le plus proche (déplacement fixe
      * du catalogue, chemin orthogonal) puis attaque s'il est adjacent.
@@ -1105,7 +1173,17 @@ final class ResolveurTour
                 break; // plus personne debout (ou tout le monde est caché)
             }
 
-            $actions[] = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
+            $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
+
+            // Si le monstre a joué plusieurs actions (p. ex. régénération + sort/attaque),
+            // elles sont encapsulées sous 'type'='actions_composites' → on les étale.
+            if (($resultatMonstre['type'] ?? null) === 'actions_composites') {
+                foreach ($resultatMonstre['actions'] as $action) {
+                    $actions[] = $action;
+                }
+            } else {
+                $actions[] = $resultatMonstre;
+            }
         }
 
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
@@ -1136,9 +1214,11 @@ final class ResolveurTour
     }
 
     /**
-     * Script C2 d'un monstre : cible = héros debout le plus proche (distance
-     * de chemin), se rapprocher (déplacement FIXE du catalogue, doc 09 §1),
-     * attaquer si adjacent — via Engine\Combat.
+     * Script C2 d'un monstre : pour les boss/sous-boss, MoteurDread gère la
+     * régénération, les sorts de Dread et la Charge en priorité. Pour les
+     * monstres de base (et en repli pour les boss sans action Dread), comportement
+     * classique : approche du héros le plus proche puis attaque si adjacent —
+     * avec Frappe de zone si capacité et plusieurs héros adjacents.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @return array<string, mixed>
@@ -1163,6 +1243,18 @@ final class ResolveurTour
         $attaqueEmpechee = $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
         if ($attaqueEmpechee) {
             $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+        }
+
+        // Boss / sous-boss : sorts de Dread + capacités spéciales (Régénération,
+        // Charge). Si une action Dread a été jouée, on retourne son payload.
+        $tier = $instance->monstre->tier ?? 'base';
+
+        if (in_array($tier, ['sous_boss', 'boss'], true)) {
+            $actionDread = $this->dread->jouerTourDread($groupe, $quete, $instance, $cibles);
+
+            if ($actionDread !== null) {
+                return $actionDread;
+            }
         }
 
         $grille = $this->grille($quete, exceptInstanceId: $instance->id);
@@ -1228,6 +1320,20 @@ final class ResolveurTour
             Journal::ajouter($groupe, 'action', $payload, $acteur);
 
             return $payload;
+        }
+
+        // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
+        if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
+            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) =>
+                $grille->sontAdjacentes(
+                    (int) $instance->position_x, (int) $instance->position_y,
+                    (int) $c->position_x, (int) $c->position_y,
+                )
+            )->values();
+
+            if ($adjacents->count() >= 2) {
+                return $this->dread->frappeDeZone($groupe, $instance, $cibles, $acteur);
+            }
         }
 
         // Attaque du héros adjacent — moteur seul. La défense intègre les

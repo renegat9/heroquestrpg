@@ -233,6 +233,79 @@ export function labelCourt(nom) {
     return (nom ?? '?').replace(/[^A-Za-zÀ-ÿ0-9]/g, '').toUpperCase().slice(0, 3) || '?';
 }
 
+/* =========================================================================
+   Conditions (contrat « Sorts de Dread & capacités des boss ») :
+   entites.conditions: [{nom, duree}] → badges (GroupPanel, FicheTab) et
+   pictogramme d'état sur les jetons (DungeonMap).
+   ========================================================================= */
+
+/** Habillage par nom de condition du contrat (docs 02/09) : clé CSS des
+ *  maquettes (var(--cond-*) / .b-*), libellé court et icône Material
+ *  Symbols. Une condition inconnue reste affichée (habillage neutre). */
+export const CONDITIONS = {
+    endormi: { t: 'sleep', l: 'Endormi', ic: 'bedtime' },
+    frayeur: { t: 'fear', l: 'Frayeur', ic: 'mood_bad' },
+    commande: { t: 'fear', l: 'Commandé', ic: 'cyclone' },
+    tempete: { t: 'fear', l: 'Tempête', ic: 'thunderstorm' },
+    poison: { t: 'poison', l: 'Poison', ic: 'coronavirus' },
+    brulure: { t: 'burn', l: 'Brûlure', ic: 'local_fire_department' },
+    saignement: { t: 'bleed', l: 'Saignement', ic: 'bloodtype' },
+    courage: { t: 'buff', l: 'Courage', ic: 'swords' },
+    peau_de_pierre: { t: 'buff', l: 'Peau de pierre', ic: 'shield' },
+    voile_de_brume: { t: 'buff', l: 'Voile de brume', ic: 'foggy' },
+    vent_veloce: { t: 'buff', l: 'Vent véloce', ic: 'sprint' },
+    renforce: { t: 'buff', l: 'Renforcé', ic: 'shield_with_heart' },
+    regeneration: { t: 'buff', l: 'Régénération', ic: 'ecg_heart' },
+};
+
+/** nom de condition (contrat) → habillage {t, l, ic} (repli neutre). */
+export function conditionInfo(nom) {
+    const cle = (nom ?? '').toLowerCase();
+    return CONDITIONS[cle] ?? {
+        t: '',
+        l: cle ? cle.charAt(0).toUpperCase() + cle.slice(1).replaceAll('_', ' ') : 'Condition',
+        ic: 'emergency_heat',
+    };
+}
+
+/** conditions ([{nom, duree}] — on tolère une liste de noms) → badges
+ *  [{nom, t, l, ic, d}] pour GroupPanel et FicheTab (d = durée en tours,
+ *  null si le serveur ne la fournit pas). */
+export function conditionsVersBadges(conditions) {
+    return (conditions ?? []).map((c) => {
+        const objet = c !== null && typeof c === 'object';
+        const nom = objet ? c.nom : c;
+        const info = conditionInfo(nom);
+        return { nom, t: info.t, l: info.l, ic: info.ic, d: objet ? (c.duree ?? null) : null };
+    });
+}
+
+/** Conditions de contrôle (doc 09 §4) : le héros ne joue pas (endormi)
+ *  ou est joué par le moteur (commande). */
+const CONDITIONS_CONTROLE = ['endormi', 'commande'];
+
+/** Nom de la condition de contrôle active d'une entité, ou null. */
+export function conditionControle(entite) {
+    return (entite?.conditions ?? [])
+        .map((c) => String((c !== null && typeof c === 'object' ? c.nom : c) ?? '').toLowerCase())
+        .find((n) => CONDITIONS_CONTROLE.includes(n)) ?? null;
+}
+
+/** conditions → pictogramme d'état du jeton ({t, ic, titre}) ou undefined.
+ *  Une seule pastille par figurine : la condition de contrôle (endormi /
+ *  commandé) prime, sinon la première condition reçue. */
+export function conditionDeJeton(conditions) {
+    const badges = conditionsVersBadges(conditions);
+    if (!badges.length) return undefined;
+    const b = badges.find((x) => CONDITIONS_CONTROLE.includes(String(x.nom ?? '').toLowerCase()))
+        ?? badges[0];
+    return {
+        t: b.t,
+        ic: b.ic,
+        titre: b.d != null ? `${b.l} — ${b.d} tour${b.d > 1 ? 's' : ''}` : b.l,
+    };
+}
+
 /** Acteur courant = première entrée d'initiative qui n'a pas encore joué. */
 export function acteurCourant(initiative) {
     return (initiative ?? []).find((o) => !o.a_joue) ?? null;
@@ -259,7 +332,8 @@ export function carteVersMap(carte) {
     return { C, R, cells };
 }
 
-/** entites (contrat) → figurines [{x, y, k, l, ic, hp?, cur?}] pour DungeonMap. */
+/** entites (contrat) → figurines [{x, y, k, l, ic, hp?, cur?, cond?}]
+ *  pour DungeonMap (cond = pictogramme d'état discret sur le jeton). */
 export function entitesVersFigurines(entites, initiative) {
     return (entites ?? [])
         .filter((e) => e.type !== 'monstre' || ((e.etat ?? 'actif') === 'actif' && e.pv_body > 0))
@@ -271,6 +345,7 @@ export function entitesVersFigurines(entites, initiative) {
             ic: e.type === 'heros' ? classeDe(e)?.ic : 'sentiment_very_dissatisfied',
             hp: e.type === 'monstre' ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
+            cond: conditionDeJeton(e.conditions),
         }));
 }
 
@@ -306,7 +381,7 @@ export function entitesVersGroupe(entites, initiative) {
             ic: classeDe(e)?.ic ?? 'person',
             body: [e.tombe ? 0 : e.pv_body, e.pv_body_max],
             mind: [e.pv_mind, e.pv_mind_max],
-            conds: [], // états/conditions : pas encore dans le contrat
+            conds: conditionsVersBadges(e.conditions),
             acting: estCourant(e, initiative),
             low: !e.tombe && e.pv_body > 0 && e.pv_body * 4 <= e.pv_body_max,
         }));
