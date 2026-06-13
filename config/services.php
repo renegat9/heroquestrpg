@@ -60,4 +60,21 @@ return [
         'collection' => env('QDRANT_COLLECTION', 'bible'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Voyage AI — embeddings de la bible RAG (doc 11 §6)
+    |--------------------------------------------------------------------------
+    | Fournisseur retenu (Anthropic n'a pas d'API d'embeddings). Sans clé,
+    | repli sur EmbeddingsNuls (similarité lexicale, dev uniquement).
+    | ⚠ dimension : fixe la collection Qdrant — ne pas changer en cours de
+    | campagne sans recréer la collection.
+    */
+    'voyage' => [
+        'api_key' => env('VOYAGE_API_KEY'),
+        'model' => env('VOYAGE_MODEL', 'voyage-3.5'),
+        'dimension' => (int) env('VOYAGE_DIMENSION', 1024),
+        'base_url' => env('VOYAGE_BASE_URL', 'https://api.voyageai.com'),
+        'timeout' => (int) env('VOYAGE_TIMEOUT', 30),
+    ],
+
 ];

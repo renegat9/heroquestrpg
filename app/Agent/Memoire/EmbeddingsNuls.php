@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Agent\Memoire;
 
 /**
- * Embeddings factices — placeholder en attendant le choix du fournisseur
- * (TODO : API d'embeddings distante ou modèle local, doc 11 §14.2).
+ * Embeddings factices — repli de dev quand VOYAGE_API_KEY est absente
+ * (le fournisseur réel est Voyage AI, voir EmbeddingsVoyage).
  *
  * Implémentation "hashing trick" : sac de mots projeté sur un vecteur de
  * dimension fixe via crc32, puis normalisé L2. C'est DÉTERMINISTE (un même
@@ -24,7 +24,7 @@ final class EmbeddingsNuls implements Embeddings
         return self::DIMENSION;
     }
 
-    public function vecteur(string $texte): array
+    public function vecteur(string $texte, bool $requete = false): array
     {
         $vecteur = array_fill(0, self::DIMENSION, 0.0);
 

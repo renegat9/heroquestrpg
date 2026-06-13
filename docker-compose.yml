@@ -28,6 +28,7 @@ services:
       REVERB_PORT: 8080
       REVERB_SCHEME: http
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY} # clé LLM : .env uniquement, jamais dans l'image
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}     # embeddings bible RAG (Voyage AI)
     depends_on:
       mariadb:
         condition: service_healthy

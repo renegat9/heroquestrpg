@@ -7,10 +7,9 @@ namespace App\Agent\Memoire;
 /**
  * Fournisseur d'embeddings pour la bible RAG (doc 11 §6).
  *
- * Le fournisseur réel (API distante au MVP, modèle local en phase 2 —
- * doc 11 §14.2) n'est pas encore choisi : l'implémentation par défaut
- * est EmbeddingsNuls (factice, déterministe). Le binding se fait dans
- * AppServiceProvider — remplacer là-bas quand le fournisseur sera retenu.
+ * Fournisseur retenu : Voyage AI (EmbeddingsVoyage) dès que VOYAGE_API_KEY
+ * est renseignée ; sinon repli sur EmbeddingsNuls (factice, lexical) pour
+ * que la bible reste fonctionnelle en dev. Binding dans AppServiceProvider.
  */
 interface Embeddings
 {
@@ -20,7 +19,10 @@ interface Embeddings
     /**
      * Encode un texte en vecteur.
      *
+     * @param  bool  $requete  true pour un texte de RECHERCHE (query),
+     *                         false pour un texte INDEXÉ (document) —
+     *                         certains fournisseurs optimisent les deux côtés.
      * @return list<float>
      */
-    public function vecteur(string $texte): array;
+    public function vecteur(string $texte, bool $requete = false): array;
 }

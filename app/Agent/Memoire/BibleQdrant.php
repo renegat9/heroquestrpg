@@ -127,7 +127,7 @@ class BibleQdrant
         }
 
         $reponse = $this->http()->post('/collections/'.$this->collection().'/points/search', [
-            'vector' => $this->embeddings->vecteur($requete),
+            'vector' => $this->embeddings->vecteur($requete, requete: true),
             'limit' => $topK,
             'with_payload' => true,
             'filter' => ['must' => $filtres],
