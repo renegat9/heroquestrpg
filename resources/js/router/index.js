@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 import AccueilView from '../views/AccueilView.vue';
+import NarreurView from '../views/NarreurView.vue';
+import JoueurView from '../views/JoueurView.vue';
 import TableView from '../views/TableView.vue';
 import ManetteView from '../views/ManetteView.vue';
 import CreationGroupeView from '../views/CreationGroupeView.vue';
@@ -12,13 +14,23 @@ import ClotureCampagneView from '../views/ClotureCampagneView.vue';
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        // ---- écrans portés des maquettes ----
+        // ---- accueil : choix de rôle ----
         { path: '/', name: 'accueil', component: AccueilView },
+
+        // ---- rôle Narrateur (table, sans compte) ----
+        { path: '/narrateur', name: 'narrateur', component: NarreurView },
+
+        // ---- rôle Joueur (compte + roster) ----
+        { path: '/joueur', name: 'joueur', component: JoueurView },
+
+        // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },
         { path: '/manette/:groupe', name: 'manette', component: ManetteView, props: true },
+
+        // ---- création / gestion (mode dev, reste accessible) ----
         { path: '/direction', name: 'direction', component: CreationGroupeView },
 
-        // ---- écrans en stub (maquettes dans reference/heroquest/) ----
+        // ---- écrans de moments de campagne ----
         { path: '/quete/:groupe', name: 'selection-quete', component: SelectionQueteView, props: true },
         { path: '/niveau/:groupe', name: 'montee-niveau', component: MonteeNiveauView, props: true },
         { path: '/reconnexion/:groupe', name: 'reconnexion', component: ReconnexionView, props: true },

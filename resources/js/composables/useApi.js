@@ -97,15 +97,53 @@ export function useApi() {
         connexion: (identifiant, motDePasse) =>
             request('POST', '/connexion', { identifiant, mot_de_passe: motDePasse }),
 
+        /**
+         * POST /api/inscription {pseudo, identifiant, mot_de_passe}
+         * → crée le compte et connecte ; 422 si identifiant pris.
+         */
+        inscription: ({ pseudo, identifiant, mot_de_passe }) =>
+            request('POST', '/inscription', { pseudo, identifiant, mot_de_passe }),
+
         /** POST /api/deconnexion → 204. */
         deconnexion: () => request('POST', '/deconnexion'),
 
         /** GET /api/moi → {joueur, personnages: [...]}. */
         moi: () => request('GET', '/moi'),
 
+        // ---- personnages du roster ----
+
+        /**
+         * POST /api/personnages {nom, classe, elements?} → {personnage}.
+         * Crée un perso libre dans le roster du joueur.
+         * `elements` (magicien) : 2 éléments parmi feu/eau/terre/air.
+         */
+        creerPersonnage: ({ nom, classe, elements }) =>
+            request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
+
+        // ---- table (Narrateur — session sans compte) ----
+
+        /**
+         * POST /api/table {code} → {groupe: EtatGroupe}.
+         * Ouvre une SESSION DE TABLE (cookie) pour ce groupe.
+         * 404 si code inconnu.
+         */
+        ouvrirTable: (code) => request('POST', '/table', { code }),
+
+        /**
+         * POST /api/table/ping — heartbeat : rafraîchit « table active »
+         * (cache TTL 30 s). À envoyer toutes les ~15 s.
+         */
+        pingTable: () => request('POST', '/table/ping'),
+
+        /** POST /api/table/quitter — ferme la session de table. */
+        quitterTable: () => request('POST', '/table/quitter'),
+
         // ---- groupes / campagne ----
 
-        /** POST /api/groupes {nom, theme, longueur, ton} → {groupe}. */
+        /**
+         * POST /api/groupes {nom, theme, longueur, ton, personnage_id} → {groupe}.
+         * `personnage_id` requis par le contrat (perso libre du joueur).
+         */
         creerGroupe: (payload) => request('POST', '/groupes', payload),
 
         /** POST /api/groupes/{identifiant}/joueurs {personnage_id} ou {nom, classe,
@@ -113,6 +151,14 @@ export function useApi() {
          *  grimoire parmi feu/eau/terre/air — contrat « Sorts des héros ». */
         rejoindreGroupe: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/joueurs`, payload),
+
+        /**
+         * POST /api/groupes/{identifiant}/pret {personnage_id, pret} →
+         * (dé)marque un perso prêt. Si tous prêts + narrateur actif →
+         * démarre la quête.
+         */
+        marquerPret: (identifiant, personnageId, pret) =>
+            request('POST', `/groupes/${identifiant}/pret`, { personnage_id: personnageId, pret }),
 
         /** GET /api/groupes/{identifiant}/etat → EtatGroupe. */
         getEtat: (identifiant) => request('GET', `/groupes/${identifiant}/etat`),

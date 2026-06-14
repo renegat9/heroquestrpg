@@ -23,8 +23,8 @@ import { estErreurDemo, useApi } from '../composables/useApi';
 import {
     acteurCourant, ciblesVersListe, CLASSES, conditionControle, conditionsVersBadges,
     initiativeVersMini, inventaireVendable, issueCloture, labelCourt, marcheVersEchoppe,
-    montantPanier, niveauMonteVersListe, panierDuJoueur, sortsEpuises, useGameStore,
-    voteVersFeuille,
+    montantPanier, niveauMonteVersListe, panierDuJoueur, pretsVersEtat, sortsEpuises,
+    useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -63,6 +63,7 @@ onMounted(async () => {
                 '.cloture.ouverte': (e) => store.appliquerCloture(e),
                 '.cloture.maj': (e) => store.appliquerCloture(e),
                 '.cloture.terminee': (e) => store.setClotureTerminee(e),
+                '.prets.maj': (e) => store.appliquerPrets(e),
             }),
             souscrireJoueur(joueur.id, {
                 '.menu.propose': (e) => store.setMenu(e.menu),
@@ -156,6 +157,42 @@ const monPerso = computed(() => {
         ?? null;
 });
 const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
+
+/* ---- statut « Prêt » au hub (contrat « Statut prêt et démarrage de quête ») ----
+   Phase hub uniquement. Mon personnage est le perso rattaché au groupe
+   (monPerso). L'état des prêts vient de EtatGroupe.groupe.prets et du
+   broadcast .prets.maj. Le narrateur doit être actif pour que la quête
+   démarre (côté serveur). */
+const auHub = computed(() => !enDemo.value && store.state.etat?.groupe?.phase === 'hub');
+const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
+const monPersonnageId = computed(() => monPerso.value?.id ?? null);
+const preEnAttente = ref(false);
+const erreurPret = ref('');
+
+const monPret = computed(() => {
+    if (!monPersonnageId.value) return false;
+    const prets = store.state.prets ?? [];
+    const mien = prets.find((r) => r.personnage_id === monPersonnageId.value);
+    return mien?.pret ?? false;
+});
+
+const listePresence = computed(() =>
+    pretsVersEtat(store.state.prets, store.state.personnages));
+
+async function basculerPret() {
+    if (!monPersonnageId.value || preEnAttente.value) return;
+    preEnAttente.value = true;
+    erreurPret.value = '';
+    const nouveau = !monPret.value;
+    try {
+        await api.marquerPret(props.groupe, monPersonnageId.value, nouveau);
+        // Le serveur répond par .prets.maj (Reverb) ; pas besoin de re-GET.
+    } catch (e) {
+        erreurPret.value = e.message;
+    } finally {
+        preEnAttente.value = false;
+    }
+}
 
 /* ---- sorts du héros (contrat « Sorts des héros ») : /moi expose
    sorts: [{sort_id, nom, element, type, disponible}] — null tant que le
@@ -656,15 +693,56 @@ const navItems = computed(() => (scene.value === 'marche'
                             @confirmer="confirmerMonPanier"
                         />
                         <!-- hub connecté, marché pas (ou plus) ouvert -->
-                        <div v-else-if="tab === 'action' && scene === 'marche'" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
-                            <MSym n="storefront" :size="34" style="color: var(--torch)" />
-                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 10px 0 0">
+                        <div v-else-if="tab === 'action' && scene === 'marche'" style="padding: 14px">
+                            <!-- ---- statut marché ---- -->
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; color: var(--ink-500); margin: 0 0 16px; text-align: center">
                                 {{ store.state.marcheFinalise
                                     ? (store.state.marcheFinalise.applique
                                         ? 'Marché conclu — les paniers ont été appliqués.'
                                         : 'La phase de marché a été annulée.')
                                     : "Le marché n'est pas encore ouvert. Le groupe se repose au hub…" }}
                             </p>
+
+                            <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
+                            <div v-if="auHub" class="pret-hub">
+                                <div class="pret-hub-titre">
+                                    <MSym n="flag" fill :size="15" /> Prêt pour la quête
+                                </div>
+                                <!-- liste des prêts des autres joueurs -->
+                                <div v-if="listePresence.length" class="pret-liste">
+                                    <div
+                                        v-for="r in listePresence"
+                                        :key="r.personnage_id"
+                                        class="pret-ligne"
+                                        :class="{ pret: r.pret }"
+                                    >
+                                        <MSym :n="r.pret ? 'check_circle' : 'radio_button_unchecked'" fill :size="15" />
+                                        {{ r.nom }}
+                                    </div>
+                                </div>
+                                <!-- narrateur actif / en attente -->
+                                <div class="pret-narrateur" :class="{ actif: narrateurActif }">
+                                    <MSym :n="narrateurActif ? 'cast_connected' : 'cast'" :size="14" />
+                                    {{ narrateurActif ? 'Narrateur actif' : 'En attente d\'un narrateur' }}
+                                </div>
+                                <!-- bouton Prêt / Annuler -->
+                                <button
+                                    class="pret-btn"
+                                    :class="{ pret: monPret }"
+                                    :disabled="preEnAttente || !monPersonnageId"
+                                    @click="basculerPret"
+                                >
+                                    <MSym :n="monPret ? 'cancel' : 'check_circle'" fill :size="18" />
+                                    {{
+                                        preEnAttente
+                                            ? 'Envoi…'
+                                            : (monPret ? 'Annuler ma présence' : 'Prêt pour la quête !')
+                                    }}
+                                </button>
+                                <p v-if="erreurPret" class="pret-err">
+                                    <MSym n="error" :size="13" /> {{ erreurPret }}
+                                </p>
+                            </div>
                         </div>
                         <FicheTab
                             v-else-if="tab === 'fiche'"

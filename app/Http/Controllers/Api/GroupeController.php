@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\PretsMaj;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\TableController;
 use App\Jobs\GenererSqueletteCampagne;
 use App\Models\ClasseHeros;
 use App\Models\Groupe;
@@ -16,6 +18,7 @@ use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -37,9 +40,18 @@ class GroupeController extends Controller
         'tres_longue' => [17, 20],
     ];
 
-    /** POST /api/groupes — créer une campagne (écran /direction). */
-    public function creer(Request $request): JsonResponse
+    /**
+     * POST /api/groupes — créer une campagne depuis un perso libre du joueur.
+     *
+     * Contrat (§Joueur — compte + roster) : exige `personnage_id` (un perso
+     * libre du joueur). Après création, le perso rejoint le groupe comme
+     * fondateur (même logique que rejoindre : pivot actif, or versé au pot).
+     * 422 si le perso est déjà engagé dans un autre groupe.
+     */
+    public function creer(Request $request, MoteurSorts $sorts): JsonResponse
     {
+        $joueur = Auth::guard('joueur')->user();
+
         $donnees = $request->validate([
             // Optionnel (contrat) : dérivé du nom si absent — le code est rendu au client.
             'identifiant' => ['nullable', 'string', 'max:32', 'alpha_dash', Rule::unique('groupes', 'identifiant')],
@@ -47,9 +59,32 @@ class GroupeController extends Controller
             'theme' => ['required', 'string', 'max:2000'],
             'longueur' => ['required', Rule::in(array_keys(self::QUETES_PAR_LONGUEUR))],
             'ton' => ['nullable', 'array'],
+            // Perso fondateur (contrat §Joueur) : doit être libre et appartenir au joueur.
+            'personnage_id' => ['nullable', 'integer'],
         ]);
 
         [$min, $max] = self::QUETES_PAR_LONGUEUR[$donnees['longueur']];
+
+        // Validation du perso fondateur si fourni.
+        $personnageFondateur = null;
+        if (isset($donnees['personnage_id'])) {
+            $personnageFondateur = Personnage::query()
+                ->where('id', $donnees['personnage_id'])
+                ->where('joueur_id', $joueur->id)
+                ->first();
+
+            if ($personnageFondateur === null) {
+                throw ValidationException::withMessages([
+                    'personnage_id' => 'Ce personnage n\'existe pas ou ne vous appartient pas.',
+                ]);
+            }
+
+            if ($personnageFondateur->groupe_actif_id !== null) {
+                throw ValidationException::withMessages([
+                    'personnage_id' => "« {$personnageFondateur->nom} » est déjà engagé dans un groupe actif.",
+                ]);
+            }
+        }
 
         $groupe = Groupe::create([
             'identifiant' => $donnees['identifiant'] ?? $this->genererIdentifiant($donnees['nom']),
@@ -60,11 +95,70 @@ class GroupeController extends Controller
             'ton' => $donnees['ton'] ?? null,
         ]);
 
+        // Le perso fondateur rejoint le groupe (pivot + or au pot).
+        if ($personnageFondateur !== null) {
+            DB::transaction(function () use ($groupe, $personnageFondateur) {
+                $groupe->personnages()->attach($personnageFondateur->id, [
+                    'ordre_initiative' => 1,
+                    'actif' => true,
+                ]);
+                $personnageFondateur->update(['groupe_actif_id' => $groupe->id]);
+
+                if ($personnageFondateur->or > 0) {
+                    $groupe->increment('or', $personnageFondateur->or);
+                    $personnageFondateur->update(['or' => 0]);
+                }
+            });
+
+            Journal::ajouter($groupe->fresh(), 'systeme', [
+                'action' => 'joueur_rejoint',
+                'joueur_id' => $joueur->id,
+                'personnage_ids' => [$personnageFondateur->id],
+                'fondateur' => true,
+            ]);
+        }
+
         GenererSqueletteCampagne::dispatch($groupe->id);
 
         return response()->json([
-            'groupe' => $this->etatGroupe($groupe),
+            'groupe' => $this->etatGroupe($groupe->fresh()),
             'message' => 'Campagne créée — le MJ prépare le fil de la campagne.',
+        ], 201);
+    }
+
+    /**
+     * POST /api/personnages {nom, classe, elements?}
+     *
+     * Crée un personnage LIBRE dans le roster du joueur connecté (sans
+     * l'engager dans un groupe). Réutilise la logique de creerHeros.
+     */
+    public function creerPersonnage(Request $request, MoteurSorts $sorts): JsonResponse
+    {
+        $joueur = Auth::guard('joueur')->user();
+
+        $donnees = $request->validate([
+            'nom' => ['required', 'string', 'max:120'],
+            'classe' => ['required', Rule::exists('classes_heros', 'nom')],
+            'elements' => ['sometimes', 'array', 'size:2'],
+            'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
+        ]);
+
+        $personnage = $this->creerHeros(
+            $sorts,
+            $joueur->id,
+            $donnees['nom'],
+            $donnees['classe'],
+            $donnees['elements'] ?? null,
+        );
+
+        return response()->json([
+            'personnage' => [
+                'id' => $personnage->id,
+                'nom' => $personnage->nom,
+                'classe' => $personnage->classe,
+                'niveau' => (int) $personnage->niveau,
+                'disponible' => true,
+            ],
         ], 201);
     }
 
@@ -224,12 +318,119 @@ class GroupeController extends Controller
      * GET /api/groupes/{identifiant}/etat — payload EtatGroupe du contrat
      * (docs/contrat-api.md), identique au broadcast `.groupe.etat` : carte,
      * entités, initiative, dernière narration. Reprise table / reconnexion.
+     *
+     * Accessible par un joueur membre OU par la session de table du groupe
+     * (contrat §Autorisations).
      */
-    public function etat(string $identifiant, EtatGroupe $etatGroupe): JsonResponse
+    public function etat(Request $request, string $identifiant, EtatGroupe $etatGroupe): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
 
+        if (! $this->peutVoirGroupe($request, $groupe)) {
+            abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
+        }
+
         return response()->json($etatGroupe->payload($groupe));
+    }
+
+    /**
+     * POST /api/groupes/{identifiant}/pret {personnage_id, pret}
+     *
+     * Marque un personnage prêt (ou non) pour démarrer la prochaine quête.
+     * Si TOUS les personnages actifs sont prêts ET le narrateur est actif →
+     * démarre la quête (DemarreurQuete) et vide les statuts.
+     * Broadcast PretsMaj à chaque changement.
+     */
+    public function pret(Request $request, string $identifiant, DemarreurQuete $demarreur, EtatGroupe $etatGroupe): JsonResponse
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+
+        $donnees = $request->validate([
+            'personnage_id' => ['required', 'integer'],
+            'pret' => ['required', 'boolean'],
+        ]);
+
+        // Vérification : le personnage appartient au joueur et est actif dans ce groupe.
+        $personnage = Personnage::query()
+            ->where('id', $donnees['personnage_id'])
+            ->where('joueur_id', $joueur->id)
+            ->where('groupe_actif_id', $groupe->id)
+            ->first();
+
+        if ($personnage === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => 'Ce personnage n\'est pas votre héros actif dans ce groupe.',
+            ]);
+        }
+
+        // Mise à jour du cache des statuts prêts.
+        $cleCache = "partie:pret:{$groupe->id}";
+        $prets = Cache::get($cleCache, []);
+        $prets[$donnees['personnage_id']] = (bool) $donnees['pret'];
+        Cache::put($cleCache, $prets, now()->addHours(4));
+
+        // Liste des personnages actifs du groupe.
+        $personnagesActifs = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->pluck('personnages.id')
+            ->all();
+
+        // Payload broadcast {prets: [{personnage_id, pret}]}.
+        $payloadPrets = array_map(
+            fn (int $pid) => ['personnage_id' => $pid, 'pret' => (bool) ($prets[$pid] ?? false)],
+            $personnagesActifs,
+        );
+
+        broadcast(new PretsMaj($groupe, $payloadPrets));
+
+        // Condition de démarrage : tous prêts ET narrateur actif ET hub.
+        $toutsPrets = ! empty($personnagesActifs) && collect($personnagesActifs)->every(
+            fn (int $pid) => (bool) ($prets[$pid] ?? false),
+        );
+
+        if ($toutsPrets && TableController::narrateurActif($groupe) && $groupe->phase === 'hub') {
+            // Vide les statuts avant le démarrage.
+            Cache::forget($cleCache);
+
+            $quete = $demarreur->demarrer($groupe);
+
+            return response()->json([
+                'quete_demarree' => true,
+                'quete' => [
+                    'id' => $quete->id,
+                    'titre' => $quete->titre,
+                    'type_jalon' => $quete->type_jalon,
+                    'etat' => $quete->etat,
+                ],
+            ]);
+        }
+
+        return response()->json(['prets' => $payloadPrets]);
+    }
+
+    /**
+     * Vérifie si la requête courante peut voir les infos du groupe :
+     * - joueur connecté avec un personnage actif dans le groupe, OU
+     * - session de table correspondant à ce groupe.
+     */
+    private function peutVoirGroupe(Request $request, Groupe $groupe): bool
+    {
+        // Session de table ?
+        if ($request->session()->get('table_groupe') === $groupe->identifiant) {
+            return true;
+        }
+
+        // Joueur membre ?
+        $joueur = Auth::guard('joueur')->user();
+        if ($joueur === null) {
+            return false;
+        }
+
+        return $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->where('joueur_id', $joueur->id)
+            ->exists();
     }
 
     /**

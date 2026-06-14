@@ -296,6 +296,54 @@ Charge (si hors contact et joignable : déplacement + attaque à +1 dé).
 `conditions: [{nom, duree}]` — la table et la manette affichent les états ;
 un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
 
+## Modèle de session : Narrateur (table) vs Joueur (compte)
+
+Deux rôles d'entrée distincts (doc 11 §7).
+
+### Narrateur / table — sans compte, par code
+La table « tient » la partie en ligne. Pas de compte : on saisit le **code du
+groupe**.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /api/table | {code} | ouvre une SESSION DE TABLE (cookie) pour ce groupe ; 404 si code inconnu. Réponse : {groupe: EtatGroupe} |
+| POST | /api/table/ping | — | heartbeat : rafraîchit « table active » (cache `table:active:{groupe_id}`, TTL 30 s). À envoyer toutes les ~15 s |
+| POST | /api/table/quitter | — | ferme la session de table |
+
+**Narrateur actif** = `Cache::has('table:active:{groupe_id}')` (heartbeat frais).
+C'est la condition pour qu'une partie soit jouable/reprenable.
+
+### Joueur — compte + roster
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /api/inscription | {pseudo, identifiant, mot_de_passe} | crée le compte et connecte ; 422 si identifiant pris |
+| POST | /api/connexion | {identifiant, mot_de_passe} | (existant) |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` |
+| POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
+| POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé |
+| POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |
+
+Le `personnages[].groupe.narrateur_actif` (bool) pilote le bouton « Reprendre »
+côté joueur : on ne peut reprendre que si une table est active sur le groupe.
+
+### Statut « prêt » et démarrage de quête (au hub)
+Une nouvelle quête démarre quand **TOUS les joueurs membres sont prêts** ET
+qu'un **narrateur est actif** (remplace le démarrage manuel par la table).
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts |
+
+`EtatGroupe.groupe` gagne `narrateur_actif` (bool) et, au hub, `prets:
+[{personnage_id, pret}]` pour l'affichage. Broadcast `.prets.maj` ({prets})
+sur changement. (Le `POST /quetes` direct reste pour les tests/outillage.)
+
+### Autorisations
+Les routes de LECTURE/jeu d'un groupe (`/etat`, `/snapshots`, broadcasting
+des canaux `groupe.{identifiant}`) acceptent **soit** un joueur membre (au moins
+un perso actif), **soit** la session de table de ce groupe. Les actions de
+joueur (choix, panier, vote, prêt…) exigent un joueur membre.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

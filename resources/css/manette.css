@@ -288,3 +288,28 @@
 @media (max-width: 480px) { .scene-ctrl { bottom: 8px; } }
 
 .empty-note { text-align: center; color: var(--ink-500); font-size: 13px; padding: 30px 20px; font-family: var(--font-narr); font-style: italic; }
+
+/* ---- bouton Prêt au hub (contrat « Statut prêt et démarrage de quête ») ---- */
+.pret-hub { display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: var(--stone-850); border: var(--line); border-radius: var(--r-md); }
+.pret-hub-titre { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--torch); display: flex; align-items: center; gap: 6px; }
+.pret-liste { display: flex; flex-direction: column; gap: 5px; }
+.pret-ligne { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600;
+  color: var(--ink-500); }
+.pret-ligne.pret { color: var(--ok); }
+.pret-ligne .msym { color: var(--ink-600); }
+.pret-ligne.pret .msym { color: var(--ok); }
+.pret-narrateur { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+  color: var(--ink-600); padding: 5px 10px; border-radius: var(--r-md);
+  background: var(--stone-800); border: var(--line); }
+.pret-narrateur.actif { color: var(--ok); }
+.pret-btn { width: 100%; padding: 12px 16px; border: none; border-radius: var(--r-md);
+  font-family: var(--font-ui); font-weight: 800; font-size: 14px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity .15s, transform .1s; }
+.pret-btn:not(.pret):not(:disabled) { background: linear-gradient(180deg, var(--torch-bright), var(--torch)); color: var(--stone-950); }
+.pret-btn.pret:not(:disabled) { background: var(--stone-800); color: var(--ink-300); border: var(--line-strong); }
+.pret-btn:disabled { opacity: 0.45; cursor: not-allowed; background: var(--stone-800); color: var(--ink-600); border: var(--line); }
+.pret-err { font-size: 12px; font-weight: 600; color: var(--danger, #c33); margin: 0;
+  display: flex; align-items: center; gap: 5px; }

@@ -51,6 +51,7 @@ onMounted(async () => {
             '.cloture.ouverte': (e) => store.appliquerCloture(e),
             '.cloture.maj': (e) => store.appliquerCloture(e),
             '.cloture.terminee': (e) => store.setClotureTerminee(e),
+            '.prets.maj': (e) => store.appliquerPrets(e),
         }));
         // Rattrapage : phase marché, vote ou clôture déjà en cours (rechargement).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
@@ -59,13 +60,40 @@ onMounted(async () => {
             if (v && (v.type || v.options)) store.appliquerVote(v);
         }).catch(() => {});
         api.getCloture(props.groupe).then((c) => store.appliquerCloture(c)).catch(() => {});
+
+        // Heartbeat Narrateur : POST /api/table/ping toutes les 15 s.
+        // Maintient « table active » (cache TTL 30 s côté serveur).
+        // En mode démo ou si le ping échoue, on continue sans bloquer.
+        demarrerHeartbeat();
     } catch (e) {
         // 401 / API absente → on continue sur la démo (badge à l'écran).
         store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
         setTimeout(() => combatRef.value?.play(), 1200); // séquence de la maquette
     }
 });
-onUnmounted(() => desabonnements.forEach((off) => off()));
+onUnmounted(() => {
+    desabonnements.forEach((off) => off());
+    arreterHeartbeat();
+});
+
+/* ---- heartbeat Narrateur (POST /api/table/ping toutes les 15 s) ---- */
+let heartbeatTimer = null;
+
+function demarrerHeartbeat() {
+    arreterHeartbeat();
+    // Premier ping immédiat, puis toutes les 15 s.
+    api.pingTable().catch(() => {}); // non bloquant
+    heartbeatTimer = setInterval(() => {
+        api.pingTable().catch(() => {}); // non bloquant
+    }, 15_000);
+}
+
+function arreterHeartbeat() {
+    if (heartbeatTimer !== null) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+}
 
 /* ---- état serveur mappé vers les composants (démo en repli) ---- */
 const etat = computed(() => (store.state.modeDemo ? null : store.state.etat));

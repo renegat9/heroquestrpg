@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
 use App\Models\Evenement;
 use App\Models\Groupe;
@@ -35,15 +36,32 @@ final class EtatGroupe
     {
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
+        $narrateurActif = TableController::narrateurActif($groupe);
+        $preambuleGroupe = [
+            'id' => $groupe->id,
+            'identifiant' => $groupe->identifiant,
+            'nom' => $groupe->nom,
+            'phase' => $groupe->phase,
+            'or' => (int) $groupe->or,
+            'etat' => $groupe->etat,
+            'narrateur_actif' => $narrateurActif,
+        ];
+
+        // En phase hub : expose les statuts « prêt » des personnages actifs.
+        if ($groupe->phase === 'hub') {
+            $prets = Cache::get("partie:pret:{$groupe->id}", []);
+            $personnagesActifs = $groupe->personnages()
+                ->wherePivot('actif', true)
+                ->pluck('personnages.id')
+                ->all();
+            $preambuleGroupe['prets'] = array_map(
+                fn (int $pid) => ['personnage_id' => $pid, 'pret' => (bool) ($prets[$pid] ?? false)],
+                $personnagesActifs,
+            );
+        }
+
         return [
-            'groupe' => [
-                'id' => $groupe->id,
-                'identifiant' => $groupe->identifiant,
-                'nom' => $groupe->nom,
-                'phase' => $groupe->phase,
-                'or' => (int) $groupe->or,
-                'etat' => $groupe->etat,
-            ],
+            'groupe' => $preambuleGroupe,
             'quete' => $quete === null ? null : [
                 'id' => $quete->id,
                 'titre' => $quete->titre,

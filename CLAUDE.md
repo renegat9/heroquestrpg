@@ -46,7 +46,9 @@ Laravel modules (all French naming, matching the design docs):
 
 Turn flow: phone (Vue) sends a menu choice → API validates legality via engine → engine resolves deterministically, updates state + journal → job dispatched for next narration/menu → result broadcast via Reverb (group channel `groupe.{id}` for the host "table" screen, private per-player channels for each phone's menu).
 
-Multiplayer model: roles are views, not devices — any browser can be **host** (shared table screen, narration/TTS) or **player** (controller). One active session per player (new connection kicks the old one).
+Multiplayer model: roles are views, not devices — any browser can be **host** (shared table screen, narration/TTS) or **player** (controller).
+
+Entry/session model (`docs/contrat-api.md` §Modèle de session): the **narrator/table** has no account — it opens a group by **code** (`POST /api/table`) and keeps a **heartbeat** (`POST /api/table/ping` ~every 15s → cache `table:active:{id}`, 30s TTL = "narrator active"). **Players** have accounts (register/login), a **roster** of characters (`/moi` → each character `disponible` or engaged with `groupe.narrateur_actif`), create a group **from a free character** (founder) or join by code. A quest starts when **all active members are marked ready** (`POST /groupes/{id}/pret`) **and** a narrator is active. Read routes (`/etat`, channels) accept a player member **or** the group's table session.
 
 Data: catalogs (bestiary, items, spells, tiles, traps) are seeded reference data — the AI may reskin names/descriptions but never change effects. Full schema in `reference/12_schema_donnees.md`. A complete campaign = the `mariadb_data` **and** `qdrant_data` volumes; back up both together.
 

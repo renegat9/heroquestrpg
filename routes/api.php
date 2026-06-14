@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\SauvegardeController;
+use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,19 +21,35 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/connexion', [AuthController::class, 'connexion']);
+Route::post('/inscription', [AuthController::class, 'inscription']);
+
+// Routes table (narrateur sans compte) — publiques, hors guard auth:joueur.
+// La session Laravel (cookie) identifie la table active.
+Route::post('/table', [TableController::class, 'ouvrir']);
+Route::post('/table/ping', [TableController::class, 'ping']);
+Route::post('/table/quitter', [TableController::class, 'quitter']);
+
+// GET /etat : accessible joueur membre OU session de table (contrat §Autorisations).
+// Placé hors du groupe auth:joueur pour permettre l'accès table sans compte.
+Route::get('/groupes/{identifiant}/etat', [GroupeController::class, 'etat']);
 
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
 
+    // Roster joueur : créer un perso libre (sans l'engager dans un groupe).
+    Route::post('/personnages', [GroupeController::class, 'creerPersonnage']);
+
     // Groupes / campagnes (création → dispatch du squelette en job).
     Route::post('/groupes', [GroupeController::class, 'creer']);
     Route::post('/groupes/{identifiant}/joueurs', [GroupeController::class, 'rejoindre']);
-    Route::get('/groupes/{identifiant}/etat', [GroupeController::class, 'etat']);
 
     // Démarrer la quête suivante : carte assemblée, monstres au budget,
     // initiative figée — entièrement moteur (App\Partie\DemarreurQuete).
     Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrerQuete']);
+
+    // Statut « prêt » : déclenche la quête si tous prêts + narrateur actif.
+    Route::post('/groupes/{identifiant}/pret', [GroupeController::class, 'pret']);
 
     // Choix de menu : validation contre le dernier menu proposé + résolution
     // moteur (ResolveurTour), puis narration/menus en jobs.

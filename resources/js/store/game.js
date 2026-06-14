@@ -64,6 +64,10 @@ const state = reactive({
     /** Payload .cloture.terminee ({resumes: [{personnage_id, resume}]}) —
      *  le groupe n'existe plus, les clients retournent à l'accueil. */
     clotureTerminee: null,
+
+    /** Statuts « prêt » du hub (contrat : [{personnage_id, pret}]).
+     *  Peuplé par EtatGroupe.groupe.prets et le broadcast .prets.maj. */
+    prets: [],
 });
 
 export function useGameStore() {
@@ -82,6 +86,8 @@ export function useGameStore() {
             state.etat = etat;
             if (typeof etat?.narration === 'string' && etat.narration) state.narration = etat.narration;
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
+            // prets du hub (contrat : EtatGroupe.groupe.prets au hub)
+            if (Array.isArray(etat?.groupe?.prets)) state.prets = etat.groupe.prets;
             state.menuEnAttente = false; // le moteur a résolu : on rend la main
         },
         /** Nouveau menu personnel (.menu.propose sur joueur.{id}). */
@@ -188,6 +194,11 @@ export function useGameStore() {
         setClotureTerminee(payload) {
             state.clotureTerminee = payload ?? { resumes: [] };
         },
+        /** .prets.maj ({prets: [{personnage_id, pret}]}) — broadcast hub. */
+        appliquerPrets(payload) {
+            state.prets = Array.isArray(payload?.prets) ? payload.prets : (payload ?? []);
+        },
+
         /** Le groupe n'existe plus (clôture terminée) : purge de tout
          *  l'état rattaché avant le retour à l'accueil. */
         purgerGroupe() {
@@ -204,6 +215,7 @@ export function useGameStore() {
             state.niveauMonte = null;
             state.cloture = null;
             state.clotureTerminee = null;
+            state.prets = [];
         },
     };
 }
@@ -917,6 +929,42 @@ export function clotureVersConfirmations(cloture, joueurId = null) {
 export function resumeDuJoueur(payload, personnages = []) {
     const ids = new Set((personnages ?? []).map((p) => p.id));
     return (payload?.resumes ?? []).find((r) => ids.has(r.personnage_id)) ?? null;
+}
+
+/* =========================================================================
+   Mapping roster « Joueur » (contrat « Modèle de session »)
+   ========================================================================= */
+
+/**
+ * Personnage de /moi enrichi → statut affichable pour le roster joueur.
+ * Retourne { disponible, groupe?, narrateur_actif?, identifiant? }.
+ */
+export function statutPersonnage(personnage) {
+    if (!personnage) return { disponible: true };
+    if (personnage.disponible !== false && personnage.groupe == null) {
+        return { disponible: true };
+    }
+    const g = personnage.groupe ?? {};
+    return {
+        disponible: false,
+        identifiant: g.identifiant ?? null,
+        nom: g.nom ?? null,
+        phase: g.phase ?? null,
+        narrateur_actif: g.narrateur_actif ?? false,
+    };
+}
+
+/**
+ * prets ([{personnage_id, pret}]) + liste de personnages → carte
+ * [{personnage_id, nom, pret}] pour l'affichage du hub.
+ */
+export function pretsVersEtat(prets, personnages = []) {
+    const parId = new Map((personnages ?? []).map((p) => [p.id, p.nom ?? `Perso n°${p.id}`]));
+    return (prets ?? []).map((r) => ({
+        personnage_id: r.personnage_id,
+        nom: parId.get(r.personnage_id) ?? `Perso n°${r.personnage_id}`,
+        pret: !!r.pret,
+    }));
 }
 
 /** .niveau.monte ({personnages}) → cartes du bandeau de célébration
