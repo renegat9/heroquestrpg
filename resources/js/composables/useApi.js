@@ -107,8 +107,16 @@ export function useApi() {
         /** POST /api/deconnexion → 204. */
         deconnexion: () => request('POST', '/deconnexion'),
 
-        /** GET /api/moi → {joueur, personnages: [...]}. */
-        moi: () => request('GET', '/moi'),
+        /**
+         * GET /api/moi. Le serveur imbrique les personnages sous `joueur`
+         * (`{joueur: {…, personnages}}`) ; on APLATIT en `{joueur, personnages}`
+         * pour que les appelants (`const { joueur, personnages } = await moi()`)
+         * reçoivent bien la liste au niveau racine (contrat).
+         */
+        moi: async () => {
+            const r = await request('GET', '/moi');
+            return { joueur: r?.joueur ?? null, personnages: r?.joueur?.personnages ?? [] };
+        },
 
         // ---- personnages du roster ----
 
