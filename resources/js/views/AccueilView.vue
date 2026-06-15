@@ -41,7 +41,7 @@ onMounted(async () => {
             <div class="acchoix-roles">
                 <!-- Narrateur -->
                 <RouterLink to="/narrateur" class="acchoix-role">
-                    <div class="acchoix-role-seal narrateur">
+                    <div class="acchoix-role-seal is-narrateur">
                         <MSym n="cast" fill />
                     </div>
                     <div class="acchoix-role-body">
@@ -63,7 +63,7 @@ onMounted(async () => {
 
                 <!-- Joueur -->
                 <RouterLink to="/joueur" class="acchoix-role">
-                    <div class="acchoix-role-seal joueur">
+                    <div class="acchoix-role-seal is-joueur">
                         <MSym n="smartphone" fill />
                     </div>
                     <div class="acchoix-role-body">
@@ -137,8 +137,8 @@ onMounted(async () => {
 .acchoix-role-seal { width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center;
   color: var(--parch-100); box-shadow: var(--sh-2); flex: none; }
 .acchoix-role-seal .msym { font-size: 36px; }
-.acchoix-role-seal.narrateur { background: linear-gradient(150deg, oklch(0.55 0.14 260), oklch(0.4 0.12 260)); }
-.acchoix-role-seal.joueur { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); }
+.acchoix-role-seal.is-narrateur { background: linear-gradient(150deg, oklch(0.55 0.14 260), oklch(0.4 0.12 260)); }
+.acchoix-role-seal.is-joueur { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); }
 
 .acchoix-role-body { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .acchoix-role-body h2 { font-family: var(--font-display); font-size: 22px; color: var(--parch-100);

@@ -32,6 +32,17 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 
 Tests are **Pest** (`./vendor/bin/pest`; engine suite under `tests/Unit/Engine`, run a single file by path). `composer.json` pins `platform.php` to 8.3 (the runtime image) — keep it when resolving deps.
 
+**Visual/browser testing** (no Chrome on host — use the official Playwright image, which bundles Chromium + all system libs). With the stack up (`http://localhost`), screenshot key pages and inspect the PNGs:
+
+```bash
+docker run --rm --network host -v "$PWD:/work" -w /work \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+  mcr.microsoft.com/playwright:v1.48.0-jammy \
+  bash -c 'npm i playwright@1.48.0 --no-save --no-audit --no-fund --silent && node browser-shots/shots.mjs'
+```
+
+`browser-shots/shots.mjs` shoots accueil, /narrateur, /joueur, and /table/DEMO + /manette/DEMO (the game screens render with demo data when the API is unreachable/401 → `modeDemo`). PNGs (gitignored) land in `browser-shots/` — read them to check rendering. Pin the `playwright` npm version to the image tag. Watch for **CSS class collisions**: many SFC `<style>` blocks are global (not `scoped`), so generic class names like `.joueur` leak across views — prefix view-specific modifiers.
+
 ## Architecture
 
 Stack (design doc 11): modular **Laravel monolith** + **Vue SPA** clients + **Reverb** (WebSocket) + **MariaDB** (exact game state) + **Qdrant** (RAG "bible"), all on one docker-compose host. Anthropic API for the LLM (`ANTHROPIC_API_KEY` in `.env` only, never in images).
