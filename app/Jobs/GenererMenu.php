@@ -104,7 +104,7 @@ class GenererMenu implements ShouldQueue
      */
     private const TYPES_MECANIQUES = [
         'deplacement', 'attaque', 'desamorcage', 'franchissement',
-        'sort', 'parchemin', 'concentration',
+        'sort', 'parchemin', 'concentration', 'relever',
     ];
 
     /**

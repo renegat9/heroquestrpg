@@ -74,6 +74,26 @@ final class MenuMoteur
                 ];
             }
 
+            // Relever un allié TOMBÉ adjacent (doc 03 §48 : « relevable —
+            // soin/allié ») : sacrifie le tour, remet le héros debout à 1 PV.
+            $allies = $quete->etatsPersonnages()
+                ->where('tombe', true)
+                ->where('personnage_id', '!=', $personnage->id)
+                ->with('personnage')
+                ->get()
+                ->filter(fn ($e) => $e->position_x !== null
+                    && abs((int) $e->position_x - (int) $etat->position_x)
+                        + abs((int) $e->position_y - (int) $etat->position_y) === 1);
+
+            foreach ($allies as $allie) {
+                $options[] = [
+                    'id' => "relever_{$allie->personnage_id}",
+                    'libelle' => "Relever {$allie->personnage->nom}",
+                    'type' => 'relever',
+                    'cible_personnage_id' => (int) $allie->personnage_id,
+                ];
+            }
+
             // Pièges DÉTECTÉS adjacents (doc 10 §4) : Désamorcer — réservé au
             // Nain ou au porteur d'une trousse à outils (permet_desamorcage) —
             // et Franchir pour une fosse. Exécutables tels quels (ResolveurTour).

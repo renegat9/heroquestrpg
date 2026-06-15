@@ -149,6 +149,7 @@ final class ResolveurTour
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
+                'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -1119,6 +1120,59 @@ final class ResolveurTour
         ];
 
         Journal::ajouter($groupe, 'choix', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Relever un allié TOMBÉ adjacent (doc 03 §48 : relevable par un allié) :
+     * le héros sacrifie son tour, l'allié se remet debout à 1 PV de Body et
+     * libère sa case. Empêche le blocage d'un couloir par une figure tombée.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreRelever(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $cibleId = (int) ($option['cible_personnage_id'] ?? 0);
+
+        $cible = $quete->etatsPersonnages()
+            ->where('personnage_id', $cibleId)
+            ->where('tombe', true)
+            ->with('personnage')
+            ->first();
+
+        if ($cible === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucun allié tombé à relever.']);
+        }
+
+        $adjacent = abs((int) $etat->position_x - (int) $cible->position_x)
+            + abs((int) $etat->position_y - (int) $cible->position_y) === 1;
+
+        if (! $adjacent) {
+            throw ValidationException::withMessages(['option_id' => 'L\'allié tombé doit être sur une case adjacente.']);
+        }
+
+        // Debout à 1 PV de Body ; la figure n'occupe plus la case en « tombée ».
+        $cible->update(['tombe' => false]);
+        $cible->personnage->update(['pv_body' => 1]);
+
+        $payload = [
+            'type' => 'relever',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'cible' => ['personnage_id' => $cible->personnage_id, 'nom' => $cible->personnage->nom],
+            'pv_body' => 1,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }
