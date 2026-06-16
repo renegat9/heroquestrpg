@@ -37,11 +37,14 @@ use Throwable;
  * appliqué avant la confirmation de TOUS les joueurs membres). Ouverture :
  *  - automatique à la victoire du BOSS FINAL (ResolveurTour::terminerQuete,
  *    broadcast `.cloture.ouverte`) → issue `victoire` ;
- *  - manuelle par un membre AU HUB (fin décidée) → issue `victoire` si le
- *    boss final a déjà été vaincu, sinon `abandon` ;
- *  - manuelle avec `abandon` après une quête ÉCHOUÉE (TPK) → issue `echec`
- *    (doc 05 §6 : le résumé d'historique est un échec) ; l'or à partager est
- *    alors `quetes.or_initial` de la quête échouée, PLAFONNÉ à l'or restant.
+ *  - manuelle par un membre AU HUB (fin décidée) → issue DÉRIVÉE de l'état :
+ *    `victoire` si le boss final a été vaincu, `echec` si la dernière quête
+ *    est échouée (TPK), sinon `abandon`. L'issue ne dépend JAMAIS du seul
+ *    drapeau client — une fin gagnée/perdue ne peut donc être mal étiquetée ;
+ *  - pour un `echec` (doc 05 §6 : résumé d'historique = échec), l'or à partager
+ *    est `quetes.or_initial` de la quête échouée, PLAFONNÉ à l'or restant (le
+ *    butin de la mission perdue est perdu) ; `abandon: true` reste réservé à
+ *    une campagne réellement échouée.
  * 422 si une quête est en cours.
  *
  * Quand tous confirment, la finalisation part en job (CloturerCampagne) :
@@ -88,29 +91,33 @@ final class ClotureCampagne
             ]);
         }
 
-        if ($abandon) {
-            $derniere = $groupe->quetes()->orderByDesc('position_arc')->first();
-
-            if ($derniere === null || $derniere->etat !== 'echouee') {
-                throw ValidationException::withMessages([
-                    'abandon' => 'L\'abandon n\'est possible qu\'après une quête échouée (TPK, doc 05 §6).',
-                ]);
-            }
-
-            // Or d'AVANT la mission, plafonné à l'or restant (butin déjà dépensé).
-            $or = min((int) $derniere->or_initial, (int) $groupe->or);
-
-            return $this->creerFenetre($groupe, 'echec', $or);
+        // L'issue est DÉRIVÉE de l'état de la campagne (jamais du seul drapeau
+        // client) pour qu'une fin gagnée OU perdue ne soit jamais mal étiquetée :
+        //  - boss final vaincu       → victoire (pot complet) ;
+        //  - dernière quête échouée  → echec (or_initial plafonné, butin perdu) ;
+        //  - sinon (fin décidée saine) → abandon (pot complet).
+        // Garde-fou historique : un TPK sur la quête finale se clôturait en
+        // « abandon » si le client omettait `abandon: true` — désormais « echec ».
+        if ($groupe->quetes()->where('type_jalon', 'boss_final')->where('etat', 'terminee')->exists()) {
+            return $this->creerFenetre($groupe, 'victoire', (int) $groupe->or);
         }
 
-        // Fin décidée au hub : victoire si le boss final est déjà tombé
-        // (réouverture après la fenêtre automatique), sinon abandon.
-        $issue = $groupe->quetes()
-            ->where('type_jalon', 'boss_final')
-            ->where('etat', 'terminee')
-            ->exists() ? 'victoire' : 'abandon';
+        $derniere = $groupe->quetes()->orderByDesc('position_arc')->first();
+        $echec = $derniere !== null && $derniere->etat === 'echouee';
 
-        return $this->creerFenetre($groupe, $issue, (int) $groupe->or);
+        // `abandon: true` reste réservé à une campagne RÉELLEMENT échouée (doc 05 §6).
+        if ($abandon && ! $echec) {
+            throw ValidationException::withMessages([
+                'abandon' => 'L\'abandon n\'est possible qu\'après une quête échouée (TPK, doc 05 §6).',
+            ]);
+        }
+
+        if ($echec) {
+            // Or d'AVANT la mission, plafonné à l'or restant (butin déjà dépensé).
+            return $this->creerFenetre($groupe, 'echec', min((int) $derniere->or_initial, (int) $groupe->or));
+        }
+
+        return $this->creerFenetre($groupe, 'abandon', (int) $groupe->or);
     }
 
     /**

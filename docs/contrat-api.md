@@ -201,10 +201,14 @@ aussi via `.groupe.etat` → re-GET).
 ## Clôture de campagne (doc 05 §6)
 
 Fenêtre de clôture (cache, comme le marché) ouverte : automatiquement à la
-**victoire du boss final** (broadcast `.cloture.ouverte`), ou par un membre —
-au **hub** (fin décidée) ou après une quête **échouée** (`abandon`, TPK doc 05
-§6 : l'or à partager est alors `quetes.or_initial` de la quête échouée,
-plafonné à l'or restant). 422 si une quête est en cours.
+**victoire du boss final** (broadcast `.cloture.ouverte`), ou par un membre au
+**hub**. À l'ouverture manuelle, l'`issue` est **dérivée de l'état de la
+campagne** (jamais du seul corps de requête, pour qu'une fin gagnée/perdue ne
+soit jamais mal étiquetée) : `victoire` si le boss final est vaincu, `echec` si
+la dernière quête est **échouée** (TPK doc 05 §6 : l'or à partager est alors
+`quetes.or_initial` de la quête échouée, plafonné à l'or restant), sinon
+`abandon` (fin décidée saine, pot complet). Le drapeau `abandon: true` reste
+réservé à une campagne réellement échouée (422 sinon). 422 si une quête est en cours.
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
