@@ -1,58 +1,109 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# HeroQuest RPG — JDR de table avec MJ IA
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Jeu de rôle tabletop inspiré de **HeroQuest**, animé par un **maître de jeu IA** (« MJ IA »).
+Projet **auto-hébergé, interne** : parties en **LAN entre amis**, pas de déploiement public.
 
-## About Laravel
+**Principe fondateur :** le **moteur déterministe** fait foi sur toute la mécanique
+(dés, PV, combat, jets, pièges, sorts). L'IA **narre et propose** seulement — ses
+sorties sont contraintes par des schémas JSON puis validées par le moteur contre
+les catalogues (rejet/retry, puis repli codé). **Les joueurs ne tapent jamais de
+texte libre** : la boucle est *l'IA narre → l'IA propose un menu de choix → le
+moteur résout l'option choisie*.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 📊 Statut du projet
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+> **MVP complet et vérifié en partie réelle.** Le jeu se joue de bout en bout
+> (campagne multi-quêtes, sous-boss, boss final, clôture). Reste : la couche
+> **audio** (non implémentée) et l'**équilibrage** (valeurs de départ à playtester).
 
-## Learning Laravel
+| Domaine | Statut | Notes |
+|---|:---:|---|
+| Moteur de règles déterministe (`app/Engine`) | ✅ | Dés, jets, combat, déplacement, sorts mentaux — **182 tests Pest verts** |
+| Schéma + couche BD (`app/Models`, migrations, seeders) | ✅ | Catalogues (bestiaire, objets, sorts, tuiles, pièges) en données de référence |
+| Boucle de jeu (`app/Partie`) | ✅ | Démarrage quête, carte, budget de rencontre, résolution de tour, monstres scriptés |
+| Combat, jets, **pièges**, **sorts de héros** | ✅ | |
+| **Marché** commun + **votes** de groupe | ✅ | Phase marché atomique (confirmation de tous) |
+| **Montée de niveau** par jalon + arbre de compétences | ✅ | |
+| **Sorts de Dread** + capacités de boss | ✅ | Régénération, sorts ennemis, charge |
+| **Clôture de campagne** (victoire / échec / abandon) | ✅ | Issue **dérivée de l'état**, jamais mal étiquetée ; or réparti, historique, purge |
+| **Snapshots & reprise** (après TPK / coupure) | ✅ | |
+| MJ IA (`app/Agent`) — squelette, narration, menus, habillage | ✅ | **Vérifié en live** avec `ANTHROPIC_API_KEY` (`claude-sonnet-4-6`) |
+| RAG « bible » (Qdrant + embeddings) | ✅ | **Voyage AI** (`voyage-3.5`, 1024-dim) si `VOYAGE_API_KEY`, sinon repli lexical |
+| API REST + temps réel (Reverb) | ✅ | Contrat dans [`docs/contrat-api.md`](docs/contrat-api.md) |
+| Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
+| Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
+| **Audio / TTS / ambiance sonore** | ❌ | **Non implémenté.** Le texte de narration est généré et affiché ; il n'est ni lu ni sonorisé (placeholders visuels seulement) |
+| **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |
+| Déploiement public / WAN durci | 🚫 | Hors périmètre — LAN/VPN uniquement |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+**Jouable sans aucune clé API :** chaque tâche IA a un repli (menus du moteur,
+narration neutre, noms de monstres du catalogue) et le RAG bascule en lexical.
+Les clés n'améliorent que la **qualité narrative**, jamais la mécanique.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## 🧱 Stack
 
-## Agentic Development
+Monolithe **Laravel** modulaire (PHP 8.3) + SPA **Vue 3** + **Reverb** (WebSocket)
++ **MariaDB** (état de jeu exact) + **Qdrant** (RAG), le tout sur un seul
+`docker-compose`. LLM via l'**API Anthropic**. Tout tourne en conteneurs —
+**ni PHP, ni Node, ni navigateur requis sur l'hôte**.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## 🚀 Démarrage rapide
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+./setup.sh                            # install interactif : écrit .env, build, démarre, migre + seed
+docker compose --profile dev up -d    # mode dev (phpMyAdmin 127.0.0.1:8081 + Vite hot reload 5173)
+docker compose up -d                  # mode « prod » LAN
+docker compose exec app php artisan   # n'importe quelle commande artisan
+docker compose logs -f app queue      # suivre l'app et les jobs IA
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Clés (facultatives) dans `.env` uniquement, **jamais dans les images** :
+`ANTHROPIC_API_KEY` (narration) et `VOYAGE_API_KEY` (RAG sémantique).
+Après modification des clés : recréer les conteneurs `app`/`queue`/`reverb`
+**et redémarrer `web`** (nginx met en cache l'IP de l'app → 502 sinon).
 
-## Contributing
+## 🎮 Comment on joue
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1. **Le narrateur** (la tablette / l'écran partagé) ouvre `/narrateur` et saisit le **code du groupe** — pas de compte, juste un *heartbeat* qui le marque « actif ».
+2. **Chaque joueur** ouvre `/joueur`, se crée un compte, choisit un héros de son roster, et **crée un groupe** (depuis un héros libre) ou **rejoint** par code.
+3. Quand **tous les membres sont « prêts »** et qu'un **narrateur est actif**, la quête démarre.
+4. La table affiche carte + narration ; chaque téléphone est une **manette** qui propose le menu de choix du héros.
 
-## Code of Conduct
+## 🧪 Tests
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`).
 
-## Security Vulnerabilities
+```bash
+docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
+  -e DB_CONNECTION=sqlite -e DB_DATABASE=/app/database/database.sqlite \
+  composer:2 ./vendor/bin/pest
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 🗂️ Architecture (modules Laravel, nommage français)
 
-## License
+- **`app/Engine`** — règles pures (dés, jets, combat, déplacement, sorts mentaux). Cœur autoritaire, dés injectables et seedables. Fortement testé.
+- **`app/Agent`** — agent MJ unique : `AnthropicClient` (tool use forcé), `Skills/` (une par tâche : squelette, détail de quête, menu, narration — schéma JSON + validation catalogue + repli), `Memoire/` (assemblage de contexte, bible Qdrant, embeddings).
+- **`app/Partie`** — services de boucle de jeu orchestrant Engine + Models.
+- **`app/Models`** — Eloquent sur le schéma de la doc 12 ; catalogues = données de seed.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## 📚 Documentation
+
+- **`docs/contrat-api.md`** — contrat API / front / temps réel (**source de vérité** ; à modifier en premier).
+- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**.
+- **`CLAUDE.md`** — guide pour les agents de code (incantations Docker, gotchas).
+
+## 🔒 Sécurité (doc 11)
+
+- MariaDB, phpMyAdmin et Qdrant ne sont **jamais exposés** hors du réseau compose (phpMyAdmin bind 127.0.0.1 seulement).
+- Auth simple **acceptable en LAN/VPN uniquement**. Exposition WAN → proxy TLS + auth durcie (VPN recommandé à la place).
+- Une campagne complète = les volumes `mariadb_data` **et** `qdrant_data` — à sauvegarder ensemble.
+
+## 🛣️ Reste à faire (court terme)
+
+- **Audio** : lecture TTS de la narration sur l'écran de table (Web Speech API, sans clé) + ambiance sonore (prévu docs 05/06, non implémenté).
+- **Équilibrage** : régler stats / prix / difficultés en playtest (la tactique du bot de test est limitée — un humain place mieux ses héros).
+- Phase 2 (doc 00 §8) : alliés recrutables, marchandage, ramifications profondes, boss multi-phases, etc.
