@@ -10,7 +10,9 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\JetCompetence;
 use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
+use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
+use App\Partie\Audio\BanqueBarks;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
@@ -70,6 +72,7 @@ final class ResolveurTour
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
+        private readonly BanqueBarks $barks,
     ) {}
 
     /**
@@ -377,6 +380,10 @@ final class ResolveurTour
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        // Bark d'ambiance du monstre touché (mort / blessé / paré), best-effort.
+        $this->diffuserBark($groupe, $instance,
+            $resultat->pvBodyApres === 0 ? 'mort' : ($resultat->degats > 0 ? 'touche' : 'rate'));
 
         return $payload;
     }
@@ -1420,7 +1427,28 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
+        // Bark d'ambiance : cri d'attaque du monstre, best-effort.
+        $this->diffuserBark($groupe, $instance, 'attaque');
+
         return $payload;
+    }
+
+    /**
+     * Diffuse un bark de monstre (pur ambiance) sur le canal de groupe — joué
+     * par l'écran de table. Best-effort : ni le combat ni l'API ne dépendent de
+     * l'audio (pas de bark configuré → simplement rien).
+     */
+    private function diffuserBark(Groupe $groupe, InstanceMonstre $instance, string $evenement): void
+    {
+        $bark = $this->barks->pourInstance($instance, $evenement);
+
+        if ($bark === null) {
+            return;
+        }
+
+        broadcast(new BarkDiffuse(
+            $groupe, $bark['profil'], $bark['evenement'], $bark['nom'], $bark['texte'], $bark['url'],
+        ));
     }
 
     /**

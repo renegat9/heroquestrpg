@@ -17,6 +17,7 @@ import MarketPanel from '../components/table/MarketPanel.vue';
 import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRAPS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
+import { useVoix } from '../composables/useVoix';
 import {
     carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
     initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
@@ -31,6 +32,7 @@ const store = useGameStore();
 store.setGroupe(props.groupe);
 const api = useApi();
 const router = useRouter();
+const voix = useVoix();
 
 /* ---- chargement de l'état + abonnement temps réel ---- */
 const desabonnements = [];
@@ -39,7 +41,8 @@ onMounted(async () => {
         store.appliquerEtat(await api.getEtat(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
             '.groupe.etat': (e) => store.appliquerEtat(e),
-            '.narration.diffusee': (e) => store.setNarration(e.texte),
+            '.narration.diffusee': (e) => { store.setNarration(e.texte); voix.narrer(e.texte); },
+            '.bark.diffuse': (e) => voix.jouerBark(e),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
             '.marche.ouvert': (e) => store.appliquerMarche(e),
             '.marche.maj': (e) => store.appliquerMarche(e),
@@ -361,8 +364,19 @@ const combatRef = ref(null);
             </div>
 
             <!-- narration -->
-            <NarrationBand :text="narration" @replay="combatRef?.play()" />
+            <NarrationBand :text="narration" :speaking="voix.speaking.value" @replay="combatRef?.play()" />
         </div>
+
+        <!-- Activation de la voix du MJ (déblocage autoplay : geste requis par le navigateur) -->
+        <button
+            v-if="voix.supporte && !voix.actif.value"
+            class="voix-activer"
+            type="button"
+            @click="voix.activer()"
+        >
+            <MSym n="volume_up" /> Activer la voix du MJ
+        </button>
+
         <DemoBadge />
     </div>
 </template>
@@ -592,4 +606,15 @@ const combatRef = ref(null);
 .table-screen .cloture-band .btn { padding: 8px 13px; font-size: 12.5px; text-decoration: none; white-space: nowrap; }
 .table-screen .cloture-band .cerr { font-size: 12px; font-weight: 700; color: var(--danger, #c33); white-space: nowrap; }
 /* (keyframes fadein : déjà défini globalement dans manette.css) */
+
+/* Bouton d'activation de la voix du MJ (déblocage autoplay) */
+.voix-activer { position: fixed; right: 18px; bottom: 18px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 10px 16px; border-radius: 999px; border: var(--line);
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep));
+  color: var(--parch-100); font-weight: 700; font-size: 13px;
+  box-shadow: 0 0 24px oklch(0.76 0.155 65 / 0.25), var(--sh-3);
+  animation: table-voix-pulse 2s ease-in-out infinite; }
+.voix-activer:hover { filter: brightness(1.08); }
+@keyframes table-voix-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 </style>

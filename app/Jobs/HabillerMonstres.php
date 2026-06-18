@@ -78,6 +78,7 @@ class HabillerMonstres implements ShouldQueue
         $habillages = collect($sortie['habillages'] ?? [])->keyBy(fn ($h) => (int) $h['monstre_id']);
 
         if ($habillages->isEmpty()) {
+            GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
             return; // repli : rien à appliquer.
         }
 
@@ -96,5 +97,8 @@ class HabillerMonstres implements ShouldQueue
 
         // La table rafraîchit les noms affichés.
         broadcast(new EtatGroupeDiffuse($groupe, app(EtatGroupe::class)->payload($groupe->fresh())));
+
+        // Barks nommés des boss/sous-boss (best-effort, sans clé = repli archétype).
+        GenererBarksBoss::dispatch($this->queteId);
     }
 }

@@ -34,7 +34,7 @@ moteur résout l'option choisie*.
 | API REST + temps réel (Reverb) | ✅ | Contrat dans [`docs/contrat-api.md`](docs/contrat-api.md) |
 | Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
 | Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
-| **Audio / TTS / ambiance sonore** | ❌ | **Non implémenté.** Le texte de narration est généré et affiché ; il n'est ni lu ni sonorisé (placeholders visuels seulement) |
+| **Audio / voix** | 🟡 | Narration MJ **lue en TTS** (Web Speech, sans clé) + **barks de monstres** (attaque/touché/raté/mort, voix par archétype, répliques nommées de boss). Audio pré-généré via `php artisan barks:generer` (Gemini TTS) ; **sans clé**, l'écran de table lit le texte des barks. Reste : ambiance/musique de fond |
 | **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |
 | Déploiement public / WAN durci | 🚫 | Hors périmètre — LAN/VPN uniquement |
 
@@ -104,6 +104,6 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 
 ## 🛣️ Reste à faire (court terme)
 
-- **Audio** : lecture TTS de la narration sur l'écran de table (Web Speech API, sans clé) + ambiance sonore (prévu docs 05/06, non implémenté).
+- **Audio** : narration TTS et barks de monstres faits ; reste l'**ambiance/musique de fond**. Pour les voix de barks générées, poser `GEMINI_API_KEY` puis `docker compose exec app php artisan barks:generer`.
 - **Équilibrage** : régler stats / prix / difficultés en playtest (la tactique du bot de test est limitée — un humain place mieux ses héros).
 - Phase 2 (doc 00 §8) : alliés recrutables, marchandage, ramifications profondes, boss multi-phases, etc.

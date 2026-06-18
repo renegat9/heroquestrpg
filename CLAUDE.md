@@ -8,6 +8,8 @@ HeroQuest-based tabletop RPG with an AI game master ("MJ IA"). Self-hosted, inte
 
 **AI GM is wired and verified live.** With `ANTHROPIC_API_KEY` (model `claude-sonnet-4-6`) the GM produces real skeletons/narration/menus/monster dressing; with `VOYAGE_API_KEY` (`voyage-3.5`, 1024-dim) the bible does real semantic RAG. The binding auto-selects `EmbeddingsVoyage` when the Voyage key is set, else `EmbeddingsNuls` (lexical, dev). **The game must stay playable without either key** — every AI job falls back (engine-built menus, neutral narration, catalog monster names). After changing `.env` keys, recreate the `app`/`queue`/`reverb` containers AND restart `web` (nginx caches the app upstream IP — a recreated `app` otherwise returns 502 until `web` restarts).
 
+**Audio (voix).** The table screen reads GM narration via the browser **Web Speech API** (no key) and plays **monster barks** on combat events (`attaque`/`touche`/`rate`/`mort`) broadcast via `BarkDiffuse` on `groupe.{id}`. Bark text lives in `config/barks.php` (voice profile per archetype + `{nom}`-templated boss lines); audio is **pre-generated offline** by `php artisan barks:generer` (and `GenererBarksBoss` per quest) using **Gemini TTS** (`GEMINI_API_KEY`, never called during play). `BanqueBarks` resolves text+url; **without the key or assets, the table speaks the bark text via Web Speech** — audio is pure ambiance, never mechanical. Generated WAVs under `public/audio/barks` are gitignored (regenerable).
+
 ## Commands
 
 ```bash

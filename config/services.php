@@ -77,4 +77,21 @@ return [
         'timeout' => (int) env('VOYAGE_TIMEOUT', 30),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Gemini TTS — voix des barks de monstres/boss (doc 05/06, ambiance)
+    |--------------------------------------------------------------------------
+    | Sert UNIQUEMENT à la GÉNÉRATION des assets audio (commande artisan
+    | barks:generer + job par boss). Aucun appel en cours de partie : les
+    | barks sont des fichiers audio pré-générés, joués par l'écran de table.
+    | Sans clé : pas de génération, le jeu lit le texte des barks via la
+    | synthèse vocale du navigateur (Web Speech) — toujours jouable sans clé.
+    */
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts'),
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 60),
+    ],
+
 ];
