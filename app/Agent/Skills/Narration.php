@@ -73,45 +73,34 @@ class Narration extends Skill
 
     protected function repli(array $contexte): ?array
     {
-        $resultat = $contexte['resultat_moteur'] ?? [];
+        // Variante scriptée (config/narration.php) avec sa vraie voix de
+        // narrateur si l'asset est pré-généré — le jeu reste jouable sans LLM.
+        return app(\App\Partie\Narration\BibliothequeNarration::class)
+            ->repli($this->cleRepli($contexte['resultat_moteur'] ?? []));
+    }
 
-        // Étapes de la boucle de partie (résolues par le moteur) : narration
-        // neutre dédiée, le jeu reste jouable sans LLM.
-        switch ($resultat['type'] ?? null) {
-            case 'quete_demarree':
-                return [
-                    'texte' => 'Le groupe franchit le seuil du donjon. Les torches crépitent, et quelque part dans l\'obscurité, quelque chose attend.',
-                    'ambiance' => 'mystere',
-                ];
-            case 'reprise':
-                return [
-                    'texte' => 'Le fil du destin se rembobine : le groupe se retrouve là où tout pouvait encore basculer, armes en main et souffle court. L\'aventure reprend.',
-                    'ambiance' => 'mystere',
-                ];
-            case 'deplacement':
-                return ['texte' => 'Vous progressez dans le donjon, pas à pas, attentifs au moindre bruit.', 'ambiance' => 'tension'];
-        }
-
-        if (($resultat['quete']['etat'] ?? null) === 'terminee') {
-            return [
-                'texte' => 'Le dernier adversaire s\'effondre : le donjon retombe dans le silence. Le groupe rassemble le butin et reprend le chemin du hub, victorieux.',
-                'ambiance' => 'victoire',
-            ];
-        }
-
-        $texte = match ($resultat['issue'] ?? null) {
-            'reussite' => 'Le geste est sûr et la tentative réussit : le groupe reprend l\'avantage et peut poursuivre.',
-            'reussite_mixte' => 'La tentative aboutit, mais quelque chose accroche au passage — le groupe progresse, sur ses gardes.',
-            'echec' => 'La tentative échoue. Un silence pesant s\'installe, et le groupe doit envisager une autre approche.',
-            default => 'L\'aventure suit son cours : le groupe progresse prudemment dans la pénombre, attentif au moindre bruit.',
+    /**
+     * Mappe un résultat moteur vers la clé de narration scriptée correspondante.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function cleRepli(array $resultat): string
+    {
+        return match ($resultat['type'] ?? null) {
+            'quete_demarree' => 'quete_demarree',
+            'reprise' => 'reprise',
+            'deplacement' => 'deplacement',
+            'attaque' => ($resultat['degats'] ?? 0) > 0
+                ? (($resultat['cible_vaincue'] ?? false) ? 'attaque_mort' : 'attaque_touche')
+                : 'attaque_pare',
+            default => ($resultat['quete']['etat'] ?? null) === 'terminee'
+                ? 'victoire_quete'
+                : match ($resultat['issue'] ?? null) {
+                    'reussite' => 'reussite',
+                    'reussite_mixte' => 'reussite_mixte',
+                    'echec' => 'echec',
+                    default => 'progression',
+                },
         };
-
-        if (($resultat['type'] ?? null) === 'attaque') {
-            $texte = ($resultat['degats'] ?? 0) > 0
-                ? 'Le coup porte et l\'adversaire accuse le choc'.(($resultat['cible_vaincue'] ?? false) ? ' avant de s\'effondrer.' : ', mais reste menaçant.')
-                : 'L\'attaque est parée de justesse : l\'adversaire tient bon et le combat continue.';
-        }
-
-        return ['texte' => $texte, 'ambiance' => 'tension'];
     }
 }

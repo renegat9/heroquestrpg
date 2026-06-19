@@ -47,7 +47,7 @@ middleware `auth` sauf connexion.
 
 | Canal | Événement | Payload | Écouté par |
 |---|---|---|---|
-| `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?} | table (lue en TTS, Web Speech) |
+| `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe | table + manettes |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |

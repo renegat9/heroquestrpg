@@ -26,6 +26,7 @@ class NarrationDiffusee implements ShouldBroadcast
         public readonly string $texte,
         public readonly ?string $ambiance = null,
         public readonly ?int $queteId = null,
+        public readonly ?string $url = null,
     ) {}
 
     public function broadcastOn(): Channel
@@ -47,6 +48,7 @@ class NarrationDiffusee implements ShouldBroadcast
             'texte' => $this->texte,
             'ambiance' => $this->ambiance,
             'quete_id' => $this->queteId,
+            'url' => $this->url,
         ];
     }
 }

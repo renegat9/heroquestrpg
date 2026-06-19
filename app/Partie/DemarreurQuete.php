@@ -6,9 +6,11 @@ namespace App\Partie;
 
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
+use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Jobs\HabillerMonstres;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -52,6 +54,7 @@ final class DemarreurQuete
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly Sauvegarde $sauvegarde,
+        private readonly BibliothequeNarration $narration,
     ) {}
 
     public function demarrer(Groupe $groupe): Quete
@@ -156,6 +159,15 @@ final class DemarreurQuete
 
         // Toute mutation d'état → journal puis broadcast `.groupe.etat` (contrat).
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));
+
+        // Cérémonie de lancement (tous prêts → c'est parti) : réplique scriptée
+        // du narrateur, jouée IMMÉDIATEMENT (vraie voix si l'asset existe), AVANT
+        // la narration d'ambiance de l'IA. Toujours disponible, sans LLM.
+        $ceremonie = $this->narration->lancement();
+        broadcast(new NarrationDiffusee(
+            $groupe, $ceremonie['texte'],
+            ambiance: $ceremonie['ambiance'], queteId: $quete->id, url: $ceremonie['url'],
+        ));
 
         // Mise en récit + menus par jobs (repli garanti : l'API ne dépend pas du LLM).
         broadcast(new MjReflechit($groupe, true));

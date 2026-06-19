@@ -41,7 +41,7 @@ onMounted(async () => {
         store.appliquerEtat(await api.getEtat(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
             '.groupe.etat': (e) => store.appliquerEtat(e),
-            '.narration.diffusee': (e) => { store.setNarration(e.texte); voix.narrer(e.texte); },
+            '.narration.diffusee': (e) => { store.setNarration(e.texte); voix.narrer({ texte: e.texte, url: e.url }); },
             '.bark.diffuse': (e) => voix.jouerBark(e),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
             '.marche.ouvert': (e) => store.appliquerMarche(e),

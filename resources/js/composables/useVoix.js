@@ -55,11 +55,53 @@ function parler(texte, { pitch = 1, rate = 1, volume = 1 } = {}) {
     window.speechSynthesis.speak(u);
 }
 
-// Lit la narration du MJ (interrompt une lecture en cours).
-function narrer(texte) {
-    if (!supporte || !actif.value || !texte) return;
+// Lit la narration du MJ. Joue le fichier audio (vraie voix de narrateur) si
+// `url` est fournie, sinon lit le texte via Web Speech. File à UN SEUL créneau :
+// si une narration est déjà en cours (p. ex. la cérémonie de lancement), la
+// suivante (narration d'ambiance de l'IA) attend la fin plutôt que de la couper.
+let narrAudio = null;
+let narrPending = null;
+let narrBusy = false;
+
+function narrer(p) {
+    const payload = typeof p === 'string' ? { texte: p } : (p || {});
+    if (!actif.value || (!payload.texte && !payload.url)) return;
+    if (narrBusy) { narrPending = payload; return; } // remplace l'éventuel créneau en attente
+    lancerNarration(payload);
+}
+
+function lancerNarration({ texte, url }) {
+    narrBusy = true;
+    speaking.value = true;
+    const fin = () => {
+        narrBusy = false;
+        speaking.value = false;
+        narrAudio = null;
+        if (narrPending) { const n = narrPending; narrPending = null; lancerNarration(n); }
+    };
+    if (url) {
+        try {
+            narrAudio = new Audio(url);
+            narrAudio.onended = fin;
+            narrAudio.onerror = () => narrerVocal(texte, fin);
+            narrAudio.play().catch(() => narrerVocal(texte, fin));
+            return;
+        } catch {
+            // bascule sur la voix navigateur
+        }
+    }
+    narrerVocal(texte, fin);
+}
+
+function narrerVocal(texte, fin) {
+    if (!supporte || !texte) { fin(); return; }
     window.speechSynthesis.cancel();
-    parler(texte, { pitch: 1, rate: 1 });
+    const u = new SpeechSynthesisUtterance(String(texte));
+    u.lang = 'fr-FR';
+    if (voixFr) u.voice = voixFr;
+    u.onend = fin;
+    u.onerror = fin;
+    window.speechSynthesis.speak(u);
 }
 
 // Joue un bark : fichier audio si présent, sinon repli vocal selon le profil.

@@ -10,6 +10,8 @@ HeroQuest-based tabletop RPG with an AI game master ("MJ IA"). Self-hosted, inte
 
 **Audio (voix).** The table screen reads GM narration via the browser **Web Speech API** (no key) and plays **monster barks** on combat events (`attaque`/`touche`/`rate`/`mort`) broadcast via `BarkDiffuse` on `groupe.{id}`. Bark text lives in `config/barks.php` (voice profile per archetype + `{nom}`-templated boss lines); audio is **pre-generated offline** by `php artisan barks:generer` (and `GenererBarksBoss` per quest) using **Gemini TTS** (`GEMINI_API_KEY`, never called during play). `BanqueBarks` resolves text+url; **without the key or assets, the table speaks the bark text via Web Speech** — audio is pure ambiance, never mechanical. Generated WAVs under `public/audio/barks` are gitignored (regenerable).
 
+**Narrator voice.** Scripted narrator lines live in `config/narration.php` (`lancement` ceremony — broadcast immediately by `DemarreurQuete` when a quest starts — and `repli` variants per beat used by the `Narration` skill when the LLM is off). `php artisan narration:generer` pre-generates a **dedicated narrator voice** (Gemini, profile `narration.voix`) into `public/audio/narration/{cle}/{i}.wav`; `GenererNarration` also synthesizes **dynamic AI narration at runtime**, cached by `sha1(texte)` under `public/audio/narration/dyn/`. `NarrationDiffusee` carries an optional `url`; the table plays it, else Web Speech reads the text. `BibliothequeNarration` resolves all of this. ⚠ **Gemini TTS quota:** the preview model `gemini-2.5-flash-tts` caps at **100 requests/day even with billing enabled** — generation commands are resumable (skip existing); spread bank generation across days or use Google Cloud TTS for higher limits.
+
 ## Commands
 
 ```bash
