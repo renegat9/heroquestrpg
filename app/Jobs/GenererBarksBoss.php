@@ -72,11 +72,14 @@ class GenererBarksBoss implements ShouldQueue
                     try {
                         $wav = $tts->synthetiser($texte, $voix, $style);
                     } catch (\Throwable $e) {
-                        Log::warning('Génération bark boss impossible — repli archétype.', [
-                            'quete' => $this->queteId, 'instance' => $instance->id, 'erreur' => $e->getMessage(),
+                        // Échec transitoire d'UNE réplique : on la saute et on
+                        // garde les autres (repli archétype sur celle-ci seulement).
+                        Log::warning('Génération bark boss : réplique sautée.', [
+                            'quete' => $this->queteId, 'instance' => $instance->id,
+                            'ligne' => "{$evenement}/{$i}", 'erreur' => $e->getMessage(),
                         ]);
 
-                        return; // on abandonne proprement : repli complet.
+                        continue;
                     }
 
                     $absolu = public_path("{$base}/{$relatif}");
