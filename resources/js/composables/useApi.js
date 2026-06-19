@@ -171,6 +171,27 @@ export function useApi() {
         /** GET /api/groupes/{identifiant}/etat → EtatGroupe. */
         getEtat: (identifiant) => request('GET', `/groupes/${identifiant}/etat`),
 
+        /**
+         * GET etat AVEC REPRISE : juste après l'ouverture de la table ou la
+         * création d'un groupe, la session peut ne pas être encore visible côté
+         * serveur (course d'écriture) → 401/403 transitoire. On réessaie quelques
+         * fois avant d'abandonner, ce qui évite de retomber à tort sur la démo.
+         */
+        getEtatReprise: async (identifiant, tentatives = 4, delaiMs = 500) => {
+            let derniere;
+            for (let i = 0; i < tentatives; i++) {
+                try {
+                    return await request('GET', `/groupes/${identifiant}/etat`);
+                } catch (e) {
+                    derniere = e;
+                    const transitoire = e instanceof ApiError && [0, 401, 403, 500, 502, 503].includes(e.status);
+                    if (!transitoire || i === tentatives - 1) throw e;
+                    await new Promise((r) => setTimeout(r, delaiMs));
+                }
+            }
+            throw derniere;
+        },
+
         /** POST /api/groupes/{identifiant}/quetes → {quete} (démarre la quête suivante). */
         demarrerQuete: (identifiant) => request('POST', `/groupes/${identifiant}/quetes`),
 

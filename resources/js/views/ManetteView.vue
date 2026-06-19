@@ -41,7 +41,7 @@ onMounted(async () => {
     try {
         const { joueur, personnages } = await api.moi();
         store.setJoueur(joueur, personnages);
-        store.appliquerEtat(await api.getEtat(props.groupe));
+        store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(
             souscrireGroupe(props.groupe, {
                 // /moi re-GET (contrat « Sorts des héros ») : la disponibilité

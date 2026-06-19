@@ -38,7 +38,7 @@ const voix = useVoix();
 const desabonnements = [];
 onMounted(async () => {
     try {
-        store.appliquerEtat(await api.getEtat(props.groupe));
+        store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
             '.groupe.etat': (e) => store.appliquerEtat(e),
             '.narration.diffusee': (e) => { store.setNarration(e.texte); voix.narrer({ texte: e.texte, url: e.url }); },

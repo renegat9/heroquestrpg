@@ -83,6 +83,10 @@ export function useGameStore() {
         },
         /** Applique un EtatGroupe complet (GET etat ou .groupe.etat). */
         appliquerEtat(etat) {
+            // Un vrai EtatGroupe est arrivé → on n'est PAS (ou plus) en démo.
+            // Évite l'écran « collé » sur les données de test après un échec
+            // transitoire de la 1re requête (le temps réel reprend la main).
+            state.modeDemo = false;
             state.etat = etat;
             if (typeof etat?.narration === 'string' && etat.narration) state.narration = etat.narration;
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
