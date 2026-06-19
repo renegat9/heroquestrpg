@@ -14,7 +14,6 @@ use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Job IA : mise en récit du dernier résultat moteur (doc 06 §1, étape 5 ;
@@ -76,40 +75,7 @@ class GenererNarration implements ShouldQueue
      */
     private function voix(string $texte, ?string $urlScript, TtsGemini $tts, BibliothequeNarration $lib): ?string
     {
-        if ($urlScript !== null) {
-            return $urlScript;
-        }
-
-        if (! config('narration.voix_dynamique', true) || ! $tts->estConfigure()) {
-            return null;
-        }
-
-        if (($cache = $lib->urlDynamiqueSiCache($texte)) !== null) {
-            return $cache;
-        }
-
-        $cible = $lib->cheminDynamique($texte);
-        $voix = (string) config('narration.voix.voix', 'Iapetus');
-        $style = (string) config('narration.voix.style', 'une voix de conteur, maître de jeu');
-
-        try {
-            $wav = $tts->synthetiser($texte, $voix, $style);
-        } catch (\Throwable $e) {
-            Log::warning('Synthèse narration dynamique impossible — lecture navigateur.', [
-                'groupe' => $this->groupeId, 'erreur' => $e->getMessage(),
-            ]);
-
-            return null;
-        }
-
-        $dossier = dirname($cible['absolu']);
-
-        if (! is_dir($dossier)) {
-            mkdir($dossier, 0775, true);
-        }
-
-        file_put_contents($cible['absolu'], $wav);
-
-        return $cible['url'];
+        // Répliques scriptées → audio déjà résolu ; narration IA → synthèse au vol.
+        return $urlScript ?? $lib->voixDynamique($texte, $tts);
     }
 }

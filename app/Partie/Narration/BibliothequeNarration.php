@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Partie\Narration;
 
+use App\Agent\Audio\TtsGemini;
+use Illuminate\Support\Facades\Log;
+
 /**
  * Répliques scriptées du narrateur (config/narration.php) : cérémonie de
  * lancement + repli par temps fort, avec variantes. Renvoie toujours le TEXTE
@@ -89,5 +92,46 @@ final class BibliothequeNarration
         $c = $this->cheminDynamique($texte);
 
         return is_file($c['absolu']) ? $c['url'] : null;
+    }
+
+    /**
+     * Vraie voix de narrateur pour un texte DYNAMIQUE (narration IA, prémisse) :
+     * renvoie l'URL du cache si présent, sinon synthétise (Gemini, voix
+     * narrateur), met en cache et renvoie l'URL. Best-effort : sans clé /
+     * désactivé / sur échec → null (lecture navigateur côté table).
+     */
+    public function voixDynamique(string $texte, TtsGemini $tts): ?string
+    {
+        if (! config('narration.voix_dynamique', true) || ! $tts->estConfigure()) {
+            return null;
+        }
+
+        if (($cache = $this->urlDynamiqueSiCache($texte)) !== null) {
+            return $cache;
+        }
+
+        $voix = (string) config('narration.voix.voix', 'Iapetus');
+        $style = (string) config('narration.voix.style', 'une voix de conteur, maître de jeu');
+
+        try {
+            $wav = $tts->synthetiser($texte, $voix, $style);
+        } catch (\Throwable $e) {
+            Log::warning('Synthèse voix narrateur (dynamique) impossible — lecture navigateur.', [
+                'erreur' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        $cible = $this->cheminDynamique($texte);
+        $dossier = dirname($cible['absolu']);
+
+        if (! is_dir($dossier)) {
+            mkdir($dossier, 0775, true);
+        }
+
+        file_put_contents($cible['absolu'], $wav);
+
+        return $cible['url'];
     }
 }

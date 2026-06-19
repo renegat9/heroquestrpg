@@ -13,6 +13,7 @@ import DungeonMap from '../components/table/DungeonMap.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import CombatOverlay from '../components/table/CombatOverlay.vue';
+import PrologueOverlay from '../components/table/PrologueOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
 import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRAPS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
@@ -124,6 +125,27 @@ const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Le Seuil des Ombr
 const sousTitre = computed(() => (etat.value
     ? etat.value.groupe?.nom ?? ''
     : "Quête III · La crypte d'ambre"));
+
+/* ---- prologue de campagne (écran d'histoire au lancement) ---- */
+const prologue = computed(() => (etat.value ? etat.value.groupe?.prologue ?? null : null));
+const prologueOuvert = ref(false);
+let prologueVu = false; // une seule ouverture auto par session de table
+
+function ouvrirPrologue() {
+    if (!prologue.value) return;
+    prologueOuvert.value = true;
+    prologueVu = true;
+    voix.narrer({ texte: prologue.value.texte, url: prologue.value.url });
+}
+function fermerPrologue() { prologueOuvert.value = false; }
+function rejouerPrologue() {
+    if (prologue.value) voix.narrer({ texte: prologue.value.texte, url: prologue.value.url });
+}
+
+// Ouverture AUTOMATIQUE au lancement de campagne (aucune quête encore jouée).
+watch(prologue, (p) => {
+    if (p && p.auto && !prologueVu && !store.state.modeDemo) ouvrirPrologue();
+}, { immediate: true });
 
 /* ---- phase hub (mode connecté) : lancer la quête suivante ---- */
 const lancementEnCours = ref(false);
@@ -366,6 +388,23 @@ const combatRef = ref(null);
             <!-- narration -->
             <NarrationBand :text="narration" :speaking="voix.speaking.value" @replay="combatRef?.play()" />
         </div>
+
+        <!-- Prologue de campagne : écran d'histoire au lancement (et relisible) -->
+        <PrologueOverlay
+            v-if="prologueOuvert && prologue"
+            :prologue="prologue"
+            :parle="voix.speaking.value"
+            @commencer="fermerPrologue"
+            @rejouer="rejouerPrologue"
+        />
+        <button
+            v-if="prologue && !prologueOuvert"
+            class="prologue-rouvrir"
+            type="button"
+            @click="ouvrirPrologue"
+        >
+            <MSym n="auto_stories" /> Prologue
+        </button>
 
         <!-- Activation de la voix du MJ (déblocage autoplay : geste requis par le navigateur) -->
         <button
@@ -617,4 +656,12 @@ const combatRef = ref(null);
   animation: table-voix-pulse 2s ease-in-out infinite; }
 .voix-activer:hover { filter: brightness(1.08); }
 @keyframes table-voix-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+/* Bouton « Prologue » (rouvrir l'écran d'histoire) */
+.prologue-rouvrir { position: fixed; left: 18px; bottom: 18px; z-index: 60;
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 9px 15px; border-radius: 999px; border: var(--line);
+  background: var(--stone-850); color: var(--ink-200); font-weight: 700; font-size: 13px;
+  box-shadow: var(--sh-2); transition: color .15s, border-color .15s; }
+.prologue-rouvrir:hover { color: var(--parch-100); border-color: var(--torch); }
 </style>

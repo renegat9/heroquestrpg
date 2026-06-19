@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Agent\Audio\TtsGemini;
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\Exceptions\SortieInvalideException;
 use App\Agent\Memoire\BibleQdrant;
@@ -12,6 +13,7 @@ use App\Agent\Skills\SqueletteCampagne;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Models\Groupe;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -34,7 +36,7 @@ class GenererSqueletteCampagne implements ShouldQueue
 
     public function __construct(public readonly int $groupeId) {}
 
-    public function handle(SqueletteCampagne $skill, ContexteAssembleur $assembleur, BibleQdrant $bible): void
+    public function handle(SqueletteCampagne $skill, ContexteAssembleur $assembleur, BibleQdrant $bible, TtsGemini $tts, BibliothequeNarration $narration): void
     {
         $groupe = Groupe::findOrFail($this->groupeId);
 
@@ -77,7 +79,14 @@ class GenererSqueletteCampagne implements ShouldQueue
 
             $this->amorcerBible($bible, $groupe, $squelette);
 
-            broadcast(new NarrationDiffusee($groupe, (string) $squelette['premisse'], ambiance: 'mystere'));
+            // Prologue : prémisse en vraie voix de narrateur (synthèse + cache,
+            // best-effort). L'URL sera ré-exposée par EtatGroupe → l'écran de
+            // table peut afficher/relire le prologue même s'il ouvre plus tard.
+            $premisse = (string) $squelette['premisse'];
+            broadcast(new NarrationDiffusee(
+                $groupe, $premisse, ambiance: 'mystere',
+                url: $narration->voixDynamique($premisse, $tts),
+            ));
         } finally {
             broadcast(new MjReflechit($groupe, false));
         }

@@ -26,7 +26,9 @@ middleware `auth` sauf connexion.
 
 ```json
 {
-  "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours"},
+  "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours",
+             "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
+                          "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p"]]},
   "entites": [
@@ -42,6 +44,10 @@ middleware `auth` sauf connexion.
 ```
 
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub.
+`groupe.prologue` (hub uniquement) porte la prémisse de campagne + la menace pour
+l'écran de prologue de la table ; `auto` est vrai tant qu'aucune quête n'a eu lieu
+(ouverture automatique au lancement). `url` = vraie voix de narrateur si générée,
+sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
 
 ## Canaux Reverb (préfixe d'événement = broadcastAs)
 

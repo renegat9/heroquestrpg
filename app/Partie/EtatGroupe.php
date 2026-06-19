@@ -12,6 +12,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -58,6 +59,19 @@ final class EtatGroupe
                 fn (int $pid) => ['personnage_id' => $pid, 'pret' => (bool) ($prets[$pid] ?? false)],
                 $personnagesActifs,
             );
+
+            // Prologue de campagne (prémisse + menace) : exposé au hub pour que
+            // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
+            // quête n'a eu lieu) déclenche l'ouverture automatique au lancement.
+            $premisse = data_get($groupe->plan_campagne, 'premisse');
+            if (is_string($premisse) && $premisse !== '') {
+                $preambuleGroupe['prologue'] = [
+                    'texte' => $premisse,
+                    'url' => app(BibliothequeNarration::class)->urlDynamiqueSiCache($premisse),
+                    'menace' => data_get($groupe->plan_campagne, 'menace'),
+                    'auto' => ! $groupe->quetes()->exists(),
+                ];
+            }
         }
 
         return [
