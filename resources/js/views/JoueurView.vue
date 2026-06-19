@@ -170,15 +170,15 @@ const creerGroupeEnCours = ref({});
 const erreurCreerGroupe = ref({});
 
 const longueurs = [
-    { v: 'court', l: 'Court', sub: '3 quêtes' },
-    { v: 'moyen', l: 'Moyen', sub: '8 quêtes' },
-    { v: 'long', l: 'Épique', sub: '15+ quêtes' },
+    { v: 'courte', l: 'Court', sub: '3 à 5 quêtes' },
+    { v: 'normale', l: 'Moyen', sub: '7 à 10 quêtes' },
+    { v: 'longue', l: 'Épique', sub: '12 à 15 quêtes' },
 ];
 
 function initCreerGroupe(id) {
     if (!nomGroupe.value[id]) nomGroupe.value = { ...nomGroupe.value, [id]: '' };
     if (!themeGroupe.value[id]) themeGroupe.value = { ...themeGroupe.value, [id]: 'Donjon classique' };
-    if (!longueurGroupe.value[id]) longueurGroupe.value = { ...longueurGroupe.value, [id]: 'moyen' };
+    if (!longueurGroupe.value[id]) longueurGroupe.value = { ...longueurGroupe.value, [id]: 'normale' };
     montrerCreerGroupe.value = { ...montrerCreerGroupe.value, [id]: true };
 }
 
@@ -190,7 +190,7 @@ async function creerGroupe(perso) {
         const { groupe } = await api.creerGroupe({
             nom,
             theme: themeGroupe.value[perso.id] || 'Donjon classique',
-            longueur: longueurGroupe.value[perso.id] || 'moyen',
+            longueur: longueurGroupe.value[perso.id] || 'normale',
             personnage_id: perso.id,
         });
         const { joueur: moi, personnages: persos } = await api.moi();
@@ -426,13 +426,13 @@ function libelleClasse(classe) {
                                         v-for="l in longueurs"
                                         :key="l.v"
                                         class="joueur-radio"
-                                        :class="{ on: (longueurGroupe[perso.id] || 'moyen') === l.v }"
+                                        :class="{ on: (longueurGroupe[perso.id] || 'normale') === l.v }"
                                     >
                                         <input
                                             type="radio"
                                             :name="`longueur-${perso.id}`"
                                             :value="l.v"
-                                            :checked="(longueurGroupe[perso.id] || 'moyen') === l.v"
+                                            :checked="(longueurGroupe[perso.id] || 'normale') === l.v"
                                             @change="longueurGroupe = { ...longueurGroupe, [perso.id]: l.v }"
                                         />
                                         {{ l.l }} <span class="joueur-radio-sub">{{ l.sub }}</span>

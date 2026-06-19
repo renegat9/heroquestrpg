@@ -24,16 +24,16 @@ const erreur = ref('');
 const campName = ref("La Crypte d'Ambre");
 const theme = ref('Donjon classique');
 const tone = ref('hero'); // hero | dark | comic
-const len = ref('moyen'); // court | moyen | long
+const len = ref('normale'); // courte | normale | longue (enum backend)
 const tones = [
     { v: 'hero', ic: 'military_tech', l: 'Héroïque', sub: 'flamboyant' },
     { v: 'dark', ic: 'dark_mode', l: 'Sombre', sub: 'oppressant' },
     { v: 'comic', ic: 'mood', l: 'Comique', sub: 'décalé' },
 ];
 const lengths = [
-    { v: 'court', ic: 'bolt', l: 'Court', sub: '3 quêtes' },
-    { v: 'moyen', ic: 'route', l: 'Moyen', sub: '8 quêtes' },
-    { v: 'long', ic: 'explore', l: 'Épique', sub: '15+ quêtes' },
+    { v: 'courte', ic: 'bolt', l: 'Court', sub: '3 à 5 quêtes' },
+    { v: 'normale', ic: 'route', l: 'Moyen', sub: '7 à 10 quêtes' },
+    { v: 'longue', ic: 'explore', l: 'Épique', sub: '12 à 15 quêtes' },
 ];
 
 /* code local de la maquette — n'est utilisé qu'en repli démo : en mode
