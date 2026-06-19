@@ -41,20 +41,51 @@ it('rend des lignes par profil et retombe sur « defaut » pour un profil absent
         ->and($banque->lignes('profil_bidon', 'rate'))->toBe($banque->lignes('defaut', 'rate'));
 });
 
-it('produit un bark texte pour une instance, sans URL tant qu\'aucun audio n\'est généré', function () {
+it('produit un bark texte pour une instance, sans URL quand aucun audio n\'existe', function () {
+    // Profil synthétique sans asset sur disque → la résolution doit retomber sur
+    // le texte (url null), indépendamment de la banque réellement générée.
+    config([
+        'barks.archetypes' => ['Bestiole Test' => 'profil_sans_audio'],
+        'barks.lignes.profil_sans_audio.touche' => ['Ouille de test !'],
+    ]);
+
     $banque = new BanqueBarks;
 
     $instance = new InstanceMonstre(['quete_id' => 0]);
-    $instance->setRelation('monstre', new Monstre(['nom_base' => 'Gobelin']));
+    $instance->setRelation('monstre', new Monstre(['nom_base' => 'Bestiole Test']));
 
     $bark = $banque->pourInstance($instance, 'touche');
 
     expect($bark)->not->toBeNull()
-        ->and($bark['profil'])->toBe('gobelin')
+        ->and($bark['profil'])->toBe('profil_sans_audio')
         ->and($bark['evenement'])->toBe('touche')
-        ->and($bark['nom'])->toBe('Gobelin')
-        ->and($bark['texte'])->toBeIn($banque->lignes('gobelin', 'touche'))
-        ->and($bark['url'])->toBeNull(); // aucun asset présent → repli Web Speech côté front
+        ->and($bark['nom'])->toBe('Bestiole Test')
+        ->and($bark['texte'])->toBe('Ouille de test !')
+        ->and($bark['url'])->toBeNull(); // aucun asset → repli Web Speech côté front
+});
+
+it('renvoie l\'URL de l\'asset quand le fichier audio existe', function () {
+    // Crée un asset factice pour un profil/événement isolé, puis nettoie.
+    $rel = 'profil_asset_test/touche';
+    $dir = public_path("audio/barks/{$rel}");
+    @mkdir($dir, 0775, true);
+    file_put_contents("{$dir}/0.wav", 'RIFF');
+
+    config([
+        'barks.archetypes' => ['Bestiole Asset' => 'profil_asset_test'],
+        'barks.lignes.profil_asset_test.touche' => ['Avec audio !'],
+    ]);
+
+    $instance = new InstanceMonstre(['quete_id' => 0]);
+    $instance->setRelation('monstre', new Monstre(['nom_base' => 'Bestiole Asset']));
+
+    $bark = (new BanqueBarks)->pourInstance($instance, 'touche');
+
+    expect($bark['url'])->toBe('/audio/barks/profil_asset_test/touche/0.wav');
+
+    @unlink("{$dir}/0.wav");
+    @rmdir($dir);
+    @rmdir(public_path('audio/barks/profil_asset_test'));
 });
 
 // --- Commande de génération sans clé ---------------------------------------

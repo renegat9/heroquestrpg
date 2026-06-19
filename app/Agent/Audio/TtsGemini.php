@@ -25,6 +25,10 @@ final class TtsGemini
     /** Fréquence d'échantillonnage du PCM renvoyé par Gemini TTS. */
     private const TAUX_ECHANTILLONNAGE = 24000;
 
+    /** Réessais sur 429 (rate limit) ; au-delà d'une attente trop longue, on abandonne (quota journalier). */
+    private const MAX_REESSAIS = 6;
+    private const ATTENTE_MAX_SECONDES = 65;
+
     public function __construct(
         private readonly ?string $apiKey = null,
         private readonly ?string $model = null,
@@ -57,20 +61,38 @@ final class TtsGemini
         $base = rtrim($this->baseUrl ?? (string) config('services.gemini.base_url', 'https://generativelanguage.googleapis.com'), '/');
         $url = "{$base}/v1beta/models/{$modele}:generateContent";
 
-        try {
-            $reponse = Http::timeout($this->timeout ?? (int) config('services.gemini.timeout', 60))
-                ->withHeaders(['x-goog-api-key' => $this->cle()])
-                ->post($url, [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => [
-                        'responseModalities' => ['AUDIO'],
-                        'speechConfig' => [
-                            'voiceConfig' => ['prebuiltVoiceConfig' => ['voiceName' => $voix]],
-                        ],
-                    ],
-                ]);
-        } catch (ConnectionException $e) {
-            throw new AppelLlmException('Gemini TTS injoignable : '.$e->getMessage(), previous: $e);
+        $corps = [
+            'contents' => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => [
+                'responseModalities' => ['AUDIO'],
+                'speechConfig' => [
+                    'voiceConfig' => ['prebuiltVoiceConfig' => ['voiceName' => $voix]],
+                ],
+            ],
+        ];
+
+        // Réessais sur 429 (free tier ≈ 3 req/min) en respectant le retryDelay
+        // renvoyé par l'API ; au-delà d'une attente trop longue → quota journalier.
+        for ($tentative = 0; ; $tentative++) {
+            try {
+                $reponse = Http::timeout($this->timeout ?? (int) config('services.gemini.timeout', 60))
+                    ->withHeaders(['x-goog-api-key' => $this->cle()])
+                    ->post($url, $corps);
+            } catch (ConnectionException $e) {
+                throw new AppelLlmException('Gemini TTS injoignable : '.$e->getMessage(), previous: $e);
+            }
+
+            if ($reponse->status() === 429 && $tentative < self::MAX_REESSAIS) {
+                $attente = $this->delaiReessai($reponse, $tentative);
+
+                if ($attente <= self::ATTENTE_MAX_SECONDES) {
+                    sleep($attente);
+
+                    continue;
+                }
+            }
+
+            break;
         }
 
         if ($reponse->failed()) {
@@ -95,6 +117,23 @@ final class TtsGemini
     private function cle(): string
     {
         return trim((string) ($this->apiKey ?? config('services.gemini.api_key', '')));
+    }
+
+    /**
+     * Délai d'attente avant un nouvel essai sur 429 : le `retryDelay` renvoyé
+     * par l'API (details.RetryInfo) s'il est présent, sinon un backoff
+     * exponentiel. +1 s de marge.
+     */
+    private function delaiReessai(\Illuminate\Http\Client\Response $reponse, int $tentative): int
+    {
+        foreach ((array) $reponse->json('error.details', []) as $detail) {
+            if (($detail['@type'] ?? '') === 'type.googleapis.com/google.rpc.RetryInfo'
+                && preg_match('/(\d+(?:\.\d+)?)s/', (string) ($detail['retryDelay'] ?? ''), $m)) {
+                return (int) ceil((float) $m[1]) + 1;
+            }
+        }
+
+        return min(self::ATTENTE_MAX_SECONDES, (2 ** $tentative) + 1);
     }
 
     /**
