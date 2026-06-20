@@ -46,6 +46,8 @@ final class EtatGroupe
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
+            // Scène sonore courante (boucle d'ambiance jouée par la table).
+            'ambiance' => $this->sceneAmbiance($quete),
         ];
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.
@@ -89,6 +91,26 @@ final class EtatGroupe
             'narration' => $this->derniereNarration($groupe),
             'mj_reflechit' => (bool) Cache::get(self::cleMjReflechit($groupe->id), false),
         ];
+    }
+
+    /**
+     * Scène sonore courante, dérivée de l'état (pour la boucle d'ambiance de
+     * la table) : `hub` hors quête, sinon `boss` si un boss/sous-boss est
+     * actif, `combat` s'il reste un monstre actif, `exploration` sinon.
+     */
+    private function sceneAmbiance(?Quete $quete): string
+    {
+        if ($quete === null) {
+            return 'hub';
+        }
+
+        $actifs = $quete->instancesMonstres()->where('etat', 'actif');
+
+        if ((clone $actifs)->whereHas('monstre', fn ($q) => $q->whereIn('tier', ['sous_boss', 'boss']))->exists()) {
+            return 'boss';
+        }
+
+        return $actifs->exists() ? 'combat' : 'exploration';
     }
 
     /**

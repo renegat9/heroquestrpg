@@ -19,6 +19,7 @@ import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRA
 import { souscrireGroupe } from '../composables/useEcho';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
+import { useAmbiance } from '../composables/useAmbiance';
 import {
     carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
     initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
@@ -34,6 +35,13 @@ store.setGroupe(props.groupe);
 const api = useApi();
 const router = useRouter();
 const voix = useVoix();
+const ambiance = useAmbiance();
+
+/** Active la voix ET la musique d'un seul geste (déblocage autoplay navigateur). */
+function activerSon() {
+    voix.activer();
+    ambiance.activer();
+}
 
 /* ---- chargement de l'état + abonnement temps réel ---- */
 const desabonnements = [];
@@ -146,6 +154,10 @@ function rejouerPrologue() {
 watch(prologue, (p) => {
     if (p && p.auto && !prologueVu && !store.state.modeDemo) ouvrirPrologue();
 }, { immediate: true });
+
+/* ---- musique d'ambiance : suit la scène sonore de l'EtatGroupe ---- */
+const sceneAmbiance = computed(() => (etat.value ? etat.value.groupe?.ambiance : null));
+watch(sceneAmbiance, (s) => { if (s) ambiance.definirScene(s); }, { immediate: true });
 
 /* ---- phase hub (mode connecté) : lancer la quête suivante ---- */
 const lancementEnCours = ref(false);
@@ -406,14 +418,24 @@ const combatRef = ref(null);
             <MSym n="auto_stories" /> Prologue
         </button>
 
-        <!-- Activation de la voix du MJ (déblocage autoplay : geste requis par le navigateur) -->
+        <!-- Activation du son (voix du MJ + musique) : geste requis par le navigateur -->
         <button
-            v-if="voix.supporte && !voix.actif.value"
+            v-if="!voix.actif.value"
             class="voix-activer"
             type="button"
-            @click="voix.activer()"
+            @click="activerSon"
         >
-            <MSym n="volume_up" /> Activer la voix du MJ
+            <MSym n="volume_up" /> Activer le son
+        </button>
+        <!-- Une fois le son actif : couper / rétablir la musique d'ambiance -->
+        <button
+            v-else
+            class="ambiance-muet"
+            type="button"
+            :title="ambiance.muet.value ? 'Rétablir la musique' : 'Couper la musique'"
+            @click="ambiance.basculerMuet()"
+        >
+            <MSym :n="ambiance.muet.value ? 'music_off' : 'music_note'" />
         </button>
 
         <DemoBadge />
@@ -656,6 +678,13 @@ const combatRef = ref(null);
   animation: table-voix-pulse 2s ease-in-out infinite; }
 .voix-activer:hover { filter: brightness(1.08); }
 @keyframes table-voix-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+/* Bouton couper/rétablir la musique d'ambiance */
+.ambiance-muet { position: fixed; right: 18px; bottom: 18px; z-index: 60;
+  display: grid; place-items: center; cursor: pointer; width: 44px; height: 44px;
+  border-radius: 999px; border: var(--line); background: var(--stone-850);
+  color: var(--ink-200); box-shadow: var(--sh-2); transition: color .15s, border-color .15s; }
+.ambiance-muet:hover { color: var(--parch-100); border-color: var(--torch); }
 
 /* Bouton « Prologue » (rouvrir l'écran d'histoire) */
 .prologue-rouvrir { position: fixed; left: 18px; bottom: 18px; z-index: 60;

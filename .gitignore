@@ -29,5 +29,7 @@ Thumbs.db
 # captures Playwright (locales)
 browser-shots/*.png
 
-# barks audio générés (régénérables via `php artisan barks:generer`)
+# audio généré/déposé (régénérable / fourni — hors dépôt)
 /public/audio/barks
+/public/audio/narration
+/public/audio/ambiance
