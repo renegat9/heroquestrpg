@@ -102,12 +102,20 @@ class ChoixController extends Controller
         // Un menu = un choix : il est consommé, un nouveau sera proposé.
         Cache::forget($cleMenu);
 
-        // Suite du tour en jobs : narration puis nouveaux menus (doc 11 §4).
-        broadcast(new MjReflechit($groupe, true));
-        GenererNarration::dispatch($groupe->id, $resultat);
+        // L'IA n'intervient que sur les actions NOTABLES. Un simple déplacement
+        // (ou attente), sans changement de phase, reste 100 % moteur → tour
+        // instantané : pas de narration, menus moteur seuls (pas d'appel LLM).
+        $triviale = in_array($resultat['type'] ?? null, ['deplacement', 'attente'], true)
+            && $groupe->fresh()->phase === 'quete';
+
+        if (! $triviale) {
+            // Suite du tour en jobs : narration puis nouveaux menus (doc 11 §4).
+            broadcast(new MjReflechit($groupe, true));
+            GenererNarration::dispatch($groupe->id, $resultat);
+        }
 
         foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id, enrichir: ! $triviale);
         }
 
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.

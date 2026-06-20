@@ -42,6 +42,9 @@ class GenererMenu implements ShouldQueue
         public readonly int $groupeId,
         public readonly int $joueurId,
         public readonly ?int $personnageId = null,
+        // false → menu MOTEUR seul (instantané), sans appel LLM : utilisé pour
+        // les tours triviaux (déplacement/attente) afin d'accélérer le jeu.
+        public readonly bool $enrichir = true,
     ) {}
 
     /** Clé du dernier menu proposé à un joueur dans un groupe. */
@@ -57,6 +60,13 @@ class GenererMenu implements ShouldQueue
 
         // Menu générique du moteur : toujours exécutable, sert de repli.
         $menuGenerique = $menuMoteur->generer($groupe, $personnage);
+
+        // Tour trivial (déplacement/attente) → menu moteur seul, aucun appel LLM.
+        if (! $this->enrichir) {
+            $this->publier($groupe, $personnage, $menuGenerique);
+
+            return;
+        }
 
         try {
             $contexte = $assembleur->assembler($groupe, extra: [
@@ -89,7 +99,17 @@ class GenererMenu implements ShouldQueue
             $menu = $menuGenerique;
         }
 
-        // Dernier menu proposé : référence de validation de POST choix.
+        $this->publier($groupe, $personnage, $menu);
+    }
+
+    /**
+     * Mémorise le menu (référence de validation de POST choix) et le diffuse
+     * sur le canal privé du joueur.
+     *
+     * @param  array<string, mixed>  $menu
+     */
+    private function publier(Groupe $groupe, Personnage $personnage, array $menu): void
+    {
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
             'menu' => $menu,
