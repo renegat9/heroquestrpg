@@ -52,6 +52,14 @@ return [
                 'La lourde porte se referme derrière vous. Il n\'y a plus qu\'un chemin : en avant, vers l\'inconnu.',
             ],
         ],
+        'salle_decouverte' => [
+            'ambiance' => 'mystere',
+            'variantes' => [
+                'Une nouvelle salle se dévoile : l\'air y est plus lourd, et les ombres semblent vous observer.',
+                'Vous pénétrez dans une pièce jusque-là scellée. La pierre suinte, et un silence étrange règne.',
+                'La salle s\'ouvre devant vous, révélant ses recoins obscurs et ses secrets enfouis.',
+            ],
+        ],
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

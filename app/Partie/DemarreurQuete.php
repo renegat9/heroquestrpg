@@ -11,6 +11,7 @@ use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Jobs\HabillerMonstres;
 use App\Partie\Narration\BibliothequeNarration;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -142,6 +143,11 @@ final class DemarreurQuete
 
         // Usages de Dread réarmés pour cette nouvelle quête (MoteurDread).
         $this->dread->reinitialiserUsages($quete);
+
+        // La salle de départ (où les héros apparaissent) est déjà « connue » :
+        // elle est couverte par la narration de démarrage de quête. Les salles
+        // suivantes seront décrites à la première entrée (ResolveurTour).
+        Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0], now()->addMinutes(360));
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'quete_demarree',

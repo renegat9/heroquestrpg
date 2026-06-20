@@ -88,6 +88,7 @@ class Narration extends Skill
     {
         return match ($resultat['type'] ?? null) {
             'quete_demarree' => 'quete_demarree',
+            'salle_decouverte' => 'salle_decouverte',
             'reprise' => 'reprise',
             'deplacement' => 'deplacement',
             'attaque' => ($resultat['degats'] ?? 0) > 0

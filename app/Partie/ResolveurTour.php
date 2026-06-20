@@ -12,6 +12,8 @@ use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
+use App\Events\MjReflechit;
+use App\Jobs\GenererNarration;
 use App\Partie\Audio\BanqueBarks;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
@@ -22,6 +24,7 @@ use App\Models\Quete;
 use App\Models\Sort;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use App\Models\Condition;
@@ -157,6 +160,10 @@ final class ResolveurTour
             };
 
             $etat->update(['a_joue' => true]);
+
+            // Entrée dans une salle encore inexplorée (déplacement classique OU
+            // Traverser la Pierre) → description de la nouvelle salle par le MJ.
+            $this->decouvrirSalle($groupe, $quete, $etat);
 
             // Fin de quête : plus aucun monstre actif → victoire.
             if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
@@ -1431,6 +1438,65 @@ final class ResolveurTour
         $this->diffuserBark($groupe, $instance, 'attaque');
 
         return $payload;
+    }
+
+    /** Clé de cache des salles déjà découvertes d'une quête. */
+    public static function cleSallesDecouvertes(int $queteId): string
+    {
+        return "partie:salles:{$queteId}";
+    }
+
+    /**
+     * Index de la salle (carte.grille.salles) contenant la case (x, y), ou null
+     * si la case n'appartient à aucune salle (couloir).
+     */
+    private function salleA(Quete $quete, int $x, int $y): ?int
+    {
+        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $i => $s) {
+            if ($x >= (int) $s['x'] && $x < (int) $s['x'] + (int) $s['largeur']
+                && $y >= (int) $s['y'] && $y < (int) $s['y'] + (int) $s['hauteur']) {
+                return (int) $i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Si le héros vient d'entrer dans une salle JAMAIS explorée, la marque vue
+     * et déclenche la description de la salle par le MJ (narration). Best-effort,
+     * sans incidence mécanique.
+     */
+    private function decouvrirSalle(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat): void
+    {
+        if ($etat->tombe || $etat->position_x === null) {
+            return;
+        }
+
+        $salle = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            return; // couloir : rien à décrire
+        }
+
+        $cle = self::cleSallesDecouvertes($quete->id);
+        $vues = (array) Cache::get($cle, []);
+
+        if (in_array($salle, $vues, true)) {
+            return; // déjà décrite
+        }
+
+        $vues[] = $salle;
+        Cache::put($cle, $vues, now()->addMinutes(360)); // durée d'une séance
+
+        Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle]);
+
+        broadcast(new MjReflechit($groupe, true));
+        GenererNarration::dispatch($groupe->id, [
+            'type' => 'salle_decouverte',
+            'salle' => $salle,
+            'theme' => data_get($quete->carte?->grille, "salles.{$salle}.theme"),
+        ]);
     }
 
     /**
