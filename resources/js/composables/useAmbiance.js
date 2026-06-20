@@ -8,9 +8,34 @@
 // geste utilisateur (activer()).
 import { ref } from 'vue';
 
-const SCENES = ['hub', 'exploration', 'combat', 'boss'];
+const SCENES = ['hub', 'exploration', 'combat', 'boss', 'victoire', 'defaite'];
 const EXTS = ['ogg', 'mp3', 'wav']; // formats acceptés (essayés dans l'ordre)
 const DUREE_FONDU = 900; // ms
+
+// Manifeste des variantes par scène (généré par audio-tools/lyria-ambiance.mjs) :
+// { scene: ["/audio/ambiance/scene/0.wav", ...] }. Chargé une fois ; absent →
+// repli sur une piste plate {scene}.{ext}.
+let banque = null;
+fetch('/audio/ambiance/manifeste.json', { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { banque = j; })
+    .catch(() => { banque = null; });
+
+function melanger(liste) {
+    const a = [...liste];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// URLs candidates pour une scène : variantes du manifeste si présentes
+// (mélangées → tirage au hasard), sinon piste plate dans les formats connus.
+function urlsScene(scene) {
+    if (Array.isArray(banque?.[scene]) && banque[scene].length) return melanger(banque[scene]);
+    return EXTS.map((e) => `/audio/ambiance/${scene}.${e}`);
+}
 
 const actif = ref(false);   // débloqué par un geste utilisateur
 const muet = ref(false);
@@ -23,14 +48,15 @@ function cibleVolume() {
     return muet.value ? 0 : volume.value;
 }
 
-// Tente de lire la piste d'une scène en essayant les formats dans l'ordre ;
-// résout avec l'élément Audio qui démarre, ou null si aucun format ne charge.
+// Tente de lire une variante (au hasard) de la scène ; résout avec l'élément
+// Audio qui démarre, ou null si aucune piste ne charge.
 function ouvrirPiste(scene) {
     return new Promise((resolve) => {
+        const candidats = urlsScene(scene);
         let i = 0;
         const essayer = () => {
-            if (i >= EXTS.length) { resolve(null); return; }
-            const a = new Audio(`/audio/ambiance/${scene}.${EXTS[i++]}`);
+            if (i >= candidats.length) { resolve(null); return; }
+            const a = new Audio(candidats[i++]);
             a.loop = true;
             a.volume = 0;
             a.play().then(() => resolve(a)).catch(essayer);

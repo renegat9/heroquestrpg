@@ -54,3 +54,33 @@ it('scène combat / exploration / boss selon les monstres actifs', function () {
     $premier->update(['monstre_id' => Monstre::where('nom_base', 'Seigneur')->value('id')]);
     expect(ambianceDe())->toBe('boss');
 });
+
+it('scène « defaite » au hub après un TPK (dernière quête échouée)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => \App\Models\GabaritQuete::query()->value('id'),
+        'titre' => 'Quête 1', 'position_arc' => 1, 'type_jalon' => 'normale',
+        'etat' => 'echouee', 'or_initial' => 0,
+    ]);
+
+    expect(ambianceDe())->toBe('defaite');
+});
+
+it('scène « victoire » au hub après le boss final vaincu', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => \App\Models\GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
+        'titre' => 'Confrontation finale', 'position_arc' => 1, 'type_jalon' => 'boss_final',
+        'etat' => 'terminee', 'or_initial' => 0,
+    ]);
+
+    expect(ambianceDe())->toBe('victoire');
+});

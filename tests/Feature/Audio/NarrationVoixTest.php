@@ -23,7 +23,8 @@ it('fournit une réplique de cérémonie de lancement (variante du catalogue)', 
     expect($c['cle'])->toBe('lancement')
         ->and($c['texte'])->toBeIn(config('narration.lancement.variantes'))
         ->and($c['ambiance'])->toBe('epique')
-        ->and($c['url'])->toBeNull(); // pas d'asset en test → lecture navigateur
+        // url : null si l'asset n'est pas généré, sinon chemin de la voix narrateur
+        ->and($c['url'] === null || str_starts_with($c['url'], '/audio/narration/lancement/'))->toBeTrue();
 });
 
 it('fournit une réplique de repli par temps fort, null si la clé est inconnue', function () {

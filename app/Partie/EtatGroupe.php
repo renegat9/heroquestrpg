@@ -47,7 +47,7 @@ final class EtatGroupe
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
-            'ambiance' => $this->sceneAmbiance($quete),
+            'ambiance' => $this->sceneAmbiance($groupe, $quete),
         ];
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.
@@ -95,22 +95,35 @@ final class EtatGroupe
 
     /**
      * Scène sonore courante, dérivée de l'état (pour la boucle d'ambiance de
-     * la table) : `hub` hors quête, sinon `boss` si un boss/sous-boss est
-     * actif, `combat` s'il reste un monstre actif, `exploration` sinon.
+     * la table). En quête : `boss` si un boss/sous-boss est actif, `combat`
+     * s'il reste un monstre actif, sinon `exploration`. Au hub : `victoire`
+     * après le boss final vaincu (fin de campagne), `defaite` après un TPK
+     * (dernière quête échouée), sinon `hub`.
      */
-    private function sceneAmbiance(?Quete $quete): string
+    private function sceneAmbiance(Groupe $groupe, ?Quete $quete): string
     {
-        if ($quete === null) {
-            return 'hub';
+        if ($quete !== null) {
+            $actifs = $quete->instancesMonstres()->where('etat', 'actif');
+
+            if ((clone $actifs)->whereHas('monstre', fn ($q) => $q->whereIn('tier', ['sous_boss', 'boss']))->exists()) {
+                return 'boss';
+            }
+
+            return $actifs->exists() ? 'combat' : 'exploration';
         }
 
-        $actifs = $quete->instancesMonstres()->where('etat', 'actif');
+        $derniere = $groupe->quetes()->orderByDesc('position_arc')->first();
 
-        if ((clone $actifs)->whereHas('monstre', fn ($q) => $q->whereIn('tier', ['sous_boss', 'boss']))->exists()) {
-            return 'boss';
+        if ($derniere !== null) {
+            if ($derniere->etat === 'echouee') {
+                return 'defaite';
+            }
+            if ($derniere->etat === 'terminee' && $derniere->type_jalon === 'boss_final') {
+                return 'victoire';
+            }
         }
 
-        return $actifs->exists() ? 'combat' : 'exploration';
+        return 'hub';
     }
 
     /**
