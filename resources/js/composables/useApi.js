@@ -171,6 +171,9 @@ export function useApi() {
         /** GET /api/groupes/{identifiant}/etat → EtatGroupe. */
         getEtat: (identifiant) => request('GET', `/groupes/${identifiant}/etat`),
 
+        /** GET menu courant du joueur (rattrapage à la reconnexion) → {menu, personnage_id} | {menu: null}. */
+        getMenu: (identifiant) => request('GET', `/groupes/${identifiant}/menu`),
+
         /**
          * GET etat AVEC REPRISE : juste après l'ouverture de la table ou la
          * création d'un groupe, la session peut ne pas être encore visible côté

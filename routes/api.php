@@ -54,6 +54,8 @@ Route::middleware('auth:joueur')->group(function () {
     // Choix de menu : validation contre le dernier menu proposé + résolution
     // moteur (ResolveurTour), puis narration/menus en jobs.
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
+    // Rattrapage du menu courant du joueur (reconnexion).
+    Route::get('/groupes/{identifiant}/menu', [ChoixController::class, 'menu']);
 
     // Arbres de compétences (montée de niveau par jalons, contrat) :
     // catalogue + acquisition d'un nœud (points dérivés du niveau).

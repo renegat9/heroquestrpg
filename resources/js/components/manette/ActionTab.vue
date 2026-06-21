@@ -103,9 +103,9 @@ function metaOption(o) {
 
     <!-- en attente (pas de menu) -->
     <div v-else-if="!myTurn">
-        <div class="turn-banner wait"><MSym n="hourglass_top" /> En attente du tour des autres héros…</div>
+        <div class="turn-banner wait"><MSym n="hourglass_top" /> Le maître du jeu prépare la suite…</div>
         <InitMini :cur="initCur ?? 'orc'" :order="initOrder" />
-        <div class="empty-note">Les autres agissent. Tu reprendras la main au prochain tour.</div>
+        <div class="empty-note">La partie se poursuit — tu reprendras la main dans un instant.</div>
     </div>
 
     <!-- mode démo : actions locales des maquettes -->

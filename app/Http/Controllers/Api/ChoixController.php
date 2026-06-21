@@ -8,6 +8,7 @@ use App\Events\MjReflechit;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\ResolveurTour;
@@ -121,6 +122,43 @@ class ChoixController extends Controller
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.
         // Le résultat moteur est renvoyé en echo (affichage immédiat des dés).
         return response()->json(['resultat' => $resultat], 202);
+    }
+
+    /**
+     * GET /api/groupes/{identifiant}/menu — RATTRAPAGE du menu courant du joueur
+     * (à la reconnexion : la manette s'abonne aux futurs `.menu.propose` mais a
+     * raté celui déjà émis). Renvoie le menu en cache ; s'il est absent alors
+     * que c'est le tour du héros (quête en cours, debout, n'a pas joué), le
+     * régénère INSTANTANÉMENT (menu moteur, sans LLM) et le renvoie.
+     */
+    public function menu(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+
+        $cle = GenererMenu::cleMenu($groupe->id, (int) $joueur->id);
+        $cache = Cache::get($cle);
+
+        if (! is_array($cache) && $groupe->phase === 'quete' && $groupe->quete_courante_id !== null) {
+            $hero = $groupe->personnages()
+                ->wherePivot('actif', true)
+                ->where('joueur_id', $joueur->id)
+                ->first();
+
+            $etat = $hero === null ? null : EtatPersonnageQuete::query()
+                ->where('quete_id', $groupe->quete_courante_id)
+                ->where('personnage_id', $hero->id)
+                ->first();
+
+            if ($etat !== null && ! $etat->a_joue && ! $etat->tombe) {
+                GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id, enrichir: false);
+                $cache = Cache::get($cle);
+            }
+        }
+
+        return is_array($cache)
+            ? response()->json(['menu' => $cache['menu'], 'personnage_id' => $cache['personnage_id']])
+            : response()->json(['menu' => null]);
     }
 
     /**

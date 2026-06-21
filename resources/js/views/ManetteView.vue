@@ -69,6 +69,10 @@ onMounted(async () => {
                 '.menu.propose': (e) => store.setMenu(e.menu),
             }),
         );
+        // Rattrapage du menu courant : à la reconnexion, on a raté le
+        // `.menu.propose` déjà émis — on le récupère (régénéré si c'est notre tour).
+        api.getMenu(props.groupe).then((r) => { if (r?.menu) store.setMenu(r.menu); }).catch(() => {});
+
         // Rattrapage : phase marché, vote ou clôture déjà en cours (reconnexion).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
         api.getVote(props.groupe).then((r) => {

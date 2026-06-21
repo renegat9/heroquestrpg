@@ -22,6 +22,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | GET | /api/groupes/{identifiant}/etat | — | **EtatGroupe** (voir ci-dessous) |
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
+| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros) |
 
 ## EtatGroupe (GET etat + broadcast `.groupe.etat`)
 
