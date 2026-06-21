@@ -47,7 +47,7 @@ it('scène combat / exploration / boss selon les monstres actifs', function () {
 
     // Un monstre de base actif → combat.
     $premier = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
-    $premier->update(['etat' => 'actif', 'monstre_id' => Monstre::where('nom_base', 'Gobelin')->value('id')]);
+    $premier->update(['etat' => 'actif', 'revele' => true, 'monstre_id' => Monstre::where('nom_base', 'Gobelin')->value('id')]);
     expect(ambianceDe())->toBe('combat');
 
     // Un boss/sous-boss actif → boss.

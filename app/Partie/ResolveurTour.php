@@ -1230,7 +1230,7 @@ final class ResolveurTour
     {
         $actions = [];
 
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->orderBy('id')->get() as $instance) {
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->orderBy('id')->get() as $instance) {
             $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
                 // Voile de Brume : un héros caché (condition « inattaquable »)
                 // est ignoré du ciblage jusqu'à son prochain tour.
@@ -1489,7 +1489,16 @@ final class ResolveurTour
         $vues[] = $salle;
         Cache::put($cle, $vues, now()->addMinutes(360)); // durée d'une séance
 
-        Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle]);
+        // Révélation des monstres de la salle : dormants → actifs visibles
+        // (ils joueront dès la phase des monstres de ce tour).
+        $s = (array) data_get($quete->carte?->grille, "salles.{$salle}");
+        $reveles = $quete->instancesMonstres()
+            ->where('revele', false)
+            ->whereBetween('position_x', [(int) $s['x'], (int) $s['x'] + (int) $s['largeur'] - 1])
+            ->whereBetween('position_y', [(int) $s['y'], (int) $s['y'] + (int) $s['hauteur'] - 1])
+            ->update(['revele' => true]);
+
+        Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle, 'monstres_reveles' => $reveles]);
 
         broadcast(new MjReflechit($groupe, true));
         GenererNarration::dispatch($groupe->id, [

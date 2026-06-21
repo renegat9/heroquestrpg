@@ -83,6 +83,7 @@ it('résout un déplacement : base + 1d6, chemin sur la grille, a_joue marqué',
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
     $cible = caseLibreAdjacente($quete, (int) $etat->position_x, (int) $etat->position_y);
@@ -121,6 +122,7 @@ it('refuse un déplacement hors de portée du jet de déplacement', function () 
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     // Destination : la position d'un monstre au fond du donjon → bien au-delà
     // de 1 + 1d6 cases (et la case est occupée de toute façon).
@@ -184,6 +186,7 @@ it('résout une attaque adjacente qui tue, et termine la quête (butin au pot co
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     // Scénario : il ne reste qu'un monstre, affaibli, au contact du héros.
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
@@ -233,6 +236,7 @@ it('fait jouer les monstres scriptés (C2) quand tous les héros ont joué, puis
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     $positionsAvant = $quete->instancesMonstres()->where('etat', 'actif')->get()
         ->mapWithKeys(fn ($i) => [$i->id => [$i->position_x, $i->position_y]]);

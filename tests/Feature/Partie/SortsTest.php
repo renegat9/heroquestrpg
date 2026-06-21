@@ -92,6 +92,7 @@ function demarrerQueteSorts(bool $avecSecond = false): array
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     return [$alice, $groupe, $mage, $quete, $bob, $brunhilde];
 }
@@ -417,6 +418,7 @@ it('consomme le parchemin du non-lanceur même quand le jet de Mind échoue : ga
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
     $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
     $pvAvant = (int) $proie->pv_body;
 

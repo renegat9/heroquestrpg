@@ -103,7 +103,8 @@ final class EtatGroupe
     private function sceneAmbiance(Groupe $groupe, ?Quete $quete): string
     {
         if ($quete !== null) {
-            $actifs = $quete->instancesMonstres()->where('etat', 'actif');
+            // Seuls les monstres RÉVÉLÉS comptent pour l'ambiance (dormants = exploration).
+            $actifs = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true);
 
             if ((clone $actifs)->whereHas('monstre', fn ($q) => $q->whereIn('tier', ['sous_boss', 'boss']))->exists()) {
                 return 'boss';
@@ -214,6 +215,7 @@ final class EtatGroupe
     private function monstres(Quete $quete): array
     {
         return $quete->instancesMonstres()
+            ->where('revele', true) // les monstres dormants (salle non découverte) restent cachés
             ->with('monstre')
             ->orderBy('id')
             ->get()
@@ -289,6 +291,7 @@ final class EtatGroupe
 
         $monstres = $quete->instancesMonstres()
             ->where('etat', 'actif')
+            ->where('revele', true) // les monstres dormants ne figurent pas dans l'initiative
             ->with('monstre')
             ->orderBy('id')
             ->get()

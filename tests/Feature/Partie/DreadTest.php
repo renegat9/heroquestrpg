@@ -94,6 +94,7 @@ function demarrerQueteBoss(
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     // Récupère le bloc du catalogue.
     $catalogueBoss = Monstre::where('nom_base', $nomBoss)->firstOrFail();
@@ -673,6 +674,7 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     // Remplace le premier monstre par un Champion avec résistance_magique.
     $catalogueBoss = Monstre::where('nom_base', 'Champion')->firstOrFail();

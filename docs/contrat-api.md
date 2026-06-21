@@ -44,6 +44,11 @@ middleware `auth` sauf connexion.
 ```
 
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub.
+**Révélation par salle** : les monstres d'une salle restent DORMANTS (absents de
+`entites` et `initiative`, ne jouent pas) tant que la salle n'a pas été découverte
+par un héros. À la première entrée dans une salle (déplacement ou sort *Traverser
+la Pierre*), ses monstres sont révélés et le MJ décrit la salle (narration). Un
+piège déclenché par un déplacement est lui aussi décrit (narration `piege_declenche`).
 `groupe.prologue` (hub uniquement) porte la prémisse de campagne + la menace pour
 l'écran de prologue de la table ; `auto` est vrai tant qu'aucune quête n'a eu lieu
 (ouverture automatique au lancement). `url` = vraie voix de narrateur si générée,

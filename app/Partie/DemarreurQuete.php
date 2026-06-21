@@ -108,14 +108,20 @@ final class DemarreurQuete
             ]);
 
             foreach ($monstres as $i => $monstre) {
+                $px = $carte['spawn_monstres'][$i]['x'];
+                $py = $carte['spawn_monstres'][$i]['y'];
+
                 InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
                     'pv_body' => $monstre->pv_body, // stats du catalogue, jamais altérées
                     'pv_mind' => $monstre->pv_mind,
-                    'position_x' => $carte['spawn_monstres'][$i]['x'],
-                    'position_y' => $carte['spawn_monstres'][$i]['y'],
+                    'position_x' => $px,
+                    'position_y' => $py,
                     'etat' => 'actif',
+                    // Dormant tant que sa salle n'est pas découverte ; les monstres
+                    // de la salle de départ (rare) sont visibles d'emblée.
+                    'revele' => $this->salleDe($carte['salles'] ?? [], $px, $py) === 0,
                 ]);
             }
 
@@ -209,6 +215,24 @@ final class DemarreurQuete
         }
 
         return $positionArc >= (int) $groupe->nb_quetes_total ? 'boss_final' : 'normale';
+    }
+
+    /**
+     * Index de la salle contenant (x, y) dans la liste des salles assemblées,
+     * ou null (couloir). Sert à décider la visibilité initiale des monstres.
+     *
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     */
+    private function salleDe(array $salles, int $x, int $y): ?int
+    {
+        foreach ($salles as $i => $s) {
+            if ($x >= (int) $s['x'] && $x < (int) $s['x'] + (int) $s['largeur']
+                && $y >= (int) $s['y'] && $y < (int) $s['y'] + (int) $s['hauteur']) {
+                return (int) $i;
+            }
+        }
+
+        return null;
     }
 
     private function choisirGabarit(string $typeJalon): GabaritQuete

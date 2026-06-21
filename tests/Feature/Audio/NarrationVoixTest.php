@@ -32,6 +32,8 @@ it('fournit une réplique de repli par temps fort, null si la clé est inconnue'
 
     expect($lib->repli('quete_demarree')['texte'])->toBeIn(config('narration.repli.quete_demarree.variantes'))
         ->and($lib->repli('victoire_quete')['ambiance'])->toBe('victoire')
+        ->and($lib->repli('salle_decouverte')['texte'])->toBeIn(config('narration.repli.salle_decouverte.variantes'))
+        ->and($lib->repli('piege_declenche')['texte'])->toBeIn(config('narration.repli.piege_declenche.variantes'))
         ->and($lib->repli('cle_bidon'))->toBeNull();
 });
 

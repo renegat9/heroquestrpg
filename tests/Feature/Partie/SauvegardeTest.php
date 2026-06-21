@@ -66,6 +66,7 @@ function demarrerQueteSauvegarde(): array
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     return [$alice, $groupe, $mage, $quete];
 }
@@ -232,8 +233,10 @@ it('reprend après un TPK : POST reprise restaure l\'état à l\'identique et la
     $etatPartage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     expect($etatPartage['groupe']['phase'])->toBe('quete')
         ->and($etatPartage['quete']['etat'])->toBe('en_cours')
-        ->and(collect($etatPartage['entites'])->where('type', 'monstre')->where('etat', 'actif')->count())
-        ->toBe(count($monstresDepart));
+        // Reprise au début de quête : les salles sont à re-découvrir, donc les
+        // monstres sont de nouveau DORMANTS (cachés) jusqu'à ré-exploration.
+        ->and(collect($etatPartage['entites'])->where('type', 'monstre')->count())
+        ->toBe(0);
 });
 
 it('refuse la reprise (422) quand une quête est en cours et non échouée, ou sans snapshot', function () {
@@ -258,6 +261,7 @@ it('purge les snapshots de la quête à la fin de la quête (victoire)', functio
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
 
     expect(Snapshot::where('groupe_id', $groupe->id)->count())->toBe(1);
 

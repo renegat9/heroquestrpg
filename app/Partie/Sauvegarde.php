@@ -16,6 +16,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Snapshot;
 use App\Support\Journal;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -251,6 +252,7 @@ final class Sauvegarde
                     'position_x' => $i->position_x,
                     'position_y' => $i->position_y,
                     'etat' => $i->etat,
+                    'revele' => (bool) $i->revele,
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
@@ -333,6 +335,11 @@ final class Sauvegarde
     {
         InstanceMonstre::query()->where('quete_id', $queteId)->delete();
 
+        // Reprise = on recharge l'état de départ : les salles redeviennent
+        // « à (re)découvrir » (seule celle de départ est connue), cohérent avec
+        // les monstres redevenus dormants dans le snapshot.
+        Cache::put(ResolveurTour::cleSallesDecouvertes($queteId), [0], now()->addMinutes(360));
+
         foreach ($instances as $instance) {
             // forceFill pour conserver l'id d'origine (références stables
             // dans le journal et les menus régénérés).
@@ -345,6 +352,7 @@ final class Sauvegarde
                 'position_x' => $instance['position_x'],
                 'position_y' => $instance['position_y'],
                 'etat' => $instance['etat'],
+                'revele' => $instance['revele'] ?? true,
                 'habillage' => $instance['habillage'],
             ])->save();
         }

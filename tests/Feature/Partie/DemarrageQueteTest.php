@@ -101,10 +101,12 @@ it('démarre une quête jouable : carte assemblée, monstres au budget, initiati
         ->and($etat['quete']['id'])->toBe($quete->id)
         ->and($etat['carte']['largeur'])->toBe($carte->largeur)
         ->and(collect($etat['entites'])->where('type', 'heros'))->toHaveCount(2)
-        ->and(collect($etat['entites'])->where('type', 'monstre'))->toHaveCount($instances->count())
+        // Révélation par salle : les monstres (salles autres que celle de départ)
+        // sont DORMANTS au démarrage → absents des entités et de l'initiative.
+        ->and(collect($etat['entites'])->where('type', 'monstre'))->toHaveCount(0)
         ->and($etat['initiative'][0])->toMatchArray(['entite' => 'heros', 'id' => $a->id, 'a_joue' => false])
         ->and($etat['initiative'][1])->toMatchArray(['entite' => 'heros', 'id' => $b->id, 'a_joue' => false])
-        ->and($etat['initiative'][2]['entite'])->toBe('monstre')
+        ->and(collect($etat['initiative'])->where('entite', 'monstre'))->toHaveCount(0)
         ->and($etat['mj_reflechit'])->toBeFalse();
 
     // Narration de repli (file synchrone, pas de LLM) : le jeu reste raconté.

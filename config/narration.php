@@ -60,6 +60,14 @@ return [
                 'La salle s\'ouvre devant vous, révélant ses recoins obscurs et ses secrets enfouis.',
             ],
         ],
+        'piege_declenche' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Un déclic sinistre ! Le piège se referme dans un fracas — trop tard pour reculer.',
+                'La dalle cède sous le pied : un mécanisme caché s\'active dans un grincement métallique.',
+                'Un sifflement, et le piège jaillit de la pierre — la douleur fuse.',
+            ],
+        ],
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

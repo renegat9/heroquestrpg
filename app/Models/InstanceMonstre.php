@@ -17,6 +17,7 @@ class InstanceMonstre extends Model
         'position_x',
         'position_y',
         'etat',
+        'revele',
         'habillage',
     ];
 
@@ -24,6 +25,7 @@ class InstanceMonstre extends Model
     {
         return [
             'habillage' => 'array',
+            'revele' => 'boolean',
         ];
     }
 
