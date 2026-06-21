@@ -199,6 +199,25 @@ async function creerGroupe(perso) {
     }
 }
 
+// Copier le code de groupe (clipboard si dispo — sinon repli execCommand,
+// car en HTTP le navigateur peut bloquer navigator.clipboard).
+const codeCopie = ref(null);
+async function copierCode(code) {
+    if (!code) return;
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(code);
+        } else {
+            const t = document.createElement('textarea');
+            t.value = code; t.style.position = 'fixed'; t.style.opacity = '0';
+            document.body.appendChild(t); t.select();
+            document.execCommand('copy'); document.body.removeChild(t);
+        }
+        codeCopie.value = code;
+        setTimeout(() => { if (codeCopie.value === code) codeCopie.value = null; }, 1500);
+    } catch { /* best-effort : le code reste lisible/sélectionnable à l'écran */ }
+}
+
 // Reprendre
 async function reprendre(perso) {
     const statut = statutPersonnage(perso);
@@ -374,6 +393,20 @@ function libelleClasse(classe) {
                                     ? 'Narrateur actif'
                                     : 'En attente d\'un narrateur'
                             }}
+                        </div>
+
+                        <!-- code du groupe (à donner au narrateur / aux autres joueurs) -->
+                        <div v-if="!statutPersonnage(perso).disponible" class="pcard-code">
+                            <span class="pcard-code-lbl">Code du groupe</span>
+                            <button
+                                class="pcard-code-val"
+                                type="button"
+                                :title="codeCopie === statutPersonnage(perso).identifiant ? 'Copié !' : 'Copier le code'"
+                                @click="copierCode(statutPersonnage(perso).identifiant)"
+                            >
+                                <code>{{ statutPersonnage(perso).identifiant }}</code>
+                                <MSym :n="codeCopie === statutPersonnage(perso).identifiant ? 'check' : 'content_copy'" :size="13" />
+                            </button>
                         </div>
 
                         <!-- actions : perso LIBRE -->
@@ -715,6 +748,16 @@ function libelleClasse(classe) {
   font-weight: 700; color: var(--ink-600); padding: 6px 10px; border-radius: var(--r-md);
   background: var(--stone-800); border: var(--line); }
 .pcard-narrateur.actif { color: var(--ok); background: oklch(0.6 0.15 145 / 0.08); border-color: oklch(0.6 0.15 145 / 0.3); }
+
+/* code du groupe (engagé) */
+.pcard-code { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; border-radius: var(--r-md); background: var(--stone-800); border: var(--line); }
+.pcard-code-lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-600); }
+.pcard-code-val { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  border: none; background: none; color: var(--torch); font-weight: 800; }
+.pcard-code-val code { font-family: var(--font-mono, monospace); font-size: 14px; letter-spacing: 0.06em;
+  user-select: all; color: var(--parch-100); }
+.pcard-code-val:hover code { color: var(--torch); }
 
 .pcard-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pcard-join-row { align-items: center; }
