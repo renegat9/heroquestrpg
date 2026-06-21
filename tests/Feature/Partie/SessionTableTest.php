@@ -46,11 +46,10 @@ beforeEach(function () {
 // Inscription
 // ---------------------------------------------------------------------------
 
-it('crée un compte et connecte le joueur (inscription)', function () {
+it('crée un compte et connecte le joueur (inscription, sans mot de passe)', function () {
     $reponse = $this->postJson('/api/inscription', [
         'pseudo' => 'Alice',
         'identifiant' => 'alice',
-        'mot_de_passe' => 'secret123',
     ]);
 
     $reponse->assertStatus(201)
@@ -63,34 +62,40 @@ it('crée un compte et connecte le joueur (inscription)', function () {
 });
 
 it('refuse l\'inscription si l\'identifiant est déjà pris (422)', function () {
-    $this->postJson('/api/inscription', [
-        'pseudo' => 'Alice',
-        'identifiant' => 'alice',
-        'mot_de_passe' => 'secret123',
-    ])->assertStatus(201);
+    $this->postJson('/api/inscription', ['pseudo' => 'Alice', 'identifiant' => 'alice'])->assertStatus(201);
 
     // Deuxième tentative avec le même identifiant.
-    $this->postJson('/api/inscription', [
-        'pseudo' => 'Alice Bis',
-        'identifiant' => 'alice',
-        'mot_de_passe' => 'autremotdepasse',
-    ])->assertStatus(422)->assertJsonValidationErrors(['identifiant']);
+    $this->postJson('/api/inscription', ['pseudo' => 'Alice Bis', 'identifiant' => 'alice'])
+        ->assertStatus(422)->assertJsonValidationErrors(['identifiant']);
 });
 
 it('valide les champs obligatoires de l\'inscription', function () {
-    // Mot de passe trop court.
-    $this->postJson('/api/inscription', [
-        'pseudo' => 'Bob',
-        'identifiant' => 'bob',
-        'mot_de_passe' => 'abc',
-    ])->assertStatus(422)->assertJsonValidationErrors(['mot_de_passe']);
-
     // identifiant non alpha_dash (espace).
-    $this->postJson('/api/inscription', [
-        'pseudo' => 'Bob',
-        'identifiant' => 'bob avec espace',
-        'mot_de_passe' => 'secret123',
-    ])->assertStatus(422)->assertJsonValidationErrors(['identifiant']);
+    $this->postJson('/api/inscription', ['pseudo' => 'Bob', 'identifiant' => 'bob avec espace'])
+        ->assertStatus(422)->assertJsonValidationErrors(['identifiant']);
+
+    // pseudo manquant.
+    $this->postJson('/api/inscription', ['identifiant' => 'bob'])
+        ->assertStatus(422)->assertJsonValidationErrors(['pseudo']);
+});
+
+it('connecte par NOM seul (sans mot de passe), par identifiant ou pseudo', function () {
+    $this->postJson('/api/inscription', ['pseudo' => 'Renégat', 'identifiant' => 'renegat'])->assertStatus(201);
+    $this->postJson('/api/deconnexion')->assertOk();
+
+    // Par identifiant (insensible à la casse).
+    $this->postJson('/api/connexion', ['identifiant' => 'RENEGAT'])
+        ->assertOk()->assertJsonPath('joueur.identifiant', 'renegat');
+    $this->postJson('/api/deconnexion')->assertOk();
+
+    // Par pseudo.
+    $this->postJson('/api/connexion', ['identifiant' => 'Renégat'])
+        ->assertOk()->assertJsonPath('joueur.identifiant', 'renegat');
+
+    // Nom inconnu → 422.
+    $this->postJson('/api/deconnexion')->assertOk();
+    $this->postJson('/api/connexion', ['identifiant' => 'fantome'])
+        ->assertStatus(422)->assertJsonValidationErrors(['identifiant']);
 });
 
 // ---------------------------------------------------------------------------

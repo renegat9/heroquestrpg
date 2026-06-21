@@ -93,16 +93,16 @@ export function useApi() {
 
         // ---- authentification (session Laravel, guard `joueur`) ----
 
-        /** POST /api/connexion {identifiant, mot_de_passe} → {joueur}. */
-        connexion: (identifiant, motDePasse) =>
-            request('POST', '/connexion', { identifiant, mot_de_passe: motDePasse }),
+        /** POST /api/connexion {identifiant} → {joueur}. Jeu LAN : nom seul, sans mot de passe. */
+        connexion: (identifiant) =>
+            request('POST', '/connexion', { identifiant }),
 
         /**
-         * POST /api/inscription {pseudo, identifiant, mot_de_passe}
-         * → crée le compte et connecte ; 422 si identifiant pris.
+         * POST /api/inscription {pseudo, identifiant}
+         * → crée le compte et connecte ; 422 si identifiant pris. Sans mot de passe.
          */
-        inscription: ({ pseudo, identifiant, mot_de_passe }) =>
-            request('POST', '/inscription', { pseudo, identifiant, mot_de_passe }),
+        inscription: ({ pseudo, identifiant }) =>
+            request('POST', '/inscription', { pseudo, identifiant }),
 
         /** POST /api/deconnexion → 204. */
         deconnexion: () => request('POST', '/deconnexion'),

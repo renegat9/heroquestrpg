@@ -35,7 +35,6 @@ onMounted(async () => {
 /* ---- onglet auth ---- */
 const ongletAuth = ref('connexion'); // 'connexion' | 'inscription'
 const identifiant = ref('');
-const motDePasse = ref('');
 const pseudo = ref('');
 const authEnCours = ref(false);
 const erreurAuth = ref('');
@@ -44,10 +43,9 @@ async function seConnecter() {
     authEnCours.value = true;
     erreurAuth.value = '';
     try {
-        await api.connexion(identifiant.value.trim(), motDePasse.value);
+        await api.connexion(identifiant.value.trim());
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-        motDePasse.value = '';
     } catch (e) {
         if (estErreurDemo(e)) {
             store.activerModeDemo(e.message);
@@ -66,11 +64,9 @@ async function sInscrire() {
         await api.inscription({
             pseudo: pseudo.value.trim(),
             identifiant: identifiant.value.trim(),
-            mot_de_passe: motDePasse.value,
         });
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-        motDePasse.value = '';
     } catch (e) {
         if (estErreurDemo(e)) {
             store.activerModeDemo(e.message);
@@ -255,24 +251,16 @@ function libelleClasse(classe) {
                     </button>
                 </div>
 
-                <!-- connexion -->
+                <!-- connexion (nom seul — jeu LAN, pas de mot de passe) -->
                 <div v-if="ongletAuth === 'connexion'" class="joueur-auth-card">
                     <form class="joueur-auth-form" @submit.prevent="seConnecter">
-                        <label class="joueur-lbl">Identifiant</label>
+                        <label class="joueur-lbl">Votre nom de joueur</label>
                         <input
                             v-model="identifiant"
                             class="joueur-input"
-                            placeholder="votre identifiant"
+                            placeholder="ex. renegat"
                             autocomplete="username"
                             spellcheck="false"
-                        />
-                        <label class="joueur-lbl">Mot de passe</label>
-                        <input
-                            v-model="motDePasse"
-                            class="joueur-input"
-                            type="password"
-                            placeholder="••••••••"
-                            autocomplete="current-password"
                         />
                         <p v-if="erreurAuth" class="joueur-err">
                             <MSym n="error" :size="14" /> {{ erreurAuth }}
@@ -280,14 +268,14 @@ function libelleClasse(classe) {
                         <button
                             class="joueur-btn-primary"
                             type="submit"
-                            :disabled="authEnCours || !identifiant.trim() || !motDePasse"
+                            :disabled="authEnCours || !identifiant.trim()"
                         >
-                            <MSym n="login" /> {{ authEnCours ? 'Connexion…' : 'Se connecter' }}
+                            <MSym n="login" /> {{ authEnCours ? 'Connexion…' : 'Entrer' }}
                         </button>
                     </form>
                 </div>
 
-                <!-- inscription -->
+                <!-- inscription (pas de mot de passe) -->
                 <div v-else class="joueur-auth-card">
                     <form class="joueur-auth-form" @submit.prevent="sInscrire">
                         <label class="joueur-lbl">Pseudo affiché</label>
@@ -302,17 +290,9 @@ function libelleClasse(classe) {
                         <input
                             v-model="identifiant"
                             class="joueur-input"
-                            placeholder="login unique"
+                            placeholder="login unique (ex. renegat)"
                             autocomplete="username"
                             spellcheck="false"
-                        />
-                        <label class="joueur-lbl">Mot de passe</label>
-                        <input
-                            v-model="motDePasse"
-                            class="joueur-input"
-                            type="password"
-                            placeholder="••••••••"
-                            autocomplete="new-password"
                         />
                         <p v-if="erreurAuth" class="joueur-err">
                             <MSym n="error" :size="14" /> {{ erreurAuth }}
@@ -320,7 +300,7 @@ function libelleClasse(classe) {
                         <button
                             class="joueur-btn-primary"
                             type="submit"
-                            :disabled="authEnCours || !pseudo.trim() || !identifiant.trim() || !motDePasse"
+                            :disabled="authEnCours || !pseudo.trim() || !identifiant.trim()"
                         >
                             <MSym n="person_add" /> {{ authEnCours ? 'Création…' : 'Créer mon compte' }}
                         </button>

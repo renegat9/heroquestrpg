@@ -24,23 +24,21 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     /**
-     * POST /api/inscription {pseudo, identifiant, mot_de_passe}
+     * POST /api/inscription {pseudo, identifiant}
      *
-     * Crée le compte joueur et connecte immédiatement (session).
-     * 422 si identifiant déjà pris.
+     * Crée le compte joueur et connecte immédiatement (session). Pas de mot de
+     * passe (jeu LAN entre amis). 422 si identifiant déjà pris.
      */
     public function inscription(Request $request): JsonResponse
     {
         $donnees = $request->validate([
             'pseudo' => ['required', 'string', 'max:120'],
             'identifiant' => ['required', 'string', 'alpha_dash', Rule::unique('joueurs', 'identifiant')],
-            'mot_de_passe' => ['required', 'string', 'min:6'],
         ]);
 
         $joueur = JoueurAuthentifiable::create([
             'pseudo' => $donnees['pseudo'],
             'identifiant' => $donnees['identifiant'],
-            'mot_de_passe' => $donnees['mot_de_passe'], // hashé via le cast 'hashed' du modèle Joueur
         ]);
 
         Auth::guard('joueur')->login($joueur);
@@ -49,24 +47,31 @@ class AuthController extends Controller
         return response()->json(['joueur' => $this->profil()], 201);
     }
 
-    /** POST /api/connexion */
+    /**
+     * POST /api/connexion {identifiant}
+     *
+     * Connexion par NOM seul (jeu LAN) : on retrouve le joueur par son
+     * identifiant, sinon par son pseudo (insensible à la casse). Aucun mot de
+     * passe — adapté à un réseau local de confiance (doc 11 §11).
+     */
     public function connexion(Request $request): JsonResponse
     {
         $donnees = $request->validate([
             'identifiant' => ['required', 'string'],
-            'mot_de_passe' => ['required', 'string'],
         ]);
 
-        $ok = Auth::guard('joueur')->attempt([
-            'identifiant' => $donnees['identifiant'],
-            'password' => $donnees['mot_de_passe'], // clé `password` attendue par le provider
-        ]);
+        $nom = trim($donnees['identifiant']);
 
-        if (! $ok) {
+        $joueur = JoueurAuthentifiable::whereRaw('LOWER(identifiant) = ?', [mb_strtolower($nom)])->first()
+            ?? JoueurAuthentifiable::whereRaw('LOWER(pseudo) = ?', [mb_strtolower($nom)])->first();
+
+        if ($joueur === null) {
             throw ValidationException::withMessages([
-                'identifiant' => 'Identifiant ou mot de passe incorrect.',
+                'identifiant' => 'Aucun joueur à ce nom — crée un compte.',
             ]);
         }
+
+        Auth::guard('joueur')->login($joueur);
 
         $request->session()->regenerate();
 

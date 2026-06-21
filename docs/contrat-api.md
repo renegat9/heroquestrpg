@@ -5,15 +5,16 @@
 
 ## Authentification
 
-Session Laravel (cookie) — login simple interne. `POST /api/connexion`
-`{identifiant, mot_de_passe}` → `{joueur: {id, pseudo}}`. Routes protégées par
-middleware `auth` sauf connexion.
+Session Laravel (cookie) — **connexion par NOM seul** (jeu LAN entre amis, pas de
+mot de passe). `POST /api/connexion` `{identifiant}` retrouve le joueur par son
+identifiant, sinon par son pseudo (insensible à la casse) → `{joueur: {id, pseudo}}`.
+Routes protégées par middleware `auth` sauf connexion.
 
 ## Endpoints
 
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
-| POST | /api/connexion | {identifiant, mot_de_passe} | {joueur} |
+| POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...]} |
 | POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |
@@ -332,8 +333,8 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 ### Joueur — compte + roster
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /api/inscription | {pseudo, identifiant, mot_de_passe} | crée le compte et connecte ; 422 si identifiant pris |
-| POST | /api/connexion | {identifiant, mot_de_passe} | (existant) |
+| POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
+| POST | /api/connexion | {identifiant} | (existant) — nom seul |
 | GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé |
