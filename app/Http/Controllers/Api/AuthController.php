@@ -109,7 +109,8 @@ class AuthController extends Controller
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
                 ->with(['competences:competences.id', 'sorts', 'groupeActif'])
-                ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id'])
+                ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id',
+                    'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max'])
                 ->map(function ($p) {
                     $disponible = $p->groupe_actif_id === null;
 
@@ -118,6 +119,12 @@ class AuthController extends Controller
                         'nom' => $p->nom,
                         'classe' => $p->classe,
                         'niveau' => (int) $p->niveau,
+                        // PV persistants : la manette affiche bandeau + jauges au
+                        // hub (hors quête, sans entité d'état EtatGroupe).
+                        'pv_body' => (int) $p->pv_body,
+                        'pv_body_max' => (int) $p->pv_body_max,
+                        'pv_mind' => (int) $p->pv_mind,
+                        'pv_mind_max' => (int) $p->pv_mind_max,
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                         'competences' => $p->competences->pluck('id')->values()->all(),

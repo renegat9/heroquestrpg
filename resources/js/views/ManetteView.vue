@@ -150,17 +150,25 @@ watch(heroKey, (k) => {
     demoMind.value = { ...HEROES[k].mind };
 });
 
-const hero = computed(() => {
-    const e = monEntite.value;
-    if (!e) return HEROES[heroKey.value];
-    const base = HEROES[CLASSES[(e.classe ?? '').toLowerCase()]?.demo ?? 'barb'];
+/** Habillage (icônes/équipement de démo) d'une classe + identité réelle. */
+function habiller(classe, nom, niveau, conds) {
+    const base = HEROES[CLASSES[(classe ?? '').toLowerCase()]?.demo ?? 'barb'];
     return {
         ...base,
-        name: e.nom,
-        cls: CLASSES[(e.classe ?? '').toLowerCase()]?.l ?? e.classe,
-        lvl: e.niveau ?? base.lvl,
-        conds: conditionsVersBadges(e.conditions), // vraies conditions (Dread, pièges, sorts)
+        name: nom,
+        cls: CLASSES[(classe ?? '').toLowerCase()]?.l ?? classe,
+        lvl: niveau ?? base.lvl,
+        conds,
     };
+}
+const hero = computed(() => {
+    const e = monEntite.value;
+    if (e) return habiller(e.classe, e.nom, e.niveau, conditionsVersBadges(e.conditions));
+    // Hub (pas d'entité de quête) mais connecté : on affiche le VRAI personnage
+    // (monPerso), pas la fiche de démo. Repli démo seulement si vraiment en démo.
+    const p = monPerso.value;
+    if (!enDemo.value && p) return habiller(p.classe, p.nom, p.niveau, []);
+    return HEROES[heroKey.value];
 });
 
 /* ---- mon personnage (/moi enrichi : niveau, points_competence, sorts).
@@ -227,12 +235,21 @@ const lvlupToast = computed(() => {
     const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
     return liste.find((h) => ids.has(h.id)) ?? liste[0];
 });
-const body = computed(() => (monEntite.value
-    ? { cur: monEntite.value.tombe ? 0 : monEntite.value.pv_body, max: monEntite.value.pv_body_max }
-    : demoBody.value));
-const mind = computed(() => (monEntite.value
-    ? { cur: monEntite.value.pv_mind, max: monEntite.value.pv_mind_max }
-    : demoMind.value));
+const body = computed(() => {
+    const e = monEntite.value;
+    if (e) return { cur: e.tombe ? 0 : e.pv_body, max: e.pv_body_max };
+    // Hub : PV réels du personnage (/moi) plutôt que les jauges de démo.
+    const p = monPerso.value;
+    if (!enDemo.value && p?.pv_body_max != null) return { cur: p.pv_body, max: p.pv_body_max };
+    return demoBody.value;
+});
+const mind = computed(() => {
+    const e = monEntite.value;
+    if (e) return { cur: e.pv_mind, max: e.pv_mind_max };
+    const p = monPerso.value;
+    if (!enDemo.value && p?.pv_mind_max != null) return { cur: p.pv_mind, max: p.pv_mind_max };
+    return demoMind.value;
+});
 
 const scene = computed(() => (enDemo.value
     ? demoScene.value
