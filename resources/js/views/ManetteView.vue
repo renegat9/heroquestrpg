@@ -16,6 +16,7 @@ import SacTab from '../components/manette/SacTab.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import FlowSheet from '../components/manette/FlowSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
+import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
@@ -249,6 +250,13 @@ function choisirOption(option) {
     // Option ciblée (sort / parchemin / attaque) : le moteur fournit les
     // cibles légales dans parametres.cibles (les héros y figurent — tir
     // ami S3) → choix de cible avant l'envoi.
+    // Déplacement : ouvre la mini-carte tappable (l'allonce du tour, dé déjà
+    // lancé côté serveur, est dans l'option) → le joueur choisit sa case.
+    if (option.type === 'deplacement' && monEntite.value) {
+        feuilleOption.value = { option, mode: 'deplacement' };
+        return;
+    }
+
     const cibles = option.parametres?.cibles;
     if (Array.isArray(cibles) && cibles.length) {
         feuilleOption.value = {
@@ -275,6 +283,12 @@ function choisirOption(option) {
     }
 
     envoyerOption(option, option.parametres);
+}
+
+/** Case choisie sur la mini-carte → POST {option_id, parametres: {x, y}}. */
+function deplacerVers(dest) {
+    const { option } = feuilleOption.value;
+    envoyerOption(option, { x: dest.x, y: dest.y });
 }
 
 /** Cible choisie dans la feuille → POST {option_id, parametres: {…, cible}}
@@ -822,8 +836,19 @@ const navItems = computed(() => (scene.value === 'marche'
                         @confirm="confirmResolve"
                         @close="flow = null"
                     />
+                    <DeplacementSheet
+                        v-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
+                        :carte="store.state.etat.carte"
+                        :entites="store.state.etat.entites ?? []"
+                        :depart="{ x: monEntite.x, y: monEntite.y }"
+                        :portee="feuilleOption.option.parametres?.portee ?? feuilleOption.option.parametres?.portee_base ?? 0"
+                        :de="feuilleOption.option.parametres?.de ?? null"
+                        :base="feuilleOption.option.parametres?.base ?? 0"
+                        @deplacer="deplacerVers"
+                        @close="feuilleOption = null"
+                    />
                     <CibleSheet
-                        v-if="feuilleOption"
+                        v-else-if="feuilleOption"
                         :feuille="feuilleOption"
                         @cible="ciblerOption"
                         @sort="concentrerSort"

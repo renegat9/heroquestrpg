@@ -66,6 +66,13 @@ sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
 
+L'option `deplacement` (id `se_deplacer`) porte dans `parametres` l'allonce du
+tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d6) :
+`{base, de (résultat du d6), portee (cases max ce tour, Vent Véloce inclus)}`. La
+manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
+choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
+moteur revalide contre `portee` (réservé re-lancé en repli si absent).
+
 Autorisations (routes/channels.php) : `groupe.{identifiant}` → le joueur a un
 personnage actif dans ce groupe ; `joueur.{id}` → id === joueur connecté.
 

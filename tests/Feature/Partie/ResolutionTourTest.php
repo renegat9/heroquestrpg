@@ -88,7 +88,9 @@ it('résout un déplacement : base + 1d6, chemin sur la grille, a_joue marqué',
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
     $cible = caseLibreAdjacente($quete, (int) $etat->position_x, (int) $etat->position_y);
 
-    figerDes([3]); // 1d6 de déplacement → total = 4 (base) + 3 = 7
+    // L'allonce du tour (base + 1d6) est lancée à la génération du menu et
+    // MÉMORISÉE — le joueur la voit avant de choisir sa case. Ici : base 4 + 3 = 7.
+    $etat->update(['deplacement_tour' => 7]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'se_deplacer',

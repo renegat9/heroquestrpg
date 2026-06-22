@@ -17,6 +17,7 @@ class EtatPersonnageQuete extends Model
         'position_x',
         'position_y',
         'a_joue',
+        'deplacement_tour',
         'tombe',
     ];
 
@@ -25,6 +26,7 @@ class EtatPersonnageQuete extends Model
         return [
             'a_joue' => 'boolean',
             'tombe' => 'boolean',
+            'deplacement_tour' => 'integer',
         ];
     }
 

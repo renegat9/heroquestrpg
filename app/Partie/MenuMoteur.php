@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Deplacement;
+use App\Engine\Des\LanceurDes;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
@@ -25,7 +28,32 @@ final class MenuMoteur
     public function __construct(
         private readonly MoteurPieges $pieges,
         private readonly MoteurSorts $sorts,
+        private readonly LanceurDes $des,
     ) {}
+
+    /**
+     * Déplacement du tour : lance le d6 (base + 1d6, doc 03 §3) la PREMIÈRE fois
+     * du tour et mémorise le total sur l'état (réutilisé pour les régénérations
+     * de menu et la résolution). Rien n'est relancé si déjà fixé.
+     *
+     * @return array{base: int, de: int|null, total: int}
+     */
+    private function deplacementDuTour(Personnage $personnage, ?EtatPersonnageQuete $etat): array
+    {
+        $base = (int) $personnage->deplacement_base;
+
+        if ($etat === null) {
+            return ['base' => $base, 'de' => null, 'total' => $base];
+        }
+
+        if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue) {
+            $etat->update(['deplacement_tour' => (new Deplacement($this->des))->calculer($base)->total]);
+        }
+
+        $total = $etat->deplacement_tour ?? $base;
+
+        return ['base' => $base, 'de' => $total > $base ? $total - $base : null, 'total' => $total];
+    }
 
     /**
      * @return array{situation: string, options: list<array<string, mixed>>}
@@ -46,11 +74,23 @@ final class MenuMoteur
 
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
 
+        // Déplacement du tour (doc 03 §3 : base + 1d6) — lancé UNE fois par tour
+        // et mémorisé, pour que le joueur voie son allonce avant de choisir sa
+        // case (et que la résolution valide contre la même valeur).
+        $portee = $this->deplacementDuTour($personnage, $etat);
+        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage); // Vent Véloce
+        $porteeEffective = $portee['total'] * $multiplicateur;
+
         $options = [[
             'id' => 'se_deplacer',
             'libelle' => 'Se déplacer',
             'type' => 'deplacement',
-            'parametres' => ['portee_base' => (int) $personnage->deplacement_base],
+            'parametres' => [
+                'portee_base' => (int) $personnage->deplacement_base,
+                'base' => $portee['base'],
+                'de' => $portee['de'],          // résultat du d6 (null si Armure de plates)
+                'portee' => $porteeEffective,    // cases max ce tour (incl. Vent Véloce)
+            ],
         ]];
 
         // Une option d'attaque par monstre actif ADJACENT (exécutable telle quelle).

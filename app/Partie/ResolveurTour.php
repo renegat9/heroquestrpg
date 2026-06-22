@@ -248,11 +248,15 @@ final class ResolveurTour
         $x = (int) $x;
         $y = (int) $y;
 
-        $mouvement = (new Deplacement($this->des))->calculer((int) $personnage->deplacement_base);
+        // Allonce du tour : le d6 a été lancé à la génération du menu et MÉMORISÉ
+        // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
+        $base = (int) $personnage->deplacement_base;
+        $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))->calculer($base)->total;
+        $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
         // Vent Véloce (doc 02 §7) : déplacement ×2, buff consommé à l'usage.
         $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
-        $total = $mouvement->total * $multiplicateur;
+        $total = $totalTour * $multiplicateur;
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
@@ -291,7 +295,7 @@ final class ResolveurTour
             'type' => 'deplacement',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
-            'de' => $mouvement->de,
+            'de' => $deDuTour,
             'deplacement_total' => $total,
             'multiplicateur_sort' => $multiplicateur,
             'distance' => $distance,
@@ -1255,7 +1259,8 @@ final class ResolveurTour
         }
 
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
-        $quete->etatsPersonnages()->update(['a_joue' => false]);
+        // Nouveau tour : on relancera le d6 de déplacement (reset de l'allonce).
+        $quete->etatsPersonnages()->update(['a_joue' => false, 'deplacement_tour' => null]);
 
         // Fin de tour : décompte des durées des conditions de sorts des héros
         // (Caché expire ici ; Vent Véloce survit jusqu'au déplacement suivant).
