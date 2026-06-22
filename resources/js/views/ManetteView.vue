@@ -124,6 +124,19 @@ const monEntite = computed(() => {
     return store.state.etat.entites?.find((e) => e.type === 'heros' && ids.has(e.id)) ?? null;
 });
 
+/* ---- Fin de mon tour → retire le menu périmé. Quand un .groupe.etat arrive
+   avec mon héros `a_joue=true` (mes deux créneaux sont consommés / tour passé),
+   le menu courant n'est plus jouable : on le vide pour afficher « tu reprendras
+   la main » au lieu d'un menu qui renverrait 422. Le déclencheur sur a_joue=true
+   évite toute course avec l'arrivée du prochain menu (a_joue repasse à false au
+   début du tour suivant, AVANT le nouveau .menu.propose). ---- */
+watch(() => store.state.etat, () => {
+    if (enDemo.value || !monEntite.value || !store.state.menu) return;
+    const moi = (store.state.etat?.initiative ?? [])
+        .find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
+    if (moi?.a_joue) store.viderMenu();
+});
+
 /* ---- état local (mode démo) ---- */
 const heroKey = ref('mage');
 const tab = ref('action');
@@ -229,7 +242,22 @@ const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
 const narration = computed(() => (enDemo.value ? narr.value : store.state.narration));
 
 /* ---- menu réel (.menu.propose) + envoi du choix (POST choix) ---- */
-const menuCourant = computed(() => (enDemo.value ? null : store.state.menu));
+const menuStore = computed(() => (enDemo.value ? null : store.state.menu));
+
+/* C'est mon tour ? Acteur courant de l'initiative = mon héros. Le moteur
+   pré-génère un menu pour CHAQUE héros au démarrage (un .menu.propose chacun) ;
+   sans ce verrou, toutes les manettes afficheraient « C'est ton tour » en même
+   temps. On n'active donc le menu que quand l'initiative est sur mon héros
+   (sinon : « tu reprendras la main »). En démo, toujours actif. */
+const cestMonTour = computed(() => {
+    if (enDemo.value) return true;
+    if (!monEntite.value) return false;
+    const cur = acteurCourant(store.state.etat?.initiative);
+    return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
+});
+
+/* Menu effectivement jouable : le menu courant SEULEMENT quand c'est mon tour. */
+const menuCourant = computed(() => (cestMonTour.value ? menuStore.value : null));
 const menuEnAttente = computed(() => store.state.menuEnAttente);
 const initMini = computed(() => (enDemo.value ? null : initiativeVersMini(store.state.etat.initiative)));
 const initCur = computed(() => {

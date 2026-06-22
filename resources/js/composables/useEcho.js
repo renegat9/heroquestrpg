@@ -79,11 +79,15 @@ export function getEcho() {
     return echoInstance;
 }
 
-function souscrire(nomCanal, events) {
+function souscrire(nomCanal, events, prive = true) {
     const echo = getEcho();
     if (!echo) return () => {};
 
-    const channel = echo.private(nomCanal);
+    // Canal PUBLIC (echo.channel) ou PRIVÉ (echo.private). Le canal de groupe
+    // est public (l'écran de table n'a pas de compte ; voir routes/channels.php
+    // et app/Events/* qui diffusent sur un Channel public) ; le canal joueur
+    // est privé (auth par le joueur propriétaire).
+    const channel = prive ? echo.private(nomCanal) : echo.channel(nomCanal);
     for (const [event, handler] of Object.entries(events)) {
         channel.listen(event, handler);
     }
@@ -98,7 +102,7 @@ function souscrire(nomCanal, events) {
  *   const off = souscrireGroupe(id, { '.groupe.etat': (e) => { … } });
  */
 export function souscrireGroupe(identifiant, events = {}) {
-    return souscrire(`groupe.${identifiant}`, events);
+    return souscrire(`groupe.${identifiant}`, events, false); // canal public
 }
 
 /**
@@ -110,15 +114,15 @@ export function souscrireJoueur(joueurId, events = {}) {
     return souscrire(`joueur.${joueurId}`, events);
 }
 
-function souscrireAuMontage(nomCanal, events) {
+function souscrireAuMontage(nomCanal, events, prive = true) {
     let off = null;
-    onMounted(() => { off = souscrire(nomCanal, events); });
+    onMounted(() => { off = souscrire(nomCanal, events, prive); });
     onUnmounted(() => { off?.(); off = null; });
 }
 
-/** Variante composable (id connu au setup) du canal de groupe. */
+/** Variante composable (id connu au setup) du canal de groupe (public). */
 export function useGroupChannel(groupeId, events = {}) {
-    souscrireAuMontage(`groupe.${groupeId}`, events);
+    souscrireAuMontage(`groupe.${groupeId}`, events, false);
 }
 
 /** Variante composable (id connu au setup) du canal joueur. */

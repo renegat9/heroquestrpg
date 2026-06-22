@@ -99,6 +99,11 @@ export function useGameStore() {
             state.menu = menu;
             state.menuEnAttente = false;
         },
+        /** Retire le menu courant (ex. mon tour est fini : il devient périmé). */
+        viderMenu() {
+            state.menu = null;
+            state.menuEnAttente = false;
+        },
         /** Le choix est parti (202) : boutons gelés jusqu'au prochain état. */
         choixEnvoye() {
             state.menuEnAttente = true;

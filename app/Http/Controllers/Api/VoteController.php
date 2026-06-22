@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\Joueur;
@@ -23,6 +24,8 @@ use Illuminate\Validation\ValidationException;
  */
 class VoteController extends Controller
 {
+    use AutoriseLectureGroupe;
+
     public function __construct(private readonly VoteGroupe $votes) {}
 
     /** POST /api/groupes/{identifiant}/votes — lance un vote. */
@@ -58,9 +61,10 @@ class VoteController extends Controller
     }
 
     /** GET /api/groupes/{identifiant}/votes — vote actif ou null. */
-    public function actif(string $identifiant): JsonResponse
+    public function actif(Request $request, string $identifiant): JsonResponse
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Lecture seule : membre OU table (rattrapage de l'écran de table).
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         return response()->json(['vote' => $this->votes->actif($groupe)]);
     }

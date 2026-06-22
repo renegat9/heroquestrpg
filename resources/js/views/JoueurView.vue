@@ -146,10 +146,16 @@ async function rejoindre(perso) {
     rejoindreEnCours.value = { ...rejoindreEnCours.value, [perso.id]: true };
     erreurRejoindre.value = { ...erreurRejoindre.value, [perso.id]: '' };
     try {
-        await api.rejoindreGroupe(code, { personnage_id: perso.id });
+        // On navigue vers l'identifiant CANONIQUE renvoyé par le serveur (slug
+        // minuscule), pas le code tapé (mis en majuscules par setCode) : sinon
+        // la manette s'abonnerait à `groupe.MAJUSCULE` alors que le serveur
+        // diffuse sur `groupe.minuscule` → le joueur ne recevrait AUCUN event
+        // live (resterait bloqué au hub). Repli sur le code tapé.
+        const reponse = await api.rejoindreGroupe(code, { personnage_id: perso.id });
+        const ident = reponse?.groupe?.identifiant ?? code;
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-        router.push({ name: 'manette', params: { groupe: code } });
+        router.push({ name: 'manette', params: { groupe: ident } });
     } catch (e) {
         erreurRejoindre.value = { ...erreurRejoindre.value, [perso.id]: e.message };
     } finally {

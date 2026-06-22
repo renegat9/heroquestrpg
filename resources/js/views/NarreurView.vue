@@ -23,8 +23,14 @@ async function entrerTable() {
     enCours.value = true;
     erreur.value = '';
     try {
-        await api.ouvrirTable(code);
-        router.push({ name: 'table', params: { groupe: code } });
+        // On navigue vers l'identifiant CANONIQUE renvoyé par le serveur (slug
+        // minuscule), pas le code tapé (mis en majuscules à l'écran) : sinon la
+        // table s'abonnerait au canal `groupe.MAJUSCULE` alors que le serveur
+        // diffuse sur `groupe.minuscule` (aucun événement) et l'auth du canal
+        // échouerait (session = identifiant canonique). Repli sur le code tapé.
+        const reponse = await api.ouvrirTable(code);
+        const ident = reponse?.groupe?.groupe?.identifiant ?? code;
+        router.push({ name: 'table', params: { groupe: ident } });
     } catch (e) {
         if (estErreurDemo(e)) {
             store.activerModeDemo(e.message);

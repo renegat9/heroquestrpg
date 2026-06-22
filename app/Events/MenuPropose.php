@@ -43,14 +43,19 @@ class MenuPropose implements ShouldBroadcast
 
     /**
      * @return array<string, mixed>
+     *
+     * Le menu est NESTÉ sous `menu` (contrat §canaux : `.menu.propose` =
+     * `{menu: {situation, options}}`). La manette lit `e.menu` (comme le
+     * rattrapage REST GET /menu renvoie `{menu}`) — un payload plat laissait
+     * `e.menu` undefined, donc aucun menu en temps réel (visible seulement
+     * après rechargement). Voir resources/js/views/ManetteView.vue.
      */
     public function broadcastWith(): array
     {
         return [
+            'menu' => $this->menu,
             'groupe_id' => $this->groupeId,
             'personnage_id' => $this->personnageId,
-            'situation' => $this->menu['situation'] ?? null,
-            'options' => $this->menu['options'] ?? [],
         ];
     }
 }

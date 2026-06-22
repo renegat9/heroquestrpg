@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\Joueur;
@@ -26,6 +27,8 @@ use Illuminate\Validation\ValidationException;
  */
 class MarcheController extends Controller
 {
+    use AutoriseLectureGroupe;
+
     public function __construct(private readonly PhaseMarche $marche) {}
 
     /** POST /api/groupes/{identifiant}/marche — ouvre la phase. */
@@ -41,9 +44,11 @@ class MarcheController extends Controller
     }
 
     /** GET /api/groupes/{identifiant}/marche — EtatMarche courant. */
-    public function etat(string $identifiant): JsonResponse
+    public function etat(Request $request, string $identifiant): JsonResponse
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Lecture seule : accessible au membre OU à la table (rattrapage après
+        // rechargement de l'écran de table, sans compte).
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $etat = $this->marche->etat($groupe);
 

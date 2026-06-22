@@ -29,9 +29,15 @@ Route::post('/table', [TableController::class, 'ouvrir']);
 Route::post('/table/ping', [TableController::class, 'ping']);
 Route::post('/table/quitter', [TableController::class, 'quitter']);
 
-// GET /etat : accessible joueur membre OU session de table (contrat §Autorisations).
-// Placé hors du groupe auth:joueur pour permettre l'accès table sans compte.
+// Lectures accessibles au joueur membre OU à la session de table (contrat
+// §Autorisations) — hors auth:joueur pour permettre l'accès table sans compte.
+// L'écran de table (narrateur sans compte) s'en sert pour se resynchroniser
+// après un rechargement ; sinon il prenait un 401. Les écritures de ces phases
+// restent réservées aux joueurs (POST/PUT/DELETE ci-dessous).
 Route::get('/groupes/{identifiant}/etat', [GroupeController::class, 'etat']);
+Route::get('/groupes/{identifiant}/marche', [MarcheController::class, 'etat']);
+Route::get('/groupes/{identifiant}/votes', [VoteController::class, 'actif']);
+Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat']);
 
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
@@ -65,7 +71,6 @@ Route::middleware('auth:joueur')->group(function () {
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
     // application atomique quand TOUS les joueurs ont confirmé.
     Route::post('/groupes/{identifiant}/marche', [MarcheController::class, 'ouvrir']);
-    Route::get('/groupes/{identifiant}/marche', [MarcheController::class, 'etat']);
     Route::put('/groupes/{identifiant}/marche/panier', [MarcheController::class, 'panier']);
     Route::post('/groupes/{identifiant}/marche/confirmation', [MarcheController::class, 'confirmer']);
     Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annuler']);
@@ -80,14 +85,12 @@ Route::middleware('auth:joueur')->group(function () {
     // le départ est libre avec sa part du pot commun.
     Route::post('/groupes/{identifiant}/votes', [VoteController::class, 'lancer']);
     Route::post('/groupes/{identifiant}/votes/bulletin', [VoteController::class, 'bulletin']);
-    Route::get('/groupes/{identifiant}/votes', [VoteController::class, 'actif']);
     Route::post('/groupes/{identifiant}/depart', [VoteController::class, 'depart']);
 
     // Clôture de campagne (doc 05 §6) : fenêtre en cache, finalisation en
     // job (or réparti, équipements, résumé, historique, purge complète)
     // quand TOUS les joueurs ont confirmé.
     Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
-    Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat']);
     Route::put('/groupes/{identifiant}/cloture/repartition', [ClotureController::class, 'repartition']);
     Route::post('/groupes/{identifiant}/cloture/confirmation', [ClotureController::class, 'confirmer']);
     Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
