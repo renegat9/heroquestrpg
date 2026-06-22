@@ -54,17 +54,39 @@ services:
     networks: [game]
 
   # ── Worker de files (jobs IA : narration, menus, compactage) ─
+  # Worker « lourd » : traite TOUT, priorité à temps-reel mais enchaîne aussi
+  # les jobs lents de default (TTS, habillage, squelette).
   queue:
     build:
       context: .
       dockerfile: docker/app/Dockerfile
     restart: unless-stopped
-    command: php artisan queue:work --tries=3 --backoff=5 --timeout=120
+    command: php artisan queue:work --queue=temps-reel,default --tries=3 --backoff=5 --timeout=120
     volumes:
       - ./:/var/www/html
     env_file: .env
     environment:
       REVERB_HOST: reverb        # broadcast serveur → conteneur reverb (jobs IA)
+      REVERB_SCHEME: http
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks: [game]
+
+  # Worker DÉDIÉ à la boucle de jeu (file `temps-reel` seule) : menus + état +
+  # narration texte + prêts. Garanti libre même quand `queue` est bloqué ~30 s
+  # sur une TTS — sinon le 1er menu d'une quête arrivait ~60 s après le départ.
+  queue-jeu:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    restart: unless-stopped
+    command: php artisan queue:work --queue=temps-reel --tries=3 --backoff=5 --timeout=60
+    volumes:
+      - ./:/var/www/html
+    env_file: .env
+    environment:
+      REVERB_HOST: reverb
       REVERB_SCHEME: http
     depends_on:
       mariadb:

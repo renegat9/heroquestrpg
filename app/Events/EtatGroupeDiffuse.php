@@ -25,6 +25,9 @@ class EtatGroupeDiffuse implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /** File prioritaire : signal de boucle de jeu (cf. docker-compose `queue-jeu`). */
+    public string $broadcastQueue = 'temps-reel';
+
     /**
      * @param  array<string, mixed>  $etat  payload EtatGroupe (App\Partie\EtatGroupe::payload)
      */

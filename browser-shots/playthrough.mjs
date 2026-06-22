@@ -110,6 +110,7 @@ try {
   const pret2 = p2.locator('button.pret-btn');
   if (await pret2.count()) { await pret2.click(); log('P2 a cliqué Prêt'); }
   else errs.push('[P2] bouton Prêt introuvable au hub');
+  const tQuete0 = Date.now(); // départ de la quête (chrono latence menu)
   // Démarrage : les broadcasts passent par la file derrière les jobs LLM
   // (GenererMenu ~8 s/héros). On attend que la TABLE bascule en quête (preuve
   // du temps réel) plutôt qu'un délai fixe.
@@ -136,6 +137,7 @@ try {
   }
   log('Attente du héros actif (menu de déplacement)…');
   const [pa, nomActif] = await attendreActif([[p1, 'P1/barbare'], [p2, 'P2/magicien']]);
+  log(`⏱ menu actif détecté ${((Date.now() - tQuete0) / 1000).toFixed(1)} s après le départ de la quête`);
   if (pa) {
     log('Héros actif =', nomActif);
     await shot(pa, '11-actif-menu');

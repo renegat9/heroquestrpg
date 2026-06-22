@@ -21,6 +21,9 @@ class MenuPropose implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /** File prioritaire : signal de boucle de jeu (cf. docker-compose `queue-jeu`). */
+    public string $broadcastQueue = 'temps-reel';
+
     /**
      * @param  array<string, mixed>  $menu  sortie validée du skill MenuChoix (situation + options)
      */

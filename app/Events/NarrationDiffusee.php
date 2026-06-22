@@ -21,6 +21,10 @@ class NarrationDiffusee implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /** File prioritaire : le texte de narration s'affiche tout de suite (l'audio
+     *  TTS, lui, est généré à part par GenererNarration sur la file `default`). */
+    public string $broadcastQueue = 'temps-reel';
+
     public function __construct(
         public readonly Groupe $groupe,
         public readonly string $texte,

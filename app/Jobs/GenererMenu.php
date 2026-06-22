@@ -45,7 +45,13 @@ class GenererMenu implements ShouldQueue
         // false → menu MOTEUR seul (instantané), sans appel LLM : utilisé pour
         // les tours triviaux (déplacement/attente) afin d'accélérer le jeu.
         public readonly bool $enrichir = true,
-    ) {}
+    ) {
+        // File prioritaire « temps-reel » : le menu est ce que le joueur attend
+        // pour jouer. Sans ça, il passait DERRIÈRE GenererNarration (TTS ~30 s)
+        // et HabillerMonstres dans la file FIFO mono-worker → ~60 s d'attente.
+        // Voir docker-compose.yml (worker dédié `queue-jeu`).
+        $this->onQueue('temps-reel');
+    }
 
     /** Clé du dernier menu proposé à un joueur dans un groupe. */
     public static function cleMenu(int $groupeId, int $joueurId): string

@@ -21,6 +21,9 @@ class PretsMaj implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /** File prioritaire : signal de boucle de jeu (cf. docker-compose `queue-jeu`). */
+    public string $broadcastQueue = 'temps-reel';
+
     /**
      * @param  list<array{personnage_id: int, pret: bool}>  $prets
      */
