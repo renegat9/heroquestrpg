@@ -103,15 +103,19 @@ it('résout un déplacement : base + 1d6, chemin sur la grille, a_joue marqué',
         ->assertJsonPath('resultat.distance', 1);
 
     $etat->refresh();
+    // Deux créneaux (doc 03 §28) : se déplacer consomme le créneau MOUVEMENT
+    // mais ne termine PAS le tour — le héros peut encore agir.
     expect($etat->position_x)->toBe($cible['x'])
         ->and($etat->position_y)->toBe($cible['y'])
-        ->and($etat->a_joue)->toBeTrue();
+        ->and($etat->a_deplace)->toBeTrue()
+        ->and($etat->a_joue)->toBeFalse();
 
     // L'événement est journalisé et l'état partagé reflète le tour.
     expect($groupe->evenements()->where('type', 'action')->exists())->toBeTrue();
 
     $etatPartage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
-    expect($etatPartage['initiative'][0])->toMatchArray(['id' => $heroA->id, 'a_joue' => true]);
+    // Le héros n'a PAS fini son tour (il lui reste son action) : a_joue reste false.
+    expect($etatPartage['initiative'][0])->toMatchArray(['id' => $heroA->id, 'a_joue' => false]);
 });
 
 it('refuse un déplacement hors de portée du jet de déplacement', function () {

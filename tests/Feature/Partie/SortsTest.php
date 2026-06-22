@@ -259,6 +259,9 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
     $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_mind' => 2]);
 
+    // Le mage a déjà utilisé son créneau de déplacement : lancer Sommeil (action)
+    // termine alors son tour → la phase des monstres s'enchaîne dans la foulée.
+    $etat->update(['a_deplace' => true]);
     optionsMenuSorts($groupe, $alice, $mage);
 
     // Résistance : 2 dés de Mind (PV de Mind du monstre) sans crâne → subit.
@@ -320,6 +323,9 @@ it("Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la cond
     $contact = caseAdjacenteLibre($quete, (int) $etatB->position_x, (int) $etatB->position_y);
     $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
 
+    // Le mage a déjà utilisé son déplacement : lancer Courage (action) termine
+    // son tour → c'est ensuite au tour de Brunhilde d'attaquer (créneaux distincts).
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)->update(['a_deplace' => true]);
     optionsMenuSorts($groupe, $alice, $mage);
 
     // Le mage lance Courage sur Brunhilde (aucun dé).

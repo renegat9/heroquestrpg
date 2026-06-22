@@ -74,27 +74,52 @@ final class MenuMoteur
 
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
 
-        // Déplacement du tour (doc 03 §3 : base + 1d6) — lancé UNE fois par tour
-        // et mémorisé, pour que le joueur voie son allonce avant de choisir sa
-        // case (et que la résolution valide contre la même valeur).
-        $portee = $this->deplacementDuTour($personnage, $etat);
-        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage); // Vent Véloce
-        $porteeEffective = $portee['total'] * $multiplicateur;
+        // Tour = deux créneaux (doc 03 §28) : un DÉPLACEMENT + une ACTION. On
+        // n'offre que les créneaux ENCORE LIBRES, plus « Terminer le tour ».
+        $aDeplace = (bool) ($etat?->a_deplace ?? false);
+        $aAgi = (bool) ($etat?->a_agi ?? false);
+        $options = [];
 
-        $options = [[
-            'id' => 'se_deplacer',
-            'libelle' => 'Se déplacer',
-            'type' => 'deplacement',
-            'parametres' => [
-                'portee_base' => (int) $personnage->deplacement_base,
-                'base' => $portee['base'],
-                'de' => $portee['de'],          // résultat du d6 (null si Armure de plates)
-                'portee' => $porteeEffective,    // cases max ce tour (incl. Vent Véloce)
-            ],
-        ]];
+        // ── Créneau DÉPLACEMENT (base + 1d6 lancé une fois/tour et mémorisé) ──
+        if (! $aDeplace) {
+            $portee = $this->deplacementDuTour($personnage, $etat);
+            $porteeEffective = $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage); // Vent Véloce
+            $options[] = [
+                'id' => 'se_deplacer',
+                'libelle' => 'Se déplacer',
+                'type' => 'deplacement',
+                'parametres' => [
+                    'portee_base' => (int) $personnage->deplacement_base,
+                    'base' => $portee['base'],
+                    'de' => $portee['de'],          // résultat du d6 (null si Armure de plates)
+                    'portee' => $porteeEffective,    // cases max ce tour (incl. Vent Véloce)
+                ],
+            ];
+        }
 
-        // Une option d'attaque par monstre actif ADJACENT (exécutable telle quelle).
-        if ($etat !== null && $etat->position_x !== null) {
+        // Pièges DÉTECTÉS adjacents (doc 10 §4) — partagés entre créneaux :
+        // Franchir une fosse = DÉPLACEMENT, Désamorcer = ACTION.
+        $detectes = ($etat !== null && $etat->position_x !== null && $quete->carte !== null)
+            ? $this->pieges->detectesAdjacents($quete->carte, (int) $etat->position_x, (int) $etat->position_y)
+            : [];
+
+        if (! $aDeplace) {
+            foreach ($detectes as $adjacent) {
+                if ($this->pieges->estFosse($adjacent['piege'])) {
+                    $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
+                    $options[] = [
+                        'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
+                        'libelle' => "Franchir {$nomPiege} — jet de Body",
+                        'type' => 'franchissement',
+                        'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_FRANCHISSEMENT],
+                        'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                    ];
+                }
+            }
+        }
+
+        // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
+        if (! $aAgi && $etat !== null && $etat->position_x !== null) {
             $adjacents = $quete->instancesMonstres()
                 ->where('etat', 'actif')
                 ->with('monstre')
@@ -114,8 +139,7 @@ final class MenuMoteur
                 ];
             }
 
-            // Relever un allié TOMBÉ adjacent (doc 03 §48 : « relevable —
-            // soin/allié ») : sacrifie le tour, remet le héros debout à 1 PV.
+            // Relever un allié TOMBÉ adjacent (doc 03 §48) : sacrifie le tour.
             $allies = $quete->etatsPersonnages()
                 ->where('tombe', true)
                 ->where('personnage_id', '!=', $personnage->id)
@@ -134,57 +158,36 @@ final class MenuMoteur
                 ];
             }
 
-            // Pièges DÉTECTÉS adjacents (doc 10 §4) : Désamorcer — réservé au
-            // Nain ou au porteur d'une trousse à outils (permet_desamorcage) —
-            // et Franchir pour une fosse. Exécutables tels quels (ResolveurTour).
-            if ($quete->carte !== null) {
-                $detectes = $this->pieges->detectesAdjacents(
-                    $quete->carte, (int) $etat->position_x, (int) $etat->position_y,
-                );
-                $peutDesamorcer = $detectes !== [] && $this->pieges->peutDesamorcer($personnage);
-
+            // Désamorcer un piège détecté (Nain / trousse à outils).
+            if ($detectes !== [] && $this->pieges->peutDesamorcer($personnage)) {
                 foreach ($detectes as $adjacent) {
                     $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
-
-                    if ($peutDesamorcer) {
-                        $options[] = [
-                            'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
-                            'libelle' => "Désamorcer {$nomPiege} — jet de Body",
-                            'type' => 'desamorcage',
-                            'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_DESAMORCAGE],
-                            'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
-                        ];
-                    }
-
-                    if ($this->pieges->estFosse($adjacent['piege'])) {
-                        $options[] = [
-                            'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
-                            'libelle' => "Franchir {$nomPiege} — jet de Body",
-                            'type' => 'franchissement',
-                            'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_FRANCHISSEMENT],
-                            'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
-                        ];
-                    }
+                    $options[] = [
+                        'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
+                        'libelle' => "Désamorcer {$nomPiege} — jet de Body",
+                        'type' => 'desamorcage',
+                        'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_DESAMORCAGE],
+                        'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                    ];
                 }
             }
         }
 
-        // Sorts des héros (doc 02) : un bouton par sort disponible (cibles
-        // légales jointes — tir ami compris, S3), parchemins du sac, et
-        // « Se concentrer » (S6) quand le nœud magicien le permet.
-        if ($etat !== null) {
+        // Sorts / parchemins / concentration = créneau ACTION.
+        if (! $aAgi && $etat !== null) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
                 $options[] = $option;
             }
+            $options[] = [
+                'id' => 'fouiller',
+                'libelle' => 'Fouiller les environs — jet de Mind',
+                'type' => 'jet',
+                'jet' => ['attribut' => 'mind', 'difficulte' => 1],
+            ];
         }
 
-        $options[] = [
-            'id' => 'fouiller',
-            'libelle' => 'Fouiller les environs — jet de Mind',
-            'type' => 'jet',
-            'jet' => ['attribut' => 'mind', 'difficulte' => 1],
-        ];
-        $options[] = ['id' => 'attendre', 'libelle' => 'Attendre et observer', 'type' => 'attente'];
+        // Toujours : terminer le tour (renonce aux créneaux restants).
+        $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
 
         return [
             'situation' => 'Vous progressez dans le donjon.',

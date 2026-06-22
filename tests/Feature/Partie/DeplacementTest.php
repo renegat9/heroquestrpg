@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Quete;
@@ -47,4 +48,39 @@ it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', fun
     // Régénérer le menu ne RELANCE pas le dé (allonce stable sur le tour).
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     expect((int) $etat->fresh()->deplacement_tour)->toBe(8);
+});
+
+it('deux créneaux : se déplacer n\'achève PAS le tour, le héros peut encore agir', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2); // 2nd héros : le tour ne passe pas aux monstres
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $etatA->update(['deplacement_tour' => 8, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+    $cible = caseAdjacenteLibre($quete, (int) $etatA->position_x, (int) $etatA->position_y);
+
+    // 1) Déplacement : créneau MOUVEMENT consommé, mais le tour n'est pas fini.
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
+        ->assertStatus(202);
+    $etatA->refresh();
+    expect($etatA->a_deplace)->toBeTrue()
+        ->and($etatA->a_agi)->toBeFalse()
+        ->and($etatA->a_joue)->toBeFalse();
+
+    // 2) Le menu régénéré n'offre plus le déplacement, mais permet encore d'agir.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->toBeNull()
+        ->and(collect($menu['options'])->firstWhere('type', 'attente'))->not->toBeNull();
+
+    // 3) Terminer le tour → les deux créneaux sont consommés → a_joue.
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+    expect($etatA->fresh()->a_joue)->toBeTrue();
 });

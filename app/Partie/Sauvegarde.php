@@ -261,6 +261,8 @@ final class Sauvegarde
                     'position_x' => $e->position_x,
                     'position_y' => $e->position_y,
                     'a_joue' => (bool) $e->a_joue,
+                    'a_deplace' => (bool) $e->a_deplace,
+                    'a_agi' => (bool) $e->a_agi,
                     'tombe' => (bool) $e->tombe,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
@@ -372,6 +374,8 @@ final class Sauvegarde
                 'position_x' => $etat['position_x'],
                 'position_y' => $etat['position_y'],
                 'a_joue' => $etat['a_joue'],
+                'a_deplace' => $etat['a_deplace'] ?? false,
+                'a_agi' => $etat['a_agi'] ?? false,
                 'tombe' => $etat['tombe'],
             ]);
         }

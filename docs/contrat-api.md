@@ -66,6 +66,12 @@ sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
 
+Un tour de héros = **deux créneaux** (doc 03 §28) : un **déplacement** et une
+**action**, dans l'ordre choisi. Le menu n'offre que les créneaux encore libres,
+plus « Terminer le tour » (`attendre`). Le tour ne passe au héros suivant / aux
+monstres que lorsque les deux créneaux sont consommés ou via une action
+terminante (concentration, relever, terminer). 
+
 L'option `deplacement` (id `se_deplacer`) porte dans `parametres` l'allonce du
 tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d6) :
 `{base, de (résultat du d6), portee (cases max ce tour, Vent Véloce inclus)}`. La

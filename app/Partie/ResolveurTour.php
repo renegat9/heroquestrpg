@@ -106,7 +106,17 @@ final class ResolveurTour
 
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
 
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres) {
+        // Créneau visé (doc 03 §28 : un déplacement + une action par tour) :
+        // on refuse de rejouer un créneau déjà consommé ce tour.
+        $creneau = $this->creneauOption((string) ($option['type'] ?? ''));
+        if ($creneau === 'mouvement' && $etat->a_deplace) {
+            throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
+        }
+        if ($creneau === 'action' && $etat->a_agi) {
+            throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
+        }
+
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -159,7 +169,9 @@ final class ResolveurTour
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
-            $etat->update(['a_joue' => true]);
+            // Consomme le créneau (mouvement/action) ; le tour ne se termine
+            // que quand les DEUX créneaux sont faits, ou via une action terminante.
+            $this->marquerCreneau($etat, $creneau);
 
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
@@ -1259,8 +1271,10 @@ final class ResolveurTour
         }
 
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
-        // Nouveau tour : on relancera le d6 de déplacement (reset de l'allonce).
-        $quete->etatsPersonnages()->update(['a_joue' => false, 'deplacement_tour' => null]);
+        // Nouveau tour : créneaux remis à zéro + on relancera le d6 de déplacement.
+        $quete->etatsPersonnages()->update([
+            'a_joue' => false, 'a_deplace' => false, 'a_agi' => false, 'deplacement_tour' => null,
+        ]);
 
         // Fin de tour : décompte des durées des conditions de sorts des héros
         // (Caché expire ici ; Vent Véloce survit jusqu'au déplacement suivant).
@@ -1443,6 +1457,43 @@ final class ResolveurTour
         $this->diffuserBark($groupe, $instance, 'attaque');
 
         return $payload;
+    }
+
+    /**
+     * Créneau de tour consommé par un type d'option (doc 03 §28) :
+     *  - `mouvement` : se déplacer, franchir une fosse ;
+     *  - `tour` : actions qui sacrifient le tour entier (concentration, relever,
+     *    terminer le tour) ;
+     *  - `action` : tout le reste (attaque, jet/fouille, sort, parchemin, désamorçage).
+     */
+    private function creneauOption(string $type): string
+    {
+        return match ($type) {
+            'deplacement', 'franchissement' => 'mouvement',
+            'concentration', 'relever', 'attente' => 'tour',
+            default => 'action',
+        };
+    }
+
+    /**
+     * Consomme le créneau et marque le tour terminé (a_joue) seulement quand les
+     * DEUX créneaux sont faits, ou immédiatement pour une action terminante.
+     */
+    private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau): void
+    {
+        if ($creneau === 'tour') {
+            $etat->a_joue = true;
+        } elseif ($creneau === 'mouvement') {
+            $etat->a_deplace = true;
+        } else {
+            $etat->a_agi = true;
+        }
+
+        if ($etat->a_deplace && $etat->a_agi) {
+            $etat->a_joue = true;
+        }
+
+        $etat->save();
     }
 
     /** Clé de cache des salles déjà découvertes d'une quête. */
