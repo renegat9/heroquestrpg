@@ -34,7 +34,11 @@ class ClotureController extends Controller
      */
     public function ouvrir(Request $request, string $identifiant): JsonResponse
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Le bouton « Clôturer » est sur l'écran de TABLE (narrateur sans
+        // compte) : l'ouverture est donc autorisée table-OU-membre. Aucune
+        // donnée par joueur n'est requise (l'issue est dérivée de l'état) et
+        // RIEN n'est appliqué avant la confirmation de TOUS les joueurs.
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $donnees = $request->validate([
             'abandon' => ['sometimes', 'boolean'],
@@ -93,9 +97,11 @@ class ClotureController extends Controller
     }
 
     /** DELETE /api/groupes/{identifiant}/cloture — annule (rien appliqué). */
-    public function annuler(string $identifiant): Response
+    public function annuler(Request $request, string $identifiant): Response
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Symétrique de l'ouverture : table-OU-membre (le narrateur peut
+        // annuler la fenêtre qu'il a ouverte). Rien n'a été appliqué.
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $this->cloture->annuler($groupe);
 

@@ -39,6 +39,13 @@ Route::get('/groupes/{identifiant}/marche', [MarcheController::class, 'etat']);
 Route::get('/groupes/{identifiant}/votes', [VoteController::class, 'actif']);
 Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat']);
 
+// Ouvrir / annuler la clôture : le bouton « Clôturer » est sur l'écran de
+// TABLE (narrateur sans compte). Hors auth:joueur — l'autorisation table-OU-
+// membre est faite dans le contrôleur (rien n'est appliqué avant la
+// confirmation de TOUS les joueurs, qui, elle, reste réservée aux joueurs).
+Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
+Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
+
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
@@ -90,8 +97,6 @@ Route::middleware('auth:joueur')->group(function () {
     // Clôture de campagne (doc 05 §6) : fenêtre en cache, finalisation en
     // job (or réparti, équipements, résumé, historique, purge complète)
     // quand TOUS les joueurs ont confirmé.
-    Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
     Route::put('/groupes/{identifiant}/cloture/repartition', [ClotureController::class, 'repartition']);
     Route::post('/groupes/{identifiant}/cloture/confirmation', [ClotureController::class, 'confirmer']);
-    Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
 });

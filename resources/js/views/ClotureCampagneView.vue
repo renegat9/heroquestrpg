@@ -35,8 +35,17 @@ const desabonnements = [];
 onMounted(async () => {
     try {
         if (!store.state.joueur) {
-            const { joueur, personnages } = await api.moi();
-            store.setJoueur(joueur, personnages);
+            // La table (narrateur sans compte) prend un 401 sur /moi : c'est
+            // normal, on l'ignore (sinon le catch global basculerait l'écran de
+            // clôture en mode démo — estErreurDemo() considère 401 comme démo).
+            // Seule une vraie panne réseau (status 0) → démo.
+            try {
+                const { joueur, personnages } = await api.moi();
+                store.setJoueur(joueur, personnages);
+            } catch (e) {
+                if (e instanceof Error && e.status === 0) throw e;
+                // 401 = narrateur sans compte → on continue (épilogue partagé).
+            }
         }
         desabonnements.push(souscrireGroupe(props.groupe, {
             '.cloture.ouverte': (e) => store.appliquerCloture(e),

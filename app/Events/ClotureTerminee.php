@@ -7,7 +7,7 @@ namespace App\Events;
 use App\Models\Groupe;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -16,9 +16,15 @@ use Illuminate\Queue\SerializesModels;
  * émis par le job CloturerCampagne AVANT la suppression du groupe, avec le
  * résumé d'historique de chaque héros — les clients retournent à l'accueil.
  *
+ * Diffusé en SYNCHRONE (ShouldBroadcastNow) : CloturerCampagne purge le groupe
+ * juste après l'émission. Un broadcast mis en file (ShouldBroadcast) serait
+ * désérialisé APRÈS la purge → reload du Groupe supprimé → échec, et l'épilogue
+ * n'arriverait jamais aux clients. Le synchrone part dans le handle(), groupe
+ * encore vivant.
+ *
  * Écouté côté Vue sous `.cloture.terminee`.
  */
-class ClotureTerminee implements ShouldBroadcast
+class ClotureTerminee implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
