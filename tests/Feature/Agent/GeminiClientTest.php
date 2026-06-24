@@ -48,7 +48,7 @@ it('appelle Gemini en function-calling forcé et renvoie les args', function () 
     expect($sortie)->toBe(['titre' => 'Le Tombeau', 'n' => 3]);
 
     Http::assertSent(function ($req) {
-        return str_contains($req->url(), '/v1beta/models/gemini-2.5-flash:generateContent')
+        return str_contains($req->url(), '/v1beta/models/gemini-3.1-flash-lite:generateContent')
             && $req->hasHeader('x-goog-api-key', 'cle-test')
             && $req['system_instruction']['parts'][0]['text'] === 'Tu es le MJ.'
             && $req['tool_config']['function_calling_config']['mode'] === 'ANY'

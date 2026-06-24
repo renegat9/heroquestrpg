@@ -39,7 +39,7 @@ final class GeminiClient implements ClientLLM
 
     public function modeleParDefaut(): string
     {
-        return $this->model ?? (string) config('services.gemini.model_texte', 'gemini-2.5-flash');
+        return $this->model ?? (string) config('services.gemini.model_texte', 'gemini-3.1-flash-lite');
     }
 
     /**

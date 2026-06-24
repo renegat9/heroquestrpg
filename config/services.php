@@ -92,8 +92,9 @@ return [
         // Modèle TTS (audio uniquement) — voix des barks/narration pré-générée.
         'model' => env('GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts'),
         // Modèle TEXTE pour le MJ IA (histoire/narration) quand LLM_PROVIDER=gemini.
-        // Distinct du modèle TTS (qui ne produit que de l'audio).
-        'model_texte' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        // Distinct du modèle TTS (qui ne produit que de l'audio). flash-lite :
+        // ~18× plus rapide que 2.5-flash en jeu (1er menu ~5 s), qualité OK.
+        'model_texte' => env('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 60),
     ],
