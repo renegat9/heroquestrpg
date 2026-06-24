@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Agent\AnthropicClient;
+use App\Agent\ClientLLM;
+use App\Agent\GeminiClient;
 use App\Agent\Memoire\Embeddings;
 use App\Agent\Memoire\EmbeddingsNuls;
 use App\Agent\Memoire\EmbeddingsVoyage;
@@ -28,6 +31,16 @@ class AppServiceProvider extends ServiceProvider
             return config('services.voyage.api_key')
                 ? new EmbeddingsVoyage
                 : new EmbeddingsNuls;
+        });
+
+        // Fournisseur LLM du MJ IA (histoire + narration) — choix GLOBAL via
+        // LLM_PROVIDER : tous les skills reçoivent le client choisi. Gemini
+        // seulement s'il est demandé ET que la clé est présente, sinon repli
+        // Anthropic (jouabilité préservée ; le TTS reste Gemini par ailleurs).
+        $this->app->bind(ClientLLM::class, function () {
+            return config('services.llm.provider') === 'gemini' && filled(config('services.gemini.api_key'))
+                ? $this->app->make(GeminiClient::class)
+                : $this->app->make(AnthropicClient::class);
         });
     }
 

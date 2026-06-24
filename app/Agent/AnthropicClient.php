@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Http;
  * La véracité (références au catalogue…) est vérifiée ensuite par
  * ValidationSortie + le moteur (doc 08 §2).
  */
-class AnthropicClient
+class AnthropicClient implements ClientLLM
 {
     private const VERSION_API = '2023-06-01';
 

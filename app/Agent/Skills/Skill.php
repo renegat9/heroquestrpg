@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Agent\Skills;
 
-use App\Agent\AnthropicClient;
+use App\Agent\ClientLLM;
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\Exceptions\SortieInvalideException;
 use App\Agent\ValidationSortie;
@@ -37,7 +37,7 @@ abstract class Skill
     public const SCHEMA = [];
 
     public function __construct(
-        protected readonly AnthropicClient $client,
+        protected readonly ClientLLM $client,
         protected readonly ValidationSortie $validation,
     ) {}
 

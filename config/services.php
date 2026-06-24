@@ -89,9 +89,28 @@ return [
     */
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
+        // Modèle TTS (audio uniquement) — voix des barks/narration pré-générée.
         'model' => env('GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts'),
+        // Modèle TEXTE pour le MJ IA (histoire/narration) quand LLM_PROVIDER=gemini.
+        // Distinct du modèle TTS (qui ne produit que de l'audio).
+        'model_texte' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fournisseur LLM du MJ IA (histoire + narration)
+    |--------------------------------------------------------------------------
+    | LLM_PROVIDER = anthropic (défaut) | gemini. Choix GLOBAL : tout le texte
+    | du MJ (squelette de campagne, détail de quête, narration, menus,
+    | habillage des monstres, résumé de fin) passe par le fournisseur choisi.
+    | Repli automatique sur Anthropic si « gemini » est demandé sans
+    | GEMINI_API_KEY. Le TTS reste sur Gemini quoi qu'il arrive. Sans aucune
+    | clé, les skills retombent sur leurs replis codés en dur (jouable).
+    */
+    'llm' => [
+        'provider' => env('LLM_PROVIDER', 'anthropic'),
     ],
 
 ];
