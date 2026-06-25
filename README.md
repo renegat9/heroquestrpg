@@ -15,12 +15,14 @@ moteur résout l'option choisie*.
 ## 📊 Statut du projet
 
 > **MVP complet et vérifié en partie réelle.** Le jeu se joue de bout en bout
-> (campagne multi-quêtes, sous-boss, boss final, clôture). Reste : la couche
-> **audio** (non implémentée) et l'**équilibrage** (valeurs de départ à playtester).
+> (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
+> (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
+> **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
+> à playtester). **224 tests Pest verts.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
-| Moteur de règles déterministe (`app/Engine`) | ✅ | Dés, jets, combat, déplacement, sorts mentaux — **182 tests Pest verts** |
+| Moteur de règles déterministe (`app/Engine`) | ✅ | Dés, jets, combat, déplacement, sorts mentaux — cœur autoritaire, dés injectables/seedables, fortement testé |
 | Schéma + couche BD (`app/Models`, migrations, seeders) | ✅ | Catalogues (bestiaire, objets, sorts, tuiles, pièges) en données de référence |
 | Boucle de jeu (`app/Partie`) | ✅ | Démarrage quête, carte, budget de rencontre, résolution de tour, monstres scriptés |
 | Combat, jets, **pièges**, **sorts de héros** | ✅ | |
@@ -29,18 +31,20 @@ moteur résout l'option choisie*.
 | **Sorts de Dread** + capacités de boss | ✅ | Régénération, sorts ennemis, charge |
 | **Clôture de campagne** (victoire / échec / abandon) | ✅ | Issue **dérivée de l'état**, jamais mal étiquetée ; or réparti, historique, purge |
 | **Snapshots & reprise** (après TPK / coupure) | ✅ | |
-| MJ IA (`app/Agent`) — squelette, narration, menus, habillage | ✅ | **Vérifié en live** avec `ANTHROPIC_API_KEY` (`claude-sonnet-4-6`) |
+| MJ IA (`app/Agent`) — squelette, narration, menus, habillage | ✅ | Fournisseur **au choix** : **Anthropic (Claude)** ou **Google Gemini** via `LLM_PROVIDER` ; modèles configurables (`ANTHROPIC_MODEL`, `GEMINI_MODEL`). **Vérifié en live** sur les deux |
 | RAG « bible » (Qdrant + embeddings) | ✅ | **Voyage AI** (`voyage-3.5`, 1024-dim) si `VOYAGE_API_KEY`, sinon repli lexical |
+| **Illustrations** (`php artisan images:generer`) | ✅ | Catalogue **fixe** pré-généré (classes, monstres, objets, pièges, sorts) + **dynamiques en arrière-plan** : portraits de boss, scènes de quête, lieux de repos (hub), portrait unique par héros. Via **Gemini image**. **Sans clé/asset : repli sur les icônes** |
 | API REST + temps réel (Reverb) | ✅ | Contrat dans [`docs/contrat-api.md`](docs/contrat-api.md) |
 | Front Vue (accueil, narrateur, joueur, table, manette) | ✅ | Écrans vérifiés au navigateur (Playwright) |
 | Modèle de session (narrateur par code + joueurs à compte) | ✅ | Heartbeat « narrateur actif » ; quête au statut « prêt » de tous |
-| **Audio / voix** | 🟡 | Narration MJ **lue en TTS** (Web Speech, sans clé) + **barks de monstres** (attaque/touché/raté/mort, voix par archétype, répliques nommées de boss). Audio pré-généré via `php artisan barks:generer` (Gemini TTS) ; **sans clé**, l'écran de table lit le texte des barks. Reste : ambiance/musique de fond |
+| **Audio / voix** | ✅ | Narration MJ **lue en TTS** + **voix dédiée du narrateur** + **barks de monstres** (voix par archétype, répliques nommées de boss) + **musique d'ambiance** (hub/exploration/combat/boss, via Lyria). Audio pré-généré (`php artisan barks:generer`, `narration:generer`, `audio-tools/`) ; **sans clé/asset**, repli Web Speech (texte) et ambiance silencieuse |
 | **Équilibrage** (stats, prix, difficultés) | 🧪 | Valeurs **de départ**, à régler en playtest |
 | Déploiement public / WAN durci | 🚫 | Hors périmètre — LAN/VPN uniquement |
 
 **Jouable sans aucune clé API :** chaque tâche IA a un repli (menus du moteur,
-narration neutre, noms de monstres du catalogue) et le RAG bascule en lexical.
-Les clés n'améliorent que la **qualité narrative**, jamais la mécanique.
+narration neutre, noms de monstres du catalogue), le RAG bascule en lexical, la
+voix passe en Web Speech et **les illustrations retombent sur les icônes**. Les
+clés n'améliorent que la **qualité narrative / sonore / visuelle**, jamais la mécanique.
 
 ---
 
@@ -48,8 +52,9 @@ Les clés n'améliorent que la **qualité narrative**, jamais la mécanique.
 
 Monolithe **Laravel** modulaire (PHP 8.3) + SPA **Vue 3** + **Reverb** (WebSocket)
 + **MariaDB** (état de jeu exact) + **Qdrant** (RAG), le tout sur un seul
-`docker-compose`. LLM via l'**API Anthropic**. Tout tourne en conteneurs —
-**ni PHP, ni Node, ni navigateur requis sur l'hôte**.
+`docker-compose`. LLM via l'**API Anthropic (Claude)** **ou** **Google Gemini**
+(au choix). Tout tourne en conteneurs — **ni PHP, ni Node, ni navigateur requis
+sur l'hôte**.
 
 ## 🚀 Démarrage rapide
 
@@ -62,9 +67,27 @@ docker compose logs -f app queue      # suivre l'app et les jobs IA
 ```
 
 Clés (facultatives) dans `.env` uniquement, **jamais dans les images** :
-`ANTHROPIC_API_KEY` (narration) et `VOYAGE_API_KEY` (RAG sémantique).
-Après modification des clés : recréer les conteneurs `app`/`queue`/`reverb`
+- `LLM_PROVIDER` = `anthropic` (défaut) | `gemini` — fournisseur du **texte** du MJ.
+- `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL` (défaut `claude-sonnet-4-6`).
+- `GEMINI_API_KEY` — sert au **texte** (si `LLM_PROVIDER=gemini`, `GEMINI_MODEL`
+  défaut `gemini-3.1-flash-lite`), au **TTS** (voix) et aux **images**
+  (`GEMINI_IMAGE_MODEL` défaut `gemini-2.5-flash-image`).
+- `VOYAGE_API_KEY` — RAG sémantique de la bible.
+
+Après modification des clés : recréer les conteneurs `app`/`queue`/`queue-jeu`/`reverb`
 **et redémarrer `web`** (nginx met en cache l'IP de l'app → 502 sinon).
+
+**Génération des assets (hors-ligne, facultatif, avec `GEMINI_API_KEY`)** :
+
+```bash
+docker compose exec app php artisan images:generer    # illustrations du catalogue (résumable ; --type, --force)
+docker compose exec app php artisan barks:generer      # voix des monstres (TTS)
+docker compose exec app php artisan narration:generer  # voix du narrateur (TTS)
+```
+
+Boss, scènes, lieux de repos et portraits uniques se génèrent **automatiquement
+en arrière-plan** pendant la partie. Tous les assets (`public/audio`, `public/images`)
+sont **régénérables** et hors dépôt (gitignored).
 
 ## 🎮 Comment on joue
 
@@ -75,7 +98,7 @@ Après modification des clés : recréer les conteneurs `app`/`queue`/`reverb`
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`).
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **224 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
@@ -86,8 +109,8 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 ## 🗂️ Architecture (modules Laravel, nommage français)
 
 - **`app/Engine`** — règles pures (dés, jets, combat, déplacement, sorts mentaux). Cœur autoritaire, dés injectables et seedables. Fortement testé.
-- **`app/Agent`** — agent MJ unique : `AnthropicClient` (tool use forcé), `Skills/` (une par tâche : squelette, détail de quête, menu, narration — schéma JSON + validation catalogue + repli), `Memoire/` (assemblage de contexte, bible Qdrant, embeddings).
-- **`app/Partie`** — services de boucle de jeu orchestrant Engine + Models.
+- **`app/Agent`** — agent MJ unique : interface `ClientLLM` implémentée par `AnthropicClient` et `GeminiClient` (sortie structurée forcée — tool use / function calling), `Skills/` (une par tâche : squelette, détail de quête, menu, narration — schéma JSON + validation catalogue + repli), `Memoire/` (contexte, bible Qdrant, embeddings), `Audio/` (TTS Gemini), `Image/` (génération d'illustrations Gemini).
+- **`app/Partie`** — services de boucle de jeu orchestrant Engine + Models ; `Images/` résout les illustrations (URL ou repli), `Audio/`/`Narration/` les sons.
 - **`app/Models`** — Eloquent sur le schéma de la doc 12 ; catalogues = données de seed.
 
 ## 📚 Documentation
@@ -104,6 +127,6 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 
 ## 🛣️ Reste à faire (court terme)
 
-- **Audio** : narration TTS et barks de monstres faits ; reste l'**ambiance/musique de fond**. Pour les voix de barks générées, poser `GEMINI_API_KEY` puis `docker compose exec app php artisan barks:generer`.
 - **Équilibrage** : régler stats / prix / difficultés en playtest (la tactique du bot de test est limitée — un humain place mieux ses héros).
+- **Assets** : (re)générer les illustrations / voix manquantes selon le budget API ; affiner les prompts de style (`config/images.php`) au besoin.
 - Phase 2 (doc 00 §8) : alliés recrutables, marchandage, ramifications profondes, boss multi-phases, etc.
