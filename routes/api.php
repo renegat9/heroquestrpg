@@ -52,6 +52,8 @@ Route::middleware('auth:joueur')->group(function () {
 
     // Roster joueur : créer un perso libre (sans l'engager dans un groupe).
     Route::post('/personnages', [GroupeController::class, 'creerPersonnage']);
+    // Portrait unique d'un héros (génération IA à la demande).
+    Route::post('/personnages/{id}/portrait', [GroupeController::class, 'genererPortrait']);
 
     // Groupes / campagnes (création → dispatch du squelette en job).
     Route::post('/groupes', [GroupeController::class, 'creer']);

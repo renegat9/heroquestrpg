@@ -128,6 +128,9 @@ export function useApi() {
         creerPersonnage: ({ nom, classe, elements }) =>
             request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
 
+        /** POST /personnages/{id}/portrait → {portrait_url} (génération IA, ~qq s). */
+        genererPortrait: (id) => request('POST', `/personnages/${id}/portrait`),
+
         // ---- table (Narrateur — session sans compte) ----
 
         /**

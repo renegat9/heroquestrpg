@@ -95,6 +95,18 @@ final class BibliothequeImages
         return ['rel' => $rel, 'absolu' => public_path("images/{$rel}"), 'url' => "/images/{$rel}"];
     }
 
+    /** Écrit un asset (crée le dossier) ; renvoie son URL publique. */
+    public function enregistrer(string $rel, string $octets): string
+    {
+        $absolu = public_path("images/{$rel}");
+        if (! is_dir(dirname($absolu))) {
+            mkdir(dirname($absolu), 0775, true);
+        }
+        file_put_contents($absolu, $octets);
+
+        return "/images/{$rel}";
+    }
+
     /**
      * Portrait d'un héros : portrait UNIQUE (dyn/perso) s'il existe, sinon
      * l'image de CLASSE par défaut, sinon null (→ icône côté front).

@@ -79,6 +79,7 @@ class HabillerMonstres implements ShouldQueue
 
         if ($habillages->isEmpty()) {
             GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
+            GenererImagesQuete::dispatch($this->groupeId, $this->queteId); // scène + boss (noms catalogue)
             return; // repli : rien à appliquer.
         }
 
@@ -100,5 +101,9 @@ class HabillerMonstres implements ShouldQueue
 
         // Barks nommés des boss/sous-boss (best-effort, sans clé = repli archétype).
         GenererBarksBoss::dispatch($this->queteId);
+
+        // Images dynamiques : scène de quête + portraits de boss (depuis les
+        // noms IA fraîchement appliqués). Best-effort, en arrière-plan.
+        GenererImagesQuete::dispatch($this->groupeId, $this->queteId);
     }
 }

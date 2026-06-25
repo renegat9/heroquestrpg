@@ -232,6 +232,22 @@ async function reprendre(perso) {
     router.push({ name: 'manette', params: { groupe: statut.identifiant } });
 }
 
+// Portrait unique (génération IA à la demande) — prime sur l'image de classe.
+const portraitEnCours = ref({});
+async function genererPortrait(perso) {
+    if (portraitEnCours.value[perso.id]) return;
+    portraitEnCours.value = { ...portraitEnCours.value, [perso.id]: true };
+    try {
+        const { portrait_url } = await api.genererPortrait(perso.id);
+        const persos = (store.state.personnages ?? [])
+            .map((p) => (p.id === perso.id ? { ...p, portrait_url } : p));
+        store.setJoueur(store.state.joueur, persos);
+    } catch { /* non bloquant : on garde l'image de classe */ }
+    finally {
+        portraitEnCours.value = { ...portraitEnCours.value, [perso.id]: false };
+    }
+}
+
 // Icône de classe
 function iconeClasse(classe) {
     return CLASSES[(classe ?? '').toLowerCase()]?.ic ?? 'person';
@@ -368,6 +384,15 @@ function libelleClasse(classe) {
                         <div class="pcard-head">
                             <div class="pcard-crest">
                                 <Vignette :src="perso.portrait_url" :icon="iconeClasse(perso.classe)" fill />
+                                <button
+                                    class="pcard-portrait-btn"
+                                    type="button"
+                                    :disabled="portraitEnCours[perso.id]"
+                                    :title="portraitEnCours[perso.id] ? 'Génération du portrait…' : 'Générer un portrait IA'"
+                                    @click="genererPortrait(perso)"
+                                >
+                                    <MSym :n="portraitEnCours[perso.id] ? 'hourglass_top' : 'auto_awesome'" :size="13" />
+                                </button>
                             </div>
                             <div class="pcard-info">
                                 <div class="pcard-nom">{{ perso.nom }}</div>
@@ -737,8 +762,12 @@ function libelleClasse(classe) {
 .joueur-pcard.engage { border-color: oklch(0.5 0.05 250 / 0.6); }
 
 .pcard-head { display: flex; align-items: center; gap: 12px; }
-.pcard-crest { width: 44px; height: 44px; border-radius: 12px; flex: none; display: grid; place-items: center;
-  background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); }
+.pcard-crest { position: relative; width: 44px; height: 44px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); overflow: visible; }
+.pcard-portrait-btn { position: absolute; bottom: -5px; right: -5px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; border: 1px solid var(--stone-950); background: var(--torch); color: var(--stone-950);
+  cursor: pointer; padding: 0; box-shadow: var(--sh-1); }
+.pcard-portrait-btn:disabled { opacity: 0.6; cursor: default; }
 .pcard-crest .msym { font-size: 24px; }
 .pcard-info { flex: 1; min-width: 0; }
 .pcard-nom { font-family: var(--font-display); font-size: 17px; color: var(--parch-100);

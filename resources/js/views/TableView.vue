@@ -130,6 +130,10 @@ const joueursConnectes = computed(() => (etat.value
     : 4));
 
 const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Le Seuil des Ombres');
+// Illustrations dynamiques (générées en arrière-plan) : lieu de repos (hub) et
+// scène de quête. Null tant qu'absentes → repli sur le fond/l'icône.
+const hubImage = computed(() => etat.value?.groupe?.image_url ?? null);
+const sceneImage = computed(() => etat.value?.quete?.image_url ?? null);
 const sousTitre = computed(() => (etat.value
     ? etat.value.groupe?.nom ?? ''
     : "Quête III · La crypte d'ambre"));
@@ -291,6 +295,7 @@ const combatRef = ref(null);
         <div class="table tex-stone tex-vignette" style="position: relative">
             <!-- bandeau haut -->
             <div class="top">
+                <img v-if="enQuete && sceneImage" :src="sceneImage" alt="" class="scene-vignette" />
                 <div class="quest">
                     <RouterLink to="/" class="hub-link">
                         <MSym n="arrow_back" :size="14" /> HUB
@@ -316,7 +321,8 @@ const combatRef = ref(null);
                     <MarketPanel v-if="marche" :marche="marche" @annuler="annulerMarche" />
                     <!-- phase hub (mode connecté) : pas encore de carte, on lance la quête -->
                     <div v-else-if="phaseHub" class="hub-panel">
-                        <MSym n="map" :size="40" fill />
+                        <img v-if="hubImage" :src="hubImage" alt="Lieu de repos" class="hub-illus" />
+                        <MSym v-else n="map" :size="40" fill />
                         <p>Le groupe se tient prêt au hub. La prochaine descente attend.</p>
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
@@ -608,6 +614,11 @@ const combatRef = ref(null);
   border-radius: var(--r-lg); border: var(--line); background: linear-gradient(180deg, var(--stone-850), var(--stone-900));
   color: var(--ink-300); max-width: 460px; }
 .table-screen .hub-panel .msym { color: var(--torch); }
+.table-screen .hub-panel .hub-illus { width: 100%; max-width: 380px; aspect-ratio: 16 / 10; object-fit: cover;
+  border-radius: var(--r-md); border: var(--line); box-shadow: var(--sh-2); }
+/* vignette de scène dans le bandeau de quête */
+.table-screen .top .scene-vignette { width: 56px; height: 56px; object-fit: cover; border-radius: var(--r-md);
+  border: var(--line); flex: none; box-shadow: var(--sh-1); }
 .table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
 

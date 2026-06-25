@@ -71,6 +71,9 @@ class GenererSqueletteCampagne implements ShouldQueue
             $groupe->plan_campagne = $squelette;
             $groupe->save();
 
+            // Illustration du lieu de repos (hub), depuis la prémisse — fond.
+            GenererImageHub::dispatch($this->groupeId);
+
             Journal::ajouter($groupe, 'systeme', [
                 'action' => 'squelette_campagne_genere',
                 'menace' => $squelette['menace']['nom'] ?? null,

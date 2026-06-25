@@ -128,8 +128,9 @@ it('déclenche un piège caché traversé : dégâts du catalogue, usage unique 
     // Le piège déclenché devient public dans EtatGroupe.carte ; les héros
     // exposent leur niveau (contrat).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
-    expect($partage['carte']['pieges'])->toBe([
-        ['x' => $cible['x'], 'y' => $cible['y'], 'etat' => 'declenche', 'nom' => 'Piège à lances', 'image_url' => null],
+    // (image_url retiré : dépend des assets générés, hors périmètre du test)
+    expect(collect($partage['carte']['pieges'])->map(fn ($p) => collect($p)->except('image_url')->all())->all())->toBe([
+        ['x' => $cible['x'], 'y' => $cible['y'], 'etat' => 'declenche', 'nom' => 'Piège à lances'],
     ])->and($partage['entites'][0]['niveau'])->toBe(1);
 });
 
@@ -196,8 +197,8 @@ it('révèle par la fouille les pièges cachés proches — jamais les lointains
     // Seul le piège révélé apparaît dans l'état partagé : le lointain reste
     // CACHÉ et n'y figure jamais (contrat).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
-    expect($partage['carte']['pieges'])->toBe([
-        ['x' => $proche['x'], 'y' => $proche['y'], 'etat' => 'detecte', 'nom' => 'Fosse', 'image_url' => null],
+    expect(collect($partage['carte']['pieges'])->map(fn ($p) => collect($p)->except('image_url')->all())->all())->toBe([
+        ['x' => $proche['x'], 'y' => $proche['y'], 'etat' => 'detecte', 'nom' => 'Fosse'],
     ]);
 
     $pieges = $quete->fresh()->carte->grille['pieges'];

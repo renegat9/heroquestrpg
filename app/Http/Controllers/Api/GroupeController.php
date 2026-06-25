@@ -7,12 +7,14 @@ namespace App\Http\Controllers\Api;
 use App\Events\PretsMaj;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\TableController;
+use App\Jobs\GenererPortraitHeros;
 use App\Jobs\GenererSqueletteCampagne;
 use App\Models\ClasseHeros;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\DemarreurQuete;
 use App\Partie\EtatGroupe;
+use App\Partie\Images\BibliothequeImages;
 use App\Partie\MoteurSorts;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -160,6 +162,28 @@ class GroupeController extends Controller
                 'disponible' => true,
             ],
         ], 201);
+    }
+
+    /**
+     * POST /api/personnages/{id}/portrait — génère (synchrone) un portrait
+     * UNIQUE pour un héros du joueur (~quelques secondes). Renvoie l'URL du
+     * portrait (dyn si généré, sinon repli image de classe). Sans clé/échec :
+     * l'URL reste l'image de classe (ou null → icône) — jamais bloquant.
+     */
+    public function genererPortrait(string $id, BibliothequeImages $biblio): JsonResponse
+    {
+        $joueur = Auth::guard('joueur')->user();
+
+        $personnage = Personnage::query()
+            ->where('id', $id)
+            ->where('joueur_id', $joueur->id)
+            ->firstOrFail();
+
+        GenererPortraitHeros::dispatchSync($personnage->id);
+
+        return response()->json([
+            'portrait_url' => $biblio->urlHeros($personnage->id, $personnage->classe),
+        ]);
     }
 
     /**
