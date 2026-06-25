@@ -8,6 +8,7 @@
 // Repli : API injoignable / 401 → démo locale (badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MSym from '../components/ui/MSym.vue';
+import Vignette from '../components/ui/Vignette.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import ActionTab from '../components/manette/ActionTab.vue';
 import FicheTab from '../components/manette/FicheTab.vue';
@@ -151,7 +152,7 @@ watch(heroKey, (k) => {
 });
 
 /** Habillage (icônes/équipement de démo) d'une classe + identité réelle. */
-function habiller(classe, nom, niveau, conds) {
+function habiller(classe, nom, niveau, conds, img = null) {
     const base = HEROES[CLASSES[(classe ?? '').toLowerCase()]?.demo ?? 'barb'];
     return {
         ...base,
@@ -159,15 +160,16 @@ function habiller(classe, nom, niveau, conds) {
         cls: CLASSES[(classe ?? '').toLowerCase()]?.l ?? classe,
         lvl: niveau ?? base.lvl,
         conds,
+        img, // portrait réel (image_url / portrait_url) si présent, sinon null → icône
     };
 }
 const hero = computed(() => {
     const e = monEntite.value;
-    if (e) return habiller(e.classe, e.nom, e.niveau, conditionsVersBadges(e.conditions));
+    if (e) return habiller(e.classe, e.nom, e.niveau, conditionsVersBadges(e.conditions), e.image_url ?? null);
     // Hub (pas d'entité de quête) mais connecté : on affiche le VRAI personnage
     // (monPerso), pas la fiche de démo. Repli démo seulement si vraiment en démo.
     const p = monPerso.value;
-    if (!enDemo.value && p) return habiller(p.classe, p.nom, p.niveau, []);
+    if (!enDemo.value && p) return habiller(p.classe, p.nom, p.niveau, [], p.portrait_url ?? null);
     return HEROES[heroKey.value];
 });
 
@@ -670,7 +672,7 @@ const navItems = computed(() => (scene.value === 'marche'
                     <!-- barre de statut -->
                     <div class="topbar">
                         <div class="hero-chip">
-                            <span class="crest"><MSym :n="hero.crest" fill :size="22" /></span>
+                            <span class="crest"><Vignette :src="hero.img" :icon="hero.crest" fill :size="22" /></span>
                             <div>
                                 <div class="nm">{{ hero.name }}</div>
                                 <div class="cls">{{ hero.cls }} · Niv. {{ hero.lvl }}</div>

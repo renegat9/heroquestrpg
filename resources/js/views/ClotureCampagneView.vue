@@ -12,6 +12,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import Vignette from '../components/ui/Vignette.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import { CLOTURE_HEROES, CLOTURE_REWARDS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
@@ -266,7 +267,7 @@ const embers = Array.from({ length: 26 }, () => {
                     <div v-if="equipements.length" class="reward-grid">
                         <div v-for="eq in equipements" :key="eq.inventaire_id" class="reward">
                             <div class="rh">
-                                <span class="ic" :class="eq.rar"><MSym :n="eq.ic" fill /></span>
+                                <span class="ic" :class="eq.rar"><Vignette :src="eq.img" :icon="eq.ic" fill /></span>
                                 <div><div class="rn">{{ eq.nom }}</div><div class="rr" :class="'rar-' + eq.rar">{{ eq.rarLabel }}</div></div>
                             </div>
                             <div class="assign">

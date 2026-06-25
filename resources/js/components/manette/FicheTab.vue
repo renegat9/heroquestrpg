@@ -1,6 +1,7 @@
 <script setup>
 // Onglet Fiche perso — port de FicheTab (manette-app.jsx).
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 import PipsGauge from './PipsGauge.vue';
 import { HEROES } from '../../data/demo';
 
@@ -38,7 +39,7 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
         </div>
 
         <div class="fiche-head">
-            <div class="portrait"><MSym :n="hero.icon" fill :size="44" /><span class="ph-tag">portrait classe</span></div>
+            <div class="portrait"><Vignette :src="hero.img" :icon="hero.icon" fill :size="44" /><span v-if="!hero.img" class="ph-tag">portrait classe</span></div>
             <div>
                 <h2>{{ hero.name }}</h2>
                 <div class="lvl">{{ hero.cls }} · Niveau {{ niveau ?? hero.lvl }}</div>

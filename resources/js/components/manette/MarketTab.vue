@@ -5,6 +5,7 @@
 // groupe, confirmation) ou démo (comportement d'origine de la maquette).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 import { SHOP, RAR_LABEL } from '../../data/demo';
 import { PROFILS_MARCHE } from '../../store/game';
 
@@ -55,7 +56,7 @@ function estEnVente(inventaireId) {
         <!-- échoppe : inventaire du profil (prix × multiplicateur, stock) -->
         <div class="sect-title"><MSym n="sell" :size="16" /> Échoppe</div>
         <div v-for="it in live.items" :key="it.id" class="item">
-            <span class="ic" :style="it.rar === 'unique' ? { color: 'var(--rar-unique)' } : {}"><MSym :n="it.icon" :fill="it.rar === 'unique'" /></span>
+            <span class="ic" :style="it.rar === 'unique' ? { color: 'var(--rar-unique)' } : {}"><Vignette :src="it.img" :icon="it.icon" :fill="it.rar === 'unique'" /></span>
             <div>
                 <div class="nm">{{ it.name }}</div>
                 <div class="rar" :class="'rar-' + it.rar">
@@ -135,7 +136,7 @@ function estEnVente(inventaireId) {
         </div>
         <div class="sect-title"><MSym n="sell" :size="16" /> Échoppe</div>
         <div v-for="it in SHOP" :key="it.id" class="item">
-            <span class="ic" :style="it.rar === 'unique' ? { color: 'var(--rar-unique)' } : {}"><MSym :n="it.icon" :fill="it.rar === 'unique'" /></span>
+            <span class="ic" :style="it.rar === 'unique' ? { color: 'var(--rar-unique)' } : {}"><Vignette :src="it.img" :icon="it.icon" :fill="it.rar === 'unique'" /></span>
             <div><div class="nm">{{ it.name }}</div><div class="rar" :class="'rar-' + it.rar">{{ RAR_LABEL[it.rar] }}</div></div>
             <span class="price"><MSym n="paid" :size="15" />{{ it.price }}</span>
             <button

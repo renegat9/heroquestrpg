@@ -20,6 +20,7 @@ use App\Models\Joueur;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Snapshot;
+use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
@@ -435,6 +436,7 @@ final class ClotureCampagne
                 'nom' => $ligne->objet->nom,
                 'categorie' => $ligne->objet->categorie,
                 'rarete' => $ligne->objet->rarete,
+                'image_url' => app(BibliothequeImages::class)->urlObjet($ligne->objet_id, $ligne->objet->nom),
                 'personnage_id' => (int) ($reassignations[(string) $ligne->id] ?? $ligne->personnage_id),
             ])
             ->values()

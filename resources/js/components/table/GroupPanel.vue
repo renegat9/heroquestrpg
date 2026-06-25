@@ -1,8 +1,9 @@
 <script setup>
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 
 defineProps({
-    /** TABLE_PARTY : [{ l, c, ic, body: [cur,max], mind: [cur,max], conds, acting?, low? }] */
+    /** TABLE_PARTY : [{ l, c, ic, img?, body: [cur,max], mind: [cur,max], conds, acting?, low? }] */
     party: { type: Array, required: true },
 });
 
@@ -19,7 +20,7 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
             :class="{ acting: p.acting, downed: p.body[0] === 0 }"
         >
             <div class="hh">
-                <span class="crest"><MSym :n="p.ic" fill /></span>
+                <span class="crest"><Vignette :src="p.img" :icon="p.ic" fill /></span>
                 <div>
                     <div class="hn">{{ p.l }}</div>
                     <div class="hc">{{ p.c }}</div>

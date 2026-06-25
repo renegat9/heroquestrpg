@@ -364,6 +364,7 @@ export function entitesVersFigurines(entites, initiative) {
             k: e.type === 'heros' ? 'hero' : 'foe',
             l: labelCourt(e.nom),
             ic: e.type === 'heros' ? classeDe(e)?.ic : 'sentiment_very_dissatisfied',
+            img: e.image_url ?? null,
             hp: e.type === 'monstre' ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
             cond: conditionDeJeton(e.conditions),
@@ -400,6 +401,7 @@ export function entitesVersGroupe(entites, initiative) {
             l: e.nom,
             c: classeDe(e)?.l ?? e.classe,
             ic: classeDe(e)?.ic ?? 'person',
+            img: e.image_url ?? null,
             body: [e.tombe ? 0 : e.pv_body, e.pv_body_max],
             mind: [e.pv_mind, e.pv_mind_max],
             conds: conditionsVersBadges(e.conditions),
@@ -561,6 +563,7 @@ export function marcheVersEchoppe(marche) {
         rar: rareteVersCle(it.rarete),
         rarLabel: RARETE_LABELS[rareteVersCle(it.rarete)],
         icon: CATEGORIE_ICONES[(it.categorie ?? '').toLowerCase()] ?? 'category',
+        img: it.image_url ?? null,
         price: it.prix ?? 0,
         stock: it.stock ?? 0,
     }));
@@ -910,6 +913,7 @@ export function clotureVersEquipements(cloture) {
             rar,
             rarLabel: RARETE_LABELS[rar],
             ic: CATEGORIE_ICONES[(e.categorie ?? '').toLowerCase()] ?? 'category',
+            img: e.image_url ?? null,
             personnage_id: e.personnage_id ?? null,
         };
     });

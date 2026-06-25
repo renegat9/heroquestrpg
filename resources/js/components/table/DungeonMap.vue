@@ -1,5 +1,6 @@
 <script setup>
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 
 defineProps({
     /** { C, R, cells: [{ x, y, t, range }] } — voir buildTableMap(). */
@@ -41,7 +42,7 @@ defineProps({
             :style="{ gridColumn: e.x + 1, gridRow: e.y + 1 }"
         >
             <div class="fig" :class="[e.k, { cur: e.cur, tgt: e.tgt }]">
-                <MSym v-if="e.ic" :n="e.ic" fill />
+                <Vignette v-if="e.img || e.ic" :src="e.img" :icon="e.ic" fill />
                 <template v-else>{{ e.l }}</template>
                 <div v-if="e.hp" class="hp">
                     <i v-for="p in e.hp" :key="p" />

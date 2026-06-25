@@ -95,6 +95,8 @@ return [
         // Distinct du modèle TTS (qui ne produit que de l'audio). flash-lite :
         // ~18× plus rapide que 2.5-flash en jeu (1er menu ~5 s), qualité OK.
         'model_texte' => env('GEMINI_MODEL', 'gemini-3.1-flash-lite'),
+        // Modèle IMAGE (illustrations du jeu) : generateContent → inlineData PNG.
+        'model_image' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 60),
     ],

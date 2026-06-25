@@ -33,3 +33,6 @@ browser-shots/*.png
 /public/audio/barks
 /public/audio/narration
 /public/audio/ambiance
+
+# images générées (catalogue + dynamiques — régénérables, hors dépôt)
+/public/images

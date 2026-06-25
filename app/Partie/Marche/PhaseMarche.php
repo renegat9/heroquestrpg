@@ -88,6 +88,7 @@ final class PhaseMarche
                 'rarete' => $o->rarete,
                 'prix' => (int) round($o->prix_base * $config['multiplicateur']),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,
+                'image_url' => app(\App\Partie\Images\BibliothequeImages::class)->urlObjet($o->id, $o->nom),
             ])
             ->values()
             ->all();

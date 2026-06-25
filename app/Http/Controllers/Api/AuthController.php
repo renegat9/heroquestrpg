@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Auth\JoueurAuthentifiable;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
+use App\Partie\Images\BibliothequeImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -119,6 +120,9 @@ class AuthController extends Controller
                         'nom' => $p->nom,
                         'classe' => $p->classe,
                         'niveau' => (int) $p->niveau,
+                        // Portrait unique du héros si généré, sinon image de classe
+                        // (null si aucune → la manette/roster affiche l'icône).
+                        'portrait_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                         // PV persistants : la manette affiche bandeau + jauges au
                         // hub (hors quête, sans entité d'état EtatGroupe).
                         'pv_body' => (int) $p->pv_body,

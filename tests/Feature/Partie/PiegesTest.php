@@ -129,7 +129,7 @@ it('déclenche un piège caché traversé : dégâts du catalogue, usage unique 
     // exposent leur niveau (contrat).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     expect($partage['carte']['pieges'])->toBe([
-        ['x' => $cible['x'], 'y' => $cible['y'], 'etat' => 'declenche', 'nom' => 'Piège à lances'],
+        ['x' => $cible['x'], 'y' => $cible['y'], 'etat' => 'declenche', 'nom' => 'Piège à lances', 'image_url' => null],
     ])->and($partage['entites'][0]['niveau'])->toBe(1);
 });
 
@@ -197,7 +197,7 @@ it('révèle par la fouille les pièges cachés proches — jamais les lointains
     // CACHÉ et n'y figure jamais (contrat).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     expect($partage['carte']['pieges'])->toBe([
-        ['x' => $proche['x'], 'y' => $proche['y'], 'etat' => 'detecte', 'nom' => 'Fosse'],
+        ['x' => $proche['x'], 'y' => $proche['y'], 'etat' => 'detecte', 'nom' => 'Fosse', 'image_url' => null],
     ]);
 
     $pieges = $quete->fresh()->carte->grille['pieges'];

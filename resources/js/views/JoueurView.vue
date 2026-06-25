@@ -6,6 +6,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import Vignette from '../components/ui/Vignette.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
 import { estErreurDemo, useApi } from '../composables/useApi';
 import { CLASSES, ELEMENTS, statutPersonnage, useGameStore } from '../store/game';
@@ -366,7 +367,7 @@ function libelleClasse(classe) {
                         <!-- en-tête de la carte -->
                         <div class="pcard-head">
                             <div class="pcard-crest">
-                                <MSym :n="iconeClasse(perso.classe)" fill />
+                                <Vignette :src="perso.portrait_url" :icon="iconeClasse(perso.classe)" fill />
                             </div>
                             <div class="pcard-info">
                                 <div class="pcard-nom">{{ perso.nom }}</div>

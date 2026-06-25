@@ -12,6 +12,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\Images\BibliothequeImages;
 use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Support\Facades\Cache;
 
@@ -48,6 +49,9 @@ final class EtatGroupe
             'narrateur_actif' => $narrateurActif,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $quete),
+            // Illustration du lieu de repos (hub) — générée en arrière-plan
+            // (null tant qu'absente → la table affiche le fond par défaut).
+            'image_url' => app(BibliothequeImages::class)->urlDyn('hub', $groupe->id),
         ];
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.
@@ -84,6 +88,8 @@ final class EtatGroupe
                 'position_arc' => $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
                 'etat' => $quete->etat,
+                // Illustration de scène de la quête (générée en arrière-plan).
+                'image_url' => app(BibliothequeImages::class)->urlDyn('quete', $quete->id),
             ],
             'carte' => $this->carte($quete),
             'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->monstres($quete)],
@@ -164,12 +170,15 @@ final class EtatGroupe
             ->whereIn('id', $connus->pluck('piege_id')->filter()->unique())
             ->pluck('nom', 'id');
 
+        $biblio = app(BibliothequeImages::class);
+
         return $connus
             ->map(fn (array $entree) => [
                 'x' => (int) $entree['x'],
                 'y' => (int) $entree['y'],
                 'etat' => (string) $entree['etat'],
                 'nom' => $noms[$entree['piege_id']] ?? 'Piège',
+                'image_url' => $biblio->urlPiege($entree['piege_id'] ?? null, $noms[$entree['piege_id']] ?? 'Piège'),
             ])
             ->values()
             ->all();
@@ -195,6 +204,8 @@ final class EtatGroupe
                     'nom' => $p->nom,
                     'classe' => $p->classe,
                     'niveau' => (int) $p->niveau,
+                    // Portrait unique du héros si généré, sinon image de classe.
+                    'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
                     'x' => $etat?->position_x,
                     'y' => $etat?->position_y,
                     'pv_body' => (int) $p->pv_body,
@@ -223,6 +234,8 @@ final class EtatGroupe
                 'type' => 'monstre',
                 'id' => $i->id,
                 'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                // Portrait de boss dynamique si généré, sinon image du catalogue.
+                'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
                 'x' => $i->position_x,
                 'y' => $i->position_y,
                 'pv_body' => (int) $i->pv_body,
