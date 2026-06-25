@@ -71,6 +71,11 @@ final class BibliothequeImages
         return $id ? $this->url($this->relatifCatalogue('pieges', $id, (string) $nom)) : null;
     }
 
+    public function urlSort(?int $id, ?string $nom): ?string
+    {
+        return $id ? $this->url($this->relatifCatalogue('sorts', $id, (string) $nom)) : null;
+    }
+
     // ---- Dynamique (jobs / cache) ----------------------------------------
 
     public function relatifDyn(string $sousType, int|string $id): string

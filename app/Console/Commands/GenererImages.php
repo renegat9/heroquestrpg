@@ -10,6 +10,7 @@ use App\Models\ClasseHeros;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
+use App\Models\Sort;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Console\Command;
 
@@ -28,7 +29,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|objets|pieges|tous}
+        {--type=tous : classes|monstres|objets|pieges|sorts|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -124,6 +125,14 @@ final class GenererImages extends Command
                 'type' => 'pieges',
                 'rel' => $biblio->relatifCatalogue('pieges', $p->id, $p->nom),
                 'prompt' => $biblio->prompt('piege', ['nom' => $p->nom]),
+            ];
+        }
+
+        foreach (Sort::all() as $s) {
+            $cibles[] = [
+                'type' => 'sorts',
+                'rel' => $biblio->relatifCatalogue('sorts', $s->id, $s->nom),
+                'prompt' => $biblio->prompt('sort', ['nom' => $s->nom, 'element' => (string) $s->element, 'type' => (string) $s->type]),
             ];
         }
 

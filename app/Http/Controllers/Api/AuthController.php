@@ -141,6 +141,7 @@ class AuthController extends Controller
                                 'element' => $s->element,
                                 'type' => $s->type,
                                 'disponible' => (bool) $s->pivot->disponible,
+                                'image_url' => app(BibliothequeImages::class)->urlSort($s->id, $s->nom),
                             ])
                             ->values()
                             ->all(),

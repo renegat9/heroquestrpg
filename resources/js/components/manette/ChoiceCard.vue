@@ -1,9 +1,12 @@
 <script setup>
 // Carte de choix tactile (composant Choice de manette-app.jsx).
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 
 defineProps({
     icon: { type: String, required: true },
+    /** Image optionnelle (ex. illustration de sort) ; sinon l'icône. */
+    image: { type: String, default: null },
     title: { type: String, required: true },
     meta: { type: String, default: '' },
     /** Petit badge inline après le titre (ex. type de sort du contrat). */
@@ -24,7 +27,7 @@ const emit = defineEmits(['click']);
         :class="[{ sel, disabled, danger }, elClass]"
         @click="!disabled && emit('click')"
     >
-        <span class="ic"><MSym :n="icon" /></span>
+        <span class="ic"><Vignette :src="image" :icon="icon" /></span>
         <span style="flex: 1">
             <span class="ttl">{{ title }}<span v-if="badge" class="badge">{{ badge }}</span></span>
             <span v-if="meta" class="meta">{{ meta }}</span>

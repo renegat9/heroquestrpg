@@ -88,6 +88,7 @@ const byEl = computed(() => {
                         v-for="s in g.sorts"
                         :key="s.sort_id"
                         :icon="g.ic"
+                        :image="s.image_url"
                         :title="s.nom"
                         :badge="carteDe(s).badge"
                         :meta="carteDe(s).meta"

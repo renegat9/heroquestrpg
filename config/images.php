@@ -25,6 +25,7 @@ return [
         'monstre' => 'Figurine de monstre de donjon : {nom} (tier {tier}), créature menaçante en pied. {style}',
         'objet' => 'Icône d\'inventaire : {nom}, un objet de catégorie « {categorie} », objet seul présenté sur fond sombre. {style}',
         'piege' => 'Piège de donjon : {nom}, mécanisme dangereux dans un couloir de pierre. {style}',
+        'sort' => 'Illustration de sort de magie : {nom}, magie élémentaire ({element}), effet {type} spectaculaire, symbole arcanique lumineux. {style}',
 
         // Dynamiques (jobs) :
         'boss' => 'Boss de donjon imposant et terrifiant : {nom}. {description} {style}',
