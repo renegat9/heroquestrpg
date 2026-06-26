@@ -36,3 +36,6 @@ browser-shots/*.png
 
 # images générées (catalogue + dynamiques — régénérables, hors dépôt)
 /public/images
+
+# artefacts Windows (flux ADS de fichiers téléchargés) — bruit, hors dépôt
+*:Zone.Identifier
