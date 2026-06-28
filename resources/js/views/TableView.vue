@@ -22,7 +22,7 @@ import { useVoix } from '../composables/useVoix';
 import { useAmbiance } from '../composables/useAmbiance';
 import {
     carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
-    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
+    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs, portesVersMarqueurs,
     useGameStore, voteVersFeuille,
 } from '../store/game';
 
@@ -114,6 +114,7 @@ const enQuete = computed(() => !!etat.value?.carte);
 const demoMap = buildTableMap();
 const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : demoMap));
 const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : TABLE_TRAPS));
+const doors = computed(() => (enQuete.value ? portesVersMarqueurs(etat.value.carte) : []));
 const entities = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : TABLE_ENTITIES));
@@ -339,7 +340,7 @@ const combatRef = ref(null);
                         <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
                         <p v-if="erreurCloture" class="hub-err">{{ erreurCloture }}</p>
                     </div>
-                    <DungeonMap v-else :map="map" :entities="entities" :traps="traps" />
+                    <DungeonMap v-else :map="map" :entities="entities" :traps="traps" :doors="doors" />
                     <!-- montée de niveau : célébration dorée (gains par héros) -->
                     <div v-if="niveauMonte" class="lvlup-ov" @click="store.fermerNiveauMonte()">
                         <div class="panel">
@@ -512,7 +513,14 @@ const combatRef = ref(null);
 .table-screen .fig .msym { font-size: clamp(14px, 1.4vw, 22px); }
 .table-screen .fig.hero { background: linear-gradient(160deg, var(--stone-300), var(--stone-500)); color: var(--stone-950); border-color: var(--parch-100); }
 .table-screen .fig.foe { background: linear-gradient(160deg, var(--body-bright), var(--ember-deep)); color: var(--parch-100); border-color: oklch(0.7 0.18 28); }
+/* allié recruté (3.5) : teinte verte amicale, distincte des héros et ennemis */
+.table-screen .fig.ally { background: linear-gradient(160deg, oklch(0.7 0.13 155), oklch(0.5 0.12 158)); color: var(--parch-100); border-color: oklch(0.8 0.14 150); }
 .table-screen .fig.cur { box-shadow: var(--glow-torch), var(--sh-2); border-color: var(--torch); animation: figpulse 2s ease-in-out infinite; }
+/* monstre élite (3.6) : liseré doré + badge couronne/étoile */
+.table-screen .fig.elite { border-color: var(--gold); box-shadow: 0 0 0 2px oklch(0.82 0.15 85 / 0.55), var(--sh-2); }
+.table-screen .fig .elite-badge { position: absolute; top: -6px; right: -6px; z-index: 5; color: var(--gold);
+  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.7)); }
+.table-screen .fig .elite-badge .msym { font-size: clamp(10px, 1vw, 15px); }
 @keyframes figpulse { 50% { box-shadow: 0 0 0 3px oklch(0.76 0.155 65 / 0.7), 0 0 28px oklch(0.76 0.155 65 / 0.5); } }
 .table-screen .fig.chest { background: linear-gradient(160deg, var(--gold), var(--ember-deep)); border-color: var(--gold); color: var(--stone-950); }
 .table-screen .fig.tgt::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px dashed var(--body-bright); animation: tspin 6s linear infinite; }

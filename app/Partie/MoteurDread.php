@@ -179,8 +179,10 @@ final class MoteurDread
             }
         }
 
-        // 2. Sort de Dread si usages restants et sorts disponibles.
-        if (! empty($instance->monstre->sorts_dread) && $this->usagesRestants($instance, $quete) > 0) {
+        // 2. Sort de Dread si usages restants et répertoire non vide (archétype
+        //    nommé inclus — 3.8 : le répertoire peut venir de l'archétype même si
+        //    le champ brut sorts_dread est vide).
+        if ($this->repertoireSorts($instance->monstre) !== [] && $this->usagesRestants($instance, $quete) > 0) {
             $sortChoisi = $this->choisirSort($groupe, $quete, $instance, $cibles);
 
             if ($sortChoisi !== null) {
@@ -530,13 +532,34 @@ final class MoteurDread
      */
     private function sortsDisponibles(InstanceMonstre $instance, Quete $quete): \Illuminate\Support\Collection
     {
-        $noms = (array) ($instance->monstre->sorts_dread ?? []);
+        $noms = $this->repertoireSorts($instance->monstre);
 
         if (empty($noms)) {
             return collect();
         }
 
         return SortDread::whereIn('nom', $noms)->get()->keyBy('nom')->values();
+    }
+
+    /**
+     * Répertoire de sorts de Dread d'un monstre (3.8) : si un archétype lanceur
+     * nommé est défini ET connu de config/archetypes_lanceurs.php, on prend son
+     * répertoire COMPLET ; sinon la liste per-monstre `sorts_dread` du catalogue.
+     *
+     * @return list<string>
+     */
+    private function repertoireSorts(\App\Models\Monstre $monstre): array
+    {
+        $archetype = $monstre->archetype_lanceur;
+
+        if (is_string($archetype) && $archetype !== '') {
+            $sorts = config("archetypes_lanceurs.{$archetype}.sorts");
+            if (is_array($sorts) && $sorts !== []) {
+                return array_values($sorts);
+            }
+        }
+
+        return array_values((array) ($monstre->sorts_dread ?? []));
     }
 
     // ------------------------------------------------------------------

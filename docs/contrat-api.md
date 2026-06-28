@@ -32,7 +32,8 @@ Routes protégées par middleware `auth` sauf connexion.
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
-  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p"]]},
+  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p"]],
+            "portes": [{"x": 4, "y": 3, "etat": "ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
@@ -116,6 +117,24 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 `.marche.maj` (EtatMarche, à chaque panier/confirmation), `.marche.finalise`
 ({applique: bool}) suivi de `.groupe.etat`.
 
+## Alliés — mercenaires (doc 14 §3.5 — au hub uniquement)
+
+| Méthode | URL | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/mercenaires | {mercenaire_id} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, ou 2ᵉ compagnon animal) |
+
+PNJ **scriptés** (hors roster), **consommés en fin de quête** (purgés à la
+victoire comme à l'échec). Au démarrage de quête ils sont instanciés sur les
+cases de spawn restantes, à côté des héros. Ils jouent en **phase dédiée**, juste
+AVANT les monstres et **hors initiative des héros** : ils ciblent les monstres
+(tir avec ligne de vue pour un allié à distance, sinon corps-à-corps). Réponse :
+`{recrue:{id,nom,type,animal}, or}` ; broadcast `.groupe.etat`.
+
+Dans **EtatGroupe.entites**, un allié actif apparaît avec `type:'allie'`
+(`{id, nom, x, y, pv_body, pv_body_max, animal}`). La résolution d'un tour de
+choix peut porter `resultat.tour_allies.actions` (déplacements/attaques alliées),
+en regard de `resultat.tour_monstres.actions`.
+
 ## Votes de groupe (doc 05 §5)
 
 Un seul vote actif par groupe (cache + journal). Types MVP : `retrait_joueur`
@@ -160,6 +179,36 @@ de la quête.
 - **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|desarme|declenche",
   nom}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
   pas). EtatGroupe.entites héros gagne `niveau`.
+
+## Portes & exploration (doc 14 §3.1/3.2/3.3 — tout passe par les menus)
+
+L'état des portes vit dans la carte de la quête (`cartes.grille.portes` :
+`{x, y, etat: "ouverte|verrouillee|secrete", verrou?, revele?}`). Une porte NON
+`ouverte` est **infranchissable** (pathfinding) et **opaque** (ligne de vue) ; une
+porte `ouverte` est traversable et transparente.
+
+- **EtatGroupe.carte** gagne `portes: [{x, y, etat, verrou?}]` — les portes
+  **secrètes non révélées n'y figurent jamais** (même règle que les pièges cachés)
+  et leur case reste un mur ; une porte connue est rendue comme une porte (`p`),
+  une `verrouillee` porte un cadenas (`verrou` = type du verrou).
+- **Fouiller la zone** (option `fouiller`, type `jet`, Mind difficulté 1) : un seul
+  jet réussi révèle dans le rayon de fouille les **pièges cachés** ET les **portes
+  secrètes** (qui s'ouvrent). Echo : `pieges_reveles`, `portes_revelees`.
+- **Verrous** (doc 14 §3.3) :
+  - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}`) au contact d'une porte
+    verrouillée, offerte si le héros possède l'objet-clé → la porte s'ouvre (persistant) ;
+  - `monstres_vaincus` : ouverture **automatique** quand les instances désignées sont
+    vaincues (hook post-combat) — aucune action joueur ;
+  - `levier` : option `actionner_levier` (id `actionner_levier_{x}_{y}`) au contact d'un
+    levier (`cartes.grille.leviers`) → ouvre la/les porte(s) liée(s) par `verrou.levier_id`.
+- **Fouiller — trésor** (option `fouiller_tresor`, type `fouille_tresor`) : action
+  SÉPARÉE, offerte dans une **salle « vide »** (rencontres nettoyées) **non encore
+  fouillée**. Tirage pondéré (gabarit `structure.tresor_a_risque`) → `issue` ∈
+  `tresor` (or au groupe) / `rien` / `errant` (monstre du bestiaire instancié au
+  contact, décompté d'un **budget errant dédié** `structure.budget_errant`, qui joue
+  au tour des monstres) / `piege` (effet du « Piège de coffre » appliqué **tout de
+  suite** au fouilleur, jamais posé sur la grille). Le monstre errant ne survient
+  **que** par cette action (jamais par « Fouiller la zone »).
 
 ## Montée de niveau (doc 01 §5 — par jalons)
 

@@ -10,6 +10,8 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Models\Quete;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
@@ -27,6 +29,7 @@ final class MenuMoteur
 {
     public function __construct(
         private readonly MoteurPieges $pieges,
+        private readonly MoteurPortes $portes,
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
     ) {}
@@ -38,6 +41,73 @@ final class MenuMoteur
      *
      * @return array{base: int, de: int|null, total: int}
      */
+    /**
+     * Un héros en (hx,hy) est-il ORTHOGONALEMENT au contact de l'instance, en
+     * tenant compte de l'emprise des grandes figurines (3.9) ? Le contact vaut
+     * dès que le héros jouxte n'importe quelle case de l'emprise. Pour un monstre
+     * 1×1 (cas par défaut), équivaut exactement à |dx| + |dy| === 1.
+     */
+    private static function monstreAuContact(InstanceMonstre $instance, int $hx, int $hy): bool
+    {
+        $e = $instance->monstre->emprise();
+
+        for ($dy = 0; $dy < $e['h']; $dy++) {
+            for ($dx = 0; $dx < $e['l']; $dx++) {
+                if (abs(((int) $instance->position_x + $dx) - $hx)
+                    + abs(((int) $instance->position_y + $dy) - $hy) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * « Fouiller — trésor » offerte ? Le héros doit être dans une SALLE (pas un
+     * couloir) « vide » — aucun monstre actif révélé à l'intérieur — qui n'a pas
+     * déjà été fouillée pour son trésor (une fouille par salle, doc 14 §3.2).
+     */
+    private function salleFouillableTresor(Quete $quete, ?EtatPersonnageQuete $etat): bool
+    {
+        if ($etat === null || $etat->position_x === null || $quete->carte === null) {
+            return false;
+        }
+
+        $salles = (array) data_get($quete->carte->grille, 'salles', []);
+        $salle = null;
+        $index = null;
+
+        foreach ($salles as $i => $s) {
+            if ((int) $etat->position_x >= (int) $s['x'] && (int) $etat->position_x < (int) $s['x'] + (int) $s['largeur']
+                && (int) $etat->position_y >= (int) $s['y'] && (int) $etat->position_y < (int) $s['y'] + (int) $s['hauteur']) {
+                $salle = $s;
+                $index = (int) $i;
+                break;
+            }
+        }
+
+        if ($salle === null) {
+            return false; // couloir : pas de fouille de trésor
+        }
+
+        // Salle déjà fouillée pour son trésor ? (une seule fois — anti-farm)
+        $fouillees = (array) Cache::get(ResolveurTour::cleTresorFouille($quete->id), []);
+        if (in_array($index, $fouillees, true)) {
+            return false;
+        }
+
+        // Salle « vide » : aucun monstre actif révélé dans ses limites.
+        $occupee = $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->whereBetween('position_x', [(int) $salle['x'], (int) $salle['x'] + (int) $salle['largeur'] - 1])
+            ->whereBetween('position_y', [(int) $salle['y'], (int) $salle['y'] + (int) $salle['hauteur'] - 1])
+            ->exists();
+
+        return ! $occupee;
+    }
+
     private function deplacementDuTour(Personnage $personnage, ?EtatPersonnageQuete $etat): array
     {
         $base = (int) $personnage->deplacement_base;
@@ -126,8 +196,7 @@ final class MenuMoteur
                 ->orderBy('id')
                 ->get()
                 ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
-                    && abs((int) $i->position_x - (int) $etat->position_x)
-                        + abs((int) $i->position_y - (int) $etat->position_y) === 1);
+                    && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y));
 
             foreach ($adjacents as $instance) {
                 $nom = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
@@ -178,12 +247,52 @@ final class MenuMoteur
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
                 $options[] = $option;
             }
+
+            // Ouvrir une porte verrouillée par CLÉ au contact (héros porteur).
+            // Actionner un levier au contact (ouvre la porte liée).
+            if ($etat->position_x !== null && $quete->carte !== null) {
+                $px = (int) $etat->position_x;
+                $py = (int) $etat->position_y;
+
+                $porte = $this->portes->porteFermeeAdjacente($quete->carte, $px, $py);
+                if ($porte !== null
+                    && ($porte['porte']['verrou']['type'] ?? null) === 'cle'
+                    && $this->portes->possedeCle($personnage, $porte['porte']['verrou'])) {
+                    $options[] = [
+                        'id' => "ouvrir_porte_{$porte['porte']['x']}_{$porte['porte']['y']}",
+                        'libelle' => 'Ouvrir la porte (clé)',
+                        'type' => 'ouvrir_porte',
+                        'parametres' => ['porte' => ['x' => (int) $porte['porte']['x'], 'y' => (int) $porte['porte']['y']]],
+                    ];
+                }
+
+                foreach ($this->portes->leviersAdjacents($quete->carte, $px, $py) as $levier) {
+                    $options[] = [
+                        'id' => "actionner_levier_{$levier['x']}_{$levier['y']}",
+                        'libelle' => 'Actionner le levier',
+                        'type' => 'actionner_levier',
+                        'parametres' => ['levier' => ['x' => $levier['x'], 'y' => $levier['y'], 'levier_id' => $levier['levier_id']]],
+                    ];
+                }
+            }
+
             $options[] = [
                 'id' => 'fouiller',
-                'libelle' => 'Fouiller les environs — jet de Mind',
+                'libelle' => 'Fouiller la zone — jet de Mind',
                 'type' => 'jet',
                 'jet' => ['attribut' => 'mind', 'difficulte' => 1],
             ];
+
+            // Fouiller — trésor (doc 14 §3.2) : action SÉPARÉE, table
+            // risque/récompense, offerte dans une salle « vide » non encore
+            // fouillée (rencontres prévues nettoyées).
+            if ($this->salleFouillableTresor($quete, $etat)) {
+                $options[] = [
+                    'id' => 'fouiller_tresor',
+                    'libelle' => 'Fouiller — trésor',
+                    'type' => 'fouille_tresor',
+                ];
+            }
         }
 
         // Toujours : terminer le tour (renonce aux créneaux restants).

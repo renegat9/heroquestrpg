@@ -12,6 +12,9 @@ defineProps({
     /** Pièges visibles : [{ x, y, etat: 'detecte'|'desarme'|'declenche', nom, titre }]
      *  — voir piegesVersMarqueurs() (les cachés n'arrivent jamais au client). */
     traps: { type: Array, default: () => [] },
+    /** Portes connues : [{ x, y, etat, cadenas, titre }] — voir portesVersMarqueurs()
+     *  (les secrètes non révélées n'arrivent jamais au client). */
+    doors: { type: Array, default: () => [] },
 });
 </script>
 
@@ -35,15 +38,32 @@ defineProps({
                 <MSym v-if="t.etat !== 'declenche'" n="warning" fill />
             </div>
         </div>
+        <!-- couche portes : cadenas sur les portes verrouillées -->
+        <div
+            v-for="(d, i) in doors"
+            :key="`door-${i}`"
+            class="door-holder"
+            :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
+        >
+            <div v-if="d.cadenas" class="door-lock" :class="d.etat" :title="d.titre">
+                <MSym n="lock" fill />
+            </div>
+        </div>
         <div
             v-for="(e, i) in entities"
             :key="`ent-${i}`"
             class="ent-holder"
-            :style="{ gridColumn: e.x + 1, gridRow: e.y + 1 }"
+            :style="{
+                gridColumn: `${e.x + 1} / span ${e.ew ?? 1}`,
+                gridRow: `${e.y + 1} / span ${e.eh ?? 1}`,
+            }"
         >
-            <div class="fig" :class="[e.k, { cur: e.cur, tgt: e.tgt }]">
+            <div class="fig" :class="[e.k, { cur: e.cur, tgt: e.tgt, elite: e.elite }]">
                 <Vignette v-if="e.img || e.ic" :src="e.img" :icon="e.ic" fill />
                 <template v-else>{{ e.l }}</template>
+                <div v-if="e.elite" class="elite-badge" title="Élite">
+                    <MSym n="star" fill />
+                </div>
                 <div v-if="e.hp" class="hp">
                     <i v-for="p in e.hp" :key="p" />
                 </div>
@@ -54,3 +74,20 @@ defineProps({
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Couche portes : cadenas discret centré sur une porte verrouillée. */
+.door-holder {
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    z-index: 2;
+}
+.door-lock {
+    display: grid;
+    place-items: center;
+    color: #e8c87a;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+    font-size: 0.8em;
+}
+</style>

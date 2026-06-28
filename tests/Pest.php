@@ -132,6 +132,51 @@ function desFiges(array $valeurs): LanceurDeterministe
 }
 
 /**
+ * Démarre une quête (un héros « alice/Albrecht »), remplace le premier monstre
+ * par le bloc catalogue `$nomMonstre` placé au contact du héros, réinitialise ses
+ * usages de Dread et révèle tout. Setup générique réutilisable par les tests de
+ * comportement des monstres (capacités tactiques, sorciers nommés…).
+ *
+ * @param  array<string, mixed>  $herosAttrs  surcharges de stats du héros
+ * @return array{alice: \App\Auth\JoueurAuthentifiable, groupe: \App\Models\Groupe, heros: \App\Models\Personnage, quete: \App\Models\Quete, instance: \App\Models\InstanceMonstre, etatHeros: \App\Models\EtatPersonnageQuete}
+ */
+function demarrerQueteAvecMonstre(string $nomMonstre, array $herosAttrs = []): array
+{
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, $herosAttrs);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $quete = \App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
+
+    $catalogue = \App\Models\Monstre::where('nom_base', $nomMonstre)->firstOrFail();
+
+    $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);
+    $instance->update([
+        'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body,
+        'pv_mind' => $catalogue->pv_mind,
+        'etat' => 'actif',
+        'elite' => false,
+    ]);
+    $instance->refresh()->load('monstre');
+
+    app(\App\Partie\MoteurDread::class)->reinitialiserUsagesInstance($instance, $quete);
+
+    $etatHeros = \App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $heros->id)->firstOrFail();
+
+    $contact = caseAdjacenteLibre($quete, (int) $etatHeros->position_x, (int) $etatHeros->position_y);
+    $instance->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+    $instance->refresh();
+
+    return compact('alice', 'groupe', 'heros', 'quete', 'instance', 'etatHeros');
+}
+
+/**
  * La case (x, y) de la carte de la quête est-elle traversable et inoccupée ?
  */
 function caseQueteLibre(Quete $quete, int $x, int $y): bool

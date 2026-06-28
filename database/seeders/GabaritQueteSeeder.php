@@ -27,6 +27,10 @@ class GabaritQueteSeeder extends Seeder
                         ['apres' => 'entree', 'branches' => 2], // ex. passage discret vs frontal
                     ],
                     'budget_rencontres' => ['base' => 6, 'par_salle' => true],
+                    // Fouille de trésor à risque (doc 14 §3.2) : poids des issues
+                    // (mis à l'échelle d'un d6) + or du trésor + budget errant dédié.
+                    'tresor_a_risque' => ['tresor' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1, 'or' => 30],
+                    'budget_errant' => 4,
                     'pieges' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 50, 'objets_rares_max' => 1],
                 ],
@@ -43,6 +47,8 @@ class GabaritQueteSeeder extends Seeder
                         ['apres' => 'point_de_non_retour', 'branches' => 2], // affaiblir le boss vs y aller
                     ],
                     'budget_rencontres' => ['base' => 8, 'par_salle' => true],
+                    'tresor_a_risque' => ['tresor' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1, 'or' => 60],
+                    'budget_errant' => 6,
                     'rencontre_finale' => ['tier' => 'sous_boss', 'escorte_budget' => 4],
                     'pieges' => ['min' => 2, 'max' => 3],
                     'butin' => ['or_base' => 120, 'objets_rares_max' => 2],
@@ -60,6 +66,8 @@ class GabaritQueteSeeder extends Seeder
                         ['apres' => 'epreuve', 'branches' => 2],
                     ],
                     'budget_rencontres' => ['base' => 10, 'par_salle' => true],
+                    'tresor_a_risque' => ['tresor' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1, 'or' => 100],
+                    'budget_errant' => 8,
                     'rencontre_finale' => ['tier' => 'boss', 'escorte_budget' => 6],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'butin' => ['or_base' => 300, 'objets_rares_max' => 3],

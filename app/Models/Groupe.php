@@ -66,4 +66,10 @@ class Groupe extends Model
     {
         return $this->hasMany(Snapshot::class, 'groupe_id');
     }
+
+    /** Alliés recrutés (mercenaires + compagnons), consommés en fin de quête. */
+    public function mercenaires(): HasMany
+    {
+        return $this->hasMany(GroupeMercenaire::class, 'groupe_id');
+    }
 }

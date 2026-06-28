@@ -92,7 +92,7 @@ final class EtatGroupe
                 'image_url' => app(BibliothequeImages::class)->urlDyn('quete', $quete->id),
             ],
             'carte' => $this->carte($quete),
-            'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->monstres($quete)],
+            'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->allies($groupe), ...$this->monstres($quete)],
             'initiative' => $quete === null ? [] : $this->initiative($groupe, $quete),
             'narration' => $this->derniereNarration($groupe),
             'mj_reflechit' => (bool) Cache::get(self::cleMjReflechit($groupe->id), false),
@@ -135,10 +135,11 @@ final class EtatGroupe
 
     /**
      * Carte jouable — cases + pièges CONNUS (détectés / désarmés /
-     * déclenchés) : les pièges encore cachés n'y figurent JAMAIS, la table
-     * ne doit pas les montrer (contrat).
+     * déclenchés) + portes CONNUES : les pièges encore cachés et les portes
+     * secrètes non révélées n'y figurent JAMAIS, la table ne doit pas les
+     * montrer (contrat).
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -148,12 +149,52 @@ final class EtatGroupe
             return null;
         }
 
+        $portes = $this->portes($carte);
+        $cases = $carte->grille['cases'] ?? [];
+
+        // Les portes CONNUES (ouvertes / verrouillées / secrètes révélées)
+        // s'affichent comme des portes même si la case sous-jacente est restée
+        // un mur (cas d'une secrète révélée, posée sur 'm').
+        foreach ($portes as $porte) {
+            if (isset($cases[$porte['y']][$porte['x']])) {
+                $cases[$porte['y']][$porte['x']] = 'p';
+            }
+        }
+
         return [
             'largeur' => (int) $carte->largeur,
             'hauteur' => (int) $carte->hauteur,
-            'cases' => $carte->grille['cases'] ?? [],
+            'cases' => $cases,
             'pieges' => $this->pieges($carte),
+            'portes' => $portes,
         ];
+    }
+
+    /**
+     * Portes CONNUES de la carte (doc 14 §3.1/3.3) : une porte secrète NON
+     * révélée est masquée (même règle que les pièges cachés). Le type de verrou
+     * d'une porte verrouillée est exposé (icône cadenas côté table).
+     *
+     * @return list<array{x: int, y: int, etat: string, verrou?: string}>
+     */
+    private function portes(Carte $carte): array
+    {
+        return collect($carte->grille['portes'] ?? [])
+            ->filter(fn (array $p) => ($p['etat'] ?? 'ouverte') !== MoteurPortes::ETAT_SECRETE || ($p['revele'] ?? false))
+            ->map(function (array $p) {
+                $porte = [
+                    'x' => (int) $p['x'],
+                    'y' => (int) $p['y'],
+                    'etat' => (string) ($p['etat'] ?? 'ouverte'),
+                ];
+                if (isset($p['verrou']['type'])) {
+                    $porte['verrou'] = (string) $p['verrou']['type'];
+                }
+
+                return $porte;
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -179,6 +220,33 @@ final class EtatGroupe
                 'etat' => (string) $entree['etat'],
                 'nom' => $noms[$entree['piege_id']] ?? 'Piège',
                 'image_url' => $biblio->urlPiege($entree['piege_id'] ?? null, $noms[$entree['piege_id']] ?? 'Piège'),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Alliés recrutés actifs (3.5) : rendus comme entités `allie` sur la carte.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function allies(Groupe $groupe): array
+    {
+        return $groupe->mercenaires()
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (\App\Models\GroupeMercenaire $a) => [
+                'type' => 'allie',
+                'id' => $a->id,
+                'nom' => $a->mercenaire->nom,
+                'x' => $a->position_x,
+                'y' => $a->position_y,
+                'pv_body' => (int) $a->pv_body,
+                'pv_body_max' => (int) $a->mercenaire->pv_body,
+                'animal' => (bool) $a->mercenaire->animal,
             ])
             ->values()
             ->all();
@@ -238,9 +306,13 @@ final class EtatGroupe
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
                 'x' => $i->position_x,
                 'y' => $i->position_y,
+                // Emprise (3.9) : grandes figurines multi-cases (1×1 par défaut).
+                'emprise' => $i->monstre->emprise(),
                 'pv_body' => (int) $i->pv_body,
-                'pv_body_max' => (int) $i->monstre->pv_body,
+                // Le +1 PV élite (3.6) est intégré au max affiché de l'instance.
+                'pv_body_max' => (int) $i->monstre->pv_body + ($i->elite ? InstanceMonstre::BONUS_ELITE : 0),
                 'etat' => $i->etat,
+                'elite' => (bool) $i->elite,
                 'conditions' => $this->conditionsMonstre($i),
             ])
             ->values()

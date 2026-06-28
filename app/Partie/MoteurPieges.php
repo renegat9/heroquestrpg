@@ -143,6 +143,57 @@ final class MoteurPieges
     }
 
     /**
+     * Piège « CARTE » ÉPHÉMÈRE (doc 14 §3.2 — issue piège de « Fouiller —
+     * trésor ») : applique IMMÉDIATEMENT l'effet du piège (par défaut celui du
+     * « Piège de coffre ») au fouilleur, SANS le poser durablement sur la
+     * grille (contrairement aux pièges de salle). Mêmes dégâts/chute que
+     * declencher(), journal + narration.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    public function declencherEphemere(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        ?Piege $piege,
+        string $contexte,
+    ): array {
+        $degats = (int) data_get(
+            $piege?->effet,
+            'degats_pv_body',
+            (int) data_get($piege?->effet, 'aleatoire.0.degats_pv_body', 1),
+        );
+
+        $pvApres = max(0, (int) $personnage->pv_body - $degats);
+        $personnage->update(['pv_body' => $pvApres]);
+
+        $tombe = $pvApres === 0;
+        if ($tombe) {
+            $etat->update(['tombe' => true]);
+        }
+
+        $payload = [
+            'type' => 'piege_declenche',
+            'contexte' => $contexte,
+            'ephemere' => true, // jamais posé sur grille.pieges
+            'piege' => ['nom' => $piege?->nom ?? 'Piège'],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'degats' => $degats,
+            'pv_body_apres' => $pvApres,
+            'tombe' => $tombe,
+            'immobilise' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        GenererNarration::dispatch($groupe->id, $payload);
+
+        return $payload;
+    }
+
+    /**
      * Fouille RÉUSSIE : révèle les pièges cachés dans un rayon de
      * RAYON_FOUILLE cases (Manhattan) autour du fouilleur.
      *

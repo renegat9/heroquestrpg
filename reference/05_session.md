@@ -39,6 +39,7 @@
 - Les **personnages sont des entités distinctes** ; un personnage ne figure **qu'une seule fois** dans un groupe (pas de doublon).
 - **Taille maximale d'un groupe = nombre de personnages distincts existants** — aujourd'hui les 4 héros (Barbare, Nain, Elfe, Magicien), soit **max 4, un de chaque**. Le plafond s'élargit si de nouveaux personnages sont créés.
 - En rejoignant, un joueur **choisit le(s) personnage(s)** qu'il engage, parmi ceux libres.
+- **Alliés ≠ roster (Phase 2, doc 14 §3.5)** : les **mercenaires** et le **compagnon animal** sont des **PNJ scriptés**, PAS des personnages du roster ni des slots de groupe. Recrutés au hub sur la **bourse commune** (M3), ils ne sont contrôlés par personne (le moteur les joue en **phase dédiée**, hors initiative des héros) et sont **consommés en fin de quête** (non persistants). Un seul **compagnon animal** par groupe.
 
 ---
 

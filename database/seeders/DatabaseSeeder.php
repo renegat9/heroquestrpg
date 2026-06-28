@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             ForgeAmeliorationSeeder::class,
             SortDreadSeeder::class,
             MonstreSeeder::class,
+            MercenaireSeeder::class,
             PiegeSeeder::class,
             TuileSeeder::class,
             GabaritQueteSeeder::class,

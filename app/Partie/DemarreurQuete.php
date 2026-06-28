@@ -9,12 +9,14 @@ use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
+use App\Engine\Des\LanceurDes;
 use App\Jobs\HabillerMonstres;
 use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Support\Facades\Cache;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Quete;
@@ -56,7 +58,24 @@ final class DemarreurQuete
         private readonly MoteurDread $dread,
         private readonly Sauvegarde $sauvegarde,
         private readonly BibliothequeNarration $narration,
+        private readonly LanceurDes $des,
     ) {}
+
+    /**
+     * Variance élite (3.6) : à l'apparition, un monstre de BASE a une chance
+     * fixe de devenir « élite » (bonus +1/+1/+1). Les sous-boss/boss ne sont
+     * jamais élites (déjà calibrés par leur tier). Tirage via le lanceur
+     * injectable → déterministe en test.
+     */
+    private function roulerElite(Monstre $monstre): bool
+    {
+        // Inactif (ou non-base) : ne consomme AUCUN dé → scénarios déterministes.
+        if (! config('jeu.elite.actif') || ($monstre->tier ?? 'base') !== 'base') {
+            return false;
+        }
+
+        return $this->des->d6() >= (int) config('jeu.elite.seuil_d6', 6);
+    }
 
     public function demarrer(Groupe $groupe): Quete
     {
@@ -111,14 +130,18 @@ final class DemarreurQuete
                 $px = $carte['spawn_monstres'][$i]['x'];
                 $py = $carte['spawn_monstres'][$i]['y'];
 
+                $elite = $this->roulerElite($monstre);
+
                 InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
-                    'pv_body' => $monstre->pv_body, // stats du catalogue, jamais altérées
+                    // Stats catalogue jamais altérées ; le +1 PV élite est porté par l'instance.
+                    'pv_body' => $monstre->pv_body + ($elite ? InstanceMonstre::BONUS_ELITE : 0),
                     'pv_mind' => $monstre->pv_mind,
                     'position_x' => $px,
                     'position_y' => $py,
                     'etat' => 'actif',
+                    'elite' => $elite,
                     // Dormant tant que sa salle n'est pas découverte ; les monstres
                     // de la salle de départ (rare) sont visibles d'emblée.
                     'revele' => $this->salleDe($carte['salles'] ?? [], $px, $py) === 0,
@@ -142,6 +165,23 @@ final class DemarreurQuete
                 ]);
             }
 
+            // Alliés recrutés (3.5) : instanciés sur les cases de spawn restantes
+            // après les héros (juste à côté du groupe), PV réinitialisés.
+            $slot = $heros->count();
+            foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->with('mercenaire')->orderBy('id')->get() as $allie) {
+                if (! isset($carte['spawn_heros'][$slot])) {
+                    break; // pas de case de spawn libre : l'allié reste en réserve
+                }
+
+                $allie->update([
+                    'pv_body' => (int) $allie->mercenaire->pv_body,
+                    'position_x' => $carte['spawn_heros'][$slot]['x'],
+                    'position_y' => $carte['spawn_heros'][$slot]['y'],
+                    'etat' => 'actif',
+                ]);
+                $slot++;
+            }
+
             $groupe->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
 
             return $quete;
@@ -154,6 +194,15 @@ final class DemarreurQuete
         // elle est couverte par la narration de démarrage de quête. Les salles
         // suivantes seront décrites à la première entrée (ResolveurTour).
         Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0], now()->addMinutes(360));
+
+        // Budget de monstres ERRANTS dédié (doc 14 §3.2) — distinct du budget de
+        // rencontre : seul « Fouiller — trésor » le dépense. Aucune fouille de
+        // trésor déjà faite.
+        Cache::put(
+            ResolveurTour::cleBudgetErrant($quete->id),
+            (int) data_get($gabarit->structure, 'budget_errant', 0),
+            now()->addMinutes(360),
+        );
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'quete_demarree',
@@ -276,7 +325,20 @@ final class DemarreurQuete
 
         $tierFinal = data_get($structure, 'rencontre_finale.tier');
         if (is_string($tierFinal)) {
-            $final = Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->first();
+            // Indice optionnel (3.8) : un sorcier nommé désigné pour la rencontre
+            // finale. Absent → comportement d'origine (leader de coût du tier).
+            $archetypeFinal = data_get($structure, 'rencontre_finale.archetype');
+
+            $final = null;
+            if (is_string($archetypeFinal) && $archetypeFinal !== '') {
+                $final = Monstre::query()
+                    ->where('tier', $tierFinal)
+                    ->where('archetype_lanceur', $archetypeFinal)
+                    ->orderByDesc('cout')->orderBy('id')->first();
+            }
+
+            // Repli : archétype non demandé ou introuvable → leader de coût du tier.
+            $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->first();
 
             if ($final !== null) {
                 $achats[] = $final;

@@ -131,6 +131,9 @@ class GenererMenu implements ShouldQueue
     private const TYPES_MECANIQUES = [
         'deplacement', 'attaque', 'desamorcage', 'franchissement',
         'sort', 'parchemin', 'concentration', 'relever',
+        // Exploration (Vague 2) : ancrage précis (coordonnées de porte/levier,
+        // table de trésor) → autoritaires, jamais omises par la fusion IA.
+        'ouvrir_porte', 'actionner_levier', 'fouille_tresor',
     ];
 
     /**

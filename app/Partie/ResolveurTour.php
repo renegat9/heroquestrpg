@@ -17,7 +17,9 @@ use App\Jobs\GenererNarration;
 use App\Partie\Audio\BanqueBarks;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
@@ -70,6 +72,7 @@ final class ResolveurTour
         private readonly LanceurDes $des,
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurPieges $pieges,
+        private readonly MoteurPortes $portes,
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly MonteeNiveau $monteeNiveau,
@@ -166,12 +169,19 @@ final class ResolveurTour
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
+                'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
             $this->marquerCreneau($etat, $creneau);
+
+            // Hook post-combat : portes à verrou « monstres_vaincus » qui
+            // s'ouvrent quand leur(s) gardien(s) tombe(nt) (doc 14 §3.3).
+            $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
 
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
@@ -191,7 +201,7 @@ final class ResolveurTour
                 ->exists();
 
             if (! $enAttente) {
-                $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
+                $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
             }
 
             return $resultat;
@@ -348,8 +358,7 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas actif dans la quête.']);
         }
 
-        $adjacentes = abs((int) $etat->position_x - (int) $instance->position_x)
-            + abs((int) $etat->position_y - (int) $instance->position_y) === 1;
+        $adjacentes = $this->heroAuContact($instance, (int) $etat->position_x, (int) $etat->position_y);
 
         if (! $adjacentes) {
             throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
@@ -365,7 +374,7 @@ final class ResolveurTour
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $desAttaqueEffectifs,
-            desDefense: (int) $instance->monstre->defense,
+            desDefense: $instance->defenseEffective(),
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: (int) $instance->pv_body,
         );
@@ -446,11 +455,16 @@ final class ResolveurTour
             'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
         ];
 
-        // Fouille RÉUSSIE : les pièges cachés dans le rayon de fouille
-        // autour du héros sont révélés (doc 10 §3, MoteurPieges).
+        // Fouille de la zone RÉUSSIE (doc 14 §3.1) : un seul jet de Mind révèle
+        // dans le rayon de fouille les pièges cachés (doc 10 §3) ET les portes
+        // secrètes (passées révélées + ouvertes).
         if ($option['id'] === 'fouiller' && $resultat->estReussi()
             && $quete->carte !== null && $etat->position_x !== null) {
             $payload['pieges_reveles'] = $this->pieges->revelerAutour(
+                $groupe, $quete->carte, $personnage,
+                (int) $etat->position_x, (int) $etat->position_y,
+            );
+            $payload['portes_revelees'] = $this->portes->revelerSecretesAutour(
                 $groupe, $quete->carte, $personnage,
                 (int) $etat->position_x, (int) $etat->position_y,
             );
@@ -813,7 +827,7 @@ final class ResolveurTour
 
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $des,
-                desDefense: (int) $instance->monstre->defense + $bonusResistance,
+                desDefense: $instance->defenseEffective() + $bonusResistance,
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
             );
@@ -1208,6 +1222,292 @@ final class ResolveurTour
     }
 
     /**
+     * Ouvrir une porte VERROUILLÉE par CLÉ au contact (doc 14 §3.3) : le héros
+     * doit être adjacent à la porte et porter l'objet-clé. État persistant.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreOuvrirPorte(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $x = (int) data_get($option, 'parametres.porte.x', -1);
+        $y = (int) data_get($option, 'parametres.porte.y', -1);
+
+        $cible = $quete->carte === null ? null
+            : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($cible === null || (int) $cible['porte']['x'] !== $x || (int) $cible['porte']['y'] !== $y) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte verrouillée adjacente à cette position.']);
+        }
+
+        $verrou = (array) ($cible['porte']['verrou'] ?? []);
+
+        if (($verrou['type'] ?? null) !== 'cle' || ! $this->portes->possedeCle($personnage, $verrou)) {
+            throw ValidationException::withMessages(['option_id' => 'La clé requise est absente de l\'inventaire.']);
+        }
+
+        $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'cle', $acteur);
+
+        $payload = [
+            'type' => 'ouvrir_porte',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'cause' => 'cle',
+            'porte' => ['x' => $x, 'y' => $y],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Actionner un LEVIER au contact (doc 14 §3.3) : bascule en `ouverte`
+     * toute porte liée par verrou {type: levier, levier_id}. État persistant.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreActionnerLevier(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $lx = (int) data_get($option, 'parametres.levier.x', -1);
+        $ly = (int) data_get($option, 'parametres.levier.y', -1);
+
+        $leviers = $quete->carte === null ? []
+            : $this->portes->leviersAdjacents($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+
+        $levier = collect($leviers)->first(fn ($l) => $l['x'] === $lx && $l['y'] === $ly);
+
+        if ($levier === null) {
+            throw ValidationException::withMessages(['option_id' => 'Aucun levier adjacent à cette position.']);
+        }
+
+        $ouvertes = [];
+        foreach ($this->portes->portes($quete->carte) as $index => $porte) {
+            if (($porte['etat'] ?? null) === MoteurPortes::ETAT_OUVERTE) {
+                continue;
+            }
+            if (($porte['verrou']['type'] ?? null) === 'levier'
+                && (string) ($porte['verrou']['levier_id'] ?? '') === (string) $levier['levier_id']) {
+                $this->portes->ouvrir($groupe, $quete->carte, $index, 'levier', $acteur);
+                $ouvertes[] = ['x' => (int) $porte['x'], 'y' => (int) $porte['y']];
+            }
+        }
+
+        $payload = [
+            'type' => 'actionner_levier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'levier' => ['x' => $lx, 'y' => $ly, 'levier_id' => $levier['levier_id']],
+            'portes_ouvertes' => $ouvertes,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * « Fouiller — trésor » (doc 14 §3.2) : table pondérée risque/récompense,
+     * tirée déterministe (LanceurDes) sur les poids du gabarit
+     * (structure.tresor_a_risque). Issues : trésor (or au groupe) / rien /
+     * monstre errant (instancié au contact, décompté d'un budget errant dédié,
+     * il jouera au tour des monstres) / piège (effet du « Piège de coffre »
+     * appliqué TOUT DE SUITE au fouilleur, jamais posé sur la grille).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreFouilleTresor(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $salle = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            throw ValidationException::withMessages(['option_id' => 'On ne fouille un trésor que dans une salle.']);
+        }
+
+        // Une seule fouille de trésor par salle (anti-farm) : on marque la salle.
+        $cle = self::cleTresorFouille($quete->id);
+        $fouillees = (array) Cache::get($cle, []);
+        if (in_array($salle, $fouillees, true)) {
+            throw ValidationException::withMessages(['option_id' => 'Cette salle a déjà été fouillée pour son trésor.']);
+        }
+        $fouillees[] = $salle;
+        Cache::put($cle, $fouillees, now()->addMinutes(360));
+
+        $structure = $quete->gabarit?->structure ?? [];
+        $issue = $this->tirerIssueTresor((array) data_get($structure, 'tresor_a_risque', []));
+
+        $payload = [
+            'type' => 'fouille_tresor',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'salle' => $salle,
+            'issue' => $issue,
+        ];
+
+        if ($issue === 'tresor') {
+            $or = max(0, (int) data_get($structure, 'tresor_a_risque.or', 25));
+            $groupe->update(['or' => (int) $groupe->or + $or]);
+            $payload['or'] = $or;
+        } elseif ($issue === 'errant') {
+            $errant = $this->spawnErrant($quete, $etat);
+
+            if ($errant === null) {
+                // Budget errant épuisé / bestiaire indisponible : rien ne sort.
+                $issue = 'rien';
+                $payload['issue'] = 'rien';
+                $payload['errant_indisponible'] = true;
+            } else {
+                $payload['monstre'] = [
+                    'instance_id' => $errant->id,
+                    'nom' => $errant->habillage['nom'] ?? $errant->monstre->nom_base,
+                    'x' => (int) $errant->position_x,
+                    'y' => (int) $errant->position_y,
+                ];
+            }
+        } elseif ($issue === 'piege') {
+            $piege = Piege::query()->where('nom', 'Piège de coffre')->first()
+                ?? Piege::query()->orderBy('id')->first();
+            $payload['declenchement'] = $this->pieges->declencherEphemere(
+                $groupe, $personnage, $etat, $piege, 'fouille_tresor',
+            );
+        }
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Tirage pondéré déterministe d'une issue de « Fouiller — trésor » (un d6).
+     * Ordre canonique des issues (cumul) : tresor, rien, errant, piege. Les
+     * poids du gabarit sont mis à l'échelle du d6 (par défaut : 2/2/1/1).
+     *
+     * @param  array<string, int>  $poids
+     */
+    private function tirerIssueTresor(array $poids): string
+    {
+        $ordre = ['tresor', 'rien', 'errant', 'piege'];
+        $poidsDefaut = ['tresor' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1];
+
+        $normalises = [];
+        foreach ($ordre as $issue) {
+            $normalises[$issue] = max(0, (int) ($poids[$issue] ?? $poidsDefaut[$issue]));
+        }
+
+        $total = array_sum($normalises);
+        if ($total <= 0) {
+            return 'rien';
+        }
+
+        $seuil = max(1, min($total, (int) ceil($this->des->d6() / 6 * $total)));
+
+        $cumul = 0;
+        foreach ($normalises as $issue => $p) {
+            $cumul += $p;
+            if ($seuil <= $cumul) {
+                return $issue;
+            }
+        }
+
+        return 'rien';
+    }
+
+    /**
+     * Instancie un monstre ERRANT (doc 14 §3.2) depuis le bestiaire, décompté
+     * d'un budget errant DÉDIÉ (distinct du budget de rencontre), placé sur une
+     * case libre proche du fouilleur, actif et révélé (il jouera au tour des
+     * monstres). null si le budget errant est épuisé ou aucune place libre.
+     */
+    private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
+    {
+        $cle = self::cleBudgetErrant($quete->id);
+        $budget = (int) Cache::get($cle, (int) data_get($quete->gabarit?->structure, 'budget_errant', 0));
+
+        if ($budget <= 0) {
+            return null;
+        }
+
+        $monstre = Monstre::query()
+            ->where('tier', 'base')
+            ->where('cout', '>', 0)
+            ->where('cout', '<=', $budget)
+            ->orderBy('cout')
+            ->orderBy('id')
+            ->first();
+
+        if ($monstre === null) {
+            return null;
+        }
+
+        $place = $this->caseLibreProche($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($place === null) {
+            return null;
+        }
+
+        Cache::put($cle, $budget - (int) $monstre->cout, now()->addMinutes(360));
+
+        return $quete->instancesMonstres()->create([
+            'monstre_id' => $monstre->id,
+            'pv_body' => $monstre->pv_body,
+            'pv_mind' => $monstre->pv_mind,
+            'position_x' => $place['x'],
+            'position_y' => $place['y'],
+            'etat' => 'actif',
+            'elite' => false,
+            'revele' => true, // errant : surgit et attaque
+        ]);
+    }
+
+    /**
+     * Première case traversable LIBRE proche de (x, y) : adjacence d'abord,
+     * puis anneau Manhattan croissant (rayon ≤ 3). null si rien de libre.
+     *
+     * @return array{x: int, y: int}|null
+     */
+    private function caseLibreProche(Quete $quete, int $x, int $y): ?array
+    {
+        $grille = $this->grille($quete);
+
+        for ($rayon = 1; $rayon <= 3; $rayon++) {
+            for ($dx = -$rayon; $dx <= $rayon; $dx++) {
+                $dy = $rayon - abs($dx);
+                foreach (array_unique([$dy, -$dy]) as $signeY) {
+                    $cx = $x + $dx;
+                    $cy = $y + $signeY;
+                    if ($grille->estTraversable($cx, $cy)) {
+                        return ['x' => $cx, 'y' => $cy];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Logique partagée après qu'un héros a joué (via une condition ou une
      * action normale) : détection fin de quête + déclenchement phase monstres.
      *
@@ -1216,6 +1516,10 @@ final class ResolveurTour
      */
     private function apresActionHeros(array $resultat, Groupe $groupe, Quete $quete): array
     {
+        // Hook post-combat (portes « monstres_vaincus ») aussi sur les chemins
+        // à retour anticipé (héros endormi/commandé).
+        $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
+
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
             $resultat['quete'] = $this->terminerQuete($groupe, $quete);
 
@@ -1228,7 +1532,7 @@ final class ResolveurTour
             ->exists();
 
         if (! $enAttente) {
-            $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
+            $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
         }
 
         return $resultat;
@@ -1290,6 +1594,9 @@ final class ResolveurTour
             Journal::ajouter($groupe, 'systeme', ['action' => 'quete_echouee', 'quete_id' => $quete->id]);
             $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
 
+            // Alliés (3.5) consommés même en cas d'échec de la quête.
+            GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+
             return ['actions' => $actions];
         }
 
@@ -1298,6 +1605,29 @@ final class ResolveurTour
         $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
 
         return ['actions' => $actions];
+    }
+
+    /**
+     * Un héros en (hx,hy) est-il ORTHOGONALEMENT au contact de l'instance, en
+     * tenant compte de l'emprise des grandes figurines (3.9) ? Le héros est au
+     * contact dès qu'il jouxte N'IMPORTE QUELLE case de l'emprise. Pour un
+     * monstre 1×1 (cas par défaut de tous les monstres existants), équivaut
+     * exactement à |dx| + |dy| === 1 — donc zéro changement de comportement.
+     */
+    private function heroAuContact(InstanceMonstre $instance, int $hx, int $hy): bool
+    {
+        $e = $instance->monstre->emprise();
+
+        for ($dy = 0; $dy < $e['h']; $dy++) {
+            for ($dx = 0; $dx < $e['l']; $dx++) {
+                if (abs(((int) $instance->position_x + $dx) - $hx)
+                    + abs(((int) $instance->position_y + $dy) - $hy) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1346,14 +1676,23 @@ final class ResolveurTour
 
         $grille = $this->grille($quete, exceptInstanceId: $instance->id);
 
+        // Monstre à distance (3.4) : s'il a une ligne de vue sur un héros, il TIRE
+        // plutôt que de foncer au contact (au contact, il frappe en corps-à-corps,
+        // un dé de moins). Sans cible en vue, il retombe sur l'approche standard
+        // ci-dessous (pour gagner une ligne de tir au tour suivant).
+        if ($instance->monstre->aDistance() && ! $attaqueEmpechee) {
+            $tir = $this->tirerSiCibleEnVue($groupe, $instance, $cibles, $grille, $acteur, $nomMonstre);
+
+            if ($tir !== null) {
+                return $tir;
+            }
+        }
+
         // Héros le plus proche : plus court chemin vers une case adjacente
         // (sa propre case si déjà au contact).
         $meilleure = null; // [etat héros, chemin]
         foreach ($cibles as $cible) {
-            if ($grille->sontAdjacentes(
-                (int) $instance->position_x, (int) $instance->position_y,
-                (int) $cible->position_x, (int) $cible->position_y,
-            )) {
+            if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y)) {
                 $meilleure = [$cible, []];
                 break;
             }
@@ -1378,14 +1717,35 @@ final class ResolveurTour
         // Se rapprocher : déplacement fixe du catalogue, le long du chemin.
         if ($chemin !== []) {
             $pas = min((int) $instance->monstre->deplacement, count($chemin));
-            $arrivee = $chemin[$pas - 1];
-            $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+
+            if ($instance->monstre->grandeTaille()) {
+                // Déplacement multi-cases (3.9) — SIMPLIFICATION assumée : le BFS
+                // calcule le chemin de l'ANCRE (coin haut-gauche) sans connaître
+                // l'emprise. On avance donc le long de ce chemin et on s'arrête à
+                // la DERNIÈRE case où l'emprise ENTIÈRE tient (empriseLibre). Une
+                // grande figurine peut ainsi progresser moins loin qu'un 1×1, mais
+                // ne chevauche jamais un mur ni une autre figurine. (Le BFS n'est
+                // pas réécrit : on valide simplement la tenue d'emprise à l'arrivée.)
+                $e = $instance->monstre->emprise();
+                $arrivee = null;
+
+                for ($i = 0; $i < $pas; $i++) {
+                    if (! $grille->empriseLibre($chemin[$i]['x'], $chemin[$i]['y'], $e['l'], $e['h'])) {
+                        break;
+                    }
+                    $arrivee = $chemin[$i];
+                }
+
+                if ($arrivee !== null) {
+                    $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+                }
+            } else {
+                $arrivee = $chemin[$pas - 1];
+                $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+            }
         }
 
-        $adjacent = $grille->sontAdjacentes(
-            (int) $instance->position_x, (int) $instance->position_y,
-            (int) $cible->position_x, (int) $cible->position_y,
-        );
+        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y);
 
         if (! $adjacent) {
             $payload = [
@@ -1412,10 +1772,7 @@ final class ResolveurTour
         // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
         if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
             $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) =>
-                $grille->sontAdjacentes(
-                    (int) $instance->position_x, (int) $instance->position_y,
-                    (int) $c->position_x, (int) $c->position_y,
-                )
+                $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y)
             )->values();
 
             if ($adjacents->count() >= 2) {
@@ -1423,11 +1780,39 @@ final class ResolveurTour
             }
         }
 
-        // Attaque du héros adjacent — moteur seul. La défense intègre les
-        // buffs de sorts (Peau de Pierre : bonus_des_defense, source sort:).
+        // Capacité à choix tactique (3.7) : selon les PV de la cible, attaque
+        // massive unique OU double attaque — décision 100 % mécanique (jamais LLM).
+        $choixTactique = $instance->monstre->capacites['choix_attaque'] ?? null;
+        if (is_array($choixTactique)) {
+            return $this->attaqueChoixTactique($groupe, $instance, $cible, $choixTactique, $acteur, $nomMonstre);
+        }
+
+        // Attaque simple du héros adjacent — moteur seul.
+        return $this->resoudreAttaqueMonstre(
+            $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+        );
+    }
+
+    /**
+     * Une attaque d'un monstre contre un héros adjacent (moteur seul). La défense
+     * intègre les buffs de sorts (Peau de Pierre : bonus_des_defense). Met à jour
+     * les PV, réveille la cible, marque la chute (C4), journalise et diffuse le bark.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueMonstre(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        EtatPersonnageQuete $cible,
+        int $desAttaque,
+        array $acteur,
+        string $nomMonstre,
+    ): array {
         $personnage = $cible->personnage;
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: (int) $instance->monstre->attaque,
+            desAttaque: max(0, $desAttaque),
             desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
@@ -1455,6 +1840,110 @@ final class ResolveurTour
 
         // Bark d'ambiance : cri d'attaque du monstre, best-effort.
         $this->diffuserBark($groupe, $instance, 'attaque');
+
+        return $payload;
+    }
+
+    /**
+     * Attaque à choix tactique (3.7) : un monstre doté de la capacité
+     * `choix_attaque` frappe en MODE MASSIF (une attaque unique à dés bonifiés)
+     * tant que la cible a beaucoup de PV (> seuil), sinon en DOUBLE ATTAQUE (deux
+     * attaques normales, interrompues si la cible tombe). Règle 100 % mécanique,
+     * paramétrée par la capacité — aucune décision confiée au LLM (C2, doc 08 §5).
+     *
+     * @param  array<string, mixed>  $choix
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function attaqueChoixTactique(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        EtatPersonnageQuete $cible,
+        array $choix,
+        array $acteur,
+        string $nomMonstre,
+    ): array {
+        $seuil = (int) ($choix['seuil'] ?? 2);
+        $personnage = $cible->personnage;
+
+        // Cible robuste → coup massif unique (dés d'attaque bonifiés).
+        if ((int) $personnage->pv_body > $seuil) {
+            $bonus = (int) ($choix['massive_des_bonus'] ?? 2);
+            $payload = $this->resoudreAttaqueMonstre(
+                $groupe, $instance, $cible, $instance->attaqueEffective() + $bonus, $acteur, $nomMonstre,
+            );
+            $payload['mode'] = 'massive';
+
+            return $payload;
+        }
+
+        // Cible affaiblie → plusieurs attaques normales, stoppées si elle tombe.
+        $nombre = max(2, (int) ($choix['double_nombre'] ?? 2));
+        $actions = [];
+
+        for ($coup = 1; $coup <= $nombre; $coup++) {
+            if ($cible->tombe || (int) $personnage->pv_body <= 0) {
+                break;
+            }
+
+            $action = $this->resoudreAttaqueMonstre(
+                $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+            );
+            $action['mode'] = 'double';
+            $action['coup'] = $coup;
+            $actions[] = $action;
+        }
+
+        return ['type' => 'actions_composites', 'monstre' => $nomMonstre, 'actions' => $actions];
+    }
+
+    /**
+     * Comportement de tir d'un monstre à distance (3.4) : s'il a une LIGNE DE VUE
+     * dégagée sur au moins un héros, il vise le plus avantageux (PV de Body les
+     * plus faibles, puis le plus proche) et l'attaque — au contact en corps-à-corps
+     * (dés d'attaque de mêlée, moindres) sinon à distance (`attaque_distance`).
+     * Retourne null si AUCUNE cible n'est visible (→ approche standard de l'appelant).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    private function tirerSiCibleEnVue(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        Collection $cibles,
+        Grille $grille,
+        array $acteur,
+        string $nomMonstre,
+    ): ?array {
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        $visibles = $cibles->filter(fn (EtatPersonnageQuete $c) =>
+            $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y)
+        )->values();
+
+        if ($visibles->isEmpty()) {
+            return null; // pas de ligne de tir → l'appelant fera approcher le monstre
+        }
+
+        // Cible la plus avantageuse : PV de Body les plus faibles (achever), puis
+        // la plus proche (chemin le plus court ; inaccessible = très loin).
+        $cible = $visibles->sortBy([
+            fn (EtatPersonnageQuete $c) => (int) $c->personnage->pv_body,
+            fn (EtatPersonnageQuete $c) => $grille->distance($ix, $iy, (int) $c->position_x, (int) $c->position_y) ?? PHP_INT_MAX,
+        ])->first();
+
+        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y);
+
+        // Au contact : corps-à-corps (valeur d'attaque de mêlée, un dé de moins par
+        // construction du catalogue) ; à distance : dés d'`attaque_distance`.
+        $desAttaque = $adjacent
+            ? $instance->attaqueEffective()
+            : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective());
+
+        $payload = $this->resoudreAttaqueMonstre($groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre);
+        $payload['portee'] = $adjacent ? 'corps_a_corps' : 'distance';
 
         return $payload;
     }
@@ -1500,6 +1989,18 @@ final class ResolveurTour
     public static function cleSallesDecouvertes(int $queteId): string
     {
         return "partie:salles:{$queteId}";
+    }
+
+    /** Clé de cache des salles déjà fouillées pour leur trésor (doc 14 §3.2). */
+    public static function cleTresorFouille(int $queteId): string
+    {
+        return "partie:tresor:{$queteId}";
+    }
+
+    /** Clé de cache du budget de monstres ERRANTS restant (doc 14 §3.2). */
+    public static function cleBudgetErrant(int $queteId): string
+    {
+        return "partie:errant:{$queteId}";
     }
 
     /**
@@ -1606,6 +2107,9 @@ final class ResolveurTour
             'or' => (int) $groupe->or + $orButin,
         ]);
 
+        // Alliés (3.5) CONSOMMÉS en fin de quête (décision canon) : purge.
+        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+
         // Fin de quête : les snapshots de la quête sont purgés (rétention
         // du contrat « Snapshots & reprise » — on ne recharge pas une
         // quête gagnée).
@@ -1631,7 +2135,7 @@ final class ResolveurTour
      * tombés, C4 — et monstres actifs), avec une figurine exclue (celle qui
      * se déplace).
      */
-    private function grille(Quete $quete, ?int $exceptPersonnageId = null, ?int $exceptInstanceId = null): Grille
+    private function grille(Quete $quete, ?int $exceptPersonnageId = null, ?int $exceptInstanceId = null, ?int $exceptMercenaireId = null): Grille
     {
         $carte = $quete->carte;
 
@@ -1649,14 +2153,222 @@ final class ResolveurTour
             }
         }
 
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $instance) {
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
             if ($instance->id !== $exceptInstanceId && $instance->position_x !== null) {
-                $occupees[] = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+                // 3.9 : une grande figurine occupe TOUTE son emprise (1×1 → une
+                // seule case, identique au comportement antérieur).
+                $e = $instance->monstre->emprise();
+                $occupees = array_merge($occupees, $grille->cellulesEmprise(
+                    (int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h'],
+                ));
+            }
+        }
+
+        // Alliés (3.5) : figures sur le plateau → cases infranchissables.
+        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
+            if ($allie->id !== $exceptMercenaireId && $allie->position_x !== null) {
+                $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
             }
         }
 
         $grille->occuper($occupees);
 
         return $grille;
+    }
+
+    /**
+     * Fin de round (tous les héros ont joué) : phase ALLIÉE dédiée (3.5) — les
+     * alliés scriptés jouent AVANT les monstres, HORS initiative des héros —
+     * puis (s'il reste des monstres) la phase des monstres. Les alliés ayant pu
+     * vaincre le dernier monstre, la victoire est revérifiée entre les deux.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, mixed>
+     */
+    private function jouerFinDeRound(array $resultat, Groupe $groupe, Quete $quete): array
+    {
+        $allies = $this->phaseAllies($groupe, $quete);
+        if ($allies['actions'] !== []) {
+            $resultat['tour_allies'] = $allies;
+        }
+
+        // Les alliés ont pu nettoyer le dernier monstre → victoire avant les monstres.
+        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            $resultat['quete'] = $this->terminerQuete($groupe, $quete);
+
+            return $resultat;
+        }
+
+        $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);
+
+        return $resultat;
+    }
+
+    /**
+     * Phase des alliés scriptés (3.5) : chaque allié actif joue comme un
+     * « monstre allié » ciblant les MONSTRES (révélés). PNJ scripté, hors
+     * initiative héros. NB : le ciblage des alliés PAR les monstres est hors
+     * périmètre v1 — `jouerMonstre` continue de ne viser que les héros.
+     *
+     * @return array{actions: list<array<string, mixed>>}
+     */
+    private function phaseAllies(Groupe $groupe, Quete $quete): array
+    {
+        $actions = [];
+
+        $allies = GroupeMercenaire::where('groupe_id', $quete->groupe_id)
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($allies as $allie) {
+            $monstres = $quete->instancesMonstres()
+                ->where('etat', 'actif')->where('revele', true)
+                ->whereNotNull('position_x')->with('monstre')->get();
+
+            if ($monstres->isEmpty()) {
+                break; // plus rien à combattre
+            }
+
+            $action = $this->jouerAllie($groupe, $quete, $allie, $monstres);
+            if ($action !== null) {
+                $actions[] = $action;
+            }
+        }
+
+        if ($actions !== []) {
+            // Un allié a pu vaincre un gardien → portes « monstres_vaincus ».
+            $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
+        }
+
+        return ['actions' => $actions];
+    }
+
+    /**
+     * Tour d'un allié : tire à distance sur le monstre visible le plus faible
+     * (allié à distance avec ligne de vue) ; sinon rejoint le monstre le plus
+     * proche (emprise comprise) puis frappe au contact. 100 % moteur.
+     *
+     * @param  \Illuminate\Support\Collection<int, InstanceMonstre>  $monstres
+     * @return array<string, mixed>|null
+     */
+    private function jouerAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, $monstres): ?array
+    {
+        $merc = $allie->mercenaire;
+        $nom = $merc->nom;
+        $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
+        $grille = $this->grille($quete, exceptMercenaireId: $allie->id);
+        $ax = (int) $allie->position_x;
+        $ay = (int) $allie->position_y;
+
+        // Allié à distance : tirer sur le monstre VISIBLE le plus faible.
+        if ($merc->aDistance()) {
+            $visibles = $monstres->filter(function (InstanceMonstre $m) use ($grille, $ax, $ay) {
+                $e = $m->monstre->emprise();
+
+                return $grille->ligneDeVueEmprise($ax, $ay, (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']);
+            })->values();
+
+            if ($visibles->isNotEmpty()) {
+                $cible = $visibles->sortBy(fn (InstanceMonstre $m) => (int) $m->pv_body)->first();
+                $e = $cible->monstre->emprise();
+                $adjacent = $grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay);
+                $des = $adjacent ? (int) $merc->attaque : (int) ($merc->attaque_distance ?? $merc->attaque);
+
+                return $this->resoudreAttaqueAllie($groupe, $allie, $cible, $des, $adjacent ? 'corps_a_corps' : 'distance', $acteur, $nom);
+            }
+            // Pas de ligne de tir → se rapproche comme un combattant de mêlée.
+        }
+
+        // Mêlée : rejoindre le monstre le plus proche (case adjacente à l'emprise).
+        $meilleure = null; // [InstanceMonstre, chemin]
+        foreach ($monstres as $m) {
+            $e = $m->monstre->emprise();
+
+            if ($grille->adjacenteAEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], $ax, $ay)) {
+                $meilleure = [$m, []];
+                break;
+            }
+
+            foreach ($grille->cellulesEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']) as $cell) {
+                foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                    $chemin = $grille->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
+                    if ($chemin !== null && ($meilleure === null || count($chemin) < count($meilleure[1]))) {
+                        $meilleure = [$m, $chemin];
+                    }
+                }
+            }
+        }
+
+        if ($meilleure === null) {
+            return ['type' => 'allie_immobile', 'allie' => $nom]; // aucun monstre joignable
+        }
+
+        [$cible, $chemin] = $meilleure;
+
+        if ($chemin !== []) {
+            $pas = min((int) $merc->deplacement, count($chemin));
+            $arrivee = $chemin[$pas - 1];
+            $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+            $ax = (int) $arrivee['x'];
+            $ay = (int) $arrivee['y'];
+        }
+
+        $e = $cible->monstre->emprise();
+        if ($grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay)) {
+            return $this->resoudreAttaqueAllie($groupe, $allie, $cible, (int) $merc->attaque, 'corps_a_corps', $acteur, $nom);
+        }
+
+        $payload = ['type' => 'deplacement_allie', 'allie' => $nom, 'vers' => ['x' => $ax, 'y' => $ay]];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Une attaque d'un allié contre un monstre (le défenseur est un monstre :
+     * boucliers NOIRS, défense effective élite comprise). Met à jour les PV du
+     * monstre, le réveille, journalise.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueAllie(Groupe $groupe, GroupeMercenaire $allie, InstanceMonstre $cible, int $desAttaque, string $portee, array $acteur, string $nom): array
+    {
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: max(0, $desAttaque),
+            desDefense: $cible->defenseEffective(),
+            typeDefenseur: TypeFigurine::Monstre,
+            pvBodyDefenseur: (int) $cible->pv_body,
+        );
+
+        $cible->update([
+            'pv_body' => $resultat->pvBodyApres,
+            'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
+        ]);
+
+        // Être attaqué réveille un monstre endormi (cohérent avec les héros).
+        $this->sorts->retirerConditionMonstre($cible, MoteurSorts::MONSTRE_ENDORMI);
+
+        $payload = [
+            'type' => 'attaque_allie',
+            'allie' => $nom,
+            'portee' => $portee,
+            'cible' => [
+                'instance_id' => $cible->id,
+                'nom' => $cible->habillage['nom'] ?? $cible->monstre->nom_base,
+            ],
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $resultat->degats,
+            'pv_body_apres' => $resultat->pvBodyApres,
+            'cible_vaincue' => $resultat->pvBodyApres === 0,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
     }
 }

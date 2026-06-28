@@ -115,6 +115,11 @@ Quatre groupes de tables MariaDB : **Comptes & roster**, **Campagne & session**,
 ### `cartes`
 | id PK · quete_id FK · largeur INT · hauteur INT · grille JSON | tuiles assemblées, murs, portes, pièges, spawns, état révélé |
 
+`grille.portes` (Phase 2, doc 14 §3.1/3.3) = `[{x, y, etat: ouverte|verrouillee|secrete, verrou?, revele?}]` ;
+`verrou` = `{type: cle, objet_id}` | `{type: monstres_vaincus, instances: [id…]}` | `{type: levier, levier_id}`.
+Une porte non `ouverte` est infranchissable + opaque (overlay `App\Partie\Grille`). `grille.leviers` =
+`[{x, y, levier_id}]` (action « Actionner le levier »).
+
 ### `instances_monstres`
 | Colonne | Type | Note |
 |---|---|---|

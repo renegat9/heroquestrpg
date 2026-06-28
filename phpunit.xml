@@ -23,6 +23,9 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <!-- Variance élite (3.6) désactivée par défaut en test : scénarios
+             déterministes ; un test dédié la réactive via config(). -->
+        <env name="JEU_ELITE_ACTIF" value="false"/>
         <!-- Fournisseur LLM forcé pour des tests déterministes (les skills
              fakent Anthropic) : indépendant du LLM_PROVIDER du .env de dev. -->
         <env name="LLM_PROVIDER" value="anthropic"/>

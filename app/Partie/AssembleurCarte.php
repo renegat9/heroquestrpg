@@ -48,7 +48,7 @@ final class AssembleurCarte
      *   largeur: int, hauteur: int,
      *   cases: list<list<string>>,
      *   salles: list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>,
-     *   portes: list<array{x: int, y: int}>,
+     *   portes: list<array{x: int, y: int, etat: string, verrou?: array<string, mixed>, revele?: bool}>,
      *   pieges: list<array{x: int, y: int, piege_id: int|null, etat: string}>,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>
@@ -69,6 +69,11 @@ final class AssembleurCarte
         $salles = [];
         $portes = [];
 
+        // Portes spéciales (verrouillée / secrète) éventuellement posées par le
+        // gabarit (doc 14 §3.1/3.3). Absent → toutes les portes sont ouvertes
+        // (rétro-compatibilité totale du cas par défaut).
+        $portesSpec = (array) data_get($structure, 'portes', []);
+
         // --- Pose des salles en chaîne ----------------------------------
         $x = 0;
         foreach ($tuiles as $i => $tuile) {
@@ -88,12 +93,33 @@ final class AssembleurCarte
 
             if ($i > 0) {
                 $cases[$ligneMediane][$x] = 'p'; // porte ouest
-                $portes[] = ['x' => $x, 'y' => $ligneMediane];
+                $portes[] = ['x' => $x, 'y' => $ligneMediane, 'etat' => 'ouverte'];
             }
 
             if ($i < count($tuiles) - 1) {
-                $cases[$ligneMediane][$x + $w - 1] = 'p'; // porte est
-                $portes[] = ['x' => $x + $w - 1, 'y' => $ligneMediane];
+                // Porte est = entrée du couloir n°$i. Le gabarit peut la
+                // verrouiller / la rendre secrète (une seule porte du couloir
+                // suffit à le barrer).
+                $porte = ['x' => $x + $w - 1, 'y' => $ligneMediane, 'etat' => 'ouverte'];
+                $spec = $this->specPorte($portesSpec, $i);
+
+                if ($spec !== null) {
+                    $porte['etat'] = (string) $spec['etat'];
+                    if (isset($spec['verrou'])) {
+                        $porte['verrou'] = $spec['verrou'];
+                    }
+                    // Une secrète est invisible : la case redevient un mur
+                    // jusqu'à sa découverte (l'overlay Grille la rouvre ensuite).
+                    if ($porte['etat'] === 'secrete') {
+                        $porte['revele'] = false;
+                        $cases[$ligneMediane][$x + $w - 1] = 'm';
+                    }
+                }
+
+                if ($porte['etat'] !== 'secrete') {
+                    $cases[$ligneMediane][$x + $w - 1] = 'p'; // porte est visible
+                }
+                $portes[] = $porte;
 
                 for ($cx = $x + $w; $cx < $x + $w + self::LONGUEUR_COULOIR; $cx++) {
                     $cases[$ligneMediane][$cx] = 's'; // couloir creusé
@@ -109,10 +135,57 @@ final class AssembleurCarte
             'cases' => $cases,
             'salles' => $salles,
             'portes' => $portes,
+            // Leviers d'ouverture (doc 14 §3.3) : éléments {x, y, levier_id} posés
+            // au contact desquels l'action « Actionner le levier » ouvre la porte
+            // liée (verrou.levier_id). Vide par défaut ; le gabarit/contenu les
+            // déclare via structure.leviers (positions explicites).
+            'leviers' => $this->placerLeviers($structure),
             'pieges' => $this->placerPieges($structure, $salles, $ligneMediane),
             'spawn_heros' => array_slice($this->interieur($cases, $salles[0]), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
         ];
+    }
+
+    /**
+     * Spécification de porte spéciale pour le couloir n°$couloir (doc 14 §3.3) :
+     * première entrée de structure.portes ciblant ce couloir avec un `etat`.
+     *
+     * @param  list<array{couloir?: int, etat?: string, verrou?: array<string, mixed>}>  $specs
+     * @return array{etat: string, verrou?: array<string, mixed>}|null
+     */
+    private function specPorte(array $specs, int $couloir): ?array
+    {
+        foreach ($specs as $spec) {
+            if ((int) ($spec['couloir'] ?? -1) === $couloir && isset($spec['etat'])) {
+                /** @var array{etat: string, verrou?: array<string, mixed>} $spec */
+                return $spec;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Leviers déclarés par le gabarit (positions explicites) — doc 14 §3.3.
+     *
+     * @param  array<string, mixed>  $structure
+     * @return list<array{x: int, y: int, levier_id: string}>
+     */
+    private function placerLeviers(array $structure): array
+    {
+        $leviers = [];
+
+        foreach ((array) data_get($structure, 'leviers', []) as $levier) {
+            if (isset($levier['x'], $levier['y'], $levier['levier_id'])) {
+                $leviers[] = [
+                    'x' => (int) $levier['x'],
+                    'y' => (int) $levier['y'],
+                    'levier_id' => (string) $levier['levier_id'],
+                ];
+            }
+        }
+
+        return $leviers;
     }
 
     /**

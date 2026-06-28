@@ -110,6 +110,8 @@ La **longueur** choisie à la création (doc Session) fixe le nombre de quêtes 
 5. **Hub (Q5)** : **ville persistante qui évolue**.
 6. **Contenu (Q6)** : **catalogue défini**, l'IA habille (renomme/redécrit sans changer les stats).
 7. **Génération en deux temps (Q10)** : **squelette** (prémisse, menace, jalons) à la **création**, stocké dans la bible ; **détail de chaque quête à la volée** au hub, calibré sur la puissance du groupe.
+8. **Exploration — fouille (Phase 2, doc 14)** : **deux actions distinctes**. *Fouiller la zone* = un seul jet de Mind (diff 1) qui révèle pièges ET portes secrètes dans le rayon. *Fouiller — trésor* = action séparée à risque (table pondérée `structure.tresor_a_risque` : trésor / rien / monstre errant / piège éphémère), offerte dans une salle vide non encore fouillée. Le **monstre errant** ne sort que par *Fouiller — trésor* (jamais par *Fouiller la zone*) et est décompté d'un **budget errant dédié** (`structure.budget_errant`), distinct du budget de rencontre.
+9. **Portes à restriction (Phase 2, doc 14)** : verrous `cle` (objet en inventaire, action *Ouvrir la porte* au contact), `monstres_vaincus` (ouverture auto post-combat), `levier` (action *Actionner le levier* au contact). Une porte non ouverte est infranchissable + opaque ; *Traverser la Pierre* franchit déjà les murs. Verrou `jet`-pour-forcer reporté.
 
 ---
 

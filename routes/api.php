@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
+use App\Http\Controllers\Api\MercenaireController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
@@ -76,6 +77,9 @@ Route::middleware('auth:joueur')->group(function () {
     // catalogue + acquisition d'un nœud (points dérivés du niveau).
     Route::get('/competences', [CompetenceController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/competences', [CompetenceController::class, 'acquerir']);
+
+    // Recrutement d'alliés au hub (3.5) — bourse commune.
+    Route::post('/groupes/{identifiant}/mercenaires', [MercenaireController::class, 'recruter']);
 
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
     // application atomique quand TOUS les joueurs ont confirmé.

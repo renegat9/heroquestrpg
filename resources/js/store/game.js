@@ -361,13 +361,19 @@ export function entitesVersFigurines(entites, initiative) {
         .map((e) => ({
             x: e.x,
             y: e.y,
-            k: e.type === 'heros' ? 'hero' : 'foe',
+            k: e.type === 'heros' ? 'hero' : (e.type === 'allie' ? 'ally' : 'foe'),
             l: labelCourt(e.nom),
-            ic: e.type === 'heros' ? classeDe(e)?.ic : 'sentiment_very_dissatisfied',
+            ic: e.type === 'heros'
+                ? classeDe(e)?.ic
+                : (e.type === 'allie' ? (e.animal ? 'pets' : 'handshake') : 'sentiment_very_dissatisfied'),
             img: e.image_url ?? null,
-            hp: e.type === 'monstre' ? e.pv_body : undefined,
+            hp: (e.type === 'monstre' || e.type === 'allie') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
+            elite: e.type === 'monstre' ? !!e.elite : false,
             cond: conditionDeJeton(e.conditions),
+            // Emprise (3.9) : largeur/hauteur en cases, 1×1 par défaut.
+            ew: Math.max(1, e.emprise?.l ?? 1),
+            eh: Math.max(1, e.emprise?.h ?? 1),
         }));
 }
 
@@ -391,6 +397,38 @@ export function piegesVersMarqueurs(carte) {
             nom: p.nom ?? 'Piège',
             titre: `${p.nom ?? 'Piège'} — ${PIEGE_ETATS[p.etat]}`,
         }));
+}
+
+/** Libellés des états de porte CONNUS (les secrètes non révélées n'arrivent jamais). */
+export const PORTE_ETATS = {
+    ouverte: 'ouverte',
+    verrouillee: 'verrouillée',
+    secrete: 'secrète',
+};
+
+/** Libellés de verrou (doc 14 §3.3) pour l'infobulle de la porte. */
+const PORTE_VERROUS = {
+    cle: 'clé requise',
+    monstres_vaincus: 'gardien à vaincre',
+    levier: 'levier à actionner',
+};
+
+/** carte.portes (contrat doc 14) → marqueurs [{x, y, etat, verrou, cadenas, titre}]
+ *  pour la couche portes de DungeonMap. Seules les portes VERROUILLÉES portent un
+ *  cadenas ; les ouvertes s'affichent déjà via la case 'p'. */
+export function portesVersMarqueurs(carte) {
+    return (carte?.portes ?? [])
+        .filter((p) => PORTE_ETATS[p.etat])
+        .map((p) => {
+            const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
+            return {
+                x: p.x,
+                y: p.y,
+                etat: p.etat,
+                cadenas: p.etat === 'verrouillee',
+                titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
+            };
+        });
 }
 
 /** entites héros (contrat) → cartes du GroupPanel [{l, c, ic, body, mind, conds…}]. */
