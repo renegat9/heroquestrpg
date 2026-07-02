@@ -92,7 +92,11 @@ export function useGameStore() {
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
             // prets du hub (contrat : EtatGroupe.groupe.prets au hub)
             if (Array.isArray(etat?.groupe?.prets)) state.prets = etat.groupe.prets;
-            state.menuEnAttente = false; // le moteur a résolu : on rend la main
+            // NOTE : on NE libère PAS menuEnAttente ici. Un tour déclenche
+            // plusieurs .groupe.etat (phase monstres, autres joueurs, potion
+            // bue…) avant NOTRE prochain menu ; libérer au 1er état rouvrait les
+            // boutons trop tôt → re-taps accumulés. Le verrou tombe seulement sur
+            // setMenu (mon prochain menu) ou viderMenu (mon tour est fini).
         },
         /** Nouveau menu personnel (.menu.propose sur joueur.{id}). */
         setMenu(menu) {
@@ -104,7 +108,8 @@ export function useGameStore() {
             state.menu = null;
             state.menuEnAttente = false;
         },
-        /** Le choix est parti (202) : boutons gelés jusqu'au prochain état. */
+        /** Le choix est parti (202) : boutons gelés jusqu'à MON prochain menu
+         *  (setMenu) ou la fin de mon tour (viderMenu) — pas au 1er état venu. */
         choixEnvoye() {
             state.menuEnAttente = true;
         },

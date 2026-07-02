@@ -159,6 +159,22 @@ watch(() => store.state.etat, () => {
     if (moi?.a_joue) store.viderMenu();
 });
 
+/* ---- Filet de sécurité du verrou anti-accumulation ----
+   menuEnAttente ne tombe que sur MON prochain menu ou la fin de mon tour. Si un
+   broadcast .menu.propose se perd (WS), on resterait gelé : au bout de 15 s de
+   gel, on RATTRAPE le menu courant (getMenu) plutôt que rester bloqué. ---- */
+let veilleVerrou = null;
+watch(() => store.state.menuEnAttente, (gele) => {
+    if (veilleVerrou) { clearTimeout(veilleVerrou); veilleVerrou = null; }
+    if (!gele || enDemo.value) return;
+    veilleVerrou = setTimeout(() => {
+        api.getMenu(props.groupe)
+            .then((r) => { r?.menu ? store.setMenu(r.menu) : store.viderMenu(); })
+            .catch(() => store.annulerChoixEnAttente());
+    }, 15000);
+});
+onUnmounted(() => clearTimeout(veilleVerrou));
+
 /* ---- état local (mode démo) ---- */
 const heroKey = ref('mage');
 const tab = ref('action');
@@ -381,7 +397,7 @@ function concentrerSort(sort) {
 
 async function envoyerOption(option, parametres) {
     feuilleOption.value = null;
-    store.choixEnvoye(); // optimiste : boutons gelés jusqu'au prochain .groupe.etat
+    store.choixEnvoye(); // optimiste : gelés jusqu'à mon prochain menu / fin de tour
     try {
         const rep = await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
         revelerDesResultat(rep?.resultat); // affiche le jet quelques secondes (#dés)
