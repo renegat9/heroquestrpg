@@ -7,6 +7,7 @@
 // {option_id} et gèle les boutons jusqu'au prochain .groupe.etat.
 // Repli : API injoignable / 401 → démo locale (badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import DemoBadge from '../components/ui/DemoBadge.vue';
@@ -16,6 +17,7 @@ import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import FlowSheet from '../components/manette/FlowSheet.vue';
+import DieFace from '../components/manette/DieFace.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
@@ -36,6 +38,19 @@ const props = defineProps({
 const store = useGameStore();
 store.setGroupe(props.groupe);
 const api = useApi();
+
+/* ---- Personnage piloté sur CE téléphone ----
+   Transmis par JoueurView via ?perso=ID et mémorisé par groupe : un même
+   joueur peut contrôler PLUSIEURS personnages (sur des appareils distincts),
+   donc la manette ne peut pas deviner « le 1er engagé » sans se tromper. */
+const route = useRoute();
+const CLE_PERSO = `manette:perso:${props.groupe}`;
+const persoIdActif = ref((() => {
+    const q = Number(route.query.perso);
+    if (q) { try { localStorage.setItem(CLE_PERSO, String(q)); } catch { /* stockage indispo */ } return q; }
+    const s = Number(localStorage.getItem(CLE_PERSO));
+    return s || null;
+})());
 
 /* ---- chargement de l'état + abonnements temps réel ---- */
 const desabonnements = [];
@@ -121,8 +136,14 @@ const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? nul
    du gabarit de démo de la même classe ; nom et PV sont les vrais. ---- */
 const monEntite = computed(() => {
     if (enDemo.value) return null;
+    const entites = store.state.etat.entites ?? [];
+    // Priorité au personnage explicitement piloté sur ce téléphone.
+    if (persoIdActif.value) {
+        const mien = entites.find((e) => e.type === 'heros' && e.id === persoIdActif.value);
+        if (mien) return mien;
+    }
     const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
-    return store.state.etat.entites?.find((e) => e.type === 'heros' && ids.has(e.id)) ?? null;
+    return entites.find((e) => e.type === 'heros' && ids.has(e.id)) ?? null;
 });
 
 /* ---- Fin de mon tour → retire le menu périmé. Quand un .groupe.etat arrive
@@ -180,6 +201,11 @@ const monPerso = computed(() => {
     const persos = store.state.personnages ?? [];
     if (monEntite.value) return persos.find((p) => p.id === monEntite.value.id) ?? null;
     if (enDemo.value) return null;
+    // Au hub (entités vides) : le personnage piloté sur ce téléphone.
+    if (persoIdActif.value) {
+        const mien = persos.find((p) => p.id === persoIdActif.value);
+        if (mien) return mien;
+    }
     return persos.find((p) => p.groupe_actif_id != null || p.disponible === false)
         ?? persos[0]
         ?? null;
@@ -357,11 +383,52 @@ async function envoyerOption(option, parametres) {
     feuilleOption.value = null;
     store.choixEnvoye(); // optimiste : boutons gelés jusqu'au prochain .groupe.etat
     try {
-        await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
+        const rep = await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
+        revelerDesResultat(rep?.resultat); // affiche le jet quelques secondes (#dés)
     } catch (e) {
         store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
         if (estErreurDemo(e)) store.activerModeDemo(e.message);
         else store.setNarration(e.message);
+    }
+}
+
+/* ---- Révélation des dés (mode connecté) ----
+   Le POST choix renvoie EN ECHO les faces réelles du jet ; on les affiche
+   quelques secondes pour qu'on VOIE le résultat (sinon seul .groupe.etat met à
+   jour les PV — trop rapide, le joueur ne perçoit pas le lancer). ---- */
+const desReveles = ref(null);
+function faceVersDe(v, camp) {
+    if (camp === 'atk') return v === 'crane' ? 'skull' : 'blank';
+    return (v === 'bouclier_blanc' || v === 'bouclier_noir') ? 'shield' : 'blank';
+}
+let timerDes = null;
+function revelerDesResultat(r) {
+    if (!r || !Array.isArray(r.faces_attaque)) return; // seulement les jets d'attaque
+    desReveles.value = {
+        atk: r.faces_attaque.map((v) => faceVersDe(v, 'atk')),
+        def: (r.faces_defense ?? []).map((v) => faceVersDe(v, 'def')),
+        degats: r.degats ?? 0,
+        cible: r.cible?.nom ?? r.cible_nom ?? null,
+    };
+    if (timerDes) clearTimeout(timerDes);
+    timerDes = setTimeout(() => { desReveles.value = null; }, 3200);
+}
+
+/* ---- Potions : action GRATUITE jouable À TOUT MOMENT (canon), même hors de
+   son tour / pendant le tour d'un monstre. Ne passe pas par le menu. ---- */
+const consommablesActifs = computed(() => monPerso.value?.consommables ?? []);
+const potionEnCours = ref(false);
+async function boirePotion(inventaireId) {
+    if (potionEnCours.value) return;
+    potionEnCours.value = true;
+    try {
+        await api.boirePotion(props.groupe, inventaireId);
+        rafraichirMoi(); // PV + inventaire rafraîchis
+    } catch (e) {
+        if (estErreurDemo(e)) store.activerModeDemo(e.message);
+        else store.setNarration(e.message);
+    } finally {
+        potionEnCours.value = false;
     }
 }
 
@@ -830,7 +897,13 @@ const navItems = computed(() => (scene.value === 'marche'
                             @cast="beginSpell"
                             @choose="choisirOption"
                         />
-                        <SacTab v-else-if="tab === 'sac'" :hero="hero" />
+                        <SacTab
+                            v-else-if="tab === 'sac'"
+                            :hero="hero"
+                            :potions="consommablesActifs"
+                            :potion-en-cours="potionEnCours"
+                            @boire="boirePotion"
+                        />
                     </div>
 
                     <!-- navigation basse -->
@@ -902,6 +975,22 @@ const navItems = computed(() => (scene.value === 'marche'
                         @close="feuilleOption = null"
                     />
                     <VoteSheet v-if="voteAffiche" :vote="voteAffiche" @cast="castVote" @close="fermerVote" />
+
+                    <!-- Révélation du jet de dés (mode connecté) : tap pour fermer -->
+                    <div v-if="desReveles" class="des-reveal" @click="desReveles = null">
+                        <div class="des-reveal-card">
+                            <div class="dr-row"><DieFace v-for="(d, i) in desReveles.atk" :key="'a' + i" :face="d" reveal /></div>
+                            <div v-if="desReveles.def.length" class="dr-row dr-def">
+                                <DieFace v-for="(d, i) in desReveles.def" :key="'d' + i" :face="d" reveal />
+                            </div>
+                            <div class="dr-txt">
+                                <template v-if="desReveles.degats > 0">
+                                    {{ desReveles.degats }} blessure{{ desReveles.degats > 1 ? 's' : '' }}<template v-if="desReveles.cible"> · {{ desReveles.cible }}</template>
+                                </template>
+                                <template v-else>Coup paré !</template>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -926,3 +1015,39 @@ const navItems = computed(() => (scene.value === 'marche'
         <DemoBadge />
     </div>
 </template>
+
+<style scoped>
+/* Révélation du jet de dés (mode connecté) — overlay lisible ~3 s */
+.des-reveal {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(6, 4, 2, 0.55);
+    backdrop-filter: blur(2px);
+}
+.des-reveal-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 22px 26px;
+    border-radius: 16px;
+    background: var(--panel, #17120b);
+    border: 1px solid rgba(201, 162, 74, 0.35);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+    animation: dr-pop 0.18s ease-out;
+}
+.des-reveal .dr-row { display: flex; gap: 8px; }
+.des-reveal .dr-def { opacity: 0.85; }
+.des-reveal .dr-txt {
+    margin-top: 4px;
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--ink-100, #f3e9d6);
+    text-align: center;
+}
+@keyframes dr-pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>

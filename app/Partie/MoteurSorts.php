@@ -9,6 +9,7 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Models\Objet;
 use App\Models\Sort;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -74,6 +75,9 @@ final class MoteurSorts
 
     /** Préfixe des sources de conditions posées par un sort. */
     public const PREFIXE_SOURCE = 'sort:';
+
+    /** Préfixe des sources de conditions posées par une POTION (buff bu). */
+    public const PREFIXE_SOURCE_POTION = 'potion:';
 
     /** Condition générique des buffs chiffrés sans condition dédiée (catalogue). */
     public const CONDITION_BUFF_DEFAUT = 'Renforcé';
@@ -293,6 +297,24 @@ final class MoteurSorts
     }
 
     /**
+     * Pose le buff d'une POTION (source `potion:{Nom}`) : la condition affichée
+     * vient de l'objet (condition_appliquee, sinon « Renforcé ») et le bonus
+     * chiffré (ex. bonus_des_attaque) est relu sur l'effet de l'objet. Consommé
+     * comme un buff de sort (consommerBuffs, à la prochaine attaque).
+     */
+    public function appliquerBuffPotion(Personnage $cible, Objet $objet): Condition
+    {
+        $condition = $this->condition((string) data_get($objet->effet, 'condition_appliquee', self::CONDITION_BUFF_DEFAUT));
+
+        $cible->conditions()->attach($condition->id, [
+            'duree' => (int) data_get($objet->effet, 'duree_tours', 0),
+            'source' => self::PREFIXE_SOURCE_POTION.$objet->nom,
+        ]);
+
+        return $condition;
+    }
+
+    /**
      * Somme des bonus de dés (`bonus_des_attaque` / `bonus_des_defense`)
      * portés par les buffs de sorts du héros — relus dans l'effet JSON du
      * sort source, jamais recopiés.
@@ -498,7 +520,8 @@ final class MoteurSorts
     private function buffsSorts(Personnage $personnage): Collection
     {
         return $personnage->conditions()->get()
-            ->filter(fn (Condition $c) => str_starts_with((string) $c->pivot->source, self::PREFIXE_SOURCE))
+            ->filter(fn (Condition $c) => str_starts_with((string) $c->pivot->source, self::PREFIXE_SOURCE)
+                || str_starts_with((string) $c->pivot->source, self::PREFIXE_SOURCE_POTION))
             ->values();
     }
 
@@ -509,6 +532,13 @@ final class MoteurSorts
      */
     private function effetSortSource(string $source): array
     {
+        // Buff de POTION : l'effet chiffré est relu sur l'objet consommable.
+        if (str_starts_with($source, self::PREFIXE_SOURCE_POTION)) {
+            $nom = substr($source, strlen(self::PREFIXE_SOURCE_POTION));
+
+            return Objet::query()->where('nom', $nom)->first()?->effet ?? [];
+        }
+
         $nom = substr($source, strlen(self::PREFIXE_SOURCE));
 
         return Sort::query()->where('nom', $nom)->first()?->effet ?? [];

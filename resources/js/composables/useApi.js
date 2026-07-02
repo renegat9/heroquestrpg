@@ -208,6 +208,13 @@ export function useApi() {
         envoyerChoix: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/choix`, payload),
 
+        /**
+         * POST /api/groupes/{identifiant}/potions {inventaire_id} → {resultat}.
+         * Action GRATUITE, à tout moment (même hors de son tour) — canon.
+         */
+        boirePotion: (identifiant, inventaireId) =>
+            request('POST', `/groupes/${identifiant}/potions`, { inventaire_id: inventaireId }),
+
         // ---- phase marché (contrat « Phase marché », au hub uniquement) ----
 
         /** POST /groupes/{id}/marche {profil?} → ouvre la phase (broadcast .marche.ouvert). */

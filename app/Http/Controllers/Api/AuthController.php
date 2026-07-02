@@ -109,7 +109,7 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
-                ->with(['competences:competences.id', 'sorts', 'groupeActif'])
+                ->with(['competences:competences.id', 'sorts', 'groupeActif', 'inventaire.objet'])
                 ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id',
                     'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max'])
                 ->map(function ($p) {
@@ -132,6 +132,18 @@ class AuthController extends Controller
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                         'competences' => $p->competences->pluck('id')->values()->all(),
+                        // Consommables (potions) réels : la manette propose « Boire »
+                        // à tout moment (action gratuite, canon) — POST /potions.
+                        'consommables' => $p->inventaire
+                            ->filter(fn ($l) => $l->objet !== null && $l->objet->categorie === 'consommable')
+                            ->map(fn ($l) => [
+                                'inventaire_id' => $l->id,
+                                'nom' => $l->objet->nom,
+                                'quantite' => (int) $l->quantite,
+                                'effet' => $l->objet->effet,
+                            ])
+                            ->values()
+                            ->all(),
                         // Répertoire de sorts (contrat) : l'onglet Sorts de la
                         // manette s'en nourrit, disponibilité par quête comprise.
                         'sorts' => $p->sorts

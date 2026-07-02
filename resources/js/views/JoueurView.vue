@@ -156,7 +156,9 @@ async function rejoindre(perso) {
         const ident = reponse?.groupe?.identifiant ?? code;
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-        router.push({ name: 'manette', params: { groupe: ident } });
+        // On transmet le personnage ENGAGÉ sur ce téléphone : sinon la manette
+        // devine et pilote le 1er perso engagé du joueur (bug multi-personnages).
+        router.push({ name: 'manette', params: { groupe: ident }, query: { perso: perso.id } });
     } catch (e) {
         erreurRejoindre.value = { ...erreurRejoindre.value, [perso.id]: e.message };
     } finally {
@@ -198,7 +200,7 @@ async function creerGroupe(perso) {
         });
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-        router.push({ name: 'manette', params: { groupe: groupe.identifiant } });
+        router.push({ name: 'manette', params: { groupe: groupe.identifiant }, query: { perso: perso.id } });
     } catch (e) {
         erreurCreerGroupe.value = { ...erreurCreerGroupe.value, [perso.id]: e.message };
     } finally {
@@ -229,7 +231,7 @@ async function copierCode(code) {
 async function reprendre(perso) {
     const statut = statutPersonnage(perso);
     if (!statut.narrateur_actif) return; // désactivé
-    router.push({ name: 'manette', params: { groupe: statut.identifiant } });
+    router.push({ name: 'manette', params: { groupe: statut.identifiant }, query: { perso: perso.id } });
 }
 
 // Portrait unique (génération IA à la demande) — prime sur l'image de classe.

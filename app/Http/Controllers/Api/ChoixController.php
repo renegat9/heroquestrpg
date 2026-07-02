@@ -106,17 +106,27 @@ class ChoixController extends Controller
         // L'IA n'intervient que sur les actions NOTABLES. Un simple déplacement
         // (ou attente), sans changement de phase, reste 100 % moteur → tour
         // instantané : pas de narration, menus moteur seuls (pas d'appel LLM).
+        $groupeFrais = $groupe->fresh();
         $triviale = in_array($resultat['type'] ?? null, ['deplacement', 'attente'], true)
-            && $groupe->fresh()->phase === 'quete';
+            && $groupeFrais->phase === 'quete';
 
-        if (! $triviale) {
+        // Combat (monstres révélés actifs) → tour instantané lui aussi : menu
+        // moteur immédiat + barks pré-générés (texte/audio déjà faits) en guise
+        // de retour, SANS attendre le LLM. L'IA reste réservée à l'exploration.
+        $quete = $groupeFrais->phase === 'quete' ? $groupeFrais->queteCourante : null;
+        $enCombat = $quete !== null && $quete->instancesMonstres()
+            ->where('etat', 'actif')->where('revele', true)->exists();
+
+        $instantane = $triviale || $enCombat;
+
+        if (! $instantane) {
             // Suite du tour en jobs : narration puis nouveaux menus (doc 11 §4).
             broadcast(new MjReflechit($groupe, true));
             GenererNarration::dispatch($groupe->id, $resultat);
         }
 
         foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id, enrichir: ! $triviale);
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id, enrichir: ! $instantane);
         }
 
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
+use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
@@ -72,6 +73,8 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
     // Rattrapage du menu courant du joueur (reconnexion).
     Route::get('/groupes/{identifiant}/menu', [ChoixController::class, 'menu']);
+    // Boire une potion : action GRATUITE, à tout moment (hors créneaux de tour).
+    Route::post('/groupes/{identifiant}/potions', [PotionController::class, 'boire']);
 
     // Arbres de compétences (montée de niveau par jalons, contrat) :
     // catalogue + acquisition d'un nœud (points dérivés du niveau).
