@@ -42,6 +42,7 @@ Routes protégées par middleware `auth` sauf connexion.
   ],
   "initiative": [{"entite": "heros|monstre", "id": 1, "nom": "...", "a_joue": false}],
   "narration": "dernier texte du MJ",
+  "narration_sequence": 42,
   "mj_reflechit": false
 }
 ```
@@ -57,11 +58,20 @@ l'écran de prologue de la table ; `auto` est vrai tant qu'aucune quête n'a eu 
 (ouverture automatique au lancement). `url` = vraie voix de narrateur si générée,
 sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
 
+`narration_sequence` = numéro de séquence (journal) de la dernière narration —
+**anti-inversion** : plusieurs narrations partent en jobs asynchrones de durées
+différentes (cérémonie de lancement instantanée, narration IA sur file lente…) ;
+rien ne garantit qu'elles arrivent dans l'ordre où elles ont été déclenchées. Le
+client (store `setNarration`) ignore toute narration (`.narration.diffusee` comme
+`EtatGroupe.narration`) dont la `sequence` est ≤ à la dernière déjà affichée,
+plutôt que d'inverser l'ordre perçu (ex. narration de la quête suivante entendue
+avant celle du coup fatal qui a provoqué le TPK).
+
 ## Canaux Reverb (préfixe d'événement = broadcastAs)
 
 | Canal | Événement | Payload | Écouté par |
 |---|---|---|---|
-| `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) |
+| `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe | table + manettes |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
@@ -305,7 +315,9 @@ rarete, personnage_id}], confirmations: [{joueur_id, pseudo, confirme}]}`.
 `ResumeCampagne` depuis le journal ; repli sans LLM : résumé factuel — quêtes,
 boss, or, issue) ; 4. une ligne `personnage_historique` par héros (groupe_nom,
 theme, resume, issue, niveau_atteint, termine_le) ; 5. détachement
-(`groupe_actif_id` null) puis **purge complète** : quetes, cartes,
+(`groupe_actif_id` null), **personnages remis à plein** (pv_body/pv_mind au
+max, sorts tous `disponible`, conditions/buffs effacés — victoire, échec ou
+abandon referment l'ardoise) puis **purge complète** : quetes, cartes,
 instances_monstres, etat_personnage_quete, evenements, snapshots, caches de
 phase, le groupe lui-même, et les points **Qdrant** du group_id (best-effort
 si Qdrant est joignable). Broadcast final `.cloture.terminee`

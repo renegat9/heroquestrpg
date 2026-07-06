@@ -31,6 +31,12 @@ class NarrationDiffusee implements ShouldBroadcast
         public readonly ?string $ambiance = null,
         public readonly ?int $queteId = null,
         public readonly ?string $url = null,
+        /** Séquence du journal (Evenement.sequence) : permet au client
+         *  d'ignorer une narration arrivée EN RETARD derrière une plus
+         *  récente déjà affichée (jobs asynchrones, ordre non garanti —
+         *  ex. la cérémonie de lancement de la quête suivante, instantanée,
+         *  peut devancer la narration — lente — du coup fatal précédent). */
+        public readonly ?int $sequence = null,
     ) {}
 
     public function broadcastOn(): Channel
@@ -53,6 +59,7 @@ class NarrationDiffusee implements ShouldBroadcast
             'ambiance' => $this->ambiance,
             'quete_id' => $this->queteId,
             'url' => $this->url,
+            'sequence' => $this->sequence,
         ];
     }
 }

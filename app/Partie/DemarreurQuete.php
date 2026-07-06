@@ -42,9 +42,9 @@ use RuntimeException;
  *  4. initiative figée pour toute la quête (C1) : héros dans l'ordre
  *     d'arrivée (pivot ordre_initiative renuméroté), monstres après ;
  *  5. etat_personnage_quete créé (positions de spawn, a_joue=false) ;
- *  6. sorts des héros actifs RÉINITIALISÉS (S5 : tout redevient disponible
- *     au démarrage d'une quête ; buffs de sorts purgés ; usage de
- *     Concentration réarmé — MoteurSorts) ;
+ *  6. héros actifs REMIS À PLEIN (P2, doc 01 §13 : récupération intégrale
+ *     entre deux quêtes) — PV Body/Mind au max, sorts tous redisponibles
+ *     (S5), buffs de sorts purgés, usage de Concentration réarmé (MoteurSorts) ;
  *  7. groupe passé en phase « quete », journal, broadcast `.groupe.etat`,
  *     dispatch GenererNarration + GenererMenu (un par héros actif).
  */
@@ -152,6 +152,14 @@ final class DemarreurQuete
             foreach ($heros as $i => $personnage) {
                 $groupe->personnages()->updateExistingPivot($personnage->id, ['ordre_initiative' => $i + 1]);
 
+                // Récupération INTÉGRALE entre deux quêtes (P2, doc 01 §13) :
+                // PV Body/Mind au max — pas de récupération par repos, seule la
+                // transition de quête guérit ; les potions soignent EN quête.
+                $personnage->update([
+                    'pv_body' => $personnage->pv_body_max,
+                    'pv_mind' => $personnage->pv_mind_max,
+                ]);
+
                 // Récupération par quête (S5/S6) : sorts disponibles, buffs
                 // de sorts purgés, Concentration réarmée.
                 $this->sorts->reinitialiserQuete($groupe, $personnage);
@@ -224,10 +232,17 @@ final class DemarreurQuete
         // Cérémonie de lancement (tous prêts → c'est parti) : réplique scriptée
         // du narrateur, jouée IMMÉDIATEMENT (vraie voix si l'asset existe), AVANT
         // la narration d'ambiance de l'IA. Toujours disponible, sans LLM.
+        // Journalisée (type narration, séquencée) : sans ça, cette cérémonie —
+        // diffusée SANS file d'attente — pourrait devancer sur l'écran une
+        // narration plus ANCIENNE mais encore en cours de génération (job lent
+        // de la quête précédente, ex. le coup fatal d'un TPK) sans que le
+        // client puisse détecter l'inversion.
         $ceremonie = $this->narration->lancement();
+        $evenementCeremonie = Journal::ajouter($groupe, 'narration', ['texte' => $ceremonie['texte']]);
         broadcast(new NarrationDiffusee(
             $groupe, $ceremonie['texte'],
             ambiance: $ceremonie['ambiance'], queteId: $quete->id, url: $ceremonie['url'],
+            sequence: $evenementCeremonie->sequence,
         ));
 
         // Mise en récit + menus par jobs (repli garanti : l'API ne dépend pas du LLM).

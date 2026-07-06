@@ -80,6 +80,8 @@ final class EtatGroupe
             }
         }
 
+        $derniereNarration = $this->derniereNarration($groupe);
+
         return [
             'groupe' => $preambuleGroupe,
             'quete' => $quete === null ? null : [
@@ -94,7 +96,11 @@ final class EtatGroupe
             'carte' => $this->carte($quete),
             'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->allies($groupe), ...$this->monstres($quete)],
             'initiative' => $quete === null ? [] : $this->initiative($groupe, $quete),
-            'narration' => $this->derniereNarration($groupe),
+            'narration' => $derniereNarration['texte'] ?? null,
+            // Séquence de la dernière narration (Evenement.sequence) : sert au
+            // client à ignorer une narration qui arriverait EN RETARD derrière
+            // une plus récente déjà affichée (jobs asynchrones, ordre non garanti).
+            'narration_sequence' => $derniereNarration['sequence'] ?? null,
             'mj_reflechit' => (bool) Cache::get(self::cleMjReflechit($groupe->id), false),
         ];
     }
@@ -390,18 +396,30 @@ final class EtatGroupe
         return [...$heros->values()->all(), ...$monstres->values()->all()];
     }
 
-    private function derniereNarration(Groupe $groupe): ?string
+    /**
+     * @return array{texte: string, sequence: int}|null
+     */
+    private function derniereNarration(Groupe $groupe): ?array
     {
-        $payload = Evenement::query()
+        $evenement = Evenement::query()
             ->where('groupe_id', $groupe->id)
             ->where('type', 'narration')
             ->orderByDesc('sequence')
-            ->value('payload');
+            ->first(['payload', 'sequence']);
 
+        if ($evenement === null) {
+            return null;
+        }
+
+        $payload = $evenement->payload;
         if (is_string($payload)) {
             $payload = json_decode($payload, true);
         }
 
-        return $payload['texte'] ?? null;
+        if (! isset($payload['texte'])) {
+            return null;
+        }
+
+        return ['texte' => $payload['texte'], 'sequence' => (int) $evenement->sequence];
     }
 }

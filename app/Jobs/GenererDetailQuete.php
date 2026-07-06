@@ -91,7 +91,12 @@ class GenererDetailQuete implements ShouldQueue
                 'budget' => $budget,
             ]);
 
-            broadcast(new NarrationDiffusee($groupe, (string) $detail['introduction'], ambiance: 'mystere', queteId: $quete->id));
+            $introduction = (string) $detail['introduction'];
+            $evenementIntro = Journal::ajouter($groupe, 'narration', ['texte' => $introduction]);
+            broadcast(new NarrationDiffusee(
+                $groupe, $introduction, ambiance: 'mystere', queteId: $quete->id,
+                sequence: $evenementIntro->sequence,
+            ));
 
             // Premier menu de la quête pour chaque héros actif (canal privé).
             foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $personnage) {

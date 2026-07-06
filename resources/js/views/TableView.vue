@@ -50,7 +50,11 @@ onMounted(async () => {
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
             '.groupe.etat': (e) => store.appliquerEtat(e),
-            '.narration.diffusee': (e) => { store.setNarration(e.texte); voix.narrer({ texte: e.texte, url: e.url }); },
+            '.narration.diffusee': (e) => {
+                // Narration périmée (arrivée en retard derrière une plus
+                // récente) : ni affichée, ni lue à voix haute.
+                if (store.setNarration(e.texte, e.sequence)) voix.narrer({ texte: e.texte, url: e.url });
+            },
             '.bark.diffuse': (e) => voix.jouerBark(e),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
             '.marche.ouvert': (e) => store.appliquerMarche(e),
@@ -118,6 +122,10 @@ const doors = computed(() => (enQuete.value ? portesVersMarqueurs(etat.value.car
 const entities = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : TABLE_ENTITIES));
+/* Recentre la carte sur le HÉROS actif au début de son tour (initiative =
+   lui). Pendant le tour des monstres, la caméra ne bouge pas (pas de saut
+   vers un ennemi non demandé). */
+const heroActif = computed(() => entities.value.find((e) => e.k === 'hero' && e.cur) ?? null);
 const initOrder = computed(() => (etat.value
     ? initiativeVersBarre(etat.value.initiative)
     : TABLE_INIT_ORDER));
@@ -340,7 +348,15 @@ const combatRef = ref(null);
                         <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
                         <p v-if="erreurCloture" class="hub-err">{{ erreurCloture }}</p>
                     </div>
-                    <DungeonMap v-else :map="map" :entities="entities" :traps="traps" :doors="doors" />
+                    <DungeonMap
+                        v-else
+                        :map="map"
+                        :entities="entities"
+                        :traps="traps"
+                        :doors="doors"
+                        :active-x="heroActif?.x ?? null"
+                        :active-y="heroActif?.y ?? null"
+                    />
                     <!-- montée de niveau : célébration dorée (gains par héros) -->
                     <div v-if="niveauMonte" class="lvlup-ov" @click="store.fermerNiveauMonte()">
                         <div class="panel">
@@ -483,10 +499,16 @@ const combatRef = ref(null);
 /* ---- zone principale : carte + panneau de groupe ---- */
 .table-screen .main { display: grid; grid-template-columns: 1fr 320px; gap: 18px; min-height: 0; z-index: 2; }
 .table-screen .map-wrap { position: relative; display: grid; place-items: center; min-height: 0; }
-.table-screen .map { display: grid; gap: 3px; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
-  grid-template-columns: repeat(14, 1fr); grid-template-rows: repeat(9, 1fr);
+/* Fenêtre fixe (mêmes proportions/zoom qu'avant, 14×9 cases visibles) —
+   `overflow: hidden` recadre .map-grid, plus grand si la vraie carte
+   dépasse cette densité (ex. 22×6), pendant que .map-grid se recentre
+   sur le héros actif (voir DungeonMap.vue, largeur/hauteur/transform en
+   ligne, calculées en JS à partir de la taille réelle de cette fenêtre). */
+.table-screen .map { position: relative; overflow: hidden; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
   padding: 14px; border-radius: var(--r-lg); background: oklch(0.12 0.01 255);
   box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6); }
+.table-screen .map-grid { display: grid; gap: 3px; position: absolute; top: 14px; left: 14px;
+  transition: transform .6s cubic-bezier(.22, 1, .36, 1); }
 .table-screen .cell { border-radius: 3px; position: relative; }
 .table-screen .cell.void { background: transparent; }
 .table-screen .cell.wall { background:

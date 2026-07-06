@@ -60,6 +60,7 @@ class GenererNarration implements ShouldQueue
                 ambiance: $sortie['ambiance'] ?? null,
                 queteId: $evenement->quete_id,
                 url: $this->voix($texte, $sortie['url'] ?? null, $tts, $lib),
+                sequence: $evenement->sequence,
             ));
         } finally {
             broadcast(new MjReflechit($groupe, false));

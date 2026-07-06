@@ -59,10 +59,13 @@ class GenererSqueletteCampagne implements ShouldQueue
 
                 Journal::ajouter($groupe, 'systeme', ['action' => 'squelette_campagne_indisponible']);
 
+                $texteRepli = 'La campagne commence : le groupe se rassemble, prêt à répondre à l\'appel de l\'aventure.';
+                $evenementRepli = Journal::ajouter($groupe, 'narration', ['texte' => $texteRepli]);
                 broadcast(new NarrationDiffusee(
                     $groupe,
-                    'La campagne commence : le groupe se rassemble, prêt à répondre à l\'appel de l\'aventure.',
+                    $texteRepli,
                     ambiance: 'mystere',
+                    sequence: $evenementRepli->sequence,
                 ));
 
                 return;
@@ -86,9 +89,11 @@ class GenererSqueletteCampagne implements ShouldQueue
             // best-effort). L'URL sera ré-exposée par EtatGroupe → l'écran de
             // table peut afficher/relire le prologue même s'il ouvre plus tard.
             $premisse = (string) $squelette['premisse'];
+            $evenementPremisse = Journal::ajouter($groupe, 'narration', ['texte' => $premisse]);
             broadcast(new NarrationDiffusee(
                 $groupe, $premisse, ambiance: 'mystere',
                 url: $narration->voixDynamique($premisse, $tts),
+                sequence: $evenementPremisse->sequence,
             ));
         } finally {
             broadcast(new MjReflechit($groupe, false));

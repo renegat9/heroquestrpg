@@ -31,6 +31,10 @@ const state = reactive({
     menuEnAttente: false,
     /** Texte de narration courant du MJ. */
     narration: "Une lueur d'ambre danse sur les murs suintants. Trois ombres trapues se redressent en grognant…",
+    /** Séquence (Evenement.sequence) de la narration courante — garde-fou
+     *  anti-inversion : une narration plus ANCIENNE arrivée en retard (job
+     *  lent) derrière une plus récente déjà affichée est ignorée. */
+    narrationSequence: null,
     /** « Le MJ réfléchit… » (job IA en cours, indicateur non bloquant). */
     mjReflechit: false,
     /** État de connexion temps réel : 'ok' | 'warn'. */
@@ -75,6 +79,7 @@ export function useGameStore() {
         state: readonly(state),
 
         setGroupe(groupe) {
+            if (state.groupe !== groupe) state.narrationSequence = null;
             state.groupe = groupe;
         },
         setJoueur(joueur, personnages = []) {
@@ -88,7 +93,13 @@ export function useGameStore() {
             // transitoire de la 1re requête (le temps réel reprend la main).
             state.modeDemo = false;
             state.etat = etat;
-            if (typeof etat?.narration === 'string' && etat.narration) state.narration = etat.narration;
+            // Lu en direct depuis le journal (toujours la DERNIÈRE narration en
+            // séquence) : autorité absolue, s'applique sans passer par le
+            // garde-fou anti-inversion de setNarration().
+            if (typeof etat?.narration === 'string' && etat.narration) {
+                state.narration = etat.narration;
+                if (typeof etat.narration_sequence === 'number') state.narrationSequence = etat.narration_sequence;
+            }
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
             // prets du hub (contrat : EtatGroupe.groupe.prets au hub)
             if (Array.isArray(etat?.groupe?.prets)) state.prets = etat.groupe.prets;
@@ -116,8 +127,22 @@ export function useGameStore() {
         annulerChoixEnAttente() {
             state.menuEnAttente = false;
         },
-        setNarration(texte) {
+        /** Narration reçue (.narration.diffusee, ou message local sans
+         *  séquence — ex. erreur affichée en repli). Une narration porteuse
+         *  d'une séquence INFÉRIEURE ou ÉGALE à celle déjà affichée arrive en
+         *  retard (job asynchrone dépassé par un événement plus récent,
+         *  ex. cérémonie de lancement de la quête suivante) : elle est ignorée
+         *  plutôt que d'inverser l'ordre perçu. Renvoie `true` si appliquée
+         *  (l'appelant peut s'en servir pour ne pas non plus la LIRE à voix
+         *  haute — voir TableView).
+         * @returns {boolean} */
+        setNarration(texte, sequence = null) {
+            if (sequence != null && state.narrationSequence != null && sequence <= state.narrationSequence) {
+                return false;
+            }
             state.narration = texte;
+            if (sequence != null) state.narrationSequence = sequence;
+            return true;
         },
         setMjReflechit(actif) {
             state.mjReflechit = actif;
