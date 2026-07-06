@@ -13,15 +13,20 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Condition;
 use App\Models\Personnage;
 use App\Models\PersonnageHistorique;
 use App\Models\Quete;
 use App\Models\Snapshot;
+use App\Models\Sort;
+use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
+use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
@@ -41,7 +46,7 @@ beforeEach(function () {
     config(['services.anthropic.api_key' => null]);
 
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
-        PiegeSeeder::class, ObjetSeeder::class]);
+        PiegeSeeder::class, ObjetSeeder::class, SortSeeder::class, ConditionSeeder::class]);
 });
 
 /** Ligne d'inventaire au sac d'un héros (objet du catalogue, par nom). */
@@ -384,4 +389,35 @@ it('purge silencieusement le groupe vidé par le départ du dernier joueur', fun
         ->and((int) $heroB->or)->toBe(50)
         ->and($heroA->groupe_actif_id)->toBeNull()
         ->and($heroB->groupe_actif_id)->toBeNull();
+});
+
+it('remet les héros à plein (PV, sorts, conditions) à la clôture — victoire, échec ou abandon', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1, [
+        'pv_body' => 3, 'pv_body_max' => 8,
+        'pv_mind' => 0, 'pv_mind_max' => 2,
+    ]);
+
+    // Quête éprouvante simulée : un sort épuisé, un buff porté (doc 05 §6 :
+    // une campagne close referme l'ardoise, comme reinitialiserQuete entre
+    // deux quêtes de la MÊME campagne).
+    $sortId = Sort::query()->value('id');
+    DB::table('personnage_sorts')->insert([
+        'personnage_id' => $hero->id, 'sort_id' => $sortId, 'disponible' => false,
+    ]);
+    $hero->conditions()->attach(Condition::query()->value('id'), ['duree' => 2, 'source' => 'sort:Peau de Pierre']);
+
+    // Fin décidée (abandon sans TPK) → issue `abandon`.
+    $this->postJson('/api/groupes/table-1/cloture')->assertCreated()->assertJsonPath('issue', 'abandon');
+    $this->postJson('/api/groupes/table-1/cloture/confirmation')
+        ->assertOk()
+        ->assertJsonPath('finalise', true);
+
+    $hero->refresh();
+    expect((int) $hero->pv_body)->toBe(8)
+        ->and((int) $hero->pv_mind)->toBe(2)
+        ->and($hero->groupe_actif_id)->toBeNull()
+        ->and(DB::table('personnage_sorts')->where('personnage_id', $hero->id)->where('sort_id', $sortId)->value('disponible'))->toBeTruthy()
+        ->and($hero->conditions()->count())->toBe(0);
 });

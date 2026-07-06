@@ -276,7 +276,10 @@ final class ClotureCampagne
      * cartes, instances de monstres, etat_personnage_quete), evenements,
      * snapshots, caches de phase `partie:*`, le groupe lui-même — puis les
      * points Qdrant du group_id en BEST-EFFORT. Les personnages survivent,
-     * détachés (groupe_actif_id null), avec or, inventaire et historique.
+     * détachés (groupe_actif_id null), avec or, inventaire et historique —
+     * mais remis à PLEIN (PV Body/Mind au max, sorts tous disponibles,
+     * conditions/buffs effacés) : une campagne close (victoire, échec ou
+     * abandon) referme l'ardoise, blessures et sorts épuisés compris (doc 05 §6).
      *
      * Silencieuse (aucun broadcast, aucun résumé) : c'est aussi le nettoyage
      * automatique d'un GROUPE VIDE au départ du dernier joueur (doc 05 §6).
@@ -290,8 +293,23 @@ final class ClotureCampagne
         $personnageIds = $groupe->personnages()->pluck('personnages.id')->values();
 
         DB::transaction(function () use ($groupe) {
-            // Détachement : les personnages retournent au roster (doc 05 §6).
-            $groupe->personnagesActifs()->update(['groupe_actif_id' => null]);
+            // Détachement : les personnages retournent au roster (doc 05 §6),
+            // remis à plein — PV au max, sorts réinitialisés, conditions/buffs
+            // effacés (la campagne close referme l'ardoise, cf. reinitialiserQuete).
+            $actifs = $groupe->personnagesActifs()->get();
+
+            foreach ($actifs as $personnage) {
+                $personnage->update([
+                    'pv_body' => $personnage->pv_body_max,
+                    'pv_mind' => $personnage->pv_mind_max,
+                    'groupe_actif_id' => null,
+                ]);
+            }
+
+            $actifsIds = $actifs->pluck('id');
+            DB::table('personnage_sorts')->whereIn('personnage_id', $actifsIds)->update(['disponible' => true]);
+            DB::table('personnage_conditions')->whereIn('personnage_id', $actifsIds)->delete();
+
             $groupe->update(['quete_courante_id' => null]);
 
             $queteIds = $groupe->quetes()->pluck('id');
