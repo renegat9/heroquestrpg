@@ -64,7 +64,7 @@ onMounted(async () => {
                 // /moi re-GET (contrat « Sorts des héros ») : la disponibilité
                 // des sorts (1×/quête) suit chaque résolution du moteur.
                 '.groupe.etat': (e) => { store.appliquerEtat(e); rafraichirMoi(); },
-                '.narration.diffusee': (e) => store.setNarration(e.texte),
+                '.narration.diffusee': (e) => store.setNarration(e.texte, e.sequence),
                 '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
                 '.marche.ouvert': (e) => store.appliquerMarche(e),
                 '.marche.maj': (e) => store.appliquerMarche(e),
@@ -249,6 +249,24 @@ const monPret = computed(() => {
 const listePresence = computed(() =>
     pretsVersEtat(store.state.prets, store.state.personnages));
 
+// Copier le code de groupe (clipboard si dispo — sinon repli execCommand,
+// car en HTTP le navigateur peut bloquer navigator.clipboard).
+const codeCopie = ref(false);
+async function copierCode() {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(props.groupe);
+        } else {
+            const t = document.createElement('textarea');
+            t.value = props.groupe; t.style.position = 'fixed'; t.style.opacity = '0';
+            document.body.appendChild(t); t.select();
+            document.execCommand('copy'); document.body.removeChild(t);
+        }
+        codeCopie.value = true;
+        setTimeout(() => { codeCopie.value = false; }, 1500);
+    } catch { /* best-effort : le code reste lisible/sélectionnable à l'écran */ }
+}
+
 async function basculerPret() {
     if (!monPersonnageId.value || preEnAttente.value) return;
     preEnAttente.value = true;
@@ -320,6 +338,11 @@ const cestMonTour = computed(() => {
 /* Menu effectivement jouable : le menu courant SEULEMENT quand c'est mon tour. */
 const menuCourant = computed(() => (cestMonTour.value ? menuStore.value : null));
 const menuEnAttente = computed(() => store.state.menuEnAttente);
+/* Boutons gelés : mon choix est en attente de résolution OU le MJ réfléchit
+   (job LLM en cours pour TOUT le groupe) — dans les deux cas, le menu affiché
+   est sur le point de changer : untaper évite un choix qui deviendrait
+   illégal (422) ou s'accumulerait derrière la prochaine résolution. */
+const boutonsGeles = computed(() => menuEnAttente.value || thinking.value);
 const initMini = computed(() => (enDemo.value ? null : initiativeVersMini(store.state.etat.initiative)));
 const initCur = computed(() => {
     if (enDemo.value) return null;
@@ -334,7 +357,7 @@ const feuilleOption = ref(null);
 watch(() => store.state.menu, () => { feuilleOption.value = null; });
 
 function choisirOption(option) {
-    if (store.state.menuEnAttente) return;
+    if (boutonsGeles.value) return;
 
     // Option ciblée (sort / parchemin / attaque) : le moteur fournit les
     // cibles légales dans parametres.cibles (les héros y figurent — tir
@@ -817,7 +840,8 @@ const navItems = computed(() => (scene.value === 'marche'
                             :my-turn="enDemo ? myTurn : !!menuCourant"
                             :hero="hero"
                             :menu="menuCourant"
-                            :pending="menuEnAttente"
+                            :pending="boutonsGeles"
+                            :thinking="thinking"
                             :init-order="initMini"
                             :init-cur="initCur"
                             :sorts="mesSorts"
@@ -873,6 +897,19 @@ const navItems = computed(() => (scene.value === 'marche'
                                     <MSym :n="narrateurActif ? 'cast_connected' : 'cast'" :size="14" />
                                     {{ narrateurActif ? 'Narrateur actif' : 'En attente d\'un narrateur' }}
                                 </div>
+                                <!-- code du groupe (à donner au narrateur tant qu'il n'est pas actif) -->
+                                <div v-if="!narrateurActif" class="pret-code">
+                                    <span class="pret-code-lbl">Code du groupe</span>
+                                    <button
+                                        class="pret-code-val"
+                                        type="button"
+                                        :title="codeCopie ? 'Copié !' : 'Copier le code'"
+                                        @click="copierCode"
+                                    >
+                                        <code>{{ groupe }}</code>
+                                        <MSym :n="codeCopie ? 'check' : 'content_copy'" :size="13" />
+                                    </button>
+                                </div>
                                 <!-- bouton Prêt / Annuler -->
                                 <button
                                     class="pret-btn"
@@ -909,7 +946,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :mind="mind"
                             :sorts="mesSorts"
                             :menu="menuCourant"
-                            :pending="menuEnAttente"
+                            :pending="boutonsGeles"
                             @cast="beginSpell"
                             @choose="choisirOption"
                         />

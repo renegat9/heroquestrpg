@@ -16,8 +16,11 @@ const props = defineProps({
     hero: { type: Object, required: true },
     /** Menu réel ({contexte, options}) — null en mode démo. */
     menu: { type: Object, default: null },
-    /** Choix envoyé, en attente de la résolution du moteur. */
+    /** Boutons gelés : mon choix envoyé OU le MJ réfléchit pour le groupe. */
     pending: { type: Boolean, default: false },
+    /** Geste du MJ en cours (job LLM), distinct d'un choix envoyé — affine le
+     *  libellé du bandeau (sinon « Choix envoyé » serait trompeur). */
+    thinking: { type: Boolean, default: false },
     /** Initiative réelle pour InitMini ([{k, foe}]) — null en démo. */
     initOrder: { type: Array, default: null },
     /** Jeton courant de la file d'initiative (mode connecté). */
@@ -83,7 +86,10 @@ function metaOption(o) {
 <template>
     <!-- mode connecté : le menu vient du MJ (.menu.propose) -->
     <div v-if="menu">
-        <div v-if="pending" class="turn-banner wait"><MSym n="hourglass_top" /> Choix envoyé — le moteur résout…</div>
+        <div v-if="pending" class="turn-banner wait">
+            <MSym n="hourglass_top" />
+            {{ thinking ? 'Le MJ réfléchit…' : 'Choix envoyé — le moteur résout…' }}
+        </div>
         <div v-else class="turn-banner mine"><MSym n="bolt" fill /> C'est ton tour — choisis une action</div>
         <InitMini :cur="initCur ?? hero.key.toUpperCase().slice(0, 3)" :order="initOrder" />
         <div class="sect-title"><MSym n="touch_app" :size="16" /> {{ menu.contexte || 'Actions' }}</div>

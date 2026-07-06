@@ -304,6 +304,14 @@
   color: var(--ink-600); padding: 5px 10px; border-radius: var(--r-md);
   background: var(--stone-800); border: var(--line); }
 .pret-narrateur.actif { color: var(--ok); }
+.pret-code { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; border-radius: var(--r-md); background: var(--stone-800); border: var(--line); }
+.pret-code-lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-600); }
+.pret-code-val { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  border: none; background: none; color: var(--torch); font-weight: 800; }
+.pret-code-val code { font-family: var(--font-mono, monospace); font-size: 14px; letter-spacing: 0.06em;
+  user-select: all; color: var(--parch-100); }
+.pret-code-val:hover code { color: var(--torch); }
 .pret-btn { width: 100%; padding: 12px 16px; border: none; border-radius: var(--r-md);
   font-family: var(--font-ui); font-weight: 800; font-size: 14px;
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
