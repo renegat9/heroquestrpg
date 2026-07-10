@@ -2,22 +2,17 @@
 // ÉCRAN DE TABLE (hôte, paysage) — port fidèle de reference/heroquest/Table.html.
 // Au montage : GET /api/groupes/{id}/etat + abonnement au canal privé
 // `groupe.{identifiant}` (.groupe.etat, .narration.diffusee, .mj.reflechit).
-// Repli : si l'API est injoignable ou refuse la session (401), on bascule
-// sur les données de démo (store.modeDemo + badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
-import CombatOverlay from '../components/table/CombatOverlay.vue';
 import PrologueOverlay from '../components/table/PrologueOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
-import { buildTableMap, TABLE_ENTITIES, TABLE_INIT_ORDER, TABLE_PARTY, TABLE_TRAPS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
-import { estErreurDemo, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
 import { useAmbiance } from '../composables/useAmbiance';
 import {
@@ -45,6 +40,8 @@ function activerSon() {
 
 /* ---- chargement de l'état + abonnement temps réel ---- */
 const desabonnements = [];
+const chargement = ref(true);
+const erreurChargement = ref('');
 onMounted(async () => {
     try {
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
@@ -78,13 +75,13 @@ onMounted(async () => {
         api.getCloture(props.groupe).then((c) => store.appliquerCloture(c)).catch(() => {});
 
         // Heartbeat Narrateur : POST /api/table/ping toutes les 15 s.
-        // Maintient « table active » (cache TTL 30 s côté serveur).
-        // En mode démo ou si le ping échoue, on continue sans bloquer.
+        // Maintient « table active » (cache TTL 30 s côté serveur). Si le
+        // ping échoue, on continue sans bloquer.
         demarrerHeartbeat();
     } catch (e) {
-        // 401 / API absente → on continue sur la démo (badge à l'écran).
-        store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
-        setTimeout(() => combatRef.value?.play(), 1200); // séquence de la maquette
+        erreurChargement.value = e.message;
+    } finally {
+        chargement.value = false;
     }
 });
 onUnmounted(() => {
@@ -111,41 +108,37 @@ function arreterHeartbeat() {
     }
 }
 
-/* ---- état serveur mappé vers les composants (démo en repli) ---- */
-const etat = computed(() => (store.state.modeDemo ? null : store.state.etat));
+/* ---- état serveur mappé vers les composants ---- */
+const etat = computed(() => store.state.etat);
 const enQuete = computed(() => !!etat.value?.carte);
 
-const demoMap = buildTableMap();
-const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : demoMap));
-const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : TABLE_TRAPS));
+const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : null));
+const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : []));
 const doors = computed(() => (enQuete.value ? portesVersMarqueurs(etat.value.carte) : []));
 const entities = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
-    : TABLE_ENTITIES));
+    : []));
 /* Recentre la carte sur le HÉROS actif au début de son tour (initiative =
    lui). Pendant le tour des monstres, la caméra ne bouge pas (pas de saut
    vers un ennemi non demandé). */
 const heroActif = computed(() => entities.value.find((e) => e.k === 'hero' && e.cur) ?? null);
 const initOrder = computed(() => (etat.value
     ? initiativeVersBarre(etat.value.initiative)
-    : TABLE_INIT_ORDER));
+    : []));
 const party = computed(() => (etat.value
     ? entitesVersGroupe(etat.value.entites, etat.value.initiative)
-    : TABLE_PARTY));
+    : []));
 const narration = computed(() => store.state.narration);
-const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : true));
-const joueursConnectes = computed(() => (etat.value
-    ? etat.value.entites?.filter((e) => e.type === 'heros').length ?? 0
-    : 4));
+const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : false));
+const joueursConnectes = computed(() =>
+    etat.value?.entites?.filter((e) => e.type === 'heros').length ?? 0);
 
-const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Le Seuil des Ombres');
+const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Hub');
 // Illustrations dynamiques (générées en arrière-plan) : lieu de repos (hub) et
 // scène de quête. Null tant qu'absentes → repli sur le fond/l'icône.
 const hubImage = computed(() => etat.value?.groupe?.image_url ?? null);
 const sceneImage = computed(() => etat.value?.quete?.image_url ?? null);
-const sousTitre = computed(() => (etat.value
-    ? etat.value.groupe?.nom ?? ''
-    : "Quête III · La crypte d'ambre"));
+const sousTitre = computed(() => etat.value?.groupe?.nom ?? '');
 
 /* ---- prologue de campagne (écran d'histoire au lancement) ---- */
 const prologue = computed(() => (etat.value ? etat.value.groupe?.prologue ?? null : null));
@@ -165,7 +158,7 @@ function rejouerPrologue() {
 
 // Ouverture AUTOMATIQUE au lancement de campagne (aucune quête encore jouée).
 watch(prologue, (p) => {
-    if (p && p.auto && !prologueVu && !store.state.modeDemo) ouvrirPrologue();
+    if (p && p.auto && !prologueVu) ouvrirPrologue();
 }, { immediate: true });
 
 /* ---- musique d'ambiance : suit la scène sonore de l'EtatGroupe ---- */
@@ -290,18 +283,23 @@ async function rechargerQuete() {
 // Finalisation (.cloture.terminee) : l'écran de clôture porte l'épilogue
 // (résumés) et le « Retour à l'accueil » qui purge le store.
 watch(() => store.state.clotureTerminee, (t) => {
-    if (t && !store.state.modeDemo) {
+    if (t) {
         router.push({ name: 'cloture', params: { groupe: props.groupe } });
     }
 }, { immediate: true });
-
-/* ---- overlay de combat (séquence visuelle, mode démo) ---- */
-const combatRef = ref(null);
 </script>
 
 <template>
     <div class="table-screen">
-        <div class="table tex-stone tex-vignette" style="position: relative">
+        <div v-if="chargement" class="table-loading">
+            <MSym n="hourglass_top" :size="34" />
+            <p>Connexion à la table…</p>
+        </div>
+        <div v-else-if="erreurChargement" class="table-loading">
+            <MSym n="error" fill :size="34" />
+            <p>{{ erreurChargement }}</p>
+        </div>
+        <div v-else class="table tex-stone tex-vignette" style="position: relative">
             <!-- bandeau haut -->
             <div class="top">
                 <img v-if="enQuete && sceneImage" :src="sceneImage" alt="" class="scene-vignette" />
@@ -415,13 +413,12 @@ const combatRef = ref(null);
                         </button>
                         <span v-if="erreurReprise || erreurCloture" class="cerr">{{ erreurReprise || erreurCloture }}</span>
                     </div>
-                    <CombatOverlay ref="combatRef" @narrate="store.setNarration($event)" />
                 </div>
                 <GroupPanel :party="party" />
             </div>
 
             <!-- narration -->
-            <NarrationBand :text="narration" :speaking="voix.speaking.value" @replay="combatRef?.play()" />
+            <NarrationBand :text="narration" :speaking="voix.speaking.value" />
         </div>
 
         <!-- Prologue de campagne : écran d'histoire au lancement (et relisible) -->
@@ -460,8 +457,6 @@ const combatRef = ref(null);
         >
             <MSym :n="ambiance.muet.value ? 'music_off' : 'music_note'" />
         </button>
-
-        <DemoBadge />
     </div>
 </template>
 
@@ -469,6 +464,10 @@ const combatRef = ref(null);
 /* Port de Table.html — préfixé .table-screen pour ne pas fuir sur les
    autres écrans (la SPA partage un seul bundle CSS). */
 .table-screen { background: #000; color: var(--ink-100); overflow: hidden; --ambiance: 0.62; }
+.table-loading { width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; color: var(--ink-400); text-align: center; padding: 32px; }
+.table-loading .msym { color: var(--torch); }
+.table-loading p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; max-width: 480px; }
 .table-screen .table { position: relative; width: 100vw; height: 100vh; display: grid;
   grid-template-rows: auto 1fr auto; gap: 14px; padding: 16px 20px 18px; }
 .table-screen .table.tex-stone::before { content: ""; position: absolute; inset: 0;
@@ -613,7 +612,6 @@ const combatRef = ref(null);
 .table-screen .narr .tts i:nth-child(2) { animation-delay: .12s } .table-screen .narr .tts i:nth-child(3) { animation-delay: .24s }
 .table-screen .narr .tts i:nth-child(4) { animation-delay: .36s } .table-screen .narr .tts i:nth-child(5) { animation-delay: .48s }
 @keyframes table-eq { 0%, 100% { height: 5px } 50% { height: 26px } }
-.table-screen .replay { margin-left: auto; }
 .table-screen .btn { border: none; border-radius: var(--r-md); padding: 11px 17px; font-family: var(--font-ui); font-weight: 700; font-size: 14px;
   cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: var(--stone-800); color: var(--ink-100); border: var(--line-strong); transition: transform .1s; }
 .table-screen .btn:active { transform: scale(0.97); }

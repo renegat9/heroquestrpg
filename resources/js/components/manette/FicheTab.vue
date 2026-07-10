@@ -3,14 +3,12 @@
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import PipsGauge from './PipsGauge.vue';
-import { HEROES } from '../../data/demo';
 
 defineProps({
     hero: { type: Object, required: true },
-    heroKey: { type: String, required: true },
     body: { type: Object, required: true },
     mind: { type: Object, required: true },
-    /** Niveau réel (EtatGroupe.entites héros) — null en démo (hero.lvl). */
+    /** Niveau réel (EtatGroupe.entites héros). */
     niveau: { type: Number, default: null },
     /** Points de compétence disponibles (/moi : points_competence). */
     points: { type: Number, default: 0 },
@@ -18,26 +16,11 @@ defineProps({
     groupe: { type: String, default: null },
 });
 
-const emit = defineEmits(['select-hero']);
-
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
 </script>
 
 <template>
     <div>
-        <div class="sect-title"><MSym n="groups" :size="16" /> Roster du joueur</div>
-        <div class="roster">
-            <div
-                v-for="h in HEROES"
-                :key="h.key"
-                class="r"
-                :class="{ on: h.key === heroKey }"
-                @click="emit('select-hero', h.key)"
-            >
-                <MSym :n="h.crest" :fill="h.key === heroKey" /><span class="rn">{{ h.cls }}</span>
-            </div>
-        </div>
-
         <div class="fiche-head">
             <div class="portrait"><Vignette :src="hero.img" :icon="hero.icon" fill :size="44" /><span v-if="!hero.img" class="ph-tag">portrait classe</span></div>
             <div>

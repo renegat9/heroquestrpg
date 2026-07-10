@@ -1,25 +1,20 @@
 <script setup>
 // File d'initiative compacte de la manette (composant Init de manette-app.jsx).
-// `order` : initiative réelle ([{k, foe}], voir initiativeVersMini) ;
-// sans `order`, on retombe sur la file de démo.
+// `order` : initiative réelle ([{k, foe}], voir initiativeVersMini).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
-import { INIT_ORDER_MINI } from '../../data/demo';
 
 const props = defineProps({
-    /** Jeton courant : 'MAGE' | 'BARB' | 'DWARF' | 'ELF' | 'orc' | label court réel. */
+    /** Jeton courant : label court réel (voir labelCourt), ou '···' si inconnu. */
     cur: { type: String, required: true },
-    /** File réelle [{k, foe}] (mode connecté) — défaut : démo. */
-    order: { type: Array, default: null },
+    /** File réelle [{k, foe}]. */
+    order: { type: Array, default: () => [] },
 });
 
-const norm = (s) => {
-    const u = s.toUpperCase();
-    return u === 'MAGE' ? 'MAG' : u === 'BARB' ? 'BAR' : u === 'DWARF' ? 'NAI' : u === 'ELF' ? 'ELF' : u;
-};
+const norm = (s) => s.toUpperCase();
 const c = computed(() => norm(props.cur));
 
-const ordre = computed(() => props.order ?? INIT_ORDER_MINI);
+const ordre = computed(() => props.order ?? []);
 </script>
 
 <template>

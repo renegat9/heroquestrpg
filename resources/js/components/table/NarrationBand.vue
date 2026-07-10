@@ -6,8 +6,6 @@ defineProps({
     /** Affiche l'égaliseur TTS animé. */
     speaking: { type: Boolean, default: true },
 });
-
-defineEmits(['replay']);
 </script>
 
 <template>
@@ -18,8 +16,5 @@ defineEmits(['replay']);
             <p>{{ text }}</p>
         </div>
         <div v-if="speaking" class="tts"><i /><i /><i /><i /><i /></div>
-        <button class="btn torch replay" @click="$emit('replay')">
-            <MSym n="replay" /> Rejouer le combat
-        </button>
     </div>
 </template>

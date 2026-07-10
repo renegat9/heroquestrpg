@@ -1,6 +1,6 @@
 <script setup>
-// Feuille de ciblage des options de menu (mode connecté) — même gabarit
-// que FlowSheet (overlay + sheet), mais branchée sur le contrat :
+// Feuille de ciblage des options de menu (overlay + sheet), branchée sur
+// le contrat :
 // - mode 'cible' : l'option (sort / parchemin / attaque ciblée) expose
 //   parametres.cibles — les héros y figurent (tir ami S3) : taper un
 //   allié demande une confirmation « ⚠ allié » avant l'envoi ;

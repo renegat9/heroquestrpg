@@ -29,15 +29,6 @@ export class ApiError extends Error {
     }
 }
 
-/**
- * Vrai si l'erreur justifie le repli en mode démo : API injoignable
- * (erreur réseau) ou session refusée (401). Les autres statuts (422
- * option illégale, 404, 500…) sont des erreurs « réelles » à afficher.
- */
-export function estErreurDemo(e) {
-    return e instanceof ApiError && (e.status === 0 || e.status === 401);
-}
-
 function jetonCsrf() {
     const cookie = document.cookie
         .split('; ')
@@ -181,7 +172,7 @@ export function useApi() {
          * GET etat AVEC REPRISE : juste après l'ouverture de la table ou la
          * création d'un groupe, la session peut ne pas être encore visible côté
          * serveur (course d'écriture) → 401/403 transitoire. On réessaie quelques
-         * fois avant d'abandonner, ce qui évite de retomber à tort sur la démo.
+         * fois avant d'abandonner, plutôt que d'afficher une erreur à tort.
          */
         getEtatReprise: async (identifiant, tentatives = 4, delaiMs = 500) => {
             let derniere;

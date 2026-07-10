@@ -5,10 +5,7 @@
    - `joueur` / `personnages` : session courante (GET /api/moi) ;
    - `etat`   : dernier EtatGroupe reçu (GET etat ou broadcast .groupe.etat) ;
    - `menu`   : dernier menu personnel reçu (.menu.propose), consommé par
-     la manette ; `menuEnAttente` = choix parti, on attend .groupe.etat ;
-   - `modeDemo` : l'API est injoignable (réseau) ou refuse la session
-     (401) → les vues retombent sur resources/js/data/demo.js et un badge
-     « démo » discret s'affiche (components/ui/DemoBadge.vue).
+     la manette ; `menuEnAttente` = choix parti, on attend .groupe.etat.
 
    Les fonctions de mapping EtatGroupe → formats des composants existants
    (DungeonMap, GroupPanel, InitiativeBar, InitMini) vivent ici : on
@@ -30,7 +27,7 @@ const state = reactive({
     /** Choix envoyé, en attente du prochain .groupe.etat (boutons désactivés). */
     menuEnAttente: false,
     /** Texte de narration courant du MJ. */
-    narration: "Une lueur d'ambre danse sur les murs suintants. Trois ombres trapues se redressent en grognant…",
+    narration: '',
     /** Séquence (Evenement.sequence) de la narration courante — garde-fou
      *  anti-inversion : une narration plus ANCIENNE arrivée en retard (job
      *  lent) derrière une plus récente déjà affichée est ignorée. */
@@ -39,8 +36,6 @@ const state = reactive({
     mjReflechit: false,
     /** État de connexion temps réel : 'ok' | 'warn'. */
     connexion: 'ok',
-    /** Repli sur les données de démo (API absente ou session refusée). */
-    modeDemo: false,
 
     /** EtatMarche courant (contrat : profil, multiplicateur, inventaire,
      *  paniers étiquetés, total_projete, or_courant) — null hors phase. */
@@ -88,10 +83,6 @@ export function useGameStore() {
         },
         /** Applique un EtatGroupe complet (GET etat ou .groupe.etat). */
         appliquerEtat(etat) {
-            // Un vrai EtatGroupe est arrivé → on n'est PAS (ou plus) en démo.
-            // Évite l'écran « collé » sur les données de test après un échec
-            // transitoire de la 1re requête (le temps réel reprend la main).
-            state.modeDemo = false;
             state.etat = etat;
             // Lu en direct depuis le journal (toujours la DERNIÈRE narration en
             // séquence) : autorité absolue, s'applique sans passer par le
@@ -149,12 +140,6 @@ export function useGameStore() {
         },
         setConnexion(statut) {
             state.connexion = statut;
-        },
-        activerModeDemo(raison = '') {
-            if (!state.modeDemo) {
-                console.info(`[store] mode démo activé${raison ? ` — ${raison}` : ''}.`);
-            }
-            state.modeDemo = true;
         },
 
         // ---- phase marché ----
@@ -266,13 +251,13 @@ export function useGameStore() {
 /** Codes de case du contrat → classes CSS de DungeonMap. */
 const TUILES = { m: 'wall', s: 'floor', p: 'door', b: 'fog' };
 
-/** Habillage par classe de héros (icônes Material Symbols des maquettes). */
+/** Habillage par classe de héros (icônes Material Symbols). */
 export const CLASSES = {
-    barbare: { l: 'Barbare', ic: 'sports_martial_arts', demo: 'barb' },
-    magicien: { l: 'Magicien', ic: 'auto_fix_high', demo: 'mage' },
-    magicienne: { l: 'Magicienne', ic: 'auto_fix_high', demo: 'mage' },
-    nain: { l: 'Nain', ic: 'construction', demo: 'dwarf' },
-    elfe: { l: 'Elfe', ic: 'park', demo: 'elf' },
+    barbare: { l: 'Barbare', ic: 'sports_martial_arts' },
+    magicien: { l: 'Magicien', ic: 'auto_fix_high' },
+    magicienne: { l: 'Magicienne', ic: 'auto_fix_high' },
+    nain: { l: 'Nain', ic: 'construction' },
+    elfe: { l: 'Elfe', ic: 'park' },
 };
 
 function classeDe(entite) {

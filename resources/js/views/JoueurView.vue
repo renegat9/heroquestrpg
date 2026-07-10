@@ -7,8 +7,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
-import { estErreurDemo, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import { CLASSES, ELEMENTS, statutPersonnage, useGameStore } from '../store/game';
 
 const router = useRouter();
@@ -25,9 +24,9 @@ onMounted(async () => {
     try {
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
-    } catch (e) {
-        if (e instanceof Error && e.status === 0) store.activerModeDemo(e.message);
-        // 401 = pas connecté, c'est normal
+    } catch {
+        // 401 = pas connecté, c'est normal ; les autres erreurs n'empêchent
+        // pas d'afficher les onglets connexion/inscription.
     } finally {
         chargement.value = false;
     }
@@ -48,11 +47,7 @@ async function seConnecter() {
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
     } catch (e) {
-        if (estErreurDemo(e)) {
-            store.activerModeDemo(e.message);
-        } else {
-            erreurAuth.value = e.message;
-        }
+        erreurAuth.value = e.message;
     } finally {
         authEnCours.value = false;
     }
@@ -69,11 +64,7 @@ async function sInscrire() {
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
     } catch (e) {
-        if (estErreurDemo(e)) {
-            store.activerModeDemo(e.message);
-        } else {
-            erreurAuth.value = e.message;
-        }
+        erreurAuth.value = e.message;
     } finally {
         authEnCours.value = false;
     }
@@ -640,7 +631,6 @@ function libelleClasse(classe) {
                 </div>
             </template>
         </div>
-        <DemoBadge />
     </div>
 </template>
 

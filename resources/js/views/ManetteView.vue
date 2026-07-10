@@ -1,29 +1,25 @@
 <script setup>
 // MANETTE JOUEUR (portrait, téléphone) — port fidèle de
 // reference/heroquest/manette-app.jsx (+ manette.css, importé globalement).
-// Mode connecté : GET /moi + GET etat au montage, abonnement aux canaux
-// privés `groupe.{identifiant}` (état, narration, MJ) et `joueur.{id}`
+// Au montage : GET /moi + GET etat, abonnement aux canaux privés
+// `groupe.{identifiant}` (état, narration, MJ) et `joueur.{id}`
 // (.menu.propose → onglet Action) ; chaque tap envoie POST choix
 // {option_id} et gèle les boutons jusqu'au prochain .groupe.etat.
-// Repli : API injoignable / 401 → démo locale (badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
 import ActionTab from '../components/manette/ActionTab.vue';
 import FicheTab from '../components/manette/FicheTab.vue';
 import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
-import FlowSheet from '../components/manette/FlowSheet.vue';
 import DieFace from '../components/manette/DieFace.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
-import { HEROES, NARRATION_OUVERTURE, SHOP } from '../data/demo';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
-import { estErreurDemo, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import {
     acteurCourant, ciblesVersListe, CLASSES, conditionControle, conditionsVersBadges,
     initiativeVersMini, inventaireVendable, issueCloture, labelCourt, marcheVersEchoppe,
@@ -54,6 +50,8 @@ const persoIdActif = ref((() => {
 
 /* ---- chargement de l'état + abonnements temps réel ---- */
 const desabonnements = [];
+const chargement = ref(true);
+const erreurChargement = ref('');
 onMounted(async () => {
     try {
         const { joueur, personnages } = await api.moi();
@@ -98,7 +96,9 @@ onMounted(async () => {
         }).catch(() => {});
         api.getCloture(props.groupe).then((c) => store.appliquerCloture(c)).catch(() => {});
     } catch (e) {
-        store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
+        erreurChargement.value = e.message;
+    } finally {
+        chargement.value = false;
     }
 });
 onUnmounted(() => desabonnements.forEach((off) => off()));
@@ -113,30 +113,24 @@ function rafraichirMoi() {
 }
 onUnmounted(() => clearTimeout(moiTimer));
 
-const enDemo = computed(() => store.state.modeDemo || !store.state.etat);
-
 /* ---- quête échouée (TPK, contrat « Snapshots & reprise ») : la décision
    recharger/abandonner se prend à la table — la manette retire le menu et
-   affiche une attente sobre (jamais en mode démo). ---- */
-const queteEchouee = computed(() => !enDemo.value
-    && (store.state.etat?.quete?.etat ?? '') === 'echouee');
+   affiche une attente sobre. ---- */
+const queteEchouee = computed(() => (store.state.etat?.quete?.etat ?? '') === 'echouee');
 
 /* ---- condition de contrôle (Dread, doc 09 §4) : si mon héros est endormi
    (il saute son tour) ou commandé (le moteur le joue), la manette retire le
    menu et affiche un état sobre — le tour se résout sans moi. ---- */
-const controleManette = computed(() => (enDemo.value ? null : conditionControle(monEntite.value)));
+const controleManette = computed(() => conditionControle(monEntite.value));
 const ETATS_CONTROLE = {
     endormi: { ic: 'bedtime', titre: 'Endormi', detail: 'Tu sautes ton tour — une attaque subie te réveillera.' },
     commande: { ic: 'cyclone', titre: 'Commandé', detail: 'Ta volonté t\'échappe — le destin guide ta main ce tour.' },
 };
 const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? null);
 
-/* ---- mon héros (mode connecté) : entité EtatGroupe ↔ personnage /moi.
-   L'habillage statique (icônes, équipement des onglets Fiche/Sac) vient
-   du gabarit de démo de la même classe ; nom et PV sont les vrais. ---- */
+/* ---- mon héros : entité EtatGroupe ↔ personnage /moi. ---- */
 const monEntite = computed(() => {
-    if (enDemo.value) return null;
-    const entites = store.state.etat.entites ?? [];
+    const entites = store.state.etat?.entites ?? [];
     // Priorité au personnage explicitement piloté sur ce téléphone.
     if (persoIdActif.value) {
         const mien = entites.find((e) => e.type === 'heros' && e.id === persoIdActif.value);
@@ -153,7 +147,7 @@ const monEntite = computed(() => {
    évite toute course avec l'arrivée du prochain menu (a_joue repasse à false au
    début du tour suivant, AVANT le nouveau .menu.propose). ---- */
 watch(() => store.state.etat, () => {
-    if (enDemo.value || !monEntite.value || !store.state.menu) return;
+    if (!monEntite.value || !store.state.menu) return;
     const moi = (store.state.etat?.initiative ?? [])
         .find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
     if (moi?.a_joue) store.viderMenu();
@@ -166,7 +160,7 @@ watch(() => store.state.etat, () => {
 let veilleVerrou = null;
 watch(() => store.state.menuEnAttente, (gele) => {
     if (veilleVerrou) { clearTimeout(veilleVerrou); veilleVerrou = null; }
-    if (!gele || enDemo.value) return;
+    if (!gele) return;
     veilleVerrou = setTimeout(() => {
         api.getMenu(props.groupe)
             .then((r) => { r?.menu ? store.setMenu(r.menu) : store.viderMenu(); })
@@ -175,39 +169,35 @@ watch(() => store.state.menuEnAttente, (gele) => {
 });
 onUnmounted(() => clearTimeout(veilleVerrou));
 
-/* ---- état local (mode démo) ---- */
-const heroKey = ref('mage');
 const tab = ref('action');
-const demoScene = ref('combat'); // combat | marche
-const demoThinking = ref(false);
 
-const demoBody = ref({ ...HEROES[heroKey.value].body });
-const demoMind = ref({ ...HEROES[heroKey.value].mind });
-watch(heroKey, (k) => {
-    demoBody.value = { ...HEROES[k].body };
-    demoMind.value = { ...HEROES[k].mind };
-});
-
-/** Habillage (icônes/équipement de démo) d'une classe + identité réelle. */
-function habiller(classe, nom, niveau, conds, img = null) {
-    const base = HEROES[CLASSES[(classe ?? '').toLowerCase()]?.demo ?? 'barb'];
+/** Habillage d'affichage (icône de classe + identité/stats réelles). Les
+ *  attributs/dés (attribut_body/mind, des_attaque/defense) viennent de /moi
+ *  (monPerso) — invariants hors quête, contrairement aux PV — le nom/niveau/
+ *  conditions/portrait viennent de la source la plus à jour disponible
+ *  (entité de quête en priorité, sinon le personnage). */
+function habiller(perso, nom, niveau, conds, img = null) {
+    const cls = CLASSES[(perso?.classe ?? '').toLowerCase()];
     return {
-        ...base,
         name: nom,
-        cls: CLASSES[(classe ?? '').toLowerCase()]?.l ?? classe,
-        lvl: niveau ?? base.lvl,
+        cls: cls?.l ?? perso?.classe ?? '',
+        crest: cls?.ic ?? 'person',
+        icon: cls?.ic ?? 'person',
+        lvl: niveau ?? perso?.niveau ?? 1,
+        atkAttr: perso?.attribut_body ?? 0,
+        mindAttr: perso?.attribut_mind ?? 0,
+        atk: perso?.des_attaque ?? 0,
+        def: perso?.des_defense ?? 0,
         conds,
         img, // portrait réel (image_url / portrait_url) si présent, sinon null → icône
     };
 }
 const hero = computed(() => {
-    const e = monEntite.value;
-    if (e) return habiller(e.classe, e.nom, e.niveau, conditionsVersBadges(e.conditions), e.image_url ?? null);
-    // Hub (pas d'entité de quête) mais connecté : on affiche le VRAI personnage
-    // (monPerso), pas la fiche de démo. Repli démo seulement si vraiment en démo.
     const p = monPerso.value;
-    if (!enDemo.value && p) return habiller(p.classe, p.nom, p.niveau, [], p.portrait_url ?? null);
-    return HEROES[heroKey.value];
+    const e = monEntite.value;
+    if (e) return habiller(p, e.nom, e.niveau, conditionsVersBadges(e.conditions), e.image_url ?? p?.portrait_url ?? null);
+    if (p) return habiller(p, p.nom, p.niveau, [], p.portrait_url ?? null);
+    return habiller(null, '…', 1, []); // avant chargement (bref, sous garde chargement/erreurChargement)
 });
 
 /* ---- mon personnage (/moi enrichi : niveau, points_competence, sorts).
@@ -216,7 +206,6 @@ const hero = computed(() => {
 const monPerso = computed(() => {
     const persos = store.state.personnages ?? [];
     if (monEntite.value) return persos.find((p) => p.id === monEntite.value.id) ?? null;
-    if (enDemo.value) return null;
     // Au hub (entités vides) : le personnage piloté sur ce téléphone.
     if (persoIdActif.value) {
         const mien = persos.find((p) => p.id === persoIdActif.value);
@@ -233,7 +222,7 @@ const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
    (monPerso). L'état des prêts vient de EtatGroupe.groupe.prets et du
    broadcast .prets.maj. Le narrateur doit être actif pour que la quête
    démarre (côté serveur). */
-const auHub = computed(() => !enDemo.value && store.state.etat?.groupe?.phase === 'hub');
+const auHub = computed(() => store.state.etat?.groupe?.phase === 'hub');
 const narrateurActif = computed(() => store.state.etat?.groupe?.narrateur_actif ?? false);
 const monPersonnageId = computed(() => monPerso.value?.id ?? null);
 const preEnAttente = ref(false);
@@ -283,15 +272,12 @@ async function basculerPret() {
 }
 
 /* ---- sorts du héros (contrat « Sorts des héros ») : /moi expose
-   sorts: [{sort_id, nom, element, type, disponible}] — null tant que le
-   serveur ne les fournit pas (SpellsTab retombe alors sur la démo). ---- */
-const mesSorts = computed(() => {
-    const s = monPerso.value?.sorts;
-    return Array.isArray(s) ? s : null;
-});
+   sorts: [{sort_id, nom, element, type, disponible}] (toujours un tableau,
+   vide si la classe ne lance pas de sorts). ---- */
+const mesSorts = computed(() => monPerso.value?.sorts ?? []);
 
 const lvlupToast = computed(() => {
-    if (enDemo.value || !store.state.niveauMonte) return null;
+    if (!store.state.niveauMonte) return null;
     const liste = niveauMonteVersListe(store.state.niveauMonte, store.state.etat?.entites);
     if (!liste.length) return null;
     const ids = new Set((store.state.personnages ?? []).map((p) => p.id));
@@ -300,36 +286,33 @@ const lvlupToast = computed(() => {
 const body = computed(() => {
     const e = monEntite.value;
     if (e) return { cur: e.tombe ? 0 : e.pv_body, max: e.pv_body_max };
-    // Hub : PV réels du personnage (/moi) plutôt que les jauges de démo.
+    // Hub : PV réels du personnage (/moi).
     const p = monPerso.value;
-    if (!enDemo.value && p?.pv_body_max != null) return { cur: p.pv_body, max: p.pv_body_max };
-    return demoBody.value;
+    if (p?.pv_body_max != null) return { cur: p.pv_body, max: p.pv_body_max };
+    return { cur: 0, max: 0 };
 });
 const mind = computed(() => {
     const e = monEntite.value;
     if (e) return { cur: e.pv_mind, max: e.pv_mind_max };
     const p = monPerso.value;
-    if (!enDemo.value && p?.pv_mind_max != null) return { cur: p.pv_mind, max: p.pv_mind_max };
-    return demoMind.value;
+    if (p?.pv_mind_max != null) return { cur: p.pv_mind, max: p.pv_mind_max };
+    return { cur: 0, max: 0 };
 });
 
-const scene = computed(() => (enDemo.value
-    ? demoScene.value
-    : (store.state.etat.groupe?.phase === 'hub' ? 'marche' : 'combat')));
-const thinking = computed(() => (enDemo.value ? demoThinking.value : store.state.mjReflechit));
+const scene = computed(() => (store.state.etat?.groupe?.phase === 'hub' ? 'marche' : 'combat'));
+const thinking = computed(() => store.state.mjReflechit);
 const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
-const narration = computed(() => (enDemo.value ? narr.value : store.state.narration));
+const narration = computed(() => store.state.narration);
 
 /* ---- menu réel (.menu.propose) + envoi du choix (POST choix) ---- */
-const menuStore = computed(() => (enDemo.value ? null : store.state.menu));
+const menuStore = computed(() => store.state.menu);
 
 /* C'est mon tour ? Acteur courant de l'initiative = mon héros. Le moteur
    pré-génère un menu pour CHAQUE héros au démarrage (un .menu.propose chacun) ;
    sans ce verrou, toutes les manettes afficheraient « C'est ton tour » en même
    temps. On n'active donc le menu que quand l'initiative est sur mon héros
-   (sinon : « tu reprendras la main »). En démo, toujours actif. */
+   (sinon : « tu reprendras la main »). */
 const cestMonTour = computed(() => {
-    if (enDemo.value) return true;
     if (!monEntite.value) return false;
     const cur = acteurCourant(store.state.etat?.initiative);
     return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
@@ -343,10 +326,9 @@ const menuEnAttente = computed(() => store.state.menuEnAttente);
    est sur le point de changer : untaper évite un choix qui deviendrait
    illégal (422) ou s'accumulerait derrière la prochaine résolution. */
 const boutonsGeles = computed(() => menuEnAttente.value || thinking.value);
-const initMini = computed(() => (enDemo.value ? null : initiativeVersMini(store.state.etat.initiative)));
+const initMini = computed(() => initiativeVersMini(store.state.etat?.initiative));
 const initCur = computed(() => {
-    if (enDemo.value) return null;
-    const cur = acteurCourant(store.state.etat.initiative);
+    const cur = acteurCourant(store.state.etat?.initiative);
     return cur ? labelCourt(cur.nom) : null;
 });
 
@@ -426,8 +408,7 @@ async function envoyerOption(option, parametres) {
         revelerDesResultat(rep?.resultat); // affiche le jet quelques secondes (#dés)
     } catch (e) {
         store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else store.setNarration(e.message);
+        store.setNarration(e.message);
     }
 }
 
@@ -464,173 +445,38 @@ async function boirePotion(inventaireId) {
         await api.boirePotion(props.groupe, inventaireId);
         rafraichirMoi(); // PV + inventaire rafraîchis
     } catch (e) {
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else store.setNarration(e.message);
+        store.setNarration(e.message);
     } finally {
         potionEnCours.value = false;
     }
 }
 
-const myTurn = ref(true);
-const narr = ref(NARRATION_OUVERTURE);
-
-// flow : { kind: 'attack'|'spell', step: 'target'|'rolling'|'result', spell?, target?, dice?, heal? }
-const flow = ref(null);
-const vote = ref(null);
-const gold = ref(640);
-const basket = ref([]);
-
-/* timers de démo (nettoyés au démontage) */
-const timers = [];
-const later = (fn, ms) => timers.push(setTimeout(fn, ms));
-onUnmounted(() => timers.forEach(clearTimeout));
-
-function think(ms = 1400) {
-    demoThinking.value = true;
-    later(() => { demoThinking.value = false; }, ms);
-}
-
-/* ---- résolution attaque / sort (démo locale, cf. manette-app.jsx ;
-   en mode connecté, le vrai envoi passe par choisirOption ci-dessus) ---- */
-const rng = Math.random;
-function rollDice(nAtk, nDef) {
-    const atk = Array.from({ length: nAtk }, () => (rng() < 0.5 ? 'skull' : 'blank'));
-    const def = Array.from({ length: nDef }, () => (rng() < 0.34 ? 'shield' : 'blank'));
-    return { atk, def };
-}
-function beginAttack() {
-    flow.value = { kind: 'attack', step: 'target' };
-}
-function beginSpell(spell) {
-    if (spell.target === 'tile') { resolveSpell(spell, null); return; }
-    flow.value = { kind: 'spell', step: 'target', spell };
-}
-function chooseTarget(target) {
-    const f = flow.value;
-    if (f.kind === 'attack') {
-        const dice = rollDice(hero.value.atk, target.id === 'orc' ? 3 : 1);
-        flow.value = { ...f, step: 'rolling', target, dice };
-        later(() => { if (flow.value) flow.value = { ...flow.value, step: 'result' }; }, 950);
-    } else {
-        resolveSpell(f.spell, target);
-    }
-}
-function resolveSpell(spell, target) {
-    if (spell.target === 'ally' && spell.id === 'heal') {
-        flow.value = { kind: 'spell', step: 'result', spell, target, heal: true };
-        return;
-    }
-    const dice = rollDice(spell.id === 'fb' ? 2 : 1, target ? (target.id === 'orc' ? 3 : 1) : 0);
-    flow.value = { kind: 'spell', step: 'rolling', spell, target, dice };
-    later(() => { if (flow.value) flow.value = { ...flow.value, step: 'result' }; }, 950);
-}
-function confirmResolve() {
-    const f = flow.value;
-    let txt = '';
-    if (f.kind === 'attack') {
-        const sk = f.dice.atk.filter((d) => d === 'skull').length;
-        const sh = f.dice.def.filter((d) => d === 'shield').length;
-        const dmg = Math.max(0, sk - sh);
-        txt = dmg > 0
-            ? `Ton arme s'abat sur ${f.target.name} — ${dmg} blessure${dmg > 1 ? 's' : ''} !`
-            : `${f.target.name} pare le coup de justesse.`;
-    } else if (f.heal) {
-        demoMind.value = { ...demoMind.value, cur: Math.max(0, demoMind.value.cur - 1) };
-        txt = 'Une eau claire enveloppe ton allié — +2 Body.';
-    } else {
-        const sk = f.dice.atk.filter((d) => d === 'skull').length;
-        demoMind.value = { ...demoMind.value, cur: Math.max(0, demoMind.value.cur - 1) };
-        txt = `${f.spell.name} frappe ${f.target ? f.target.name : 'la zone'} — ${sk} dégât${sk > 1 ? 's' : ''} !`;
-    }
-    narr.value = txt;
-    flow.value = null;
-    endTurn(1600, 2400);
-}
-
-/* actions simples (déplacement, fouille, passe) */
-function quickAction(action, texte, backMs = 2200) {
-    narr.value = texte;
-    endTurn(1400, backMs);
-}
-function endTurn(thinkMs, backMs) {
-    myTurn.value = false;
-    think(thinkMs);
-    later(() => {
-        myTurn.value = true;
-        narr.value = 'À toi de jouer. Les gobelins resserrent leur cercle…';
-    }, backMs);
-}
-
-/* ---- vote de groupe (démo : les autres joueurs arrivent peu à peu) ---- */
-function launchVote() {
-    vote.value = {
-        q: 'Recharger la quête ? (TPK)',
-        opts: [{ k: 'reload', l: 'Recharger', c: 1 }, { k: 'quit', l: 'Abandonner', c: 0 }],
-        mine: null,
-        missing: 2,
-    };
-    later(() => {
-        const v = vote.value;
-        if (v) vote.value = { ...v, opts: v.opts.map((o) => (o.k === 'reload' ? { ...o, c: o.c + 1 } : o)), missing: 1 };
-    }, 1400);
-    later(() => {
-        const v = vote.value;
-        if (v) vote.value = { ...v, opts: v.opts.map((o) => (o.k === 'reload' ? { ...o, c: o.c + 1 } : o)), missing: v.mine != null ? 0 : 1 };
-    }, 2800);
-}
-/* ---- vote (mode connecté) : .vote.lance ouvre la feuille, bulletin
-   POSTé, .vote.maj fait vivre le décompte, .vote.resultat ferme avec le
-   résultat ; la cible d'un retrait_joueur ne vote pas (lecture seule). ---- */
+/* ---- vote (.vote.lance ouvre la feuille, bulletin POSTé, .vote.maj fait
+   vivre le décompte, .vote.resultat ferme avec le résultat ; la cible d'un
+   retrait_joueur ne vote pas (lecture seule)). ---- */
 const monBulletin = ref(null);
 watch(() => store.state.vote, () => { monBulletin.value = null; });
 
-const voteAffiche = computed(() => (enDemo.value
-    ? vote.value
-    : voteVersFeuille(
-        store.state.vote, store.state.voteDecompte, store.state.voteResultat,
-        monBulletin.value, store.state.joueur?.id, store.state.etat,
-    )));
+const voteAffiche = computed(() => voteVersFeuille(
+    store.state.vote, store.state.voteDecompte, store.state.voteResultat,
+    monBulletin.value, store.state.joueur?.id, store.state.etat,
+));
 
 async function castVote(k) {
-    if (enDemo.value) {
-        const v = vote.value;
-        if (!v) return;
-        vote.value = {
-            ...v,
-            mine: k,
-            opts: v.opts.map((o) => (o.k === k ? { ...o, c: o.c + 1 } : o)),
-            missing: Math.max(0, v.missing - 1),
-        };
-        return;
-    }
     monBulletin.value = k; // optimiste — le décompte arrive par .vote.maj
     try {
         await api.voterBulletin(props.groupe, k);
     } catch (e) {
         monBulletin.value = null;
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else store.setNarration(e.message);
+        store.setNarration(e.message);
     }
 }
 function fermerVote() {
-    if (enDemo.value) {
-        vote.value = null;
-        return;
-    }
     store.fermerVote();
     monBulletin.value = null;
 }
 
-/* ---- marché (démo) ---- */
-const projected = computed(() =>
-    basket.value.reduce((s, id) => s + (SHOP.find((x) => x.id === id)?.price || 0), 0));
-function toggleBasket(id) {
-    basket.value = basket.value.includes(id)
-        ? basket.value.filter((x) => x !== id)
-        : [...basket.value, id];
-}
-
-/* ---- marché (mode connecté, doc 04 §5 — saisie individuelle) : le
+/* ---- marché (doc 04 §5 — saisie individuelle) : le
    panier local du joueur est la source de vérité de SON panier ; chaque
    modification est PUT (débouncée) et annule sa confirmation. Le total
    projeté du groupe = total serveur corrigé du delta local. ---- */
@@ -660,7 +506,7 @@ watch(() => store.state.marche, (m) => {
 onUnmounted(() => clearTimeout(panierTimer));
 
 const marcheLive = computed(() => {
-    if (enDemo.value || !store.state.marche || !panierLocal.value) return null;
+    if (!store.state.marche || !panierLocal.value) return null;
     const m = store.state.marche;
     const joueurId = store.state.joueur?.id;
     const inventaire = inventaireVendable(m, joueurId, store.state.etat, store.state.personnages);
@@ -697,8 +543,7 @@ async function envoyerPanier() {
         });
         if (r) store.appliquerMarche(r);
     } catch (e) {
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else marcheErreur.value = e.message;
+        marcheErreur.value = e.message;
     }
 }
 function planifierEnvoiPanier() {
@@ -738,21 +583,19 @@ async function confirmerMonPanier() {
         if (r) store.appliquerMarche(r);
     } catch (e) {
         confirmEnvoyee.value = false;
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else marcheErreur.value = e.message;
+        marcheErreur.value = e.message;
     }
 }
 
-/* ---- clôture de campagne (mode connecté) : .cloture.ouverte → toast
-   routant vers l'écran de clôture (/cloture/:groupe) ; .cloture.terminee
-   → même toast vers l'épilogue (le groupe n'existe plus). Mode démo : le
-   toast n'apparaît jamais. ---- */
+/* ---- clôture de campagne : .cloture.ouverte → toast routant vers l'écran
+   de clôture (/cloture/:groupe) ; .cloture.terminee → même toast vers
+   l'épilogue (le groupe n'existe plus). ---- */
 const clotureToastFermee = ref(false);
 watch(() => !!store.state.cloture, (ouverte) => { if (ouverte) clotureToastFermee.value = false; });
 watch(() => !!store.state.clotureTerminee, (fin) => { if (fin) clotureToastFermee.value = false; });
 
 const clotureToast = computed(() => {
-    if (enDemo.value || clotureToastFermee.value) return null;
+    if (clotureToastFermee.value) return null;
     if (store.state.clotureTerminee) {
         return { titre: 'Campagne terminée', texte: "L'épilogue du MJ vous attend.", lien: "Voir l'épilogue" };
     }
@@ -775,6 +618,17 @@ const navItems = computed(() => (scene.value === 'marche'
         <div>
             <div class="phone">
                 <div class="screen tex-vignette" style="position: relative">
+                    <!-- connexion / erreur de chargement initial -->
+                    <div v-if="chargement || erreurChargement" class="chargement-overlay">
+                        <template v-if="chargement">
+                            <MSym n="hourglass_top" :size="30" />
+                            <p>Connexion…</p>
+                        </template>
+                        <template v-else>
+                            <MSym n="error" fill :size="30" />
+                            <p>{{ erreurChargement }}</p>
+                        </template>
+                    </div>
                     <!-- barre de statut -->
                     <div class="topbar">
                         <div class="hero-chip">
@@ -837,7 +691,6 @@ const navItems = computed(() => (scene.value === 'marche'
                         </div>
                         <ActionTab
                             v-else-if="tab === 'action' && scene === 'combat'"
-                            :my-turn="enDemo ? myTurn : !!menuCourant"
                             :hero="hero"
                             :menu="menuCourant"
                             :pending="boutonsGeles"
@@ -846,20 +699,12 @@ const navItems = computed(() => (scene.value === 'marche'
                             :init-cur="initCur"
                             :sorts="mesSorts"
                             @choose="choisirOption"
-                            @attack="beginAttack"
                             @open-spells="tab = 'sorts'"
-                            @move="quickAction('deplacement', 'Tu avances prudemment entre les colonnes brisées.')"
-                            @search="quickAction('fouille', 'Tu fouilles les décombres… une fiole roule à tes pieds.')"
-                            @pass="quickAction('passe', 'Tu restes sur tes gardes, arme levée.', 2000)"
                         />
                         <MarketTab
-                            v-else-if="tab === 'action' && scene === 'marche' && (enDemo || marcheLive)"
+                            v-else-if="tab === 'action' && scene === 'marche' && marcheLive"
                             :hero="hero"
-                            :gold="gold"
-                            :basket="basket"
-                            :projected="projected"
                             :live="marcheLive"
-                            @toggle="toggleBasket"
                             @qty="changerQuantite"
                             @vendre="basculerVente"
                             @confirmer="confirmerMonPanier"
@@ -932,27 +777,23 @@ const navItems = computed(() => (scene.value === 'marche'
                         <FicheTab
                             v-else-if="tab === 'fiche'"
                             :hero="hero"
-                            :hero-key="heroKey"
                             :body="body"
                             :mind="mind"
                             :niveau="monEntite?.niveau ?? null"
                             :points="pointsCompetence"
-                            :groupe="enDemo ? null : groupe"
-                            @select-hero="heroKey = $event"
+                            :groupe="groupe"
                         />
                         <SpellsTab
                             v-else-if="tab === 'sorts'"
                             :hero="hero"
-                            :mind="mind"
                             :sorts="mesSorts"
                             :menu="menuCourant"
                             :pending="boutonsGeles"
-                            @cast="beginSpell"
                             @choose="choisirOption"
                         />
                         <SacTab
                             v-else-if="tab === 'sac'"
-                            :hero="hero"
+                            :equipement="monPerso?.equipement ?? { armes: [], armure: null, sac: [] }"
                             :potions="consommablesActifs"
                             :potion-en-cours="potionEnCours"
                             @boire="boirePotion"
@@ -1001,14 +842,6 @@ const navItems = computed(() => (scene.value === 'marche'
                     </div>
 
                     <!-- overlays -->
-                    <FlowSheet
-                        v-if="flow"
-                        :flow="flow"
-                        :hero="hero"
-                        @target="chooseTarget"
-                        @confirm="confirmResolve"
-                        @close="flow = null"
-                    />
                     <DeplacementSheet
                         v-if="feuilleOption && feuilleOption.mode === 'deplacement' && monEntite"
                         :carte="store.state.etat.carte"
@@ -1047,7 +880,6 @@ const navItems = computed(() => (scene.value === 'marche'
                 </div>
             </div>
 
-            <!-- contrôle de démo (comme dans la maquette ; masqué en mode connecté) -->
             <div class="scene-ctrl">
                 <RouterLink
                     to="/"
@@ -1056,16 +888,8 @@ const navItems = computed(() => (scene.value === 'marche'
                 >
                     <MSym n="home" :size="18" />
                 </RouterLink>
-                <template v-if="enDemo">
-                    <span class="lbl">Démo</span>
-                    <button :class="{ on: demoScene === 'combat' }" @click="demoScene = 'combat'">Combat</button>
-                    <button :class="{ on: demoScene === 'marche' }" @click="demoScene = 'marche'">Marché</button>
-                    <button @click="launchVote">Vote</button>
-                    <button @click="demoBody = { ...demoBody, cur: Math.max(0, demoBody.cur - 1) }; narr = 'Une griffe te lacère — tu encaisses 1 blessure.'">Subir</button>
-                </template>
             </div>
         </div>
-        <DemoBadge />
     </div>
 </template>
 

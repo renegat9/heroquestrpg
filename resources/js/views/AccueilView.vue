@@ -1,11 +1,8 @@
 <script setup>
 // ACCUEIL — choix de rôle : Narrateur (table) ou Joueur (compte + roster).
-// Remplace l'ancienne galerie de démonstration.
-// Mode démo conservé (badge) si l'API est injoignable.
 import { onMounted } from 'vue';
 import MSym from '../components/ui/MSym.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
-import { ApiError, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import { useGameStore } from '../store/game';
 
 const api = useApi();
@@ -15,9 +12,9 @@ onMounted(async () => {
     try {
         const { joueur: moi, personnages } = await api.moi();
         store.setJoueur(moi, personnages ?? []);
-    } catch (e) {
-        // 401 = simplement pas connecté ; erreur réseau = API absente → démo.
-        if (e instanceof ApiError && e.status === 0) store.activerModeDemo(e.message);
+    } catch {
+        // 401 = simplement pas connecté ; rien à faire, cet écran n'affiche
+        // pas de données de session.
     }
 });
 </script>
@@ -83,16 +80,7 @@ onMounted(async () => {
                     </span>
                 </RouterLink>
             </div>
-
-            <!-- lien discret vers l'ancienne galerie dev (reste accessible) -->
-            <div class="acchoix-devlinks">
-                <RouterLink to="/direction" class="acchoix-devlink">
-                    <MSym n="build" :size="13" /> Mode développeur
-                </RouterLink>
-            </div>
         </div>
-
-        <DemoBadge />
     </div>
 </template>
 
@@ -153,11 +141,4 @@ onMounted(async () => {
 
 .acchoix-role-go { margin-top: auto; display: flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 700; color: var(--torch); }
-
-/* ---- liens dev ---- */
-.acchoix-devlinks { display: flex; gap: 18px; }
-.acchoix-devlink { font-size: 12px; color: var(--ink-700); text-decoration: none;
-  display: inline-flex; align-items: center; gap: 5px;
-  transition: color .15s; padding: 6px 10px; border-radius: var(--r-md); }
-.acchoix-devlink:hover { color: var(--ink-400); background: var(--stone-850); }
 </style>

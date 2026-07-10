@@ -8,15 +8,12 @@
 // par .cloture.maj) ; « Confirmer » par joueur (k/n) ; .cloture.terminee
 // → épilogue (résumé du héros du joueur) puis retour à l'accueil avec
 // purge du store — le groupe n'existe plus.
-// Repli : API injoignable / 401 → démo locale (badge « démo »).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
-import { CLOTURE_HEROES, CLOTURE_REWARDS } from '../data/demo';
 import { souscrireGroupe } from '../composables/useEcho';
-import { estErreurDemo, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import {
     clotureVersConfirmations, clotureVersEquipements, clotureVersParts,
     issueCloture, resumeDuJoueur, useGameStore,
@@ -33,19 +30,17 @@ const router = useRouter();
 
 /* ---- chargement + abonnement temps réel ---- */
 const desabonnements = [];
+const erreurChargement = ref('');
 onMounted(async () => {
     try {
         if (!store.state.joueur) {
-            // La table (narrateur sans compte) prend un 401 sur /moi : c'est
-            // normal, on l'ignore (sinon le catch global basculerait l'écran de
-            // clôture en mode démo — estErreurDemo() considère 401 comme démo).
-            // Seule une vraie panne réseau (status 0) → démo.
             try {
                 const { joueur, personnages } = await api.moi();
                 store.setJoueur(joueur, personnages);
             } catch (e) {
-                if (e instanceof Error && e.status === 0) throw e;
-                // 401 = narrateur sans compte → on continue (épilogue partagé).
+                // 401 = narrateur sans compte → normal, on continue (épilogue
+                // partagé) ; toute autre erreur (réseau, 500…) est réelle.
+                if (e.status !== 401) throw e;
             }
         }
         desabonnements.push(souscrireGroupe(props.groupe, {
@@ -63,29 +58,27 @@ onMounted(async () => {
             try {
                 store.appliquerCloture(await api.getCloture(props.groupe));
             } catch (e) {
-                if (estErreurDemo(e)) throw e;
-                // 404/422 : pas de fenêtre ouverte — écran d'attente.
+                // 404/422 : pas de fenêtre ouverte — écran d'attente. Autre
+                // erreur (réseau, 500…) : réelle, à signaler.
+                if (![404, 422].includes(e.status)) throw e;
             }
         }
     } catch (e) {
-        store.activerModeDemo(estErreurDemo(e) ? e.message : `erreur inattendue : ${e.message}`);
+        erreurChargement.value = e.message;
     }
 });
 onUnmounted(() => desabonnements.forEach((off) => off()));
 
-/* ---- état serveur (démo en repli) ---- */
-const enDemo = computed(() => store.state.modeDemo);
-const cloture = computed(() => (enDemo.value ? null : store.state.cloture));
-const terminee = computed(() => (enDemo.value ? null : store.state.clotureTerminee));
+/* ---- état serveur ---- */
+const cloture = computed(() => store.state.cloture);
+const terminee = computed(() => store.state.clotureTerminee);
 
 const habillage = computed(() => issueCloture(cloture.value?.issue));
-const cendres = computed(() => !enDemo.value && habillage.value.ton === 'cendres');
+const cendres = computed(() => habillage.value.ton === 'cendres');
 
 const nomGroupe = computed(() => store.state.etat?.groupe?.nom ?? '');
-const crumb = computed(() => (enDemo.value
-    ? "Campagne achevée · 8 quêtes · La Crypte d'Ambre"
-    : habillage.value.crumb + (nomGroupe.value ? ` · ${nomGroupe.value}` : '')));
-const titre = computed(() => (enDemo.value ? 'La Lumière Revient' : habillage.value.titre));
+const crumb = computed(() => habillage.value.crumb + (nomGroupe.value ? ` · ${nomGroupe.value}` : ''));
+const titre = computed(() => habillage.value.titre);
 
 /* ---- parts d'or et butin ---- */
 const parts = computed(() => clotureVersParts(cloture.value, store.state.etat?.entites));
@@ -122,8 +115,7 @@ async function assigner(equipement, personnageId) {
     } catch (e) {
         const { [equipement.inventaire_id]: retiree, ...reste } = reassignations.value;
         reassignations.value = reste;
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else erreurCloture.value = e.message;
+        erreurCloture.value = e.message;
     }
 }
 
@@ -141,8 +133,7 @@ async function confirmer() {
         if (r) store.appliquerCloture(r);
     } catch (e) {
         confirmEnvoyee.value = false;
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else erreurCloture.value = e.message;
+        erreurCloture.value = e.message;
     }
 }
 
@@ -155,8 +146,7 @@ async function annuler() {
         store.fermerCloture();
         router.back(); // rien appliqué — retour à l'écran d'où l'on vient
     } catch (e) {
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else erreurCloture.value = e.message;
+        erreurCloture.value = e.message;
     } finally {
         annulation.value = false;
     }
@@ -173,10 +163,6 @@ function retourAccueil() {
     store.purgerGroupe();
     router.push('/');
 }
-
-/* ---- démo : attribution locale (comme la maquette) ---- */
-const demoAssignments = ref(CLOTURE_REWARDS.map((r) => r.to));
-const RAR_LABEL = { uncommon: 'Peu commun', rare: 'Rare', unique: 'Unique' };
 
 /* braises flottantes (générées une fois) */
 const embers = Array.from({ length: 26 }, () => {
@@ -201,7 +187,7 @@ const embers = Array.from({ length: 26 }, () => {
             <div class="head">
                 <div class="crumb">{{ crumb }}</div>
                 <h1>{{ titre }}</h1>
-                <div class="laurel"><span class="ln" /><MSym :n="enDemo ? 'military_tech' : habillage.ic" fill /><span class="ln r" /></div>
+                <div class="laurel"><span class="ln" /><MSym :n="habillage.ic" fill /><span class="ln r" /></div>
             </div>
 
             <!-- ================= épilogue (.cloture.terminee) ================= -->
@@ -292,51 +278,11 @@ const embers = Array.from({ length: 26 }, () => {
                 </div>
             </div>
 
-            <!-- ================= démo (stub maquette) ================= -->
-            <div v-else-if="enDemo" class="main">
-                <div class="epilogue">
-                    <div class="who">
-                        <span class="av"><MSym n="menu_book" fill /></span>
-                        <div>
-                            <div class="lbl">LE MAÎTRE DE JEU · ÉPILOGUE</div>
-                            <div class="sub">Narration finale de la campagne</div>
-                        </div>
-                    </div>
-                    <p><span class="drop">L</span>e Spectre d'Ambre s'effondre en une pluie d'étincelles froides, et pour la première fois depuis des siècles, la crypte se tait. Vous remontez les galeries noyées, trempés et meurtris, mais vivants — porteurs d'une lumière que les ténèbres croyaient avoir éteinte.</p>
-                    <p>On chantera votre nom à Pierregivre. Mais d'autres seuils, ailleurs, attendent déjà qu'on les franchisse…</p>
-                    <div class="campstats">
-                        <div class="cs"><div class="v">8</div><div class="k">Quêtes</div></div>
-                        <div class="cs"><div class="v">137</div><div class="k">Ennemis vaincus</div></div>
-                        <div class="cs"><div class="v gold">5 940</div><div class="k">Or amassé</div></div>
-                    </div>
-                </div>
-
-                <div class="loot">
-                    <div class="loot-head">
-                        <h2><MSym n="workspace_premium" fill /> Partage du butin</h2>
-                        <div class="pool"><MSym n="paid" :size="16" /><span>1 200</span> or · 4 parts</div>
-                    </div>
-                    <div class="reward-grid">
-                        <div v-for="(r, idx) in CLOTURE_REWARDS" :key="idx" class="reward">
-                            <div class="rh">
-                                <span class="ic" :class="r.rar"><MSym :n="r.ic" fill /></span>
-                                <div><div class="rn">{{ r.n }}</div><div class="rr" :class="'rar-' + r.rar">{{ RAR_LABEL[r.rar] }}</div></div>
-                            </div>
-                            <div class="assign">
-                                <button
-                                    v-for="h in CLOTURE_HEROES"
-                                    :key="h.k"
-                                    :class="{ on: demoAssignments[idx] === h.k }"
-                                    @click="demoAssignments[idx] = h.k"
-                                >
-                                    <MSym :n="h.ic" fill /><span class="an">{{ h.n }}</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="font-size: 12px; color: var(--ink-500); display: flex; align-items: center; gap: 7px; margin-top: 2px">
-                        <MSym n="how_to_vote" :size="15" /> Le groupe assigne chaque objet ; un vote tranche les égalités.
-                    </div>
+            <!-- ================= erreur de chargement ================= -->
+            <div v-else-if="erreurChargement" class="main fin">
+                <div class="attente">
+                    <MSym n="error" :size="38" fill />
+                    <p>{{ erreurChargement }}</p>
                 </div>
             </div>
 
@@ -372,14 +318,9 @@ const embers = Array.from({ length: 26 }, () => {
                             : `Confirmer le partage (${confirmations.confirmes}/${confirmations.total || '?'})` }}
                     </button>
                 </template>
-                <template v-else-if="enDemo">
-                    <RouterLink class="btn btn-ghost" to="/"><MSym n="holiday_village" /> Retour à la ville</RouterLink>
-                    <RouterLink class="btn btn-gold" :to="{ name: 'direction' }"><MSym n="auto_stories" fill /> Nouvelle campagne</RouterLink>
-                </template>
                 <RouterLink v-else class="btn btn-ghost" to="/"><MSym n="holiday_village" /> Retour à l'accueil</RouterLink>
             </div>
         </div>
-        <DemoBadge />
     </div>
 </template>
 

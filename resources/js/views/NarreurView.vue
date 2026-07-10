@@ -5,13 +5,10 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
-import { useApi, estErreurDemo } from '../composables/useApi';
-import { useGameStore } from '../store/game';
+import { useApi } from '../composables/useApi';
 
 const router = useRouter();
 const api = useApi();
-const store = useGameStore();
 
 const codeBrut = ref('');
 const enCours = ref(false);
@@ -32,14 +29,9 @@ async function entrerTable() {
         const ident = reponse?.groupe?.groupe?.identifiant ?? code;
         router.push({ name: 'table', params: { groupe: ident } });
     } catch (e) {
-        if (estErreurDemo(e)) {
-            store.activerModeDemo(e.message);
-            router.push({ name: 'table', params: { groupe: code } });
-        } else if (e.status === 404) {
-            erreur.value = 'Code inconnu — vérifiez le code du groupe.';
-        } else {
-            erreur.value = e.message;
-        }
+        erreur.value = e.status === 404
+            ? 'Code inconnu — vérifiez le code du groupe.'
+            : e.message;
     } finally {
         enCours.value = false;
     }
@@ -94,7 +86,6 @@ async function entrerTable() {
                 </div>
             </div>
         </div>
-        <DemoBadge />
     </div>
 </template>
 

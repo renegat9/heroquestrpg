@@ -9,14 +9,9 @@
 // sur un nœud disponible → POST acquerirCompetence (maj optimiste, puis
 // re-GET /moi ; 422 affiché et état rétabli). Quand le dernier point est
 // dépensé : sceau « Progression scellée » (maquette).
-//
-// Repli : API injoignable / 401 (estErreurDemo) ou modeDemo déjà actif →
-// rendu démo d'origine (gains + choix d'un talent, data/demo.js).
 import { computed, onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
-import DemoBadge from '../components/ui/DemoBadge.vue';
-import { LEVELUP_HERO, LEVELUP_GAINS, LEVELUP_TALENTS } from '../data/demo';
-import { estErreurDemo, useApi } from '../composables/useApi';
+import { useApi } from '../composables/useApi';
 import { CLASSES, competencesVersArbre, ELEMENTS, TYPES_COMPETENCE, useGameStore } from '../store/game';
 
 const props = defineProps({
@@ -40,8 +35,7 @@ async function charger() {
         // L'état sert seulement à relier mon personnage au groupe (toléré en échec).
         api.getEtat(props.groupe).then((e) => store.appliquerEtat(e)).catch(() => {});
     } catch (e) {
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else erreurChargement.value = e.message;
+        erreurChargement.value = e.message;
     } finally {
         pret.value = true;
     }
@@ -50,8 +44,6 @@ onMounted(() => {
     store.fermerNiveauMonte(); // le toast de la manette a fait son office
     charger();
 });
-
-const enDemo = computed(() => store.state.modeDemo);
 
 /* ---- mon héros : personnage de /moi présent dans ce groupe ---- */
 const monPerso = computed(() => {
@@ -135,8 +127,7 @@ async function acquerir(noeud, element = null) {
         acquisOptimistes.value = [];
     } catch (e) {
         acquisOptimistes.value = acquisOptimistes.value.filter((id) => id !== noeud.id);
-        if (estErreurDemo(e)) store.activerModeDemo(e.message);
-        else erreurAction.value = e.message; // 422 : prérequis, points, classe…
+        erreurAction.value = e.message; // 422 : prérequis, points, classe…
     } finally {
         enAttente.value = null;
     }
@@ -148,94 +139,12 @@ const scelle = computed(() => aAcquis.value && points.value === 0 && !enAttente.
 const verrouLibelle = (n) => (n.verrou === 'prerequis'
     ? `Prérequis : ${n.prerequisNom ?? 'nœud précédent'}`
     : 'Aucun point de compétence disponible');
-
-/* ---- mode démo : stub d'origine (maquette, version Magicienne) ---- */
-const hero = LEVELUP_HERO;
-const gains = LEVELUP_GAINS;
-const talents = LEVELUP_TALENTS;
-const selected = ref(null);
-const confirmed = ref(false);
-const talentChoisi = () => talents.find((t) => t.k === selected.value);
 </script>
 
 <template>
     <div class="lvlup-screen stage">
         <div class="phone">
-            <!-- ================= MODE DÉMO (stub maquette) ================= -->
-            <div v-if="enDemo" class="screen">
-                <!-- bannière -->
-                <div class="banner">
-                    <RouterLink class="home" to="/"><MSym n="arrow_back" :size="14" /> HUB</RouterLink>
-                    <div class="lvlup">Montée de niveau</div>
-                    <div class="crest-wrap">
-                        <div class="crest-ring" />
-                        <div class="crest"><MSym :n="hero.icon" fill /></div>
-                        <div class="levelpill">Niv. {{ hero.to }}</div>
-                    </div>
-                    <h1>{{ hero.name }}</h1>
-                    <div class="arc">
-                        {{ hero.cls }} · <span style="color: var(--ink-500)">Niv. {{ hero.from }}</span>
-                        <MSym n="east" /> <b>Niv. {{ hero.to }}</b>
-                    </div>
-                </div>
-
-                <!-- corps -->
-                <div class="body">
-                    <div class="sect gold"><MSym n="auto_awesome" fill /> Gains automatiques</div>
-                    <div class="gains">
-                        <div v-for="(g, i) in gains" :key="i" class="gain">
-                            <span class="ic" :class="g.kind"><MSym :n="g.ic" fill /></span>
-                            <div><div class="gt">{{ g.t }}</div><div class="gd">{{ g.d }}</div></div>
-                            <span class="delta"><span class="old">{{ g.from }}</span><MSym n="east" /><span class="new">{{ g.to }}</span></span>
-                        </div>
-                    </div>
-
-                    <div class="sect">
-                        <MSym n="hub" fill /> Choisis un talent
-                        <span style="margin-left: auto; font-size: 11px; color: var(--ink-600); letter-spacing: 0; text-transform: none; font-weight: 600">1 sur 3</span>
-                    </div>
-                    <div class="talents">
-                        <button
-                            v-for="t in talents"
-                            :key="t.k"
-                            class="talent"
-                            :class="{ sel: selected === t.k }"
-                            @click="selected = t.k"
-                        >
-                            <span class="ti"><MSym :n="t.ic" fill /></span>
-                            <div>
-                                <div class="tt">{{ t.t }}</div>
-                                <div class="td">{{ t.d }}</div>
-                                <span v-if="t.el" class="el-tag" :class="'el-' + t.el"><MSym :n="t.eli" :size="12" /> {{ t.elt }}</span>
-                            </div>
-                            <span class="tcheck"><MSym n="check" fill /></span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- pied : validation -->
-                <div class="foot">
-                    <p class="hint" :style="selected ? 'color: var(--torch)' : ''">
-                        {{ selected ? 'Talent choisi : ' + talentChoisi().t : 'Sélectionne un talent pour continuer' }}
-                    </p>
-                    <button class="btn btn-gold" :disabled="!selected" @click="confirmed = true">
-                        <MSym n="verified" fill /> Valider la progression
-                    </button>
-                </div>
-
-                <!-- sceau de confirmation -->
-                <div v-if="confirmed" class="done-ov">
-                    <div class="seal"><MSym n="verified" fill /></div>
-                    <h2>Progression scellée</h2>
-                    <p>{{ hero.done }}</p>
-                    <RouterLink class="btn btn-gold" :to="{ name: 'manette', params: { groupe } }">
-                        <MSym n="login" /> Reprendre la partie
-                    </RouterLink>
-                </div>
-            </div>
-
-            <!-- ================= MODE CONNECTÉ (arbre du héros) ================= -->
-            <div v-else class="screen">
+            <div class="screen">
                 <!-- bannière -->
                 <div class="banner">
                     <RouterLink class="home" to="/"><MSym n="arrow_back" :size="14" /> HUB</RouterLink>
@@ -365,7 +274,6 @@ const talentChoisi = () => talents.find((t) => t.k === selected.value);
                 </div>
             </div>
         </div>
-        <DemoBadge />
     </div>
 </template>
 

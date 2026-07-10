@@ -28,6 +28,14 @@
   .phone .screen { border-radius: 0; }
 }
 
+.chargement-overlay {
+  position: absolute; inset: 0; z-index: 80; background: oklch(0.16 0.012 255 / 0.94);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  text-align: center; padding: 32px; color: var(--ink-400);
+}
+.chargement-overlay .msym { color: var(--torch); }
+.chargement-overlay p { font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 0; }
+
 .msym { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1;
   letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; direction: ltr;
   -webkit-font-feature-settings: 'liga'; vertical-align: middle; font-variation-settings: 'FILL' 0,'wght' 400,'opsz' 24; }
@@ -149,15 +157,6 @@
 .b-poison { color: var(--cond-poison); background: oklch(0.68 0.165 145 / 0.12); }
 .b-buff   { color: var(--cond-buff);   background: oklch(0.80 0.130 90 / 0.13); }
 .b-burn   { color: var(--cond-burn);   background: oklch(0.64 0.190 45 / 0.13); }
-
-/* roster */
-.roster { display: flex; gap: 8px; margin-bottom: 18px; }
-.roster .r { flex: 1; padding: 10px 6px; border-radius: var(--r-md); background: var(--stone-850); border: var(--line);
-  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all .12s; }
-.roster .r .msym { font-size: 22px; color: var(--ink-300); }
-.roster .r .rn { font-size: 10px; font-weight: 700; color: var(--ink-500); }
-.roster .r.on { border-color: var(--torch); background: oklch(0.76 0.155 65 / 0.12); }
-.roster .r.on .msym, .roster .r.on .rn { color: var(--torch); }
 
 /* ---- Sac / inventaire ---- */
 .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
