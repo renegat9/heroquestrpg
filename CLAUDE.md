@@ -47,7 +47,7 @@ docker run --rm --network host -v "$PWD:/work" -w /work \
   bash -c 'npm i playwright@1.48.0 --no-save --no-audit --no-fund --silent && node browser-shots/shots.mjs'
 ```
 
-`browser-shots/shots.mjs` shoots accueil, /narrateur, /joueur, and /table/DEMO + /manette/DEMO (the game screens render with demo data when the API is unreachable/401 → `modeDemo`). PNGs (gitignored) land in `browser-shots/` — read them to check rendering. Pin the `playwright` npm version to the image tag. Watch for **CSS class collisions**: many SFC `<style>` blocks are global (not `scoped`), so generic class names like `.joueur` leak across views — prefix view-specific modifiers.
+**No demo mode.** There is no fake-data fallback anywhere in the SPA anymore — every screen shows its real loading/error state when the API is unreachable or a group code doesn't exist, on purpose, so bugs surface instead of being silently masked. Always test against the real stack (`docker compose up -d`, seeded). `browser-shots/shots.mjs` registers a throwaway player, creates a character + group via the real API, then shoots accueil, /narrateur, /joueur, the manette, and the table screen — all real, no `/table/DEMO`-style routes. PNGs (gitignored) land in `browser-shots/` — read them to check rendering. Pin the `playwright` npm version to the image tag. Watch for **CSS class collisions**: many SFC `<style>` blocks are global (not `scoped`), so generic class names like `.joueur` leak across views — prefix view-specific modifiers.
 
 ## Architecture
 

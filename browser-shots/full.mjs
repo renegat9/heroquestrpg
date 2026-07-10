@@ -18,13 +18,14 @@ async function csrf(ctx){
   return {'Accept':'application/json','Content-Type':'application/json', ...(x?{'X-XSRF-TOKEN':decodeURIComponent(x.value)}:{})};
 }
 
-// ---- écrans publics / démo ----
+// ---- écrans publics (sans compte) ----
+// Le mode démo n'existe plus : /cloture/DEMO et /niveau/DEMO affichent
+// désormais l'état réel (chargement puis erreur, code de groupe inconnu),
+// pas un contenu factice — capture utile pour vérifier ces écrans d'erreur.
 const land=await b.newContext({viewport:{width:1280,height:860}});
 await shoot(land,'/','s01-accueil');
 await shoot(land,'/narrateur','s02-narrateur');
 await shoot(land,'/joueur','s03-joueur-login');
-await shoot(land,'/direction','s04-creation-groupe');
-await shoot(land,'/quete/DEMO','s05-selection-quete');
 await shoot(land,'/cloture/DEMO','s09-cloture');
 const port=await b.newContext({viewport:{width:412,height:915}});
 await shoot(port,'/niveau/DEMO','s08-montee-niveau');
