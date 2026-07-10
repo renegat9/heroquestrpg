@@ -111,7 +111,8 @@ class AuthController extends Controller
             'personnages' => $joueur->personnages()
                 ->with(['competences:competences.id', 'sorts', 'groupeActif', 'inventaire.objet'])
                 ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id',
-                    'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max'])
+                    'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
+                    'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense'])
                 ->map(function ($p) {
                     $disponible = $p->groupe_actif_id === null;
 
@@ -129,9 +130,40 @@ class AuthController extends Controller
                         'pv_body_max' => (int) $p->pv_body_max,
                         'pv_mind' => (int) $p->pv_mind,
                         'pv_mind_max' => (int) $p->pv_mind_max,
+                        // Attributs + dés (fiche perso, doc 01 §4) : ne varient pas
+                        // en quête (contrairement aux PV), donc pas besoin d'entité
+                        // EtatGroupe — /moi suffit à la fiche, même en quête.
+                        'attribut_body' => (int) $p->attribut_body,
+                        'attribut_mind' => (int) $p->attribut_mind,
+                        'des_attaque' => (int) $p->des_attaque,
+                        'des_defense' => (int) $p->des_defense,
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                         'competences' => $p->competences->pluck('id')->values()->all(),
+                        // Équipement réel (fiche/sac) : arme(s) + armure nommées,
+                        // sac général à part — doc 01 §7 (emplacements).
+                        'equipement' => [
+                            'armes' => $p->inventaire
+                                ->filter(fn ($l) => in_array($l->emplacement, ['arme_principale', 'arme_secondaire'], true))
+                                ->map(fn ($l) => $l->objet?->nom)
+                                ->filter()
+                                ->values()
+                                ->all(),
+                            'armure' => $p->inventaire
+                                ->first(fn ($l) => $l->emplacement === 'armure')
+                                ?->objet?->nom,
+                            'sac' => $p->inventaire
+                                ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
+                                ->map(fn ($l) => [
+                                    'inventaire_id' => $l->id,
+                                    'nom' => $l->objet->nom,
+                                    'categorie' => $l->objet->categorie,
+                                    'rarete' => $l->objet->rarete,
+                                    'quantite' => (int) $l->quantite,
+                                ])
+                                ->values()
+                                ->all(),
+                        ],
                         // Consommables (potions) réels : la manette propose « Boire »
                         // à tout moment (action gratuite, canon) — POST /potions.
                         'consommables' => $p->inventaire
