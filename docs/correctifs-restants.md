@@ -37,17 +37,16 @@
 - **Piste** : panneau au hub (manette et/ou table) listant le catalogue avec
   prix + bouton recruter (bourse commune), et affichage de l'allié actif.
 
-### 1.3 Aucun retour de combat sur la manette
-- **Constat** : en mode « combat instantané » (par design : pas d'appel LLM), la
-  narration reste figée pendant TOUT le combat ; les barks ne jouent que sur la
-  table ; l'écho `resultat` (dés, dégâts, tour des monstres) ne part que vers le
-  joueur qui a fait le dernier choix. Un joueur voit ses PV fondre « à
-  l'aveugle » — 2 faux diagnostics de soft-lock pendant le test venaient de là.
-  Les fouilles de zone sont muettes aussi (aucun retour trouvé/rien/raté).
-- **Piste** : flux d'événements de combat léger côté manette (journal mécanique :
-  « X attaque Y : 2 crânes / 1 bouclier — 1 dégât »), alimenté par les payloads
-  moteur déjà journalisés — sans LLM, donc compatible tour instantané. Diffuser
-  `tour_monstres`/résultats à TOUTES les manettes, pas qu'au dernier cliqueur.
+### 1.3 ~~Aucun retour de combat sur la manette~~ — FAIT (commit de8d6f0)
+- **Livré** : journal mécanique `.combat.journal` diffusé à toutes les manettes
+  (`App\Partie\JournalCombat` + `App\Events\JournalCombatDiffuse`, dispatché par
+  `ChoixController`). Panneau « Fil du combat » dans `ActionTab`, coloré par ton
+  (dégâts/mort/subit/chute/paré/succès/échec/info). Couvre attaques, dégâts
+  subis, chutes, morts, tour des monstres/alliés et **résultat de fouille**
+  (auparavant muet). Aucun LLM. Tests : formateur 9/9, diffusion 2/2.
+- **Reste éventuel** : le détail des dés (crânes/boucliers) n'est pas dans le
+  journal (seul le total de dégâts) — la révélation des faces existe déjà côté
+  acteur (`revelerDesResultat`) ; à étendre aux autres joueurs si souhaité.
 
 ## 2. Majeurs — moteur / cohérence
 
