@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\EtatPersonnageQuete;
 use App\Models\GroupeMercenaire;
 use App\Models\Mercenaire;
 use App\Models\Quete;
@@ -181,6 +182,47 @@ it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', fu
     $actionsAllies = collect($reponse->json('resultat.tour_allies.actions'));
     expect($actionsAllies->isNotEmpty())->toBeTrue()
         ->and($actionsAllies->contains(fn ($a) => ($a['type'] ?? null) === 'attaque_allie'))->toBeTrue();
+});
+
+it('restaure le mercenaire payé à la reprise après un TPK', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    expect($groupe->fresh()->mercenaires()->count())->toBe(1); // instancié au démarrage
+
+    // TPK déterministe : héros à 1 PV, un monstre TRÈS résistant au contact (il
+    // survit à l'allié et tue le héros au tour des monstres).
+    $hero->update(['pv_body' => 1]);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+    $quete->instancesMonstres()->orderBy('id')->firstOrFail()->update([
+        'etat' => 'actif', 'revele' => true, 'pv_body' => 15,
+        'position_x' => $contact['x'], 'position_y' => $contact['y'],
+    ]);
+
+    desFiges(array_fill(0, 80, 1)); // crânes partout : le monstre touche, rien n'est paré
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    // Quête échouée, retour au hub, allié PURGÉ à l'échec.
+    expect($quete->fresh()->etat)->toBe('echouee')
+        ->and($groupe->fresh()->phase)->toBe('hub')
+        ->and($groupe->fresh()->mercenaires()->count())->toBe(0);
+
+    // Reprise (snapshot debut_quete) : le mercenaire payé revient.
+    $this->postJson('/api/groupes/table-1/reprise')->assertOk();
+
+    $recrues = $groupe->fresh()->mercenaires()->with('mercenaire')->get();
+    expect($recrues)->toHaveCount(1)
+        ->and($recrues->first()->mercenaire->nom)->toBe('Hallebardier')
+        ->and($recrues->first()->etat)->toBe('actif');
 });
 
 it('consomme les alliés en fin de quête (victoire)', function () {

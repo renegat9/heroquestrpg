@@ -88,23 +88,31 @@
   (24 h) dans `config/session.php` et `.env.example` (les longues pauses n'expirent
   plus la séance).
 
-## 3. Équilibrage — données de playtest (design à trancher, ne pas « corriger » en silence)
+## 3. Équilibrage — données de playtest
 
-- **Budget glouton** : `DemarreurQuete::acheterMonstres` remplit en
-  `orderByDesc('cout')` → la quête 1 d'une campagne met systématiquement les
-  monstres de base les PLUS CHERS (2 Gargouilles att 4/déf 5 vs héros niv. 1
-  nus, att 2/déf 2). Espérance : ~0,2 PV/attaque héros→gargouille contre
-  ~2,6 PV/tour subis. Pistes : mélange de tiers, malus premier arc, plancher
-  d'équipement de départ, ou coût de la Gargouille.
-- **Boss final à 2 joueurs** : 2 TPK consécutifs malgré stratégie optimale
-  (PV pleins, focus faibles, sorts) — Seigneur 10 PV + 2 serviteurs, ~7 dégâts
-  encaissés en une ronde. Injouable à 2 sans équipement/mercenaire.
-- **Prix vs revenus** : potion de soin 100 or, quête ~50 or de butin — un groupe
-  de 2 ne peut rien s'offrir d'utile après la quête 1. Relevage à 1 PV → boucle
-  « relevé/retombe » (9 cycles observés en quête 1).
-- **Reprise et alliés** : le mercenaire payé 150 or n'est pas restauré par le
-  snapshot `debut_quete` (purgé à l'échec, hors périmètre du snapshot). Inclure
-  les alliés dans le snapshot, ou rembourser (doc 14 §3.5 à préciser).
+Corrigés :
+- ~~**Budget glouton**~~ — `DemarreurQuete::acheterMonstres` ne remplit plus en
+  `orderByDesc('cout')` : il achète d'abord **quelques FORTS** (haut du tier base,
+  `forts_par_quete` + escalade d'arc) puis la **MASSE de FAIBLES** (bas du tier,
+  round-robin) → « beaucoup d'ennemis faibles + quelques forts » au lieu de
+  2 Gargouilles contre des niv. 1. Réglable dans `config/jeu.php` (`rencontres`).
+- ~~**Reprise et alliés**~~ — les mercenaires sont **sérialisés dans le snapshot
+  `debut_quete`** et **restaurés** à la reprise (delete+insert, id conservé) : le
+  mercenaire payé revient après un TPK.
+- ~~**Cadavres / héros tombés bloquant le plateau**~~ (était en §5) — un héros
+  tombé ne bloque plus passage ni ligne de vue ; il reste secourable si aucune
+  autre figure n'occupe sa case et qu'un allié est adjacent (voir §« Héros tombé »
+  du contrat). Les monstres vaincus ne bloquaient déjà pas (exclus de la grille).
+
+Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) :
+- **Boss final à 2 joueurs** : 2 TPK consécutifs (Seigneur 10 PV + 2 serviteurs,
+  ~7 dégâts/ronde). Le nouvel équilibrage (ennemis plus faibles), l'équipement
+  (§1.1) et les mercenaires restaurés (ci-dessus) aident, mais le **boss lui-même**
+  reste à régler (PV / nombre de serviteurs / facteur de jalon `boss_final`).
+- **Prix vs revenus** : potion 100 or vs ~50 or de butin — à recalibrer (prix des
+  consommables, or de quête, ou butin de boss).
+- **Relevage à 1 PV** → boucle « relevé/retombe » : à trancher (relever à N PV,
+  ou plafond de relevages par quête).
 
 ## 4. Modérés — ~~FAIT~~
 
@@ -147,7 +155,6 @@ Restent (efforts plus lourds / design) :
   hache » sac vide), épilogue de défaite qui omet les quêtes gagnées — enrichir
   le contexte des skills (inventaire réel, habillages, interdits doc 08).
 - **Arbre de compétences** : pas de lignes/connexions visuelles de prérequis.
-- **Cadavres de monstres** bloquant le pathing (à trancher — design).
 - **Narration en retard d'une action** (rythme) — jamais inversée (anti-inversion),
   mais surprend ; tient à la génération asynchrone, à réévaluer si gênant.
 

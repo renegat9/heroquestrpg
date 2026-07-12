@@ -11,6 +11,7 @@ use App\Jobs\GenererNarration;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -159,6 +160,8 @@ final class Sauvegarde
                 $this->restaurerHeros($heros);
             }
 
+            $this->restaurerMercenaires($groupe, $etat['mercenaires'] ?? []);
+
             $groupe->update([
                 'or' => (int) data_get($etat, 'groupe.or', $groupe->or),
                 'phase' => 'quete',
@@ -277,6 +280,19 @@ final class Sauvegarde
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
+            // Alliés recrutés (3.5) : payés au hub, ils doivent revenir à la reprise
+            // (ils sont purgés à l'échec, hors de leur propre table — d'où la
+            // sérialisation ici). État vivant : PV, position, état.
+            'mercenaires' => $groupe->mercenaires()->orderBy('id')->get()
+                ->map(fn (GroupeMercenaire $a) => [
+                    'id' => $a->id,
+                    'mercenaire_id' => $a->mercenaire_id,
+                    'recruteur_personnage_id' => $a->recruteur_personnage_id,
+                    'pv_body' => (int) $a->pv_body,
+                    'position_x' => $a->position_x,
+                    'position_y' => $a->position_y,
+                    'etat' => $a->etat,
+                ])->values()->all(),
         ];
     }
 
@@ -366,6 +382,30 @@ final class Sauvegarde
                 'etat' => $instance['etat'],
                 'revele' => $instance['revele'] ?? true,
                 'habillage' => $instance['habillage'],
+            ])->save();
+        }
+    }
+
+    /**
+     * Recrée les alliés recrutés à l'identique (delete + insert, id conservé) :
+     * la reprise après un TPK doit rendre le mercenaire payé, purgé à l'échec.
+     *
+     * @param  list<array<string, mixed>>  $mercenaires
+     */
+    private function restaurerMercenaires(Groupe $groupe, array $mercenaires): void
+    {
+        GroupeMercenaire::query()->where('groupe_id', $groupe->id)->delete();
+
+        foreach ($mercenaires as $m) {
+            (new GroupeMercenaire)->forceFill([
+                'id' => $m['id'],
+                'groupe_id' => $groupe->id,
+                'mercenaire_id' => $m['mercenaire_id'],
+                'recruteur_personnage_id' => $m['recruteur_personnage_id'] ?? null,
+                'pv_body' => $m['pv_body'],
+                'position_x' => $m['position_x'],
+                'position_y' => $m['position_y'],
+                'etat' => $m['etat'],
             ])->save();
         }
     }

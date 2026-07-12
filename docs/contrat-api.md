@@ -492,6 +492,15 @@ joueur (choix, panier, vote, prêt…) exigent un joueur membre.
 - **La reprise purge les menus en cache** : `POST reprise` oublie les menus
   mémorisés du groupe avant de les régénérer — aucun rejeu d'une option de
   l'état d'avant le TPK (cibles/coordonnées disparues).
+- **La reprise restaure les alliés** : les mercenaires recrutés sont sérialisés
+  dans le snapshot `debut_quete` et recréés à la reprise (le mercenaire payé
+  revient après un TPK, malgré la purge de fin de quête).
+- **Héros tombé** : un héros à terre ne bloque ni le passage ni la ligne de vue
+  (les figures l'enjambent). Il est **secourable** (option `relever`) seulement
+  si un allié est adjacent **et** qu'aucune autre figure n'occupe sa case.
+- **Composition des rencontres** : le budget achète « beaucoup de faibles +
+  quelques forts » (bas puis haut du tier base), réglable dans `config/jeu.php`
+  (`rencontres.forts_par_quete`, `forts_escalade_arc`, `seuil_cout_fort`).
 - **L'API ne dépend jamais du LLM** : si le job IA échoue (pas de clé, erreur),
   repli (menu générique / narration neutre) — le jeu reste jouable.
 - Toute mutation d'état passe par un événement journalisé (`evenements`) puis

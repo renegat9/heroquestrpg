@@ -102,7 +102,7 @@ final class DemarreurQuete
         $gabarit = $this->choisirGabarit($typeJalon);
         $carte = $this->assembleur->assembler($gabarit);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
-        $monstres = $this->acheterMonstres($gabarit->structure ?? [], $budget, count($carte['spawn_monstres']));
+        $monstres = $this->acheterMonstres($gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc);
 
         if (count($carte['spawn_heros']) < $heros->count()) {
             throw new RuntimeException('Carte assemblée trop petite pour les héros du groupe.');
@@ -326,14 +326,15 @@ final class DemarreurQuete
     /**
      * Dépense le budget en monstres du catalogue : la rencontre finale du
      * gabarit (tier sous_boss/boss) est achetée d'abord — toujours présente,
-     * même si elle dépasse le budget — puis le reste est rempli en glouton
-     * (le monstre de base le plus cher encore abordable), dans la limite des
-     * positions de spawn de la carte.
+     * même si elle dépasse le budget — puis QUELQUES monstres FORTS (haut du
+     * tier base), et enfin la MASSE de FAIBLES (bas du tier), dans la limite des
+     * positions de spawn de la carte. Objectif de playtest : « beaucoup
+     * d'ennemis faibles + quelques ennemis forts » (config `jeu.rencontres`).
      *
      * @param  array<string, mixed>  $structure
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc): array
     {
         $achats = [];
         $restant = $budget;
@@ -361,18 +362,60 @@ final class DemarreurQuete
             }
         }
 
+        // Tier « base » partitionné en FAIBLES (bas coût) et FORTS (haut coût),
+        // selon le seuil de config. On veut « beaucoup de faibles + quelques forts ».
+        $seuil = (int) config('jeu.rencontres.seuil_cout_fort', 3);
         /** @var Collection<int, Monstre> $base */
-        $base = Monstre::query()->where('tier', 'base')->orderByDesc('cout')->orderBy('id')->get();
+        $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
+            ->orderBy('cout')->orderBy('id')->get();
+        $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
+        $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)->sortByDesc('cout')->values();
 
-        while (count($achats) < $maxSpawns) {
-            $monstre = $base->first(fn (Monstre $m) => (int) $m->cout <= $restant && (int) $m->cout > 0);
+        // Aucun « faible » défini (seuil mal réglé / bestiaire atypique) : tout le
+        // tier base sert de masse, pour ne jamais bloquer la génération.
+        if ($faibles->isEmpty()) {
+            $faibles = $base->sortBy('cout')->values();
+            $forts = collect();
+        }
+        $coutFaibleMin = (int) ($faibles->min('cout') ?? 1);
 
-            if ($monstre === null) {
-                break; // budget épuisé
+        // 1) QUELQUES forts (haut de gamme), en gardant assez de budget ET
+        //    d'emplacements pour la masse de faibles (on réserve ≥ 1 slot faible).
+        $fortsSouhaites = (int) config('jeu.rencontres.forts_par_quete', 1);
+        $escaladeArc = (int) config('jeu.rencontres.forts_escalade_arc', 0);
+        if ($escaladeArc > 0) {
+            $fortsSouhaites += intdiv(max(0, $positionArc - 1), $escaladeArc);
+        }
+        for ($i = 0; $i < $fortsSouhaites && count($achats) < $maxSpawns - 1; $i++) {
+            // le plus fort abordable qui laisse encore de quoi payer un faible
+            $fort = $forts->first(fn (Monstre $m) => (int) $m->cout <= $restant - $coutFaibleMin);
+            if ($fort === null) {
+                break;
             }
+            $achats[] = $fort;
+            $restant -= (int) $fort->cout;
+        }
 
-            $achats[] = $monstre;
-            $restant -= (int) $monstre->cout;
+        // 2) La MASSE de faibles : round-robin sur les faibles (un peu de variété)
+        //    tant que budget et emplacements le permettent → beaucoup d'ennemis
+        //    individuellement peu dangereux.
+        $n = $faibles->count();
+        $curseur = 0;
+        while ($n > 0 && count($achats) < $maxSpawns) {
+            $achete = false;
+            for ($k = 0; $k < $n; $k++) {
+                $m = $faibles[($curseur + $k) % $n];
+                if ((int) $m->cout <= $restant) {
+                    $achats[] = $m;
+                    $restant -= (int) $m->cout;
+                    $curseur = ($curseur + $k + 1) % $n;
+                    $achete = true;
+                    break;
+                }
+            }
+            if (! $achete) {
+                break; // plus rien d'abordable
+            }
         }
 
         if ($achats === []) {

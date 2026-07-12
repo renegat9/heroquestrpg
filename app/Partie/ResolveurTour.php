@@ -1210,6 +1210,17 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'L\'allié tombé doit être sur une case adjacente.']);
         }
 
+        // La case du tombé ne doit porter AUCUNE autre figure (un tombé n'occupe
+        // plus sa case, donc un allié/monstre a pu s'y placer) : il faut de la
+        // place pour qu'il se relève. La grille exclut déjà les tombés — la case
+        // est « traversable » ssi personne d'autre ne s'y tient.
+        if (! $this->grille($quete, exceptPersonnageId: $cibleId)
+            ->estTraversable((int) $cible->position_x, (int) $cible->position_y)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Impossible de le relever : une autre figure occupe sa case.',
+            ]);
+        }
+
         // Debout à 1 PV de Body ; la figure n'occupe plus la case en « tombée ».
         $cible->update(['tombe' => false]);
         $cible->personnage->update(['pv_body' => 1]);
@@ -2154,7 +2165,10 @@ final class ResolveurTour
         $occupees = [];
 
         foreach ($quete->etatsPersonnages()->get() as $etat) {
-            if ($etat->personnage_id !== $exceptPersonnageId && $etat->position_x !== null) {
+            // Un héros TOMBÉ (à terre) ne bloque ni le passage ni la ligne de vue :
+            // il gît au sol, on l'enjambe. Il reste secourable (resoudreRelever) tant
+            // qu'aucune AUTRE figure ne se tient sur sa case.
+            if ($etat->personnage_id !== $exceptPersonnageId && $etat->position_x !== null && ! $etat->tombe) {
                 $occupees[] = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
             }
         }

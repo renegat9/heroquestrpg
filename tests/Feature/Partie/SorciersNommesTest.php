@@ -96,6 +96,7 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
         ['rencontre_finale' => ['tier' => 'boss', 'archetype' => 'necromancien']],
         30,
         5,
+        1, // positionArc
     );
     expect($achats[0]->nom_base)->toBe('Liche');
 
@@ -105,6 +106,7 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
         ['rencontre_finale' => ['tier' => 'boss']],
         30,
         5,
+        1, // positionArc
     );
     expect($achatsDefaut[0]->nom_base)->toBe('Seigneur');
 });
