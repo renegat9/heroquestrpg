@@ -80,6 +80,14 @@ final class EtatGroupe
                 $personnagesActifs,
             );
 
+            // Alliés recrutés (3.5) exposés au hub : la carte étant absente, les
+            // recrues ne sont pas dans `entites` (filtrées sur position) — ce bloc
+            // permet à la manette (panneau de recrutement) ET à la table d'afficher
+            // les alliés déjà embauchés, et met à jour la liste en direct après un
+            // recrutement (EtatGroupeDiffuse). Sert aussi au front à savoir qu'un
+            // compagnon animal est déjà pris (un seul par groupe).
+            $preambuleGroupe['mercenaires'] = $this->mercenairesRecrutes($groupe);
+
             // Prologue de campagne (prémisse + menace) : exposé au hub pour que
             // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
             // quête n'a eu lieu) déclenche l'ouverture automatique au lancement.
@@ -267,6 +275,33 @@ final class EtatGroupe
                 'pv_body' => (int) $a->pv_body,
                 'pv_body_max' => (int) $a->mercenaire->pv_body,
                 'animal' => (bool) $a->mercenaire->animal,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Alliés recrutés actifs, indépendamment de leur placement sur la carte
+     * (contrairement à `allies()`, qui n'expose que ceux posés en quête). Sert
+     * au hub : la manette liste les recrues et sait si un animal est déjà pris.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mercenairesRecrutes(Groupe $groupe): array
+    {
+        return $groupe->mercenaires()
+            ->where('etat', 'actif')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (\App\Models\GroupeMercenaire $a) => [
+                'id' => $a->id,
+                'mercenaire_id' => $a->mercenaire_id,
+                'nom' => $a->mercenaire->nom,
+                'type' => $a->mercenaire->type,
+                'animal' => (bool) $a->mercenaire->animal,
+                'pv_body' => (int) $a->pv_body,
+                'pv_body_max' => (int) $a->mercenaire->pv_body,
             ])
             ->values()
             ->all();

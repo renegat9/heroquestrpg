@@ -29,6 +29,9 @@ Routes protégées par middleware `auth` sauf connexion.
 ```json
 {
   "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours",
+             "prets": [{"personnage_id": 1, "pret": false}],
+             "mercenaires": [{"id": 3, "mercenaire_id": 2, "nom": "...", "type": "archer",
+                              "animal": false, "pv_body": 1, "pv_body_max": 1}],
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
@@ -47,6 +50,8 @@ Routes protégées par middleware `auth` sauf connexion.
 }
 ```
 
+`groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
+(statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub —
 **sauf après un TPK** : tant que la dernière quête est `echouee` (ni reprise,
 ni nouvelle quête), elle reste exposée (avec sa carte et ses entités) pour le
@@ -142,6 +147,7 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 
 | Méthode | URL | Corps | Effet |
 |---|---|---|---|
+| GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description}]` (group-agnostique, comme `/competences`) |
 | POST | /groupes/{identifiant}/mercenaires | {mercenaire_id} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, ou 2ᵉ compagnon animal) |
 
 PNJ **scriptés** (hors roster), **consommés en fin de quête** (purgés à la
@@ -151,10 +157,18 @@ AVANT les monstres et **hors initiative des héros** : ils ciblent les monstres
 (tir avec ligne de vue pour un allié à distance, sinon corps-à-corps). Réponse :
 `{recrue:{id,nom,type,animal}, or}` ; broadcast `.groupe.etat`.
 
-Dans **EtatGroupe.entites**, un allié actif apparaît avec `type:'allie'`
-(`{id, nom, x, y, pv_body, pv_body_max, animal}`). La résolution d'un tour de
-choix peut porter `resultat.tour_allies.actions` (déplacements/attaques alliées),
-en regard de `resultat.tour_monstres.actions`.
+Le front calcule la disponibilité (or suffisant, animal déjà pris) **côté
+client** à partir de l'état vivant : `EtatGroupe.groupe.or` + le bloc **hub**
+`EtatGroupe.groupe.mercenaires` (voir plus bas). La manette montre le panneau de
+recrutement au hub, la table liste les renforts embauchés.
+
+Dans **EtatGroupe.entites** (en quête), un allié posé apparaît avec `type:'allie'`
+(`{id, nom, x, y, pv_body, pv_body_max, animal}`). **Au hub** (carte absente, donc
+hors `entites`), les recrues actives sont exposées dans le préambule sous
+`groupe.mercenaires: [{id, mercenaire_id, nom, type, animal, pv_body,
+pv_body_max}]` (mis à jour en direct par `.groupe.etat` après un recrutement). La
+résolution d'un tour de choix peut porter `resultat.tour_allies.actions`
+(déplacements/attaques alliées), en regard de `resultat.tour_monstres.actions`.
 
 ## Votes de groupe (doc 05 §5)
 

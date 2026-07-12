@@ -29,14 +29,18 @@
 - **Reste éventuel** : « équiper » comme **action de tour** en pleine quête
   (doc 01 §149) — au MVP c'est hub-only.
 
-### 1.2 Mercenaires : aucune UI de recrutement
-- **Constat** : serveur complet (POST `/groupes/{id}/mercenaires`, phase alliés,
-  `EtatGroupe` type `allie`, catalogue seedé) mais zéro composant front — grep
-  « mercenaire » dans `resources/js` : aucun résultat, pas même `services/api.js`.
-  Fonctionnalité inatteignable en jeu (testée par API : recrutement, or déduit,
-  rendu carte et purge OK).
-- **Piste** : panneau au hub (manette et/ou table) listant le catalogue avec
-  prix + bouton recruter (bourse commune), et affichage de l'allié actif.
+### 1.2 ~~Mercenaires : aucune UI de recrutement~~ — FAIT
+- **Livré** : nouveau `GET /mercenaires` (catalogue recrutable, group-agnostique
+  comme `/competences`) ; `EtatGroupe` expose au hub `groupe.mercenaires` (recrues
+  actives, mis à jour en direct par `.groupe.etat` après un recrutement). Front :
+  composant `RecrutementHub` dans l'onglet Action du hub de la manette (cartes
+  catalogue avec stats/prix, bouton « Recruter » désactivé si or insuffisant ou
+  2ᵉ animal, liste des alliés recrutés) ; la table affiche les renforts embauchés
+  au hub (`hub-allies`). Le recrutement débite la bourse commune (POST existant).
+  Tests : Mercenaires 9/9 (dont catalogue + exposition hub), suite 307/307.
+  Vérifié en jeu : 3 cartes → Recruter Hallebardier → bourse 500→280, recrue
+  listée sur la manette et renfort affiché sur la table.
+- **Reste** : équilibrage des prix/stats (voir §3, données de playtest).
 
 ### 1.3 ~~Aucun retour de combat sur la manette~~ — FAIT (commit de8d6f0)
 - **Livré** : journal mécanique `.combat.journal` diffusé à toutes les manettes

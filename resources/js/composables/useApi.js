@@ -260,6 +260,16 @@ export function useApi() {
                 personnage_id: personnageId, inventaire_id: inventaireId,
             }),
 
+        // ---- alliés / mercenaires (contrat « Alliés », au hub uniquement) ----
+
+        /** GET /api/mercenaires → catalogue recrutable [{id, nom, type, prix, stats…}]. */
+        getMercenaires: () => request('GET', '/mercenaires'),
+
+        /** POST /groupes/{id}/mercenaires {mercenaire_id} — recrute contre la
+         *  bourse commune (422 : pas au hub, or insuffisant, 2ᵉ animal). */
+        recruterMercenaire: (identifiant, mercenaireId) =>
+            request('POST', `/groupes/${identifiant}/mercenaires`, { mercenaire_id: mercenaireId }),
+
         // ---- votes de groupe (contrat « Votes de groupe ») ----
 
         /** POST /groupes/{id}/votes {type, question?, options?, cible_joueur_id?} → lance le vote. */

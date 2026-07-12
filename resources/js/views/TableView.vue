@@ -169,6 +169,10 @@ watch(sceneAmbiance, (s) => { if (s) ambiance.definirScene(s); }, { immediate: t
 const lancementEnCours = ref(false);
 const erreurLancement = ref('');
 const phaseHub = computed(() => !!etat.value && etat.value.groupe?.phase === 'hub');
+// Alliés recrutés (3.5) exposés au hub : la table les affiche pour que le
+// narrateur voie les renforts avant de lancer la quête (le recrutement lui-même
+// se fait sur la manette d'un joueur, bourse commune).
+const recruesHub = computed(() => etat.value?.groupe?.mercenaires ?? []);
 async function lancerQuete() {
     lancementEnCours.value = true;
     erreurLancement.value = '';
@@ -345,6 +349,12 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <p v-if="erreurLancement" class="hub-err">{{ erreurLancement }}</p>
                         <p v-if="erreurMarche" class="hub-err">{{ erreurMarche }}</p>
                         <p v-if="erreurCloture" class="hub-err">{{ erreurCloture }}</p>
+                        <div v-if="recruesHub.length" class="hub-allies">
+                            <span class="hub-allies-titre"><MSym n="diversity_3" fill :size="15" /> Renforts</span>
+                            <span v-for="r in recruesHub" :key="r.id" class="hub-allie">
+                                <MSym :n="r.animal ? 'pets' : 'shield'" :size="14" /> {{ r.nom }}
+                            </span>
+                        </div>
                     </div>
                     <DungeonMap
                         v-else
@@ -649,6 +659,12 @@ watch(() => store.state.clotureTerminee, (t) => {
   border: var(--line); flex: none; box-shadow: var(--sh-1); }
 .table-screen .hub-panel p { font-family: var(--font-narr); font-style: italic; font-size: 17px; margin: 0; }
 .table-screen .hub-panel .hub-err { font-family: var(--font-ui); font-style: normal; font-size: 13px; color: var(--danger, #c33); }
+.table-screen .hub-allies { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
+  font-family: var(--font-ui); font-style: normal; }
+.table-screen .hub-allies-titre { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold, #c9a24a); }
+.table-screen .hub-allies .hub-allie { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700;
+  color: var(--ink-300); padding: 3px 10px; border-radius: 999px; border: var(--line); background: var(--stone-850); }
 
 /* ---- montée de niveau (célébration dorée, style Montee de niveau.html) ---- */
 .table-screen .lvlup-ov { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;

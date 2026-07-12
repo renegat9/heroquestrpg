@@ -26,6 +26,39 @@ use Illuminate\Validation\ValidationException;
 class MercenaireController extends Controller
 {
     /**
+     * GET /api/mercenaires — catalogue des alliés recrutables (contrat).
+     *
+     * Bloc de stats + prix (bourse commune). Group-agnostique comme le
+     * catalogue de compétences : la disponibilité (or, animal déjà pris) est
+     * calculée côté client à partir de l'état vivant du groupe
+     * (`EtatGroupe.groupe.or` + `.mercenaires`), qui bouge à chaque recrutement.
+     */
+    public function catalogue(): JsonResponse
+    {
+        return response()->json([
+            'mercenaires' => Mercenaire::query()
+                ->orderBy('prix')
+                ->get()
+                ->map(fn (Mercenaire $m) => [
+                    'id' => $m->id,
+                    'nom' => $m->nom,
+                    'type' => $m->type,
+                    'prix' => (int) $m->prix,
+                    'deplacement' => (int) $m->deplacement,
+                    'attaque' => (int) $m->attaque,
+                    'portee' => $m->portee,
+                    'attaque_distance' => $m->attaque_distance === null ? null : (int) $m->attaque_distance,
+                    'defense' => (int) $m->defense,
+                    'pv_body' => (int) $m->pv_body,
+                    'animal' => (bool) $m->animal,
+                    'description' => $m->description,
+                ])
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    /**
      * POST /api/groupes/{identifiant}/mercenaires  {mercenaire_id}
      */
     public function recruter(Request $request, string $identifiant, EtatGroupe $etatGroupe): JsonResponse

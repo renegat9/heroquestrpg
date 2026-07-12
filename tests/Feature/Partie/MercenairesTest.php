@@ -36,6 +36,38 @@ beforeEach(function () {
     ]);
 });
 
+it('expose le catalogue recrutable via GET /mercenaires', function () {
+    connecterJoueur('alice');
+
+    $catalogue = $this->getJson('/api/mercenaires')->assertOk()->json('mercenaires');
+
+    expect($catalogue)->toHaveCount(Mercenaire::count());
+    $premier = $catalogue[0];
+    // Trié par prix croissant + bloc de stats complet.
+    expect($premier['prix'])->toBeLessThanOrEqual($catalogue[count($catalogue) - 1]['prix']);
+    foreach (['id', 'nom', 'type', 'prix', 'deplacement', 'attaque', 'portee', 'defense', 'pv_body', 'animal', 'description'] as $cle) {
+        expect($premier)->toHaveKey($cle);
+    }
+});
+
+it('expose les alliés recrutés au hub dans EtatGroupe.groupe.mercenaires', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+
+    $groupe->refresh();
+    $mercos = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.mercenaires');
+
+    expect($mercos)->toHaveCount(1)
+        ->and($mercos[0]['nom'])->toBe('Hallebardier')
+        ->and($mercos[0]['animal'])->toBeFalse()
+        ->and($mercos[0])->toHaveKeys(['id', 'mercenaire_id', 'type', 'pv_body', 'pv_body_max']);
+});
+
 it('recrute un mercenaire au hub en débitant la bourse commune', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

@@ -98,7 +98,8 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes/{identifiant}/equipement', [EquipementController::class, 'equiper']);
     Route::delete('/groupes/{identifiant}/equipement', [EquipementController::class, 'desequiper']);
 
-    // Recrutement d'alliés au hub (3.5) — bourse commune.
+    // Recrutement d'alliés au hub (3.5) — catalogue + bourse commune.
+    Route::get('/mercenaires', [MercenaireController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/mercenaires', [MercenaireController::class, 'recruter']);
 
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,

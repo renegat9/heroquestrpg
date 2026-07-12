@@ -13,6 +13,7 @@ import ActionTab from '../components/manette/ActionTab.vue';
 import FicheTab from '../components/manette/FicheTab.vue';
 import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
+import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import DieFace from '../components/manette/DieFace.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
@@ -490,6 +491,35 @@ async function desequiper(inventaireId) {
     }
 }
 
+/* ---- Alliés / mercenaires (doc 14 §3.5) : au hub, recruter un renfort scripté
+   contre la bourse COMMUNE. Le catalogue (statique) est chargé une fois ; les
+   recrues et l'or vivent dans EtatGroupe (mis à jour en direct par le POST, qui
+   rediffuse .groupe.etat). ---- */
+const catalogueMercs = ref([]);
+const recrutEnCours = ref(false);
+const recruesHub = computed(() => store.state.etat?.groupe?.mercenaires ?? []);
+const orCommun = computed(() => store.state.etat?.groupe?.or ?? 0);
+async function chargerMercenaires() {
+    if (catalogueMercs.value.length) return;
+    try {
+        catalogueMercs.value = (await api.getMercenaires()).mercenaires ?? [];
+    } catch { /* catalogue indisponible : le panneau reste vide */ }
+}
+// Charge le catalogue dès qu'on est au hub (le recrutement n'y est possible que là).
+watch(auHub, (v) => { if (v) chargerMercenaires(); }, { immediate: true });
+async function recruter(mercenaireId) {
+    if (recrutEnCours.value) return;
+    recrutEnCours.value = true;
+    try {
+        await api.recruterMercenaire(props.groupe, mercenaireId);
+        // recrues + or arrivent par .groupe.etat (EtatGroupeDiffuse) — rien à recharger.
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        recrutEnCours.value = false;
+    }
+}
+
 /* ---- vote (.vote.lance ouvre la feuille, bulletin POSTé, .vote.maj fait
    vivre le décompte, .vote.resultat ferme avec le résultat ; la cible d'un
    retrait_joueur ne vote pas (lecture seule)). ---- */
@@ -823,6 +853,16 @@ const navItems = computed(() => (scene.value === 'marche'
                                     <MSym n="error" :size="13" /> {{ erreurPret }}
                                 </p>
                             </div>
+
+                            <!-- ---- recrutement d'alliés (hub, bourse commune) ---- -->
+                            <RecrutementHub
+                                v-if="auHub"
+                                :catalogue="catalogueMercs"
+                                :recrues="recruesHub"
+                                :or="orCommun"
+                                :en-cours="recrutEnCours"
+                                @recruter="recruter"
+                            />
                         </div>
                         <FicheTab
                             v-else-if="tab === 'fiche'"
