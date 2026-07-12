@@ -55,31 +55,38 @@
 
 ## 2. Majeurs — moteur / cohérence
 
-### 2.1 Menus en cache survivant à la reprise (rejeu d'options périmées)
-- **Constat** : après `POST reprise`, un choix contre le menu d'AVANT le TPK a
-  été accepté — un sort a blessé un monstre NON RÉVÉLÉ à ~30 cases (l'option
-  gardait la liste de cibles de l'ancien état du monde). `Sauvegarde::restaurer`
-  redispatch `GenererMenu` mais ne purge pas immédiatement `partie:menu:*`.
-- **Piste** : `Cache::forget` des menus du groupe dans la transaction de reprise
-  + revalidation moteur (cible révélée/actif) au moment de résoudre un sort.
+### 2.1 ~~Menus en cache survivant à la reprise (rejeu d'options périmées)~~ — FAIT
+- **Livré** : `Sauvegarde::restaurer` **oublie** les menus en cache
+  (`GenererMenu::cleMenu`) de tous les héros actifs avant de les régénérer — la
+  fenêtre de rejeu est fermée (POST choix renvoie « aucun menu » jusqu'à l'arrivée
+  du menu neuf). Défense en profondeur : `ResolveurTour::cibleSort` exige
+  désormais une cible monstre `actif` **ET** `revele` — un sort ne peut plus
+  frapper un monstre redevenu dormant, même si un menu périmé le liste encore.
+  Tests : purge de menu à la reprise (Queue::fake pour observer la fenêtre async)
+  + résolveur refuse la cible non révélée (CoherenceMenuTest).
 
-### 2.2 Menu de tour incohérent avec le plateau
-- **Constat** : un tour avec 2 monstres ADJACENTS où le menu ne proposait AUCUNE
-  attaque — seulement « Se déplacer » (0 case accessible = option morte) et
-  « Terminer le tour » : joueur au contact forcé de passer. À investiguer :
-  moment de génération du menu vs déplacements de la phase des monstres.
-- **Piste** : régénérer/valider le menu moteur contre l'adjacence RÉELLE à
-  l'affichage (GET /menu fait déjà une régénération — l'étendre au cas où l'état
-  a bougé depuis la mise en cache), et masquer « Se déplacer » quand 0 case.
+### 2.2 ~~Menu de tour incohérent avec le plateau~~ — FAIT (partiel)
+- **Livré** : `MenuMoteur` masque « Se déplacer » quand le héros est TOTALEMENT
+  bloqué (aucune case orthogonale traversable — murs / portes fermées / figures),
+  au lieu de proposer une option morte à 0 case ; le plateau est reconstruit avec
+  la même occupation que `ResolveurTour` (héros, monstres actifs avec emprise,
+  alliés), donc jamais masqué à tort (« Terminer le tour » reste toujours offert).
+  Le filtre d'attaque du menu exige aussi `revele` (aligné sur le résolveur : pas
+  d'attaque proposée sur un dormant). Tests : masquage boxed-in + présence dès
+  qu'une case est libre + attaque cachée sur dormant (CoherenceMenuTest).
+- **Reste** : le symptôme « 2 monstres adjacents, aucune attaque proposée » tient
+  probablement à un décalage génération-menu / phase des monstres — non reproduit
+  ici (le menu est régénéré après la phase des monstres). À réobserver en
+  playtest ; si confirmé, étendre `GET /menu` à une régénération quand l'état a bougé.
 
-### 2.3 Expiration de session en pleine partie
-- **Constat** : session Laravel expirée plusieurs fois en cours de quête (pauses
-  longues) → toute action affiche « Unauthenticated. » BRUT (anglais) dans la
-  zone narration, sans redirection. Le parcours de secours (login →
-  « Reprendre la partie ») fonctionne très bien, mais rien n'y invite.
-- **Piste** : intercepter le 401 dans le client API → message français + bouton
-  « Se reconnecter » (ou re-login silencieux) ; allonger la durée de session
-  (`config/session.php`) pour le cadre LAN.
+### 2.3 ~~Expiration de session en pleine partie~~ — FAIT
+- **Livré** : le client API (`useApi`) intercepte le `401`, remplace
+  « Unauthenticated. » par un message français et émet `api:session-expiree` ;
+  `App.vue` superpose un bandeau « Session expirée » avec un bouton
+  « Se reconnecter » qui route vers le login → « Reprendre la partie ». Durée de
+  session allongée pour le cadre LAN : `SESSION_LIFETIME` par défaut 120 → **1440**
+  (24 h) dans `config/session.php` et `.env.example` (les longues pauses n'expirent
+  plus la séance).
 
 ## 3. Équilibrage — données de playtest (design à trancher, ne pas « corriger » en silence)
 

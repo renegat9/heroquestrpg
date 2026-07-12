@@ -351,11 +351,12 @@ final class ResolveurTour
         $instance = $quete->instancesMonstres()
             ->whereKey($cibleId)
             ->where('etat', 'actif')
+            ->where('revele', true)
             ->with('monstre')
             ->first();
 
         if ($instance === null) {
-            throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas actif dans la quête.']);
+            throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas une cible active et visible dans la quête.']);
         }
 
         $adjacentes = $this->heroAuContact($instance, (int) $etat->position_x, (int) $etat->position_y);
@@ -1090,14 +1091,19 @@ final class ResolveurTour
         }
 
         if ($candidats[0]['type'] === 'monstre') {
+            // `revele` autant qu'`actif` : un monstre dormant (salle non
+            // découverte) n'est pas une cible légale — garde-fou contre un menu
+            // périmé (reprise) dont la liste de cibles pointe un monstre
+            // redevenu dormant/éloigné dans le monde restauré.
             $instance = $quete->instancesMonstres()
                 ->whereKey($cibleId)
                 ->where('etat', 'actif')
+                ->where('revele', true)
                 ->with('monstre')
                 ->first();
 
             if ($instance === null) {
-                throw ValidationException::withMessages(['parametres' => 'Cible invalide : ce monstre n\'est plus actif.']);
+                throw ValidationException::withMessages(['parametres' => 'Cible invalide : ce monstre n\'est plus une cible active et visible.']);
             }
 
             return ['type' => 'monstre', 'monstre' => $instance];

@@ -8,6 +8,7 @@ use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -126,6 +127,54 @@ final class MenuMoteur
     }
 
     /**
+     * Le héros a-t-il AU MOINS une case orthogonale accessible (donc un
+     * déplacement réel possible) ? On reconstruit le plateau du moteur — même
+     * occupation que ResolveurTour::grille (autres héros, monstres actifs avec
+     * emprise, alliés) et portes/murs de la carte — puis on teste les 4 voisins :
+     * l'ensemble atteignable est vide SSI aucun voisin n'est traversable. Sans
+     * carte/position, on suppose le déplacement possible (ne jamais masquer à tort).
+     */
+    private function peutSeDeplacer(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): bool
+    {
+        if ($etat === null || $etat->position_x === null || $etat->tombe || $quete->carte === null) {
+            return true;
+        }
+
+        $grille = Grille::depuisCarte($quete->carte);
+
+        $occupees = [];
+        foreach ($quete->etatsPersonnages()->get() as $autre) {
+            if ($autre->personnage_id !== $personnage->id && $autre->position_x !== null) {
+                $occupees[] = ['x' => (int) $autre->position_x, 'y' => (int) $autre->position_y];
+            }
+        }
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
+            if ($instance->position_x !== null) {
+                $e = $instance->monstre->emprise();
+                $occupees = array_merge($occupees, $grille->cellulesEmprise(
+                    (int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h'],
+                ));
+            }
+        }
+        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
+            if ($allie->position_x !== null) {
+                $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
+            }
+        }
+        $grille->occuper($occupees);
+
+        $x = (int) $etat->position_x;
+        $y = (int) $etat->position_y;
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+            if ($grille->estTraversable($x + $dx, $y + $dy)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return array{situation: string, options: list<array<string, mixed>>}
      */
     public function generer(Groupe $groupe, Personnage $personnage): array
@@ -151,7 +200,11 @@ final class MenuMoteur
         $options = [];
 
         // ── Créneau DÉPLACEMENT (base + 1d6 lancé une fois/tour et mémorisé) ──
-        if (! $aDeplace) {
+        // On masque « Se déplacer » quand le héros est TOTALEMENT bloqué (aucune
+        // case orthogonale traversable : murs / portes fermées / figures) — sinon
+        // c'était une option morte (0 case) qui forçait « Terminer le tour ». Le
+        // plateau est celui du moteur (occupation identique à ResolveurTour).
+        if (! $aDeplace && $this->peutSeDeplacer($quete, $personnage, $etat)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
             $porteeEffective = $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage); // Vent Véloce
             $options[] = [
@@ -192,6 +245,7 @@ final class MenuMoteur
         if (! $aAgi && $etat !== null && $etat->position_x !== null) {
             $adjacents = $quete->instancesMonstres()
                 ->where('etat', 'actif')
+                ->where('revele', true) // dormant (salle non découverte) = non ciblable (aligné sur ResolveurTour)
                 ->with('monstre')
                 ->orderBy('id')
                 ->get()

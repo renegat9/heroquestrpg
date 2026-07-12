@@ -114,7 +114,7 @@ it('diffuse un bark « mort » sur le canal de groupe quand un héros tue un mon
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
-    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1, 'revele' => true]);
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
 

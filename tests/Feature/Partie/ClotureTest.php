@@ -72,7 +72,7 @@ function gagnerQueteCourante(JoueurAuthentifiable $joueur, Groupe $groupe, Perso
 
     $etat = $quete->etatsPersonnages()->where('personnage_id', $hero->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
-    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1, 'revele' => true]);
 
     GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id);
 

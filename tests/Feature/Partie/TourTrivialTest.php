@@ -55,7 +55,7 @@ it('une attaque déclenche la narration et un menu enrichi par l\'IA', function 
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
-    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1, 'revele' => true]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);

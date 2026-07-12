@@ -32,7 +32,10 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    // Cadre LAN entre amis (doc 11 §11) : une séance de jeu dure, avec de
+    // longues pauses (repas, discussion). 24 h par défaut évite l'expiration en
+    // pleine quête (le parcours de secours login → « Reprendre » reste dispo).
+    'lifetime' => (int) env('SESSION_LIFETIME', 1440),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

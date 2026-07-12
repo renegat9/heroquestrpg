@@ -66,6 +66,22 @@ async function request(method, path, body = undefined) {
     const donnees = texte ? JSON.parse(texte) : null;
 
     if (!response.ok) {
+        // Session expirée en pleine partie (401 « Unauthenticated. » brut) : on
+        // signale l'app (bandeau « Se reconnecter ») et on remplace le message
+        // anglais par un texte français. Le parcours de secours login →
+        // « Reprendre la partie » fonctionne, mais rien n'y invitait avant.
+        // On EXEMPTE les sondes d'authentification (`/moi` au chargement,
+        // connexion/inscription/déconnexion) : un 401 y signifie « pas connecté »,
+        // pas « session expirée » — sinon le bandeau surgirait sur l'écran de login.
+        if (response.status === 401) {
+            const sondeAuth = ['/moi', '/connexion', '/inscription', '/deconnexion'].includes(path);
+            if (! sondeAuth) {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('api:session-expiree'));
+                }
+                throw new ApiError(401, 'Session expirée — reconnecte-toi pour reprendre la partie.', donnees);
+            }
+        }
         throw new ApiError(
             response.status,
             donnees?.message ?? `API ${method} ${path} → ${response.status}`,

@@ -18,8 +18,10 @@ use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 /*
  * Snapshots automatiques & reprise (contrat « Snapshots & reprise »,
@@ -238,6 +240,36 @@ it('reprend après un TPK : POST reprise restaure l\'état à l\'identique et la
         ->and(collect($etatPartage['entites'])->where('type', 'monstre')->count())
         ->toBe(0);
 });
+
+it('purge les menus en cache à la reprise : un choix contre le menu périmé est refusé', function () {
+    [$alice, $groupe, $mage, $quete] = demarrerQueteSauvegarde();
+
+    provoquerTpk($groupe, $mage, $quete);
+
+    // Menu PÉRIMÉ mémorisé pour ce joueur (celui d'AVANT le TPK) : ses cibles
+    // appartiennent au monde disparu. Sans purge, POST choix le validerait.
+    $cleMenu = GenererMenu::cleMenu($groupe->id, (int) $alice->id);
+    Cache::put($cleMenu, [
+        'personnage_id' => $mage->id,
+        'menu' => ['options' => [['id' => 'attaquer_999', 'libelle' => 'Attaquer', 'type' => 'attaque', 'cible_id' => 999]]],
+    ], now()->addMinutes(60));
+
+    // On fige la file APRÈS le TPK pour observer la fenêtre async : le menu
+    // régénéré n'écrase pas encore le cache (sinon, en mode sync, on ne pourrait
+    // pas distinguer l'oubli du simple remplacement par le menu neuf).
+    Queue::fake();
+
+    $this->postJson('/api/groupes/table-1/reprise')->assertOk();
+
+    // Le menu périmé a été OUBLIÉ pendant la reprise (fenêtre de rejeu fermée) ;
+    // un nouveau menu est bien redemandé (repli moteur), qui arrivera par job.
+    expect(Cache::get($cleMenu))->toBeNull();
+    Queue::assertPushed(GenererMenu::class);
+
+    // Tant que le menu régénéré n'est pas arrivé, rejouer est refusé (aucun menu).
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer_999'])
+        ->assertStatus(422);
+})->group('reprise');
 
 it('refuse la reprise (422) quand une quête est en cours et non échouée, ou sans snapshot', function () {
     demarrerQueteSauvegarde();

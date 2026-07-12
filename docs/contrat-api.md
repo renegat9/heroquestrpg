@@ -485,7 +485,18 @@ joueur (choix, panier, vote, prêt…) exigent un joueur membre.
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu
   proposé + l'état ; option illégale → 422.
+- **Cible = active ET révélée** : une attaque comme un sort n'aboutit que sur un
+  monstre `actif` **et** `revele` (le menu moteur ne propose d'attaque que sur
+  un monstre révélé, et `ResolveurTour` revérifie à la résolution). Un monstre
+  dormant (salle non découverte) n'est jamais ciblable, même via un menu périmé.
+- **La reprise purge les menus en cache** : `POST reprise` oublie les menus
+  mémorisés du groupe avant de les régénérer — aucun rejeu d'une option de
+  l'état d'avant le TPK (cibles/coordonnées disparues).
 - **L'API ne dépend jamais du LLM** : si le job IA échoue (pas de clé, erreur),
   repli (menu générique / narration neutre) — le jeu reste jouable.
 - Toute mutation d'état passe par un événement journalisé (`evenements`) puis
   un broadcast `.groupe.etat`.
+- **401 en pleine partie** : le client SPA intercepte un `401` (session expirée),
+  affiche un bandeau « Se reconnecter » (message français, pas « Unauthenticated »)
+  et route vers le login → « Reprendre la partie ». Session LAN longue par défaut
+  (`SESSION_LIFETIME=1440`).

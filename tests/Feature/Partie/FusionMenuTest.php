@@ -41,7 +41,7 @@ function queteUnMonstreAdjacent(): array
 
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
-    $instance->update(['etat' => 'actif', 'position_x' => $contact['x'], 'position_y' => $contact['y']]);
+    $instance->update(['etat' => 'actif', 'position_x' => $contact['x'], 'position_y' => $contact['y'], 'revele' => true]);
 
     return [$alice, $groupe, $heros, $quete, $instance->fresh()];
 }

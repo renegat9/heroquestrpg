@@ -168,6 +168,16 @@ final class Sauvegarde
 
         $groupe->refresh();
 
+        // Purge des menus EN CACHE d'AVANT la reprise : sans ça, un joueur peut
+        // rejouer une option du menu périmé (POST choix valide contre le dernier
+        // menu mémorisé), or ses cibles/coordonnées appartiennent au monde
+        // d'avant le TPK — un sort a ainsi frappé un monstre redevenu dormant.
+        // On les oublie AVANT de redispatcher : la fenêtre de rejeu est fermée
+        // (POST choix renvoie « aucun menu » jusqu'à l'arrivée du menu régénéré).
+        foreach ($this->herosActifs($groupe) as $heros) {
+            Cache::forget(GenererMenu::cleMenu($groupe->id, (int) $heros->joueur_id));
+        }
+
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'reprise',
             'snapshot_id' => $snapshot->id,
