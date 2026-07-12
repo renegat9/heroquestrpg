@@ -24,6 +24,9 @@ const props = defineProps({
     /** Sorts du héros (GET /moi) — sert à l'icône par élément des options
      *  type "sort" quand l'option ne porte pas elle-même son élément. */
     sorts: { type: Array, default: null },
+    /** Journal de combat mécanique (.combat.journal) : [{id, texte, ton}] —
+     *  les plus anciennes en premier, la plus récente en bas. */
+    journal: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['choose']);
@@ -77,6 +80,18 @@ function metaOption(o) {
     if (o.type === 'concentration') return 'Sacrifie le tour — récupère un sort épuisé';
     return '';
 }
+
+/** Icône du journal de combat par `ton` (voir App\Partie\JournalCombat). */
+const ICONE_JOURNAL = {
+    degats: 'swords',
+    mort: 'skull',
+    subit: 'bloodtype',
+    chute: 'personal_injury',
+    pare: 'shield',
+    succes: 'check_circle',
+    echec: 'cancel',
+    info: 'chevron_right',
+};
 </script>
 
 <template>
@@ -109,4 +124,37 @@ function metaOption(o) {
         <InitMini :cur="initCur ?? '···'" :order="initOrder" />
         <div class="empty-note">La partie se poursuit — tu reprendras la main dans un instant.</div>
     </div>
+
+    <!-- journal de combat mécanique (.combat.journal) : ce que le moteur vient
+         de résoudre (attaques, dégâts, tour des monstres) — visible même hors
+         de mon tour, sinon on ne verrait que ses PV bouger. -->
+    <div v-if="journal.length" class="cbt-log">
+        <div class="sect-title"><MSym n="history" :size="16" /> Fil du combat</div>
+        <div class="cbt-lines">
+            <div v-for="l in journal" :key="l.id" class="cbt-line" :class="`t-${l.ton}`">
+                <MSym :n="ICONE_JOURNAL[l.ton] || 'chevron_right'" :size="15" fill />
+                <span>{{ l.texte }}</span>
+            </div>
+        </div>
+    </div>
 </template>
+
+<style scoped>
+.cbt-log { margin-top: 16px; }
+.cbt-lines { display: flex; flex-direction: column; gap: 4px; }
+.cbt-line {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13.5px; line-height: 1.35;
+    padding: 5px 9px; border-radius: 8px;
+    background: var(--stone-800, oklch(0.2 0.015 60));
+    color: var(--ink-300, oklch(0.82 0.02 70));
+}
+.cbt-line .msym { flex: none; opacity: 0.9; }
+.cbt-line.t-degats { color: var(--torch, oklch(0.78 0.14 55)); }
+.cbt-line.t-mort   { color: oklch(0.82 0.16 25); font-weight: 700; }
+.cbt-line.t-subit  { color: oklch(0.72 0.15 25); }
+.cbt-line.t-chute  { color: oklch(0.72 0.17 20); font-weight: 700; }
+.cbt-line.t-succes { color: oklch(0.8 0.13 150); }
+.cbt-line.t-echec,
+.cbt-line.t-pare   { color: var(--ink-500, oklch(0.6 0.02 70)); }
+</style>

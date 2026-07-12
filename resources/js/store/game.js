@@ -67,7 +67,20 @@ const state = reactive({
     /** Statuts « prêt » du hub (contrat : [{personnage_id, pret}]).
      *  Peuplé par EtatGroupe.groupe.prets et le broadcast .prets.maj. */
     prets: [],
+
+    /** Journal de combat MÉCANIQUE (.combat.journal) — lignes {id, texte, ton}
+     *  dérivées du moteur (aucun LLM), affichées sur la manette pour restituer
+     *  les attaques/dégâts/tours des monstres invisibles en « combat instantané ».
+     *  Vidé au changement de quête. */
+    journalCombat: [],
+    /** Dernière séquence de batch appliquée (dedup des rediffusions). */
+    journalCombatSeq: null,
+    /** Quête courante suivie, pour vider le journal au passage à une autre. */
+    queteCombatId: null,
 });
+
+/** Compteur d'id stable pour les lignes du journal (clé de v-for). */
+let jcId = 0;
 
 export function useGameStore() {
     return {
@@ -94,6 +107,13 @@ export function useGameStore() {
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
             // prets du hub (contrat : EtatGroupe.groupe.prets au hub)
             if (Array.isArray(etat?.groupe?.prets)) state.prets = etat.groupe.prets;
+            // Journal de combat : purgé au passage à une AUTRE quête (ou au hub).
+            const queteId = etat?.quete?.id ?? null;
+            if (queteId !== state.queteCombatId) {
+                state.queteCombatId = queteId;
+                state.journalCombat = [];
+                state.journalCombatSeq = null;
+            }
             // NOTE : on NE libère PAS menuEnAttente ici. Un tour déclenche
             // plusieurs .groupe.etat (phase monstres, autres joueurs, potion
             // bue…) avant NOTRE prochain menu ; libérer au 1er état rouvrait les
@@ -137,6 +157,20 @@ export function useGameStore() {
         },
         setMjReflechit(actif) {
             state.mjReflechit = actif;
+        },
+        /** Journal de combat (.combat.journal) : ajoute un lot de lignes en
+         *  file, plafonné aux 12 dernières. Un lot déjà vu (séquence ≤ dernière)
+         *  est ignoré — garde-fou contre une rediffusion. */
+        pousserJournalCombat({ lignes, sequence } = {}) {
+            if (!Array.isArray(lignes) || lignes.length === 0) return;
+            if (sequence != null && state.journalCombatSeq != null && sequence <= state.journalCombatSeq) return;
+            if (sequence != null) state.journalCombatSeq = sequence;
+            const ajout = lignes.map((l) => ({
+                id: ++jcId,
+                texte: String(l?.texte ?? ''),
+                ton: String(l?.ton ?? 'info'),
+            }));
+            state.journalCombat = [...state.journalCombat, ...ajout].slice(-12);
         },
         setConnexion(statut) {
             state.connexion = statut;

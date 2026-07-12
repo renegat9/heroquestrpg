@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\JournalCombatDiffuse;
 use App\Events\MjReflechit;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\JournalCombat;
 use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -42,7 +45,7 @@ class ChoixController extends Controller
      * d'un même process, et le lanceur de dés doit être résolu à CHAQUE
      * requête (les tests le re-bindent via desFiges()).
      */
-    public function choisir(Request $request, string $identifiant, ResolveurTour $resolveur): JsonResponse
+    public function choisir(Request $request, string $identifiant, ResolveurTour $resolveur, JournalCombat $journalCombat): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
@@ -92,6 +95,19 @@ class ChoixController extends Controller
         // Résolution déterministe par le moteur (jamais par l'IA).
         if ($groupe->phase === 'quete') {
             $resultat = $resolveur->resoudre($groupe, $personnage, $option, $donnees['parametres'] ?? []);
+
+            // Journal de combat MÉCANIQUE diffusé à TOUTES les manettes (canal de
+            // groupe) : sans ça, en « combat instantané » (pas de narration IA),
+            // un joueur ne voit que ses PV bouger — les attaques subies, le tour
+            // des monstres, le résultat d'une fouille restaient invisibles.
+            $lignes = $journalCombat->depuisResultat($resultat, $personnage->nom);
+            if ($lignes !== []) {
+                broadcast(new JournalCombatDiffuse(
+                    $groupe,
+                    $lignes,
+                    (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
+                ));
+            }
         } else {
             $resultat = [
                 'type' => $option['type'] ?? 'action',

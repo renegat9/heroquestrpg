@@ -64,6 +64,7 @@ onMounted(async () => {
                 '.groupe.etat': (e) => { store.appliquerEtat(e); rafraichirMoi(); },
                 '.narration.diffusee': (e) => store.setNarration(e.texte, e.sequence),
                 '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
+                '.combat.journal': (e) => store.pousserJournalCombat(e),
                 '.marche.ouvert': (e) => store.appliquerMarche(e),
                 '.marche.maj': (e) => store.appliquerMarche(e),
                 '.marche.finalise': (e) => store.fermerMarche(e?.applique ?? null),
@@ -308,6 +309,8 @@ const scene = computed(() => (store.state.etat?.groupe?.phase === 'hub' ? 'march
 const thinking = computed(() => store.state.mjReflechit);
 const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
 const narration = computed(() => store.state.narration);
+/* Journal de combat mécanique (.combat.journal) — les plus récentes en bas. */
+const journalCombat = computed(() => store.state.journalCombat);
 
 /* ---- menu réel (.menu.propose) + envoi du choix (POST choix) ---- */
 const menuStore = computed(() => store.state.menu);
@@ -715,6 +718,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :init-order="initMini"
                             :init-cur="initCur"
                             :sorts="mesSorts"
+                            :journal="journalCombat"
                             @choose="choisirOption"
                             @open-spells="tab = 'sorts'"
                         />

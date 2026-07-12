@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Engine\Des\LanceurDes;
 use App\Engine\Des\LanceurDeterministe;
+use App\Events\JournalCombatDiffuse;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Quete;
+use Illuminate\Support\Facades\Event;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -233,6 +235,60 @@ it('résout une attaque adjacente qui tue, et termine la quête (butin au pot co
         ->and($etatPartage['groupe']['or'])->toBe(50)
         ->and($etatPartage['quete'])->toBeNull()
         ->and($etatPartage['entites'])->toBe([]);
+});
+
+it('diffuse le journal de combat mécanique (.combat.journal) à la résolution d\'une attaque', function () {
+    Event::fake([JournalCombatDiffuse::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
+
+    $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $contact = caseLibreAdjacente($quete, (int) $etat->position_x, (int) $etat->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+    figerDes([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+        ->assertStatus(202);
+
+    Event::assertDispatched(JournalCombatDiffuse::class, function (JournalCombatDiffuse $e) use ($groupe) {
+        return $e->groupe->id === $groupe->id
+            && collect($e->lignes)->contains(fn ($l) => $l['ton'] === 'mort');
+    });
+});
+
+it('ne diffuse aucun journal de combat pour un simple déplacement (tour trivial)', function () {
+    Event::fake([JournalCombatDiffuse::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $dest = caseLibreAdjacente($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+    figerDes([3]); // d6 de déplacement
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => ['x' => $dest['x'], 'y' => $dest['y']],
+    ])->assertStatus(202);
+
+    Event::assertNotDispatched(JournalCombatDiffuse::class);
 });
 
 it('fait jouer les monstres scriptés (C2) quand tous les héros ont joué, puis ouvre un nouveau tour', function () {

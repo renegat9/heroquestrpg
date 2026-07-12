@@ -83,6 +83,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 |---|---|---|---|
 | `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
+| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe | table + manettes |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
