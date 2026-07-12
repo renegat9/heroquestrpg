@@ -108,12 +108,21 @@ function estEnVente(inventaireId) {
                 <span>Confirmations</span>
                 <span>{{ live.confirmes }}/{{ live.membres }}</span>
             </div>
-            <div class="row total"><span>Total projeté (groupe)</span><span>{{ live.totalProjete }} or</span></div>
+            <div class="row total">
+                <span>Total projeté (groupe)</span>
+                <span :style="{ color: live.totalProjete < 0 ? 'var(--danger, #c33)' : null }">{{ live.totalProjete }} or</span>
+            </div>
             <p v-if="live.erreur" class="mk-err">{{ live.erreur }}</p>
+            <!-- Panier insolvable : on bloque la confirmation côté client (le serveur
+                 la refusait déjà à la finalisation, mais rien n'empêchait de cliquer). -->
+            <p v-if="!live.confirme && live.totalProjete < 0" class="mk-err">
+                Total du groupe négatif — retire des achats ou vends davantage avant de confirmer.
+            </p>
             <button
                 v-if="!live.confirme"
                 class="btn btn-torch btn-block"
                 style="margin-top: 12px"
+                :disabled="live.totalProjete < 0"
                 @click="emit('confirmer')"
             >
                 <MSym n="shopping_cart_checkout" /> Confirmer mon panier

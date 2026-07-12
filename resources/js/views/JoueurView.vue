@@ -261,7 +261,8 @@ function libelleClasse(classe) {
                 <h1 class="joueur-title">
                     <MSym n="smartphone" fill /> Je suis un Joueur
                 </h1>
-                <p class="joueur-sub">Connectez-vous pour accéder à vos personnages et rejoindre une partie.</p>
+                <p v-if="!joueur" class="joueur-sub">Connectez-vous pour accéder à vos personnages et rejoindre une partie.</p>
+                <p v-else class="joueur-sub">Salut {{ joueur.pseudo }} — voici tes héros.</p>
             </div>
 
             <!-- chargement -->
@@ -392,6 +393,7 @@ function libelleClasse(classe) {
                                 <div class="pcard-cls">
                                     {{ libelleClasse(perso.classe) }}
                                     <span v-if="perso.niveau"> · Niv.&nbsp;{{ perso.niveau }}</span>
+                                    <span v-if="perso.or != null" style="color: var(--gold, #c9a24a)"> · <MSym n="paid" fill :size="12" /> {{ perso.or }} or</span>
                                 </div>
                             </div>
                             <!-- badge statut -->

@@ -118,7 +118,7 @@ transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /groupes/{identifiant}/marche | {profil?} | ouvre la phase (422 si pas au hub ou déjà ouverte) — **membre OU table** (bouton sur l'écran de table, même règle que la clôture) |
-| GET | /groupes/{identifiant}/marche | — | EtatMarche |
+| GET | /groupes/{identifiant}/marche | — | EtatMarche, ou `{marche: null}` (200) si aucune phase ouverte — sonde de rattrapage à chaque chargement de hub, donc pas de 404 |
 | PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
 | POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
 | DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) — **membre OU table** |
@@ -344,7 +344,7 @@ réservé à une campagne réellement échouée (422 sinon). 422 si une quête e
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /groupes/{identifiant}/cloture | {abandon?: bool} | ouvre la fenêtre |
-| GET | /groupes/{identifiant}/cloture | — | EtatCloture |
+| GET | /groupes/{identifiant}/cloture | — | EtatCloture, ou `{cloture: null}` (200) si aucune fenêtre ouverte (même sonde de rattrapage que le marché, pas de 404) |
 | PUT | /groupes/{identifiant}/cloture/repartition | {inventaire_id, personnage_id} | réassigne un équipement (annule les confirmations) |
 | POST | /groupes/{identifiant}/cloture/confirmation | — | confirme ; tous confirmés → finalisation |
 | DELETE | /groupes/{identifiant}/cloture | — | annule la fenêtre (rien appliqué) |

@@ -172,7 +172,7 @@ it('refuse d\'ouvrir la clôture pendant une quête', function () {
 
     $this->postJson('/api/groupes/table-1/cloture')->assertStatus(422);
     $this->postJson('/api/groupes/table-1/cloture', ['abandon' => true])->assertStatus(422);
-    $this->getJson('/api/groupes/table-1/cloture')->assertNotFound();
+    $this->getJson('/api/groupes/table-1/cloture')->assertOk()->assertJsonPath('cloture', null);
 });
 
 it('répartit l\'or en parts égales (reste aux premiers) et réassigne l\'équipement en annulant les confirmations', function () {
@@ -315,7 +315,8 @@ it('finalise quand tous confirment : or réparti, équipement réassigné, histo
             && str_contains($e->resumes[0]['resume'], 'Campagne');
     });
 
-    // La fenêtre n'existe plus.
+    // Le GROUPE lui-même a été purgé par la finalisation → 404 (introuvable),
+    // pas « fenêtre nulle » : le groupe n'existe plus.
     $this->actingAs($alice, 'joueur');
     $this->getJson('/api/groupes/table-1/cloture')->assertNotFound();
 });
@@ -337,7 +338,7 @@ it('annule la fenêtre : rien n\'est appliqué, la clôture peut rouvrir', funct
     $this->deleteJson('/api/groupes/table-1/cloture')->assertNoContent();
 
     // Fenêtre fermée, rien appliqué : or intact, pas d'historique, groupe vivant.
-    $this->getJson('/api/groupes/table-1/cloture')->assertNotFound();
+    $this->getJson('/api/groupes/table-1/cloture')->assertOk()->assertJsonPath('cloture', null);
     expect((int) $groupe->fresh()->or)->toBe(60)
         ->and((int) $hero->fresh()->or)->toBe(0)
         ->and(PersonnageHistorique::count())->toBe(0)

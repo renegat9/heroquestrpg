@@ -58,11 +58,9 @@ class ClotureController extends Controller
 
         $etat = $this->cloture->etat($groupe);
 
-        if ($etat === null) {
-            abort(404, 'Aucune fenêtre de clôture ouverte pour ce groupe.');
-        }
-
-        return response()->json($etat);
+        // Aucune fenêtre de clôture ouverte : 200 `{cloture: null}` (pas 404) —
+        // même raison que le marché (sonde de rattrapage à chaque chargement).
+        return response()->json($etat ?? ['cloture' => null]);
     }
 
     /**

@@ -187,6 +187,7 @@ function habiller(perso, nom, niveau, conds, img = null) {
     const cls = CLASSES[(perso?.classe ?? '').toLowerCase()];
     return {
         name: nom,
+        classe: (perso?.classe ?? '').toLowerCase(),
         cls: cls?.l ?? perso?.classe ?? '',
         crest: cls?.ic ?? 'person',
         icon: cls?.ic ?? 'person',
@@ -223,6 +224,17 @@ const monPerso = computed(() => {
         ?? null;
 });
 const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
+
+/* ---- Talents acquis (fiche) : /moi ne porte que les IDS des nœuds ; on charge
+   le catalogue une fois pour les nommer sur la fiche (« Garde tenace » etc.). ---- */
+const catalogueCompetences = ref([]);
+onMounted(async () => {
+    try { catalogueCompetences.value = (await api.getCompetences()).competences ?? []; } catch { /* fiche sans noms de talents */ }
+});
+const mesCompetences = computed(() => {
+    const parId = new Map(catalogueCompetences.value.map((c) => [c.id, c]));
+    return (monPerso.value?.competences ?? []).map((id) => parId.get(id)).filter(Boolean);
+});
 
 /* ---- statut « Prêt » au hub (contrat « Statut prêt et démarrage de quête ») ----
    Phase hub uniquement. Mon personnage est le perso rattaché au groupe
@@ -872,6 +884,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :niveau="monEntite?.niveau ?? null"
                             :points="pointsCompetence"
                             :groupe="groupe"
+                            :competences="mesCompetences"
                         />
                         <SpellsTab
                             v-else-if="tab === 'sorts'"

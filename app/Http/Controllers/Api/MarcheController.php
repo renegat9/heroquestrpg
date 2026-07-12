@@ -55,11 +55,10 @@ class MarcheController extends Controller
 
         $etat = $this->marche->etat($groupe);
 
-        if ($etat === null) {
-            abort(404, 'Aucune phase marché ouverte pour ce groupe.');
-        }
-
-        return response()->json($etat);
+        // Aucune phase marché ouverte : 200 `{marche: null}` (pas 404). La manette
+        // sonde cette route à CHAQUE chargement de hub — un 404 polluait la console
+        // à chaque fois. Le front sait déjà ignorer un marché nul (appliquerMarche).
+        return response()->json($etat ?? ['marche' => null]);
     }
 
     /**

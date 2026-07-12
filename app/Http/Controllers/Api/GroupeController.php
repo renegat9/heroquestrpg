@@ -394,17 +394,19 @@ class GroupeController extends Controller
         $prets[$donnees['personnage_id']] = (bool) $donnees['pret'];
         Cache::put($cleCache, $prets, now()->addHours(4));
 
-        // Liste des personnages actifs du groupe.
-        $personnagesActifs = $groupe->personnages()
+        // Liste des personnages actifs du groupe (id + nom pour l'affichage).
+        $membresActifs = $groupe->personnages()
             ->wherePivot('actif', true)
-            ->pluck('personnages.id')
-            ->all();
+            ->get(['personnages.id', 'personnages.nom']);
+        $personnagesActifs = $membresActifs->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        // Payload broadcast {prets: [{personnage_id, pret}]}.
-        $payloadPrets = array_map(
-            fn (int $pid) => ['personnage_id' => $pid, 'pret' => (bool) ($prets[$pid] ?? false)],
-            $personnagesActifs,
-        );
+        // Payload broadcast {prets: [{personnage_id, nom, pret}]} — le NOM évite
+        // « Perso n°59 » sur la manette des coéquipiers (roster non partagé).
+        $payloadPrets = $membresActifs->map(fn ($p) => [
+            'personnage_id' => (int) $p->id,
+            'nom' => $p->nom,
+            'pret' => (bool) ($prets[$p->id] ?? false),
+        ])->values()->all();
 
         broadcast(new PretsMaj($groupe, $payloadPrets));
 

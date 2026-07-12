@@ -322,7 +322,7 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
     expect($dague->fresh())->toBeNull();
 
     // Phase close (journalisée) : GET → 404, plus rien à confirmer.
-    $this->getJson('/api/groupes/table-1/marche')->assertNotFound();
+    $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('marche', null);
     expect($groupe->evenements()->where('type', 'systeme')->get()
         ->contains(fn ($e) => ($e->payload['action'] ?? null) === 'marche_finalise'))->toBeTrue();
 });
@@ -343,5 +343,5 @@ it('annule la phase sans rien appliquer', function () {
 
     expect($groupe->fresh()->or)->toBe(1000)
         ->and(Inventaire::where('personnage_id', $hero->id)->exists())->toBeFalse();
-    $this->getJson('/api/groupes/table-1/marche')->assertNotFound();
+    $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('marche', null);
 });

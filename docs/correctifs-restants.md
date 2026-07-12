@@ -106,47 +106,50 @@
   snapshot `debut_quete` (purgé à l'échec, hors périmètre du snapshot). Inclure
   les alliés dans le snapshot, ou rembourser (doc 14 §3.5 à préciser).
 
-## 4. Modérés
+## 4. Modérés — ~~FAIT~~
 
-- **Or personnel invisible** : la part versée à la clôture n'apparaît nulle part
-  (ni roster, ni fiche) et `/api/moi` n'expose pas de champ `or`. Exposer l'or
-  personnel dans `/moi` + l'afficher sur la carte roster.
-- **Compétences acquises invisibles sur la manette** : aucune section
-  Fiche/talents ne liste les nœuds acquis (« Garde tenace » invérifiable).
-- **Panier insolvable confirmable** : le front laisse confirmer un panier avec
-  total projeté NÉGATIF affiché (garde seulement à la finalisation serveur).
-  Bloquer « Confirmer » quand `total_projete < 0`.
-- **Noms des coéquipiers non résolus** : « Perso n°59 » au lieu de « Borin » dans
-  la liste des prêts (hub, manette) — le payload prêts ne porte que
-  `personnage_id`, le front n'a pas les noms des personnages des autres joueurs.
+- ~~**Or personnel invisible**~~ — `/api/moi` expose désormais `or` par
+  personnage ; le roster (carte joueur) affiche la bourse personnelle.
+- ~~**Compétences acquises invisibles sur la manette**~~ — la manette charge le
+  catalogue `/competences` et la Fiche liste les **Talents acquis** (nœuds nommés).
+- ~~**Panier insolvable confirmable**~~ — `MarketTab` désactive « Confirmer »
+  quand `total_projete < 0` (total en rouge + message), en plus de la garde serveur.
+- ~~**Noms des coéquipiers non résolus**~~ — le payload prêts (EtatGroupe hub +
+  broadcast `.prets.maj`) porte maintenant `nom` ; `pretsVersEtat` le préfère au
+  repli « Perso n° ». Plus de « Perso n°59 » sur la manette des coéquipiers.
 
 ## 5. Mineurs / cosmétiques
 
-- 404 `GET /marche` et `GET /cloture` en console à CHAQUE chargement de manette
-  au hub (sondes de rattrapage) — renvoyer 200 `{actif: null}` ou ne sonder que
-  sur signal.
-- Narration IA : vocabulaire méta (« boss final ») et objets inventés (« sa
-  hache » alors que l'inventaire est vide) — enrichir le contexte des skills
-  (inventaire réel, habillages, interdits doc 08) ; épilogue de défaite qui
-  omet les quêtes GAGNÉES et contredit le bloc partage (« vivante » vs « ont
-  péri » — l'abandon n'est pas une mort).
-- « Gravement blessée — à protéger » en dur au féminin (`GroupPanel.vue`).
-- Onglet Sorts d'un Elfe niv. 1 : « Le Elfe ne manie pas la magie » — élision
-  (« L'Elfe ») et message trompeur (sa magie s'éveille via l'arbre).
-- Sous-titre « Connectez-vous… » toujours affiché sur `/joueur` une fois connecté.
-- Feuille de déplacement : bouton fermer (`.dep-close`) hors viewport en
-  412×915 ; « Touche une case éclairée » affiché même quand AUCUNE case n'est
-  accessible ; cadavres de monstres vaincus qui bloquent le pathing (à trancher).
-- Feuille de ciblage d'un sort offensif : alliés listés au même niveau que les
-  ennemis (le garde-fou anti-tir-ami rattrape, mais un tri/section aiderait).
-- Option « Relever X » encore proposée quand X est déjà debout (menu non filtré
-  sur l'état de la cible).
-- Arbre de compétences : pas de lignes/connexions visuelles de prérequis.
-- « 0 joueurs connectés » au hub : le compteur table compte les héros de la
-  quête, pas la présence réelle — libellé ou source à revoir ; panneau
-  « LE GROUPE » vide au hub (le narrateur ne voit ni roster ni prêts).
-- Narration systématiquement en retard d'une action (piège narré après le menu
-  suivant) — jamais inversée grâce à l'anti-inversion, mais le rythme surprend.
+Corrigés :
+- ~~404 `GET /marche` et `GET /cloture`~~ — renvoient 200 `{marche|cloture: null}`
+  quand rien n'est ouvert (le front sait déjà ignorer un état nul). Plus de 404
+  en console à chaque chargement de hub.
+- ~~« Gravement blessée » en dur au féminin~~ → « État critique — à protéger »
+  (neutre, `GroupPanel.vue`).
+- ~~Onglet Sorts Elfe « Le Elfe »~~ → « L'Elfe ne manie pas **encore** la magie —
+  elle s'éveille dans l'arbre » ; élision correcte pour les autres classes.
+- ~~Sous-titre « Connectez-vous… »~~ masqué une fois connecté (salutation à la place).
+- ~~Feuille de déplacement~~ : message « Aucune case accessible » quand le héros
+  est bloqué (au lieu de « Touche une case éclairée ») + bouton **Fermer** toujours
+  atteignable en bas de la feuille. (Le blocage total est aussi évité en amont,
+  §2.2 masque « Se déplacer ».)
+- ~~Feuille de ciblage~~ : ennemis d'abord, **alliés (tir ami) dans une section à
+  part** signalée en rouge (le garde-fou de confirmation reste).
+- ~~« 0 joueurs connectés » au hub + panneau « LE GROUPE » vide~~ : le compteur
+  reflète la taille du groupe au hub, et un panneau **roster du hub** (noms +
+  statut « prêt ») remplace la carte absente.
+- **Option « Relever X » quand X est debout** : déjà filtré — `MenuMoteur` ne
+  propose que les alliés `tombe=true` et `ResolveurTour::resoudreRelever` rejette
+  une cible non tombée. (Observé sur menu périmé — désormais purgé, §2.1.)
+
+Restent (efforts plus lourds / design) :
+- **Narration IA** : vocabulaire méta (« boss final »), objets inventés (« sa
+  hache » sac vide), épilogue de défaite qui omet les quêtes gagnées — enrichir
+  le contexte des skills (inventaire réel, habillages, interdits doc 08).
+- **Arbre de compétences** : pas de lignes/connexions visuelles de prérequis.
+- **Cadavres de monstres** bloquant le pathing (à trancher — design).
+- **Narration en retard d'une action** (rythme) — jamais inversée (anti-inversion),
+  mais surprend ; tient à la génération asynchrone, à réévaluer si gênant.
 
 ## 6. Non couvert par ce test (à valider une prochaine fois)
 

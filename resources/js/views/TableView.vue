@@ -130,8 +130,14 @@ const party = computed(() => (etat.value
     : []));
 const narration = computed(() => store.state.narration);
 const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : false));
-const joueursConnectes = computed(() =>
-    etat.value?.entites?.filter((e) => e.type === 'heros').length ?? 0);
+// En quête : héros présents sur la carte ; au hub (entités vides) : taille du
+// groupe (statuts « prêt »), sinon le compteur affichait toujours 0 au hub.
+const joueursConnectes = computed(() => (phaseHub.value
+    ? (store.state.prets ?? []).length
+    : (etat.value?.entites?.filter((e) => e.type === 'heros').length ?? 0)));
+// Roster du hub (nom + prêt) pour le panneau « Le groupe » quand il n'y a pas
+// encore de carte — le narrateur voyait un panneau vide au repos.
+const presenceHub = computed(() => store.state.prets ?? []);
 
 const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Hub');
 // Illustrations dynamiques (générées en arrière-plan) : lieu de repos (hub) et
@@ -424,7 +430,23 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span v-if="erreurReprise || erreurCloture" class="cerr">{{ erreurReprise || erreurCloture }}</span>
                     </div>
                 </div>
-                <GroupPanel :party="party" />
+                <GroupPanel v-if="!phaseHub" :party="party" />
+                <div v-else class="hub-roster">
+                    <h2><MSym n="groups" fill /> Le groupe</h2>
+                    <div v-if="presenceHub.length" class="hub-roster-list">
+                        <div
+                            v-for="m in presenceHub"
+                            :key="m.personnage_id"
+                            class="hub-roster-line"
+                            :class="{ pret: m.pret }"
+                        >
+                            <MSym :n="m.pret ? 'check_circle' : 'radio_button_unchecked'" fill :size="17" />
+                            <span class="hr-nom">{{ m.nom }}</span>
+                            <span class="hr-etat">{{ m.pret ? 'Prêt' : 'En attente' }}</span>
+                        </div>
+                    </div>
+                    <p v-else class="hub-roster-vide">Aucun héros rattaché pour l'instant.</p>
+                </div>
             </div>
 
             <!-- narration -->
@@ -665,6 +687,20 @@ watch(() => store.state.clotureTerminee, (t) => {
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold, #c9a24a); }
 .table-screen .hub-allies .hub-allie { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700;
   color: var(--ink-300); padding: 3px 10px; border-radius: 999px; border: var(--line); background: var(--stone-850); }
+/* ---- roster du hub (panneau « Le groupe » sans carte) ---- */
+.table-screen .hub-roster { border-radius: var(--r-lg); border: var(--line);
+  background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); padding: 16px; }
+.table-screen .hub-roster h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-300); }
+.table-screen .hub-roster h2 .msym { color: var(--torch); }
+.table-screen .hub-roster-list { display: flex; flex-direction: column; gap: 8px; }
+.table-screen .hub-roster-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-500); }
+.table-screen .hub-roster-line.pret { color: var(--ink-100, #f0e9d8); }
+.table-screen .hub-roster-line.pret .msym { color: var(--ok, #6bbf59); }
+.table-screen .hub-roster-line .hr-nom { font-weight: 700; }
+.table-screen .hub-roster-line .hr-etat { margin-left: auto; font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; }
+.table-screen .hub-roster-vide { font-family: var(--font-narr); font-style: italic; color: var(--ink-500); margin: 0; }
 
 /* ---- montée de niveau (célébration dorée, style Montee de niveau.html) ---- */
 .table-screen .lvlup-ov { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;

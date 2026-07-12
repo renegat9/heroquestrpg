@@ -110,7 +110,7 @@ class AuthController extends Controller
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
                 ->with(['competences:competences.id', 'sorts', 'groupeActif', 'inventaire.objet'])
-                ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id',
+                ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                     'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
                     'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense'])
                 ->map(function ($p) {
@@ -137,6 +137,9 @@ class AuthController extends Controller
                         'attribut_mind' => (int) $p->attribut_mind,
                         'des_attaque' => (int) $p->des_attaque,
                         'des_defense' => (int) $p->des_defense,
+                        // Bourse PERSONNELLE persistante (part reçue à la clôture) :
+                        // invisible jusqu'ici (ni roster ni fiche n'avaient `or`).
+                        'or' => (int) $p->or,
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                         'competences' => $p->competences->pluck('id')->values()->all(),

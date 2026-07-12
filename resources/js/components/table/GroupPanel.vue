@@ -53,7 +53,7 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                 <span class="num">{{ p.mind[0] }}/{{ p.mind[1] }}</span>
             </div>
             <div v-if="p.low" class="downed-tag">
-                <MSym n="warning" fill /> Gravement blessée — à protéger
+                <MSym n="warning" fill /> État critique — à protéger
             </div>
         </div>
     </div>

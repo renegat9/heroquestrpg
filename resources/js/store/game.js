@@ -1067,10 +1067,13 @@ export function statutPersonnage(personnage) {
  * [{personnage_id, nom, pret}] pour l'affichage du hub.
  */
 export function pretsVersEtat(prets, personnages = []) {
-    const parId = new Map((personnages ?? []).map((p) => [p.id, p.nom ?? `Perso n°${p.id}`]));
+    // Le nom vient d'abord du payload prêts (le serveur le porte désormais, même
+    // pour les coéquipiers dont la manette n'a pas le roster), sinon du roster
+    // local, sinon repli lisible.
+    const parId = new Map((personnages ?? []).map((p) => [p.id, p.nom]));
     return (prets ?? []).map((r) => ({
         personnage_id: r.personnage_id,
-        nom: parId.get(r.personnage_id) ?? `Perso n°${r.personnage_id}`,
+        nom: r.nom ?? parId.get(r.personnage_id) ?? `Perso n°${r.personnage_id}`,
         pret: !!r.pret,
     }));
 }

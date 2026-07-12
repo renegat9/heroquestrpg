@@ -71,14 +71,19 @@ final class EtatGroupe
         // En phase hub : expose les statuts « prêt » des personnages actifs.
         if ($groupe->phase === 'hub') {
             $prets = Cache::get("partie:pret:{$groupe->id}", []);
-            $personnagesActifs = $groupe->personnages()
+            // On porte le NOM du héros (pas seulement l'id) : sinon la manette
+            // d'un joueur affichait « Perso n°59 » pour les coéquipiers dont elle
+            // n'a pas le roster.
+            $preambuleGroupe['prets'] = $groupe->personnages()
                 ->wherePivot('actif', true)
-                ->pluck('personnages.id')
+                ->get(['personnages.id', 'personnages.nom'])
+                ->map(fn ($p) => [
+                    'personnage_id' => (int) $p->id,
+                    'nom' => $p->nom,
+                    'pret' => (bool) ($prets[$p->id] ?? false),
+                ])
+                ->values()
                 ->all();
-            $preambuleGroupe['prets'] = array_map(
-                fn (int $pid) => ['personnage_id' => $pid, 'pret' => (bool) ($prets[$pid] ?? false)],
-                $personnagesActifs,
-            );
 
             // Alliés recrutés (3.5) exposés au hub : la carte étant absente, les
             // recrues ne sont pas dans `entites` (filtrées sur position) — ce bloc

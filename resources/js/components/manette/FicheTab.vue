@@ -14,6 +14,8 @@ defineProps({
     points: { type: Number, default: 0 },
     /** Identifiant du groupe (lien vers l'écran montée de niveau). */
     groupe: { type: String, default: null },
+    /** Nœuds d'arbre acquis, nommés ([{id, nom, type}]) — /moi + catalogue. */
+    competences: { type: Array, default: () => [] },
 });
 
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
@@ -70,5 +72,13 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
             </span>
         </div>
         <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>
+
+        <div class="sect-title" style="margin-top: 18px"><MSym n="hub" :size="16" /> Talents acquis</div>
+        <div v-if="competences.length" class="badges">
+            <span v-for="c in competences" :key="c.id" class="badge b-buff">
+                <MSym n="workspace_premium" fill :size="16" /> {{ c.nom }}
+            </span>
+        </div>
+        <div v-else class="empty-note" style="padding: 12px">Aucun talent acquis pour l'instant.</div>
     </div>
 </template>

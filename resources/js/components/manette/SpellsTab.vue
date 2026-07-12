@@ -28,6 +28,9 @@ const emit = defineEmits(['choose']);
 
 const groupes = computed(() => sortsParElement(props.sorts ?? []));
 const dispos = computed(() => (props.sorts ?? []).filter((s) => s.disponible !== false).length);
+// Élision devant voyelle (« L'Elfe » et non « Le Elfe ») — les classes non
+// magiciennes restantes sont masculines (Le Barbare / Le Nain).
+const article = computed(() => (/^[aeiouyéèêh]/i.test(props.hero?.cls ?? '') ? "L'" : 'Le '));
 
 /** Carte d'un sort réel : option de menu associée + raison du blocage. */
 function carteDe(sort) {
@@ -55,7 +58,13 @@ function lancer(sort) {
 <template>
     <div v-if="!sorts.length" class="empty-note">
         <MSym n="auto_awesome" :size="36" style="display: block; margin: 0 auto 12px; color: var(--ink-700)" />
-        Le {{ hero.cls }} ne manie pas la magie. Sa puissance est dans l'acier.
+        <template v-if="hero.classe === 'elfe'">
+            L'Elfe ne manie pas encore la magie — elle s'éveille dans l'arbre de
+            compétences (nœud « Première magie ».)
+        </template>
+        <template v-else>
+            {{ article }}{{ hero.cls }} ne manie pas la magie. Sa puissance est dans l'acier.
+        </template>
     </div>
     <div v-else>
         <div class="turn-banner mine" style="justify-content: space-between">

@@ -93,7 +93,8 @@ onMounted(() => {
                 <button class="dep-close" type="button" @click="$emit('close')"><MSym n="close" /></button>
             </header>
 
-            <p class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour t'y déplacer</p>
+            <p v-if="accessibles.size" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour t'y déplacer</p>
+            <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div ref="grilleRef" class="dep-scroll">
                 <div class="dep-grid" :style="{ gridTemplateColumns: `repeat(${carte.largeur}, 22px)` }">
@@ -111,6 +112,12 @@ onMounted(() => {
                     </template>
                 </div>
             </div>
+
+            <!-- Fermeture toujours atteignable au bas de la feuille (le bouton du
+                 header peut être hors de vue sur petit écran / longue grille). -->
+            <button class="dep-fermer" type="button" @click="$emit('close')">
+                <MSym n="close" :size="16" /> Fermer
+            </button>
         </div>
     </div>
 </template>
@@ -134,6 +141,11 @@ onMounted(() => {
 
 .dep-hint { font-size: 12.5px; color: var(--ink-400); display: flex; align-items: center; gap: 6px; margin: 8px 0 10px; }
 .dep-hint .msym { color: var(--torch); }
+.dep-hint-bloque { color: var(--danger, #e66); }
+.dep-hint-bloque .msym { color: var(--danger, #e66); }
+.dep-fermer { margin-top: 12px; flex: none; width: 100%; padding: 11px; border-radius: 11px; border: var(--line);
+  background: var(--stone-850); color: var(--ink-200, #e7dcc6); font-weight: 700; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px; }
 
 .dep-scroll { overflow: auto; flex: 1; border-radius: var(--r-md); background: var(--stone-950); padding: 8px; }
 .dep-grid { display: grid; gap: 2px; width: max-content; margin: 0 auto; }
