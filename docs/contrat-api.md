@@ -40,14 +40,18 @@ Routes protégées par middleware `auth` sauf connexion.
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif"}
   ],
-  "initiative": [{"entite": "heros|monstre", "id": 1, "nom": "...", "a_joue": false}],
+  "initiative": [{"entite": "heros|monstre", "id": 1, "nom": "...", "a_joue": false, "tombe": false}],
   "narration": "dernier texte du MJ",
   "narration_sequence": 42,
   "mj_reflechit": false
 }
 ```
 
-`quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub.
+`quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub —
+**sauf après un TPK** : tant que la dernière quête est `echouee` (ni reprise,
+ni nouvelle quête), elle reste exposée (avec sa carte et ses entités) pour le
+bandeau « recharger / abandonner » de la table et l'écran d'attente de la
+manette, qui testent `quete.etat === "echouee"`.
 **Révélation par salle** : les monstres d'une salle restent DORMANTS (absents de
 `entites` et `initiative`, ne jouent pas) tant que la salle n'a pas été découverte
 par un héros. À la première entrée dans une salle (déplacement ou sort *Traverser
@@ -57,6 +61,12 @@ piège déclenché par un déplacement est lui aussi décrit (narration `piege_d
 l'écran de prologue de la table ; `auto` est vrai tant qu'aucune quête n'a eu lieu
 (ouverture automatique au lancement). `url` = vraie voix de narrateur si générée,
 sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
+
+`initiative[].tombe` (héros uniquement ; toujours `false` pour un monstre) :
+un héros **tombé** est SAUTÉ par le moteur (`verifierInitiative`) — l'acteur
+courant côté client est le premier de l'ordre avec `a_joue=false` **et**
+`tombe=false`, jamais un héros à terre (sa manette affiche « à terre »,
+pas un menu).
 
 `narration_sequence` = numéro de séquence (journal) de la dernière narration —
 **anti-inversion** : plusieurs narrations partent en jobs asynchrones de durées
@@ -101,11 +111,11 @@ transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /groupes/{identifiant}/marche | {profil?} | ouvre la phase (422 si pas au hub ou déjà ouverte) |
+| POST | /groupes/{identifiant}/marche | {profil?} | ouvre la phase (422 si pas au hub ou déjà ouverte) — **membre OU table** (bouton sur l'écran de table, même règle que la clôture) |
 | GET | /groupes/{identifiant}/marche | — | EtatMarche |
 | PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
 | POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
-| DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) |
+| DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) — **membre OU table** |
 
 **EtatMarche** : `{profil, multiplicateur, inventaire: [{objet_id, nom, categorie,
 rarete, prix, stock}], paniers: [{joueur_id, pseudo, achats: [...], ventes: [...],
@@ -346,7 +356,7 @@ conservés pendant la quête — départ playtest).
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | GET | /groupes/{identifiant}/snapshots | — | liste : [{id, etiquette, sequence_evenement, created_at}] |
-| POST | /groupes/{identifiant}/reprise | {snapshot_id?} | restaure l'état (défaut : snapshot `debut_quete` de la dernière quête échouée — le « recharger » après TPK) |
+| POST | /groupes/{identifiant}/reprise | {snapshot_id?} | restaure l'état (défaut : snapshot `debut_quete` de la dernière quête échouée — le « recharger » après TPK) — **membre OU table** (le bouton « Recharger la quête » est sur l'écran de table, même règle que la clôture) |
 
 **Reprise** : 422 si une quête est en cours ET non échouée (on ne recharge pas
 en pleine partie réussie) ; restauration atomique en transaction : l'état

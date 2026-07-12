@@ -342,9 +342,11 @@ export function conditionDeJeton(conditions) {
     };
 }
 
-/** Acteur courant = première entrée d'initiative qui n'a pas encore joué. */
+/** Acteur courant = première entrée d'initiative qui n'a pas encore joué.
+ *  Un héros tombé est SAUTÉ (contrat : initiative[].tombe) — le moteur
+ *  l'ignore aussi ; le désigner gèlerait toutes les manettes sur son tour. */
 export function acteurCourant(initiative) {
-    return (initiative ?? []).find((o) => !o.a_joue) ?? null;
+    return (initiative ?? []).find((o) => !o.a_joue && !o.tombe) ?? null;
 }
 
 function estCourant(entite, initiative) {
@@ -570,6 +572,10 @@ export function ciblesVersListe(cibles, entites = []) {
         const pv = entite && entite.pv_body != null ? `PV ${entite.pv_body}/${entite.pv_body_max}` : '';
         return {
             brut: c,
+            // Ancrage mécanique À PLAT pour POST choix (contrat :
+            // parametres.cible_id + cible_type) — le moteur ne lit rien d'autre.
+            id,
+            type,
             cle: `${type}:${id ?? i}`,
             nom,
             ami,
@@ -618,7 +624,9 @@ export function marcheVersEchoppe(marche) {
         icon: CATEGORIE_ICONES[(it.categorie ?? '').toLowerCase()] ?? 'category',
         img: it.image_url ?? null,
         price: it.prix ?? 0,
-        stock: it.stock ?? 0,
+        // Contrat (EtatMarche) : stock null = ILLIMITÉ (rareté commun) — le
+        // coercer à 0 affichait « épuisé » et gelait tout achat commun.
+        stock: it.stock ?? null,
     }));
 }
 

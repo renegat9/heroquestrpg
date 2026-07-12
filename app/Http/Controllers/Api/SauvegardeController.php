@@ -23,6 +23,8 @@ use Illuminate\Validation\ValidationException;
  */
 class SauvegardeController extends Controller
 {
+    use \App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
+
     public function __construct(private readonly Sauvegarde $sauvegarde) {}
 
     /**
@@ -52,7 +54,10 @@ class SauvegardeController extends Controller
      */
     public function reprendre(Request $request, string $identifiant): JsonResponse
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Membre OU table : le bouton « Recharger la quête » (bandeau TPK)
+        // est sur l'écran de table (narrateur sans compte) — même règle que
+        // la clôture et l'ouverture du marché.
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $donnees = $request->validate([
             'snapshot_id' => ['sometimes', 'nullable', 'integer', 'min:1'],

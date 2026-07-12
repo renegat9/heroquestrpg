@@ -128,6 +128,11 @@ const ETATS_CONTROLE = {
 };
 const etatControle = computed(() => ETATS_CONTROLE[controleManette.value] ?? null);
 
+/* ---- héros tombé (0 PV Body) : le moteur le saute dans l'initiative et
+   rejette toutes ses actions — la manette retire le menu et l'annonce
+   clairement (il ne rejouera que relevé par un allié). ---- */
+const suisTombe = computed(() => monEntite.value?.tombe === true);
+
 /* ---- mon héros : entité EtatGroupe ↔ personnage /moi. ---- */
 const monEntite = computed(() => {
     const entites = store.state.etat?.entites ?? [];
@@ -385,12 +390,14 @@ function deplacerVers(dest) {
     envoyerOption(option, { x: dest.x, y: dest.y });
 }
 
-/** Cible choisie dans la feuille → POST {option_id, parametres: {…, cible}}
- *  (cible = l'entrée de parametres.cibles telle que reçue du moteur). */
+/** Cible choisie dans la feuille → POST {option_id, parametres: {…,
+ *  cible_id, cible_type}} À PLAT — seul format lu par le moteur (contrat) :
+ *  l'objet `cible` imbriqué était ignoré → 422 « Cible requise » sur tous
+ *  les sorts/parchemins ciblés depuis l'UI. */
 function ciblerOption(cible) {
     const { option } = feuilleOption.value;
     const { cibles, ...reste } = option.parametres ?? {};
-    envoyerOption(option, { ...reste, cible: cible.brut });
+    envoyerOption(option, { ...reste, cible_id: cible.id, cible_type: cible.type });
 }
 
 /** Sort à récupérer choisi (concentration) → parametres: {sort_id}. */
@@ -556,8 +563,10 @@ function planifierEnvoiPanier() {
 function changerQuantite(objetId, delta) {
     const achats = [...panierLocal.value.achats];
     const i = achats.findIndex((a) => a.objet_id === objetId);
-    const stock = store.state.marche?.inventaire?.find((it) => it.objet_id === objetId)?.stock ?? 0;
-    const q = Math.max(0, Math.min(stock, (i >= 0 ? achats[i].quantite : 0) + delta));
+    // Contrat : stock null = illimité (commun) — ne pas le coercer à 0.
+    const stock = store.state.marche?.inventaire?.find((it) => it.objet_id === objetId)?.stock ?? null;
+    const plafond = stock === null ? Number.MAX_SAFE_INTEGER : stock;
+    const q = Math.max(0, Math.min(plafond, (i >= 0 ? achats[i].quantite : 0) + delta));
     if (q === 0) {
         if (i >= 0) achats.splice(i, 1);
     } else if (i >= 0) {
@@ -679,6 +688,14 @@ const navItems = computed(() => (scene.value === 'marche'
                             <MSym n="skull" :size="34" />
                             <p style="font-family: var(--font-narr); font-style: italic; font-size: 15px; margin: 10px 0 0">
                                 Le destin du groupe se décide à la table…
+                            </p>
+                        </div>
+                        <!-- héros tombé : le moteur le saute, aucun menu n'est jouable -->
+                        <div v-else-if="tab === 'action' && suisTombe" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
+                            <MSym n="personal_injury" :size="34" />
+                            <p style="font-family: var(--font-narr); font-weight: 700; font-size: 16px; margin: 10px 0 4px">À terre</p>
+                            <p style="font-family: var(--font-narr); font-style: italic; font-size: 14px; margin: 0">
+                                Tu es tombé au combat — seul un allié peut te relever.
                             </p>
                         </div>
                         <!-- contrôle Dread (endormi / commandé) : le tour se résout sans moi -->

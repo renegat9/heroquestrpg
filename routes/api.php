@@ -48,6 +48,17 @@ Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat'])
 Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
 Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
 
+// Ouvrir / annuler le marché : même règle que la clôture — le bouton « Ouvrir
+// le marché » est sur l'écran de TABLE (narrateur sans compte). Rien n'est
+// appliqué avant la confirmation de TOUS les joueurs (auth:joueur ci-dessous).
+Route::post('/groupes/{identifiant}/marche', [MarcheController::class, 'ouvrir']);
+Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annuler']);
+
+// Reprise après TPK : le bouton « Recharger la quête » (bandeau quête échouée)
+// est lui aussi sur l'écran de TABLE — autorisation membre-OU-table dans le
+// contrôleur. La liste des snapshots reste réservée aux joueurs.
+Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'reprendre']);
+
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
@@ -86,16 +97,13 @@ Route::middleware('auth:joueur')->group(function () {
 
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
     // application atomique quand TOUS les joueurs ont confirmé.
-    Route::post('/groupes/{identifiant}/marche', [MarcheController::class, 'ouvrir']);
+    // (ouvrir / annuler : routes table-OU-membre plus haut.)
     Route::put('/groupes/{identifiant}/marche/panier', [MarcheController::class, 'panier']);
     Route::post('/groupes/{identifiant}/marche/confirmation', [MarcheController::class, 'confirmer']);
-    Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annuler']);
 
-    // Snapshots & reprise (contrat, doc 12 §4, doc 05 §6) : snapshots
-    // automatiques du moteur (debut_quete / nouveau_tour) ; la reprise
-    // restaure l'état vivant — le « recharger » après TPK.
+    // Snapshots (contrat, doc 12 §4) : liste des points de reprise du moteur
+    // (debut_quete / nouveau_tour). (POST reprise : route membre-OU-table plus haut.)
     Route::get('/groupes/{identifiant}/snapshots', [SauvegardeController::class, 'index']);
-    Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'reprendre']);
 
     // Votes de groupe (doc 05 §5) : un seul vote actif par groupe ; au hub,
     // le départ est libre avec sa part du pot commun.

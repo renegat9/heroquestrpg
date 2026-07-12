@@ -34,7 +34,10 @@ class MarcheController extends Controller
     /** POST /api/groupes/{identifiant}/marche — ouvre la phase. */
     public function ouvrir(Request $request, string $identifiant): JsonResponse
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Membre OU table : le bouton « Ouvrir le marché » est sur l'écran de
+        // table (narrateur sans compte) — même règle que la clôture. Rien
+        // n'est appliqué avant la confirmation de tous les joueurs.
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $donnees = $request->validate([
             'profil' => ['nullable', Rule::in(ProfilMarche::noms())],
@@ -95,9 +98,10 @@ class MarcheController extends Controller
     }
 
     /** DELETE /api/groupes/{identifiant}/marche — annule (rien appliqué). */
-    public function annuler(string $identifiant): Response
+    public function annuler(Request $request, string $identifiant): Response
     {
-        [$groupe] = $this->groupeEtJoueurMembre($identifiant);
+        // Membre OU table (le panneau marché de la table a un bouton annuler).
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $this->marche->annuler($groupe);
 

@@ -36,7 +36,21 @@ final class EtatGroupe
      */
     public function payload(Groupe $groupe): array
     {
-        $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
+        $queteCourante = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
+        $quete = $queteCourante;
+
+        // TPK (doc 05 §6, contrat) : au hub, la dernière quête ÉCHOUÉE reste
+        // exposée (carte/entités comprises) tant qu'elle n'est ni reprise ni
+        // remplacée — le bandeau « recharger / abandonner » de la table et
+        // l'écran d'attente de la manette testent quete.etat === 'echouee'.
+        // (L'ambiance sonore, elle, reste calculée sur la quête COURANTE :
+        // sceneAmbiance rend 'defaite' au hub après un échec, pas 'boss'.)
+        if ($quete === null && $groupe->phase === 'hub') {
+            $derniere = $groupe->quetes()->orderByDesc('position_arc')->first();
+            if ($derniere !== null && $derniere->etat === 'echouee') {
+                $quete = $derniere;
+            }
+        }
 
         $narrateurActif = TableController::narrateurActif($groupe);
         $preambuleGroupe = [
@@ -48,7 +62,7 @@ final class EtatGroupe
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
-            'ambiance' => $this->sceneAmbiance($groupe, $quete),
+            'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
             // (null tant qu'absente → la table affiche le fond par défaut).
             'image_url' => app(BibliothequeImages::class)->urlDyn('hub', $groupe->id),
@@ -363,7 +377,7 @@ final class EtatGroupe
     /**
      * Ordre du tour figé (C1) : héros par ordre d'initiative, monstres après.
      *
-     * @return list<array{entite: string, id: int, nom: string, a_joue: bool}>
+     * @return list<array{entite: string, id: int, nom: string, a_joue: bool, tombe: bool}>
      */
     private function initiative(Groupe $groupe, Quete $quete): array
     {
@@ -378,6 +392,9 @@ final class EtatGroupe
                 'id' => $p->id,
                 'nom' => $p->nom,
                 'a_joue' => (bool) ($etats->get($p->id)?->a_joue ?? false),
+                // Un héros tombé est sauté par le moteur (verifierInitiative) :
+                // le client en a besoin pour désigner le VRAI acteur courant.
+                'tombe' => (bool) ($etats->get($p->id)?->tombe ?? false),
             ]);
 
         $monstres = $quete->instancesMonstres()
@@ -391,6 +408,7 @@ final class EtatGroupe
                 'id' => $i->id,
                 'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
                 'a_joue' => false, // les monstres jouent en bloc après les héros (C2)
+                'tombe' => false,
             ]);
 
         return [...$heros->values()->all(), ...$monstres->values()->all()];

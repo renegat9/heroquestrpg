@@ -56,7 +56,7 @@ function estEnVente(inventaireId) {
             <div>
                 <div class="nm">{{ it.name }}</div>
                 <div class="rar" :class="'rar-' + it.rar">
-                    {{ it.rarLabel }} · {{ it.stock > 0 ? `stock ${it.stock - quantiteDe(it.id)}` : 'épuisé' }}
+                    {{ it.rarLabel }} · {{ it.stock === null ? 'en stock' : (it.stock > 0 ? `stock ${it.stock - quantiteDe(it.id)}` : 'épuisé') }}
                 </div>
             </div>
             <span class="price"><MSym n="paid" :size="15" />{{ it.price }}</span>
@@ -68,7 +68,7 @@ function estEnVente(inventaireId) {
                 <button
                     class="btn btn-sm"
                     :class="quantiteDe(it.id) > 0 ? 'btn-torch' : 'btn-ghost'"
-                    :disabled="quantiteDe(it.id) >= it.stock"
+                    :disabled="it.stock !== null && quantiteDe(it.id) >= it.stock"
                     @click="emit('qty', it.id, 1)"
                 >
                     <MSym n="add" :size="16" />
