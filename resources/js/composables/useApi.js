@@ -244,6 +244,22 @@ export function useApi() {
         acquerirCompetence: (identifiant, payload) =>
             request('POST', `/groupes/${identifiant}/competences`, payload),
 
+        // ---- équipement (contrat « Équipement », au hub uniquement) ----
+
+        /** POST /groupes/{id}/equipement {personnage_id, inventaire_id} —
+         *  équipe une pièce du sac dans son slot (ses dés s'appliquent). */
+        equiper: (identifiant, personnageId, inventaireId) =>
+            request('POST', `/groupes/${identifiant}/equipement`, {
+                personnage_id: personnageId, inventaire_id: inventaireId,
+            }),
+
+        /** DELETE /groupes/{id}/equipement {personnage_id, inventaire_id} —
+         *  déséquipe une pièce (retour au sac, dés révoqués). */
+        desequiper: (identifiant, personnageId, inventaireId) =>
+            request('DELETE', `/groupes/${identifiant}/equipement`, {
+                personnage_id: personnageId, inventaire_id: inventaireId,
+            }),
+
         // ---- votes de groupe (contrat « Votes de groupe ») ----
 
         /** POST /groupes/{id}/votes {type, question?, options?, cible_joueur_id?} → lance le vote. */

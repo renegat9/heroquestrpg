@@ -461,6 +461,35 @@ async function boirePotion(inventaireId) {
     }
 }
 
+/* ---- Équipement (doc 01 §7) : au hub uniquement, monter/démonter une pièce
+   du sac. Le serveur applique les deltas de combat aux colonnes du héros ; on
+   recharge /moi pour rafraîchir dés (fiche) + sac (onglet). ---- */
+const equipEnCours = ref(false);
+async function equiper(inventaireId) {
+    if (equipEnCours.value || !monPersonnageId.value) return;
+    equipEnCours.value = true;
+    try {
+        await api.equiper(props.groupe, monPersonnageId.value, inventaireId);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+async function desequiper(inventaireId) {
+    if (equipEnCours.value || !monPersonnageId.value) return;
+    equipEnCours.value = true;
+    try {
+        await api.desequiper(props.groupe, monPersonnageId.value, inventaireId);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+
 /* ---- vote (.vote.lance ouvre la feuille, bulletin POSTé, .vote.maj fait
    vivre le décompte, .vote.resultat ferme avec le résultat ; la cible d'un
    retrait_joueur ne vote pas (lecture seule)). ---- */
@@ -817,7 +846,11 @@ const navItems = computed(() => (scene.value === 'marche'
                             :equipement="monPerso?.equipement ?? { armes: [], armure: null, sac: [] }"
                             :potions="consommablesActifs"
                             :potion-en-cours="potionEnCours"
+                            :au-hub="auHub"
+                            :equip-en-cours="equipEnCours"
                             @boire="boirePotion"
+                            @equiper="equiper"
+                            @desequiper="desequiper"
                         />
                     </div>
 

@@ -255,6 +255,26 @@ Broadcast canal `groupe.{identifiant}` : `.niveau.monte`
 ({personnages: [{id, nom, niveau, points_competence, gains: [...]}]}) émis à la
 clôture victorieuse d'une quête à jalon, avant `.groupe.etat`.
 
+## Équipement (doc 01 §7 — au hub uniquement)
+
+Ferme la boucle économique : marché → sac → **équiper** → plus fort en quête.
+**AU HUB** seulement (422 en quête au MVP). Les effets chiffrés de l'objet
+(`des_attaque`/`des_defense`) s'appliquent aux **colonnes** du héros à
+l'équipement et sont révoqués au déséquipement — même patron que les nœuds de
+compétence, donc combat, fiche et budget de rencontre lisent l'équipement sans
+calcul « effectif » séparé.
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| POST | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | équipe une pièce du **sac** dans son slot naturel (`objet.emplacement`) ; auto-swap de l'occupant vers le sac ; 422 : pas au hub, pas son héros, objet non montable, ou bouclier + arme à deux mains |
+| DELETE | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | déséquipe (retour au sac, dés révoqués) ; 422 : pas au hub, objet non équipé, ou **sac plein** |
+
+Réponse (POST/DELETE) : `{personnage: {id, des_attaque, des_defense}}` (dés à
+jour, équipement inclus). La source complète reste `GET /moi` — le front
+re-`GET /moi` après chaque manip pour rafraîchir fiche + sac. Slots :
+`arme_principale`, `arme_secondaire` (bouclier), `armure`. Journal `systeme` :
+`equipement_equipe` / `equipement_retire`.
+
 ## Sorts des héros (doc 02 — tout par les menus)
 
 **Connaissance par éléments** (connaître un élément = ses 3 sorts, pivot
@@ -421,7 +441,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 |---|---|---|---|
 | POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
-| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [nom…], armure: nom\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite}]}` |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom}…], armure: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |

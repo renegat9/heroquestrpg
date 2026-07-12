@@ -141,17 +141,20 @@ class AuthController extends Controller
                         'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
                         'competences' => $p->competences->pluck('id')->values()->all(),
                         // Équipement réel (fiche/sac) : arme(s) + armure nommées,
-                        // sac général à part — doc 01 §7 (emplacements).
+                        // sac général à part — doc 01 §7 (emplacements). Chaque
+                        // pièce ÉQUIPÉE porte son inventaire_id (pour déséquiper) ;
+                        // chaque objet du sac porte `equipable` (pièce montable
+                        // dans un slot : arme_principale/arme_secondaire/armure).
                         'equipement' => [
                             'armes' => $p->inventaire
-                                ->filter(fn ($l) => in_array($l->emplacement, ['arme_principale', 'arme_secondaire'], true))
-                                ->map(fn ($l) => $l->objet?->nom)
-                                ->filter()
+                                ->filter(fn ($l) => in_array($l->emplacement, ['arme_principale', 'arme_secondaire'], true) && $l->objet !== null)
+                                ->map(fn ($l) => ['inventaire_id' => $l->id, 'nom' => $l->objet->nom])
                                 ->values()
                                 ->all(),
-                            'armure' => $p->inventaire
-                                ->first(fn ($l) => $l->emplacement === 'armure')
-                                ?->objet?->nom,
+                            'armure' => with(
+                                $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                            ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
                                 ->map(fn ($l) => [
@@ -160,6 +163,7 @@ class AuthController extends Controller
                                     'categorie' => $l->objet->categorie,
                                     'rarete' => $l->objet->rarete,
                                     'quantite' => (int) $l->quantite,
+                                    'equipable' => in_array($l->objet->emplacement, \App\Partie\Equipement::SLOTS, true),
                                 ])
                                 ->values()
                                 ->all(),

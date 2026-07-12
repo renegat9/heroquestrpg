@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
+use App\Http\Controllers\Api\EquipementController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
@@ -91,6 +92,11 @@ Route::middleware('auth:joueur')->group(function () {
     // catalogue + acquisition d'un nœud (points dérivés du niveau).
     Route::get('/competences', [CompetenceController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/competences', [CompetenceController::class, 'acquerir']);
+
+    // Équipement (doc 01 §7) — au hub : équiper/déséquiper une pièce du sac,
+    // ses deltas de combat s'appliquent aux colonnes du héros (Equipement).
+    Route::post('/groupes/{identifiant}/equipement', [EquipementController::class, 'equiper']);
+    Route::delete('/groupes/{identifiant}/equipement', [EquipementController::class, 'desequiper']);
 
     // Recrutement d'alliés au hub (3.5) — bourse commune.
     Route::post('/groupes/{identifiant}/mercenaires', [MercenaireController::class, 'recruter']);

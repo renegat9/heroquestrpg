@@ -12,21 +12,22 @@
 
 ## 1. Majeurs — fonctionnalités incomplètes
 
-### 1.1 Armes et armures sans aucun effet mécanique (pas d'action « équiper »)
-- **Constat** : le marché vend des armes/armures avec `effet` chiffré (Dague +1 dé,
-  Épée large +3…), mais (a) l'achat non-consommable atterrit en `emplacement='sac'`
-  (`PhaseMarche` ~l.499) et rien ne le passe jamais en `arme_principale`/`armure`
-  — aucun endpoint ni option de menu (« Gérer son équipement = une action »,
-  doc 01 §149, non implémentée) ; (b) même « équipé », le combat n'appliquerait
-  rien : `ResolveurTour` ne lit que `personnage->des_attaque/des_defense` + buffs
-  de sorts. `ScorePuissance` et `/moi` savent pourtant lire les emplacements
-  équipés (code orphelin).
-- **Impact** : la boucle or → marché → puissance est inerte ; l'équilibrage
-  suppose une montée en équipement impossible.
-- **Piste** : option de menu `equiper` (créneau action, doc 01 §149) qui déplace
-  la ligne d'inventaire vers l'emplacement et applique/retire l'`effet` sur les
-  colonnes du personnage (comme le fait déjà `CompetenceController` pour les
-  nœuds passifs) ; garde-fous deux-mains/bouclier (`incompatible_deux_mains`).
+### 1.1 ~~Armes et armures sans aucun effet mécanique~~ — FAIT
+- **Livré** : service `App\Partie\Equipement` (équiper/déséquiper) qui déplace la
+  ligne d'inventaire sac ⇄ slot naturel (`arme_principale`/`arme_secondaire`/
+  `armure`) et applique/révoque les deltas `des_attaque`/`des_defense` sur les
+  **colonnes** du héros — même patron que `CompetenceController` pour les nœuds
+  passifs, donc `ResolveurTour`, la fiche et `ScorePuissance` lisent l'équipement
+  sans calcul « effectif » séparé. Auto-swap de l'occupant, garde-fou
+  deux-mains/bouclier (`incompatible_deux_mains`), capacité de sac au retour.
+  Endpoints `POST`/`DELETE /groupes/{id}/equipement` (hub only, 422 en quête) ;
+  `/moi.equipement` enrichi (chaque pièce porte son `inventaire_id`, chaque objet
+  du sac un flag `equipable`). Front : boutons « Équiper »/« Déséquiper » dans
+  `SacTab` (au hub), re-`GET /moi` après chaque manip. Tests : service+endpoint
+  7/7, suite Feature 214/214. Vérifié en jeu : Épée large sac → équiper → dés
+  d'attaque 3→6 sur la fiche → déséquiper → retour à 3.
+- **Reste éventuel** : « équiper » comme **action de tour** en pleine quête
+  (doc 01 §149) — au MVP c'est hub-only.
 
 ### 1.2 Mercenaires : aucune UI de recrutement
 - **Constat** : serveur complet (POST `/groupes/{id}/mercenaires`, phase alliés,
