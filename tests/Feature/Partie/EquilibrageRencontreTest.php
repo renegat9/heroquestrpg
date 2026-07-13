@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Monstre;
 use App\Partie\DemarreurQuete;
 use Database\Seeders\MonstreSeeder;
 
@@ -62,4 +63,40 @@ it('ne bloque jamais : budget serré → au moins un ennemi faible', function ()
 
     expect($achats)->not->toBeEmpty()
         ->and((int) $achats[0]->cout)->toBeLessThanOrEqual(3);
+});
+
+/*
+ * PV des boss adaptés à la taille du groupe (correctifs §3, config jeu.rencontres).
+ * Un Seigneur figé à 10 PV punit un duo ; il doit fondre pour eux et enfler pour
+ * une grande table. La piétaille (Gobelin) ne s'adapte jamais.
+ */
+function pvAdapte(Monstre $monstre, int $nbHeros): int
+{
+    $demarreur = app(DemarreurQuete::class);
+    $methode = new ReflectionMethod($demarreur, 'pvAdapte');
+    $methode->setAccessible(true);
+
+    return $methode->invoke($demarreur, $monstre, $nbHeros);
+}
+
+it('adapte les PV du boss à la taille du groupe', function () {
+    $seigneur = Monstre::where('nom_base', 'Seigneur')->firstOrFail(); // boss, 10 PV
+
+    expect(pvAdapte($seigneur, 4))->toBe(10)  // référence : PV catalogue inchangés
+        ->and(pvAdapte($seigneur, 2))->toBe(5) // duo : 10 × 2/4
+        ->and(pvAdapte($seigneur, 6))->toBe(15); // grande table : 10 × 6/4
+});
+
+it('ne descend jamais un boss sous 40 % de ses PV (plancher)', function () {
+    $seigneur = Monstre::where('nom_base', 'Seigneur')->firstOrFail();
+
+    // Solo : 10 × 1/4 = 2.5 → plancher ceil(10 × 0.4) = 4.
+    expect(pvAdapte($seigneur, 1))->toBe(4);
+});
+
+it('n\'adapte que les pivots : la piétaille garde ses PV catalogue', function () {
+    $gobelin = Monstre::where('nom_base', 'Gobelin')->firstOrFail(); // base, 1 PV
+
+    expect(pvAdapte($gobelin, 6))->toBe(1)
+        ->and(pvAdapte($gobelin, 2))->toBe(1);
 });

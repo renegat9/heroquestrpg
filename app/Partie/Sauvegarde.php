@@ -261,10 +261,12 @@ final class Sauvegarde
                     'id' => $i->id,
                     'monstre_id' => $i->monstre_id,
                     'pv_body' => (int) $i->pv_body,
+                    'pv_body_max' => $i->pvBodyMax(), // max propre (boss adaptés + élite)
                     'pv_mind' => (int) $i->pv_mind,
                     'position_x' => $i->position_x,
                     'position_y' => $i->position_y,
                     'etat' => $i->etat,
+                    'elite' => (bool) $i->elite,
                     'revele' => (bool) $i->revele,
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                 ])->values()->all(),
@@ -376,10 +378,14 @@ final class Sauvegarde
                 'quete_id' => $queteId,
                 'monstre_id' => $instance['monstre_id'],
                 'pv_body' => $instance['pv_body'],
+                // Max propre (boss adaptés + élite) ; null pour snapshots antérieurs
+                // → pvBodyMax() reconstruit depuis le catalogue + le drapeau élite.
+                'pv_body_max' => $instance['pv_body_max'] ?? null,
                 'pv_mind' => $instance['pv_mind'],
                 'position_x' => $instance['position_x'],
                 'position_y' => $instance['position_y'],
                 'etat' => $instance['etat'],
+                'elite' => $instance['elite'] ?? false,
                 'revele' => $instance['revele'] ?? true,
                 'habillage' => $instance['habillage'],
             ])->save();

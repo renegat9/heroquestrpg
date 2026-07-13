@@ -33,6 +33,13 @@ return [
         // (Bestiaire de départ : faibles = Gobelin/Orque/Squelette/Zombie/Fimir ≤ 3 ;
         //  forts = Momie 4 / Guerrier du Chaos 5 / Gargouille 6.)
         'seuil_cout_fort' => (int) env('JEU_SEUIL_COUT_FORT', 3),
+
+        // PV des BOSS/SOUS-BOSS adaptés à la TAILLE du groupe (au lieu d'un 10 fixe
+        // qui punissait les petits groupes) : pv = pv_catalogue × nb_héros /
+        // taille_reference, plancher à 40 %. La piétaille, elle, reste régulée par
+        // le budget. `taille_reference` = groupe pour lequel les PV catalogue valent.
+        'boss_pv_adaptatif' => (bool) env('JEU_BOSS_PV_ADAPTATIF', true),
+        'taille_reference' => (int) env('JEU_TAILLE_REFERENCE', 4),
     ],
 
 ];

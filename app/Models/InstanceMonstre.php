@@ -13,6 +13,7 @@ class InstanceMonstre extends Model
         'quete_id',
         'monstre_id',
         'pv_body',
+        'pv_body_max',
         'pv_mind',
         'position_x',
         'position_y',
@@ -56,6 +57,18 @@ class InstanceMonstre extends Model
     public function defenseEffective(): int
     {
         return (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
+    }
+
+    /**
+     * PV Body MAX de cette instance : la valeur PROPRE (boss adaptés à la taille
+     * du groupe, +1 élite intégré) si elle est fixée, sinon repli sur les PV du
+     * catalogue + bonus élite (lignes antérieures à la colonne pv_body_max).
+     */
+    public function pvBodyMax(): int
+    {
+        return $this->pv_body_max !== null
+            ? (int) $this->pv_body_max
+            : (int) $this->monstre->pv_body + ($this->elite ? self::BONUS_ELITE : 0);
     }
 
     public function quete(): BelongsTo

@@ -516,7 +516,7 @@ final class MoteurDread
         $fuite = $sortsDisponibles->firstWhere('nom', 'Fuite');
 
         if ($fuite !== null
-            && (int) $instance->pv_body < max(1, (int) $instance->monstre->pv_body * self::SEUIL_FUITE)
+            && (int) $instance->pv_body < max(1, (int) ($instance->pvBodyMax() * self::SEUIL_FUITE))
             && ! Cache::has(self::cleFuite($instance->id, $quete->id))) {
             return $fuite;
         }
@@ -1062,7 +1062,7 @@ final class MoteurDread
         InstanceMonstre $instance,
         array $acteur,
     ): ?array {
-        $maxPv = (int) $instance->monstre->pv_body;
+        $maxPv = $instance->pvBodyMax();
         $avant = (int) $instance->pv_body;
 
         if ($avant >= $maxPv) {

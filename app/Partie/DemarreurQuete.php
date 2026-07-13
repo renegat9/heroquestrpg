@@ -77,6 +77,28 @@ final class DemarreurQuete
         return $this->des->d6() >= (int) config('jeu.elite.seuil_d6', 6);
     }
 
+    /**
+     * PV Body d'un monstre ADAPTÉS à la taille du groupe. Seuls les pivots
+     * (boss / sous-boss) s'adaptent — la piétaille est déjà régulée par le budget.
+     * pv = pv_catalogue × nb_héros / taille_reference, plancher à 40 % (un boss
+     * reste un boss même en petit comité). Un boss à PV fixe (Seigneur 10 PV)
+     * punissait les groupes de 2 ; à la référence 4, les PV catalogue sont inchangés.
+     */
+    private function pvAdapte(Monstre $monstre, int $nbHeros): int
+    {
+        $pv = (int) $monstre->pv_body;
+
+        if (! config('jeu.rencontres.boss_pv_adaptatif', true)
+            || ! in_array($monstre->tier ?? 'base', ['boss', 'sous_boss'], true)) {
+            return $pv;
+        }
+
+        $reference = max(1, (int) config('jeu.rencontres.taille_reference', 4));
+        $adapte = (int) round($pv * max(1, $nbHeros) / $reference);
+
+        return max($adapte, (int) ceil($pv * 0.4));
+    }
+
     public function demarrer(Groupe $groupe): Quete
     {
         if ($groupe->phase !== 'hub') {
@@ -132,11 +154,16 @@ final class DemarreurQuete
 
                 $elite = $this->roulerElite($monstre);
 
+                // PV max de l'instance : boss/sous-boss adaptés à la taille du
+                // groupe (pvAdapte), + bonus élite éventuel. Le courant démarre au max.
+                $pvMax = $this->pvAdapte($monstre, $heros->count()) + ($elite ? InstanceMonstre::BONUS_ELITE : 0);
+
                 InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
-                    // Stats catalogue jamais altérées ; le +1 PV élite est porté par l'instance.
-                    'pv_body' => $monstre->pv_body + ($elite ? InstanceMonstre::BONUS_ELITE : 0),
+                    // Stats catalogue jamais altérées ; PV (adaptés + élite) portés par l'instance.
+                    'pv_body' => $pvMax,
+                    'pv_body_max' => $pvMax,
                     'pv_mind' => $monstre->pv_mind,
                     'position_x' => $px,
                     'position_y' => $py,

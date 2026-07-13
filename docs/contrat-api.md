@@ -501,6 +501,12 @@ joueur (choix, panier, vote, prêt…) exigent un joueur membre.
 - **Composition des rencontres** : le budget achète « beaucoup de faibles +
   quelques forts » (bas puis haut du tier base), réglable dans `config/jeu.php`
   (`rencontres.forts_par_quete`, `forts_escalade_arc`, `seuil_cout_fort`).
+- **PV du boss adaptés au groupe** : les PV Body des **boss/sous-boss** valent
+  `pv_catalogue × nb_héros / taille_reference` (référence 4, plancher à 40 %) — un
+  boss ne punit plus un petit groupe. Le max est **propre à l'instance**
+  (`pv_body_max`, sérialisé au snapshot, +1 élite intégré) ; fuite, régénération et
+  jauge affichée l'utilisent. Réglable via `rencontres.boss_pv_adaptatif` /
+  `taille_reference`. La piétaille (tier base) garde ses PV catalogue.
 - **L'API ne dépend jamais du LLM** : si le job IA échoue (pas de clé, erreur),
   repli (menu générique / narration neutre) — le jeu reste jouable.
 - Toute mutation d'état passe par un événement journalisé (`evenements`) puis

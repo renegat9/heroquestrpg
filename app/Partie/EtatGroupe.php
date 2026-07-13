@@ -369,8 +369,9 @@ final class EtatGroupe
                 // Emprise (3.9) : grandes figurines multi-cases (1×1 par défaut).
                 'emprise' => $i->monstre->emprise(),
                 'pv_body' => (int) $i->pv_body,
-                // Le +1 PV élite (3.6) est intégré au max affiché de l'instance.
-                'pv_body_max' => (int) $i->monstre->pv_body + ($i->elite ? InstanceMonstre::BONUS_ELITE : 0),
+                // Max PROPRE à l'instance : boss adaptés à la taille du groupe + le
+                // +1 PV élite (3.6) déjà intégré (repli catalogue pour lignes legacy).
+                'pv_body_max' => $i->pvBodyMax(),
                 'etat' => $i->etat,
                 'elite' => (bool) $i->elite,
                 'conditions' => $this->conditionsMonstre($i),

@@ -104,11 +104,18 @@ Corrigés :
   autre figure n'occupe sa case et qu'un allié est adjacent (voir §« Héros tombé »
   du contrat). Les monstres vaincus ne bloquaient déjà pas (exclus de la grille).
 
+- ~~**PV du boss figés (Seigneur 10 PV)**~~ — les PV des **boss/sous-boss** s'adaptent
+  désormais à la **taille du groupe** : `pv = pv_catalogue × nb_héros / taille_reference`
+  (référence 4, plancher à 40 %). Un duo affronte un Seigneur à 5 PV, pas 10. Le max
+  est porté **par l'instance** (colonne `pv_body_max`, sérialisée au snapshot) — fuite,
+  régénération et jauge affichée s'en servent. Réglable via `jeu.rencontres`
+  (`boss_pv_adaptatif`, `taille_reference`).
+
 Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) :
-- **Boss final à 2 joueurs** : 2 TPK consécutifs (Seigneur 10 PV + 2 serviteurs,
-  ~7 dégâts/ronde). Le nouvel équilibrage (ennemis plus faibles), l'équipement
-  (§1.1) et les mercenaires restaurés (ci-dessus) aident, mais le **boss lui-même**
-  reste à régler (PV / nombre de serviteurs / facteur de jalon `boss_final`).
+- **Serviteurs & jalon du boss** : au-delà des PV (ci-dessus), le **nombre de
+  serviteurs** du boss et le facteur de jalon `boss_final` restent à régler en
+  playtest. Le nouvel équilibrage (ennemis plus faibles), l'équipement (§1.1) et
+  les mercenaires restaurés (ci-dessus) aident déjà.
 - **Prix vs revenus** : potion 100 or vs ~50 or de butin — à recalibrer (prix des
   consommables, or de quête, ou butin de boss).
 - **Relevage à 1 PV** → boucle « relevé/retombe » : à trancher (relever à N PV,

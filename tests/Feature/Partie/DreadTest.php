@@ -105,6 +105,9 @@ function demarrerQueteBoss(
     $premiereInstance->update([
         'monstre_id' => $catalogueBoss->id,
         'pv_body' => $catalogueBoss->pv_body,
+        // Le reskin en boss doit aussi porter son max propre (sinon pvBodyMax()
+        // garde celui du monstre de base d'origine → régénération/fuite faussées).
+        'pv_body_max' => $catalogueBoss->pv_body,
         'pv_mind' => $catalogueBoss->pv_mind,
         'etat' => 'actif',
     ]);
@@ -683,6 +686,9 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     $premiereInstance->update([
         'monstre_id' => $catalogueBoss->id,
         'pv_body' => $catalogueBoss->pv_body,
+        // Le reskin en boss doit aussi porter son max propre (sinon pvBodyMax()
+        // garde celui du monstre de base d'origine → régénération/fuite faussées).
+        'pv_body_max' => $catalogueBoss->pv_body,
         'pv_mind' => $catalogueBoss->pv_mind,
         'etat' => 'actif',
     ]);
