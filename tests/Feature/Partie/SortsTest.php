@@ -97,33 +97,33 @@ function demarrerQueteSorts(bool $avecSecond = false): array
     return [$alice, $groupe, $mage, $quete, $bob, $brunhilde];
 }
 
-it('attache au magicien les 6 sorts de ses 2 éléments à la création (défaut feu+eau, validation stricte)', function () {
+it('attache au magicien les 9 sorts de ses 3 éléments à la création (parité HeroQuest, défaut feu+eau+terre, validation stricte)', function () {
     connecterJoueur('alice');
     creerGroupe();
 
-    // Défaut : feu + eau (doc 02 §2).
+    // Défaut : feu + eau + terre (doc 02 §2, parité jeu de base).
     $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'Mage A', 'classe' => 'magicien'])->assertOk();
     $defaut = Personnage::where('nom', 'Mage A')->firstOrFail();
 
-    expect($defaut->sorts()->count())->toBe(6)
-        ->and($defaut->sorts()->pluck('element')->unique()->sort()->values()->all())->toBe(['eau', 'feu'])
-        ->and($defaut->sorts()->wherePivot('disponible', true)->count())->toBe(6);
+    expect($defaut->sorts()->count())->toBe(9)
+        ->and($defaut->sorts()->pluck('element')->unique()->sort()->values()->all())->toBe(['eau', 'feu', 'terre'])
+        ->and($defaut->sorts()->wherePivot('disponible', true)->count())->toBe(9);
 
-    // Choix explicite de 2 éléments.
+    // Choix explicite de 3 éléments.
     $this->postJson('/api/groupes/table-1/joueurs', [
-        'nom' => 'Mage B', 'classe' => 'magicien', 'elements' => ['terre', 'air'],
+        'nom' => 'Mage B', 'classe' => 'magicien', 'elements' => ['terre', 'air', 'feu'],
     ])->assertOk();
     $choisi = Personnage::where('nom', 'Mage B')->firstOrFail();
 
-    expect($choisi->sorts()->pluck('element')->unique()->sort()->values()->all())->toBe(['air', 'terre']);
+    expect($choisi->sorts()->pluck('element')->unique()->sort()->values()->all())->toBe(['air', 'feu', 'terre']);
 
-    // Validation : exactement 2 éléments DISTINCTS du catalogue.
-    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu', 'feu']])
+    // Validation : exactement 3 éléments DISTINCTS du catalogue.
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu', 'feu', 'eau']])
         ->assertStatus(422);
-    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu', 'lave']])
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu', 'eau', 'lave']])
         ->assertStatus(422);
-    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu']])
-        ->assertStatus(422);
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'magicien', 'elements' => ['feu', 'eau']])
+        ->assertStatus(422); // 2 = ancien quota, désormais refusé
 
     // Un barbare n'a aucun sort (parchemins seulement).
     $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'Brute', 'classe' => 'barbare'])->assertOk();
@@ -133,8 +133,32 @@ it('attache au magicien les 6 sorts de ses 2 éléments à la création (défaut
     $moi = $this->getJson('/api/moi')->assertOk()->json();
     $persos = collect($moi['joueur']['personnages']);
     $sorts = collect($persos->firstWhere('nom', 'Mage A')['sorts']);
-    expect($sorts)->toHaveCount(6)
+    expect($sorts)->toHaveCount(9)
         ->and($sorts->first())->toHaveKeys(['sort_id', 'nom', 'element', 'type', 'disponible']);
+});
+
+it("attache à l'elfe les 3 sorts de son unique élément à la création (parité HeroQuest, défaut eau, validation stricte)", function () {
+    connecterJoueur('alice');
+    creerGroupe();
+
+    // Défaut : eau (1 élément, doc 02 §2).
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'Elfe A', 'classe' => 'elfe'])->assertOk();
+    $defaut = Personnage::where('nom', 'Elfe A')->firstOrFail();
+
+    expect($defaut->sorts()->count())->toBe(3)
+        ->and($defaut->sorts()->pluck('element')->unique()->all())->toBe(['eau']);
+
+    // Choix explicite d'un élément.
+    $this->postJson('/api/groupes/table-1/joueurs', [
+        'nom' => 'Elfe B', 'classe' => 'elfe', 'elements' => ['air'],
+    ])->assertOk();
+    expect(Personnage::where('nom', 'Elfe B')->firstOrFail()->sorts()->pluck('element')->unique()->all())->toBe(['air']);
+
+    // Validation : exactement 1 élément (0 ou 2 refusés).
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'elfe', 'elements' => ['feu', 'eau']])
+        ->assertStatus(422);
+    $this->postJson('/api/groupes/table-1/joueurs', ['nom' => 'X', 'classe' => 'elfe', 'elements' => ['lave']])
+        ->assertStatus(422);
 });
 
 it("attache les 3 sorts de l'élément choisi à l'acquisition de Première magie (défaut eau, 422 si déjà connu)", function () {

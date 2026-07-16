@@ -141,7 +141,7 @@ class GroupeController extends Controller
         $donnees = $request->validate([
             'nom' => ['required', 'string', 'max:120'],
             'classe' => ['required', Rule::exists('classes_heros', 'nom')],
-            'elements' => ['sometimes', 'array', 'size:2'],
+            'elements' => $this->reglesElements($request->input('classe')),
             'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
         ]);
 
@@ -191,8 +191,8 @@ class GroupeController extends Controller
      *
      * Trois formes acceptées (docs/contrat-api.md) :
      * - {nom, classe} : crée un héros du roster depuis le catalogue de classes —
-     *   un MAGICIEN choisit ses 2 éléments de départ via `elements:
-     *   ["feu","eau"]` (optionnel, défaut feu+eau — doc 02 §2) ;
+     *   un lanceur choisit ses éléments de départ via `elements` (Magicien 3,
+     *   Elfe 1 ; optionnel, défauts par classe — doc 02 §2) ;
      * - {personnage_id} : engage un héros existant du roster ;
      * - {personnage_ids: [...]} : plusieurs héros (un joueur peut en contrôler plusieurs).
      */
@@ -207,8 +207,8 @@ class GroupeController extends Controller
             'personnage_id' => ['required_without_all:personnage_ids,classe', 'integer'],
             'nom' => ['required_with:classe', 'string', 'max:120'],
             'classe' => ['required_without_all:personnage_ids,personnage_id', Rule::exists('classes_heros', 'nom')],
-            // Éléments de départ du Magicien : exactement 2, distincts (doc 02 §2).
-            'elements' => ['sometimes', 'array', 'size:2'],
+            // Éléments de départ du lanceur : exactement N distincts selon la classe (doc 02 §2).
+            'elements' => $this->reglesElements($request->input('classe')),
             'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
         ]);
 
@@ -290,9 +290,10 @@ class GroupeController extends Controller
 
     /**
      * Crée un héros du roster aux valeurs de départ du catalogue (doc 01).
-     * Un MAGICIEN reçoit les 6 sorts de ses 2 éléments de départ (doc 02 §2,
-     * `elements` validé en amont — défaut feu+eau) ; l'Elfe acquiert les
-     * siens via les nœuds d'arbre (CompetenceController).
+     * Parité HeroQuest de base (doc 02 §2) : le MAGICIEN reçoit les 9 sorts de
+     * ses 3 éléments, l'ELFE les 3 sorts de son élément (`elements` validé en
+     * amont — défauts par classe). Les éléments SUPPLÉMENTAIRES s'acquièrent
+     * via l'arbre (CompetenceController) ; Barbare / Nain : aucun sort.
      *
      * @param  list<string>|null  $elements
      */
@@ -317,13 +318,25 @@ class GroupeController extends Controller
             'or' => 0,
         ]);
 
-        if ($classe === 'magicien') {
-            foreach ($elements ?? MoteurSorts::ELEMENTS_DEFAUT_MAGICIEN as $element) {
-                $sorts->attacherElement($personnage, $element);
-            }
+        foreach (MoteurSorts::elementsDepart($classe, $elements) as $element) {
+            $sorts->attacherElement($personnage, $element);
         }
 
         return $personnage;
+    }
+
+    /**
+     * Règles du champ `elements` selon la classe soumise : exactement N
+     * éléments distincts du catalogue pour un lanceur (Magicien 3, Elfe 1),
+     * taille 0 sinon (non-lanceur ou engagement d'un perso existant).
+     *
+     * @return list<mixed>
+     */
+    private function reglesElements(?string $classe): array
+    {
+        $nb = MoteurSorts::nbElementsDepart((string) $classe);
+
+        return ['sometimes', 'array', 'size:'.$nb];
     }
 
     /** Dérive un code de groupe unique et lisible depuis le nom. */

@@ -20,10 +20,12 @@ use Illuminate\Validation\ValidationException;
  * Moteur des sorts des héros (doc 02) — résolu en code, jamais par l'IA.
  *
  * Connaissance par ÉLÉMENTS (doc 02 §2-3) : connaître un élément = connaître
- * ses 3 sorts (pivot personnage_sorts, disponible = épuisé/dispo). Magicien :
- * 2 éléments à la création ; Elfe : nœuds « Première magie » / « Second
- * élément » ; nœuds « Écoles » du Magicien — tous via la mécanique
- * `emplacement_element` du CompetenceSeeder.
+ * ses 3 sorts (pivot personnage_sorts, disponible = épuisé/dispo). À la
+ * création (parité HeroQuest de base) : Magicien 3 éléments (9 sorts), Elfe
+ * 1 élément (3 sorts) — voir NB_ELEMENTS_DEPART. Éléments SUPPLÉMENTAIRES via
+ * l'arbre : nœuds « Première magie » / « Second élément » de l'Elfe, « Écoles »
+ * (répétable) du Magicien — tous via la mécanique `emplacement_element` du
+ * CompetenceSeeder.
  *
  * Récupération « une fois par quête » (S5) : DemarreurQuete remet tout
  * disponible via reinitialiserQuete ; « Concentration » (S6, nœud Magicien)
@@ -58,8 +60,18 @@ final class MoteurSorts
     /** Les 4 éléments du MVP (doc 02 §7). */
     public const ELEMENTS = ['feu', 'eau', 'terre', 'air'];
 
-    /** Éléments de départ du Magicien quand le client n'en choisit pas. */
-    public const ELEMENTS_DEFAUT_MAGICIEN = ['feu', 'eau'];
+    /**
+     * Nombre d'éléments choisis à la CRÉATION selon la classe (parité HeroQuest
+     * de base — doc 02 §2) : Magicien 3, Elfe 1 ; toute autre classe 0. Les
+     * éléments au-delà s'acquièrent via l'arbre (`emplacement_element`).
+     */
+    public const NB_ELEMENTS_DEPART = ['magicien' => 3, 'elfe' => 1];
+
+    /** Éléments de départ par défaut par classe quand le client n'en choisit aucun. */
+    public const ELEMENTS_DEPART_DEFAUT = [
+        'magicien' => ['feu', 'eau', 'terre'],
+        'elfe' => ['eau'],
+    ];
 
     /** Élément par défaut d'un nœud `emplacement_element` (contrat). */
     public const ELEMENT_DEFAUT = 'eau';
@@ -100,6 +112,29 @@ final class MoteurSorts
     // ------------------------------------------------------------------
     // Acquisition par éléments
     // ------------------------------------------------------------------
+
+    /** Nombre d'éléments choisis à la création par cette classe (0 = non-lanceur). */
+    public static function nbElementsDepart(string $classe): int
+    {
+        return self::NB_ELEMENTS_DEPART[$classe] ?? 0;
+    }
+
+    /**
+     * Éléments de départ à attacher pour cette classe : le choix du client
+     * s'il est fourni, sinon le défaut catalogue ; liste vide pour un
+     * non-lanceur (Barbare / Nain).
+     *
+     * @param  list<string>|null  $choix
+     * @return list<string>
+     */
+    public static function elementsDepart(string $classe, ?array $choix = null): array
+    {
+        if (self::nbElementsDepart($classe) === 0) {
+            return [];
+        }
+
+        return $choix ?? self::ELEMENTS_DEPART_DEFAUT[$classe] ?? [];
+    }
 
     /**
      * Attache les 3 sorts d'un élément au héros (disponibles d'office).

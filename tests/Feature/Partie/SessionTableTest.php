@@ -216,14 +216,14 @@ it('crée un personnage libre dans le roster du joueur', function () {
     expect(Personnage::where('joueur_id', $joueur->id)->where('nom', 'Gunther')->exists())->toBeTrue();
 });
 
-it('crée un magicien libre avec ses 2 éléments', function () {
+it('crée un magicien libre avec ses 3 éléments', function () {
     $this->seed([ClasseHerosSeeder::class, SortSeeder::class]);
     connecterJoueur('alice');
 
     $reponse = $this->postJson('/api/personnages', [
         'nom' => 'Zara',
         'classe' => 'magicien',
-        'elements' => ['feu', 'air'],
+        'elements' => ['feu', 'air', 'eau'],
     ]);
 
     $reponse->assertStatus(201)
@@ -233,8 +233,8 @@ it('crée un magicien libre avec ses 2 éléments', function () {
     $moi = $this->getJson('/api/moi')->assertOk()->json();
     $sorts = collect($moi['joueur']['personnages'])
         ->firstWhere('nom', 'Zara')['sorts'] ?? [];
-    // Magicien = 6 sorts (3 × 2 éléments).
-    expect(count($sorts))->toBe(6);
+    // Magicien = 9 sorts (3 × 3 éléments, parité HeroQuest de base).
+    expect(count($sorts))->toBe(9);
 });
 
 it('refuse la création d\'un perso avec une classe inexistante', function () {

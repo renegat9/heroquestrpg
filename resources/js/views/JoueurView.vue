@@ -3,7 +3,7 @@
 // Si pas connecté : onglets connexion / inscription.
 // Connecté : liste des persos avec statut (libre / engagé + narrateur actif).
 // Actions : Créer un groupe, Rejoindre par code, Reprendre, Créer un personnage.
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
@@ -83,15 +83,22 @@ const elementsChoisis = ref([]);
 const creerPersoEnCours = ref(false);
 const erreurCreerPerso = ref('');
 
-const classesMagiciennes = ['magicien', 'magicienne'];
-const estMagicien = computed(() => classesMagiciennes.includes(nouvelleClasse.value));
+// Nombre d'éléments choisis à la création par classe (parité HeroQuest de
+// base — doc 02 §2) : Magicien 3, Elfe 1, autres 0. Doit refléter
+// MoteurSorts::NB_ELEMENTS_DEPART côté serveur.
+const NB_ELEMENTS_CLASSE = { magicien: 3, magicienne: 3, elfe: 1 };
+const nbElementsRequis = computed(() => NB_ELEMENTS_CLASSE[nouvelleClasse.value] ?? 0);
+const estLanceur = computed(() => nbElementsRequis.value > 0);
 const listeElements = Object.entries(ELEMENTS).map(([k, v]) => ({ v: k, l: v.l, ic: v.ic }));
 const listeClasses = Object.entries(CLASSES).map(([k, v]) => ({ v: k, l: v.l }));
+
+// Changer de classe remet à zéro la sélection (les quotas diffèrent).
+watch(nouvelleClasse, () => { elementsChoisis.value = []; });
 
 function toggleElement(el) {
     if (elementsChoisis.value.includes(el)) {
         elementsChoisis.value = elementsChoisis.value.filter((e) => e !== el);
-    } else if (elementsChoisis.value.length < 2) {
+    } else if (elementsChoisis.value.length < nbElementsRequis.value) {
         elementsChoisis.value = [...elementsChoisis.value, el];
     }
 }
@@ -102,7 +109,7 @@ async function creerPersonnage() {
     erreurCreerPerso.value = '';
     try {
         const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value };
-        if (estMagicien.value && elementsChoisis.value.length === 2) {
+        if (estLanceur.value && elementsChoisis.value.length === nbElementsRequis.value) {
             payload.elements = elementsChoisis.value;
         }
         await api.creerPersonnage(payload);
@@ -582,11 +589,11 @@ function libelleClasse(classe) {
                                 </label>
                             </div>
 
-                            <!-- éléments (magicien/magicienne uniquement) -->
-                            <template v-if="estMagicien">
+                            <!-- éléments (lanceurs : Magicien 3, Elfe 1) -->
+                            <template v-if="estLanceur">
                                 <label class="joueur-lbl">
                                     Éléments de magie
-                                    <span class="joueur-lbl-hint">(choisissez 2)</span>
+                                    <span class="joueur-lbl-hint">(choisissez {{ nbElementsRequis }})</span>
                                 </label>
                                 <div class="joueur-elem-grid">
                                     <button
@@ -596,7 +603,7 @@ function libelleClasse(classe) {
                                         class="joueur-elem-btn"
                                         :class="{
                                             on: elementsChoisis.includes(el.v),
-                                            disabled: !elementsChoisis.includes(el.v) && elementsChoisis.length >= 2,
+                                            disabled: !elementsChoisis.includes(el.v) && elementsChoisis.length >= nbElementsRequis,
                                         }"
                                         @click="toggleElement(el.v)"
                                     >
@@ -615,7 +622,7 @@ function libelleClasse(classe) {
                                     class="joueur-btn-primary-sm"
                                     type="submit"
                                     :disabled="creerPersoEnCours || !nouveauNom.trim()
-                                        || (estMagicien && elementsChoisis.length < 2)"
+                                        || (estLanceur && elementsChoisis.length < nbElementsRequis)"
                                 >
                                     <MSym n="add_circle" />
                                     {{ creerPersoEnCours ? 'Création…' : 'Créer le personnage' }}

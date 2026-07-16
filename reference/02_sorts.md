@@ -16,16 +16,16 @@ La magie reste **fidèle à HeroQuest** : sorts regroupés par **éléments**, *
 
 | Héros | Accès |
 |---|---|
-| **Magicien** | Lanceur complet. Démarre avec **2 éléments au choix**, débloque les autres via les nœuds *Écoles* de son arbre. |
-| **Elfe** | Magie légère. **1 élément** via le nœud *Première magie* ; *Second élément* via l'arbre. |
+| **Magicien** | Lanceur complet. Démarre avec **3 éléments au choix** (9 sorts, parité HeroQuest de base), débloque le 4ᵉ via le nœud *Écoles* (répétable) de son arbre. |
+| **Elfe** | Magie légère. Démarre avec **1 élément au choix** (3 sorts, parité HeroQuest de base) ; éléments supplémentaires via les nœuds *Première magie* / *Second élément* de l'arbre. |
 | **Barbare / Nain** | Pas de sorts connus. Peuvent utiliser des **parchemins** (voir §6). |
 
 ---
 
 ## 3. Acquisition des sorts
 
-- À la création, le lanceur **choisit ses éléments** de départ (parmi Feu, Eau, Terre, Air). Connaître un élément = connaître ses 3 sorts.
-- La progression débloque de **nouveaux éléments** via l'arbre de compétences, pas automatiquement.
+- À la création, le lanceur **choisit ses éléments** de départ parmi Feu, Eau, Terre, Air (**Magicien 3, Elfe 1** — parité HeroQuest de base). Connaître un élément = connaître ses 3 sorts.
+- La progression débloque des **éléments supplémentaires** via l'arbre de compétences, pas automatiquement.
 - Les **parchemins** donnent un accès *ponctuel* à un sort, même hors de son répertoire.
 
 ---

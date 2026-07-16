@@ -292,12 +292,14 @@ re-`GET /moi` après chaque manip pour rafraîchir fiche + sac. Slots :
 ## Sorts des héros (doc 02 — tout par les menus)
 
 **Connaissance par éléments** (connaître un élément = ses 3 sorts, pivot
-`personnage_sorts.disponible`) : le **Magicien** choisit **2 éléments** à la
-création (`POST joueurs` accepte `elements: ["feu","eau"]` — défaut feu+eau) ;
-l'**Elfe** gagne 1 élément en acquérant *Première magie* (`POST competences`
-accepte alors `element` — défaut eau) puis un autre via *Second élément* ;
-Barbare/Nain : parchemins seulement. Les nœuds *Écoles* du Magicien débloquent
-les éléments restants (même mécanique `element`).
+`personnage_sorts.disponible`) — parité HeroQuest de base à la création : le
+**Magicien** choisit **3 éléments** (9 sorts ; `POST joueurs`/`POST personnages`
+acceptent `elements: ["feu","eau","terre"]` — défaut feu+eau+terre), l'**Elfe**
+**1 élément** (3 sorts ; défaut eau). La taille de `elements` est validée selon
+la classe (Magicien 3, Elfe 1, autres 0). Barbare/Nain : parchemins seulement.
+Éléments SUPPLÉMENTAIRES via l'arbre (même mécanique `element` sur
+`POST competences`) : *Écoles* (répétable) du Magicien, *Première magie* /
+*Second élément* de l'Elfe.
 
 **Récupération (S5/S6)** : chaque sort est lançable **1×/quête** ; tout
 redevient disponible au démarrage d'une quête ; aucun repos en cours de quête.
