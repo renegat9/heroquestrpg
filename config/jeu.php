@@ -42,4 +42,15 @@ return [
         'taille_reference' => (int) env('JEU_TAILLE_REFERENCE', 4),
     ],
 
+    /*
+     * Relevage d'un allié tombé (doc 03 §48, correctifs §3) : un héros relevé à
+     * 1 PV retombait au moindre coup — boucle « relevé/retombe » stérile. Il se
+     * relève désormais à une FRACTION de ses PV max (plancher 1 PV), pour tenir
+     * au moins un échange. Valeur de départ à régler en playtest.
+     */
+    'relevage' => [
+        'fraction_pv' => (float) env('JEU_RELEVAGE_FRACTION_PV', 0.5), // 0..1 des PV Body max
+        'pv_min' => (int) env('JEU_RELEVAGE_PV_MIN', 1),
+    ],
+
 ];

@@ -80,8 +80,11 @@ it('relève un allié tombé quand sa case est libre et le sauveteur adjacent', 
         'option_id' => "relever_{$tombe->personnage_id}",
     ])->assertStatus(202)->assertJsonPath('resultat.type', 'relever');
 
+    // Relevé à la MOITIÉ des PV max (correctifs §3 : plus de boucle relevé/retombe).
+    $perso = $tombe->personnage->fresh();
     expect($tombe->fresh()->tombe)->toBeFalse()
-        ->and((int) $tombe->personnage->fresh()->pv_body)->toBe(1);
+        ->and((int) $perso->pv_body)->toBe(max(1, (int) round((int) $perso->pv_body_max * 0.5)))
+        ->and((int) $perso->pv_body)->toBeGreaterThan(1);
 });
 
 it('refuse de relever si une autre figure occupe la case du tombé', function () {

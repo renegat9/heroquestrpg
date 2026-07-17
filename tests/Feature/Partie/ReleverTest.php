@@ -25,7 +25,7 @@ beforeEach(function () {
     Http::fake();
 });
 
-it('propose et résout « relever » un allié tombé adjacent (sacrifie le tour, +1 PV, debout)', function () {
+it('propose et résout « relever » un allié tombé adjacent (sacrifie le tour, relevé à la moitié des PV, debout)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $grimnar = creerHeros($alice, $groupe, 'Grimnar', 1, ['classe' => 'barbare']);
@@ -54,11 +54,11 @@ it('propose et résout « relever » un allié tombé adjacent (sacrifie le tour
         ->postJson('/api/groupes/table-1/choix', ['option_id' => $relever['id']])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'relever')
-        ->assertJsonPath('resultat.pv_body', 1);
+        ->assertJsonPath('resultat.pv_body', 4); // nain PV max 7 × 0.5 = 4 (fini le relevage à 1 PV)
 
     $eK = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $khazra->id)->firstOrFail();
     expect((bool) $eK->tombe)->toBeFalse()                 // debout
-        ->and((int) $khazra->fresh()->pv_body)->toBe(1)   // 1 PV de Body
+        ->and((int) $khazra->fresh()->pv_body)->toBe(4)   // moitié des PV Body max, plancher 1
         ->and((bool) $eG->fresh()->a_joue)->toBeTrue();    // Grimnar a sacrifié son tour
 });
 

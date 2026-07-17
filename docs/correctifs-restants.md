@@ -118,8 +118,11 @@ Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) 
   les mercenaires restaurés (ci-dessus) aident déjà.
 - **Prix vs revenus** : potion 100 or vs ~50 or de butin — à recalibrer (prix des
   consommables, or de quête, ou butin de boss).
-- **Relevage à 1 PV** → boucle « relevé/retombe » : à trancher (relever à N PV,
-  ou plafond de relevages par quête).
+- ~~**Relevage à 1 PV** → boucle « relevé/retombe »~~ — un allié relevé revient
+  désormais à une **fraction de ses PV Body max** (défaut **½**, plancher 1 PV),
+  de quoi tenir au moins un échange. Réglable : `jeu.relevage.fraction_pv` /
+  `pv_min` (`ResolveurTour::pvRelevage`). *(Un plafond de relevages par quête
+  reste possible si le playtest le réclame.)*
 
 ## 4. Modérés — ~~FAIT~~
 

@@ -1362,21 +1362,38 @@ final class ResolveurTour
             ]);
         }
 
-        // Debout à 1 PV de Body ; la figure n'occupe plus la case en « tombée ».
+        // Debout à une FRACTION des PV Body max (plancher configurable) : relever
+        // à 1 PV enfermait dans une boucle « relevé/retombe » (correctifs §3).
+        // La figure n'occupe plus la case en « tombée ».
+        $pvReleve = $this->pvRelevage($cible->personnage);
         $cible->update(['tombe' => false]);
-        $cible->personnage->update(['pv_body' => 1]);
+        $cible->personnage->update(['pv_body' => $pvReleve]);
 
         $payload = [
             'type' => 'relever',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'cible' => ['personnage_id' => $cible->personnage_id, 'nom' => $cible->personnage->nom],
-            'pv_body' => 1,
+            'pv_body' => $pvReleve,
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * PV Body auxquels un allié se relève (correctifs §3) : fraction de ses PV
+     * max, plancher configurable, jamais au-dessus du max — de quoi tenir un
+     * échange au lieu de retomber au coup suivant.
+     */
+    private function pvRelevage(Personnage $personnage): int
+    {
+        $max = (int) $personnage->pv_body_max;
+        $fraction = (float) config('jeu.relevage.fraction_pv', 0.5);
+        $min = (int) config('jeu.relevage.pv_min', 1);
+
+        return max($min, min($max, (int) round($max * $fraction)));
     }
 
     /**
