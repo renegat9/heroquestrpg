@@ -38,6 +38,16 @@ final class AssembleurCarte
 {
     public const LONGUEUR_COULOIR = 3;
 
+    /**
+     * Largeur des couloirs en cases (correctifs F) : 2 = deux figurines de front
+     * (on ne se bouscule plus en file indienne). Les rangées retenues sont la
+     * ligne médiane et celle JUSTE AU-DESSUS (voir rangeesCouloir) : toutes les
+     * tuiles seedées ont du sol sur ces deux rangées à l'intérieur, donc chaque
+     * porte percée y ouvre bien sur du sol (la rangée sous la médiane, elle, est
+     * un mur plein sur la petite tuile 4×4).
+     */
+    public const LARGEUR_COULOIR = 2;
+
     public const NB_SALLES_MIN = 2;
 
     /** Nb max de positions de spawn retournées (héros / monstres). */
@@ -91,38 +101,50 @@ final class AssembleurCarte
 
             $salles[] = ['x' => $x, 'y' => $y, 'largeur' => $w, 'hauteur' => $h, 'theme' => $tuile->theme];
 
+            // Couloirs à LARGEUR_COULOIR cases de large (F) : chaque rangée du
+            // couloir perce sa propre porte de part et d'autre.
+            $rangees = $this->rangeesCouloir($ligneMediane);
+
             if ($i > 0) {
-                $cases[$ligneMediane][$x] = 'p'; // porte ouest
-                $portes[] = ['x' => $x, 'y' => $ligneMediane, 'etat' => 'ouverte'];
+                foreach ($rangees as $ry) {
+                    $cases[$ry][$x] = 'p'; // porte ouest
+                    $portes[] = ['x' => $x, 'y' => $ry, 'etat' => 'ouverte'];
+                }
             }
 
             if ($i < count($tuiles) - 1) {
-                // Porte est = entrée du couloir n°$i. Le gabarit peut la
-                // verrouiller / la rendre secrète (une seule porte du couloir
-                // suffit à le barrer).
-                $porte = ['x' => $x + $w - 1, 'y' => $ligneMediane, 'etat' => 'ouverte'];
+                // Portes est = entrée du couloir n°$i. Le gabarit peut les
+                // verrouiller / les rendre secrètes : la spec s'applique à
+                // TOUTES les rangées, sinon le couloir resterait franchissable
+                // par la rangée voisine.
                 $spec = $this->specPorte($portesSpec, $i);
 
-                if ($spec !== null) {
-                    $porte['etat'] = (string) $spec['etat'];
-                    if (isset($spec['verrou'])) {
-                        $porte['verrou'] = $spec['verrou'];
-                    }
-                    // Une secrète est invisible : la case redevient un mur
-                    // jusqu'à sa découverte (l'overlay Grille la rouvre ensuite).
-                    if ($porte['etat'] === 'secrete') {
-                        $porte['revele'] = false;
-                        $cases[$ligneMediane][$x + $w - 1] = 'm';
-                    }
-                }
+                foreach ($rangees as $ry) {
+                    $porte = ['x' => $x + $w - 1, 'y' => $ry, 'etat' => 'ouverte'];
 
-                if ($porte['etat'] !== 'secrete') {
-                    $cases[$ligneMediane][$x + $w - 1] = 'p'; // porte est visible
+                    if ($spec !== null) {
+                        $porte['etat'] = (string) $spec['etat'];
+                        if (isset($spec['verrou'])) {
+                            $porte['verrou'] = $spec['verrou'];
+                        }
+                        // Une secrète est invisible : la case redevient un mur
+                        // jusqu'à sa découverte (l'overlay Grille la rouvre ensuite).
+                        if ($porte['etat'] === 'secrete') {
+                            $porte['revele'] = false;
+                            $cases[$ry][$x + $w - 1] = 'm';
+                        }
+                    }
+
+                    if ($porte['etat'] !== 'secrete') {
+                        $cases[$ry][$x + $w - 1] = 'p'; // porte est visible
+                    }
+                    $portes[] = $porte;
                 }
-                $portes[] = $porte;
 
                 for ($cx = $x + $w; $cx < $x + $w + self::LONGUEUR_COULOIR; $cx++) {
-                    $cases[$ligneMediane][$cx] = 's'; // couloir creusé
+                    foreach ($rangees as $ry) {
+                        $cases[$ry][$cx] = 's'; // couloir creusé
+                    }
                 }
             }
 
@@ -144,6 +166,26 @@ final class AssembleurCarte
             'spawn_heros' => array_slice($this->interieur($cases, $salles[0]), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
         ];
+    }
+
+    /**
+     * Rangées (y) occupées par un couloir, de haut en bas : la ligne médiane et
+     * les LARGEUR_COULOIR-1 rangées AU-DESSUS. Le choix du « au-dessus » n'est
+     * pas arbitraire : toutes les tuiles seedées ont du sol à l'intérieur sur
+     * ces rangées, alors que la rangée SOUS la médiane est un mur plein sur la
+     * petite salle 4×4 (une porte y ouvrirait sur un mur).
+     *
+     * @return list<int>
+     */
+    private function rangeesCouloir(int $ligneMediane): array
+    {
+        $rangees = [];
+
+        for ($k = self::LARGEUR_COULOIR - 1; $k >= 0; $k--) {
+            $rangees[] = $ligneMediane - $k;
+        }
+
+        return $rangees;
     }
 
     /**
