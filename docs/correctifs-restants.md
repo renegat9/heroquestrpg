@@ -199,17 +199,20 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   adjacent au lanceur, cas signalé du Barbare) ; **les murs bloquent aussi** les
   sorts désormais (avant : aucune LdV → sort à travers les murs).
 
-## B. Temps réel / orchestration
-- **B1 — Joueur suivant activé avant la fin du narrateur.** Après une action
-  notable, `ChoixController` diffuse `MjReflechit` + `GenererNarration`, mais
-  `GenererMenu` part pour TOUS les héros dans la foulée (l.141-146) → le joueur
-  suivant reçoit son menu avant la fin de la narration. Chaîner le menu du
-  prochain héros à jouer APRÈS `GenererNarration`, ou le retenir côté front tant
-  que le MJ « réfléchit ».
-- **B2 — Narration qui ne se joue pas toujours / s'accumule.** File de lecture
-  de la narration côté table (Web Speech / audio) : soit des `NarrationDiffusee`
-  se chevauchent/sont perdus, soit la file ne se vide pas. À tracer côté écran
-  narrateur (lecture TTS + `BibliothequeNarration`).
+## B. Temps réel / orchestration — ~~FAIT (l'essentiel)~~
+- ~~**B1 — Joueur suivant activé avant la fin du narrateur.**~~ Déjà couvert : le
+  flag `mj.reflechit` (diffusé à TOUT le groupe) **gèle les boutons de TOUTES les
+  manettes** (`boutonsGeles = menuEnAttente || thinking`), y compris celle du
+  joueur suivant, jusqu'à ce que `GenererNarration` diffuse la narration puis
+  repose `MjReflechit(false)`. Limite connue : le dégel a lieu quand la narration
+  est GÉNÉRÉE, pas quand elle a fini d'être LUE (TTS) — attendre la fin de la
+  lecture exigerait un signal table→serveur→manette (non fait, plus lourd).
+- ~~**B2 — Narration qui ne se joue pas toujours / s'accumule.**~~ La lecture de
+  narration de JEU **interrompt** désormais la précédente (`voix.narrer({…,
+  interrompre: true})` sur `.narration.diffusee`) au lieu de l'empiler : la voix
+  suit l'état courant, plus d'accumulation ni de retard. La cérémonie de
+  lancement (prologue) reste protégée (n'interrompt pas). Les narrations périmées
+  (séquence) étaient déjà filtrées côté store.
 
 ## C. Écran narrateur enrichi (UI table) — ~~FAIT~~
 - ~~**C2 — Historique des événements sur la table.**~~ La table s'abonne

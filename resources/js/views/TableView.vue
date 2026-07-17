@@ -49,8 +49,10 @@ onMounted(async () => {
             '.groupe.etat': (e) => store.appliquerEtat(e),
             '.narration.diffusee': (e) => {
                 // Narration périmée (arrivée en retard derrière une plus
-                // récente) : ni affichée, ni lue à voix haute.
-                if (store.setNarration(e.texte, e.sequence)) voix.narrer({ texte: e.texte, url: e.url });
+                // récente) : ni affichée, ni lue à voix haute. Sinon on lit en
+                // INTERROMPANT la précédente (B2) : la voix suit l'état courant
+                // au lieu d'empiler des lignes en retard.
+                if (store.setNarration(e.texte, e.sequence)) voix.narrer({ texte: e.texte, url: e.url, interrompre: true });
             },
             '.bark.diffuse': (e) => voix.jouerBark(e),
             // Journal MÉCANIQUE (dés, dégâts, morts, tours des monstres) : le même

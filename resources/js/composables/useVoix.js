@@ -66,8 +66,25 @@ let narrBusy = false;
 function narrer(p) {
     const payload = typeof p === 'string' ? { texte: p } : (p || {});
     if (!actif.value || (!payload.texte && !payload.url)) return;
-    if (narrBusy) { narrPending = payload; return; } // remplace l'éventuel créneau en attente
+    if (narrBusy) {
+        // Narration de JEU (`interrompre`) : elle reflète l'état LE PLUS RÉCENT
+        // → on coupe la narration en cours au lieu de l'empiler, ce qui évitait
+        // l'accumulation/le retard (B2). La cérémonie de lancement, elle,
+        // n'interrompt pas : elle attend son tour (créneau unique remplacé).
+        if (payload.interrompre) { stopNarration(); lancerNarration(payload); return; }
+        narrPending = payload;
+        return;
+    }
     lancerNarration(payload);
+}
+
+/** Coupe net la narration en cours (audio pré-généré ou voix navigateur). */
+function stopNarration() {
+    if (narrAudio) { try { narrAudio.pause(); } catch { /* noop */ } narrAudio = null; }
+    if (supporte) window.speechSynthesis.cancel();
+    narrPending = null;
+    narrBusy = false;
+    speaking.value = false;
 }
 
 function lancerNarration({ texte, url }) {
