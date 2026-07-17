@@ -68,6 +68,12 @@ final class ResolveurTour
     /** Difficulté du jet de Body pour franchir une fosse (départ playtest). */
     public const DIFFICULTE_FRANCHISSEMENT = 2;
 
+    /**
+     * Coût en points de déplacement d'un SAUT au-dessus d'une fosse (E3) :
+     * sauter fait partie du mouvement — héros → fosse → réception = 2 cases.
+     */
+    public const COUT_FRANCHISSEMENT = 2;
+
     public function __construct(
         private readonly LanceurDes $des,
         private readonly EtatGroupe $etatGroupe,
@@ -279,19 +285,7 @@ final class ResolveurTour
         $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
         // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
-        // Au premier pas (restant null), on initialise au total du tour — Vent
-        // Véloce (×2) est appliqué et consommé À CE MOMENT, une seule fois.
-        if ($etat->deplacement_restant === null) {
-            $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
-            $restant = $totalTour * $multiplicateur;
-
-            if ($multiplicateur > 1) {
-                $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
-            }
-        } else {
-            $multiplicateur = 1;
-            $restant = (int) $etat->deplacement_restant;
-        }
+        ['restant' => $restant, 'multiplicateur' => $multiplicateur] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
@@ -370,6 +364,30 @@ final class ResolveurTour
      * @param  array{x: int, y: int}  $arrivee
      * @return list<array{x: int, y: int}>
      */
+    /**
+     * Points de déplacement RESTANTS du tour (E1). Au PREMIER usage du tour
+     * (restant null), le pool est initialisé au total du tour × Vent Véloce — le
+     * buff est appliqué ET consommé à ce moment, une seule fois ; ensuite on lit
+     * simplement le restant mémorisé. Partagé par le déplacement et le saut
+     * au-dessus d'une fosse (le saut fait partie du mouvement, E3).
+     *
+     * @return array{restant: int, multiplicateur: int}
+     */
+    private function pointsDeplacement(Personnage $personnage, EtatPersonnageQuete $etat, int $totalTour): array
+    {
+        if ($etat->deplacement_restant !== null) {
+            return ['restant' => (int) $etat->deplacement_restant, 'multiplicateur' => 1];
+        }
+
+        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
+
+        if ($multiplicateur > 1) {
+            $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
+        }
+
+        return ['restant' => $totalTour * $multiplicateur, 'multiplicateur' => $multiplicateur];
+    }
+
     private function cheminJusqua(array $chemin, array $arrivee): array
     {
         $parcouru = [];
@@ -615,6 +633,17 @@ final class ResolveurTour
             ]);
         }
 
+        // Sauter FAIT PARTIE DU MOUVEMENT (E3) : le saut se paie sur les points
+        // de déplacement restants du tour (héros → fosse → réception = 2 cases).
+        $totalTour = (int) ($etat->deplacement_tour ?? $personnage->deplacement_base);
+        ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour);
+
+        if ($restant < self::COUT_FRANCHISSEMENT) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Pas assez de déplacement restant pour sauter par-dessus la fosse.',
+            ]);
+        }
+
         // Case de réception : le prolongement de l'élan, de l'autre côté de
         // la fosse (héros → fosse → réception, alignés).
         $arrivee = [
@@ -647,21 +676,38 @@ final class ResolveurTour
         ];
 
         if ($resultat->estReussi()) {
-            $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+            // Saut réussi : on paie les 2 cases ; s'il reste des points, le héros
+            // peut CONTINUER son mouvement après avoir sauté (E1/E3).
+            $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+
+            $etat->update([
+                'position_x' => $arrivee['x'],
+                'position_y' => $arrivee['y'],
+                'deplacement_restant' => $restantApres,
+                'a_deplace' => $restantApres <= 0,
+            ]);
 
             // Œil du mineur : détection automatique autour de la réception.
             $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
 
             $payload['vers'] = $arrivee;
+            $payload['deplacement_restant'] = $restantApres;
         } else {
             // Chute : le héros tombe DANS la fosse (effet du catalogue) et
-            // y reste — la fosse persistante demeure en jeu (doc 10 §5).
-            $etat->update(['position_x' => $cible['x'], 'position_y' => $cible['y']]);
+            // y reste — la fosse persistante demeure en jeu (doc 10 §5). La
+            // course s'arrête là : le mouvement du tour est terminé.
+            $etat->update([
+                'position_x' => $cible['x'],
+                'position_y' => $cible['y'],
+                'deplacement_restant' => 0,
+                'a_deplace' => true,
+            ]);
 
             $payload['declenchement'] = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'franchissement_rate',
             );
             $payload['vers'] = ['x' => $cible['x'], 'y' => $cible['y']];
+            $payload['deplacement_restant'] = 0;
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);

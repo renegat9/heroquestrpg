@@ -246,9 +246,15 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   libre (ci-dessus). RESTE : que les portes inter-salles soient **fermées par
   défaut** (bloquant le passage) avec une option « Ouvrir la porte » générique
   (pas seulement les portes à clé) — à vérifier côté MoteurPortes/AssembleurCarte.
-- **E3 — Sauter par-dessus un piège.** S'arrêter à côté d'un piège détecté (ou
-  déjà déclenché) et **sauter** par-dessus (le saut fait partie du mouvement),
-  au lieu de s'y arrêter forcément (`MoteurPieges::controlerChemin`).
+- ~~**E3 — Sauter par-dessus un piège.**~~ Le saut au-dessus d'une **fosse
+  détectée** adjacente (option « Sauter par-dessus », jet de Body) **fait
+  désormais partie du mouvement** : il se paie sur les points restants
+  (`COUT_FRANCHISSEMENT = 2` — héros → fosse → réception) et, s'il en reste, le
+  héros **continue** son déplacement après avoir sauté. Une chute termine le
+  mouvement. L'option n'est proposée que s'il reste assez de points. *(Corrige
+  au passage une régression d'E1 : `marquerCreneau('mouvement')` étant devenu un
+  no-op, le saut ne consommait plus rien.)* Les pièges non-fosse déjà déclenchés
+  sont consommés : ils ne bloquent pas le passage, rien à sauter.
 - ~~**E4 — Animation du déplacement.**~~ La table (`DungeonMap`) anime le
   déplacement des figurines (héros ET monstres) par **FLIP** (`TransitionGroup`) :
   le jeton GLISSE vers sa nouvelle case au lieu de se téléporter, et un monstre

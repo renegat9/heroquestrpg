@@ -291,6 +291,7 @@ it('franchit une fosse détectée sur un jet de Body 2 réussi : le héros atter
 
     $saut = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
     poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'detecte']]);
+    $etat->update(['deplacement_tour' => 6]); // allonce connue → coût du saut vérifiable
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id));
@@ -306,12 +307,17 @@ it('franchit une fosse détectée sur un jet de Body 2 réussi : le héros atter
         ->assertJsonPath('resultat.type', 'franchissement')
         ->assertJsonPath('resultat.franchi', true)
         ->assertJsonPath('resultat.vers.x', $saut['reception']['x'])
-        ->assertJsonPath('resultat.vers.y', $saut['reception']['y']);
+        ->assertJsonPath('resultat.vers.y', $saut['reception']['y'])
+        // Sauter fait partie du MOUVEMENT (E3) : 2 cases payées sur les 6.
+        ->assertJsonPath('resultat.deplacement_restant', 4);
 
     $etat->refresh();
     expect($etat->position_x)->toBe($saut['reception']['x'])
         ->and($etat->position_y)->toBe($saut['reception']['y'])
         ->and($hero->fresh()->pv_body)->toBe(8) // indemne
+        // Il reste des points → le mouvement n'est PAS fini : on peut continuer.
+        ->and($etat->deplacement_restant)->toBe(4)
+        ->and($etat->a_deplace)->toBeFalse()
         ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte'); // la fosse reste en jeu
 });
 

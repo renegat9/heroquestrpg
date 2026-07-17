@@ -109,6 +109,22 @@ final class MenuMoteur
         return ! $occupee;
     }
 
+    /**
+     * Points de déplacement encore disponibles ce tour (E1) — LECTURE SEULE :
+     * le restant mémorisé si le mouvement est entamé, sinon le total du tour
+     * (Vent Véloce inclus, mais JAMAIS consommé ici : c'est le résolveur qui
+     * consomme le buff au premier pas).
+     */
+    private function pointsRestants(Personnage $personnage, ?EtatPersonnageQuete $etat): int
+    {
+        if ($etat?->deplacement_restant !== null) {
+            return (int) $etat->deplacement_restant;
+        }
+
+        return $this->deplacementDuTour($personnage, $etat)['total']
+            * $this->sorts->multiplicateurDeplacement($personnage);
+    }
+
     private function deplacementDuTour(Personnage $personnage, ?EtatPersonnageQuete $etat): array
     {
         $base = (int) $personnage->deplacement_base;
@@ -238,16 +254,21 @@ final class MenuMoteur
             ? $this->pieges->detectesAdjacents($quete->carte, (int) $etat->position_x, (int) $etat->position_y)
             : [];
 
-        if (! $aDeplace) {
+        // Sauter par-dessus une fosse fait partie du MOUVEMENT (E3) : l'option
+        // n'apparaît que s'il reste assez de points pour payer le saut.
+        if (! $aDeplace && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
             foreach ($detectes as $adjacent) {
                 if ($this->pieges->estFosse($adjacent['piege'])) {
                     $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
                     $options[] = [
                         'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
-                        'libelle' => "Franchir {$nomPiege} — jet de Body",
+                        'libelle' => "Sauter par-dessus {$nomPiege} — jet de Body",
                         'type' => 'franchissement',
                         'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_FRANCHISSEMENT],
-                        'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                        'parametres' => [
+                            'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
+                            'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
+                        ],
                     ];
                 }
             }
