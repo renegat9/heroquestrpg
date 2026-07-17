@@ -20,6 +20,7 @@ class EtatPersonnageQuete extends Model
         'a_deplace',
         'a_agi',
         'deplacement_tour',
+        'deplacement_restant',
         'tombe',
     ];
 
@@ -31,6 +32,7 @@ class EtatPersonnageQuete extends Model
             'a_agi' => 'boolean',
             'tombe' => 'boolean',
             'deplacement_tour' => 'integer',
+            'deplacement_restant' => 'integer',
         ];
     }
 

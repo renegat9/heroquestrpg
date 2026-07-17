@@ -211,16 +211,23 @@ final class MenuMoteur
         // plateau est celui du moteur (occupation identique à ResolveurTour).
         if (! $aDeplace && $this->peutSeDeplacer($quete, $personnage, $etat)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
-            $porteeEffective = $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage); // Vent Véloce
+
+            // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son
+            // mouvement ce tour, la portée offerte est le RESTANT ; sinon le total
+            // du tour (Vent Véloce inclus, appliqué au 1er pas côté résolveur).
+            $porteeEffective = $etat?->deplacement_restant !== null
+                ? (int) $etat->deplacement_restant
+                : $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage);
+
             $options[] = [
                 'id' => 'se_deplacer',
-                'libelle' => 'Se déplacer',
+                'libelle' => $etat?->deplacement_restant !== null ? 'Continuer à se déplacer' : 'Se déplacer',
                 'type' => 'deplacement',
                 'parametres' => [
                     'portee_base' => (int) $personnage->deplacement_base,
                     'base' => $portee['base'],
                     'de' => $portee['de'],          // résultat du d6 (null si Armure de plates)
-                    'portee' => $porteeEffective,    // cases max ce tour (incl. Vent Véloce)
+                    'portee' => $porteeEffective,    // cases restantes ce tour
                 ],
             ];
         }

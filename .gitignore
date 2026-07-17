@@ -39,3 +39,6 @@ browser-shots/*.png
 
 # artefacts Windows (flux ADS de fichiers téléchargés) — bruit, hors dépôt
 *:Zone.Identifier
+
+# Worktrees d agents (isolés, jamais versionnés)
+.claude/worktrees/

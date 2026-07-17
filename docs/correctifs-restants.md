@@ -225,21 +225,24 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   (`SpellsTab.vue`, `CibleSheet.vue`).
 
 ## E. Refonte du mouvement (moteur + front) — le gros morceau
-- **E1 — Mouvement fractionné.** Aujourd'hui `resoudreDeplacement` est
-  atomique (une destination, `a_deplace=true`, fini — l.254). Passer à un
-  **pool de points restants** (`deplacement_restant`) : on peut se déplacer en
-  plusieurs fois tant qu'il reste des points ET qu'aucune action « hors mouvement »
-  n'a été faite ; le mouvement restant est **perdu** dès la 1re action non-mouvement.
-- **E2 — Portes pendant le mouvement.** S'arrêter DEVANT une porte fermée,
-  l'ouvrir (interaction compatible mouvement, ne termine pas le déplacement),
-  puis continuer s'il reste des points.
+- ~~**E1 — Mouvement fractionné.**~~ `resoudreDeplacement` dépense sur un **pool
+  de points restants** (`deplacement_restant`, nouvelle colonne) : on se déplace
+  en plusieurs fois tant qu'il reste des points (option « Continuer à se
+  déplacer », portée = restant) ET qu'aucune action hors mouvement n'a été faite.
+  Une **action** forfait le déplacement restant (`marquerCreneau` action ⇒
+  a_deplace + a_agi ⇒ a_joue). Ouvrir une porte / actionner un levier = **interaction
+  LIBRE** (ne consomme aucun créneau — E2 partiel). Piège = déplacement interrompu,
+  mouvement fini.
+- **E2 — Portes fermées pendant le mouvement.** L'ouverture est déjà une interaction
+  libre (ci-dessus). RESTE : que les portes inter-salles soient **fermées par
+  défaut** (bloquant le passage) avec une option « Ouvrir la porte » générique
+  (pas seulement les portes à clé) — à vérifier côté MoteurPortes/AssembleurCarte.
 - **E3 — Sauter par-dessus un piège.** S'arrêter à côté d'un piège détecté (ou
   déjà déclenché) et **sauter** par-dessus (le saut fait partie du mouvement),
-  au lieu de s'y arrêter forcément (`MoteurPieges::controlerChemin`, l.305).
-- **E4 — Animation case-par-case.** L'écran narrateur (et idéalement la manette)
-  doit animer le déplacement case par case (héros ET monstres) au lieu de
-  téléporter ; le chemin est déjà calculé (`Grille::chemin`) mais seule l'arrivée
-  est diffusée — diffuser le CHEMIN. Interrompu net sur un piège.
+  au lieu de s'y arrêter forcément (`MoteurPieges::controlerChemin`).
+- **E4 — Animation case-par-case.** `resoudreDeplacement` diffuse désormais le
+  `chemin` parcouru + le `depart` ; RESTE l'animation côté table (et manette) le
+  long de ce chemin au lieu de téléporter. Interrompu net sur un piège.
 
 ## F. Génération de carte — ⚠ chantier lourd, décision de design
 - **F1 — Corridors à 2 cases de large** (avec obstacles au besoin).

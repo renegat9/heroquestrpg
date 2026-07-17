@@ -50,7 +50,7 @@ it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', fun
     expect((int) $etat->fresh()->deplacement_tour)->toBe(8);
 });
 
-it('deux créneaux : se déplacer n\'achève PAS le tour, le héros peut encore agir', function () {
+it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se déplacer (E1)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -63,24 +63,61 @@ it('deux créneaux : se déplacer n\'achève PAS le tour, le héros peut encore 
     $etatA->update(['deplacement_tour' => 8, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
     $cible = caseAdjacenteLibre($quete, (int) $etatA->position_x, (int) $etatA->position_y);
 
-    // 1) Déplacement : créneau MOUVEMENT consommé, mais le tour n'est pas fini.
+    // 1) Un pas (1 case) sur 8 → il reste 7 points : le mouvement N'EST PAS fini.
     $this->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
-        ->assertStatus(202);
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.deplacement_restant', 7);
     $etatA->refresh();
-    expect($etatA->a_deplace)->toBeTrue()
+    expect($etatA->deplacement_restant)->toBe(7)
+        ->and($etatA->a_deplace)->toBeFalse()
         ->and($etatA->a_agi)->toBeFalse()
         ->and($etatA->a_joue)->toBeFalse();
 
-    // 2) Le menu régénéré n'offre plus le déplacement, mais permet encore d'agir.
+    // 2) Le menu régénéré propose ENCORE le déplacement (« Continuer »), à la
+    //    portée restante, plus les actions et « Terminer le tour ».
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
-    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->toBeNull()
+    $dep = collect($menu['options'])->firstWhere('type', 'deplacement');
+    expect($dep)->not->toBeNull()
+        ->and($dep['parametres']['portee'])->toBe(7)
         ->and(collect($menu['options'])->firstWhere('type', 'attente'))->not->toBeNull();
 
-    // 3) Terminer le tour → les deux créneaux sont consommés → a_joue.
+    // 3) Terminer le tour → a_joue.
     $this->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202);
     expect($etatA->fresh()->a_joue)->toBeTrue();
+});
+
+it('une action hors mouvement FORFAIT le déplacement restant (E1)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $etatA->update(['deplacement_tour' => 8, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+    $cible = caseAdjacenteLibre($quete, (int) $etatA->position_x, (int) $etatA->position_y);
+
+    // Un pas → il reste 7 points.
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
+        ->assertStatus(202);
+    expect($etatA->fresh()->deplacement_restant)->toBe(7);
+
+    // Puis « Fouiller » (action hors mouvement) : le déplacement restant est PERDU
+    // (a_deplace + a_agi) → tour terminé (a_joue).
+    desFiges(array_fill(0, 20, 1));
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
+        ->assertStatus(202);
+    $etatA->refresh();
+    expect($etatA->deplacement_restant)->toBe(0)
+        ->and($etatA->a_deplace)->toBeTrue()
+        ->and($etatA->a_agi)->toBeTrue()
+        ->and($etatA->a_joue)->toBeTrue();
 });

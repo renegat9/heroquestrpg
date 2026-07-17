@@ -102,14 +102,17 @@ it('résout un déplacement : base + 1d6, chemin sur la grille, a_joue marqué',
     $reponse->assertJsonPath('resultat.type', 'deplacement')
         ->assertJsonPath('resultat.de', 3)
         ->assertJsonPath('resultat.deplacement_total', 7)
-        ->assertJsonPath('resultat.distance', 1);
+        ->assertJsonPath('resultat.distance', 1)
+        ->assertJsonPath('resultat.deplacement_restant', 6); // 7 − 1 case (E1, fractionné)
 
     $etat->refresh();
-    // Deux créneaux (doc 03 §28) : se déplacer consomme le créneau MOUVEMENT
-    // mais ne termine PAS le tour — le héros peut encore agir.
+    // Déplacement FRACTIONNÉ (E1) : un pas de 1 sur 7 laisse 6 points → le
+    // mouvement N'EST PAS fini (a_deplace reste false, on peut continuer), et
+    // le tour non plus (a_joue false).
     expect($etat->position_x)->toBe($cible['x'])
         ->and($etat->position_y)->toBe($cible['y'])
-        ->and($etat->a_deplace)->toBeTrue()
+        ->and($etat->deplacement_restant)->toBe(6)
+        ->and($etat->a_deplace)->toBeFalse()
         ->and($etat->a_joue)->toBeFalse();
 
     // L'événement est journalisé et l'état partagé reflète le tour.

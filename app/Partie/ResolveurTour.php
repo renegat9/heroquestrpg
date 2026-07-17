@@ -270,15 +270,28 @@ final class ResolveurTour
         $x = (int) $x;
         $y = (int) $y;
 
+        $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
         // Allonce du tour : le d6 a été lancé à la génération du menu et MÉMORISÉ
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
         $base = (int) $personnage->deplacement_base;
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))->calculer($base)->total;
         $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
-        // Vent Véloce (doc 02 §7) : déplacement ×2, buff consommé à l'usage.
-        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
-        $total = $totalTour * $multiplicateur;
+        // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
+        // Au premier pas (restant null), on initialise au total du tour — Vent
+        // Véloce (×2) est appliqué et consommé À CE MOMENT, une seule fois.
+        if ($etat->deplacement_restant === null) {
+            $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
+            $restant = $totalTour * $multiplicateur;
+
+            if ($multiplicateur > 1) {
+                $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
+            }
+        } else {
+            $multiplicateur = 1;
+            $restant = (int) $etat->deplacement_restant;
+        }
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
@@ -289,23 +302,37 @@ final class ResolveurTour
 
         $distance = count($chemin);
 
-        if ($distance > $total) {
+        if ($distance > $restant) {
             throw ValidationException::withMessages([
-                'parametres' => "Destination hors de portée : {$distance} cases pour {$total} de déplacement.",
+                'parametres' => "Destination hors de portée : {$distance} cases pour {$restant} de déplacement restant.",
             ]);
-        }
-
-        if ($multiplicateur > 1) {
-            $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
         }
 
         // Pièges cachés sur les cases TRAVERSÉES (chemin BFS, arrivée incluse) :
         // déclenchement immédiat ; une fosse (ou un héros tombé) arrête le
         // déplacement sur la case du piège (doc 10 §5).
         $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin);
+        $interrompu = $controle['arret'] !== null;
         $arrivee = $controle['arret'] ?? ['x' => $x, 'y' => $y];
 
-        $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+        // Chemin RÉELLEMENT parcouru (jusqu'à l'arrêt éventuel) → pour l'animation
+        // case-par-case côté table (E4) et le décompte des points dépensés.
+        $cheminParcouru = $this->cheminJusqua($chemin, $arrivee);
+        $parcourue = count($cheminParcouru);
+
+        // Un déplacement interrompu (piège) TERMINE le mouvement ; sinon il reste
+        // des points tant que restant > 0 (on pourra se redéplacer / ouvrir une
+        // porte puis continuer). Le mouvement restant sera FORFAIT à la première
+        // action hors mouvement (marquerCreneau).
+        $restantApres = $interrompu ? 0 : max(0, $restant - $parcourue);
+        $mouvementFini = $interrompu || $restantApres <= 0;
+
+        $etat->update([
+            'position_x' => $arrivee['x'],
+            'position_y' => $arrivee['y'],
+            'deplacement_restant' => $restantApres,
+            'a_deplace' => $mouvementFini,
+        ]);
 
         // Œil du mineur : les pièges adjacents à la case d'arrivée sont
         // auto-détectés (doc 10 §3).
@@ -318,17 +345,44 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'de' => $deDuTour,
-            'deplacement_total' => $total,
+            'deplacement_total' => $totalTour * ($multiplicateur > 1 ? $multiplicateur : 1),
             'multiplicateur_sort' => $multiplicateur,
-            'distance' => $distance,
+            'distance' => $parcourue,
+            'depart' => $depart,
+            'chemin' => $cheminParcouru, // animation case-par-case (table, E4)
             'vers' => $arrivee,
-            'interrompu' => $controle['arret'] !== null,
+            'deplacement_restant' => $restantApres,
+            'interrompu' => $interrompu,
             'pieges_declenches' => $controle['declenchements'],
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * Tronque le chemin BFS à la case d'arrivée EFFECTIVE (incluse) : le trajet
+     * réellement parcouru quand un piège interrompt la course avant la
+     * destination. Sans interruption, rend le chemin complet.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @param  array{x: int, y: int}  $arrivee
+     * @return list<array{x: int, y: int}>
+     */
+    private function cheminJusqua(array $chemin, array $arrivee): array
+    {
+        $parcouru = [];
+
+        foreach ($chemin as $case) {
+            $parcouru[] = $case;
+
+            if ((int) $case['x'] === (int) $arrivee['x'] && (int) $case['y'] === (int) $arrivee['y']) {
+                break;
+            }
+        }
+
+        return $parcouru;
     }
 
     /**
@@ -1635,7 +1689,8 @@ final class ResolveurTour
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
         // Nouveau tour : créneaux remis à zéro + on relancera le d6 de déplacement.
         $quete->etatsPersonnages()->update([
-            'a_joue' => false, 'a_deplace' => false, 'a_agi' => false, 'deplacement_tour' => null,
+            'a_joue' => false, 'a_deplace' => false, 'a_agi' => false,
+            'deplacement_tour' => null, 'deplacement_restant' => null,
         ]);
 
         // Fin de tour : décompte des durées des conditions de sorts des héros
@@ -2017,6 +2072,10 @@ final class ResolveurTour
     {
         return match ($type) {
             'deplacement', 'franchissement' => 'mouvement',
+            // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
+            // ne consomme ni le déplacement ni l'action — on s'arrête devant la
+            // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
+            'ouvrir_porte', 'actionner_levier' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -2025,16 +2084,27 @@ final class ResolveurTour
     /**
      * Consomme le créneau et marque le tour terminé (a_joue) seulement quand les
      * DEUX créneaux sont faits, ou immédiatement pour une action terminante.
+     *
+     * Déplacement FRACTIONNÉ (E1) : le créneau « mouvement » est géré par
+     * resoudreDeplacement (a_deplace/deplacement_restant selon les points laissés).
+     * Une ACTION hors mouvement FORFAIT le déplacement restant (a_deplace + 0).
+     * Une INTERACTION libre (porte, levier) ne consomme aucun créneau.
      */
     private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau): void
     {
+        if ($creneau === 'interaction') {
+            return;
+        }
+
         if ($creneau === 'tour') {
             $etat->a_joue = true;
-        } elseif ($creneau === 'mouvement') {
-            $etat->a_deplace = true;
-        } else {
+        } elseif ($creneau === 'action') {
             $etat->a_agi = true;
+            // Le mouvement restant est perdu dès qu'on agit hors mouvement.
+            $etat->a_deplace = true;
+            $etat->deplacement_restant = 0;
         }
+        // 'mouvement' : a_deplace / deplacement_restant déjà posés par resoudreDeplacement.
 
         if ($etat->a_deplace && $etat->a_agi) {
             $etat->a_joue = true;
