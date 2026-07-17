@@ -138,10 +138,10 @@ final class Grille
      * ancrée en (x2,y2) est visible depuis (x1,y1). Pour une emprise 1×1,
      * équivaut exactement à ligneDeVue(x1,y1,x2,y2).
      */
-    public function ligneDeVueEmprise(int $x1, int $y1, int $x2, int $y2, int $l, int $h): bool
+    public function ligneDeVueEmprise(int $x1, int $y1, int $x2, int $y2, int $l, int $h, bool $figuresBloquent = false): bool
     {
         foreach ($this->cellulesEmprise($x2, $y2, $l, $h) as $c) {
-            if ($this->ligneDeVue($x1, $y1, $c['x'], $c['y'])) {
+            if ($this->ligneDeVue($x1, $y1, $c['x'], $c['y'], $figuresBloquent)) {
                 return true;
             }
         }
@@ -184,8 +184,13 @@ final class Grille
      * La symétrie ligneDeVue(a,b) == ligneDeVue(b,a) est garantie en
      * ordonnant les extrémités de façon canonique avant le tracé : le segment
      * tracé est strictement le même quel que soit le sens d'appel.
+     *
+     * `$figuresBloquent` (tir / sort, doc 03 §36) : une figure INTERPOSÉE (case
+     * occupée strictement entre les deux extrémités) coupe aussi la vue — on ne
+     * lance pas un sort à travers un allié. Les extrémités (lanceur et cible) ne
+     * bloquent jamais leur propre visibilité.
      */
-    public function ligneDeVue(int $x1, int $y1, int $x2, int $y2): bool
+    public function ligneDeVue(int $x1, int $y1, int $x2, int $y2, bool $figuresBloquent = false): bool
     {
         // Une case se voit toujours elle-même.
         if ($x1 === $x2 && $y1 === $y2) {
@@ -234,6 +239,12 @@ final class Grille
 
             // Mur, hors grille (?? 'm') ou porte fermée → vue coupée.
             if ($this->bloqueVue($x, $y)) {
+                return false;
+            }
+
+            // Figure interposée (tir / sort) : une case occupée sur le trajet
+            // coupe la vue — pas de sort à travers un allié ou un ennemi.
+            if ($figuresBloquent && isset($this->occupees["{$x},{$y}"])) {
                 return false;
             }
         }

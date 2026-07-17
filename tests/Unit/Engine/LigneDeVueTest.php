@@ -120,6 +120,23 @@ describe('Grille — ligne de vue (prérequis Phase 2, doc 14)', function () {
             ->and($grille->ligneDeVue(0, 2, 4, 3))->toBeTrue();
     });
 
+    it('bloque la vue sur une figure interposée seulement quand figuresBloquent (tir/sort)', function () {
+        $grille = grilleDepuis([
+            'sssss',
+        ]);
+        // Une figure occupe (2,0), entre (0,0) et (4,0).
+        $grille->occuper([['x' => 2, 'y' => 0]]);
+
+        // Déplacement / vue « murs seuls » : la figure ne bloque pas.
+        expect($grille->ligneDeVue(0, 0, 4, 0))->toBeTrue();
+        // Tir / sort : la figure interposée coupe la vue.
+        expect($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeFalse();
+        // Extrémités jamais bloquantes : viser une case adjacente reste possible
+        // même si la cible elle-même occupe sa case.
+        expect($grille->ligneDeVue(0, 0, 2, 0, figuresBloquent: true))->toBeTrue()
+            ->and($grille->ligneDeVue(1, 0, 3, 0, figuresBloquent: true))->toBeFalse();
+    });
+
     it('gère proprement les coordonnées hors grille (aucune erreur d index)', function () {
         $grille = grilleDepuis([
             'sss',

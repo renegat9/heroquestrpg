@@ -797,11 +797,52 @@ final class ResolveurTour
         array $option,
         array $parametres,
     ): array {
+        // Garde-fou de ligne de vue (doc 03 §36) : un sort offensif (degats /
+        // mental) exige que la cible soit VISIBLE — une figure interposée coupe
+        // la vue. Revérifié ici même si un menu périmé listait la cible.
+        if (in_array($sort->type, ['degats', 'mental'], true)) {
+            $this->verifierLigneDeVueSort($quete, $etat, $option, $parametres);
+        }
+
         return match ($sort->type) {
             'degats' => $this->sortDegats($quete, $sort, $option, $parametres),
             'mental' => $this->sortMental($quete, $sort, $option, $parametres),
             default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $option, $parametres),
         };
+    }
+
+    /**
+     * Rejette (422) un sort offensif si la cible n'est pas dans la ligne de vue
+     * du lanceur, figures interposées bloquantes (mêmes règles que le menu).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     */
+    private function verifierLigneDeVueSort(Quete $quete, EtatPersonnageQuete $etat, array $option, array $parametres): void
+    {
+        if ($etat->position_x === null) {
+            return;
+        }
+
+        $cible = $this->cibleSort($quete, $option, $parametres);
+
+        if ($cible['type'] === 'monstre') {
+            $instance = $cible['monstre'];
+            $e = $instance->monstre->emprise();
+            [$tx, $ty, $l, $h] = [(int) $instance->position_x, (int) $instance->position_y, (int) $e['l'], (int) $e['h']];
+        } else {
+            [$tx, $ty, $l, $h] = [(int) $cible['etat']->position_x, (int) $cible['etat']->position_y, 1, 1];
+        }
+
+        $visible = FabriqueGrille::pour($quete)->ligneDeVueEmprise(
+            (int) $etat->position_x, (int) $etat->position_y, $tx, $ty, $l, $h, figuresBloquent: true,
+        );
+
+        if (! $visible) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible hors de vue : une figure interposée bloque la ligne de vue.',
+            ]);
+        }
     }
 
     /**
@@ -2154,46 +2195,7 @@ final class ResolveurTour
      */
     private function grille(Quete $quete, ?int $exceptPersonnageId = null, ?int $exceptInstanceId = null, ?int $exceptMercenaireId = null): Grille
     {
-        $carte = $quete->carte;
-
-        if ($carte === null) {
-            throw ValidationException::withMessages(['groupe' => 'La quête en cours n\'a pas de carte assemblée.']);
-        }
-
-        $grille = Grille::depuisCarte($carte);
-
-        $occupees = [];
-
-        foreach ($quete->etatsPersonnages()->get() as $etat) {
-            // Un héros TOMBÉ (à terre) ne bloque ni le passage ni la ligne de vue :
-            // il gît au sol, on l'enjambe. Il reste secourable (resoudreRelever) tant
-            // qu'aucune AUTRE figure ne se tient sur sa case.
-            if ($etat->personnage_id !== $exceptPersonnageId && $etat->position_x !== null && ! $etat->tombe) {
-                $occupees[] = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
-            }
-        }
-
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
-            if ($instance->id !== $exceptInstanceId && $instance->position_x !== null) {
-                // 3.9 : une grande figurine occupe TOUTE son emprise (1×1 → une
-                // seule case, identique au comportement antérieur).
-                $e = $instance->monstre->emprise();
-                $occupees = array_merge($occupees, $grille->cellulesEmprise(
-                    (int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h'],
-                ));
-            }
-        }
-
-        // Alliés (3.5) : figures sur le plateau → cases infranchissables.
-        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
-            if ($allie->id !== $exceptMercenaireId && $allie->position_x !== null) {
-                $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
-            }
-        }
-
-        $grille->occuper($occupees);
-
-        return $grille;
+        return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId, $exceptMercenaireId);
     }
 
     /**

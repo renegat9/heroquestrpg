@@ -354,6 +354,7 @@ final class EtatGroupe
     private function monstres(Quete $quete): array
     {
         return $quete->instancesMonstres()
+            ->where('etat', 'actif') // un monstre vaincu quitte le plateau (plus sur les cartes manette/table)
             ->where('revele', true) // les monstres dormants (salle non découverte) restent cachés
             ->with('monstre')
             ->orderBy('id')

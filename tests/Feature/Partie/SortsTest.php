@@ -195,7 +195,16 @@ it("attache les 3 sorts de l'élément choisi à l'acquisition de Première magi
 });
 
 it('propose au menu une option par sort disponible, avec les cibles légales (monstres ET héros — tir ami S3)', function () {
-    [$alice, $groupe, $mage, $quete, , $brunhilde] = demarrerQueteSorts(avecSecond: true);
+    [$alice, $groupe, $mage, $quete] = demarrerQueteSorts();
+
+    // Un sort offensif ne vise que ce qui est DANS LA LIGNE DE VUE : on isole un
+    // monstre et on le place au contact du mage (case adjacente ⇒ vue dégagée)
+    // pour un scénario déterministe.
+    $proie = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
+    $etatMage = $quete->etatsPersonnages()->where('personnage_id', $mage->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
 
     $options = optionsMenuSorts($groupe, $alice, $mage);
     $ids = $options->pluck('id');
@@ -204,13 +213,14 @@ it('propose au menu une option par sort disponible, avec les cibles légales (mo
         expect($ids)->toContain("sort_{$sort->id}");
     }
 
-    // Sort de dégâts : monstres actifs ET héros dans les cibles légales (S3).
+    // Sort de dégâts : monstres actifs ET héros dans les cibles légales (tir ami
+    // S3) — ici la proie visible et le mage lui-même (une figure voit sa case).
     $bouleDeFeu = $options->firstWhere('id', 'sort_'.sortIdParNom('Boule de Feu'));
     $cibles = collect($bouleDeFeu['parametres']['cibles']);
     expect($bouleDeFeu['type'])->toBe('sort')
         ->and($bouleDeFeu['parametres']['sort_id'])->toBe(sortIdParNom('Boule de Feu'))
-        ->and($cibles->where('type', 'monstre')->count())->toBe($quete->instancesMonstres()->where('etat', 'actif')->count())
-        ->and($cibles->where('type', 'heros')->pluck('id'))->toContain($brunhilde->id);
+        ->and($cibles->where('type', 'monstre')->pluck('id'))->toContain($proie->id)
+        ->and($cibles->where('type', 'heros')->pluck('id'))->toContain($mage->id);
 
     // Utilitaire ciblé : héros seulement.
     $soin = $options->firstWhere('id', 'sort_'.sortIdParNom('Eau de Guérison'));
@@ -226,7 +236,11 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
 
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
-    $proie->update(['pv_body' => 1]);
+
+    // Ligne de vue nécessaire : place la proie au contact du mage (adjacent).
+    $etatMage = $quete->etatsPersonnages()->where('personnage_id', $mage->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $proie->update(['pv_body' => 1, 'position_x' => $contact['x'], 'position_y' => $contact['y']]);
 
     $sortId = sortIdParNom('Boule de Feu');
     optionsMenuSorts($groupe, $alice, $mage);

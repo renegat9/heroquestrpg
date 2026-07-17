@@ -195,8 +195,13 @@ final class MenuMoteur
 
         // Tour = deux créneaux (doc 03 §28) : un DÉPLACEMENT + une ACTION. On
         // n'offre que les créneaux ENCORE LIBRES, plus « Terminer le tour ».
-        $aDeplace = (bool) ($etat?->a_deplace ?? false);
-        $aAgi = (bool) ($etat?->a_agi ?? false);
+        // Une action TERMINANTE (relever, concentration, « Terminer le tour »)
+        // pose a_joue sans consommer les deux créneaux : on la traite comme si
+        // les DEUX étaient pris, sinon le menu proposait encore des actions
+        // fantômes alors que le tour est fini.
+        $aJoue = (bool) ($etat?->a_joue ?? false);
+        $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
+        $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
         $options = [];
 
         // ── Créneau DÉPLACEMENT (base + 1d6 lancé une fois/tour et mémorisé) ──
@@ -349,11 +354,14 @@ final class MenuMoteur
             }
         }
 
-        // Toujours : terminer le tour (renonce aux créneaux restants).
-        $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+        // Terminer le tour tant qu'il RESTE un créneau (renonce au reste). Une
+        // fois le tour joué (a_joue), aucune option : le tour est fini.
+        if (! $aJoue) {
+            $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+        }
 
         return [
-            'situation' => 'Vous progressez dans le donjon.',
+            'situation' => $aJoue ? 'Tour terminé — au tour des autres héros.' : 'Vous progressez dans le donjon.',
             'options' => $options,
         ];
     }

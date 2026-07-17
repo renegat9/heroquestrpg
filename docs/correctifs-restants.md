@@ -172,3 +172,77 @@ achetée) · états Dread sur la manette (Endormi/Commandé jamais lancés par l
 boss) · audio réel (barks, ambiance, voix TTS — non vérifiable en headless) ·
 multi-personnages par joueur · portes verrouillées clé/levier · monstre errant
 (fouille de trésor) · clôture en VICTOIRE (boss jamais vaincu).
+
+---
+
+# Correctifs — 2e test de campagne (2026-07-16)
+
+> 13 retours de jeu, regroupés par CHANTIER (moteur / temps réel / UI narrateur /
+> UI manette / carte). Ordre d'exécution proposé : bugs contenus d'abord, refontes
+> ensuite. Repères de code entre parenthèses.
+
+## A. Bugs contenus / rapides — ~~FAIT~~
+- ~~**A1 — Actions encore proposées après avoir agi.**~~ Une action TERMINANTE
+  (relever / concentration / « Terminer le tour ») posait `a_joue` sans marquer
+  les deux créneaux ; `MenuMoteur::generer` ne masquait que sur `a_deplace`/`a_agi`
+  → options fantômes. `generer` traite désormais `a_joue` comme les deux créneaux
+  pris (aucune option, situation « Tour terminé »).
+- ~~**A2 — Monstres tués restant sur la carte des manettes.**~~ `EtatGroupe::monstres()`
+  filtre maintenant `etat=actif` : un monstre vaincu quitte le plateau partagé
+  (manette ET table), plus seulement la grille moteur.
+- ~~**A3 — Ligne de vue non bloquée par les figures.**~~ `Grille::ligneDeVue`
+  accepte `figuresBloquent` : une figure interposée coupe la vue (tir/sort). Les
+  sorts offensifs (degats/mental) sont filtrés par LdV dans `MoteurSorts` (menu)
+  et revérifiés dans `ResolveurTour::verifierLigneDeVueSort` (résolution). Grille
+  d'occupation factorisée dans `FabriqueGrille` (source unique, partagée avec le
+  déplacement). Règle retenue : une figure sur la ligne bloque (y compris un allié
+  adjacent au lanceur, cas signalé du Barbare) ; **les murs bloquent aussi** les
+  sorts désormais (avant : aucune LdV → sort à travers les murs).
+
+## B. Temps réel / orchestration
+- **B1 — Joueur suivant activé avant la fin du narrateur.** Après une action
+  notable, `ChoixController` diffuse `MjReflechit` + `GenererNarration`, mais
+  `GenererMenu` part pour TOUS les héros dans la foulée (l.141-146) → le joueur
+  suivant reçoit son menu avant la fin de la narration. Chaîner le menu du
+  prochain héros à jouer APRÈS `GenererNarration`, ou le retenir côté front tant
+  que le MJ « réfléchit ».
+- **B2 — Narration qui ne se joue pas toujours / s'accumule.** File de lecture
+  de la narration côté table (Web Speech / audio) : soit des `NarrationDiffusee`
+  se chevauchent/sont perdus, soit la file ne se vide pas. À tracer côté écran
+  narrateur (lecture TTS + `BibliothequeNarration`).
+
+## C. Écran narrateur enrichi (UI table)
+- **C1 — Tous les lancés de dés à l'écran narrateur.** Diffuser/afficher chaque
+  jet (attaque, défense, déplacement, jets de compétence, sorts) sur la table
+  (aujourd'hui surtout côté acteur — `revelerDesResultat`).
+- **C2 — Historique des événements sur la table** (comme la manette : `.combat.journal`).
+- **C3 — Stats des figures au clic sur leur nom dans l'ordre de jeu** (héros ET
+  monstres) — panneau de stats depuis l'initiative.
+
+## D. UI manette
+- **D1 — Descriptions des sorts + bouton « Lancer » → ciblage.** Au clic sur un
+  sort : afficher sa description, puis « Lancer » ouvre le choix de cible si besoin
+  (`SpellsTab.vue`, `CibleSheet.vue`).
+
+## E. Refonte du mouvement (moteur + front) — le gros morceau
+- **E1 — Mouvement fractionné.** Aujourd'hui `resoudreDeplacement` est
+  atomique (une destination, `a_deplace=true`, fini — l.254). Passer à un
+  **pool de points restants** (`deplacement_restant`) : on peut se déplacer en
+  plusieurs fois tant qu'il reste des points ET qu'aucune action « hors mouvement »
+  n'a été faite ; le mouvement restant est **perdu** dès la 1re action non-mouvement.
+- **E2 — Portes pendant le mouvement.** S'arrêter DEVANT une porte fermée,
+  l'ouvrir (interaction compatible mouvement, ne termine pas le déplacement),
+  puis continuer s'il reste des points.
+- **E3 — Sauter par-dessus un piège.** S'arrêter à côté d'un piège détecté (ou
+  déjà déclenché) et **sauter** par-dessus (le saut fait partie du mouvement),
+  au lieu de s'y arrêter forcément (`MoteurPieges::controlerChemin`, l.305).
+- **E4 — Animation case-par-case.** L'écran narrateur (et idéalement la manette)
+  doit animer le déplacement case par case (héros ET monstres) au lieu de
+  téléporter ; le chemin est déjà calculé (`Grille::chemin`) mais seule l'arrivée
+  est diffusée — diffuser le CHEMIN. Interrompu net sur un piège.
+
+## F. Génération de carte — ⚠ chantier lourd, décision de design
+- **F1 — Corridors à 2 cases de large** (avec obstacles au besoin).
+  Change l'assemblage de carte (`AssembleurCarte`, tuiles seedées) et impacte
+  le placement des rencontres. À cadrer avant de coder (largeur, obstacles,
+  compat cartes existantes).

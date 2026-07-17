@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
 use App\Models\InstanceMonstre;
+use App\Partie\EtatGroupe;
 use App\Partie\MenuMoteur;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
@@ -115,4 +116,34 @@ it('propose « Se déplacer » dès qu\'au moins une case adjacente est libre', 
     $deplacements = array_filter($menu['options'], fn ($o) => ($o['type'] ?? null) === 'deplacement');
 
     expect($deplacements)->not->toBe([]);
+});
+
+it('ne propose AUCUNE action une fois le tour joué (a_joue), même si les créneaux ne sont pas tous marqués (correctifs A1)', function () {
+    ['groupe' => $groupe, 'heros' => $heros, 'quete' => $quete] = demarrerQueteAvecMonstre('Gobelin');
+
+    // Action terminante (relever / concentration / « Terminer le tour ») : pose
+    // a_joue=true SANS marquer a_deplace ni a_agi. Le menu doit refléter la fin
+    // du tour, pas rouvrir des créneaux fantômes.
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)
+        ->update(['a_joue' => true, 'a_deplace' => false, 'a_agi' => false]);
+
+    $menu = menuMoteurPour($groupe, $heros);
+
+    expect($menu['options'])->toBe([])
+        ->and($menu['situation'])->toContain('terminé');
+});
+
+it('retire un monstre vaincu de l\'état partagé — plus sur la carte manette/table (correctifs A2)', function () {
+    ['groupe' => $groupe, 'instance' => $instance] = demarrerQueteAvecMonstre('Gobelin');
+    $instance->update(['revele' => true]);
+
+    $etatGroupe = app(EtatGroupe::class);
+
+    $avant = collect($etatGroupe->payload($groupe->fresh())['entites'])->where('type', 'monstre')->pluck('id');
+    expect($avant)->toContain($instance->id);
+
+    $instance->update(['etat' => 'vaincu']);
+
+    $apres = collect($etatGroupe->payload($groupe->fresh())['entites'])->where('type', 'monstre')->pluck('id');
+    expect($apres)->not->toContain($instance->id);
 });

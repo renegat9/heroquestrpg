@@ -491,6 +491,11 @@ joueur (choix, panier, vote, prêt…) exigent un joueur membre.
   monstre `actif` **et** `revele` (le menu moteur ne propose d'attaque que sur
   un monstre révélé, et `ResolveurTour` revérifie à la résolution). Un monstre
   dormant (salle non découverte) n'est jamais ciblable, même via un menu périmé.
+- **Sort offensif = ligne de vue** : un sort `degats`/`mental` ne vise qu'une
+  cible VISIBLE du lanceur — un mur, une porte fermée **ou une figure interposée**
+  (allié comme ennemi) coupe la vue. Le menu ne liste que les cibles en vue et
+  `ResolveurTour` revérifie (422 sinon). Un monstre vaincu quitte le plateau
+  partagé (`entites`) — plus affiché ni bloquant côté manette/table.
 - **La reprise purge les menus en cache** : `POST reprise` oublie les menus
   mémorisés du groupe avant de les régénérer — aucun rejeu d'une option de
   l'état d'avant le TPK (cibles/coordonnées disparues).

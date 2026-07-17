@@ -219,6 +219,15 @@ final class MoteurSorts
         $ciblesMonstres = $this->ciblesMonstres($quete);
         $ciblesHeros = $this->ciblesHeros($quete);
 
+        // Ligne de vue (doc 03 §36) : les sorts offensifs ne peuvent viser qu'une
+        // figure VISIBLE — une figure interposée (allié comme ennemi) coupe la
+        // vue. Plateau occupé partagé avec le déplacement (FabriqueGrille).
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+        $grille = FabriqueGrille::pour($quete);
+        $lanceur = ($etat !== null && $etat->position_x !== null)
+            ? ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y]
+            : null;
+
         foreach ($personnage->sorts()->wherePivot('disponible', true)->orderBy('sorts.id')->get() as $sort) {
             $options[] = $this->optionSort(
                 "sort_{$sort->id}",
@@ -228,6 +237,8 @@ final class MoteurSorts
                 $sort,
                 $ciblesMonstres,
                 $ciblesHeros,
+                $lanceur,
+                $grille,
             );
         }
 
@@ -248,6 +259,8 @@ final class MoteurSorts
                 $sort,
                 $ciblesMonstres,
                 $ciblesHeros,
+                $lanceur,
+                $grille,
             );
         }
 
@@ -276,22 +289,67 @@ final class MoteurSorts
 
     /**
      * Cibles légales d'un sort (doc 02 §5, S3) : degats/mental → monstres
-     * actifs ET héros (tir ami possible) ; utilitaire ciblé → héros de la
-     * quête ; cible `soi` (Traverser la Pierre) → pas de liste, le lanceur.
+     * actifs ET héros (tir ami possible), RESTREINTS à la ligne de vue du
+     * lanceur (une figure interposée coupe la vue, doc 03 §36) ; utilitaire
+     * ciblé → héros de la quête ; cible `soi` (Traverser la Pierre) → pas de
+     * liste, le lanceur. Les positions internes (x/y/emprise) servent au filtre
+     * de LdV puis sont retirées : la liste rendue reste {type, id, nom}.
      *
      * @param  list<array<string, mixed>>  $monstres
      * @param  list<array<string, mixed>>  $heros
-     * @return list<array<string, mixed>>|null
+     * @param  array{x: int, y: int}|null  $lanceur
+     * @return list<array{type: string, id: int, nom: string}>|null
      */
-    public function ciblesLegales(Sort $sort, array $monstres, array $heros): ?array
+    public function ciblesLegales(Sort $sort, array $monstres, array $heros, ?array $lanceur = null, ?Grille $grille = null): ?array
     {
         if (in_array($sort->type, ['degats', 'mental'], true)) {
-            return [...$monstres, ...$heros];
+            $cibles = [...$monstres, ...$heros];
+
+            if ($lanceur !== null && $grille !== null) {
+                $cibles = $this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $cibles);
+            }
+
+            return $this->nettoyerCibles($cibles);
         }
 
         $cible = (string) data_get($sort->effet, 'cible', 'soi');
 
-        return str_contains($cible, 'heros') ? $heros : null;
+        return str_contains($cible, 'heros') ? $this->nettoyerCibles($heros) : null;
+    }
+
+    /**
+     * Ne garde que les cibles dont AU MOINS une case (emprise incluse) est
+     * visible depuis le lanceur, figures interposées bloquantes.
+     *
+     * @param  list<array<string, mixed>>  $cibles
+     * @return list<array<string, mixed>>
+     */
+    private function filtrerLigneDeVue(int $cx, int $cy, Grille $grille, array $cibles): array
+    {
+        return array_values(array_filter($cibles, function (array $c) use ($cx, $cy, $grille) {
+            $tx = (int) ($c['x'] ?? -1);
+            $ty = (int) ($c['y'] ?? -1);
+
+            if ($tx < 0 || $ty < 0) {
+                return true; // position inconnue : ne pas masquer par excès de prudence
+            }
+
+            return $grille->ligneDeVueEmprise($cx, $cy, $tx, $ty, (int) ($c['l'] ?? 1), (int) ($c['h'] ?? 1), figuresBloquent: true);
+        }));
+    }
+
+    /**
+     * Réduit les cibles à la forme du contrat {type, id, nom} (retire x/y/emprise).
+     *
+     * @param  list<array<string, mixed>>  $cibles
+     * @return list<array{type: string, id: int, nom: string}>
+     */
+    private function nettoyerCibles(array $cibles): array
+    {
+        return array_map(
+            fn (array $c) => ['type' => $c['type'], 'id' => (int) $c['id'], 'nom' => $c['nom']],
+            $cibles,
+        );
     }
 
     // ------------------------------------------------------------------
@@ -483,8 +541,10 @@ final class MoteurSorts
         Sort $sort,
         array $ciblesMonstres,
         array $ciblesHeros,
+        ?array $lanceur = null,
+        ?Grille $grille = null,
     ): array {
-        $cibles = $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros);
+        $cibles = $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros, $lanceur, $grille);
 
         if ($cibles !== null) {
             $parametres['cibles'] = $cibles;
@@ -494,26 +554,38 @@ final class MoteurSorts
     }
 
     /**
-     * @return list<array{type: string, id: int, nom: string}>
+     * Monstres ciblables (actifs ET révélés — un dormant n'est pas visible),
+     * position + emprise jointes pour le filtre de ligne de vue.
+     *
+     * @return list<array{type: string, id: int, nom: string, x: int, y: int, l: int, h: int}>
      */
     private function ciblesMonstres(Quete $quete): array
     {
         return $quete->instancesMonstres()
             ->where('etat', 'actif')
+            ->where('revele', true)
             ->with('monstre')
             ->orderBy('id')
             ->get()
-            ->map(fn (InstanceMonstre $i) => [
-                'type' => 'monstre',
-                'id' => $i->id,
-                'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
-            ])
+            ->map(function (InstanceMonstre $i) {
+                $e = $i->monstre->emprise();
+
+                return [
+                    'type' => 'monstre',
+                    'id' => $i->id,
+                    'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                    'x' => (int) $i->position_x,
+                    'y' => (int) $i->position_y,
+                    'l' => (int) $e['l'],
+                    'h' => (int) $e['h'],
+                ];
+            })
             ->values()
             ->all();
     }
 
     /**
-     * @return list<array{type: string, id: int, nom: string}>
+     * @return list<array{type: string, id: int, nom: string, x: int, y: int}>
      */
     private function ciblesHeros(Quete $quete): array
     {
@@ -525,6 +597,8 @@ final class MoteurSorts
                 'type' => 'heros',
                 'id' => (int) $etat->personnage_id,
                 'nom' => $etat->personnage->nom,
+                'x' => (int) $etat->position_x,
+                'y' => (int) $etat->position_y,
             ])
             ->values()
             ->all();

@@ -698,6 +698,12 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     $premiereInstance->refresh();
     $premiereInstance->load('monstre');
 
+    // Ligne de vue nécessaire pour un sort offensif : place le Champion au
+    // contact du mage (adjacent ⇒ aucune case interposée).
+    $etatMage = $quete->etatsPersonnages()->where('personnage_id', $mage->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $premiereInstance->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+
     $defenseCatalogue = (int) $premiereInstance->monstre->defense; // 4
 
     // Boule de Feu : 2 dés d'attaque.
