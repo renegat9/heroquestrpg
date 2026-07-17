@@ -211,13 +211,19 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   se chevauchent/sont perdus, soit la file ne se vide pas. À tracer côté écran
   narrateur (lecture TTS + `BibliothequeNarration`).
 
-## C. Écran narrateur enrichi (UI table)
-- **C1 — Tous les lancés de dés à l'écran narrateur.** Diffuser/afficher chaque
-  jet (attaque, défense, déplacement, jets de compétence, sorts) sur la table
-  (aujourd'hui surtout côté acteur — `revelerDesResultat`).
-- **C2 — Historique des événements sur la table** (comme la manette : `.combat.journal`).
-- **C3 — Stats des figures au clic sur leur nom dans l'ordre de jeu** (héros ET
-  monstres) — panneau de stats depuis l'initiative.
+## C. Écran narrateur enrichi (UI table) — ~~FAIT~~
+- ~~**C2 — Historique des événements sur la table.**~~ La table s'abonne
+  désormais à `.combat.journal` (déjà diffusé sur le canal groupe) et affiche un
+  **« Fil des événements »** (overlay bas-gauche de la carte), coloré par ton.
+- ~~**C1 — Lancés de dés à l'écran narrateur.**~~ Le fil ci-dessus porte les
+  résultats mécaniques (dés/dégâts/morts/tours des monstres) sur la table.
+  RESTE éventuel : le **détail des faces** (crânes/boucliers) n'est pas dans le
+  journal (seul le total) — à ajouter au formateur `JournalCombat` si voulu (déjà
+  noté en §1.3).
+- ~~**C3 — Stats des figures au clic sur l'ordre de jeu.**~~ Les jetons
+  `InitiativeBar` sont cliquables → **fiche de stats** (PV Body/Mind, dés
+  d'attaque/défense, Body/Mind, conditions, badge élite), résolue depuis
+  `EtatGroupe.entites` (enrichi de des_attaque/des_defense/attributs).
 
 ## D. UI manette
 - **D1 — Descriptions des sorts + bouton « Lancer » → ciblage.** Au clic sur un

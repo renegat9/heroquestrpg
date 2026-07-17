@@ -18,7 +18,7 @@ import { useAmbiance } from '../composables/useAmbiance';
 import {
     carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
     initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs, portesVersMarqueurs,
-    useGameStore, voteVersFeuille,
+    statsFigure, useGameStore, voteVersFeuille,
 } from '../store/game';
 
 const props = defineProps({
@@ -53,6 +53,9 @@ onMounted(async () => {
                 if (store.setNarration(e.texte, e.sequence)) voix.narrer({ texte: e.texte, url: e.url });
             },
             '.bark.diffuse': (e) => voix.jouerBark(e),
+            // Journal MÉCANIQUE (dés, dégâts, morts, tours des monstres) : le même
+            // fil que sur la manette, désormais AUSSI sur la table (C1/C2).
+            '.combat.journal': (e) => store.pousserJournalCombat(e),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
             '.marche.ouvert': (e) => store.appliquerMarche(e),
             '.marche.maj': (e) => store.appliquerMarche(e),
@@ -122,6 +125,16 @@ const entities = computed(() => (etat.value
    lui). Pendant le tour des monstres, la caméra ne bouge pas (pas de saut
    vers un ennemi non demandé). */
 const heroActif = computed(() => entities.value.find((e) => e.k === 'hero' && e.cur) ?? null);
+/* ---- fil des événements mécaniques (.combat.journal) sur la table (C2) : les
+   plus récents en bas, comme sur la manette. ---- */
+const journalTable = computed(() => store.state.journalCombat);
+
+/* ---- fiche de stats d'une figure au clic sur l'ordre de jeu (C3) ---- */
+const figureInspectee = ref(null);
+function inspecter(item) {
+    figureInspectee.value = statsFigure(item, etat.value?.entites ?? []);
+}
+
 const initOrder = computed(() => (etat.value
     ? initiativeVersBarre(etat.value.initiative)
     : []));
@@ -320,7 +333,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <span class="ep">{{ sousTitre }}</span>
                     <h1>{{ titreQuete }}</h1>
                 </div>
-                <InitiativeBar :order="initOrder" />
+                <InitiativeBar :order="initOrder" @inspecter="inspecter" />
                 <div class="status-top">
                     <div v-if="mjReflechit" class="think">
                         <span class="dots"><i /><i /><i /></span> Le MJ réfléchit…
@@ -371,6 +384,13 @@ watch(() => store.state.clotureTerminee, (t) => {
                         :active-x="heroActif?.x ?? null"
                         :active-y="heroActif?.y ?? null"
                     />
+                    <!-- fil des événements mécaniques (dés, dégâts, morts…) : C1/C2 -->
+                    <div v-if="enQuete && journalTable.length" class="evt-log">
+                        <div class="evt-ttl"><MSym n="receipt_long" :size="14" /> Fil des événements</div>
+                        <ul>
+                            <li v-for="l in journalTable" :key="l.id" :class="`t-${l.ton}`">{{ l.texte }}</li>
+                        </ul>
+                    </div>
                     <!-- montée de niveau : célébration dorée (gains par héros) -->
                     <div v-if="niveauMonte" class="lvlup-ov" @click="store.fermerNiveauMonte()">
                         <div class="panel">
@@ -451,6 +471,35 @@ watch(() => store.state.clotureTerminee, (t) => {
 
             <!-- narration -->
             <NarrationBand :text="narration" :speaking="voix.speaking.value" />
+
+            <!-- fiche de stats d'une figure (clic sur l'ordre de jeu — C3) -->
+            <div v-if="figureInspectee" class="stat-ov" @click.self="figureInspectee = null">
+                <div class="stat-card">
+                    <button class="stat-x" type="button" @click="figureInspectee = null">
+                        <MSym n="close" />
+                    </button>
+                    <h3>
+                        {{ figureInspectee.nom }}
+                        <span v-if="figureInspectee.elite" class="stat-elite"><MSym n="star" fill :size="14" /> Élite</span>
+                    </h3>
+                    <p class="stat-sub">
+                        {{ figureInspectee.type === 'heros'
+                            ? `${figureInspectee.classe ?? 'Héros'}${figureInspectee.niveau ? ' · Niv. ' + figureInspectee.niveau : ''}`
+                            : (figureInspectee.type === 'allie' ? 'Allié' : 'Monstre') }}
+                    </p>
+                    <div class="stat-grid">
+                        <div class="stat-b"><span>PV Body</span><b>{{ figureInspectee.pv_body }}<i v-if="figureInspectee.pv_body_max"> / {{ figureInspectee.pv_body_max }}</i></b></div>
+                        <div v-if="figureInspectee.pv_mind_max" class="stat-b"><span>PV Mind</span><b>{{ figureInspectee.pv_mind }} / {{ figureInspectee.pv_mind_max }}</b></div>
+                        <div v-if="figureInspectee.des_attaque != null" class="stat-b"><span>Attaque</span><b>{{ figureInspectee.des_attaque }} dés</b></div>
+                        <div v-if="figureInspectee.des_defense != null" class="stat-b"><span>Défense</span><b>{{ figureInspectee.des_defense }} dés</b></div>
+                        <div v-if="figureInspectee.attribut_body != null" class="stat-b"><span>Body</span><b>{{ figureInspectee.attribut_body }}</b></div>
+                        <div v-if="figureInspectee.attribut_mind != null" class="stat-b"><span>Mind</span><b>{{ figureInspectee.attribut_mind }}</b></div>
+                    </div>
+                    <div v-if="figureInspectee.conditions?.length" class="stat-conds">
+                        <span v-for="(c, i) in figureInspectee.conditions" :key="i" class="stat-cond">{{ c.nom }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Prologue de campagne : écran d'histoire au lancement (et relisible) -->
@@ -521,6 +570,39 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .tok.cur { border-color: var(--torch); background: var(--torch); color: var(--stone-950); box-shadow: var(--glow-torch); transform: scale(1.14); }
 .table-screen .tok.foe { border-color: var(--body); color: var(--body-bright); }
 .table-screen .init .arrow { color: var(--ink-700); }
+
+/* Fil des événements mécaniques (dés, dégâts, morts…) — C1/C2 : overlay discret
+   en bas à gauche de la carte, plus récents en bas. */
+.table-screen .evt-log { position: absolute; left: 14px; bottom: 14px; z-index: 6; width: min(300px, 34%);
+  max-height: 40%; overflow: hidden; display: flex; flex-direction: column;
+  background: oklch(0.14 0.01 255 / 0.86); border: 1px solid var(--stone-700); border-radius: var(--r-md, 10px);
+  box-shadow: var(--sh-2); backdrop-filter: blur(3px); }
+.table-screen .evt-log .evt-ttl { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-500); font-weight: 700;
+  border-bottom: 1px solid var(--stone-800); }
+.table-screen .evt-log ul { list-style: none; margin: 0; padding: 6px 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.table-screen .evt-log li { font-size: 12px; line-height: 1.35; color: var(--ink-300); }
+.table-screen .evt-log li.t-degats, .table-screen .evt-log li.t-mort { color: var(--body-bright); }
+.table-screen .evt-log li.t-subit, .table-screen .evt-log li.t-chute { color: oklch(0.78 0.13 55); }
+.table-screen .evt-log li.t-pare, .table-screen .evt-log li.t-succes { color: oklch(0.8 0.13 150); }
+
+/* Fiche de stats d'une figure (clic sur l'ordre de jeu — C3). */
+.table-screen .stat-ov { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center;
+  background: oklch(0 0 0 / 0.55); backdrop-filter: blur(2px); }
+.table-screen .stat-card { position: relative; width: min(340px, 86%); padding: 20px 22px;
+  background: linear-gradient(160deg, var(--stone-800), var(--stone-900)); border: 1px solid var(--stone-600);
+  border-radius: var(--r-lg); box-shadow: var(--sh-3); color: var(--ink-200); }
+.table-screen .stat-x { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--ink-500); cursor: pointer; }
+.table-screen .stat-card h3 { margin: 0 0 2px; font-size: 20px; display: flex; align-items: center; gap: 8px; color: var(--parch-100); }
+.table-screen .stat-elite { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--torch); }
+.table-screen .stat-sub { margin: 0 0 14px; font-size: 12px; letter-spacing: 0.05em; color: var(--ink-500); text-transform: uppercase; }
+.table-screen .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.table-screen .stat-b { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: oklch(0.16 0.01 255 / 0.7); border-radius: 8px; border: 1px solid var(--stone-700); }
+.table-screen .stat-b span { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-500); }
+.table-screen .stat-b b { font-size: 17px; color: var(--parch-100); font-weight: 800; }
+.table-screen .stat-b i { font-style: normal; color: var(--ink-500); font-weight: 600; font-size: 14px; }
+.table-screen .stat-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.table-screen .stat-cond { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: oklch(0.3 0.05 300 / 0.4); border: 1px solid oklch(0.5 0.08 300 / 0.5); color: var(--ink-200); }
 .table-screen .status-top { display: flex; align-items: center; gap: 14px; }
 .table-screen .think { display: inline-flex; align-items: center; gap: 9px; padding: 8px 15px; border-radius: 99px;
   background: var(--stone-850); border: var(--line-gold); color: var(--torch); font-size: 13px; font-weight: 700; }

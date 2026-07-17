@@ -510,7 +510,33 @@ export function initiativeVersBarre(initiative) {
         l: labelCourt(o.nom),
         cur: o === cur,
         foe: o.entite === 'monstre',
+        // id + type : cliquer un jeton d'initiative ouvre la fiche de stats de
+        // la figure (table, C3) — résolue depuis EtatGroupe.entites.
+        id: o.id,
+        type: o.entite === 'monstre' ? 'monstre' : (o.entite === 'allie' ? 'allie' : 'heros'),
     }));
+}
+
+/** Figure de l'ordre de jeu (id + type) → sa fiche de stats depuis les entites
+ *  partagées (table, C3). Rend null si l'entité n'est plus sur le plateau. */
+export function statsFigure(item, entites) {
+    const e = (entites ?? []).find((x) => x.id === item?.id
+        && (x.type === item?.type || (item?.type === 'heros' && x.type === 'heros')));
+    if (!e) return null;
+    return {
+        nom: e.nom,
+        type: e.type,
+        classe: e.type === 'heros' ? classeDe(e)?.l : null,
+        niveau: e.niveau ?? null,
+        elite: !!e.elite,
+        pv_body: e.pv_body, pv_body_max: e.pv_body_max,
+        pv_mind: e.pv_mind ?? null, pv_mind_max: e.pv_mind_max ?? null,
+        des_attaque: e.des_attaque ?? null,
+        des_defense: e.des_defense ?? null,
+        attribut_body: e.attribut_body ?? null,
+        attribut_mind: e.attribut_mind ?? null,
+        conditions: e.conditions ?? [],
+    };
 }
 
 /** initiative (contrat) → InitMini de la manette [{k, foe}] (+ jeton courant). */

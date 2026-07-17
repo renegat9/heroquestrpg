@@ -340,6 +340,12 @@ final class EtatGroupe
                     'pv_body_max' => (int) $p->pv_body_max,
                     'pv_mind' => (int) $p->pv_mind,
                     'pv_mind_max' => (int) $p->pv_mind_max,
+                    // Dés d'attaque / défense (équipement + talents inclus) : panneau
+                    // de stats au clic sur l'ordre de jeu (table, C3).
+                    'des_attaque' => (int) $p->des_attaque,
+                    'des_defense' => (int) $p->des_defense,
+                    'attribut_body' => (int) $p->attribut_body,
+                    'attribut_mind' => (int) $p->attribut_mind,
                     'tombe' => (bool) ($etat?->tombe ?? false),
                     'conditions' => $this->conditionsHeros($p),
                 ];
@@ -373,6 +379,10 @@ final class EtatGroupe
                 // Max PROPRE à l'instance : boss adaptés à la taille du groupe + le
                 // +1 PV élite (3.6) déjà intégré (repli catalogue pour lignes legacy).
                 'pv_body_max' => $i->pvBodyMax(),
+                // Dés effectifs (bonus élite inclus) : panneau de stats table (C3).
+                'des_attaque' => $i->attaqueEffective(),
+                'des_defense' => $i->defenseEffective(),
+                'pv_mind' => (int) $i->pv_mind,
                 'etat' => $i->etat,
                 'elite' => (bool) $i->elite,
                 'conditions' => $this->conditionsMonstre($i),
