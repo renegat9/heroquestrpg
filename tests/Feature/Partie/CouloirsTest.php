@@ -33,6 +33,24 @@ function carteAssemblee(): array
     return ['carte' => $carte, 'rangees' => $rangees];
 }
 
+it('varie la carte selon la graine (fini « toujours la même carte ») et reste reproductible', function () {
+    $gabarit = GabaritQuete::query()->firstOrFail();
+    $assembleur = app(AssembleurCarte::class);
+
+    // Reproductible : même graine → carte identique (indispensable pour une
+    // même quête / la reprise).
+    expect($assembleur->assembler($gabarit, 42)['cases'])
+        ->toBe($assembleur->assembler($gabarit, 42)['cases']);
+
+    // Variété : sur une douzaine de graines, plusieurs cartes DISTINCTES
+    // (dimensions et/ou disposition des salles).
+    $signatures = collect(range(1, 12))
+        ->map(fn ($g) => md5(json_encode($assembleur->assembler($gabarit, $g * 7919)['cases'])))
+        ->unique();
+
+    expect($signatures->count())->toBeGreaterThan(1);
+});
+
 it('creuse chaque couloir sur 2 rangées de sol (F)', function () {
     ['carte' => $carte, 'rangees' => $rangees] = carteAssemblee();
 

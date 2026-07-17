@@ -122,7 +122,9 @@ final class DemarreurQuete
         $positionArc = (int) $groupe->quetes()->count() + 1;
         $typeJalon = $this->typeJalon($groupe, $positionArc);
         $gabarit = $this->choisirGabarit($typeJalon);
-        $carte = $this->assembleur->assembler($gabarit);
+        // Graine de carte stable par (groupe, quête) : cartes différentes d'une
+        // campagne/quête à l'autre, reproductible pour une même quête.
+        $carte = $this->assembleur->assembler($gabarit, crc32($groupe->identifiant.':'.$positionArc));
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres($gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc);
 

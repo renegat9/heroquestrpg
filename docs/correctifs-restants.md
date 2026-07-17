@@ -284,8 +284,15 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   éventuelle animation stricte case-par-case (le glissement actuel interpole en
   ligne droite — coupe les angles des trajets en L, acceptable).
 
-## F. Génération de carte — ⚠ chantier lourd, décision de design
-- **F1 — Corridors à 2 cases de large** (avec obstacles au besoin).
-  Change l'assemblage de carte (`AssembleurCarte`, tuiles seedées) et impacte
-  le placement des rencontres. À cadrer avant de coder (largeur, obstacles,
-  compat cartes existantes).
+## F. Génération de carte
+- ~~**F1 — Corridors à 2 cases de large.**~~ (voir chantier E/F ci-dessus) —
+  couloirs sur 2 rangées, portes des deux côtés, connexité vérifiée.
+- ~~**F2 — Carte toujours identique au départ.**~~ `AssembleurCarte` posait
+  TOUJOURS `salles.min` salles, dans l'ordre `id` du catalogue → même carte à
+  chaque nouvelle campagne. Désormais `assembler($gabarit, $graine)` tire le
+  nombre de salles dans `[min, max]` et **mélange** les tuiles via un PRNG local
+  DÉTERMINISTE amorcé par la graine (`crc32(identifiant:positionArc)` côté
+  `DemarreurQuete`). Deux campagnes/quêtes → cartes différentes ; même quête →
+  carte reproductible (compatible reprise, la carte étant de toute façon
+  snapshottée). N'utilise PAS la file de dés du jeu (pas de pollution des
+  scénarios de test). Graine 0 par défaut = tirage fixe.

@@ -65,10 +65,10 @@ final class AssembleurCarte
      *   spawn_monstres: list<array{x: int, y: int}>
      * }
      */
-    public function assembler(GabaritQuete $gabarit): array
+    public function assembler(GabaritQuete $gabarit, int $graine = 0): array
     {
         $structure = $gabarit->structure ?? [];
-        $tuiles = $this->choisirTuiles($structure);
+        $tuiles = $this->choisirTuiles($structure, $graine);
 
         // --- Dimensions du canevas -------------------------------------
         $hauteur = max(array_map(fn (Tuile $t) => (int) $t->grille['hauteur'], $tuiles));
@@ -235,24 +235,47 @@ final class AssembleurCarte
      * @param  array<string, mixed>  $structure
      * @return list<Tuile>
      */
-    private function choisirTuiles(array $structure): array
+    private function choisirTuiles(array $structure, int $graine): array
     {
-        $nbSalles = max(self::NB_SALLES_MIN, (int) data_get($structure, 'salles.min', 3));
+        // PRNG local DÉTERMINISTE amorcé par la graine (dérivée du groupe + de la
+        // position de quête côté DemarreurQuete) : deux campagnes différentes —
+        // ou deux quêtes — obtiennent des cartes différentes (fini « toujours la
+        // même carte au départ »), tout en restant reproductible pour une même
+        // quête et SANS toucher à la file de dés du jeu (map snapshottée). Graine
+        // 0 (défaut) = tirage fixe, pour des tests déterministes.
+        $etat = $graine & 0x7fffffff;
+        $suivant = function () use (&$etat): int {
+            $etat = ($etat * 1103515245 + 12345) & 0x7fffffff;
+
+            return $etat;
+        };
+
+        // Nombre de salles TIRÉ dans [min, max] du gabarit (au lieu du min figé).
+        $min = max(self::NB_SALLES_MIN, (int) data_get($structure, 'salles.min', 3));
+        $max = max($min, (int) data_get($structure, 'salles.max', $min));
+        $nbSalles = $min + ($max > $min ? $suivant() % ($max - $min + 1) : 0);
 
         $generiques = Tuile::query()
             ->where('type', 'salle')
             ->where('theme', 'generique')
             ->orderBy('id')
             ->get()
-            ->values();
+            ->all();
 
-        if ($generiques->isEmpty()) {
+        if ($generiques === []) {
             throw new RuntimeException('Aucune tuile « salle » en base — seeder les tuiles avant d\'assembler une carte.');
+        }
+
+        // Mélange déterministe (Fisher-Yates avec le PRNG local) → l'ordre et le
+        // choix des salles varient d'une quête à l'autre.
+        for ($i = count($generiques) - 1; $i > 0; $i--) {
+            $j = $suivant() % ($i + 1);
+            [$generiques[$i], $generiques[$j]] = [$generiques[$j], $generiques[$i]];
         }
 
         $tuiles = [];
         for ($i = 0; $i < $nbSalles; $i++) {
-            $tuiles[] = $generiques[$i % $generiques->count()];
+            $tuiles[] = $generiques[$i % count($generiques)];
         }
 
         // Rencontre finale (sous-boss / boss) : la dernière salle est l'antre.
