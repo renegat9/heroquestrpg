@@ -161,10 +161,15 @@ Corrigés :
   une cible non tombée. (Observé sur menu périmé — désormais purgé, §2.1.)
 
 Restent (efforts plus lourds / design) :
-- **Narration IA** : vocabulaire méta (« boss final »), objets inventés (« sa
-  hache » sac vide), épilogue de défaite qui omet les quêtes gagnées — enrichir
-  le contexte des skills (inventaire réel, habillages, interdits doc 08).
-- **Arbre de compétences** : pas de lignes/connexions visuelles de prérequis.
+- ~~**Narration IA — objets inventés & vocabulaire méta.**~~ Le contexte de
+  narration porte désormais l'**équipement RÉEL** de chaque héros (porté + sac,
+  ou « mains nues » — `ContexteAssembleur::equipement`), et les consignes
+  communes interdisent explicitement de décrire un objet non porté ET tout
+  vocabulaire méta/de jeu (« boss », « jalon », « PV », « dés »).
+  RESTE : l'épilogue de défaite qui omet les quêtes gagnées (résumé de clôture —
+  contexte à enrichir côté `ResumeCampagne`).
+- ~~**Arbre de compétences — lignes de prérequis.**~~ Équerre de liaison
+  parent→enfant (dorée si acquis, grise pointillée sinon), vérifiée en capture.
 - **Narration en retard d'une action** (rythme) — jamais inversée (anti-inversion),
   mais surprend ; tient à la génération asynchrone, à réévaluer si gênant.
 

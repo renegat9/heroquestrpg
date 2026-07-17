@@ -7,6 +7,7 @@ namespace App\Agent\Memoire;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\Equipement;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -71,6 +72,7 @@ class ContexteAssembleur
     {
         $heros = $groupe->personnages()
             ->wherePivot('actif', true)
+            ->with('inventaire.objet')
             ->get()
             ->map(fn (Personnage $p) => [
                 'id' => $p->id,
@@ -82,6 +84,9 @@ class ContexteAssembleur
                 'attribut_body' => $p->attribut_body,
                 'attribut_mind' => $p->attribut_mind,
                 'or' => $p->or,
+                // Équipement + sac RÉELS (correctifs §5) : le MJ ne doit décrire que
+                // ce que le héros porte VRAIMENT (plus de « sa hache » inventée).
+                'equipement' => $this->equipement($p),
             ])
             ->values()
             ->all();
@@ -115,6 +120,34 @@ class ContexteAssembleur
             'heros' => $heros,
             'quete_courante' => $queteCourante,
         ];
+    }
+
+    /**
+     * Équipement RÉEL d'un héros pour le contexte de narration : armes/armure
+     * portées (par emplacement) + contenu du sac. Vide (« mains nues, sac vide »)
+     * quand il ne porte rien — le MJ n'invente alors aucun objet.
+     *
+     * @return array{porte: array<string, string>, sac: list<string>}
+     */
+    private function equipement(Personnage $personnage): array
+    {
+        $porte = [];
+        $sac = [];
+
+        foreach ($personnage->inventaire as $ligne) {
+            $nom = $ligne->objet?->nom;
+            if ($nom === null) {
+                continue;
+            }
+
+            if (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
+                $porte[$ligne->emplacement] = $nom;
+            } elseif ($ligne->emplacement === 'sac') {
+                $sac[] = $nom;
+            }
+        }
+
+        return ['porte' => $porte, 'sac' => $sac];
     }
 
     /**

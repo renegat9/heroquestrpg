@@ -168,6 +168,10 @@ abstract class Skill
           tu peux renommer et redécrire (habiller) sans jamais toucher aux effets.
         - Tu ne contredis jamais un fait établi de la bible d'univers. Fait manquant :
           reste vague plutôt que d'inventer.
+        - Tu ne décris QUE l'équipement réellement porté (champ `equipement` de
+          l'état) : jamais une arme/objet que le héros n'a pas. Sac vide ⇒ mains nues.
+        - AUCUN vocabulaire méta ou de jeu : pas de « boss (final) », « jalon »,
+          « niveau », « PV », « dés », « statistiques ». Décris le monde, pas la partie.
         - Univers strictement fantasy ; reformule tout élément hors-genre.
         - Réponds en français.
         Ton de la table : {$tonTexte}.
