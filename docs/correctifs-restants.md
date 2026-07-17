@@ -218,11 +218,10 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
 - ~~**C2 — Historique des événements sur la table.**~~ La table s'abonne
   désormais à `.combat.journal` (déjà diffusé sur le canal groupe) et affiche un
   **« Fil des événements »** (overlay bas-gauche de la carte), coloré par ton.
-- ~~**C1 — Lancés de dés à l'écran narrateur.**~~ Le fil ci-dessus porte les
-  résultats mécaniques (dés/dégâts/morts/tours des monstres) sur la table.
-  RESTE éventuel : le **détail des faces** (crânes/boucliers) n'est pas dans le
-  journal (seul le total) — à ajouter au formateur `JournalCombat` si voulu (déjà
-  noté en §1.3).
+- ~~**C1 — Lancés de dés à l'écran narrateur.**~~ Le fil porte les résultats
+  mécaniques (dégâts/morts/tours des monstres) **et le détail des dés** — «&nbsp;·
+  3 crânes / 1 bouclier&nbsp;» — sur chaque ligne d'attaque/sort (formateur
+  `JournalCombat::detailDes`), sur la table comme sur la manette.
 - ~~**C3 — Stats des figures au clic sur l'ordre de jeu.**~~ Les jetons
   `InitiativeBar` sont cliquables → **fiche de stats** (PV Body/Mind, dés
   d'attaque/défense, Body/Mind, conditions, badge élite), résolue depuis

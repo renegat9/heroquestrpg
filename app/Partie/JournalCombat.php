@@ -13,7 +13,9 @@ namespace App\Partie;
  * sans narration IA ni bark (table-only), un joueur de manette ne voyait que
  * ses PV bouger. Ce journal restitue attaques, dégâts, chutes, tours des
  * monstres/alliés et résultats de jets/fouilles — de façon purement dérivée
- * des payloads que le moteur journalise déjà.
+ * des payloads que le moteur journalise déjà. Les lignes d'attaque/sort portent
+ * aussi le DÉTAIL DES DÉS (crânes touchés / boucliers parés — C1) quand le
+ * payload les fournit, pour que chaque jet soit lisible sur la table.
  *
  * Chaque ligne : {texte, ton}. Le `ton` pilote l'icône/couleur côté manette
  * (voir resources/js/components/manette/ActionTab.vue) :
@@ -97,15 +99,36 @@ final class JournalCombat
     {
         $cible = $a['cible']['nom'] ?? 'la cible';
         $degats = (int) ($a['degats'] ?? 0);
+        $des = $this->detailDes($a);
 
         if (! empty($a['cible_vaincue'])) {
-            return [['texte' => "{$attaquant} terrasse {$cible} !", 'ton' => 'mort']];
+            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}", 'ton' => 'mort']];
         }
         if ($degats > 0) {
-            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV)", 'ton' => 'degats']];
+            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
         }
 
-        return [['texte' => "{$cible} pare l'assaut de {$attaquant}", 'ton' => 'pare']];
+        return [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}", 'ton' => 'pare']];
+    }
+
+    /**
+     * Détail des dés (correctifs C1) : « · 3 ⚔ / 1 🛡 » — crânes touchés vs
+     * boucliers du défenseur, quand le payload les porte (attaques et sorts de
+     * dégâts). Vide sinon (jets, effets neutres).
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function detailDes(array $a): string
+    {
+        if (! array_key_exists('touches', $a) || ! array_key_exists('boucliers', $a)) {
+            return '';
+        }
+
+        $touches = (int) $a['touches'];
+        $boucliers = (int) $a['boucliers'];
+
+        return " · {$touches} crâne".($touches > 1 ? 's' : '')
+            ." / {$boucliers} bouclier".($boucliers > 1 ? 's' : '');
     }
 
     /**
@@ -119,12 +142,13 @@ final class JournalCombat
         $monstre = $a['monstre'] ?? 'Le monstre';
         $cible = $a['cible']['nom'] ?? 'un héros';
         $degats = (int) ($a['degats'] ?? 0);
+        $des = $this->detailDes($a);
 
         if ($degats <= 0) {
-            return [['texte' => "{$cible} pare l'assaut de {$monstre}", 'ton' => 'pare']];
+            return [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}", 'ton' => 'pare']];
         }
 
-        $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV)", 'ton' => 'subit']];
+        $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'subit']];
         if (! empty($a['cible_tombee'])) {
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
         }
@@ -140,14 +164,15 @@ final class JournalCombat
     {
         $nom = $a['sort']['nom'] ?? 'un sort';
         $cible = $a['cible']['nom'] ?? null;
+        $des = $this->detailDes($a);
 
         if (! empty($a['cible_vaincue'])) {
-            return [['texte' => "{$acteurNom} foudroie {$cible} d'un {$nom} !", 'ton' => 'mort']];
+            return [['texte' => "{$acteurNom} foudroie {$cible} d'un {$nom} !{$des}", 'ton' => 'mort']];
         }
 
         $degats = (int) ($a['degats'] ?? 0);
         if ($degats > 0 && $cible !== null) {
-            return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} (−{$degats} PV)", 'ton' => 'degats']];
+            return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
         }
 
         $suffixe = $cible !== null ? " sur {$cible}" : '';

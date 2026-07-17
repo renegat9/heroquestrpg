@@ -29,6 +29,24 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
         expect($l[0]['ton'])->toBe('pare');
     });
 
+    it('annexe le détail des dés quand le payload les porte (C1)', function () {
+        // Attaque : 3 crânes touchés, 1 bouclier paré → 2 dégâts.
+        $l = lignes(['type' => 'attaque', 'degats' => 2, 'touches' => 3, 'boucliers' => 1,
+            'cible' => ['nom' => 'Gargouille']]);
+        expect($l[0]['texte'])->toBe('Borin touche Gargouille (−2 PV) · 3 crânes / 1 bouclier');
+
+        // Parade complète (0 dégât) : le détail des dés reste visible.
+        $pare = lignes(['type' => 'attaque', 'degats' => 0, 'touches' => 1, 'boucliers' => 1,
+            'cible' => ['nom' => 'Gargouille']]);
+        expect($pare[0]['ton'])->toBe('pare')
+            ->and($pare[0]['texte'])->toContain('· 1 crâne / 1 bouclier');
+
+        // Sort de dégâts : même détail.
+        $sort = lignes(['type' => 'sort', 'degats' => 5, 'touches' => 5, 'boucliers' => 0,
+            'sort' => ['nom' => 'Génie'], 'cible' => ['nom' => 'Momie']]);
+        expect($sort[0]['texte'])->toContain('· 5 crânes / 0 bouclier');
+    });
+
     it('restitue le tour des monstres avec les dégâts subis et la chute', function () {
         $resultat = [
             'type' => 'attaque',

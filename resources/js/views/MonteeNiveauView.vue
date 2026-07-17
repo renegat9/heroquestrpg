@@ -195,7 +195,11 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
                                 v-for="n in arbre"
                                 :key="n.id"
                                 class="talent"
-                                :class="['st-' + n.etat, { busy: enAttente === n.id, child: n.profondeur > 0 }]"
+                                :class="['st-' + n.etat, {
+                                    busy: enAttente === n.id,
+                                    child: n.profondeur > 0,
+                                    'prereq-manque': n.verrou === 'prerequis',
+                                }]"
                                 :style="n.profondeur ? { marginLeft: Math.min(n.profondeur, 3) * 16 + 'px' } : null"
                                 :disabled="n.etat !== 'dispo' || enAttente !== null"
                                 @click="taper(n)"
@@ -327,6 +331,19 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
 .lvlup-screen .gain .delta .msym { font-size: 15px; color: var(--ink-600); }
 
 .lvlup-screen .talents { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+/* Lien de PRÉREQUIS (§5) : une équerre relie un nœud enfant au nœud parent
+   situé juste au-dessus. Dorée quand le prérequis est acquis (chemin ouvert),
+   grise et pointillée tant qu'il manque. */
+.lvlup-screen .talent.child::before {
+  content: ""; position: absolute; left: -15px; width: 12px;
+  top: -12px;                 /* remonte jusque dans le gap (10px) vers le parent */
+  bottom: calc(50% - 1px);    /* descend jusqu'au centre vertical du nœud */
+  border-left: 2px solid var(--torch); border-bottom: 2px solid var(--torch);
+  border-bottom-left-radius: 7px; opacity: 0.85; pointer-events: none;
+}
+.lvlup-screen .talent.child.prereq-manque::before {
+  border-color: var(--ink-700); border-left-style: dashed; border-bottom-style: dashed; opacity: 0.9;
+}
 .lvlup-screen .talent { position: relative; display: flex; align-items: flex-start; gap: 13px; padding: 15px; border-radius: var(--r-md); cursor: pointer;
   background: var(--stone-850); border: 1px solid var(--stone-700); transition: all .15s; text-align: left; width: 100%;
   font-family: var(--font-ui); -webkit-tap-highlight-color: transparent; }
