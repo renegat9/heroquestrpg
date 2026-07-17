@@ -85,6 +85,7 @@ final class ResolveurTour
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
         private readonly BanqueBarks $barks,
+        private readonly Equipement $equipement,
     ) {}
 
     /**
@@ -178,6 +179,8 @@ final class ResolveurTour
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
+                'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -1302,6 +1305,41 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Équiper / ranger une pièce en PLEINE QUÊTE (doc 01 §149) : action du tour
+     * (créneau ACTION → forfait le déplacement restant, E1). Réutilise le service
+     * Equipement (mêmes garde-fous deux-mains / capacité de sac qu'au hub).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreEquipement(Groupe $groupe, Personnage $personnage, array $option, array $acteur, bool $equiper): array
+    {
+        $ligneId = (int) data_get($option, 'parametres.inventaire_id', 0);
+        $ligne = $personnage->inventaire()->with('objet')->whereKey($ligneId)->first();
+
+        if ($ligne === null) {
+            throw ValidationException::withMessages(['option_id' => 'Objet introuvable dans le sac de ce héros.']);
+        }
+
+        $ligne = $equiper
+            ? $this->equipement->equiper($personnage, $ligne)
+            : $this->equipement->desequiper($personnage, $ligne);
+
+        $payload = [
+            'type' => $equiper ? 'equiper' : 'desequiper',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'objet' => $ligne->objet?->nom,
+            'emplacement' => $ligne->emplacement,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreNarratif(Groupe $groupe, array $option, array $acteur): array
     {
         $payload = [

@@ -134,6 +134,8 @@ class GenererMenu implements ShouldQueue
         // Exploration (Vague 2) : ancrage précis (coordonnées de porte/levier,
         // table de trésor) → autoritaires, jamais omises par la fusion IA.
         'ouvrir_porte', 'actionner_levier', 'fouille_tresor',
+        // Équipement en quête (doc 01 §149) : ancré sur une ligne d'inventaire.
+        'equiper', 'desequiper',
     ];
 
     /**

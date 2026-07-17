@@ -45,6 +45,10 @@ const ICONE_TYPE = {
     sort: 'auto_awesome',
     parchemin: 'description',
     concentration: 'self_improvement',
+    ouvrir_porte: 'door_open',
+    actionner_levier: 'toggle_on',
+    equiper: 'swords',
+    desequiper: 'backpack',
 };
 
 /** Élément d'une option type "sort" : porté par l'option ou retrouvé

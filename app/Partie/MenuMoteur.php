@@ -327,6 +327,32 @@ final class MenuMoteur
                     ];
                 }
             }
+
+            // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
+            // du tour. Réutilise l'inventaire réel : « Équiper » les pièces
+            // d'équipement du sac, « Ranger » celles portées.
+            foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
+                $objet = $ligne->objet;
+                if ($objet === null || ! in_array($objet->emplacement, Equipement::SLOTS, true)) {
+                    continue;
+                }
+
+                if ($ligne->emplacement === 'sac') {
+                    $options[] = [
+                        'id' => "equiper_{$ligne->id}",
+                        'libelle' => "Équiper {$objet->nom}",
+                        'type' => 'equiper',
+                        'parametres' => ['inventaire_id' => (int) $ligne->id],
+                    ];
+                } elseif (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
+                    $options[] = [
+                        'id' => "desequiper_{$ligne->id}",
+                        'libelle' => "Ranger {$objet->nom}",
+                        'type' => 'desequiper',
+                        'parametres' => ['inventaire_id' => (int) $ligne->id],
+                    ];
+                }
+            }
         }
 
         // Sorts / parchemins / concentration = créneau ACTION.

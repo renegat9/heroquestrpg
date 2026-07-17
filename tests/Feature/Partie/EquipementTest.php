@@ -2,10 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Jobs\GenererMenu;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Quete;
 use App\Partie\Equipement;
+use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
+use Database\Seeders\PiegeSeeder;
+use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 /*
  * Équiper / déséquiper (doc 01 §7) : les deltas de combat de l'objet
@@ -119,10 +127,52 @@ it('POST /equipement équipe au hub et renvoie les dés à jour ; refuse en quê
         'inventaire_id' => $ligne->id,
     ])->assertOk()->assertJsonPath('personnage.des_attaque', 5);
 
-    // En quête : refus (MVP hub-only).
+    // En quête : refus (l'endpoint REST reste hub-only ; en quête on équipe
+    // via l'action du tour, cf. test suivant).
     $groupe->update(['phase' => 'quete']);
     $this->deleteJson('/api/groupes/table-1/equipement', [
         'personnage_id' => $heros->id,
         'inventaire_id' => $ligne->id,
     ])->assertStatus(422);
+});
+
+it('équipe en PLEINE QUÊTE via l\'action du tour (doc 01 §149) : dés à jour, action consommée', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'nain', 'des_attaque' => 2]);
+    // 2e héros : après l'action d'Albrecht le tour NE passe PAS aux monstres
+    // (sinon le nouveau tour réinitialiserait les créneaux avant l'assertion).
+    $bob = App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+    $ligne = sacDe($heros, 'Épée large'); // effet des_attaque +3
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+    $etat->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    // Le menu propose « Équiper Épée large ».
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $optionId = "equiper_{$ligne->id}";
+    expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id'))
+        ->toContain($optionId);
+
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'equiper')
+        ->assertJsonPath('resultat.objet', 'Épée large');
+
+    // Arme équipée (dés à jour) et ACTION consommée → le déplacement restant est
+    // forfait (E1) → tour terminé.
+    expect($heros->fresh()->des_attaque)->toBe(5);
+    $etat->refresh();
+    expect($etat->a_agi)->toBeTrue()
+        ->and($etat->a_deplace)->toBeTrue()
+        ->and($etat->a_joue)->toBeTrue();
 });

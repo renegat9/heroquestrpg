@@ -54,6 +54,10 @@ class ResumeCampagne extends Skill
           issue réelle (victoire, échec ou abandon) — n'invente RIEN.
         - Les STATISTIQUES DE CLÔTURE fournies (nombre de quêtes, issue, or partagé)
           sont des faits accomplis : le résumé doit y rester conforme.
+        - HONORE les quêtes DÉJÀ REMPORTÉES (`cloture.nb_quetes_terminees`), MÊME
+          en cas d'échec ou d'abandon final : une défaite au bout du chemin
+          n'efface pas les victoires acquises — mentionne-les. Ne présente pas une
+          campagne à victoires comme un échec total.
         - Pas de mécanique chiffrée (dés, PV) : un récit court, au passé, mémorable.
         TXT;
 

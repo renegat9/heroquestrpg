@@ -26,8 +26,11 @@
   `SacTab` (au hub), re-`GET /moi` après chaque manip. Tests : service+endpoint
   7/7, suite Feature 214/214. Vérifié en jeu : Épée large sac → équiper → dés
   d'attaque 3→6 sur la fiche → déséquiper → retour à 3.
-- **Reste éventuel** : « équiper » comme **action de tour** en pleine quête
-  (doc 01 §149) — au MVP c'est hub-only.
+- ~~**« Équiper » comme action de tour en pleine quête**~~ (doc 01 §149) — le
+  menu propose « Équiper {objet} » / « Ranger {objet} » (créneau ACTION → forfait
+  le déplacement restant) ; `ResolveurTour::resoudreEquipement` réutilise le
+  service `Equipement` (mêmes garde-fous). L'endpoint REST reste hub-only. Types
+  `equiper`/`desequiper` ajoutés à la whitelist mécanique de fusion IA.
 
 ### 1.2 ~~Mercenaires : aucune UI de recrutement~~ — FAIT
 - **Livré** : nouveau `GET /mercenaires` (catalogue recrutable, group-agnostique
