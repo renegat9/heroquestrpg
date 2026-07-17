@@ -40,6 +40,7 @@ class GenererNarration implements ShouldQueue
     public function handle(Narration $skill, ContexteAssembleur $assembleur, TtsGemini $tts, BibliothequeNarration $lib): void
     {
         $groupe = Groupe::findOrFail($this->groupeId);
+        $narrationDiffusee = false;
 
         try {
             $contexte = $assembleur->assembler($groupe, extra: [
@@ -62,8 +63,16 @@ class GenererNarration implements ShouldQueue
                 url: $this->voix($texte, $sortie['url'] ?? null, $tts, $lib),
                 sequence: $evenement->sequence,
             ));
+            $narrationDiffusee = true;
         } finally {
-            broadcast(new MjReflechit($groupe, false));
+            // « MJ réfléchit » ne s'éteint PLUS à la génération (B1) : quand une
+            // narration est diffusée, c'est la TABLE qui l'éteint une fois qu'elle
+            // a fini de la LIRE (POST table/lecture-terminee) — le joueur suivant
+            // attend ainsi la fin du narrateur. En cas d'ÉCHEC (aucune narration à
+            // lire), on dégèle immédiatement pour ne pas figer la partie.
+            if (! $narrationDiffusee) {
+                broadcast(new MjReflechit($groupe, false));
+            }
         }
     }
 

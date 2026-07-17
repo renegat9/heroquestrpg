@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\MjReflechit;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Partie\EtatGroupe;
@@ -73,6 +74,32 @@ class TableController extends Controller
         }
 
         Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(30));
+
+        return response()->noContent();
+    }
+
+    /**
+     * POST /api/table/lecture-terminee — la table signale qu'elle a FINI de LIRE
+     * la dernière narration (fin du TTS, ou délai de lecture sans voix). Éteint
+     * « MJ réfléchit » (B1) : le joueur suivant n'est activé qu'à cet instant,
+     * pas dès la GÉNÉRATION de la narration. Idempotent.
+     */
+    public function lectureTerminee(Request $request): Response
+    {
+        $identifiant = $request->session()->get('table_groupe');
+
+        if ($identifiant === null) {
+            abort(403, 'Aucune session de table active.');
+        }
+
+        $groupe = Groupe::where('identifiant', $identifiant)->first();
+
+        if ($groupe === null) {
+            $request->session()->forget('table_groupe');
+            abort(403, 'Groupe introuvable.');
+        }
+
+        broadcast(new MjReflechit($groupe, false));
 
         return response()->noContent();
     }

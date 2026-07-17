@@ -153,6 +153,13 @@ export function useApi() {
          */
         pingTable: () => request('POST', '/table/ping'),
 
+        /**
+         * POST /api/table/lecture-terminee — la table a fini de LIRE la dernière
+         * narration : éteint « MJ réfléchit » côté serveur → le joueur suivant
+         * est enfin activé (B1). Appelé à la fin du TTS.
+         */
+        lectureTerminee: () => request('POST', '/table/lecture-terminee'),
+
         /** POST /api/table/quitter — ferme la session de table. */
         quitterTable: () => request('POST', '/table/quitter'),
 

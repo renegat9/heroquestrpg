@@ -52,7 +52,13 @@ onMounted(async () => {
                 // récente) : ni affichée, ni lue à voix haute. Sinon on lit en
                 // INTERROMPANT la précédente (B2) : la voix suit l'état courant
                 // au lieu d'empiler des lignes en retard.
-                if (store.setNarration(e.texte, e.sequence)) voix.narrer({ texte: e.texte, url: e.url, interrompre: true });
+                if (!store.setNarration(e.texte, e.sequence)) return;
+
+                // À la FIN de la lecture, signaler au serveur que le narrateur a
+                // terminé → le joueur suivant est enfin activé (B1). `narrer`
+                // appelle `apres` à la fin du TTS (ou tout de suite sans voix).
+                const done = () => api.lectureTerminee().catch(() => {});
+                voix.narrer({ texte: e.texte, url: e.url, interrompre: true, apres: done });
             },
             '.bark.diffuse': (e) => voix.jouerBark(e),
             // Journal MÉCANIQUE (dés, dégâts, morts, tours des monstres) : le même

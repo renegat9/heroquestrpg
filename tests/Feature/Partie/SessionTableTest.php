@@ -137,6 +137,27 @@ it('ping rafraîchit la TTL du heartbeat', function () {
     expect(TableController::narrateurActif($groupe))->toBeTrue();
 });
 
+it('lecture-terminee (table) éteint « MJ réfléchit » — dégèle le joueur suivant (B1)', function () {
+    $groupe = creerGroupe('table-1');
+    $this->postJson('/api/table', ['code' => 'table-1'])->assertOk();
+
+    Illuminate\Support\Facades\Event::fake([App\Events\MjReflechit::class]);
+    // Simule l'état « MJ réfléchit » posé à la résolution d'une action.
+    Illuminate\Support\Facades\Cache::put(App\Partie\EtatGroupe::cleMjReflechit($groupe->id), true, now()->addMinutes(5));
+
+    $this->postJson('/api/table/lecture-terminee')->assertNoContent();
+
+    Illuminate\Support\Facades\Event::assertDispatched(
+        App\Events\MjReflechit::class,
+        fn ($e) => $e->groupe->id === $groupe->id && $e->actif === false,
+    );
+});
+
+it('lecture-terminee refuse sans session de table active (403)', function () {
+    creerGroupe('table-1');
+    $this->postJson('/api/table/lecture-terminee')->assertStatus(403);
+});
+
 it('quitter vide la session et le cache', function () {
     $groupe = creerGroupe('table-1');
 

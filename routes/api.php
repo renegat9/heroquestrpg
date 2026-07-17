@@ -30,6 +30,7 @@ Route::post('/inscription', [AuthController::class, 'inscription']);
 // La session Laravel (cookie) identifie la table active.
 Route::post('/table', [TableController::class, 'ouvrir']);
 Route::post('/table/ping', [TableController::class, 'ping']);
+Route::post('/table/lecture-terminee', [TableController::class, 'lectureTerminee']);
 Route::post('/table/quitter', [TableController::class, 'quitter']);
 
 // Lectures accessibles au joueur membre OU à la session de table (contrat

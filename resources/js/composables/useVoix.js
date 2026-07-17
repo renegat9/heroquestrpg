@@ -62,10 +62,13 @@ function parler(texte, { pitch = 1, rate = 1, volume = 1 } = {}) {
 let narrAudio = null;
 let narrPending = null;
 let narrBusy = false;
+let narApres = null; // callback « lecture terminée » de la narration en cours (B1)
 
 function narrer(p) {
     const payload = typeof p === 'string' ? { texte: p } : (p || {});
-    if (!actif.value || (!payload.texte && !payload.url)) return;
+    // Voix inactive / rien à dire : on considère la « lecture » immédiatement
+    // finie (le callback `apres` sert au verrou du tour suivant — B1).
+    if (!actif.value || (!payload.texte && !payload.url)) { payload.apres?.(); return; }
     if (narrBusy) {
         // Narration de JEU (`interrompre`) : elle reflète l'état LE PLUS RÉCENT
         // → on coupe la narration en cours au lieu de l'empiler, ce qui évitait
@@ -83,18 +86,22 @@ function stopNarration() {
     if (narrAudio) { try { narrAudio.pause(); } catch { /* noop */ } narrAudio = null; }
     if (supporte) window.speechSynthesis.cancel();
     narrPending = null;
+    narApres = null; // la lecture coupée ne déclenche PAS son callback : la nouvelle le fera
     narrBusy = false;
     speaking.value = false;
 }
 
-function lancerNarration({ texte, url }) {
+function lancerNarration({ texte, url, apres }) {
     narrBusy = true;
     speaking.value = true;
+    narApres = apres ?? null;
     const fin = () => {
         narrBusy = false;
         speaking.value = false;
         narrAudio = null;
+        const cb = narApres; narApres = null;
         if (narrPending) { const n = narrPending; narrPending = null; lancerNarration(n); }
+        cb?.(); // « lecture terminée » (B1) — après avoir éventuellement enchaîné la suivante
     };
     if (url) {
         try {

@@ -112,7 +112,11 @@ it('démarre une quête jouable : carte assemblée, monstres au budget, initiati
         ->and($etat['initiative'][0])->toMatchArray(['entite' => 'heros', 'id' => $a->id, 'a_joue' => false])
         ->and($etat['initiative'][1])->toMatchArray(['entite' => 'heros', 'id' => $b->id, 'a_joue' => false])
         ->and(collect($etat['initiative'])->where('entite', 'monstre'))->toHaveCount(0)
-        ->and($etat['mj_reflechit'])->toBeFalse();
+        // « MJ réfléchit » reste VRAI après le démarrage : depuis B1, il ne
+        // s'éteint qu'une fois la narration de lancement LUE par la table
+        // (POST table/lecture-terminee), pas dès sa génération. Aucune table
+        // n'a lu ici → toujours vrai (le premier joueur attend le narrateur).
+        ->and($etat['mj_reflechit'])->toBeTrue();
 
     // Narration de repli (file synchrone, pas de LLM) : le jeu reste raconté.
     expect($etat['narration'])->toBeString()->not->toBeEmpty();

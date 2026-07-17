@@ -211,13 +211,15 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   sorts désormais (avant : aucune LdV → sort à travers les murs).
 
 ## B. Temps réel / orchestration — ~~FAIT (l'essentiel)~~
-- ~~**B1 — Joueur suivant activé avant la fin du narrateur.**~~ Déjà couvert : le
-  flag `mj.reflechit` (diffusé à TOUT le groupe) **gèle les boutons de TOUTES les
-  manettes** (`boutonsGeles = menuEnAttente || thinking`), y compris celle du
-  joueur suivant, jusqu'à ce que `GenererNarration` diffuse la narration puis
-  repose `MjReflechit(false)`. Limite connue : le dégel a lieu quand la narration
-  est GÉNÉRÉE, pas quand elle a fini d'être LUE (TTS) — attendre la fin de la
-  lecture exigerait un signal table→serveur→manette (non fait, plus lourd).
+- ~~**B1 — Joueur suivant activé avant la fin du narrateur.**~~ Le dégel attend
+  désormais que la narration soit **LUE**, pas seulement générée. `GenererNarration`
+  n'éteint plus `MjReflechit` quand une narration est diffusée (seulement en cas
+  d'échec) ; c'est la **table** qui l'éteint à la fin du TTS via
+  `POST /api/table/lecture-terminee` (`voix.narrer({…, apres})` → `api.lectureTerminee`).
+  Le joueur suivant, gelé par `mj.reflechit`, n'est donc réactivé qu'à la fin du
+  narrateur. Filets : sans voix, la table signale après un délai de lecture ; et
+  la manette se **dégèle localement au bout de 30 s** si le signal se perd
+  (table décrochée) pour ne jamais bloquer la partie.
 - ~~**B2 — Narration qui ne se joue pas toujours / s'accumule.**~~ La lecture de
   narration de JEU **interrompt** désormais la précédente (`voix.narrer({…,
   interrompre: true})` sur `.narration.diffusee`) au lieu de l'empiler : la voix

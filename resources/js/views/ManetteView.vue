@@ -320,6 +320,17 @@ const mind = computed(() => {
 
 const scene = computed(() => (store.state.etat?.groupe?.phase === 'hub' ? 'marche' : 'combat'));
 const thinking = computed(() => store.state.mjReflechit);
+/* Filet de sécurité (B1) : le dégel du joueur suivant dépend désormais d'un
+   signal de la TABLE (« narration lue »). S'il se perd (table décrochée, WS
+   coupé), on dégèle localement au bout d'un délai pour ne JAMAIS bloquer la
+   partie. Remis à zéro dès que « MJ réfléchit » repasse à false/true. */
+const degelForce = ref(false);
+let degelTimer = null;
+watch(thinking, (v) => {
+    clearTimeout(degelTimer);
+    degelForce.value = false;
+    if (v) degelTimer = setTimeout(() => { degelForce.value = true; }, 30000);
+}, { immediate: true });
 const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
 const narration = computed(() => store.state.narration);
 /* Journal de combat mécanique (.combat.journal) — les plus récentes en bas. */
@@ -346,7 +357,7 @@ const menuEnAttente = computed(() => store.state.menuEnAttente);
    (job LLM en cours pour TOUT le groupe) — dans les deux cas, le menu affiché
    est sur le point de changer : untaper évite un choix qui deviendrait
    illégal (422) ou s'accumulerait derrière la prochaine résolution. */
-const boutonsGeles = computed(() => menuEnAttente.value || thinking.value);
+const boutonsGeles = computed(() => menuEnAttente.value || (thinking.value && !degelForce.value));
 const initMini = computed(() => initiativeVersMini(store.state.etat?.initiative));
 const initCur = computed(() => {
     const cur = acteurCourant(store.state.etat?.initiative);
