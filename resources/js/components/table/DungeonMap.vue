@@ -86,10 +86,13 @@ function centrer(dimVue, dimCarte, cible) {
 
 <template>
     <div ref="viewportEl" class="map">
-        <div class="map-grid" :style="gridStyle">
+        <!-- TransitionGroup : anime le DÉPLACEMENT des figurines (FLIP sur le
+             changement de case, héros ET monstres) au lieu de les téléporter,
+             et fait FONDRE les jetons retirés (monstre vaincu). -->
+        <TransitionGroup tag="div" name="figmv" class="map-grid" :style="gridStyle">
             <div
                 v-for="cell in map.cells"
-                :key="`${cell.x}-${cell.y}`"
+                :key="`cell-${cell.x}-${cell.y}`"
                 class="cell"
                 :class="[cell.t, { range: cell.range }]"
                 :style="{ gridColumn: cell.x + 1, gridRow: cell.y + 1 }"
@@ -117,8 +120,8 @@ function centrer(dimVue, dimCarte, cible) {
                 </div>
             </div>
             <div
-                v-for="(e, i) in entities"
-                :key="`ent-${i}`"
+                v-for="e in entities"
+                :key="`ent-${e.k}-${e.id}`"
                 class="ent-holder"
                 :style="{
                     gridColumn: `${e.x + 1} / span ${e.ew ?? 1}`,
@@ -139,9 +142,34 @@ function centrer(dimVue, dimCarte, cible) {
                     </div>
                 </div>
             </div>
-        </div>
+        </TransitionGroup>
     </div>
 </template>
+
+<style scoped>
+/* Animation de déplacement des figurines (E4) : FLIP sur le changement de case
+   — la figurine glisse vers sa nouvelle case au lieu de se téléporter (héros ET
+   monstres). Un monstre vaincu (retiré de la liste) FOND au lieu de disparaître.
+   Les cases/pièges/portes ne bougent jamais → aucune transition sur elles. */
+.figmv-move {
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.figmv-leave-active {
+    /* la figurine garde sa case (placement de grille explicite → les autres ne
+       se décalent pas) et se contente de fondre sur place. */
+    transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.figmv-leave-to {
+    opacity: 0;
+    transform: scale(0.5);
+}
+.figmv-enter-active {
+    transition: opacity 0.3s ease;
+}
+.figmv-enter-from {
+    opacity: 0;
+}
+</style>
 
 <style scoped>
 /* Couche portes : cadenas discret centré sur une porte verrouillée. */

@@ -240,9 +240,13 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
 - **E3 — Sauter par-dessus un piège.** S'arrêter à côté d'un piège détecté (ou
   déjà déclenché) et **sauter** par-dessus (le saut fait partie du mouvement),
   au lieu de s'y arrêter forcément (`MoteurPieges::controlerChemin`).
-- **E4 — Animation case-par-case.** `resoudreDeplacement` diffuse désormais le
-  `chemin` parcouru + le `depart` ; RESTE l'animation côté table (et manette) le
-  long de ce chemin au lieu de téléporter. Interrompu net sur un piège.
+- ~~**E4 — Animation du déplacement.**~~ La table (`DungeonMap`) anime le
+  déplacement des figurines (héros ET monstres) par **FLIP** (`TransitionGroup`) :
+  le jeton GLISSE vers sa nouvelle case au lieu de se téléporter, et un monstre
+  vaincu FOND au lieu de disparaître sèchement. `resoudreDeplacement` diffuse en
+  plus `depart` + `chemin` parcouru (piège = chemin tronqué à l'arrêt) pour une
+  éventuelle animation stricte case-par-case (le glissement actuel interpole en
+  ligne droite — coupe les angles des trajets en L, acceptable).
 
 ## F. Génération de carte — ⚠ chantier lourd, décision de design
 - **F1 — Corridors à 2 cases de large** (avec obstacles au besoin).

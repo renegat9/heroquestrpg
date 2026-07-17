@@ -410,6 +410,10 @@ export function entitesVersFigurines(entites, initiative) {
     return (entites ?? [])
         .filter((e) => e.type !== 'monstre' || ((e.etat ?? 'actif') === 'actif' && e.pv_body > 0))
         .map((e) => ({
+            // id + type stables → clé de rendu stable pour l'animation de
+            // déplacement (TransitionGroup FLIP) et le fondu de sortie (mort).
+            id: e.id,
+            type: e.type,
             x: e.x,
             y: e.y,
             k: e.type === 'heros' ? 'hero' : (e.type === 'allie' ? 'ally' : 'foe'),
