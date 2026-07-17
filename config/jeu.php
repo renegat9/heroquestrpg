@@ -40,6 +40,17 @@ return [
         // le budget. `taille_reference` = groupe pour lequel les PV catalogue valent.
         'boss_pv_adaptatif' => (bool) env('JEU_BOSS_PV_ADAPTATIF', true),
         'taille_reference' => (int) env('JEU_TAILLE_REFERENCE', 4),
+
+        // Facteurs de jalon appliqués au budget de rencontre (sous-boss / boss
+        // final ont plus de monstres autour d'eux). Une RAMPE adoucit le boss
+        // pour un groupe débutant : à niveau moyen 1 on part de `jalon_boss_debut`
+        // (moins de serviteurs autour du boss — cas d'une campagne « très courte »
+        // qui jette un boss à des héros niveau 1), et on monte vers le facteur
+        // plein à partir d'un niveau moyen `jalon_boss_niveau_plein`.
+        'jalon_sous_boss' => (float) env('JEU_JALON_SOUS_BOSS', 1.25),
+        'jalon_boss_final' => (float) env('JEU_JALON_BOSS_FINAL', 1.5),
+        'jalon_boss_debut' => (float) env('JEU_JALON_BOSS_DEBUT', 1.1),
+        'jalon_boss_niveau_plein' => (int) env('JEU_JALON_BOSS_NIVEAU_PLEIN', 3),
     ],
 
     /*

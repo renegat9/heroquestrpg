@@ -100,3 +100,31 @@ it('n\'adapte que les pivots : la piétaille garde ses PV catalogue', function (
     expect(pvAdapte($gobelin, 6))->toBe(1)
         ->and(pvAdapte($gobelin, 2))->toBe(1);
 });
+
+/*
+ * Facteur de jalon du boss ADOUCI à bas niveau (§3) : un groupe débutant
+ * affronte un boss avec moins de serviteurs autour ; le facteur monte vers son
+ * plein au fil des niveaux.
+ */
+function facteurJalon(App\Models\Groupe $groupe, string $type): float
+{
+    $demarreur = app(DemarreurQuete::class);
+    $methode = new ReflectionMethod($demarreur, 'facteurJalon');
+    $methode->setAccessible(true);
+
+    return (float) $methode->invoke($demarreur, $groupe->fresh(), $type);
+}
+
+it('adoucit le facteur boss à bas niveau et le rend plein à niveau élevé (§3)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1); // niveau 1 → facteur de début
+
+    expect(facteurJalon($groupe, 'boss_final'))->toEqualWithDelta(1.1, 0.001)  // adouci
+        ->and(facteurJalon($groupe, 'normale'))->toBe(1.0);                     // pas de facteur hors boss
+
+    // Héros montés au niveau plein → facteur boss_final plein (1.5).
+    $groupe->personnages()->update(['niveau' => 3]);
+    expect(facteurJalon($groupe, 'boss_final'))->toEqualWithDelta(1.5, 0.001)
+        ->and(facteurJalon($groupe, 'sous_boss'))->toEqualWithDelta(1.25, 0.001);
+});

@@ -114,11 +114,15 @@ Corrigés :
   régénération et jauge affichée s'en servent. Réglable via `jeu.rencontres`
   (`boss_pv_adaptatif`, `taille_reference`).
 
+- ~~**Serviteurs & facteur de jalon du boss**~~ — les facteurs de jalon
+  (`sous_boss` 1,25 / `boss_final` 1,5) sont désormais **configurables**
+  (`jeu.rencontres.jalon_*`) et **adoucis à bas niveau** : une rampe part de
+  `jalon_boss_debut` (1,1) à niveau moyen 1 — moins de serviteurs autour du boss
+  pour un groupe débutant (cas d'une campagne « très courte » qui jette un boss à
+  des héros niveau 1) — et monte vers le facteur plein à `jalon_boss_niveau_plein`.
+  Le boss lui-même reste présent (acheté en premier), avec PV déjà adaptés (§3 ci-dessus).
+
 Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) :
-- **Serviteurs & jalon du boss** : au-delà des PV (ci-dessus), le **nombre de
-  serviteurs** du boss et le facteur de jalon `boss_final` restent à régler en
-  playtest. Le nouvel équilibrage (ennemis plus faibles), l'équipement (§1.1) et
-  les mercenaires restaurés (ci-dessus) aident déjà.
 - **Prix vs revenus** : potion 100 or vs ~50 or de butin — à recalibrer (prix des
   consommables, or de quête, ou butin de boss).
 - ~~**Relevage à 1 PV** → boucle « relevé/retombe »~~ — un allié relevé revient

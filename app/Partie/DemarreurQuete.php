@@ -339,15 +339,43 @@ final class DemarreurQuete
      */
     private function budgetRencontres(Groupe $groupe, int $positionArc, string $typeJalon): int
     {
-        $facteurJalon = match ($typeJalon) {
-            'sous_boss' => 1.25,
-            'boss_final' => 1.5,
-            default => 1.0,
-        };
-
         $escalade = 1.0 + 0.15 * ($positionArc - 1);
 
-        return (int) round($this->puissance->calculer($groupe) * $escalade * $facteurJalon);
+        return (int) round($this->puissance->calculer($groupe) * $escalade * $this->facteurJalon($groupe, $typeJalon));
+    }
+
+    /**
+     * Facteur de jalon appliqué au budget (sous-boss / boss ont plus de monstres
+     * autour d'eux). Configurable + ADOUCI à bas niveau (§3) : à niveau moyen 1,
+     * on part de `jalon_boss_debut` (moins de serviteurs autour du boss — un
+     * groupe niveau 1 qui affronte déjà un boss, ex. campagne « très courte ») ;
+     * on monte vers le facteur plein à partir de `jalon_boss_niveau_plein`.
+     */
+    private function facteurJalon(Groupe $groupe, string $typeJalon): float
+    {
+        if (! in_array($typeJalon, ['sous_boss', 'boss_final'], true)) {
+            return 1.0;
+        }
+
+        $plein = $typeJalon === 'boss_final'
+            ? (float) config('jeu.rencontres.jalon_boss_final', 1.5)
+            : (float) config('jeu.rencontres.jalon_sous_boss', 1.25);
+
+        $debut = (float) config('jeu.rencontres.jalon_boss_debut', 1.1);
+        $niveauPlein = max(2, (int) config('jeu.rencontres.jalon_boss_niveau_plein', 3));
+
+        // Rampe linéaire du niveau moyen 1 (→ $debut) au niveau plein (→ $plein).
+        $t = min(1.0, max(0.0, ($this->niveauMoyen($groupe) - 1) / ($niveauPlein - 1)));
+
+        return min($debut + ($plein - $debut) * $t, $plein);
+    }
+
+    /** Niveau moyen des héros ACTIFS du groupe (1.0 par défaut). */
+    private function niveauMoyen(Groupe $groupe): float
+    {
+        $niveaux = $groupe->personnages()->wherePivot('actif', true)->pluck('niveau');
+
+        return $niveaux->isEmpty() ? 1.0 : (float) $niveaux->avg();
     }
 
     /**
