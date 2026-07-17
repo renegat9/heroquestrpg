@@ -457,6 +457,9 @@ export function piegesVersMarqueurs(carte) {
 /** Libellés des états de porte CONNUS (les secrètes non révélées n'arrivent jamais). */
 export const PORTE_ETATS = {
     ouverte: 'ouverte',
+    // Close SANS verrou (E2) : s'ouvre à la main, donc PAS de cadenas (celui-ci
+    // reste réservé aux portes verrouillées — cf. portesVersMarqueurs).
+    fermee: 'fermée',
     verrouillee: 'verrouillée',
     secrete: 'secrète',
 };
