@@ -302,6 +302,10 @@ it('fait jouer les monstres scriptés (C2) quand tous les héros ont joué, puis
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $quete->instancesMonstres()->update(['revele' => true]);
+    // Les portes inter-salles sont FERMÉES par défaut (E2) : une salle n'est
+    // découverte qu'une fois sa porte ouverte. On ouvre donc la voie, sinon les
+    // monstres révélés resteraient (à raison) bloqués derrière leur porte.
+    ouvrirToutesLesPortes($quete);
 
     $positionsAvant = $quete->instancesMonstres()->where('etat', 'actif')->get()
         ->mapWithKeys(fn ($i) => [$i->id => [$i->position_x, $i->position_y]]);

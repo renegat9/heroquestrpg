@@ -242,10 +242,15 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   a_deplace + a_agi ⇒ a_joue). Ouvrir une porte / actionner un levier = **interaction
   LIBRE** (ne consomme aucun créneau — E2 partiel). Piège = déplacement interrompu,
   mouvement fini.
-- **E2 — Portes fermées pendant le mouvement.** L'ouverture est déjà une interaction
-  libre (ci-dessus). RESTE : que les portes inter-salles soient **fermées par
-  défaut** (bloquant le passage) avec une option « Ouvrir la porte » générique
-  (pas seulement les portes à clé) — à vérifier côté MoteurPortes/AssembleurCarte.
+- ~~**E2 — Portes fermées pendant le mouvement.**~~ Nouvel état `fermee`
+  (`MoteurPortes::ETAT_FERMEE`) : close SANS verrou. `AssembleurCarte` pose
+  désormais toutes les portes inter-salles **fermées** → elles barrent le
+  passage et la vue, on s'arrête devant. Un héros adjacent l'ouvre **à la main**
+  (option « Ouvrir la porte », sans clé — `cause: main`) ; c'est une
+  **interaction libre** (aucun créneau consommé), donc on ouvre et on **continue**
+  son déplacement. Les portes à clé/levier/monstres_vaincus gardent leur verrou.
+  Les monstres n'ouvrent pas les portes : ils restent dormants jusqu'à ce qu'un
+  héros ouvre et découvre la salle (flux HeroQuest).
 - ~~**E3 — Sauter par-dessus un piège.**~~ Le saut au-dessus d'une **fosse
   détectée** adjacente (option « Sauter par-dessus », jet de Body) **fait
   désormais partie du mouvement** : il se paie sur les points restants

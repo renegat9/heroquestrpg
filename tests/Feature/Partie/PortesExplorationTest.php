@@ -9,6 +9,7 @@ use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\Grille;
 use App\Partie\ResolveurTour;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -128,6 +129,45 @@ it('bloque le pathfinding et la ligne de vue derrière une porte verrouillée (�
     expect(collect($partage['carte']['portes'])->firstWhere('x', $hx + 1))
         ->toMatchArray(['x' => $hx + 1, 'y' => $hy, 'etat' => 'verrouillee', 'verrou' => 'cle'])
         ->and($partage['carte']['cases'][$hy][$hx + 1])->toBe('p');
+});
+
+it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerExplo();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $etat->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    // Une porte simplement CLOSE (aucun verrou) au contact du héros.
+    poserPortes($quete, [['x' => $hx + 1, 'y' => $hy, 'etat' => 'fermee']]);
+
+    // Elle barre le passage… (grille de la CARTE seule : on éprouve l'état de
+    // la porte, sans l'occupation des figures qui est une autre règle).
+    expect(Grille::depuisCarte($quete->fresh()->carte)->estTraversable($hx + 1, $hy))->toBeFalse();
+
+    // … et le menu propose de l'ouvrir À LA MAIN (pas de mention de clé).
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $optionId = 'ouvrir_porte_'.($hx + 1)."_{$hy}";
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', $optionId);
+    expect($option)->not->toBeNull()
+        ->and($option['libelle'])->toBe('Ouvrir la porte');
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'ouvrir_porte')
+        ->assertJsonPath('resultat.cause', 'main');
+
+    // La porte est ouverte (état persistant) et devient franchissable.
+    expect($quete->fresh()->carte->grille['portes'][0]['etat'])->toBe('ouverte')
+        ->and(Grille::depuisCarte($quete->fresh()->carte)->estTraversable($hx + 1, $hy))->toBeTrue();
+
+    // Ouvrir est une INTERACTION LIBRE : aucun créneau consommé, le déplacement
+    // du tour est intact → on s'arrête devant, on ouvre, on continue.
+    $etat->refresh();
+    expect($etat->a_deplace)->toBeFalse()
+        ->and($etat->a_agi)->toBeFalse()
+        ->and($etat->a_joue)->toBeFalse();
 });
 
 it('ouvre une porte verrouillée par CLÉ : le porteur de l\'objet utilise l\'option au contact', function () {

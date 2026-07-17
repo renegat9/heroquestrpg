@@ -203,6 +203,27 @@ function caseQueteLibre(Quete $quete, int $x, int $y): bool
 }
 
 /**
+ * Ouvre TOUTES les portes de la carte de la quête. Les portes inter-salles sont
+ * `fermee` par défaut (correctifs E2) : une salle n'est normalement découverte
+ * qu'une fois sa porte ouverte par un héros. Ce raccourci sert aux scénarios qui
+ * partent « voie déjà ouverte » (sinon des monstres révélés resteraient — à
+ * raison — bloqués derrière leur porte).
+ */
+function ouvrirToutesLesPortes(Quete $quete): void
+{
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+
+    foreach ($grille['portes'] ?? [] as $i => $porte) {
+        $grille['portes'][$i]['etat'] = 'ouverte';
+        $grille['portes'][$i]['revele'] = true;
+    }
+
+    $carte->update(['grille' => $grille]);
+    $quete->refresh();
+}
+
+/**
  * Première case traversable LIBRE orthogonalement adjacente à (x, y).
  *
  * @return array{x: int, y: int}

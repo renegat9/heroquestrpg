@@ -1402,22 +1402,27 @@ final class ResolveurTour
             : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
 
         if ($cible === null || (int) $cible['porte']['x'] !== $x || (int) $cible['porte']['y'] !== $y) {
-            throw ValidationException::withMessages(['option_id' => 'Aucune porte verrouillée adjacente à cette position.']);
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
         }
 
+        // Porte simplement CLOSE (E2) : ouverture à la main, sans clé. Sinon
+        // (verrouillée) il faut la clé du verrou.
+        $aMain = $this->portes->ouvrableAMain($cible['porte']);
         $verrou = (array) ($cible['porte']['verrou'] ?? []);
 
-        if (($verrou['type'] ?? null) !== 'cle' || ! $this->portes->possedeCle($personnage, $verrou)) {
+        if (! $aMain
+            && (($verrou['type'] ?? null) !== 'cle' || ! $this->portes->possedeCle($personnage, $verrou))) {
             throw ValidationException::withMessages(['option_id' => 'La clé requise est absente de l\'inventaire.']);
         }
 
-        $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'cle', $acteur);
+        $cause = $aMain ? 'main' : 'cle';
+        $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $cause, $acteur);
 
         $payload = [
             'type' => 'ouvrir_porte',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
-            'cause' => 'cle',
+            'cause' => $cause,
             'porte' => ['x' => $x, 'y' => $y],
         ];
 

@@ -64,6 +64,24 @@ it('perce une porte par rangée de chaque côté d\'une jonction (F)', function 
     expect($ys)->toBe($rangees);
 });
 
+it('pose les portes inter-salles FERMÉES : elles barrent le passage tant qu\'on ne les ouvre pas (E2)', function () {
+    ['carte' => $carte] = carteAssemblee();
+
+    // Aucune porte n'est ouverte d'office : on doit les ouvrir en jeu.
+    $etats = array_unique(array_column($carte['portes'], 'etat'));
+    expect($etats)->toBe(['fermee']);
+
+    // Et elles barrent RÉELLEMENT : sans les ouvrir, la dernière salle est
+    // inatteignable depuis le spawn des héros.
+    $grille = new Grille($carte['cases']);
+    $grille->definirPortes($carte['portes']);
+
+    $depart = $carte['spawn_heros'][0];
+    $arrivee = $carte['spawn_monstres'][0];
+
+    expect($grille->chemin($depart['x'], $depart['y'], $arrivee['x'], $arrivee['y']))->toBeNull();
+});
+
 it('garde les salles réellement reliées : un chemin existe du spawn héros au spawn monstre (F)', function () {
     ['carte' => $carte] = carteAssemblee();
 

@@ -24,7 +24,8 @@ use RuntimeException;
  *     une même ligne médiane ; entre deux salles, un couloir droit de
  *     LONGUEUR_COULOIR cases est creusé sur cette ligne ;
  *  4. les cases « p » (porte possible) des tuiles sont refermées en mur,
- *     puis une porte est OUVERTE explicitement de chaque côté des couloirs ;
+ *     puis une porte est PERCÉE de chaque côté des couloirs, sur chacune de
+ *     leurs rangées, à l'état `fermee` (on l'ouvre en jeu — E2) ;
  *  5. pièges (structure.pieges.min) placés au milieu des couloirs ;
  *  6. spawns : héros dans la première salle, monstres dans les salles
  *     suivantes — la liste des spawns monstres commence par la DERNIÈRE
@@ -80,8 +81,8 @@ final class AssembleurCarte
         $portes = [];
 
         // Portes spéciales (verrouillée / secrète) éventuellement posées par le
-        // gabarit (doc 14 §3.1/3.3). Absent → toutes les portes sont ouvertes
-        // (rétro-compatibilité totale du cas par défaut).
+        // gabarit (doc 14 §3.1/3.3). Absent → les portes restent simplement
+        // `fermee` : ouvrables à la main par un héros adjacent (E2).
         $portesSpec = (array) data_get($structure, 'portes', []);
 
         // --- Pose des salles en chaîne ----------------------------------
@@ -94,7 +95,7 @@ final class AssembleurCarte
             foreach ($tuile->grille['cases'] as $r => $ligne) {
                 foreach ($ligne as $c => $case) {
                     // Les portes « possibles » de la tuile sont refermées :
-                    // les portes réelles sont ouvertes sur les couloirs.
+                    // les portes réelles sont percées sur les couloirs.
                     $cases[$y + $r][$x + $c] = $case === 'p' ? 'm' : $case;
                 }
             }
@@ -108,7 +109,7 @@ final class AssembleurCarte
             if ($i > 0) {
                 foreach ($rangees as $ry) {
                     $cases[$ry][$x] = 'p'; // porte ouest
-                    $portes[] = ['x' => $x, 'y' => $ry, 'etat' => 'ouverte'];
+                    $portes[] = ['x' => $x, 'y' => $ry, 'etat' => MoteurPortes::ETAT_FERMEE];
                 }
             }
 
@@ -120,7 +121,7 @@ final class AssembleurCarte
                 $spec = $this->specPorte($portesSpec, $i);
 
                 foreach ($rangees as $ry) {
-                    $porte = ['x' => $x + $w - 1, 'y' => $ry, 'etat' => 'ouverte'];
+                    $porte = ['x' => $x + $w - 1, 'y' => $ry, 'etat' => MoteurPortes::ETAT_FERMEE];
 
                     if ($spec !== null) {
                         $porte['etat'] = (string) $spec['etat'];

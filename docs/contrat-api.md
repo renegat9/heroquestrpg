@@ -491,6 +491,15 @@ joueur (choix, panier, vote, prêt…) exigent un joueur membre.
   monstre `actif` **et** `revele` (le menu moteur ne propose d'attaque que sur
   un monstre révélé, et `ResolveurTour` revérifie à la résolution). Un monstre
   dormant (salle non découverte) n'est jamais ciblable, même via un menu périmé.
+- **Portes fermées par défaut** : les portes inter-salles sont posées `fermee`
+  (close, sans verrou) — infranchissables et opaques. Un héros adjacent l'ouvre
+  sans clé (option `ouvrir_porte`, `cause: main`) ; ouvrir est une **interaction
+  libre** (ne consomme ni le déplacement ni l'action), donc on s'arrête devant la
+  porte, on l'ouvre et on **poursuit** son mouvement s'il reste des points.
+- **Déplacement fractionné** : le déplacement du tour se dépense en plusieurs
+  fois (`deplacement_restant`) ; l'option « Continuer à se déplacer » porte la
+  portée restante. Toute **action hors mouvement forfait** le déplacement restant.
+  Sauter une fosse coûte 2 points et laisse continuer.
 - **Sort offensif = ligne de vue** : un sort `degats`/`mental` ne vise qu'une
   cible VISIBLE du lanceur — un mur, une porte fermée **ou une figure interposée**
   (allié comme ennemi) coupe la vue. Le menu ne liste que les cibles en vue et

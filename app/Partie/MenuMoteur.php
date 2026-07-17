@@ -341,16 +341,25 @@ final class MenuMoteur
                 $px = (int) $etat->position_x;
                 $py = (int) $etat->position_y;
 
+                // Porte close adjacente : simplement fermée → ouverture libre
+                // (E2) ; verrouillée à clé → seulement avec la clé. Ouvrir est
+                // une INTERACTION : elle ne consomme aucun créneau, on peut
+                // reprendre son déplacement juste après.
                 $porte = $this->portes->porteFermeeAdjacente($quete->carte, $px, $py);
-                if ($porte !== null
-                    && ($porte['porte']['verrou']['type'] ?? null) === 'cle'
-                    && $this->portes->possedeCle($personnage, $porte['porte']['verrou'])) {
-                    $options[] = [
-                        'id' => "ouvrir_porte_{$porte['porte']['x']}_{$porte['porte']['y']}",
-                        'libelle' => 'Ouvrir la porte (clé)',
-                        'type' => 'ouvrir_porte',
-                        'parametres' => ['porte' => ['x' => (int) $porte['porte']['x'], 'y' => (int) $porte['porte']['y']]],
-                    ];
+
+                if ($porte !== null) {
+                    $p = $porte['porte'];
+                    $avecCle = ($p['verrou']['type'] ?? null) === 'cle'
+                        && $this->portes->possedeCle($personnage, $p['verrou']);
+
+                    if ($this->portes->ouvrableAMain($p) || $avecCle) {
+                        $options[] = [
+                            'id' => "ouvrir_porte_{$p['x']}_{$p['y']}",
+                            'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
+                            'type' => 'ouvrir_porte',
+                            'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y']]],
+                        ];
+                    }
                 }
 
                 foreach ($this->portes->leviersAdjacents($quete->carte, $px, $py) as $levier) {

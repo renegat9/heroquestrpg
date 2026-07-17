@@ -14,9 +14,13 @@ use App\Support\Journal;
  * Moteur des portes (doc 14 §3.1 portes secrètes + §3.3 portes à restriction) —
  * résolu en code, jamais par l'IA. L'ÉTAT des portes vit dans la grille JSON de
  * la carte (cartes.grille.portes), chaque entrée :
- *   {x, y, etat: ouverte|verrouillee|secrete, verrou?, revele?}
+ *   {x, y, etat: ouverte|fermee|verrouillee|secrete, verrou?, revele?}
  *
  * Une porte NON `ouverte` est infranchissable et opaque (Grille::definirPortes).
+ * `fermee` (correctifs E2) = simplement close, SANS verrou : n'importe quel héros
+ * adjacent l'ouvre librement (action « Ouvrir la porte », interaction qui ne
+ * consomme aucun créneau) — on s'arrête devant, on ouvre, on continue. C'est
+ * l'état par défaut des portes inter-salles posées par AssembleurCarte.
  * Verrous gérés (décisions Vague 2) :
  *  - `cle`              : un héros adjacent possédant l'objet ouvre la porte ;
  *  - `monstres_vaincus` : ouverture auto quand toutes les instances désignées
@@ -32,9 +36,19 @@ final class MoteurPortes
 
     public const ETAT_OUVERTE = 'ouverte';
 
+    /** Close mais SANS verrou : ouvrable librement par un héros adjacent (E2). */
+    public const ETAT_FERMEE = 'fermee';
+
     public const ETAT_VERROUILLEE = 'verrouillee';
 
     public const ETAT_SECRETE = 'secrete';
+
+    /** Une porte close sans verrou s'ouvre à la main, sans clé ni levier (E2). */
+    public function ouvrableAMain(array $porte): bool
+    {
+        return ($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_FERMEE
+            && ($porte['verrou']['type'] ?? null) === null;
+    }
 
     /**
      * Portes brutes de la carte.
