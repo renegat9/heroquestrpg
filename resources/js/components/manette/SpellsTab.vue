@@ -2,16 +2,20 @@
 // Onglet Sorts (grimoire par élément) — port de SpellsTab (manette-app.jsx).
 //
 // `sorts` (GET /api/moi, [{sort_id, nom, element, type, disponible}],
-// contrat « Sorts des héros ») — grille par élément, sorts épuisés grisés
-// (1×/quête), badge type (dégâts / mental / utilitaire). Lancer passe par
-// les OPTIONS DE MENU : si le menu courant (.menu.propose) contient
-// l'option type "sort" du sort, le tap émet 'choose' avec cette option
-// (même flux que ActionTab : ciblage via parametres.cibles puis POST
-// choix) ; sinon le sort est désactivé avec la raison (pas son tour / pas
-// proposé).
-import { computed } from 'vue';
+// contrat « Sorts des héros ») — grille par élément, badge type (dégâts /
+// mental / utilitaire). Taper une carte n'envoie plus rien directement
+// (correctif D) : elle ouvre TOUJOURS SpellInfoSheet (nom, élément, type,
+// disponibilité, description) — y compris pour un sort épuisé ou hors tour,
+// pour qu'on puisse relire son effet sans pouvoir le lancer. C'est le
+// bouton « Lancer » de cette feuille qui émet 'choose' avec l'OPTION DE
+// MENU : si le menu courant (.menu.propose) contient l'option type "sort"
+// du sort (même flux que ActionTab : ciblage via parametres.cibles puis
+// POST choix) ; sinon « Lancer » reste désactivé avec la raison (épuisé /
+// pas son tour / pas proposé ce tour).
+import { computed, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
+import SpellInfoSheet from './SpellInfoSheet.vue';
 import { optionPourSort, sortsParElement, TYPES_SORT } from '../../store/game';
 
 const props = defineProps({
@@ -32,14 +36,16 @@ const dispos = computed(() => (props.sorts ?? []).filter((s) => s.disponible !==
 // magiciennes restantes sont masculines (Le Barbare / Le Nain).
 const article = computed(() => (/^[aeiouyéèêh]/i.test(props.hero?.cls ?? '') ? "L'" : 'Le '));
 
-/** Carte d'un sort réel : option de menu associée + raison du blocage. */
+/** Carte d'un sort réel : option de menu associée + raison du blocage
+ *  (consommée par la carte de la LISTE et par le bouton « Lancer » de
+ *  SpellInfoSheet). */
 function carteDe(sort) {
     const type = TYPES_SORT[(sort.type ?? '').toLowerCase()] ?? null;
     const epuise = sort.disponible === false;
     const option = epuise ? null : optionPourSort(props.menu, sort.sort_id);
     let meta;
     if (epuise) meta = 'Épuisé — redevient disponible à la prochaine quête';
-    else if (option) meta = 'Prêt — touche pour lancer';
+    else if (option) meta = 'Prêt à lancer — touche pour voir';
     else meta = props.menu ? 'Pas proposé ce tour' : 'Attends ton tour pour lancer';
     return {
         badge: type?.l ?? '',
@@ -49,8 +55,23 @@ function carteDe(sort) {
     };
 }
 
-function lancer(sort) {
-    const { option } = carteDe(sort);
+/* Feuille d'information ouverte (SpellInfoSheet) : le sort réel tapé, ou
+ * null. `infoOuverte` recalcule carteDe() en direct — si le menu change
+ * pendant que la feuille est ouverte, disponibilité/raison suivent. */
+const sortOuvert = ref(null);
+const infoOuverte = computed(() => (sortOuvert.value ? carteDe(sortOuvert.value) : null));
+
+function ouvrirInfo(sort) {
+    sortOuvert.value = sort;
+}
+
+/** Un nouveau menu rend l'option affichée périmée — referme la feuille,
+ *  comme CibleSheet côté ManetteView. */
+watch(() => props.menu, () => { sortOuvert.value = null; });
+
+function lancerConfirme() {
+    const option = infoOuverte.value?.option;
+    sortOuvert.value = null;
     if (option) emit('choose', option);
 }
 </script>
@@ -86,10 +107,18 @@ function lancer(sort) {
                     :badge="carteDe(s).badge"
                     :meta="carteDe(s).meta"
                     :el-class="g.cle ? `el-${g.cle}` : ''"
-                    :disabled="carteDe(s).disabled"
-                    @click="lancer(s)"
+                    @click="ouvrirInfo(s)"
                 />
             </div>
         </div>
+
+        <!-- feuille d'information + lancement (correctif D) -->
+        <SpellInfoSheet
+            v-if="sortOuvert"
+            :sort="sortOuvert"
+            :carte="infoOuverte"
+            @lancer="lancerConfirme"
+            @close="sortOuvert = null"
+        />
     </div>
 </template>
