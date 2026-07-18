@@ -61,6 +61,12 @@ Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annule
 // contrôleur. La liste des snapshots reste réservée aux joueurs.
 Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'reprendre']);
 
+// Démarrer la quête suivante : le bouton « Lancer la quête » est sur l'écran de
+// TABLE (narrateur sans compte) → autorisation membre-OU-table dans le
+// contrôleur (l'auto-démarrage « tous prêts + narrateur actif » reste, lui, via
+// POST /pret côté joueurs). Entièrement moteur (App\Partie\DemarreurQuete).
+Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrerQuete']);
+
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
@@ -74,9 +80,7 @@ Route::middleware('auth:joueur')->group(function () {
     Route::post('/groupes', [GroupeController::class, 'creer']);
     Route::post('/groupes/{identifiant}/joueurs', [GroupeController::class, 'rejoindre']);
 
-    // Démarrer la quête suivante : carte assemblée, monstres au budget,
-    // initiative figée — entièrement moteur (App\Partie\DemarreurQuete).
-    Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrerQuete']);
+    // (Démarrer la quête — POST /quetes — est table-OU-membre, déclaré plus haut.)
 
     // Statut « prêt » : déclenche la quête si tous prêts + narrateur actif.
     Route::post('/groupes/{identifiant}/pret', [GroupeController::class, 'pret']);

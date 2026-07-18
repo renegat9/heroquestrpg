@@ -472,6 +472,10 @@ qu'un **narrateur est actif** (remplace le démarrage manuel par la table).
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts |
+| POST | /api/groupes/{identifiant}/quetes | — | démarrage MANUEL (bouton « Lancer la quête » de la table) — autorisation **membre OU table** (le narrateur sans compte peut lancer). Sans ça la table prenait un 401 → faux « session expirée » → redirection vers le login joueur |
+
+> Un 401 sur l'écran **narrateur/table** ne renvoie PAS au login joueur : la
+> table se rouvre par **code** (`/narrateur`), pas par compte (App.vue).
 
 `EtatGroupe.groupe` gagne `narrateur_actif` (bool) et, au hub, `prets:
 [{personnage_id, pret}]` pour l'affichage. Broadcast `.prets.maj` ({prets})

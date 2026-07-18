@@ -156,11 +156,27 @@ it('démarre la dernière quête de l\'arc en boss final, avec le boss du bestia
     expect($tiers)->toContain('boss');
 });
 
-it('exige un héros actif dans le groupe pour démarrer la quête', function () {
-    connecterJoueur('intrus');
+it('refuse de démarrer la quête à qui n\'est ni membre ni la table du groupe', function () {
+    connecterJoueur('intrus'); // connecté, mais aucun héros actif dans ce groupe
     creerGroupe();
 
-    $this->postJson('/api/groupes/table-1/quetes')->assertStatus(422);
+    // Autorisation membre-OU-table : un intrus (ni l'un ni l'autre) → 403.
+    $this->postJson('/api/groupes/table-1/quetes')->assertStatus(403);
+});
+
+it('laisse le NARRATEUR (session de table, sans compte) démarrer la quête', function () {
+    // Un groupe avec un héros, mais on N'est PAS connecté comme joueur : on ouvre
+    // seulement la TABLE (comme le fait l'écran narrateur). Le bouton « Lancer la
+    // quête » de la table doit alors marcher (avant : 401 → faux « déconnecté »).
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $this->postJson('/api/deconnexion'); // on quitte le rôle joueur
+
+    $this->postJson('/api/table', ['code' => 'table-1'])->assertOk(); // session de table
+    $this->postJson('/api/groupes/table-1/quetes')
+        ->assertCreated()
+        ->assertJsonPath('quete.etat', 'en_cours');
 });
 
 it('remet les héros à plein PV au démarrage de CHAQUE quête suivante (P2, doc 01 §13)', function () {

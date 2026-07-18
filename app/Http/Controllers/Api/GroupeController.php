@@ -33,6 +33,8 @@ use Illuminate\Validation\ValidationException;
  */
 class GroupeController extends Controller
 {
+    use \App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
+
     /** Bornes de quêtes par longueur de campagne (doc 05 §2). */
     private const QUETES_PAR_LONGUEUR = [
         'tres_courte' => [1, 1],
@@ -477,23 +479,15 @@ class GroupeController extends Controller
      * (contrat) : carte assemblée depuis les tuiles, monstres spawnés au
      * budget (score de puissance), initiative figée (C1). Entièrement
      * moteur — l'IA habillera par jobs (avec repli garanti).
+     *
+     * Le bouton « Lancer la quête » est sur l'écran de TABLE (narrateur sans
+     * compte) : autorisation membre-OU-table (même règle que ouvrir le marché /
+     * la clôture / la reprise). Sans ça, la table prenait un 401 → l'écran
+     * croyait la session expirée et renvoyait vers le login joueur.
      */
-    public function demarrerQuete(string $identifiant, DemarreurQuete $demarreur): JsonResponse
+    public function demarrerQuete(Request $request, string $identifiant, DemarreurQuete $demarreur): JsonResponse
     {
-        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
-        $joueur = Auth::guard('joueur')->user();
-
-        // Seul un membre du groupe (au moins un héros actif) peut lancer la quête.
-        $estMembre = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('joueur_id', $joueur->id)
-            ->exists();
-
-        if (! $estMembre) {
-            throw ValidationException::withMessages([
-                'identifiant' => 'Vous n\'avez aucun héros actif dans ce groupe.',
-            ]);
-        }
+        $groupe = $this->groupeLisible($request, $identifiant);
 
         $quete = $demarreur->demarrer($groupe);
 
