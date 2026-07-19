@@ -10,31 +10,65 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
 
 /*
- * Couloirs à 2 cases de large (correctifs F) : deux figurines passent de front,
- * chaque rangée a sa porte, et l'enchaînement des salles reste RÉELLEMENT
- * connecté (le vrai risque d'un couloir élargi : percer une porte sur un mur).
+ * Carte 2D BRANCHUE (fini la chaîne gauche-droite, playtest F) : les salles
+ * sont posées sur une grille en arbre (jusqu'à 4 embranchements par salle),
+ * reliées par des couloirs à 2 voies, UNE SEULE porte par bord de salle (la
+ * voie parallèle est un cul-de-sac sans porte — fini les deux portes
+ * adjacentes à chaque jonction), et les monstres sont répartis (round-robin)
+ * sur toutes les salles au lieu de s'entasser dans la dernière.
  */
 
 beforeEach(function () {
     $this->seed([TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
 });
 
-/** @return array{carte: array<string, mixed>, rangees: list<int>} */
-function carteAssemblee(): array
+/** Gabarit « normal » (pas de rencontre finale) — assemblage générique. */
+function gabaritNormal(): GabaritQuete
 {
-    $carte = app(AssembleurCarte::class)->assembler(GabaritQuete::query()->firstOrFail());
-    $ligneMediane = intdiv($carte['hauteur'], 2);
+    return GabaritQuete::query()->where('type_jalon', 'normale')->firstOrFail();
+}
 
-    $rangees = [];
-    for ($k = AssembleurCarte::LARGEUR_COULOIR - 1; $k >= 0; $k--) {
-        $rangees[] = $ligneMediane - $k;
+/** Gabarit avec rencontre finale (sous-boss/boss) — pour les checks de salle boss. */
+function gabaritAvecBoss(): GabaritQuete
+{
+    return GabaritQuete::query()->where('type_jalon', 'boss_final')->firstOrFail();
+}
+
+/**
+ * Toutes les cases 'p' (porte) de la grille, en liste de coordonnées.
+ *
+ * @param  list<list<string>>  $cases
+ * @return list<array{x: int, y: int}>
+ */
+function portesDeLaGrille(array $cases): array
+{
+    $positions = [];
+
+    foreach ($cases as $y => $ligne) {
+        foreach ($ligne as $x => $case) {
+            if ($case === 'p') {
+                $positions[] = ['x' => $x, 'y' => $y];
+            }
+        }
     }
 
-    return ['carte' => $carte, 'rangees' => $rangees];
+    return $positions;
+}
+
+/** Index de la salle contenant (x, y), ou null. */
+function salleContenant(array $salles, int $x, int $y): ?int
+{
+    foreach ($salles as $i => $s) {
+        if ($x >= $s['x'] && $x < $s['x'] + $s['largeur'] && $y >= $s['y'] && $y < $s['y'] + $s['hauteur']) {
+            return $i;
+        }
+    }
+
+    return null;
 }
 
 it('varie la carte selon la graine (fini « toujours la même carte ») et reste reproductible', function () {
-    $gabarit = GabaritQuete::query()->firstOrFail();
+    $gabarit = gabaritNormal();
     $assembleur = app(AssembleurCarte::class);
 
     // Reproductible : même graine → carte identique (indispensable pour une
@@ -51,46 +85,71 @@ it('varie la carte selon la graine (fini « toujours la même carte ») et reste
     expect($signatures->count())->toBeGreaterThan(1);
 });
 
-it('creuse chaque couloir sur 2 rangées de sol (F)', function () {
-    ['carte' => $carte, 'rangees' => $rangees] = carteAssemblee();
+it('ne perce jamais deux portes adjacentes (fini les jonctions à double porte)', function () {
+    $assembleur = app(AssembleurCarte::class);
 
-    expect($rangees)->toHaveCount(2);
+    foreach (range(1, 15) as $graine) {
+        $carte = $assembleur->assembler(gabaritNormal(), $graine * 101);
+        $portes = portesDeLaGrille($carte['cases']);
 
-    // Couloir entre la 1re et la 2e salle : toute sa longueur, sur les 2 rangées.
-    $salle = $carte['salles'][0];
-    $debut = $salle['x'] + $salle['largeur'];
+        foreach ($portes as $a) {
+            foreach ($portes as $b) {
+                if ($a === $b) {
+                    continue;
+                }
 
-    for ($cx = $debut; $cx < $debut + AssembleurCarte::LONGUEUR_COULOIR; $cx++) {
-        foreach ($rangees as $ry) {
-            expect($carte['cases'][$ry][$cx])->toBe('s');
+                $adjacente = abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']) === 1;
+                expect($adjacente)->toBeFalse("Portes adjacentes détectées (graine {$graine}) : ".json_encode([$a, $b]));
+            }
         }
     }
 });
 
-it('perce une porte par rangée de chaque côté d\'une jonction (F)', function () {
-    ['carte' => $carte, 'rangees' => $rangees] = carteAssemblee();
+it('creuse chaque couloir sur 2 voies traversables (F)', function () {
+    $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 42);
 
-    $salle = $carte['salles'][0];
-    $xPorteEst = $salle['x'] + $salle['largeur'] - 1;
+    expect($carte['aretes'])->not->toBeEmpty();
 
-    $ys = array_column(
-        array_filter($carte['portes'], fn ($p) => (int) $p['x'] === $xPorteEst),
-        'y',
-    );
-    sort($ys);
+    foreach ($carte['aretes'] as $arete) {
+        $ax = $arete['porte_a']['x'];
+        $ay = $arete['porte_a']['y'];
+        $bx = $arete['porte_b']['x'];
+        $by = $arete['porte_b']['y'];
 
-    expect($ys)->toBe($rangees);
+        if ($ay === $by) {
+            // Arête horizontale : la voie principale (ligne ay) et la voie
+            // parallèle (ay-1) sont toutes deux traversables entre les portes.
+            [$xMin, $xMax] = $ax < $bx ? [$ax, $bx] : [$bx, $ax];
+            for ($x = $xMin; $x <= $xMax; $x++) {
+                expect(in_array($carte['cases'][$ay][$x], ['s', 'p'], true))->toBeTrue();
+            }
+            $voieParallele = array_slice($carte['cases'][$ay - 1], $xMin + 1, $xMax - $xMin - 1);
+            expect($voieParallele)->not->toBeEmpty()
+                ->and(array_unique($voieParallele))->toBe(['s']);
+        } else {
+            // Arête verticale : symétrique sur les colonnes.
+            [$yMin, $yMax] = $ay < $by ? [$ay, $by] : [$by, $ay];
+            for ($y = $yMin; $y <= $yMax; $y++) {
+                expect(in_array($carte['cases'][$y][$ax], ['s', 'p'], true))->toBeTrue();
+            }
+            $voieParallele = [];
+            for ($y = $yMin + 1; $y < $yMax; $y++) {
+                $voieParallele[] = $carte['cases'][$y][$ax - 1];
+            }
+            expect($voieParallele)->not->toBeEmpty()
+                ->and(array_unique($voieParallele))->toBe(['s']);
+        }
+    }
 });
 
-it('pose les portes inter-salles FERMÉES : elles barrent le passage tant qu\'on ne les ouvre pas (E2)', function () {
-    ['carte' => $carte] = carteAssemblee();
+it('pose les portes inter-salles FERMÉES par défaut : elles barrent le passage (E2)', function () {
+    $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 42);
 
-    // Aucune porte n'est ouverte d'office : on doit les ouvrir en jeu.
     $etats = array_unique(array_column($carte['portes'], 'etat'));
     expect($etats)->toBe(['fermee']);
 
-    // Et elles barrent RÉELLEMENT : sans les ouvrir, la dernière salle est
-    // inatteignable depuis le spawn des héros.
+    // Et elles barrent RÉELLEMENT : sans les ouvrir, une salle non voisine du
+    // départ est inatteignable.
     $grille = new Grille($carte['cases']);
     $grille->definirPortes($carte['portes']);
 
@@ -100,20 +159,76 @@ it('pose les portes inter-salles FERMÉES : elles barrent le passage tant qu\'on
     expect($grille->chemin($depart['x'], $depart['y'], $arrivee['x'], $arrivee['y']))->toBeNull();
 });
 
-it('garde les salles réellement reliées : un chemin existe du spawn héros au spawn monstre (F)', function () {
-    ['carte' => $carte] = carteAssemblee();
+it('garde toutes les salles réellement reliées : un chemin existe du spawn héros vers CHAQUE salle (portes ouvertes)', function () {
+    $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), 7);
 
     // Connectivité de la GÉOMÉTRIE : on ouvre les portes (leur état est une
     // règle de jeu à part — cf. portes fermées par défaut) pour éprouver le
-    // tracé lui-même, y compris les portes percées sur les rangées élargies.
+    // tracé lui-même.
     $grille = new Grille($carte['cases']);
     $grille->definirPortes(array_map(
         fn (array $p) => [...$p, 'etat' => 'ouverte'],
         $carte['portes'],
     ));
 
-    $depart = $carte['spawn_heros'][0];          // 1re salle
-    $arrivee = $carte['spawn_monstres'][0];      // dernière salle (rencontre finale)
+    $depart = $carte['spawn_heros'][0];
 
-    expect($grille->chemin($depart['x'], $depart['y'], $arrivee['x'], $arrivee['y']))->not->toBeNull();
+    foreach ($carte['salles'] as $i => $salle) {
+        $centre = ['x' => $salle['x'] + intdiv($salle['largeur'], 2), 'y' => $salle['y'] + intdiv($salle['hauteur'], 2)];
+        expect($grille->chemin($depart['x'], $depart['y'], $centre['x'], $centre['y']))
+            ->not->toBeNull("Salle {$i} inatteignable depuis le spawn héros.");
+    }
+
+    // Et spécifiquement la salle boss (dernière posée).
+    $bossSalle = $carte['salles'][count($carte['salles']) - 1];
+    $centreBoss = ['x' => $bossSalle['x'] + intdiv($bossSalle['largeur'], 2), 'y' => $bossSalle['y'] + intdiv($bossSalle['hauteur'], 2)];
+    expect($bossSalle['theme'])->toBe('boss')
+        ->and($grille->chemin($depart['x'], $depart['y'], $centreBoss['x'], $centreBoss['y']))->not->toBeNull();
+});
+
+it('produit un arbre RÉELLEMENT branchu sur plusieurs graines (pas une simple chaîne)', function () {
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = gabaritAvecBoss(); // salles.max = 7 : plus de marge pour brancher
+
+    $dejaBranchu = false;
+
+    foreach (range(1, 20) as $graine) {
+        $carte = $assembleur->assembler($gabarit, $graine * 53);
+
+        // Nb d'arêtes par salle (parent OU enfant).
+        $degres = array_fill(0, count($carte['salles']), 0);
+        foreach ($carte['aretes'] as $arete) {
+            $degres[$arete['a']]++;
+            $degres[$arete['b']]++;
+        }
+
+        // Une salle avec ≥ 3 arêtes a nécessairement ≥ 2 ENFANTS (elle n'a
+        // qu'au plus 1 arête « parent ») → vraie branche.
+        if (max($degres) >= 3) {
+            $dejaBranchu = true;
+            break;
+        }
+    }
+
+    expect($dejaBranchu)->toBeTrue();
+});
+
+it('répartit les monstres sur AU MOINS 2 salles distinctes, boss en position 0', function () {
+    $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), 42);
+
+    expect($carte['spawn_monstres'])->not->toBeEmpty();
+
+    $salles = collect($carte['spawn_monstres'])
+        ->map(fn ($p) => salleContenant($carte['salles'], $p['x'], $p['y']))
+        ->unique();
+
+    expect($salles->count())->toBeGreaterThanOrEqual(2)
+        ->and($salles->contains(null))->toBeFalse(); // toujours dans une salle, jamais un couloir
+
+    // La rencontre finale (spawn_monstres[0], = le boss côté DemarreurQuete)
+    // est dans la salle boss (dernière posée, thème « boss »).
+    $bossIndex = count($carte['salles']) - 1;
+    expect($carte['salles'][$bossIndex]['theme'])->toBe('boss')
+        ->and(salleContenant($carte['salles'], $carte['spawn_monstres'][0]['x'], $carte['spawn_monstres'][0]['y']))
+        ->toBe($bossIndex);
 });
