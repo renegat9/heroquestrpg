@@ -35,7 +35,7 @@ Routes protégées par middleware `auth` sauf connexion.
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
-  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p"]],
+  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p","b"]],
             "portes": [{"x": 4, "y": 3, "etat": "ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
@@ -221,6 +221,17 @@ L'état des portes vit dans la carte de la quête (`cartes.grille.portes` :
 `{x, y, etat: "ouverte|verrouillee|secrete", verrou?, revele?}`). Une porte NON
 `ouverte` est **infranchissable** (pathfinding) et **opaque** (ligne de vue) ; une
 porte `ouverte` est traversable et transparente.
+
+**Codes de case (`carte.cases`)** : `m` mur, `s` sol, `p` porte, `b` **brouillard**.
+`EtatGroupe.carte` applique un **brouillard de guerre** : ne sont dévoilées que les
+salles **découvertes** (on y est entré — `decouvrirSalle`) plus ce qu'on atteint
+depuis elles par des portes **ouvertes** ; tout le reste (salles non découvertes,
+couloirs derrière une porte fermée) est renvoyé en `b`. Les portes dont la case est
+sous brouillard sont **retirées de `portes`** (pas de cadenas/jeton à travers le
+voile). Purement cosmétique — le moteur travaille toujours sur la carte réelle. La
+disposition est un **arbre 2D branchu** (couloirs à 2 voies, une seule porte par bord
+de salle) ; `cartes.grille` porte aussi `salles[]` et `aretes[]` (métadonnées de
+tracé, non servies dans le payload).
 
 - **EtatGroupe.carte** gagne `portes: [{x, y, etat, verrou?}]` — les portes
   **secrètes non révélées n'y figurent jamais** (même règle que les pièges cachés)

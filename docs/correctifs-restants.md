@@ -296,3 +296,23 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   carte reproductible (compatible reprise, la carte étant de toute façon
   snapshottée). N'utilise PAS la file de dés du jeu (pas de pollution des
   scénarios de test). Graine 0 par défaut = tirage fixe.
+- ~~**F3 — Donjon en chaîne linéaire + monstres tous au fond + doubles portes.**~~
+  `AssembleurCarte` réécrit : disposition en **arbre 2D branchu** (jusqu'à 4
+  embranchements par salle), salles posées dans des slots uniformes, couloirs à
+  **2 voies** (voie principale + voie parallèle en cul-de-sac → **une seule porte
+  par bord de salle**, fini les deux portes adjacentes), boss forcé en **feuille
+  terminale** (salle thème `boss`). Monstres **répartis en round-robin** sur
+  toutes les salles (rencontre finale = `spawn_monstres[0]` dans la salle boss).
+  `grille` gagne `salles[].mediane_x/y` et `aretes[]` (tracé). Tests :
+  `CouloirsTest` (connexité vers CHAQUE salle, 2 voies, aucune porte adjacente,
+  branchement réel, répartition ≥ 2 salles).
+- ~~**F4 — Tout le donjon visible d'emblée (pas de brouillard).**~~ Brouillard de
+  guerre server-side (`EtatGroupe::carte`) : flood-fill depuis les salles
+  découvertes à travers les portes **ouvertes** → le reste passe en `b` (masqué
+  côté table `.cell.fog` et manette `.brouillard`) ; portes sous brouillard
+  retirées du payload. On lève le voile salle par salle en **entrant** (E2 : la
+  porte fermée barre la vue au-delà). Tests : `BrouillardTest`.
+- ~~**F5 — Archer tirant à travers les figures.**~~ `tirerSiCibleEnVue` +
+  ciblage merc passent `figuresBloquent: true` : une figure interposée (héros ou
+  monstre) coupe la ligne de tir → l'archer vise une cible dégagée ou s'approche.
+  Test : `MonstresADistanceTest` (#7).
