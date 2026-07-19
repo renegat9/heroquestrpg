@@ -19,6 +19,18 @@ const emit = defineEmits(['deplacer', 'close']);
 const grilleRef = ref(null);
 const cle = (x, y) => `${x},${y}`;
 
+// Portes connues (état) indexées par case — pour l'affichage (B2) et le blocage
+// du déplacement à travers une porte FERMÉE (B3).
+const portesParCle = computed(() => {
+    const m = new Map();
+    for (const p of props.carte.portes ?? []) m.set(cle(p.x, p.y), p);
+    return m;
+});
+const porteFermee = (x, y) => {
+    const p = portesParCle.value.get(cle(x, y));
+    return !!p && p.etat !== 'ouverte'; // fermee / verrouillee / secrete
+};
+
 // Cases occupées par une AUTRE figurine (le héros sur sa case de départ ne bloque pas).
 const occupees = computed(() => {
     const s = new Set();
@@ -45,7 +57,8 @@ const accessibles = computed(() => {
             const k = cle(nx, ny);
             if (k in dist) continue;
             const c = cases?.[ny]?.[nx];
-            if (c !== 's' && c !== 'p') continue;
+            if (c !== 's' && c !== 'p') continue;    // mur / brouillard 'b' = infranchissable
+            if (porteFermee(nx, ny)) continue;        // on ne traverse pas une porte fermée (B3)
             if (occupees.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
@@ -57,6 +70,7 @@ const accessibles = computed(() => {
 
 function classeCase(x, y) {
     const c = props.carte.cases?.[y]?.[x];
+    if (c === 'b') return 'brouillard'; // salle non découverte (brouillard — Chantier 2)
     if (x === props.depart.x && y === props.depart.y) return 'depart';
     if (occupees.value.has(cle(x, y))) {
         const ent = props.entites.find((e) => e.x === x && e.y === y);
@@ -103,11 +117,16 @@ onMounted(() => {
                             v-for="x in colonnes"
                             :key="`${x}-${y}`"
                             class="dep-cell"
-                            :class="classeCase(x, y)"
+                            :class="[classeCase(x, y), {
+                                'dep-porte': portesParCle.has(cle(x, y)),
+                                'dep-porte-fermee': porteFermee(x, y),
+                            }]"
                             @click="toucher(x, y)"
                         >
                             <MSym v-if="classeCase(x, y) === 'depart'" n="person" :size="14" fill />
                             <MSym v-else-if="classeCase(x, y) === 'monstre'" n="pets" :size="13" fill />
+                            <MSym v-else-if="portesParCle.has(cle(x, y))"
+                                :n="porteFermee(x, y) ? 'door_front' : 'meeting_room'" :size="12" fill />
                         </div>
                     </template>
                 </div>
@@ -161,4 +180,11 @@ onMounted(() => {
 .dep-cell.depart { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); }
 .dep-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }
 .dep-cell.accessible:hover { background: oklch(0.6 0.15 145 / 0.55); }
+/* Brouillard (salle non découverte — Chantier 2) : case sombre, non tappable. */
+.dep-cell.brouillard { background: oklch(0.16 0.01 255); box-shadow: inset 0 0 0 1px oklch(0.22 0.01 255); }
+/* Portes (B2) : jeton de porte sur la case ; fermée = ambrée bordée, ouverte = discrète. */
+.dep-cell.dep-porte { background: var(--stone-800); }
+.dep-cell.dep-porte .msym { color: var(--ink-400); }
+.dep-cell.dep-porte-fermee { background: oklch(0.3 0.05 60); outline: 1px solid var(--torch); }
+.dep-cell.dep-porte-fermee .msym { color: var(--torch); }
 </style>
