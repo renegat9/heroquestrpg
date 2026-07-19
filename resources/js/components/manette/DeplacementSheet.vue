@@ -147,8 +147,12 @@ onMounted(() => {
   background: var(--stone-850); color: var(--ink-200, #e7dcc6); font-weight: 700; font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px; }
 
-.dep-scroll { overflow: auto; flex: 1; border-radius: var(--r-md); background: var(--stone-950); padding: 8px; }
-.dep-grid { display: grid; gap: 2px; width: max-content; margin: 0 auto; }
+/* `safe center` : la grille est CENTRÉE quand elle tient dans la vue, mais
+   revient au bord (start) quand elle DÉPASSE — sinon `margin: 0 auto` rendait la
+   partie droite du donjon inatteignable au scroll en portrait (correctif B1). */
+.dep-scroll { overflow: auto; flex: 1; border-radius: var(--r-md); background: var(--stone-950); padding: 8px;
+  display: flex; justify-content: safe center; align-items: safe center; }
+.dep-grid { display: grid; gap: 2px; width: max-content; margin: 0; flex: none; }
 .dep-cell { width: 22px; height: 22px; border-radius: 3px; display: grid; place-items: center; }
 .dep-cell.mur { background: transparent; }
 .dep-cell.sol { background: var(--stone-800); }
