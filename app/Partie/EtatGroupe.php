@@ -14,6 +14,7 @@ use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Narration\BibliothequeNarration;
+use App\Partie\ResolveurTour;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -194,6 +195,23 @@ final class EtatGroupe
             }
         }
 
+        // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
+        // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
+        $salles = (array) ($carte->grille['salles'] ?? []);
+        $decouvertes = array_values(array_unique(array_merge(
+            [0], // la salle de départ est toujours visible (semée par DemarreurQuete)
+            array_map('intval', (array) Cache::get(ResolveurTour::cleSallesDecouvertes((int) $quete->id), [])),
+        )));
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $portes);
+
+        // Ne pas trahir par-dessus le brouillard une porte dont la case est
+        // masquée : son cadenas (table) / son jeton (manette) révélerait sa
+        // présence. On ne garde que les portes dont la case reste visible.
+        $portes = array_values(array_filter(
+            $portes,
+            fn (array $p) => ($cases[$p['y']][$p['x']] ?? 'b') !== 'b',
+        ));
+
         return [
             'largeur' => (int) $carte->largeur,
             'hauteur' => (int) $carte->hauteur,
@@ -201,6 +219,130 @@ final class EtatGroupe
             'pieges' => $this->pieges($carte),
             'portes' => $portes,
         ];
+    }
+
+    /**
+     * Brouillard de guerre : masque ('b') tout ce qui n'est pas encore vu — les
+     * salles NON découvertes ET les couloirs derrière une porte fermée. Est
+     * visible : les salles découvertes plus ce qu'on atteint depuis elles en
+     * traversant des portes OUVERTES (une porte fermée bloque la vue au-delà) ;
+     * l'intérieur d'une salle non découverte reste masqué même si sa porte est
+     * ouverte (il faut y ENTRER pour la révéler — cf. decouvrirSalle). Purement
+     * cosmétique : le moteur travaille toujours sur la carte réelle.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<int>  $decouvertes
+     * @param  list<array{x: int, y: int, etat: string}>  $portes
+     * @return list<list<string>>
+     */
+    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes): array
+    {
+        if ($salles === []) {
+            return $cases; // pas de métadonnées de salle (vieille carte) : rien à masquer
+        }
+
+        $hauteur = count($cases);
+        $largeur = $hauteur > 0 ? count($cases[0]) : 0;
+
+        $etatPorte = [];
+        foreach ($portes as $porte) {
+            $etatPorte["{$porte['x']},{$porte['y']}"] = $porte['etat'];
+        }
+        $estPorte = fn (int $x, int $y): bool => isset($etatPorte["{$x},{$y}"]);
+        $porteOuverte = fn (int $x, int $y): bool => ($etatPorte["{$x},{$y}"] ?? null) === 'ouverte';
+
+        $salleDe = function (int $x, int $y) use ($salles): ?int {
+            foreach ($salles as $i => $s) {
+                if ($x >= $s['x'] && $x < $s['x'] + $s['largeur'] && $y >= $s['y'] && $y < $s['y'] + $s['hauteur']) {
+                    return (int) $i;
+                }
+            }
+
+            return null;
+        };
+
+        // Flood-fill des cases visibles depuis les salles découvertes.
+        $visible = [];
+        $file = [];
+        $marquer = function (int $x, int $y, bool $propager) use (&$visible, &$file): void {
+            $cle = "{$x},{$y}";
+            if (isset($visible[$cle])) {
+                return;
+            }
+            $visible[$cle] = true;
+            if ($propager) {
+                $file[] = [$x, $y];
+            }
+        };
+
+        foreach ($decouvertes as $i) {
+            $s = $salles[$i] ?? null;
+            if ($s === null) {
+                continue;
+            }
+            for ($y = (int) $s['y']; $y < $s['y'] + $s['hauteur']; $y++) {
+                for ($x = (int) $s['x']; $x < $s['x'] + $s['largeur']; $x++) {
+                    if (($cases[$y][$x] ?? 'm') === 'm') {
+                        continue; // mur intérieur : traité via le bord des cases visibles
+                    }
+                    // On franchit une porte de la salle seulement si elle est ouverte.
+                    $marquer($x, $y, ! $estPorte($x, $y) || $porteOuverte($x, $y));
+                }
+            }
+        }
+
+        while ($file !== []) {
+            [$x, $y] = array_pop($file);
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $nx = $x + $dx;
+                $ny = $y + $dy;
+                if ($nx < 0 || $ny < 0 || $nx >= $largeur || $ny >= $hauteur) {
+                    continue;
+                }
+                $c = $cases[$ny][$nx] ?? 'm';
+                if ($c === 'm') {
+                    continue; // mur : bordure, pas un passage
+                }
+                if ($estPorte($nx, $ny)) {
+                    $marquer($nx, $ny, $porteOuverte($nx, $ny)); // on voit la porte ; au-delà seulement si ouverte
+                    continue;
+                }
+                // Sol : l'intérieur d'une salle NON découverte reste masqué.
+                $r = $salleDe($nx, $ny);
+                if ($r !== null && ! in_array($r, $decouvertes, true)) {
+                    continue;
+                }
+                $marquer($nx, $ny, true);
+            }
+        }
+
+        // Passe finale : tout ce qui n'est pas visible passe en brouillard, SAUF
+        // un mur qui borde une case visible (silhouette des salles/couloirs vus).
+        for ($y = 0; $y < $hauteur; $y++) {
+            for ($x = 0; $x < $largeur; $x++) {
+                if (isset($visible["{$x},{$y}"])) {
+                    continue;
+                }
+                if (($cases[$y][$x] ?? 'm') === 'm') {
+                    $borde = false;
+                    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as [$dx, $dy]) {
+                        if (isset($visible[($x + $dx).','.($y + $dy)])) {
+                            $borde = true;
+                            break;
+                        }
+                    }
+                    if (! $borde) {
+                        $cases[$y][$x] = 'b';
+                    }
+
+                    continue;
+                }
+                $cases[$y][$x] = 'b';
+            }
+        }
+
+        return $cases;
     }
 
     /**
