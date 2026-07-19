@@ -2138,8 +2138,11 @@ final class ResolveurTour
         $ix = (int) $instance->position_x;
         $iy = (int) $instance->position_y;
 
+        // Ligne de TIR (doc 03 §36) : une figure interposée (héros OU monstre)
+        // coupe la vue — un archer ne tire pas sur un héros caché DERRIÈRE
+        // d'autres figures. `$grille` porte déjà l'occupation (FabriqueGrille).
         $visibles = $cibles->filter(fn (EtatPersonnageQuete $c) =>
-            $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y)
+            $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true)
         )->values();
 
         if ($visibles->isEmpty()) {
@@ -2461,12 +2464,13 @@ final class ResolveurTour
         $ax = (int) $allie->position_x;
         $ay = (int) $allie->position_y;
 
-        // Allié à distance : tirer sur le monstre VISIBLE le plus faible.
+        // Allié à distance : tirer sur le monstre VISIBLE le plus faible — même
+        // règle que l'archer ennemi : une figure interposée coupe la ligne de tir.
         if ($merc->aDistance()) {
             $visibles = $monstres->filter(function (InstanceMonstre $m) use ($grille, $ax, $ay) {
                 $e = $m->monstre->emprise();
 
-                return $grille->ligneDeVueEmprise($ax, $ay, (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']);
+                return $grille->ligneDeVueEmprise($ax, $ay, (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], figuresBloquent: true);
             })->values();
 
             if ($visibles->isNotEmpty()) {
