@@ -14,6 +14,7 @@ class Competence extends Model
     protected $fillable = [
         'classe',
         'nom',
+        'description',
         'type',
         'effet',
         'prerequis_id',

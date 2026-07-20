@@ -996,6 +996,7 @@ export function competencesVersArbre(catalogue, classe, acquis = [], points = 0)
         liste.push({
             id: n.id,
             nom: n.nom,
+            description: n.description ?? null,
             type: TYPES_COMPETENCE[type] ? type : 'passif',
             profondeur,
             effets,

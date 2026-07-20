@@ -213,6 +213,7 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
                                             {{ TYPES_COMPETENCE[n.type].l }}
                                         </span>
                                     </div>
+                                    <div v-if="n.description" class="td desc">{{ n.description }}</div>
                                     <div v-if="n.effets.length" class="td">
                                         <span v-for="(e, i) in n.effets" :key="i" class="fx">
                                             <MSym v-if="e.ic" :n="e.ic" :size="12" /> {{ e.texte }}
@@ -352,6 +353,7 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
 .lvlup-screen .talent .ti .msym { font-size: 25px; }
 .lvlup-screen .talent .tt { font-size: 15.5px; font-weight: 700; color: var(--parch-100); }
 .lvlup-screen .talent .td { font-size: 12.5px; color: var(--ink-400); margin-top: 3px; line-height: 1.4; }
+.lvlup-screen .talent .td.desc { color: var(--ink-200, #e7dcc6); }
 .lvlup-screen .talent .tcheck { position: absolute; top: 13px; right: 13px; width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid var(--stone-600); display: grid; place-items: center; transition: all .15s; }
 .lvlup-screen .talent .tcheck .msym { font-size: 14px; color: transparent; }

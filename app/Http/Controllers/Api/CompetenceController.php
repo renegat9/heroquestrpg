@@ -64,11 +64,12 @@ class CompetenceController extends Controller
             'competences' => Competence::query()
                 ->orderBy('classe')
                 ->orderBy('id')
-                ->get(['id', 'classe', 'nom', 'type', 'effet', 'prerequis_id'])
+                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id'])
                 ->map(fn (Competence $c) => [
                     'id' => $c->id,
                     'classe' => $c->classe,
                     'nom' => $c->nom,
+                    'description' => $c->description,
                     'type' => $c->type,
                     'effet' => $c->effet,
                     'prerequis_id' => $c->prerequis_id,

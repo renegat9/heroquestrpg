@@ -146,6 +146,13 @@ it('acquiert un nœud d\'arbre et applique ses effets passifs chiffrés au perso
     expect(collect($catalogue)->pluck('classe')->unique()->sort()->values()->all())
         ->toBe(['barbare', 'elfe', 'magicien', 'nain']);
 
+    // Chaque nœud porte une DESCRIPTION lisible (affichée à la sélection et sur
+    // la fiche — doc 01 §6). Aucun talent muet.
+    expect(collect($catalogue)->every(fn ($n) => is_string($n['description'] ?? null) && $n['description'] !== ''))
+        ->toBeTrue();
+    expect(collect($catalogue)->firstWhere('nom', 'Carrure')['description'])
+        ->toBe('+1 Point de Body (PV Body max).');
+
     $carrure = idNoeud('barbare', 'Carrure'); // passif : bonus_pv_body_max +1
 
     $this->postJson('/api/groupes/table-1/competences', [

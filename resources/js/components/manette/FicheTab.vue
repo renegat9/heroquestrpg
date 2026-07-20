@@ -74,11 +74,27 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
         <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>
 
         <div class="sect-title" style="margin-top: 18px"><MSym n="hub" :size="16" /> Talents acquis</div>
-        <div v-if="competences.length" class="badges">
-            <span v-for="c in competences" :key="c.id" class="badge b-buff">
-                <MSym n="workspace_premium" fill :size="16" /> {{ c.nom }}
-            </span>
+        <div v-if="competences.length" class="talent-list">
+            <div v-for="c in competences" :key="c.id" class="talent-item">
+                <span class="ti"><MSym n="workspace_premium" fill :size="16" /></span>
+                <div class="tbody">
+                    <div class="tn">{{ c.nom }}</div>
+                    <div v-if="c.description" class="tdesc">{{ c.description }}</div>
+                </div>
+            </div>
         </div>
         <div v-else class="empty-note" style="padding: 12px">Aucun talent acquis pour l'instant.</div>
     </div>
 </template>
+
+<style scoped>
+/* Talents acquis (fiche) : nom + description lisible (doc 01 §6). */
+.talent-list { display: flex; flex-direction: column; gap: 8px; }
+.talent-item { display: flex; align-items: flex-start; gap: 11px; padding: 11px 13px; border-radius: var(--r-md, 10px);
+  background: linear-gradient(180deg, oklch(0.24 0.02 90 / 0.35), var(--stone-850)); border: 1px solid oklch(0.62 0.08 80 / 0.35); }
+.talent-item .ti { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(150deg, var(--gold), var(--ember-deep)); color: var(--stone-950); }
+.talent-item .tbody { min-width: 0; }
+.talent-item .tn { font-size: 14px; font-weight: 700; color: var(--parch-100); }
+.talent-item .tdesc { font-size: 12px; color: var(--ink-300); margin-top: 2px; line-height: 1.4; }
+</style>
