@@ -353,11 +353,11 @@ final class AssembleurCarte
                 $cases[$r - 1][$cx] = 's';
             }
 
-            $porteGauche = $this->construirePorte($xPorteGauche, $r, $gauche === $parent ? $spec : null);
-            $porteDroite = $this->construirePorte($xPorteDroite, $r, $droite === $parent ? $spec : null);
-
-            $cases[$r][$xPorteGauche] = $porteGauche['etat'] === 'secrete' ? 'm' : 'p';
-            $cases[$r][$xPorteDroite] = $porteDroite['etat'] === 'secrete' ? 'm' : 'p';
+            // Portes = arêtes (aucune case 'p') : sortie EST de la salle gauche
+            // (arête xPorteGauche|xPorteGauche+1) et entrée EST de la salle droite
+            // (arête xPorteDroite-1|xPorteDroite). Les cases restent du sol.
+            $porteGauche = $this->construirePorte($xPorteGauche, $r, 'e', $gauche === $parent ? $spec : null);
+            $porteDroite = $this->construirePorte($xPorteDroite - 1, $r, 'e', $droite === $parent ? $spec : null);
 
             $porteParent = $gauche === $parent ? $porteGauche : $porteDroite;
             $porteEnfant = $gauche === $parent ? $porteDroite : $porteGauche;
@@ -382,11 +382,10 @@ final class AssembleurCarte
                 $cases[$cy][$c - 1] = 's';
             }
 
-            $porteHaut = $this->construirePorte($c, $yPorteHaut, $haut === $parent ? $spec : null);
-            $porteBas = $this->construirePorte($c, $yPorteBas, $bas === $parent ? $spec : null);
-
-            $cases[$yPorteHaut][$c] = $porteHaut['etat'] === 'secrete' ? 'm' : 'p';
-            $cases[$yPorteBas][$c] = $porteBas['etat'] === 'secrete' ? 'm' : 'p';
+            // Portes = arêtes SUD : sortie de la salle haute (arête yPorteHaut|+1)
+            // et entrée de la salle basse (arête yPorteBas-1|yPorteBas).
+            $porteHaut = $this->construirePorte($c, $yPorteHaut, 's', $haut === $parent ? $spec : null);
+            $porteBas = $this->construirePorte($c, $yPorteBas - 1, 's', $bas === $parent ? $spec : null);
 
             $porteParent = $haut === $parent ? $porteHaut : $porteBas;
             $porteEnfant = $haut === $parent ? $porteBas : $porteHaut;
@@ -407,17 +406,17 @@ final class AssembleurCarte
      * @param  array{etat: string, verrou?: array<string, mixed>}|null  $spec
      * @return array{x: int, y: int, etat: string, verrou?: array<string, mixed>, revele?: bool}
      */
-    private function construirePorte(int $x, int $y, ?array $spec): array
+    private function construirePorte(int $x, int $y, string $cote, ?array $spec): array
     {
-        $porte = ['x' => $x, 'y' => $y, 'etat' => MoteurPortes::ETAT_FERMEE];
+        // Porte = ARÊTE (ne prend pas de case) : elle sépare la case (x,y) de sa
+        // voisine EST (cote 'e') ou SUD (cote 's'), activable des deux côtés.
+        $porte = ['x' => $x, 'y' => $y, 'cote' => $cote, 'etat' => MoteurPortes::ETAT_FERMEE];
 
         if ($spec !== null) {
             $porte['etat'] = (string) $spec['etat'];
             if (isset($spec['verrou'])) {
                 $porte['verrou'] = $spec['verrou'];
             }
-            // Une secrète est invisible : sa case reste/redevient un mur
-            // jusqu'à sa découverte (l'overlay Grille la rouvre ensuite).
             if ($porte['etat'] === 'secrete') {
                 $porte['revele'] = false;
             }

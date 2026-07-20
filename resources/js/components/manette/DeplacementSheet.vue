@@ -19,15 +19,26 @@ const emit = defineEmits(['deplacer', 'close']);
 const grilleRef = ref(null);
 const cle = (x, y) => `${x},${y}`;
 
-// Portes connues (état) indexées par case — pour l'affichage (B2) et le blocage
-// du déplacement à travers une porte FERMÉE (B3).
-const portesParCle = computed(() => {
+// Portes = CLOISONS (arêtes) entre deux cases, pas des cases : indexées par
+// arête canonique pour bloquer le pas à travers une porte FERMÉE, et listées
+// pour dessiner un battant sur le bord.
+const cleArete = (x1, y1, x2, y2) => {
+    const a = cle(x1, y1); const b = cle(x2, y2);
+    return a <= b ? `${a}|${b}` : `${b}|${a}`;
+};
+const casesPorte = (p) => (p.cote === 's'
+    ? [{ x: p.x, y: p.y }, { x: p.x, y: p.y + 1 }]
+    : [{ x: p.x, y: p.y }, { x: p.x + 1, y: p.y }]);
+const portesParArete = computed(() => {
     const m = new Map();
-    for (const p of props.carte.portes ?? []) m.set(cle(p.x, p.y), p);
+    for (const p of props.carte.portes ?? []) {
+        const [a, b] = casesPorte(p);
+        m.set(cleArete(a.x, a.y, b.x, b.y), p);
+    }
     return m;
 });
-const porteFermee = (x, y) => {
-    const p = portesParCle.value.get(cle(x, y));
+const porteFermeeEntre = (x1, y1, x2, y2) => {
+    const p = portesParArete.value.get(cleArete(x1, y1, x2, y2));
     return !!p && p.etat !== 'ouverte'; // fermee / verrouillee / secrete
 };
 
@@ -57,8 +68,8 @@ const accessibles = computed(() => {
             const k = cle(nx, ny);
             if (k in dist) continue;
             const c = cases?.[ny]?.[nx];
-            if (c !== 's' && c !== 'p') continue;    // mur / brouillard 'b' = infranchissable
-            if (porteFermee(nx, ny)) continue;        // on ne traverse pas une porte fermée (B3)
+            if (c !== 's') continue;                   // mur / brouillard 'b' = infranchissable
+            if (porteFermeeEntre(x, y, nx, ny)) continue; // on ne traverse pas une porte fermée
             if (occupees.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
@@ -76,7 +87,7 @@ function classeCase(x, y) {
         const ent = props.entites.find((e) => e.x === x && e.y === y);
         return ent?.type === 'monstre' ? 'monstre' : 'allie';
     }
-    if (c !== 's' && c !== 'p') return 'mur';
+    if (c !== 's') return 'mur';
     return accessibles.value.has(cle(x, y)) ? 'accessible' : 'sol';
 }
 
@@ -117,18 +128,21 @@ onMounted(() => {
                             v-for="x in colonnes"
                             :key="`${x}-${y}`"
                             class="dep-cell"
-                            :class="[classeCase(x, y), {
-                                'dep-porte': portesParCle.has(cle(x, y)),
-                                'dep-porte-fermee': porteFermee(x, y),
-                            }]"
+                            :class="classeCase(x, y)"
                             @click="toucher(x, y)"
                         >
                             <MSym v-if="classeCase(x, y) === 'depart'" n="person" :size="14" fill />
                             <MSym v-else-if="classeCase(x, y) === 'monstre'" n="pets" :size="13" fill />
-                            <MSym v-else-if="portesParCle.has(cle(x, y))"
-                                :n="porteFermee(x, y) ? 'door_front' : 'meeting_room'" :size="12" fill />
                         </div>
                     </template>
+                    <!-- Portes = battants sur les CLOISONS (arêtes), pas des cases. -->
+                    <div
+                        v-for="(p, i) in (carte.portes ?? [])"
+                        :key="`porte-${i}`"
+                        class="dep-door"
+                        :class="[`cote-${p.cote === 's' ? 's' : 'e'}`, p.etat]"
+                        :style="{ gridColumn: p.x + 1, gridRow: p.y + 1 }"
+                    />
                 </div>
             </div>
 
@@ -182,9 +196,15 @@ onMounted(() => {
 .dep-cell.accessible:hover { background: oklch(0.6 0.15 145 / 0.55); }
 /* Brouillard (salle non découverte — Chantier 2) : case sombre, non tappable. */
 .dep-cell.brouillard { background: oklch(0.16 0.01 255); box-shadow: inset 0 0 0 1px oklch(0.22 0.01 255); }
-/* Portes (B2) : jeton de porte sur la case ; fermée = ambrée bordée, ouverte = discrète. */
-.dep-cell.dep-porte { background: var(--stone-800); }
-.dep-cell.dep-porte .msym { color: var(--ink-400); }
-.dep-cell.dep-porte-fermee { background: oklch(0.3 0.05 60); outline: 1px solid var(--torch); }
-.dep-cell.dep-porte-fermee .msym { color: var(--torch); }
+/* Portes = battant sur la CLOISON (arête est/sud), pas sur une case : une barre
+   ambrée qui chevauche le bord de sa case ancre. Ouverte = liseré discret. */
+.dep-door { position: relative; pointer-events: none; align-self: stretch; justify-self: stretch; z-index: 2; }
+.dep-door::before { content: ""; position: absolute; border-radius: 2px;
+  background: linear-gradient(var(--deg, 90deg), #c9922f, #7a531d); box-shadow: 0 0 0 1px oklch(0 0 0 / 0.5); }
+.dep-door.cote-e::before { --deg: 90deg; top: 3px; bottom: 3px; right: -1px; width: 5px; transform: translateX(50%); }
+.dep-door.cote-s::before { --deg: 180deg; left: 3px; right: 3px; bottom: -1px; height: 5px; transform: translateY(50%); }
+.dep-door.verrouillee::before { background: linear-gradient(var(--deg, 90deg), #b98a3a, #6a4a1c); }
+.dep-door.ouverte::before { background: none; box-shadow: none; }
+.dep-door.ouverte.cote-e::before { border-right: 2px dashed oklch(0.76 0.155 65 / 0.5); width: 0; }
+.dep-door.ouverte.cote-s::before { border-bottom: 2px dashed oklch(0.76 0.155 65 / 0.5); height: 0; }
 </style>

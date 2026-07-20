@@ -5,10 +5,10 @@ declare(strict_types=1);
 use App\Partie\Grille;
 
 /**
- * Overlay des portes sur la grille tactique (doc 14 §3.1/3.3) : une porte non
- * `ouverte` (verrouillée, ou secrète non révélée) est INFRANCHISSABLE et bloque
- * la LIGNE DE VUE comme un mur ; une porte `ouverte` reste traversable et
- * transparente, même si sa case sous-jacente est restée un mur.
+ * Portes = ARÊTES (doc 14 §3.1/3.3) : une porte ne prend pas de case, elle vit
+ * sur la cloison entre deux cases sol {x, y, cote}. Non `ouverte` (verrouillée,
+ * ou secrète non révélée) → l'ARÊTE est infranchissable ET opaque ; ouverte →
+ * franchissable et transparente. Les cases, elles, restent du sol des deux côtés.
  *
  * @param  list<string>  $lignes
  */
@@ -20,36 +20,48 @@ function grilleAvecPortes(array $lignes, array $portes): Grille
     return $grille;
 }
 
-it('rend une porte verrouillée infranchissable et opaque', function () {
-    // Salle gauche, couloir, salle droite, reliées par une porte en (2,0).
-    $portes = [['x' => 2, 'y' => 0, 'etat' => 'verrouillee']];
+it('rend une porte verrouillée infranchissable et opaque sur son arête', function () {
+    // Rangée de sol ; une porte verrouillée sur l'ARÊTE (1,0)|(2,0).
+    $portes = [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'verrouillee']];
 
-    $bloquee = grilleAvecPortes(['sspss'], $portes);
-    $ouverte = grilleAvecPortes(['sspss'], [['x' => 2, 'y' => 0, 'etat' => 'ouverte']]);
+    $bloquee = grilleAvecPortes(['sssss'], $portes);
+    $ouverte = grilleAvecPortes(['sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'ouverte']]);
 
-    // Pathfinding : la porte verrouillée coupe le passage gauche↔droite.
-    expect($bloquee->chemin(0, 0, 4, 0))->toBeNull()
-        ->and($bloquee->estTraversable(2, 0))->toBeFalse()
-        // Ligne de vue coupée par la porte fermée.
+    // Les DEUX cases restent du sol traversable (la porte ne prend pas de case).
+    expect($bloquee->estTraversable(1, 0))->toBeTrue()
+        ->and($bloquee->estTraversable(2, 0))->toBeTrue()
+        // …mais l'ARÊTE coupe passage et vue gauche↔droite.
+        ->and($bloquee->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
+        ->and($bloquee->chemin(0, 0, 4, 0))->toBeNull()
         ->and($bloquee->ligneDeVue(0, 0, 4, 0))->toBeFalse();
 
     // La même porte ouverte laisse passer chemin ET vue.
-    expect($ouverte->chemin(0, 0, 4, 0))->not->toBeNull()
-        ->and($ouverte->estTraversable(2, 0))->toBeTrue()
+    expect($ouverte->porteBloqueEntre(1, 0, 2, 0))->toBeFalse()
+        ->and($ouverte->chemin(0, 0, 4, 0))->not->toBeNull()
         ->and($ouverte->ligneDeVue(0, 0, 4, 0))->toBeTrue();
 });
 
-it('rend une porte secrète non révélée infranchissable même posée sur un mur', function () {
-    // La case (2,0) est un MUR (porte secrète invisible) ; l'overlay décide.
-    $secrete = grilleAvecPortes(['ssmss'], [['x' => 2, 'y' => 0, 'etat' => 'secrete']]);
-    $revelee = grilleAvecPortes(['ssmss'], [['x' => 2, 'y' => 0, 'etat' => 'ouverte']]);
+it('rend une porte secrète non révélée infranchissable, puis franchissable une fois ouverte', function () {
+    $secrete = grilleAvecPortes(['sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'secrete']]);
+    $revelee = grilleAvecPortes(['sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'ouverte']]);
 
-    expect($secrete->estTraversable(2, 0))->toBeFalse()
+    expect($secrete->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
+        ->and($secrete->chemin(0, 0, 4, 0))->toBeNull()
         ->and($secrete->ligneDeVue(0, 0, 4, 0))->toBeFalse();
 
-    // Une fois révélée (etat ouverte), la porte est franchissable/transparente
-    // alors même que la case reste 'm' : l'overlay prime.
-    expect($revelee->estTraversable(2, 0))->toBeTrue()
+    // Une fois révélée (etat ouverte), l'arête est franchissable/transparente.
+    expect($revelee->porteBloqueEntre(1, 0, 2, 0))->toBeFalse()
         ->and($revelee->ligneDeVue(0, 0, 4, 0))->toBeTrue()
         ->and($revelee->chemin(0, 0, 4, 0))->not->toBeNull();
+});
+
+it('n\'affecte QUE son arête : les cloisons voisines restent libres', function () {
+    // Porte sur (1,0)|(2,0) : le pas (1,0)→(1,1) et (2,0)→(2,1) restent libres.
+    $g = grilleAvecPortes(['sssss', 'sssss'], [['x' => 1, 'y' => 0, 'cote' => 'e', 'etat' => 'fermee']]);
+
+    expect($g->porteBloqueEntre(1, 0, 2, 0))->toBeTrue()
+        ->and($g->porteBloqueEntre(1, 0, 1, 1))->toBeFalse()
+        ->and($g->porteBloqueEntre(2, 0, 2, 1))->toBeFalse()
+        // On peut contourner par la rangée du bas (aucune porte).
+        ->and($g->chemin(0, 0, 4, 0))->not->toBeNull();
 });

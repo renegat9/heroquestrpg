@@ -108,15 +108,16 @@ function centrer(dimVue, dimCarte, cible) {
                     <MSym v-if="t.etat !== 'declenche'" n="warning" fill />
                 </div>
             </div>
-            <!-- couche portes : cadenas sur les portes verrouillées -->
+            <!-- couche portes : une BARRE sur la cloison (arête est/sud), pas
+                 sur une case ; cadenas discret sur une porte verrouillée. -->
             <div
                 v-for="(d, i) in doors"
                 :key="`door-${i}`"
                 class="door-holder"
                 :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
             >
-                <div v-if="d.cadenas" class="door-lock" :class="d.etat" :title="d.titre">
-                    <MSym n="lock" fill />
+                <div class="door-bar" :class="[`cote-${d.cote}`, d.etat]" :title="d.titre">
+                    <MSym v-if="d.cadenas" n="lock" fill class="door-lock-ic" />
                 </div>
             </div>
             <div
@@ -174,18 +175,54 @@ function centrer(dimVue, dimCarte, cible) {
 </style>
 
 <style scoped>
-/* Couche portes : cadenas discret centré sur une porte verrouillée. */
+/* Couche portes : la porte est une BARRE posée sur la CLOISON entre deux cases
+   (arête est/sud), pas sur une case — elle chevauche le bord de sa case ancre. */
 .door-holder {
-    display: grid;
-    place-items: center;
+    position: relative;
     pointer-events: none;
     z-index: 2;
 }
-.door-lock {
+.door-bar {
+    position: absolute;
     display: grid;
     place-items: center;
-    color: #e8c87a;
+    border-radius: 2px;
+    /* battant ambré, avec liseré sombre pour le détacher du sol */
+    background: linear-gradient(var(--deg, 90deg), #c9922f, #7a531d);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+/* Arête EST : barre verticale sur le bord droit de la case. */
+.door-bar.cote-e {
+    --deg: 90deg;
+    top: 12%;
+    bottom: 12%;
+    right: 0;
+    width: 22%;
+    transform: translateX(50%);
+}
+/* Arête SUD : barre horizontale sur le bord bas de la case. */
+.door-bar.cote-s {
+    --deg: 180deg;
+    left: 12%;
+    right: 12%;
+    bottom: 0;
+    height: 22%;
+    transform: translateY(50%);
+}
+/* Ouverte : quasi effacée (juste un rappel discret du gond). */
+.door-bar.ouverte {
+    background: none;
+    box-shadow: none;
+}
+.door-bar.ouverte.cote-e { border-right: 2px dashed rgba(201, 146, 47, 0.5); width: 0; }
+.door-bar.ouverte.cote-s { border-bottom: 2px dashed rgba(201, 146, 47, 0.5); height: 0; }
+/* Verrouillée : teinte plus froide + cadenas. */
+.door-bar.verrouillee {
+    background: linear-gradient(var(--deg, 90deg), #b98a3a, #6a4a1c);
+}
+.door-lock-ic {
+    color: #f0d79a;
+    font-size: 0.62em;
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
-    font-size: 0.8em;
 }
 </style>

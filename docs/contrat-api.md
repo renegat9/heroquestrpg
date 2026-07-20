@@ -36,8 +36,8 @@ Routes protégées par middleware `auth` sauf connexion.
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
-  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","p","b"]],
-            "portes": [{"x": 4, "y": 3, "etat": "ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
+  "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
+            "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
@@ -219,11 +219,15 @@ de la quête.
 ## Portes & exploration (doc 14 §3.1/3.2/3.3 — tout passe par les menus)
 
 L'état des portes vit dans la carte de la quête (`cartes.grille.portes` :
-`{x, y, etat: "ouverte|verrouillee|secrete", verrou?, revele?}`). Une porte NON
-`ouverte` est **infranchissable** (pathfinding) et **opaque** (ligne de vue) ; une
-porte `ouverte` est traversable et transparente.
+`{x, y, cote: "e|s", etat: "fermee|ouverte|verrouillee|secrete", verrou?, revele?}`).
+Une porte **ne prend PAS de case** : c'est une **ARÊTE** (cloison) entre la case
+`(x,y)` et sa voisine EST (`cote:"e"` → `(x+1,y)`) ou SUD (`cote:"s"` → `(x,y+1)`),
+**activable des deux côtés**. Une porte NON `ouverte` rend cette arête
+**infranchissable** (pathfinding) et **opaque** (ligne de vue) — les deux cases,
+elles, restent du sol ; une porte `ouverte` laisse passer pas et regard.
 
-**Codes de case (`carte.cases`)** : `m` mur, `s` sol, `p` porte, `b` **brouillard**.
+**Codes de case (`carte.cases`)** : `m` mur, `s` sol, `b` **brouillard** (plus de
+case `p` : la porte est une arête, rendue sur le bord entre deux cases).
 `EtatGroupe.carte` applique un **brouillard de guerre** : ne sont dévoilées que les
 salles **découvertes** (on y est entré — `decouvrirSalle`) plus ce qu'on atteint
 depuis elles par des portes **ouvertes** ; tout le reste (salles non découvertes,

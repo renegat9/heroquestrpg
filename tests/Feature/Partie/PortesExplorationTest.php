@@ -121,14 +121,21 @@ it('bloque le pathfinding et la ligne de vue derrière une porte verrouillée (�
 
     $hx = (int) $etat->position_x;
     $hy = (int) $etat->position_y;
-    poserPortes($quete, [['x' => $hx + 1, 'y' => $hy, 'etat' => 'verrouillee', 'verrou' => ['type' => 'cle', 'objet_id' => 1]]]);
+    // Porte verrouillée sur l'ARÊTE est du héros (entre (hx,hy) et (hx+1,hy)).
+    poserPortes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'verrouillee', 'verrou' => ['type' => 'cle', 'objet_id' => 1]]]);
 
-    // La porte verrouillée figure dans l'état partagé avec son verrou ; sa case
-    // est rendue comme une porte.
+    // La porte figure dans l'état partagé avec son côté + son verrou (aucune
+    // case 'p' : elle vit sur la cloison, pas sur une case).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
-    expect(collect($partage['carte']['portes'])->firstWhere('x', $hx + 1))
-        ->toMatchArray(['x' => $hx + 1, 'y' => $hy, 'etat' => 'verrouillee', 'verrou' => 'cle'])
-        ->and($partage['carte']['cases'][$hy][$hx + 1])->toBe('p');
+    expect(collect($partage['carte']['portes'])->first(fn ($p) => $p['x'] === $hx && $p['y'] === $hy && ($p['cote'] ?? null) === 'e'))
+        ->toMatchArray(['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'verrouillee', 'verrou' => 'cle']);
+
+    // Elle barre le PAS est ET la vue sur l'arête, sans prendre de case (les
+    // deux côtés restent du sol traversable).
+    $grille = Grille::depuisCarte($quete->fresh()->carte);
+    expect($grille->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
+        ->and($grille->estTraversable($hx + 1, $hy))->toBeTrue()
+        ->and($grille->ligneDeVue($hx, $hy, $hx + 1, $hy))->toBeFalse();
 });
 
 it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)', function () {
@@ -138,16 +145,15 @@ it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)',
     $hy = (int) $etat->position_y;
     $etat->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
 
-    // Une porte simplement CLOSE (aucun verrou) au contact du héros.
-    poserPortes($quete, [['x' => $hx + 1, 'y' => $hy, 'etat' => 'fermee']]);
+    // Une porte simplement CLOSE (aucun verrou) sur l'ARÊTE est du héros.
+    poserPortes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'fermee']]);
 
-    // Elle barre le passage… (grille de la CARTE seule : on éprouve l'état de
-    // la porte, sans l'occupation des figures qui est une autre règle).
-    expect(Grille::depuisCarte($quete->fresh()->carte)->estTraversable($hx + 1, $hy))->toBeFalse();
+    // Elle barre le PAS est (arête) sans prendre de case.
+    expect(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue();
 
     // … et le menu propose de l'ouvrir À LA MAIN (pas de mention de clé).
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $optionId = 'ouvrir_porte_'.($hx + 1)."_{$hy}";
+    $optionId = "ouvrir_porte_{$hx}_{$hy}_e";
     $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
         ->firstWhere('id', $optionId);
     expect($option)->not->toBeNull()
@@ -158,9 +164,9 @@ it('ouvre SANS clé une porte simplement fermée, sans consommer son tour (E2)',
         ->assertJsonPath('resultat.type', 'ouvrir_porte')
         ->assertJsonPath('resultat.cause', 'main');
 
-    // La porte est ouverte (état persistant) et devient franchissable.
+    // La porte est ouverte (état persistant) : l'arête ne bloque plus.
     expect($quete->fresh()->carte->grille['portes'][0]['etat'])->toBe('ouverte')
-        ->and(Grille::depuisCarte($quete->fresh()->carte)->estTraversable($hx + 1, $hy))->toBeTrue();
+        ->and(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse();
 
     // Ouvrir est une INTERACTION LIBRE : aucun créneau consommé, le déplacement
     // du tour est intact → on s'arrête devant, on ouvre, on continue.
@@ -177,7 +183,7 @@ it('ouvre une porte verrouillée par CLÉ : le porteur de l\'objet utilise l\'op
     $hx = (int) $etat->position_x;
     $hy = (int) $etat->position_y;
 
-    poserPortes($quete, [['x' => $hx + 1, 'y' => $hy, 'etat' => 'verrouillee', 'verrou' => ['type' => 'cle', 'objet_id' => $objetId]]]);
+    poserPortes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'verrouillee', 'verrou' => ['type' => 'cle', 'objet_id' => $objetId]]]);
 
     // Sans la clé : aucune option d'ouverture.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
@@ -187,7 +193,7 @@ it('ouvre une porte verrouillée par CLÉ : le porteur de l\'objet utilise l\'op
     // Avec la clé au sac, l'option apparaît…
     Inventaire::create(['personnage_id' => $hero->id, 'objet_id' => $objetId, 'emplacement' => 'sac', 'quantite' => 1]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $optionId = "ouvrir_porte_" . ($hx + 1) . "_{$hy}";
+    $optionId = "ouvrir_porte_{$hx}_{$hy}_e";
     expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id'))
         ->toContain($optionId);
 

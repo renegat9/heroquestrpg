@@ -85,22 +85,29 @@ it('varie la carte selon la graine (fini « toujours la même carte ») et reste
     expect($signatures->count())->toBeGreaterThan(1);
 });
 
-it('ne perce jamais deux portes adjacentes (fini les jonctions à double porte)', function () {
+it('pose des portes-ARÊTES valides et distinctes (une porte ne prend pas de case)', function () {
     $assembleur = app(AssembleurCarte::class);
 
     foreach (range(1, 15) as $graine) {
         $carte = $assembleur->assembler(gabaritNormal(), $graine * 101);
-        $portes = portesDeLaGrille($carte['cases']);
 
-        foreach ($portes as $a) {
-            foreach ($portes as $b) {
-                if ($a === $b) {
-                    continue;
-                }
+        // Aucune case n'est une « porte » : les portes vivent sur les cloisons.
+        expect(collect($carte['cases'])->flatten()->unique()->all())->not->toContain('p');
+        expect($carte['portes'])->not->toBeEmpty();
 
-                $adjacente = abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']) === 1;
-                expect($adjacente)->toBeFalse("Portes adjacentes détectées (graine {$graine}) : ".json_encode([$a, $b]));
-            }
+        $aretes = [];
+        foreach ($carte['portes'] as $p) {
+            expect($p['cote'] ?? null)->toBeIn(['e', 's']);
+
+            // Les DEUX cases que sépare l'arête sont du SOL franchissable.
+            [$a, $b] = Grille::casesPorte($p);
+            expect($carte['cases'][$a['y']][$a['x']] ?? 'm')->toBe('s')
+                ->and($carte['cases'][$b['y']][$b['x']] ?? 'm')->toBe('s');
+
+            // Une seule porte par cloison (jamais deux portes sur la même arête).
+            $cle = Grille::cleArete($a['x'], $a['y'], $b['x'], $b['y']);
+            expect($aretes)->not->toContain($cle, "Arête de porte en double (graine {$graine}) : {$cle}");
+            $aretes[] = $cle;
         }
     }
 });

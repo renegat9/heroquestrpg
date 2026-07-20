@@ -89,7 +89,9 @@ final class MoteurPortes
             if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
                 continue;
             }
-            if (abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) === 1) {
+            // Porte = arête : ouvrable depuis L'UNE des deux cases qu'elle sépare.
+            [$a, $b] = Grille::casesPorte($porte);
+            if (($a['x'] === $x && $a['y'] === $y) || ($b['x'] === $x && $b['y'] === $y)) {
                 return ['index' => $index, 'porte' => $porte];
             }
         }
@@ -166,7 +168,7 @@ final class MoteurPortes
         Journal::ajouter($groupe, 'action', [
             'type' => 'porte_ouverte',
             'cause' => $cause,
-            'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y']],
+            'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y'], 'cote' => (string) ($porte['cote'] ?? 'e')],
         ], $acteur);
     }
 

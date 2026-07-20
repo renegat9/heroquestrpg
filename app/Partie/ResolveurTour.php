@@ -1482,11 +1482,15 @@ final class ResolveurTour
     ): array {
         $x = (int) data_get($option, 'parametres.porte.x', -1);
         $y = (int) data_get($option, 'parametres.porte.y', -1);
+        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
 
         $cible = $quete->carte === null ? null
             : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
 
-        if ($cible === null || (int) $cible['porte']['x'] !== $x || (int) $cible['porte']['y'] !== $y) {
+        if ($cible === null
+            || (int) $cible['porte']['x'] !== $x
+            || (int) $cible['porte']['y'] !== $y
+            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
             throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
         }
 
@@ -1508,7 +1512,7 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'cause' => $cause,
-            'porte' => ['x' => $x, 'y' => $y],
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);

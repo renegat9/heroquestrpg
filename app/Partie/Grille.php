@@ -23,20 +23,20 @@ final class Grille
     private array $occupees = [];
 
     /**
-     * État des portes (chantier portes, doc 14 §3.1/3.3) indexé par case :
-     * "x,y" => 'ouverte' | 'verrouillee' | 'secrete'. Une porte NON ouverte
-     * est infranchissable ET bloque la ligne de vue (comme un mur) ; une porte
-     * ouverte est traversable et transparente. L'overlay fait AUTORITÉ sur la
-     * valeur de `cases` pour ces cellules : une porte secrète est posée sur une
-     * case « m » (invisible) et redevient franchissable dès qu'elle s'ouvre,
-     * sans toucher à `cases`.
+     * État des portes (chantier portes, doc 14 §3.1/3.3), indexé par ARÊTE
+     * entre deux cases voisines (une porte ne prend PAS de case : elle vit sur
+     * la cloison entre deux cases sol, activable des deux côtés). Chaque entrée
+     * de carte est {x, y, cote, etat} : `cote` ∈ {'e','s'} — la porte sépare la
+     * case (x,y) de sa voisine EST (x+1,y) ou SUD (x,y+1). Clé canonique via
+     * cleArete(). Une porte NON ouverte coupe le PASSAGE et la VUE sur cette
+     * arête ; une porte ouverte est franchissable et transparente.
      *
-     * @var array<string, string>
+     * @var array<string, string>  clé arête → 'ouverte' | 'fermee' | 'verrouillee' | 'secrete'
      */
     private array $portes = [];
 
     /**
-     * @param  list<list<string>>  $cases  m = mur, s = sol, p = porte
+     * @param  list<list<string>>  $cases  m = mur, s = sol
      */
     public function __construct(private readonly array $cases) {}
 
@@ -49,18 +49,59 @@ final class Grille
     }
 
     /**
-     * Charge l'état des portes de la carte (cartes.grille.portes) dans la
-     * grille tactique. Chaque entrée : {x, y, etat, verrou?, revele?}.
+     * Clé canonique d'une arête entre deux cases ORTHOGONALEMENT voisines
+     * (indépendante du sens) : les deux clés de case triées et jointes.
+     */
+    public static function cleArete(int $x1, int $y1, int $x2, int $y2): string
+    {
+        $a = "{$x1},{$y1}";
+        $b = "{$x2},{$y2}";
+
+        return $a <= $b ? "{$a}|{$b}" : "{$b}|{$a}";
+    }
+
+    /**
+     * Les deux cases séparées par une porte {x, y, cote}. `cote` 'e' → voisine
+     * EST ; 's' → voisine SUD (repli : 'e').
      *
-     * @param  list<array{x: int, y: int, etat?: string}>  $portes
+     * @param  array{x: int, y: int, cote?: string}  $porte
+     * @return array{0: array{x: int, y: int}, 1: array{x: int, y: int}}
+     */
+    public static function casesPorte(array $porte): array
+    {
+        $x = (int) $porte['x'];
+        $y = (int) $porte['y'];
+        $sud = ($porte['cote'] ?? 'e') === 's';
+
+        return [['x' => $x, 'y' => $y], ['x' => $sud ? $x : $x + 1, 'y' => $sud ? $y + 1 : $y]];
+    }
+
+    /**
+     * Charge l'état des portes de la carte (cartes.grille.portes) dans la
+     * grille tactique. Chaque entrée : {x, y, cote, etat, verrou?, revele?}.
+     *
+     * @param  list<array{x: int, y: int, cote?: string, etat?: string}>  $portes
      */
     public function definirPortes(array $portes): void
     {
         foreach ($portes as $porte) {
-            if (isset($porte['x'], $porte['y'])) {
-                $this->portes["{$porte['x']},{$porte['y']}"] = (string) ($porte['etat'] ?? 'ouverte');
+            if (! isset($porte['x'], $porte['y'])) {
+                continue;
             }
+            [$a, $b] = self::casesPorte($porte);
+            $this->portes[self::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = (string) ($porte['etat'] ?? 'ouverte');
         }
+    }
+
+    /**
+     * Y a-t-il une porte NON ouverte sur l'arête entre deux cases voisines ?
+     * (verrouillée / secrète non révélée incluses — infranchissable et opaque).
+     */
+    public function porteBloqueEntre(int $x1, int $y1, int $x2, int $y2): bool
+    {
+        $etat = $this->portes[self::cleArete($x1, $y1, $x2, $y2)] ?? null;
+
+        return $etat !== null && $etat !== 'ouverte';
     }
 
     /**
@@ -75,20 +116,15 @@ final class Grille
 
     public function estTraversable(int $x, int $y): bool
     {
-        $cle = "{$x},{$y}";
-
-        if (isset($this->occupees[$cle])) {
+        // Une porte ne prend plus de case (arête) : la traversabilité est
+        // purement « case libre » (sol, inoccupée). Le blocage par une porte
+        // fermée se joue sur l'ARÊTE entre deux cases (porteBloqueEntre),
+        // évalué au moment du pas (pathfinding) — pas ici.
+        if (isset($this->occupees["{$x},{$y}"])) {
             return false;
         }
 
-        // L'overlay des portes prime : une porte non ouverte est infranchissable.
-        if (isset($this->portes[$cle])) {
-            return $this->portes[$cle] === 'ouverte';
-        }
-
-        $case = $this->cases[$y][$x] ?? 'm';
-
-        return $case === 's' || $case === 'p';
+        return ($this->cases[$y][$x] ?? 'm') === 's';
     }
 
     public function sontAdjacentes(int $x1, int $y1, int $x2, int $y2): bool
@@ -213,17 +249,25 @@ final class Grille
         $avanceY = 0;
 
         // On parcourt les cases intermédiaires uniquement (les extrémités sont
-        // exclues : elles ne bloquent jamais).
+        // exclues : elles ne bloquent jamais). Chaque pas ORTHOGONAL franchit une
+        // arête : une porte fermée sur cette arête coupe la vue (les extrémités
+        // comprises — une porte close au seuil du tireur/de la cible aveugle).
         while ($avanceX < $dx || $avanceY < $dy) {
+            $px = $x;
+            $py = $y;
+
             // Décision : (0.5 + avanceX) / dx  vs  (0.5 + avanceY) / dy.
             $decision = (1 + 2 * $avanceX) * $dy - (1 + 2 * $avanceY) * $dx;
+            $diagonal = false;
 
             if ($decision === 0) {
-                // Diagonale parfaite : on coupe le coin (un seul pas diagonal).
+                // Diagonale parfaite : on coupe le coin (un seul pas diagonal —
+                // ne franchit aucune arête de porte, seulement un coin de mur).
                 $x += $pasX;
                 $y += $pasY;
                 $avanceX++;
                 $avanceY++;
+                $diagonal = true;
             } elseif ($decision < 0) {
                 $x += $pasX;
                 $avanceX++;
@@ -232,12 +276,18 @@ final class Grille
                 $avanceY++;
             }
 
-            // Case d'arrivée atteinte : c'est une extrémité, on ne teste pas.
+            // Porte fermée sur l'arête franchie (pas orthogonal) → vue coupée.
+            if (! $diagonal && $this->porteBloqueEntre($px, $py, $x, $y)) {
+                return false;
+            }
+
+            // Case d'arrivée atteinte : c'est une extrémité, on ne teste pas la
+            // case elle-même (l'arête vers elle vient d'être testée ci-dessus).
             if ($x === $x2 && $y === $y2) {
                 break;
             }
 
-            // Mur, hors grille (?? 'm') ou porte fermée → vue coupée.
+            // Mur ('m'/hors grille) → vue coupée.
             if ($this->bloqueVue($x, $y)) {
                 return false;
             }
@@ -253,17 +303,11 @@ final class Grille
     }
 
     /**
-     * La case (x,y) coupe-t-elle la ligne de vue ? Mur ('m'/hors grille) ou
-     * porte NON ouverte (overlay des portes). Une porte ouverte est transparente.
+     * La case (x,y) coupe-t-elle la ligne de vue ? Uniquement un mur ('m'/hors
+     * grille) désormais — les portes vivent sur les arêtes (porteBloqueEntre).
      */
     private function bloqueVue(int $x, int $y): bool
     {
-        $cle = "{$x},{$y}";
-
-        if (isset($this->portes[$cle])) {
-            return $this->portes[$cle] !== 'ouverte';
-        }
-
         return ($this->cases[$y][$x] ?? 'm') === 'm';
     }
 
@@ -327,6 +371,11 @@ final class Grille
                 $cle = "{$nx},{$ny}";
 
                 if (isset($vus[$cle]) || ! $this->estTraversable($nx, $ny)) {
+                    continue;
+                }
+
+                // Une porte fermée sur l'arête (x,y)→(nx,ny) barre le pas.
+                if ($this->porteBloqueEntre($x, $y, $nx, $ny)) {
                     continue;
                 }
 

@@ -184,16 +184,9 @@ final class EtatGroupe
         }
 
         $portes = $this->portes($carte);
+        // Une porte vit désormais sur une ARÊTE : aucune case 'p' à poser — les
+        // cases restent sol/mur, la porte est rendue sur la cloison (x,y,cote).
         $cases = $carte->grille['cases'] ?? [];
-
-        // Les portes CONNUES (ouvertes / verrouillées / secrètes révélées)
-        // s'affichent comme des portes même si la case sous-jacente est restée
-        // un mur (cas d'une secrète révélée, posée sur 'm').
-        foreach ($portes as $porte) {
-            if (isset($cases[$porte['y']][$porte['x']])) {
-                $cases[$porte['y']][$porte['x']] = 'p';
-            }
-        }
 
         // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
         // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
@@ -204,13 +197,14 @@ final class EtatGroupe
         )));
         $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $portes);
 
-        // Ne pas trahir par-dessus le brouillard une porte dont la case est
-        // masquée : son cadenas (table) / son jeton (manette) révélerait sa
-        // présence. On ne garde que les portes dont la case reste visible.
-        $portes = array_values(array_filter(
-            $portes,
-            fn (array $p) => ($cases[$p['y']][$p['x']] ?? 'b') !== 'b',
-        ));
+        // Ne pas trahir par-dessus le brouillard une porte totalement masquée :
+        // on ne garde que celles dont AU MOINS une des deux cases reste visible
+        // (sol non brouillé) — on voit alors la porte au bord de l'exploré.
+        $portes = array_values(array_filter($portes, function (array $p) use ($cases) {
+            [$a, $b] = Grille::casesPorte($p);
+
+            return (($cases[$a['y']][$a['x']] ?? 'b') !== 'b') || (($cases[$b['y']][$b['x']] ?? 'b') !== 'b');
+        }));
 
         return [
             'largeur' => (int) $carte->largeur,
@@ -245,12 +239,15 @@ final class EtatGroupe
         $hauteur = count($cases);
         $largeur = $hauteur > 0 ? count($cases[0]) : 0;
 
-        $etatPorte = [];
+        // État des portes indexé par ARÊTE canonique : une porte NON ouverte
+        // coupe la vue sur sa cloison (on voit la porte, pas ce qu'il y a
+        // derrière) ; ouverte, le regard passe.
+        $porteArete = [];
         foreach ($portes as $porte) {
-            $etatPorte["{$porte['x']},{$porte['y']}"] = $porte['etat'];
+            [$a, $b] = Grille::casesPorte($porte);
+            $porteArete[Grille::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = (string) ($porte['etat'] ?? 'ouverte');
         }
-        $estPorte = fn (int $x, int $y): bool => isset($etatPorte["{$x},{$y}"]);
-        $porteOuverte = fn (int $x, int $y): bool => ($etatPorte["{$x},{$y}"] ?? null) === 'ouverte';
+        $porteFermeeEntre = fn (int $x1, int $y1, int $x2, int $y2): bool => (($porteArete[Grille::cleArete($x1, $y1, $x2, $y2)] ?? 'ouverte') !== 'ouverte');
 
         $salleDe = function (int $x, int $y) use ($salles): ?int {
             foreach ($salles as $i => $s) {
@@ -262,19 +259,10 @@ final class EtatGroupe
             return null;
         };
 
-        // Flood-fill des cases visibles depuis les salles découvertes.
+        // Flood-fill des cases visibles depuis les salles découvertes, franchissant
+        // les ARÊTES ouvertes (une porte fermée arrête la propagation).
         $visible = [];
         $file = [];
-        $marquer = function (int $x, int $y, bool $propager) use (&$visible, &$file): void {
-            $cle = "{$x},{$y}";
-            if (isset($visible[$cle])) {
-                return;
-            }
-            $visible[$cle] = true;
-            if ($propager) {
-                $file[] = [$x, $y];
-            }
-        };
 
         foreach ($decouvertes as $i) {
             $s = $salles[$i] ?? null;
@@ -286,8 +274,10 @@ final class EtatGroupe
                     if (($cases[$y][$x] ?? 'm') === 'm') {
                         continue; // mur intérieur : traité via le bord des cases visibles
                     }
-                    // On franchit une porte de la salle seulement si elle est ouverte.
-                    $marquer($x, $y, ! $estPorte($x, $y) || $porteOuverte($x, $y));
+                    if (! isset($visible["{$x},{$y}"])) {
+                        $visible["{$x},{$y}"] = true;
+                        $file[] = [$x, $y];
+                    }
                 }
             }
         }
@@ -300,20 +290,20 @@ final class EtatGroupe
                 if ($nx < 0 || $ny < 0 || $nx >= $largeur || $ny >= $hauteur) {
                     continue;
                 }
-                $c = $cases[$ny][$nx] ?? 'm';
-                if ($c === 'm') {
-                    continue; // mur : bordure, pas un passage
-                }
-                if ($estPorte($nx, $ny)) {
-                    $marquer($nx, $ny, $porteOuverte($nx, $ny)); // on voit la porte ; au-delà seulement si ouverte
+                if (($cases[$ny][$nx] ?? 'm') === 'm' || isset($visible["{$nx},{$ny}"])) {
                     continue;
                 }
-                // Sol : l'intérieur d'une salle NON découverte reste masqué.
+                // Porte fermée sur l'arête franchie → on ne voit pas au-delà.
+                if ($porteFermeeEntre($x, $y, $nx, $ny)) {
+                    continue;
+                }
+                // L'intérieur d'une salle NON découverte reste masqué (il faut y ENTRER).
                 $r = $salleDe($nx, $ny);
                 if ($r !== null && ! in_array($r, $decouvertes, true)) {
                     continue;
                 }
-                $marquer($nx, $ny, true);
+                $visible["{$nx},{$ny}"] = true;
+                $file[] = [$nx, $ny];
             }
         }
 
@@ -360,6 +350,7 @@ final class EtatGroupe
                 $porte = [
                     'x' => (int) $p['x'],
                     'y' => (int) $p['y'],
+                    'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
                     'etat' => (string) ($p['etat'] ?? 'ouverte'),
                 ];
                 if (isset($p['verrou']['type'])) {

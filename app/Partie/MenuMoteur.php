@@ -379,11 +379,12 @@ final class MenuMoteur
                         && $this->portes->possedeCle($personnage, $p['verrou']);
 
                     if ($this->portes->ouvrableAMain($p) || $avecCle) {
+                        $cote = (string) ($p['cote'] ?? 'e');
                         $options[] = [
-                            'id' => "ouvrir_porte_{$p['x']}_{$p['y']}",
+                            'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
                             'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
                             'type' => 'ouvrir_porte',
-                            'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y']]],
+                            'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                         ];
                     }
                 }

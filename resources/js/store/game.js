@@ -482,6 +482,9 @@ export function portesVersMarqueurs(carte) {
             return {
                 x: p.x,
                 y: p.y,
+                // Côté de la CLOISON où se dresse la porte : 'e' (arête est) ou
+                // 's' (arête sud) — la porte ne prend pas de case.
+                cote: p.cote === 's' ? 's' : 'e',
                 etat: p.etat,
                 cadenas: p.etat === 'verrouillee',
                 titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,

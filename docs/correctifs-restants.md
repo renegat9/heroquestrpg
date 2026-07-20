@@ -316,3 +316,13 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   ciblage merc passent `figuresBloquent: true` : une figure interposée (héros ou
   monstre) coupe la ligne de tir → l'archer vise une cible dégagée ou s'approche.
   Test : `MonstresADistanceTest` (#7).
+- ~~**F6 — Portes occupant une case.**~~ Une porte est désormais une **ARÊTE**
+  (cloison) entre deux cases sol, activable des deux côtés — plus de case `p`.
+  `Grille` indexe les portes par arête canonique (`cleArete`/`porteBloqueEntre`) :
+  `estTraversable` redevient purement « case libre », le blocage (pathfinding ET
+  ligne de vue) se joue sur le PAS entre deux cases. Le générateur pose des portes
+  `{x, y, cote:"e|s"}` (aucune case `p`), le brouillard franchit les arêtes
+  ouvertes, l'option « Ouvrir la porte » (`ouvrir_porte_{x}_{y}_{cote}`) est offerte
+  depuis L'UNE des deux cases. Rendu : un **battant sur le bord** entre deux cases
+  (table `DungeonMap` + manette `DeplacementSheet`). Tests réécrits :
+  `PortesGrilleTest`, `PortesExplorationTest`, `CouloirsTest`.
