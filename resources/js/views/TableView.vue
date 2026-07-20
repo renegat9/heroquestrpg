@@ -46,6 +46,10 @@ onMounted(async () => {
     try {
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
+            // Animation case-par-case : arrive JUSTE AVANT `.groupe.etat` (ordre
+            // Reverb préservé) → on amorce le glissement avant que l'état ne pose
+            // les positions finales.
+            '.mouvement.anime': (e) => jouerMouvements(e.mouvements ?? []),
             '.groupe.etat': (e) => store.appliquerEtat(e),
             '.narration.diffusee': (e) => {
                 // Narration périmée (arrivée en retard derrière une plus
@@ -96,6 +100,7 @@ onMounted(async () => {
     }
 });
 onUnmounted(() => {
+    animDemonte = true; // stoppe la boucle d'animation de déplacement
     desabonnements.forEach((off) => off());
     arreterHeartbeat();
 });
@@ -126,13 +131,58 @@ const enQuete = computed(() => !!etat.value?.carte);
 const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : null));
 const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : []));
 const doors = computed(() => (enQuete.value ? portesVersMarqueurs(etat.value.carte) : []));
-const entities = computed(() => (etat.value
+const entitesBrutes = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : []));
+
+/* Animation CASE PAR CASE (E4) : pendant qu'une figurine « marche » le long de
+   son chemin (.mouvement.anime), sa position affichée est PILOTÉE par
+   `overrides` (clé "type:id" → {x,y}) et prime sur celle de l'état ; l'override
+   est libéré en fin de trajet → la figurine se pose à sa position finale (état,
+   source de vérité). */
+const overrides = ref({});
+const entities = computed(() => entitesBrutes.value.map((e) => {
+    const o = overrides.value[`${e.type}:${e.id}`];
+    return o ? { ...e, x: o.x, y: o.y } : e;
+}));
+
 /* Recentre la carte sur le HÉROS actif au début de son tour (initiative =
-   lui). Pendant le tour des monstres, la caméra ne bouge pas (pas de saut
-   vers un ennemi non demandé). */
-const heroActif = computed(() => entities.value.find((e) => e.k === 'hero' && e.cur) ?? null);
+   lui). Basé sur les positions BRUTES (destination finale) → la caméra vise
+   l'arrivée pendant que la figurine s'y rend, sans saccader case par case.
+   Pendant le tour des monstres, la caméra ne bouge pas. */
+const heroActif = computed(() => entitesBrutes.value.find((e) => e.k === 'hero' && e.cur) ?? null);
+
+/* File d'animations de déplacement jouées séquentiellement (héros puis
+   monstres) — glissement d'une case à l'autre le long du chemin. */
+const DUREE_PAS_MS = 150;
+let animEnCours = false;
+let animDemonte = false;
+const fileMouvements = [];
+const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function jouerMouvements(mouvements) {
+    for (const m of mouvements ?? []) {
+        if (m?.chemin?.length) fileMouvements.push(m);
+    }
+    if (animEnCours) return;
+    animEnCours = true;
+    while (fileMouvements.length && !animDemonte) {
+        const mv = fileMouvements.shift();
+        const cle = `${mv.type}:${mv.id}`;
+        // Ancre sur le départ (souvent = position courante), puis avance.
+        overrides.value = { ...overrides.value, [cle]: { x: mv.depart.x, y: mv.depart.y } };
+        await attendre(40);
+        for (const c of mv.chemin) {
+            if (animDemonte) break;
+            overrides.value = { ...overrides.value, [cle]: { x: c.x, y: c.y } };
+            await attendre(DUREE_PAS_MS);
+        }
+        const copie = { ...overrides.value };
+        delete copie[cle]; // libère → position finale (état)
+        overrides.value = copie;
+    }
+    animEnCours = false;
+}
 /* ---- fil des événements mécaniques (.combat.journal) sur la table (C2) : les
    plus récents en bas, comme sur la manette. ---- */
 const journalTable = computed(() => store.state.journalCombat);

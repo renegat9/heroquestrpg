@@ -90,6 +90,38 @@ it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se
     expect($etatA->fresh()->a_joue)->toBeTrue();
 });
 
+it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-case (E4)', function () {
+    \Illuminate\Support\Facades\Event::fake([\App\Events\MouvementAnime::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2); // pas de phase monstres
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $etatA->update(['deplacement_tour' => 8, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    $depart = ['x' => (int) $etatA->position_x, 'y' => (int) $etatA->position_y];
+    $cible = caseAdjacenteLibre($quete, $depart['x'], $depart['y']);
+
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
+        ->assertStatus(202);
+
+    \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MouvementAnime::class, function ($e) use ($groupe, $heroA, $depart, $cible) {
+        $mv = collect($e->mouvements)->firstWhere('id', $heroA->id);
+
+        return $e->groupe->id === $groupe->id
+            && $mv !== null
+            && $mv['type'] === 'heros'
+            && $mv['depart'] === $depart
+            && end($mv['chemin']) === $cible; // le chemin se termine sur la case visée
+    });
+});
+
 it('une action hors mouvement FORFAIT le déplacement restant (E1)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

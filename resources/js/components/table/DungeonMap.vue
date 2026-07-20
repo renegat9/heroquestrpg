@@ -152,7 +152,9 @@ function centrer(dimVue, dimCarte, cible) {
    monstres). Un monstre vaincu (retiré de la liste) FOND au lieu de disparaître.
    Les cases/pièges/portes ne bougent jamais → aucune transition sur elles. */
 .figmv-move {
-    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    /* Glissement d'UNE case : durée calée juste sous le pas d'animation
+       (~150 ms) pour un déplacement CASE PAR CASE net (pas de traîne). */
+    transition: transform 0.14s linear;
 }
 .figmv-leave-active {
     /* la figurine garde sa case (placement de grille explicite → les autres ne

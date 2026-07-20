@@ -12,6 +12,7 @@ use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
+use App\Events\MouvementAnime;
 use App\Events\MjReflechit;
 use App\Jobs\GenererNarration;
 use App\Partie\Audio\BanqueBarks;
@@ -89,12 +90,22 @@ final class ResolveurTour
     ) {}
 
     /**
+     * Déplacements de figurines de la résolution courante, pour l'animation
+     * case-par-case côté table (E4) : chaque entrée = {type, id, depart, chemin}.
+     * Réinitialisé à chaque `resoudre` ; diffusé (MouvementAnime) avant l'état.
+     *
+     * @var list<array{type: string, id: int, depart: array{x: int, y: int}, chemin: list<array{x: int, y: int}>}>
+     */
+    private array $mouvementsAnime = [];
+
+    /**
      * @param  array<string, mixed>  $option  option du dernier menu proposé (déjà validée)
      * @param  array<string, mixed>  $parametres  paramètres du client (ex. destination x/y)
      * @return array<string, mixed> résultat moteur (echo + narration)
      */
     public function resoudre(Groupe $groupe, Personnage $personnage, array $option, array $parametres = []): array
     {
+        $this->mouvementsAnime = [];
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -216,6 +227,13 @@ final class ResolveurTour
             return $resultat;
         });
 
+        // Animation case-par-case (table, E4) : les trajets de figurines sont
+        // diffusés AVANT l'état, pour que la table amorce le glissement avant que
+        // l'état ne pose les positions finales (évite le « saut » puis rembobinage).
+        if ($this->mouvementsAnime !== []) {
+            broadcast(new MouvementAnime($groupe, $this->mouvementsAnime));
+        }
+
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
 
@@ -320,6 +338,18 @@ final class ResolveurTour
         // case-par-case côté table (E4) et le décompte des points dépensés.
         $cheminParcouru = $this->cheminJusqua($chemin, $arrivee);
         $parcourue = count($cheminParcouru);
+
+        // Animation case-par-case (table) : le trajet réel du héros (type
+        // « heros » pour coller aux figurines EtatGroupe — l'acteur, lui, est
+        // « personnage »).
+        if ($cheminParcouru !== []) {
+            $this->mouvementsAnime[] = [
+                'type' => 'heros',
+                'id' => (int) $personnage->id,
+                'depart' => $depart,
+                'chemin' => $cheminParcouru,
+            ];
+        }
 
         // Un arrêt DUR (piège immobilisant / chute) TERMINE le mouvement ; un
         // arrêt SOUPLE (détection) ou une arrivée normale conservent les points
@@ -1934,6 +1964,8 @@ final class ResolveurTour
         [$cible, $chemin] = $meilleure;
 
         // Se rapprocher : déplacement fixe du catalogue, le long du chemin.
+        $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+        $cheminParcouruMonstre = [];
         if ($chemin !== []) {
             $pas = min((int) $instance->monstre->deplacement, count($chemin));
 
@@ -1957,11 +1989,35 @@ final class ResolveurTour
 
                 if ($arrivee !== null) {
                     $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+                    // Sous-chemin réellement parcouru (jusqu'à l'arrivée incluse).
+                    foreach ($chemin as $c) {
+                        $cheminParcouruMonstre[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
+                        if ($c['x'] === $arrivee['x'] && $c['y'] === $arrivee['y']) {
+                            break;
+                        }
+                    }
                 }
             } else {
                 $arrivee = $chemin[$pas - 1];
                 $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+                $cheminParcouruMonstre = array_map(
+                    fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']],
+                    array_slice($chemin, 0, $pas),
+                );
             }
+        }
+
+        // Animation case-par-case (table) : le trajet du monstre est enregistré
+        // ICI — avant la branche d'attaque — pour couvrir aussi le cas
+        // « s'approche PUIS frappe » dans le même tour (sinon la figurine se
+        // téléporterait avant de frapper).
+        if ($cheminParcouruMonstre !== []) {
+            $this->mouvementsAnime[] = [
+                'type' => 'monstre',
+                'id' => (int) $instance->id,
+                'depart' => $departMonstre,
+                'chemin' => $cheminParcouruMonstre,
+            ];
         }
 
         $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y);
@@ -1969,7 +2025,10 @@ final class ResolveurTour
         if (! $adjacent) {
             $payload = [
                 'type' => 'deplacement_monstre',
+                'id' => $instance->id,
                 'monstre' => $nomMonstre,
+                'depart' => $departMonstre,
+                'chemin' => $cheminParcouruMonstre, // animation case-par-case (table)
                 'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
             ];
             Journal::ajouter($groupe, 'action', $payload, $acteur);
