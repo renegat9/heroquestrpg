@@ -80,6 +80,16 @@ onMounted(async () => {
                     </span>
                 </RouterLink>
             </div>
+
+            <!-- lien vers le guide / compendium (public, sans compte) -->
+            <RouterLink to="/guide" class="acchoix-guide">
+                <MSym n="menu_book" fill :size="20" />
+                <span class="acchoix-guide-txt">
+                    <b>Guide de jeu</b>
+                    <em>Bestiaire, talents des héros, équipements, sorts et pièges</em>
+                </span>
+                <MSym n="arrow_forward" :size="18" />
+            </RouterLink>
         </div>
     </div>
 </template>
@@ -141,4 +151,17 @@ onMounted(async () => {
 
 .acchoix-role-go { margin-top: auto; display: flex; align-items: center; gap: 6px;
   font-size: 13px; font-weight: 700; color: var(--torch); }
+
+/* ---- lien guide / compendium ---- */
+.acchoix-guide { width: 100%; display: flex; align-items: center; gap: 14px; text-decoration: none;
+  padding: 16px 20px; border-radius: var(--r-lg, 14px); border: var(--line);
+  background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); color: var(--ink-200, #e7dcc6);
+  transition: transform .15s, border-color .15s, box-shadow .15s; }
+.acchoix-guide:hover { transform: translateY(-3px); border-color: var(--gold);
+  box-shadow: 0 0 24px oklch(0.80 0.135 88 / 0.15), var(--sh-2); }
+.acchoix-guide > .msym:first-child { color: var(--gold); flex: none; }
+.acchoix-guide > .msym:last-child { color: var(--ink-500); flex: none; margin-left: auto; }
+.acchoix-guide-txt { display: flex; flex-direction: column; gap: 2px; }
+.acchoix-guide-txt b { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--parch-100); letter-spacing: 0.02em; }
+.acchoix-guide-txt em { font-style: normal; font-size: 12.5px; color: var(--ink-400); }
 </style>

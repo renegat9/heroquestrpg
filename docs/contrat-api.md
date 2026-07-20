@@ -15,6 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges} (catalogues seedés, effets bruts mis en forme côté front). Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...]} |
 | POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |

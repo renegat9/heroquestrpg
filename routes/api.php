@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\EquipementController;
 use App\Http\Controllers\Api\GroupeController;
+use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
 use App\Http\Controllers\Api\PotionController;
@@ -25,6 +26,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/connexion', [AuthController::class, 'connexion']);
 Route::post('/inscription', [AuthController::class, 'inscription']);
+
+// Guide / compendium — données de référence en lecture seule (bestiaire,
+// talents, équipements, sorts, pièges), PUBLIC : la page /guide s'ouvre depuis
+// l'accueil sans compte ni groupe.
+Route::get('/guide', [GuideController::class, 'index']);
 
 // Routes table (narrateur sans compte) — publiques, hors guard auth:joueur.
 // La session Laravel (cookie) identifie la table active.

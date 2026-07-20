@@ -258,6 +258,9 @@ export function useApi() {
         /** GET /api/competences → catalogue des arbres [{id, classe, nom, type, effet, prerequis_id}]. */
         getCompetences: () => request('GET', '/competences'),
 
+        /** GET /api/guide → compendium public (classes, competences, monstres, objets, sorts, pieges). */
+        getGuide: () => request('GET', '/guide'),
+
         /**
          * POST /groupes/{id}/competences {personnage_id, competence_id,
          * element?} — acquiert un nœud d'arbre (422 : pas son héros, classe

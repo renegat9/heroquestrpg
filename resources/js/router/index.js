@@ -7,6 +7,7 @@ import TableView from '../views/TableView.vue';
 import ManetteView from '../views/ManetteView.vue';
 import MonteeNiveauView from '../views/MonteeNiveauView.vue';
 import ClotureCampagneView from '../views/ClotureCampagneView.vue';
+import GuideView from '../views/GuideView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -19,6 +20,9 @@ const router = createRouter({
 
         // ---- rôle Joueur (compte + roster) ----
         { path: '/joueur', name: 'joueur', component: JoueurView },
+
+        // ---- guide / compendium (public, données de référence) ----
+        { path: '/guide', name: 'guide', component: GuideView },
 
         // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },
