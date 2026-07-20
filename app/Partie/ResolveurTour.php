@@ -305,11 +305,15 @@ final class ResolveurTour
             ]);
         }
 
-        // Pièges cachés sur les cases TRAVERSÉES (chemin BFS, arrivée incluse) :
-        // déclenchement immédiat ; une fosse (ou un héros tombé) arrête le
-        // déplacement sur la case du piège (doc 10 §5).
+        // Contrôle du chemin (chemin BFS, arrivée incluse) :
+        //  - piège caché TRAVERSÉ → déclenchement immédiat ; une fosse (ou un
+        //    héros tombé) arrête DUREMENT le déplacement (doc 10 §5) ;
+        //  - Œil du mineur : entrer sur une case rendant un piège caché adjacent
+        //    le RÉVÈLE et interrompt la course sur cette case (arrêt SOUPLE : les
+        //    points restants sont conservés, le héros peut réagir).
         $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin);
         $interrompu = $controle['arret'] !== null;
+        $arretDur = $controle['dur'] ?? false;
         $arrivee = $controle['arret'] ?? ['x' => $x, 'y' => $y];
 
         // Chemin RÉELLEMENT parcouru (jusqu'à l'arrêt éventuel) → pour l'animation
@@ -317,12 +321,12 @@ final class ResolveurTour
         $cheminParcouru = $this->cheminJusqua($chemin, $arrivee);
         $parcourue = count($cheminParcouru);
 
-        // Un déplacement interrompu (piège) TERMINE le mouvement ; sinon il reste
-        // des points tant que restant > 0 (on pourra se redéplacer / ouvrir une
-        // porte puis continuer). Le mouvement restant sera FORFAIT à la première
-        // action hors mouvement (marquerCreneau).
-        $restantApres = $interrompu ? 0 : max(0, $restant - $parcourue);
-        $mouvementFini = $interrompu || $restantApres <= 0;
+        // Un arrêt DUR (piège immobilisant / chute) TERMINE le mouvement ; un
+        // arrêt SOUPLE (détection) ou une arrivée normale conservent les points
+        // restants (on pourra se redéplacer / désamorcer puis continuer). Le
+        // mouvement restant sera FORFAIT à la première action hors mouvement.
+        $restantApres = $arretDur ? 0 : max(0, $restant - $parcourue);
+        $mouvementFini = $arretDur || $restantApres <= 0;
 
         $etat->update([
             'position_x' => $arrivee['x'],
@@ -330,12 +334,6 @@ final class ResolveurTour
             'deplacement_restant' => $restantApres,
             'a_deplace' => $mouvementFini,
         ]);
-
-        // Œil du mineur : les pièges adjacents à la case d'arrivée sont
-        // auto-détectés (doc 10 §3).
-        if (! $etat->tombe) {
-            $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
-        }
 
         $payload = [
             'type' => 'deplacement',
@@ -350,7 +348,9 @@ final class ResolveurTour
             'vers' => $arrivee,
             'deplacement_restant' => $restantApres,
             'interrompu' => $interrompu,
+            'arret_detection' => $interrompu && ! $arretDur, // stoppé par un talent de détection (Œil du mineur)
             'pieges_declenches' => $controle['declenchements'],
+            'pieges_reveles' => $controle['detections'], // révélés en chemin par la détection adjacente
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);

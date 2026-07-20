@@ -64,25 +64,43 @@ final class MoteurPieges
         array $chemin,
     ): array {
         $declenchements = [];
+        $detections = [];
+        $aDetection = $this->possedeOeilDuMineur($personnage);
 
         foreach ($chemin as $case) {
-            $index = $this->indexPiegeCache($carte, (int) $case['x'], (int) $case['y']);
+            $x = (int) $case['x'];
+            $y = (int) $case['y'];
 
-            if ($index === null) {
-                continue;
+            // 1) Piège caché SUR la case traversée → déclenchement immédiat.
+            $index = $this->indexPiegeCache($carte, $x, $y);
+            if ($index !== null) {
+                $payload = $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
+                $declenchements[] = $payload;
+
+                // Fosse = immobilisé (perd le reste de son déplacement) ; un héros
+                // tombé à 0 PV s'arrête aussi là où il tombe. Arrêt DUR : la
+                // course est terminée pour le tour.
+                if ($payload['immobilise'] || $payload['tombe']) {
+                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => true, 'declenchements' => $declenchements, 'detections' => $detections];
+                }
             }
 
-            $payload = $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
-            $declenchements[] = $payload;
+            // 2) Œil du mineur : entrer sur une case qui rend un piège caché
+            //    ORTHOGONALEMENT adjacent le RÉVÈLE et INTERROMPT la course sur
+            //    cette case — arrêt SOUPLE : les points de déplacement restants
+            //    sont conservés (le héros a « repéré » le danger et peut décider
+            //    de désamorcer, contourner ou continuer). Aucun effet sans le nœud.
+            if ($aDetection && ! $etat->tombe) {
+                $reveles = $this->detecterAdjacents($groupe, $carte, $personnage, $x, $y);
+                if ($reveles !== []) {
+                    $detections = [...$detections, ...$reveles];
 
-            // Fosse = immobilisé (perd le reste de son déplacement) ; un héros
-            // tombé à 0 PV s'arrête aussi là où il tombe.
-            if ($payload['immobilise'] || $payload['tombe']) {
-                return ['arret' => ['x' => (int) $case['x'], 'y' => (int) $case['y']], 'declenchements' => $declenchements];
+                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections];
+                }
             }
         }
 
-        return ['arret' => null, 'declenchements' => $declenchements];
+        return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections];
     }
 
     /**

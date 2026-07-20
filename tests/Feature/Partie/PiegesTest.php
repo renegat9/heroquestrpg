@@ -102,6 +102,67 @@ function demarrerQueteAvecHeros(array $attributs = []): array
     return [$alice, $groupe, $hero, $quete, $etat];
 }
 
+it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adjacent, en gardant les points restants', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
+    $hero->competences()->syncWithoutDetaching([
+        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Œil du mineur')->value('id'),
+    ]);
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    // Cherche une ligne droite de 3 cases libres + une case perpendiculaire
+    // libre au 2e pas (où poser le piège caché HORS chemin).
+    $scene = null;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $p1 = ['x' => $hx + $dx, 'y' => $hy + $dy];
+        $p2 = ['x' => $hx + 2 * $dx, 'y' => $hy + 2 * $dy];
+        $p3 = ['x' => $hx + 3 * $dx, 'y' => $hy + 3 * $dy];
+        if (! caseQueteLibre($quete, $p1['x'], $p1['y']) || ! caseQueteLibre($quete, $p2['x'], $p2['y']) || ! caseQueteLibre($quete, $p3['x'], $p3['y'])) {
+            continue;
+        }
+        foreach ([[$dy, $dx], [-$dy, -$dx]] as [$px, $py]) {
+            $piege = ['x' => $p2['x'] + $px, 'y' => $p2['y'] + $py];
+            // Le piège doit être libre, HORS chemin, et NON adjacent au départ/1er pas.
+            if (caseQueteLibre($quete, $piege['x'], $piege['y'])
+                && abs($piege['x'] - $hx) + abs($piege['y'] - $hy) > 1
+                && abs($piege['x'] - $p1['x']) + abs($piege['y'] - $p1['y']) > 1) {
+                $scene = ['p2' => $p2, 'p3' => $p3, 'piege' => $piege];
+                break 2;
+            }
+        }
+    }
+    expect($scene)->not->toBeNull('Pas de géométrie ligne droite + perpendiculaire libre pour le scénario.');
+
+    poserPieges($quete, [['x' => $scene['piege']['x'], 'y' => $scene['piege']['y'], 'nom' => 'Piège à lances', 'etat' => 'cache']]);
+
+    // Allonce du tour fixée (6) pour une assertion déterministe des points restants.
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false]);
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $scene['p3'], // vise LOIN…
+    ])->assertStatus(202);
+
+    // …mais s'arrête au 2e pas, où le piège devient adjacent : arrêt SOUPLE
+    // (détection), points restants CONSERVÉS, piège révélé, PV intacts.
+    $reponse->assertJsonPath('resultat.type', 'deplacement')
+        ->assertJsonPath('resultat.vers', $scene['p2'])
+        ->assertJsonPath('resultat.interrompu', true)
+        ->assertJsonPath('resultat.arret_detection', true)
+        ->assertJsonPath('resultat.distance', 2)
+        ->assertJsonPath('resultat.deplacement_restant', 4)
+        ->assertJsonPath('resultat.pieges_declenches', [])
+        ->assertJsonPath('resultat.pieges_reveles.0.nom', 'Piège à lances');
+
+    $etat->refresh();
+    expect((int) $etat->position_x)->toBe($scene['p2']['x'])
+        ->and((int) $etat->position_y)->toBe($scene['p2']['y'])
+        ->and((bool) $etat->a_deplace)->toBeFalse() // il lui reste des points : peut désamorcer/contourner/continuer
+        ->and((int) $hero->fresh()->pv_body)->toBe($hero->pv_body_max) // rien déclenché
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte');
+});
+
 it('déclenche un piège caché traversé : dégâts du catalogue, usage unique consommé', function () {
     [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
 
