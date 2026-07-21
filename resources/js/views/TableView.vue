@@ -567,7 +567,8 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <p class="stat-sub">
                         {{ figureInspectee.type === 'heros'
                             ? `${figureInspectee.classe ?? 'Héros'}${figureInspectee.niveau ? ' · Niv. ' + figureInspectee.niveau : ''}`
-                            : (figureInspectee.type === 'allie' ? 'Allié' : 'Monstre') }}
+                            : (figureInspectee.type === 'allie' ? 'Allié'
+                                : (figureInspectee.nomBase ? `Monstre · ${figureInspectee.nomBase}` : 'Monstre')) }}
                     </p>
                     <div class="stat-grid">
                         <div class="stat-b"><span>PV Body</span><b>{{ figureInspectee.pv_body }}<i v-if="figureInspectee.pv_body_max"> / {{ figureInspectee.pv_body_max }}</i></b></div>

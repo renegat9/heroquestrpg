@@ -480,6 +480,9 @@ export function statsFigure(item, entites) {
     return {
         nom: e.nom,
         type: e.type,
+        // Type du catalogue (bestiaire) : affiché à côté d'un nom d'habillage IA
+        // pour retrouver la fiche du guide. null si non renommé (nom == nom_base).
+        nomBase: (e.type === 'monstre' && e.nom_base && e.nom_base !== e.nom) ? e.nom_base : null,
         classe: e.type === 'heros' ? classeDe(e)?.l : null,
         niveau: e.niveau ?? null,
         elite: !!e.elite,

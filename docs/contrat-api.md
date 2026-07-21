@@ -42,7 +42,7 @@ Routes protégées par middleware `auth` sauf connexion.
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
-    {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "x": 5, "y": 4,
+    {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif"}
   ],
   "initiative": [{"entite": "heros|monstre", "id": 1, "nom": "...", "a_joue": false, "tombe": false}],

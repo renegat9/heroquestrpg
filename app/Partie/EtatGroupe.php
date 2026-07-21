@@ -503,6 +503,10 @@ final class EtatGroupe
                 'type' => 'monstre',
                 'id' => $i->id,
                 'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                // Type du CATALOGUE (bestiaire du guide) : le nom ci-dessus peut
+                // être un habillage IA (« Écumeur des cryptes ») — nom_base permet
+                // de relier le monstre à sa fiche du guide (mêmes stats).
+                'nom_base' => $i->monstre->nom_base,
                 // Portrait de boss dynamique si généré, sinon image du catalogue.
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
                 'x' => $i->position_x,

@@ -286,10 +286,14 @@ final class MenuMoteur
                     && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y));
 
             foreach ($adjacents as $instance) {
-                $nom = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
+                $nomBase = $instance->monstre->nom_base;
+                $nom = $instance->habillage['nom'] ?? $nomBase;
+                // Rappel du TYPE du catalogue quand le nom est un habillage IA →
+                // le joueur retrouve la fiche du bestiaire (guide).
+                $libelle = $nom === $nomBase ? "Attaquer {$nom}" : "Attaquer {$nom} ({$nomBase})";
                 $options[] = [
                     'id' => "attaquer_{$instance->id}",
-                    'libelle' => "Attaquer {$nom}",
+                    'libelle' => $libelle,
                     'type' => 'attaque',
                     'cible_id' => $instance->id,
                 ];
