@@ -2265,22 +2265,23 @@ final class ResolveurTour
     private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau): void
     {
         if ($creneau === 'interaction') {
-            return;
+            return; // ouvrir une porte / actionner un levier : libre, aucun créneau
         }
 
         if ($creneau === 'tour') {
+            // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
         } elseif ($creneau === 'action') {
+            // Agir NE force plus la fin du mouvement : on peut agir PUIS se
+            // déplacer, se déplacer PUIS agir, ou intercaler — dans n'importe
+            // quel ordre, tant qu'il reste des points de mouvement / l'action.
             $etat->a_agi = true;
-            // Le mouvement restant est perdu dès qu'on agit hors mouvement.
-            $etat->a_deplace = true;
-            $etat->deplacement_restant = 0;
         }
         // 'mouvement' : a_deplace / deplacement_restant déjà posés par resoudreDeplacement.
 
-        if ($etat->a_deplace && $etat->a_agi) {
-            $etat->a_joue = true;
-        }
+        // Le tour ne se termine QUE sur décision du joueur (créneau 'tour') : plus
+        // de fin automatique quand les deux créneaux sont pris — le héros garde la
+        // main (boire une potion, terminer quand il le décide).
 
         $etat->save();
     }

@@ -168,11 +168,12 @@ it('équipe en PLEINE QUÊTE via l\'action du tour (doc 01 §149) : dés à jour
         ->assertJsonPath('resultat.type', 'equiper')
         ->assertJsonPath('resultat.objet', 'Épée large');
 
-    // Arme équipée (dés à jour) et ACTION consommée → le déplacement restant est
-    // forfait (E1) → tour terminé.
+    // Arme équipée (dés à jour) et ACTION consommée (a_agi). Le mouvement N'EST
+    // PLUS forfait (on peut équiper PUIS se déplacer) et le tour ne se termine
+    // que sur décision du joueur.
     expect($heros->fresh()->des_attaque)->toBe(5);
     $etat->refresh();
     expect($etat->a_agi)->toBeTrue()
-        ->and($etat->a_deplace)->toBeTrue()
-        ->and($etat->a_joue)->toBeTrue();
+        ->and($etat->a_deplace)->toBeFalse()
+        ->and($etat->a_joue)->toBeFalse();
 });

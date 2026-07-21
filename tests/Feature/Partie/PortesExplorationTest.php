@@ -329,9 +329,12 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
         // Budget errant décompté.
         ->and((int) Cache::get(ResolveurTour::cleBudgetErrant($quete->id)))->toBe($budgetAvant - (int) $errant->monstre->cout);
 
-    // Fouiller est une ACTION : elle forfait le déplacement restant et termine
-    // le tour d'alice (E1, a_joue posé). Il ne reste qu'à clore Bob → phase des
-    // monstres (l'errant agit).
+    // Fouiller est une ACTION (a_agi) mais NE termine plus le tour tout seul :
+    // alice TERMINE, puis Bob TERMINE → phase des monstres (l'errant agit).
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $ctx[2]->id);
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
     $bob = JoueurAuthentifiable::where('identifiant', 'bob')->firstOrFail();
     test()->actingAs($bob, 'joueur');
 

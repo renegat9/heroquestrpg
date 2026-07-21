@@ -95,10 +95,15 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
 
 Un tour de héros = **deux créneaux** (doc 03 §28) : un **déplacement** et une
-**action**, dans l'ordre choisi. Le menu n'offre que les créneaux encore libres,
-plus « Terminer le tour » (`attendre`). Le tour ne passe au héros suivant / aux
-monstres que lorsque les deux créneaux sont consommés ou via une action
-terminante (concentration, relever, terminer). 
+**action**, jouables **dans n'importe quel ordre et entrelacés** — agir n'annule
+plus le déplacement restant (on peut agir PUIS se déplacer, ou fractionner son
+déplacement autour de l'action). Le menu offre les créneaux encore libres (le
+déplacement à la portée **restante**), plus « Terminer le tour » (`attendre`). Le
+tour ne passe au héros suivant / aux monstres **que sur décision du joueur**
+(`attendre`, ou une action terminante : concentration, relever) — plus de fin
+automatique quand les deux créneaux sont pris. **Boire une potion** est une action
+gratuite jouable **à tout moment** (onglet Sac, `POST /potions`), même après avoir
+déplacé ET agi ; elle ne consomme aucun créneau et ne termine pas le tour.
 
 L'option `deplacement` (id `se_deplacer`) porte dans `parametres` l'allonce du
 tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d6) :

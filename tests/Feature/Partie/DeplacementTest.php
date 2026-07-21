@@ -122,7 +122,7 @@ it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-ca
     });
 });
 
-it('une action hors mouvement FORFAIT le déplacement restant (E1)', function () {
+it('garde le déplacement restant APRÈS une action : on agit puis on continue à se déplacer, le tour ne finit que sur décision', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -141,15 +141,64 @@ it('une action hors mouvement FORFAIT le déplacement restant (E1)', function ()
         ->assertStatus(202);
     expect($etatA->fresh()->deplacement_restant)->toBe(7);
 
-    // Puis « Fouiller » (action hors mouvement) : le déplacement restant est PERDU
-    // (a_deplace + a_agi) → tour terminé (a_joue).
+    // Puis « Fouiller » (action) : le mouvement restant est CONSERVÉ (on peut
+    // agir puis continuer). a_agi posé, mais le tour N'EST PAS terminé.
     desFiges(array_fill(0, 20, 1));
     $this->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
         ->assertStatus(202);
     $etatA->refresh();
-    expect($etatA->deplacement_restant)->toBe(0)
-        ->and($etatA->a_deplace)->toBeTrue()
+    expect($etatA->deplacement_restant)->toBe(7)
+        ->and($etatA->a_deplace)->toBeFalse()
         ->and($etatA->a_agi)->toBeTrue()
-        ->and($etatA->a_joue)->toBeTrue();
+        ->and($etatA->a_joue)->toBeFalse();
+
+    // Le menu régénéré propose ENCORE de se déplacer (au restant) + « Terminer le tour ».
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->not->toBeNull()
+        ->and(collect($menu['options'])->firstWhere('id', 'attendre'))->not->toBeNull();
+
+    // Le joueur DÉCIDE de terminer → a_joue.
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+    expect($etatA->fresh()->a_joue)->toBeTrue();
+});
+
+it('permet d\'AGIR PUIS de se déplacer (action avant mouvement), le mouvement reste offert', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $etatA->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    // 1) Le héros AGIT d'abord (fouiller) — aucun déplacement encore fait.
+    desFiges(array_fill(0, 20, 4));
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202);
+    $etatA->refresh();
+    expect($etatA->a_agi)->toBeTrue()
+        ->and($etatA->a_deplace)->toBeFalse()
+        ->and($etatA->a_joue)->toBeFalse();
+
+    // Le menu propose ENCORE « Se déplacer » (le créneau mouvement est intact).
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+    expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->firstWhere('type', 'deplacement'))
+        ->not->toBeNull();
+
+    // 2) PUIS il se déplace : accepté, la figurine bouge.
+    $cible = caseAdjacenteLibre($quete, (int) $etatA->position_x, (int) $etatA->position_y);
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.vers', $cible);
+    $etatA->refresh();
+    expect((int) $etatA->position_x)->toBe($cible['x'])
+        ->and((int) $etatA->position_y)->toBe($cible['y']);
 });

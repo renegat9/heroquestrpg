@@ -297,8 +297,8 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
     $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_mind' => 2]);
 
-    // Le mage a déjà utilisé son créneau de déplacement : lancer Sommeil (action)
-    // termine alors son tour → la phase des monstres s'enchaîne dans la foulée.
+    // Le mage a déjà utilisé son créneau de déplacement ; il lance Sommeil
+    // (action) — le tour NE se termine plus tout seul : il TERMINE ensuite.
     $etat->update(['a_deplace' => true]);
     optionsMenuSorts($groupe, $alice, $mage);
 
@@ -306,24 +306,30 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
     // Réserve de boucliers : la phase des monstres ne sort aucun crâne.
     desFiges(array_fill(0, 30, 4));
 
-    $reponse = $this->postJson('/api/groupes/table-1/choix', [
+    $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'sort_'.sortIdParNom('Sommeil'),
         'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
-    ])->assertStatus(202);
-
-    // Effet appliqué + le monstre endormi NE JOUE PAS à la phase des monstres.
-    $reponse->assertJsonPath('resultat.effet_applique', true)
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.effet_applique', true)
         ->assertJsonPath('resultat.condition', 'Endormi')
-        ->assertJsonPath('resultat.mind_cible', 2)
-        ->assertJsonPath('resultat.tour_monstres.actions.0.action', 'endormi');
+        ->assertJsonPath('resultat.mind_cible', 2);
 
     $moteur = app(MoteurSorts::class);
+    expect($moteur->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeTrue();
+
+    // Le mage TERMINE son tour → phase des monstres : l'endormi NE JOUE PAS.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.tour_monstres.actions.0.action', 'endormi');
+
     expect($moteur->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeTrue()
         ->and([(int) $proie->fresh()->position_x, (int) $proie->fresh()->position_y])
         ->toBe([$contact['x'], $contact['y']]); // pas bougé
 
     // Nouveau tour : une attaque (même à 0 dégât) le RÉVEILLE.
     desFiges(array_fill(0, 30, 4)); // aucun crâne nulle part
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
         ->assertStatus(202)
@@ -361,8 +367,8 @@ it("Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la cond
     $contact = caseAdjacenteLibre($quete, (int) $etatB->position_x, (int) $etatB->position_y);
     $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
 
-    // Le mage a déjà utilisé son déplacement : lancer Courage (action) termine
-    // son tour → c'est ensuite au tour de Brunhilde d'attaquer (créneaux distincts).
+    // Le mage a déjà utilisé son déplacement ; il lance Courage (action) sur
+    // Brunhilde puis TERMINE son tour → c'est ensuite au tour de Brunhilde.
     EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)->update(['a_deplace' => true]);
     optionsMenuSorts($groupe, $alice, $mage);
 
@@ -375,6 +381,10 @@ it("Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la cond
         ->assertJsonPath('resultat.source', 'sort:Courage');
 
     expect($brunhilde->conditions()->count())->toBe(1);
+
+    // Le mage TERMINE son tour → l'initiative passe à Brunhilde.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
     // Brunhilde attaque : 3 + 2 = 5 dés lancés, le buff est consommé.
     $this->actingAs($bob, 'joueur');
