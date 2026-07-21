@@ -43,11 +43,17 @@ const porteFermeeEntre = (x1, y1, x2, y2) => {
     return !!p && p.etat !== 'ouverte'; // fermee / verrouillee / secrete
 };
 
-// Cases occupées par une AUTRE figurine (le héros sur sa case de départ ne bloque pas).
+// Cases occupées par une AUTRE figurine BLOQUANTE — MÊME règle que le moteur
+// (FabriqueGrille) pour ne jamais bloquer une case que le serveur laisse libre :
+//  - le héros sur sa propre case de départ ne se bloque pas ;
+//  - un héros TOMBÉ s'enjambe (ne bloque pas) ;
+//  - un monstre non-actif (vaincu) a déjà quitté le plateau — filtre défensif.
 const occupees = computed(() => {
     const s = new Set();
     for (const e of props.entites) {
         if (e.x === props.depart.x && e.y === props.depart.y) continue;
+        if (e.type === 'heros' && e.tombe) continue;
+        if (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)) continue;
         s.add(cle(e.x, e.y));
     }
     return s;

@@ -166,6 +166,38 @@ it('garde le déplacement restant APRÈS une action : on agit puis on continue �
     expect($etatA->fresh()->a_joue)->toBeTrue();
 });
 
+it('laisse se déplacer SUR la case d\'un monstre vaincu (il quitte le plateau, ne bloque plus)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etatA = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
+    $etatA->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    // Un monstre VAINCU (pv 0) posé sur une case adjacente au héros, révélé —
+    // il devait avoir « quitté le plateau ». (La quête garde d'autres monstres
+    // actifs, donc elle reste en cours.)
+    $cible = caseAdjacenteLibre($quete, (int) $etatA->position_x, (int) $etatA->position_y);
+    $mort = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $mort->update(['position_x' => $cible['x'], 'position_y' => $cible['y'], 'pv_body' => 0, 'etat' => 'vaincu', 'revele' => true]);
+
+    // Absent de l'état partagé → absent de la carte manette, qui ne peut donc
+    // plus bloquer sa case (c'était le bogue signalé).
+    $entites = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites');
+    expect(collect($entites)->where('type', 'monstre')->pluck('id')->all())->not->toContain($mort->id);
+
+    // Et le moteur ACCEPTE de se déplacer sur cette case.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.vers', $cible);
+    expect([(int) $etatA->fresh()->position_x, (int) $etatA->fresh()->position_y])
+        ->toBe([$cible['x'], $cible['y']]);
+});
+
 it('permet d\'AGIR PUIS de se déplacer (action avant mouvement), le mouvement reste offert', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
