@@ -77,6 +77,7 @@ final class EtatGroupe
             // n'a pas le roster.
             $preambuleGroupe['prets'] = $groupe->personnages()
                 ->wherePivot('actif', true)
+                ->orderBy('groupe_personnages.ordre_initiative') // roster affiché dans l'ordre du tour
                 ->get(['personnages.id', 'personnages.nom'])
                 ->map(fn ($p) => [
                     'personnage_id' => (int) $p->id,

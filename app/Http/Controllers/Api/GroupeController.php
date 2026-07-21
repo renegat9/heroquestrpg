@@ -409,9 +409,11 @@ class GroupeController extends Controller
         $prets[$donnees['personnage_id']] = (bool) $donnees['pret'];
         Cache::put($cleCache, $prets, now()->addHours(4));
 
-        // Liste des personnages actifs du groupe (id + nom pour l'affichage).
+        // Liste des personnages actifs du groupe (id + nom pour l'affichage),
+        // dans l'ordre du tour (ordre_initiative).
         $membresActifs = $groupe->personnages()
             ->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative')
             ->get(['personnages.id', 'personnages.nom']);
         $personnagesActifs = $membresActifs->pluck('id')->map(fn ($id) => (int) $id)->all();
 
@@ -448,6 +450,61 @@ class GroupeController extends Controller
         }
 
         return response()->json(['prets' => $payloadPrets]);
+    }
+
+    /**
+     * PUT /api/groupes/{identifiant}/ordre {ordre: [personnage_id, ...]} —
+     * réordonne l'ORDRE DU TOUR (ordre_initiative) ENTRE les quêtes. Uniquement
+     * au HUB : pendant une quête l'ordre est figé (C1). `ordre` doit être une
+     * permutation EXACTE des héros actifs. Décision de groupe → autorisation
+     * membre-OU-table (le panneau « Le groupe » est sur l'écran de table).
+     * Rediffuse le roster réordonné (`.prets.maj`, statuts prêt conservés).
+     */
+    public function reordonner(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = $this->groupeLisible($request, $identifiant);
+
+        if ($groupe->phase !== 'hub') {
+            throw ValidationException::withMessages([
+                'ordre' => "L'ordre des joueurs ne se change qu'entre les quêtes (au hub).",
+            ]);
+        }
+
+        $donnees = $request->validate([
+            'ordre' => ['required', 'array', 'min:1'],
+            'ordre.*' => ['integer'],
+        ]);
+
+        $membres = $groupe->personnages()->wherePivot('actif', true)
+            ->pluck('personnages.id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $demande = collect($donnees['ordre'])->map(fn ($id) => (int) $id)->values();
+
+        // Permutation EXACTE des héros actifs (tous présents, sans doublon).
+        if ($demande->unique()->sort()->values()->all() !== $membres) {
+            throw ValidationException::withMessages([
+                'ordre' => 'La liste doit être une permutation exacte des héros actifs du groupe.',
+            ]);
+        }
+
+        foreach ($demande as $i => $personnageId) {
+            $groupe->personnages()->updateExistingPivot($personnageId, ['ordre_initiative' => $i + 1]);
+        }
+
+        // Rediffuse le roster réordonné (statuts prêt conservés).
+        $prets = Cache::get("partie:pret:{$groupe->id}", []);
+        $roster = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative')
+            ->get(['personnages.id', 'personnages.nom'])
+            ->map(fn ($p) => [
+                'personnage_id' => (int) $p->id,
+                'nom' => $p->nom,
+                'pret' => (bool) ($prets[$p->id] ?? false),
+            ])->values()->all();
+
+        broadcast(new PretsMaj($groupe, $roster));
+
+        return response()->json(['ordre' => $roster]);
     }
 
     /**

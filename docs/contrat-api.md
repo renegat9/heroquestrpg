@@ -22,6 +22,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} ou {nom, classe} | {personnage} (rejoint le groupe) |
 | GET | /api/groupes/{identifiant}/etat | — | **EtatGroupe** (voir ci-dessous) |
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
+| PUT | /api/groupes/{identifiant}/ordre | {ordre:[personnage_id,…]} | réordonne l'ordre du tour (ordre_initiative) — **HUB seulement**, permutation exacte des héros actifs, **membre OU table** ; rediffuse `.prets.maj` réordonné |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
 | GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros) |
 

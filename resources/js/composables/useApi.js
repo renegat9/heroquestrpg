@@ -215,6 +215,9 @@ export function useApi() {
         /** POST /api/groupes/{identifiant}/quetes → {quete} (démarre la quête suivante). */
         demarrerQuete: (identifiant) => request('POST', `/groupes/${identifiant}/quetes`),
 
+        /** PUT /api/groupes/{identifiant}/ordre {ordre:[personnage_id]} — réordonne le tour (hub). */
+        reordonnerGroupe: (identifiant, ordre) => request('PUT', `/groupes/${identifiant}/ordre`, { ordre }),
+
         /**
          * POST /api/groupes/{identifiant}/choix {option_id, parametres?} → 202.
          * La résolution arrive ensuite par Reverb (.groupe.etat / .menu.propose).

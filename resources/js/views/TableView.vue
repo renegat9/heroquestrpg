@@ -210,6 +210,23 @@ const joueursConnectes = computed(() => (phaseHub.value
 // encore de carte — le narrateur voyait un panneau vide au repos.
 const presenceHub = computed(() => store.state.prets ?? []);
 
+// Réordonner l'ordre du tour ENTRE les quêtes (au hub) : on monte/descend un
+// héros et on persiste la nouvelle permutation. Le broadcast .prets.maj
+// rediffuse le roster réordonné (et rétablit l'ordre serveur en cas d'échec).
+const reordreEnCours = ref(false);
+async function deplacerMembre(index, direction) {
+    const membres = presenceHub.value;
+    const cible = index + direction;
+    if (reordreEnCours.value || cible < 0 || cible >= membres.length) return;
+    const ordre = membres.map((m) => m.personnage_id);
+    [ordre[index], ordre[cible]] = [ordre[cible], ordre[index]];
+    reordreEnCours.value = true;
+    try {
+        await api.reordonnerGroupe(props.groupe, ordre);
+    } catch { /* .prets.maj rétablit l'ordre serveur */ }
+    finally { reordreEnCours.value = false; }
+}
+
 const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Hub');
 // Illustrations dynamiques (générées en arrière-plan) : lieu de repos (hub) et
 // scène de quête. Null tant qu'absentes → repli sur le fond/l'icône.
@@ -511,16 +528,26 @@ watch(() => store.state.clotureTerminee, (t) => {
                 <GroupPanel v-if="!phaseHub" :party="party" />
                 <div v-else class="hub-roster">
                     <h2><MSym n="groups" fill /> Le groupe</h2>
+                    <p v-if="presenceHub.length > 1" class="hub-roster-hint">
+                        <MSym n="swap_vert" :size="14" /> Ordre du tour — réordonne avant de lancer la quête
+                    </p>
                     <div v-if="presenceHub.length" class="hub-roster-list">
                         <div
-                            v-for="m in presenceHub"
+                            v-for="(m, i) in presenceHub"
                             :key="m.personnage_id"
                             class="hub-roster-line"
                             :class="{ pret: m.pret }"
                         >
+                            <span class="hr-ordre">{{ i + 1 }}</span>
                             <MSym :n="m.pret ? 'check_circle' : 'radio_button_unchecked'" fill :size="17" />
                             <span class="hr-nom">{{ m.nom }}</span>
                             <span class="hr-etat">{{ m.pret ? 'Prêt' : 'En attente' }}</span>
+                            <span v-if="presenceHub.length > 1" class="hr-reordre">
+                                <button type="button" :disabled="i === 0 || reordreEnCours"
+                                    title="Monter" @click="deplacerMembre(i, -1)"><MSym n="keyboard_arrow_up" :size="18" /></button>
+                                <button type="button" :disabled="i === presenceHub.length - 1 || reordreEnCours"
+                                    title="Descendre" @click="deplacerMembre(i, 1)"><MSym n="keyboard_arrow_down" :size="18" /></button>
+                            </span>
                         </div>
                     </div>
                     <p v-else class="hub-roster-vide">Aucun héros rattaché pour l'instant.</p>
@@ -841,6 +868,17 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .hub-roster-line .hr-etat { margin-left: auto; font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.04em; }
 .table-screen .hub-roster-vide { font-family: var(--font-narr); font-style: italic; color: var(--ink-500); margin: 0; }
+/* Ordre du tour : pastille numérotée + flèches monter/descendre (réordonnable au hub). */
+.table-screen .hub-roster-hint { display: flex; align-items: center; gap: 6px; margin: -4px 0 12px; font-size: 12px;
+  color: var(--ink-500); font-style: italic; }
+.table-screen .hub-roster-hint .msym { color: var(--torch); }
+.table-screen .hub-roster-line .hr-ordre { flex: none; width: 22px; height: 22px; border-radius: 999px; display: grid;
+  place-items: center; font-size: 12px; font-weight: 800; background: var(--stone-800); border: var(--line); color: var(--ink-300); }
+.table-screen .hub-roster-line .hr-reordre { display: inline-flex; gap: 2px; margin-left: 8px; }
+.table-screen .hub-roster-line .hr-reordre button { display: grid; place-items: center; width: 28px; height: 28px;
+  border-radius: 8px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; transition: all .12s; }
+.table-screen .hub-roster-line .hr-reordre button:hover:not(:disabled) { color: var(--torch); border-color: var(--torch); }
+.table-screen .hub-roster-line .hr-reordre button:disabled { opacity: 0.3; cursor: default; }
 
 /* ---- montée de niveau (célébration dorée, style Montee de niveau.html) ---- */
 .table-screen .lvlup-ov { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;

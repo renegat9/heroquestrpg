@@ -73,6 +73,10 @@ Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'rep
 // POST /pret côté joueurs). Entièrement moteur (App\Partie\DemarreurQuete).
 Route::post('/groupes/{identifiant}/quetes', [GroupeController::class, 'demarrerQuete']);
 
+// Réordonner l'ordre du tour entre les quêtes (au hub) — décision de groupe :
+// membre-OU-table, comme démarrer la quête / ouvrir le marché.
+Route::put('/groupes/{identifiant}/ordre', [GroupeController::class, 'reordonner']);
+
 Route::middleware('auth:joueur')->group(function () {
     Route::post('/deconnexion', [AuthController::class, 'deconnexion']);
     Route::get('/moi', [AuthController::class, 'moi']);
