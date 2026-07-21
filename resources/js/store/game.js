@@ -282,9 +282,6 @@ export function useGameStore() {
    Mapping EtatGroupe → formats attendus par les composants existants
    ========================================================================= */
 
-/** Codes de case du contrat → classes CSS de DungeonMap. */
-const TUILES = { m: 'wall', s: 'floor', p: 'door', b: 'fog' };
-
 /** Habillage par classe de héros (icônes Material Symbols). */
 export const CLASSES = {
     barbare: { l: 'Barbare', ic: 'sports_martial_arts' },
@@ -390,20 +387,6 @@ function estCourant(entite, initiative) {
     return cur.entite === type && cur.id === entite.id;
 }
 
-/** carte (contrat) → { C, R, cells } pour DungeonMap. */
-export function carteVersMap(carte) {
-    if (!carte) return null;
-    const C = carte.largeur;
-    const R = carte.hauteur;
-    const cells = [];
-    for (let y = 0; y < R; y++) {
-        for (let x = 0; x < C; x++) {
-            cells.push({ x, y, t: TUILES[carte.cases?.[y]?.[x]] ?? 'void', range: false });
-        }
-    }
-    return { C, R, cells };
-}
-
 /** entites (contrat) → figurines [{x, y, k, l, ic, hp?, cur?, cond?}]
  *  pour DungeonMap (cond = pictogramme d'état discret sur le jeton). */
 export function entitesVersFigurines(entites, initiative) {
@@ -454,43 +437,8 @@ export function piegesVersMarqueurs(carte) {
         }));
 }
 
-/** Libellés des états de porte CONNUS (les secrètes non révélées n'arrivent jamais). */
-export const PORTE_ETATS = {
-    ouverte: 'ouverte',
-    // Close SANS verrou (E2) : s'ouvre à la main, donc PAS de cadenas (celui-ci
-    // reste réservé aux portes verrouillées — cf. portesVersMarqueurs).
-    fermee: 'fermée',
-    verrouillee: 'verrouillée',
-    secrete: 'secrète',
-};
-
-/** Libellés de verrou (doc 14 §3.3) pour l'infobulle de la porte. */
-const PORTE_VERROUS = {
-    cle: 'clé requise',
-    monstres_vaincus: 'gardien à vaincre',
-    levier: 'levier à actionner',
-};
-
-/** carte.portes (contrat doc 14) → marqueurs [{x, y, etat, verrou, cadenas, titre}]
- *  pour la couche portes de DungeonMap. Seules les portes VERROUILLÉES portent un
- *  cadenas ; les ouvertes s'affichent déjà via la case 'p'. */
-export function portesVersMarqueurs(carte) {
-    return (carte?.portes ?? [])
-        .filter((p) => PORTE_ETATS[p.etat])
-        .map((p) => {
-            const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
-            return {
-                x: p.x,
-                y: p.y,
-                // Côté de la CLOISON où se dresse la porte : 'e' (arête est) ou
-                // 's' (arête sud) — la porte ne prend pas de case.
-                cote: p.cote === 's' ? 's' : 'e',
-                etat: p.etat,
-                cadenas: p.etat === 'verrouillee',
-                titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
-            };
-        });
-}
+// (Le rendu des portes — battant sur l'arête — et leurs libellés d'état/verrou
+//  vivent désormais dans le socle partagé DungeonGrid.vue.)
 
 /** entites héros (contrat) → cartes du GroupPanel [{l, c, ic, body, mind, conds…}]. */
 export function entitesVersGroupe(entites, initiative) {

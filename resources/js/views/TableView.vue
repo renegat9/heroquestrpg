@@ -16,8 +16,8 @@ import { useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
 import { useAmbiance } from '../composables/useAmbiance';
 import {
-    carteVersMap, clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
-    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs, portesVersMarqueurs,
+    clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
+    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
     statsFigure, useGameStore, voteVersFeuille,
 } from '../store/game';
 
@@ -128,9 +128,7 @@ function arreterHeartbeat() {
 const etat = computed(() => store.state.etat);
 const enQuete = computed(() => !!etat.value?.carte);
 
-const map = computed(() => (enQuete.value ? carteVersMap(etat.value.carte) : null));
 const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : []));
-const doors = computed(() => (enQuete.value ? portesVersMarqueurs(etat.value.carte) : []));
 const entitesBrutes = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : []));
@@ -452,10 +450,9 @@ watch(() => store.state.clotureTerminee, (t) => {
                     </div>
                     <DungeonMap
                         v-else
-                        :map="map"
+                        :carte="etat.carte"
                         :entities="entities"
                         :traps="traps"
-                        :doors="doors"
                         :active-x="heroActif?.x ?? null"
                         :active-y="heroActif?.y ?? null"
                     />
@@ -705,26 +702,8 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .map { position: relative; overflow: hidden; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
   padding: 14px; border-radius: var(--r-lg); background: oklch(0.12 0.01 255);
   box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6); }
-.table-screen .map-grid { display: grid; gap: 3px; position: absolute; top: 14px; left: 14px;
-  transition: transform .6s cubic-bezier(.22, 1, .36, 1); }
-.table-screen .cell { border-radius: 3px; position: relative; }
-.table-screen .cell.void { background: transparent; }
-.table-screen .cell.wall { background:
-    linear-gradient(160deg, oklch(0.30 0.014 255), oklch(0.22 0.012 255));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.05), inset 0 -2px 3px oklch(0 0 0 / 0.5);
-  border: 1px solid oklch(0.34 0.016 255 / 0.5); }
-.table-screen .cell.floor, .table-screen .cell.door { background:
-    linear-gradient(150deg, oklch(0.235 0.013 255), oklch(0.20 0.012 255));
-  box-shadow: inset 0 0 0 1px oklch(0.3 0.014 255 / 0.35); }
-.table-screen .cell.door::after { content: ""; position: absolute; inset: 18% 30%; border-radius: 2px;
-  background: repeating-linear-gradient(90deg, var(--ember-deep) 0 3px, oklch(0.3 0.05 40) 3px 6px); opacity: 0.8; }
-.table-screen .cell.fog { background: oklch(0.16 0.01 255); }
-.table-screen .cell.fog::after { content: ""; position: absolute; inset: 0; border-radius: 3px;
-  background: radial-gradient(circle at 50% 40%, oklch(0.26 0.015 255 / 0.6), oklch(0.1 0.008 255 / 0.95));
-  backdrop-filter: blur(1px); }
-.table-screen .cell.range { box-shadow: inset 0 0 0 2px oklch(0.76 0.155 65 / 0.45); background:
-    linear-gradient(150deg, oklch(0.28 0.04 75), oklch(0.235 0.025 75)); animation: rangepulse 2.4s ease-in-out infinite; }
-@keyframes rangepulse { 50% { box-shadow: inset 0 0 0 2px oklch(0.76 0.155 65 / 0.85); } }
+/* Le TERRAIN (cases / portes / pièges) est rendu par le socle partagé
+   DungeonGrid (mêmes teintes que la manette). Ici : seule la couche figurines. */
 
 /* figurines */
 .table-screen .ent-holder { position: relative; }
@@ -747,21 +726,6 @@ watch(() => store.state.clotureTerminee, (t) => {
 @keyframes tspin { to { transform: rotate(360deg); } }
 .table-screen .fig .hp { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5px; }
 .table-screen .fig .hp i { width: 4px; height: 4px; border-radius: 1px; background: var(--body-bright); border: 0.5px solid oklch(0 0 0 / 0.4); }
-
-/* pièges (couche dédiée — contrat « Pièges » : detecte / desarme / declenche) */
-.table-screen .trap-holder { position: relative; z-index: 3; pointer-events: none; }
-.table-screen .trap { position: absolute; inset: 10%; border-radius: 6px; display: grid; place-items: center; }
-.table-screen .trap .msym { font-size: clamp(12px, 1.3vw, 20px); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
-.table-screen .trap.detecte { color: var(--warn); background: oklch(0.78 0.15 75 / 0.13);
-  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); animation: trappulse 2.2s ease-in-out infinite; }
-@keyframes trappulse { 50% { box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.95); } }
-.table-screen .trap.desarme { color: var(--ink-600); background: oklch(0.3 0.01 255 / 0.4);
-  box-shadow: inset 0 0 0 1px oklch(0.4 0.01 255 / 0.5); opacity: 0.75; }
-.table-screen .trap.desarme::after { content: ""; position: absolute; left: 14%; right: 14%; top: 50%; height: 2px;
-  background: var(--ink-500); transform: rotate(-24deg); border-radius: 2px; }
-.table-screen .trap.declenche { inset: 6%; border-radius: 50%;
-  background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
-  box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
 
 /* halos de torche sur la carte */
 .table-screen .torchspot { position: absolute; width: 30%; height: 36%; border-radius: 50%; pointer-events: none; z-index: 1;

@@ -1,13 +1,15 @@
 <script setup>
 // Feuille de DÉPLACEMENT (manette) : montre l'allonce du tour (dé déjà lancé
-// côté serveur : base + 1d6) et une mini-carte tappable. Le joueur touche une
-// case accessible (atteignable orthogonalement, ≤ portée, sans mur ni figurine)
-// → on émet la destination. Le moteur revalide à la résolution.
+// côté serveur : base + 1d6) et une mini-carte tappable. Le TERRAIN (cases /
+// portes / pièges) est rendu par le socle PARTAGÉ DungeonGrid — le MÊME que
+// l'écran table — pour un rendu identique ; cette feuille n'ajoute que la
+// surbrillance des cases accessibles (BFS) et le tap de destination.
 import { computed, onMounted, ref } from 'vue';
+import DungeonGrid from '../carte/DungeonGrid.vue';
 import MSym from '../ui/MSym.vue';
 
 const props = defineProps({
-    carte: { type: Object, required: true },   // { largeur, hauteur, cases }
+    carte: { type: Object, required: true },   // { largeur, hauteur, cases, portes }
     entites: { type: Array, default: () => [] }, // [{type, id, x, y, ...}]
     depart: { type: Object, required: true },    // { x, y } du héros
     portee: { type: Number, required: true },
@@ -19,9 +21,8 @@ const emit = defineEmits(['deplacer', 'close']);
 const grilleRef = ref(null);
 const cle = (x, y) => `${x},${y}`;
 
-// Portes = CLOISONS (arêtes) entre deux cases, pas des cases : indexées par
-// arête canonique pour bloquer le pas à travers une porte FERMÉE, et listées
-// pour dessiner un battant sur le bord.
+// Portes = CLOISONS (arêtes) : indexées par arête canonique pour bloquer le pas
+// à travers une porte FERMÉE (le rendu du battant est géré par DungeonGrid).
 const cleArete = (x1, y1, x2, y2) => {
     const a = cle(x1, y1); const b = cle(x2, y2);
     return a <= b ? `${a}|${b}` : `${b}|${a}`;
@@ -67,9 +68,8 @@ const accessibles = computed(() => {
             if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
             const k = cle(nx, ny);
             if (k in dist) continue;
-            const c = cases?.[ny]?.[nx];
-            if (c !== 's') continue;                   // mur / brouillard 'b' = infranchissable
-            if (porteFermeeEntre(x, y, nx, ny)) continue; // on ne traverse pas une porte fermée
+            if (cases?.[ny]?.[nx] !== 's') continue;      // mur / brouillard 'b' = infranchissable
+            if (porteFermeeEntre(x, y, nx, ny)) continue;  // on ne traverse pas une porte fermée
             if (occupees.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
@@ -79,29 +79,32 @@ const accessibles = computed(() => {
     return out;
 });
 
-function classeCase(x, y) {
-    const c = props.carte.cases?.[y]?.[x];
-    if (c === 'b') return 'brouillard'; // salle non découverte (brouillard — Chantier 2)
+// Surcouche par case (au-dessus du terrain rendu par DungeonGrid) : départ,
+// occupant (monstre/allié) ou case accessible ; null = terrain nu.
+function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
     if (occupees.value.has(cle(x, y))) {
         const ent = props.entites.find((e) => e.x === x && e.y === y);
         return ent?.type === 'monstre' ? 'monstre' : 'allie';
     }
-    if (c !== 's') return 'mur';
-    return accessibles.value.has(cle(x, y)) ? 'accessible' : 'sol';
+    return accessibles.value.has(cle(x, y)) ? 'accessible' : null;
 }
 
 function toucher(x, y) {
     if (accessibles.value.has(cle(x, y))) emit('deplacer', { x, y });
 }
 
-const lignes = computed(() => Array.from({ length: props.carte.hauteur }, (_, y) => y));
-const colonnes = computed(() => Array.from({ length: props.carte.largeur }, (_, x) => x));
+const gridStyle = computed(() => ({
+    gap: '2px',
+    width: 'max-content',
+    gridTemplateColumns: `repeat(${props.carte.largeur}, 22px)`,
+    gridTemplateRows: `repeat(${props.carte.hauteur}, 22px)`,
+}));
 
 onMounted(() => {
     // Centre la vue sur le héros.
-    const el = grilleRef.value?.querySelector('.dep-cell.depart');
-    el?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    grilleRef.value?.querySelector('.dg-cell.depart')
+        ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
 });
 </script>
 
@@ -122,32 +125,15 @@ onMounted(() => {
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div ref="grilleRef" class="dep-scroll">
-                <div class="dep-grid" :style="{ gridTemplateColumns: `repeat(${carte.largeur}, 22px)` }">
-                    <template v-for="y in lignes" :key="y">
-                        <div
-                            v-for="x in colonnes"
-                            :key="`${x}-${y}`"
-                            class="dep-cell"
-                            :class="classeCase(x, y)"
-                            @click="toucher(x, y)"
-                        >
-                            <MSym v-if="classeCase(x, y) === 'depart'" n="person" :size="14" fill />
-                            <MSym v-else-if="classeCase(x, y) === 'monstre'" n="pets" :size="13" fill />
-                        </div>
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
+                    <template #cell="{ x, y }">
+                        <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
+                        <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />
                     </template>
-                    <!-- Portes = battants sur les CLOISONS (arêtes), pas des cases. -->
-                    <div
-                        v-for="(p, i) in (carte.portes ?? [])"
-                        :key="`porte-${i}`"
-                        class="dep-door"
-                        :class="[`cote-${p.cote === 's' ? 's' : 'e'}`, p.etat]"
-                        :style="{ gridColumn: p.x + 1, gridRow: p.y + 1 }"
-                    />
-                </div>
+                </DungeonGrid>
             </div>
 
-            <!-- Fermeture toujours atteignable au bas de la feuille (le bouton du
-                 header peut être hors de vue sur petit écran / longue grille). -->
+            <!-- Fermeture toujours atteignable au bas de la feuille. -->
             <button class="dep-fermer" type="button" @click="$emit('close')">
                 <MSym n="close" :size="16" /> Fermer
             </button>
@@ -181,30 +167,9 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: center; gap: 6px; }
 
 /* `safe center` : la grille est CENTRÉE quand elle tient dans la vue, mais
-   revient au bord (start) quand elle DÉPASSE — sinon `margin: 0 auto` rendait la
-   partie droite du donjon inatteignable au scroll en portrait (correctif B1). */
+   revient au bord quand elle DÉPASSE (scroll jusqu'à la salle la plus à droite). */
 .dep-scroll { overflow: auto; flex: 1; border-radius: var(--r-md); background: var(--stone-950); padding: 8px;
   display: flex; justify-content: safe center; align-items: safe center; }
-.dep-grid { display: grid; gap: 2px; width: max-content; margin: 0; flex: none; }
-.dep-cell { width: 22px; height: 22px; border-radius: 3px; display: grid; place-items: center; }
-.dep-cell.mur { background: transparent; }
-.dep-cell.sol { background: var(--stone-800); }
-.dep-cell.allie { background: oklch(0.55 0.14 260 / 0.5); }
-.dep-cell.monstre { background: oklch(0.55 0.16 25 / 0.45); color: var(--danger, #e66); }
-.dep-cell.depart { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); }
-.dep-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }
-.dep-cell.accessible:hover { background: oklch(0.6 0.15 145 / 0.55); }
-/* Brouillard (salle non découverte — Chantier 2) : case sombre, non tappable. */
-.dep-cell.brouillard { background: oklch(0.16 0.01 255); box-shadow: inset 0 0 0 1px oklch(0.22 0.01 255); }
-/* Portes = battant sur la CLOISON (arête est/sud), pas sur une case : une barre
-   ambrée qui chevauche le bord de sa case ancre. Ouverte = liseré discret. */
-.dep-door { position: relative; pointer-events: none; align-self: stretch; justify-self: stretch; z-index: 2; }
-.dep-door::before { content: ""; position: absolute; border-radius: 2px;
-  background: linear-gradient(var(--deg, 90deg), #c9922f, #7a531d); box-shadow: 0 0 0 1px oklch(0 0 0 / 0.5); }
-.dep-door.cote-e::before { --deg: 90deg; top: 3px; bottom: 3px; right: -1px; width: 5px; transform: translateX(50%); }
-.dep-door.cote-s::before { --deg: 180deg; left: 3px; right: 3px; bottom: -1px; height: 5px; transform: translateY(50%); }
-.dep-door.verrouillee::before { background: linear-gradient(var(--deg, 90deg), #b98a3a, #6a4a1c); }
-.dep-door.ouverte::before { background: none; box-shadow: none; }
-.dep-door.ouverte.cote-e::before { border-right: 2px dashed oklch(0.76 0.155 65 / 0.5); width: 0; }
-.dep-door.ouverte.cote-s::before { border-bottom: 2px dashed oklch(0.76 0.155 65 / 0.5); height: 0; }
+/* Départ/occupants : centrer l'icône dans la case (DungeonGrid gère le reste). */
+.dep-scroll .dg-cell { display: grid; place-items: center; }
 </style>
