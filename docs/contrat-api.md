@@ -584,12 +584,14 @@ Portée et persistance : **IA, illustrations, voix du narrateur et
 ligne unique — singleton), globaux au serveur, appliqués **au prochain
 job/quête** (`ClientLLM`/`Embeddings` sont résolus à CHAQUE job — pas de
 redémarrage de conteneur nécessaire). L'**audio** (volume/coupure voix +
-musique, débit de la voix, et « narration par la voix du navigateur » — la
-NARRATION, textes IA comme répliques pré-enregistrées du même narrateur, est
-lue par Web Speech au lieu de la voix Gemini générée ; les barks de monstres
-gardent leurs fichiers audio) est une préférence de **l'appareil qui tient
-la table**, donc volontairement PAS ici : persistée côté client en
-`localStorage`, jamais envoyée au serveur. Aucune rediffusion temps réel de
+musique, débit de la voix, **choix de la voix Web Speech** parmi celles du
+navigateur — francophones d'abord, `voiceURI` persisté, repli automatique
+sur la première française si la voix choisie disparaît —, et « narration par
+la voix du navigateur » — la NARRATION, textes IA comme répliques
+pré-enregistrées du même narrateur, est lue par Web Speech au lieu de la
+voix Gemini générée ; les barks de monstres gardent leurs fichiers audio)
+est une préférence de **l'appareil qui tient la table**, donc volontairement
+PAS ici : persistée côté client en `localStorage`, jamais envoyée au serveur. Aucune rediffusion temps réel de
 `parametres` : un second narrateur ne verra un changement qu'en rouvrant le
 panneau (acceptable, un seul narrateur actif par table à la fois).
 

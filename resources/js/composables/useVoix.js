@@ -37,7 +37,7 @@ function sauverPrefsVoix() {
     try {
         localStorage.setItem(CLE_STOCKAGE, JSON.stringify({
             muet: muet.value, volume: volume.value, debit: debit.value,
-            voixNavigateur: voixNavigateur.value,
+            voixNavigateur: voixNavigateur.value, voixChoisie: voixChoisie.value,
         }));
     } catch { /* stockage indisponible (navigation privée…) — best-effort */ }
 }
@@ -47,6 +47,9 @@ const muet = ref(prefsVoixSauvees.muet ?? false);
 const volume = ref(typeof prefsVoixSauvees.volume === 'number' ? prefsVoixSauvees.volume : 1);
 const debit = ref(typeof prefsVoixSauvees.debit === 'number' ? prefsVoixSauvees.debit : 1);
 const voixNavigateur = ref(prefsVoixSauvees.voixNavigateur ?? false);
+// Voix Web Speech CHOISIE (voiceURI) — '' = automatique (première française).
+// Les voix disponibles dépendent du navigateur/OS de CET appareil.
+const voixChoisie = ref(typeof prefsVoixSauvees.voixChoisie === 'string' ? prefsVoixSauvees.voixChoisie : '');
 
 function basculerMuet() {
     muet.value = !muet.value;
@@ -80,10 +83,33 @@ function testerVoix(texte = 'Les torches vacillent, héros — voici la voix qui
 
 let voixFr = null;
 
+// Voix proposables au panneau : les francophones d'abord (le MJ parle
+// français), toutes si aucune. [{voiceURI, name, lang}] — rempli au
+// chargement puis à chaque `voiceschanged` (getVoices() est souvent vide au
+// premier appel).
+const voixDisponibles = ref([]);
+
 function chargerVoixFr() {
     if (!supporte) return;
     const voix = window.speechSynthesis.getVoices();
-    voixFr = voix.find((v) => /^fr(-|_|$)/i.test(v.lang)) || voix.find((v) => v.lang?.toLowerCase().startsWith('fr')) || null;
+    const francophones = voix.filter((v) => v.lang?.toLowerCase().startsWith('fr'));
+    voixDisponibles.value = (francophones.length ? francophones : voix)
+        .map((v) => ({ voiceURI: v.voiceURI, name: v.name, lang: v.lang }));
+
+    // Voix effective : celle CHOISIE si encore présente (elle peut disparaître
+    // après un changement d'OS/navigateur), sinon la première française.
+    const choisie = voixChoisie.value ? voix.find((v) => v.voiceURI === voixChoisie.value) : null;
+    voixFr = choisie
+        || voix.find((v) => /^fr(-|_|$)/i.test(v.lang))
+        || voix.find((v) => v.lang?.toLowerCase().startsWith('fr'))
+        || null;
+}
+
+/** Choisit la voix Web Speech de cet appareil ('' = automatique). */
+function choisirVoixNavigateur(voiceURI) {
+    voixChoisie.value = voiceURI || '';
+    sauverPrefsVoix();
+    chargerVoixFr();
 }
 
 if (supporte) {
@@ -237,7 +263,8 @@ function activer() {
 export function useVoix() {
     return {
         supporte, actif, speaking, muet, volume, debit, voixNavigateur,
+        voixChoisie, voixDisponibles,
         narrer, jouerBark, activer, basculerMuet, definirVolume, definirDebit,
-        basculerVoixNavigateur, testerVoix,
+        basculerVoixNavigateur, choisirVoixNavigateur, testerVoix,
     };
 }

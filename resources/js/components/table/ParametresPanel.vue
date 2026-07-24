@@ -516,6 +516,31 @@ async function enregistrer() {
                     </label>
                 </div>
 
+                <div class="parametres-audio-ligne">
+                    <button
+                        type="button"
+                        class="parametres-mute"
+                        title="Écouter cette voix"
+                        :disabled="!voix.supporte"
+                        @click="voix.testerVoix()"
+                    >
+                        <MSym n="play_arrow" :size="18" />
+                    </button>
+                    <label class="parametres-slider">
+                        <span>Voix du navigateur (selon cet appareil)</span>
+                        <select
+                            :value="voix.voixChoisie.value"
+                            :disabled="!voix.supporte"
+                            @change="voix.choisirVoixNavigateur($event.target.value)"
+                        >
+                            <option value="">Automatique (première voix française)</option>
+                            <option v-for="v in voix.voixDisponibles.value" :key="v.voiceURI" :value="v.voiceURI">
+                                {{ v.name }} — {{ v.lang }}
+                            </option>
+                        </select>
+                    </label>
+                </div>
+
                 <label class="parametres-case">
                     <input
                         type="checkbox"
@@ -654,6 +679,13 @@ async function enregistrer() {
 /* ---- audio (préférence locale, pas de bouton Enregistrer) ---- */
 .parametres-audio-ligne { display: flex; align-items: center; gap: 12px; }
 .parametres-mute-spacer { width: 38px; flex: none; }
+.parametres-slider select {
+    background: var(--stone-850); border: var(--line); border-radius: var(--r-md);
+    padding: 8px 11px; color: var(--ink-100); font-family: var(--font-ui); font-size: 13.5px; font-weight: 600;
+    outline: none; cursor: pointer; transition: border-color .15s, box-shadow .15s; max-width: 100%;
+}
+.parametres-slider select:focus { border-color: var(--torch); box-shadow: var(--glow-torch); }
+.parametres-slider select:disabled { opacity: 0.45; cursor: not-allowed; }
 .parametres-mute {
     flex: none; width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center;
     border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer;
