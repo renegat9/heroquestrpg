@@ -173,6 +173,22 @@ export function useApi() {
         /** PUT /api/parametres {…} → ParametresIA mise à jour (422 si fournisseur sans clé). */
         majParametres: (payload) => request('PUT', '/parametres', payload),
 
+        /**
+         * POST /api/parametres/test {fournisseur, modele?} → {ok, fournisseur,
+         * modele, duree_ms, extrait|erreur}. Mini-appel LLM RÉEL vers le
+         * fournisseur précis (test de clé/modèle avant d'enregistrer).
+         */
+        testerParametres: ({ fournisseur, modele }) =>
+            request('POST', '/parametres/test', { fournisseur, modele: modele || null }),
+
+        /**
+         * POST /api/parametres/test-voix {voix?} → {ok, voix, url|erreur}.
+         * Synthétise (et met en cache par voix) une phrase d'exemple avec la
+         * voix Gemini du narrateur — écoute avant d'enregistrer.
+         */
+        testerVoixNarrateur: (voixChoisie) =>
+            request('POST', '/parametres/test-voix', { voix: voixChoisie || null }),
+
         // ---- groupes / campagne ----
 
         /**

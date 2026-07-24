@@ -523,6 +523,8 @@ même comportement que `LLM_PROVIDER` aujourd'hui, rendu éditable en direct.
 |---|---|---|---|
 | GET | /api/parametres | — | **PUBLIC** — **ParametresIA** (voir ci-dessous). Accessible sans compte ni session de table, depuis /narrateur (avant même l'ouverture d'une table) et /table/:groupe. |
 | PUT | /api/parametres | ParametresIA éditable, mise à jour PARTIELLE (voir plus bas) | **PUBLIC** — **ParametresIA** à jour |
+| POST | /api/parametres/test | {fournisseur: "anthropic"\|"gemini", modele?} | **PUBLIC** — test de connectivité RÉEL du fournisseur : un mini-appel LLM synchrone (timeout court) avec le `modele` fourni (celui du formulaire, même non enregistré — c'est ce qu'on veut valider) sinon la chaîne surcharge → défaut. Réponse 200 : `{ok: true, fournisseur, modele, duree_ms, extrait}` ou `{ok: false, fournisseur, modele, duree_ms, erreur}`. 422 si fournisseur inconnu ou sans clé serveur. Vise le fournisseur PRÉCIS (jamais le repli croisé) et ne touche PAS `statut_ia` (qui reflète les appels du JEU, pas les tests manuels). |
+| POST | /api/parametres/test-voix | {voix?} | **PUBLIC** — écoute d'une voix de NARRATEUR Gemini : synthétise une phrase d'exemple FIXE avec la `voix` demandée (celle du formulaire, même non enregistrée), sinon surcharge → défaut config. **Cache par voix** (`public/audio/narration/test/{voix}.wav`, gitignoré) : réécouter la même voix ne consomme pas le quota TTS. Réponse : `{ok: true, voix, url}` (le panneau joue `url`) ou `{ok: false, voix, erreur}` ; 422 si `GEMINI_API_KEY` absente. La voix du NAVIGATEUR se teste côté client (Web Speech local, débit/volume réglés) — aucun endpoint. |
 
 **PUBLIC** : aucune autorisation, ni compte joueur ni session de table —
 exactement le même statut que `GET /api/guide`. Nécessaire pour que le bouton
@@ -532,9 +534,9 @@ confiance reste celui d'un LAN entre amis sans mot de passe narrateur (aucune
 clé API n'est jamais renvoyée par `GET`, seulement leur présence/absence).
 
 `PUT` accepte une mise à jour **PARTIELLE** : seuls les champs présents dans
-le corps sont modifiés (le panneau a plusieurs sections indépendantes,
-chacune avec son propre bouton « Enregistrer », qui n'envoie que ses propres
-champs). Un champ modèle/voix envoyé en chaîne vide remet la surcharge à
+le corps sont modifiés (le panneau actuel envoie tout d'un bloc via son
+unique bouton « Enregistrer », mais le contrat n'impose pas de corps
+complet). Un champ modèle/voix envoyé en chaîne vide remet la surcharge à
 `null` (retour au défaut `.env`/`config`). `llm_provider` choisi sans clé API
 serveur correspondante → 422.
 
@@ -582,8 +584,11 @@ Portée et persistance : **IA, illustrations, voix du narrateur et
 ligne unique — singleton), globaux au serveur, appliqués **au prochain
 job/quête** (`ClientLLM`/`Embeddings` sont résolus à CHAQUE job — pas de
 redémarrage de conteneur nécessaire). L'**audio** (volume/coupure voix +
-musique, débit de la voix) est une préférence de **l'appareil qui tient la
-table**, donc volontairement PAS ici : persistée côté client en
+musique, débit de la voix, et « narration par la voix du navigateur » — la
+NARRATION, textes IA comme répliques pré-enregistrées du même narrateur, est
+lue par Web Speech au lieu de la voix Gemini générée ; les barks de monstres
+gardent leurs fichiers audio) est une préférence de **l'appareil qui tient
+la table**, donc volontairement PAS ici : persistée côté client en
 `localStorage`, jamais envoyée au serveur. Aucune rediffusion temps réel de
 `parametres` : un second narrateur ne verra un changement qu'en rouvrant le
 panneau (acceptable, un seul narrateur actif par table à la fois).

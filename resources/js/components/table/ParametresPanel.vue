@@ -91,6 +91,59 @@ onMounted(async () => {
 });
 
 const disponibles = computed(() => parametres.value?.fournisseurs_disponibles ?? ['anthropic']);
+
+/* ---- test de connectivité des fournisseurs : mini-appel LLM RÉEL, avec le
+   modèle du formulaire (même non enregistré — on valide AVANT d'enregistrer).
+   Le résultat s'affiche en ligne ; StatutIA (bandeau) n'est pas touché. ---- */
+const testEnCours = ref(''); // fournisseur en cours de test, '' sinon
+const testResultat = ref(null); // {ok, fournisseur, modele, duree_ms, extrait|erreur}
+
+async function testerFournisseur(fournisseur) {
+    testEnCours.value = fournisseur;
+    testResultat.value = null;
+    try {
+        testResultat.value = await api.testerParametres({
+            fournisseur,
+            modele: fournisseur === 'gemini' ? form.modele_gemini : form.modele_anthropic,
+        });
+    } catch (e) {
+        testResultat.value = { ok: false, fournisseur, erreur: e.message };
+    } finally {
+        testEnCours.value = '';
+    }
+}
+
+/* ---- écoute des voix du narrateur : Gemini (synthèse serveur d'une phrase
+   d'exemple, cache par voix — réécouter est gratuit) et navigateur (Web
+   Speech local, avec le débit/volume réglés — aucun serveur). ---- */
+const voixTestEnCours = ref(false);
+const voixTestErreur = ref('');
+let voixTestAudio = null;
+
+function voixChoisieFormulaire() {
+    if (form.narration_voix_mode === '__perso__') return form.narration_voix_perso.trim() || null;
+    return form.narration_voix_mode || null;
+}
+
+async function ecouterVoixGemini() {
+    voixTestEnCours.value = true;
+    voixTestErreur.value = '';
+    try {
+        const r = await api.testerVoixNarrateur(voixChoisieFormulaire());
+        if (!r.ok) {
+            voixTestErreur.value = `${r.voix} : ${r.erreur}`;
+            return;
+        }
+        try { voixTestAudio?.pause(); } catch { /* noop */ }
+        voixTestAudio = new Audio(r.url);
+        voixTestAudio.volume = voix.volume.value;
+        await voixTestAudio.play();
+    } catch (e) {
+        voixTestErreur.value = e.message;
+    } finally {
+        voixTestEnCours.value = false;
+    }
+}
 const statutIA = computed(() => parametres.value?.statut_ia ?? { etat: 'inconnu' });
 const voixOptions = computed(() => parametres.value?.narration_voix_options ?? []);
 
@@ -224,6 +277,35 @@ async function enregistrer() {
                             />
                         </label>
 
+                        <div class="parametres-tests">
+                            <button
+                                type="button"
+                                class="parametres-test-btn"
+                                :disabled="!disponibles.includes('anthropic') || testEnCours !== ''"
+                                @click="testerFournisseur('anthropic')"
+                            >
+                                <MSym n="network_check" :size="15" />
+                                {{ testEnCours === 'anthropic' ? 'Test en cours…' : 'Tester Anthropic' }}
+                            </button>
+                            <button
+                                type="button"
+                                class="parametres-test-btn"
+                                :disabled="!disponibles.includes('gemini') || testEnCours !== ''"
+                                @click="testerFournisseur('gemini')"
+                            >
+                                <MSym n="network_check" :size="15" />
+                                {{ testEnCours === 'gemini' ? 'Test en cours…' : 'Tester Gemini' }}
+                            </button>
+                        </div>
+                        <p v-if="testResultat" :class="testResultat.ok ? 'parametres-ok' : 'parametres-err'">
+                            <MSym :n="testResultat.ok ? 'check_circle' : 'error'" fill :size="15" />
+                            <span v-if="testResultat.ok">
+                                {{ testResultat.fournisseur }} répond — {{ testResultat.modele }},
+                                {{ (testResultat.duree_ms / 1000).toFixed(1) }} s
+                            </span>
+                            <span v-else>{{ testResultat.fournisseur }} : {{ testResultat.erreur }}</span>
+                        </p>
+
                         <label class="parametres-case">
                             <input v-model="form.rag_actif" type="checkbox" />
                             <span>Bible sémantique (RAG) — recherche de contexte dans la campagne</span>
@@ -274,9 +356,33 @@ async function enregistrer() {
                                 autocomplete="off"
                             />
                         </label>
+                        <div class="parametres-tests">
+                            <button
+                                type="button"
+                                class="parametres-test-btn"
+                                :disabled="!disponibles.includes('gemini') || voixTestEnCours"
+                                @click="ecouterVoixGemini"
+                            >
+                                <MSym n="graphic_eq" :size="15" />
+                                {{ voixTestEnCours ? 'Synthèse…' : 'Écouter (Gemini)' }}
+                            </button>
+                            <button
+                                type="button"
+                                class="parametres-test-btn"
+                                :disabled="!voix.supporte"
+                                @click="voix.testerVoix()"
+                            >
+                                <MSym n="record_voice_over" :size="15" />
+                                Écouter (navigateur)
+                            </button>
+                        </div>
+                        <p v-if="voixTestErreur" class="parametres-err">
+                            <MSym n="error" fill :size="15" /> {{ voixTestErreur }}
+                        </p>
                         <p class="parametres-aide">
                             <MSym n="info" :size="14" />
-                            <span>Ne s'applique immédiatement qu'à la narration générée en direct — les répliques pré-enregistrées gardent l'ancienne voix jusqu'à régénération manuelle.</span>
+                            <span>Ne s'applique immédiatement qu'à la narration générée en direct — les répliques pré-enregistrées gardent l'ancienne voix jusqu'à régénération manuelle.
+                            L'écoute Gemini synthétise la voix choisie (mise en cache : réécouter ne consomme pas le quota) ; l'écoute navigateur joue la voix locale avec le débit réglé plus bas.</span>
                         </p>
                     </section>
 
@@ -410,6 +516,23 @@ async function enregistrer() {
                     </label>
                 </div>
 
+                <label class="parametres-case">
+                    <input
+                        type="checkbox"
+                        :checked="voix.voixNavigateur.value"
+                        @change="voix.basculerVoixNavigateur()"
+                    />
+                    <span>Narration par la voix du navigateur (remplace la voix générée du narrateur)</span>
+                </label>
+                <p class="parametres-aide">
+                    <MSym n="info" :size="14" />
+                    <span>Les textes du MJ — générés par l'IA comme les répliques pré-enregistrées,
+                    c'est le même narrateur — sont alors lus par la synthèse du navigateur. Les
+                    barks de monstres gardent leurs voix audio. (Pour arrêter de dépenser le quota
+                    de synthèse pour toutes les tables, utilise plutôt la bascule « Synthèse
+                    vocale IA » plus haut.)</span>
+                </p>
+
                 <p class="parametres-aide">
                     <MSym n="info" :size="14" />
                     <span>Préférence propre à cet appareil (ses enceintes) — non partagée avec les autres joueurs.</span>
@@ -510,6 +633,13 @@ async function enregistrer() {
 
 .parametres-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding-top: 4px; }
 .parametres-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ok); }
+.parametres-tests { display: flex; gap: 10px; flex-wrap: wrap; }
+.parametres-test-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
+  border: var(--line); border-radius: var(--r-md); background: var(--stone-800); color: var(--ink-200);
+  font-family: var(--font-ui); font-weight: 700; font-size: 13px; cursor: pointer;
+  transition: color .15s, border-color .15s; }
+.parametres-test-btn:hover:not(:disabled) { color: var(--parch-100); border-color: var(--torch); }
+.parametres-test-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .parametres-save {
     border: none; border-radius: var(--r-md); padding: 11px 22px;
     font-family: var(--font-ui); font-weight: 800; font-size: 14px; cursor: pointer;

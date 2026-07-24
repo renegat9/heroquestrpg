@@ -19,7 +19,11 @@ const speaking = ref(false);
 
 // Persistance locale (préférence de l'APPAREIL qui tient la table — ses
 // enceintes —, pas de la campagne) : coupure, volume et débit de la voix
-// (narration + barks), dans localStorage['audio:voix'].
+// (narration + barks), et « narration par la voix du navigateur » (la
+// NARRATION — textes générés par l'IA comme répliques scriptées, même
+// narrateur — est lue par Web Speech au lieu de la voix Gemini générée ;
+// les BARKS de monstres, eux, gardent leurs fichiers audio), dans
+// localStorage['audio:voix'].
 const CLE_STOCKAGE = 'audio:voix';
 
 function chargerPrefsVoix() {
@@ -33,6 +37,7 @@ function sauverPrefsVoix() {
     try {
         localStorage.setItem(CLE_STOCKAGE, JSON.stringify({
             muet: muet.value, volume: volume.value, debit: debit.value,
+            voixNavigateur: voixNavigateur.value,
         }));
     } catch { /* stockage indisponible (navigation privée…) — best-effort */ }
 }
@@ -41,6 +46,7 @@ const prefsVoixSauvees = chargerPrefsVoix();
 const muet = ref(prefsVoixSauvees.muet ?? false);
 const volume = ref(typeof prefsVoixSauvees.volume === 'number' ? prefsVoixSauvees.volume : 1);
 const debit = ref(typeof prefsVoixSauvees.debit === 'number' ? prefsVoixSauvees.debit : 1);
+const voixNavigateur = ref(prefsVoixSauvees.voixNavigateur ?? false);
 
 function basculerMuet() {
     muet.value = !muet.value;
@@ -55,6 +61,21 @@ function definirVolume(v) {
 function definirDebit(v) {
     debit.value = Math.max(0.5, Math.min(2, v));
     sauverPrefsVoix();
+}
+
+function basculerVoixNavigateur() {
+    voixNavigateur.value = !voixNavigateur.value;
+    sauverPrefsVoix();
+}
+
+// Lit une phrase d'exemple avec la voix du NAVIGATEUR (débit/volume réglés) —
+// bouton « Écouter (navigateur) » du panneau Réglages. Le clic est un geste
+// utilisateur : il débloque la synthèse si besoin. Ignore volontairement la
+// coupure (on demande explicitement à entendre).
+function testerVoix(texte = 'Les torches vacillent, héros — voici la voix qui guidera votre aventure.') {
+    if (!supporte) return;
+    if (!actif.value) activer();
+    parler(texte, {});
 }
 
 let voixFr = null;
@@ -147,7 +168,11 @@ function lancerNarration({ texte, url, apres }) {
         if (narrPending) { const n = narrPending; narrPending = null; lancerNarration(n); }
         cb?.(); // « lecture terminée » (B1) — après avoir éventuellement enchaîné la suivante
     };
-    if (url) {
+    // « Narration par la voix du navigateur » (réglage de l'appareil) : la
+    // voix du NARRATEUR est remplacée par Web Speech — on ignore l'audio
+    // généré (IA dynamique comme répliques pré-enregistrées, même narrateur)
+    // et on lit toujours le texte. Les barks de monstres ne passent pas ici.
+    if (url && !voixNavigateur.value) {
         try {
             narrAudio = new Audio(url);
             narrAudio.volume = volume.value;
@@ -178,6 +203,8 @@ function narrerVocal(texte, fin) {
 // Joue un bark : fichier audio si présent, sinon repli vocal selon le profil.
 function jouerBark({ url = null, texte = null, profil = 'defaut' } = {}) {
     if (!actif.value || muet.value) return;
+    // (voixNavigateur ne s'applique PAS ici : c'est la voix du NARRATEUR
+    // qu'elle remplace — les barks de monstres gardent leurs fichiers audio.)
     if (url) {
         try {
             const a = new Audio(url);
@@ -209,7 +236,8 @@ function activer() {
 
 export function useVoix() {
     return {
-        supporte, actif, speaking, muet, volume, debit,
+        supporte, actif, speaking, muet, volume, debit, voixNavigateur,
         narrer, jouerBark, activer, basculerMuet, definirVolume, definirDebit,
+        basculerVoixNavigateur, testerVoix,
     };
 }

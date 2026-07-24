@@ -46,6 +46,8 @@ Route::post('/table/quitter', [TableController::class, 'quitter']);
 // avant qu'aucune session (table ou joueur) n'existe.
 Route::get('/parametres', [ParametresController::class, 'index']);
 Route::put('/parametres', [ParametresController::class, 'mettreAJour']);
+Route::post('/parametres/test', [ParametresController::class, 'tester']);
+Route::post('/parametres/test-voix', [ParametresController::class, 'testerVoix']);
 
 // Lectures accessibles au joueur membre OU à la session de table (contrat
 // §Autorisations) — hors auth:joueur pour permettre l'accès table sans compte.

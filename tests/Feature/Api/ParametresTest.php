@@ -154,3 +154,129 @@ it('expose le statut IA courant du cache (StatutIA)', function () {
         ->and($data['statut_ia']['fournisseur'])->toBe('gemini')
         ->and($data['statut_ia']['depuis'])->toBe('anthropic');
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/parametres/test — test de connectivité réel d'un fournisseur
+// (mini-appel LLM synchrone, fournisseur PRÉCIS, jamais le repli croisé).
+// ---------------------------------------------------------------------------
+
+it('teste un fournisseur : refuse un fournisseur inconnu ou sans clé (422)', function () {
+    $this->postJson('/api/parametres/test', ['fournisseur' => 'openai'])
+        ->assertStatus(422)->assertJsonValidationErrors(['fournisseur']);
+
+    // Clé absente (baseline du beforeEach) → 422 explicite.
+    $this->postJson('/api/parametres/test', ['fournisseur' => 'anthropic'])
+        ->assertStatus(422)->assertJsonValidationErrors(['fournisseur']);
+});
+
+it('teste Anthropic avec le modèle du formulaire (même non enregistré)', function () {
+    config(['services.anthropic.api_key' => 'cle-test']);
+    Illuminate\Support\Facades\Http::fake([
+        'api.anthropic.com/*' => Illuminate\Support\Facades\Http::response([
+            'content' => [['type' => 'text', 'text' => 'OK']],
+        ]),
+    ]);
+
+    $data = $this->postJson('/api/parametres/test', [
+        'fournisseur' => 'anthropic', 'modele' => 'claude-test-x',
+    ])->assertOk()->json();
+
+    expect($data['ok'])->toBeTrue()
+        ->and($data['fournisseur'])->toBe('anthropic')
+        ->and($data['modele'])->toBe('claude-test-x')
+        ->and($data['extrait'])->toBe('OK')
+        ->and($data['duree_ms'])->toBeGreaterThanOrEqual(0);
+
+    Illuminate\Support\Facades\Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com')
+        && $req['model'] === 'claude-test-x');
+});
+
+it('teste un fournisseur en échec : ok=false avec le message, sans exception', function () {
+    config(['services.gemini.api_key' => 'cle-test']);
+    Illuminate\Support\Facades\Http::fake([
+        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response(
+            ['error' => ['message' => 'clé invalide']], 400,
+        ),
+    ]);
+
+    $data = $this->postJson('/api/parametres/test', ['fournisseur' => 'gemini'])
+        ->assertOk()->json();
+
+    expect($data['ok'])->toBeFalse()
+        ->and($data['fournisseur'])->toBe('gemini')
+        ->and($data['erreur'])->not->toBeEmpty();
+});
+
+it('le test sans modèle explicite retombe sur la surcharge enregistrée puis le défaut', function () {
+    config(['services.anthropic.api_key' => 'cle-test']);
+    App\Models\Parametre::actuel()->update(['modele_anthropic' => 'claude-surcharge']);
+    Illuminate\Support\Facades\Http::fake([
+        'api.anthropic.com/*' => Illuminate\Support\Facades\Http::response([
+            'content' => [['type' => 'text', 'text' => 'OK']],
+        ]),
+    ]);
+
+    $data = $this->postJson('/api/parametres/test', ['fournisseur' => 'anthropic'])
+        ->assertOk()->json();
+
+    expect($data['ok'])->toBeTrue()->and($data['modele'])->toBe('claude-surcharge');
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/parametres/test-voix — écoute d'une voix de narrateur Gemini
+// (synthèse d'une phrase d'exemple, cache par voix).
+// ---------------------------------------------------------------------------
+
+it('teste une voix : refuse sans clé Gemini (422)', function () {
+    $this->postJson('/api/parametres/test-voix', ['voix' => 'Puck'])
+        ->assertStatus(422)->assertJsonValidationErrors(['voix']);
+});
+
+it('synthétise la voix demandée, met en cache, et ne re-synthétise pas au second appel', function () {
+    config(['services.gemini.api_key' => 'cle-test']);
+    Illuminate\Support\Facades\Http::fake([
+        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response([
+            'candidates' => [['content' => ['parts' => [['inlineData' => ['data' => base64_encode('PCMDATA')]]]]]],
+        ]),
+    ]);
+    $voixTest = 'VoixTest'.mb_substr(md5(uniqid()), 0, 8);
+    $fichier = public_path("audio/narration/test/{$voixTest}.wav");
+
+    try {
+        $data = $this->postJson('/api/parametres/test-voix', ['voix' => $voixTest])
+            ->assertOk()->json();
+
+        expect($data['ok'])->toBeTrue()
+            ->and($data['voix'])->toBe($voixTest)
+            ->and($data['url'])->toBe("/audio/narration/test/{$voixTest}.wav")
+            ->and(is_file($fichier))->toBeTrue();
+
+        // La voix DEMANDÉE part bien dans la requête TTS (chemin JSON vérifié TtsGemini.php:66-69).
+        Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'] === $voixTest);
+
+        // Second appel : servi du cache, AUCUNE nouvelle synthèse.
+        $this->postJson('/api/parametres/test-voix', ['voix' => $voixTest])->assertOk();
+        Illuminate\Support\Facades\Http::assertSentCount(1);
+    } finally {
+        @unlink($fichier); // ne pas laisser l'échantillon de test dans public/
+    }
+});
+
+it('teste une voix en échec de synthèse : ok=false avec le message, rien d\'écrit', function () {
+    config(['services.gemini.api_key' => 'cle-test']);
+    // 400 (jamais retenté) plutôt que 429 : TtsGemini retente les 429 avec de
+    // vrais sleep() — un fake 429 ferait dormir le test en boucle.
+    Illuminate\Support\Facades\Http::fake([
+        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response(
+            ['error' => ['message' => 'voix inconnue']], 400,
+        ),
+    ]);
+    $voixTest = 'VoixKo'.mb_substr(md5(uniqid()), 0, 8);
+
+    $data = $this->postJson('/api/parametres/test-voix', ['voix' => $voixTest])
+        ->assertOk()->json();
+
+    expect($data['ok'])->toBeFalse()
+        ->and($data['erreur'])->not->toBeEmpty()
+        ->and(is_file(public_path("audio/narration/test/{$voixTest}.wav")))->toBeFalse();
+});

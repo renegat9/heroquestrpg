@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Agent\AnthropicClient;
+use App\Agent\Audio\TtsGemini;
+use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\GeminiClient;
 use App\Agent\StatutIA;
 use App\Http\Controllers\Controller;
 use App\Models\Parametre;
@@ -39,6 +43,13 @@ class ParametresController extends Controller
      * valide (pas de Rule::in strict côté validation).
      */
     private const VOIX_NARRATEUR = ['Puck', 'Fenrir', 'Charon', 'Orus', 'Iapetus'];
+
+    /**
+     * Phrase d'exemple FIXE du test d'écoute d'une voix de narrateur : permet
+     * le cache par voix (public/audio/narration/test/{voix}.wav) — réécouter
+     * la même voix ne re-dépense pas le quota Gemini TTS (100 req/jour).
+     */
+    private const TEXTE_ECHANTILLON = 'Les torches vacillent, héros — voici la voix qui guidera votre aventure.';
 
     /** GET /api/parametres */
     public function index(): JsonResponse
@@ -91,6 +102,114 @@ class ParametresController extends Controller
         $parametres->update($donnees);
 
         return response()->json($this->payload($parametres->fresh()));
+    }
+
+    /**
+     * POST /api/parametres/test {fournisseur, modele?} — test de connectivité
+     * RÉEL : un mini-appel LLM synchrone vers le fournisseur PRÉCIS demandé
+     * (jamais via le décorateur de repli — on veut savoir si LUI répond),
+     * avec le modèle du formulaire (même non enregistré : c'est justement ce
+     * qu'on veut valider avant d'enregistrer), sinon surcharge → défaut .env.
+     * Timeout court (15 s) pour un bouton réactif. Ne touche PAS StatutIA :
+     * le bandeau reflète les appels du JEU, pas les tests manuels.
+     */
+    public function tester(Request $request): JsonResponse
+    {
+        $donnees = $request->validate([
+            'fournisseur' => ['required', Rule::in(['anthropic', 'gemini'])],
+            'modele' => ['sometimes', 'nullable', 'string', 'max:120'],
+        ]);
+
+        $fournisseur = $donnees['fournisseur'];
+        $cle = $fournisseur === 'gemini'
+            ? config('services.gemini.api_key')
+            : config('services.anthropic.api_key');
+
+        if (blank($cle)) {
+            throw ValidationException::withMessages([
+                'fournisseur' => "Aucune clé API serveur configurée pour « {$fournisseur} ».",
+            ]);
+        }
+
+        $surcharge = Parametre::actuel();
+        $modele = ($donnees['modele'] ?? null)
+            ?: ($fournisseur === 'gemini' ? $surcharge->modele_gemini : $surcharge->modele_anthropic)
+            ?: null;
+
+        $client = $fournisseur === 'gemini'
+            ? app()->make(GeminiClient::class, ['model' => $modele, 'timeout' => 15])
+            : app()->make(AnthropicClient::class, ['model' => $modele, 'timeout' => 15]);
+
+        $depart = microtime(true);
+
+        try {
+            $texte = $client->genererTexte(
+                'Tu es un test de connectivité. Réponds uniquement « OK ».',
+                [['role' => 'user', 'content' => 'Réponds uniquement « OK ».']],
+            );
+
+            return response()->json([
+                'ok' => true,
+                'fournisseur' => $fournisseur,
+                'modele' => $client->modeleParDefaut(),
+                'duree_ms' => (int) round((microtime(true) - $depart) * 1000),
+                'extrait' => mb_substr(trim($texte), 0, 60),
+            ]);
+        } catch (AppelLlmException $e) {
+            return response()->json([
+                'ok' => false,
+                'fournisseur' => $fournisseur,
+                'modele' => $client->modeleParDefaut(),
+                'duree_ms' => (int) round((microtime(true) - $depart) * 1000),
+                'erreur' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * POST /api/parametres/test-voix {voix?} — synthétise la phrase d'exemple
+     * avec la voix Gemini demandée (celle du formulaire, même non enregistrée),
+     * sinon surcharge → défaut config. Mise en cache par voix : réécouter est
+     * gratuit. Réponse : {ok: true, voix, url} à jouer côté panneau, ou
+     * {ok: false, voix, erreur}. 422 si GEMINI_API_KEY absente. (La voix du
+     * NAVIGATEUR, elle, se teste côté client — aucun serveur impliqué.)
+     */
+    public function testerVoix(Request $request, TtsGemini $tts): JsonResponse
+    {
+        $donnees = $request->validate([
+            'voix' => ['sometimes', 'nullable', 'string', 'max:60'],
+        ]);
+
+        if (! $tts->estConfigure()) {
+            throw ValidationException::withMessages([
+                'voix' => 'GEMINI_API_KEY absente : pas de synthèse — la table lit alors le texte via la voix du navigateur.',
+            ]);
+        }
+
+        $voix = ($donnees['voix'] ?? null)
+            ?: (Parametre::actuel()->narration_voix ?: (string) config('narration.voix.voix', 'Iapetus'));
+
+        // Nom de voix → nom de fichier SÛR (jamais de traversée de chemin).
+        $slug = preg_replace('/[^A-Za-z0-9_-]/', '', $voix) ?: 'defaut';
+        $rel = "audio/narration/test/{$slug}.wav";
+        $absolu = public_path($rel);
+
+        if (! is_file($absolu)) {
+            $style = (string) config('narration.voix.style', 'une voix de conteur, maître de jeu');
+
+            try {
+                $wav = $tts->synthetiser(self::TEXTE_ECHANTILLON, $voix, $style);
+            } catch (AppelLlmException $e) {
+                return response()->json(['ok' => false, 'voix' => $voix, 'erreur' => $e->getMessage()]);
+            }
+
+            if (! is_dir(dirname($absolu))) {
+                mkdir(dirname($absolu), 0775, true);
+            }
+            file_put_contents($absolu, $wav);
+        }
+
+        return response()->json(['ok' => true, 'voix' => $voix, 'url' => '/'.$rel]);
     }
 
     /**
