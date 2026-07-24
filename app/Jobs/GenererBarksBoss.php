@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Agent\Audio\TtsGemini;
 use App\Models\InstanceMonstre;
+use App\Models\Parametre;
 use App\Partie\Audio\BanqueBarks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -34,8 +35,8 @@ class GenererBarksBoss implements ShouldQueue
 
     public function handle(TtsGemini $tts, BanqueBarks $banque): void
     {
-        if (! $tts->estConfigure()) {
-            return; // pas de génération sans clé — repli archétype/texte.
+        if (! $tts->estConfigure() || ! $this->voixDynamiqueActive()) {
+            return; // pas de génération sans clé (ou bascule désactivée) — repli archétype/texte.
         }
 
         $boss = InstanceMonstre::query()
@@ -109,5 +110,20 @@ class GenererBarksBoss implements ShouldQueue
             "{$dossierBase}/manifeste.php",
             "<?php\n\nreturn ".var_export($manifeste, true).";\n",
         );
+    }
+
+    /**
+     * Bascule « synthèse vocale IA en cours de partie » (panneau Réglages,
+     * Parametre::voix_dynamique_active) — protège le quota Gemini TTS
+     * (100 req/j) : ce job en consomme à lui seul ~12 par boss. Best-effort,
+     * repli actif (comportement d'aujourd'hui) si la table est indisponible.
+     */
+    private function voixDynamiqueActive(): bool
+    {
+        try {
+            return Parametre::actuel()->voix_dynamique_active;
+        } catch (\Throwable) {
+            return true;
+        }
     }
 }

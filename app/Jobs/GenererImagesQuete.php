@@ -8,6 +8,7 @@ use App\Agent\Image\ImageGemini;
 use App\Events\EtatGroupeDiffuse;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Parametre;
 use App\Models\Quete;
 use App\Partie\EtatGroupe;
 use App\Partie\Images\BibliothequeImages;
@@ -39,7 +40,7 @@ class GenererImagesQuete implements ShouldQueue
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio, EtatGroupe $etatGroupe): void
     {
-        if (! $image->estConfigure()) {
+        if (! $image->estConfigure() || ! $this->imagesActives()) {
             return;
         }
 
@@ -98,6 +99,23 @@ class GenererImagesQuete implements ShouldQueue
             Log::warning('Génération image de quête sautée.', $contexteLog + ['erreur' => $e->getMessage()]);
 
             return false;
+        }
+    }
+
+    /**
+     * Bascule « génération d'illustrations IA en cours de partie » (panneau
+     * Réglages, Parametre::images_actif) — RUNTIME uniquement : ne gate PAS
+     * la commande offline `images:generer` (ImageGemini::estConfigure()
+     * reste inchangé), un opérateur qui la lance explicitement veut générer.
+     * Best-effort, repli actif (comportement d'aujourd'hui) si la table est
+     * indisponible.
+     */
+    private function imagesActives(): bool
+    {
+        try {
+            return Parametre::actuel()->images_actif;
+        } catch (\Throwable) {
+            return true;
         }
     }
 }

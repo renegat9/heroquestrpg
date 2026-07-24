@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Agent\Image\ImageGemini;
+use App\Models\Parametre;
 use App\Models\Personnage;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -30,7 +31,7 @@ class GenererPortraitHeros implements ShouldQueue
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio): void
     {
-        if (! $image->estConfigure()) {
+        if (! $image->estConfigure() || ! $this->imagesActives()) {
             return;
         }
 
@@ -46,6 +47,23 @@ class GenererPortraitHeros implements ShouldQueue
             $biblio->enregistrer($chemin['rel'], $image->generer($prompt));
         } catch (\Throwable $e) {
             Log::warning('Génération portrait héros échouée.', ['personnage' => $p->id, 'erreur' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Bascule « génération d'illustrations IA en cours de partie » (panneau
+     * Réglages, Parametre::images_actif) — RUNTIME uniquement : ne gate PAS
+     * la commande offline `images:generer` (ImageGemini::estConfigure()
+     * reste inchangé), un opérateur qui la lance explicitement veut générer.
+     * Best-effort, repli actif (comportement d'aujourd'hui) si la table est
+     * indisponible.
+     */
+    private function imagesActives(): bool
+    {
+        try {
+            return Parametre::actuel()->images_actif;
+        } catch (\Throwable) {
+            return true;
         }
     }
 }

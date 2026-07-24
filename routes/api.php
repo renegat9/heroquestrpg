@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
+use App\Http\Controllers\Api\ParametresController;
 use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\TableController;
@@ -38,6 +39,13 @@ Route::post('/table', [TableController::class, 'ouvrir']);
 Route::post('/table/ping', [TableController::class, 'ping']);
 Route::post('/table/lecture-terminee', [TableController::class, 'lectureTerminee']);
 Route::post('/table/quitter', [TableController::class, 'quitter']);
+
+// Réglages globaux du serveur (panneau « Réglages » — écran de Narrateur/
+// table, docs/contrat-api.md §Paramètres globaux) — PUBLIC comme /api/guide :
+// doit fonctionner depuis /narrateur avant même l'ouverture d'une table, donc
+// avant qu'aucune session (table ou joueur) n'existe.
+Route::get('/parametres', [ParametresController::class, 'index']);
+Route::put('/parametres', [ParametresController::class, 'mettreAJour']);
 
 // Lectures accessibles au joueur membre OU à la session de table (contrat
 // §Autorisations) — hors auth:joueur pour permettre l'accès table sans compte.

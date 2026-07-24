@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Agent\AnthropicClient;
 use App\Agent\ClientLLM;
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\GeminiClient;
+use App\Models\Parametre;
 use Illuminate\Support\Facades\Http;
 
 /** Outil/schéma minimal réutilisé par les cas de génération structurée. */
@@ -166,18 +166,105 @@ it('assainit le schéma (retire les mots-clés non OpenAPI, récursivement)', fu
         ->and($propre['properties']['liste']['items']['properties']['x']['enum'])->toBe([1, 2, 3]);
 });
 
+/*
+ * Depuis l'introduction du repli automatique inter-fournisseurs
+ * (ClientLLMAvecRepli), app(ClientLLM::class) n'est plus JAMAIS directement
+ * un GeminiClient/AnthropicClient — c'est toujours le décorateur. On vérifie
+ * donc le fournisseur RÉELLEMENT appelé en COMPORTEMENT (Http::fake + assert
+ * sur l'URL), pas par toBeInstanceOf sur la classe concrète (qui casserait à
+ * coup sûr). Chaque scénario ne laisse qu'UN SEUL fournisseur avec une clé,
+ * pour rester déterministe (pas de secours qui viendrait brouiller le test).
+ */
 it('binde le fournisseur globalement selon LLM_PROVIDER (repli Anthropic)', function () {
-    // gemini demandé + clé présente → GeminiClient pour TOUS les skills.
+    // gemini demandé + clé présente (seule) → l'appel part vers Gemini.
     config()->set('services.llm.provider', 'gemini');
     config()->set('services.gemini.api_key', 'cle-test');
-    expect(app(ClientLLM::class))->toBeInstanceOf(GeminiClient::class);
+    config()->set('services.anthropic.api_key', null);
 
-    // défaut anthropic → AnthropicClient.
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => 'ok']]]]],
+    ])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'generativelanguage.googleapis.com'));
+
+    // défaut anthropic (seule clé présente) → l'appel part vers Anthropic.
     config()->set('services.llm.provider', 'anthropic');
-    expect(app(ClientLLM::class))->toBeInstanceOf(AnthropicClient::class);
+    config()->set('services.anthropic.api_key', 'cle-test');
+    config()->set('services.gemini.api_key', null);
 
-    // gemini demandé mais clé absente → repli Anthropic (jouabilité préservée).
+    Http::fake(['api.anthropic.com/*' => Http::response(['content' => [['type' => 'text', 'text' => 'ok']]])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com'));
+
+    // gemini demandé mais clé absente (anthropic dispo) → repli Anthropic
+    // (jouabilité préservée) : l'appel part vers Anthropic.
     config()->set('services.llm.provider', 'gemini');
     config()->set('services.gemini.api_key', null);
-    expect(app(ClientLLM::class))->toBeInstanceOf(AnthropicClient::class);
+    config()->set('services.anthropic.api_key', 'cle-test');
+
+    Http::fake(['api.anthropic.com/*' => Http::response(['content' => [['type' => 'text', 'text' => 'ok']]])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com'));
+});
+
+it('la surcharge Parametre::llm_provider prime sur LLM_PROVIDER (.env)', function () {
+    config()->set('services.llm.provider', 'anthropic'); // .env dirait anthropic...
+    config()->set('services.gemini.api_key', 'cle-test');
+    config()->set('services.anthropic.api_key', null); // pas de secours : reste déterministe
+
+    Parametre::actuel()->update(['llm_provider' => 'gemini']); // ...mais la surcharge dit gemini
+
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => 'ok']]]]],
+    ])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'generativelanguage.googleapis.com'));
+});
+
+it('la surcharge llm_provider=gemini ne contourne pas l\'absence de clé (repli Anthropic)', function () {
+    config()->set('services.llm.provider', 'anthropic');
+    config()->set('services.gemini.api_key', null); // demandé par la surcharge mais SANS clé
+    config()->set('services.anthropic.api_key', 'cle-test');
+
+    Parametre::actuel()->update(['llm_provider' => 'gemini']);
+
+    Http::fake(['api.anthropic.com/*' => Http::response(['content' => [['type' => 'text', 'text' => 'ok']]])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com'));
+});
+
+it('transmet le modèle surchargé (Parametre::modele_gemini) au client résolu', function () {
+    config()->set('services.llm.provider', 'gemini');
+    config()->set('services.gemini.api_key', 'cle-test');
+    config()->set('services.anthropic.api_key', null);
+
+    Parametre::actuel()->update(['modele_gemini' => 'gemini-3-ultra']);
+
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => 'ok']]]]],
+    ])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'models/gemini-3-ultra:generateContent'));
+});
+
+it('se comporte comme avant si aucune ligne Parametre n\'existe encore', function () {
+    expect(Parametre::query()->count())->toBe(0); // aucune surcharge enregistrée
+
+    config()->set('services.llm.provider', 'gemini');
+    config()->set('services.gemini.api_key', 'cle-test');
+    config()->set('services.anthropic.api_key', null);
+
+    Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => 'ok']]]]],
+    ])]);
+    app(ClientLLM::class)->genererTexte('s', [['role' => 'user', 'content' => 'u']]);
+
+    // Le comportement (fournisseur appelé) suit .env, à l'identique d'avant
+    // l'introduction de la surcharge — la résolution du binding a créé la
+    // ligne singleton au passage (best-effort), sans rien changer à l'appel.
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'generativelanguage.googleapis.com'));
+    expect(Parametre::query()->count())->toBe(1);
 });

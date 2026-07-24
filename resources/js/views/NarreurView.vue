@@ -5,6 +5,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import ParametresPanel from '../components/table/ParametresPanel.vue';
 import { useApi } from '../composables/useApi';
 
 const router = useRouter();
@@ -13,6 +14,7 @@ const api = useApi();
 const codeBrut = ref('');
 const enCours = ref(false);
 const erreur = ref('');
+const parametresOuverts = ref(false);
 
 async function entrerTable() {
     const code = codeBrut.value.trim().toUpperCase();
@@ -86,6 +88,11 @@ async function entrerTable() {
                 </div>
             </div>
         </div>
+
+        <button class="narreur-parametres" type="button" title="Réglages" @click="parametresOuverts = true">
+            <MSym n="settings" />
+        </button>
+        <ParametresPanel v-if="parametresOuverts" @fermer="parametresOuverts = false" />
     </div>
 </template>
 
@@ -142,4 +149,13 @@ async function entrerTable() {
 .narreur-hint { display: flex; align-items: flex-start; gap: 8px; font-size: 12px;
   color: var(--ink-600); line-height: 1.45; text-align: left; }
 .narreur-hint .msym { flex: none; margin-top: 1px; color: var(--ink-500); }
+
+/* Bouton « Réglages » (MJ IA + audio), accessible avant même l'ouverture d'une
+   table — même traitement visuel circulaire que les boutons flottants de
+   TableView.vue (ex. .ambiance-muet). */
+.narreur-parametres { position: fixed; top: 18px; right: 18px; z-index: 5;
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px;
+  border: var(--line); background: var(--stone-850); color: var(--ink-200);
+  cursor: pointer; box-shadow: var(--sh-2); transition: color .15s, border-color .15s; }
+.narreur-parametres:hover { color: var(--parch-100); border-color: var(--torch); }
 </style>

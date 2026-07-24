@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Partie\Narration;
 
 use App\Agent\Audio\TtsGemini;
+use App\Models\Parametre;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Répliques scriptées du narrateur (config/narration.php) : cérémonie de
@@ -102,7 +104,7 @@ final class BibliothequeNarration
      */
     public function voixDynamique(string $texte, TtsGemini $tts): ?string
     {
-        if (! config('narration.voix_dynamique', true) || ! $tts->estConfigure()) {
+        if (! $this->voixDynamiqueActive() || ! $tts->estConfigure()) {
             return null;
         }
 
@@ -110,7 +112,7 @@ final class BibliothequeNarration
             return $cache;
         }
 
-        $voix = (string) config('narration.voix.voix', 'Iapetus');
+        $voix = $this->voixNarrateur();
         $style = (string) config('narration.voix.style', 'une voix de conteur, maître de jeu');
 
         try {
@@ -133,5 +135,44 @@ final class BibliothequeNarration
         file_put_contents($cible['absolu'], $wav);
 
         return $cible['url'];
+    }
+
+    /**
+     * Bascule « synthèse vocale IA en cours de partie » du panneau Réglages
+     * (Parametre::voix_dynamique_active — narration dynamique ET barks de
+     * boss, voir aussi `GenererBarksBoss`) : protège le quota Gemini TTS
+     * (100 req/j). Best-effort, repli actif (comportement d'aujourd'hui) si
+     * la table est absente/indisponible.
+     */
+    private function voixDynamiqueActive(): bool
+    {
+        try {
+            return Parametre::actuel()->voix_dynamique_active;
+        } catch (Throwable) {
+            return true;
+        }
+    }
+
+    /**
+     * Voix Gemini EFFECTIVE du narrateur : surcharge du panneau Réglages
+     * (Parametre::narration_voix) si présente, sinon config/narration.php
+     * ('Iapetus'). Best-effort : table absente/base indisponible → repli sur
+     * le comportement actuel (config uniquement).
+     *
+     * Utilisée par la synthèse dynamique (voixDynamique ci-dessus) ET par la
+     * commande OFFLINE `narration:generer` (GenererNarrationAudio) —
+     * contrairement aux illustrations, la génération offline DOIT suivre la
+     * surcharge : c'est le seul moyen de propager un changement de voix aux
+     * répliques scriptées déjà pré-générées.
+     */
+    public function voixNarrateur(): string
+    {
+        $defaut = (string) config('narration.voix.voix', 'Iapetus');
+
+        try {
+            return Parametre::actuel()->narration_voix ?: $defaut;
+        } catch (Throwable) {
+            return $defaut;
+        }
     }
 }

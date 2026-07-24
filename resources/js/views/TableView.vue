@@ -11,6 +11,7 @@ import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import PrologueOverlay from '../components/table/PrologueOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
+import ParametresPanel from '../components/table/ParametresPanel.vue';
 import { souscrireGroupe } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
@@ -31,6 +32,7 @@ const api = useApi();
 const router = useRouter();
 const voix = useVoix();
 const ambiance = useAmbiance();
+const parametresOuverts = ref(false);
 
 /** Active la voix ET la musique d'un seul geste (déblocage autoplay navigateur). */
 function activerSon() {
@@ -412,6 +414,9 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span class="dots"><i /><i /><i /></span> Le MJ réfléchit…
                     </div>
                     <div class="conn"><span class="dot" />{{ joueursConnectes }} joueurs connectés</div>
+                    <button class="status-params" type="button" title="Réglages" @click="parametresOuverts = true">
+                        <MSym n="settings" />
+                    </button>
                 </div>
             </div>
 
@@ -621,6 +626,9 @@ watch(() => store.state.clotureTerminee, (t) => {
         >
             <MSym :n="ambiance.muet.value ? 'music_off' : 'music_note'" />
         </button>
+
+        <!-- Panneau de réglages (MJ IA + audio) -->
+        <ParametresPanel v-if="parametresOuverts" @fermer="parametresOuverts = false" />
     </div>
 </template>
 
@@ -687,6 +695,10 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .stat-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .table-screen .stat-cond { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: oklch(0.3 0.05 300 / 0.4); border: 1px solid oklch(0.5 0.08 300 / 0.5); color: var(--ink-200); }
 .table-screen .status-top { display: flex; align-items: center; gap: 14px; }
+.table-screen .status-top .status-params { width: 34px; height: 34px; border-radius: 999px; flex: none;
+  display: grid; place-items: center; border: var(--line); background: var(--stone-850); color: var(--ink-300);
+  cursor: pointer; transition: color .15s, border-color .15s; }
+.table-screen .status-top .status-params:hover { color: var(--parch-100); border-color: var(--torch); }
 .table-screen .think { display: inline-flex; align-items: center; gap: 9px; padding: 8px 15px; border-radius: 99px;
   background: var(--stone-850); border: var(--line-gold); color: var(--torch); font-size: 13px; font-weight: 700; }
 .table-screen .conn { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ok); }

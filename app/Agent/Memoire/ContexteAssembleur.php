@@ -6,6 +6,7 @@ namespace App\Agent\Memoire;
 
 use App\Models\Evenement;
 use App\Models\Groupe;
+use App\Models\Parametre;
 use App\Models\Personnage;
 use App\Partie\Equipement;
 use Illuminate\Support\Facades\Log;
@@ -178,6 +179,10 @@ class ContexteAssembleur
      */
     private function extraitsBible(Groupe $groupe, string $requete): array
     {
+        if (! $this->ragActif()) {
+            return [];
+        }
+
         try {
             return $this->bible->rechercher($groupe->id, $requete, self::NB_EXTRAITS_BIBLE);
         } catch (Throwable $e) {
@@ -187,6 +192,20 @@ class ContexteAssembleur
             ]);
 
             return [];
+        }
+    }
+
+    /**
+     * Bascule RAG du panneau Réglages (Parametre::rag_actif) — best-effort :
+     * table absente/base indisponible → repli sur le comportement actuel
+     * (RAG actif).
+     */
+    private function ragActif(): bool
+    {
+        try {
+            return Parametre::actuel()->rag_actif;
+        } catch (Throwable) {
+            return true;
         }
     }
 

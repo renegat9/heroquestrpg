@@ -37,9 +37,27 @@ function urlsScene(scene) {
     return EXTS.map((e) => `/audio/ambiance/${scene}.${e}`);
 }
 
+// Persistance locale (préférence de l'APPAREIL qui tient la table — ses
+// enceintes —, pas de la campagne) : muet + volume, dans localStorage['audio:ambiance'].
+const CLE_STOCKAGE = 'audio:ambiance';
+
+function chargerPrefs() {
+    try {
+        const brut = localStorage.getItem(CLE_STOCKAGE);
+        return brut ? JSON.parse(brut) : {};
+    } catch { return {}; }
+}
+
+function sauverPrefs() {
+    try {
+        localStorage.setItem(CLE_STOCKAGE, JSON.stringify({ muet: muet.value, volume: volume.value }));
+    } catch { /* stockage indisponible (navigation privée…) — best-effort */ }
+}
+
+const prefsSauvees = chargerPrefs();
 const actif = ref(false);   // débloqué par un geste utilisateur
-const muet = ref(false);
-const volume = ref(0.32);   // volume « plein » de l'ambiance (sous la narration)
+const muet = ref(prefsSauvees.muet ?? false);
+const volume = ref(typeof prefsSauvees.volume === 'number' ? prefsSauvees.volume : 0.32);   // volume « plein » de l'ambiance (sous la narration)
 
 let courant = null;         // { audio, scene }
 let sceneVoulue = null;     // dernière scène demandée (jouée dès activation)
@@ -114,11 +132,13 @@ function activer() {
 function basculerMuet() {
     muet.value = !muet.value;
     if (courant?.audio) courant.audio.volume = cibleVolume();
+    sauverPrefs();
 }
 
 function definirVolume(v) {
     volume.value = Math.max(0, Math.min(1, v));
     if (courant?.audio && !muet.value) courant.audio.volume = volume.value;
+    sauverPrefs();
 }
 
 export function useAmbiance() {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\Image\ImageGemini;
+use App\Jobs\GenererImageHub;
+use App\Models\Parametre;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Support\Facades\Http;
 
@@ -73,4 +75,17 @@ it('construit le prompt en interpolant le style et les champs', function () {
     $prompt = (new BibliothequeImages)->prompt('monstre', ['nom' => 'Orque', 'tier' => 'base']);
 
     expect($prompt)->toBe('Monstre Orque (tier base). STYLE-X');
+});
+
+it('GenererImageHub sort avant tout appel HTTP quand images_actif=false, même avec une clé Gemini valide', function () {
+    config()->set('services.gemini.api_key', 'cle-test');
+    Parametre::actuel()->update(['images_actif' => false]);
+
+    $groupe = creerGroupe('table-images-1');
+
+    Http::fake(); // aucune requête ne doit partir
+
+    app()->call([new GenererImageHub($groupe->id), 'handle']);
+
+    Http::assertNothingSent();
 });

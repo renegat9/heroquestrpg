@@ -4,13 +4,16 @@ namespace App\Providers;
 
 use App\Agent\AnthropicClient;
 use App\Agent\ClientLLM;
+use App\Agent\ClientLLMAvecRepli;
 use App\Agent\GeminiClient;
 use App\Agent\Memoire\Embeddings;
 use App\Agent\Memoire\EmbeddingsNuls;
 use App\Agent\Memoire\EmbeddingsVoyage;
 use App\Engine\Des\LanceurAleatoire;
 use App\Engine\Des\LanceurDes;
+use App\Models\Parametre;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,20 +30,59 @@ class AppServiceProvider extends ServiceProvider
         // est renseignée, sinon repli lexical factice (dev sans clé).
         // ⚠ Les deux n'ont pas la même dimension : passer de l'un à l'autre
         // impose de recréer la collection Qdrant (bible vide en dev → ok).
+        // Fournisseur d'embeddings volontairement NON pilotable depuis le
+        // panneau Réglages (contrairement à ClientLLM ci-dessous) : changer
+        // de fournisseur en cours de campagne casserait la collection Qdrant
+        // existante (dimensions vectorielles différentes).
         $this->app->bind(Embeddings::class, function () {
             return config('services.voyage.api_key')
                 ? new EmbeddingsVoyage
                 : new EmbeddingsNuls;
         });
 
-        // Fournisseur LLM du MJ IA (histoire + narration) — choix GLOBAL via
-        // LLM_PROVIDER : tous les skills reçoivent le client choisi. Gemini
-        // seulement s'il est demandé ET que la clé est présente, sinon repli
-        // Anthropic (jouabilité préservée ; le TTS reste Gemini par ailleurs).
+        // Fournisseur LLM du MJ IA (histoire + narration) — choix GLOBAL,
+        // piloté par le panneau Réglages (Parametre::actuel()->llm_provider,
+        // persisté en base) avec repli sur LLM_PROVIDER (.env) si aucune
+        // surcharge n'est enregistrée : tous les skills reçoivent le client
+        // choisi. `bind()` (pas `singleton()`) : réévalué à CHAQUE résolution,
+        // donc à CHAQUE job — un changement de réglage s'applique sans
+        // redémarrer aucun conteneur.
+        //
+        // Repli automatique INTER-FOURNISSEURS À L'EXÉCUTION (pas seulement à
+        // la résolution du binding) : si l'appel au fournisseur PRINCIPAL
+        // échoue vraiment (panne API, clé révoquée, modèle retiré…), une
+        // seule retentative avec l'AUTRE fournisseur avant d'abandonner à
+        // l'IA — voir {@see \App\Agent\ClientLLMAvecRepli}.
         $this->app->bind(ClientLLM::class, function () {
-            return config('services.llm.provider') === 'gemini' && filled(config('services.gemini.api_key'))
-                ? $this->app->make(GeminiClient::class)
-                : $this->app->make(AnthropicClient::class);
+            try {
+                $parametres = Parametre::actuel();
+            } catch (Throwable) {
+                // Table absente (migration pas encore jouée) ou base
+                // indisponible : repli intégral sur le comportement .env.
+                $parametres = null;
+            }
+
+            $anthropicDispo = filled(config('services.anthropic.api_key'));
+            $geminiDispo = filled(config('services.gemini.api_key'));
+            $providerVoulu = $parametres?->llm_provider ?: config('services.llm.provider');
+
+            $principalNom = ($providerVoulu === 'gemini' && $geminiDispo) ? 'gemini' : 'anthropic';
+            $principal = $principalNom === 'gemini'
+                ? $this->app->make(GeminiClient::class, ['model' => $parametres?->modele_gemini ?: null])
+                : $this->app->make(AnthropicClient::class, ['model' => $parametres?->modele_anthropic ?: null]);
+
+            // Repli croisé : l'AUTRE fournisseur, s'il a une clé — construit avec sa propre surcharge.
+            $secoursNom = null;
+            $secours = null;
+            if ($principalNom === 'anthropic' && $geminiDispo) {
+                $secoursNom = 'gemini';
+                $secours = $this->app->make(GeminiClient::class, ['model' => $parametres?->modele_gemini ?: null]);
+            } elseif ($principalNom === 'gemini' && $anthropicDispo) {
+                $secoursNom = 'anthropic';
+                $secours = $this->app->make(AnthropicClient::class, ['model' => $parametres?->modele_anthropic ?: null]);
+            }
+
+            return new ClientLLMAvecRepli($principal, $principalNom, $secours, $secoursNom);
         });
     }
 

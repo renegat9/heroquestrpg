@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Monstre;
+use App\Models\Parametre;
 use App\Partie\DemarreurQuete;
 use Database\Seeders\MonstreSeeder;
 
@@ -39,6 +40,20 @@ it('sème beaucoup de faibles et peu de forts (quête normale, arc 1)', function
         ->and(count($achats))->toBeGreaterThanOrEqual(6)
         // Le budget n'est jamais dépassé.
         ->and(array_sum(array_map(fn ($m) => (int) $m->cout, $achats)))->toBeLessThanOrEqual(20);
+});
+
+it('la surcharge Parametre::rencontres_forts_par_quete prime sur config(jeu.rencontres.forts_par_quete)', function () use ($forts) {
+    // Baseline déterministe (indépendante de .env) : à l'arc 1, forts_escalade_arc
+    // n'ajoute rien (numérateur nul), donc fortsSouhaites == forts_par_quete pile.
+    config(['jeu.rencontres.forts_par_quete' => 1, 'jeu.rencontres.forts_escalade_arc' => 0]);
+
+    $sansSurcharge = count($forts(acheter(budget: 30, maxSpawns: 20, positionArc: 1)));
+    expect($sansSurcharge)->toBe(1);
+
+    Parametre::actuel()->update(['rencontres_forts_par_quete' => 5]);
+
+    $avecSurcharge = count($forts(acheter(budget: 30, maxSpawns: 20, positionArc: 1)));
+    expect($avecSurcharge)->toBe(5);
 });
 
 it('escalade le nombre de forts avec la progression d\'arc', function () use ($forts) {

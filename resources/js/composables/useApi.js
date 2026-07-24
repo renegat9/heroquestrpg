@@ -163,6 +163,16 @@ export function useApi() {
         /** POST /api/table/quitter — ferme la session de table. */
         quitterTable: () => request('POST', '/table/quitter'),
 
+        // ---- paramètres globaux (IA/illustrations/voix/équilibrage — réglages
+        // serveur PUBLICS, sans session de table ni compte : voir docs/contrat-api.md
+        // « Paramètres globaux ») ----
+
+        /** GET /api/parametres → ParametresIA (valeurs effectives + calculées, statut IA). */
+        getParametres: () => request('GET', '/parametres'),
+
+        /** PUT /api/parametres {…} → ParametresIA mise à jour (422 si fournisseur sans clé). */
+        majParametres: (payload) => request('PUT', '/parametres', payload),
+
         // ---- groupes / campagne ----
 
         /**

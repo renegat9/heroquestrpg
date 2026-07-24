@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Agent\Image\ImageGemini;
 use App\Events\EtatGroupeDiffuse;
 use App\Models\Groupe;
+use App\Models\Parametre;
 use App\Partie\EtatGroupe;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +32,7 @@ class GenererImageHub implements ShouldQueue
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio, EtatGroupe $etatGroupe): void
     {
-        if (! $image->estConfigure()) {
+        if (! $image->estConfigure() || ! $this->imagesActives()) {
             return;
         }
 
@@ -56,5 +57,22 @@ class GenererImageHub implements ShouldQueue
         }
 
         broadcast(new EtatGroupeDiffuse($groupe->fresh(), $etatGroupe->payload($groupe->fresh())));
+    }
+
+    /**
+     * Bascule « génération d'illustrations IA en cours de partie » (panneau
+     * Réglages, Parametre::images_actif) — RUNTIME uniquement : ne gate PAS
+     * la commande offline `images:generer` (ImageGemini::estConfigure()
+     * reste inchangé), un opérateur qui la lance explicitement veut générer.
+     * Best-effort, repli actif (comportement d'aujourd'hui) si la table est
+     * indisponible.
+     */
+    private function imagesActives(): bool
+    {
+        try {
+            return Parametre::actuel()->images_actif;
+        } catch (\Throwable) {
+            return true;
+        }
     }
 }

@@ -509,6 +509,96 @@ des canaux `groupe.{identifiant}`) acceptent **soit** un joueur membre (au moins
 un perso actif), **soit** la session de table de ce groupe. Les actions de
 joueur (choix, panier, vote, prêt…) exigent un joueur membre.
 
+## Paramètres globaux (réglages serveur — écran de Narrateur/table)
+
+Panneau **Réglages**, ouvert depuis la table (`/table/:groupe`) et depuis
+l'écran de saisie du code (`/narrateur`, **avant même l'ouverture d'une
+table**) : pilote en direct ce qui, avant, exigeait d'éditer `.env` puis de
+recréer les conteneurs (fournisseur/modèle IA), ou n'était pas exposé du tout
+(RAG, synthèse vocale IA, illustrations, voix du narrateur, équilibrage des
+rencontres). Portée **GLOBALE** (tout le serveur, PAS par groupe/table) —
+même comportement que `LLM_PROVIDER` aujourd'hui, rendu éditable en direct.
+
+| Méthode | Route | Corps | Réponse |
+|---|---|---|---|
+| GET | /api/parametres | — | **PUBLIC** — **ParametresIA** (voir ci-dessous). Accessible sans compte ni session de table, depuis /narrateur (avant même l'ouverture d'une table) et /table/:groupe. |
+| PUT | /api/parametres | ParametresIA éditable, mise à jour PARTIELLE (voir plus bas) | **PUBLIC** — **ParametresIA** à jour |
+
+**PUBLIC** : aucune autorisation, ni compte joueur ni session de table —
+exactement le même statut que `GET /api/guide`. Nécessaire pour que le bouton
+Réglages fonctionne depuis `/narrateur` avant même la saisie d'un code, à un
+moment où `session()->get('table_groupe')` est forcément vide. Le modèle de
+confiance reste celui d'un LAN entre amis sans mot de passe narrateur (aucune
+clé API n'est jamais renvoyée par `GET`, seulement leur présence/absence).
+
+`PUT` accepte une mise à jour **PARTIELLE** : seuls les champs présents dans
+le corps sont modifiés (le panneau a plusieurs sections indépendantes,
+chacune avec son propre bouton « Enregistrer », qui n'envoie que ses propres
+champs). Un champ modèle/voix envoyé en chaîne vide remet la surcharge à
+`null` (retour au défaut `.env`/`config`). `llm_provider` choisi sans clé API
+serveur correspondante → 422.
+
+**ParametresIA** :
+```json
+{
+  "llm_provider": "anthropic",
+  "fournisseurs_disponibles": ["anthropic", "gemini"],
+  "modele_anthropic": null, "modele_anthropic_defaut": "claude-sonnet-4-6",
+  "modele_gemini": null, "modele_gemini_defaut": "gemini-3.1-flash-lite",
+  "rag_actif": true,
+  "voix_dynamique_active": true,
+  "bible_semantique": "voyage",
+  "statut_ia": {"etat": "nominal", "fournisseur": "anthropic", "a": "2026-07-23T10:00:00+00:00"},
+  "images_actif": true,
+  "narration_voix": null, "narration_voix_defaut": "Iapetus",
+  "narration_voix_options": ["Puck", "Fenrir", "Charon", "Orus", "Iapetus"],
+  "rencontres": {"forts_par_quete": 1, "forts_escalade_arc": 2, "seuil_cout_fort": 3, "boss_pv_adaptatif": true, "taille_reference": 4},
+  "rencontres_defaut": {"forts_par_quete": 1, "forts_escalade_arc": 2, "seuil_cout_fort": 3, "boss_pv_adaptatif": true, "taille_reference": 4}
+}
+```
+
+Sépare l'éditable du calculé : `modele_anthropic`/`modele_gemini`/
+`narration_voix` portent la **surcharge actuelle** (`null` = suit le défaut),
+leurs pendants `_defaut` la valeur `.env`/`config` (placeholders côté
+formulaire) ; `llm_provider` est en revanche la **valeur effective**
+(surcharge sinon `.env`) ; `rencontres` regroupe les 5 valeurs **effectives**
+(`surcharge ?? défaut`), `rencontres_defaut` le même sous-objet en défauts
+seuls. `fournisseurs_disponibles` et `bible_semantique` sont calculés depuis
+les clés serveur présentes — jamais éditables (voir plus bas).
+
+`statut_ia` (lecture seule) reflète le **repli automatique inter-fournisseurs
+à l'exécution** : si l'appel au fournisseur PRINCIPAL échoue vraiment (panne
+API, clé révoquée…), une seule retentative avec l'AUTRE fournisseur (s'il a
+une clé) avant d'abandonner à l'IA (repli menu/narration générique — le jeu
+reste jouable). Distinct de `llm_provider` (qui reste la PRÉFÉRENCE choisie,
+pas forcément ce qui a effectivement répondu au dernier appel) :
+`{etat: "nominal"|"repli"|"indisponible"|"inconnu", fournisseur?, depuis?,
+raison?, a?}` — `inconnu` = aucun appel IA depuis le dernier redémarrage du
+cache. Alimenté par tous les jobs IA (conteneur `queue`), lu par la table/le
+narrateur (conteneur `app`) : partagé via le cache (`CACHE_STORE=database`).
+
+Portée et persistance : **IA, illustrations, voix du narrateur et
+équilibrage des rencontres** sont persistés en BASE (table `parametres`,
+ligne unique — singleton), globaux au serveur, appliqués **au prochain
+job/quête** (`ClientLLM`/`Embeddings` sont résolus à CHAQUE job — pas de
+redémarrage de conteneur nécessaire). L'**audio** (volume/coupure voix +
+musique, débit de la voix) est une préférence de **l'appareil qui tient la
+table**, donc volontairement PAS ici : persistée côté client en
+`localStorage`, jamais envoyée au serveur. Aucune rediffusion temps réel de
+`parametres` : un second narrateur ne verra un changement qu'en rouvrant le
+panneau (acceptable, un seul narrateur actif par table à la fois).
+
+Les réglages `rencontres_*` ne s'appliquent qu'à la **prochaine quête
+lancée** (`DemarreurQuete::demarrer`) — aucun recalcul rétroactif d'une quête
+déjà en cours (les monstres déjà spawnés ne bougent pas). `narration_voix`
+n'affecte immédiatement que la narration IA **dynamique** (synthétisée au
+vol) ; les répliques scriptées déjà pré-générées
+(`public/audio/narration/{cle}/{i}.wav`) gardent l'ancienne voix jusqu'à
+relancer manuellement `php artisan narration:generer`. Le fournisseur
+d'**embeddings** (Voyage vs repli lexical, `bible_semantique`) reste
+volontairement non éditable : les deux ont des dimensions vectorielles
+différentes, en changer casserait la collection Qdrant existante.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

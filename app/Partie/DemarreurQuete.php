@@ -19,6 +19,7 @@ use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Parametre;
 use App\Models\Quete;
 use App\Partie\MoteurDread;
 use App\Support\Journal;
@@ -50,6 +51,9 @@ use RuntimeException;
  */
 final class DemarreurQuete
 {
+    /** Mémoïsation de {@see self::parametres()} — voir sa docblock. */
+    private ?Parametre $parametresCache = null;
+
     public function __construct(
         private readonly AssembleurCarte $assembleur,
         private readonly ScorePuissance $puissance,
@@ -60,6 +64,26 @@ final class DemarreurQuete
         private readonly BibliothequeNarration $narration,
         private readonly LanceurDes $des,
     ) {}
+
+    /**
+     * Réglages globaux (panneau Réglages), mémoïsés pour la durée d'une seule
+     * exécution de démarrer() — jusqu'à 5 lectures (pvAdapte() par monstre +
+     * acheterMonstres()). Best-effort : table absente/base indisponible →
+     * `null`, chaque site d'appel retombe alors sur son
+     * `config('jeu.rencontres.X', défaut)` actuel via `?? config(...)`.
+     */
+    private function parametres(): ?Parametre
+    {
+        if ($this->parametresCache !== null) {
+            return $this->parametresCache;
+        }
+
+        try {
+            return $this->parametresCache = Parametre::actuel();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
 
     /**
      * Variance élite (3.6) : à l'apparition, un monstre de BASE a une chance
@@ -88,12 +112,16 @@ final class DemarreurQuete
     {
         $pv = (int) $monstre->pv_body;
 
-        if (! config('jeu.rencontres.boss_pv_adaptatif', true)
+        $bossPvAdaptatif = $this->parametres()?->rencontres_boss_pv_adaptatif
+            ?? config('jeu.rencontres.boss_pv_adaptatif', true);
+
+        if (! $bossPvAdaptatif
             || ! in_array($monstre->tier ?? 'base', ['boss', 'sous_boss'], true)) {
             return $pv;
         }
 
-        $reference = max(1, (int) config('jeu.rencontres.taille_reference', 4));
+        $reference = max(1, (int) ($this->parametres()?->rencontres_taille_reference
+            ?? config('jeu.rencontres.taille_reference', 4)));
         $adapte = (int) round($pv * max(1, $nbHeros) / $reference);
 
         return max($adapte, (int) ceil($pv * 0.4));
@@ -421,7 +449,8 @@ final class DemarreurQuete
 
         // Tier « base » partitionné en FAIBLES (bas coût) et FORTS (haut coût),
         // selon le seuil de config. On veut « beaucoup de faibles + quelques forts ».
-        $seuil = (int) config('jeu.rencontres.seuil_cout_fort', 3);
+        $seuil = (int) ($this->parametres()?->rencontres_seuil_cout_fort
+            ?? config('jeu.rencontres.seuil_cout_fort', 3));
         /** @var Collection<int, Monstre> $base */
         $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
             ->orderBy('cout')->orderBy('id')->get();
@@ -438,8 +467,10 @@ final class DemarreurQuete
 
         // 1) QUELQUES forts (haut de gamme), en gardant assez de budget ET
         //    d'emplacements pour la masse de faibles (on réserve ≥ 1 slot faible).
-        $fortsSouhaites = (int) config('jeu.rencontres.forts_par_quete', 1);
-        $escaladeArc = (int) config('jeu.rencontres.forts_escalade_arc', 0);
+        $fortsSouhaites = (int) ($this->parametres()?->rencontres_forts_par_quete
+            ?? config('jeu.rencontres.forts_par_quete', 1));
+        $escaladeArc = (int) ($this->parametres()?->rencontres_forts_escalade_arc
+            ?? config('jeu.rencontres.forts_escalade_arc', 0));
         if ($escaladeArc > 0) {
             $fortsSouhaites += intdiv(max(0, $positionArc - 1), $escaladeArc);
         }

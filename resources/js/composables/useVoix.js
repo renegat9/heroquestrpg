@@ -17,6 +17,46 @@ const actif = ref(false);
 // Vrai pendant qu'une voix parle (pilote l'égaliseur du bandeau de narration).
 const speaking = ref(false);
 
+// Persistance locale (préférence de l'APPAREIL qui tient la table — ses
+// enceintes —, pas de la campagne) : coupure, volume et débit de la voix
+// (narration + barks), dans localStorage['audio:voix'].
+const CLE_STOCKAGE = 'audio:voix';
+
+function chargerPrefsVoix() {
+    try {
+        const brut = localStorage.getItem(CLE_STOCKAGE);
+        return brut ? JSON.parse(brut) : {};
+    } catch { return {}; }
+}
+
+function sauverPrefsVoix() {
+    try {
+        localStorage.setItem(CLE_STOCKAGE, JSON.stringify({
+            muet: muet.value, volume: volume.value, debit: debit.value,
+        }));
+    } catch { /* stockage indisponible (navigation privée…) — best-effort */ }
+}
+
+const prefsVoixSauvees = chargerPrefsVoix();
+const muet = ref(prefsVoixSauvees.muet ?? false);
+const volume = ref(typeof prefsVoixSauvees.volume === 'number' ? prefsVoixSauvees.volume : 1);
+const debit = ref(typeof prefsVoixSauvees.debit === 'number' ? prefsVoixSauvees.debit : 1);
+
+function basculerMuet() {
+    muet.value = !muet.value;
+    sauverPrefsVoix();
+}
+
+function definirVolume(v) {
+    volume.value = Math.max(0, Math.min(1, v));
+    sauverPrefsVoix();
+}
+
+function definirDebit(v) {
+    debit.value = Math.max(0.5, Math.min(2, v));
+    sauverPrefsVoix();
+}
+
 let voixFr = null;
 
 function chargerVoixFr() {
@@ -41,14 +81,14 @@ const TIMBRE = {
     defaut: { pitch: 0.7, rate: 1.0 },
 };
 
-function parler(texte, { pitch = 1, rate = 1, volume = 1 } = {}) {
+function parler(texte, { pitch = 1, rate = 1 } = {}) {
     if (!supporte || !actif.value || !texte) return;
     const u = new SpeechSynthesisUtterance(String(texte));
     u.lang = 'fr-FR';
     if (voixFr) u.voice = voixFr;
     u.pitch = pitch;
-    u.rate = rate;
-    u.volume = volume;
+    u.rate = rate * debit.value;
+    u.volume = volume.value;
     u.onstart = () => { speaking.value = true; };
     u.onend = () => { speaking.value = false; };
     u.onerror = () => { speaking.value = false; };
@@ -66,9 +106,13 @@ let narApres = null; // callback « lecture terminée » de la narration en cour
 
 function narrer(p) {
     const payload = typeof p === 'string' ? { texte: p } : (p || {});
-    // Voix inactive / rien à dire : on considère la « lecture » immédiatement
-    // finie (le callback `apres` sert au verrou du tour suivant — B1).
-    if (!actif.value || (!payload.texte && !payload.url)) { payload.apres?.(); return; }
+    // Voix inactive / COUPÉE (panneau Réglages) / rien à dire : on considère la
+    // « lecture » immédiatement finie (le callback `apres` sert au verrou du
+    // tour suivant — B1). ⚠ NE JAMAIS omettre `payload.apres?.()` ici : sans
+    // lui, couper la voix depuis le panneau bloquerait silencieusement la
+    // progression du tour pour tous les joueurs (POST /table/lecture-terminee
+    // n'est alors jamais envoyé).
+    if (!actif.value || muet.value || (!payload.texte && !payload.url)) { payload.apres?.(); return; }
     if (narrBusy) {
         // Narration de JEU (`interrompre`) : elle reflète l'état LE PLUS RÉCENT
         // → on coupe la narration en cours au lieu de l'empiler, ce qui évitait
@@ -106,6 +150,7 @@ function lancerNarration({ texte, url, apres }) {
     if (url) {
         try {
             narrAudio = new Audio(url);
+            narrAudio.volume = volume.value;
             narrAudio.onended = fin;
             narrAudio.onerror = () => narrerVocal(texte, fin);
             narrAudio.play().catch(() => narrerVocal(texte, fin));
@@ -123,6 +168,8 @@ function narrerVocal(texte, fin) {
     const u = new SpeechSynthesisUtterance(String(texte));
     u.lang = 'fr-FR';
     if (voixFr) u.voice = voixFr;
+    u.rate = debit.value;
+    u.volume = volume.value;
     u.onend = fin;
     u.onerror = fin;
     window.speechSynthesis.speak(u);
@@ -130,11 +177,11 @@ function narrerVocal(texte, fin) {
 
 // Joue un bark : fichier audio si présent, sinon repli vocal selon le profil.
 function jouerBark({ url = null, texte = null, profil = 'defaut' } = {}) {
-    if (!actif.value) return;
+    if (!actif.value || muet.value) return;
     if (url) {
         try {
             const a = new Audio(url);
-            a.volume = 0.9;
+            a.volume = 0.9 * volume.value;
             a.play().catch(() => repliBark(texte, profil));
             return;
         } catch {
@@ -161,5 +208,8 @@ function activer() {
 }
 
 export function useVoix() {
-    return { supporte, actif, speaking, narrer, jouerBark, activer };
+    return {
+        supporte, actif, speaking, muet, volume, debit,
+        narrer, jouerBark, activer, basculerMuet, definirVolume, definirDebit,
+    };
 }

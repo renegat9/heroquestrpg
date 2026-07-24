@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Agent\Audio\TtsGemini;
 use App\Agent\Exceptions\AppelLlmException;
+use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Console\Command;
 
 /**
@@ -26,7 +27,7 @@ final class GenererNarrationAudio extends Command
 
     protected $description = 'Génère la voix de narrateur des répliques scriptées (audio Gemini TTS) dans public/audio/narration';
 
-    public function handle(TtsGemini $tts): int
+    public function handle(TtsGemini $tts, BibliothequeNarration $lib): int
     {
         if (! $tts->estConfigure()) {
             $this->warn('GEMINI_API_KEY absente : aucune génération. Le narrateur sera lu via Web Speech.');
@@ -34,7 +35,11 @@ final class GenererNarrationAudio extends Command
             return self::SUCCESS;
         }
 
-        $voix = (string) config('narration.voix.voix', 'Iapetus');
+        // Surcharge du panneau Réglages (narration_voix) : CONTRAIREMENT aux
+        // illustrations, cette commande OFFLINE doit elle aussi la respecter —
+        // c'est le seul moyen de propager un changement de voix aux répliques
+        // scriptées pré-générées (public/audio/narration/{cle}/{i}.wav).
+        $voix = $lib->voixNarrateur();
         $style = (string) config('narration.voix.style', 'une voix de conteur, maître de jeu');
         $force = (bool) $this->option('force');
 
