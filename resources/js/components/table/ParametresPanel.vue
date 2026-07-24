@@ -382,7 +382,7 @@ async function enregistrer() {
                         <p class="parametres-aide">
                             <MSym n="info" :size="14" />
                             <span>Ne s'applique immédiatement qu'à la narration générée en direct — les répliques pré-enregistrées gardent l'ancienne voix jusqu'à régénération manuelle.
-                            L'écoute Gemini synthétise la voix choisie (mise en cache : réécouter ne consomme pas le quota) ; l'écoute navigateur joue la voix locale avec le débit réglé plus bas.</span>
+                            L'écoute Gemini synthétise la voix choisie (mise en cache : réécouter ne consomme pas le quota) ; l'écoute navigateur joue la voix locale — réglable, avec le choix de la voix, dans « Voix du narrateur — cet appareil » ci-dessous.</span>
                         </p>
                     </section>
 
@@ -450,6 +450,64 @@ async function enregistrer() {
                 </form>
             </template>
 
+            <!-- Voix du narrateur — CET APPAREIL : contrepartie navigateur de la
+                 section « Voix du narrateur » ci-dessus (voix Gemini, dans le
+                 formulaire serveur). Volontairement HORS du v-else/formulaire :
+                 préférence 100 % locale (localStorage), donc rendue même si le
+                 chargement serveur échoue ou est encore en cours — contrairement
+                 à la voix Gemini, elle n'a besoin d'aucune donnée du serveur. -->
+            <section class="parametres-section parametres-audio">
+                <h3><MSym n="record_voice_over" :size="16" /> Voix du narrateur — cet appareil</h3>
+
+                <div class="parametres-audio-ligne">
+                    <button
+                        type="button"
+                        class="parametres-mute"
+                        title="Écouter cette voix"
+                        :disabled="!voix.supporte"
+                        @click="voix.testerVoix()"
+                    >
+                        <MSym n="play_arrow" :size="18" />
+                    </button>
+                    <label class="parametres-slider">
+                        <span>Voix du navigateur (selon cet appareil)</span>
+                        <select
+                            :value="voix.voixChoisie.value"
+                            :disabled="!voix.supporte"
+                            @change="voix.choisirVoixNavigateur($event.target.value)"
+                        >
+                            <option value="">Automatique (première voix française)</option>
+                            <option v-for="v in voix.voixDisponibles.value" :key="v.voiceURI" :value="v.voiceURI">
+                                {{ v.name }} — {{ v.lang }}
+                            </option>
+                        </select>
+                    </label>
+                </div>
+
+                <label class="parametres-case">
+                    <input
+                        type="checkbox"
+                        :checked="voix.voixNavigateur.value"
+                        @change="voix.basculerVoixNavigateur()"
+                    />
+                    <span>Narration par la voix du navigateur (remplace la voix générée du narrateur)</span>
+                </label>
+                <p class="parametres-aide">
+                    <MSym n="info" :size="14" />
+                    <span>Les textes du MJ — générés par l'IA comme les répliques pré-enregistrées,
+                    c'est le même narrateur — sont alors lus par la synthèse du navigateur avec la
+                    voix choisie ci-dessus. Les barks de monstres gardent leurs voix audio. (Pour
+                    arrêter de dépenser le quota de synthèse pour toutes les tables, utilise plutôt
+                    la bascule « Synthèse vocale IA » dans la section Voix du narrateur plus haut —
+                    les textes basculent alors aussi sur la voix du navigateur, faute d'audio généré.)</span>
+                </p>
+                <p class="parametres-aide">
+                    <MSym n="smartphone" :size="14" />
+                    <span>Réglage propre à cet appareil (comme le reste ci-dessous) — toujours disponible,
+                    même si les réglages serveur au-dessus n'ont pas pu charger.</span>
+                </p>
+            </section>
+
             <!-- Audio (cet appareil) : préférence locale, application immédiate,
                  toujours disponible même si le chargement serveur ci-dessus échoue. -->
             <section class="parametres-section parametres-audio">
@@ -516,51 +574,11 @@ async function enregistrer() {
                     </label>
                 </div>
 
-                <div class="parametres-audio-ligne">
-                    <button
-                        type="button"
-                        class="parametres-mute"
-                        title="Écouter cette voix"
-                        :disabled="!voix.supporte"
-                        @click="voix.testerVoix()"
-                    >
-                        <MSym n="play_arrow" :size="18" />
-                    </button>
-                    <label class="parametres-slider">
-                        <span>Voix du navigateur (selon cet appareil)</span>
-                        <select
-                            :value="voix.voixChoisie.value"
-                            :disabled="!voix.supporte"
-                            @change="voix.choisirVoixNavigateur($event.target.value)"
-                        >
-                            <option value="">Automatique (première voix française)</option>
-                            <option v-for="v in voix.voixDisponibles.value" :key="v.voiceURI" :value="v.voiceURI">
-                                {{ v.name }} — {{ v.lang }}
-                            </option>
-                        </select>
-                    </label>
-                </div>
-
-                <label class="parametres-case">
-                    <input
-                        type="checkbox"
-                        :checked="voix.voixNavigateur.value"
-                        @change="voix.basculerVoixNavigateur()"
-                    />
-                    <span>Narration par la voix du navigateur (remplace la voix générée du narrateur)</span>
-                </label>
                 <p class="parametres-aide">
                     <MSym n="info" :size="14" />
-                    <span>Les textes du MJ — générés par l'IA comme les répliques pré-enregistrées,
-                    c'est le même narrateur — sont alors lus par la synthèse du navigateur. Les
-                    barks de monstres gardent leurs voix audio. (Pour arrêter de dépenser le quota
-                    de synthèse pour toutes les tables, utilise plutôt la bascule « Synthèse
-                    vocale IA » plus haut.)</span>
-                </p>
-
-                <p class="parametres-aide">
-                    <MSym n="info" :size="14" />
-                    <span>Préférence propre à cet appareil (ses enceintes) — non partagée avec les autres joueurs.</span>
+                    <span>Préférence propre à cet appareil (ses enceintes) — non partagée avec les autres joueurs.
+                    Le choix de la voix du navigateur et la bascule « narration par le navigateur »
+                    sont dans la section Voix du narrateur, plus haut.</span>
                 </p>
             </section>
         </div>
@@ -653,6 +671,13 @@ async function enregistrer() {
 }
 .parametres-lecture-seule .msym,
 .parametres-aide .msym { flex: none; margin-top: 1px; color: var(--ink-500); }
+
+.parametres-souligne {
+    display: flex; align-items: center; gap: 6px; margin: 6px 0 0; padding-top: 10px;
+    border-top: var(--line); font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--torch);
+}
+.parametres-souligne .msym { flex: none; }
 
 .parametres-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 
