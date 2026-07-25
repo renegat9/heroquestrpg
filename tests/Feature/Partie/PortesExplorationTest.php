@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Piege;
@@ -346,4 +347,76 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
     $actions = collect($tour->json('resultat.tour_monstres.actions'));
     expect($actions->isNotEmpty())->toBeTrue()
         ->and($actions->contains(fn ($a) => ($a['monstre'] ?? null) === 'Gobelin'))->toBeTrue();
+});
+
+it('révèle la salle et ses monstres DÈS L\'OUVERTURE de la porte — comme au plateau, sans attendre d\'y entrer', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerExplo();
+
+    $grille = $quete->fresh()->carte->grille;
+
+    // Trouve une salle (≠ salle 0, celle des héros) qui a au moins un monstre
+    // dormant ET une porte d'entrée détectable (App\Partie\Grille::casesPorte
+    // renvoie une case DANS cette salle pour l'une des deux extrémités).
+    $salleCible = null;
+    $porteCible = null;
+    foreach ($grille['salles'] as $i => $s) {
+        if ($i === 0) {
+            continue;
+        }
+        $dansLaSalle = fn (int $x, int $y): bool => $x >= $s['x'] && $x < $s['x'] + $s['largeur']
+            && $y >= $s['y'] && $y < $s['y'] + $s['hauteur'];
+
+        $monstre = InstanceMonstre::where('quete_id', $quete->id)
+            ->where('revele', false)
+            ->get()
+            ->first(fn ($m) => $dansLaSalle((int) $m->position_x, (int) $m->position_y));
+
+        if ($monstre === null) {
+            continue;
+        }
+
+        foreach ($grille['portes'] as $p) {
+            [$a, $b] = Grille::casesPorte($p);
+            $dansSalle = $dansLaSalle($a['x'], $a['y']) || $dansLaSalle($b['x'], $b['y']);
+            $horsSalle = ! $dansLaSalle($a['x'], $a['y']) || ! $dansLaSalle($b['x'], $b['y']);
+            if ($dansSalle && $horsSalle && $p['etat'] === 'fermee') {
+                $salleCible = $i;
+                $porteCible = $p;
+                break 2;
+            }
+        }
+    }
+
+    expect($salleCible)->not->toBeNull('Aucune salle non-0 avec monstre dormant + porte fermée trouvée dans cette carte générée — relancer le test (graine aléatoire).');
+
+    // Place le héros sur la case HORS-salle de l'arête (celle d'où l'on ouvre).
+    [$a, $b] = Grille::casesPorte($porteCible);
+    $dansLaSalle = fn (int $x, int $y): bool => $x >= $grille['salles'][$salleCible]['x']
+        && $x < $grille['salles'][$salleCible]['x'] + $grille['salles'][$salleCible]['largeur']
+        && $y >= $grille['salles'][$salleCible]['y'] && $y < $grille['salles'][$salleCible]['y'] + $grille['salles'][$salleCible]['hauteur'];
+    $dehors = $dansLaSalle($a['x'], $a['y']) ? $b : $a;
+    $etat->update(['position_x' => $dehors['x'], 'position_y' => $dehors['y'], 'deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    // Avant : la salle n'est pas découverte, le monstre est dormant.
+    expect(Cache::get(ResolveurTour::cleSallesDecouvertes($quete->id), []))->not->toContain($salleCible);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $optionId = "ouvrir_porte_{$porteCible['x']}_{$porteCible['y']}_{$porteCible['cote']}";
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', $optionId);
+    expect($option)->not->toBeNull();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])->assertStatus(202);
+
+    // Après : la salle est marquée découverte et son monstre révélé — SANS
+    // que le héros ait bougé d'une case (il est resté devant la porte).
+    expect(Cache::get(ResolveurTour::cleSallesDecouvertes($quete->id), []))->toContain($salleCible)
+        ->and($etat->fresh()->position_x)->toBe($dehors['x'])
+        ->and($etat->fresh()->position_y)->toBe($dehors['y']);
+
+    foreach (InstanceMonstre::where('quete_id', $quete->id)->get() as $m) {
+        if ($dansLaSalle((int) $m->position_x, (int) $m->position_y)) {
+            expect($m->revele)->toBeTrue("Monstre {$m->id} de la salle {$salleCible} toujours dormant après ouverture de la porte.");
+        }
+    }
 });

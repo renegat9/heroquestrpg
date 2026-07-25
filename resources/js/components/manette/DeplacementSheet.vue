@@ -74,12 +74,24 @@ const accessibles = computed(() => {
             if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
             const k = cle(nx, ny);
             if (k in dist) continue;
-            if (cases?.[ny]?.[nx] !== 's') continue;      // mur / brouillard 'b' = infranchissable
             if (porteFermeeEntre(x, y, nx, ny)) continue;  // on ne traverse pas une porte fermée
+            const porteOuverteIci = portesParArete.value.get(cleArete(x, y, nx, ny))?.etat === 'ouverte';
+            const caseConnue = cases?.[ny]?.[nx] === 's';
+            // Sol déjà connu, OU porte OUVERTE sur l'arête franchie : le brouillard
+            // masque l'intérieur d'une salle tant qu'on n'y est pas entré, mais une
+            // porte ouverte GARANTIT du sol juste derrière (une porte ne sépare
+            // jamais que deux cases de sol) — on peut donc continuer son
+            // mouvement à travers une porte qu'on vient d'ouvrir, comme le
+            // permet le moteur serveur (docs/contrat-api.md : « on l'ouvre et on
+            // poursuit son mouvement s'il reste des points »).
+            if (!caseConnue && !porteOuverteIci) continue;
             if (occupees.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
-            file.push({ x: nx, y: ny });
+            // Ne PAS étendre le BFS au-delà d'une case encore dans le brouillard :
+            // on ignore ce qu'il y a plus loin tant que le serveur n'a pas révélé
+            // la salle (prochain état, après ce déplacement).
+            if (caseConnue) file.push({ x: nx, y: ny });
         }
     }
     return out;

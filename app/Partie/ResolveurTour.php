@@ -1507,6 +1507,13 @@ final class ResolveurTour
         $cause = $aMain ? 'main' : 'cle';
         $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], $cause, $acteur);
 
+        // Comme au plateau : le contenu de la salle (monstres compris) se
+        // révèle à l'OUVERTURE de la porte, pas en attendant qu'un héros y
+        // mette les pieds (doc 06/14 — cf. decouvrirSalle pour le détail).
+        foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
+            $this->revelerSalle($groupe, $quete, $salleAdjacente);
+        }
+
         $payload = [
             'type' => 'ouvrir_porte',
             'option_id' => $option['id'],
@@ -2323,7 +2330,10 @@ final class ResolveurTour
     /**
      * Si le héros vient d'entrer dans une salle JAMAIS explorée, la marque vue
      * et déclenche la description de la salle par le MJ (narration). Best-effort,
-     * sans incidence mécanique.
+     * sans incidence mécanique. Filet de sécurité pour une salle atteinte SANS
+     * passer par une porte qu'on vient d'ouvrir (cf. resoudreOuvrirPorte, qui
+     * révèle désormais dès l'ouverture — comme au plateau) : sans effet si la
+     * salle est déjà révélée (revelerSalle est idempotent).
      */
     private function decouvrirSalle(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat): void
     {
@@ -2337,6 +2347,46 @@ final class ResolveurTour
             return; // couloir : rien à décrire
         }
 
+        $this->revelerSalle($groupe, $quete, $salle);
+    }
+
+    /**
+     * Salle(s) directement adjacente(s) à une porte — les deux cases qu'elle
+     * sépare (Grille::casesPorte). Sert à révéler la salle DÈS L'OUVERTURE de
+     * la porte (resoudreOuvrirPorte), comme au plateau : on voit le contenu
+     * avant même d'y entrer, sans attendre le pas suivant.
+     *
+     * @param  array{x: int, y: int, cote?: string}  $porte
+     * @return list<int>
+     */
+    private function sallesAdjacentesPorte(Quete $quete, array $porte): array
+    {
+        [$a, $b] = Grille::casesPorte($porte);
+
+        $salles = [];
+        foreach ([$a, $b] as $case) {
+            $salle = $this->salleA($quete, $case['x'], $case['y']);
+            if ($salle !== null) {
+                $salles[] = $salle;
+            }
+        }
+
+        return array_values(array_unique($salles));
+    }
+
+    /**
+     * Révèle une salle (index dans carte.grille.salles) si ce n'est pas déjà
+     * fait : marque « découverte » (cache, cleSallesDecouvertes), réveille ses
+     * monstres dormants (dormants → actifs visibles, joueront dès la phase des
+     * monstres de ce tour), journalise, et déclenche la narration de
+     * description. Idempotent — sans effet si la salle est déjà révélée.
+     * Appelée à l'entrée en salle (decouvrirSalle) ET, désormais, dès
+     * l'ouverture d'une porte y donnant accès (resoudreOuvrirPorte) — comme au
+     * plateau, où ouvrir une porte révèle immédiatement le contenu de la
+     * salle, avant même d'y mettre les pieds.
+     */
+    private function revelerSalle(Groupe $groupe, Quete $quete, int $salle): void
+    {
         $cle = self::cleSallesDecouvertes($quete->id);
         $vues = (array) Cache::get($cle, []);
 
