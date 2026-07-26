@@ -137,6 +137,44 @@ final class ClotureCampagne
     }
 
     /**
+     * Arrêt D'URGENCE de la campagne (bouton narrateur, écran de table —
+     * « ça va très mal, on arrête tout ») : contrairement à ouvrir()/
+     * confirmer(), AUCUN rituel de confirmation par joueur — la finalisation
+     * part directement en job, avec toutes les confirmations déjà à `true`.
+     * Utilisable À TOUT MOMENT, y compris en pleine quête (pas de garde de
+     * phase, contrairement à ouvrir()) : un narrateur qui veut libérer les
+     * joueurs pour une nouvelle campagne ne doit pas attendre de repasser au
+     * hub ni que chacun reconfirme un partage d'or/équipement. Issue
+     * `abandon` (jamais une défaite non méritée) : l'or au pot reste entier,
+     * réparti comme d'habitude par le job — pas de rituel de réassignation
+     * d'équipement (chacun garde ce qu'il porte).
+     */
+    public function arreterImmediatement(Groupe $groupe): void
+    {
+        $confirmations = [];
+        foreach ($this->membres($groupe) as $joueur) {
+            $confirmations[(string) $joueur->id] = true;
+        }
+
+        if ($confirmations === []) {
+            throw ValidationException::withMessages([
+                'groupe' => 'Aucun joueur membre : rien à arrêter (le groupe vide se purge au départ).',
+            ]);
+        }
+
+        Log::warning('Campagne arrêtée en urgence par le narrateur (sans confirmation).', [
+            'groupe_id' => $groupe->id,
+        ]);
+
+        CloturerCampagne::dispatch($groupe->id, [
+            'issue' => 'abandon',
+            'or_a_partager' => (int) $groupe->or,
+            'reassignations' => [],
+            'confirmations' => $confirmations,
+        ]);
+    }
+
+    /**
      * EtatCloture courant (GET cloture), ou null si aucune fenêtre ouverte.
      *
      * @return array<string, mixed>|null

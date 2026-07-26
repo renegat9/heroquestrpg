@@ -370,6 +370,16 @@ export function useApi() {
         /** DELETE /groupes/{id}/cloture — annule la fenêtre (rien appliqué). */
         annulerCloture: (identifiant) => request('DELETE', `/groupes/${identifiant}/cloture`),
 
+        /**
+         * POST /groupes/{id}/cloture/urgence — arrêt D'URGENCE : la campagne
+         * se termine IMMÉDIATEMENT, sans confirmation d'aucun joueur (menu
+         * d'urgence du narrateur). `.cloture.terminee` arrive ensuite par
+         * Reverb comme pour une fin normale — les clients retournent à
+         * l'accueil via l'écran de clôture.
+         */
+        arreterCampagneUrgence: (identifiant) =>
+            request('POST', `/groupes/${identifiant}/cloture/urgence`),
+
         // ---- snapshots & reprise (contrat « Snapshots & reprise », TPK doc 05 §6) ----
 
         /** GET /groupes/{id}/snapshots → [{id, etiquette, sequence_evenement, created_at}]. */
@@ -385,5 +395,14 @@ export function useApi() {
         reprendrePartie: (identifiant, { snapshot_id } = {}) =>
             request('POST', `/groupes/${identifiant}/reprise`,
                 snapshot_id != null ? { snapshot_id } : {}),
+
+        /**
+         * POST /groupes/{id}/quete/redemarrer — redémarre la quête EN COURS
+         * depuis son état de départ (menu d'urgence du narrateur). Contrairement
+         * à reprendrePartie (TPK), utilisable à tout moment. 422 si aucune
+         * quête en cours ou aucun snapshot de départ.
+         */
+        redemarrerQuete: (identifiant) =>
+            request('POST', `/groupes/${identifiant}/quete/redemarrer`),
     };
 }

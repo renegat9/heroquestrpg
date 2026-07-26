@@ -107,6 +107,22 @@ class ClotureController extends Controller
     }
 
     /**
+     * POST /api/groupes/{identifiant}/cloture/urgence — arrêt D'URGENCE :
+     * la campagne se termine IMMÉDIATEMENT, sans confirmation d'aucun
+     * joueur (contrairement à ouvrir()/confirmer() ci-dessus). Utilisable à
+     * tout moment, y compris en pleine quête — le bouton « Arrêter la
+     * campagne » du menu d'urgence du narrateur (écran de table).
+     */
+    public function urgence(Request $request, string $identifiant): Response
+    {
+        $groupe = $this->groupeLisible($request, $identifiant);
+
+        $this->cloture->arreterImmediatement($groupe);
+
+        return response()->noContent();
+    }
+
+    /**
      * Le groupe demandé + le joueur connecté, qui doit y contrôler au moins
      * un héros actif (même règle que le reste de l'API).
      *

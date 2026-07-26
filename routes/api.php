@@ -66,6 +66,11 @@ Route::get('/groupes/{identifiant}/cloture', [ClotureController::class, 'etat'])
 Route::post('/groupes/{identifiant}/cloture', [ClotureController::class, 'ouvrir']);
 Route::delete('/groupes/{identifiant}/cloture', [ClotureController::class, 'annuler']);
 
+// Arrêt d'urgence (menu d'urgence du narrateur) : termine la campagne
+// IMMÉDIATEMENT, sans rituel de confirmation par joueur — à tout moment,
+// même en pleine quête. Même autorisation membre-OU-table que ci-dessus.
+Route::post('/groupes/{identifiant}/cloture/urgence', [ClotureController::class, 'urgence']);
+
 // Ouvrir / annuler le marché : même règle que la clôture — le bouton « Ouvrir
 // le marché » est sur l'écran de TABLE (narrateur sans compte). Rien n'est
 // appliqué avant la confirmation de TOUS les joueurs (auth:joueur ci-dessous).
@@ -76,6 +81,12 @@ Route::delete('/groupes/{identifiant}/marche', [MarcheController::class, 'annule
 // est lui aussi sur l'écran de TABLE — autorisation membre-OU-table dans le
 // contrôleur. La liste des snapshots reste réservée aux joueurs.
 Route::post('/groupes/{identifiant}/reprise', [SauvegardeController::class, 'reprendre']);
+
+// Redémarrage VOLONTAIRE de la quête en cours (menu d'urgence du narrateur,
+// écran de table) : contrairement à /reprise (TPK), utilisable à tout moment,
+// pas seulement après un échec — restaure le snapshot debut_quete de la quête
+// COURANTE quel que soit son état. Même autorisation membre-OU-table.
+Route::post('/groupes/{identifiant}/quete/redemarrer', [SauvegardeController::class, 'redemarrer']);
 
 // Démarrer la quête suivante : le bouton « Lancer la quête » est sur l'écran de
 // TABLE (narrateur sans compte) → autorisation membre-OU-table dans le

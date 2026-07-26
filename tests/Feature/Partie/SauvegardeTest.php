@@ -286,6 +286,83 @@ it('refuse la reprise (422) quand une quête est en cours et non échouée, ou s
     $this->postJson('/api/groupes/table-2/reprise')->assertStatus(422);
 });
 
+it('recommence une quête EN COURS (pas de TPK) : redémarrage volontaire à tout moment', function () {
+    [, $groupe, $mage, $quete] = demarrerQueteSauvegarde();
+
+    $spawnHeros = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $mage->id)->firstOrFail()->only(['position_x', 'position_y']);
+    $monstresDepart = $quete->instancesMonstres()->orderBy('id')->get()
+        ->map(fn ($i) => $i->only(['id', 'pv_body', 'position_x', 'position_y', 'etat']))->all();
+
+    // La quête avance normalement (PAS de TPK) : héros amoché, sorts épuisés,
+    // inventaire consommé, un monstre tué — mais reste `en_cours`.
+    $mage->update(['pv_body' => 3]);
+    DB::table('personnage_sorts')->where('personnage_id', $mage->id)->update(['disponible' => false]);
+    Inventaire::where('personnage_id', $mage->id)->delete();
+    $quete->instancesMonstres()->orderByDesc('id')->firstOrFail()->update(['etat' => 'vaincu', 'pv_body' => 0]);
+
+    expect($quete->fresh()->etat)->toBe('en_cours')
+        ->and($groupe->fresh()->phase)->toBe('quete');
+
+    $evenementsAvant = (int) $groupe->evenements()->count();
+    $snapshot = Snapshot::where('groupe_id', $groupe->id)->get()
+        ->firstWhere(fn (Snapshot $s) => data_get($s->etat, 'etiquette') === 'debut_quete');
+
+    // Redémarrage volontaire : contrairement à /reprise, aucune condition
+    // d'échec n'est exigée — la quête n'a PAS échoué et ça marche quand même.
+    $this->postJson('/api/groupes/table-1/quete/redemarrer')
+        ->assertOk()
+        ->assertJsonPath('snapshot_id', $snapshot->id)
+        ->assertJsonPath('etiquette', 'debut_quete')
+        ->assertJsonPath('quete_id', $quete->id);
+
+    $groupe->refresh();
+    expect($groupe->phase)->toBe('quete')
+        ->and($groupe->quete_courante_id)->toBe($quete->id)
+        ->and($quete->fresh()->etat)->toBe('en_cours');
+
+    // Héros : PV, sorts et inventaire restaurés à l'état de départ.
+    $mage->refresh();
+    expect($mage->pv_body)->toBe(8)
+        ->and($mage->sorts()->wherePivot('disponible', true)->count())->toBe(6)
+        ->and($mage->inventaire()->count())->toBe(1);
+
+    $epq = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)->firstOrFail();
+    expect($epq->tombe)->toBeFalse()
+        ->and($epq->only(['position_x', 'position_y']))->toBe($spawnHeros);
+
+    // Monstres : le tué revit, positions et PV de départ.
+    $monstresApres = $quete->instancesMonstres()->orderBy('id')->get()
+        ->map(fn ($i) => $i->only(['id', 'pv_body', 'position_x', 'position_y', 'etat']))->all();
+    expect($monstresApres)->toBe($monstresDepart);
+
+    // Journal : action DISTINCTE d'une reprise après TPK (traçabilité).
+    $evt = $groupe->evenements()->where('type', 'systeme')->get()
+        ->first(fn ($e) => ($e->payload['action'] ?? null) === 'quete_redemarree');
+    expect($evt)->not->toBeNull()
+        ->and($evt->payload['snapshot_id'])->toBe($snapshot->id)
+        ->and((int) $groupe->evenements()->count())->toBeGreaterThan($evenementsAvant);
+});
+
+it('refuse le redémarrage volontaire (422) sans quête en cours', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    // Au hub, aucune quête démarrée : rien à recommencer.
+    $this->postJson('/api/groupes/table-1/quete/redemarrer')->assertStatus(422);
+});
+
+it('laisse le NARRATEUR (session de table, sans compte) recommencer la quête', function () {
+    [, $groupe, , $quete] = demarrerQueteSauvegarde();
+    $this->postJson('/api/deconnexion'); // on quitte le rôle joueur
+
+    $this->postJson('/api/table', ['code' => 'table-1'])->assertOk(); // session de table
+    $this->postJson('/api/groupes/table-1/quete/redemarrer')
+        ->assertOk()
+        ->assertJsonPath('quete_id', $quete->id);
+});
+
 it('purge les snapshots de la quête à la fin de la quête (victoire)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

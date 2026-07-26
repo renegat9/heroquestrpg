@@ -141,13 +141,49 @@ final class Sauvegarde
     }
 
     /**
+     * Redémarrage VOLONTAIRE de la quête EN COURS (bouton d'urgence, écran
+     * de table — « ça va très mal ») : contrairement à reprendre(), AUCUNE
+     * condition d'échec n'est exigée — utilisable à tout moment pendant la
+     * quête. Restaure le snapshot `debut_quete` de la quête courante (pas
+     * forcément la dernière échouée). 422 si aucune quête courante, ou si
+     * son snapshot de départ a été purgé (ne devrait pas arriver : pris par
+     * DemarreurQuete au lancement, conservé jusqu'à la fin de la quête).
+     */
+    public function redemarrerQuete(Groupe $groupe): Snapshot
+    {
+        $quete = $groupe->queteCourante;
+
+        if ($quete === null) {
+            throw ValidationException::withMessages([
+                'groupe' => 'Aucune quête en cours à recommencer.',
+            ]);
+        }
+
+        $snapshot = $this->snapshotDebutQuete($groupe, (int) $quete->id);
+
+        if ($snapshot === null) {
+            throw ValidationException::withMessages([
+                'snapshot_id' => 'Aucun point de départ sauvegardé pour cette quête.',
+            ]);
+        }
+
+        $this->restaurer($groupe, $snapshot, 'quete_redemarree');
+
+        return $snapshot;
+    }
+
+    /**
      * Réécrit TOUT l'état vivant depuis le snapshot, en transaction
      * (delete + insert pour les collections), repasse la quête `en_cours`
-     * et le groupe en phase `quete`, journalise la reprise (le journal
-     * n'est JAMAIS tronqué — doc 07), rediffuse `.groupe.etat` et relance
-     * narration + menus (repli moteur garanti sans LLM).
+     * et le groupe en phase `quete`, journalise (le journal n'est JAMAIS
+     * tronqué — doc 07), rediffuse `.groupe.etat` et relance narration +
+     * menus (repli moteur garanti sans LLM). `$action` distingue au journal
+     * une reprise après TPK (`reprise`, défaut) d'un redémarrage volontaire
+     * (`quete_redemarree`, cf. redemarrerQuete) — la narration reste celle
+     * de `reprise` dans les deux cas (texte de repli déjà adapté aux deux :
+     * « le fil du destin se rembobine… »).
      */
-    public function restaurer(Groupe $groupe, Snapshot $snapshot): void
+    public function restaurer(Groupe $groupe, Snapshot $snapshot, string $action = 'reprise'): void
     {
         $etat = $snapshot->etat;
 
@@ -182,7 +218,7 @@ final class Sauvegarde
         }
 
         Journal::ajouter($groupe, 'systeme', [
-            'action' => 'reprise',
+            'action' => $action,
             'snapshot_id' => $snapshot->id,
             'etiquette' => data_get($snapshot->etat, 'etiquette'),
             'quete_id' => (int) data_get($snapshot->etat, 'quete.id'),
@@ -212,11 +248,17 @@ final class Sauvegarde
             return null;
         }
 
+        return $this->snapshotDebutQuete($groupe, (int) $echouee->id);
+    }
+
+    /** Snapshot `debut_quete` d'une quête précise (partagé reprendre() / redemarrerQuete()). */
+    private function snapshotDebutQuete(Groupe $groupe, int $queteId): ?Snapshot
+    {
         return $groupe->snapshots()
             ->orderByDesc('id')
             ->get()
             ->first(fn (Snapshot $s) => data_get($s->etat, 'etiquette') === self::ETIQUETTE_DEBUT_QUETE
-                && (int) data_get($s->etat, 'quete.id') === (int) $echouee->id);
+                && (int) data_get($s->etat, 'quete.id') === $queteId);
     }
 
     // ------------------------------------------------------------------

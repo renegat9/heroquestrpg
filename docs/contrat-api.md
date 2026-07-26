@@ -372,6 +372,7 @@ réservé à une campagne réellement échouée (422 sinon). 422 si une quête e
 | PUT | /groupes/{identifiant}/cloture/repartition | {inventaire_id, personnage_id} | réassigne un équipement (annule les confirmations) |
 | POST | /groupes/{identifiant}/cloture/confirmation | — | confirme ; tous confirmés → finalisation |
 | DELETE | /groupes/{identifiant}/cloture | — | annule la fenêtre (rien appliqué) |
+| POST | /groupes/{identifiant}/cloture/urgence | — | **arrêt d'urgence** : finalise IMMÉDIATEMENT, sans confirmation d'aucun joueur — **membre OU table**, à tout moment (y compris en pleine quête). Menu d'urgence du narrateur, écran de table. Issue `abandon`, or_a_partager = or courant, aucune réassignation d'équipement (chacun garde ce qu'il porte) — sinon même finalisation que ci-dessous (job, historique, purge, `.cloture.terminee`) |
 
 **EtatCloture** : `{issue: "victoire|echec|abandon", or_a_partager,
 parts: [{personnage_id, nom, joueur_id, montant}] (parts égales, reste réparti
@@ -416,6 +417,7 @@ conservés pendant la quête — départ playtest).
 |---|---|---|---|
 | GET | /groupes/{identifiant}/snapshots | — | liste : [{id, etiquette, sequence_evenement, created_at}] |
 | POST | /groupes/{identifiant}/reprise | {snapshot_id?} | restaure l'état (défaut : snapshot `debut_quete` de la dernière quête échouée — le « recharger » après TPK) — **membre OU table** (le bouton « Recharger la quête » est sur l'écran de table, même règle que la clôture) |
+| POST | /groupes/{identifiant}/quete/redemarrer | — | **redémarrage volontaire** de la quête EN COURS depuis son snapshot `debut_quete` — **membre OU table**, à tout moment, contrairement à `/reprise` AUCUNE condition d'échec n'est exigée. Menu d'urgence du narrateur, écran de table (« ça va très mal »). 422 si aucune quête en cours ou snapshot introuvable |
 
 **Reprise** : 422 si une quête est en cours ET non échouée (on ne recharge pas
 en pleine partie réussie) ; restauration atomique en transaction : l'état
@@ -425,6 +427,13 @@ n'est JAMAIS tronqué — source de vérité, doc 07), broadcast `.groupe.etat` 
 re-dispatch narration/menus. Le TPK (doc 03/05) devient donc : quête `echouee`
 → le groupe **vote ou choisit** : `POST reprise` (recharger) ou
 `POST cloture {abandon: true}` (abandonner).
+
+**Redémarrage volontaire** (`/quete/redemarrer`) : même restauration
+atomique que la reprise (même méthode moteur, `App\Partie\Sauvegarde::restaurer`),
+journal `{action: "quete_redemarree", snapshot_id}` pour le distinguer d'une
+reprise après TPK — mais **sans la garde de phase** de `/reprise` : utilisable
+au milieu d'une quête saine, pas seulement après un échec. C'est le bouton
+« Recommencer la quête actuelle » du menu d'urgence du narrateur.
 
 ## Sorts de Dread & capacités des boss (doc 09 §4 — tout dans le tour scripté)
 

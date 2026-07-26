@@ -422,3 +422,82 @@ it('remet les héros à plein (PV, sorts, conditions) à la clôture — victoir
         ->and(DB::table('personnage_sorts')->where('personnage_id', $hero->id)->where('sort_id', $sortId)->value('disponible'))->toBeTruthy()
         ->and($hero->conditions()->count())->toBe(0);
 });
+
+/*
+ * Arrêt d'urgence (menu d'urgence du narrateur, écran de table) : contrairement
+ * au rituel ci-dessus, AUCUNE confirmation d'aucun joueur n'est exigée et AUCUNE
+ * garde de phase ne s'applique — utilisable à tout moment, y compris en pleine
+ * quête. Réutilise le même job CloturerCampagne (or réparti, historique écrit,
+ * purge complète, `.cloture.terminee`), juste sans attendre.
+ */
+
+it('arrête la campagne IMMÉDIATEMENT, sans confirmation, même en pleine quête', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe(nbQuetes: 2);
+    $groupe->update(['or' => 101]);
+    $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $heroB = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    // En PLEINE QUÊTE (pas au hub) : la clôture normale refuserait (422,
+    // « terminez ou abandonnez la quête en cours ») — l'urgence, elle, doit
+    // fonctionner quand même, c'est tout son intérêt.
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    expect($groupe->fresh()->phase)->toBe('quete');
+
+    $orPot = (int) $groupe->fresh()->or;
+
+    Event::fake([ClotureTerminee::class]);
+
+    $this->postJson('/api/groupes/table-1/cloture/urgence')->assertNoContent();
+
+    // Or commun réparti en parts égales (reste au premier de l'initiative) —
+    // sans qu'aucun joueur n'ait rien confirmé.
+    $heroA->refresh();
+    $heroB->refresh();
+    expect((int) $heroA->or)->toBe(intdiv($orPot, 2) + ($orPot % 2))
+        ->and((int) $heroB->or)->toBe(intdiv($orPot, 2));
+
+    // Historique écrit — issue `abandon` (jamais une défaite non méritée).
+    $histoA = PersonnageHistorique::where('personnage_id', $heroA->id)->firstOrFail();
+    expect($histoA->issue)->toBe('abandon');
+    expect(PersonnageHistorique::where('personnage_id', $heroB->id)->exists())->toBeTrue();
+
+    // Personnages détachés, retour au roster — libres pour une nouvelle campagne.
+    expect($heroA->groupe_actif_id)->toBeNull()
+        ->and($heroB->groupe_actif_id)->toBeNull();
+
+    // Purge COMPLÈTE, y compris la quête EN COURS (contrairement à la clôture
+    // normale qui n'est même pas accessible pendant une quête).
+    expect(Groupe::where('identifiant', 'table-1')->exists())->toBeFalse()
+        ->and(Quete::count())->toBe(0)
+        ->and(Carte::count())->toBe(0)
+        ->and(InstanceMonstre::count())->toBe(0)
+        ->and(EtatPersonnageQuete::count())->toBe(0)
+        ->and(Evenement::count())->toBe(0)
+        ->and(Snapshot::count())->toBe(0);
+
+    // Même broadcast final que la clôture normale : les clients (table +
+    // manettes) retournent à l'accueil via l'écran de clôture existant.
+    Event::assertDispatched(ClotureTerminee::class);
+});
+
+it('laisse le NARRATEUR (session de table, sans compte) arrêter la campagne en urgence', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $this->postJson('/api/deconnexion'); // on quitte le rôle joueur
+
+    $this->postJson('/api/table', ['code' => 'table-1'])->assertOk(); // session de table
+    $this->postJson('/api/groupes/table-1/cloture/urgence')->assertNoContent();
+
+    expect(Groupe::where('identifiant', 'table-1')->exists())->toBeFalse();
+});
+
+it('refuse l\'arrêt d\'urgence à un intrus (ni membre ni table)', function () {
+    connecterJoueur('intrus'); // connecté, mais aucun héros actif dans ce groupe
+    creerGroupe();
+
+    $this->postJson('/api/groupes/table-1/cloture/urgence')->assertStatus(403);
+});

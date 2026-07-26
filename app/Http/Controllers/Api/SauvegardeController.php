@@ -77,6 +77,29 @@ class SauvegardeController extends Controller
     }
 
     /**
+     * POST /api/groupes/{identifiant}/quete/redemarrer — redémarre la quête
+     * EN COURS depuis son état de départ (bouton d'urgence, écran de table).
+     * Contrairement à reprendre() (TPK), utilisable À TOUT MOMENT — aucune
+     * condition d'échec exigée. 422 si aucune quête en cours ou si son
+     * snapshot de départ est introuvable.
+     */
+    public function redemarrer(Request $request, string $identifiant): JsonResponse
+    {
+        // Membre OU table : même règle que la reprise après TPK — le bouton
+        // « urgence » est sur l'écran de table (narrateur sans compte).
+        $groupe = $this->groupeLisible($request, $identifiant);
+
+        $snapshot = $this->sauvegarde->redemarrerQuete($groupe);
+
+        return response()->json([
+            'snapshot_id' => $snapshot->id,
+            'etiquette' => data_get($snapshot->etat, 'etiquette'),
+            'sequence_evenement' => (int) $snapshot->sequence_evenement,
+            'quete_id' => (int) data_get($snapshot->etat, 'quete.id'),
+        ]);
+    }
+
+    /**
      * Le groupe demandé + le joueur connecté, qui doit y contrôler au moins
      * un héros actif (même règle que le reste de l'API).
      *

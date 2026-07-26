@@ -12,6 +12,7 @@ import NarrationBand from '../components/table/NarrationBand.vue';
 import PrologueOverlay from '../components/table/PrologueOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
 import ParametresPanel from '../components/table/ParametresPanel.vue';
+import UrgenceNarrateurPanel from '../components/table/UrgenceNarrateurPanel.vue';
 import { souscrireGroupe } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
@@ -378,6 +379,42 @@ async function rechargerQuete() {
     }
 }
 
+/* ---- menu d'urgence du narrateur (« ça va très mal ») : recommencer la
+   quête à tout moment, ou arrêter la campagne immédiatement pour libérer
+   les joueurs. Mêmes conventions que rechargerQuete/ouvrirCloture. ---- */
+const urgenceOuverte = ref(false);
+const urgenceEnCours = ref(false);
+const urgenceErreur = ref('');
+
+async function redemarrerQueteUrgence() {
+    urgenceEnCours.value = true;
+    urgenceErreur.value = '';
+    try {
+        await api.redemarrerQuete(props.groupe);
+        store.appliquerEtat(await api.getEtat(props.groupe));
+        urgenceOuverte.value = false;
+    } catch (e) {
+        urgenceErreur.value = e.message;
+    } finally {
+        urgenceEnCours.value = false;
+    }
+}
+
+async function arreterCampagneUrgence() {
+    urgenceEnCours.value = true;
+    urgenceErreur.value = '';
+    try {
+        await api.arreterCampagneUrgence(props.groupe);
+        // Pas de reset de urgenceEnCours ici : `.cloture.terminee` arrive par
+        // Reverb (job CloturerCampagne) et le watch ci-dessous redirige déjà
+        // vers l'écran de clôture — le panneau reste sur « Arrêt en cours… »
+        // jusqu'à la navigation.
+    } catch (e) {
+        urgenceErreur.value = e.message;
+        urgenceEnCours.value = false;
+    }
+}
+
 // Finalisation (.cloture.terminee) : l'écran de clôture porte l'épilogue
 // (résumés) et le « Retour à l'accueil » qui purge le store.
 watch(() => store.state.clotureTerminee, (t) => {
@@ -414,6 +451,9 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span class="dots"><i /><i /><i /></span> Le MJ réfléchit…
                     </div>
                     <div class="conn"><span class="dot" />{{ joueursConnectes }} joueurs connectés</div>
+                    <button class="status-urgence" type="button" title="Actions du narrateur" @click="urgenceOuverte = true">
+                        <MSym n="crisis_alert" />
+                    </button>
                     <button class="status-params" type="button" title="Réglages" @click="parametresOuverts = true">
                         <MSym n="settings" />
                     </button>
@@ -629,6 +669,16 @@ watch(() => store.state.clotureTerminee, (t) => {
 
         <!-- Panneau de réglages (MJ IA + audio) -->
         <ParametresPanel v-if="parametresOuverts" @fermer="parametresOuverts = false" />
+
+        <!-- Menu d'urgence du narrateur (recommencer la quête / arrêter la campagne) -->
+        <UrgenceNarrateurPanel
+            v-if="urgenceOuverte"
+            :en-cours="urgenceEnCours"
+            :erreur="urgenceErreur"
+            @redemarrer="redemarrerQueteUrgence"
+            @arreter="arreterCampagneUrgence"
+            @fermer="urgenceOuverte = false"
+        />
     </div>
 </template>
 
@@ -699,6 +749,10 @@ watch(() => store.state.clotureTerminee, (t) => {
   display: grid; place-items: center; border: var(--line); background: var(--stone-850); color: var(--ink-300);
   cursor: pointer; transition: color .15s, border-color .15s; }
 .table-screen .status-top .status-params:hover { color: var(--parch-100); border-color: var(--torch); }
+.table-screen .status-top .status-urgence { width: 34px; height: 34px; border-radius: 999px; flex: none;
+  display: grid; place-items: center; border: var(--line); background: var(--stone-850); color: var(--ink-300);
+  cursor: pointer; transition: color .15s, border-color .15s; }
+.table-screen .status-top .status-urgence:hover { color: var(--danger); border-color: var(--danger); }
 .table-screen .think { display: inline-flex; align-items: center; gap: 9px; padding: 8px 15px; border-radius: 99px;
   background: var(--stone-850); border: var(--line-gold); color: var(--torch); font-size: 13px; font-weight: 700; }
 .table-screen .conn { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ok); }
