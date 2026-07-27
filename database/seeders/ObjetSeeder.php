@@ -33,7 +33,7 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale',
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'ligne_de_vue' => true, 'inutilisable_adjacent' => true]],
             ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale',
-                'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
+                'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true, 'necessite_maitrise_lourde' => true]],
 
             // ----- Armures -----
             ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'armure',
@@ -43,7 +43,7 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'armure',
                 'effet' => ['des_defense' => 1]],
             ['nom' => 'Armure de plates', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 850, 'emplacement' => 'armure',
-                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true]], // décision AP : dépl. = base seule
+                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true, 'necessite_maitrise_lourde' => true]], // décision AP : dépl. = base seule
 
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'sac',

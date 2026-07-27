@@ -58,6 +58,14 @@ class MenuChoix extends Skill
                             'properties' => [
                                 'attribut' => ['type' => 'string', 'enum' => ['body', 'mind']],
                                 'difficulte' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 4],
+                                'contexte' => [
+                                    'type' => 'string',
+                                    'enum' => ['social_peur', 'perception', 'savoir'],
+                                    'description' => 'Optionnel, jet de Mind seulement : nature du jet, pour '
+                                        .'que les nœuds d\'arbre adaptés du héros (Intimidation/Sens aiguisés/'
+                                        .'Érudition) s\'appliquent. social_peur = intimider/impressionner par la '
+                                        .'peur ; perception = repérer/fouiller ; savoir = érudition/mémoire.',
+                                ],
                             ],
                         ],
                         'cible_id' => [
@@ -78,7 +86,7 @@ class MenuChoix extends Skill
     /** Options génériques de repli, toujours exécutables (doc 08 §5). */
     public const OPTIONS_GENERIQUES = [
         ['id' => 'attendre', 'libelle' => 'Attendre et observer', 'type' => 'attente'],
-        ['id' => 'fouiller', 'libelle' => 'Fouiller les environs — jet de Mind', 'type' => 'jet', 'jet' => ['attribut' => 'mind', 'difficulte' => 1]],
+        ['id' => 'fouiller', 'libelle' => 'Fouiller les environs — jet de Mind', 'type' => 'jet', 'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception']],
         ['id' => 'continuer', 'libelle' => 'Continuer prudemment', 'type' => 'action'],
     ];
 
@@ -101,7 +109,10 @@ class MenuChoix extends Skill
         Contraintes (vérifiées par le moteur) :
         - 2 à 5 options variées et contextuelles, dont au plus une "attente".
         - Une option "jet" précise attribut (body|mind) et difficulté 1 (facile) à 4
-          (très difficile) ; tu PROPOSES le jet, le moteur lance les dés.
+          (très difficile) ; tu PROPOSES le jet, le moteur lance les dés. Pour un jet
+          de Mind, précise contexte si la situation est clairement une intimidation
+          par la peur (social_peur), une perception/fouille (perception), ou du
+          savoir/mémoire (savoir) — sinon omets contexte.
         - Une option "attaque" cible un monstre ACTIF de l'état vivant (cible_id =
           instance_id) — n'en propose que s'il y a un monstre actif.
         - Chaque option doit être exécutable telle quelle : pas d'option conditionnelle,

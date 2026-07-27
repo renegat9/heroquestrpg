@@ -540,3 +540,69 @@ it('Se concentrer (S6) sacrifie le tour, récupère UN sort épuisé au choix, u
 
     expect(optionsMenuSorts($groupe, $alice, $mage)->pluck('id'))->not->toContain('se_concentrer');
 });
+
+it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même tour', function () {
+    [$alice, $groupe, $mage, $quete] = demarrerQueteSorts();
+    $mage->update(['niveau' => 2]); // 1 point de compétence dérivé
+
+    $this->postJson('/api/groupes/table-1/competences', [
+        'personnage_id' => $mage->id,
+        'competence_id' => Competence::where('classe', 'magicien')->where('nom', 'Réserve arcanique')->value('id'),
+    ])->assertCreated();
+
+    optionsMenuSorts($groupe, $alice, $mage);
+
+    // 1er sort : Courage sur soi-même — consomme le créneau action normal.
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'sort_'.sortIdParNom('Courage'),
+        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.bonus_reserve_arcanique', null);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)->firstOrFail();
+    expect($etat->fresh()->a_agi)->toBeTrue()
+        ->and($etat->fresh()->bonus_sort_utilise)->toBeFalse();
+
+    // Le menu propose ENCORE un sort (le bonus), malgré a_agi déjà pris.
+    $options = optionsMenuSorts($groupe, $alice, $mage);
+    expect($options->firstWhere('id', 'sort_'.sortIdParNom('Eau de Guérison')))->not->toBeNull()
+        // Mais plus d'attaque/désamorçage/équipement (pas concernés par le bonus).
+        ->and($options->contains(fn ($o) => ($o['type'] ?? null) === 'equiper'))->toBeFalse();
+
+    // 2e sort : Eau de Guérison — via le bonus de Réserve arcanique.
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'sort_'.sortIdParNom('Eau de Guérison'),
+        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.bonus_reserve_arcanique', true)
+        ->assertJsonPath('resultat.type', 'sort');
+
+    expect($etat->fresh()->bonus_sort_utilise)->toBeTrue()
+        ->and((bool) $mage->sorts()->whereKey(sortIdParNom('Courage'))->first()->pivot->disponible)->toBeFalse()
+        ->and((bool) $mage->sorts()->whereKey(sortIdParNom('Eau de Guérison'))->first()->pivot->disponible)->toBeFalse();
+
+    // Le bonus est consommé : un 3e sort ce tour est refusé.
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'sort_'.sortIdParNom('Trait de Feu'),
+        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422);
+});
+
+it('sans Réserve arcanique, un second sort le même tour est refusé (comportement inchangé)', function () {
+    [$alice, $groupe, $mage] = demarrerQueteSorts();
+    optionsMenuSorts($groupe, $alice, $mage);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'sort_'.sortIdParNom('Courage'),
+        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202);
+
+    // Le menu ne propose plus AUCUN sort (créneau action déjà pris, pas de bonus).
+    $options = optionsMenuSorts($groupe, $alice, $mage);
+    expect($options->contains(fn ($o) => ($o['type'] ?? null) === 'sort'))->toBeFalse();
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'sort_'.sortIdParNom('Eau de Guérison'),
+        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422);
+});

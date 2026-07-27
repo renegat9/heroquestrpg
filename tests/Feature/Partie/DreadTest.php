@@ -862,3 +862,87 @@ it('usages Dread réinitialisés au démarrage d\'une nouvelle quête', function
         }
     }
 });
+
+// ------------------------------------------------------------------
+// Contresort (nœud magicien, doc 01 §6) : une seconde chance de Mind
+// annule un effet magique de contrôle après une résistance naturelle ratée.
+// ------------------------------------------------------------------
+
+it('Contresort annule Sommeil quand la résistance naturelle échoue mais le contresort réussit', function () {
+    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
+
+    // Force le boss à ne disposer que de Sommeil (sinon Trait de Chaos/Tempête priment).
+    $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
+
+    $heros->update(['classe' => 'magicien']);
+    $heros->competences()->attach(
+        \App\Models\Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
+    );
+
+    desFiges([
+        4, // résistance naturelle (1 dé Mind) : bouclier blanc → 0 crâne → subit l'effet
+        1, // Contresort (1 dé Mind) : crâne → réussit → annule l'effet
+        ...array_fill(0, 20, 4),
+    ]);
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
+
+    expect($sortAction)->not->toBeNull()
+        ->and($sortAction['effet_applique'])->toBeTrue()
+        ->and($sortAction['contresort']['reussi'])->toBeTrue()
+        ->and($sortAction)->not->toHaveKey('condition');
+
+    expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeFalse();
+});
+
+it('Contresort raté : Sommeil s\'applique quand même', function () {
+    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
+
+    $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
+
+    $heros->update(['classe' => 'magicien']);
+    $heros->competences()->attach(
+        \App\Models\Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
+    );
+
+    desFiges([
+        4, // résistance naturelle : échoue
+        4, // Contresort : échoue aussi
+        ...array_fill(0, 20, 4),
+    ]);
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
+
+    expect($sortAction['contresort']['reussi'])->toBeFalse()
+        ->and($sortAction['condition'])->toBe('Endormi');
+
+    expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeTrue();
+});
+
+it('sans le nœud Contresort, aucune seconde chance : Sommeil s\'applique directement', function () {
+    $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
+    ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
+
+    $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
+
+    desFiges([4, ...array_fill(0, 20, 4)]); // résistance naturelle échoue, pas de second jet
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
+
+    expect($sortAction)->not->toHaveKey('contresort')
+        ->and($sortAction['condition'])->toBe('Endormi');
+});

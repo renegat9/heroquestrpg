@@ -75,6 +75,26 @@ final class ResolveurTour
      */
     public const COUT_FRANCHISSEMENT = 2;
 
+    /** Nœud barbare (CompetenceSeeder) : +1 dé d'attaque sous la moitié des PV de Body. */
+    public const NOEUD_FRENESIE = 'Frénésie';
+
+    /** Nœud barbare (CompetenceSeeder) : relance une fois les dés d'attaque ratés. */
+    public const NOEUD_COUP_PUISSANT = 'Coup puissant';
+
+    /** Nœud nain (CompetenceSeeder) : +1 dé de défense à la première attaque subie de la quête. */
+    public const NOEUD_GARDE_TENACE = 'Garde tenace';
+
+    /**
+     * Avantage aux jets de Mind (`avantage_jet_mind`, CompetenceSeeder) : nœud
+     * exact requis par `contexte` d'option de jet (MenuChoix / MenuMoteur).
+     * +1 dé de Mind si le héros possède le nœud du contexte proposé.
+     */
+    public const NOEUDS_AVANTAGE_MIND = [
+        'social_peur' => 'Intimidation',
+        'perception' => 'Sens aiguisés',
+        'savoir' => 'Érudition',
+    ];
+
     public function __construct(
         private readonly LanceurDes $des,
         private readonly EtatGroupe $etatGroupe,
@@ -128,16 +148,23 @@ final class ResolveurTour
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
 
         // Créneau visé (doc 03 §28 : un déplacement + une action par tour) :
-        // on refuse de rejouer un créneau déjà consommé ce tour.
+        // on refuse de rejouer un créneau déjà consommé ce tour. Réserve
+        // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
+        // créneau action normal — une seule fois par tour (bonus_sort_utilise).
         $creneau = $this->creneauOption((string) ($option['type'] ?? ''));
+        $bonusReserveArcanique = $creneau === 'action' && $etat->a_agi
+            && ($option['type'] ?? null) === 'sort'
+            && ! $etat->bonus_sort_utilise
+            && $this->possedeCompetence($personnage, 'Réserve arcanique');
+
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
         }
-        if ($creneau === 'action' && $etat->a_agi) {
+        if ($creneau === 'action' && $etat->a_agi && ! $bonusReserveArcanique) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
         }
 
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -195,9 +222,13 @@ final class ResolveurTour
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
+            if ($bonusReserveArcanique) {
+                $resultat['bonus_reserve_arcanique'] = true;
+            }
+
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
-            $this->marquerCreneau($etat, $creneau);
+            $this->marquerCreneau($etat, $creneau, $bonusReserveArcanique);
 
             // Hook post-combat : portes à verrou « monstres_vaincus » qui
             // s'ouvrent quand leur(s) gardien(s) tombe(nt) (doc 14 §3.3).
@@ -466,9 +497,32 @@ final class ResolveurTour
 
         $adjacentes = $this->heroAuContact($instance, (int) $etat->position_x, (int) $etat->position_y);
 
+        // Arme à distance équipée (Arbalète, ObjetSeeder `portee: distance`) :
+        // permet d'attaquer un monstre non adjacent en ligne de vue dégagée
+        // (Tir précis, nœud elfe) ; `inutilisable_adjacent` l'interdit au contact.
+        $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+        $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
+
         if (! $adjacentes) {
-            throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
+            if (! $armeADistance) {
+                throw ValidationException::withMessages(['option_id' => 'Cible hors de portée : l\'attaque exige une case adjacente.']);
+            }
+
+            $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
+            if (! $grille->ligneDeVue(
+                (int) $etat->position_x, (int) $etat->position_y,
+                (int) $instance->position_x, (int) $instance->position_y,
+                figuresBloquent: true,
+            )) {
+                throw ValidationException::withMessages(['option_id' => 'Cible hors de vue : aucune ligne de tir dégagée.']);
+            }
+        } elseif ($armeADistance && (bool) ($armePrincipale?->effet['inutilisable_adjacent'] ?? false)) {
+            throw ValidationException::withMessages([
+                'option_id' => "« {$armePrincipale->nom} » ne peut pas être utilisée au corps-à-corps.",
+            ]);
         }
+
+        $tirADistance = ! $adjacentes;
 
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         $bonusAttaque = $this->sorts->bonusDes($personnage, 'bonus_des_attaque');
@@ -476,13 +530,22 @@ final class ResolveurTour
         // Frayeur (Dread) : condition Apeuré → −1 dé d'attaque (min 0), 2 tours.
         $malusFrayeur = $this->dread->malusDesAttaqueFrayeur($personnage);
 
-        $desAttaqueEffectifs = max(0, (int) $personnage->des_attaque + $bonusAttaque - $malusFrayeur);
+        // Frénésie (nœud barbare) : +1 dé d'attaque tant que les PV de Body
+        // sont SOUS la moitié du max (comparaison en entiers, sans arrondi).
+        $bonusFrenesie = $this->possedeCompetence($personnage, self::NOEUD_FRENESIE)
+            && (int) $personnage->pv_body * 2 < (int) $personnage->pv_body_max ? 1 : 0;
+
+        // Tir précis (nœud elfe) : +1 dé d'attaque sur un tir à distance véritable.
+        $bonusTirPrecis = $tirADistance && $this->possedeCompetence($personnage, 'Tir précis') ? 1 : 0;
+
+        $desAttaqueEffectifs = max(0, (int) $personnage->des_attaque + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis);
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $desAttaqueEffectifs,
             desDefense: $instance->defenseEffective(),
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: (int) $instance->pv_body,
+            relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
         );
 
         if ($bonusAttaque > 0) {
@@ -503,6 +566,9 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'bonus_des_attaque' => $bonusAttaque,
             'malus_frayeur' => $malusFrayeur,
+            'bonus_frenesie' => $bonusFrenesie,
+            'bonus_tir_precis' => $bonusTirPrecis,
+            'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
             'des_attaque_effectifs' => $desAttaqueEffectifs,
             'cible' => [
                 'instance_id' => $instance->id,
@@ -546,7 +612,14 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Option de jet invalide (attribut body|mind, difficulté 1-4).']);
         }
 
-        $nbDes = $attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind;
+        // Avantage de Mind (Intimidation/Sens aiguisés/Érudition, CompetenceSeeder) :
+        // +1 dé si le contexte proposé correspond à un nœud acquis du héros.
+        $contexte = $option['jet']['contexte'] ?? null;
+        $noeudAvantage = self::NOEUDS_AVANTAGE_MIND[$contexte] ?? null;
+        $bonusAvantage = $attribut === 'mind' && $noeudAvantage !== null
+            && $this->possedeCompetence($personnage, $noeudAvantage) ? 1 : 0;
+
+        $nbDes = ($attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind) + $bonusAvantage;
         $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
 
         $payload = [
@@ -556,6 +629,7 @@ final class ResolveurTour
             'attribut' => $attribut,
             'difficulte' => $difficulte,
             'des_lances' => $nbDes,
+            'bonus_avantage_mind' => $bonusAvantage,
             'succes' => $resultat->succes,
             'issue' => $resultat->issue->value,
             'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
@@ -628,8 +702,11 @@ final class ResolveurTour
             'desarme' => $resultat->estReussi(),
         ];
 
-        // Échec : le piège se déclenche sur le désamorceur (doc 10 §4).
-        if (! $resultat->estReussi()) {
+        // Échec (doc 10 §10 question n°3, résolue par le nœud nain Désamorçage) :
+        // sans le nœud, le piège se déclenche sur le désamorceur (racial Nain /
+        // Trousse à outils, tout le monde) ; AVEC le nœud, l'échec est sans
+        // casse — le piège reste détecté, retentable.
+        if (! $resultat->estReussi() && ! $this->possedeCompetence($personnage, 'Désamorçage')) {
             $payload['declenchement'] = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
             );
@@ -1838,6 +1915,7 @@ final class ResolveurTour
         $quete->etatsPersonnages()->update([
             'a_joue' => false, 'a_deplace' => false, 'a_agi' => false,
             'deplacement_tour' => null, 'deplacement_restant' => null,
+            'bonus_sort_utilise' => false,
         ]);
 
         // Fin de tour : décompte des durées des conditions de sorts des héros
@@ -1888,6 +1966,12 @@ final class ResolveurTour
         }
 
         return false;
+    }
+
+    /** Le héros a-t-il acquis le nœud d'arbre exactement nommé `$nom` (CompetenceSeeder) ? */
+    private function possedeCompetence(Personnage $personnage, string $nom): bool
+    {
+        return $personnage->competences()->where('nom', $nom)->exists();
     }
 
     /**
@@ -2100,9 +2184,18 @@ final class ResolveurTour
     ): array {
         $personnage = $cible->personnage;
 
+        // Garde tenace (nœud nain) : +1 dé de défense à la PREMIÈRE attaque
+        // subie de la quête (faute de notion de « combat » distincte, départ
+        // playtest — voir migration ajouter_garde_tenace_utilisee).
+        $bonusGardeTenace = 0;
+        if (! $cible->garde_tenace_utilisee && $this->possedeCompetence($personnage, self::NOEUD_GARDE_TENACE)) {
+            $bonusGardeTenace = 1;
+            $cible->update(['garde_tenace_utilisee' => true]);
+        }
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: max(0, $desAttaque),
-            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
+            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense') + $bonusGardeTenace,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
@@ -2118,6 +2211,7 @@ final class ResolveurTour
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+            'bonus_garde_tenace' => $bonusGardeTenace,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,
@@ -2269,7 +2363,7 @@ final class ResolveurTour
      * Une ACTION hors mouvement FORFAIT le déplacement restant (a_deplace + 0).
      * Une INTERACTION libre (porte, levier) ne consomme aucun créneau.
      */
-    private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau): void
+    private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau, bool $bonusReserveArcanique = false): void
     {
         if ($creneau === 'interaction') {
             return; // ouvrir une porte / actionner un levier : libre, aucun créneau
@@ -2279,10 +2373,16 @@ final class ResolveurTour
             // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
         } elseif ($creneau === 'action') {
-            // Agir NE force plus la fin du mouvement : on peut agir PUIS se
-            // déplacer, se déplacer PUIS agir, ou intercaler — dans n'importe
-            // quel ordre, tant qu'il reste des points de mouvement / l'action.
-            $etat->a_agi = true;
+            if ($bonusReserveArcanique) {
+                // Réserve arcanique (nœud magicien) : ce sort consomme le
+                // BONUS, pas le créneau action normal (déjà pris ce tour).
+                $etat->bonus_sort_utilise = true;
+            } else {
+                // Agir NE force plus la fin du mouvement : on peut agir PUIS se
+                // déplacer, se déplacer PUIS agir, ou intercaler — dans n'importe
+                // quel ordre, tant qu'il reste des points de mouvement / l'action.
+                $etat->a_agi = true;
+            }
         }
         // 'mouvement' : a_deplace / deplacement_restant déjà posés par resoudreDeplacement.
 

@@ -22,10 +22,12 @@ use Illuminate\Validation\ValidationException;
  * lisent tous automatiquement l'équipement via les colonnes, sans calcul
  * « effectif » dupliqué partout.
  *
- * Les autres propriétés d'un objet (jetable, attaque_diagonale, portee,
- * deux_mains…) sont des comportements de ciblage/portée, hors périmètre de ce
- * service : elles ne modifient pas les dés et seront lues à la volée par le
- * moteur si/quand elles sont implémentées.
+ * Les autres propriétés d'un objet (jetable, attaque_diagonale, portee…) sont
+ * des comportements de ciblage/portée, hors périmètre de ce service : elles ne
+ * modifient pas les dés et seront lues à la volée par le moteur si/quand
+ * elles sont implémentées. Exception : `necessite_maitrise_lourde` (armes
+ * deux mains / armures lourdes) EST vérifiée ici — nœud barbare Maîtrise
+ * lourde requis, sinon 422 (doc 01 §6).
  */
 final class Equipement
 {
@@ -36,6 +38,16 @@ final class Equipement
     private const COLONNES = [
         'des_attaque' => 'des_attaque',
         'des_defense' => 'des_defense',
+    ];
+
+    /**
+     * Clés d'`effet` d'amélioration de Forge (ForgeAmeliorationSeeder, préfixe
+     * `bonus_` — même convention que CompetenceController::EFFETS_PASSIFS)
+     * appliquées comme delta de colonne au personnage.
+     */
+    private const AMELIORATIONS_COLONNES = [
+        'bonus_des_attaque' => 'des_attaque',
+        'bonus_des_defense' => 'des_defense',
     ];
 
     /**
@@ -59,17 +71,18 @@ final class Equipement
         }
 
         $this->verifierMains($personnage, $objet);
+        $this->verifierMaitriseLourde($personnage, $objet);
 
         return DB::transaction(function () use ($personnage, $ligne, $objet, $slot) {
             // Auto-swap : l'occupant actuel du slot retourne au sac (effet révoqué).
             $occupant = $personnage->inventaire()->where('emplacement', $slot)->with('objet')->first();
             if ($occupant !== null) {
-                $this->appliquerEffet($personnage, $occupant->objet, -1);
+                $this->appliquerEffet($personnage, $occupant->objet, $occupant->ameliorations ?? [], -1);
                 $occupant->update(['emplacement' => 'sac']);
             }
 
             $ligne->update(['emplacement' => $slot]);
-            $this->appliquerEffet($personnage->refresh(), $objet, 1);
+            $this->appliquerEffet($personnage->refresh(), $objet, $ligne->ameliorations ?? [], 1);
 
             return $ligne->fresh();
         });
@@ -94,7 +107,7 @@ final class Equipement
         }
 
         return DB::transaction(function () use ($personnage, $ligne, $objet) {
-            $this->appliquerEffet($personnage, $objet, -1);
+            $this->appliquerEffet($personnage, $objet, $ligne->ameliorations ?? [], -1);
             $ligne->update(['emplacement' => 'sac']);
 
             return $ligne->fresh();
@@ -125,14 +138,49 @@ final class Equipement
     }
 
     /**
-     * Applique (signe +1) ou révoque (signe −1) les deltas de combat de l'objet
-     * sur les colonnes du personnage. Jamais négatif (garde-fou).
+     * Maîtrise lourde (nœud barbare, CompetenceSeeder) : les armes à deux mains
+     * et armures lourdes du catalogue (`effet.necessite_maitrise_lourde`)
+     * exigent ce nœud pour être équipées.
      */
-    private function appliquerEffet(Personnage $personnage, ?Objet $objet, int $signe): void
+    private function verifierMaitriseLourde(Personnage $personnage, Objet $objet): void
     {
-        $deltas = [];
+        if (! (bool) ($objet->effet['necessite_maitrise_lourde'] ?? false)) {
+            return;
+        }
+
+        $possede = $personnage->competences()->where('nom', 'Maîtrise lourde')->exists();
+
+        if (! $possede) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » exige le nœud Maîtrise lourde du Barbare.",
+            ]);
+        }
+    }
+
+    /**
+     * Applique (signe +1) ou révoque (signe −1) les deltas de combat de l'objet
+     * ET de ses éventuelles améliorations de Forge (`inventaire.ameliorations`,
+     * App\Partie\Forge) sur les colonnes du personnage. Jamais négatif (garde-fou).
+     *
+     * @param  list<array{nom: string, effet: array<string, mixed>}>  $ameliorations
+     */
+    private function appliquerEffet(Personnage $personnage, ?Objet $objet, array $ameliorations, int $signe): void
+    {
+        $parColonne = [];
+
         foreach (self::COLONNES as $cleEffet => $colonne) {
-            $delta = (int) ($objet?->effet[$cleEffet] ?? 0) * $signe;
+            $parColonne[$colonne] = ($parColonne[$colonne] ?? 0) + (int) ($objet?->effet[$cleEffet] ?? 0);
+        }
+
+        foreach (self::AMELIORATIONS_COLONNES as $cleEffet => $colonne) {
+            foreach ($ameliorations as $amelioration) {
+                $parColonne[$colonne] = ($parColonne[$colonne] ?? 0) + (int) ($amelioration['effet'][$cleEffet] ?? 0);
+            }
+        }
+
+        $deltas = [];
+        foreach ($parColonne as $colonne => $delta) {
+            $delta *= $signe;
             if ($delta !== 0) {
                 $deltas[$colonne] = max(0, (int) $personnage->{$colonne} + $delta);
             }

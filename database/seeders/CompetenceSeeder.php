@@ -37,7 +37,7 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Second élément', 'type' => 'deblocage', 'description' => 'Apprends un domaine de sort supplémentaire.', 'effet' => ['mecanique' => 'emplacement_element', 'nb_elements' => 1], 'prerequis' => 'Première magie'],
             ],
             'magicien' => [
-                ['nom' => 'Réserve arcanique', 'type' => 'passif', 'description' => 'Un emplacement de sort supplémentaire.', 'effet' => ['mecanique' => 'emplacement_sort_supplementaire', 'valeur' => 1]],
+                ['nom' => 'Réserve arcanique', 'type' => 'passif', 'description' => 'Permet de lancer un second sort au cours du même tour (une fois par tour).', 'effet' => ['mecanique' => 'sort_supplementaire_par_tour', 'frequence' => 'une_fois_par_tour']],
                 ['nom' => 'Écoles', 'type' => 'deblocage', 'description' => 'Accès à de nouveaux domaines de magie (Feu, Eau, Terre, Air).', 'effet' => ['mecanique' => 'emplacement_element', 'nb_elements' => 1, 'repetable' => true]],
                 ['nom' => 'Concentration', 'type' => 'actif', 'description' => 'Une fois par quête, sacrifie ton tour pour récupérer un sort épuisé.', 'effet' => ['mecanique' => 'recuperer_sort_epuise', 'cout' => 'tour_complet', 'frequence' => 'une_fois_par_quete']],
                 ['nom' => 'Contresort', 'type' => 'actif', 'description' => 'Annule un effet magique (jet de Mind).', 'effet' => ['mecanique' => 'annuler_effet_magique', 'jet' => 'mind']],

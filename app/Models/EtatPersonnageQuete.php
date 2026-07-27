@@ -22,6 +22,8 @@ class EtatPersonnageQuete extends Model
         'deplacement_tour',
         'deplacement_restant',
         'tombe',
+        'garde_tenace_utilisee',
+        'bonus_sort_utilise',
     ];
 
     protected function casts(): array
@@ -31,6 +33,8 @@ class EtatPersonnageQuete extends Model
             'a_deplace' => 'boolean',
             'a_agi' => 'boolean',
             'tombe' => 'boolean',
+            'garde_tenace_utilisee' => 'boolean',
+            'bonus_sort_utilise' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
         ];

@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\LanceurDes;
 use App\Jobs\GenererNarration;
 use App\Models\Carte;
+use App\Models\Competence;
+use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Personnage;
@@ -47,6 +50,8 @@ final class MoteurPieges
     public const ETAT_DESARME = 'desarme';
 
     public const ETAT_DECLENCHE = 'declenche';
+
+    public function __construct(private readonly LanceurDes $des) {}
 
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
@@ -176,12 +181,11 @@ final class MoteurPieges
         ?Piege $piege,
         string $contexte,
     ): array {
-        $degats = (int) data_get(
-            $piege?->effet,
-            'degats_pv_body',
-            (int) data_get($piege?->effet, 'aleatoire.0.degats_pv_body', 1),
-        );
+        // Piège de coffre (doc 10 §5) : issue ALÉATOIRE entre les branches du
+        // catalogue (dégâts OU condition) — un d6 réparti à parts égales.
+        $issue = $this->tirerIssueAleatoire($piege?->effet);
 
+        $degats = (int) data_get($issue, 'degats_pv_body', 0);
         $pvApres = max(0, (int) $personnage->pv_body - $degats);
         $personnage->update(['pv_body' => $pvApres]);
 
@@ -189,6 +193,10 @@ final class MoteurPieges
         if ($tombe) {
             $etat->update(['tombe' => true]);
         }
+
+        $conditionAppliquee = $this->appliquerConditionSiApplicable(
+            $personnage, (string) ($issue['condition_appliquee'] ?? ''), 'piege:'.($piege?->nom ?? 'Piège'),
+        );
 
         $payload = [
             'type' => 'piege_declenche',
@@ -200,6 +208,7 @@ final class MoteurPieges
             'pv_body_apres' => $pvApres,
             'tombe' => $tombe,
             'immobilise' => false,
+            'condition_appliquee' => $conditionAppliquee,
         ];
 
         Journal::ajouter($groupe, 'action', $payload, [
@@ -209,6 +218,51 @@ final class MoteurPieges
         GenererNarration::dispatch($groupe->id, $payload);
 
         return $payload;
+    }
+
+    /**
+     * `effet.aleatoire` (Piège de coffre) : tire une branche du catalogue au
+     * hasard (d6 réparti à parts égales entre les options). Sans `aleatoire`,
+     * renvoie l'effet tel quel (autres pièges, déterministes).
+     *
+     * @return array<string, mixed>
+     */
+    private function tirerIssueAleatoire(?array $effet): array
+    {
+        $options = data_get($effet, 'aleatoire');
+
+        if (! is_array($options) || $options === []) {
+            return $effet ?? [];
+        }
+
+        $index = intdiv(($this->des->d6() - 1) * count($options), 6);
+
+        return $options[$index] ?? $options[0];
+    }
+
+    /**
+     * Pose une condition du catalogue sur le personnage SAUF s'il y résiste
+     * (Sang robuste du Nain vs Empoisonné, `Competence::resisteA`). Retourne
+     * le nom appliqué (ou null si aucune condition / résistance).
+     */
+    private function appliquerConditionSiApplicable(Personnage $personnage, string $nomCondition, string $source): ?string
+    {
+        if ($nomCondition === '' || Competence::resisteA($personnage, $nomCondition)) {
+            return null;
+        }
+
+        $condition = Condition::where('nom', $nomCondition)->first();
+
+        if ($condition === null) {
+            return null;
+        }
+
+        $personnage->conditions()->attach($condition->id, [
+            'duree' => (int) $condition->duree_defaut,
+            'source' => $source,
+        ]);
+
+        return $nomCondition;
     }
 
     /**

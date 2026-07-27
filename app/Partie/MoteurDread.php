@@ -8,6 +8,7 @@ use App\Engine\Combat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
+use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
@@ -778,9 +779,24 @@ final class MoteurDread
         ];
 
         if ($resultat->effetApplique()) {
-            $duree = (int) data_get($sort->effet, 'duree_tours', 0);
-            $this->poserConditionHeros($personnage, $conditionNom, $duree, 'sort_dread:'.$sort->nom);
-            $payload['condition'] = $conditionNom;
+            // Contresort (nœud magicien, doc 01 §6) : la résistance naturelle a
+            // échoué — une SECONDE chance, jet de Mind indépendant, annule
+            // l'effet magique avant qu'il ne soit posé.
+            $contresort = null;
+            if ($personnage->competences()->where('nom', 'Contresort')->exists()) {
+                $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
+                $contresort = [
+                    'reussi' => ! $jetContresort->effetApplique(),
+                    'faces' => array_map(fn ($f) => $f->value, $jetContresort->faces),
+                ];
+                $payload['contresort'] = $contresort;
+            }
+
+            if ($contresort === null || ! $contresort['reussi']) {
+                $duree = (int) data_get($sort->effet, 'duree_tours', 0);
+                $this->poserConditionHeros($personnage, $conditionNom, $duree, 'sort_dread:'.$sort->nom);
+                $payload['condition'] = $conditionNom;
+            }
         }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -1023,8 +1039,8 @@ final class MoteurDread
     ): void {
         $condition = Condition::where('nom', $nomCondition)->first();
 
-        if ($condition === null) {
-            return; // condition inconnue — silencieux, le catalogue fait foi
+        if ($condition === null || Competence::resisteA($personnage, $nomCondition)) {
+            return; // condition inconnue, ou résistance nommée (Sang robuste vs Empoisonné)
         }
 
         $duree = $dureeOverride > 0 ? $dureeOverride : (int) $condition->duree_defaut;

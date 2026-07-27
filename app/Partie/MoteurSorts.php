@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
@@ -375,16 +376,19 @@ final class MoteurSorts
 
     /**
      * Pose une condition du CATALOGUE sur un héros (sorts mentaux subis en
-     * tir ami : Endormi, Étourdi…) avec sa durée par défaut.
+     * tir ami : Endormi, Étourdi…) avec sa durée par défaut — sauf résistance
+     * nommée (Sang robuste du Nain vs Empoisonné, `Competence::resisteA`).
      */
     public function appliquerConditionCatalogue(Personnage $cible, string $nom, Sort $sort): Condition
     {
         $condition = $this->condition($nom);
 
-        $cible->conditions()->attach($condition->id, [
-            'duree' => (int) $condition->duree_defaut,
-            'source' => self::PREFIXE_SOURCE.$sort->nom,
-        ]);
+        if (! Competence::resisteA($cible, $nom)) {
+            $cible->conditions()->attach($condition->id, [
+                'duree' => (int) $condition->duree_defaut,
+                'source' => self::PREFIXE_SOURCE.$sort->nom,
+            ]);
+        }
 
         return $condition;
     }

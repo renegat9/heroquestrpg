@@ -27,16 +27,19 @@ final class Combat
     }
 
     /**
-     * @param int          $desAttaque      dés de combat de l'attaquant (valeur d'Attaque, modificateurs inclus)
-     * @param int          $desDefense      dés de combat du défenseur (Défense + armure, modificateurs inclus)
-     * @param TypeFigurine $typeDefenseur   camp du DÉFENSEUR (détermine la face de bouclier qui compte)
-     * @param int          $pvBodyDefenseur PV de Body courants du défenseur avant l'attaque
+     * @param int          $desAttaque             dés de combat de l'attaquant (valeur d'Attaque, modificateurs inclus)
+     * @param int          $desDefense             dés de combat du défenseur (Défense + armure, modificateurs inclus)
+     * @param TypeFigurine $typeDefenseur          camp du DÉFENSEUR (détermine la face de bouclier qui compte)
+     * @param int          $pvBodyDefenseur        PV de Body courants du défenseur avant l'attaque
+     * @param bool         $relanceDesAttaqueRatee Coup puissant (nœud barbare) : relance UNE FOIS chaque dé
+     *                                              d'attaque raté (non-crâne), en gardant les crânes déjà obtenus
      */
     public function resoudreAttaque(
         int $desAttaque,
         int $desDefense,
         TypeFigurine $typeDefenseur,
         int $pvBodyDefenseur,
+        bool $relanceDesAttaqueRatee = false,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
             throw new \InvalidArgumentException("Dés d'attaque invalides : {$desAttaque}.");
@@ -49,6 +52,11 @@ final class Combat
         }
 
         $facesAttaque = $this->des->desCombat($desAttaque);
+
+        if ($relanceDesAttaqueRatee) {
+            $facesAttaque = $this->relancerRatees($facesAttaque);
+        }
+
         $facesDefense = $this->des->desCombat($desDefense);
 
         $touches = count(array_filter($facesAttaque, fn ($face) => $face->estCrane()));
@@ -68,6 +76,27 @@ final class Combat
             pvBodyAvant: $pvBodyDefenseur,
             pvBodyApres: $pvBodyApres,
             cibleTombee: $pvBodyDefenseur > 0 && $pvBodyApres === 0,
+        );
+    }
+
+    /**
+     * @param  list<\App\Engine\Des\FaceDeCombat>  $faces
+     * @return list<\App\Engine\Des\FaceDeCombat>
+     */
+    private function relancerRatees(array $faces): array
+    {
+        $nbRatees = count(array_filter($faces, fn ($face) => ! $face->estCrane()));
+
+        if ($nbRatees === 0) {
+            return $faces;
+        }
+
+        $relances = $this->des->desCombat($nbRatees);
+        $indexRelance = 0;
+
+        return array_map(
+            fn ($face) => $face->estCrane() ? $face : $relances[$indexRelance++],
+            $faces,
         );
     }
 }

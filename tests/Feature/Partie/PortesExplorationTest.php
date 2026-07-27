@@ -13,6 +13,7 @@ use App\Models\Quete;
 use App\Partie\Grille;
 use App\Partie\ResolveurTour;
 use Database\Seeders\CompetenceSeeder;
+use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -33,7 +34,7 @@ beforeEach(function () {
     config(['services.anthropic.api_key' => null]);
 
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
-        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class]);
+        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class]);
 });
 
 /**
@@ -288,17 +289,50 @@ it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans
 
     $avantPieges = count($quete->carte->grille['pieges'] ?? []);
 
-    desFiges([6]); // d6=6 → piège (sur 6)
+    // d6=6 → piège (sur 6) ; second d6=1 → branche « dégâts » de l'issue aléatoire du Piège de coffre.
+    desFiges([6, 1]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
         ->assertJsonPath('resultat.issue', 'piege')
         ->assertJsonPath('resultat.declenchement.ephemere', true)
-        ->assertJsonPath('resultat.declenchement.degats', 1);
+        ->assertJsonPath('resultat.declenchement.degats', 1)
+        ->assertJsonPath('resultat.declenchement.condition_appliquee', null);
 
     expect((int) $hero->fresh()->pv_body)->toBe(7) // 8 − 1
         // Aucun piège ajouté durablement à la grille (éphémère).
         ->and(count($quete->fresh()->carte->grille['pieges'] ?? []))->toBe($avantPieges);
+});
+
+it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue aléatoire)', function () {
+    [, , $hero, , ] = demarrerExplo();
+
+    // d6=6 → piège ; second d6=6 → branche « condition_appliquee: Empoisonné ».
+    desFiges([6, 6]);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.declenchement.degats', 0)
+        ->assertJsonPath('resultat.declenchement.condition_appliquee', 'Empoisonné');
+
+    expect((int) $hero->fresh()->pv_body)->toBe(8) // aucun dégât sur cette branche
+        ->and($hero->fresh()->conditions()->where('nom', 'Empoisonné')->exists())->toBeTrue();
+});
+
+it('Sang robuste (Nain) résiste à l\'Empoisonné du Piège de coffre', function () {
+    [$alice, $groupe, $hero, , ] = demarrerExplo();
+    $hero->update(['classe' => 'nain']);
+    $hero->competences()->attach(
+        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Sang robuste')->value('id'),
+    );
+
+    desFiges([6, 6]); // piège → branche Empoisonné
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.declenchement.condition_appliquee', null);
+
+    expect($hero->fresh()->conditions()->where('nom', 'Empoisonné')->exists())->toBeFalse();
 });
 
 it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qui joue au tour des monstres', function () {

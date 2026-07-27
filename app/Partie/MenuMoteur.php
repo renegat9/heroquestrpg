@@ -285,12 +285,41 @@ final class MenuMoteur
                 ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                     && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y));
 
-            foreach ($adjacents as $instance) {
+            $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+            $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
+            $idsAdjacents = $adjacents->pluck('id')->all();
+
+            // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais
+            // en ligne de vue dégagée, si le héros porte une arme à distance.
+            $aDistance = collect();
+            if ($armeADistance) {
+                $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+                $aDistance = $quete->instancesMonstres()
+                    ->where('etat', 'actif')
+                    ->where('revele', true)
+                    ->with('monstre')
+                    ->orderBy('id')
+                    ->get()
+                    ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                        && ! in_array($i->id, $idsAdjacents, true)
+                        && $grille->ligneDeVue(
+                            (int) $etat->position_x, (int) $etat->position_y,
+                            (int) $i->position_x, (int) $i->position_y,
+                            figuresBloquent: true,
+                        ));
+            }
+
+            $idsADistance = $aDistance->pluck('id')->all();
+
+            foreach ($adjacents->concat($aDistance) as $instance) {
                 $nomBase = $instance->monstre->nom_base;
                 $nom = $instance->habillage['nom'] ?? $nomBase;
                 // Rappel du TYPE du catalogue quand le nom est un habillage IA →
                 // le joueur retrouve la fiche du bestiaire (guide).
                 $libelle = $nom === $nomBase ? "Attaquer {$nom}" : "Attaquer {$nom} ({$nomBase})";
+                if (in_array($instance->id, $idsADistance, true)) {
+                    $libelle .= ' (à distance)';
+                }
                 $options[] = [
                     'id' => "attaquer_{$instance->id}",
                     'libelle' => $libelle,
@@ -359,12 +388,28 @@ final class MenuMoteur
             }
         }
 
-        // Sorts / parchemins / concentration = créneau ACTION.
-        if (! $aAgi && $etat !== null) {
+        // Sorts / parchemins / concentration = créneau ACTION. Réserve arcanique
+        // (nœud magicien) : un SECOND sort reste proposé même après avoir déjà
+        // agi ce tour, tant que ce bonus n'a pas encore été consommé.
+        $bonusReserveArcaniqueDisponible = $etat !== null && $aAgi
+            && ! (bool) ($etat->bonus_sort_utilise ?? false)
+            && $personnage->competences()->where('nom', 'Réserve arcanique')->exists();
+
+        if ($etat !== null && ! $aAgi) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
                 $options[] = $option;
             }
+        } elseif ($bonusReserveArcaniqueDisponible) {
+            // Bonus déjà consommé le créneau action normal : seul un second
+            // SORT connu (pas un parchemin/la concentration) reste proposable.
+            foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
+                if (($option['type'] ?? null) === 'sort') {
+                    $options[] = $option;
+                }
+            }
+        }
 
+        if (! $aAgi && $etat !== null) {
             // Ouvrir une porte verrouillée par CLÉ au contact (héros porteur).
             // Actionner un levier au contact (ouvre la porte liée).
             if ($etat->position_x !== null && $quete->carte !== null) {
@@ -407,7 +452,7 @@ final class MenuMoteur
                 'id' => 'fouiller',
                 'libelle' => 'Fouiller la zone — jet de Mind',
                 'type' => 'jet',
-                'jet' => ['attribut' => 'mind', 'difficulte' => 1],
+                'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
             ];
 
             // Fouiller — trésor (doc 14 §3.2) : action SÉPARÉE, table

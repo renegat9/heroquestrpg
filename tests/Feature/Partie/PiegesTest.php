@@ -318,6 +318,28 @@ it('déclenche le piège sur le désamorceur quand le jet échoue', function () 
         ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche'); // usage unique consommé
 });
 
+it('Désamorçage (nœud) épargne le déclenchement sur un jet raté', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
+    $hero->competences()->attach(
+        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Désamorçage')->value('id'),
+    );
+
+    $cible = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $cible['x'], 'y' => $cible['y'], 'nom' => 'Piège à lances', 'etat' => 'detecte']]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    desFiges([4, 4, 4, 4]); // Body 4 dés : 0 crâne → échec sec
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "desamorcer_{$cible['x']}_{$cible['y']}"])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.desarme', false)
+        ->assertJsonPath('resultat.declenchement', null);
+
+    expect($hero->fresh()->pv_body)->toBe(8) // indemne : pas de déclenchement
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte'); // reste détecté, retentable
+});
+
 it('refuse le désamorçage sans Nain ni trousse — et l\'offre au porteur de la Trousse à outils', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(); // barbare
 

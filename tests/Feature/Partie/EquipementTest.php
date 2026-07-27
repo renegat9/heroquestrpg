@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\Competence;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Equipement;
+use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -22,7 +24,7 @@ use Illuminate\Support\Facades\Http;
  */
 
 beforeEach(function () {
-    $this->seed(ObjetSeeder::class);
+    $this->seed([ObjetSeeder::class, CompetenceSeeder::class]);
 });
 
 function sacDe(App\Models\Personnage $p, string $nomObjet): Inventaire
@@ -94,6 +96,7 @@ it('refuse un bouclier quand une arme à deux mains est équipée', function () 
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $heros->competences()->attach(Competence::where('classe', 'barbare')->where('nom', 'Maîtrise lourde')->value('id'));
     $hache = sacDe($heros, 'Hache de bataille'); // deux_mains
     $bouclier = sacDe($heros, 'Bouclier');       // incompatible_deux_mains
 
@@ -102,6 +105,33 @@ it('refuse un bouclier quand une arme à deux mains est équipée', function () 
 
     expect(fn () => $svc->equiper($heros, $bouclier))
         ->toThrow(Illuminate\Validation\ValidationException::class);
+});
+
+it('refuse d\'équiper une arme à deux mains sans le nœud Maîtrise lourde', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $hache = sacDe($heros, 'Hache de bataille');
+
+    expect(fn () => (new Equipement())->equiper($heros, $hache))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+});
+
+it('refuse d\'équiper une armure lourde sans le nœud Maîtrise lourde, puis l\'autorise avec', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['des_defense' => 2]);
+    $plates = sacDe($heros, 'Armure de plates');
+
+    $svc = new Equipement();
+
+    expect(fn () => $svc->equiper($heros, $plates))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+
+    $heros->competences()->attach(Competence::where('classe', 'barbare')->where('nom', 'Maîtrise lourde')->value('id'));
+
+    $svc->equiper($heros, $plates->fresh());
+    expect($heros->refresh()->des_defense)->toBe(4); // 2 + 2
 });
 
 it('refuse d\'équiper un objet du sac non montable (potion)', function () {

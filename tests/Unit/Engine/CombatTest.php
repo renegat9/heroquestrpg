@@ -184,3 +184,43 @@ describe('Combat — scénario canon', function () {
             ->and($resultat->cibleTombee)->toBeTrue();
     });
 });
+
+describe('Combat — Coup puissant (relance des dés d\'attaque ratés)', function () {
+    it('relance UNE FOIS chaque dé raté et garde les crânes déjà obtenus', function () {
+        // 2 dés d'attaque : crâne (gardé) + blanc (raté, relancé en crâne).
+        $combat = combatAvecFaces(FaceDeCombat::Crane, FaceDeCombat::BouclierBlanc, FaceDeCombat::Crane);
+
+        $resultat = $combat->resoudreAttaque(
+            desAttaque: 2,
+            desDefense: 0,
+            typeDefenseur: TypeFigurine::Monstre,
+            pvBodyDefenseur: 5,
+            relanceDesAttaqueRatee: true,
+        );
+
+        expect($resultat->touches)->toBe(2) // les 2 dés finissent en crâne
+            ->and($resultat->degats)->toBe(2);
+    });
+
+    it('ne relance rien si tous les dés sont déjà des crânes (aucun dé consommé en trop)', function () {
+        $combat = combatAvecFaces(FaceDeCombat::Crane, FaceDeCombat::Crane);
+
+        $resultat = $combat->resoudreAttaque(
+            desAttaque: 2,
+            desDefense: 0,
+            typeDefenseur: TypeFigurine::Monstre,
+            pvBodyDefenseur: 5,
+            relanceDesAttaqueRatee: true,
+        );
+
+        expect($resultat->touches)->toBe(2);
+    });
+
+    it('sans le flag, un dé raté reste raté (comportement par défaut inchangé)', function () {
+        $combat = combatAvecFaces(FaceDeCombat::Crane, FaceDeCombat::BouclierBlanc);
+
+        $resultat = $combat->resoudreAttaque(2, 0, TypeFigurine::Monstre, 5);
+
+        expect($resultat->touches)->toBe(1);
+    });
+});

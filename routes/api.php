@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
 use App\Http\Controllers\Api\EquipementController;
+use App\Http\Controllers\Api\ForgeController;
 use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\MarcheController;
@@ -133,6 +134,11 @@ Route::middleware('auth:joueur')->group(function () {
     // ses deltas de combat s'appliquent aux colonnes du héros (Equipement).
     Route::post('/groupes/{identifiant}/equipement', [EquipementController::class, 'equiper']);
     Route::delete('/groupes/{identifiant}/equipement', [EquipementController::class, 'desequiper']);
+
+    // Forge du Nain (nœud d'arbre, doc 01 §6 + doc 04 §4) — au hub uniquement,
+    // améliore DÉFINITIVEMENT une pièce d'un membre actif contre de l'or commun.
+    Route::get('/forge', [ForgeController::class, 'catalogue']);
+    Route::post('/groupes/{identifiant}/forge', [ForgeController::class, 'appliquer']);
 
     // Recrutement d'alliés au hub (3.5) — catalogue + bourse commune.
     Route::get('/mercenaires', [MercenaireController::class, 'catalogue']);

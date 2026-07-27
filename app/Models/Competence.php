@@ -43,4 +43,17 @@ class Competence extends Model
     {
         return $this->belongsToMany(Personnage::class, 'personnage_competences', 'competence_id', 'personnage_id');
     }
+
+    /**
+     * Résistance de condition (mécanique `resistance_condition`, ex. Sang
+     * robuste du Nain vs Empoisonné, CompetenceSeeder) : le personnage a-t-il
+     * acquis un nœud qui résiste nommément à `$nomCondition` ?
+     */
+    public static function resisteA(Personnage $personnage, string $nomCondition): bool
+    {
+        return $personnage->competences()
+            ->get(['competences.id', 'competences.effet'])
+            ->contains(fn (self $c) => ($c->effet['mecanique'] ?? null) === 'resistance_condition'
+                && ($c->effet['condition_nom'] ?? null) === $nomCondition);
+    }
 }
