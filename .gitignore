@@ -42,3 +42,6 @@ browser-shots/*.png
 
 # Worktrees d agents (isolés, jamais versionnés)
 .claude/worktrees/
+
+# Sessions navigateur du pilote de test (cookies de connexion)
+browser-shots/pilote/etats/

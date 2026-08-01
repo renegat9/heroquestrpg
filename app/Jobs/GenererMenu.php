@@ -8,7 +8,9 @@ use App\Agent\Memoire\ContexteAssembleur;
 use App\Agent\Skills\MenuChoix;
 use App\Events\MenuPropose;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Models\Sort;
 use App\Partie\MenuMoteur;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -94,7 +96,11 @@ class GenererMenu implements ShouldQueue
             // le menu IA pour qu'il ne puisse jamais les omettre (sinon un héros
             // non-adjacent serait sans moyen d'approcher = softlock). L'IA
             // n'apporte que l'habillage des libellés et les options de couleur.
-            $menu = $this->fusionner($menuGenerique, $skill->generer($contexte));
+            $menu = $this->fusionner(
+                $menuGenerique,
+                $skill->generer($contexte),
+                $this->creneauActionLibre($groupe, $personnage),
+            );
         } catch (Throwable $e) {
             Log::warning('Menu IA indisponible — repli sur le menu moteur.', [
                 'groupe_id' => $groupe->id,
@@ -116,12 +122,18 @@ class GenererMenu implements ShouldQueue
      */
     private function publier(Groupe $groupe, Personnage $personnage, array $menu): void
     {
+        // Appliqué ici (et non dans fusionner()) pour couvrir les TROIS
+        // origines possibles du menu publié : moteur seul (tour trivial),
+        // fusion moteur+IA, et repli moteur si l'IA échoue.
+        $menu = $this->avecImmuniteMentale($menu);
+
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
             'menu' => $menu,
         ], now()->addMinutes(self::TTL_MENU_MINUTES));
 
         broadcast(new MenuPropose($this->joueurId, $groupe->id, $personnage->id, $menu));
+
     }
 
     /**
@@ -147,19 +159,36 @@ class GenererMenu implements ShouldQueue
      *
      * @param  array<string, mixed>  $moteur
      * @param  array<string, mixed>  $ia
+     * @param  bool  $creneauActionLibre  le créneau ACTION du tour est-il encore
+     *                                    disponible (correctif §2.4) ? Si non, les
+     *                                    options de couleur de l'IA (dialogue,
+     *                                    action, jet — toutes mappées sur le
+     *                                    créneau « action » par
+     *                                    `ResolveurTour::creneauOption`) seraient
+     *                                    systématiquement rejetées par le moteur
+     *                                    (422 « Tu as déjà agi ce tour. ») : on ne
+     *                                    les propose donc plus du tout, au lieu de
+     *                                    les afficher indiscernables d'une option
+     *                                    qui marcherait.
      * @return array<string, mixed>
      */
-    private function fusionner(array $moteur, array $ia): array
+    private function fusionner(array $moteur, array $ia, bool $creneauActionLibre = true): array
     {
         $optionsIa = $ia['options'] ?? [];
         $fusion = [];
         $idsPris = [];
 
-        // 1) Options mécaniques du moteur (autoritaires), libellé emprunté à l'IA.
+        // Identifiants que le MOTEUR propose ce tour-ci, tous types confondus :
+        // seuls ceux-là peuvent être repris tels quels par l'IA.
+        $idsMoteur = array_flip(array_column($moteur['options'] ?? [], 'id'));
+
+        // 1) TOUTES les options du moteur (autoritaires), libellé emprunté à l'IA.
+        //
+        // Le filtre sur TYPES_MECANIQUES laissait tomber les autres — dont
+        // `fouiller` (type `jet`), qui ne parvenait donc au joueur QUE si l'IA
+        // pensait à le recopier. Une action du moteur ne doit dépendre de rien
+        // d'autre que du moteur.
         foreach ($moteur['options'] ?? [] as $opt) {
-            if (! in_array($opt['type'] ?? null, self::TYPES_MECANIQUES, true)) {
-                continue;
-            }
             $equivalent = $this->equivalentIa($opt, $optionsIa);
             if ($equivalent !== null && isset($equivalent['libelle'])) {
                 $opt['libelle'] = $equivalent['libelle'];
@@ -168,23 +197,22 @@ class GenererMenu implements ShouldQueue
             $idsPris[$opt['id']] = true;
         }
 
-        // 2) Options de couleur de l'IA (dialogue, action, jet) — jamais
-        //    mécaniquement ambiguës : le moteur les résout génériquement.
-        foreach ($optionsIa as $opt) {
-            if (! in_array($opt['type'] ?? null, ['dialogue', 'action', 'jet'], true)) {
-                continue;
-            }
-            $id = (string) ($opt['id'] ?? '');
-            if ($id === '' || isset($idsPris[$id])) {
-                $id = 'ia_'.count($fusion);
-                $opt['id'] = $id;
-            }
-            $fusion[] = $opt;
-            $idsPris[$id] = true;
-            if (count($fusion) >= 7) {
-                break;
-            }
-        }
+        // 2) L'IA n'INVENTE plus d'action (décision de René).
+        //
+        // Elle injectait librement ses propres options `dialogue`/`action`/`jet`,
+        // sans le moindre contrôle de légalité. Deux conséquences vécues en test :
+        // une option pouvait reprendre un identifiant mécanique que le moteur
+        // venait de retirer (« Fouiller — trésor » sur une salle déjà fouillée,
+        // acceptée puis rejetée au fond du résolveur), et des options purement
+        // décoratives (« Analyser les runes… ») échouaient en silence parce que
+        // rien derrière ne les résolvait.
+        //
+        // Le contrat devient : le MOTEUR décide de ce qui est jouable, l'IA
+        // habille les libellés (étape 1). Les actions de couleur reviendront
+        // ancrées à des ÉLÉMENTS que l'IA pose sur la carte à sa création —
+        // objets de décor interactifs, résolus par le moteur comme les leviers
+        // le sont déjà. Tant que ces éléments n'existent pas, aucune option
+        // n'est inventée à la volée.
 
         // 3) « Attendre » toujours disponible en dernier recours.
         if (! array_filter($fusion, fn ($o) => ($o['type'] ?? null) === 'attente')) {
@@ -220,6 +248,91 @@ class GenererMenu implements ShouldQueue
         }
 
         return null;
+    }
+
+    /**
+     * Le créneau ACTION du tour (doc 03 §28) est-il encore disponible pour ce
+     * héros ? Relit `a_joue`/`a_agi` — les MÊMES colonnes que
+     * `MenuMoteur::generer` et `ResolveurTour::creneauOption` — pour que la
+     * fusion (§2.4) ne propose jamais une option de couleur IA que le moteur
+     * refuserait avec « Tu as déjà agi ce tour. ». Au hub (pas de quête en
+     * cours), il n'existe aucune notion de créneau : toujours libre.
+     */
+    private function creneauActionLibre(Groupe $groupe, Personnage $personnage): bool
+    {
+        $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
+
+        if ($quete === null) {
+            return true;
+        }
+
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        $aJoue = (bool) ($etat?->a_joue ?? false);
+        $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
+
+        return ! $aAgi;
+    }
+
+    /**
+     * Correctif §2.3 bis : signale, PAR CIBLE, qu'un sort MENTAL n'aurait
+     * aucun effet (Mind à 0 = immunité totale, même règle que
+     * `ResolveurTour::sortMental`) — sans empêcher de le lancer quand même
+     * (le joueur reste libre de le faire, au prix du sort consommé pour rien,
+     * comme aujourd'hui : on expose juste l'information manquante).
+     *
+     * Champ ajouté : chaque entrée de `parametres.cibles` d'une option
+     * `sort`/`parchemin` dont le sort est de type `mental` reçoit un booléen
+     * `immunise` (`true` = Mind 0, le sort n'aura aucun effet sur cette
+     * cible). Absent pour les sorts non mentaux — la manette (lot 3) doit
+     * rester tolérante à son absence.
+     *
+     * @param  array<string, mixed>  $menu
+     * @return array<string, mixed>
+     */
+    private function avecImmuniteMentale(array $menu): array
+    {
+        $menu['options'] = array_map(function (array $option) {
+            $parametres = $option['parametres'] ?? null;
+
+            if (! in_array($option['type'] ?? null, ['sort', 'parchemin'], true)
+                || ! is_array($parametres)
+                || ! isset($parametres['cibles']) || ! is_array($parametres['cibles'])
+                || ! isset($parametres['sort_id'])) {
+                return $option;
+            }
+
+            $sort = Sort::find($parametres['sort_id']);
+            if ($sort === null || $sort->type !== 'mental') {
+                return $option;
+            }
+
+            $option['parametres']['cibles'] = array_map(
+                fn (array $cible) => $cible + ['immunise' => $this->mindNul($cible)],
+                $parametres['cibles'],
+            );
+
+            return $option;
+        }, $menu['options'] ?? []);
+
+        return $menu;
+    }
+
+    /**
+     * Score de Mind nul (immunité aux sorts mentaux) pour une cible de menu
+     * `{type: monstre|heros, id}` — monstre : `pv_mind` de l'INSTANCE (peut
+     * différer du catalogue) ; héros : `attribut_mind`. Cible introuvable :
+     * on ne prétend pas savoir → pas immunisé (n'invente jamais un blocage).
+     *
+     * @param  array<string, mixed>  $cible
+     */
+    private function mindNul(array $cible): bool
+    {
+        return match ($cible['type'] ?? null) {
+            'monstre' => (int) (InstanceMonstre::find($cible['id'] ?? null)?->pv_mind ?? 1) === 0,
+            'heros' => (int) (Personnage::find($cible['id'] ?? null)?->attribut_mind ?? 1) === 0,
+            default => false,
+        };
     }
 
     /**

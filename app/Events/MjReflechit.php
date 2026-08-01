@@ -35,7 +35,17 @@ class MjReflechit implements ShouldBroadcastNow
         public readonly Groupe $groupe,
         public readonly bool $actif,
     ) {
-        Cache::put(EtatGroupe::cleMjReflechit($groupe->id), $actif, now()->addMinutes(10));
+        // Le drapeau est levé par l'écran de TABLE une fois la narration LUE
+        // (POST /table/lecture-terminee) — verrou B1, délibéré : les joueurs
+        // n'agissent pas avant que le narrateur ait parlé.
+        //
+        // Ce cache n'est donc qu'un FILET DE SÉCURITÉ, pour le cas où plus
+        // personne ne lève le drapeau (onglet du narrateur fermé en cours de
+        // quête, lecture audio bloquée par le navigateur). Il durait 10 minutes,
+        // pendant lesquelles TOUTES les manettes restaient gelées — un test de
+        // jeu s'y est arrêté. 90 s laissent le temps de lire une narration tout
+        // en bornant la casse.
+        Cache::put(EtatGroupe::cleMjReflechit($groupe->id), $actif, now()->addSeconds(90));
     }
 
     public function broadcastOn(): Channel

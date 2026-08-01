@@ -14,6 +14,7 @@ use App\Models\Joueur;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Partie\EtatGroupe;
+use App\Partie\RangementObjet;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -42,6 +43,9 @@ final class PhaseMarche
 {
     /** Durée de vie d'une phase marché abandonnée (séance de jeu). */
     public const TTL_MINUTES = 360;
+
+    /** Refus de revente d'un artefact (rareté `unique`, doc 04 §4). */
+    public const REFUS_VENTE_UNIQUE = 'Un artefact ne se revend pas.';
 
     public function __construct(private readonly EtatGroupe $etatGroupe) {}
 
@@ -86,6 +90,12 @@ final class PhaseMarche
                 'nom' => $o->nom,
                 'categorie' => $o->categorie,
                 'rarete' => $o->rarete,
+                // Maîtrise requise pour l'ÉQUIPER (doc 01 §7). L'achat reste
+                // libre — la bourse est commune et le don existe, acheter une
+                // pièce pour un autre héros est légitime —, mais la manette
+                // signale « non maîtrisé » plutôt que de laisser la surprise
+                // pour le moment d'équiper.
+                'tag_equipement' => $o->tag_equipement,
                 'prix' => (int) round($o->prix_base * $config['multiplicateur']),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,
                 'image_url' => app(\App\Partie\Images\BibliothequeImages::class)->urlObjet($o->id, $o->nom),
@@ -262,6 +272,12 @@ final class PhaseMarche
 
             // Destinataire : un des héros du joueur (son premier par défaut) —
             // les achats vont vers SON sac (doc 04 §5).
+            //
+            // Le paramètre reste accepté, mais la manette ne l'envoie JAMAIS et
+            // n'exposera pas de sélecteur : décision de René — **chacun achète
+            // pour soi**, et corrige après coup par un don au hub si la pièce
+            // échoit au mauvais héros. Ne pas prendre ce champ pour une
+            // fonctionnalité inachevée.
             $personnageId = (int) ($achat['personnage_id'] ?? $personnages->first()->id);
 
             if (! $personnages->contains('id', $personnageId)) {
@@ -315,6 +331,10 @@ final class PhaseMarche
                 throw ValidationException::withMessages([
                     'ventes' => 'Un objet vendu n\'est pas possédé par vos héros de ce groupe.',
                 ]);
+            }
+
+            if ($ligne->objet?->rarete === 'unique') {
+                throw ValidationException::withMessages(['ventes' => self::REFUS_VENTE_UNIQUE]);
             }
 
             $prixMarchand = $inventaire->get($ligne->objet_id)['prix'] ?? (int) $ligne->objet->prix_base;
@@ -381,7 +401,8 @@ final class PhaseMarche
                         throw ValidationException::withMessages(['ventes' => 'Un même objet ne peut être vendu deux fois.']);
                     }
 
-                    $ligne = Inventaire::whereKey($vente['inventaire_id'])
+                    $ligne = Inventaire::with('objet')
+                        ->whereKey($vente['inventaire_id'])
                         ->whereIn('personnage_id', $personnageIds)
                         ->first();
 
@@ -389,6 +410,10 @@ final class PhaseMarche
                         throw ValidationException::withMessages([
                             'ventes' => "« {$vente['nom']} » n'est plus possédé par le joueur qui le vend.",
                         ]);
+                    }
+
+                    if ($ligne->objet?->rarete === 'unique') {
+                        throw ValidationException::withMessages(['ventes' => self::REFUS_VENTE_UNIQUE]);
                     }
 
                     $lignesVendues[$vente['inventaire_id']] = $ligne;
@@ -465,41 +490,13 @@ final class PhaseMarche
     }
 
     /**
-     * Range un achat dans l'inventaire du destinataire : les consommables
-     * s'empilent (quantité, illimités), le reste va au SAC, un exemplaire
-     * par ligne (chaque pièce porte ses propres améliorations de Forge).
+     * Range un achat dans l'inventaire du destinataire. Délègue à
+     * RangementObjet, partagé avec le butin de fouille : consommables empilés
+     * (hors capacité de sac), reste au SAC un exemplaire par ligne.
      */
     private function rangerAchat(Objet $objet, int $personnageId, int $quantite): void
     {
-        if ($objet->emplacement === 'consommable') {
-            $ligne = Inventaire::query()
-                ->where('personnage_id', $personnageId)
-                ->where('objet_id', $objet->id)
-                ->where('emplacement', 'consommable')
-                ->first();
-
-            if ($ligne !== null) {
-                $ligne->increment('quantite', $quantite);
-            } else {
-                Inventaire::create([
-                    'personnage_id' => $personnageId,
-                    'objet_id' => $objet->id,
-                    'emplacement' => 'consommable',
-                    'quantite' => $quantite,
-                ]);
-            }
-
-            return;
-        }
-
-        for ($i = 0; $i < $quantite; $i++) {
-            Inventaire::create([
-                'personnage_id' => $personnageId,
-                'objet_id' => $objet->id,
-                'emplacement' => 'sac',
-                'quantite' => 1,
-            ]);
-        }
+        RangementObjet::ranger($objet, $personnageId, $quantite);
     }
 
     // ------------------------------------------------------------------
@@ -573,6 +570,11 @@ final class PhaseMarche
         return Inventaire::query()
             ->with('objet')
             ->whereIn('personnage_id', $personnageIds)
+            // Les artefacts ne quittent jamais le groupe (doc 04 §4) : ni achat,
+            // ni revente. On les retire de l'étal plutôt que de les y afficher
+            // barrés — validerVentes() refuse de toute façon, mais proposer un
+            // bouton qui échoue serait un piège.
+            ->whereHas('objet', fn ($q) => $q->where('rarete', '!=', 'unique'))
             ->get()
             ->map(fn (Inventaire $ligne) => [
                 'inventaire_id' => (int) $ligne->id,

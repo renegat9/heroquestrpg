@@ -90,6 +90,11 @@ class Narration extends Skill
             'quete_demarree' => 'quete_demarree',
             'salle_decouverte' => 'salle_decouverte',
             'piege_declenche' => 'piege_declenche',
+            // Fouille : seule la découverte d'un artefact mérite son propre
+            // beat ; or, potion, rien et errant retombent sur « progression ».
+            'fouille_tresor' => ($resultat['issue'] ?? null) === 'artefact'
+                ? 'fouille_artefact'
+                : 'progression',
             'reprise' => 'reprise',
             'deplacement' => 'deplacement',
             'attaque' => ($resultat['degats'] ?? 0) > 0

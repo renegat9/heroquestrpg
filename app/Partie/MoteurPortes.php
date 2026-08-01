@@ -85,18 +85,31 @@ final class MoteurPortes
      */
     public function porteFermeeAdjacente(Carte $carte, int $x, int $y): ?array
     {
+        $reponse = null;
+
         foreach ($this->portes($carte) as $index => $porte) {
             if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
                 continue;
             }
             // Porte = arête : ouvrable depuis L'UNE des deux cases qu'elle sépare.
             [$a, $b] = Grille::casesPorte($porte);
-            if (($a['x'] === $x && $a['y'] === $y) || ($b['x'] === $x && $b['y'] === $y)) {
+            if (($a['x'] !== $x || $a['y'] !== $y) && ($b['x'] !== $x || $b['y'] !== $y)) {
+                continue;
+            }
+
+            // Une porte OUVRABLE l'emporte toujours. Rendre la première close
+            // venue masquait une porte parfaitement ouvrable derrière une porte
+            // SECRÈTE adjacente (l'appelant ne teste l'ouvrabilité qu'après) :
+            // le héros se retrouvait sans option « Ouvrir la porte » devant une
+            // porte qu'il voyait — la signature d'un groupe figé.
+            if ($this->ouvrableAMain($porte)) {
                 return ['index' => $index, 'porte' => $porte];
             }
+
+            $reponse ??= ['index' => $index, 'porte' => $porte];
         }
 
-        return null;
+        return $reponse;
     }
 
     /** Leviers orthogonalement adjacents à (x, y). @return list<array{x: int, y: int, levier_id: string}> */
@@ -165,6 +178,20 @@ final class MoteurPortes
 
         $this->changer($carte, $index, ['etat' => self::ETAT_OUVERTE, 'revele' => true]);
 
+        // Une JONCTION large de 2 cases est faite de plusieurs arêtes-portes
+        // (AssembleurCarte) : elles s'ouvrent ENSEMBLE, sinon le passage
+        // resterait un goulot d'une case — exactement ce que l'élargissement
+        // vise à supprimer.
+        $jonction = $porte['jonction'] ?? null;
+        if ($jonction !== null) {
+            foreach ($this->portes($carte) as $autre => $p) {
+                if ($autre !== $index && ($p['jonction'] ?? null) === $jonction
+                    && ($p['etat'] ?? null) !== self::ETAT_OUVERTE) {
+                    $this->changer($carte, $autre, ['etat' => self::ETAT_OUVERTE, 'revele' => true]);
+                }
+            }
+        }
+
         Journal::ajouter($groupe, 'action', [
             'type' => 'porte_ouverte',
             'cause' => $cause,
@@ -177,7 +204,7 @@ final class MoteurPortes
      * verrouillée dont TOUTES les instances désignées sont vaincues s'ouvre.
      * Appelé après chaque résolution de combat (hook post-action).
      *
-     * @return list<array{x: int, y: int}> portes ouvertes ce passage
+     * @return list<array{x: int, y: int, cote: string}> portes ouvertes ce passage
      */
     public function ouvrirParMonstresVaincus(Groupe $groupe, Quete $quete): array
     {
@@ -210,7 +237,14 @@ final class MoteurPortes
 
             if ($restants === 0) {
                 $this->ouvrir($groupe, $carte, $index, 'monstres_vaincus');
-                $ouvertes[] = ['x' => (int) $porte['x'], 'y' => (int) $porte['y']];
+                // On rend la porte COMPLÈTE (`cote` compris) : l'appelant en a
+                // besoin pour révéler la salle derrière — une porte est une
+                // arête, `x`/`y` seuls ne suffisent pas à retrouver ses deux cases.
+                $ouvertes[] = [
+                    'x' => (int) $porte['x'],
+                    'y' => (int) $porte['y'],
+                    'cote' => (string) ($porte['cote'] ?? 'e'),
+                ];
             }
         }
 

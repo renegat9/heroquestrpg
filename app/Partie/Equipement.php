@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Models\ClasseHeros;
+use App\Models\Competence;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -25,9 +27,10 @@ use Illuminate\Validation\ValidationException;
  * Les autres propriétés d'un objet (jetable, attaque_diagonale, portee…) sont
  * des comportements de ciblage/portée, hors périmètre de ce service : elles ne
  * modifient pas les dés et seront lues à la volée par le moteur si/quand
- * elles sont implémentées. Exception : `necessite_maitrise_lourde` (armes
- * deux mains / armures lourdes) EST vérifiée ici — nœud barbare Maîtrise
- * lourde requis, sinon 422 (doc 01 §6).
+ * elles sont implémentées. Exception : l'ACCÈS est vérifié ici — chaque pièce
+ * porte un `tag_equipement` (maîtrise requise), chaque classe en autorise un
+ * ensemble de base, et les nœuds `acces_equipement` en ajoutent ; sinon 422
+ * (doc 01 §6/§7).
  */
 final class Equipement
 {
@@ -71,18 +74,18 @@ final class Equipement
         }
 
         $this->verifierMains($personnage, $objet);
-        $this->verifierMaitriseLourde($personnage, $objet);
+        $this->verifierAccesEquipement($personnage, $objet);
 
         return DB::transaction(function () use ($personnage, $ligne, $objet, $slot) {
             // Auto-swap : l'occupant actuel du slot retourne au sac (effet révoqué).
             $occupant = $personnage->inventaire()->where('emplacement', $slot)->with('objet')->first();
             if ($occupant !== null) {
-                $this->appliquerEffet($personnage, $occupant->objet, $occupant->ameliorations ?? [], -1);
+                // (le recalcul complet en fin de transaction reprend tout)
                 $occupant->update(['emplacement' => 'sac']);
             }
 
             $ligne->update(['emplacement' => $slot]);
-            $this->appliquerEffet($personnage->refresh(), $objet, $ligne->ameliorations ?? [], 1);
+            $this->recalculerCombat($personnage->refresh());
 
             return $ligne->fresh();
         });
@@ -107,8 +110,10 @@ final class Equipement
         }
 
         return DB::transaction(function () use ($personnage, $ligne, $objet) {
-            $this->appliquerEffet($personnage, $objet, $ligne->ameliorations ?? [], -1);
             $ligne->update(['emplacement' => 'sac']);
+            // Recalcul APRÈS le retrait : sinon l'arme est encore comptée comme
+            // portée et le héros garde ses dés.
+            $this->recalculerCombat($personnage->refresh());
 
             return $ligne->fresh();
         });
@@ -117,6 +122,10 @@ final class Equipement
     /**
      * Incompatibilité main(s) (doc 01 §7) : une arme à deux mains et un bouclier
      * ne coexistent pas. Rejet explicite (pas d'auto-déséquipement croisé).
+     *
+     * INDÉPENDANT du tag de maîtrise : `deux_mains` dit « pas de bouclier avec »,
+     * le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est à
+     * deux mains ET `arme_legere`, donc jouable par le magicien.
      */
     private function verifierMains(Personnage $personnage, Objet $aEquiper): void
     {
@@ -138,57 +147,142 @@ final class Equipement
     }
 
     /**
-     * Maîtrise lourde (nœud barbare, CompetenceSeeder) : les armes à deux mains
-     * et armures lourdes du catalogue (`effet.necessite_maitrise_lourde`)
-     * exigent ce nœud pour être équipées.
+     * Accès à la pièce (doc 01 §7) : son `tag_equipement` doit figurer parmi
+     * ceux de la classe du héros ou parmi ceux qu'ouvrent ses nœuds.
+     *
+     * Profil « canon HeroQuest » : barbare/nain/elfe prennent tout sauf le lourd
+     * (nœud Maîtrise lourde) ; le magicien est limité à `arme_legere` et ne porte
+     * aucune armure, ses deux nœuds de déblocage levant chaque limite.
      */
-    private function verifierMaitriseLourde(Personnage $personnage, Objet $objet): void
+    private function verifierAccesEquipement(Personnage $personnage, Objet $objet): void
     {
-        if (! (bool) ($objet->effet['necessite_maitrise_lourde'] ?? false)) {
+        $tag = $objet->tag_equipement;
+
+        // Pièce sans exigence de maîtrise (outil, consommable, parchemin, ou
+        // objet d'un catalogue antérieur aux tags) : toujours portable.
+        if ($tag === null || $tag === '') {
             return;
         }
 
-        $possede = $personnage->competences()->where('nom', 'Maîtrise lourde')->exists();
+        $accessibles = $this->tagsAccessibles($personnage);
 
-        if (! $possede) {
-            throw ValidationException::withMessages([
-                'inventaire_id' => "« {$objet->nom} » exige le nœud Maîtrise lourde du Barbare.",
-            ]);
+        // Aucune maîtrise déclarée pour cette classe (catalogue non semé, base
+        // antérieure aux tags) : on N'APPLIQUE AUCUNE restriction. Échouer
+        // « fermé » verrouillerait le héros hors de son propre équipement, y
+        // compris celui de départ — une donnée de référence manquante ne doit
+        // jamais rendre un personnage injouable.
+        if ($accessibles === []) {
+            return;
         }
+
+        if (in_array($tag, $accessibles, true)) {
+            return;
+        }
+
+        $noeud = $this->noeudQuiDebloque($personnage, $tag);
+
+        throw ValidationException::withMessages([
+            'inventaire_id' => $noeud === null
+                ? "« {$objet->nom} » est hors de portée d'un {$personnage->classe}."
+                : "« {$objet->nom} » exige le nœud {$noeud} — à prendre dans ton arbre de compétences.",
+        ]);
     }
 
     /**
-     * Applique (signe +1) ou révoque (signe −1) les deltas de combat de l'objet
-     * ET de ses éventuelles améliorations de Forge (`inventaire.ameliorations`,
-     * App\Partie\Forge) sur les colonnes du personnage. Jamais négatif (garde-fou).
+     * Tags de maîtrise dont dispose ce héros : ceux de sa CLASSE, plus ceux
+     * qu'ouvrent ses nœuds `acces_equipement`.
      *
-     * @param  list<array{nom: string, effet: array<string, mixed>}>  $ameliorations
+     * PUBLIC pour que `/moi` et l'étal du marché exposent la même vérité que le
+     * contrôle d'équipement : un badge « non maîtrisé » calculé à part finirait
+     * par diverger de la règle qu'il annonce.
+     *
+     * Ces nœuds déclaraient leurs `tags` depuis le premier jour sans que rien ne
+     * les lise ; le moteur testait un drapeau `necessite_maitrise_lourde` codé
+     * en dur, si bien qu'aucune classe n'avait de vraie limite d'équipement.
+     *
+     * @return list<string>
      */
-    private function appliquerEffet(Personnage $personnage, ?Objet $objet, array $ameliorations, int $signe): void
+    public function tagsAccessibles(Personnage $personnage): array
     {
-        $parColonne = [];
+        $base = (array) (ClasseHeros::where('nom', $personnage->classe)->first()?->tags_equipement ?? []);
 
-        foreach (self::COLONNES as $cleEffet => $colonne) {
-            $parColonne[$colonne] = ($parColonne[$colonne] ?? 0) + (int) ($objet?->effet[$cleEffet] ?? 0);
-        }
+        // REQUÊTE, jamais `$personnage->competences` : la relation est mémoïsée,
+        // si bien qu'un nœud acquis plus tôt dans la même requête HTTP restait
+        // invisible — le héros se voyait refuser l'équipement qu'il venait
+        // pourtant de débloquer.
+        $debloques = $personnage->competences()->get()
+            ->filter(fn ($c) => ($c->effet['mecanique'] ?? null) === 'acces_equipement')
+            ->flatMap(fn ($c) => (array) ($c->effet['tags'] ?? []))
+            ->all();
 
-        foreach (self::AMELIORATIONS_COLONNES as $cleEffet => $colonne) {
+        return array_values(array_unique([...$base, ...$debloques]));
+    }
+
+    /**
+     * Nom du nœud qui ouvrirait ce tag DANS L'ARBRE DE SA CLASSE, ou null si
+     * aucun — pour distinguer « prends ce talent » de « ce n'est pas pour toi ».
+     */
+    private function noeudQuiDebloque(Personnage $personnage, string $tag): ?string
+    {
+        return Competence::query()
+            ->where('classe', $personnage->classe)
+            ->get()
+            ->first(fn ($c) => ($c->effet['mecanique'] ?? null) === 'acces_equipement'
+                && in_array($tag, (array) ($c->effet['tags'] ?? []), true))
+            ?->nom;
+    }
+
+    /**
+     * Recalcule DEPUIS ZÉRO les dés de combat du héros à partir de son
+     * équipement porté. Remplace l'ancien jeu de deltas ±1, qui dérivait au
+     * moindre chemin d'exécution manqué.
+     *
+     * **Attaque — l'arme REMPLACE** (doc 03 §8 : « la valeur d'Attaque vient de
+     * l'arme équipée », comme au plateau) : à mains nues 1 dé, avec une épée
+     * large 3 dés. Auparavant l'arme s'AJOUTAIT à une valeur de classe qui
+     * encodait déjà l'arme de départ — un barbare (3) avec une épée large (3)
+     * arrivait à 6 dés, et l'équipement n'était plus qu'une inflation.
+     *
+     * **Défense — l'armure S'AJOUTE** : les quatre classes ont 2 dés de base et
+     * les pièces d'armure valent +1 chacune ; aucun double compte à corriger,
+     * on garde le cumul (casque + bouclier = 2 + 1 + 1).
+     *
+     * Les améliorations de Forge (`bonus_des_attaque` / `bonus_des_defense`,
+     * portées par la ligne d'inventaire) s'ajoutent par-dessus dans les deux cas.
+     */
+    public function recalculerCombat(Personnage $personnage): void
+    {
+        $base = ClasseHeros::where('nom', $personnage->classe)->first();
+
+        $attaque = (int) ($base?->des_attaque ?? 1);
+        $defense = (int) ($base?->des_defense ?? 2);
+
+        $portes = $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get();
+
+        foreach ($portes as $ligne) {
+            $effet = (array) ($ligne->objet?->effet ?? []);
+            $ameliorations = (array) ($ligne->ameliorations ?? []);
+
+            // L'ARME PRINCIPALE impose sa valeur d'attaque (remplacement).
+            if ($ligne->emplacement === 'arme_principale' && isset($effet['des_attaque'])) {
+                $attaque = (int) $effet['des_attaque'];
+            }
+
+            $defense += (int) ($effet['des_defense'] ?? 0);
+
             foreach ($ameliorations as $amelioration) {
-                $parColonne[$colonne] = ($parColonne[$colonne] ?? 0) + (int) ($amelioration['effet'][$cleEffet] ?? 0);
+                $attaque += (int) ($amelioration['effet']['bonus_des_attaque'] ?? 0);
+                $defense += (int) ($amelioration['effet']['bonus_des_defense'] ?? 0);
             }
         }
 
-        $deltas = [];
-        foreach ($parColonne as $colonne => $delta) {
-            $delta *= $signe;
-            if ($delta !== 0) {
-                $deltas[$colonne] = max(0, (int) $personnage->{$colonne} + $delta);
-            }
-        }
-
-        if ($deltas !== []) {
-            $personnage->update($deltas);
-        }
+        $personnage->update([
+            'des_attaque' => max(0, $attaque),
+            'des_defense' => max(0, $defense),
+        ]);
     }
 
     private function objetDeLaLigne(Personnage $personnage, Inventaire $ligne): Objet

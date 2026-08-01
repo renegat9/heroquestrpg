@@ -64,6 +64,13 @@ Probabilités indicatives (≈50 % de crâne par dé) : 3 dés → ~50 % d'attei
 
 Valeurs de vie tirées du canon HeroQuest ; attributs de jet = proposition nouvelle.
 
+> **La colonne « Attaque » est la valeur AVEC l'arme de départ**, pas une force innée.
+> Comme au plateau, **l'attaque vient de l'arme équipée** (doc 03 §8) : à mains nues tout
+> héros lance **1 dé**. Les 3/2/2/1 ci-dessous sont produits par l'équipement initial —
+> Barbare épée large (3), Nain épée courte (2) + trousse à outils, Elfe épée courte (2),
+> Magicien dague (1). La **défense**, elle, vaut **2 pour tous** sans armure, et les pièces
+> d'armure s'y **ajoutent** (casque +1, bouclier +1…).
+
 | Héros | Body (PV) | Mind (PV) | Attr. Body | Attr. Mind | Attaque | Défense | Dépl. base | Identité |
 |---|---|---|---|---|---|---|---|---|
 | **Barbare** | 8 | 2 | 4 | 1 | 3 | 2 | 4 | Brute de combat |
@@ -98,7 +105,7 @@ Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds 
 ### Barbare
 - *(passif)* **Carrure** : +1 Point de Body.
 - *(actif)* **Coup puissant** : relance une fois les dés d'attaque ratés.
-- *(déblocage)* **Maîtrise lourde** : accès aux armes à deux mains / armure lourde.
+- *(déblocage)* **Maîtrise lourde** : débloque les **armures lourdes** (plates). Les armes à deux mains, elles, lui sont acquises d'emblée.
 - *(passif)* **Intimidation** : avantage aux jets de Mind sociaux par la peur.
 - *(actif)* **Frénésie** : +1 dé d'attaque quand sous la moitié des PV.
 
@@ -109,6 +116,7 @@ Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds 
 - *(déblocage)* **Forge** : **améliore** un équipement de façon **permanente** (+1 dé ou une propriété).
 - *(passif)* **Sang robuste** : résistance au poison.
 - *(passif)* **Solides épaules** : +2 emplacements de sac à dos.
+- *(déblocage)* **Poigne de forgeron** : débloque les **armes à deux mains**. (Le nain porte l'**armure lourde** sans nœud — c'est le robuste du groupe.)
 
 ### Elfe
 - *(passif)* **Pas léger** : +1 déplacement.
@@ -140,6 +148,50 @@ Chaque héros porte un équipement réparti en emplacements fixes, **distincts d
 
 Chaque pièce équipée modifie les valeurs de combat (ex. épée large = +1 dé d'attaque) ou débloque une action. (Cartes d'équipement HeroQuest réutilisées — stats au doc Market.)
 
+### Maîtrises d'équipement (qui peut porter quoi)
+
+Chaque pièce d'arme ou d'armure porte **un tag de maîtrise** ; chaque classe en
+autorise un ensemble **de base**, et les nœuds de type `deblocage` en ouvrent
+d'autres, au prix d'un point de compétence. Profil retenu : **canon HeroQuest** —
+le magicien est le seul vraiment bridé, comme au plateau.
+
+| | armes | armures |
+|---|---|---|
+| **Barbare** | légère, courante, distance, **deux mains** | légère, bouclier |
+| **Nain** | légère, courante, distance | légère, bouclier, **lourde** |
+| **Elfe** | légère, courante, distance | légère, bouclier |
+| **Magicien** | légère **seule** (dague, bâton) | **aucune** |
+
+| Tag | Pièces | Ouvert par |
+|---|---|---|
+| `arme_legere` | Dague, Bâton, Bâton des Sept Sceaux | *(base, toutes classes)* |
+| `arme_courante` | Épée courte, Lance, Épée large, Kriss du Fossoyeur, Lame d'Aube | base sauf magicien → *Escrime de fortune* |
+| `arme_distance` | Arbalète, Arbalète des Murmures | base sauf magicien |
+| `arme_deux_mains` | Hache de bataille, Marteau du Gardien, Hache du Roi, Fendoir des Titans | base pour le **barbare** ; *Poigne de forgeron* (nain) |
+| `armure_legere` | Casque, Cotte de mailles | base sauf magicien → *Cuir d'apprenti* |
+| `bouclier` | Bouclier | base sauf magicien |
+| `armure_lourde` | Armure de plates | base pour le **nain** ; *Maîtrise lourde* (barbare) |
+
+> **Symétrie des deux costauds** : chacun a sa spécialité gratuite et paie l'autre.
+> Le barbare manie les armes à deux mains de naissance et achète l'armure lourde ;
+> le nain porte l'armure lourde de naissance et achète les armes à deux mains.
+
+Deux précisions qui évitent des contresens :
+
+- **`deux_mains` n'est pas une maîtrise.** Il dit seulement « pas de bouclier
+  avec » ; c'est le **tag** qui dit qui a le droit de porter. Le *Bâton des Sept
+  Sceaux* est à deux mains **et** `arme_legere` : il reste l'artefact du magicien.
+- **Aucune maîtrise déclarée = aucune restriction.** Si le catalogue des classes
+  n'est pas semé, le moteur échoue *ouvert* : une donnée de référence manquante
+  ne doit jamais verrouiller un héros hors de son propre équipement de départ.
+
+Un objet **déjà équipé** n'est jamais retiré rétroactivement : la vérification
+n'a lieu qu'au moment d'équiper.
+
+Au **marché**, une pièce que le héros ne maîtrise pas porte un badge
+« Non maîtrisé », mais reste **achetable** : la bourse est commune et le don entre
+héros existe, donc acheter pour un coéquipier est un usage normal.
+
 ### Sac à dos
 - **Capacité = PV de Body *max* ÷ 2** (arrondi inférieur, sur le max et non les PV courants), **+1 pour le Nain** (bonus racial) : **Barbare 4, Nain 4, Elfe 3, Magicien 2**. Le nœud *Solides épaules* du Nain l'augmente encore.
 - Le sac stocke les **armes et armures non équipées** ; les emplacements équipés ne comptent pas dans la capacité.
@@ -153,6 +205,17 @@ Réorganiser son stuff coûte **l'action du tour** (voir doc Combat) :
 - **Échanger avec un joueur adjacent** : transférer armes/armures entre les deux inventaires, dans la limite des capacités respectives.
 
 L'interface affiche en parallèle les **objets équipés** et le **contenu du sac** des personnages concernés.
+
+> **Implémenté (2026-07-30) — le don au hub.** L'échange existe désormais, mais
+> **entre deux quêtes**, pas comme action de tour : `POST /groupes/{id}/dons`,
+> depuis ses propres héros vers n'importe quel héros actif du groupe. La capacité
+> du **receveur** est respectée ; celle du donneur peut être en dépassement (se
+> délester est la façon de régulariser un sac saturé par un butin). Une pièce
+> équipée se déséquipe d'abord. Les consommables se transfèrent par pile.
+> Un **artefact circule** : il appartient au groupe, pas à son découvreur.
+>
+> L'échange **en pleine quête** (adjacence + coût d'action, tel que décrit
+> ci-dessus) reste à faire, comme « équiper » en quête et « jeter un objet ».
 
 ### Or
 - **À l'arrivée dans un groupe** : l'or **personnel** du personnage est **versé au pot commun** du groupe.

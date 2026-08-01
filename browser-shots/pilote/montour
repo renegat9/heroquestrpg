@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# montour <session> [timeout_ms]
+# Bloque jusqu'à ce que ce soit le tour de ce héros (bandeau .turn-banner.mine),
+# puis affiche la narration courante + la liste des options de menu.
+# Sortie 0 = c'est ton tour ; sortie 3 = timeout (rappelle simplement montour).
+set -u
+D="$(cd "$(dirname "$0")" && pwd)"
+S="${1:?session}"; T="${2:-110000}"
+R=$("$D/hq" "$S" wait "{\"selector\":\"div.turn-banner.mine\",\"timeout\":$T}")
+case "$R" in
+  *'"erreur"'*) echo "PAS ENCORE TON TOUR (timeout) — relance montour"; exit 3 ;;
+esac
+echo "=== C'EST TON TOUR ==="
+"$D/hq" "$S" text '{"max":2600}'
+echo "=== OPTIONS (index à utiliser avec: choisir <session> <index>) ==="
+"$D/hq" "$S" els '{"selector":"button.choice"}'

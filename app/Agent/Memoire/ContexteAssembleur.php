@@ -46,7 +46,11 @@ class ContexteAssembleur
 
         $contexte = [
             'groupe' => [
-                'identifiant' => $groupe->identifiant,
+                // Pas d'`identifiant` ici (§2.11) : c'est le slug d'URL de la
+                // table, avec son suffixe aléatoire anti-collision — il n'a
+                // aucune existence dans la fiction et l'IA l'a déjà repris tel
+                // quel comme nom de méchant (« le-tombeau-de-vardhul-krmu » →
+                // « Vardhul Krmu »). Seuls `nom`/`theme` doivent nourrir le récit.
                 'nom' => $groupe->nom,
                 'theme' => $groupe->theme,
                 'longueur' => $groupe->longueur,
@@ -102,8 +106,14 @@ class ContexteAssembleur
                 'position_arc' => $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
                 'etat' => $quete->etat,
+                // §2.6 — SEULS les monstres RÉVÉLÉS. Sans ce filtre, le MJ
+                // connaissait tous les monstres de la quête, y compris ceux
+                // que le groupe n'a jamais découverts : fuite d'information
+                // dans la fiction, et cibles d'attaque proposées sur des
+                // créatures invisibles.
                 'monstres_actifs' => $quete->instancesMonstres()
                     ->where('etat', 'actif')
+                    ->where('revele', true)
                     ->with('monstre')
                     ->get()
                     ->map(fn ($instance) => [

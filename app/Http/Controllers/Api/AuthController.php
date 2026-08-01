@@ -8,6 +8,7 @@ use App\Auth\JoueurAuthentifiable;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Partie\Images\BibliothequeImages;
+use App\Partie\Marche\CapaciteSac;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -151,7 +152,15 @@ class AuthController extends Controller
                         'equipement' => [
                             'armes' => $p->inventaire
                                 ->filter(fn ($l) => in_array($l->emplacement, ['arme_principale', 'arme_secondaire'], true) && $l->objet !== null)
-                                ->map(fn ($l) => ['inventaire_id' => $l->id, 'nom' => $l->objet->nom])
+                                // `emplacement` exposé : un bouclier occupe
+                                // `arme_secondaire` et s'affichait donc comme une
+                                // seconde ARME, icône épées croisées comprise.
+                                ->map(fn ($l) => [
+                                    'inventaire_id' => $l->id,
+                                    'nom' => $l->objet->nom,
+                                    'emplacement' => $l->emplacement,
+                                    'bouclier' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false),
+                                ])
                                 ->values()
                                 ->all(),
                             'armure' => with(
@@ -170,6 +179,18 @@ class AuthController extends Controller
                                 ])
                                 ->values()
                                 ->all(),
+                            // Charge du sac : la manette n'avait aucun moyen de
+                            // la voir, alors qu'un butin de quête peut faire
+                            // DÉBORDER (un artefact est remis même sac plein —
+                            // le refuser le perdrait à jamais). `occupation` peut
+                            // donc dépasser `capacite`.
+                            'capacite' => CapaciteSac::pour($p),
+                            'occupation' => CapaciteSac::occupation($p),
+                            // Maîtrises du héros (doc 01 §7) : classe + nœuds
+                            // `acces_equipement`. Rendues par le service qui fait
+                            // AUSSI le contrôle, pour que le badge « non maîtrisé »
+                            // de l'étal ne puisse pas diverger de la règle réelle.
+                            'maitrises' => app(\App\Partie\Equipement::class)->tagsAccessibles($p),
                         ],
                         // Consommables (potions) réels : la manette propose « Boire »
                         // à tout moment (action gratuite, canon) — POST /potions.

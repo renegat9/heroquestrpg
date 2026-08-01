@@ -291,6 +291,16 @@ final class Sauvegarde
                 'branche_active' => $quete->branche_active,
                 'etat' => $quete->etat,
                 'or_initial' => $quete->or_initial,
+                // Avancement d'exploration ET pioche de fouille. Absents du
+                // snapshot jusqu'ici : reprendre un `nouveau_tour` rouvrait donc
+                // toutes les salles à la fouille (farm d'or, et duplication
+                // d'artefact depuis qu'un coffre en contient un).
+                'salles_decouvertes' => $quete->sallesDecouvertes(),
+                'tresors_fouilles' => $quete->tresorsFouilles(),
+                'deck_fouille' => $quete->deckFouille(),
+                'salle_artefact' => $quete->salle_artefact,
+                'artefact_objet_id' => $quete->artefact_objet_id,
+                'budget_errant' => $quete->budgetErrant(),
             ],
             // Grille complète, état des pièges inclus (cachés compris).
             'carte' => $quete->carte === null ? null : [
@@ -383,14 +393,38 @@ final class Sauvegarde
      */
     private function restaurerQuete(array $quete, ?array $carte): void
     {
-        Quete::findOrFail($quete['id'])->update([
+        $champs = [
             'titre' => $quete['titre'],
             'position_arc' => $quete['position_arc'],
             'type_jalon' => $quete['type_jalon'],
             'branche_active' => $quete['branche_active'],
             'etat' => 'en_cours', // la quête repasse en cours (doc 05 §6)
             'or_initial' => $quete['or_initial'],
-        ]);
+        ];
+
+        // Exploration + fouille restaurées DEPUIS LE SNAPSHOT, plus remises à
+        // zéro en dur (c'était le cas jusqu'ici, dans restaurerMonstres) : un
+        // `nouveau_tour` doit rendre l'état de CE tour-là, pas celui du début.
+        //
+        // Un snapshot antérieur à ces champs n'en porte aucun : on retombe alors
+        // sur l'ancien comportement pour l'exploration (salle de départ seule,
+        // cohérent avec des monstres redevenus dormants) et on laisse le deck
+        // intact, faute de savoir ce qu'il contenait.
+        if (array_key_exists('salles_decouvertes', $quete)) {
+            $champs['salles_decouvertes'] = (array) $quete['salles_decouvertes'];
+            $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
+        } else {
+            $champs['salles_decouvertes'] = [0];
+            $champs['tresors_fouilles'] = [];
+        }
+
+        foreach (['deck_fouille', 'salle_artefact', 'artefact_objet_id', 'budget_errant'] as $champ) {
+            if (array_key_exists($champ, $quete)) {
+                $champs[$champ] = $quete[$champ];
+            }
+        }
+
+        Quete::findOrFail($quete['id'])->update($champs);
 
         if ($carte !== null) {
             Carte::updateOrCreate(
@@ -407,10 +441,9 @@ final class Sauvegarde
     {
         InstanceMonstre::query()->where('quete_id', $queteId)->delete();
 
-        // Reprise = on recharge l'état de départ : les salles redeviennent
-        // « à (re)découvrir » (seule celle de départ est connue), cohérent avec
-        // les monstres redevenus dormants dans le snapshot.
-        Cache::put(ResolveurTour::cleSallesDecouvertes($queteId), [0], now()->addMinutes(360));
+        // L'exploration et la fouille sont restaurées par restaurerQuete(),
+        // depuis le snapshot. Elles étaient remises à zéro en dur ici, ce qui
+        // rouvrait toutes les salles à la fouille sur une reprise `nouveau_tour`.
 
         foreach ($instances as $instance) {
             // forceFill pour conserver l'id d'origine (références stables

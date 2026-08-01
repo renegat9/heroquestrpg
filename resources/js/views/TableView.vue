@@ -106,7 +106,17 @@ onUnmounted(() => {
     animDemonte = true; // stoppe la boucle d'animation de déplacement
     desabonnements.forEach((off) => off());
     arreterHeartbeat();
+    document.removeEventListener('visibilitychange', pingAuReveil);
 });
+
+/* Chromium suspend les timers d'un onglet en arrière-plan : le heartbeat saute
+   et le narrateur « disparaît », si bien qu'aucune quête ne peut plus démarrer.
+   On repingue donc DÈS que l'onglet redevient visible, sans attendre le prochain
+   tour de l'intervalle. */
+function pingAuReveil() {
+    if (!document.hidden) api.pingTable().catch(() => {});
+}
+document.addEventListener('visibilitychange', pingAuReveil);
 
 /* ---- heartbeat Narrateur (POST /api/table/ping toutes les 15 s) ---- */
 let heartbeatTimer = null;
@@ -119,6 +129,12 @@ function demarrerHeartbeat() {
         api.pingTable().catch(() => {}); // non bloquant
     }, 15_000);
 }
+
+/* Reconnexion WebSocket : la coupure a pu couvrir plusieurs pings ratés — on se
+   réannonce immédiatement plutôt que d'attendre l'intervalle. */
+watch(() => store.state.connexion, (etat, avant) => {
+    if (etat === 'ok' && avant !== 'ok') api.pingTable().catch(() => {});
+});
 
 function arreterHeartbeat() {
     if (heartbeatTimer !== null) {
@@ -194,7 +210,15 @@ function inspecter(item) {
     figureInspectee.value = statsFigure(item, etat.value?.entites ?? []);
 }
 
-const initOrder = computed(() => (etat.value
+// §2.20 — au HUB, l'API continue volontairement d'exposer la dernière quête
+// ÉCHOUÉE (le bandeau « recharger / abandonner » en dépend). L'en-tête et la
+// piste d'initiative ne doivent pas pour autant rester figés dessus : après un
+// anéantissement, la table affichait encore « Quête 1 — … » et la liste des
+// héros SUIVIE DU MONSTRE, alors que le corps de l'écran disait « Le groupe se
+// tient prêt au hub ».
+const auHub = computed(() => etat.value?.groupe?.phase === 'hub');
+
+const initOrder = computed(() => (etat.value && !auHub.value
     ? initiativeVersBarre(etat.value.initiative)
     : []));
 const party = computed(() => (etat.value
@@ -228,7 +252,7 @@ async function deplacerMembre(index, direction) {
     finally { reordreEnCours.value = false; }
 }
 
-const titreQuete = computed(() => etat.value?.quete?.titre ?? 'Hub');
+const titreQuete = computed(() => (auHub.value ? 'Hub' : (etat.value?.quete?.titre ?? 'Hub')));
 // Illustrations dynamiques (générées en arrière-plan) : lieu de repos (hub) et
 // scène de quête. Null tant qu'absentes → repli sur le fond/l'icône.
 const hubImage = computed(() => etat.value?.groupe?.image_url ?? null);
@@ -766,7 +790,7 @@ watch(() => store.state.clotureTerminee, (t) => {
    dépasse cette densité (ex. 22×6), pendant que .map-grid se recentre
    sur le héros actif (voir DungeonMap.vue, largeur/hauteur/transform en
    ligne, calculées en JS à partir de la taille réelle de cette fenêtre). */
-.table-screen .map { position: relative; overflow: hidden; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
+.table-screen .map { contain: layout paint style; position: relative; overflow: hidden; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
   padding: 14px; border-radius: var(--r-lg); background: oklch(0.12 0.01 255);
   box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6); }
 /* Le TERRAIN (cases / portes / pièges) est rendu par le socle partagé
@@ -781,22 +805,30 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .fig.foe { background: linear-gradient(160deg, var(--body-bright), var(--ember-deep)); color: var(--parch-100); border-color: oklch(0.7 0.18 28); }
 /* allié recruté (3.5) : teinte verte amicale, distincte des héros et ennemis */
 .table-screen .fig.ally { background: linear-gradient(160deg, oklch(0.7 0.13 155), oklch(0.5 0.12 158)); color: var(--parch-100); border-color: oklch(0.8 0.14 150); }
-.table-screen .fig.cur { box-shadow: var(--glow-torch), var(--sh-2); border-color: var(--torch); animation: figpulse 2s ease-in-out infinite; }
+.table-screen .fig.cur { box-shadow: var(--glow-torch), var(--sh-2); border-color: var(--torch); }
+/* §2.1 — l'ancien `animation: figpulse` animait un box-shadow : chaque frame
+   repeignait l'arbre entier (59 s de style+layout sur 60 s mesurées). Le halo
+   est désormais un anneau en pseudo-élément animé en transform/opacity :
+   composité, sans invalidation de style. */
+.table-screen .fig.cur::after { content: ""; position: absolute; inset: -3px; border-radius: 50%;
+  border: 3px solid oklch(0.76 0.155 65 / 0.7); pointer-events: none;
+  animation: figpulse 2s ease-in-out infinite; will-change: transform, opacity; }
 /* monstre élite (3.6) : liseré doré + badge couronne/étoile */
 .table-screen .fig.elite { border-color: var(--gold); box-shadow: 0 0 0 2px oklch(0.82 0.15 85 / 0.55), var(--sh-2); }
 .table-screen .fig .elite-badge { position: absolute; top: -6px; right: -6px; z-index: 5; color: var(--gold);
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.7)); }
 .table-screen .fig .elite-badge .msym { font-size: clamp(10px, 1vw, 15px); }
-@keyframes figpulse { 50% { box-shadow: 0 0 0 3px oklch(0.76 0.155 65 / 0.7), 0 0 28px oklch(0.76 0.155 65 / 0.5); } }
+@keyframes figpulse { 0%, 100% { transform: scale(1); opacity: .55 } 50% { transform: scale(1.18); opacity: 0 } }
 .table-screen .fig.chest { background: linear-gradient(160deg, var(--gold), var(--ember-deep)); border-color: var(--gold); color: var(--stone-950); }
-.table-screen .fig.tgt::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px dashed var(--body-bright); animation: tspin 6s linear infinite; }
+.table-screen .fig.tgt::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px dashed var(--body-bright); animation: tspin 6s linear infinite; will-change: transform; }
 @keyframes tspin { to { transform: rotate(360deg); } }
 .table-screen .fig .hp { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5px; }
 .table-screen .fig .hp i { width: 4px; height: 4px; border-radius: 1px; background: var(--body-bright); border: 0.5px solid oklch(0 0 0 / 0.4); }
 
 /* halos de torche sur la carte */
 .table-screen .torchspot { position: absolute; width: 30%; height: 36%; border-radius: 50%; pointer-events: none; z-index: 1;
-  background: radial-gradient(circle, oklch(0.76 0.155 65 / 0.16), transparent 70%); animation: flick 3s ease-in-out infinite; }
+  background: radial-gradient(circle, oklch(0.76 0.155 65 / 0.16), transparent 70%); animation: flick 3s ease-in-out infinite;
+  will-change: opacity; contain: strict; }
 @keyframes flick { 0%, 100% { opacity: .7 } 45% { opacity: 1 } 70% { opacity: .55 } }
 
 /* ---- panneau de groupe ---- */
@@ -838,10 +870,12 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .narr .who { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.12em; color: var(--torch); font-weight: 700; }
 .table-screen .narr p { font-family: var(--font-narr); font-size: clamp(16px, 1.5vw, 22px); line-height: 1.4; margin: 4px 0 0; color: var(--ink-100); }
 .table-screen .narr .tts { display: flex; align-items: flex-end; gap: 3px; height: 26px; flex: none; }
-.table-screen .narr .tts i { width: 4px; background: var(--torch); border-radius: 2px; animation: table-eq 0.9s ease-in-out infinite; }
+/* §2.1 — animait `height` (donc layout à chaque frame) : passé en scaleY. */
+.table-screen .narr .tts i { width: 4px; height: 26px; transform-origin: bottom; background: var(--torch); border-radius: 2px;
+  animation: table-eq 0.9s ease-in-out infinite; will-change: transform; }
 .table-screen .narr .tts i:nth-child(2) { animation-delay: .12s } .table-screen .narr .tts i:nth-child(3) { animation-delay: .24s }
 .table-screen .narr .tts i:nth-child(4) { animation-delay: .36s } .table-screen .narr .tts i:nth-child(5) { animation-delay: .48s }
-@keyframes table-eq { 0%, 100% { height: 5px } 50% { height: 26px } }
+@keyframes table-eq { 0%, 100% { transform: scaleY(0.19) } 50% { transform: scaleY(1) } }
 .table-screen .btn { border: none; border-radius: var(--r-md); padding: 11px 17px; font-family: var(--font-ui); font-weight: 700; font-size: 14px;
   cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: var(--stone-800); color: var(--ink-100); border: var(--line-strong); transition: transform .1s; }
 .table-screen .btn:active { transform: scale(0.97); }
@@ -975,7 +1009,7 @@ watch(() => store.state.clotureTerminee, (t) => {
   background: linear-gradient(150deg, var(--ember), var(--ember-deep));
   color: var(--parch-100); font-weight: 700; font-size: 13px;
   box-shadow: 0 0 24px oklch(0.76 0.155 65 / 0.25), var(--sh-3);
-  animation: table-voix-pulse 2s ease-in-out infinite; }
+  animation: table-voix-pulse 2s ease-in-out infinite; will-change: transform; }
 .voix-activer:hover { filter: brightness(1.08); }
 @keyframes table-voix-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 
@@ -993,4 +1027,13 @@ watch(() => store.state.clotureTerminee, (t) => {
   background: var(--stone-850); color: var(--ink-200); font-weight: 700; font-size: 13px;
   box-shadow: var(--sh-2); transition: color .15s, border-color .15s; }
 .prologue-rouvrir:hover { color: var(--parch-100); border-color: var(--torch); }
+
+/* §2.1 — respect de `prefers-reduced-motion` : sur une machine modeste (ou pour
+   un joueur sensible au mouvement), plus aucune animation en boucle. */
+@media (prefers-reduced-motion: reduce) {
+    .table-screen *, .table-screen *::before, .table-screen *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}
 </style>

@@ -17,7 +17,11 @@ class CompetenceSeeder extends Seeder
             'barbare' => [
                 ['nom' => 'Carrure', 'type' => 'passif', 'description' => '+1 Point de Body (PV Body max).', 'effet' => ['mecanique' => 'bonus_pv_body_max', 'valeur' => 1]],
                 ['nom' => 'Coup puissant', 'type' => 'actif', 'description' => "Une fois par usage, relance les dés d'attaque ratés.", 'effet' => ['mecanique' => 'relance_des_attaque_rates', 'frequence' => 'une_fois_par_usage']],
-                ['nom' => 'Maîtrise lourde', 'type' => 'deblocage', 'description' => 'Débloque les armes à deux mains et les armures lourdes.', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['arme_deux_mains', 'armure_lourde']]],
+                // Nom CONSERVÉ volontairement : le seeder identifie un nœud par (classe, nom),
+                // le renommer en créerait un nouveau et détacherait celui des héros
+                // qui l'ont déjà acquis. Seule sa portée se réduit : le barbare manie
+                // désormais les armes à deux mains sans lui.
+                ['nom' => 'Maîtrise lourde', 'type' => 'deblocage', 'description' => 'Débloque les armures lourdes (plates).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['armure_lourde']]],
                 ['nom' => 'Intimidation', 'type' => 'passif', 'description' => 'Avantage aux jets de Mind sociaux fondés sur la peur.', 'effet' => ['mecanique' => 'avantage_jet_mind', 'contexte' => 'social_peur']],
                 ['nom' => 'Frénésie', 'type' => 'actif', 'description' => "+1 dé d'attaque tant que tes PV de Body sont sous la moitié.", 'effet' => ['mecanique' => 'bonus_des_attaque', 'valeur' => 1, 'condition' => 'pv_body_sous_moitie']],
             ],
@@ -28,6 +32,10 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Forge', 'type' => 'deblocage', 'description' => 'Au hub, améliore définitivement un équipement (+1 dé ou une propriété).', 'effet' => ['mecanique' => 'forge_amelioration', 'lieu' => 'hub', 'catalogue' => 'forge_ameliorations']],
                 ['nom' => 'Sang robuste', 'type' => 'passif', 'description' => 'Résistance à la condition Empoisonné.', 'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => 'Empoisonné']],
                 ['nom' => 'Solides épaules', 'type' => 'passif', 'description' => '+2 emplacements de sac à dos.', 'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
+                // Le nain porte déjà l'armure lourde de naissance (ClasseHerosSeeder) ;
+                // ce nœud n'ouvre que les armes à deux mains, pour que les grosses
+                // armes restent la signature du barbare.
+                ['nom' => 'Poigne de forgeron', 'type' => 'deblocage', 'description' => 'Débloque les armes à deux mains (haches et marteaux de bataille).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['arme_deux_mains']]],
             ],
             'elfe' => [
                 ['nom' => 'Pas léger', 'type' => 'passif', 'description' => '+1 en déplacement.', 'effet' => ['mecanique' => 'bonus_deplacement', 'valeur' => 1]],
@@ -42,6 +50,12 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Concentration', 'type' => 'actif', 'description' => 'Une fois par quête, sacrifie ton tour pour récupérer un sort épuisé.', 'effet' => ['mecanique' => 'recuperer_sort_epuise', 'cout' => 'tour_complet', 'frequence' => 'une_fois_par_quete']],
                 ['nom' => 'Contresort', 'type' => 'actif', 'description' => 'Annule un effet magique (jet de Mind).', 'effet' => ['mecanique' => 'annuler_effet_magique', 'jet' => 'mind']],
                 ['nom' => 'Érudition', 'type' => 'passif', 'description' => 'Avantage aux jets de Mind de savoir et d\'érudition.', 'effet' => ['mecanique' => 'avantage_jet_mind', 'contexte' => 'savoir']],
+                // Déblocages d'équipement (doc 01 §7) : le magicien du plateau ne
+                // porte ni armure ni arme de mêlée sérieuse. Ces deux nœuds lèvent
+                // chacune des limites, au prix d'un point de compétence — donc au
+                // détriment de sa progression magique. Un vrai arbitrage.
+                ['nom' => 'Cuir d\'apprenti', 'type' => 'deblocage', 'description' => 'Débloque les armures légères (casque, cotte de mailles).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['armure_legere']]],
+                ['nom' => 'Escrime de fortune', 'type' => 'deblocage', 'description' => 'Débloque les armes de mêlée courantes (épées, lance).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['arme_courante']]],
             ],
         ];
 

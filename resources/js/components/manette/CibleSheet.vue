@@ -27,8 +27,19 @@ const ciblesAlliees = computed(() => (props.feuille.cibles ?? []).filter((c) => 
 const allieAConfirmer = ref(null);
 watch(() => props.feuille, () => { allieAConfirmer.value = null; });
 
+/* Le sort est-il réellement offensif ? Un soin ou un buff visant un allié
+   n'est PAS un tir ami : afficher « subira l'effet comme un ennemi » y était
+   faux et imposait deux clics de confirmation en pleine urgence (§2.11).
+   Par défaut on reste prudent (offensif) si l'information manque. */
+const offensif = computed(() => props.feuille.offensif !== false);
+
+/* §2.3 — un sort offensif sans AUCUN ennemi ciblable : la feuille n'affichait
+   que les alliés sous un bandeau « tir ami », ce dont deux joueurs ont conclu
+   que la magie était cassée. On le dit explicitement. */
+const aucuneCibleEnVue = computed(() => offensif.value && ciblesEnnemies.value.length === 0);
+
 function choisir(cible) {
-    if (cible.ami) {
+    if (cible.ami && offensif.value) {
         allieAConfirmer.value = cible;
         return;
     }
@@ -102,8 +113,18 @@ function onOverlayClick(e) {
                         @click="choisir(c)"
                     />
                 </div>
+                <!-- §2.3 : dire pourquoi la liste d'ennemis est vide, au lieu
+                     de n'afficher que des alliés (ce qui se lit comme un bug). -->
+                <p v-if="aucuneCibleEnVue" class="cible-vide">
+                    <MSym n="visibility_off" :size="16" />
+                    Aucune cible en vue — un mur ou un allié bloque ta ligne de vue.
+                    Déplace-toi pour dégager un angle.
+                </p>
                 <template v-if="ciblesAlliees.length">
-                    <div class="cible-sep"><MSym n="warning" fill :size="13" /> Alliés (tir ami)</div>
+                    <div class="cible-sep" :class="{ 'cible-sep-neutre': !offensif }">
+                        <MSym v-if="offensif" n="warning" fill :size="13" />
+                        {{ offensif ? 'Alliés (tir ami)' : 'Alliés' }}
+                    </div>
                     <div class="choices">
                         <ChoiceCard
                             v-for="c in ciblesAlliees"
@@ -111,7 +132,7 @@ function onOverlayClick(e) {
                             :icon="c.ic"
                             :title="c.nom"
                             :meta="c.meta"
-                            :danger="true"
+                            :danger="offensif"
                             @click="choisir(c)"
                         />
                     </div>
@@ -125,6 +146,10 @@ function onOverlayClick(e) {
 .sheet .ami-warn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-md);
   font-size: 13px; color: var(--parch-100); background: oklch(0.6 0.2 25 / 0.14); border: 1px solid oklch(0.6 0.2 25 / 0.5); }
 .sheet .ami-warn .msym { color: var(--danger); flex: none; }
-.sheet .cible-sep { display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; font-size: 12px; font-weight: 700;
+.sheet .cible-vide { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px;
+  font-size: 12.5px; line-height: 1.4; color: var(--ink-400); }
+.cible-vide .msym { color: var(--ink-500); flex: none; }
+.cible-sep-neutre { color: var(--ink-400) !important; }
+.cible-sep { display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; font-size: 12px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--danger, #e66); }
 </style>

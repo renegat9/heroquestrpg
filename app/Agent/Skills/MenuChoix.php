@@ -131,7 +131,9 @@ class MenuChoix extends Skill
         $erreurs = [];
         $ids = [];
 
-        // Cibles légales = monstres actifs de l'état vivant (filtrage avant affichage).
+        // Cibles légales = monstres actifs ET RÉVÉLÉS de l'état vivant (§2.6 :
+        // `ContexteAssembleur` ne remonte plus que les révélés, l'IA ne peut donc
+        // plus proposer d'attaquer une créature que le groupe n'a jamais vue).
         $ciblesActives = array_map(
             fn ($monstre) => (int) $monstre['instance_id'],
             $contexte['etat_vivant']['quete_courante']['monstres_actifs'] ?? [],
@@ -145,8 +147,18 @@ class MenuChoix extends Skill
             }
             $ids[] = $id;
 
-            if (($option['type'] ?? null) === 'jet' && ! isset($option['jet'])) {
-                $erreurs[] = "options[{$i}] : type jet sans paramètres de jet (attribut + difficulté).";
+            if (($option['type'] ?? null) === 'jet') {
+                // On valide le CONTENU, pas seulement la présence : `resoudreJet`
+                // exige attribut ∈ {body, mind} et difficulté 1-4, et rejette
+                // l'option en 422 sinon — le joueur se retrouvait alors avec un
+                // bouton qui échoue sans explication (même famille que §2.4).
+                $attribut = $option['jet']['attribut'] ?? null;
+                $difficulte = $option['jet']['difficulte'] ?? null;
+
+                if (! in_array($attribut, ['body', 'mind'], true)
+                    || ! is_int($difficulte) || $difficulte < 1 || $difficulte > 4) {
+                    $erreurs[] = "options[{$i}] : jet invalide (attribut body|mind, difficulté 1-4).";
+                }
             }
 
             if (($option['type'] ?? null) === 'attaque') {

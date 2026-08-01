@@ -172,6 +172,10 @@ final class MoteurPieges
      * grille (contrairement aux pièges de salle). Mêmes dégâts/chute que
      * declencher(), journal + narration.
      *
+     * `$narrer: false` quand l'APPELANT narre déjà l'action englobante — cas de
+     * la fouille de trésor, dont ChoixController dispatche la narration : sans
+     * ça, un coffre piégé en produisait deux (et deux appels TTS).
+     *
      * @return array<string, mixed> payload journalisé
      */
     public function declencherEphemere(
@@ -180,6 +184,7 @@ final class MoteurPieges
         EtatPersonnageQuete $etat,
         ?Piege $piege,
         string $contexte,
+        bool $narrer = true,
     ): array {
         // Piège de coffre (doc 10 §5) : issue ALÉATOIRE entre les branches du
         // catalogue (dégâts OU condition) — un d6 réparti à parts égales.
@@ -215,7 +220,9 @@ final class MoteurPieges
             'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
         ]);
 
-        GenererNarration::dispatch($groupe->id, $payload);
+        if ($narrer) {
+            GenererNarration::dispatch($groupe->id, $payload);
+        }
 
         return $payload;
     }

@@ -242,3 +242,24 @@ it('numérote les narrations en séquence — anti-inversion si un job lent rép
         ->and($etat['narration_sequence'])->toBeGreaterThan($vieilEvenement->sequence)
         ->and($derniere->id)->not->toBe($vieilEvenement->id);
 });
+
+it('expose les CRÉNEAUX du tour sur chaque héros (pour griser côté manette)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $entite = fn () => collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites'))
+        ->firstWhere('id', $hero->id);
+
+    // Le client ne connaissait que `a_joue`, et seulement via l'initiative : il
+    // ne pouvait pas griser une option dont le créneau venait d'être consommé,
+    // d'où des 422 « Tu as déjà agi ce tour » sur un menu périmé.
+    expect($entite())->toMatchArray(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false]);
+
+    $quete->etatsPersonnages()->where('personnage_id', $hero->id)->update(['a_agi' => true]);
+
+    expect($entite())->toMatchArray(['a_joue' => false, 'a_deplace' => false, 'a_agi' => true]);
+});

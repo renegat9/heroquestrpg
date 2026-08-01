@@ -72,7 +72,7 @@ function genererMenuPour($groupe, $alice, $heros): array
     return Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
 }
 
-it('réinjecte déplacement et attaque (cible_id) quand le menu IA les omet', function () {
+it('réinjecte déplacement et attaque (cible_id), et JETTE les actions inventées par l\'IA', function () {
     fakeMenuIa(['situation' => 'Une ombre se dresse.', 'options' => [
         ['id' => 'parler', 'libelle' => 'Tenter d\'intimider la créature', 'type' => 'dialogue'],
         ['id' => 'ecouter', 'libelle' => 'Tendre l\'oreille — jet de Mind', 'type' => 'jet', 'jet' => ['attribut' => 'mind', 'difficulte' => 2]],
@@ -84,7 +84,13 @@ it('réinjecte déplacement et attaque (cible_id) quand le menu IA les omet', fu
 
     expect($types)->toContain('deplacement')   // réinjecté par le moteur
         ->and($types)->toContain('attaque')     // monstre adjacent → attaque possible
-        ->and($types)->toContain('dialogue');   // couleur IA conservée
+        // L'IA n'invente plus d'action : rien derrière ne les résolvait, et
+        // certaines reprenaient un identifiant mécanique que le moteur venait
+        // de retirer. Elle n'habille plus que les libellés du moteur.
+        ->and($types)->not->toContain('dialogue');
+
+    expect(collect($menu['options'])->pluck('id'))->not->toContain('parler')
+        ->and(collect($menu['options'])->pluck('id'))->not->toContain('ecouter');
 
     $attaque = collect($menu['options'])->firstWhere('type', 'attaque');
     expect((int) $attaque['cible_id'])->toBe((int) $instance->id); // ancrage mécanique correct

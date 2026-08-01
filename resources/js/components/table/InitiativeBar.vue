@@ -11,7 +11,9 @@ const emit = defineEmits(['inspecter']);
 </script>
 
 <template>
-    <div class="init">
+    <!-- Rien à afficher au hub : sans ce garde, le libellé « Initiative » restait
+         seul à l'écran après un retour au hub (§2.20). -->
+    <div v-if="order.length" class="init">
         <span class="ttl">Initiative</span>
         <template v-for="(o, i) in order" :key="i">
             <button

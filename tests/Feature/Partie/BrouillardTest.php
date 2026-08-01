@@ -70,7 +70,49 @@ it('lève le brouillard sur une salle une fois découverte', function () {
     expect($avant[$cN['y']][$cN['x']])->toBe('b');
 
     // …puis découverte → dévoilée.
-    Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0, $derniere], now()->addMinutes(360));
+    $quete->update(['salles_decouvertes' => [0, $derniere]]);
     $apres = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.cases');
     expect($apres[$cN['y']][$cN['x']])->not->toBe('b');
+});
+
+it('montre à un héros les murs qui le TOUCHENT, même hors zone révélée', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $hero->id)->firstOrFail();
+
+    // Le héros apparaît au centre de sa salle : on le colle à l'angle intérieur,
+    // où il touche deux murs.
+    $salle = $quete->carte->grille['salles'][0];
+    $etat->update([
+        'position_x' => (int) $salle['x'] + 1,
+        'position_y' => (int) $salle['y'] + 1,
+    ]);
+    $etat->refresh();
+
+    // On isole le héros : aucune salle « découverte », donc rien de visible
+    // sinon ce qu'il touche lui-même.
+    $quete->update(['salles_decouvertes' => []]);
+
+    $cases = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.cases');
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $brut = $quete->carte->grille['cases'];
+
+    // Un mur non adjacent à une zone déjà visible repartait en `b`,
+    // indiscernable d'un sol inconnu : la manette le proposait comme
+    // destination, le serveur le refusait. Un héros voit ses propres parois.
+    $murs = 0;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        if (($brut[$hy + $dy][$hx + $dx] ?? 'm') === 'm') {
+            $murs++;
+            expect($cases[$hy + $dy][$hx + $dx])->toBe('m', "mur en ({$hx}+{$dx},{$hy}+{$dy}) masqué");
+        }
+    }
+
+    expect($murs)->toBeGreaterThan(0); // le scénario doit bien contenir un mur
 });

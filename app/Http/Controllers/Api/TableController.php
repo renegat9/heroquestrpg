@@ -32,6 +32,16 @@ class TableController extends Controller
      * Ouvre une session de table pour le groupe identifié par `code`.
      * 404 si le code est inconnu. Pose le heartbeat initial (30 s).
      */
+    /**
+     * Durée de vie de la présence du narrateur.
+     *
+     * La table pingue toutes les 15 s ; à 30 s, UN SEUL ping raté suffisait à
+     * faire disparaître le narrateur — or Chromium suspend les timers d'un
+     * onglet en arrière-plan, et sans narrateur actif aucune quête ne démarre
+     * (GroupeController), sans rien pour l'expliquer à l'écran.
+     */
+    public const TTL_PRESENCE_SECONDES = 60;
+
     public function ouvrir(Request $request, EtatGroupe $etatGroupe): JsonResponse
     {
         $donnees = $request->validate([
@@ -44,7 +54,7 @@ class TableController extends Controller
         $request->session()->put('table_groupe', $groupe->identifiant);
 
         // Heartbeat initial : la table est active pour 30 secondes.
-        Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(30));
+        Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(self::TTL_PRESENCE_SECONDES));
 
         return response()->json([
             'groupe' => $etatGroupe->payload($groupe),
@@ -73,7 +83,7 @@ class TableController extends Controller
             abort(403, 'Groupe introuvable.');
         }
 
-        Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(30));
+        Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(self::TTL_PRESENCE_SECONDES));
 
         return response()->noContent();
     }

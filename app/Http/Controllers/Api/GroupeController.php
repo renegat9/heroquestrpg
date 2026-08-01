@@ -7,11 +7,12 @@ namespace App\Http\Controllers\Api;
 use App\Events\PretsMaj;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\TableController;
-use App\Jobs\GenererPortraitHeros;
 use App\Jobs\GenererSqueletteCampagne;
 use App\Models\ClasseHeros;
+use App\Models\Objet;
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\Equipement;
 use App\Partie\DemarreurQuete;
 use App\Partie\EtatGroupe;
 use App\Partie\Images\BibliothequeImages;
@@ -166,27 +167,6 @@ class GroupeController extends Controller
         ], 201);
     }
 
-    /**
-     * POST /api/personnages/{id}/portrait — génère (synchrone) un portrait
-     * UNIQUE pour un héros du joueur (~quelques secondes). Renvoie l'URL du
-     * portrait (dyn si généré, sinon repli image de classe). Sans clé/échec :
-     * l'URL reste l'image de classe (ou null → icône) — jamais bloquant.
-     */
-    public function genererPortrait(string $id, BibliothequeImages $biblio): JsonResponse
-    {
-        $joueur = Auth::guard('joueur')->user();
-
-        $personnage = Personnage::query()
-            ->where('id', $id)
-            ->where('joueur_id', $joueur->id)
-            ->firstOrFail();
-
-        GenererPortraitHeros::dispatchSync($personnage->id);
-
-        return response()->json([
-            'portrait_url' => $biblio->urlHeros($personnage->id, $personnage->classe),
-        ]);
-    }
 
     /**
      * POST /api/groupes/{identifiant}/joueurs — rejoindre avec ses héros.
@@ -291,6 +271,54 @@ class GroupeController extends Controller
     }
 
     /**
+     * Équipement de départ (parité HeroQuest). Les 3/2/2/1 dés d'attaque du
+     * doc 01 §4 ne sont PAS une force innée : ce sont les armes de départ du
+     * plateau. Elles sont donc données ici, et c'est l'arme qui fixe l'attaque
+     * (Equipement::recalculerCombat) — à mains nues, tout héros lance 1 dé.
+     *
+     * | Classe   | Arme de départ | Attaque résultante |
+     * |----------|----------------|--------------------|
+     * | Barbare  | Épée large     | 3                  |
+     * | Nain     | Épée courte    | 2 (+ trousse à outils) |
+     * | Elfe     | Épée courte    | 2                  |
+     * | Magicien | Dague          | 1                  |
+     *
+     * La trousse du Nain rend sa spécialité de désamorçage utilisable dès la
+     * première quête (elle porte `permet_desamorcage`).
+     */
+    private const EQUIPEMENT_DEPART = [
+        'barbare' => ['Épée large'],
+        'nain' => ['Épée courte', 'Trousse à outils'],
+        'elfe' => ['Épée courte'],
+        'magicien' => ['Dague'],
+        'magicienne' => ['Dague'],
+    ];
+
+    private function equiperDepart(Personnage $personnage, string $classe): void
+    {
+        $equipement = app(Equipement::class);
+
+        foreach (self::EQUIPEMENT_DEPART[$classe] ?? [] as $nomObjet) {
+            $objet = Objet::where('nom', $nomObjet)->first();
+
+            if ($objet === null) {
+                continue; // catalogue incomplet (tests ciblés) : on n'échoue pas la création
+            }
+
+            $ligne = $personnage->inventaire()->create([
+                'objet_id' => $objet->id,
+                'emplacement' => 'sac',
+            ]);
+
+            // Les pièces d'équipement sont PORTÉES d'emblée ; le reste (trousse)
+            // reste au sac, comme n'importe quel objet utilitaire.
+            if (in_array($objet->emplacement, Equipement::SLOTS, true)) {
+                $equipement->equiper($personnage->refresh(), $ligne);
+            }
+        }
+    }
+
+    /**
      * Crée un héros du roster aux valeurs de départ du catalogue (doc 01).
      * Parité HeroQuest de base (doc 02 §2) : le MAGICIEN reçoit les 9 sorts de
      * ses 3 éléments, l'ELFE les 3 sorts de son élément (`elements` validé en
@@ -323,6 +351,8 @@ class GroupeController extends Controller
         foreach (MoteurSorts::elementsDepart($classe, $elements) as $element) {
             $sorts->attacherElement($personnage, $element);
         }
+
+        $this->equiperDepart($personnage, $classe);
 
         return $personnage;
     }

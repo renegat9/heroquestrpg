@@ -12,7 +12,6 @@ use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
@@ -92,9 +91,9 @@ final class MenuMoteur
             return false; // couloir : pas de fouille de trésor
         }
 
-        // Salle déjà fouillée pour son trésor ? (une seule fois — anti-farm)
-        $fouillees = (array) Cache::get(ResolveurTour::cleTresorFouille($quete->id), []);
-        if (in_array($index, $fouillees, true)) {
+        // Salle déjà fouillée pour son trésor ? (une seule fois — anti-farm).
+        // Lu en base depuis §2.16.
+        if (in_array($index, $quete->tresorsFouilles(), true)) {
             return false;
         }
 
@@ -160,7 +159,11 @@ final class MenuMoteur
 
         $occupees = [];
         foreach ($quete->etatsPersonnages()->get() as $autre) {
-            if ($autre->personnage_id !== $personnage->id && $autre->position_x !== null) {
+            // Un allié TOMBÉ ne bloque pas le passage — on l'enjambe (même
+            // règle que FabriqueGrille, cf. HerosTombeTest). Il était compté
+            // ici, si bien que le menu retirait « Se déplacer » à un héros
+            // qu'en réalité le moteur aurait laissé avancer (§2.17).
+            if ($autre->personnage_id !== $personnage->id && $autre->position_x !== null && ! $autre->tombe) {
                 $occupees[] = ['x' => (int) $autre->position_x, 'y' => (int) $autre->position_y];
             }
         }
@@ -339,6 +342,20 @@ final class MenuMoteur
                         + abs((int) $e->position_y - (int) $etat->position_y) === 1);
 
             foreach ($allies as $allie) {
+                // §2.17 — un tombé n'occupe PAS sa case (règle assumée : on
+                // l'enjambe), donc une autre figure a pu s'y installer. Dans ce
+                // cas `ResolveurTour::resoudreRelever` refuse (« une autre
+                // figure occupe sa case ») : ne proposons pas une action que le
+                // moteur rejettera à coup sûr. Constaté en partie réelle — un
+                // monstre campait sur le corps et le bouton restait cliquable,
+                // échouant à chaque fois sans issue.
+                $libre = FabriqueGrille::pour($quete, exceptPersonnageId: (int) $allie->personnage_id)
+                    ->estTraversable((int) $allie->position_x, (int) $allie->position_y);
+
+                if (! $libre) {
+                    continue;
+                }
+
                 $options[] = [
                     'id' => "relever_{$allie->personnage_id}",
                     'libelle' => "Relever {$allie->personnage->nom}",

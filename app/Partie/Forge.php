@@ -78,17 +78,12 @@ final class Forge
                 'effet' => $amelioration->effet,
             ]]]);
 
-            // Déjà équipé : l'amélioration s'applique immédiatement aux colonnes
-            // du porteur (même patron qu'un équipement initial — Equipement).
-            if (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
-                $personnage = $ligne->personnage;
-                foreach (self::EFFETS_SUPPORTES as $cle) {
-                    $colonne = $cle === 'bonus_des_attaque' ? 'des_attaque' : 'des_defense';
-                    $delta = (int) ($amelioration->effet[$cle] ?? 0);
-                    if ($delta !== 0) {
-                        $personnage->update([$colonne => (int) $personnage->{$colonne} + $delta]);
-                    }
-                }
+            // Déjà équipé : on laisse Equipement recalculer les dés du porteur
+            // depuis son équipement complet, plutôt que d'appliquer un delta à la
+            // main — l'attaque étant désormais un REMPLACEMENT par l'arme, un
+            // delta isolé produirait une valeur fausse.
+            if (in_array($ligne->emplacement, Equipement::SLOTS, true) && $ligne->personnage !== null) {
+                app(Equipement::class)->recalculerCombat($ligne->personnage->refresh());
             }
 
             return $ligne->fresh();

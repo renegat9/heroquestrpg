@@ -25,6 +25,7 @@ namespace App\Partie;
  *  - `chute`   : un héros tombe (0 PV)
  *  - `pare`    : attaque parée (0 dégât)
  *  - `succes` / `echec` : issue d'un jet
+ *  - `tresor`  : butin de fouille (or, potion, artefact)
  *  - `info`    : déplacement, effet neutre
  */
 final class JournalCombat
@@ -64,6 +65,26 @@ final class JournalCombat
      */
     private function ligneAction(array $a, string $acteurNom): array
     {
+        $lignes = $this->ligneType($a, $acteurNom);
+
+        // Piège IMBRIQUÉ (`declenchement`) : coffre piégé, désamorçage raté,
+        // franchissement raté. Aucun de ces payloads n'affichait quoi que ce
+        // soit — le héros perdait des PV sans la moindre ligne.
+        if (is_array($a['declenchement'] ?? null)) {
+            foreach ($this->piegeDeclenche($a['declenchement'], $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function ligneType(array $a, string $acteurNom): array
+    {
         return match ($a['type'] ?? null) {
             'attaque' => $this->attaqueHeros($a, $acteurNom),
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
@@ -73,6 +94,8 @@ final class JournalCombat
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
+            'fouille_tresor' => $this->fouille($a, $acteurNom),
+            'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             'attaque_empechee' => [$this->info(($a['monstre'] ?? 'Le monstre').' ne peut pas frapper')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],
             'heros_endormi' => [$this->info(($a['personnage'] ?? $acteurNom).' est endormi — tour sauté')],
@@ -221,6 +244,80 @@ final class JournalCombat
     private function desamorcage(array $a, string $acteurNom): array
     {
         return $this->issueSimple($a, $acteurNom, 'désamorce le piège', 'déclenche le piège en le manipulant');
+    }
+
+    /**
+     * « Fouiller — trésor » : une ligne par issue de carte. Le fil de combat
+     * n'en affichait AUCUNE — un héros qui perdait 1 PV sur un coffre piégé
+     * n'avait strictement aucune explication.
+     *
+     * L'issue `piege` ne produit rien ici : le payload imbriqué
+     * `declenchement` est repris par piegeDeclenche() juste après.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function fouille(array $a, string $acteurNom): array
+    {
+        $lignes = match ($a['issue'] ?? null) {
+            'tresor' => [[
+                'texte' => "{$acteurNom} déniche ".(int) ($a['or'] ?? 0).' pièces d\'or',
+                'ton' => 'tresor',
+            ]],
+            'potion' => [[
+                'texte' => "{$acteurNom} trouve ".($a['objet']['nom'] ?? 'une potion'),
+                'ton' => 'tresor',
+            ]],
+            'artefact' => [[
+                'texte' => "{$acteurNom} met la main sur ".($a['objet']['nom'] ?? 'un artefact').' !',
+                'ton' => 'tresor',
+            ]],
+            'errant' => [[
+                'texte' => ($a['monstre']['nom'] ?? 'Un monstre').' surgit du coffre !',
+                'ton' => 'subit',
+            ]],
+            'piege' => [],
+            default => [$this->info("{$acteurNom} fouille en vain")],
+        };
+
+        if (! empty($a['sac_deborde'])) {
+            $lignes[] = $this->info('Sac plein : '.($a['objet']['nom'] ?? 'l\'objet').' déborde — à équiper ou à écouler au marché');
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Piège déclenché — coffre piégé (`ephemere`) ET pièges de couloir, qui
+     * étaient muets eux aussi.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function piegeDeclenche(array $a, string $acteurNom): array
+    {
+        $nom = $a['personnage']['nom'] ?? $acteurNom;
+        $piege = $a['piege']['nom'] ?? 'Un piège';
+        $degats = (int) ($a['degats'] ?? 0);
+
+        $lignes = [['texte' => "{$piege} se déclenche sur {$nom} !", 'ton' => 'subit']];
+
+        if ($degats > 0) {
+            $lignes[] = [
+                'texte' => "{$nom} encaisse −{$degats} PV",
+                'ton' => ! empty($a['tombe']) ? 'chute' : 'degats',
+            ];
+        }
+
+        if (! empty($a['condition_appliquee'])) {
+            $lignes[] = ['texte' => "{$nom} est ".$a['condition_appliquee'], 'ton' => 'echec'];
+        }
+
+        if ($degats === 0 && empty($a['condition_appliquee'])) {
+            $lignes[] = $this->info("{$nom} s'en tire sans une égratignure");
+        }
+
+        return $lignes;
     }
 
     /**

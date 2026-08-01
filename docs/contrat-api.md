@@ -260,12 +260,42 @@ tracé, non servies dans le payload).
     levier (`cartes.grille.leviers`) → ouvre la/les porte(s) liée(s) par `verrou.levier_id`.
 - **Fouiller — trésor** (option `fouiller_tresor`, type `fouille_tresor`) : action
   SÉPARÉE, offerte dans une **salle « vide »** (rencontres nettoyées) **non encore
-  fouillée**. Tirage pondéré (gabarit `structure.tresor_a_risque`) → `issue` ∈
-  `tresor` (or au groupe) / `rien` / `errant` (monstre du bestiaire instancié au
-  contact, décompté d'un **budget errant dédié** `structure.budget_errant`, qui joue
-  au tour des monstres) / `piege` (effet du « Piège de coffre » appliqué **tout de
-  suite** au fouilleur, jamais posé sur la grille). Le monstre errant ne survient
-  **que** par cette action (jamais par « Fouiller la zone »).
+  fouillée**. On **pioche une carte de fouille**, à la HeroQuest : le deck est bâti
+  au démarrage de la quête depuis `gabarits_quete.structure.deck_fouille` et pioché
+  **sans remise** (`quetes.deck_fouille`, index 0 = sommet) — la composition est donc
+  **garantie**, là où l'ancien tirage pondéré (`tresor_a_risque`, supprimé) n'en
+  donnait qu'une espérance biaisée. `issue` ∈ :
+  - `tresor` — `or` versé au groupe (montant figé dans la carte) ;
+  - `potion` — consommable rangé chez **le fouilleur** (`objet`) ;
+  - `artefact` — arme **unique** du coffre désigné (`objet`, `coffre: true`) ;
+  - `errant` — monstre du bestiaire instancié au contact, décompté du **budget errant
+    dédié** (`quetes.budget_errant`, semé depuis `structure.budget_errant`), qui joue
+    au tour des monstres ; budget épuisé → rétrogradé en `rien` + `errant_indisponible` ;
+  - `piege` — effet du « Piège de coffre » appliqué **tout de suite** au fouilleur
+    (`declenchement`), jamais posé sur la grille ;
+  - `rien`.
+
+  Clés additionnelles du payload : `deck_restant` (cartes encore en pioche),
+  `deck_vide` (deck épuisé → rétrogradé en `rien`), `coffre`, `sac_deborde`
+  (l'objet a été remis **au-delà** de la capacité du sac — cf. ci-dessous),
+  `objet_indisponible` (carte pointant un objet absent du catalogue).
+
+  Le monstre errant ne survient **que** par cette action (jamais par « Fouiller la zone »).
+- **Coffre à artefact** : chaque quête désigne **une** salle — la plus profonde dans
+  l'arbre des couloirs (`quetes.salle_artefact`) — abritant **au plus une** arme de
+  rareté `unique` (`quetes.artefact_objet_id`). Elle **ne consomme aucune carte** du
+  deck : c'est un bonus net, et le héros qui fouille la reçoit. Aucune arme unique
+  disponible (toutes déjà détenues par le groupe) → le coffre verse
+  `deck_fouille.or_coffre`. La salle-coffre n'est **jamais** exposée dans `EtatGroupe`
+  (la table ne doit pas savoir où chercher).
+- **Artefacts (rareté `unique`)** : **ni achat ni revente**. Ils n'apparaissent dans
+  aucun profil de marchand, sont retirés de la liste vendable d'un panier, et une
+  vente forcée est un **422** (« Un artefact ne se revend pas. »). La Forge les refuse
+  également. Sac plein à la découverte : l'objet est remis **quand même**, en
+  dépassement, avec `sac_deborde: true` — le refuser le perdrait à jamais ; le héros
+  régularise en équipant la pièce (elle quitte le sac) ou en écoulant au marché.
+  `/moi` expose désormais `equipement.capacite` / `equipement.occupation`, cette
+  dernière pouvant dépasser la première.
 
 ## Montée de niveau (doc 01 §5 — par jalons)
 
@@ -302,14 +332,55 @@ calcul « effectif » séparé.
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | équipe une pièce du **sac** dans son slot naturel (`objet.emplacement`) ; auto-swap de l'occupant vers le sac ; 422 : pas au hub, pas son héros, objet non montable, ou bouclier + arme à deux mains |
+| POST | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | équipe une pièce du **sac** dans son slot naturel (`objet.emplacement`) ; auto-swap de l'occupant vers le sac ; 422 : pas au hub, pas son héros, objet non montable, bouclier + arme à deux mains, ou **maîtrise manquante** (`objets.tag_equipement` absent des tags de la classe et de ses nœuds) |
 | DELETE | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | déséquipe (retour au sac, dés révoqués) ; 422 : pas au hub, objet non équipé, ou **sac plein** |
+| POST | /groupes/{identifiant}/dons | {personnage_id, inventaire_id, vers_personnage_id, quantite?} | **donne** un objet à un autre héros actif du groupe ; 422 : pas au hub, `personnage_id` pas son héros, `vers_personnage_id` hors du groupe ou = donneur, objet **équipé** (à déséquiper d'abord), `quantite` > pile, ou **sac du receveur plein** |
 
 Réponse (POST/DELETE) : `{personnage: {id, des_attaque, des_defense}}` (dés à
 jour, équipement inclus). La source complète reste `GET /moi` — le front
 re-`GET /moi` après chaque manip pour rafraîchir fiche + sac. Slots :
 `arme_principale`, `arme_secondaire` (bouclier), `armure`. Journal `systeme` :
 `equipement_equipe` / `equipement_retire`.
+
+`achats[].personnage_id` est accepté mais **jamais envoyé par la manette**, qui
+n'expose aucun sélecteur de destinataire : **chacun achète pour soi**, et corrige
+après coup par un don au hub (`POST /dons`) si la pièce échoit au mauvais héros.
+Le défaut est donc le premier héros du joueur. Ce n'est pas une fonctionnalité
+inachevée mais un choix de flux.
+
+L'étal (`EtatMarche.inventaire[]`) porte `tag_equipement` par pièce, et `/moi`
+expose `equipement.maitrises` (les tags du héros) — rendus par **le service qui
+fait aussi le contrôle**, pour qu'un badge ne puisse pas annoncer autre chose que
+ce que le moteur appliquera. La manette en déduit un badge **« Non maîtrisé »**,
+purement informatif : **l'achat n'est jamais bloqué**, puisque la bourse est
+commune et que le don entre héros existe — acheter une pièce pour un coéquipier
+est légitime. `maitrises` absent (ancien client) → aucun badge, plutôt qu'un badge
+faux sur tout l'étal.
+
+**Maîtrises d'équipement** (doc 01 §7) : chaque arme/armure porte un
+`tag_equipement`, chaque classe un `tags_equipement` de base
+(`classes_heros`), et les nœuds `{mecanique: acces_equipement, tags: […]}` en
+ajoutent. Profil canon HeroQuest : barbare/nain/elfe prennent tout sauf le lourd
+(nœud *Maîtrise lourde*) ; le **magicien** est limité aux armes légères et ne
+porte aucune armure, ses nœuds *Cuir d'apprenti* et *Escrime de fortune* levant
+chaque limite. `deux_mains` reste **orthogonal** au tag (il interdit le bouclier,
+rien d'autre). Le message d'erreur **nomme le nœud** à prendre quand il en existe
+un dans l'arbre de la classe, et dit « hors de portée » sinon. Classe sans tags
+déclarés → **aucune restriction** (échec ouvert). La vérification n'a lieu qu'à
+l'équipement : une pièce déjà portée n'est jamais retirée rétroactivement.
+
+**Don d'objets** (`POST /dons`) — répartition du butin au hub. Autorisation
+**asymétrique** : on donne depuis SES héros, vers **n'importe quel héros actif**
+du groupe (même logique que la Forge, où le Nain travaille l'équipement de ses
+compagnons). Le receveur ne confirme rien, mais sa capacité de sac est vérifiée ;
+le **donneur** peut être en dépassement — se délester est justement la façon de
+régulariser un sac saturé par un butin de quête. Les consommables se transfèrent
+par pile et **fusionnent** chez le receveur ; tout le reste **change de
+propriétaire sans changer de ligne d'inventaire**, ce qui préserve les
+améliorations de Forge de l'exemplaire. Un artefact `unique` circule aussi : il
+appartient au groupe, et donner n'est pas vendre. Réponse :
+`{don: {objet, quantite, vers: {personnage_id, nom}}}` ; journal `systeme`
+`objet_donne` ; broadcast `.groupe.etat` (la manette du receveur re-`GET /moi`).
 
 ## Sorts des héros (doc 02 — tout par les menus)
 

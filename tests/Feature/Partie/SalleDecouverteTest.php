@@ -45,7 +45,7 @@ it('décrit une salle nouvellement explorée quand un héros y agit', function (
     $c = centreSalle($salles[1]);
     EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)
         ->update(['position_x' => $c['x'], 'position_y' => $c['y'], 'a_joue' => false]);
-    Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0], now()->addMinutes(360));
+    $quete->update(['salles_decouvertes' => [0]]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     Queue::fake();
@@ -54,7 +54,7 @@ it('décrit une salle nouvellement explorée quand un héros y agit', function (
     Queue::assertPushed(GenererNarration::class, fn (GenererNarration $j) =>
         ($j->resultatMoteur['type'] ?? null) === 'salle_decouverte' && ($j->resultatMoteur['salle'] ?? null) === 1);
 
-    expect(Cache::get(ResolveurTour::cleSallesDecouvertes($quete->id)))->toContain(1);
+    expect($quete->fresh()->sallesDecouvertes())->toContain(1);
 });
 
 it('garde les monstres d\'une salle DORMANTS jusqu\'à sa découverte, puis les révèle', function () {
@@ -80,7 +80,7 @@ it('garde les monstres d\'une salle DORMANTS jusqu\'à sa découverte, puis les 
     $c = centreSalle($salles[$idx]);
     EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)
         ->update(['position_x' => $c['x'], 'position_y' => $c['y'], 'a_joue' => false]);
-    Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0], now()->addMinutes(360));
+    $quete->update(['salles_decouvertes' => [0]]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);

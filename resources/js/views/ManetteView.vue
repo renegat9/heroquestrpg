@@ -198,6 +198,10 @@ function habiller(perso, nom, niveau, conds, img = null) {
         def: perso?.des_defense ?? 0,
         conds,
         img, // portrait réel (image_url / portrait_url) si présent, sinon null → icône
+        // Maîtrises d'équipement (doc 01 §7) : classe + nœuds débloqués, rendues
+        // par /moi. `null` (et non []) tant que /moi n'a pas répondu, pour que le
+        // badge « non maîtrisé » de l'étal s'abstienne au lieu de tout marquer.
+        maitrises: perso?.equipement?.maitrises ?? null,
     };
 }
 const hero = computed(() => {
@@ -329,7 +333,25 @@ let degelTimer = null;
 watch(thinking, (v) => {
     clearTimeout(degelTimer);
     degelForce.value = false;
-    if (v) degelTimer = setTimeout(() => { degelForce.value = true; }, 30000);
+    if (!v) return;
+
+    degelTimer = setTimeout(async () => {
+        degelForce.value = true;
+
+        // …et on RESYNCHRONISE depuis le serveur. Dégeler les boutons ne
+        // suffisait pas : le bandeau « MJ réfléchit » restait affiché et le
+        // tour ne revenait jamais à l'écran, si bien que la partie paraissait
+        // morte alors qu'elle était jouable (test de jeu 2026-08-01, les deux
+        // joueurs à l'arrêt).
+        //
+        // Le drapeau serveur EXPIRE tout seul, mais rien ne le dit aux clients :
+        // `.groupe.etat` n'est diffusé que sur une mutation, et plus personne
+        // n'agit quand tout le monde se croit gelé — interblocage. Relire l'état
+        // le rompt.
+        try {
+            store.appliquerEtat(await api.getEtatReprise(props.groupe));
+        } catch { /* hors ligne : le dégel local suffit à rendre la main */ }
+    }, 30000);
 }, { immediate: true });
 const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
 const narration = computed(() => store.state.narration);
@@ -358,6 +380,16 @@ const menuEnAttente = computed(() => store.state.menuEnAttente);
    est sur le point de changer : untaper évite un choix qui deviendrait
    illégal (422) ou s'accumulerait derrière la prochaine résolution. */
 const boutonsGeles = computed(() => menuEnAttente.value || (thinking.value && !degelForce.value));
+
+/* Créneaux du tour de MON héros, lus sur mon entité d'EtatGroupe. Servent à
+   griser une option dont le créneau vient d'être consommé, plutôt que de laisser
+   le joueur cliquer un menu périmé et récolter un 422. */
+const creneauxDuTour = computed(() => {
+    const e = monEntite.value;
+    if (!e || typeof e.a_agi !== 'boolean') return null; // serveur plus ancien
+
+    return { a_joue: !!e.a_joue, a_deplace: !!e.a_deplace, a_agi: !!e.a_agi };
+});
 const initMini = computed(() => initiativeVersMini(store.state.etat?.initiative));
 const initCur = computed(() => {
     const cur = acteurCourant(store.state.etat?.initiative);
@@ -385,9 +417,20 @@ function choisirOption(option) {
 
     const cibles = option.parametres?.cibles;
     if (Array.isArray(cibles) && cibles.length) {
+        // Un sort n'est « offensif » que s'il inflige des dégâts ou agit sur le
+        // Mind : c'est la seule situation où viser un allié est un vrai tir ami.
+        // Sans cette distinction, un SOIN affichait « la cible subira l'effet
+        // comme un ennemi » et imposait deux clics de confirmation, en pleine
+        // urgence (verdict §2.11).
+        const typeSort = (mesSorts.value ?? [])
+            .find((s) => String(s.sort_id) === String(option.parametres?.sort_id))?.type;
+        const offensif = option.type === 'attaque'
+            || ['degats', 'mental'].includes(String(typeSort ?? '').toLowerCase());
+
         feuilleOption.value = {
             option,
             mode: 'cible',
+            offensif,
             cibles: ciblesVersListe(cibles, store.state.etat?.entites),
         };
         return;
@@ -506,6 +549,27 @@ async function desequiper(inventaireId) {
     equipEnCours.value = true;
     try {
         await api.desequiper(props.groupe, monPersonnageId.value, inventaireId);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+
+/* ---- Don d'un objet à un compagnon (hub) : le partage du butin. Le serveur
+   diffuse `.groupe.etat`, donc la manette du RECEVEUR re-GET /moi toute seule ;
+   ici on rafraîchit la nôtre pour voir l'objet quitter le sac. ---- */
+const compagnonsDeDon = computed(() =>
+    (store.state.prets ?? [])
+        .filter((r) => r.personnage_id !== monPersonnageId.value)
+        .map((r) => ({ id: r.personnage_id, nom: r.nom })));
+
+async function donner({ inventaireId, versPersonnageId, quantite }) {
+    if (equipEnCours.value || !monPersonnageId.value) return;
+    equipEnCours.value = true;
+    try {
+        await api.donner(props.groupe, monPersonnageId.value, inventaireId, versPersonnageId, quantite ?? 1);
         rafraichirMoi();
     } catch (e) {
         store.setNarration(e.message);
@@ -796,6 +860,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :hero="hero"
                             :menu="menuCourant"
                             :pending="boutonsGeles"
+                            :creneaux="creneauxDuTour"
                             :thinking="thinking"
                             :init-order="initMini"
                             :init-cur="initCur"
@@ -912,9 +977,11 @@ const navItems = computed(() => (scene.value === 'marche'
                             :potion-en-cours="potionEnCours"
                             :au-hub="auHub"
                             :equip-en-cours="equipEnCours"
+                            :compagnons="compagnonsDeDon"
                             @boire="boirePotion"
                             @equiper="equiper"
                             @desequiper="desequiper"
+                            @donner="donner"
                         />
                     </div>
 
@@ -998,7 +1065,12 @@ const navItems = computed(() => (scene.value === 'marche'
                 </div>
             </div>
 
-            <div class="scene-ctrl">
+            <!-- Le rond « Hub » est fixé en bas au centre, exactement là où les
+                 feuilles ancrent leurs boutons « Fermer », et il était peint
+                 par-dessus (z-index 200 contre 70) : sur téléphone, taper
+                 « Fermer » suivait le lien et QUITTAIT la partie (verdict §2.2).
+                 On le retire tant qu'une feuille est ouverte. -->
+            <div v-if="!feuilleOption && !voteAffiche && !desReveles" class="scene-ctrl">
                 <RouterLink
                     to="/"
                     title="Hub"

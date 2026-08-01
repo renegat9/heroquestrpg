@@ -102,18 +102,12 @@ function demarrerQueteAvecHeros(array $attributs = []): array
     return [$alice, $groupe, $hero, $quete, $etat];
 }
 
-it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adjacent, en gardant les points restants', function () {
-    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
-    $hero->competences()->syncWithoutDetaching([
-        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Œil du mineur')->value('id'),
-    ]);
-
-    $hx = (int) $etat->position_x;
-    $hy = (int) $etat->position_y;
-
-    // Cherche une ligne droite de 3 cases libres + une case perpendiculaire
-    // libre au 2e pas (où poser le piège caché HORS chemin).
-    $scene = null;
+/**
+ * Cherche depuis (hx,hy) une ligne droite de 3 cases libres avec une case
+ * perpendiculaire libre au 2e pas (où poser le piège caché, HORS chemin).
+ */
+function trouverSceneCourse(\App\Models\Quete $quete, int $hx, int $hy): ?array
+{
     foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
         $p1 = ['x' => $hx + $dx, 'y' => $hy + $dy];
         $p2 = ['x' => $hx + 2 * $dx, 'y' => $hy + 2 * $dy];
@@ -123,15 +117,50 @@ it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adj
         }
         foreach ([[$dy, $dx], [-$dy, -$dx]] as [$px, $py]) {
             $piege = ['x' => $p2['x'] + $px, 'y' => $p2['y'] + $py];
-            // Le piège doit être libre, HORS chemin, et NON adjacent au départ/1er pas.
             if (caseQueteLibre($quete, $piege['x'], $piege['y'])
                 && abs($piege['x'] - $hx) + abs($piege['y'] - $hy) > 1
                 && abs($piege['x'] - $p1['x']) + abs($piege['y'] - $p1['y']) > 1) {
-                $scene = ['p2' => $p2, 'p3' => $p3, 'piege' => $piege];
-                break 2;
+                return ['p2' => $p2, 'p3' => $p3, 'piege' => $piege];
             }
         }
     }
+
+    return null;
+}
+
+it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adjacent, en gardant les points restants', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
+    $hero->competences()->syncWithoutDetaching([
+        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Œil du mineur')->value('id'),
+    ]);
+
+    // On CHERCHE une case de départ offrant la géométrie voulue au lieu de
+    // dépendre du placement initial : ce test porte sur la mécanique du piège,
+    // pas sur la disposition de la carte (les spawns ont bougé avec le
+    // correctif §2.12). Le héros est ensuite déplacé sur cette case.
+    $salle = (array) data_get($quete->carte->grille, 'salles.0', []);
+
+    $candidats = [['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y]];
+    for ($y = (int) $salle['y']; $y < (int) $salle['y'] + (int) $salle['hauteur']; $y++) {
+        for ($x = (int) $salle['x']; $x < (int) $salle['x'] + (int) $salle['largeur']; $x++) {
+            $candidats[] = ['x' => $x, 'y' => $y];
+        }
+    }
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $scene = null;
+
+    foreach ($candidats as $depart) {
+        $scene = trouverSceneCourse($quete, $depart['x'], $depart['y']);
+        if ($scene !== null) {
+            [$hx, $hy] = [$depart['x'], $depart['y']];
+            break;
+        }
+    }
+
+    $etat->update(['position_x' => $hx, 'position_y' => $hy]);
+
     expect($scene)->not->toBeNull('Pas de géométrie ligne droite + perpendiculaire libre pour le scénario.');
 
     poserPieges($quete, [['x' => $scene['piege']['x'], 'y' => $scene['piege']['y'], 'nom' => 'Piège à lances', 'etat' => 'cache']]);

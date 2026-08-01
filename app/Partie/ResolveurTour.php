@@ -16,18 +16,19 @@ use App\Events\MouvementAnime;
 use App\Events\MjReflechit;
 use App\Jobs\GenererNarration;
 use App\Partie\Audio\BanqueBarks;
+use App\Partie\Fouille\DeckFouille;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use App\Models\Condition;
@@ -107,6 +108,7 @@ final class ResolveurTour
         private readonly Sauvegarde $sauvegarde,
         private readonly BanqueBarks $barks,
         private readonly Equipement $equipement,
+        private readonly DeckFouille $deck,
     ) {}
 
     /**
@@ -232,7 +234,7 @@ final class ResolveurTour
 
             // Hook post-combat : portes à verrou « monstres_vaincus » qui
             // s'ouvrent quand leur(s) gardien(s) tombe(nt) (doc 14 §3.3).
-            $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
+            $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
 
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
@@ -322,7 +324,7 @@ final class ResolveurTour
         $y = $parametres['y'] ?? null;
 
         if (! is_numeric($x) || ! is_numeric($y)) {
-            throw ValidationException::withMessages(['parametres' => 'Destination requise : parametres.x et parametres.y (entiers).']);
+            throw ValidationException::withMessages(['parametres' => 'Choisis d\'abord une case de destination.']);
         }
 
         $x = (int) $x;
@@ -648,6 +650,15 @@ final class ResolveurTour
                 $groupe, $quete->carte, $personnage,
                 (int) $etat->position_x, (int) $etat->position_y,
             );
+        }
+
+        // §2.5 — un jet RÉUSSI peut ne RIEN trouver : le narrateur ne voyait que
+        // `issue: reussite` et écrivait une découverte inexistante (« elle décèle
+        // des indices cruciaux ») pendant que le journal mécanique disait
+        // « rien de suspect ». On distingue explicitement les deux.
+        if ($option['id'] === 'fouiller') {
+            $payload['a_trouve'] = ($payload['pieges_reveles'] ?? []) !== []
+                || ($payload['portes_revelees'] ?? []) !== [];
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
@@ -1282,7 +1293,7 @@ final class ResolveurTour
 
         if (! is_numeric($x) || ! is_numeric($y)) {
             throw ValidationException::withMessages([
-                'parametres' => 'Destination requise de l\'autre côté du mur : parametres.x et parametres.y.',
+                'parametres' => 'Choisis d\'abord la case où ressortir, de l\'autre côté du mur.',
             ]);
         }
 
@@ -1632,6 +1643,7 @@ final class ResolveurTour
         }
 
         $ouvertes = [];
+        $portesOuvertes = [];
         foreach ($this->portes->portes($quete->carte) as $index => $porte) {
             if (($porte['etat'] ?? null) === MoteurPortes::ETAT_OUVERTE) {
                 continue;
@@ -1640,8 +1652,13 @@ final class ResolveurTour
                 && (string) ($porte['verrou']['levier_id'] ?? '') === (string) $levier['levier_id']) {
                 $this->portes->ouvrir($groupe, $quete->carte, $index, 'levier', $acteur);
                 $ouvertes[] = ['x' => (int) $porte['x'], 'y' => (int) $porte['y']];
+                $portesOuvertes[] = $porte;
             }
         }
+
+        // Un levier ouvre une porte : la salle derrière se révèle, comme si un
+        // héros l'avait poussée lui-même.
+        $this->revelerDerriere($groupe, $quete, $portesOuvertes);
 
         $payload = [
             'type' => 'actionner_levier',
@@ -1657,12 +1674,18 @@ final class ResolveurTour
     }
 
     /**
-     * « Fouiller — trésor » (doc 14 §3.2) : table pondérée risque/récompense,
-     * tirée déterministe (LanceurDes) sur les poids du gabarit
-     * (structure.tresor_a_risque). Issues : trésor (or au groupe) / rien /
-     * monstre errant (instancié au contact, décompté d'un budget errant dédié,
-     * il jouera au tour des monstres) / piège (effet du « Piège de coffre »
-     * appliqué TOUT DE SUITE au fouilleur, jamais posé sur la grille).
+     * « Fouiller — trésor » (doc 14 §3.2) : on PIOCHE une carte de fouille, à la
+     * HeroQuest. Le deck est bâti au démarrage de la quête (DeckFouille) et
+     * pioché SANS REMISE — la composition du gabarit est donc garantie, là où
+     * l'ancien tirage pondéré n'en donnait qu'une espérance biaisée.
+     *
+     * Issues : `tresor` (or au groupe) · `potion` (rangée au sac du fouilleur) ·
+     * `artefact` (le coffre désigné, une arme unique, au plus une par quête) ·
+     * `errant` (monstre instancié au contact, décompté du budget errant, il
+     * jouera au tour des monstres) · `piege` (« Piège de coffre » appliqué TOUT
+     * DE SUITE au fouilleur, jamais posé sur la grille) · `rien`.
+     *
+     * La **salle-coffre ne consomme aucune carte** : son butin est un bonus net.
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $acteur
@@ -1682,17 +1705,18 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'On ne fouille un trésor que dans une salle.']);
         }
 
-        // Une seule fouille de trésor par salle (anti-farm) : on marque la salle.
-        $cle = self::cleTresorFouille($quete->id);
-        $fouillees = (array) Cache::get($cle, []);
-        if (in_array($salle, $fouillees, true)) {
+        // Une seule fouille de trésor par salle (anti-farm) : on marque la
+        // salle EN BASE (§2.16 — comme l'exploration, c'est de l'état durable).
+        if (in_array($salle, $quete->tresorsFouilles(), true)) {
             throw ValidationException::withMessages(['option_id' => 'Cette salle a déjà été fouillée pour son trésor.']);
         }
-        $fouillees[] = $salle;
-        Cache::put($cle, $fouillees, now()->addMinutes(360));
+        $quete->marquerTresorFouille($salle);
 
-        $structure = $quete->gabarit?->structure ?? [];
-        $issue = $this->tirerIssueTresor((array) data_get($structure, 'tresor_a_risque', []));
+        $carte = $quete->estSalleArtefact($salle)
+            ? $this->deck->carteCoffre($quete)
+            : $this->deck->piocher($quete);
+
+        $issue = (string) ($carte['issue'] ?? 'rien');
 
         $payload = [
             'type' => 'fouille_tresor',
@@ -1700,18 +1724,26 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'salle' => $salle,
             'issue' => $issue,
+            'deck_restant' => count($quete->deckFouille()),
         ];
 
+        foreach (['coffre', 'deck_vide'] as $drapeau) {
+            if (! empty($carte[$drapeau])) {
+                $payload[$drapeau] = true;
+            }
+        }
+
         if ($issue === 'tresor') {
-            $or = max(0, (int) data_get($structure, 'tresor_a_risque.or', 25));
+            $or = max(0, (int) ($carte['or'] ?? 0));
             $groupe->update(['or' => (int) $groupe->or + $or]);
             $payload['or'] = $or;
+        } elseif ($issue === 'potion' || $issue === 'artefact') {
+            $payload = [...$payload, ...$this->remettreButin($carte, $personnage, $issue)];
         } elseif ($issue === 'errant') {
             $errant = $this->spawnErrant($quete, $etat);
 
             if ($errant === null) {
                 // Budget errant épuisé / bestiaire indisponible : rien ne sort.
-                $issue = 'rien';
                 $payload['issue'] = 'rien';
                 $payload['errant_indisponible'] = true;
             } else {
@@ -1725,8 +1757,10 @@ final class ResolveurTour
         } elseif ($issue === 'piege') {
             $piege = Piege::query()->where('nom', 'Piège de coffre')->first()
                 ?? Piege::query()->orderBy('id')->first();
+            // narrer: false — ChoixController dispatche déjà la narration de
+            // l'action ; sans ça le coffre piégé en produisait deux.
             $payload['declenchement'] = $this->pieges->declencherEphemere(
-                $groupe, $personnage, $etat, $piege, 'fouille_tresor',
+                $groupe, $personnage, $etat, $piege, 'fouille_tresor', narrer: false,
             );
         }
 
@@ -1736,38 +1770,45 @@ final class ResolveurTour
     }
 
     /**
-     * Tirage pondéré déterministe d'une issue de « Fouiller — trésor » (un d6).
-     * Ordre canonique des issues (cumul) : tresor, rien, errant, piege. Les
-     * poids du gabarit sont mis à l'échelle du d6 (par défaut : 2/2/1/1).
+     * Remet un objet (potion ou artefact) au FOUILLEUR — le premier butin en
+     * nature du projet : jusqu'ici seuls l'achat au marché et la restauration de
+     * snapshot créaient une ligne d'inventaire.
      *
-     * @param  array<string, int>  $poids
+     * Sac plein : on remet QUAND MÊME, en dépassement, et on lève `sac_deborde`
+     * (décision de René). Refuser un artefact unique le perdrait définitivement ;
+     * le héros régularise en équipant l'arme, ce qui la sort du sac.
+     *
+     * @param  array<string, mixed>  $carte
+     * @return array<string, mixed>
      */
-    private function tirerIssueTresor(array $poids): string
+    private function remettreButin(array $carte, Personnage $personnage, string $issue): array
     {
-        $ordre = ['tresor', 'rien', 'errant', 'piege'];
-        $poidsDefaut = ['tresor' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1];
+        $objet = Objet::find((int) ($carte['objet_id'] ?? 0));
 
-        $normalises = [];
-        foreach ($ordre as $issue) {
-            $normalises[$issue] = max(0, (int) ($poids[$issue] ?? $poidsDefaut[$issue]));
+        if ($objet === null) {
+            // Catalogue incomplet : on ne fabrique pas d'objet fantôme, la
+            // fouille est simplement blanche.
+            return ['issue' => 'rien', 'objet_indisponible' => true];
         }
 
-        $total = array_sum($normalises);
-        if ($total <= 0) {
-            return 'rien';
+        $deborde = ! RangementObjet::peutRanger($personnage, $objet);
+        RangementObjet::ranger($objet, $personnage->id);
+
+        $ajout = [
+            'objet' => [
+                'id' => $objet->id,
+                'nom' => $objet->nom,
+                'categorie' => $objet->categorie,
+                'rarete' => $objet->rarete,
+                'emplacement' => $objet->emplacement,
+            ],
+        ];
+
+        if ($deborde) {
+            $ajout['sac_deborde'] = true;
         }
 
-        $seuil = max(1, min($total, (int) ceil($this->des->d6() / 6 * $total)));
-
-        $cumul = 0;
-        foreach ($normalises as $issue => $p) {
-            $cumul += $p;
-            if ($seuil <= $cumul) {
-                return $issue;
-            }
-        }
-
-        return 'rien';
+        return $ajout;
     }
 
     /**
@@ -1778,8 +1819,9 @@ final class ResolveurTour
      */
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
     {
-        $cle = self::cleBudgetErrant($quete->id);
-        $budget = (int) Cache::get($cle, (int) data_get($quete->gabarit?->structure, 'budget_errant', 0));
+        // Budget EN BASE : c'était le dernier état de jeu durable resté en cache
+        // avec un TTL, même famille que le brouillard d'exploration (§2.16).
+        $budget = $quete->budgetErrant();
 
         if ($budget <= 0) {
             return null;
@@ -1803,7 +1845,7 @@ final class ResolveurTour
             return null;
         }
 
-        Cache::put($cle, $budget - (int) $monstre->cout, now()->addMinutes(360));
+        $quete->consommerBudgetErrant((int) $monstre->cout);
 
         return $quete->instancesMonstres()->create([
             'monstre_id' => $monstre->id,
@@ -1854,7 +1896,7 @@ final class ResolveurTour
     {
         // Hook post-combat (portes « monstres_vaincus ») aussi sur les chemins
         // à retour anticipé (héros endormi/commandé).
-        $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
+        $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
 
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
             $resultat['quete'] = $this->terminerQuete($groupe, $quete);
@@ -2393,19 +2435,30 @@ final class ResolveurTour
         $etat->save();
     }
 
-    /** Clé de cache des salles déjà découvertes d'une quête. */
+    /**
+     * @deprecated §2.16 — l'exploration vit désormais dans `quetes.salles_decouvertes`.
+     *   Conservé le temps que d'éventuelles clés résiduelles expirent ; ne plus
+     *   écrire dessus. Voir Quete::sallesDecouvertes().
+     */
     public static function cleSallesDecouvertes(int $queteId): string
     {
         return "partie:salles:{$queteId}";
     }
 
-    /** Clé de cache des salles déjà fouillées pour leur trésor (doc 14 §3.2). */
+    /**
+     * @deprecated §2.16 — la fouille vit désormais dans `quetes.tresors_fouilles`.
+     *   Voir Quete::tresorsFouilles().
+     */
     public static function cleTresorFouille(int $queteId): string
     {
         return "partie:tresor:{$queteId}";
     }
 
-    /** Clé de cache du budget de monstres ERRANTS restant (doc 14 §3.2). */
+    /**
+     * @deprecated Le budget errant vit désormais dans `quetes.budget_errant` —
+     *   c'était le dernier état de jeu durable resté en cache avec un TTL.
+     *   Voir Quete::budgetErrant() / consommerBudgetErrant().
+     */
     public static function cleBudgetErrant(int $queteId): string
     {
         return "partie:errant:{$queteId}";
@@ -2459,6 +2512,30 @@ final class ResolveurTour
      * @param  array{x: int, y: int, cote?: string}  $porte
      * @return list<int>
      */
+    /**
+     * Révèle les salles bordant les portes qui viennent d'être OUVERTES.
+     *
+     * Comme au plateau, ouvrir une porte montre la salle et ses monstres. Cette
+     * règle n'était appliquée que sur l'action explicite `ouvrir_porte` : un
+     * LEVIER actionné ou un GARDIEN abattu ouvrait la porte en laissant la salle
+     * noire et ses monstres dormants — la voie ouverte, rien à voir. Pire, le
+     * client ne connaissait pas ces monstres alors que le moteur les compte
+     * comme occupant leur case (FabriqueGrille), d'où des déplacements proposés
+     * puis refusés.
+     *
+     * `revelerSalle()` est idempotent : appeler deux fois ne coûte rien.
+     *
+     * @param  list<array<string, mixed>>  $portes
+     */
+    private function revelerDerriere(Groupe $groupe, Quete $quete, array $portes): void
+    {
+        foreach ($portes as $porte) {
+            foreach ($this->sallesAdjacentesPorte($quete, $porte) as $salle) {
+                $this->revelerSalle($groupe, $quete, $salle);
+            }
+        }
+    }
+
     private function sallesAdjacentesPorte(Quete $quete, array $porte): array
     {
         [$a, $b] = Grille::casesPorte($porte);
@@ -2487,24 +2564,40 @@ final class ResolveurTour
      */
     private function revelerSalle(Groupe $groupe, Quete $quete, int $salle): void
     {
-        $cle = self::cleSallesDecouvertes($quete->id);
-        $vues = (array) Cache::get($cle, []);
-
-        if (in_array($salle, $vues, true)) {
+        if (in_array($salle, $quete->sallesDecouvertes(), true)) {
             return; // déjà décrite
         }
 
-        $vues[] = $salle;
-        Cache::put($cle, $vues, now()->addMinutes(360)); // durée d'une séance
+        // Persisté EN BASE (§2.16) : cet avancement conditionne le brouillard
+        // de guerre, donc les cases que la manette juge accessibles. Quand il
+        // vivait en cache avec un TTL, sa disparition refermait le brouillard
+        // sur des zones explorées et immobilisait tout le groupe.
+        $quete->marquerSalleDecouverte($salle);
 
         // Révélation des monstres de la salle : dormants → actifs visibles
         // (ils joueront dès la phase des monstres de ce tour).
         $s = (array) data_get($quete->carte?->grille, "salles.{$salle}");
-        $reveles = $quete->instancesMonstres()
+        $aReveler = $quete->instancesMonstres()
             ->where('revele', false)
             ->whereBetween('position_x', [(int) $s['x'], (int) $s['x'] + (int) $s['largeur'] - 1])
             ->whereBetween('position_y', [(int) $s['y'], (int) $s['y'] + (int) $s['hauteur'] - 1])
-            ->update(['revele' => true]);
+            ->with('monstre')
+            ->get();
+
+        // §2.6 — on retient les NOMS de ce qui vient d'apparaître : sans eux, le
+        // narrateur ne recevait qu'un « salle découverte » nu et a décrit une
+        // salle vide devant trois monstres qui venaient de surgir.
+        $nomsReveles = $aReveler
+            ->map(fn ($i) => $i->habillage['nom'] ?? $i->monstre?->nom_base)
+            ->filter()
+            ->values()
+            ->all();
+
+        $reveles = $aReveler->count();
+
+        if ($reveles > 0) {
+            $quete->instancesMonstres()->whereIn('id', $aReveler->pluck('id'))->update(['revele' => true]);
+        }
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle, 'monstres_reveles' => $reveles]);
 
@@ -2513,6 +2606,9 @@ final class ResolveurTour
             'type' => 'salle_decouverte',
             'salle' => $salle,
             'theme' => data_get($quete->carte?->grille, "salles.{$salle}.theme"),
+            // Ce que le groupe DÉCOUVRE à l'instant : le MJ doit en parler.
+            'monstres_reveles' => $reveles,
+            'monstres_noms' => $nomsReveles,
         ]);
     }
 
@@ -2655,7 +2751,7 @@ final class ResolveurTour
 
         if ($actions !== []) {
             // Un allié a pu vaincre un gardien → portes « monstres_vaincus ».
-            $this->portes->ouvrirParMonstresVaincus($groupe, $quete);
+            $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
         }
 
         return ['actions' => $actions];

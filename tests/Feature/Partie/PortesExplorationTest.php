@@ -259,9 +259,9 @@ it('ouvre AUTOMATIQUEMENT une porte « monstres_vaincus » quand le gardien tomb
 });
 
 it('« Fouiller — trésor » verse de l\'or au groupe sur l\'issue trésor', function () {
-    [, $groupe, , , ] = demarrerExplo();
+    [, $groupe, , $quete, ] = demarrerExplo();
 
-    desFiges([1]); // d6=1 → trésor (poids 2/2/1/1 : trésor sur 1-2)
+    empilerCarteFouille($quete, ['issue' => 'tresor', 'or' => 30]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -275,7 +275,7 @@ it('« Fouiller — trésor » verse de l\'or au groupe sur l\'issue trésor', f
 it('« Fouiller — trésor » peut ne rien donner', function () {
     [, $groupe, , $quete, ] = demarrerExplo();
 
-    desFiges([3]); // d6=3 → rien (sur 3-4)
+    empilerCarteFouille($quete, ['issue' => 'rien']);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -289,8 +289,8 @@ it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans
 
     $avantPieges = count($quete->carte->grille['pieges'] ?? []);
 
-    // d6=6 → piège (sur 6) ; second d6=1 → branche « dégâts » de l'issue aléatoire du Piège de coffre.
-    desFiges([6, 1]);
+    empilerCarteFouille($quete, ['issue' => 'piege']);
+    desFiges([1]); // branche « dégâts » de l'issue aléatoire du Piège de coffre
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -305,10 +305,10 @@ it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans
 });
 
 it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue aléatoire)', function () {
-    [, , $hero, , ] = demarrerExplo();
+    [, , $hero, $quete, ] = demarrerExplo();
 
-    // d6=6 → piège ; second d6=6 → branche « condition_appliquee: Empoisonné ».
-    desFiges([6, 6]);
+    empilerCarteFouille($quete, ['issue' => 'piege']);
+    desFiges([6]); // branche « condition_appliquee: Empoisonné »
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -320,13 +320,14 @@ it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue
 });
 
 it('Sang robuste (Nain) résiste à l\'Empoisonné du Piège de coffre', function () {
-    [$alice, $groupe, $hero, , ] = demarrerExplo();
+    [$alice, $groupe, $hero, $quete, ] = demarrerExplo();
     $hero->update(['classe' => 'nain']);
     $hero->competences()->attach(
         \App\Models\Competence::where('classe', 'nain')->where('nom', 'Sang robuste')->value('id'),
     );
 
-    desFiges([6, 6]); // piège → branche Empoisonné
+    empilerCarteFouille($quete, ['issue' => 'piege']);
+    desFiges([6]); // branche Empoisonné
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -341,13 +342,14 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
     $groupe = $ctx[1];
     $quete = $ctx[3];
 
-    $budgetAvant = (int) Cache::get(ResolveurTour::cleBudgetErrant($quete->id));
+    // Budget errant EN BASE désormais (plus en cache avec un TTL).
+    $budgetAvant = $quete->budgetErrant();
     expect($budgetAvant)->toBeGreaterThan(0); // initialisé par DemarreurQuete
 
     $instancesAvant = $quete->instancesMonstres()->count();
 
-    // d6=5 → errant ; le moins cher du bestiaire (Gobelin, coût 1) est instancié.
-    desFiges([5]);
+    // Le moins cher du bestiaire (Gobelin, coût 1) est instancié.
+    empilerCarteFouille($quete, ['issue' => 'errant']);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -362,7 +364,7 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
         ->and((bool) $errant->revele)->toBeTrue()
         ->and($quete->fresh()->instancesMonstres()->count())->toBe($instancesAvant + 1)
         // Budget errant décompté.
-        ->and((int) Cache::get(ResolveurTour::cleBudgetErrant($quete->id)))->toBe($budgetAvant - (int) $errant->monstre->cout);
+        ->and($quete->fresh()->budgetErrant())->toBe($budgetAvant - (int) $errant->monstre->cout);
 
     // Fouiller est une ACTION (a_agi) mais NE termine plus le tour tout seul :
     // alice TERMINE, puis Bob TERMINE → phase des monstres (l'errant agit).
@@ -432,7 +434,7 @@ it('révèle la salle et ses monstres DÈS L\'OUVERTURE de la porte — comme au
     $etat->update(['position_x' => $dehors['x'], 'position_y' => $dehors['y'], 'deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
 
     // Avant : la salle n'est pas découverte, le monstre est dormant.
-    expect(Cache::get(ResolveurTour::cleSallesDecouvertes($quete->id), []))->not->toContain($salleCible);
+    expect($quete->fresh()->sallesDecouvertes())->not->toContain($salleCible);
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $optionId = "ouvrir_porte_{$porteCible['x']}_{$porteCible['y']}_{$porteCible['cote']}";
@@ -444,7 +446,7 @@ it('révèle la salle et ses monstres DÈS L\'OUVERTURE de la porte — comme au
 
     // Après : la salle est marquée découverte et son monstre révélé — SANS
     // que le héros ait bougé d'une case (il est resté devant la porte).
-    expect(Cache::get(ResolveurTour::cleSallesDecouvertes($quete->id), []))->toContain($salleCible)
+    expect($quete->fresh()->sallesDecouvertes())->toContain($salleCible)
         ->and($etat->fresh()->position_x)->toBe($dehors['x'])
         ->and($etat->fresh()->position_y)->toBe($dehors['y']);
 
@@ -453,4 +455,64 @@ it('révèle la salle et ses monstres DÈS L\'OUVERTURE de la porte — comme au
             expect($m->revele)->toBeTrue("Monstre {$m->id} de la salle {$salleCible} toujours dormant après ouverture de la porte.");
         }
     }
+});
+
+it('propose « Ouvrir la porte » même quand une porte SECRÈTE est adjacente', function () {
+    [$alice, $groupe, , $quete, $etat] = demarrerExplo();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    // Deux portes adjacentes au héros : la SECRÈTE d'abord dans le tableau,
+    // une porte ordinaire ensuite. Rendre la première close venue masquait la
+    // seconde — le héros voyait une porte sans jamais pouvoir l'ouvrir.
+    poserPortes($quete, [
+        ['x' => $hx, 'y' => $hy, 'etat' => 'secrete', 'cote' => 's', 'revele' => true],
+        ['x' => $hx, 'y' => $hy, 'etat' => 'fermee', 'cote' => 'e'],
+    ]);
+
+    $trouvee = app(App\Partie\MoteurPortes::class)->porteFermeeAdjacente($quete->carte, $hx, $hy);
+
+    expect($trouvee)->not->toBeNull()
+        ->and($trouvee['porte']['etat'])->toBe('fermee')
+        ->and($trouvee['porte']['cote'])->toBe('e');
+});
+
+it('révèle la salle et ses monstres quand un LEVIER ouvre la porte', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerExplo();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    // Une porte à verrou « levier » sur le bord de la salle voisine, et le
+    // levier au contact du héros.
+    $salle1 = $quete->carte->grille['salles'][1];
+    $porteX = (int) $salle1['x'];
+    $porteY = (int) $salle1['y'] + 1;
+
+    poserPortes($quete, [
+        ['x' => $porteX, 'y' => $porteY, 'cote' => 'e', 'etat' => 'verrouillee',
+            'verrou' => ['type' => 'levier', 'levier_id' => 'L1']],
+    ], [['x' => $hx + 1, 'y' => $hy, 'levier_id' => 'L1']]);
+
+    // Un monstre dormant dans la salle 1.
+    $quete->instancesMonstres()->update(['revele' => false]);
+    $dormant = $quete->instancesMonstres()->first();
+    $dormant->update([
+        'position_x' => (int) $salle1['x'] + 1,
+        'position_y' => (int) $salle1['y'] + 1,
+        'revele' => false,
+    ]);
+
+    // Le levier vient d'être posé : il faut un menu à jour pour que l'option
+    // soit jugée légale par le contrôleur.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'actionner_levier_'.($hx + 1).'_'.$hy])
+        ->assertStatus(202);
+
+    // Comme au plateau : la voie s'ouvre ET on voit ce qu'il y a derrière.
+    // Le levier ne révélait rien — seule l'action « ouvrir la porte » le faisait.
+    expect($quete->fresh()->sallesDecouvertes())->toContain(1)
+        ->and((bool) $dormant->fresh()->revele)->toBeTrue();
 });

@@ -78,7 +78,12 @@ it('applique immédiatement le bonus si la pièce est DÉJÀ équipée', functio
         'amelioration_id' => $renforcee->id,
     ])->assertCreated();
 
-    expect($nain->fresh()->des_defense)->toBe(3); // 2 base + 1 Renforcée, immédiat
+    // 2 (base) + 1 (cotte de mailles) + 1 (Renforcée). L'ancienne attente était
+    // 3 : le fixture pose la pièce directement dans le slot sans passer par
+    // Equipement::equiper(), si bien que le +1 de la cotte elle-même n'était
+    // jamais appliqué. Le recalcul complet (l'attaque venant désormais de
+    // l'arme) compte toutes les pièces PORTÉES, ce qui corrige aussi ce trou.
+    expect($nain->fresh()->des_defense)->toBe(4);
 });
 
 it('le bonus de Forge s\'applique à l\'équipement ultérieur d\'une pièce améliorée dans le sac', function () {
@@ -98,8 +103,10 @@ it('le bonus de Forge s\'applique à l\'équipement ultérieur d\'une pièce am�
 
     (new App\Partie\Equipement())->equiper($nain, $ligne->fresh());
 
-    // 2 base + 2 (objet) + 1 (Affûtée) : le bonus de Forge suit l'objet à l'équipement.
-    expect($nain->fresh()->des_attaque)->toBe(5);
+    // L'épée courte FIXE l'attaque à 2, puis Affûtée ajoute +1 → 3.
+    // (Avant : 2 de classe + 2 d'objet + 1 = 5.) Le bonus de Forge suit bien
+    // l'objet à l'équipement.
+    expect($nain->fresh()->des_attaque)->toBe(3);
 });
 
 it('le Nain peut forger l\'équipement d\'un AUTRE héros actif du groupe', function () {
@@ -181,4 +188,23 @@ it('refuse une bourse commune insuffisante et une catégorie incompatible (amél
     $this->postJson('/api/groupes/table-1/forge', [
         'personnage_id' => $nain->id, 'inventaire_id' => $ligne->id, 'amelioration_id' => $renforcee->id,
     ])->assertStatus(422);
+});
+
+it('refuse d\'améliorer un ARTEFACT (rareté unique)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 5000]);
+    $nain = creerHeros($alice, $groupe, 'Dorin', 1, ['classe' => 'nain']);
+    donneForge($nain);
+
+    // Un artefact est déjà au sommet de la courbe : la Forge n'y ajoute rien.
+    $ligne = sacDeForge($nain, "Lame d'Aube");
+    $affutee = ForgeAmelioration::where('nom', 'Affûtée')->firstOrFail();
+
+    $this->postJson('/api/groupes/table-1/forge', [
+        'personnage_id' => $nain->id, 'inventaire_id' => $ligne->id, 'amelioration_id' => $affutee->id,
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors('inventaire_id');
+
+    expect($ligne->fresh()->ameliorations ?? [])->toBe([]);
 });

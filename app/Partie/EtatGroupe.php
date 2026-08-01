@@ -14,7 +14,6 @@ use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Narration\BibliothequeNarration;
-use App\Partie\ResolveurTour;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -192,11 +191,20 @@ final class EtatGroupe
         // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
         // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
         $salles = (array) ($carte->grille['salles'] ?? []);
-        $decouvertes = array_values(array_unique(array_merge(
-            [0], // la salle de départ est toujours visible (semée par DemarreurQuete)
-            array_map('intval', (array) Cache::get(ResolveurTour::cleSallesDecouvertes((int) $quete->id), [])),
-        )));
-        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $portes);
+        // Lu EN BASE (§2.16) : la salle 0 (départ) est toujours incluse. Cet
+        // avancement pilote le brouillard, donc les cases que la manette juge
+        // accessibles — le perdre immobilisait tout le groupe.
+        $decouvertes = $quete->sallesDecouvertes();
+        // Positions des héros : un héros VOIT les murs qui le touchent. Sans
+        // ça, un mur non adjacent à une zone déjà visible était renvoyé en `b`,
+        // indiscernable d'un sol inconnu — la manette le proposait comme
+        // destination et le serveur le refusait ensuite (tours perdus).
+        $positionsHeros = $quete->etatsPersonnages()
+            ->whereNotNull('position_x')
+            ->get(['position_x', 'position_y'])
+            ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
+            ->all();
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $portes, $positionsHeros);
 
         // Ne pas trahir par-dessus le brouillard une porte totalement masquée :
         // on ne garde que celles dont AU MOINS une des deux cases reste visible
@@ -231,7 +239,7 @@ final class EtatGroupe
      * @param  list<array{x: int, y: int, etat: string}>  $portes
      * @return list<list<string>>
      */
-    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes): array
+    private function appliquerBrouillard(array $cases, array $salles, array $decouvertes, array $portes, array $positionsHeros = []): array
     {
         if ($salles === []) {
             return $cases; // pas de métadonnées de salle (vieille carte) : rien à masquer
@@ -319,6 +327,15 @@ final class EtatGroupe
                     $borde = false;
                     foreach ([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as [$dx, $dy]) {
                         if (isset($visible[($x + $dx).','.($y + $dy)])) {
+                            $borde = true;
+                            break;
+                        }
+                    }
+
+                    // …ou un mur qu'un HÉROS touche : on voit les parois contre
+                    // lesquelles on se tient, même dans une zone non révélée.
+                    foreach ($positionsHeros as $h) {
+                        if (abs($h['x'] - $x) <= 1 && abs($h['y'] - $y) <= 1) {
                             $borde = true;
                             break;
                         }
@@ -481,6 +498,14 @@ final class EtatGroupe
                     'attribut_body' => (int) $p->attribut_body,
                     'attribut_mind' => (int) $p->attribut_mind,
                     'tombe' => (bool) ($etat?->tombe ?? false),
+                    // Créneaux du tour (doc 03 §28) : la manette en a besoin pour
+                    // GRISER une option dont le créneau vient d'être consommé.
+                    // Sans eux, elle affichait un menu périmé et le joueur
+                    // récoltait un 422 « Tu as déjà agi ce tour » — trois
+                    // rapports de bug lors des tests de jeu venaient de là.
+                    'a_joue' => (bool) ($etat?->a_joue ?? false),
+                    'a_deplace' => (bool) ($etat?->a_deplace ?? false),
+                    'a_agi' => (bool) ($etat?->a_agi ?? false),
                     'conditions' => $this->conditionsHeros($p),
                 ];
             })

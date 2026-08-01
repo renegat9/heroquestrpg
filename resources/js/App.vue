@@ -5,9 +5,11 @@
 // reconnecter plutôt que d'afficher « Unauthenticated. » brut dans la narration.
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useGameStore } from './store/game';
 
 const router = useRouter();
 const route = useRoute();
+const store = useGameStore();
 const sessionExpiree = ref(false);
 
 // Écran NARRATEUR (table) : la « session » est celle de la TABLE, ouverte par
@@ -16,8 +18,20 @@ const sessionExpiree = ref(false);
 const estTable = computed(() => ['table', 'narrateur'].includes(route.name));
 
 function signaler() { sessionExpiree.value = true; }
+
 function seReconnecter() {
     sessionExpiree.value = false;
+
+    // §2.15 — le serveur ne nous connaît plus : il FAUT purger l'état client
+    // d'authentification. Sans ça, /joueur se rendait depuis le cache
+    // (« Salut X », le groupe, « Reprendre la partie ») alors que /api/moi
+    // répondait 401 : on cliquait « Reprendre la partie », on retombait sur la
+    // manette avec le même bandeau, et on tournait en rond indéfiniment. Le
+    // seul moyen d'en sortir était de ressaisir son identifiant à la main.
+    if (! estTable.value) {
+        store.setJoueur(null, []);
+    }
+
     router.push(estTable.value ? '/narrateur' : '/joueur');
 }
 
@@ -28,16 +42,20 @@ onUnmounted(() => window.removeEventListener('api:session-expiree', signaler));
 <template>
     <RouterView />
 
-    <div v-if="sessionExpiree" class="session-overlay" @click.self="sessionExpiree = false">
+    <!-- §2.15 — non refermable : tant que la session n'est pas rétablie, TOUT
+         est bloqué en dessous. L'ancien bouton « Plus tard » masquait le bandeau
+         et laissait un menu d'action parfaitement lisible mais totalement inerte,
+         dont les clics étaient avalés en silence par cet overlay. -->
+    <div v-if="sessionExpiree" class="session-overlay">
         <div class="session-carte" role="alertdialog" aria-label="Session expirée">
             <div class="session-ic">🔒</div>
             <h2>Session expirée</h2>
             <p v-if="estTable">La session de la table a expiré. Rouvre la table
                 avec le <b>code du groupe</b> pour reprendre la narration.</p>
-            <p v-else>Ta session a expiré (longue pause). Reconnecte-toi puis choisis
-                « Reprendre la partie » — tu reviendras là où le groupe en était.</p>
+            <p v-else>Ta session a expiré (longue pause). Il faut te reconnecter :
+                l'écran derrière ce message n'est plus actif. Tu retrouveras
+                ensuite la partie là où le groupe en est.</p>
             <div class="session-actions">
-                <button class="session-btn ghost" @click="sessionExpiree = false">Plus tard</button>
                 <button class="session-btn gold" @click="seReconnecter">
                     {{ estTable ? 'Rouvrir la table' : 'Se reconnecter' }}
                 </button>

@@ -45,6 +45,59 @@ Chaque objet porte une rareté qui détermine **où** il apparaît, son **stock*
 | **Rare** | Cité marchande / marché noir | Limité (souvent 1) | Majoré |
 | **Unique** | **Jamais à l'achat** — uniquement butin de quête | — | — |
 
+**Artefacts — les armes `unique`.** Une quête en offre **au plus une**, dans un
+**coffre désigné** : la salle la plus profonde du donjon (doc 06 §9). Le héros qui
+la fouille la reçoit. Aucune arme disponible — le groupe les détient déjà toutes,
+l'unicité étant **par groupe** — → le coffre verse une grosse somme d'or à la place
+(`deck_fouille.or_coffre`). Un artefact **ne s'achète pas, ne se revend pas, ne se
+forge pas** ; il est retiré de la liste vendable, et une vente forcée est un 422.
+
+Rappel de règle de combat (doc 03 §8) : `des_attaque` **remplace** la valeur du
+porteur — l'arme fait l'attaque —, tandis que `des_defense` **s'ajoute**.
+
+| Artefact | Prix indicatif | Effet | Intention |
+|---|---|---|---|
+| Lame d'Aube | 900 | 4 dés d'attaque | L'étalon, sans contrainte |
+| Kriss du Fossoyeur | 900 | 3 attaque, +1 défense | Main gauche libre → cumule bouclier + casque |
+| Arbalète des Murmures | 1000 | 4 attaque, à distance, inutilisable au contact | Elfe/tireur, cumule avec « Tir précis » |
+| Bâton des Sept Sceaux | 1000 | 3 attaque, +1 défense, deux mains | Le seul pensé pour le Magicien (1 → 3 dés) |
+| Marteau du Gardien de Pierre | 1100 | 4 attaque, +1 défense, deux mains | Le tank |
+| Hache du Roi sous la Montagne | 1300 | 5 attaque, deux mains | Butin de boss, sommet de courbe |
+| Fendoir des Titans | 1600 | 6 attaque, deux mains, **Maîtrise lourde requise** | Apex absolu — il coûte en plus un point de compétence |
+
+Le « prix indicatif » ne sert qu'à situer la pièce sur la courbe de puissance : il
+n'est **jamais** payé ni encaissé. Valeurs à playtester, comme le reste des chiffres
+du projet.
+
+Le **Fendoir des Titans** est le seul artefact **verrouillé** : il exige le nœud
+*Maîtrise lourde* (arbre barbare), d'où un cran de puissance au-dessus de la Hache
+du Roi, qui elle ne coûte rien à personne. C'est le don entre héros qui le rend
+jouable — sans lui, tombé au magicien, il aurait été perdu pour la campagne. Le
+coffre **l'écarte du tirage quand aucun barbare n'est actif** dans le groupe, sinon
+il occuperait la place du seul artefact de la quête sans que personne puisse jamais
+le porter.
+
+**Un artefact appartient au GROUPE, pas à son découvreur** : il circule librement entre
+héros au hub (§ Don d'objets ci-dessous). C'est ce qui rend le coffre jouable — sans
+quoi une hache à deux mains tombée au magicien serait perdue pour la campagne. Donner
+n'est pas vendre : l'interdiction de revente tient toujours. Aucun des six artefacts
+actuels ne porte `necessite_maitrise_lourde`, prudence héritée de l'époque où rien ne
+circulait ; la contrainte peut être rouverte.
+
+## Don d'objets entre héros (doc 01 §7)
+
+`POST /api/groupes/{identifiant}/dons` — **au hub uniquement**, comme équiper et forger.
+Un joueur donne depuis **ses** héros vers **n'importe quel héros actif** du groupe, y
+compris celui d'un autre joueur ; le receveur n'a rien à confirmer (vous jouez autour
+d'une même table) mais sa **capacité de sac est vérifiée** — un don ne peut jamais lui
+nuire. Le donneur, lui, peut être en dépassement : se délester est justement la façon
+de régulariser un sac saturé par un butin de quête.
+
+Une pièce **équipée** se déséquipe d'abord (ses dés doivent être proprement révoqués).
+Les consommables se transfèrent par pile (`quantite`) et fusionnent chez le receveur.
+Tout le reste **change de propriétaire sans changer de ligne d'inventaire**, ce qui
+préserve les améliorations de Forge attachées à l'exemplaire.
+
 > La rareté se combine au **multiplicateur du profil** (§3) : un objet rare reste cher en cité et introuvable dans un village.
 
 ### Armes

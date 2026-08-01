@@ -110,7 +110,23 @@ Quatre groupes de tables MariaDB : **Comptes & roster**, **Campagne & session**,
 | branche_active | JSON | branche prise (ramification) |
 | etat | ENUM(a_venir,en_cours,terminee,echouee) | |
 | or_initial | INT | pot commun au **début de la quête** (base de la part d'un départ en cours de quête) |
+| salles_decouvertes | JSON NULL | index des salles révélées (la 0 l'est toujours) |
+| tresors_fouilles | JSON NULL | index des salles déjà fouillées — anti-farm |
+| deck_fouille | JSON NULL | pioche ORDONNÉE de cartes de fouille, index 0 = sommet |
+| salle_artefact | SMALLINT NULL | salle-coffre (la plus profonde) ; ne consomme aucune carte |
+| artefact_objet_id | FK → objets NULL | arme `unique` du coffre ; NULL → repli `or_coffre` |
+| budget_errant | SMALLINT NULL | budget de monstres errants restant (doc 14 §3.2) |
 | timestamps | | |
+
+> **Tout état de partie durable vit ICI, jamais en cache.** Ces six colonnes ont
+> toutes commencé leur vie dans le cache Laravel avec un TTL. La perte d'une clé
+> refermait le brouillard sur des zones déjà explorées et **figeait tout le
+> groupe** (verdict de playtest §2.16) ; le cache ne garde plus que de
+> l'éphémère (menu courant, phase marché, présence du narrateur).
+>
+> Une carte de fouille est **auto-suffisante** — `{issue, or?, objet_id?}`, montant
+> et identité figés à la construction. Piocher est un `array_shift` pur : aucun dé
+> consommé, et un snapshot restaure exactement le futur de la quête.
 
 ### `cartes`
 | id PK · quete_id FK · largeur INT · hauteur INT · grille JSON | tuiles assemblées, murs, portes, pièges, spawns, état révélé |

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# choisir <session> <index> — clique l'option de menu n° <index> puis affiche le nouvel état.
+set -u
+D="$(cd "$(dirname "$0")" && pwd)"
+S="${1:?session}"; N="${2:?index}"
+"$D/hq" "$S" click "{\"selector\":\"button.choice\",\"n\":$N,\"pause\":2500}"
+"$D/hq" "$S" text '{"max":2600}'
+echo "=== OPTIONS DISPONIBLES MAINTENANT ==="
+"$D/hq" "$S" els '{"selector":"button.choice"}'

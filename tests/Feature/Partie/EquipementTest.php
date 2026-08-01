@@ -8,6 +8,7 @@ use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Equipement;
+use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
@@ -24,7 +25,10 @@ use Illuminate\Support\Facades\Http;
  */
 
 beforeEach(function () {
-    $this->seed([ObjetSeeder::class, CompetenceSeeder::class]);
+    // ClasseHerosSeeder est indispensable : c'est lui qui porte `tags_equipement`,
+    // les maîtrises accessibles par classe. Sans lui, Equipement échoue OUVERT
+    // (aucune restriction) plutôt que de verrouiller le héros hors de son stuff.
+    $this->seed([ClasseHerosSeeder::class, ObjetSeeder::class, CompetenceSeeder::class]);
 });
 
 function sacDe(App\Models\Personnage $p, string $nomObjet): Inventaire
@@ -39,7 +43,7 @@ function sacDe(App\Models\Personnage $p, string $nomObjet): Inventaire
     ]);
 }
 
-it('équipe une arme : +dés d\'attaque et passage en slot', function () {
+it('équipe une arme : elle FIXE les dés d\'attaque et passe en slot', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'nain', 'des_attaque' => 2]);
@@ -47,7 +51,9 @@ it('équipe une arme : +dés d\'attaque et passage en slot', function () {
 
     (new Equipement())->equiper($heros, $ligne);
 
-    expect($heros->refresh()->des_attaque)->toBe(5) // 2 + 3
+    // L'arme REMPLACE (doc 03 §8) : épée large = 3 dés, quelle que soit la
+    // classe. Avant, elle s'ajoutait à la valeur de classe → 5.
+    expect($heros->refresh()->des_attaque)->toBe(3)
         ->and($ligne->fresh()->emplacement)->toBe('arme_principale');
 });
 
@@ -59,10 +65,12 @@ it('déséquipe une arme : les dés reviennent à la base, l\'objet retourne au 
 
     $svc = new Equipement();
     $svc->equiper($heros, $ligne);
-    expect($heros->refresh()->des_attaque)->toBe(4);
+    expect($heros->refresh()->des_attaque)->toBe(2); // l'épée courte fixe 2
 
     $svc->desequiper($heros, $ligne->fresh());
-    expect($heros->refresh()->des_attaque)->toBe(2)
+    // Retour à MAINS NUES : 1 dé pour tous (base de classe), pas la valeur
+    // d'avant équipement.
+    expect($heros->refresh()->des_attaque)->toBe(1)
         ->and($ligne->fresh()->emplacement)->toBe('sac');
 });
 
@@ -77,7 +85,7 @@ it('auto-swap : équiper une seconde arme remet la première au sac (capacité n
     $svc->equiper($heros, $courte);
     $svc->equiper($heros, $large);
 
-    expect($heros->refresh()->des_attaque)->toBe(5) // base 2 + large 3, la courte est révoquée
+    expect($heros->refresh()->des_attaque)->toBe(3) // l'épée large fixe 3, la courte est révoquée
         ->and($courte->fresh()->emplacement)->toBe('sac')
         ->and($large->fresh()->emplacement)->toBe('arme_principale');
 });
@@ -95,8 +103,7 @@ it('applique les dés de défense d\'une armure', function () {
 it('refuse un bouclier quand une arme à deux mains est équipée', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
-    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
-    $heros->competences()->attach(Competence::where('classe', 'barbare')->where('nom', 'Maîtrise lourde')->value('id'));
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1); // barbare : deux mains d'emblée
     $hache = sacDe($heros, 'Hache de bataille'); // deux_mains
     $bouclier = sacDe($heros, 'Bouclier');       // incompatible_deux_mains
 
@@ -107,13 +114,19 @@ it('refuse un bouclier quand une arme à deux mains est équipée', function () 
         ->toThrow(Illuminate\Validation\ValidationException::class);
 });
 
-it('refuse d\'équiper une arme à deux mains sans le nœud Maîtrise lourde', function () {
+it('refuse une arme à deux mains à qui n\'y a pas droit — mais plus au barbare', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
-    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
-    $hache = sacDe($heros, 'Hache de bataille');
+    $svc = new Equipement();
 
-    expect(fn () => (new Equipement())->equiper($heros, $hache))
+    // Le barbare les manie de naissance : c'est sa signature.
+    $barbare = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+    $svc->equiper($barbare, sacDe($barbare, 'Hache de bataille'));
+    expect($barbare->refresh()->des_attaque)->toBe(4);
+
+    // L'elfe, non — et aucun nœud de son arbre ne les lui ouvre.
+    $elfe = creerHeros($alice, $groupe, 'Sylvaine', 2, ['classe' => 'elfe']);
+    expect(fn () => $svc->equiper($elfe, sacDe($elfe, 'Hache de bataille')))
         ->toThrow(Illuminate\Validation\ValidationException::class);
 });
 
@@ -155,7 +168,7 @@ it('POST /equipement équipe au hub et renvoie les dés à jour ; refuse en quê
     $this->postJson('/api/groupes/table-1/equipement', [
         'personnage_id' => $heros->id,
         'inventaire_id' => $ligne->id,
-    ])->assertOk()->assertJsonPath('personnage.des_attaque', 5);
+    ])->assertOk()->assertJsonPath('personnage.des_attaque', 3);
 
     // En quête : refus (l'endpoint REST reste hub-only ; en quête on équipe
     // via l'action du tour, cf. test suivant).
@@ -201,9 +214,190 @@ it('équipe en PLEINE QUÊTE via l\'action du tour (doc 01 §149) : dés à jour
     // Arme équipée (dés à jour) et ACTION consommée (a_agi). Le mouvement N'EST
     // PLUS forfait (on peut équiper PUIS se déplacer) et le tour ne se termine
     // que sur décision du joueur.
-    expect($heros->fresh()->des_attaque)->toBe(5);
+    expect($heros->fresh()->des_attaque)->toBe(3);
     $etat->refresh();
     expect($etat->a_agi)->toBeTrue()
         ->and($etat->a_deplace)->toBeFalse()
         ->and($etat->a_joue)->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
+// Maîtrises par classe (doc 01 §7) — profil « canon HeroQuest »
+// ---------------------------------------------------------------------------
+
+it('interdit au magicien l\'armure et les armes de mêlée courantes', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+
+    $svc = new Equipement();
+
+    foreach (['Épée courte', 'Casque', 'Cotte de mailles', 'Bouclier', 'Arbalète'] as $interdit) {
+        expect(fn () => $svc->equiper($magicien, sacDe($magicien, $interdit)))
+            ->toThrow(Illuminate\Validation\ValidationException::class, null, "« {$interdit} » aurait dû être refusé");
+    }
+
+    // Sa dague et son bâton restent les siens.
+    $svc->equiper($magicien, sacDe($magicien, 'Dague'));
+    expect($magicien->refresh()->des_attaque)->toBe(1);
+});
+
+it('laisse le magicien porter le Bâton des Sept Sceaux : `deux_mains` n\'est pas une maîtrise', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+
+    // L'artefact est à deux mains (donc pas de bouclier avec) mais tagué
+    // `arme_legere` — il a été conçu pour lui.
+    (new Equipement())->equiper($magicien, sacDe($magicien, 'Bâton des Sept Sceaux'));
+
+    expect($magicien->refresh()->des_attaque)->toBe(3)
+        ->and($magicien->refresh()->des_defense)->toBe(3); // 2 + 1
+});
+
+it('ouvre au magicien l\'armure légère via le nœud « Cuir d\'apprenti »', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien', 'des_defense' => 2]);
+    $casque = sacDe($magicien, 'Casque');
+
+    $svc = new Equipement();
+    expect(fn () => $svc->equiper($magicien, $casque))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+
+    $magicien->competences()->attach(
+        Competence::where('classe', 'magicien')->where('nom', "Cuir d'apprenti")->value('id'),
+    );
+
+    $svc->equiper($magicien, $casque->fresh());
+    expect($magicien->refresh()->des_defense)->toBe(3);
+});
+
+it('laisse barbare, nain et elfe équiper armes courantes, distance et armure légère', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $svc = new Equipement();
+
+    foreach (['barbare', 'nain', 'elfe'] as $i => $classe) {
+        $heros = creerHeros($alice, $groupe, ucfirst($classe).$i, $i + 1, ['classe' => $classe]);
+
+        $svc->equiper($heros, sacDe($heros, 'Épée large'));
+        $svc->equiper($heros, sacDe($heros, 'Cotte de mailles'));
+
+        expect($heros->refresh()->des_attaque)->toBe(3)
+            ->and($heros->refresh()->des_defense)->toBe(3);
+
+        // Symétrie des deux costauds : chacun a sa spécialité gratuite et paie
+        // l'autre. Barbare = armes à deux mains libres, armure lourde au nœud ;
+        // nain = l'inverse ; elfe = ni l'un ni l'autre.
+        $hache = fn () => $svc->equiper($heros, sacDe($heros, 'Hache de bataille'));
+        $plates = fn () => $svc->equiper($heros, sacDe($heros, 'Armure de plates'));
+
+        if ($classe === 'barbare') {
+            $hache();
+            expect($heros->refresh()->des_attaque)->toBe(4);
+            expect($plates)->toThrow(Illuminate\Validation\ValidationException::class);
+        } elseif ($classe === 'nain') {
+            expect($hache)->toThrow(Illuminate\Validation\ValidationException::class);
+            $plates();
+            // Les plates REMPLACENT la cotte (même emplacement, auto-swap) :
+            // 2 de base + 2, et non un cumul des deux armures.
+            expect($heros->refresh()->des_defense)->toBe(4);
+        } else {
+            expect($hache)->toThrow(Illuminate\Validation\ValidationException::class);
+            expect($plates)->toThrow(Illuminate\Validation\ValidationException::class);
+        }
+    }
+});
+
+it('nomme le nœud à prendre quand il existe, et dit « hors de portée » sinon', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $svc = new Equipement();
+
+    // Le magicien A un nœud pour l'armure légère → on le lui nomme.
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+    expect(fn () => $svc->equiper($magicien, sacDe($magicien, 'Casque')))
+        ->toThrow(Illuminate\Validation\ValidationException::class, null);
+
+    try {
+        $svc->equiper($magicien, sacDe($magicien, 'Casque'));
+    } catch (Illuminate\Validation\ValidationException $e) {
+        expect($e->errors()['inventaire_id'][0])->toContain("Cuir d'apprenti");
+    }
+
+    // Il n'a AUCUN nœud vers l'armure lourde → message « hors de portée ».
+    try {
+        $svc->equiper($magicien, sacDe($magicien, 'Armure de plates'));
+    } catch (Illuminate\Validation\ValidationException $e) {
+        expect($e->errors()['inventaire_id'][0])->toContain('hors de portée');
+    }
+});
+
+it('laisse le NAIN porter l\'armure lourde sans aucun nœud', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $nain = creerHeros($alice, $groupe, 'Dorin', 1, ['classe' => 'nain', 'des_defense' => 2]);
+
+    // Le forgeron robuste du groupe : les plates sont son affaire, pas un talent
+    // à acheter. Elles restaient pourtant fermées, faute d'un nœud « Maîtrise
+    // lourde » qui n'existe que dans l'arbre du barbare.
+    (new Equipement())->equiper($nain, sacDe($nain, 'Armure de plates'));
+
+    expect($nain->refresh()->des_defense)->toBe(4); // 2 + 2
+});
+
+it('exige « Poigne de forgeron » au nain pour une arme à DEUX MAINS', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $nain = creerHeros($alice, $groupe, 'Dorin', 1, ['classe' => 'nain']);
+    $hache = sacDe($nain, 'Hache de bataille');
+
+    $svc = new Equipement();
+
+    // Les grosses armes restent la signature du barbare : le nain les paie d'un
+    // point de compétence.
+    expect(fn () => $svc->equiper($nain, $hache))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+
+    $nain->competences()->attach(
+        Competence::where('classe', 'nain')->where('nom', 'Poigne de forgeron')->value('id'),
+    );
+
+    $svc->equiper($nain, $hache->fresh());
+    expect($nain->refresh()->des_attaque)->toBe(4);
+});
+
+it('garde l\'ELFE et le MAGICIEN hors du lourd', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $svc = new Equipement();
+
+    foreach (['elfe', 'magicien'] as $i => $classe) {
+        $heros = creerHeros($alice, $groupe, ucfirst($classe), $i + 1, ['classe' => $classe]);
+
+        expect(fn () => $svc->equiper($heros, sacDe($heros, 'Armure de plates')))
+            ->toThrow(Illuminate\Validation\ValidationException::class)
+            ->and(fn () => $svc->equiper($heros, sacDe($heros, 'Hache de bataille')))
+            ->toThrow(Illuminate\Validation\ValidationException::class);
+    }
+});
+
+it('n\'annonce pas un BOUCLIER comme une arme', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $svc = new Equipement();
+    $svc->equiper($heros, sacDe($heros, 'Épée courte'));
+    $svc->equiper($heros, sacDe($heros, 'Bouclier'));
+
+    $portees = collect(test()->getJson('/api/moi')->assertOk()
+        ->json('joueur.personnages.0.equipement.armes'))->keyBy('nom');
+
+    // Un bouclier occupe `arme_secondaire` : il figurait donc parmi les « armes »,
+    // libellé « Arme équipée » et icône épées croisées, exactement comme l'épée.
+    expect($portees['Épée courte']['bouclier'])->toBeFalse()
+        ->and($portees['Bouclier']['bouclier'])->toBeTrue()
+        ->and($portees['Bouclier']['emplacement'])->toBe('arme_secondaire');
 });

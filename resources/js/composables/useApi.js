@@ -135,8 +135,6 @@ export function useApi() {
         creerPersonnage: ({ nom, classe, elements }) =>
             request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
 
-        /** POST /personnages/{id}/portrait → {portrait_url} (génération IA, ~qq s). */
-        genererPortrait: (id) => request('POST', `/personnages/${id}/portrait`),
 
         // ---- table (Narrateur — session sans compte) ----
 
@@ -313,6 +311,17 @@ export function useApi() {
         desequiper: (identifiant, personnageId, inventaireId) =>
             request('DELETE', `/groupes/${identifiant}/equipement`, {
                 personnage_id: personnageId, inventaire_id: inventaireId,
+            }),
+
+        /* Don d'un objet à un autre héros du groupe (hub) — depuis SON héros
+           vers n'importe quel héros actif. Le serveur diffuse `.groupe.etat`,
+           ce qui fait re-GET /moi à la manette du receveur. */
+        donner: (identifiant, personnageId, inventaireId, versPersonnageId, quantite = 1) =>
+            request('POST', `/groupes/${identifiant}/dons`, {
+                personnage_id: personnageId,
+                inventaire_id: inventaireId,
+                vers_personnage_id: versPersonnageId,
+                quantite,
             }),
 
         // ---- alliés / mercenaires (contrat « Alliés », au hub uniquement) ----

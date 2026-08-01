@@ -138,18 +138,43 @@ const doors = computed(() => (props.carte.portes ?? [])
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
   box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
 
-/* ---- portes : battant en % de la case, sur l'arête est/sud ---- */
+/* ---- portes : battant en % de la case, sur l'arête est/sud ----
+   Test de jeu 2026-07-31 : les joueurs ne repéraient PAS les portes. Une porte
+   ouverte n'était qu'un pointillé de 2 px à 50 % d'opacité — invisible sur les
+   cases de 22 px de la manette —, et un joueur a pris deux fois la case d'un
+   allié pour un seuil. On dessine donc systématiquement les DEUX JAMBAGES
+   (montants) de l'ouverture : c'est eux qui font lire « passage » même quand le
+   battant est effacé. Le battant, lui, ne dit plus que l'ÉTAT. */
 .dg-door-holder { position: relative; pointer-events: none; z-index: 3; }
 .dg-door { position: absolute; border-radius: 2px;
-  background: linear-gradient(var(--deg, 90deg), #c9922f, #7a531d);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 1px 3px oklch(0 0 0 / 0.6);
+  background: linear-gradient(var(--deg, 90deg), #d8a23a, #7a531d);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.7), 0 1px 3px oklch(0 0 0 / 0.6);
   display: grid; place-items: center; }
-.dg-door.cote-e { --deg: 90deg; top: 12%; bottom: 12%; right: 0; width: 22%; transform: translateX(50%); }
-.dg-door.cote-s { --deg: 180deg; left: 12%; right: 12%; bottom: 0; height: 22%; transform: translateY(50%); }
+.dg-door.cote-e { --deg: 90deg; top: 10%; bottom: 10%; right: 0; width: 30%; transform: translateX(50%); }
+.dg-door.cote-s { --deg: 180deg; left: 10%; right: 10%; bottom: 0; height: 30%; transform: translateY(50%); }
+
+/* Jambages : deux tenons clairs aux extrémités de l'arête, toujours visibles. */
+.dg-door::before, .dg-door::after {
+  content: ''; position: absolute; background: #f0d79a;
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.75); border-radius: 1px;
+}
+.dg-door.cote-e::before, .dg-door.cote-e::after { left: -10%; right: -10%; height: 22%; min-height: 3px; }
+.dg-door.cote-e::before { top: -14%; }
+.dg-door.cote-e::after { bottom: -14%; }
+.dg-door.cote-s::before, .dg-door.cote-s::after { top: -10%; bottom: -10%; width: 22%; min-width: 3px; }
+.dg-door.cote-s::before { left: -14%; }
+.dg-door.cote-s::after { right: -14%; }
+
 .dg-door.verrouillee { background: linear-gradient(var(--deg, 90deg), #b98a3a, #6a4a1c); }
+
+/* Ouverte : le battant s'efface, les jambages restent — l'ouverture se voit. */
 .dg-door.ouverte { background: none; box-shadow: none; }
-.dg-door.ouverte.cote-e { border-right: 2px dashed oklch(0.76 0.155 65 / 0.5); width: 0; }
-.dg-door.ouverte.cote-s { border-bottom: 2px dashed oklch(0.76 0.155 65 / 0.5); height: 0; }
+
+/* Secrète RÉVÉLÉE (le serveur masque les autres) : violet, pour qu'un raccourci
+   trouvé se distingue d'une porte ordinaire. */
+.dg-door.secrete { background: linear-gradient(var(--deg, 90deg), #b18ad8, #5b3f7a); }
+.dg-door.secrete::before, .dg-door.secrete::after { background: #e0cdf5; }
+
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 
 /* ---- FLIP figurines (table, animate) : glissement d'une case ---- */

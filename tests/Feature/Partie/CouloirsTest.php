@@ -28,6 +28,37 @@ function gabaritNormal(): GabaritQuete
     return GabaritQuete::query()->where('type_jalon', 'normale')->firstOrFail();
 }
 
+/**
+ * Groupe minimal + quête + carte assemblée à cette graine — pour exercer
+ * MoteurPortes sur une vraie carte sans démarrer une quête complète.
+ *
+ * @return array{0: \App\Models\Groupe, 1: \App\Models\Quete}
+ */
+function groupeAvecCarte(int $graine): array
+{
+    $groupe = creerGroupe();
+    $carteAssemblee = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+
+    $quete = \App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => gabaritNormal()->id,
+        'titre' => 'Quête de test',
+        'position_arc' => 1,
+        'type_jalon' => 'normale',
+        'etat' => 'en_cours',
+        'or_initial' => 0,
+    ]);
+
+    \App\Models\Carte::create([
+        'quete_id' => $quete->id,
+        'largeur' => $carteAssemblee['largeur'],
+        'hauteur' => $carteAssemblee['hauteur'],
+        'grille' => $carteAssemblee,
+    ]);
+
+    return [$groupe, $quete->fresh()];
+}
+
 /** Gabarit avec rencontre finale (sous-boss/boss) — pour les checks de salle boss. */
 function gabaritAvecBoss(): GabaritQuete
 {
@@ -123,6 +154,13 @@ it('creuse chaque couloir sur 2 voies traversables (F)', function () {
         $bx = $arete['porte_b']['x'];
         $by = $arete['porte_b']['y'];
 
+        // Jonction MITOYENNE (salles mur contre mur) : pas de couloir du tout,
+        // juste un seuil — les deux portes sont à une case l'une de l'autre.
+        // Rien à vérifier ici, c'est le cas voulu.
+        if (abs($ax - $bx) + abs($ay - $by) <= 1) {
+            continue;
+        }
+
         if ($ay === $by) {
             // Arête horizontale : la voie principale (ligne ay) et la voie
             // parallèle (ay-1) sont toutes deux traversables entre les portes.
@@ -152,8 +190,12 @@ it('creuse chaque couloir sur 2 voies traversables (F)', function () {
 it('pose les portes inter-salles FERMÉES par défaut : elles barrent le passage (E2)', function () {
     $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 42);
 
+    // Les portes de l'ARBRE sont fermées ; les liaisons SUPPLÉMENTAIRES (boucles)
+    // peuvent être secrètes — mais rien d'autre.
     $etats = array_unique(array_column($carte['portes'], 'etat'));
-    expect($etats)->toBe(['fermee']);
+    sort($etats);
+    expect(array_diff($etats, ['fermee', 'secrete']))->toBe([])
+        ->and(in_array('fermee', $etats, true))->toBeTrue();
 
     // Et elles barrent RÉELLEMENT : sans les ouvrir, une salle non voisine du
     // départ est inatteignable.
@@ -238,4 +280,189 @@ it('répartit les monstres sur AU MOINS 2 salles distinctes, boss en position 0'
     expect($carte['salles'][$bossIndex]['theme'])->toBe('boss')
         ->and(salleContenant($carte['salles'], $carte['spawn_monstres'][0]['x'], $carte['spawn_monstres'][0]['y']))
         ->toBe($bossIndex);
+});
+
+// ---------------------------------------------------------------------------
+// Jonctions larges de 2 cases (test de jeu 2026-07-31)
+// ---------------------------------------------------------------------------
+
+it('ouvre chaque jonction sur 2 CASES DE FRONT, portes comprises', function () {
+    $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 7717);
+
+    $parJonction = collect($carte['portes'])->groupBy('jonction');
+
+    expect($parJonction)->not->toBeEmpty();
+
+    foreach ($parJonction as $jonction => $portes) {
+        // 4 portes = 2 par bord de salle (voie médiane + voie parallèle) : le
+        // passage fait deux cases de large de bout en bout. Sans ça, le tank
+        // bouchait le seuil et le tireur derrière n'avait aucune ligne de vue
+        // (constat du test de jeu à 2 : magicien muet pendant 8 tours).
+        expect($portes)->toHaveCount(4, "jonction {$jonction} : passage rétréci");
+
+        // Les deux portes d'un même bord sont VOISINES (vraie ouverture double,
+        // pas deux passages distincts).
+        $paires = $portes->groupBy(fn ($p) => $p['cote'] === 'e' ? $p['x'] : $p['y']);
+        foreach ($paires as $bord) {
+            expect($bord)->toHaveCount(2);
+            $a = $bord[0];
+            $b = $bord[1];
+            expect(abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']))->toBe(1);
+        }
+    }
+});
+
+it('ouvre TOUTE la jonction quand on ouvre une seule de ses portes', function () {
+    [$groupe, $quete] = groupeAvecCarte(7717);
+
+    $portes = $quete->carte->grille['portes'];
+    $index = collect($portes)->search(fn ($p) => ($p['etat'] ?? '') === 'fermee');
+    $jonction = $portes[$index]['jonction'];
+
+    app(App\Partie\MoteurPortes::class)->ouvrir($groupe, $quete->carte, (int) $index, 'test');
+
+    $apres = collect($quete->carte->fresh()->grille['portes'])
+        ->filter(fn ($p) => ($p['jonction'] ?? null) === $jonction);
+
+    // Une jonction s'ouvre d'un bloc : à moitié ouverte, elle redeviendrait un
+    // goulot d'une case — exactement ce que l'élargissement supprime.
+    expect($apres)->toHaveCount(4)
+        ->and($apres->every(fn ($p) => $p['etat'] === 'ouverte'))->toBeTrue();
+});
+
+it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 formes)', function () {
+    $formes = App\Models\Tuile::where('type', 'salle')->where('theme', 'generique')->get()
+        ->map(fn ($t) => $t->grille['largeur'].'×'.$t->grille['hauteur'])
+        ->unique();
+
+    // Le vivier n'en comptait que 3 (et chacune en double, TuileSeeder n'étant
+    // pas idempotent) : toutes les salles d'un donjon se ressemblaient.
+    expect($formes->count())->toBeGreaterThanOrEqual(6);
+
+    // …et le seeder est re-semable sans dupliquer.
+    $avant = App\Models\Tuile::count();
+    (new Database\Seeders\TuileSeeder())->run();
+    expect(App\Models\Tuile::count())->toBe($avant);
+});
+
+
+it('ne rend JAMAIS une salle tributaire d\'une porte secrète', function () {
+    // Les liaisons supplémentaires ouvrent des BOUCLES : ce sont des raccourcis,
+    // jamais l'unique accès. Une salle qu'on ne pourrait atteindre qu'en trouvant
+    // une porte secrète bloquerait un groupe qui rate son jet de fouille — la
+    // classe de bug qui figeait déjà le groupe au §2.16.
+    foreach ([42, 7717, 31337, 104729, 555] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+
+        // Grille où seules les portes NON secrètes sont ouvertes.
+        $portes = array_map(function (array $p) {
+            $p['etat'] = ($p['etat'] ?? '') === 'secrete' ? 'secrete' : 'ouverte';
+
+            return $p;
+        }, $carte['portes']);
+
+        $grille = new Grille($carte['cases']);
+        $grille->definirPortes($portes);
+
+        $depart = $carte['spawn_heros'][0];
+
+        foreach ($carte['salles'] as $i => $salle) {
+            $cible = ['x' => $salle['mediane_x'], 'y' => $salle['mediane_y']];
+            expect($grille->chemin($depart['x'], $depart['y'], $cible['x'], $cible['y']))
+                ->not->toBeNull("graine {$graine} : salle {$i} inatteignable sans porte secrète");
+        }
+    }
+});
+
+it('pose des pièges DANS les salles, jamais dans celle du départ', function () {
+    $enSalle = 0;
+    $enCouloir = 0;
+
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+        $depart = $carte['salles'][0];
+
+        foreach ($carte['pieges'] as $piege) {
+            $salle = null;
+            foreach ($carte['salles'] as $i => $s) {
+                if ($piege['x'] >= $s['x'] && $piege['x'] < $s['x'] + $s['largeur']
+                    && $piege['y'] >= $s['y'] && $piege['y'] < $s['y'] + $s['hauteur']) {
+                    $salle = $i;
+                    break;
+                }
+            }
+
+            $salle === null ? $enCouloir++ : $enSalle++;
+
+            // Un piège sous les pieds du groupe au tour 1 serait subi, pas joué.
+            expect($salle)->not->toBe(0, "graine {$graine} : piège dans la salle de départ");
+        }
+    }
+
+    // Les deux emplacements existent : s'en tenir aux couloirs rendait les
+    // pièges prévisibles et les salles parfaitement sûres.
+    expect($enSalle)->toBeGreaterThan(0)
+        ->and($enSalle + $enCouloir)->toBeGreaterThan(0);
+});
+
+it('ne met jamais une porte secrète et une porte normale sur le même seuil', function () {
+    // Deux états différents sur le même mur, c'est illisible pour le joueur —
+    // et c'était un piège moteur : la recherche de « porte close adjacente »
+    // rendait la première trouvée, si bien qu'une secrète pouvait masquer une
+    // porte ouvrable et priver le héros de son option « Ouvrir la porte ».
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+
+        $parCase = [];
+        foreach ($carte['portes'] as $porte) {
+            foreach (App\Partie\Grille::casesPorte($porte) as $case) {
+                $parCase[$case['x'].','.$case['y']][] = $porte['etat'];
+            }
+        }
+
+        foreach ($parCase as $cle => $etats) {
+            $secrete = in_array('secrete', $etats, true);
+            $normale = (bool) array_filter($etats, fn ($e) => $e !== 'secrete');
+
+            expect($secrete && $normale)->toBeFalse("graine {$graine}, case {$cle} : ".implode('+', $etats));
+        }
+    }
+});
+
+it('ne pose qu\'UNE seule jonction par côté de salle, secrète comprise', function () {
+    // Règle de René : un mur de salle (ou de couloir) ne porte qu'un passage,
+    // qu'il soit normal ou secret. Un seuil large de 2 cases compte pour UN :
+    // ses arêtes partagent la même `jonction` et s'ouvrent ensemble.
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+
+        foreach ($carte['salles'] as $i => $s) {
+            $parCote = [];
+
+            foreach ($carte['portes'] as $porte) {
+                foreach (App\Partie\Grille::casesPorte($porte) as $case) {
+                    if ($case['x'] < $s['x'] || $case['x'] >= $s['x'] + $s['largeur']
+                        || $case['y'] < $s['y'] || $case['y'] >= $s['y'] + $s['hauteur']) {
+                        continue;
+                    }
+
+                    $cote = match (true) {
+                        $case['y'] === $s['y'] => 'N',
+                        $case['y'] === $s['y'] + $s['hauteur'] - 1 => 'S',
+                        $case['x'] === $s['x'] => 'W',
+                        $case['x'] === $s['x'] + $s['largeur'] - 1 => 'E',
+                        default => null,
+                    };
+
+                    if ($cote !== null) {
+                        $parCote[$cote][$porte['jonction'] ?? -1] = true;
+                    }
+                }
+            }
+
+            foreach ($parCote as $cote => $jonctions) {
+                expect(count($jonctions))->toBe(1, "graine {$graine}, salle {$i}, côté {$cote}");
+            }
+        }
+    }
 });

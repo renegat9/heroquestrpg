@@ -326,3 +326,64 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
   depuis L'UNE des deux cases. Rendu : un **battant sur le bord** entre deux cases
   (table `DungeonMap` + manette `DeplacementSheet`). Tests réécrits :
   `PortesGrilleTest`, `PortesExplorationTest`, `CouloirsTest`.
+
+---
+
+## Constats relevés en implémentant le deck de fouille + les artefacts (2026-07-29)
+
+Hors périmètre du chantier, volontairement laissés en l'état — chacun est réel et
+vérifié dans le code, mais aucun ne bloquait la mécanique livrée.
+
+- **`effet.deplacement_sans_d6` est mort.** `App\Engine\Deplacement::calculer()`
+  implémente bien la règle, mais **aucun appelant ne passe `true`** : la pénalité
+  de déplacement de l'**Armure de plates** n'est donc **jamais appliquée**. Soit
+  câbler le drapeau depuis l'équipement porté, soit retirer l'effet du catalogue.
+- **Clés d'effet purement décoratives**, présentes au catalogue mais sans aucun
+  lecteur moteur : `attaque_diagonale`, `attaque_second_rang`, `ligne_de_vue`,
+  `jetable`, `jetable_frequence`. Un joueur qui lit la description d'un objet y
+  voit une promesse que le moteur ne tient pas. (Les artefacts n'utilisent que
+  des clés réellement lues : `des_attaque`, `des_defense`, `portee`,
+  `inutilisable_adjacent`, `deux_mains`.)
+- **L'issue `errant` ne produit aucune narration.** Le monstre naît `revele=true`,
+  ce qui fait basculer `ChoixController` en « combat instantané » — le moment le
+  plus spectaculaire de la fouille passe donc sans une ligne du MJ. Le fil de
+  combat l'annonce désormais (« X surgit du coffre ! »), mais la voix du
+  narrateur reste muette.
+- ~~**Aucun moyen de donner un objet à un autre héros** en cours de campagne.~~
+  **FAIT (2026-07-30)** : `POST /groupes/{id}/dons` (`App\Partie\DonObjet`), au
+  hub, depuis ses héros vers n'importe quel héros actif du groupe — capacité du
+  receveur respectée, pile de consommables fusionnée, ligne d'inventaire
+  **déplacée** pour préserver les améliorations de Forge. Un artefact circule
+  (il appartient au groupe). Bouton « donner » dans l'onglet Sac de la manette.
+  A permis d'ajouter dans la foulée le **Fendoir des Titans** (6 dés d'attaque,
+  `necessite_maitrise_lourde`), impensable tant qu'un objet ne pouvait pas changer
+  de mains ; `DeckFouille` l'écarte du tirage si aucun barbare n'est actif.
+- **L'échange en pleine quête** (doc 01 §7 : « échanger avec un joueur adjacent »,
+  au coût de l'action du tour) reste à faire — comme « équiper » en quête et
+  « jeter un objet du sac », les deux autres manipulations d'inventaire du canon.
+
+
+---
+
+## Reste après les correctifs du 2026-08-01
+
+- **Retour des actions de couleur.** En interdisant à l'IA d'inventer des options
+  (`GenererMenu::fusionner`), les menus sont devenus purement mécaniques : on a
+  supprimé des options qui échouaient en silence, mais aussi toute la couleur
+  narrative du doc 06 Q3. Le chemin prévu est de les faire revenir **ancrées à
+  des éléments de décor posés sur la carte à sa création**, résolus par le moteur
+  comme les leviers le sont déjà. Chantier de conception à part entière.
+- **Narration décorrélée** : le texte affiché décrit parfois une autre action que
+  celle qui vient d'être résolue. Signalé deux fois par des testeurs, **jamais
+  vérifié côté serveur** — à reproduire avant de corriger quoi que ce soit.
+- **Porte sans option « Ouvrir » pendant plusieurs tours** : vérification faite,
+  toutes les portes de la carte concernée étaient ouvrables depuis leurs deux
+  cases. Très probablement le créneau d'action déjà consommé — donc traité par le
+  grisage des options. À reconfirmer au prochain test.
+- **Onglet narrateur en arrière-plan** : le TTL de présence passe à 60 s et la
+  table repingue au réveil et à la reconnexion, mais un onglet laissé en
+  arrière-plan plus d'une minute perd quand même le narrateur (Chromium suspend
+  ses timers). Un battement en Web Worker le règlerait ; écarté pour l'instant.
+- **Équilibrage à playtester** : le barbare paie *Maîtrise lourde* pour une armure
+  que le nain a gratuitement ; le **Fendoir des Titans** (6 dés) n'a jamais été
+  trouvé en jeu, sa valeur reste théorique.

@@ -15,6 +15,8 @@ class Objet extends Model
         'rarete',
         'prix_base',
         'emplacement',
+        // Maîtrise requise pour ÉQUIPER la pièce (doc 01 §7) ; null = aucune.
+        'tag_equipement',
         'effet',
     ];
 

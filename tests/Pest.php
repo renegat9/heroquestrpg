@@ -238,3 +238,29 @@ function caseAdjacenteLibre(Quete $quete, int $x, int $y): array
 
     throw new RuntimeException('Aucune case libre adjacente — scénario de test invalide.');
 }
+
+/**
+ * Pose une carte de fouille AU SOMMET du deck de la quête, pour rendre la
+ * prochaine « Fouiller — trésor » déterministe.
+ *
+ * Remplace le pilotage par `desFiges()` de l'ancien tirage pondéré : la fouille
+ * ne consomme plus aucun dé, et cette forme dit explicitement ce qu'on teste
+ * (`['issue' => 'piege']`) au lieu d'un « d6=6 » à décoder.
+ *
+ * @param  array<string, mixed>  $carte
+ */
+function empilerCarteFouille(Quete $quete, array $carte): void
+{
+    $quete->update(['deck_fouille' => [$carte, ...$quete->deckFouille()]]);
+    $quete->refresh();
+}
+
+/**
+ * Désigne la salle-coffre (celle qui abrite l'artefact) et l'arme qu'elle
+ * contient. `$objetId = null` force le repli en or.
+ */
+function poserCoffreArtefact(Quete $quete, int $salle, ?int $objetId): void
+{
+    $quete->update(['salle_artefact' => $salle, 'artefact_objet_id' => $objetId]);
+    $quete->refresh();
+}

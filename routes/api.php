@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
 use App\Http\Controllers\Api\CompetenceController;
+use App\Http\Controllers\Api\DonController;
 use App\Http\Controllers\Api\EquipementController;
 use App\Http\Controllers\Api\ForgeController;
 use App\Http\Controllers\Api\GroupeController;
@@ -106,7 +107,6 @@ Route::middleware('auth:joueur')->group(function () {
     // Roster joueur : créer un perso libre (sans l'engager dans un groupe).
     Route::post('/personnages', [GroupeController::class, 'creerPersonnage']);
     // Portrait unique d'un héros (génération IA à la demande).
-    Route::post('/personnages/{id}/portrait', [GroupeController::class, 'genererPortrait']);
 
     // Groupes / campagnes (création → dispatch du squelette en job).
     Route::post('/groupes', [GroupeController::class, 'creer']);
@@ -134,6 +134,10 @@ Route::middleware('auth:joueur')->group(function () {
     // ses deltas de combat s'appliquent aux colonnes du héros (Equipement).
     Route::post('/groupes/{identifiant}/equipement', [EquipementController::class, 'equiper']);
     Route::delete('/groupes/{identifiant}/equipement', [EquipementController::class, 'desequiper']);
+
+    // Don d'un objet à un autre héros du groupe (doc 01 §7) — au hub : répartition
+    // du butin. Depuis SES héros vers n'importe quel héros actif du groupe.
+    Route::post('/groupes/{identifiant}/dons', [DonController::class, 'donner']);
 
     // Forge du Nain (nœud d'arbre, doc 01 §6 + doc 04 §4) — au hub uniquement,
     // améliore DÉFINITIVEMENT une pièce d'un membre actif contre de l'or commun.

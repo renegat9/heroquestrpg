@@ -12,7 +12,6 @@ use App\Jobs\GenererNarration;
 use App\Engine\Des\LanceurDes;
 use App\Jobs\HabillerMonstres;
 use App\Partie\Narration\BibliothequeNarration;
-use Illuminate\Support\Facades\Cache;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -21,6 +20,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Monstre;
 use App\Models\Parametre;
 use App\Models\Quete;
+use App\Partie\Fouille\DeckFouille;
 use App\Partie\MoteurDread;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
@@ -63,6 +63,7 @@ final class DemarreurQuete
         private readonly Sauvegarde $sauvegarde,
         private readonly BibliothequeNarration $narration,
         private readonly LanceurDes $des,
+        private readonly DeckFouille $deck,
     ) {}
 
     /**
@@ -160,7 +161,13 @@ final class DemarreurQuete
             throw new RuntimeException('Carte assemblée trop petite pour les héros du groupe.');
         }
 
-        $quete = DB::transaction(function () use ($groupe, $heros, $gabarit, $carte, $monstres, $positionArc, $typeJalon) {
+        // Deck de fouille + coffre à artefact, bâtis AVANT la transaction (deux
+        // lectures de catalogue, aucune écriture) pour être posés directement à
+        // la création de la quête — le snapshot `debut_quete` capture ainsi le
+        // deck neuf, et une reprise après TPK redonne exactement la même pioche.
+        $fouille = $this->deck->construire($gabarit, $carte, $groupe, $positionArc);
+
+        $quete = DB::transaction(function () use ($groupe, $heros, $gabarit, $carte, $monstres, $positionArc, $typeJalon, $fouille) {
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => $gabarit->id,
@@ -169,6 +176,17 @@ final class DemarreurQuete
                 'type_jalon' => $typeJalon,
                 'etat' => 'en_cours',
                 'or_initial' => $groupe->or,
+                // La salle de départ est déjà « connue » : elle est couverte par
+                // la narration de lancement. Les suivantes seront décrites à la
+                // première entrée (ResolveurTour).
+                'salles_decouvertes' => [0],
+                'tresors_fouilles' => [],
+                'deck_fouille' => $fouille['deck'],
+                'salle_artefact' => $fouille['salle_artefact'],
+                'artefact_objet_id' => $fouille['artefact_objet_id'],
+                // Budget de monstres ERRANTS dédié (doc 14 §3.2) — distinct du
+                // budget de rencontre : seul « Fouiller — trésor » le dépense.
+                'budget_errant' => (int) data_get($gabarit->structure, 'budget_errant', 0),
             ]);
 
             Carte::create([
@@ -255,20 +273,6 @@ final class DemarreurQuete
         // Usages de Dread réarmés pour cette nouvelle quête (MoteurDread).
         $this->dread->reinitialiserUsages($quete);
 
-        // La salle de départ (où les héros apparaissent) est déjà « connue » :
-        // elle est couverte par la narration de démarrage de quête. Les salles
-        // suivantes seront décrites à la première entrée (ResolveurTour).
-        Cache::put(ResolveurTour::cleSallesDecouvertes($quete->id), [0], now()->addMinutes(360));
-
-        // Budget de monstres ERRANTS dédié (doc 14 §3.2) — distinct du budget de
-        // rencontre : seul « Fouiller — trésor » le dépense. Aucune fouille de
-        // trésor déjà faite.
-        Cache::put(
-            ResolveurTour::cleBudgetErrant($quete->id),
-            (int) data_get($gabarit->structure, 'budget_errant', 0),
-            now()->addMinutes(360),
-        );
-
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'quete_demarree',
             'quete_id' => $quete->id,
@@ -277,6 +281,13 @@ final class DemarreurQuete
             'type_jalon' => $typeJalon,
             'budget' => $budget,
             'nb_monstres' => count($monstres),
+            // Trace de la fouille pour le débogage et la relecture d'une partie.
+            // La salle-coffre reste HORS d'EtatGroupe : la table ne doit pas
+            // savoir où chercher — le journal système n'est pas diffusé aux
+            // écrans de jeu.
+            'deck_taille' => count($fouille['deck']),
+            'salle_artefact' => $fouille['salle_artefact'],
+            'artefact_objet_id' => $fouille['artefact_objet_id'],
         ]);
 
         // Snapshot `debut_quete` (contrat « Snapshots & reprise ») : l'état

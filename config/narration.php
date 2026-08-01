@@ -68,6 +68,17 @@ return [
                 'Un sifflement, et le piège jaillit de la pierre — la douleur fuse.',
             ],
         ],
+        // Découverte du coffre à artefact — le sommet d'une quête. Un SEUL
+        // nouveau beat : chaque variante coûte une requête au quota Gemini TTS
+        // (100/jour), et les issues ordinaires de fouille restent sur
+        // « progression », qui existe déjà.
+        'fouille_artefact' => [
+            'ambiance' => 'victoire',
+            'variantes' => [
+                'Le couvercle cède dans un grincement millénaire : sous la poussière, une arme repose, intacte, comme si elle vous attendait.',
+                'La serrure rompt. Ce que le coffre gardait n\'a pas d\'égal dans ce donjon — et c\'est à vous, désormais.',
+            ],
+        ],
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

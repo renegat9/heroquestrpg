@@ -14,6 +14,9 @@ const props = defineProps({
     menu: { type: Object, default: null },
     /** Boutons gelés : mon choix envoyé OU le MJ réfléchit pour le groupe. */
     pending: { type: Boolean, default: false },
+    /** Créneaux du tour de MON héros ({a_joue, a_deplace, a_agi}) — grise les
+     *  options dont le créneau est déjà consommé. `null` = ne rien griser. */
+    creneaux: { type: Object, default: null },
     /** Geste du MJ en cours (job LLM), distinct d'un choix envoyé — affine le
      *  libellé du bandeau (sinon « Choix envoyé » serait trompeur). */
     thinking: { type: Boolean, default: false },
@@ -85,6 +88,40 @@ function metaOption(o) {
     return '';
 }
 
+/**
+ * Créneau consommé par cette option pour MON héros ?
+ *
+ * Miroir de `App\Partie\ResolveurTour::creneauOption()` — garder les deux en
+ * phase. Le serveur RETIRE les options d'un créneau consommé, mais le menu
+ * affiché peut dater d'avant l'action : on grise plutôt que de laisser le joueur
+ * récolter un 422 « Tu as déjà agi ce tour ».
+ *
+ * Tolérant à l'absence des drapeaux (client plus ancien que le serveur) : sans
+ * eux, rien n'est grisé — le comportement d'avant.
+ */
+function creneauConsomme(option) {
+    const moi = props.creneaux;
+    if (!moi) return false;
+    if (moi.a_joue) return true;
+
+    switch (option?.type) {
+        case 'deplacement':
+        case 'franchissement':
+            return !!moi.a_deplace;
+        // Ouvrir une porte / actionner un levier = interaction LIBRE (E2).
+        case 'ouvrir_porte':
+        case 'actionner_levier':
+            return false;
+        // Actions terminantes : disponibles tant que le tour n'est pas fini.
+        case 'concentration':
+        case 'relever':
+        case 'attente':
+            return false;
+        default:
+            return !!moi.a_agi;
+    }
+}
+
 /** Icône du journal de combat par `ton` (voir App\Partie\JournalCombat). */
 const ICONE_JOURNAL = {
     degats: 'swords',
@@ -94,6 +131,7 @@ const ICONE_JOURNAL = {
     pare: 'shield',
     succes: 'check_circle',
     echec: 'cancel',
+    tresor: 'diamond',
     info: 'chevron_right',
 };
 </script>
@@ -116,7 +154,7 @@ const ICONE_JOURNAL = {
                 :title="o.libelle"
                 :meta="metaOption(o)"
                 :el-class="classeOption(o)"
-                :disabled="pending"
+                :disabled="pending || creneauConsomme(o)"
                 @click="emit('choose', o)"
             />
         </div>
@@ -159,6 +197,8 @@ const ICONE_JOURNAL = {
 .cbt-line.t-subit  { color: oklch(0.72 0.15 25); }
 .cbt-line.t-chute  { color: oklch(0.72 0.17 20); font-weight: 700; }
 .cbt-line.t-succes { color: oklch(0.8 0.13 150); }
+/* Butin de fouille : or/potion/artefact — le seul ton « gain » du fil. */
+.cbt-line.t-tresor { color: oklch(0.85 0.14 90); font-weight: 700; }
 .cbt-line.t-echec,
 .cbt-line.t-pare   { color: var(--ink-500, oklch(0.6 0.02 70)); }
 </style>

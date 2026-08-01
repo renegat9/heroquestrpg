@@ -20,30 +20,66 @@ class ObjetSeeder extends Seeder
     {
         $objets = [
             // ----- Armes -----
-            ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 25, 'emplacement' => 'arme_principale',
+            ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 'effet' => ['des_attaque' => 1, 'jetable' => true, 'jetable_frequence' => 'une_fois_par_combat']],
-            ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'arme_principale',
+            ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 'effet' => ['des_attaque' => 1, 'attaque_diagonale' => true]],
-            ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale',
+            ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2]],
-            ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale',
+            ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'attaque_second_rang' => true]],
-            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale',
+            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
-            ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale',
+            ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'ligne_de_vue' => true, 'inutilisable_adjacent' => true]],
-            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale',
-                'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true, 'necessite_maitrise_lourde' => true]],
+            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
+
+            // ----- Artefacts : armes UNIQUES (doc 04 §4/§6) -----
+            // Jamais à l'achat (PhaseMarche filtre `rarete != unique`), jamais
+            // revendables, jamais forgeables (Forge les refuse). Seule source :
+            // le coffre désigné d'une quête — au plus UN artefact par quête.
+            //
+            // UN SEUL est verrouillé (`tag_equipement: arme_deux_mains`, donc nœud
+            // Maîtrise lourde) : le Fendoir des Titans. C'était impensable tant
+            // qu'un objet ne pouvait pas changer de mains ; le don entre héros
+            // (POST /groupes/{id}/dons) l'a rendu jouable — le magicien qui le
+            // trouve le passe au barbare. DeckFouille l'écarte du tirage quand
+            // aucun barbare n'est actif, sans quoi il resterait du butin mort.
+            //
+            // Le Bâton des Sept Sceaux est `deux_mains` mais tagué `arme_legere` :
+            // le `deux_mains` interdit le bouclier, le TAG dit qui peut porter.
+            //
+            // Rappel de règle : `des_attaque` REMPLACE la valeur du porteur
+            // (l'arme fait l'attaque, doc 03 §8) tandis que `des_defense` s'AJOUTE.
+            ['nom' => "Lame d'Aube", 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 4]],
+            ['nom' => 'Kriss du Fossoyeur', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3, 'des_defense' => 1]],
+            ['nom' => 'Arbalète des Murmures', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
+                'effet' => ['des_attaque' => 4, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
+            ['nom' => 'Bâton des Sept Sceaux', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 3, 'des_defense' => 1, 'deux_mains' => true]],
+            ['nom' => 'Marteau du Gardien de Pierre', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 4, 'des_defense' => 1, 'deux_mains' => true]],
+            ['nom' => 'Hache du Roi sous la Montagne', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 5, 'deux_mains' => true]],
+            // Sommet absolu de la courbe (6 dés), et le seul artefact VERROUILLÉ :
+            // il coûte en plus un point de compétence (nœud Maîtrise lourde, arbre
+            // barbare) — d'où un cran au-dessus de la Hache du Roi, qui ne coûte
+            // rien à personne. Valeur à playtester comme le reste.
+            ['nom' => 'Fendoir des Titans', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1600, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 6, 'deux_mains' => true]],
 
             // ----- Armures -----
-            ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'armure',
+            ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
-            ['nom' => 'Bouclier', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_secondaire',
+            ['nom' => 'Bouclier', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
                 'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true]],
-            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'armure',
+            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
-            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 850, 'emplacement' => 'armure',
-                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true, 'necessite_maitrise_lourde' => true]], // décision AP : dépl. = base seule
+            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
+                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true]], // décision AP : dépl. = base seule
 
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'sac',

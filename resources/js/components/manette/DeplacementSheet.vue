@@ -84,7 +84,16 @@ const accessibles = computed(() => {
             // mouvement à travers une porte qu'on vient d'ouvrir, comme le
             // permet le moteur serveur (docs/contrat-api.md : « on l'ouvre et on
             // poursuit son mouvement s'il reste des points »).
-            if (!caseConnue && !porteOuverteIci) continue;
+            // Filet de sécurité (§2.16) : une case VOISINE IMMÉDIATE du héros
+            // reste proposée même si la carte connue est incomplète. Sans lui,
+            // une carte partielle rendait `accessibles` VIDE et le héros ne
+            // pouvait plus bouger du tout — constaté en partie réelle, tout le
+            // groupe figé sur place avec un message parlant d'un blocage
+            // tactique. La cause serveur est corrigée par ailleurs, mais le
+            // client ne doit pas être un point de défaillance unique : le
+            // moteur revalide de toute façon chaque déplacement.
+            const voisinImmediat = d === 0 && (cases?.[ny]?.[nx] ?? 'b') !== 'm';
+            if (!caseConnue && !porteOuverteIci && !voisinImmediat) continue;
             if (occupees.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
@@ -166,14 +175,19 @@ onMounted(() => {
   background: var(--stone-900); border-top-left-radius: 18px; border-top-right-radius: 18px;
   border: var(--line); border-bottom: none; padding: 14px 14px 20px; box-shadow: var(--sh-3); }
 
-.dep-head { display: flex; align-items: center; gap: 12px; }
+/* `min-width: 0` + `flex: none` sur la croix : sans ça, le contenu de l'en-tête
+   (portée + détail du dé) refusait de se compresser sur un écran étroit et
+   poussait le bouton de fermeture HORS du viewport — mesuré à x≈471 px sur un
+   écran de 420 px, donc totalement inatteignable (verdict §2.2). */
+.dep-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dep-head > * { min-width: 0; }
 .dep-roll { display: inline-flex; align-items: baseline; gap: 6px; color: var(--torch); font-weight: 800; }
 .dep-roll .msym { font-size: 26px; align-self: center; }
 .dep-portee { font-size: 26px; font-family: var(--font-display); }
 .dep-portee-lbl { font-size: 12px; color: var(--ink-400); font-weight: 700; }
 .dep-detail { font-size: 13px; color: var(--ink-400); font-weight: 700; }
 .dep-detail span { color: var(--ink-600); }
-.dep-close { margin-left: auto; display: grid; place-items: center; width: 34px; height: 34px;
+.dep-close { margin-left: auto; flex: none; display: grid; place-items: center; width: 34px; height: 34px;
   border-radius: 999px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }
 
 .dep-hint { font-size: 12.5px; color: var(--ink-400); display: flex; align-items: center; gap: 6px; margin: 8px 0 10px; }

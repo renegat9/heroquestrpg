@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# hq <session> <commande> ['<json args>']
+# Pilote une session navigateur nommée dans le conteneur hq-driver.
+# Exemples :
+#   hq nain goto '{"url":"/joueur"}'
+#   hq nain els  '{"selector":"button.choice"}'
+#   hq nain click '{"selector":"button.choice","n":0}'
+#   hq nain text
+#   hq nain shot '{"nom":"nain-tour-3"}'
+set -u
+S="${1:?session}"; C="${2:?commande}"; A="${3:-{\}}"
+printf '%s' "{\"session\":\"$S\",\"cmd\":\"$C\",\"args\":$A}" \
+  | docker exec -i hq-driver curl -s -m 180 -X POST -H 'Content-Type: application/json' --data-binary @- http://localhost:8970/
+echo

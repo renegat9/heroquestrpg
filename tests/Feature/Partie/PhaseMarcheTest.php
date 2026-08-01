@@ -345,3 +345,63 @@ it('annule la phase sans rien appliquer', function () {
         ->and(Inventaire::where('personnage_id', $hero->id)->exists())->toBeFalse();
     $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('marche', null);
 });
+
+it('n\'expose aucun ARTEFACT à l\'étal ni à la revente, et refuse de le vendre', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 1000]);
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $artefact = donnerObjet($hero->id, "Lame d'Aube");
+    $dague = donnerObjet($hero->id, 'Dague');
+
+    $reponse = $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    // Ni à l'achat (aucun profil ne stocke d'unique)…
+    expect(collect($reponse->json('inventaire'))->pluck('rarete')->unique())->not->toContain('unique');
+
+    // …ni dans la liste vendable du panier : proposer un bouton qui échoue
+    // serait un piège.
+    $vendables = collect($reponse->json('paniers.0.inventaire'));
+    expect($vendables->pluck('nom'))->toContain('Dague')
+        ->and($vendables->pluck('nom'))->not->toContain("Lame d'Aube");
+
+    // Et le refus est côté MOTEUR, pas seulement côté affichage.
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [],
+        'ventes' => [['inventaire_id' => $artefact->id]],
+    ])->assertStatus(422)->assertJsonValidationErrors('ventes');
+
+    expect(Inventaire::whereKey($artefact->id)->exists())->toBeTrue();
+});
+
+it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises du héros via /moi', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 1000]);
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+
+    $etal = collect($this->postJson('/api/groupes/table-1/marche')->assertCreated()->json('inventaire'));
+
+    // L'étal porte la maîtrise requise : c'est elle qui pilote le badge.
+    expect($etal->firstWhere('nom', 'Épée courte')['tag_equipement'])->toBe('arme_courante')
+        ->and($etal->firstWhere('nom', 'Dague')['tag_equipement'])->toBe('arme_legere')
+        ->and($etal->firstWhere('nom', 'Casque')['tag_equipement'])->toBe('armure_legere');
+
+    // /moi rend les maîtrises du héros — MÊME source que le contrôle d'équipement.
+    $perso = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
+        ->firstWhere('id', $magicien->id);
+
+    expect($perso['equipement']['maitrises'])->toBe(['arme_legere']);
+
+    // Le badge se déduit des deux : l'épée est hors de portée du magicien…
+    expect(in_array($etal->firstWhere('nom', 'Épée courte')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeFalse()
+        // …sa dague, non.
+        ->and(in_array($etal->firstWhere('nom', 'Dague')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeTrue();
+
+    // L'achat reste LIBRE : on peut acheter pour un compagnon (le don existe).
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [['objet_id' => $etal->firstWhere('nom', 'Épée courte')['objet_id'], 'quantite' => 1]],
+        'ventes' => [],
+    ])->assertOk();
+});

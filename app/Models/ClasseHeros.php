@@ -18,5 +18,14 @@ class ClasseHeros extends Model
         'des_defense',
         'deplacement_base',
         'bonus_sac',
+        'tags_equipement',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            // Maîtrises d'équipement accessibles SANS nœud (doc 01 §7).
+            'tags_equipement' => 'array',
+        ];
+    }
 }

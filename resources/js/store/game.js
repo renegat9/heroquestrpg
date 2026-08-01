@@ -696,6 +696,9 @@ export function marcheVersEchoppe(marche) {
         // Contrat (EtatMarche) : stock null = ILLIMITÉ (rareté commun) — le
         // coercer à 0 affichait « épuisé » et gelait tout achat commun.
         stock: it.stock ?? null,
+        // Maîtrise requise pour l'équiper (null = aucune) : sert au badge
+        // « non maîtrisé », jamais à bloquer l'achat.
+        tag: it.tag_equipement ?? null,
     }));
 }
 
