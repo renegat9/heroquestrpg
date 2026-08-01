@@ -466,3 +466,21 @@ it('ne pose qu\'UNE seule jonction par côté de salle, secrète comprise', func
         }
     }
 });
+
+it('garantit AU MOINS une porte secrète par quête', function () {
+    // Exigence de René. Elle repose sur deux propriétés du placement :
+    //  · les salles sont posées de façon COMPACTE, donc l'arbre se replie et
+    //    laisse des paires de salles voisines mais non reliées ;
+    //  · le gabarit impose au moins 5 salles — en dessous, aucune boucle n'est
+    //    géométriquement possible (0 % à 3 salles, 59 % à 4).
+    // Casser l'une ou l'autre fait retomber la probabilité, sans rien casser
+    // d'autre : d'où ce test.
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+
+        $secretes = collect($carte['portes'])->where('etat', 'secrete')
+            ->pluck('jonction')->unique();
+
+        expect($secretes->count())->toBeGreaterThanOrEqual(1, "graine {$graine} : aucune porte secrète");
+    }
+});

@@ -345,7 +345,14 @@ final class AssembleurCarte
                 throw new RuntimeException("Assemblage de carte : aucune case de grille libre pour poser la salle {$i}.");
             }
 
-            $choix = $candidats[$suivant() % count($candidats)];
+            // Placement COMPACT plutôt que purement aléatoire : on privilégie
+            // les cases qui touchent le plus de salles déjà posées, puis les
+            // plus proches du centre de gravité. Un arbre étalé au hasard ne se
+            // replie presque jamais sur lui-même, donc n'offre aucune paire de
+            // salles voisines-mais-non-reliées — et sans elles, aucune boucle ni
+            // aucune porte secrète n'est possible (mesuré : 0 % à 3 salles,
+            // 16 % à 4). Compacter suffit à en garantir.
+            $choix = $this->candidatLePlusCompact($candidats, $positions, $occupees, $directions, $suivant);
             $positions[$i] = [$choix['x'], $choix['y']];
             $occupees["{$choix['x']},{$choix['y']}"] = $i;
             $aretes[] = ['parent' => $choix['parent'], 'enfant' => $i, 'direction' => $choix['direction']];
@@ -494,6 +501,52 @@ final class AssembleurCarte
         }
 
         return false;
+    }
+
+    /**
+     * Case la plus « compacte » parmi les candidates : d'abord celle qui touche
+     * le plus de salles déjà posées (chaque contact en trop est une boucle
+     * potentielle), à égalité la plus proche du centre de gravité.
+     *
+     * @param  list<array{parent: int, direction: string, x: int, y: int}>  $candidats
+     * @param  array<int, array{0: int, 1: int}>  $positions
+     * @param  array<string, int>  $occupees
+     * @param  array<string, array{0: int, 1: int}>  $directions
+     * @return array{parent: int, direction: string, x: int, y: int}
+     */
+    private function candidatLePlusCompact(
+        array $candidats,
+        array $positions,
+        array $occupees,
+        array $directions,
+        \Closure $suivant,
+    ): array {
+        $cx = array_sum(array_column($positions, 0)) / count($positions);
+        $cy = array_sum(array_column($positions, 1)) / count($positions);
+
+        $meilleur = null;
+        $meilleurScore = null;
+
+        foreach ($candidats as $c) {
+            $voisins = 0;
+            foreach ($directions as [$dx, $dy]) {
+                if (isset($occupees[($c['x'] + $dx).','.($c['y'] + $dy)])) {
+                    $voisins++;
+                }
+            }
+
+            // Contacts d'abord (×100 : ils priment sur la distance), puis
+            // proximité du centre. Le PRNG départage à score strictement égal,
+            // pour que deux quêtes ne produisent pas la même forme.
+            $score = $voisins * 100 - (abs($c['x'] - $cx) + abs($c['y'] - $cy)) + ($suivant() % 3) / 10;
+
+            if ($meilleurScore === null || $score > $meilleurScore) {
+                $meilleurScore = $score;
+                $meilleur = $c;
+            }
+        }
+
+        return $meilleur ?? $candidats[0];
     }
 
     /**

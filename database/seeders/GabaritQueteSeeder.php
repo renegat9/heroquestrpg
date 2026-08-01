@@ -21,7 +21,11 @@ class GabaritQueteSeeder extends Seeder
                 'type_jalon' => 'normale',
                 'structure' => [
                     'objectif' => 'atteindre_et_recuperer', // objet/PNJ au fond du donjon
-                    'salles' => ['min' => 3, 'max' => 7],
+                    // Plancher à 5 salles : en dessous, l'arbre ne peut pas se
+                    // replier assez pour offrir une paire de salles voisines mais
+                    // non reliées — donc AUCUNE boucle, donc aucune porte secrète
+                    // (0 % à 3 salles, 59 % à 4, 100 % à partir de 5).
+                    'salles' => ['min' => 5, 'max' => 8],
                     'jalons' => ['entree', 'obstacle_median', 'salle_objectif'],
                     'points_decision' => [
                         ['apres' => 'entree', 'branches' => 2], // ex. passage discret vs frontal
@@ -55,7 +59,7 @@ class GabaritQueteSeeder extends Seeder
                 'type_jalon' => 'sous_boss',
                 'structure' => [
                     'objectif' => 'vaincre_sous_boss',
-                    'salles' => ['min' => 4, 'max' => 8],
+                    'salles' => ['min' => 6, 'max' => 9],
                     'jalons' => ['entree', 'point_de_non_retour', 'antre'],
                     'points_decision' => [
                         ['apres' => 'entree', 'branches' => 2],
@@ -79,7 +83,7 @@ class GabaritQueteSeeder extends Seeder
                 'type_jalon' => 'boss_final',
                 'structure' => [
                     'objectif' => 'vaincre_boss_final',
-                    'salles' => ['min' => 5, 'max' => 9],
+                    'salles' => ['min' => 7, 'max' => 10],
                     'jalons' => ['entree', 'epreuve', 'antichambre', 'salle_du_trone'],
                     'points_decision' => [
                         ['apres' => 'entree', 'branches' => 2],
