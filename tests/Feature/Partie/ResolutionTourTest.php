@@ -223,8 +223,12 @@ it('résout une attaque adjacente qui tue, et termine la quête (butin au pot co
     $reponse->assertJsonPath('resultat.type', 'attaque')
         ->assertJsonPath('resultat.degats', 1)
         ->assertJsonPath('resultat.cible_vaincue', true)
-        ->assertJsonPath('resultat.quete.etat', 'terminee')
-        ->assertJsonPath('resultat.quete.or_butin', 50); // butin du gabarit « Exploration simple »
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // Le butin tombe à la clôture, déclenchée par le vote de sortie.
+    $fin = acheverLaQuete($groupe);
+    expect($fin['etat'])->toBe('terminee')
+        ->and($fin['or_butin'])->toBe(50); // butin du gabarit « Exploration simple »
 
     // Fin de quête : tous les monstres vaincus → retour au hub, or au pot.
     expect($proie->fresh()->etat)->toBe('vaincu')
@@ -333,4 +337,54 @@ it('fait jouer les monstres scriptés (C2) quand tous les héros ont joué, puis
     expect($etat->a_joue)->toBeFalse()
         ->and($groupe->evenements()->where('type', 'systeme')->get()
             ->contains(fn ($e) => ($e->payload['action'] ?? null) === 'nouveau_tour'))->toBeTrue();
+});
+
+it('laisse le groupe fouiller après le dernier monstre, et sort par un VOTE', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
+
+    // Dernier monstre, affaibli, au contact du héros.
+    $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+    $contact = caseLibreAdjacente($quete, (int) $etat->position_x, (int) $etat->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    figerDes([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+        ->assertStatus(202)
+        // La quête ne se termine PLUS d'elle-même : sans cette fenêtre, un
+        // groupe qui achevait le dernier garde perdait tout ce qu'il n'avait
+        // pas fouillé — coffre à artefact et portes secrètes compris.
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    expect($groupe->fresh()->phase)->toBe('quete')
+        ->and($quete->fresh()->etat)->toBe('en_cours');
+
+    // Le menu propose désormais de rentrer.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->pluck('id');
+    expect($ids)->toContain('quitter_donjon');
+
+    // Proposer la sortie ouvre un vote de groupe, il ne clôt pas tout seul.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'quitter_donjon'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'sortie');
+
+    expect($quete->fresh()->etat)->toBe('en_cours');
+
+    // À l'unanimité, la quête se clôt.
+    $this->postJson('/api/groupes/table-1/votes/bulletin', ['option_id' => 'oui'])->assertOk();
+
+    expect($quete->fresh()->etat)->toBe('terminee')
+        ->and($groupe->fresh()->phase)->toBe('hub');
 });

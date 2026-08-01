@@ -27,6 +27,7 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -219,6 +220,7 @@ final class ResolveurTour
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
@@ -242,7 +244,7 @@ final class ResolveurTour
 
             // Fin de quête : plus aucun monstre actif → victoire.
             if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-                $resultat['quete'] = $this->terminerQuete($groupe, $quete);
+                $resultat['donjon_nettoye'] = true;
 
                 return $resultat;
             }
@@ -1899,7 +1901,7 @@ final class ResolveurTour
         $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
 
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            $resultat['quete'] = $this->terminerQuete($groupe, $quete);
+            $resultat['donjon_nettoye'] = true;
 
             return $resultat;
         }
@@ -2390,7 +2392,8 @@ final class ResolveurTour
             // Ouvrir une porte / actionner un levier = interaction LIBRE (E2) :
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
-            'ouvrir_porte', 'actionner_levier' => 'interaction',
+            // Proposer de rentrer ne coûte rien : le donjon est déjà nettoyé.
+            'ouvrir_porte', 'actionner_levier', 'sortie' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -2512,6 +2515,44 @@ final class ResolveurTour
      * @param  array{x: int, y: int, cote?: string}  $porte
      * @return list<int>
      */
+    /**
+     * « Quitter le donjon » — le donjon nettoyé, un héros PROPOSE de rentrer.
+     *
+     * La quête ne se termine plus d'elle-même à la mort du dernier monstre :
+     * sans cette fenêtre, un groupe qui achevait le dernier garde perdait tout
+     * ce qu'il n'avait pas encore fouillé — coffre à artefact et portes
+     * secrètes compris, alors que rien n'oblige à explorer pour gagner.
+     *
+     * Le départ passe par un VOTE (décision de René) : personne ne se fait
+     * couper sa fouille par un compagnon pressé.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, array $option, array $acteur): array
+    {
+        if ($quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Des ennemis tiennent encore le donjon.',
+            ]);
+        }
+
+        // Résolu par VoteGroupe, qui appellera terminerQuete() à la majorité.
+        $vote = app(VoteGroupe::class)->lancerSortie($groupe, $acteur);
+
+        $payload = [
+            'type' => 'sortie',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'vote' => $vote,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     /**
      * Révèle les salles bordant les portes qui viennent d'être OUVERTES.
      *
@@ -2636,7 +2677,7 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function terminerQuete(Groupe $groupe, Quete $quete): array
+    public function terminerQuete(Groupe $groupe, Quete $quete): array
     {
         $orButin = (int) data_get($quete->gabarit?->structure, 'butin.or_base', 0);
 
@@ -2705,7 +2746,7 @@ final class ResolveurTour
 
         // Les alliés ont pu nettoyer le dernier monstre → victoire avant les monstres.
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            $resultat['quete'] = $this->terminerQuete($groupe, $quete);
+            $resultat['donjon_nettoye'] = true;
 
             return $resultat;
         }

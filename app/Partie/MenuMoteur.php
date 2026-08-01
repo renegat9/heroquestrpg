@@ -486,6 +486,24 @@ final class MenuMoteur
 
         // Terminer le tour tant qu'il RESTE un créneau (renonce au reste). Une
         // fois le tour joué (a_joue), aucune option : le tour est fini.
+        // Donjon nettoyé : proposer de rentrer. La quête ne s'arrête plus d'elle
+        // -même à la mort du dernier monstre — les héros gardent la main pour
+        // fouiller ce qu'ils n'avaient pas encore vu (coffre à artefact, portes
+        // secrètes), et c'est un vote de groupe qui clôt.
+        //
+        // L'option DISPARAÎT si un monstre errant surgit d'une fouille : il faut
+        // d'abord le régler.
+        // Gratuit comme une interaction : le combat est fini, il n'y a plus rien
+        // à faire de son action — exiger un créneau libre n'ajouterait qu'un
+        // tour d'attente. Seul un tour TERMINÉ ferme l'option.
+        if (! $aJoue && ! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            $options[] = [
+                'id' => 'quitter_donjon',
+                'libelle' => 'Quitter le donjon — proposer au groupe',
+                'type' => 'sortie',
+            ];
+        }
+
         if (! $aJoue) {
             $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
         }

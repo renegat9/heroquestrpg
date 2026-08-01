@@ -73,9 +73,14 @@ it('monte chaque héros de +1 niveau à la victoire d\'une quête sous_boss (+1 
     ])->assertStatus(202);
 
     // La montée est résolue par le moteur à la clôture victorieuse du jalon.
-    $reponse->assertJsonPath('resultat.quete.etat', 'terminee')
-        ->assertJsonPath('resultat.quete.niveaux.personnages.0.niveau', 2)
-        ->assertJsonPath('resultat.quete.niveaux.personnages.0.points_competence', 1);
+    $reponse->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La montée se joue à la CLÔTURE, que le groupe déclenche en votant la
+    // sortie — la quête ne s'arrête plus d'elle-même au dernier monstre.
+    $fin = acheverLaQuete($groupe);
+    expect($fin['etat'])->toBe('terminee')
+        ->and($fin['niveaux']['personnages'][0]['niveau'])->toBe(2)
+        ->and($fin['niveaux']['personnages'][0]['points_competence'])->toBe(1);
 
     // Niveau 2 = PAIR : +1 PV de Body max pour un barbare, le courant suit.
     $hero->refresh();
@@ -129,8 +134,11 @@ it('ne monte pas de niveau à la victoire d\'une quête normale', function () {
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee')
-        ->assertJsonPath('resultat.quete.niveaux', null);
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    $fin = acheverLaQuete($groupe);
+    expect($fin['etat'])->toBe('terminee')
+        ->and($fin['niveaux'] ?? null)->toBeNull();
 
     expect((int) $hero->fresh()->niveau)->toBe(1);
     Event::assertNotDispatched(NiveauMonte::class);

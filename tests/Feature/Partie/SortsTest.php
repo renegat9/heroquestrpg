@@ -259,7 +259,10 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
         ->assertJsonPath('resultat.des_degats', 2)
         ->assertJsonPath('resultat.cible.type', 'monstre')
         ->assertJsonPath('resultat.cible_vaincue', true)
-        ->assertJsonPath('resultat.quete.etat', 'terminee'); // dernier monstre → victoire
+        ->assertJsonPath('resultat.donjon_nettoye', true); // dernier monstre → victoire
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 
     expect($proie->fresh()->etat)->toBe('vaincu')
         ->and((bool) $mage->sorts()->whereKey($sortId)->first()->pivot->disponible)->toBeFalse()
@@ -446,7 +449,10 @@ it('réinitialise sorts, buffs et Concentration au démarrage de la quête suiva
     $quete->instancesMonstres()->update(['etat' => 'vaincu']);
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 
     expect($mage->sorts()->wherePivot('disponible', true)->count())->toBe(0);
 

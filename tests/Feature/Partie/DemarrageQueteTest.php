@@ -194,7 +194,10 @@ it('remet les héros à plein PV au démarrage de CHAQUE quête suivante (P2, do
     $quete1->instancesMonstres()->update(['etat' => 'vaincu']);
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 
     expect($groupe->fresh()->phase)->toBe('hub');
 

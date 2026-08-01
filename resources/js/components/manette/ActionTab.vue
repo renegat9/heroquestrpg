@@ -111,6 +111,7 @@ function creneauConsomme(option) {
         // Ouvrir une porte / actionner un levier = interaction LIBRE (E2).
         case 'ouvrir_porte':
         case 'actionner_levier':
+        case 'sortie':
             return false;
         // Actions terminantes : disponibles tant que le tour n'est pas fini.
         case 'concentration':

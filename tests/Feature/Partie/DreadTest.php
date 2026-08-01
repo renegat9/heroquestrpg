@@ -846,7 +846,10 @@ it('usages Dread réinitialisés au démarrage d\'une nouvelle quête', function
     test()->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 
     test()->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/quetes')->assertCreated();

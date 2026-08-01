@@ -82,7 +82,10 @@ function gagnerQueteCourante(JoueurAuthentifiable $joueur, Groupe $groupe, Perso
 
     test()->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => "attaquer_{$proie->id}"])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 }
 
 it('ouvre automatiquement la fenêtre de clôture à la victoire du boss final', function () {

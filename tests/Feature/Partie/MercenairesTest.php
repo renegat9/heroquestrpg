@@ -244,6 +244,10 @@ it('consomme les alliés en fin de quête (victoire)', function () {
     desFiges(array_fill(0, 20, 4));
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
+    // Le donjon est nettoyé mais la quête reste ouverte : le groupe vote la
+    // sortie quand il a fini de fouiller.
+    acheverLaQuete($groupe);
+
     expect($groupe->fresh()->phase)->toBe('hub')
         // Alliés consommés en fin de quête.
         ->and($groupe->fresh()->mercenaires()->count())->toBe(0);

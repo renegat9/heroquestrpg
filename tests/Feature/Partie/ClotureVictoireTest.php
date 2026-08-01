@@ -55,7 +55,10 @@ it('le coup fatal au boss final ouvre AUTOMATIQUEMENT une clôture victoire (flu
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
+
+    // La quête ne se clôt plus d'elle-même : le groupe vote la sortie.
+    acheverLaQuete($groupe);
 
     expect($groupe->fresh()->phase)->toBe('hub');
 

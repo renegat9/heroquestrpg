@@ -43,6 +43,9 @@ final class VoteGroupe
     /** Durée de vie d'un vote sans résolution (séance de jeu). */
     public const TTL_MINUTES = 360;
 
+    /** Vote de fin de quête : rentrer au hub une fois le donjon nettoyé. */
+    public const TYPE_SORTIE = 'sortie_donjon';
+
     public function __construct(
         private readonly EtatGroupe $etatGroupe,
         private readonly ClotureCampagne $cloture,
@@ -85,6 +88,56 @@ final class VoteGroupe
             'type' => $vote['type'],
             'question' => $vote['question'],
             'cible_joueur_id' => $vote['cible_joueur_id'],
+            'lance_par' => $vote['lance_par'],
+        ]);
+
+        $payload = $this->payload($vote);
+        broadcast(new VoteLance($groupe, ['vote' => $payload]));
+
+        return $payload;
+    }
+
+    /**
+     * Vote de SORTIE du donjon, lancé par le moteur quand un héros propose de
+     * rentrer (le donjon est nettoyé).
+     *
+     * La quête ne se termine plus d'elle-même à la mort du dernier monstre :
+     * les héros gardent la main pour fouiller, et c'est ce vote qui clôt. Le
+     * départ étant collectif, personne ne se fait couper sa fouille.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    public function lancerSortie(Groupe $groupe, array $acteur): array
+    {
+        if (Cache::has(self::cle($groupe->id))) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Un vote est déjà en cours dans ce groupe.',
+            ]);
+        }
+
+        $membres = $this->membres($groupe);
+
+        $vote = [
+            'type' => self::TYPE_SORTIE,
+            'question' => 'Quitter le donjon et rentrer au hub ?',
+            'options' => [
+                ['id' => 'oui', 'libelle' => 'Oui, on rentre'],
+                ['id' => 'non', 'libelle' => 'Non, on fouille encore'],
+            ],
+            'cible_joueur_id' => null,
+            'votants' => $membres->pluck('id')->map(fn ($i) => (int) $i)->all(),
+            'lance_par' => (int) ($acteur['id'] ?? 0),
+            'bulletins' => [],
+        ];
+
+        Cache::put(self::cle($groupe->id), $vote, now()->addMinutes(self::TTL_MINUTES));
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'vote_lance',
+            'type' => $vote['type'],
+            'question' => $vote['question'],
+            'cible_joueur_id' => null,
             'lance_par' => $vote['lance_par'],
         ]);
 
@@ -314,6 +367,34 @@ final class VoteGroupe
                 } else {
                     broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
                 }
+            }
+
+            return $resultat;
+        }
+
+        if ($vote['type'] === self::TYPE_SORTIE) {
+            // Majorité STRICTE pour partir ; égalité = on reste et on fouille
+            // encore. Un vote de sortie ne doit jamais dépouiller la minorité
+            // de ce qu'elle n'a pas fini d'explorer.
+            $applique = ($decompte['oui'] ?? 0) > ($decompte['non'] ?? 0);
+            $resultat = ['option_id' => $applique ? 'oui' : 'non', 'applique' => $applique];
+
+            $quete = $groupe->queteCourante;
+            if ($applique && $quete !== null) {
+                $resultat['quete'] = app(\App\Partie\ResolveurTour::class)->terminerQuete($groupe, $quete);
+            }
+
+            Journal::ajouter($groupe->fresh(), 'systeme', [
+                'action' => 'vote_resultat',
+                'type' => $vote['type'],
+                'decompte' => $decompte,
+                ...$resultat,
+            ]);
+
+            broadcast(new VoteResultat($groupe, $resultat));
+
+            if (! $applique) {
+                broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
             }
 
             return $resultat;

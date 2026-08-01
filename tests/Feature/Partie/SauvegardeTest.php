@@ -387,9 +387,10 @@ it('purge les snapshots de la quête à la fin de la quête (victoire)', functio
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.quete.etat', 'terminee');
+        ->assertJsonPath('resultat.donjon_nettoye', true);
 
-    // Quête gagnée → les snapshots de la quête sont purgés.
+    // Quête gagnée PUIS quittée → les snapshots de la quête sont purgés.
+    acheverLaQuete($groupe);
     expect(Snapshot::where('groupe_id', $groupe->id)->count())->toBe(0);
 });
 

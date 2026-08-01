@@ -264,3 +264,26 @@ function poserCoffreArtefact(Quete $quete, int $salle, ?int $objetId): void
     $quete->update(['salle_artefact' => $salle, 'artefact_objet_id' => $objetId]);
     $quete->refresh();
 }
+
+/**
+ * Achève la quête courante comme le ferait le vote de sortie.
+ *
+ * Depuis que la quête ne se termine plus d'elle-même à la mort du dernier
+ * monstre (les héros gardent la main pour fouiller), les tests qui portent sur
+ * les EFFETS de fin de quête — butin, montée de niveau, purge des snapshots,
+ * clôture — doivent la clore explicitement. Le rituel du vote, lui, a son
+ * propre test.
+ *
+ * @return array<string, mixed>
+ */
+function acheverLaQuete(Groupe $groupe): array
+{
+    $groupe = $groupe->fresh();
+    $quete = $groupe->queteCourante;
+
+    if ($quete === null) {
+        return [];
+    }
+
+    return app(App\Partie\ResolveurTour::class)->terminerQuete($groupe, $quete);
+}
