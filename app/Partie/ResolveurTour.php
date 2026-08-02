@@ -1714,8 +1714,11 @@ final class ResolveurTour
         }
         $quete->marquerTresorFouille($salle);
 
-        $carte = $quete->estSalleArtefact($salle)
-            ? $this->deck->carteCoffre($quete)
+        // Une salle à COFFRE ne consomme aucune carte du deck : son butin est un
+        // bonus net. La salle du fond rend l'arme unique, celles ouvertes par une
+        // porte secrète rendent or ou potion.
+        $carte = $quete->estSalleCoffre($salle)
+            ? $this->deck->carteCoffre($quete, $salle)
             : $this->deck->piocher($quete);
 
         $issue = (string) ($carte['issue'] ?? 'rien');
@@ -2532,9 +2535,11 @@ final class ResolveurTour
      */
     private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, array $option, array $acteur): array
     {
-        if ($quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+        $vide = ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
+
+        if (! $quete->objectifAccompli() && ! $vide) {
             throw ValidationException::withMessages([
-                'option_id' => 'Des ennemis tiennent encore le donjon.',
+                'option_id' => 'Vous n\'avez pas encore accompli ce pourquoi vous êtes venus.',
             ]);
         }
 

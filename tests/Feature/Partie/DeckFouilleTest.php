@@ -434,3 +434,46 @@ it('attribue l\'arme à maîtrise lourde dès qu\'un barbare est actif', functio
 
     expect($choix['artefact_objet_id'])->toBe($fendoir->id);
 });
+
+it('place un coffre derrière CHAQUE porte secrète, en plus de celui du fond', function () {
+    [, $groupe, , $quete, ] = demarrerFouille();
+
+    $carte = $quete->carte->grille;
+    $choix = app(DeckFouille::class)->construire($quete->gabarit, $carte, $groupe, 1);
+
+    // Trouver un passage caché ne rapportait rien — juste un raccourci. Le
+    // coffre est ce qui paie la fouille.
+    $aretes = $carte['aretes'];
+    $attendues = collect($carte['portes'])->where('etat', 'secrete')->pluck('jonction')->unique()
+        ->map(fn ($j) => $aretes[$j] ?? null)->filter()
+        ->map(fn ($a) => [(int) $a['a'], (int) $a['b']]);
+
+    foreach ($attendues as [$a, $b]) {
+        expect(array_intersect([$a, $b], $choix['salles_coffre']))->not->toBeEmpty();
+    }
+
+    // La salle du fond en garde un, et jamais la salle de départ.
+    expect($choix['salles_coffre'])->toContain($choix['salle_artefact'])
+        ->and($choix['salles_coffre'])->not->toContain(0);
+});
+
+it('rend or ou potion dans un coffre ordinaire, l\'arme unique n\'étant que dans celui du fond', function () {
+    [, , $hero, $quete, $etat] = demarrerFouille();
+
+    // Une salle à coffre qui n'est PAS celle de l'artefact.
+    $autre = collect(range(1, count($quete->carte->grille['salles']) - 1))
+        ->first(fn ($s) => $s !== (int) $quete->salle_artefact);
+    $quete->update(['salles_coffre' => [$autre]]);
+
+    deplacerVersSalle($quete->fresh(), $etat, (int) $autre);
+    $resultat = fouiller();
+
+    // L'arme unique récompense la progression jusqu'au fond, pas un raccourci.
+    expect($resultat['coffre'])->toBeTrue()
+        ->and($resultat['issue'])->toBeIn(['tresor', 'potion'])
+        ->and($resultat['issue'])->not->toBe('artefact');
+
+    if ($resultat['issue'] === 'potion') {
+        expect(Inventaire::where('personnage_id', $hero->id)->exists())->toBeTrue();
+    }
+});

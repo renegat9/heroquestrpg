@@ -10,6 +10,7 @@ use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
+use App\Partie\MoteurPortes;
 
 /**
  * Deck de cartes de fouille + coffre à artefact (doc 04 §4/§6, doc 14 §3.2).
@@ -57,7 +58,76 @@ final class DeckFouille
             'deck' => $deck,
             'salle_artefact' => $salleArtefact,
             'artefact_objet_id' => $artefactId,
+            'salles_coffre' => $this->sallesACoffre($carte, $salleArtefact),
         ];
+    }
+
+    /**
+     * Salles abritant un coffre : la salle-artefact, plus toute salle située
+     * DERRIÈRE une porte secrète.
+     *
+     * Trouver un passage caché ne rapportait rien — juste un raccourci. Le
+     * coffre est ce qui paie la fouille. « Derrière » = celle des deux salles
+     * de la jonction la plus éloignée du départ.
+     *
+     * @param  array<string, mixed>  $carte
+     * @return list<int>
+     */
+    private function sallesACoffre(array $carte, ?int $salleArtefact): array
+    {
+        $profondeurs = $this->profondeurs($carte);
+        $aretes = (array) data_get($carte, 'aretes', []);
+        $salles = $salleArtefact === null ? [] : [$salleArtefact];
+
+        foreach ((array) data_get($carte, 'portes', []) as $porte) {
+            if (($porte['etat'] ?? '') !== MoteurPortes::ETAT_SECRETE) {
+                continue;
+            }
+
+            $arete = $aretes[$porte['jonction'] ?? -1] ?? null;
+            if ($arete === null) {
+                continue;
+            }
+
+            $a = (int) $arete['a'];
+            $b = (int) $arete['b'];
+            $salles[] = ($profondeurs[$a] ?? 0) >= ($profondeurs[$b] ?? 0) ? $a : $b;
+        }
+
+        // Jamais la salle de départ : on ne cache pas un coffre là où le groupe
+        // commence, et une porte secrète y menant en ferait un faux trésor.
+        return array_values(array_filter(array_unique($salles), fn (int $s) => $s !== 0));
+    }
+
+    /**
+     * Profondeur de chaque salle depuis le départ (parcours en largeur sur les
+     * arêtes de l'arbre).
+     *
+     * @param  array<string, mixed>  $carte
+     * @return array<int, int>
+     */
+    private function profondeurs(array $carte): array
+    {
+        $voisins = [];
+        foreach ((array) data_get($carte, 'aretes', []) as $arete) {
+            $voisins[(int) $arete['a']][] = (int) $arete['b'];
+            $voisins[(int) $arete['b']][] = (int) $arete['a'];
+        }
+
+        $profondeur = [0 => 0];
+        $file = [0];
+
+        while ($file !== []) {
+            $courant = array_shift($file);
+            foreach ($voisins[$courant] ?? [] as $voisin) {
+                if (! isset($profondeur[$voisin])) {
+                    $profondeur[$voisin] = $profondeur[$courant] + 1;
+                    $file[] = $voisin;
+                }
+            }
+        }
+
+        return $profondeur;
     }
 
     /**
@@ -65,12 +135,34 @@ final class DeckFouille
      *
      * @return array<string, mixed>
      */
-    public function carteCoffre(Quete $quete): array
+    public function carteCoffre(Quete $quete, ?int $salle = null): array
     {
-        $objet = $quete->artefact_objet_id === null ? null : Objet::find($quete->artefact_objet_id);
+        // L'ARME UNIQUE est réservée au coffre du fond (la salle-artefact) :
+        // c'est la récompense de la progression, pas d'un raccourci trouvé.
+        $estArtefact = $salle === null || $quete->estSalleArtefact($salle);
+        $objet = $estArtefact && $quete->artefact_objet_id !== null
+            ? Objet::find($quete->artefact_objet_id)
+            : null;
 
         if ($objet !== null) {
             return ['issue' => 'artefact', 'objet_id' => $objet->id, 'coffre' => true];
+        }
+
+        // Coffre ORDINAIRE (derrière une porte secrète) : une potion une fois
+        // sur deux, sinon de l'or. Un coffre ne rend jamais rien — le trouver
+        // est déjà l'épreuve.
+        if (! $estArtefact) {
+            $potions = Objet::query()
+                ->whereIn('nom', (array) data_get($quete->gabarit?->structure, 'deck_fouille.potions', []))
+                ->orderBy('id')->pluck('id')->all();
+
+            if ($potions !== [] && $salle % 2 === 0) {
+                return ['issue' => 'potion', 'objet_id' => $potions[$salle % count($potions)], 'coffre' => true];
+            }
+
+            $or = max(1, (int) data_get($quete->gabarit?->structure, 'deck_fouille.or', 30)) * 2;
+
+            return ['issue' => 'tresor', 'or' => $or, 'coffre' => true];
         }
 
         $or = (int) data_get($quete->gabarit?->structure, 'deck_fouille.or_coffre', 0);

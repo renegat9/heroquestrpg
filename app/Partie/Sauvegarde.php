@@ -299,6 +299,7 @@ final class Sauvegarde
                 'tresors_fouilles' => $quete->tresorsFouilles(),
                 'deck_fouille' => $quete->deckFouille(),
                 'salle_artefact' => $quete->salle_artefact,
+                'salles_coffre' => $quete->sallesCoffre(),
                 'artefact_objet_id' => $quete->artefact_objet_id,
                 'budget_errant' => $quete->budgetErrant(),
             ],
@@ -418,7 +419,7 @@ final class Sauvegarde
             $champs['tresors_fouilles'] = [];
         }
 
-        foreach (['deck_fouille', 'salle_artefact', 'artefact_objet_id', 'budget_errant'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id', 'budget_errant'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }

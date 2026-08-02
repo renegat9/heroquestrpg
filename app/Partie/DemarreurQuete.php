@@ -184,6 +184,7 @@ final class DemarreurQuete
                 'deck_fouille' => $fouille['deck'],
                 'salle_artefact' => $fouille['salle_artefact'],
                 'artefact_objet_id' => $fouille['artefact_objet_id'],
+                'salles_coffre' => $fouille['salles_coffre'],
                 // Budget de monstres ERRANTS dédié (doc 14 §3.2) — distinct du
                 // budget de rencontre : seul « Fouiller — trésor » le dépense.
                 'budget_errant' => (int) data_get($gabarit->structure, 'budget_errant', 0),

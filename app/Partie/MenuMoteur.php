@@ -496,7 +496,14 @@ final class MenuMoteur
         // Gratuit comme une interaction : le combat est fini, il n'y a plus rien
         // à faire de son action — exiger un créneau libre n'ajouterait qu'un
         // tour d'attente. Seul un tour TERMINÉ ferme l'option.
-        if (! $aJoue && ! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+        $peutSortir = $quete->objectifAccompli()
+            // REPLI anti-blocage : un donjon entièrement vidé libère la sortie
+            // même si l'objectif reste hors d'atteinte (coffre inaccessible,
+            // boss disparu d'une carte malformée). Mieux vaut rentrer bredouille
+            // qu'être enfermé à vie.
+            || ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
+
+        if (! $aJoue && $peutSortir) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',
