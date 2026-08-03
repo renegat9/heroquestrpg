@@ -50,6 +50,41 @@ it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', fun
     expect((int) $etat->fresh()->deplacement_tour)->toBe(8);
 });
 
+it('Armure de plates : le héros avance de sa base SEULE, sans lancer le 1d6', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1); // deplacement_base = 4
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+
+    // Armure ENFILÉE directement : on teste la règle de déplacement, pas la
+    // maîtrise d'équipement (qui a ses propres tests).
+    $this->seed(Database\Seeders\ObjetSeeder::class);
+    App\Models\Inventaire::create([
+        'personnage_id' => $hero->id,
+        'objet_id' => App\Models\Objet::where('nom', 'Armure de plates')->firstOrFail()->id,
+        'emplacement' => 'armure',
+        'quantite' => 1,
+    ]);
+
+    $etat->update(['deplacement_tour' => null, 'a_joue' => false]);
+    desFiges([6]); // un 6 : s'il était lu, l'allonce serait 10 au lieu de 4
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    $dep = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('type', 'deplacement');
+
+    // `de` à null est ce que le menu annonçait DÉJÀ (« null si Armure de
+    // plates ») alors qu'aucun appelant ne passait le drapeau : le dé était
+    // bel et bien lancé et ajouté. L'armure la plus chère n'avait aucun défaut.
+    expect($dep['parametres']['base'])->toBe(4)
+        ->and($dep['parametres']['de'])->toBeNull()
+        ->and($dep['parametres']['portee'])->toBe(4)
+        ->and((int) $etat->fresh()->deplacement_tour)->toBe(4);
+});
+
 it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se déplacer (E1)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

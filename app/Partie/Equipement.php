@@ -250,6 +250,25 @@ final class Equipement
      * Les améliorations de Forge (`bonus_des_attaque` / `bonus_des_defense`,
      * portées par la ligne d'inventaire) s'ajoutent par-dessus dans les deux cas.
      */
+    /**
+     * Une pièce ÉQUIPÉE porte-t-elle cet effet booléen ?
+     *
+     * Les effets d'objet chiffrés (`des_attaque`, `des_defense`) sont recopiés
+     * sur les colonnes du personnage par `recalculerCombat`, mais les effets
+     * BOOLÉENS n'ont nulle part où se poser — d'où cette interrogation directe
+     * de l'équipement porté, au moment où la règle s'applique.
+     *
+     * Premier usage : `deplacement_sans_d6` de l'Armure de plates.
+     */
+    public function effetPorte(Personnage $personnage, string $cle): bool
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->contains(fn ($ligne) => (bool) (($ligne->objet?->effet ?? [])[$cle] ?? false));
+    }
+
     public function recalculerCombat(Personnage $personnage): void
     {
         $base = ClasseHeros::where('nom', $personnage->classe)->first();

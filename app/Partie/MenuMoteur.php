@@ -32,6 +32,7 @@ final class MenuMoteur
         private readonly MoteurPortes $portes,
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
+        private readonly Equipement $equipement,
     ) {}
 
     /**
@@ -134,7 +135,13 @@ final class MenuMoteur
         }
 
         if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue) {
-            $etat->update(['deplacement_tour' => (new Deplacement($this->des))->calculer($base)->total]);
+            // Armure de plates : base SEULE, sans le 1d6 (doc 03 §3). `Deplacement`
+            // sait le faire depuis toujours, mais aucun appelant ne le lui avait
+            // jamais dit — le malus n'avait donc jamais joué, et l'armure la plus
+            // chère n'avait que des avantages.
+            $etat->update(['deplacement_tour' => (new Deplacement($this->des))
+                ->calculer($base, $this->equipement->effetPorte($personnage, 'deplacement_sans_d6'))
+                ->total]);
         }
 
         $total = $etat->deplacement_tour ?? $base;

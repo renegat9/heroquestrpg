@@ -36,7 +36,10 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
-                'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'ligne_de_vue' => true, 'inutilisable_adjacent' => true]],
+                // Pas de clé `ligne_de_vue` : c'est `portee: distance` qui la
+                // gouverne — MenuMoteur appelle Grille::ligneDeVue pour toute
+                // arme à distance. La clé ne faisait que doubler, sans lecteur.
+                'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
             ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
 

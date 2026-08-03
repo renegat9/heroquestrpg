@@ -342,7 +342,9 @@ final class ResolveurTour
         // Allonce du tour : le d6 a été lancé à la génération du menu et MÉMORISÉ
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
         $base = (int) $personnage->deplacement_base;
-        $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))->calculer($base)->total;
+        $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
+            ->calculer($base, $this->equipement->effetPorte($personnage, 'deplacement_sans_d6'))
+            ->total;
         $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
         // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
