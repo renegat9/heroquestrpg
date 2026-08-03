@@ -173,3 +173,36 @@ it('Tir précis (+1 dé) s\'applique sur un tir à distance véritable, jamais a
         // delta de l'objet n'est pas sur la colonne, seul le bonus du nœud compte.
         ->assertJsonPath('resultat.des_attaque_effectifs', 3); // 2 base + 1 Tir précis
 });
+
+it('lance une hache à main sur une cible à distance, et la PERD', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'nain']);
+    $hero = $ctx['heros'];
+
+    // Le nain troque tout pour la hache à main (jetable, perdue au lancer).
+    $hero->inventaire()->delete();
+    $hache = Inventaire::create([
+        'personnage_id' => $hero->id,
+        'objet_id' => App\Models\Objet::where('nom', 'Hache à main')->firstOrFail()->id,
+        'emplacement' => 'arme_principale',
+        'quantite' => 1,
+    ]);
+    app(App\Partie\Equipement::class)->recalculerCombat($hero->refresh());
+    expect($hero->fresh()->des_attaque)->toBe(2);
+
+    placerMonstreADistance($ctx['quete'], $ctx['instance'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $hero->id);
+    $ids = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options'])->pluck('id');
+    expect($ids)->toContain("lancer_{$ctx['instance']->id}");
+
+    desFiges(array_fill(0, 20, 4));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "lancer_{$ctx['instance']->id}"])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'attaque')
+        ->assertJsonPath('resultat.lancer.arme', 'Hache à main')
+        ->assertJsonPath('resultat.lancer.perdue', true);
+
+    // L'arme quitte la main POUR DE BON : le héros retombe à mains nues.
+    expect(Inventaire::whereKey($hache->id)->exists())->toBeFalse()
+        ->and($hero->fresh()->des_attaque)->toBe(1);
+});

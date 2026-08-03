@@ -340,7 +340,7 @@ vérifié dans le code, mais aucun ne bloquait la mécanique livrée.
   câbler le drapeau depuis l'équipement porté, soit retirer l'effet du catalogue.
 - **Clés d'effet purement décoratives**, présentes au catalogue mais sans aucun
   lecteur moteur : `attaque_diagonale`, `attaque_second_rang`, `ligne_de_vue`,
-  `jetable`, `jetable_frequence`. Un joueur qui lit la description d'un objet y
+  `jetable_frequence`. Un joueur qui lit la description d'un objet y
   voit une promesse que le moteur ne tient pas. (Les artefacts n'utilisent que
   des clés réellement lues : `des_attaque`, `des_defense`, `portee`,
   `inutilisable_adjacent`, `deux_mains`.)
@@ -387,3 +387,7 @@ vérifié dans le code, mais aucun ne bloquait la mécanique livrée.
 - **Équilibrage à playtester** : le barbare paie *Maîtrise lourde* pour une armure
   que le nain a gratuitement ; le **Fendoir des Titans** (6 dés) n'a jamais été
   trouvé en jeu, sa valeur reste théorique.
+
+- **`jetable` est désormais LU** (lancer d'arme, 2026-08-04). Restent décoratives :
+  `attaque_diagonale`, `attaque_second_rang`, `ligne_de_vue`, `jetable_frequence`
+  (le lancer est limité par le créneau d'action, pas par un compteur de combat).

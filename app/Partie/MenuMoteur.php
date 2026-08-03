@@ -291,12 +291,15 @@ final class MenuMoteur
 
             $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
             $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
+            // Arme JETABLE (dague, hache à main) : elle vise aussi à distance,
+            // mais quitte la main du héros — d'où une option distincte.
+            $armeJetable = (bool) ($armePrincipale?->effet['jetable'] ?? false);
             $idsAdjacents = $adjacents->pluck('id')->all();
 
             // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais
             // en ligne de vue dégagée, si le héros porte une arme à distance.
             $aDistance = collect();
-            if ($armeADistance) {
+            if ($armeADistance || $armeJetable) {
                 $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
                 $aDistance = $quete->instancesMonstres()
                     ->where('etat', 'actif')
@@ -321,13 +324,23 @@ final class MenuMoteur
                 // Rappel du TYPE du catalogue quand le nom est un habillage IA →
                 // le joueur retrouve la fiche du bestiaire (guide).
                 $libelle = $nom === $nomBase ? "Attaquer {$nom}" : "Attaquer {$nom} ({$nomBase})";
-                if (in_array($instance->id, $idsADistance, true)) {
+                $lance = $armeJetable && ! $armeADistance && in_array($instance->id, $idsADistance, true);
+
+                if ($lance) {
+                    // Lancer CONSOMME l'arme : le libellé doit le dire, sinon le
+                    // joueur se retrouve les mains vides sans l'avoir voulu.
+                    $perdue = (bool) ($armePrincipale->effet['perdue_au_lancer'] ?? false);
+                    $libelle = "Lancer {$armePrincipale->nom} sur {$nom}"
+                        .($perdue ? ' (perdue)' : '');
+                } elseif (in_array($instance->id, $idsADistance, true)) {
                     $libelle .= ' (à distance)';
                 }
+
                 $options[] = [
-                    'id' => "attaquer_{$instance->id}",
+                    'id' => ($lance ? 'lancer_' : 'attaquer_').$instance->id,
                     'libelle' => $libelle,
                     'type' => 'attaque',
+                    'lancer' => $lance,
                     'cible_id' => $instance->id,
                 ];
             }

@@ -31,7 +31,7 @@ class ObjetSeeder extends Seeder
             // lançable comme la dague, et PERDUE une fois lancée.
             // ⚠ `jetable` n'a aucun lecteur moteur à ce jour (la dague non plus) :
             // le lancer reste descriptif, cf. docs/correctifs-restants.md.
-            ['nom' => 'Hache à main', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Hache à main', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'jetable' => true, 'jetable_frequence' => 'une_fois_par_combat', 'perdue_au_lancer' => true]],
             ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'attaque_second_rang' => true]],

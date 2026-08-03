@@ -492,6 +492,7 @@ final class ResolveurTour
         array $acteur,
     ): array {
         $cibleId = (int) ($option['cible_id'] ?? $parametres['cible_id'] ?? 0);
+        $lancer = (bool) ($option['lancer'] ?? false);
 
         $instance = $quete->instancesMonstres()
             ->whereKey($cibleId)
@@ -511,6 +512,15 @@ final class ResolveurTour
         // (Tir précis, nœud elfe) ; `inutilisable_adjacent` l'interdit au contact.
         $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
         $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
+
+        // Une arme JETÉE porte à distance le temps de son vol : la hache à main
+        // n'est pas une arme de tir, mais on peut la lancer.
+        if ($lancer) {
+            if (! (bool) ($armePrincipale?->effet['jetable'] ?? false)) {
+                throw ValidationException::withMessages(['option_id' => 'Cette arme ne se lance pas.']);
+            }
+            $armeADistance = true;
+        }
 
         if (! $adjacentes) {
             if (! $armeADistance) {
@@ -598,7 +608,41 @@ final class ResolveurTour
         $this->diffuserBark($groupe, $instance,
             $resultat->pvBodyApres === 0 ? 'mort' : ($resultat->degats > 0 ? 'touche' : 'rate'));
 
+        if ($lancer) {
+            $payload['lancer'] = $this->consommerArmeLancee($personnage);
+        }
+
         return $payload;
+    }
+
+    /**
+     * Retire de la main l'arme qui vient d'être LANCÉE.
+     *
+     * `perdue_au_lancer` (hache à main) : elle est perdue pour de bon. Sinon
+     * (dague) elle retombe au sac, récupérable — le lancer reste limité par le
+     * créneau d'action, un héros ne peut donc pas la relancer dans le tour.
+     *
+     * Dans les deux cas les dés d'attaque sont recalculés : le héros se retrouve
+     * à mains nues s'il n'a rien d'autre, et il doit le voir immédiatement.
+     *
+     * @return array<string, mixed>
+     */
+    private function consommerArmeLancee(Personnage $personnage): array
+    {
+        $ligne = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
+
+        if ($ligne === null) {
+            return ['arme' => null];
+        }
+
+        $nom = $ligne->objet?->nom;
+        $perdue = (bool) ($ligne->objet?->effet['perdue_au_lancer'] ?? false);
+
+        $perdue ? $ligne->delete() : $ligne->update(['emplacement' => 'sac']);
+
+        $this->equipement->recalculerCombat($personnage->refresh());
+
+        return ['arme' => $nom, 'perdue' => $perdue];
     }
 
     /**
