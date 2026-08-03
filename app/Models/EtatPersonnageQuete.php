@@ -24,6 +24,7 @@ class EtatPersonnageQuete extends Model
         'tombe',
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
+        'attaque_supplementaire',
     ];
 
     protected function casts(): array
@@ -35,6 +36,7 @@ class EtatPersonnageQuete extends Model
             'tombe' => 'boolean',
             'garde_tenace_utilisee' => 'boolean',
             'bonus_sort_utilise' => 'boolean',
+            'attaque_supplementaire' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
         ];

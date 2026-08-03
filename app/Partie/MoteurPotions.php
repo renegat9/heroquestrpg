@@ -19,7 +19,10 @@ use Illuminate\Validation\ValidationException;
  */
 class MoteurPotions
 {
-    public function __construct(private readonly MoteurSorts $sorts) {}
+    public function __construct(
+        private readonly MoteurSorts $sorts,
+        private readonly \App\Engine\Des\LanceurDes $des,
+    ) {}
 
     /**
      * Boit une ligne d'inventaire consommable portée par $personnage.
@@ -45,6 +48,15 @@ class MoteurPotions
         $applique = [];
 
         // Soin Body / Mind — plafonné au maximum du héros.
+        // Soin ALÉATOIRE (fiole de fouille) : 1d6 PV, plafonné au maximum.
+        if (isset($effet['soin_pv_body_de'])) {
+            $avant = (int) $personnage->pv_body;
+            $de = $this->des->d6();
+            $personnage->pv_body = min((int) $personnage->pv_body_max, $avant + $de);
+            $applique['soin_pv_body'] = $personnage->pv_body - $avant;
+            $applique['de'] = $de;
+        }
+
         if (isset($effet['soin_pv_body'])) {
             $avant = (int) $personnage->pv_body;
             $personnage->pv_body = min((int) $personnage->pv_body_max, $avant + (int) $effet['soin_pv_body']);
@@ -58,6 +70,19 @@ class MoteurPotions
         $personnage->save();
 
         // Antidote — retire une condition nommée si présente.
+        // Potion d'héroïsme : une ATTAQUE SUPPLÉMENTAIRE ce tour-ci — deux
+        // attaques au lieu d'une, et non des dés en plus. Même patron que la
+        // Réserve arcanique du magicien (un second sort), sur l'état de tour.
+        if (! empty($effet['attaque_supplementaire'])) {
+            $etat = $personnage->groupeActif?->queteCourante?->etatsPersonnages()
+                ->where('personnage_id', $personnage->id)->first();
+
+            if ($etat !== null) {
+                $etat->update(['attaque_supplementaire' => true]);
+                $applique['attaque_supplementaire'] = true;
+            }
+        }
+
         if (isset($effet['retire_condition'])) {
             $condition = Condition::query()->where('nom', $effet['retire_condition'])->first();
             if ($condition !== null) {

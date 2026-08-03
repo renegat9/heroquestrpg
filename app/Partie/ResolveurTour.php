@@ -163,11 +163,16 @@ final class ResolveurTour
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
         }
-        if ($creneau === 'action' && $etat->a_agi && ! $bonusReserveArcanique) {
+        // Potion d'héroïsme : une seconde ATTAQUE au-delà du créneau d'action.
+        $bonusHeroisme = $creneau === 'action' && $etat->a_agi
+            && ($option['type'] ?? null) === 'attaque'
+            && (bool) $etat->attaque_supplementaire;
+
+        if ($creneau === 'action' && $etat->a_agi && ! $bonusReserveArcanique && ! $bonusHeroisme) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
         }
 
-        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique) {
+        $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
             // Endormi (Sommeil de Dread ou sort héros en tir ami) : le héros
@@ -232,7 +237,7 @@ final class ResolveurTour
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
-            $this->marquerCreneau($etat, $creneau, $bonusReserveArcanique);
+            $this->marquerCreneau($etat, $creneau, $bonusReserveArcanique, $bonusHeroisme);
 
             // Hook post-combat : portes à verrou « monstres_vaincus » qui
             // s'ouvrent quand leur(s) gardien(s) tombe(nt) (doc 14 §3.3).
@@ -1963,6 +1968,7 @@ final class ResolveurTour
             'a_joue' => false, 'a_deplace' => false, 'a_agi' => false,
             'deplacement_tour' => null, 'deplacement_restant' => null,
             'bonus_sort_utilise' => false,
+            'attaque_supplementaire' => false,
         ]);
 
         // Fin de tour : décompte des durées des conditions de sorts des héros
@@ -2411,7 +2417,7 @@ final class ResolveurTour
      * Une ACTION hors mouvement FORFAIT le déplacement restant (a_deplace + 0).
      * Une INTERACTION libre (porte, levier) ne consomme aucun créneau.
      */
-    private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau, bool $bonusReserveArcanique = false): void
+    private function marquerCreneau(EtatPersonnageQuete $etat, string $creneau, bool $bonusReserveArcanique = false, bool $bonusHeroisme = false): void
     {
         if ($creneau === 'interaction') {
             return; // ouvrir une porte / actionner un levier : libre, aucun créneau
@@ -2425,6 +2431,10 @@ final class ResolveurTour
                 // Réserve arcanique (nœud magicien) : ce sort consomme le
                 // BONUS, pas le créneau action normal (déjà pris ce tour).
                 $etat->bonus_sort_utilise = true;
+            } elseif ($bonusHeroisme) {
+                // Potion d'héroïsme : cette attaque consomme le bonus, pas le
+                // créneau — le héros a bien frappé deux fois ce tour.
+                $etat->attaque_supplementaire = false;
             } else {
                 // Agir NE force plus la fin du mouvement : on peut agir PUIS se
                 // déplacer, se déplacer PUIS agir, ou intercaler — dans n'importe

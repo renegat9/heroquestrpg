@@ -151,7 +151,12 @@ class Quete extends Model
             return null;
         }
 
+        // La carte repart SOUS le paquet (règle du plateau) : le deck ne
+        // s'épuise jamais, il cycle. Avec une fouille par héros ET par salle,
+        // un donjon de 6 salles à 4 joueurs produit jusqu'à 24 tirages — soit
+        // exactement la taille du deck.
         $carte = array_shift($deck);
+        $deck[] = $carte;
         $this->update(['deck_fouille' => array_values($deck)]);
 
         return $carte;

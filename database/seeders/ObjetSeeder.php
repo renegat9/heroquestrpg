@@ -35,11 +35,20 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
 
+            // Fiole trouvée en fouille : soin ALÉATOIRE (1d6), là où la potion
+            // achetée au marché rend un montant fixe. Rareté `unique` pour la
+            // tenir hors de l'étal — on ne l'achète pas, on la trouve.
+            ['nom' => 'Fiole de soin', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 100, 'emplacement' => 'consommable',
+                'effet' => ['soin_pv_body_de' => 6]],
+
             // Potions du deck de trésor du plateau. Elles réutilisent les clés
             // que le moteur lit déjà (`bonus_des_attaque`/`bonus_des_defense`,
             // `duree`, `condition_appliquee`) — aucune mécanique nouvelle.
+            // Deux attaques dans le même tour (et non des dés en plus) :
+            // l'attaque vient de l'arme chez nous, un bonus de dés n'aurait pas
+            // rendu la carte du plateau.
             ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 1, 'duree' => 'un_combat', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['attaque_supplementaire' => true]],
             ['nom' => 'Potion de force', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['bonus_des_attaque' => 2, 'duree' => 0, 'condition_appliquee' => 'Renforcé']],
             ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',

@@ -195,9 +195,10 @@ final class MoteurPieges
         $personnage->update(['pv_body' => $pvApres]);
 
         $tombe = $pvApres === 0;
-        if ($tombe) {
-            $etat->update(['tombe' => true]);
-        }
+
+        // Carte PIÈGE du deck de trésor : elle coûte le reste du tour (trou où
+        // l'on chute, volée de flèches qui cloue sur place), comme au plateau.
+        $etat->update(['tombe' => $tombe || $etat->tombe, 'a_joue' => true]);
 
         $conditionAppliquee = $this->appliquerConditionSiApplicable(
             $personnage, (string) ($issue['condition_appliquee'] ?? ''), 'piege:'.($piege?->nom ?? 'Piège'),
@@ -213,6 +214,7 @@ final class MoteurPieges
             'pv_body_apres' => $pvApres,
             'tombe' => $tombe,
             'immobilise' => false,
+            'fin_de_tour' => true,
             'condition_appliquee' => $conditionAppliquee,
         ];
 

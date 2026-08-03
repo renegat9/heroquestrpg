@@ -209,7 +209,9 @@ final class DeckFouille
         // se rabat sur de l'or plutôt que de disparaître.
         $parNom = fn (string $nom) => Objet::where('nom', $nom)->value('id');
         $potions = [
-            'potion_soin' => $parNom('Potion de soin'),
+            // La fiole du deck soigne 1d6 ; la « Potion de soin » du marché
+            // rend un montant fixe. Deux objets distincts, à dessein.
+            'potion_soin' => $parNom('Fiole de soin'),
             'potion_heroisme' => $parNom("Potion d'héroïsme"),
             'potion_force' => $parNom('Potion de force'),
             'potion_defense' => $parNom('Potion de défense'),

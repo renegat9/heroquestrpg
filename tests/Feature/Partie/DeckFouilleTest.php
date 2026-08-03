@@ -150,16 +150,20 @@ it('rend exactement le même deck à graine égale, et un deck différent d\'une
         ->and($a['deck'])->not->toEqual($c['deck']); // mais la quête suivante a la sienne
 });
 
-it('pioche SANS REMISE : chaque fouille consomme une carte', function () {
+it('remet la carte piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas', function () {
     [, , , $quete, ] = demarrerFouille();
 
     $avant = count($quete->deckFouille());
 
-    empilerCarteFouille($quete, ['issue' => 'rien']);
-    $resultat = fouiller();
+    empilerCarteFouille($quete, ['issue' => 'rien', 'marqueur' => 'A']);
+    fouiller();
 
-    expect($resultat['deck_restant'])->toBe($avant)
-        ->and(count($quete->fresh()->deckFouille()))->toBe($avant);
+    $apres = $quete->fresh()->deckFouille();
+
+    // Règle du plateau : la carte repart dessous. Avec une fouille par héros ET
+    // par salle, le deck serait sinon vidé sur un grand donjon.
+    expect(count($apres))->toBe($avant + 1)
+        ->and(end($apres)['marqueur'] ?? null)->toBe('A');
 });
 
 it('rétrograde en « rien » quand le deck est épuisé', function () {
@@ -257,11 +261,13 @@ it('ne donne qu\'UN SEUL artefact, même en fouillant toutes les salles', functi
         fouiller();
     }
 
-    $uniques = Inventaire::where('personnage_id', $hero->id)
-        ->whereHas('objet', fn ($q) => $q->where('rarete', 'unique'))
+    // Les ARMES uniques : la fiole de soin du deck est aussi `unique` (hors
+    // étal), elle ne doit pas être comptée comme un artefact.
+    $armes = Inventaire::where('personnage_id', $hero->id)
+        ->whereHas('objet', fn ($q) => $q->where('rarete', 'unique')->where('categorie', 'arme'))
         ->count();
 
-    expect($uniques)->toBe(1);
+    expect($armes)->toBe(1);
 });
 
 it('exclut du tirage une arme unique déjà possédée par un héros du groupe', function () {
