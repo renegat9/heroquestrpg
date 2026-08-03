@@ -192,9 +192,9 @@ class Quete extends Model
     }
 
     /**
-     * Budget de monstres errants restant. Le repli sur le gabarit couvre les
-     * quêtes démarrées AVANT la migration, dont la colonne est nulle (le budget
-     * vivait alors en cache).
+     * @deprecated Les monstres errants n'ont plus de plafond : leur carte
+     *   revient sous le paquet et doit mordre à chaque fois. La colonne et ces
+     *   accesseurs restent le temps que les snapshots antérieurs se purgent.
      */
     public function budgetErrant(): int
     {

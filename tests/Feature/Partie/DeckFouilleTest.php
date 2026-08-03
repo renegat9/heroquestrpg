@@ -328,20 +328,23 @@ it('remet l\'artefact MÊME sac plein, en dépassement signalé', function () {
 // Persistance (§2.16 : plus aucun état de jeu durable en cache)
 // ---------------------------------------------------------------------------
 
-it('décompte le budget errant EN BASE, insensible à un vidage du cache', function () {
-    [, , , $quete, ] = demarrerFouille();
+it('fait surgir un errant à CHAQUE carte, sans plafond', function () {
+    [, , , $quete, $etat] = demarrerFouille();
 
-    $avant = $quete->budgetErrant();
-    expect($avant)->toBe(4); // gabarit « normale »
+    $avant = $quete->instancesMonstres()->where('etat', 'actif')->count();
 
-    empilerCarteFouille($quete, ['issue' => 'errant']);
-    fouiller();
+    // La carte errant est la plus fréquente du deck (6 sur 24) et elle revient
+    // sous le paquet : un budget qui s'épuise en aurait fait une carte blanche.
+    foreach ([0, 1, 2] as $tour) {
+        deplacerVersSalle($quete->fresh(), $etat, $tour);
+        empilerCarteFouille($quete->fresh(), ['issue' => 'errant']);
+        $resultat = fouiller();
 
-    $apres = $quete->fresh()->budgetErrant();
-    expect($apres)->toBeLessThan($avant);
+        expect($resultat['issue'])->toBe('errant')
+            ->and($resultat)->not->toHaveKey('errant_indisponible');
+    }
 
-    Cache::flush();
-    expect($quete->fresh()->budgetErrant())->toBe($apres);
+    expect($quete->fresh()->instancesMonstres()->where('etat', 'actif')->count())->toBe($avant + 3);
 });
 
 it('restaure le deck et les salles fouillées depuis un snapshot `nouveau_tour`', function () {

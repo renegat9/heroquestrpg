@@ -342,10 +342,6 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
     $groupe = $ctx[1];
     $quete = $ctx[3];
 
-    // Budget errant EN BASE désormais (plus en cache avec un TTL).
-    $budgetAvant = $quete->budgetErrant();
-    expect($budgetAvant)->toBeGreaterThan(0); // initialisé par DemarreurQuete
-
     $instancesAvant = $quete->instancesMonstres()->count();
 
     // Le moins cher du bestiaire (Gobelin, coût 1) est instancié.
@@ -362,9 +358,7 @@ it('« Fouiller — trésor » fait surgir un monstre errant (budget dédié) qu
     expect($errant)->not->toBeNull()
         ->and($errant->etat)->toBe('actif')
         ->and((bool) $errant->revele)->toBeTrue()
-        ->and($quete->fresh()->instancesMonstres()->count())->toBe($instancesAvant + 1)
-        // Budget errant décompté.
-        ->and($quete->fresh()->budgetErrant())->toBe($budgetAvant - (int) $errant->monstre->cout);
+        ->and($quete->fresh()->instancesMonstres()->count())->toBe($instancesAvant + 1);
 
     // Fouiller est une ACTION (a_agi) mais NE termine plus le tour tout seul :
     // alice TERMINE, puis Bob TERMINE → phase des monstres (l'errant agit).

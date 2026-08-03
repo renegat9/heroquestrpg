@@ -1829,18 +1829,17 @@ final class ResolveurTour
      */
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
     {
-        // Budget EN BASE : c'était le dernier état de jeu durable resté en cache
-        // avec un TTL, même famille que le brouillard d'exploration (§2.16).
-        $budget = $quete->budgetErrant();
-
-        if ($budget <= 0) {
-            return null;
-        }
-
+        // AUCUN plafond (décision de René) : la carte « monstre errant » repart
+        // sous le paquet comme les autres, donc elle revient — et elle doit
+        // mordre à chaque fois. Un budget qui s'épuise transformait la carte la
+        // plus fréquente du deck (6 sur 24) en carte blanche.
+        //
+        // Toujours le MÊME monstre pour une quête donnée — « le monstre errant
+        // de la quête » du plateau : le moins cher du bestiaire de base, choix
+        // déterministe.
         $monstre = Monstre::query()
             ->where('tier', 'base')
             ->where('cout', '>', 0)
-            ->where('cout', '<=', $budget)
             ->orderBy('cout')
             ->orderBy('id')
             ->first();
@@ -1855,7 +1854,7 @@ final class ResolveurTour
             return null;
         }
 
-        $quete->consommerBudgetErrant((int) $monstre->cout);
+
 
         return $quete->instancesMonstres()->create([
             'monstre_id' => $monstre->id,
