@@ -1688,8 +1688,8 @@ final class ResolveurTour
      *
      * Issues : `tresor` (or au groupe) · `potion` (rangée au sac du fouilleur) ·
      * `artefact` (le coffre désigné, une arme unique, au plus une par quête) ·
-     * `errant` (monstre instancié au contact, décompté du budget errant, il
-     * jouera au tour des monstres) · `piege` (« Piège de coffre » appliqué TOUT
+     * `errant` (monstre instancié au contact, sans plafond — sa carte revient
+     * sous le paquet ; il jouera au tour des monstres) · `piege` (« Piège de coffre » appliqué TOUT
      * DE SUITE au fouilleur, jamais posé sur la grille) · `rien`.
      *
      * La **salle-coffre ne consomme aucune carte** : son butin est un bonus net.
@@ -1822,10 +1822,12 @@ final class ResolveurTour
     }
 
     /**
-     * Instancie un monstre ERRANT (doc 14 §3.2) depuis le bestiaire, décompté
-     * d'un budget errant DÉDIÉ (distinct du budget de rencontre), placé sur une
+     * Instancie un monstre ERRANT (doc 14 §3.2) depuis le bestiaire, placé sur une
      * case libre proche du fouilleur, actif et révélé (il jouera au tour des
-     * monstres). null si le budget errant est épuisé ou aucune place libre.
+     * monstres). null si aucune place libre autour du héros.
+     *
+     * SANS PLAFOND : sa carte revient sous le paquet comme les autres, elle doit
+     * donc mordre à chaque fois.
      */
     private function spawnErrant(Quete $quete, EtatPersonnageQuete $etat): ?InstanceMonstre
     {
@@ -2451,35 +2453,6 @@ final class ResolveurTour
     }
 
     /**
-     * @deprecated §2.16 — l'exploration vit désormais dans `quetes.salles_decouvertes`.
-     *   Conservé le temps que d'éventuelles clés résiduelles expirent ; ne plus
-     *   écrire dessus. Voir Quete::sallesDecouvertes().
-     */
-    public static function cleSallesDecouvertes(int $queteId): string
-    {
-        return "partie:salles:{$queteId}";
-    }
-
-    /**
-     * @deprecated §2.16 — la fouille vit désormais dans `quetes.tresors_fouilles`.
-     *   Voir Quete::tresorsFouilles().
-     */
-    public static function cleTresorFouille(int $queteId): string
-    {
-        return "partie:tresor:{$queteId}";
-    }
-
-    /**
-     * @deprecated Le budget errant vit désormais dans `quetes.budget_errant` —
-     *   c'était le dernier état de jeu durable resté en cache avec un TTL.
-     *   Voir Quete::budgetErrant() / consommerBudgetErrant().
-     */
-    public static function cleBudgetErrant(int $queteId): string
-    {
-        return "partie:errant:{$queteId}";
-    }
-
-    /**
      * Index de la salle (carte.grille.salles) contenant la case (x, y), ou null
      * si la case n'appartient à aucune salle (couloir).
      */
@@ -2608,7 +2581,7 @@ final class ResolveurTour
 
     /**
      * Révèle une salle (index dans carte.grille.salles) si ce n'est pas déjà
-     * fait : marque « découverte » (cache, cleSallesDecouvertes), réveille ses
+     * fait : marque « découverte » (quetes.salles_decouvertes), réveille ses
      * monstres dormants (dormants → actifs visibles, joueront dès la phase des
      * monstres de ce tour), journalise, et déclenche la narration de
      * description. Idempotent — sans effet si la salle est déjà révélée.

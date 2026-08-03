@@ -46,7 +46,9 @@ return new class extends Migration
     {
         Schema::table('quetes', function (Blueprint $table) {
             $table->dropConstrainedForeignId('artefact_objet_id');
-            $table->dropColumn(['deck_fouille', 'salle_artefact', 'budget_errant']);
+            // `budget_errant` a sa propre migration de suppression (2026_08_04) :
+            // le lister ici casserait un rollback complet.
+            $table->dropColumn(['deck_fouille', 'salle_artefact']);
         });
     }
 };

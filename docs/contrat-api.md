@@ -268,9 +268,8 @@ tracé, non servies dans le payload).
   - `tresor` — `or` versé au groupe (montant figé dans la carte) ;
   - `potion` — consommable rangé chez **le fouilleur** (`objet`) ;
   - `artefact` — arme **unique** du coffre désigné (`objet`, `coffre: true`) ;
-  - `errant` — monstre du bestiaire instancié au contact, décompté du **budget errant
-    dédié** (`quetes.budget_errant`, semé depuis `structure.budget_errant`), qui joue
-    au tour des monstres ; budget épuisé → rétrogradé en `rien` + `errant_indisponible` ;
+  - `errant` — monstre du bestiaire instancié au contact, qui joue au tour des monstres — **sans plafond**, sa carte revenant sous le
+    paquet comme les autres ;
   - `piege` — effet du « Piège de coffre » appliqué **tout de suite** au fouilleur
     (`declenchement`), jamais posé sur la grille ;
   - `rien`.

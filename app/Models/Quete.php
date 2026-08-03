@@ -24,7 +24,6 @@ class Quete extends Model
         'salle_artefact',
         'salles_coffre',
         'artefact_objet_id',
-        'budget_errant',
         'etat',
         'or_initial',
     ];
@@ -61,11 +60,8 @@ class Quete extends Model
     }
 
     /**
-     * Entrées brutes de fouille. Deux formats coexistent :
-     *  · `"{salle}:{personnage}"` — une fouille par HÉROS et par salle, comme
-     *    au plateau où chaque héros tire sa propre carte de trésor ;
-     *  · un entier nu — ancien format « salle fouillée pour tout le groupe »,
-     *    conservé pour les quêtes démarrées avant ce changement.
+     * Entrées de fouille, au format `"{salle}:{personnage}"` : chaque héros
+     * fouille une fois par salle et tire sa propre carte, comme au plateau.
      *
      * @return list<string>
      */
@@ -82,9 +78,7 @@ class Quete extends Model
     {
         $faites = $this->fouillesFaites();
 
-        // Ancien format : la salle était close pour tout le monde.
-        return in_array("{$salle}:{$personnageId}", $faites, true)
-            || in_array((string) $salle, $faites, true);
+        return in_array("{$salle}:{$personnageId}", $faites, true);
     }
 
     /**
@@ -189,21 +183,6 @@ class Quete extends Model
     public function estSalleArtefact(int $salle): bool
     {
         return $this->salle_artefact !== null && (int) $this->salle_artefact === $salle;
-    }
-
-    /**
-     * @deprecated Les monstres errants n'ont plus de plafond : leur carte
-     *   revient sous le paquet et doit mordre à chaque fois. La colonne et ces
-     *   accesseurs restent le temps que les snapshots antérieurs se purgent.
-     */
-    public function budgetErrant(): int
-    {
-        return (int) ($this->budget_errant ?? data_get($this->gabarit?->structure, 'budget_errant', 0));
-    }
-
-    public function consommerBudgetErrant(int $cout): void
-    {
-        $this->update(['budget_errant' => max(0, $this->budgetErrant() - max(0, $cout))]);
     }
 
     /**

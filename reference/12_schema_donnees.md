@@ -115,7 +115,6 @@ Quatre groupes de tables MariaDB : **Comptes & roster**, **Campagne & session**,
 | deck_fouille | JSON NULL | pioche ORDONNÉE de cartes de fouille, index 0 = sommet |
 | salle_artefact | SMALLINT NULL | salle-coffre (la plus profonde) ; ne consomme aucune carte |
 | artefact_objet_id | FK → objets NULL | arme `unique` du coffre ; NULL → repli `or_coffre` |
-| budget_errant | SMALLINT NULL | budget de monstres errants restant (doc 14 §3.2) |
 | timestamps | | |
 
 > **Tout état de partie durable vit ICI, jamais en cache.** Ces six colonnes ont

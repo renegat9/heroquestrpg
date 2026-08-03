@@ -40,7 +40,7 @@ Comparaison entre (a) le contenu réel des extensions HeroQuest — classiques (
 **Canon** : fouiller une salle pour du trésor peut révéler un trésor, **ou déclencher un monstre errant qui attaque immédiatement**, ou ne rien donner. Risque/récompense, contrairement au butin déterministe du gabarit.
 **Adaptation retenue (implémentée)** : un **deck de cartes de fouille**, plus proche du plateau qu'une table pondérée. Il est bâti au démarrage de la quête depuis `gabarits_quete.structure.deck_fouille` (multiset par issue : `tresor` / `potion` / `piege` / `errant` / `rien`, plus `or`, `or_coffre` et le vivier de `potions`) et **pioché sans remise** dans `quetes.deck_fouille`. La composition annoncée par le gabarit est donc **garantie** — l'ancien tirage remappait un d6 sur des poids (`ceil(d6/6 × total)`), ce qui biaisait la distribution dès que leur total ≠ 6. Le deck compte toujours **plus de cartes que de salles**, sinon la dernière fouille serait déductible.
 S'y ajoute le **coffre à artefact** : la salle la plus profonde abrite au plus **une** arme `unique`, **sans consommer de carte** (bonus net), remise au fouilleur. Sans arme disponible, elle verse `or_coffre`.
-**Impact** : `structure.deck_fouille` remplace `structure.tresor_a_risque` (doc 12 §5) ; quatre colonnes sur `quetes` (`deck_fouille`, `salle_artefact`, `artefact_objet_id`, `budget_errant`) ; le budget errant **quitte le cache** — c'était le dernier état de jeu durable à y vivre avec un TTL.
+**Impact** : `structure.deck_fouille` remplace `structure.tresor_a_risque` (doc 12 §5) ; trois colonnes sur `quetes` (`deck_fouille`, `salle_artefact`, `artefact_objet_id`).
 **Lien avec doc 06** : conserve « catalogue défini, l'IA habille » (Q6) — le tirage est mécanique, l'IA ne fait que narrer le résultat.
 
 ### 3.3 Portes à restriction d'ouverture
@@ -105,7 +105,7 @@ S'y ajoute le **coffre à artefact** : la salle la plus profonde abrite au plus 
 
 - **Portes secrètes (3.1)** et **portes à restriction (3.3)** partagent le même point d'ancrage technique (modèle de porte dans `cartes.grille`, tableau `portes` à activer) — à traiter ensemble.
 - **Ligne de vue (nouveau chantier prérequis)** : à implémenter **avant** monstres à distance (3.4) et grandes figurines (3.9) — le moteur ne gère aujourd'hui que l'adjacence.
-- **Recherche de trésor à risque (3.2)** dépend de l'existence d'un petit budget de monstres errants distinct du budget de rencontre principal (doc 06 §2) — prérequis léger mais réel. **Résolu** : `quetes.budget_errant`, semé depuis `structure.budget_errant`, décompté en base et restauré par les snapshots.
+- **Recherche de trésor à risque (3.2)** dépend de l'existence d'un petit budget de monstres errants distinct du budget de rencontre principal (doc 06 §2) — prérequis léger mais réel. **Résolu autrement (2026-08-03)** : il n'y a PLUS de budget. La carte « monstre errant » revient sous le paquet comme les autres et doit mordre à chaque fois — un plafond aurait rendu blanche la carte la plus fréquente du deck (6 sur 24).
 - **Sorciers nommés (3.8)** et **monstres à distance (3.4)** étendent tous deux le bloc de stats `monstres` — bonne occasion de revoir ce bloc une seule fois plutôt qu'en plusieurs passes.
 - **Grandes figurines (3.9)** dépend de la **ligne de vue** (comme 3.4) et reste le plus risqué ; à isoler sur un boss pilote, après le chantier LoS.
 - **Alliés (3.5)** n'a aucune dépendance avec les autres items de cette liste — peut démarrer en parallèle.

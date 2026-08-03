@@ -301,7 +301,6 @@ final class Sauvegarde
                 'salle_artefact' => $quete->salle_artefact,
                 'salles_coffre' => $quete->sallesCoffre(),
                 'artefact_objet_id' => $quete->artefact_objet_id,
-                'budget_errant' => $quete->budgetErrant(),
             ],
             // Grille complète, état des pièges inclus (cachés compris).
             'carte' => $quete->carte === null ? null : [
@@ -407,19 +406,12 @@ final class Sauvegarde
         // zéro en dur (c'était le cas jusqu'ici, dans restaurerMonstres) : un
         // `nouveau_tour` doit rendre l'état de CE tour-là, pas celui du début.
         //
-        // Un snapshot antérieur à ces champs n'en porte aucun : on retombe alors
-        // sur l'ancien comportement pour l'exploration (salle de départ seule,
-        // cohérent avec des monstres redevenus dormants) et on laisse le deck
-        // intact, faute de savoir ce qu'il contenait.
-        if (array_key_exists('salles_decouvertes', $quete)) {
-            $champs['salles_decouvertes'] = (array) $quete['salles_decouvertes'];
-            $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
-        } else {
-            $champs['salles_decouvertes'] = [0];
-            $champs['tresors_fouilles'] = [];
-        }
+        // Le snapshot porte toujours ces champs ; les `??` ne couvrent qu'un
+        // snapshot tronqué, jamais un format plus ancien.
+        $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
+        $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id', 'budget_errant'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }
@@ -454,9 +446,7 @@ final class Sauvegarde
                 'quete_id' => $queteId,
                 'monstre_id' => $instance['monstre_id'],
                 'pv_body' => $instance['pv_body'],
-                // Max propre (boss adaptés + élite) ; null pour snapshots antérieurs
-                // → pvBodyMax() reconstruit depuis le catalogue + le drapeau élite.
-                'pv_body_max' => $instance['pv_body_max'] ?? null,
+                'pv_body_max' => $instance['pv_body_max'],
                 'pv_mind' => $instance['pv_mind'],
                 'position_x' => $instance['position_x'],
                 'position_y' => $instance['position_y'],
