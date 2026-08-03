@@ -111,26 +111,26 @@ it('bâtit le deck depuis la composition du gabarit, avec plus de cartes que de 
     $deck = $quete->deckFouille();
     $nbSalles = count($quete->carte->grille['salles']);
 
-    // Gabarit « normale » : 3 trésor + 2 potion + 2 rien + 1 errant + 1 piège = 9,
-    // complété en « rien » jusqu'à dépasser strictement le nombre de salles —
-    // sinon la dernière fouille serait déductible.
+    // Deck du JEU DE PLATEAU : 24 cartes, toujours plus que le nombre de salles.
     expect(count($deck))->toBeGreaterThan($nbSalles);
 
     $parIssue = collect($deck)->countBy('issue');
-    expect($parIssue['tresor'] ?? 0)->toBe(3)
-        ->and($parIssue['potion'] ?? 0)->toBe(2)
-        ->and($parIssue['errant'] ?? 0)->toBe(1)
-        ->and($parIssue['piege'] ?? 0)->toBe(1)
-        // Le complément se fait en « rien » : au moins les 2 du gabarit.
-        ->and($parIssue['rien'] ?? 0)->toBeGreaterThanOrEqual(2);
+    expect($parIssue['tresor'] ?? 0)->toBe(8)     // 2 gemmes + 2×25 + 2×15 + 2 bijoux
+        ->and($parIssue['potion'] ?? 0)->toBe(6)  // 3 soin + héroïsme + force + défense
+        ->and($parIssue['errant'] ?? 0)->toBe(6)  // la carte la plus fréquente du plateau
+        ->and($parIssue['piege'] ?? 0)->toBe(4);  // 2 trous + 2 volées de flèches
+
+    // Les montants sont ceux des cartes, pas une valeur unique.
+    expect(collect($deck)->where('issue', 'tresor')->pluck('or')->unique()->sort()->values()->all())
+        ->toBe([15, 25, 35, 50]);
 
     // Chaque carte est AUTO-SUFFISANTE : montant et identité figés.
     foreach ($deck as $carte) {
-        if ($carte['issue'] === 'tresor') {
-            expect((int) $carte['or'])->toBe(30);
-        }
         if ($carte['issue'] === 'potion') {
             expect(Objet::find($carte['objet_id'])?->categorie)->toBe('consommable');
+        }
+        if ($carte['issue'] === 'piege') {
+            expect($carte['variante'])->toBeIn(['trou', 'fleches']);
         }
     }
 });
@@ -476,4 +476,22 @@ it('rend or ou potion dans un coffre ordinaire, l\'arme unique n\'étant que dan
     if ($resultat['issue'] === 'potion') {
         expect(Inventaire::where('personnage_id', $hero->id)->exists())->toBeTrue();
     }
+});
+
+it('donne à CHAQUE héros sa fouille dans une même salle', function () {
+    [, $groupe, $albrecht, $quete, $etat] = demarrerFouille();
+    $brunhilde = $groupe->personnages()->where('nom', 'Brunhilde')->firstOrFail();
+
+    empilerCarteFouille($quete, ['issue' => 'tresor', 'or' => 15]);
+    fouiller();
+
+    // Le premier fouilleur ne ferme plus la salle : au plateau, chaque héros
+    // tire sa propre carte de trésor.
+    expect($quete->fresh()->aFouille(0, (int) $albrecht->id))->toBeTrue()
+        ->and($quete->fresh()->aFouille(0, (int) $brunhilde->id))->toBeFalse();
+
+    // …mais lui ne peut pas recommencer.
+    deplacerVersSalle($quete->fresh(), $etat, 0);
+    test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(422);
 });

@@ -61,13 +61,45 @@ class Quete extends Model
     }
 
     /**
-     * Index des salles dont le trésor a déjà été fouillé (anti-farm).
+     * Entrées brutes de fouille. Deux formats coexistent :
+     *  · `"{salle}:{personnage}"` — une fouille par HÉROS et par salle, comme
+     *    au plateau où chaque héros tire sa propre carte de trésor ;
+     *  · un entier nu — ancien format « salle fouillée pour tout le groupe »,
+     *    conservé pour les quêtes démarrées avant ce changement.
+     *
+     * @return list<string>
+     */
+    public function fouillesFaites(): array
+    {
+        return array_values(array_unique(array_map(
+            fn ($e) => (string) $e,
+            (array) ($this->tresors_fouilles ?? []),
+        )));
+    }
+
+    /** Ce héros a-t-il déjà fouillé cette salle ? */
+    public function aFouille(int $salle, int $personnageId): bool
+    {
+        $faites = $this->fouillesFaites();
+
+        // Ancien format : la salle était close pour tout le monde.
+        return in_array("{$salle}:{$personnageId}", $faites, true)
+            || in_array((string) $salle, $faites, true);
+    }
+
+    /**
+     * Index des salles fouillées par AU MOINS un héros — ce qui suffit à
+     * l'objectif « atteindre et récupérer » : le coffre du fond n'est ouvert
+     * qu'une fois, quel que soit celui qui s'en charge.
      *
      * @return list<int>
      */
     public function tresorsFouilles(): array
     {
-        return array_values(array_unique(array_map('intval', (array) ($this->tresors_fouilles ?? []))));
+        return array_values(array_unique(array_map(
+            fn (string $e) => (int) explode(':', $e)[0],
+            $this->fouillesFaites(),
+        )));
     }
 
     /** Marque une salle comme découverte. Idempotent. */
@@ -83,17 +115,16 @@ class Quete extends Model
         $this->update(['salles_decouvertes' => array_values($vues)]);
     }
 
-    /** Marque le trésor d'une salle comme fouillé. Idempotent. */
-    public function marquerTresorFouille(int $salle): void
+    /** Marque la fouille d'une salle PAR UN HÉROS. Idempotent. */
+    public function marquerTresorFouille(int $salle, int $personnageId): void
     {
-        $fouilles = $this->tresorsFouilles();
-
-        if (in_array($salle, $fouilles, true)) {
+        if ($this->aFouille($salle, $personnageId)) {
             return;
         }
 
-        $fouilles[] = $salle;
-        $this->update(['tresors_fouilles' => array_values($fouilles)]);
+        $faites = $this->fouillesFaites();
+        $faites[] = "{$salle}:{$personnageId}";
+        $this->update(['tresors_fouilles' => array_values($faites)]);
     }
 
     /**

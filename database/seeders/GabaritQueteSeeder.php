@@ -44,8 +44,22 @@ class GabaritQueteSeeder extends Seeder
                     // `or_coffre` : ce que verse le coffre désigné quand aucune arme
                     // unique n'est disponible pour la quête.
                     'deck_fouille' => [
-                        'cartes' => ['tresor' => 3, 'potion' => 2, 'rien' => 2, 'errant' => 1, 'piege' => 1],
-                        'or' => 30,
+                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
+                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        'cartes' => [
+                            'gemme' => 2,          // 35 po
+                            'or_25' => 2,
+                            'or_15' => 2,
+                            'bijoux' => 2,         // 50 po
+                            'piege_trou' => 2,
+                            'piege_fleches' => 2,
+                            'potion_soin' => 3,
+                            'potion_heroisme' => 1,
+                            'potion_force' => 1,
+                            'potion_defense' => 1,
+                            'errant' => 6,
+                        ],
+                        'or' => 25,                // repli si un montant manque
                         'or_coffre' => 90,
                         'potions' => ['Potion de soin', "Potion d'esprit clair"],
                     ],
@@ -67,8 +81,22 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 8, 'par_salle' => true],
                     'deck_fouille' => [
-                        'cartes' => ['tresor' => 4, 'potion' => 2, 'rien' => 2, 'errant' => 2, 'piege' => 2],
-                        'or' => 60,
+                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
+                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        'cartes' => [
+                            'gemme' => 2,          // 35 po
+                            'or_25' => 2,
+                            'or_15' => 2,
+                            'bijoux' => 2,         // 50 po
+                            'piege_trou' => 2,
+                            'piege_fleches' => 2,
+                            'potion_soin' => 3,
+                            'potion_heroisme' => 1,
+                            'potion_force' => 1,
+                            'potion_defense' => 1,
+                            'errant' => 6,
+                        ],
+                        'or' => 25,                // repli si un montant manque
                         'or_coffre' => 180,
                         'potions' => ['Potion de soin', "Potion d'esprit clair", 'Potion de rage'],
                     ],
@@ -91,8 +119,22 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'budget_rencontres' => ['base' => 10, 'par_salle' => true],
                     'deck_fouille' => [
-                        'cartes' => ['tresor' => 5, 'potion' => 2, 'rien' => 2, 'errant' => 2, 'piege' => 3],
-                        'or' => 100,
+                        // Deck de trésor du JEU DE PLATEAU, à l'identique : 24 cartes
+                        // piochées SANS REMISE. Les montants d'or sont ceux des cartes.
+                        'cartes' => [
+                            'gemme' => 2,          // 35 po
+                            'or_25' => 2,
+                            'or_15' => 2,
+                            'bijoux' => 2,         // 50 po
+                            'piege_trou' => 2,
+                            'piege_fleches' => 2,
+                            'potion_soin' => 3,
+                            'potion_heroisme' => 1,
+                            'potion_force' => 1,
+                            'potion_defense' => 1,
+                            'errant' => 6,
+                        ],
+                        'or' => 25,                // repli si un montant manque
                         'or_coffre' => 300,
                         'potions' => ['Potion de soin', 'Potion de rage', 'Antidote'],
                     ],

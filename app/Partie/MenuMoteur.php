@@ -91,9 +91,10 @@ final class MenuMoteur
             return false; // couloir : pas de fouille de trésor
         }
 
-        // Salle déjà fouillée pour son trésor ? (une seule fois — anti-farm).
-        // Lu en base depuis §2.16.
-        if (in_array($index, $quete->tresorsFouilles(), true)) {
+        // Comme au plateau : CHAQUE héros fouille une fois par salle, et tire
+        // sa propre carte. La fouille était close pour tout le groupe dès le
+        // premier — les autres n'avaient jamais leur chance.
+        if ($etat->personnage_id !== null && $quete->aFouille($index, (int) $etat->personnage_id)) {
             return false;
         }
 

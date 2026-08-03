@@ -58,10 +58,15 @@ it('garde l\'exploration d\'une quête après un vidage complet du cache', funct
 it('garde la fouille de trésor d\'une salle après un vidage du cache', function () {
     $quete = queteDemarree();
 
-    $quete->marquerTresorFouille(2);
+    $heros = $quete->groupe->personnages()->firstOrFail();
+
+    // Une fouille appartient désormais à UN héros : chacun tire sa carte,
+    // comme au plateau.
+    $quete->marquerTresorFouille(2, (int) $heros->id);
     Cache::flush();
 
-    expect($quete->fresh()->tresorsFouilles())->toContain(2);
+    expect($quete->fresh()->tresorsFouilles())->toContain(2)
+        ->and($quete->fresh()->aFouille(2, (int) $heros->id))->toBeTrue();
 });
 
 it('considère toujours la salle de départ comme découverte, même sans donnée', function () {

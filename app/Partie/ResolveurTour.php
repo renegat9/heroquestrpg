@@ -1709,10 +1709,10 @@ final class ResolveurTour
 
         // Une seule fouille de trésor par salle (anti-farm) : on marque la
         // salle EN BASE (§2.16 — comme l'exploration, c'est de l'état durable).
-        if (in_array($salle, $quete->tresorsFouilles(), true)) {
-            throw ValidationException::withMessages(['option_id' => 'Cette salle a déjà été fouillée pour son trésor.']);
+        if ($quete->aFouille($salle, (int) $personnage->id)) {
+            throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
         }
-        $quete->marquerTresorFouille($salle);
+        $quete->marquerTresorFouille($salle, (int) $personnage->id);
 
         // Une salle à COFFRE ne consomme aucune carte du deck : son butin est un
         // bonus net. La salle du fond rend l'arme unique, celles ouvertes par une

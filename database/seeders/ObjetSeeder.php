@@ -35,6 +35,16 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
 
+            // Potions du deck de trésor du plateau. Elles réutilisent les clés
+            // que le moteur lit déjà (`bonus_des_attaque`/`bonus_des_defense`,
+            // `duree`, `condition_appliquee`) — aucune mécanique nouvelle.
+            ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+                'effet' => ['bonus_des_attaque' => 1, 'duree' => 'un_combat', 'condition_appliquee' => 'Renforcé']],
+            ['nom' => 'Potion de force', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+                'effet' => ['bonus_des_attaque' => 2, 'duree' => 0, 'condition_appliquee' => 'Renforcé']],
+            ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+                'effet' => ['bonus_des_defense' => 2, 'duree' => 0, 'condition_appliquee' => 'Renforcé']],
+
             // ----- Artefacts : armes UNIQUES (doc 04 §4/§6) -----
             // Jamais à l'achat (PhaseMarche filtre `rarete != unique`), jamais
             // revendables, jamais forgeables (Forge les refuse). Seule source :

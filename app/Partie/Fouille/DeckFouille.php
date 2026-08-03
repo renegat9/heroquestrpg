@@ -199,31 +199,27 @@ final class DeckFouille
     private function cartes(array $composition, int $nbSalles): array
     {
         $nombres = (array) data_get($composition, 'cartes', []);
-        $or = max(1, (int) data_get($composition, 'or', 30));
+        $orDefaut = max(1, (int) data_get($composition, 'or', 25));
 
-        // Vivier de potions résolu une fois. Vide (catalogue non semé) : les
-        // cartes potion se rabattent sur de l'or plutôt que de disparaître.
-        $potions = Objet::query()
-            ->whereIn('nom', (array) data_get($composition, 'potions', []))
-            ->orderBy('id')
-            ->pluck('id')
-            ->all();
+        // Montants d'or des cartes du plateau. `tresor` reste le nom d'issue :
+        // les journaux des campagnes en cours le portent déjà.
+        $montants = ['gemme' => 35, 'or_25' => 25, 'or_15' => 15, 'bijoux' => 50, 'tresor' => $orDefaut];
+
+        // Potions du deck, résolues UNE fois. Absente du catalogue → la carte
+        // se rabat sur de l'or plutôt que de disparaître.
+        $parNom = fn (string $nom) => Objet::where('nom', $nom)->value('id');
+        $potions = [
+            'potion_soin' => $parNom('Potion de soin'),
+            'potion_heroisme' => $parNom("Potion d'héroïsme"),
+            'potion_force' => $parNom('Potion de force'),
+            'potion_defense' => $parNom('Potion de défense'),
+        ];
 
         $deck = [];
 
-        foreach ($nombres as $issue => $nombre) {
+        foreach ($nombres as $type => $nombre) {
             for ($i = 0; $i < (int) $nombre; $i++) {
-                if ($issue === 'potion') {
-                    $deck[] = $potions === []
-                        ? ['issue' => 'tresor', 'or' => $or]
-                        : ['issue' => 'potion', 'objet_id' => $potions[count($deck) % count($potions)]];
-
-                    continue;
-                }
-
-                $deck[] = $issue === 'tresor'
-                    ? ['issue' => 'tresor', 'or' => $or]
-                    : ['issue' => (string) $issue];
+                $deck[] = $this->carte((string) $type, $montants, $potions, $orDefaut);
             }
         }
 
@@ -235,6 +231,34 @@ final class DeckFouille
         }
 
         return $deck;
+    }
+
+    /**
+     * Une carte du deck, AUTO-SUFFISANTE : montant et identité figés ici.
+     *
+     * @param  array<string, int>  $montants
+     * @param  array<string, int|null>  $potions
+     * @return array<string, mixed>
+     */
+    private function carte(string $type, array $montants, array $potions, int $orDefaut): array
+    {
+        if (isset($montants[$type])) {
+            return ['issue' => 'tresor', 'or' => $montants[$type], 'carte' => $type];
+        }
+
+        if (array_key_exists($type, $potions)) {
+            return $potions[$type] === null
+                ? ['issue' => 'tresor', 'or' => $orDefaut]
+                : ['issue' => 'potion', 'objet_id' => $potions[$type], 'carte' => $type];
+        }
+
+        // Deux pièges distincts au plateau (trou / flèches) : même effet
+        // mécanique ici, la variante sert à la narration et au journal.
+        if ($type === 'piege_trou' || $type === 'piege_fleches') {
+            return ['issue' => 'piege', 'variante' => $type === 'piege_trou' ? 'trou' : 'fleches'];
+        }
+
+        return ['issue' => $type];
     }
 
     /**
