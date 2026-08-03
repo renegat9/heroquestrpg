@@ -182,7 +182,7 @@ it('lance une hache à main sur une cible à distance, et la PERD', function () 
     $hero->inventaire()->delete();
     $hache = Inventaire::create([
         'personnage_id' => $hero->id,
-        'objet_id' => App\Models\Objet::where('nom', 'Hache à main')->firstOrFail()->id,
+        'objet_id' => App\Models\Objet::where('nom', 'Hachette')->firstOrFail()->id,
         'emplacement' => 'arme_principale',
         'quantite' => 1,
     ]);
@@ -199,7 +199,7 @@ it('lance une hache à main sur une cible à distance, et la PERD', function () 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "lancer_{$ctx['instance']->id}"])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'attaque')
-        ->assertJsonPath('resultat.lancer.arme', 'Hache à main')
+        ->assertJsonPath('resultat.lancer.arme', 'Hachette')
         ->assertJsonPath('resultat.lancer.perdue', true);
 
     // L'arme quitte la main POUR DE BON : le héros retombe à mains nues.

@@ -67,7 +67,7 @@ Valeurs de vie tirées du canon HeroQuest ; attributs de jet = proposition nouve
 > **La colonne « Attaque » est la valeur AVEC l'arme de départ**, pas une force innée.
 > Comme au plateau, **l'attaque vient de l'arme équipée** (doc 03 §8) : à mains nues tout
 > héros lance **1 dé**. Les 3/2/2/1 ci-dessous sont produits par l'équipement initial —
-> Barbare épée large (3), Nain hache à main (2, lançable) + trousse à outils, Elfe épée courte (2),
+> Barbare épée large (3), Nain hachette (2, lançable) + trousse à outils, Elfe épée courte (2),
 > Magicien dague (1). La **défense**, elle, vaut **2 pour tous** sans armure, et les pièces
 > d'armure s'y **ajoutent** (casque +1, bouclier +1…).
 

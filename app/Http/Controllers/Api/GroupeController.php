@@ -288,7 +288,7 @@ class GroupeController extends Controller
      */
     private const EQUIPEMENT_DEPART = [
         'barbare' => ['Épée large'],
-        'nain' => ['Hache à main', 'Trousse à outils'],
+        'nain' => ['Hachette', 'Trousse à outils'],
         'elfe' => ['Épée courte'],
         'magicien' => ['Dague'],
         'magicienne' => ['Dague'],

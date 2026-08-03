@@ -21,18 +21,16 @@ class ObjetSeeder extends Seeder
         $objets = [
             // ----- Armes -----
             ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
-                'effet' => ['des_attaque' => 1, 'jetable' => true, 'jetable_frequence' => 'une_fois_par_combat']],
+                'effet' => ['des_attaque' => 1, 'jetable' => true]],
             ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 'effet' => ['des_attaque' => 1, 'attaque_diagonale' => true]],
             ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2]],
             // Arme de départ du NAIN au plateau : mêmes 2 dés que l'épée courte
             // — sa force est ailleurs (outils, Forge, robustesse) —, mais
-            // lançable comme la dague, et PERDUE une fois lancée.
-            // ⚠ `jetable` n'a aucun lecteur moteur à ce jour (la dague non plus) :
-            // le lancer reste descriptif, cf. docs/correctifs-restants.md.
-            ['nom' => 'Hache à main', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
-                'effet' => ['des_attaque' => 2, 'jetable' => true, 'jetable_frequence' => 'une_fois_par_combat', 'perdue_au_lancer' => true]],
+            // lançable, et perdue une fois lancée comme toute arme de jet.
+            ['nom' => 'Hachette', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 2, 'jetable' => true]],
             ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'attaque_second_rang' => true]],
             ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',

@@ -618,12 +618,10 @@ final class ResolveurTour
     /**
      * Retire de la main l'arme qui vient d'être LANCÉE.
      *
-     * `perdue_au_lancer` (hache à main) : elle est perdue pour de bon. Sinon
-     * (dague) elle retombe au sac, récupérable — le lancer reste limité par le
-     * créneau d'action, un héros ne peut donc pas la relancer dans le tour.
+     * Une arme lancée est PERDUE, dague comprise : elle reste où elle tombe.
      *
-     * Dans les deux cas les dés d'attaque sont recalculés : le héros se retrouve
-     * à mains nues s'il n'a rien d'autre, et il doit le voir immédiatement.
+     * Les dés d'attaque sont recalculés : le héros se retrouve à mains nues
+     * s'il n'a rien d'autre, et il doit le voir immédiatement.
      *
      * @return array<string, mixed>
      */
@@ -636,13 +634,11 @@ final class ResolveurTour
         }
 
         $nom = $ligne->objet?->nom;
-        $perdue = (bool) ($ligne->objet?->effet['perdue_au_lancer'] ?? false);
-
-        $perdue ? $ligne->delete() : $ligne->update(['emplacement' => 'sac']);
+        $ligne->delete();
 
         $this->equipement->recalculerCombat($personnage->refresh());
 
-        return ['arme' => $nom, 'perdue' => $perdue];
+        return ['arme' => $nom, 'perdue' => true];
     }
 
     /**

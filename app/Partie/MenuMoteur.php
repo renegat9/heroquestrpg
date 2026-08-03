@@ -327,11 +327,9 @@ final class MenuMoteur
                 $lance = $armeJetable && ! $armeADistance && in_array($instance->id, $idsADistance, true);
 
                 if ($lance) {
-                    // Lancer CONSOMME l'arme : le libellé doit le dire, sinon le
+                    // Lancer PERD l'arme : le libellé doit le dire, sinon le
                     // joueur se retrouve les mains vides sans l'avoir voulu.
-                    $perdue = (bool) ($armePrincipale->effet['perdue_au_lancer'] ?? false);
-                    $libelle = "Lancer {$armePrincipale->nom} sur {$nom}"
-                        .($perdue ? ' (perdue)' : '');
+                    $libelle = "Lancer {$armePrincipale->nom} sur {$nom} (perdue)";
                 } elseif (in_array($instance->id, $idsADistance, true)) {
                     $libelle .= ' (à distance)';
                 }
