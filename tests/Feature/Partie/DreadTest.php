@@ -343,6 +343,8 @@ it('Frayeur : −1 dé d\'attaque vérifié sur le nombre de faces lancées (con
     $reponse = test()->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', [
             'option_id' => $optionAttaque['id'],
+            // Ciblage en deux temps : l'option ne désigne plus une cible.
+            'parametres' => ['cible_id' => (int) $optionAttaque['parametres']['cibles'][0]['id']],
         ])
         ->assertStatus(202);
 

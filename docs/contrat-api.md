@@ -113,6 +113,21 @@ manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
 
+**Ciblage en deux temps.** Une option qui vise (`attaque`, `sort`, parchemin)
+n'en désigne **pas** la cible : elle joint les cibles légales dans
+`parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,
+distance?}]` — et la manette ouvre sa feuille de ciblage. Le choix part en
+`POST choix {option_id, parametres: {cible_id, cible_type?}}`, **à plat**.
+Le combat n'émet donc que deux identifiants : `attaquer` et, arme jetable en
+main et cible hors contact, `lancer` (l'arme est perdue — libellé jamais
+habillé par l'IA, il porte cette information mécanique).
+
+⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
+porte plus la légalité de la cible, donc la valider contre le menu ne la valide
+plus. Le résolveur vérifie l'appartenance et répond 422 sinon — sans quoi un
+client pourrait viser n'importe quel monstre de la quête, hors portée et hors
+ligne de vue.
+
 Autorisations (routes/channels.php) : `groupe.{identifiant}` → le joueur a un
 personnage actif dans ce groupe ; `joueur.{id}` → id === joueur connecté.
 

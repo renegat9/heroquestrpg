@@ -93,7 +93,9 @@ it('réinjecte déplacement et attaque (cible_id), et JETTE les actions inventé
         ->and(collect($menu['options'])->pluck('id'))->not->toContain('ecouter');
 
     $attaque = collect($menu['options'])->firstWhere('type', 'attaque');
-    expect((int) $attaque['cible_id'])->toBe((int) $instance->id); // ancrage mécanique correct
+    // Ancrage mécanique : depuis le ciblage en deux temps, les cibles légales
+    // sont jointes à l'option unique au lieu d'une option par monstre.
+    expect(collect($attaque['parametres']['cibles'])->pluck('id'))->toContain($instance->id);
 });
 
 it('emprunte le libellé IA pour habiller une option mécanique du moteur', function () {
@@ -126,5 +128,6 @@ it('emprunte le libellé IA pour habiller une option mécanique du moteur', func
     $attaque = collect($menu['options'])->firstWhere('type', 'attaque');
 
     expect($attaque['libelle'])->toBe('Charger la Sentinelle dans un cri de guerre') // habillage IA
-        ->and((int) $attaque['cible_id'])->toBe((int) $instance->id);                  // binding moteur
+        ->and($attaque['id'])->toBe('attaquer')                                        // binding moteur
+        ->and(collect($attaque['parametres']['cibles'])->pluck('id'))->toContain($instance->id);
 });

@@ -80,7 +80,7 @@ function gagnerQueteCourante(JoueurAuthentifiable $joueur, Groupe $groupe, Perso
     // ignorés par un monstre) : 1 dégât → vaincu → quête terminée.
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    test()->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => "attaquer_{$proie->id}"])
+    test()->postJson("/api/groupes/{$groupe->identifiant}/choix", ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.donjon_nettoye', true);
 

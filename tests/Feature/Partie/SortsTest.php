@@ -334,7 +334,7 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
     desFiges(array_fill(0, 30, 4)); // aucun crâne nulle part
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.degats', 0);
 
@@ -393,7 +393,7 @@ it("Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la cond
     $this->actingAs($bob, 'joueur');
     desFiges([1, 4, 4, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.bonus_des_attaque', 2)
         ->assertJsonPath('resultat.cible_vaincue', true);

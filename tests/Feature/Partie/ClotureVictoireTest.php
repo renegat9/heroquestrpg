@@ -53,7 +53,7 @@ it('le coup fatal au boss final ouvre AUTOMATIQUEMENT une clôture victoire (flu
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
     figerDesCloture([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.donjon_nettoye', true);
 

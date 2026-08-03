@@ -121,7 +121,7 @@ it('diffuse un bark « mort » sur le canal de groupe quand un héros tue un mon
     Event::fake([BarkDiffuse::class]);
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.cible_vaincue', true);
 

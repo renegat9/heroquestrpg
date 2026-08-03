@@ -102,7 +102,7 @@ it('Frénésie (+1 dé d\'attaque sous la moitié des PV de Body) s\'applique au
     desFiges(array_fill(0, 20, 4)); // boucliers blancs partout : combat neutre, aucune complication
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "attaquer_{$ctx['instance']->id}",
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.bonus_frenesie', 1)
@@ -125,7 +125,7 @@ it('Frénésie ne s\'applique PAS au-dessus de la moitié des PV de Body', funct
     desFiges(array_fill(0, 20, 4));
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "attaquer_{$ctx['instance']->id}",
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.bonus_frenesie', 0)
@@ -146,7 +146,7 @@ it('Coup puissant relance une fois les dés d\'attaque ratés', function () {
     desFiges([4, 1, 4]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "attaquer_{$ctx['instance']->id}",
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.touches', 1)

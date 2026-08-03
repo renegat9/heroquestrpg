@@ -639,6 +639,12 @@ export function ciblesVersListe(cibles, entites = []) {
         const ami = type === 'heros';
         const nom = (objet && c.nom) || entite?.nom || `${ami ? 'Héros' : 'Cible'} n°${id ?? i + 1}`;
         const pv = entite && entite.pv_body != null ? `PV ${entite.pv_body}/${entite.pv_body_max}` : '';
+        // Précisions portées par la cible elle-même depuis que les attaques se
+        // choisissent en deux temps : elles vivaient dans le libellé de l'option
+        // (« Attaquer X (Gobelin) (à distance) »), qui n'existe plus par cible.
+        // `nom_base` renvoie à la fiche du bestiaire quand l'IA a rhabillé le nom.
+        const base = objet && c.nom_base && c.nom_base !== nom ? String(c.nom_base) : '';
+        const details = [base, objet && c.distance ? 'à distance' : '', pv].filter(Boolean);
         return {
             brut: c,
             // Ancrage mécanique À PLAT pour POST choix (contrat :
@@ -651,7 +657,7 @@ export function ciblesVersListe(cibles, entites = []) {
             ic: ami
                 ? (CLASSES[((objet ? c.classe : null) ?? entite?.classe ?? '').toLowerCase()]?.ic ?? 'person')
                 : 'sentiment_very_dissatisfied',
-            meta: ami ? `⚠ allié${pv ? ` · ${pv}` : ''}` : pv,
+            meta: ami ? `⚠ allié${pv ? ` · ${pv}` : ''}` : details.join(' · '),
         };
     });
 }

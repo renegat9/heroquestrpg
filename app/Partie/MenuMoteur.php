@@ -17,7 +17,7 @@ use App\Models\Quete;
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
  * de la boucle de jeu (contrat : « l'API ne dépend jamais du LLM »).
  *
- * En quête : Se déplacer / Attaquer (un bouton par monstre actif adjacent) /
+ * En quête : Se déplacer / Attaquer (UN bouton, cibles légales jointes) /
  * Désamorcer / Franchir (un bouton par piège DÉTECTÉ adjacent, doc 10 §4) /
  * Lancer {sort} (un bouton par sort DISPONIBLE, cibles légales jointes) /
  * Utiliser un parchemin (un bouton par parchemin au sac) / Se concentrer
@@ -318,28 +318,55 @@ final class MenuMoteur
 
             $idsADistance = $aDistance->pluck('id')->all();
 
+            // Ciblage en DEUX TEMPS : une seule option « Attaquer » (et une
+            // « Lancer »), les cibles légales jointes dans `parametres.cibles`
+            // — la manette ouvre sa feuille de ciblage, comme pour les sorts.
+            // Une option par monstre noyait le menu dès trois ennemis et
+            // multipliait les identifiants mécaniques pour rien.
+            //
+            // ⚠ `parametres.cibles` est désormais la LISTE BLANCHE : c'était
+            // l'identifiant d'option qui portait la légalité de la cible, et le
+            // contrôleur la validait en validant l'option. `ResolveurTour`
+            // vérifie donc l'appartenance, sinon on pourrait viser n'importe
+            // quel monstre de la quête, hors portée et hors ligne de vue.
+            $cibles = ['attaquer' => [], 'lancer' => []];
+
             foreach ($adjacents->concat($aDistance) as $instance) {
                 $nomBase = $instance->monstre->nom_base;
                 $nom = $instance->habillage['nom'] ?? $nomBase;
-                // Rappel du TYPE du catalogue quand le nom est un habillage IA →
-                // le joueur retrouve la fiche du bestiaire (guide).
-                $libelle = $nom === $nomBase ? "Attaquer {$nom}" : "Attaquer {$nom} ({$nomBase})";
-                $lance = $armeJetable && ! $armeADistance && in_array($instance->id, $idsADistance, true);
+                $aPortee = in_array($instance->id, $idsADistance, true);
+                $lance = $armeJetable && ! $armeADistance && $aPortee;
 
-                if ($lance) {
+                $cibles[$lance ? 'lancer' : 'attaquer'][] = [
+                    'id' => $instance->id,
+                    'type' => 'monstre',
+                    'nom' => $nom,
+                    // Rappel du TYPE du catalogue quand le nom est un habillage
+                    // IA → le joueur retrouve la fiche du bestiaire (guide).
+                    'nom_base' => $nomBase,
+                    'distance' => $aPortee,
+                ];
+            }
+
+            if ($cibles['attaquer'] !== []) {
+                $options[] = [
+                    'id' => 'attaquer',
+                    'libelle' => 'Attaquer',
+                    'type' => 'attaque',
+                    'lancer' => false,
+                    'parametres' => ['cibles' => $cibles['attaquer']],
+                ];
+            }
+
+            if ($cibles['lancer'] !== []) {
+                $options[] = [
+                    'id' => 'lancer',
                     // Lancer PERD l'arme : le libellé doit le dire, sinon le
                     // joueur se retrouve les mains vides sans l'avoir voulu.
-                    $libelle = "Lancer {$armePrincipale->nom} sur {$nom} (perdue)";
-                } elseif (in_array($instance->id, $idsADistance, true)) {
-                    $libelle .= ' (à distance)';
-                }
-
-                $options[] = [
-                    'id' => ($lance ? 'lancer_' : 'attaquer_').$instance->id,
-                    'libelle' => $libelle,
+                    'libelle' => "Lancer {$armePrincipale->nom} (perdue)",
                     'type' => 'attaque',
-                    'lancer' => $lance,
-                    'cible_id' => $instance->id,
+                    'lancer' => true,
+                    'parametres' => ['lancer' => true, 'cibles' => $cibles['lancer']],
                 ];
             }
 

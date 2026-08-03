@@ -217,7 +217,7 @@ it('résout une attaque adjacente qui tue, et termine la quête (butin au pot co
     figerDes([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "attaquer_{$proie->id}",
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.type', 'attaque')
@@ -265,7 +265,7 @@ it('diffuse le journal de combat mécanique (.combat.journal) à la résolution 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
     figerDes([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202);
 
     Event::assertDispatched(JournalCombatDiffuse::class, function (JournalCombatDiffuse $e) use ($groupe) {
@@ -359,7 +359,7 @@ it('laisse le groupe fouiller après le dernier monstre, et sort par un VOTE', f
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     figerDes([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         // La quête ne se termine PLUS d'elle-même : sans cette fenêtre, un
         // groupe qui achevait le dernier garde perdait tout ce qu'il n'avait

@@ -81,11 +81,13 @@ it('un héros armé d\'une Arbalète attaque un monstre non adjacent en ligne de
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     $menu = Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu'];
-    expect(collect($menu['options'])->firstWhere('id', "attaquer_{$ctx['instance']->id}"))->not->toBeNull();
+    $option = collect($menu['options'])->firstWhere('id', 'attaquer');
+    expect($option)->not->toBeNull()
+        ->and(collect($option['parametres']['cibles'])->pluck('id'))->toContain($ctx['instance']->id);
 
     desFiges(array_fill(0, 20, 4)); // boucliers partout : combat neutre
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.portee', 'distance');
 
@@ -121,7 +123,7 @@ it('refuse le tir sans ligne de vue dégagée (figure interposée)', function ()
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(422);
 });
 
@@ -133,11 +135,12 @@ it('refuse d\'attaquer un monstre non adjacent SANS arme à distance équipée',
     Cache::put(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id), [
         'personnage_id' => $ctx['heros']->id,
         'menu' => ['options' => [[
-            'id' => "attaquer_{$ctx['instance']->id}", 'libelle' => 'Attaquer', 'type' => 'attaque', 'cible_id' => $ctx['instance']->id,
+            'id' => 'attaquer', 'libelle' => 'Attaquer', 'type' => 'attaque',
+            'parametres' => ['cibles' => [['id' => $ctx['instance']->id, 'type' => 'monstre', 'nom' => 'Gobelin']]],
         ]]],
     ], now()->addMinutes(60));
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(422);
 });
 
@@ -148,7 +151,7 @@ it('refuse d\'utiliser l\'Arbalète au corps-à-corps (inutilisable_adjacent)', 
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(422);
 });
 
@@ -165,7 +168,7 @@ it('Tir précis (+1 dé) s\'applique sur un tir à distance véritable, jamais a
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     desFiges(array_fill(0, 20, 4));
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.bonus_tir_precis', 1)
         ->assertJsonPath('resultat.portee', 'distance')
@@ -193,10 +196,10 @@ it('lance une hache à main sur une cible à distance, et la PERD', function () 
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $hero->id);
     $ids = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options'])->pluck('id');
-    expect($ids)->toContain("lancer_{$ctx['instance']->id}");
+    expect($ids)->toContain('lancer');
 
     desFiges(array_fill(0, 20, 4));
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "lancer_{$ctx['instance']->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'lancer', 'parametres' => ['cible_id' => $ctx['instance']->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'attaque')
         ->assertJsonPath('resultat.lancer.arme', 'Hachette')

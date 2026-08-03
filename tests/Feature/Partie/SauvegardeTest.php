@@ -251,7 +251,8 @@ it('purge les menus en cache à la reprise : un choix contre le menu périmé es
     $cleMenu = GenererMenu::cleMenu($groupe->id, (int) $alice->id);
     Cache::put($cleMenu, [
         'personnage_id' => $mage->id,
-        'menu' => ['options' => [['id' => 'attaquer_999', 'libelle' => 'Attaquer', 'type' => 'attaque', 'cible_id' => 999]]],
+        'menu' => ['options' => [['id' => 'attaquer', 'libelle' => 'Attaquer', 'type' => 'attaque',
+            'parametres' => ['cibles' => [['id' => 999, 'type' => 'monstre', 'nom' => 'Fantôme d\'un monde disparu']]]]]],
     ], now()->addMinutes(60));
 
     // On fige la file APRÈS le TPK pour observer la fenêtre async : le menu
@@ -267,7 +268,7 @@ it('purge les menus en cache à la reprise : un choix contre le menu périmé es
     Queue::assertPushed(GenererMenu::class);
 
     // Tant que le menu régénéré n'est pas arrivé, rejouer est refusé (aucun menu).
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer_999'])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => 999]])
         ->assertStatus(422);
 })->group('reprise');
 
@@ -385,7 +386,7 @@ it('purge les snapshots de la quête à la fin de la quête (victoire)', functio
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.donjon_nettoye', true);
 

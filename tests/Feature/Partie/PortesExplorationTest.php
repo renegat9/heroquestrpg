@@ -250,7 +250,7 @@ it('ouvre AUTOMATIQUEMENT une porte « monstres_vaincus » quand le gardien tomb
 
     desFiges([1, 1, 1, 4]); // 3 dés d'attaque (3 crânes) vs 1 dé de défense (bouclier blanc → 0 blocage monstre)
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$instance->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $instance->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.cible_vaincue', true);
 

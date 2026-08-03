@@ -91,7 +91,7 @@ it('offre et résout l attaque de l Ogre via le contact de sa case BASSE seule',
     desFiges(array_fill(0, 50, 4)); // boucliers : aucun dégât
 
     test()->actingAs($ctx['alice'], 'joueur')
-        ->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$instance->id}"])
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $instance->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'attaque');
 });

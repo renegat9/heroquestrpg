@@ -492,7 +492,29 @@ final class ResolveurTour
         array $acteur,
     ): array {
         $cibleId = (int) ($option['cible_id'] ?? $parametres['cible_id'] ?? 0);
-        $lancer = (bool) ($option['lancer'] ?? false);
+        $lancer = (bool) ($option['lancer'] ?? $option['parametres']['lancer'] ?? false);
+
+        // Ciblage en deux temps : l'option ne vaut plus pour UNE cible, elle
+        // joint la liste des cibles légales. C'est donc `parametres.cibles` qui
+        // porte maintenant la légalité — et non plus l'identifiant d'option que
+        // le contrôleur validait contre le menu. Sans cette vérification, un
+        // client pourrait viser n'importe quel monstre de la quête, hors portée
+        // et hors ligne de vue : la garde n'est pas défensive, elle REMPLACE
+        // celle que le repli des options vient de retirer.
+        $legales = $option['parametres']['cibles'] ?? null;
+
+        if (is_array($legales)) {
+            $ids = array_map(
+                static fn ($c) => (int) (is_array($c) ? ($c['id'] ?? 0) : $c),
+                $legales,
+            );
+
+            if (! in_array($cibleId, $ids, true)) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Cible invalide : ce monstre ne fait pas partie des cibles proposées (hors portée, hors ligne de vue ou déjà hors jeu).',
+                ]);
+            }
+        }
 
         $instance = $quete->instancesMonstres()
             ->whereKey($cibleId)

@@ -65,15 +65,39 @@ it('le résolveur refuse une attaque contre un monstre non révélé, même si u
     Cache::put(GenererMenu::cleMenu($groupe->id, (int) $alice->id), [
         'personnage_id' => $heros->id,
         'menu' => ['options' => [[
-            'id' => "attaquer_{$instance->id}", 'libelle' => 'Attaquer', 'type' => 'attaque', 'cible_id' => $instance->id,
+            'id' => 'attaquer', 'libelle' => 'Attaquer', 'type' => 'attaque',
+            'parametres' => ['cibles' => [['id' => $instance->id, 'type' => 'monstre', 'nom' => 'Gobelin']]],
         ]]],
     ], now()->addMinutes(60));
 
     desFiges(array_fill(0, 20, 1));
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$instance->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $instance->id]])
         ->assertStatus(422);
 
     // La cible n'a pas été touchée (elle reste à ses PV pleins).
+    expect((int) $instance->fresh()->pv_body)->toBe((int) $instance->pv_body);
+});
+
+it('refuse une cible ABSENTE des cibles proposées, même parfaitement valide par ailleurs', function () {
+    ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'instance' => $instance] = demarrerQueteAvecMonstre('Gobelin');
+
+    // Depuis le ciblage en deux temps, c'est `parametres.cibles` qui porte la
+    // légalité : l'identifiant d'option ne désigne plus une cible, donc la
+    // valider contre le menu ne valide plus rien. Ici le monstre visé est
+    // actif, révélé ET au contact — sans cette garde, l'attaque passerait, et
+    // avec elle n'importe quel monstre de la quête, hors portée et hors vue.
+    Cache::put(GenererMenu::cleMenu($groupe->id, (int) $alice->id), [
+        'personnage_id' => $heros->id,
+        'menu' => ['options' => [[
+            'id' => 'attaquer', 'libelle' => 'Attaquer', 'type' => 'attaque',
+            'parametres' => ['cibles' => [['id' => $instance->id + 9000, 'type' => 'monstre', 'nom' => 'Autre']]],
+        ]]],
+    ], now()->addMinutes(60));
+
+    desFiges(array_fill(0, 20, 1));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $instance->id]])
+        ->assertStatus(422);
+
     expect((int) $instance->fresh()->pv_body)->toBe((int) $instance->pv_body);
 });
 

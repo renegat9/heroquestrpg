@@ -137,6 +137,12 @@ function onOverlayClick(e) {
                         />
                     </div>
                 </template>
+                <!-- Choisir la cible est la 2e étape : il faut pouvoir revenir
+                     sans jouer. Taper l'overlay le faisait déjà, mais rien ne le
+                     disait — on ne devine pas une zone tappable invisible. -->
+                <button class="btn btn-ghost btn-block cible-retour" @click="emit('close')">
+                    <MSym n="arrow_back" :size="18" /> Retour aux actions
+                </button>
             </template>
         </div>
     </div>
@@ -150,6 +156,7 @@ function onOverlayClick(e) {
   font-size: 12.5px; line-height: 1.4; color: var(--ink-400); }
 .cible-vide .msym { color: var(--ink-500); flex: none; }
 .cible-sep-neutre { color: var(--ink-400) !important; }
+.sheet .cible-retour { margin-top: 14px; }
 .cible-sep { display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; font-size: 12px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--danger, #e66); }
 </style>

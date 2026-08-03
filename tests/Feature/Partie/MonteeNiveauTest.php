@@ -69,7 +69,7 @@ it('monte chaque héros de +1 niveau à la victoire d\'une quête sous_boss (+1 
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "attaquer_{$proie->id}",
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id],
     ])->assertStatus(202);
 
     // La montée est résolue par le moteur à la clôture victorieuse du jalon.
@@ -132,7 +132,7 @@ it('ne monte pas de niveau à la victoire d\'une quête normale', function () {
     Event::fake([NiveauMonte::class]);
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.donjon_nettoye', true);
 

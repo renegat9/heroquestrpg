@@ -61,7 +61,7 @@ it('une attaque déclenche la narration et un menu enrichi par l\'IA', function 
     desFiges([1, 4, 4, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
     Queue::fake();
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "attaquer_{$proie->id}"])
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attaquer', 'parametres' => ['cible_id' => $proie->id]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'attaque');
 

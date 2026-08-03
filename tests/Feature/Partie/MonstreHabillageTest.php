@@ -64,10 +64,15 @@ it('rappelle le type de base dans l\'option d\'attaque quand le monstre est reno
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
-        ->firstWhere('id', "attaquer_{$proie->id}");
+        ->firstWhere('id', 'attaquer');
+
+    // Depuis le ciblage en deux temps, le nom d'habillage et le rappel du type
+    // de catalogue vivent dans la CIBLE, plus dans le libellé de l'option.
+    $cible = collect($option['parametres']['cibles'] ?? [])->firstWhere('id', $proie->id);
 
     expect($option)->not->toBeNull()
-        ->and($option['libelle'])->toBe("Attaquer Écumeur des cryptes ({$proie->monstre->nom_base})");
+        ->and($cible['nom'])->toBe('Écumeur des cryptes')
+        ->and($cible['nom_base'])->toBe($proie->monstre->nom_base);
 });
 
 it('n\'ajoute PAS de type entre parenthèses pour un monstre non renommé', function () {
@@ -89,7 +94,9 @@ it('n\'ajoute PAS de type entre parenthèses pour un monstre non renommé', func
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
-        ->firstWhere('id', "attaquer_{$proie->id}");
+        ->firstWhere('id', 'attaquer');
+    $cible = collect($option['parametres']['cibles'] ?? [])->firstWhere('id', $proie->id);
 
-    expect($option['libelle'])->toBe("Attaquer {$proie->monstre->nom_base}");
+    expect($cible['nom'])->toBe($proie->monstre->nom_base)
+        ->and($cible['nom_base'])->toBe($proie->monstre->nom_base);
 });

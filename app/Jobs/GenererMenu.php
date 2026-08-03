@@ -235,12 +235,17 @@ class GenererMenu implements ShouldQueue
      */
     private function equivalentIa(array $optMoteur, array $optionsIa): ?array
     {
+        // L'attaque discriminait sur `cible_id` du temps où le moteur émettait
+        // une option par monstre. Elle n'en émet plus qu'une, cibles jointes —
+        // sauf « Lancer », qui partage le type `attaque`. Ce libellé-là n'est
+        // JAMAIS emprunté : il porte une information mécanique — l'arme est
+        // PERDUE — qu'une paraphrase de l'IA ferait disparaître.
+        if (($optMoteur['type'] ?? null) === 'attaque' && ($optMoteur['id'] ?? null) !== 'attaquer') {
+            return null;
+        }
+
         foreach ($optionsIa as $opt) {
             if (($opt['type'] ?? null) !== ($optMoteur['type'] ?? null)) {
-                continue;
-            }
-            if (($optMoteur['type'] ?? null) === 'attaque'
-                && (int) ($opt['cible_id'] ?? 0) !== (int) ($optMoteur['cible_id'] ?? -1)) {
                 continue;
             }
 
