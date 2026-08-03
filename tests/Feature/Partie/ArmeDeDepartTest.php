@@ -54,7 +54,7 @@ it('donne à chaque classe son arme de départ et la valeur d\'attaque du platea
         ->and((int) $hero->fresh()->des_defense)->toBe(2);
 })->with([
     ['barbare', 'Épée large', 3],
-    ['nain', 'Épée courte', 2],
+    ['nain', 'Hache à main', 2],   // arme de départ du nain au plateau
     ['elfe', 'Épée courte', 2],
     ['magicien', 'Dague', 1],
 ]);
