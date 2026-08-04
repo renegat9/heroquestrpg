@@ -20,6 +20,8 @@ const props = defineProps({
     entities: { type: Array, required: true },
     /** Pièges visibles : [{ x, y, etat, nom, titre }] — voir piegesVersMarqueurs(). */
     traps: { type: Array, default: () => [] },
+    /** Mobilier visible : [{ x, y, l, h, nom, bloquant, ic, titre }] — voir mobilierVersDecor(). */
+    furniture: { type: Array, default: () => [] },
     /** Case (x, y) du héros actif — la caméra s'y recentre. `null` = immobile. */
     activeX: { type: Number, default: null },
     activeY: { type: Number, default: null },
@@ -77,7 +79,7 @@ function centrer(dimVue, dimCarte, cible) {
 
 <template>
     <div ref="viewportEl" class="map">
-        <DungeonGrid :carte="carte" :traps="traps" :grid-style="gridStyle" animate>
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :grid-style="gridStyle" animate>
             <!-- Figurines (héros / monstres / alliés) — enfants directs de la
                  grille : FLIP de glissement case-par-case, fondu à la mort. -->
             <div

@@ -237,6 +237,32 @@ de la quête.
   nom}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
   pas). EtatGroupe.entites héros gagne `niveau`.
 
+## Mobilier (doc 17 — catalogue de référence, aucun nouvel endpoint)
+
+Table, coffre, trône, établi d'alchimiste, tombeau, bibliothèque, râtelier
+d'armes, armoire (8 types de `mobiliers`, emprise 1×1 ou 1×2 mesurée sur les
+cartes de quête officielles) posés dans les salles (jamais en salle de départ,
+jamais en couloir) par `AssembleurCarte::placerMobilier()`, densité 0 à 3 par
+salle. Un meuble `bloquant` (tous, à ce jour — `mobiliers.bloquant`) occupe sa
+case au même titre qu'une grande figurine : **`FabriqueGrille::pour()` est la
+source unique de cette occupation**, partagée par le déplacement, le ciblage
+et la ligne de vue. Invariant garanti à l'assemblage : aucun meuble ne peut
+isoler une case par ailleurs atteignable (placement abandonné plutôt que
+posé si la connexité de la salle romprait) — verrouillé par
+`tests/Feature/Partie/CouloirsTest.php`.
+
+- **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloquant}]` — l'ancre
+  `(x, y)` est le coin haut-gauche de l'emprise (l×h), même convention que
+  `cellulesEmprise()`. Contrairement aux pièges, un meuble n'a pas d'état
+  « caché » : il est simplement soumis au même **brouillard de guerre** que le
+  reste de la salle (une salle non découverte n'expose aucun de ses meubles).
+- `fouillable` (catalogue) **n'est lu par aucun système aujourd'hui** — la
+  fouille du mobilier est un chantier séparé (doc 17 §4) : `DeckFouille`
+  raisonne en salle, pas en case, et le piège de coffre impose un ordre
+  fouille-pièges-avant-trésor que le moteur ne vérifie pas encore. Le champ
+  n'apparaît donc volontairement pas dans le payload — pas de fonctionnalité
+  à laisser croire livrée côté client.
+
 ## Portes & exploration (doc 14 §3.1/3.2/3.3 — tout passe par les menus)
 
 L'état des portes vit dans la carte de la quête (`cartes.grille.portes` :

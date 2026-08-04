@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Models\GabaritQuete;
+use App\Models\Mobilier;
 use App\Partie\AssembleurCarte;
+use App\Partie\FabriqueGrille;
 use App\Partie\Grille;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
 
@@ -19,7 +22,7 @@ use Database\Seeders\TuileSeeder;
  */
 
 beforeEach(function () {
-    $this->seed([TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+    $this->seed([TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class, MobilierSeeder::class]);
 });
 
 /** Gabarit « normal » (pas de rencontre finale) — assemblage générique. */
@@ -483,4 +486,188 @@ it('garantit AU MOINS une porte secrète par quête', function () {
 
         expect($secretes->count())->toBeGreaterThanOrEqual(1, "graine {$graine} : aucune porte secrète");
     }
+});
+
+// ---------------------------------------------------------------------------
+// Mobilier (doc 17) — même famille d'invariants anti-blocage que les portes
+// secrètes ci-dessus : un meuble mal placé fige le groupe exactement comme
+// une salle tributaire d'une porte secrète (§2.16).
+// ---------------------------------------------------------------------------
+
+it('pose du mobilier UNIQUEMENT dans les salles (jamais en couloir, jamais en salle 0)', function () {
+    $graines = [42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999];
+    $totalMeubles = 0;
+
+    foreach ($graines as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), $graine);
+
+        foreach ($carte['mobilier'] as $meuble) {
+            $totalMeubles++;
+
+            expect($meuble['salle'])->not->toBe(0, "graine {$graine} : meuble en salle de départ");
+
+            $salle = $carte['salles'][$meuble['salle']];
+
+            // L'EMPRISE ENTIÈRE (l×h) doit tenir dans le rectangle de la salle
+            // déclarée — jamais un pas dans le couloir ni dans une salle voisine
+            // mitoyenne (les salles peuvent partager un bord, cf. accolerSallesMitoyennes).
+            for ($dy = 0; $dy < $meuble['h']; $dy++) {
+                for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                    $x = $meuble['x'] + $dx;
+                    $y = $meuble['y'] + $dy;
+
+                    expect($x)->toBeGreaterThanOrEqual($salle['x'])
+                        ->and($x)->toBeLessThan($salle['x'] + $salle['largeur'])
+                        ->and($y)->toBeGreaterThanOrEqual($salle['y'])
+                        ->and($y)->toBeLessThan($salle['y'] + $salle['hauteur']);
+                    expect($carte['cases'][$y][$x] ?? 'm')
+                        ->toBe('s', "graine {$graine} : meuble hors sol en ({$x},{$y})");
+                }
+            }
+        }
+    }
+
+    // Le catalogue est bien lu (sans quoi ce test ne vaudrait rien) : au moins
+    // un meuble posé sur la douzaine de graines.
+    expect($totalMeubles)->toBeGreaterThan(0);
+});
+
+it('ne pose jamais un meuble sur le seuil d\'une porte', function () {
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), $graine);
+
+        $casesPorte = [];
+        foreach ($carte['portes'] as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $casesPorte["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+
+        foreach ($carte['mobilier'] as $meuble) {
+            for ($dy = 0; $dy < $meuble['h']; $dy++) {
+                for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                    $cle = ($meuble['x'] + $dx).','.($meuble['y'] + $dy);
+                    expect($casesPorte)->not->toHaveKey($cle, "graine {$graine} : meuble sur un seuil ({$cle})");
+                }
+            }
+        }
+    }
+});
+
+it('ne superpose jamais un meuble et un piège (invisible + indéclenchable sinon)', function () {
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), $graine);
+
+        $casesPiege = collect($carte['pieges'])->map(fn ($p) => "{$p['x']},{$p['y']}")->flip();
+
+        foreach ($carte['mobilier'] as $meuble) {
+            for ($dy = 0; $dy < $meuble['h']; $dy++) {
+                for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                    $cle = ($meuble['x'] + $dx).','.($meuble['y'] + $dy);
+                    expect($casesPiege->has($cle))->toBeFalse("graine {$graine} : meuble sur un piège ({$cle})");
+                }
+            }
+        }
+    }
+});
+
+it('ne laisse JAMAIS le mobilier isoler une case par ailleurs atteignable', function () {
+    // Même garantie que « aucune salle tributaire d'une porte secrète » plus
+    // haut, à l'échelle de la case cette fois : depuis le spawn héros, portes
+    // ouvertes, TOUTE case de sol non couverte par du mobilier doit rester
+    // joignable. Un meuble qui romprait cette propriété a normalement déjà été
+    // refusé au placement (AssembleurCarte::salleResteConnexe) — ce test
+    // rejoue l'invariant côté carte assemblée, pour le verrouiller ici aussi.
+    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999, 1, 2, 3] as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), $graine);
+
+        $occupees = [];
+        foreach ($carte['mobilier'] as $meuble) {
+            for ($dy = 0; $dy < $meuble['h']; $dy++) {
+                for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                    $occupees[($meuble['x'] + $dx).','.($meuble['y'] + $dy)] = true;
+                }
+            }
+        }
+
+        $grille = new Grille($carte['cases']);
+        $grille->definirPortes(array_map(fn (array $p) => [...$p, 'etat' => 'ouverte'], $carte['portes']));
+        $grille->occuper(array_map(
+            fn (string $cle) => ['x' => (int) explode(',', $cle)[0], 'y' => (int) explode(',', $cle)[1]],
+            array_keys($occupees),
+        ));
+
+        $depart = $carte['spawn_heros'][0];
+
+        foreach ($carte['salles'] as $s) {
+            for ($y = $s['y']; $y < $s['y'] + $s['hauteur']; $y++) {
+                for ($x = $s['x']; $x < $s['x'] + $s['largeur']; $x++) {
+                    if (($carte['cases'][$y][$x] ?? 'm') !== 's' || isset($occupees["{$x},{$y}"])) {
+                        continue;
+                    }
+                    if ($x === $depart['x'] && $y === $depart['y']) {
+                        continue;
+                    }
+
+                    expect($grille->chemin($depart['x'], $depart['y'], $x, $y))
+                        ->not->toBeNull("graine {$graine} : case ({$x},{$y}) isolée par le mobilier");
+                }
+            }
+        }
+    }
+});
+
+it('rend une case de mobilier BLOQUANT infranchissable via FabriqueGrille, source unique d\'occupation', function () {
+    // FabriqueGrille est le chemin réellement emprunté en jeu (déplacement,
+    // ciblage, ligne de vue) — contrairement au test ci-dessus qui rejoue la
+    // géométrie brute, celui-ci exerce le VRAI point d'entrée du moteur.
+    [, $quete] = groupeAvecCarte(7717);
+
+    $carte = $quete->carte->grille;
+    expect($carte['mobilier'])->not->toBeEmpty();
+
+    $grille = FabriqueGrille::pour($quete);
+
+    $idsBloquants = Mobilier::query()->where('bloquant', true)->pluck('id')->all();
+
+    foreach ($carte['mobilier'] as $meuble) {
+        if (! in_array($meuble['mobilier_id'], $idsBloquants, true)) {
+            continue;
+        }
+
+        for ($dy = 0; $dy < $meuble['h']; $dy++) {
+            for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                $x = $meuble['x'] + $dx;
+                $y = $meuble['y'] + $dy;
+                expect($grille->estTraversable($x, $y))
+                    ->toBeFalse("case de mobilier bloquant ({$x},{$y}) traversable");
+            }
+        }
+    }
+
+    // Contrôle négatif : une case de sol ordinaire, hors emprise de tout
+    // meuble et hors figure, reste traversable — la grille ne bloque pas tout.
+    $occupeesMeubles = [];
+    foreach ($carte['mobilier'] as $meuble) {
+        for ($dy = 0; $dy < $meuble['h']; $dy++) {
+            for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                $occupeesMeubles[($meuble['x'] + $dx).','.($meuble['y'] + $dy)] = true;
+            }
+        }
+    }
+    $libre = collect($carte['salles'])->flatMap(function (array $s) use ($carte, $occupeesMeubles) {
+        $libres = [];
+        for ($y = $s['y']; $y < $s['y'] + $s['hauteur']; $y++) {
+            for ($x = $s['x']; $x < $s['x'] + $s['largeur']; $x++) {
+                if (($carte['cases'][$y][$x] ?? 'm') === 's' && ! isset($occupeesMeubles["{$x},{$y}"])) {
+                    $libres[] = ['x' => $x, 'y' => $y];
+                }
+            }
+        }
+
+        return $libres;
+    })->first();
+
+    expect($libre)->not->toBeNull()
+        ->and($grille->estTraversable($libre['x'], $libre['y']))->toBeTrue();
 });

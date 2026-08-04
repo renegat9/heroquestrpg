@@ -59,6 +59,24 @@ const occupees = computed(() => {
     return s;
 });
 
+// Mobilier BLOQUANT (doc 17) : même occupation que côté serveur
+// (FabriqueGrille::pour(), seule source de vérité — ceci n'en est qu'un
+// MIROIR côté client, le serveur revalide toujours le déplacement choisi).
+// Cases distinctes de `occupees` (pas une figurine) : DungeonGrid dessine déjà
+// le meuble lui-même, cette liste ne sert qu'à couper le BFS d'accessibilité.
+const mobilierOccupe = computed(() => {
+    const s = new Set();
+    for (const m of props.carte.mobilier ?? []) {
+        if (m.bloquant === false) continue;
+        for (let dy = 0; dy < Math.max(1, m.h ?? 1); dy++) {
+            for (let dx = 0; dx < Math.max(1, m.l ?? 1); dx++) {
+                s.add(cle(m.x + dx, m.y + dy));
+            }
+        }
+    }
+    return s;
+});
+
 // BFS des cases accessibles dans la portée.
 const accessibles = computed(() => {
     const { largeur: w, hauteur: h, cases } = props.carte;
@@ -94,7 +112,7 @@ const accessibles = computed(() => {
             // moteur revalide de toute façon chaque déplacement.
             const voisinImmediat = d === 0 && (cases?.[ny]?.[nx] ?? 'b') !== 'm';
             if (!caseConnue && !porteOuverteIci && !voisinImmediat) continue;
-            if (occupees.value.has(k)) continue;
+            if (occupees.value.has(k) || mobilierOccupe.value.has(k)) continue;
             dist[k] = d + 1;
             out.add(k);
             // Ne PAS étendre le BFS au-delà d'une case encore dans le brouillard :
@@ -152,7 +170,7 @@ onMounted(() => {
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div ref="grilleRef" class="dep-scroll">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
                     <template #cell="{ x, y }">
                         <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
                         <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />

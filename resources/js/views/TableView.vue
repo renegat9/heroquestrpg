@@ -19,7 +19,7 @@ import { useVoix } from '../composables/useVoix';
 import { useAmbiance } from '../composables/useAmbiance';
 import {
     clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
-    initiativeVersBarre, issueCloture, niveauMonteVersListe, piegesVersMarqueurs,
+    initiativeVersBarre, issueCloture, mobilierVersDecor, niveauMonteVersListe, piegesVersMarqueurs,
     statsFigure, useGameStore, voteVersFeuille,
 } from '../store/game';
 
@@ -148,6 +148,7 @@ const etat = computed(() => store.state.etat);
 const enQuete = computed(() => !!etat.value?.carte);
 
 const traps = computed(() => (enQuete.value ? piegesVersMarqueurs(etat.value.carte) : []));
+const furniture = computed(() => (enQuete.value ? mobilierVersDecor(etat.value.carte) : []));
 const entitesBrutes = computed(() => (etat.value
     ? entitesVersFigurines(etat.value.entites, etat.value.initiative)
     : []));
@@ -522,6 +523,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         :carte="etat.carte"
                         :entities="entities"
                         :traps="traps"
+                        :furniture="furniture"
                         :active-x="heroActif?.x ?? null"
                         :active-y="heroActif?.y ?? null"
                     />

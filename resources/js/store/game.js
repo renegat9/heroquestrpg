@@ -437,6 +437,37 @@ export function piegesVersMarqueurs(carte) {
         }));
 }
 
+// Icône Material Symbols par nom de meuble (doc 17) — repli générique pour un
+// type non listé ici plutôt que de planter sur un catalogue étendu plus tard.
+const MOBILIER_ICONES = {
+    Table: 'table_restaurant',
+    Coffre: 'inventory_2',
+    Trône: 'chair',
+    "Établi d'alchimiste": 'science',
+    Tombeau: 'monument',
+    Bibliothèque: 'menu_book',
+    "Râtelier d'armes": 'swords',
+    Armoire: 'door_sliding',
+};
+
+/** carte.mobilier (contrat « Mobilier ») → décor [{x, y, l, h, nom, bloquant,
+ *  ic, titre}] pour la couche mobilier de DungeonGrid. Contrairement aux
+ *  pièges, aucun état à filtrer : un meuble d'une salle DÉCOUVERTE est
+ *  toujours affiché (le serveur ne l'envoie pas avant — même filtre brouillard
+ *  que le reste de la carte). */
+export function mobilierVersDecor(carte) {
+    return (carte?.mobilier ?? []).map((m) => ({
+        x: m.x,
+        y: m.y,
+        l: Math.max(1, m.l ?? 1),
+        h: Math.max(1, m.h ?? 1),
+        nom: m.nom ?? 'Meuble',
+        bloquant: m.bloquant !== false,
+        ic: MOBILIER_ICONES[m.nom] ?? 'category',
+        titre: m.nom ?? 'Meuble',
+    }));
+}
+
 // (Le rendu des portes — battant sur l'arête — et leurs libellés d'état/verrou
 //  vivent désormais dans le socle partagé DungeonGrid.vue.)
 

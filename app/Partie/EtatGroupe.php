@@ -9,6 +9,7 @@ use App\Models\Carte;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Mobilier;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
@@ -169,11 +170,11 @@ final class EtatGroupe
 
     /**
      * Carte jouable — cases + pièges CONNUS (détectés / désarmés /
-     * déclenchés) + portes CONNUES : les pièges encore cachés et les portes
-     * secrètes non révélées n'y figurent JAMAIS, la table ne doit pas les
-     * montrer (contrat).
+     * déclenchés) + mobilier des salles DÉCOUVERTES + portes CONNUES : les
+     * pièges encore cachés et les portes secrètes non révélées n'y figurent
+     * JAMAIS, la table ne doit pas les montrer (contrat).
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, portes: list<array{x: int, y: int, etat: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloquant: bool}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -220,6 +221,10 @@ final class EtatGroupe
             'hauteur' => (int) $carte->hauteur,
             'cases' => $cases,
             'pieges' => $this->pieges($carte),
+            // Mobilier (doc 17) : contrairement aux pièges (cachés jusqu'à
+            // détection), un meuble n'a rien à découvrir — sa seule condition
+            // d'affichage est le même brouillard que le reste de la salle.
+            'mobilier' => $this->mobilier($carte, $decouvertes),
             'portes' => $portes,
         ];
     }
@@ -405,6 +410,43 @@ final class EtatGroupe
                 'nom' => $noms[$entree['piege_id']] ?? 'Piège',
                 'image_url' => $biblio->urlPiege($entree['piege_id'] ?? null, $noms[$entree['piege_id']] ?? 'Piège'),
             ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Mobilier (doc 17) des salles DÉCOUVERTES uniquement — un meuble n'a pas
+     * d'état « caché »/« détecté » comme un piège, il est simplement dans le
+     * brouillard ou non : filtrer par `$decouvertes` évite de trahir le plan
+     * d'une salle jamais visitée à travers un marqueur flottant sur la case
+     * `b` (contrat, même principe que le filtre `portes` juste au-dessus).
+     *
+     * @param  list<int>  $decouvertes
+     * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloquant: bool}>
+     */
+    private function mobilier(Carte $carte, array $decouvertes): array
+    {
+        $visibles = collect($carte->grille['mobilier'] ?? [])
+            ->filter(fn (array $entree) => in_array($entree['salle'] ?? null, $decouvertes, true));
+
+        $catalogue = Mobilier::query()
+            ->whereIn('id', $visibles->pluck('mobilier_id')->filter()->unique())
+            ->get(['id', 'nom', 'bloquant'])
+            ->keyBy('id');
+
+        return $visibles
+            ->map(function (array $entree) use ($catalogue) {
+                $type = $catalogue[$entree['mobilier_id']] ?? null;
+
+                return [
+                    'x' => (int) $entree['x'],
+                    'y' => (int) $entree['y'],
+                    'l' => (int) $entree['l'],
+                    'h' => (int) $entree['h'],
+                    'nom' => $type?->nom ?? 'Meuble',
+                    'bloquant' => $type?->bloquant ?? true,
+                ];
+            })
             ->values()
             ->all();
     }

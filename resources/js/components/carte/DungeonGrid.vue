@@ -17,6 +17,9 @@ const props = defineProps({
     carte: { type: Object, required: true },
     /** Marqueurs de pièges connus : [{x, y, etat, nom?, titre?}] — voir piegesVersMarqueurs(). */
     traps: { type: Array, default: () => [] },
+    /** Mobilier des salles découvertes : [{x, y, l, h, nom, bloquant, ic?, titre?}]
+     *  — voir mobilierVersDecor() (doc 17). */
+    furniture: { type: Array, default: () => [] },
     /** (x, y) → classe(s) CSS supplémentaire(s) par case (accessible / depart /
      *  occupant… — surcouche manette). Null = aucune (table). */
     cellClass: { type: Function, default: null },
@@ -86,6 +89,20 @@ const doors = computed(() => (props.carte.portes ?? [])
             </div>
         </div>
 
+        <!-- mobilier (doc 17) : bloc plein sur toute son emprise l×h — un simple
+             marqueur discret serait invisible à 22px (leçon des portes, cf. plus
+             bas) alors qu'un meuble bloquant doit se lire au premier coup d'œil. -->
+        <div
+            v-for="(f, i) in furniture"
+            :key="`f-${f.x}-${f.y}-${i}`"
+            class="dg-furn-holder"
+            :style="{ gridColumn: `${f.x + 1} / span ${f.l}`, gridRow: `${f.y + 1} / span ${f.h}` }"
+        >
+            <div class="dg-furn" :class="{ 'non-bloquant': !f.bloquant }" :title="f.titre ?? f.nom">
+                <MSym :n="f.ic ?? 'category'" :size="14" fill />
+            </div>
+        </div>
+
         <!-- portes : battant sur la CLOISON (arête), en % de la case -->
         <div
             v-for="(d, i) in doors"
@@ -137,6 +154,18 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-trap.declenche { inset: 6%; border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
   box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
+
+/* ---- mobilier (doc 17) : bloc PLEIN sur toute l'emprise, pas un marqueur —
+   la leçon des portes (test de jeu 2026-07-31, cf. plus bas) est qu'un
+   habillage discret disparaît sur les 22px de la manette. Un meuble bloquant
+   doit se lire comme un obstacle, pas comme une décoration. */
+.dg-furn-holder { position: relative; pointer-events: none; z-index: 2; }
+.dg-furn { position: absolute; inset: 5%; border-radius: 4px; display: grid; place-items: center;
+  background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
+  box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);
+  color: oklch(0.85 0.05 70); }
+.dg-furn .msym { filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+.dg-furn.non-bloquant { opacity: 0.6; box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.3); }
 
 /* ---- portes : battant en % de la case, sur l'arête est/sud ----
    Test de jeu 2026-07-31 : les joueurs ne repéraient PAS les portes. Une porte

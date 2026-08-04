@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             MonstreSeeder::class,
             MercenaireSeeder::class,
             PiegeSeeder::class,
+            MobilierSeeder::class,
             TuileSeeder::class,
             GabaritQueteSeeder::class,
         ]);

@@ -6,16 +6,21 @@ namespace App\Partie;
 
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Mobilier;
 use App\Models\Quete;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Fabrique la grille tactique OCCUPÉE d'une quête (carte + figures présentes) —
- * source de vérité UNIQUE de l'occupation, partagée par le déplacement et le
- * ciblage (ResolveurTour, MoteurSorts, MenuMoteur). Règles d'occupation
- * (doc 03) : héros DEBOUT (un tombé s'enjambe, C4), monstres `actif` avec leur
- * emprise (3.9), alliés `actif` (3.5). Les `except*` retirent une figure du
- * plateau (la sienne, pour se déplacer / voir depuis sa propre case).
+ * source de vérité UNIQUE de l'occupation, partagée par le déplacement, le
+ * ciblage ET la ligne de vue (ResolveurTour, MoteurSorts, MenuMoteur). Règles
+ * d'occupation (doc 03) : héros DEBOUT (un tombé s'enjambe, C4), monstres
+ * `actif` avec leur emprise (3.9), alliés `actif` (3.5), et depuis doc 17 le
+ * mobilier `bloquant` de la carte (table, coffre, armoire…) avec SA propre
+ * emprise l×h — même mécanisme `cellulesEmprise()` que les grandes figurines,
+ * réutilisé plutôt que dupliqué. Les `except*` retirent une figure du
+ * plateau (la sienne, pour se déplacer / voir depuis sa propre case) ; le
+ * mobilier, lui, n'a pas d'`except` : il ne bouge jamais en cours de quête.
  */
 final class FabriqueGrille
 {
@@ -59,6 +64,29 @@ final class FabriqueGrille
         foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
             if ($allie->id !== $exceptMercenaireId && $allie->position_x !== null) {
                 $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
+            }
+        }
+
+        // Mobilier (doc 17) : troisième couche de la carte (AssembleurCarte),
+        // au même niveau que `leviers`/`pieges`. SEULE boucle d'occupation du
+        // mobilier dans tout le moteur — n'en ouvrir aucune autre ailleurs
+        // (déplacement, ciblage, ligne de vue divergeraient sinon). Un meuble
+        // non `bloquant` (aucun aujourd'hui, cf. MobilierSeeder) n'occupe rien.
+        $mobilier = (array) ($carte->grille['mobilier'] ?? []);
+        if ($mobilier !== []) {
+            $idsBloquants = Mobilier::query()
+                ->whereIn('id', array_values(array_unique(array_column($mobilier, 'mobilier_id'))))
+                ->where('bloquant', true)
+                ->pluck('id')
+                ->flip();
+
+            foreach ($mobilier as $meuble) {
+                if (! $idsBloquants->has($meuble['mobilier_id'] ?? null)) {
+                    continue;
+                }
+                $occupees = array_merge($occupees, $grille->cellulesEmprise(
+                    (int) $meuble['x'], (int) $meuble['y'], (int) $meuble['l'], (int) $meuble['h'],
+                ));
             }
         }
 

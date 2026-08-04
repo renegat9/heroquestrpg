@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Models\GabaritQuete;
+use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Tuile;
 use App\Partie\Aleatoire\PrngLineaire;
@@ -80,6 +81,7 @@ final class AssembleurCarte
      *   portes: list<array{x: int, y: int, etat: string, verrou?: array<string, mixed>, revele?: bool}>,
      *   leviers: list<array{x: int, y: int, levier_id: string}>,
      *   pieges: list<array{x: int, y: int, piege_id: int|null, etat: string}>,
+     *   mobilier: list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>,
      *   aretes: list<array{a: int, b: int, porte_a: array{x: int, y: int}, porte_b: array{x: int, y: int}}>
@@ -210,6 +212,8 @@ final class AssembleurCarte
         }
 
         $portes = $this->devoilerSecretesEnConflit($portes);
+        $leviers = $this->placerLeviers($structure);
+        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $suivant);
 
         return [
             'largeur' => $largeur,
@@ -225,8 +229,13 @@ final class AssembleurCarte
             // au contact desquels l'action « Actionner le levier » ouvre la porte
             // liée (verrou.levier_id). Vide par défaut ; le gabarit/contenu les
             // déclare via structure.leviers (positions explicites).
-            'leviers' => $this->placerLeviers($structure),
-            'pieges' => $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $suivant),
+            'leviers' => $leviers,
+            'pieges' => $pieges,
+            // Mobilier (doc 17) : troisième couche superposée à la grille, même
+            // patron que leviers/pieges ci-dessus — AUCUNE case 'm'/'s' ne change,
+            // seul FabriqueGrille lit cette liste pour occuper les cases bloquantes
+            // (source unique d'occupation, cf. FabriqueGrille::pour()).
+            'mobilier' => $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant),
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
         ];
@@ -935,6 +944,276 @@ final class AssembleurCarte
         }
 
         return $pieges;
+    }
+
+    /**
+     * Mobilier de salle (doc 17) : table, coffre, trône, établi d'alchimiste,
+     * tombeau, bibliothèque, râtelier d'armes, armoire — les 8 types dont
+     * l'emprise a été mesurée (MobilierSeeder). Jamais en couloir (le tirage
+     * ne porte que sur `interieur($salle)`), jamais en salle de départ (même
+     * principe que les pièges : subi, pas joué), jamais sur un seuil de porte
+     * ni sur une case de levier (`$interdites`, communes à toute la carte).
+     *
+     * Densité 0 à 3 par salle, tirée indépendamment pour chacune : « des
+     * salles vides existent au plateau » (doc 17 §1, aucune quête consultée
+     * n'en meuble toutes les pièces).
+     *
+     * Invariant dur, réellement vérifié (pas seulement évité par construction
+     * comme pour les portes) : un meuble ne doit JAMAIS isoler une case par
+     * ailleurs atteignable — `salleResteConnexe()` relance une BFS après
+     * CHAQUE pose tentée, meuble compris, et la pose est abandonnée
+     * (silencieusement — la salle reste juste moins meublée) si une case, un
+     * autre seuil compris, cesse d'être atteignable. C'est la même classe de
+     * bug que le brouillard qui figeait le groupe (§2.16) : un placement
+     * procédural qui ne revérifie jamais son propre résultat finit tôt ou
+     * tard par condamner une case.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>  $salles
+     * @param  list<array{x: int, y: int, cote?: string}>  $portes
+     * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
+     * @param  list<array{x: int, y: int}>  $pieges
+     * @return list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>
+     */
+    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant): array
+    {
+        $catalogue = Mobilier::query()->orderBy('id')->get();
+
+        if ($catalogue->isEmpty()) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+
+        // Cases interdites à TOUT meuble, indépendamment de la salle : le seuil
+        // (case côté salle de l'arête de porte — jamais la case de la porte
+        // elle-même, qui n'existe pas, une porte étant une arête), la case
+        // d'un levier, et la case d'un piège déjà posé — un meuble PLEIN par-
+        // dessus le rendrait à la fois invisible (même calque de rendu) et à
+        // jamais indéclenchable (plus aucun héros ne peut y marcher).
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+        foreach ($leviers as $levier) {
+            $interdites["{$levier['x']},{$levier['y']}"] = true;
+        }
+        foreach ($pieges as $piege) {
+            $interdites["{$piege['x']},{$piege['y']}"] = true;
+        }
+
+        $mobilier = [];
+
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue; // salle de départ : le groupe y démarre empilé
+            }
+
+            $seuils = $this->seuilsDeSalle($salle, $portes);
+            if ($seuils === []) {
+                continue; // pas de porte identifiée pour cette salle (ne devrait pas arriver)
+            }
+
+            $interieur = $this->interieur($cases, $salle);
+            $occupeesSalle = []; // cases déjà prises par un meuble déjà posé DANS cette salle
+
+            $cible = $prng->suivant() % 4; // 0..3, salles vides comprises
+
+            for ($pose = 0; $pose < $cible; $pose++) {
+                $place = $this->tenterPoseMobilier(
+                    $catalogue, $cases, $salle, $interieur, $seuils, $interdites, $occupeesSalle, $prng,
+                );
+
+                if ($place === null) {
+                    continue; // aucune position valide trouvée : la salle reste moins meublée
+                }
+
+                foreach ($place['cellules'] as $cellule) {
+                    $occupeesSalle["{$cellule['x']},{$cellule['y']}"] = true;
+                }
+
+                $mobilier[] = [
+                    'mobilier_id' => $place['mobilier_id'],
+                    'x' => $place['x'], 'y' => $place['y'], 'l' => $place['l'], 'h' => $place['h'],
+                    'salle' => $i,
+                ];
+            }
+        }
+
+        return $mobilier;
+    }
+
+    /**
+     * Cases-seuils d'une salle : pour chaque porte de la carte, la case parmi
+     * ses deux `casesPorte()` qui tombe dans le rectangle de cette salle. Sert
+     * à la fois de garde-fou de placement (jamais un meuble dessus) et de
+     * source pour la BFS de connexité (`salleResteConnexe()`).
+     *
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     * @param  list<array{x: int, y: int, cote?: string}>  $portes
+     * @return list<array{x: int, y: int}>
+     */
+    private function seuilsDeSalle(array $salle, array $portes): array
+    {
+        $seuils = [];
+
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                if ($case['x'] >= $salle['x'] && $case['x'] < $salle['x'] + $salle['largeur']
+                    && $case['y'] >= $salle['y'] && $case['y'] < $salle['y'] + $salle['hauteur']) {
+                    $seuils[] = $case;
+                }
+            }
+        }
+
+        return $seuils;
+    }
+
+    /**
+     * Tente de poser UN meuble dans `$salle` : type + orientation + ancre
+     * tirés au sort, un nombre borné de fois (une salle exiguë doit pouvoir
+     * renoncer plutôt que boucler indéfiniment). Une tentative est retenue
+     * seulement si son emprise tient entière dans la salle (jamais un pas
+     * dans le couloir ni dans une salle voisine mitoyenne), ne chevauche ni
+     * une case interdite ni un meuble déjà posé, ET si la salle reste
+     * entièrement connexe une fois la case posée (`salleResteConnexe()`).
+     *
+     * @param  \Illuminate\Support\Collection<int, Mobilier>  $catalogue
+     * @param  list<list<string>>  $cases
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     * @param  list<array{x: int, y: int}>  $interieur
+     * @param  list<array{x: int, y: int}>  $seuils
+     * @param  array<string, true>  $interdites
+     * @param  array<string, true>  $occupeesSalle
+     * @return array{mobilier_id: int, x: int, y: int, l: int, h: int, cellules: list<array{x: int, y: int}>}|null
+     */
+    private function tenterPoseMobilier(
+        \Illuminate\Support\Collection $catalogue,
+        array $cases,
+        array $salle,
+        array $interieur,
+        array $seuils,
+        array $interdites,
+        array $occupeesSalle,
+        PrngLineaire $prng,
+    ): ?array {
+        if ($interieur === []) {
+            return null;
+        }
+
+        $grilleGeom = new Grille($cases); // cellulesEmprise() est une pure fonction de géométrie
+
+        for ($tentative = 0; $tentative < 12; $tentative++) {
+            $type = $catalogue[$prng->suivant() % $catalogue->count()];
+            // Orientation : une pièce 1×2 tient aussi bien couchée que debout —
+            // aucune des deux sources (§1) ne fixe un sens canonique.
+            [$l, $h] = $prng->suivant() % 2 === 0
+                ? [(int) $type->largeur, (int) $type->hauteur]
+                : [(int) $type->hauteur, (int) $type->largeur];
+
+            $ancre = $interieur[$prng->suivant() % count($interieur)];
+            $cellules = $grilleGeom->cellulesEmprise($ancre['x'], $ancre['y'], $l, $h);
+
+            $tient = true;
+            foreach ($cellules as $cellule) {
+                $dansLaSalle = $cellule['x'] >= $salle['x'] && $cellule['x'] < $salle['x'] + $salle['largeur']
+                    && $cellule['y'] >= $salle['y'] && $cellule['y'] < $salle['y'] + $salle['hauteur'];
+                $cle = "{$cellule['x']},{$cellule['y']}";
+
+                if (! $dansLaSalle
+                    || ($cases[$cellule['y']][$cellule['x']] ?? 'm') !== 's'
+                    || isset($interdites[$cle])
+                    || isset($occupeesSalle[$cle])
+                ) {
+                    $tient = false;
+                    break;
+                }
+            }
+
+            if (! $tient) {
+                continue;
+            }
+
+            $occupeesApres = $occupeesSalle;
+            foreach ($cellules as $cellule) {
+                $occupeesApres["{$cellule['x']},{$cellule['y']}"] = true;
+            }
+
+            if (! $this->salleResteConnexe($interieur, $seuils, $occupeesApres)) {
+                continue; // ce placement isolerait une case : renoncer, PAS redimensionner
+            }
+
+            return [
+                'mobilier_id' => (int) $type->id,
+                'x' => $ancre['x'], 'y' => $ancre['y'], 'l' => $l, 'h' => $h,
+                'cellules' => $cellules,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * La salle reste-t-elle entièrement parcourable une fois `$occupees`
+     * retirées de son intérieur ? BFS depuis UN SEUL seuil : toute case de
+     * sol non occupée — AUTRES SEUILS COMPRIS — doit être atteinte.
+     *
+     * Piège évité ici (trouvé en probant le placement sur ~300 graines,
+     * jamais sur simple relecture) : une BFS **multi-sources** partie de tous
+     * les seuils à la fois marque chaque seuil « atteint » du seul fait
+     * d'être sa propre source — y compris un seuil qu'un meuble venait
+     * d'enfermer dans une poche de 2 cases sans aucune autre issue. Deux
+     * héros pouvaient alors se tenir sur ce seuil, s'y voir mutuellement, et
+     * ne plus jamais rejoindre le reste de la salle : le mobilier avait
+     * NEUTRALISÉ une porte qu'il ne recouvrait pourtant jamais. Repartir d'un
+     * seul point force la BFS à PROUVER qu'elle atteint chaque autre seuil en
+     * traversant de la vraie surface au sol, au lieu de le supposer.
+     *
+     * @param  list<array{x: int, y: int}>  $interieur
+     * @param  list<array{x: int, y: int}>  $seuils
+     * @param  array<string, true>  $occupees
+     */
+    private function salleResteConnexe(array $interieur, array $seuils, array $occupees): bool
+    {
+        $libres = [];
+        foreach ($interieur as $case) {
+            $cle = "{$case['x']},{$case['y']}";
+            if (! isset($occupees[$cle])) {
+                $libres[$cle] = $case;
+            }
+        }
+
+        if ($libres === []) {
+            return true;
+        }
+
+        // Un seuil est JAMAIS occupé (protégé par `$interdites` en amont) :
+        // le premier de la liste est donc toujours un départ valide.
+        $depart = $seuils[0] ?? null;
+        if ($depart === null || ! isset($libres["{$depart['x']},{$depart['y']}"])) {
+            return false;
+        }
+
+        $vus = ["{$depart['x']},{$depart['y']}" => true];
+        $file = [$depart];
+
+        while ($file !== []) {
+            $case = array_pop($file);
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $nx = $case['x'] + $dx;
+                $ny = $case['y'] + $dy;
+                $cle = "{$nx},{$ny}";
+                if (! isset($libres[$cle]) || isset($vus[$cle])) {
+                    continue;
+                }
+                $vus[$cle] = true;
+                $file[] = ['x' => $nx, 'y' => $ny];
+            }
+        }
+
+        return count($vus) === count($libres);
     }
 
     /**
