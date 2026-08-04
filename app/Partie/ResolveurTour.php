@@ -529,13 +529,19 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas une cible active et visible dans la quête.']);
         }
 
-        $adjacentes = $this->heroAuContact($instance, (int) $etat->position_x, (int) $etat->position_y);
-
         // Arme à distance équipée (Arbalète, ObjetSeeder `portee: distance`) :
         // permet d'attaquer un monstre non adjacent en ligne de vue dégagée
         // (Tir précis, nœud elfe) ; `inutilisable_adjacent` l'interdit au contact.
         $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
         $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
+
+        // Arme longue (Bâton, Épée longue) : le contact inclut les diagonales.
+        $adjacentes = $this->heroAuContact(
+            $instance,
+            (int) $etat->position_x,
+            (int) $etat->position_y,
+            (bool) ($armePrincipale?->effet['attaque_diagonale'] ?? false),
+        );
 
         // Une arme JETÉE porte à distance le temps de son vol : la hache à main
         // n'est pas une arme de tir, mais on peut la lancer.
@@ -2064,20 +2070,31 @@ final class ResolveurTour
     }
 
     /**
-     * Un héros en (hx,hy) est-il ORTHOGONALEMENT au contact de l'instance, en
-     * tenant compte de l'emprise des grandes figurines (3.9) ? Le héros est au
-     * contact dès qu'il jouxte N'IMPORTE QUELLE case de l'emprise. Pour un
-     * monstre 1×1 (cas par défaut de tous les monstres existants), équivaut
-     * exactement à |dx| + |dy| === 1 — donc zéro changement de comportement.
+     * Un héros en (hx,hy) est-il au contact de l'instance, en tenant compte de
+     * l'emprise des grandes figurines (3.9) ? Le héros est au contact dès qu'il
+     * jouxte N'IMPORTE QUELLE case de l'emprise.
+     *
+     * `$diagonale` élargit le voisinage de 4 à 8 cases pour les ARMES LONGUES
+     * (Bâton, Épée longue). Le défaut `false` est ce qui rend l'asymétrie
+     * canonique possible : les appels côté MONSTRE (riposte, tour de Zargon)
+     * ne le passent jamais, donc un monstre ne frappe jamais en diagonale même
+     * quand le héros, lui, le peut — le livret qualifie explicitement cette
+     * case de « safe » (p. 14, cf. reference/16_armurerie.md §6.2).
+     *
+     * ⚠ `MenuMoteur::monstreAuContact()` porte la MÊME règle : garder les deux
+     * en phase, sinon le menu propose une attaque que le résolveur refuse.
      */
-    private function heroAuContact(InstanceMonstre $instance, int $hx, int $hy): bool
+    private function heroAuContact(InstanceMonstre $instance, int $hx, int $hy, bool $diagonale = false): bool
     {
         $e = $instance->monstre->emprise();
 
         for ($dy = 0; $dy < $e['h']; $dy++) {
             for ($dx = 0; $dx < $e['l']; $dx++) {
-                if (abs(((int) $instance->position_x + $dx) - $hx)
-                    + abs(((int) $instance->position_y + $dy) - $hy) === 1) {
+                $ex = abs(((int) $instance->position_x + $dx) - $hx);
+                $ey = abs(((int) $instance->position_y + $dy) - $hy);
+
+                // Tchebychev (8 voisins) pour une arme longue, Manhattan (4) sinon.
+                if (($diagonale ? max($ex, $ey) : $ex + $ey) === 1) {
                     return true;
                 }
             }

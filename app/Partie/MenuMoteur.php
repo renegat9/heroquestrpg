@@ -43,19 +43,31 @@ final class MenuMoteur
      * @return array{base: int, de: int|null, total: int}
      */
     /**
-     * Un héros en (hx,hy) est-il ORTHOGONALEMENT au contact de l'instance, en
-     * tenant compte de l'emprise des grandes figurines (3.9) ? Le contact vaut
-     * dès que le héros jouxte n'importe quelle case de l'emprise. Pour un monstre
-     * 1×1 (cas par défaut), équivaut exactement à |dx| + |dy| === 1.
+     * Un héros en (hx,hy) est-il au contact de l'instance, en tenant compte de
+     * l'emprise des grandes figurines (3.9) ? Le contact vaut dès que le héros
+     * jouxte n'importe quelle case de l'emprise.
+     *
+     * `$diagonale` élargit le voisinage de 4 à 8 cases pour les ARMES LONGUES
+     * (Bâton, Épée longue). L'asymétrie est voulue et canonique : le héros à
+     * l'arme longue frappe en diagonale, mais le monstre ne riposte JAMAIS en
+     * diagonale — le livret qualifie cette case de « safe » (livret de règles
+     * p. 14, cf. reference/16_armurerie.md §6.2). D'où le défaut à `false` :
+     * tous les appels côté monstre restent orthogonaux.
+     *
+     * ⚠ `ResolveurTour::heroAuContact()` porte la MÊME règle et doit rester en
+     * phase — le menu propose, le résolveur revalide.
      */
-    private static function monstreAuContact(InstanceMonstre $instance, int $hx, int $hy): bool
+    private static function monstreAuContact(InstanceMonstre $instance, int $hx, int $hy, bool $diagonale = false): bool
     {
         $e = $instance->monstre->emprise();
 
         for ($dy = 0; $dy < $e['h']; $dy++) {
             for ($dx = 0; $dx < $e['l']; $dx++) {
-                if (abs(((int) $instance->position_x + $dx) - $hx)
-                    + abs(((int) $instance->position_y + $dy) - $hy) === 1) {
+                $ex = abs(((int) $instance->position_x + $dx) - $hx);
+                $ey = abs(((int) $instance->position_y + $dy) - $hy);
+
+                // Tchebychev (8 voisins) pour une arme longue, Manhattan (4) sinon.
+                if (($diagonale ? max($ex, $ey) : $ex + $ey) === 1) {
                     return true;
                 }
             }
@@ -287,6 +299,12 @@ final class MenuMoteur
 
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
         if (! $aAgi && $etat !== null && $etat->position_x !== null) {
+            $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+            // Arme longue (Bâton, Épée longue) : frappe aussi en DIAGONALE, sans
+            // pénalité — « the attack is made and defended normally »
+            // (reference/16_armurerie.md §6.2, livret de règles p. 14).
+            $armeDiagonale = (bool) ($armePrincipale?->effet['attaque_diagonale'] ?? false);
+
             $adjacents = $quete->instancesMonstres()
                 ->where('etat', 'actif')
                 ->where('revele', true) // dormant (salle non découverte) = non ciblable (aligné sur ResolveurTour)
@@ -294,9 +312,8 @@ final class MenuMoteur
                 ->orderBy('id')
                 ->get()
                 ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
-                    && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y));
+                    && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $armeDiagonale));
 
-            $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
             $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
             // Arme JETABLE (dague, hache à main) : elle vise aussi à distance,
             // mais quitte la main du héros — d'où une option distincte.
