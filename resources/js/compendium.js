@@ -33,7 +33,6 @@ const EFFETS_BOOL = {
     deux_mains: 'Arme à deux mains',
     incompatible_deux_mains: 'Incompatible deux mains',
     attaque_diagonale: 'Attaque en diagonale',
-    attaque_second_rang: 'Attaque au second rang',
     inutilisable_adjacent: 'Inutilisable au contact',
     jetable: 'Jetable',
     defense_applicable: 'Défense applicable',

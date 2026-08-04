@@ -31,8 +31,13 @@ class ObjetSeeder extends Seeder
             // lançable, et perdue une fois lancée comme toute arme de jet.
             ['nom' => 'Hachette', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'jetable' => true]],
+            // L'« attaque au second rang » a été retirée : clé sans lecteur, et
+            // le mécanisme n'existe nulle part dans le jeu de plateau — pas plus
+            // que l'arme « Spear » elle-même, dont seul un PIÈGE porte le nom
+            // (reference/16_armurerie.md §10). La Lance garde sa diagonale, qui
+            // est bien attestée pour les armes longues (livret p. 14).
             ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
-                'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'attaque_second_rang' => true]],
+                'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
             ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
