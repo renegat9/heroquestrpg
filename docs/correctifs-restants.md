@@ -334,16 +334,17 @@ multi-personnages par joueur · portes verrouillées clé/levier · monstre erra
 Hors périmètre du chantier, volontairement laissés en l'état — chacun est réel et
 vérifié dans le code, mais aucun ne bloquait la mécanique livrée.
 
-- **`effet.deplacement_sans_d6` est mort.** `App\Engine\Deplacement::calculer()`
-  implémente bien la règle, mais **aucun appelant ne passe `true`** : la pénalité
-  de déplacement de l'**Armure de plates** n'est donc **jamais appliquée**. Soit
-  câbler le drapeau depuis l'équipement porté, soit retirer l'effet du catalogue.
-- **Clés d'effet purement décoratives**, présentes au catalogue mais sans aucun
-  lecteur moteur : `attaque_diagonale`, `attaque_second_rang`, `ligne_de_vue`,
-  `jetable_frequence`. Un joueur qui lit la description d'un objet y
-  voit une promesse que le moteur ne tient pas. (Les artefacts n'utilisent que
-  des clés réellement lues : `des_attaque`, `des_defense`, `portee`,
-  `inutilisable_adjacent`, `deux_mains`.)
+- ~~**`effet.deplacement_sans_d6` est mort.**~~ **RÉGLÉ le 2026-08-03.**
+  `Deplacement::calculer()` implémentait bien la règle, mais aucun des deux
+  appelants ne lui passait le drapeau. `Equipement::effetPorte()` interroge
+  désormais l'équipement porté : l'Armure de plates coûte enfin son d6.
+- ~~**Clés d'effet purement décoratives**~~ **RÉGLÉ les 2026-08-03/04.** Plus
+  aucune clé décorative au catalogue : `attaque_diagonale` est LUE (armes
+  longues, voisinage de Tchebychev, asymétrie monstre — le livret officiel
+  la confirme, `reference/16_armurerie.md` §6.2) ; `ligne_de_vue`,
+  `jetable_frequence` et `attaque_second_rang` sont SUPPRIMÉES. Les deux
+  premières étaient redondantes ; la troisième n'existe nulle part dans le jeu
+  de plateau — pas plus que l'arme « Spear », dont seul un piège porte le nom.
 - **L'issue `errant` ne produit aucune narration.** Le monstre naît `revele=true`,
   ce qui fait basculer `ChoixController` en « combat instantané » — le moment le
   plus spectaculaire de la fouille passe donc sans une ligne du MJ. Le fil de
@@ -388,6 +389,7 @@ vérifié dans le code, mais aucun ne bloquait la mécanique livrée.
   que le nain a gratuitement ; le **Fendoir des Titans** (6 dés) n'a jamais été
   trouvé en jeu, sa valeur reste théorique.
 
-- **`jetable` est désormais LU** (lancer d'arme, 2026-08-04). Restent décoratives :
-  `attaque_diagonale`, `attaque_second_rang`, `ligne_de_vue`, `jetable_frequence`
-  (le lancer est limité par le créneau d'action, pas par un compteur de combat).
+- **`jetable` est désormais LU** (lancer d'arme, 2026-08-04) ; le lancer est
+  limité par le créneau d'action, pas par un compteur de combat. Depuis les
+  2026-08-03/04, **plus aucune clé d'effet n'est décorative** : voir le bloc
+  corrigé ci-dessus.
