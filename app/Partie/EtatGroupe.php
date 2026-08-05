@@ -174,7 +174,7 @@ final class EtatGroupe
      * pièges encore cachés et les portes secrètes non révélées n'y figurent
      * JAMAIS, la table ne doit pas les montrer (contrat).
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloquant: bool}>, portes: list<array{x: int, y: int, etat: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -422,7 +422,7 @@ final class EtatGroupe
      * `b` (contrat, même principe que le filtre `portes` juste au-dessus).
      *
      * @param  list<int>  $decouvertes
-     * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloquant: bool}>
+     * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>
      */
     private function mobilier(Carte $carte, array $decouvertes): array
     {
@@ -431,7 +431,7 @@ final class EtatGroupe
 
         $catalogue = Mobilier::query()
             ->whereIn('id', $visibles->pluck('mobilier_id')->filter()->unique())
-            ->get(['id', 'nom', 'bloquant'])
+            ->get(['id', 'nom', 'bloque_mouvement', 'bloque_vue'])
             ->keyBy('id');
 
         return $visibles
@@ -444,7 +444,11 @@ final class EtatGroupe
                     'l' => (int) $entree['l'],
                     'h' => (int) $entree['h'],
                     'nom' => $type?->nom ?? 'Meuble',
-                    'bloquant' => $type?->bloquant ?? true,
+                    // Deux propriétés INDÉPENDANTES (doc 17, portage) : une table
+                    // bloque le passage mais on voit par-dessus, une bibliothèque
+                    // bloque les deux. Ne jamais les refusionner en un seul champ.
+                    'bloque_mouvement' => $type?->bloque_mouvement ?? true,
+                    'bloque_vue' => $type?->bloque_vue ?? false,
                 ];
             })
             ->values()

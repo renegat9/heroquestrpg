@@ -120,6 +120,35 @@ describe('Grille — ligne de vue (prérequis Phase 2, doc 14)', function () {
             ->and($grille->ligneDeVue(0, 2, 4, 3))->toBeTrue();
     });
 
+    it('est coupée INCONDITIONNELLEMENT par une case OPAQUE (meuble haut, doc 17) — indépendant de figuresBloquent', function () {
+        $grille = grilleDepuis([
+            'sssss',
+        ]);
+        // Un meuble opaque (bibliothèque…) occupe (2,0), entre (0,0) et (4,0).
+        // Distinct d'une figure : occulter() n'est PAS occuper().
+        $grille->occulter([['x' => 2, 'y' => 0]]);
+
+        // Coupée que figuresBloquent soit vrai ou faux — un meuble est du
+        // décor, pas une figure interposée : c'est exactement le bug corrigé
+        // ici (une table arrêtait les flèches parce qu'elle occupait la même
+        // case qu'une figure, cf. obstruer() plus bas).
+        expect($grille->ligneDeVue(0, 0, 4, 0))->toBeFalse()
+            ->and($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeFalse();
+    });
+
+    it('n\'est PAS coupée par une case INFRANCHISSABLE mais non opaque (obstruer(), meuble bas) — même avec figuresBloquent', function () {
+        $grille = grilleDepuis([
+            'sssss',
+        ]);
+        // Un meuble bas (table…) bloque le mouvement mais pas la vue.
+        $grille->obstruer([['x' => 2, 'y' => 0]]);
+
+        expect($grille->ligneDeVue(0, 0, 4, 0))->toBeTrue()
+            ->and($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeTrue()
+            // Mais elle reste bien infranchissable au mouvement.
+            ->and($grille->estTraversable(2, 0))->toBeFalse();
+    });
+
     it('bloque la vue sur une figure interposée seulement quand figuresBloquent (tir/sort)', function () {
         $grille = grilleDepuis([
             'sssss',

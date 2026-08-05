@@ -233,8 +233,10 @@ final class AssembleurCarte
             'pieges' => $pieges,
             // Mobilier (doc 17) : troisième couche superposée à la grille, même
             // patron que leviers/pieges ci-dessus — AUCUNE case 'm'/'s' ne change,
-            // seul FabriqueGrille lit cette liste pour occuper les cases bloquantes
-            // (source unique d'occupation, cf. FabriqueGrille::pour()).
+            // seul FabriqueGrille lit cette liste pour occuper (bloque_mouvement)
+            // et/ou occulter (bloque_vue) les cases correspondantes — deux
+            // propriétés INDÉPENDANTES du catalogue (source unique, cf.
+            // FabriqueGrille::pour()).
             'mobilier' => $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant),
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),

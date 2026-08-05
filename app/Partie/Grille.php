@@ -13,14 +13,55 @@ use App\Models\Carte;
  * Les cases occupées (héros — y compris tombés, C4 : ils occupent leur case —
  * et monstres actifs) sont infranchissables ; le désengagement reste libre
  * (C3 : aucune attaque d'opportunité).
+ *
+ * TROIS jeux de cases distincts, à ne JAMAIS refusionner (doc 17, portage —
+ * c'est exactement le bug corrigé par cette séparation) :
+ *  - `$occupees` (`occuper()`) : les FIGURES (héros, monstres, alliés).
+ *    Bloquent le mouvement ET, si `figuresBloquent`, la ligne de vue — on ne
+ *    lance pas un sort à travers un allié ou un ennemi.
+ *  - `$obstacles` (`obstruer()`) : le mobilier qui bloque le MOUVEMENT
+ *    (`bloque_mouvement`, ex. une table). Bloque `estTraversable()` mais ne
+ *    participe JAMAIS au test `figuresBloquent` — ce n'est pas une figure
+ *    interposée, une flèche passe par-dessus une table.
+ *  - `$opaques` (`occulter()`) : le mobilier qui bloque la VUE
+ *    (`bloque_vue`, ex. une bibliothèque). Coupe `ligneDeVue()`
+ *    INCONDITIONNELLEMENT, comme un mur, que `figuresBloquent` soit vrai ou non.
  */
 final class Grille
 {
     /** Ordre d'exploration fixe → comportements scriptés déterministes. */
     private const DIRECTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
-    /** @var array<string, true> */
+    /**
+     * Figures interposables (héros, monstres, alliés) — voir occuper().
+     *
+     * @var array<string, true>
+     */
     private array $occupees = [];
+
+    /**
+     * Cases rendues INFRANCHISSABLES par un meuble (`bloque_mouvement`, doc
+     * 17) — distinct de `$occupees` : un meuble n'est PAS une figure, il ne
+     * doit jamais participer au test `figuresBloquent` de `ligneDeVue()`
+     * (sans quoi une simple table arrêterait les flèches, exactement le bug
+     * corrigé ici). Seul `estTraversable()` lit ce jeu de cases.
+     *
+     * @var array<string, true>
+     */
+    private array $obstacles = [];
+
+    /**
+     * Cases rendues OPAQUES par un meuble haut (`bloque_vue`, doc 17 —
+     * bibliothèque, râtelier, armoire…) — distinct de `$occupees` ET de
+     * `$obstacles` : le mobilier bloque le mouvement (`obstruer()`) et/ou la
+     * vue (`occulter()`) INDÉPENDAMMENT. Coupe `ligneDeVue()`
+     * inconditionnellement, comme un mur — jamais conditionné à
+     * `figuresBloquent`, qui ne concerne que les FIGURES interposées (héros,
+     * monstres, alliés) : un meuble est du décor, pas une figure.
+     *
+     * @var array<string, true>
+     */
+    private array $opaques = [];
 
     /**
      * État des portes (chantier portes, doc 14 §3.1/3.3), indexé par ARÊTE
@@ -105,6 +146,12 @@ final class Grille
     }
 
     /**
+     * Marque des cases occupées par une FIGURE (héros, monstre, allié) :
+     * infranchissables, et interposables au test `figuresBloquent` de
+     * `ligneDeVue()` — on ne lance pas un sort à travers un allié ou un
+     * ennemi. Le mobilier ne passe JAMAIS par ici : voir `obstruer()` /
+     * `occulter()`.
+     *
      * @param  list<array{x: int, y: int}>  $positions
      */
     public function occuper(array $positions): void
@@ -114,13 +161,48 @@ final class Grille
         }
     }
 
+    /**
+     * Marque des cases INFRANCHISSABLES par un meuble (`bloque_mouvement`,
+     * doc 17) — même patron qu'`occuper()`, mais un jeu de cases distinct :
+     * contrairement à une figure, un meuble ne bloque JAMAIS la ligne de vue
+     * via `figuresBloquent` (ce n'est pas une figure interposée) — seule
+     * `occulter()` peut lui faire couper la vue, et alors inconditionnellement.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function obstruer(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->obstacles["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /**
+     * Marque des cases OPAQUES (meuble haut bloquant la vue, `bloque_vue`,
+     * doc 17) — même patron qu'`occuper()`, mais un jeu de cases distinct :
+     * une case peut bloquer le mouvement (`obstruer()`), la vue (ici), les
+     * deux, ou ni l'un ni l'autre — deux propriétés INDÉPENDANTES.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function occulter(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->opaques["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
     public function estTraversable(int $x, int $y): bool
     {
         // Une porte ne prend plus de case (arête) : la traversabilité est
         // purement « case libre » (sol, inoccupée). Le blocage par une porte
         // fermée se joue sur l'ARÊTE entre deux cases (porteBloqueEntre),
         // évalué au moment du pas (pathfinding) — pas ici.
-        if (isset($this->occupees["{$x},{$y}"])) {
+        // Occupée par une FIGURE, OU rendue infranchissable par un meuble
+        // (`$obstacles`, doc 17) : les deux jeux de cases bloquent le
+        // mouvement, mais seul `$occupees` participe au test `figuresBloquent`
+        // de `ligneDeVue()` — un meuble n'est pas une figure interposée.
+        if (isset($this->occupees["{$x},{$y}"]) || isset($this->obstacles["{$x},{$y}"])) {
             return false;
         }
 
@@ -209,7 +291,9 @@ final class Grille
      * extrémités ET par toute porte NON ouverte (verrouillée / secrète non
      * révélée — overlay des portes, doc 14 §3.1/3.3) ; les cases extrémités ne
      * bloquent jamais leur propre visibilité. Sol ('s') et porte OUVERTE sont
-     * transparents.
+     * transparents. Un meuble OPAQUE (`occulter()`, doc 17) coupe la vue tout
+     * aussi INCONDITIONNELLEMENT qu'un mur, que `figuresBloquent` soit vrai ou
+     * non — c'est du décor, pas une figure interposée.
      *
      * Algorithme : DDA supercover entier (Amanatides–Woo simplifié) parcourant
      * chaque case que traverse le segment de centre à centre. Préféré au
@@ -289,6 +373,17 @@ final class Grille
 
             // Mur ('m'/hors grille) → vue coupée.
             if ($this->bloqueVue($x, $y)) {
+                return false;
+            }
+
+            // Meuble opaque (bibliothèque, râtelier d'armes, armoire… — doc 17) :
+            // coupe la vue INCONDITIONNELLEMENT, comme un mur. Volontairement
+            // AVANT le test figuresBloquent ci-dessous : celui-ci ne concerne
+            // que les FIGURES interposées (héros, monstres), pas le décor — une
+            // table (bloque_vue=false) n'arrête jamais une flèche, mais une
+            // bibliothèque (bloque_vue=true) le fait même quand figuresBloquent
+            // est faux (déplacement/vue « murs seuls »).
+            if (isset($this->opaques["{$x},{$y}"])) {
                 return false;
             }
 

@@ -20,7 +20,7 @@ const props = defineProps({
     entities: { type: Array, required: true },
     /** Pièges visibles : [{ x, y, etat, nom, titre }] — voir piegesVersMarqueurs(). */
     traps: { type: Array, default: () => [] },
-    /** Mobilier visible : [{ x, y, l, h, nom, bloquant, ic, titre }] — voir mobilierVersDecor(). */
+    /** Mobilier visible : [{ x, y, l, h, nom, bloque_mouvement, bloque_vue, ic, titre }] — voir mobilierVersDecor(). */
     furniture: { type: Array, default: () => [] },
     /** Case (x, y) du héros actif — la caméra s'y recentre. `null` = immobile. */
     activeX: { type: Number, default: null },

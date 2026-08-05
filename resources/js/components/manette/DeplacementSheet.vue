@@ -59,15 +59,17 @@ const occupees = computed(() => {
     return s;
 });
 
-// Mobilier BLOQUANT (doc 17) : même occupation que côté serveur
+// Mobilier bloquant le MOUVEMENT (doc 17) : même occupation que côté serveur
 // (FabriqueGrille::pour(), seule source de vérité — ceci n'en est qu'un
 // MIROIR côté client, le serveur revalide toujours le déplacement choisi).
 // Cases distinctes de `occupees` (pas une figurine) : DungeonGrid dessine déjà
 // le meuble lui-même, cette liste ne sert qu'à couper le BFS d'accessibilité.
+// `bloque_vue` (une bibliothèque coupe la vue mais une table non) n'entre PAS
+// dans ce calcul : la ligne de vue n'est pas ce que le BFS de déplacement mesure.
 const mobilierOccupe = computed(() => {
     const s = new Set();
     for (const m of props.carte.mobilier ?? []) {
-        if (m.bloquant === false) continue;
+        if (m.bloque_mouvement === false) continue;
         for (let dy = 0; dy < Math.max(1, m.h ?? 1); dy++) {
             for (let dx = 0; dx < Math.max(1, m.l ?? 1); dx++) {
                 s.add(cle(m.x + dx, m.y + dy));

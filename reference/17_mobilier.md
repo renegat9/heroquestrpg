@@ -208,6 +208,17 @@ inventer une règle propre (par exemple : bloque le passage mais pas la ligne de
 ou l'inverse). **Aucune des deux options n'est « la » règle du livret — c'est un choix
 de portage, pas une lecture.**
 
+**Décision retenue (implémentation).** Les deux notions sont modélisées comme des
+propriétés **indépendantes** du catalogue (`mobiliers.bloque_mouvement`,
+`mobiliers.bloque_vue`) plutôt qu'un seul drapeau : tous les meubles bloquent le
+mouvement (comme envisagé ci-dessus), mais seuls les meubles **hauts** — Bibliothèque,
+Râtelier d'armes, Armoire — bloquent aussi la ligne de vue ; les meubles **bas** —
+Table, Coffre, Trône, Établi d'alchimiste, Tombeau — laissent voir par-dessus. Ce
+critère de hauteur est, comme tout ce paragraphe le souligne, un **choix de portage
+et non une lecture** : aucune des deux sources ne traite jamais la ligne de vue du
+mobilier, ni même son emprise au sol en toutes lettres (§1). Ne pas le présenter comme
+sourcé dans un futur écrit qui citerait ce document.
+
 ### Une fouille par héros et par salle
 
 « A room may be searched by all four heroes, but each individual hero may only search

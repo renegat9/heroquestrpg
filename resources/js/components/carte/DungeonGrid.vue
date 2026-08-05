@@ -17,8 +17,10 @@ const props = defineProps({
     carte: { type: Object, required: true },
     /** Marqueurs de pièges connus : [{x, y, etat, nom?, titre?}] — voir piegesVersMarqueurs(). */
     traps: { type: Array, default: () => [] },
-    /** Mobilier des salles découvertes : [{x, y, l, h, nom, bloquant, ic?, titre?}]
-     *  — voir mobilierVersDecor() (doc 17). */
+    /** Mobilier des salles découvertes : [{x, y, l, h, nom, bloque_mouvement,
+     *  bloque_vue, ic?, titre?}] — voir mobilierVersDecor() (doc 17). Les deux
+     *  drapeaux sont INDÉPENDANTS : une table bloque le passage mais on voit
+     *  par-dessus, une bibliothèque bloque les deux. */
     furniture: { type: Array, default: () => [] },
     /** (x, y) → classe(s) CSS supplémentaire(s) par case (accessible / depart /
      *  occupant… — surcouche manette). Null = aucune (table). */
@@ -91,14 +93,17 @@ const doors = computed(() => (props.carte.portes ?? [])
 
         <!-- mobilier (doc 17) : bloc plein sur toute son emprise l×h — un simple
              marqueur discret serait invisible à 22px (leçon des portes, cf. plus
-             bas) alors qu'un meuble bloquant doit se lire au premier coup d'œil. -->
+             bas) alors qu'un meuble bloquant le passage doit se lire au premier
+             coup d'œil. `bloque_mouvement`/`bloque_vue` sont INDÉPENDANTS : seul
+             le premier pilote ce rendu (le second n'a pas d'équivalent visuel
+             sur une carte en vue de dessus — voir Grille::ligneDeVue côté serveur). -->
         <div
             v-for="(f, i) in furniture"
             :key="`f-${f.x}-${f.y}-${i}`"
             class="dg-furn-holder"
             :style="{ gridColumn: `${f.x + 1} / span ${f.l}`, gridRow: `${f.y + 1} / span ${f.h}` }"
         >
-            <div class="dg-furn" :class="{ 'non-bloquant': !f.bloquant }" :title="f.titre ?? f.nom">
+            <div class="dg-furn" :class="{ 'non-bloquant': !f.bloque_mouvement }" :title="f.titre ?? f.nom">
                 <MSym :n="f.ic ?? 'category'" :size="14" fill />
             </div>
         </div>

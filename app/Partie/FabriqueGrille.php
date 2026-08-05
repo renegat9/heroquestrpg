@@ -12,15 +12,25 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Fabrique la grille tactique OCCUPÉE d'une quête (carte + figures présentes) —
- * source de vérité UNIQUE de l'occupation, partagée par le déplacement, le
- * ciblage ET la ligne de vue (ResolveurTour, MoteurSorts, MenuMoteur). Règles
- * d'occupation (doc 03) : héros DEBOUT (un tombé s'enjambe, C4), monstres
- * `actif` avec leur emprise (3.9), alliés `actif` (3.5), et depuis doc 17 le
- * mobilier `bloquant` de la carte (table, coffre, armoire…) avec SA propre
- * emprise l×h — même mécanisme `cellulesEmprise()` que les grandes figurines,
- * réutilisé plutôt que dupliqué. Les `except*` retirent une figure du
- * plateau (la sienne, pour se déplacer / voir depuis sa propre case) ; le
- * mobilier, lui, n'a pas d'`except` : il ne bouge jamais en cours de quête.
+ * source de vérité UNIQUE de l'occupation ET de l'opacité, partagée par le
+ * déplacement, le ciblage ET la ligne de vue (ResolveurTour, MoteurSorts,
+ * MenuMoteur). Règles d'occupation (doc 03) : héros DEBOUT (un tombé
+ * s'enjambe, C4), monstres `actif` avec leur emprise (3.9), alliés `actif`
+ * (3.5), et depuis doc 17 le mobilier de la carte (table, coffre, armoire…)
+ * avec SA propre emprise l×h — même mécanisme `cellulesEmprise()` que les
+ * grandes figurines, réutilisé plutôt que dupliqué. Les `except*` retirent
+ * une figure du plateau (la sienne, pour se déplacer / voir depuis sa propre
+ * case) ; le mobilier, lui, n'a pas d'`except` : il ne bouge jamais en cours
+ * de quête.
+ *
+ * Le mobilier porte DEUX drapeaux INDÉPENDANTS (doc 17, portage) : une table
+ * bloque le mouvement (`bloque_mouvement` → `Grille::obstruer()`) mais pas la
+ * vue, une bibliothèque bloque les deux (`bloque_vue` → `Grille::occulter()`,
+ * EN PLUS de `obstruer()`). Le mobilier ne passe JAMAIS par `Grille::occuper()`
+ * (réservé aux FIGURES — héros, monstres, alliés) : un meuble bloquant le
+ * mouvement mais pas la vue ne doit jamais participer au test
+ * `figuresBloquent` de `ligneDeVue()`, sans quoi une simple table arrêterait
+ * les flèches — exactement le bug corrigé par cette séparation.
  */
 final class FabriqueGrille
 {
@@ -39,6 +49,8 @@ final class FabriqueGrille
         $grille = Grille::depuisCarte($carte);
 
         $occupees = [];
+        $obstacles = [];
+        $opaques = [];
 
         foreach ($quete->etatsPersonnages()->get() as $etat) {
             // Un héros TOMBÉ (à terre) ne bloque ni le passage ni la ligne de vue :
@@ -68,29 +80,44 @@ final class FabriqueGrille
         }
 
         // Mobilier (doc 17) : troisième couche de la carte (AssembleurCarte),
-        // au même niveau que `leviers`/`pieges`. SEULE boucle d'occupation du
-        // mobilier dans tout le moteur — n'en ouvrir aucune autre ailleurs
-        // (déplacement, ciblage, ligne de vue divergeraient sinon). Un meuble
-        // non `bloquant` (aucun aujourd'hui, cf. MobilierSeeder) n'occupe rien.
+        // au même niveau que `leviers`/`pieges`. SEULE boucle d'occupation ET
+        // d'opacité du mobilier dans tout le moteur — n'en ouvrir aucune autre
+        // ailleurs (déplacement, ciblage, ligne de vue divergeraient sinon).
+        // `bloque_mouvement` et `bloque_vue` sont lus INDÉPENDAMMENT, dans
+        // deux jeux de cases DISTINCTS de `$occupees` (réservé aux figures) :
+        // un meuble peut bloquer le mouvement sans la vue (table → `obstacles`
+        // seul), les deux (bibliothèque → `obstacles` ET `opaques`), ou ni
+        // l'un ni l'autre (aucun cas aujourd'hui, cf. MobilierSeeder, mais le
+        // catalogue le permet).
         $mobilier = (array) ($carte->grille['mobilier'] ?? []);
         if ($mobilier !== []) {
-            $idsBloquants = Mobilier::query()
+            $types = Mobilier::query()
                 ->whereIn('id', array_values(array_unique(array_column($mobilier, 'mobilier_id'))))
-                ->where('bloquant', true)
-                ->pluck('id')
-                ->flip();
+                ->get(['id', 'bloque_mouvement', 'bloque_vue'])
+                ->keyBy('id');
 
             foreach ($mobilier as $meuble) {
-                if (! $idsBloquants->has($meuble['mobilier_id'] ?? null)) {
+                $type = $types->get($meuble['mobilier_id'] ?? null);
+                if ($type === null) {
                     continue;
                 }
-                $occupees = array_merge($occupees, $grille->cellulesEmprise(
+
+                $cellules = $grille->cellulesEmprise(
                     (int) $meuble['x'], (int) $meuble['y'], (int) $meuble['l'], (int) $meuble['h'],
-                ));
+                );
+
+                if ($type->bloque_mouvement) {
+                    $obstacles = array_merge($obstacles, $cellules);
+                }
+                if ($type->bloque_vue) {
+                    $opaques = array_merge($opaques, $cellules);
+                }
             }
         }
 
         $grille->occuper($occupees);
+        $grille->obstruer($obstacles);
+        $grille->occulter($opaques);
 
         return $grille;
     }

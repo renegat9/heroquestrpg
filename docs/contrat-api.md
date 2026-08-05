@@ -243,19 +243,37 @@ Table, coffre, trône, établi d'alchimiste, tombeau, bibliothèque, râtelier
 d'armes, armoire (8 types de `mobiliers`, emprise 1×1 ou 1×2 mesurée sur les
 cartes de quête officielles) posés dans les salles (jamais en salle de départ,
 jamais en couloir) par `AssembleurCarte::placerMobilier()`, densité 0 à 3 par
-salle. Un meuble `bloquant` (tous, à ce jour — `mobiliers.bloquant`) occupe sa
-case au même titre qu'une grande figurine : **`FabriqueGrille::pour()` est la
-source unique de cette occupation**, partagée par le déplacement, le ciblage
-et la ligne de vue. Invariant garanti à l'assemblage : aucun meuble ne peut
-isoler une case par ailleurs atteignable (placement abandonné plutôt que
-posé si la connexité de la salle romprait) — verrouillé par
-`tests/Feature/Partie/CouloirsTest.php`.
+salle.
 
-- **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloquant}]` — l'ancre
-  `(x, y)` est le coin haut-gauche de l'emprise (l×h), même convention que
-  `cellulesEmprise()`. Contrairement aux pièges, un meuble n'a pas d'état
-  « caché » : il est simplement soumis au même **brouillard de guerre** que le
-  reste de la salle (une salle non découverte n'expose aucun de ses meubles).
+Chaque meuble porte **deux drapeaux INDÉPENDANTS** (`mobiliers.bloque_mouvement`,
+`mobiliers.bloque_vue` — portage, aucun livret ne traite la question) : une
+table bloque le passage mais on voit par-dessus, une bibliothèque bloque les
+deux. Les deux sont lus par **`FabriqueGrille::pour()`, source unique de
+cette occupation ET de cette opacité**, partagée par le déplacement, le
+ciblage et la ligne de vue :
+- `bloque_mouvement` → `Grille::obstruer()` → infranchissable
+  (`estTraversable()`), tous les 8 types aujourd'hui.
+- `bloque_vue` → `Grille::occulter()` → coupe `ligneDeVue()`
+  **inconditionnellement, comme un mur** — indépendant de `figuresBloquent`
+  (qui ne concerne que les FIGURES interposées : héros, monstres, alliés).
+  Vrai pour Bibliothèque, Râtelier d'armes, Armoire (mobilier haut) ; faux
+  pour Table, Coffre, Trône, Établi d'alchimiste, Tombeau (mobilier bas).
+
+Historique : un meuble `bloquant` unique occupait la même case qu'une figure,
+ce qui coupait aussi la ligne de vue dès qu'un appelant passait
+`figuresBloquent: true` (le cas de toute arme à distance, `MenuMoteur`) — une
+table arrêtait donc les flèches. Corrigé en séparant les deux propriétés.
+
+Invariant garanti à l'assemblage : aucun meuble ne peut isoler une case par
+ailleurs atteignable (placement abandonné plutôt que posé si la connexité de
+la salle romprait) — verrouillé par `tests/Feature/Partie/CouloirsTest.php`.
+
+- **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloque_mouvement,
+  bloque_vue}]` — l'ancre `(x, y)` est le coin haut-gauche de l'emprise (l×h),
+  même convention que `cellulesEmprise()`. Contrairement aux pièges, un
+  meuble n'a pas d'état « caché » : il est simplement soumis au même
+  **brouillard de guerre** que le reste de la salle (une salle non découverte
+  n'expose aucun de ses meubles).
 - `fouillable` (catalogue) **n'est lu par aucun système aujourd'hui** — la
   fouille du mobilier est un chantier séparé (doc 17 §4) : `DeckFouille`
   raisonne en salle, pas en case, et le piège de coffre impose un ordre

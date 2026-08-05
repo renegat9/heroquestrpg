@@ -69,6 +69,56 @@ function gabaritAvecBoss(): GabaritQuete
 }
 
 /**
+ * Quête + carte construite À LA MAIN (pas de génération procédurale) — pour
+ * placer un meuble précis à une position CONNUE et exercer FabriqueGrille /
+ * Grille::ligneDeVue de façon déterministe (bloque_mouvement / bloque_vue,
+ * doc 17). `$cases` est déjà au format m/s de `Grille` ; `$mobilier` au
+ * format `carte.grille.mobilier` ({mobilier_id, x, y, l, h, salle}).
+ *
+ * @param  list<list<string>>  $cases
+ * @param  list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>  $mobilier
+ * @return array{0: \App\Models\Groupe, 1: \App\Models\Quete}
+ */
+function groupeAvecCarteMobilier(array $cases, array $mobilier): array
+{
+    $groupe = creerGroupe();
+
+    $quete = \App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => gabaritNormal()->id,
+        'titre' => 'Quête de test',
+        'position_arc' => 1,
+        'type_jalon' => 'normale',
+        'etat' => 'en_cours',
+        'or_initial' => 0,
+    ]);
+
+    $largeur = count($cases[0] ?? []);
+    $hauteur = count($cases);
+
+    \App\Models\Carte::create([
+        'quete_id' => $quete->id,
+        'largeur' => $largeur,
+        'hauteur' => $hauteur,
+        'grille' => [
+            'largeur' => $largeur,
+            'hauteur' => $hauteur,
+            'cases' => $cases,
+            'salles' => [['x' => 0, 'y' => 0, 'largeur' => $largeur, 'hauteur' => $hauteur, 'theme' => 'generique', 'mediane_x' => 0, 'mediane_y' => 0]],
+            'portes' => [],
+            'leviers' => [],
+            'pieges' => [],
+            'mobilier' => $mobilier,
+            'spawn_heros' => [['x' => 0, 'y' => 0]],
+            'spawn_monstres' => [],
+            'aretes' => [],
+        ],
+    ]);
+
+    return [$groupe, $quete->fresh()];
+}
+
+/**
  * Toutes les cases 'p' (porte) de la grille, en liste de coordonnées.
  *
  * @param  list<list<string>>  $cases
@@ -628,7 +678,7 @@ it('rend une case de mobilier BLOQUANT infranchissable via FabriqueGrille, sourc
 
     $grille = FabriqueGrille::pour($quete);
 
-    $idsBloquants = Mobilier::query()->where('bloquant', true)->pluck('id')->all();
+    $idsBloquants = Mobilier::query()->where('bloque_mouvement', true)->pluck('id')->all();
 
     foreach ($carte['mobilier'] as $meuble) {
         if (! in_array($meuble['mobilier_id'], $idsBloquants, true)) {
@@ -670,4 +720,68 @@ it('rend une case de mobilier BLOQUANT infranchissable via FabriqueGrille, sourc
 
     expect($libre)->not->toBeNull()
         ->and($grille->estTraversable($libre['x'], $libre['y']))->toBeTrue();
+});
+
+// ---------------------------------------------------------------------------
+// bloque_mouvement / bloque_vue (doc 17, portage) — les DEUX propriétés sont
+// INDÉPENDANTES : un meuble bloquant n'était jusqu'ici ajouté qu'aux cases
+// OCCUPÉES de Grille, ce qui coupait aussi la ligne de vue dès qu'un appelant
+// passait figuresBloquent: true (le cas de toute arme à distance, MenuMoteur)
+// — conséquence, une simple table arrêtait les flèches. Une table bloque le
+// passage mais on voit par-dessus ; une bibliothèque bloque les deux.
+// ---------------------------------------------------------------------------
+
+it('coupe la ligne de vue par une case de Bibliothèque, MÊME avec figuresBloquent: false — un meuble haut est du décor, pas une figure', function () {
+    $bibliotheque = Mobilier::query()->where('nom', 'Bibliothèque')->firstOrFail();
+    expect($bibliotheque->bloque_vue)->toBeTrue(); // hypothèse du test, pas un hasard de seed
+
+    [, $quete] = groupeAvecCarteMobilier(
+        [['s', 's', 's', 's', 's']],
+        [['mobilier_id' => $bibliotheque->id, 'x' => 2, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => 0]],
+    );
+
+    $grille = FabriqueGrille::pour($quete);
+
+    // Case (2,0) entre les deux extrémités (0,0) et (4,0) : la vue est coupée
+    // qu'on regarde simplement (figuresBloquent: false, déplacement) OU qu'on
+    // tire une flèche (figuresBloquent: true) — un meuble opaque n'est PAS
+    // une figure interposée, il coupe la vue INCONDITIONNELLEMENT, comme un mur.
+    expect($grille->ligneDeVue(0, 0, 4, 0))->toBeFalse()
+        ->and($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeFalse();
+});
+
+it('ne coupe PAS la ligne de vue par une case de Table, MÊME avec figuresBloquent: true — une table est basse, on voit par-dessus', function () {
+    $table = Mobilier::query()->where('nom', 'Table')->firstOrFail();
+    expect($table->bloque_vue)->toBeFalse(); // hypothèse du test, pas un hasard de seed
+
+    [, $quete] = groupeAvecCarteMobilier(
+        [['s', 's', 's', 's', 's']],
+        [['mobilier_id' => $table->id, 'x' => 2, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => 0]],
+    );
+
+    $grille = FabriqueGrille::pour($quete);
+
+    // C'était LE bug : une table (bloque_mouvement, pas bloque_vue) occupait
+    // la même case que les figures, et arrêtait donc aussi les tirs. Elle ne
+    // doit désormais JAMAIS couper la vue, même en tir/sort.
+    expect($grille->ligneDeVue(0, 0, 4, 0))->toBeTrue()
+        ->and($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeTrue();
+});
+
+it('laisse Bibliothèque ET Table toutes deux INTRAVERSABLES : bloque_vue ne change rien à bloque_mouvement', function () {
+    $bibliotheque = Mobilier::query()->where('nom', 'Bibliothèque')->firstOrFail();
+    $table = Mobilier::query()->where('nom', 'Table')->firstOrFail();
+
+    [, $quete] = groupeAvecCarteMobilier(
+        [['s', 's', 's', 's', 's']],
+        [
+            ['mobilier_id' => $bibliotheque->id, 'x' => 1, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => 0],
+            ['mobilier_id' => $table->id, 'x' => 3, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => 0],
+        ],
+    );
+
+    $grille = FabriqueGrille::pour($quete);
+
+    expect($grille->estTraversable(1, 0))->toBeFalse()
+        ->and($grille->estTraversable(3, 0))->toBeFalse();
 });

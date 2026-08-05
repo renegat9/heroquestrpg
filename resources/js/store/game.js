@@ -450,11 +450,17 @@ const MOBILIER_ICONES = {
     Armoire: 'door_sliding',
 };
 
-/** carte.mobilier (contrat « Mobilier ») → décor [{x, y, l, h, nom, bloquant,
- *  ic, titre}] pour la couche mobilier de DungeonGrid. Contrairement aux
- *  pièges, aucun état à filtrer : un meuble d'une salle DÉCOUVERTE est
- *  toujours affiché (le serveur ne l'envoie pas avant — même filtre brouillard
- *  que le reste de la carte). */
+/** carte.mobilier (contrat « Mobilier ») → décor [{x, y, l, h, nom,
+ *  bloque_mouvement, bloque_vue, ic, titre}] pour la couche mobilier de
+ *  DungeonGrid. Contrairement aux pièges, aucun état à filtrer : un meuble
+ *  d'une salle DÉCOUVERTE est toujours affiché (le serveur ne l'envoie pas
+ *  avant — même filtre brouillard que le reste de la carte).
+ *
+ *  Deux propriétés INDÉPENDANTES (doc 17, portage) : une table bloque le
+ *  passage mais on voit par-dessus, une bibliothèque bloque les deux — ne
+ *  jamais les refusionner en un seul champ « bloquant ». Le BFS client
+ *  (DeplacementSheet) ne reflète que `bloque_mouvement` : le serveur reste
+ *  seul autoritaire sur la ligne de vue. */
 export function mobilierVersDecor(carte) {
     return (carte?.mobilier ?? []).map((m) => ({
         x: m.x,
@@ -462,7 +468,8 @@ export function mobilierVersDecor(carte) {
         l: Math.max(1, m.l ?? 1),
         h: Math.max(1, m.h ?? 1),
         nom: m.nom ?? 'Meuble',
-        bloquant: m.bloquant !== false,
+        bloque_mouvement: m.bloque_mouvement !== false,
+        bloque_vue: m.bloque_vue === true,
         ic: MOBILIER_ICONES[m.nom] ?? 'category',
         titre: m.nom ?? 'Meuble',
     }));
