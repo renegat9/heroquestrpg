@@ -1312,8 +1312,8 @@ final class ResolveurTour
             if ($conditionNom === 'Endormi') {
                 $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_ENDORMI);
             }
-            if ((bool) data_get($sort->effet, 'empeche_attaque', false)) {
-                $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+            if ((bool) data_get($sort->effet, 'saute_tour', false)) {
+                $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_SAUTE_TOUR);
                 $conditionNom ??= 'Étourdi';
             }
         } else {
@@ -2254,11 +2254,19 @@ final class ResolveurTour
             return $payload;
         }
 
-        // Tempête : « n'attaque pas à son prochain tour » — l'empêchement est
-        // consommé à cette activation-ci (le monstre se déplace librement).
-        $attaqueEmpechee = $this->sorts->monstreA($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
-        if ($attaqueEmpechee) {
-            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_EMPECHE_ATTAQUE);
+        // Tempête : « un monstre choisi PASSE SON PROCHAIN TOUR » (Kellar's Keep
+        // p. 15). Le tour entier saute — ni déplacement ni attaque —, et la
+        // condition est consommée à cette activation-ci. On ne bloquait
+        // auparavant que l'attaque, en laissant le monstre avancer librement :
+        // il refermait la distance, et le sort ne faisait que retarder d'un tour
+        // un coup qu'il portait ensuite au contact.
+        if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_SAUTE_TOUR)) {
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_SAUTE_TOUR);
+
+            $payload = ['type' => 'monstre_saute_tour', 'monstre' => $nomMonstre, 'action' => 'saute_tour'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
         }
 
         // Boss / sous-boss : sorts de Dread + capacités spéciales (Régénération,
@@ -2279,7 +2287,7 @@ final class ResolveurTour
         // plutôt que de foncer au contact (au contact, il frappe en corps-à-corps,
         // un dé de moins). Sans cible en vue, il retombe sur l'approche standard
         // ci-dessous (pour gagner une ligne de tir au tour suivant).
-        if ($instance->monstre->aDistance() && ! $attaqueEmpechee) {
+        if ($instance->monstre->aDistance()) {
             $tir = $this->tirerSiCibleEnVue($groupe, $instance, $cibles, $grille, $acteur, $nomMonstre);
 
             if ($tir !== null) {
@@ -2380,17 +2388,6 @@ final class ResolveurTour
                 'depart' => $departMonstre,
                 'chemin' => $cheminParcouruMonstre, // animation case-par-case (table)
                 'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
-            ];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
-
-            return $payload;
-        }
-
-        if ($attaqueEmpechee) {
-            $payload = [
-                'type' => 'attaque_empechee',
-                'monstre' => $nomMonstre,
-                'cible' => ['personnage_id' => $cible->personnage->id, 'nom' => $cible->personnage->nom],
             ];
             Journal::ajouter($groupe, 'action', $payload, $acteur);
 

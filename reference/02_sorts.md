@@ -98,9 +98,9 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 ### Air — mobilité / puissance
 | Sort | Effet |
 |---|---|
-| **Génie** | Invoque un génie qui exécute **une attaque puissante** puis disparaît. |
+| **Génie** | **Une attaque à 5 dés** de combat, à distance. ⚠ Le texte officiel offre un **second mode** — « ouvre une porte au choix **ou** attaque avec 5 dés » (Kellar's Keep p. 15) — que nous n'implémentons pas encore. Aucune invocation persistante n'est attestée : la clé `invocation_ephemere` a été retirée (2026-08-06). |
 | **Vent Véloce** | **Double le déplacement** d'un héros ce tour (total base + 1d6, ×2). |
-| **Tempête** | Les monstres ciblés tentent un jet de Mind ; échec → **ne peuvent pas attaquer** au prochain tour. |
+| **Tempête** | **UN monstre choisi** tente un jet de Mind ; échec → il **passe son prochain tour** (ni déplacement ni attaque). Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
 
 ---
 

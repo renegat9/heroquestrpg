@@ -39,12 +39,23 @@ class SortSeeder extends Seeder
                 'effet' => ['cible' => 'heros', 'bonus_des_defense' => 2, 'duree' => 'fin_du_combat', 'condition_appliquee' => 'Renforcé']],
 
             // Air — mobilité / puissance
+            // `invocation_ephemere` RETIRÉ : clé sans lecteur, et surtout sans
+            // source. Le texte officiel ne parle d'aucune invocation — « ouvre
+            // une porte au choix OU attaque avec 5 dés de combat » (Kellar's
+            // Keep p. 15, reference/18_extensions.md §3). Les 5 dés sont donc
+            // exacts ; c'est le second mode, l'ouverture de porte, qui manque
+            // encore (à trancher).
             ['element' => 'air', 'nom' => 'Génie', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true, 'invocation_ephemere' => true]],
+                'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true]],
             ['element' => 'air', 'nom' => 'Vent Véloce', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
                 'effet' => ['cible' => 'heros', 'deplacement_multiplie' => 2, 'duree' => 'ce_tour']],
             ['element' => 'air', 'nom' => 'Tempête', 'type' => 'mental', 'difficulte_parchemin' => 3,
-                'effet' => ['cible' => 'monstres_zone', 'resistance' => 'jet_mind', 'empeche_attaque' => true, 'duree' => 'prochain_tour']],
+                // « Un monstre choisi passe son prochain tour » (Kellar's Keep
+                // p. 15, reference/18_extensions.md §3) : MONO-cible — il n'a
+                // jamais été un sort de zone —, et le tour saute ENTIÈREMENT.
+                // On lisait auparavant `monstres_zone` (ciblage inexistant) et
+                // `empeche_attaque` (le monstre avançait quand même).
+                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'saute_tour' => true, 'duree' => 'prochain_tour']],
         ];
 
         foreach ($sorts as $sort) {

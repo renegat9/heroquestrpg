@@ -37,7 +37,7 @@ const CLES_SORT_ACTIVES = [
     'duree',                 // DureeEffet / expirerBuffs()
     'deplacement_multiplie', // multiplicateurDeplacement()
     'franchit_mur',          // ResolveurTour, franchissement
-    'empeche_attaque',       // condition posée sur le monstre
+    'saute_tour',            // condition posée sur le monstre (Tempête)
     'cible',                 // MoteurSorts::ciblesLegales()
     'cout',                  // ResolveurTour::appliquerCoutSort()
     'defense_applicable',    // ResolveurTour::sortDegats(), pilote le jet de défense
@@ -48,8 +48,7 @@ const CLES_SORT_ACTIVES = [
  * Clés SANS lecteur, tolérées en connaissance de cause.
  */
 const CLES_SORT_INERTES = [
-    'fin',                 // descriptif (le réveil est câblé dans reveillerHeros)
-    'invocation_ephemere', // déclaré NON IMPLÉMENTÉ dans MotsClesSort
+    'fin', // descriptif (le réveil est câblé dans reveillerHeros)
 ];
 
 it('n\'introduit aucune clé d\'effet inconnue dans le catalogue de sorts', function () {
@@ -69,7 +68,7 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
     // Un sort qui ne fait ni dégâts, ni soin, ni condition, ni bonus, ni
     // déplacement est un sort qu'on lance pour rien.
     $agissantes = ['des_degats', 'soin_pv_body', 'condition_appliquee', 'bonus_des_attaque',
-        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'empeche_attaque'];
+        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -109,6 +108,21 @@ it('recense explicitement les mots dont la mécanique n\'existe pas', function (
     expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['monstres_zone', 'invocation_ephemere'])
         ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeTrue()
         ->and(MotsClesSort::estNonImplemente('cout'))->toBeFalse();
+
+    // …mais AUCUN sort ne doit plus s'appuyer dessus. Tempête portait
+    // `monstres_zone` alors que le texte officiel dit « un monstre choisi »
+    // (Kellar's Keep p. 15) : la dette était en réalité une erreur de donnée.
+    foreach (Sort::all() as $sort) {
+        foreach ((array) $sort->effet as $cle => $valeur) {
+            expect(MotsClesSort::estNonImplemente($cle))
+                ->toBeFalse("{$sort->nom} : s'appuie sur « {$cle} », non implémenté.");
+
+            if ($cle === 'cible') {
+                expect(MotsClesSort::estNonImplemente((string) $valeur))
+                    ->toBeFalse("{$sort->nom} : cible « {$valeur} », non implémentée.");
+            }
+        }
+    }
 });
 
 it('fait payer son déplacement à Traverser la Pierre (le sort était gratuit)', function () {

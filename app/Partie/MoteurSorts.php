@@ -55,8 +55,8 @@ use Illuminate\Validation\ValidationException;
  * le JSON `instances_monstres.habillage.conditions` (choix MVP documenté) :
  *  - `endormi` (Sommeil)         : le monstre ne joue pas tant qu'il n'est
  *    pas attaqué — une attaque le réveille ;
- *  - `empeche_attaque` (Tempête) : n'attaque pas à son prochain tour,
- *    consommé à ce tour-là.
+ *  - `saute_tour` (Tempête) : passe entièrement son prochain tour — ni
+ *    déplacement ni attaque —, consommé à cette activation-là.
  */
 final class MoteurSorts
 {
@@ -100,7 +100,15 @@ final class MoteurSorts
     /** Clés des conditions de monstre (habillage.conditions). */
     public const MONSTRE_ENDORMI = 'endormi';
 
-    public const MONSTRE_EMPECHE_ATTAQUE = 'empeche_attaque';
+    /**
+     * Tempête : le monstre PASSE SON PROCHAIN TOUR (ni déplacement, ni attaque).
+     *
+     * Remplace l'ancien `empeche_attaque`, qui ne bloquait que l'attaque et
+     * laissait le monstre avancer librement. Le texte officiel est sans
+     * ambiguïté — « un monstre choisi passe son prochain tour » (Kellar's Keep
+     * p. 15, reference/18_extensions.md §3).
+     */
+    public const MONSTRE_SAUTE_TOUR = 'saute_tour';
 
     /**
      * Dés de dégâts de repli si l'effet JSON du catalogue n'en donne pas
