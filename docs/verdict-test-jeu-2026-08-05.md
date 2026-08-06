@@ -294,6 +294,55 @@ deux ensembles, actives et inertes : **ajouter une clé au seeder casse le test*
 tant qu'on n'a pas tranché — lui écrire un lecteur, ou la déclarer décorative en
 connaissance de cause. C'est ce qui empêche les clés décoratives de revenir.
 
+### 6 quater. Sorts et parchemins — audit (12 sorts, 12 parchemins)
+
+**Les prérequis sont tous appliqués**, sans exception :
+
+| requis | mécanisme |
+|---|---|
+| classe lanceuse | `MoteurSorts::LANCEURS` = magicien, elfe |
+| élément choisi à la création | 3 sorts attachés au héros |
+| **1×/quête** | pivot `personnage_sorts.disponible` — remis à `true` au démarrage de quête, passé à `false` au lancement |
+| ligne de vue | `filtrerLigneDeVue()` sur dégâts et mental, figures interposées bloquantes |
+| créneau d'action | `marquerCreneau()` |
+| 2 sorts/tour (Réserve arcanique) | nœud magicien, `bonus_sort_utilise` |
+| parchemin, lanceur | réussite automatique |
+| parchemin, non-lanceur | jet de Mind contre `sorts.difficulte_parchemin` |
+| parchemin consommé même en échec | oui (S1) — « gaspillé » |
+
+**11 clés d'effet sur 16 ont un lecteur** : `des_degats`, `portee`,
+`soin_pv_body`, `bonus_des_attaque`, `bonus_des_defense`, `condition_appliquee`,
+`duree`, `deplacement_multiplie`, `franchit_mur`, `empeche_attaque`, `cible`.
+
+**Cinq sont inertes**, mais elles ne se valent pas — trois décrivent
+fidèlement, trois annoncent une mécanique absente :
+
+| clé / valeur | sorts | verdict |
+|---|---|---|
+| `defense_applicable: true` | Boule de Feu, Trait de Feu, Génie | **exact** — la défense est toujours appliquée |
+| `resistance: jet_mind` | Sommeil, Tempête | **exact** — c'est la colonne `type = mental` qui déclenche `SortMental` |
+| `fin: reveil_ou_attaque` | Sommeil | descriptif — le réveil est câblé dans `reveillerHeros()` |
+| `cout: deplacement_du_tour` | Traverser la Pierre | ⚠ **contredit le moteur** |
+| `invocation_ephemere: true` | Génie | ⚠ **promesse non tenue** |
+| `cible: monstres_zone` | Tempête | ⚠ **promesse non tenue** |
+
+Les trois derniers demandent un arbitrage, et je ne les ai **pas** tranchés :
+
+1. **Traverser la Pierre** annonce coûter « le déplacement du tour ». Le moteur
+   facture un forfait de **2 points** (`ResolveurTour::COUT_FRANCHISSEMENT`). La
+   donnée et le code disent deux choses différentes — l'une des deux est à
+   corriger.
+2. **Génie** porte `invocation_ephemere`, mais **aucun mécanisme d'invocation
+   n'existe**. C'est aujourd'hui un pur sort de dégâts à 5 dés, à distance. Soit
+   on implémente l'invocation, soit on retire la clé (comme
+   `attaque_second_rang`).
+3. **Tempête** vise `monstres_zone`, mais `ciblesLegales()` ne distingue aucune
+   zone et `sortMental()` résout sur **une seule** cible : le sort est
+   mono-cible. Une vraie zone demande un ciblage de surface, qui n'existe pas.
+
+`tests/Feature/Partie/SortsFonctionnelsTest.php` fige cet inventaire : ajouter
+une clé de sort casse la suite tant qu'on n'a pas tranché.
+
 ### 6 ter. Le déplacement, pour mémoire
 
 `déplacement = base de classe + 1d6` (`Engine\Deplacement`), bases seedées
@@ -314,4 +363,4 @@ Non traité ici, faute de rencontre en jeu : **porte secrète** (jamais révél�
 salle non explorée) — donc le blocage de **vue** par mobilier reste **non
 éprouvé en partie réelle**.
 
-Suite complète : **543 tests, 14 146 assertions, tout au vert.**
+Suite complète : **554 tests, 14 253 assertions, tout au vert.**
