@@ -7,6 +7,7 @@ import { computed, onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
 import { useApi } from '../composables/useApi';
 import {
+    accesEquipement,
     capacitesVersChips,
     CATEGORIE_OBJET,
     CLASSE,
@@ -15,6 +16,7 @@ import {
     ELEMENT,
     EMPLACEMENT,
     RARETE,
+    TAG_EQUIPEMENT,
     TIER_MONSTRE,
     TYPE_SORT,
     TYPE_TALENT,
@@ -66,6 +68,25 @@ const objetsParCategorie = computed(() => {
     for (const x of guide.value?.objets ?? []) (m[x.categorie] ??= []).push(x);
     return ordre.filter((c) => m[c]).map((c) => [c, m[c]]);
 });
+/* ---- maîtrises d'équipement (doc 01 §7) ----
+   La restriction n'apparaissait NULLE PART dans le guide : le joueur ne
+   découvrait qu'un magicien ne porte pas d'armure qu'au refus, en essayant de
+   l'équiper. On l'expose des deux côtés : ce que chaque classe maîtrise, et
+   qui peut porter chaque pièce. */
+const acces = computed(() => accesEquipement(classes.value, guide.value?.competences ?? []));
+
+/** Tags de départ d'une classe + ceux que son arbre débloque. */
+function maitrises(classe) {
+    const base = Array.isArray(classe.tags_equipement) ? classe.tags_equipement : [];
+    const debloquables = [];
+    for (const t of talentsParClasse.value[classe.nom] ?? []) {
+        const e = t.effet;
+        if (!e || e.mecanique !== 'acces_equipement' || !Array.isArray(e.tags)) continue;
+        for (const tag of e.tags) debloquables.push({ tag, talent: t.nom });
+    }
+    return { base, debloquables };
+}
+
 const sortsParElement = computed(() => {
     const ordre = ['feu', 'eau', 'terre', 'air'];
     const m = {};
@@ -129,6 +150,24 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <span class="stat" title="Déplacement de base"><MSym n="directions_walk" :size="15" /> {{ c.deplacement_base }} <em>dépl.</em></span>
                         <span v-if="c.bonus_sac" class="stat" title="Bonus de sac"><MSym n="backpack" :size="15" /> +{{ c.bonus_sac }} <em>sac</em></span>
                     </div>
+                    <div class="hero-talents-t"><MSym n="shield_with_heart" :size="14" /> Équipement maîtrisé</div>
+                    <div v-if="maitrises(c).base.length" class="chips">
+                        <span v-for="t in maitrises(c).base" :key="t" class="chip maitrise">
+                            <MSym n="check" :size="11" /> {{ TAG_EQUIPEMENT[t] ?? t }}
+                        </span>
+                        <span
+                            v-for="d in maitrises(c).debloquables"
+                            :key="d.tag"
+                            class="chip maitrise-off"
+                            :title="`Débloqué par le talent « ${d.talent} »`"
+                        >
+                            <MSym n="lock_open" :size="11" /> {{ TAG_EQUIPEMENT[d.tag] ?? d.tag }} — via {{ d.talent }}
+                        </span>
+                    </div>
+                    <p v-else class="maitrise-libre">
+                        <MSym n="info" :size="13" /> Aucune restriction déclarée : cette classe peut porter tout l'équipement.
+                    </p>
+
                     <div class="hero-talents-t"><MSym n="hub" :size="14" /> Arbre de talents</div>
                     <ul class="talent-ul">
                         <li v-for="t in talentsParClasse[c.nom] ?? []" :key="t.id" class="talent-li">
@@ -181,10 +220,25 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                             <div class="meta-row">
                                 <span class="tag" :class="'rar-' + o.rarete">{{ RARETE[o.rarete] ?? o.rarete }}</span>
                                 <span class="tag ghost">{{ EMPLACEMENT[o.emplacement] ?? o.emplacement }}</span>
+                                <span v-if="o.tag_equipement" class="tag maitrise">
+                                    <MSym n="shield_with_heart" :size="11" /> {{ TAG_EQUIPEMENT[o.tag_equipement] ?? o.tag_equipement }}
+                                </span>
                             </div>
                             <div v-if="effetVersChips(o.effet).length" class="chips">
                                 <span v-for="(ch, i) in effetVersChips(o.effet)" :key="i" class="chip">{{ ch.texte }}</span>
                             </div>
+                            <!-- Qui peut la porter : la restriction ne se lisait
+                                 qu'au refus, au moment d'équiper. -->
+                            <p v-if="o.tag_equipement" class="porteurs">
+                                <MSym n="group" :size="12" />
+                                <span v-if="acces(o.tag_equipement).base.length">
+                                    {{ acces(o.tag_equipement).base.map((n) => CLASSE[n]?.l ?? n).join(', ') }}
+                                </span>
+                                <em v-else>Aucune classe de départ</em>
+                                <span v-for="d in acces(o.tag_equipement).debloque" :key="d.classe" class="porteur-deb">
+                                    · {{ CLASSE[d.classe]?.l ?? d.classe }} <span class="via">via {{ d.talent }}</span>
+                                </span>
+                            </p>
                         </article>
                     </div>
                 </template>
@@ -346,4 +400,21 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
   background: var(--stone-800); border: 1px solid var(--stone-700); color: var(--ink-200, #e7dcc6); }
 .chip.cap { color: var(--torch); border-color: oklch(0.76 0.155 65 / 0.35); }
 .chip.cap .msym { color: var(--torch); }
+
+/* ---- maîtrises d'équipement (doc 01 §7) ----
+   Acquise = pleine ; débloquable par un talent = atténuée et pointillée, pour
+   qu'on distingue « je peux » de « je pourrai ». */
+.chip.maitrise { color: var(--gold, #d8a23a); border-color: oklch(0.80 0.135 88 / 0.4); }
+.chip.maitrise .msym { color: var(--gold, #d8a23a); }
+.chip.maitrise-off { color: var(--ink-500); border-style: dashed; }
+.tag.maitrise { color: var(--gold, #d8a23a); border-color: oklch(0.80 0.135 88 / 0.4);
+  display: inline-flex; align-items: center; gap: 4px; }
+.maitrise-libre { display: flex; align-items: center; gap: 6px; margin: 0 0 4px;
+  font-size: 12px; color: var(--ink-500); font-style: italic; }
+.porteurs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 8px 0 0;
+  font-size: 11.5px; color: var(--ink-400, #b9ab8f); }
+.porteurs .msym { color: var(--ink-500); }
+.porteurs em { font-style: italic; color: var(--ink-500); }
+.porteur-deb { color: var(--ink-500); }
+.porteur-deb .via { font-style: italic; opacity: 0.8; }
 </style>

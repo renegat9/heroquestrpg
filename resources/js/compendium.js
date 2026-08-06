@@ -20,6 +20,15 @@ const EFFETS_QTE = {
     degats_pv_body: 'dégât(s) de Body',
 };
 
+/** Soins exprimés en DÉS (`soin_pv_body_de: 6` = 1d6) — la Fiole de soin du
+ *  deck de fouille, à ne pas confondre avec la Potion de soin du marché qui
+ *  rend un montant fixe (`soin_pv_body`). Le guide affichait « soin pv body
+ *  de : 6 », ce qui se lisait comme 6 PV fixes : l'inverse de la règle. */
+const EFFETS_DE = {
+    soin_pv_body_de: 'PV Body soignés',
+    soin_pv_mind_de: 'PV Mind soignés',
+};
+
 /** Valeurs chiffrées « libellé puis nombre » (ex. « difficulté 3 »). */
 const EFFETS_VALEUR = {
     difficulte: 'Difficulté',
@@ -30,6 +39,8 @@ const EFFETS_VALEUR = {
 
 /** Clés booléennes → libellé affiché quand la valeur est vraie. */
 const EFFETS_BOOL = {
+    attaque_supplementaire: 'Attaque supplémentaire ce tour',
+    deplacement_sans_d6: 'Déplacement fixe (sans dé)',
     deux_mains: 'Arme à deux mains',
     incompatible_deux_mains: 'Incompatible deux mains',
     attaque_diagonale: 'Attaque en diagonale',
@@ -90,11 +101,24 @@ function humaniser(v) {
  */
 export function effetVersChips(effet) {
     if (!effet || typeof effet !== 'object') return [];
-    const IGNORE = new Set(['sort_id']);
+    // `sort_nom` double le nom de la pièce (un parchemin porte le nom de son
+    // sort) ; `sort_id` est une référence interne. Ni l'un ni l'autre n'apprend
+    // quoi que ce soit au joueur.
+    const IGNORE = new Set(['sort_id', 'sort_nom']);
     const chips = [];
     for (const [k, v] of Object.entries(effet)) {
         if (IGNORE.has(k) || v == null) continue;
-        if (k in EFFETS_BONUS && typeof v === 'number') {
+        // `duree: 0` n'est pas une durée : c'est l'absence de durée. Le guide
+        // affichait « Durée : 0 » sur les potions de force et de défense, ce
+        // qui se lit comme « expire immédiatement ». ⚠ Ces potions portent
+        // `duree`, que RIEN ne lit — le moteur (MoteurSorts::appliquerBuffPotion)
+        // lit `duree_tours`, qu'aucun objet ne porte : leur buff est en réalité
+        // consommé à la prochaine attaque, pas au bout d'un compte de tours.
+        // Clé décorative à trancher, cf. verdict 2026-08-05 §3.
+        if (k === 'duree' && (v === 0 || v === '0')) continue;
+        if (k in EFFETS_DE && typeof v === 'number') {
+            chips.push({ texte: `1d${v} ${EFFETS_DE[k]}` });
+        } else if (k in EFFETS_BONUS && typeof v === 'number') {
             chips.push({ texte: `${v > 0 ? '+' : ''}${v} ${EFFETS_BONUS[k]}` });
         } else if (k in EFFETS_QTE && typeof v === 'number') {
             chips.push({ texte: `${v} ${EFFETS_QTE[k]}` });
@@ -149,3 +173,54 @@ export const CLASSE = {
     magicien: { l: 'Magicien', ic: 'auto_awesome' },
 };
 export const DESARMABLE = { oui: 'Désamorçable', non: 'Non désamorçable', partiel: 'Désamorçage partiel' };
+
+/** Maîtrises d'équipement (doc 01 §7) : `objets.tag_equipement` exige,
+ *  `classes_heros.tags_equipement` accorde, un talent `deblocage` ajoute. */
+export const TAG_EQUIPEMENT = {
+    arme_legere: 'Armes légères',
+    arme_courante: 'Armes courantes',
+    arme_distance: 'Armes de jet et de tir',
+    arme_deux_mains: 'Armes à deux mains',
+    armure_legere: 'Armures légères',
+    armure_lourde: 'Armures lourdes',
+    bouclier: 'Boucliers',
+};
+
+/**
+ * Qui peut porter quoi.
+ *
+ * Croise les trois sources de la règle : les tags de base de chaque classe, les
+ * tags qu'un nœud `deblocage` de son arbre ajoute
+ * (`effet.mecanique === 'acces_equipement'`), et le tag exigé par la pièce.
+ *
+ * ⚠ Une classe SANS tags déclarés n'a AUCUNE restriction (le moteur échoue
+ * ouvert : une donnée de référence manquante ne doit jamais enfermer un héros
+ * hors de son propre équipement de départ). On la rend donc « autorisée », sans
+ * quoi le guide annoncerait une interdiction que le jeu n'applique pas.
+ *
+ * @param {Array} classes      guide.classes
+ * @param {Array} competences  guide.competences
+ * @returns {(tag: string|null) => {base: string[], debloque: Array<{classe: string, talent: string}>}}
+ */
+export function accesEquipement(classes, competences) {
+    const deblocages = [];
+    for (const c of competences ?? []) {
+        const e = c.effet;
+        if (!e || e.mecanique !== 'acces_equipement' || !Array.isArray(e.tags)) continue;
+        for (const tag of e.tags) deblocages.push({ tag, classe: c.classe, talent: c.nom });
+    }
+
+    return (tag) => {
+        if (!tag) return { base: [], debloque: [], libre: true }; // pièce sans maîtrise exigée
+        const base = [];
+        for (const c of classes ?? []) {
+            const tags = Array.isArray(c.tags_equipement) ? c.tags_equipement : [];
+            if (tags.length === 0 || tags.includes(tag)) base.push(c.nom);
+        }
+        const debloque = deblocages
+            .filter((d) => d.tag === tag && !base.includes(d.classe))
+            .map(({ classe, talent }) => ({ classe, talent }));
+
+        return { base, debloque, libre: false };
+    };
+}

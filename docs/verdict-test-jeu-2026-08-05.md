@@ -160,6 +160,15 @@ la reprise sur 5 restaurations successives).
 2. **Le mobilier n'est identifiable que par l'attribut HTML `title`**, invisible
    au tactile. On voit un bloc brun, on ne sait ni ce que c'est, ni s'il bloque
    la vue ou seulement le passage.
+2 bis. **`objets.effet.duree` est une clé DÉCORATIVE.** Les potions de force,
+   de défense et de rage portent `duree` (`0`, `0`, `"un_combat"`), mais
+   `MoteurSorts::appliquerBuffPotion()` lit `duree_tours` — qu'**aucun objet ne
+   porte** (seul `SortDreadSeeder` l'utilise). Le buff est en fait consommé à la
+   prochaine attaque, jamais à l'expiration d'un compte de tours, et
+   `"un_combat"` n'est lu par personne. Le guide n'affiche plus « Durée : 0 »
+   (qui se lisait « expire immédiatement »), mais la clé reste à trancher :
+   soit on implémente une durée réelle, soit on la retire du seeder — comme
+   `attaque_second_rang` avant elle.
 3. **Message de validation en anglais** à l'inscription :
    `The identifiant has already been taken.`
 4. **« Total projeté » sur l'écran de table** affiche 400 or paniers vides :
@@ -207,11 +216,55 @@ direct, résolution, retour au hub), habillage IA des monstres, narration cohér
 avec la mécanique, niveaux inchangés (correct : `MonteeNiveau` n'agit que sur
 les jalons `sous_boss`/`boss_final`).
 
-## 6. Suite
+## 6. Guide de jeu — maîtrises exposées, tous les objets documentés
+
+Suite directe du test : Krogar a acheté et équipé un Casque sans le moindre
+refus, et n'a donc jamais vu de règle de maîtrise. Et pour cause — la
+restriction n'apparaissait **nulle part** dans le guide. Un joueur ne pouvait
+l'apprendre qu'au refus, en essayant d'équiper.
+
+`GET /api/guide` expose désormais `classes.tags_equipement` et
+`objets.tag_equipement`, les deux moitiés de la règle (doc 01 §7). La page les
+croise avec les nœuds `deblocage` (`effet.mecanique === 'acces_equipement'`) :
+
+- **fiche de classe** → « Équipement maîtrisé » : les maîtrises de départ en
+  plein, celles qu'un talent débloque en pointillé (« Armures lourdes — via
+  Maîtrise lourde ») ;
+- **fiche d'objet** → la maîtrise exigée, et **qui peut la porter** :
+  « Barbare, Nain, Elfe · Magicien *via Cuir d'apprenti* », ou pour la Hache de
+  bataille « Barbare · Nain *via Poigne de forgeron* ».
+
+⚠ Une classe **sans** tags déclarés est affichée comme **sans restriction** :
+c'est le comportement réel du moteur (il échoue ouvert pour ne jamais enfermer
+un héros hors de son équipement de départ). Annoncer une interdiction que le jeu
+n'applique pas serait pire que se taire.
+
+**Tous les objets documentés.** Les 40 pièces portent un effet non vide (test de
+non-régression), mais six clés n'étaient pas traduites et s'affichaient en brut :
+
+| clé | avant | après |
+|---|---|---|
+| `soin_pv_body_de` | « soin pv body de : 6 » | **« 1d6 PV Body soignés »** |
+| `attaque_supplementaire` | « attaque supplementaire : oui » | « Attaque supplémentaire ce tour » |
+| `deplacement_sans_d6` | « deplacement sans d6 : oui » | « Déplacement fixe (sans dé) » |
+| `sort_nom` | « sort nom : Boule de Feu » | masqué (double le nom de la pièce) |
+| `duree: 0` | « Durée : 0 » | masqué (cf. §3, clé sans lecteur) |
+
+La première comptait : la **Fiole de soin** du deck rend 1d6 et la **Potion de
+soin** du marché un montant fixe — deux objets distincts *à dessein*, et le
+guide affichait le 1d6 comme s'il valait 6 PV secs, soit l'inverse de la règle.
+
+Vu aussi au passage : la base de dev servait encore `attaque_second_rang` sur la
+Lance, clé retirée du seeder par le commit a1a6208 mais jamais re-semée. Un
+`db:seed --class=ObjetSeeder` suffit (`updateOrCreate` par nom, aucune référence
+cassée) — pense à le lancer après toute correction de catalogue, sinon le guide
+documente fidèlement une règle qui n'existe plus.
+
+## 7. Suite
 
 Non traité ici, faute de rencontre en jeu : **porte secrète** (jamais révélée en
 3 « Fouiller la zone »), **Armoire** (le seul meuble opaque de la quête, dans une
 salle non explorée) — donc le blocage de **vue** par mobilier reste **non
 éprouvé en partie réelle**.
 
-Suite complète : **538 tests, 14 082 assertions, tout au vert.**
+Suite complète : **540 tests, 14 093 assertions, tout au vert.**

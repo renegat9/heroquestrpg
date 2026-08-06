@@ -31,8 +31,14 @@ class GuideController extends Controller
         $rangCategorie = ['arme' => 0, 'armure' => 1, 'outil' => 2, 'consommable' => 3, 'parchemin' => 4];
 
         return response()->json([
+            // `tags_equipement` : la maîtrise d'équipement de départ. Sans elle
+            // le guide ne disait NULLE PART qu'un magicien ne porte pas
+            // d'armure ni qu'un barbare ne manie pas la plate — le joueur ne
+            // découvrait la règle qu'au refus, au moment d'équiper. Les tags
+            // gagnés par l'arbre de talents sont déductibles côté front depuis
+            // `competences.effet` (mecanique `acces_equipement`).
             'classes' => ClasseHeros::query()->orderBy('id')
-                ->get(['nom', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac'])
+                ->get(['nom', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement'])
                 ->values()
                 ->all(),
 
@@ -47,8 +53,11 @@ class GuideController extends Controller
                 ->values()
                 ->all(),
 
+            // `tag_equipement` : la maîtrise EXIGÉE pour porter la pièce, pendant
+            // de `classes.tags_equipement`. C'est ce couple qui rend la
+            // restriction lisible des deux côtés (doc 01 §7).
             'objets' => Objet::query()
-                ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet'])
+                ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement'])
                 ->sortBy(fn ($o) => sprintf('%d|%06d|%s', $rangCategorie[$o->categorie] ?? 9, $o->prix_base, $o->nom))
                 ->values()
                 ->all(),

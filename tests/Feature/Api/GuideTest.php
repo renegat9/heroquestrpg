@@ -47,6 +47,39 @@ it('sert le compendium complet sans authentification', function () {
     expect($data['sorts'][0])->toHaveKeys(['element', 'nom', 'type', 'difficulte_parchemin', 'effet']);
 });
 
+it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', function () {
+    $data = $this->getJson('/api/guide')->assertOk()->json();
+
+    // Sans ces deux champs, la restriction n'apparaissait NULLE PART dans le
+    // guide : le joueur ne l'apprenait qu'au refus, en essayant d'équiper.
+    $classes = collect($data['classes'])->keyBy('nom');
+    expect($classes['magicien']['tags_equipement'])->toBeArray()
+        ->and($classes['magicien']['tags_equipement'])->not->toContain('armure_legere')
+        ->and($classes['barbare']['tags_equipement'])->toContain('arme_deux_mains')
+        ->and($classes['nain']['tags_equipement'])->toContain('armure_lourde');
+
+    // Chaque arme/armure porte la maîtrise qu'elle EXIGE.
+    $portables = collect($data['objets'])->whereIn('categorie', ['arme', 'armure']);
+    expect($portables)->not->toBeEmpty()
+        ->and($portables->every(fn ($o) => ! empty($o['tag_equipement'])))->toBeTrue();
+
+    // …et les nœuds de déblocage restent lisibles pour croiser les deux.
+    $deblocages = collect($data['competences'])
+        ->filter(fn ($c) => ($c['effet']['mecanique'] ?? null) === 'acces_equipement');
+    expect($deblocages)->not->toBeEmpty()
+        ->and($deblocages->every(fn ($c) => is_array($c['effet']['tags'] ?? null)))->toBeTrue();
+});
+
+it('documente TOUS les objets : chacun porte un effet non vide', function () {
+    $objets = $this->getJson('/api/guide')->assertOk()->json('objets');
+
+    // Un objet sans effet est une pièce que le guide ne peut pas décrire — et,
+    // le plus souvent, une pièce que le moteur n'applique pas non plus.
+    $muets = collect($objets)->filter(fn ($o) => empty($o['effet']))->pluck('nom')->all();
+
+    expect($muets)->toBe([], 'Objets sans effet : '.implode(', ', $muets));
+});
+
 it('trie le bestiaire par palier puis coût', function () {
     $monstres = $this->getJson('/api/guide')->assertOk()->json('monstres');
 
