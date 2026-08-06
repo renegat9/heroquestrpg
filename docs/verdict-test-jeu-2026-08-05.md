@@ -260,6 +260,53 @@ Lance, clé retirée du seeder par le commit a1a6208 mais jamais re-semée. Un
 cassée) — pense à le lancer après toute correction de catalogue, sinon le guide
 documente fidèlement une règle qui n'existe plus.
 
+### 6 bis. Les objets sont-ils FONCTIONNELS ? — audit des 22 clés d'effet
+
+Chaque clé de `objets.effet` est une promesse faite au joueur, et le projet a
+déjà dû en retirer deux qui n'étaient tenues par personne (`attaque_second_rang`,
+`ligne_de_vue`). Audit exhaustif des 40 objets :
+
+**19 clés sur 22 ont un lecteur réel dans le moteur** — chacune retrouvée avec le
+fichier qui l'applique : `des_attaque`/`des_defense` (Equipement, deltas sur les
+colonnes), `deux_mains`/`incompatible_deux_mains` (garde-fou bouclier),
+`portee`/`inutilisable_adjacent` (arbalète), `attaque_diagonale`, `jetable`,
+`permet_desamorcage` (MoteurPieges), `deplacement_sans_d6`
+(`Engine\Deplacement`), `sort_id` (résolution du parchemin), et les sept clés de
+`MoteurPotions` (soins fixe et 1d6, Mind, antidote, buffs, attaque
+supplémentaire).
+
+**3 clés sont inertes**, laissées en place sciemment (décision de René) :
+
+| clé | portée | risque |
+|---|---|---|
+| `duree` | 3 potions | aucun — le buff est consommé à la prochaine attaque, pas par un compte de tours |
+| `sort_nom` | 12 parchemins | aucun — libellé de confort, double le nom de la pièce |
+| `difficulte_non_lanceur` | 12 parchemins | **dérive** — copie de `sorts.difficulte_parchemin`, qui est l'autorité |
+
+La troisième méritait un garde-fou : `ResolveurTour::resoudreParchemin()` roule le
+jet de Mind contre `sorts.difficulte_parchemin`, jamais contre la clé de l'objet.
+Les 12 valeurs concordent aujourd'hui (vérifié), mais rien ne les y obligeait —
+la faire diverger ferait afficher au guide une difficulté que le jeu ne lance
+pas. Un test la verrouille désormais.
+
+`tests/Feature/Partie/ObjetsFonctionnelsTest.php` fige l'inventaire des clés en
+deux ensembles, actives et inertes : **ajouter une clé au seeder casse le test**
+tant qu'on n'a pas tranché — lui écrire un lecteur, ou la déclarer décorative en
+connaissance de cause. C'est ce qui empêche les clés décoratives de revenir.
+
+### 6 ter. Le déplacement, pour mémoire
+
+`déplacement = base de classe + 1d6` (`Engine\Deplacement`), bases seedées
+barbare 4 / nain 3 / elfe 5 / magicien 4 — soit 4 à 11 cases selon la classe.
+Trois précisions : l'**Armure de plates** supprime le dé (`deplacement_sans_d6`,
+le porteur avance de sa base seule, seul objet qui touche au déplacement) ; la
+base **inclut déjà** les bonus permanents (nœud *Pas léger* de l'elfe) ; le d6
+est lancé à la **génération du menu** et mémorisé (`etat.deplacement_tour`), pour
+que le joueur voie son allonce avant de choisir sa case. Un sort peut multiplier
+le total (`multiplicateur_sort`). Les monstres, eux, ont un déplacement **fixe**,
+sans dé. Divergence assumée du plateau, qui lance 2 dés rouges sans base
+(`reference/16_armurerie.md`).
+
 ## 7. Suite
 
 Non traité ici, faute de rencontre en jeu : **porte secrète** (jamais révélée en
@@ -267,4 +314,4 @@ Non traité ici, faute de rencontre en jeu : **porte secrète** (jamais révél�
 salle non explorée) — donc le blocage de **vue** par mobilier reste **non
 éprouvé en partie réelle**.
 
-Suite complète : **540 tests, 14 093 assertions, tout au vert.**
+Suite complète : **543 tests, 14 146 assertions, tout au vert.**
