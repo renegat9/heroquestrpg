@@ -135,7 +135,7 @@ it('bâtit le deck depuis la composition du gabarit, avec plus de cartes que de 
     }
 });
 
-it('rend exactement le même deck à graine égale, et un deck différent d\'une quête à l\'autre', function () {
+it('rend un deck de MÊME composition mais d\'ordre différent à chaque construction', function () {
     [, $groupe, , $quete, ] = demarrerFouille();
 
     $service = app(DeckFouille::class);
@@ -144,10 +144,17 @@ it('rend exactement le même deck à graine égale, et un deck différent d\'une
 
     $a = $service->construire($gabarit, $carte, $groupe, 1);
     $b = $service->construire($gabarit, $carte, $groupe, 1);
-    $c = $service->construire($gabarit, $carte, $groupe, 2);
 
-    expect($a)->toEqual($b)              // reproductible : rejouer une partie redonne la même pioche
-        ->and($a['deck'])->not->toEqual($c['deck']); // mais la quête suivante a la sienne
+    // Ce test vérifiait l'INVERSE jusqu'au 2026-08-05 : la graine dérivait du
+    // groupe et de la position d'arc, donc « rejouer une partie redonne la même
+    // pioche ». Décision de René : le deck se rebrasse à chaque partie, reprises
+    // comprises — sinon un « Recommencer la quête » ou une reprise après TPK
+    // livre au groupe la liste ordonnée de ses trésors, pièges et errants.
+    $composition = fn (array $r) => collect($r['deck'])
+        ->map(fn (array $c) => json_encode($c))->sort()->values()->all();
+
+    expect($composition($a))->toEqual($composition($b))
+        ->and($a['deck'])->not->toEqual($b['deck']);
 });
 
 it('remet la carte piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas', function () {
@@ -270,6 +277,22 @@ it('ne donne qu\'UN SEUL artefact, même en fouillant toutes les salles', functi
     expect($armes)->toBe(1);
 });
 
+it('rebrasse le deck à CHAQUE construction, jamais deux fois le même ordre', function () {
+    [, $groupe, , $quete, ] = demarrerFouille();
+
+    // La graine dérivait de crc32("{identifiant}:{positionArc}:fouille") : deux
+    // constructions pour le même groupe et la même quête donnaient un ordre
+    // identique, donc un butin connu d'avance dès la seconde tentative.
+    $ordres = [];
+    for ($i = 0; $i < 5; $i++) {
+        $ordres[] = json_encode(
+            app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe, 1)['deck']
+        );
+    }
+
+    expect(array_unique($ordres))->toHaveCount(5);
+});
+
 it('exclut du tirage une arme unique déjà possédée par un héros du groupe', function () {
     [, $groupe, $hero, $quete, ] = demarrerFouille();
 
@@ -324,6 +347,34 @@ it('remet l\'artefact MÊME sac plein, en dépassement signalé', function () {
         ->and(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $arme->id)->exists())->toBeTrue();
 });
 
+it('ne remet PAS deux fois l\'artefact quand un second héros fouille la même salle', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    $salle = (int) $quete->salle_artefact;
+    $arme = Objet::findOrFail($quete->artefact_objet_id);
+
+    deplacerVersSalle($quete, $etat, $salle);
+    expect(fouiller()['issue'])->toBe('artefact');
+
+    // La fouille est « une par héros et par salle » : le compagnon peut fouiller
+    // le MÊME coffre. L'unicité étant par groupe (elle n'était vérifiée qu'à la
+    // construction du deck), il repartait avec un second exemplaire — constaté
+    // en test de jeu 2026-08-05. Il touche désormais l'or du coffre.
+    $second = $groupe->personnages()->where('personnages.id', '!=', $hero->id)->firstOrFail();
+    $carte = app(DeckFouille::class)->carteCoffre($quete->fresh(), $salle);
+
+    expect($carte['issue'])->toBe('tresor')
+        ->and($carte['coffre'])->toBeTrue()
+        ->and($carte)->not->toHaveKey('objet_id')
+        ->and(Inventaire::where('personnage_id', $second->id)->where('objet_id', $arme->id)->exists())
+        ->toBeFalse();
+
+    // …et l'exemplaire déjà trouvé reste bien le seul du groupe.
+    $exemplaires = Inventaire::whereIn('personnage_id', $groupe->personnages()->pluck('personnages.id'))
+        ->where('objet_id', $arme->id)->count();
+    expect($exemplaires)->toBe(1);
+});
+
 // ---------------------------------------------------------------------------
 // Persistance (§2.16 : plus aucun état de jeu durable en cache)
 // ---------------------------------------------------------------------------
@@ -370,8 +421,36 @@ it('restaure le deck et les salles fouillées depuis un snapshot `nouveau_tour`'
 
     // La reprise rend l'état DE CE TOUR-LÀ : elle rouvrait auparavant toutes
     // les salles à la fouille (farm d'or, et duplication d'artefact).
-    expect($quete->fresh()->tresorsFouilles())->toEqual($fouilleesAuSnapshot)
-        ->and($quete->fresh()->deckFouille())->toEqual($deckAuSnapshot);
+    expect($quete->fresh()->tresorsFouilles())->toEqual($fouilleesAuSnapshot);
+
+    // Le deck, lui, est REMÉLANGÉ : même composition, ordre rebrassé (décision
+    // de René, 2026-08-05 — une reprise ne doit pas rendre la pioche connue).
+    $deckRepris = $quete->fresh()->deckFouille();
+    expect($deckRepris)->toHaveCount(count($deckAuSnapshot));
+
+    $signature = fn (array $deck) => collect($deck)
+        ->map(fn (array $c) => json_encode($c))->sort()->values()->all();
+
+    expect($signature($deckRepris))->toEqual($signature($deckAuSnapshot));
+});
+
+it('remélange le deck à la reprise : même composition, ordre différent', function () {
+    [, $groupe, , $quete, ] = demarrerFouille();
+
+    $sauvegarde = app(Sauvegarde::class);
+    $snapshot = $sauvegarde->snapshotter($groupe->fresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
+    $deckAuSnapshot = $quete->fresh()->deckFouille();
+
+    // Sur un deck de 24 cartes, retomber sur le même ordre est de l'ordre de
+    // 1/24! — plusieurs reprises rendent le faux positif impossible en pratique.
+    $ordresVus = [];
+    for ($i = 0; $i < 5; $i++) {
+        $sauvegarde->restaurer($groupe->fresh(), $snapshot);
+        $ordresVus[] = json_encode($quete->fresh()->deckFouille());
+    }
+
+    expect(array_unique($ordresVus))->toHaveCount(5)
+        ->and($ordresVus)->not->toContain(json_encode($deckAuSnapshot));
 });
 
 it('rend l\'artefact re-trouvable UNE SEULE FOIS après une reprise en début de quête', function () {

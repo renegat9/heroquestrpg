@@ -32,19 +32,24 @@ final class DeckFouille
     /**
      * Bâtit le deck, désigne le coffre et lui attribue une arme unique.
      *
-     * L'ordre des appels au PRNG doit rester STABLE : c'est lui qui garantit
-     * qu'une même graine redonne exactement le même deck (testabilité, et
-     * reproductibilité d'une partie rejouée depuis son journal).
-     *
      * @param  array<string, mixed>  $carte  grille assemblée (salles, aretes)
      * @return array{deck: list<array<string, mixed>>, salle_artefact: int|null, artefact_objet_id: int|null}
      */
     public function construire(GabaritQuete $gabarit, array $carte, Groupe $groupe, int $positionArc): array
     {
-        // Graine VOLONTAIREMENT distincte de celle de la carte
-        // (crc32("{identifiant}:{positionArc}")) : sans le suffixe, le deck
-        // serait corrélé au donjon — même carte, même pioche.
-        $prng = new PrngLineaire(crc32($groupe->identifiant.':'.$positionArc.':fouille'));
+        // Graine TIRÉE AU SORT (décision de René, 2026-08-05) : la pioche ne
+        // doit JAMAIS être reproductible. Elle dérivait de
+        // crc32("{identifiant}:{positionArc}:fouille"), donc un même groupe
+        // rejouant la même quête — « Recommencer la quête » du menu d'urgence,
+        // reprise après TPK — retrouvait le deck dans le MÊME ordre : tout le
+        // butin, les pièges et les errants étaient connus d'avance dès la
+        // seconde tentative. On rebrasse à chaque partie, reprises comprises
+        // (Sauvegarde remélange aussi à la restauration).
+        //
+        // L'ordre des APPELS au PRNG reste stable — ce n'est plus la
+        // reproductibilité qui l'exige, mais la lisibilité : deck, puis salle
+        // du coffre, puis arme unique.
+        $prng = new PrngLineaire(random_int(0, 0x7fffffff));
 
         $composition = (array) data_get($gabarit->structure, 'deck_fouille', []);
         $salles = (array) data_get($carte, 'salles', []);
@@ -140,7 +145,7 @@ final class DeckFouille
         // L'ARME UNIQUE est réservée au coffre du fond (la salle-artefact) :
         // c'est la récompense de la progression, pas d'un raccourci trouvé.
         $estArtefact = $salle === null || $quete->estSalleArtefact($salle);
-        $objet = $estArtefact && $quete->artefact_objet_id !== null
+        $objet = $estArtefact && $quete->artefact_objet_id !== null && ! $this->artefactDejaPris($quete)
             ? Objet::find($quete->artefact_objet_id)
             : null;
 
@@ -316,6 +321,27 @@ final class DeckFouille
         sort($candidats);
 
         return (int) $candidats[$prng->suivant() % count($candidats)];
+    }
+
+    /**
+     * L'arme unique de cette quête est-elle DÉJÀ dans les mains du groupe ?
+     *
+     * L'unicité n'était vérifiée qu'à la CONSTRUCTION du deck (choisirArtefact
+     * écarte ce que le groupe possède déjà), donc une seule fois par quête. Or
+     * la fouille est passée à « une par héros et par salle » : les deux héros
+     * qui fouillent la salle-artefact repartaient chacun avec le MÊME objet
+     * unique (constaté en test de jeu 2026-08-05 — Arbalète des Murmures en
+     * double dans le même groupe). L'unicité est par GROUPE : au second
+     * fouilleur, le coffre verse son or.
+     */
+    private function artefactDejaPris(Quete $quete): bool
+    {
+        $idsHeros = $quete->groupe?->personnages()->pluck('personnages.id') ?? collect();
+
+        return Inventaire::query()
+            ->whereIn('personnage_id', $idsHeros)
+            ->where('objet_id', $quete->artefact_objet_id)
+            ->exists();
     }
 
     /**

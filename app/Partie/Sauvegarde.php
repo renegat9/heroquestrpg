@@ -16,6 +16,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Snapshot;
+use App\Partie\Aleatoire\PrngLineaire;
 use App\Support\Journal;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -415,6 +416,23 @@ final class Sauvegarde
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }
+        }
+
+        // …mais le deck est REMÉLANGÉ (décision de René, 2026-08-05). Le
+        // restaurer tel quel rendait la reprise prévisible : après un TPK ou un
+        // « Recommencer la quête », le groupe rejouait la même pioche dans le
+        // même ordre et connaissait d'avance chaque trésor, chaque piège et
+        // chaque errant. On restaure donc la COMPOSITION (ce que le snapshot
+        // sait, et lui seul : le deck cycle, aucune carte ne se perd) et on
+        // rebrasse l'ORDRE.
+        //
+        // Ce qui reste figé : `salle_artefact`, `salles_coffre` et
+        // `artefact_objet_id` — des PLACEMENTS liés à la carte, pas des
+        // tirages. Les re-tirer déplacerait le coffre sous les pieds du groupe,
+        // voire lui offrirait une seconde arme unique.
+        if (isset($champs['deck_fouille']) && is_array($champs['deck_fouille'])) {
+            $champs['deck_fouille'] = (new PrngLineaire(random_int(0, 0x7fffffff)))
+                ->melanger(array_values($champs['deck_fouille']));
         }
 
         Quete::findOrFail($quete['id'])->update($champs);
