@@ -529,6 +529,24 @@ final class MoteurSorts
             ->delete();
     }
 
+    /**
+     * Le héros traverse-t-il la roche ce tour-ci (Traverser la Pierre) ?
+     *
+     * Relu sur l'effet du sort SOURCE, comme tous les buffs chiffrés — jamais
+     * recopié sur le pivot. Le buff porte `duree: ce_tour` : il tombe quand le
+     * héros termine son tour.
+     */
+    public function traverseRoche(Personnage $personnage): bool
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            if (! empty($this->effetSortSource((string) $condition->pivot->source)['franchit_mur'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Héros inattaquable (condition « Caché » du catalogue — Voile de Brume). */
     public function estInattaquable(Personnage $personnage): bool
     {

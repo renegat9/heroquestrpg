@@ -140,6 +140,14 @@ final class Grille
      */
     public function porteBloqueEntre(int $x1, int $y1, int $x2, int $y2): bool
     {
+        // Traverser la Pierre passe AUSSI les portes closes : le héros ne les
+        // franchit pas, il contourne par la roche. Les laisser bloquantes
+        // rendrait le sort incapable de faire précisément ce pour quoi on le
+        // lance — dégager un passage quand la porte est prise.
+        if ($this->traverseRoche) {
+            return false;
+        }
+
         $etat = $this->portes[self::cleArete($x1, $y1, $x2, $y2)] ?? null;
 
         return $etat !== null && $etat !== 'ouverte';
@@ -192,6 +200,22 @@ final class Grille
         }
     }
 
+    /**
+     * Traverser la Pierre (doc 02 §7) : pour CE héros et CE tour, la roche ne
+     * barre plus le passage — « traverse les murs sur tout le déplacement du
+     * jet » (Witch Lord, reference/18_extensions.md §3).
+     *
+     * Ne lève QUE la roche : une figure ou un meuble bloque toujours (on ne
+     * traverse pas un compagnon), et la ligne de vue n'est pas touchée — voir
+     * au-delà d'un mur reste impossible.
+     */
+    public function autoriserLaRoche(): void
+    {
+        $this->traverseRoche = true;
+    }
+
+    private bool $traverseRoche = false;
+
     public function estTraversable(int $x, int $y): bool
     {
         // Une porte ne prend plus de case (arête) : la traversabilité est
@@ -206,7 +230,19 @@ final class Grille
             return false;
         }
 
+        // Traverser la Pierre : la roche cesse d'être un mur. On reste DANS la
+        // carte — franchir le bord mènerait hors-grille, sans case où finir.
+        if ($this->traverseRoche) {
+            return $x >= 0 && $y >= 0 && $y < count($this->cases) && $x < count($this->cases[$y] ?? []);
+        }
+
         return ($this->cases[$y][$x] ?? 'm') === 's';
+    }
+
+    /** La case est-elle de la ROCHE pleine ? (fin de mouvement mortelle) */
+    public function estRoche(int $x, int $y): bool
+    {
+        return ($this->cases[$y][$x] ?? 'm') !== 's';
     }
 
     public function sontAdjacentes(int $x1, int $y1, int $x2, int $y2): bool

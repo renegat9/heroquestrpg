@@ -34,7 +34,15 @@ class SortSeeder extends Seeder
             ['element' => 'terre', 'nom' => 'Soin du Corps', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros_ou_soi', 'soin_pv_body' => 4]],
             ['element' => 'terre', 'nom' => 'Traverser la Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
-                'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'cout' => 'deplacement_du_tour']],
+                // « Traverse les murs sur TOUT LE DÉPLACEMENT du jet, danger de
+                // rester bloqué dans la roche massive » (Witch Lord,
+                // reference/18_extensions.md §3). Ce n'est donc pas un saut :
+                // le sort pose un buff qui dure le tour, et le héros se déplace
+                // normalement — à travers la roche et les portes closes. Finir
+                // dans la roche fait tomber le héros.
+                // `cout` retiré : facturer le déplacement rendrait le sort
+                // inutilisable, puisque c'est le déplacement qui EST l'effet.
+                'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
             ['element' => 'terre', 'nom' => 'Peau de Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 // Texte officiel : « 1 dé de défense supplémentaire jusqu'au
                 // PREMIER DÉGÂT SUBI » (reference/18_extensions.md §3). On

@@ -1,4 +1,4 @@
-# 19 — Mots-clés d’effet : durées, cibles, coûts, résistances
+# 19 — Mots-clés d’effet : durées, cibles, résistances
 
 > **Nature de ce document.** Contrairement aux docs 16-18, ce n'est pas un
 > extrait de livret officiel : c'est une **décision de portage**. Le jeu de
@@ -36,13 +36,14 @@ jusqu'à la prochaine défense », faute de mot pour le dire.
 
 ## 2. Le vocabulaire
 
-Cinq mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
+Six mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
 **entier** reste valide et signifie tout autre chose (§3).
 
 | mot-clé | prend fin… | exemples |
 |---|---|---|
 | `prochaine_attaque` | quand le porteur **attaque** (quel que soit le résultat) | Courage, Potion de force |
-| `prochaine_defense` | quand le porteur **se défend** | Potion de défense |
+| `prochaine_defense` | quand le porteur **se défend** (le jet, qu'il encaisse ou non) | Potion de défense |
+| `premier_degat_subi` | au premier dégât **réellement encaissé** — parer sans rien perdre ne le consomme pas | Peau de Pierre |
 | `ce_tour` | à la **fin du tour du porteur** | Vent Véloce |
 | `prochain_tour` | au **début du prochain tour du porteur** | Voile de Brume |
 | `fin_du_combat` | quand **plus aucun monstre n'est engagé** (actif ET révélé) | Potion de rage, Peau de Pierre |
@@ -103,6 +104,8 @@ compteur » : la condition attend un déclencheur ou un retrait explicite.
 |---|---|
 | `prochaine_attaque` | `ResolveurTour::resoudreAttaque()`, après le jet |
 | `prochaine_defense` | résolution de l'attaque d'un monstre sur un héros |
+| `premier_degat_subi` | observateur `Personnage::booted()` — toute BAISSE de `pv_body`, quelle qu'en soit la source (monstre, piège, Dread, tir ami) |
+| `premier_degat_subi` | observateur `Personnage::booted()` — toute BAISSE de `pv_body`, quelle qu'en soit la source |
 | `ce_tour` | `ResolveurTour::marquerCreneau()`, créneau `tour` |
 | `prochain_tour` | fin de round, après la phase des monstres |
 | `fin_du_combat` | `ResolveurTour::verifierFinDuCombat()` |
@@ -147,16 +150,18 @@ restreint pas : le **tir ami est délibéré** (doc 02 §5, S3), donc la liste l
 contient monstres *et* héros en ligne de vue. La restriction ne s'applique qu'aux
 sorts **utilitaires**.
 
-### `cout` — ce que le sort coûte EN PLUS du créneau d'action
+### `cout` — retiré
 
-| mot-clé | sens |
-|---|---|
-| `deplacement_du_tour` | vide les points de déplacement restants (Traverser la Pierre) |
+Un vocabulaire de coût (`deplacement_du_tour`) avait été introduit le 2026-08-06
+pour Traverser la Pierre, qui le déclarait sans que personne ne le lise. Le texte
+officiel a tranché autrement le jour même : le sort ne **coûte** pas le
+déplacement, il le **transforme** — « traverse les murs sur tout le déplacement
+du jet » (Witch Lord). Facturer l'allonce rendait le sort inutilisable, puisque
+c'est le déplacement qui EST l'effet.
 
-Sans lecteur, ce coût n'était jamais débité : `franchirMur()` déplaçait le héros
-à travers le mur et lui laissait son allonce **entière** — le sort était gratuit,
-alors que son libellé et son docblock annonçaient tous deux qu'il « vaut son
-déplacement ». Corrigé par `ResolveurTour::appliquerCoutSort()`.
+Le mot et son lecteur ont donc été **retirés** plutôt que laissés sans usage —
+un vocabulaire sans utilisateur redevient vite décoratif. Le rétablir est trivial
+le jour où un sort en a besoin.
 
 ### `resistance` — comment la cible résiste
 

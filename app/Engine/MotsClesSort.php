@@ -57,17 +57,14 @@ final class MotsClesSort
     ];
 
     // ----------------------------------------------------------------- COÛT
-
-    /**
-     * Le sort consomme TOUT le déplacement restant du tour, en plus du créneau
-     * d'action (Traverser la Pierre : « vaut son déplacement »).
-     *
-     * Sans lecteur, ce coût n'était jamais débité — `franchirMur()` déplaçait
-     * le héros et lui laissait son allonce entière : le sort était gratuit.
-     */
-    public const COUT_DEPLACEMENT_DU_TOUR = 'deplacement_du_tour';
-
-    public const COUTS = [self::COUT_DEPLACEMENT_DU_TOUR];
+    //
+    // Il n'y a PLUS de vocabulaire de coût. `deplacement_du_tour` avait été
+    // introduit pour Traverser la Pierre, qui le déclarait sans que personne ne
+    // le lise. Le texte officiel a tranché autrement (Witch Lord) : le sort ne
+    // COÛTE pas le déplacement, il le TRANSFORME — « traverse les murs sur tout
+    // le déplacement du jet ». Facturer l'allonce rendait le sort inutilisable.
+    // Le mot et son lecteur ont donc été retirés le 2026-08-06 plutôt que
+    // laissés sans usage. Le rétablir est trivial si un sort en a besoin.
 
     // ----------------------------------------------------------- RÉSISTANCE
 

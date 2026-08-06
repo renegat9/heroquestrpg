@@ -92,7 +92,7 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 | Sort | Effet |
 |---|---|
 | **Soin du Corps** | Rend jusqu'à **4 Points de Body** (lançable sur soi). |
-| **Traverser la Pierre** | Le héros franchit **un mur** (vaut son déplacement). |
+| **Traverser la Pierre** | Le héros **traverse la roche et les portes closes pendant TOUT son déplacement** du tour — plusieurs murs, et des cases normalement inaccessibles. **Terminer son mouvement dans la roche le fait tomber** (0 PV) : atteindre quelqu'un pris dans un mur exige le même sort, l'issue est donc de fait fatale (notre moteur n'a pas de mort instantanée — décision de René, 2026-08-06). Entrer ainsi dans une salle inexplorée la **révèle**, monstres compris, **sans ouvrir la porte** : c'est le principal usage tactique, avec le contournement d'une porte tenue par des figures. Réécrit le 2026-08-06 sur le texte officiel (« traverse les murs sur tout le déplacement du jet, danger de rester bloqué dans la roche massive », reference/18_extensions.md §3) ; c'était auparavant un **saut de 2 cases** par-dessus un seul mur, sans risque, et qui exigeait une case de sortie libre. |
 | **Peau de Pierre** | **+1 dé de défense** à un héros, **jusqu'au premier dégât subi** — se défendre sans rien encaisser ne le consomme pas. Aligné le 2026-08-06 sur le texte officiel (« 1 dé de défense supplémentaire jusqu'au premier dégât subi », reference/18_extensions.md §3) : on donnait auparavant **2 dés pour tout le combat**. |
 
 ### Air — mobilité / puissance

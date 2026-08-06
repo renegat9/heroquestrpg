@@ -100,19 +100,20 @@ Une campagne neuve démarre à **0 or** : les héros partent avec leur arme de c
 
 ### ⏳ Durées d'effet
 
-Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Cinq mots-clés, et rien d'autre — voir `reference/19_mots_cles_effets.md` et `App\Engine\DureeEffet` :
+Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Six mots-clés, et rien d'autre — voir `reference/19_mots_cles_effets.md` et `App\Engine\DureeEffet` :
 
 | mot-clé | prend fin… |
 |---|---|
 | `prochaine_attaque` | quand le porteur attaque |
 | `prochaine_defense` | quand le porteur se défend |
+| `premier_degat_subi` | au premier dégât réellement encaissé (parer sans perdre de PV ne le consomme pas) |
 | `ce_tour` | à la fin du tour du porteur (n'atteint pas la phase des monstres) |
 | `prochain_tour` | au début de son prochain tour (couvre donc la phase des monstres) |
 | `fin_du_combat` | quand plus aucun monstre n'est **engagé** (actif *et* révélé) — pas quand le donjon est vidé |
 
 Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte en **tours**, décrémenté en fin de round (c'est ce que porte `conditions.duree_defaut` — Empoisonné 3 tours). Ajouter un mot-clé sans câbler son déclencheur crée un effet qui ne s'arrête jamais.
 
-Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `heros_ou_soi`, `monstre`, `monstres_zone`), **`cout`** (`deplacement_du_tour`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
+Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `heros_ou_soi`, `monstre`, `monstres_zone`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
 
 ## 🧪 Tests
 

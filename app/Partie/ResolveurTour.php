@@ -355,7 +355,11 @@ final class ResolveurTour
         // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
         ['restant' => $restant, 'multiplicateur' => $multiplicateur] = $this->pointsDeplacement($personnage, $etat, $totalTour);
 
-        $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
+        // Traverser la Pierre : tant que le buff tient (ce tour), la roche et
+        // les portes closes ne barrent plus le chemin de CE héros.
+        $traverseRoche = $this->sorts->traverseRoche($personnage);
+
+        $grille = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
         if ($chemin === null || $chemin === []) {
@@ -1375,14 +1379,6 @@ final class ResolveurTour
             ];
         }
 
-        // Traverser la Pierre : franchir UN mur adjacent — vaut le déplacement.
-        if (isset($effet['franchit_mur'])) {
-            $resultat = $this->franchirMur($quete, $lanceur, $etat, $parametres);
-            $cout = $this->appliquerCoutSort($effet, $etat);
-
-            return $cout === null ? $resultat : $resultat + ['cout' => $cout];
-        }
-
         // Buff (Courage, Peau de Pierre, Voile de Brume, Vent Véloce) : cible
         // héros si le sort est ciblé, sinon le lanceur lui-même.
         $cibleBuff = isset($option['parametres']['cibles'])
@@ -1399,74 +1395,32 @@ final class ResolveurTour
     }
 
     /**
-     * Traverser la Pierre (doc 02 §7) : le héros passe de l'autre côté d'un
-     * mur ORTHOGONALEMENT adjacent — destination à 2 cases, mur au milieu,
-     * case de sortie libre. « Vaut son déplacement » (l'action du tour).
+     * Traverser la Pierre : « danger de rester bloqué dans la roche massive »
+     * (Witch Lord, reference/18_extensions.md §3).
      *
-     * @param  array<string, mixed>  $parametres
-     * @return array<string, mixed>
+     * Le héros qui TERMINE son mouvement dans la roche tombe (0 PV). Notre
+     * moteur n'a pas de mort instantanée — il n'a que `tombe`, à terre et
+     * relevable (décision de René, 2026-08-06) —, mais l'issue est de fait
+     * fatale : atteindre un compagnon PRIS DANS UN MUR demande le même sort.
+     *
+     * Volontairement indépendant du buff : on juge la case, pas l'intention.
+     * Un héros qu'un autre effet déposerait dans la roche tomberait pareillement.
      */
-    private function franchirMur(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $parametres): array
+    private function verifierRocheMortelle(EtatPersonnageQuete $etat): void
     {
-        $x = $parametres['x'] ?? null;
-        $y = $parametres['y'] ?? null;
-
-        if (! is_numeric($x) || ! is_numeric($y)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'Choisis d\'abord la case où ressortir, de l\'autre côté du mur.',
-            ]);
+        if ($etat->tombe || $etat->position_x === null || $etat->quete === null) {
+            return;
         }
 
-        $x = (int) $x;
-        $y = (int) $y;
-        $dx = $x - (int) $etat->position_x;
-        $dy = $y - (int) $etat->position_y;
+        $carte = $etat->quete->carte;
 
-        if (! (abs($dx) === 2 && $dy === 0) && ! ($dx === 0 && abs($dy) === 2)) {
-            throw ValidationException::withMessages([
-                'parametres' => 'Traverser la Pierre : destination à 2 cases orthogonales, derrière un mur adjacent.',
-            ]);
+        if ($carte === null
+            || ! Grille::depuisCarte($carte)->estRoche((int) $etat->position_x, (int) $etat->position_y)) {
+            return;
         }
 
-        $murX = (int) $etat->position_x + intdiv($dx, 2);
-        $murY = (int) $etat->position_y + intdiv($dy, 2);
-        $cases = $quete->carte?->grille['cases'] ?? [];
-
-        if (($cases[$murY][$murX] ?? null) !== 'm') {
-            throw ValidationException::withMessages(['parametres' => 'Aucun mur à traverser dans cette direction.']);
-        }
-
-        if (! $this->grille($quete, exceptPersonnageId: $personnage->id)->estTraversable($x, $y)) {
-            throw ValidationException::withMessages(['parametres' => 'La case de sortie derrière le mur n\'est pas libre.']);
-        }
-
-        $etat->update(['position_x' => $x, 'position_y' => $y]);
-
-        return ['mur' => ['x' => $murX, 'y' => $murY], 'vers' => ['x' => $x, 'y' => $y]];
-    }
-
-    /**
-     * Applique le COÛT déclaré par un sort (`effet.cout`), en plus du créneau
-     * d'action que tout sort consomme déjà.
-     *
-     * `deplacement_du_tour` vide les points de déplacement restants : c'est ce
-     * que Traverser la Pierre annonce (« vaut son déplacement »). La clé n'avait
-     * AUCUN lecteur — le héros traversait le mur et gardait son allonce entière,
-     * donc le sort était gratuit (audit 2026-08-06).
-     *
-     * @param  array<string, mixed>  $effet
-     */
-    private function appliquerCoutSort(array $effet, EtatPersonnageQuete $etat): ?string
-    {
-        $cout = $effet['cout'] ?? null;
-
-        if ($cout !== MotsClesSort::COUT_DEPLACEMENT_DU_TOUR) {
-            return null;
-        }
-
-        $etat->update(['deplacement_restant' => 0, 'a_deplace' => true]);
-
-        return MotsClesSort::COUT_DEPLACEMENT_DU_TOUR;
+        $etat->update(['tombe' => true]);
+        $etat->personnage?->update(['pv_body' => 0]);
     }
 
     /**
@@ -2682,6 +2636,11 @@ final class ResolveurTour
             // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
 
+            // Traverser la Pierre : « danger de rester bloqué dans la roche »
+            // — le contrôle vient AVANT l'expiration du buff, sinon le héros
+            // aurait déjà cessé de traverser au moment où on le juge.
+            $this->verifierRocheMortelle($etat);
+
             // `ce_tour` s'arrête ICI, et pas au round : le héros décide seul de
             // la fin de son tour, donc un effet « ce tour » n'atteint jamais la
             // phase des monstres — c'est ce qui le distingue de `prochain_tour`.
@@ -2971,9 +2930,14 @@ final class ResolveurTour
      * tombés, C4 — et monstres actifs), avec une figurine exclue (celle qui
      * se déplace).
      */
-    private function grille(Quete $quete, ?int $exceptPersonnageId = null, ?int $exceptInstanceId = null, ?int $exceptMercenaireId = null): Grille
-    {
-        return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId, $exceptMercenaireId);
+    private function grille(
+        Quete $quete,
+        ?int $exceptPersonnageId = null,
+        ?int $exceptInstanceId = null,
+        ?int $exceptMercenaireId = null,
+        bool $traverseRoche = false,
+    ): Grille {
+        return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId, $exceptMercenaireId, $traverseRoche);
     }
 
     /**

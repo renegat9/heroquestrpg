@@ -39,6 +39,7 @@ final class FabriqueGrille
         ?int $exceptPersonnageId = null,
         ?int $exceptInstanceId = null,
         ?int $exceptMercenaireId = null,
+        bool $traverseRoche = false,
     ): Grille {
         $carte = $quete->carte;
 
@@ -47,6 +48,13 @@ final class FabriqueGrille
         }
 
         $grille = Grille::depuisCarte($carte);
+
+        // Traverser la Pierre : le héros qui bouge ignore la roche et les
+        // portes closes. Posé AVANT les figures et le mobilier, qui eux
+        // continuent de bloquer — on ne traverse pas un compagnon.
+        if ($traverseRoche) {
+            $grille->autoriserLaRoche();
+        }
 
         $occupees = [];
         $obstacles = [];

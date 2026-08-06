@@ -40,7 +40,6 @@ const CLES_SORT_ACTIVES = [
     'saute_tour',            // condition posée sur le monstre (Tempête)
     'ouvre_porte',           // second mode (Génie) : MoteurSorts::optionsPorteAuChoix()
     'cible',                 // MoteurSorts::ciblesLegales()
-    'cout',                  // ResolveurTour::appliquerCoutSort()
     'defense_applicable',    // ResolveurTour::sortDegats(), pilote le jet de défense
     'resistance',            // ResolveurTour::sortMental(), pilote la résistance
 ];
@@ -90,7 +89,7 @@ it('n\'emploie que des cibles, coûts et résistances déclarés', function () {
         // ⚠ toContain() de Pest accepte PLUSIEURS valeurs : y glisser un message
         // le transformerait en second élément à chercher. On passe donc par
         // in_array + message sur toBeTrue().
-        foreach ([['cible', MotsClesSort::CIBLES], ['cout', MotsClesSort::COUTS],
+        foreach ([['cible', MotsClesSort::CIBLES],
             ['resistance', MotsClesSort::RESISTANCES]] as [$cle, $vocabulaire]) {
             if (! isset($effet[$cle])) {
                 continue;
@@ -126,30 +125,43 @@ it('recense explicitement les mots dont la mécanique n\'existe pas', function (
     }
 });
 
-it('fait payer son déplacement à Traverser la Pierre (le sort était gratuit)', function () {
+it('fait traverser la roche tout le tour, et fait tomber qui y finit son mouvement', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'elfe']);
-
-    $sort = Sort::where('nom', 'Traverser la Pierre')->firstOrFail();
-    expect(($sort->effet)['cout'])->toBe(MotsClesSort::COUT_DEPLACEMENT_DU_TOUR);
+    app(MoteurSorts::class)->attacherElement($hero, 'terre');
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
-    // Le héros a des points de déplacement en réserve…
-    $etat->update(['deplacement_tour' => 8, 'deplacement_restant' => 8, 'a_deplace' => false]);
+    // Sans le sort, la roche barre le passage…
+    $grille = App\Partie\FabriqueGrille::pour($quete);
+    $roche = null;
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $c) {
+            if ($c !== 's') { $roche = ['x' => $x, 'y' => $y]; break 2; }
+        }
+    }
+    expect($roche)->not->toBeNull()
+        ->and($grille->estTraversable($roche['x'], $roche['y']))->toBeFalse()
+        ->and($grille->estRoche($roche['x'], $roche['y']))->toBeTrue();
 
-    // …que le coût du sort doit intégralement consommer.
-    app(App\Partie\ResolveurTour::class);
-    $reflet = new ReflectionMethod(App\Partie\ResolveurTour::class, 'appliquerCoutSort');
-    $reflet->invoke(app(App\Partie\ResolveurTour::class), (array) $sort->effet, $etat);
+    // …avec le buff, elle ne barre plus rien.
+    app(MoteurSorts::class)->appliquerBuff($hero, Sort::where('nom', 'Traverser la Pierre')->firstOrFail());
+    expect(app(MoteurSorts::class)->traverseRoche($hero->fresh()))->toBeTrue();
 
-    $etat->refresh();
-    expect((int) $etat->deplacement_restant)->toBe(0)
-        ->and((bool) $etat->a_deplace)->toBeTrue();
+    $traversante = App\Partie\FabriqueGrille::pour($quete, traverseRoche: true);
+    expect($traversante->estTraversable($roche['x'], $roche['y']))->toBeTrue();
+
+    // Terminer son mouvement DANS la roche fait tomber le héros (décision de
+    // René : notre moteur n'a pas de mort instantanée, seulement `tombe`).
+    $etat->update(['position_x' => $roche['x'], 'position_y' => $roche['y'], 'a_joue' => false]);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    expect((bool) $etat->fresh()->tombe)->toBeTrue()
+        ->and((int) $hero->fresh()->pv_body)->toBe(0);
 });
 
 it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance', function () {
