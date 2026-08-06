@@ -5,11 +5,16 @@ declare(strict_types=1);
 use App\Engine\DureeEffet;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Quete;
 use App\Models\Sort;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ConditionSeeder;
+use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
+use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
+use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,7 +27,10 @@ use Illuminate\Support\Facades\DB;
  * attaque. Ces tests verrouillent le sens de chaque mot-clé.
  */
 beforeEach(function () {
-    $this->seed([SortSeeder::class, ObjetSeeder::class, ConditionSeeder::class]);
+    Illuminate\Support\Facades\Http::fake();
+    config(['services.anthropic.api_key' => null, 'services.gemini.api_key' => null]);
+    $this->seed([SortSeeder::class, ObjetSeeder::class, ConditionSeeder::class,
+        MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
 });
 
 /** Un héros isolé, sans quête : ces tests portent sur l'expiration, pas sur le tour. */
@@ -108,6 +116,39 @@ it('garde un buff « fin_du_combat » à travers les attaques, et le retire au d
 
     app(MoteurSorts::class)->expirerBuffs($heros, DureeEffet::FIN_DU_COMBAT);
     expect(bonus($heros, 'bonus_des_attaque'))->toBe(0);
+});
+
+it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon est vidé', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    buffPotion($hero, 'Potion de rage');
+    expect(bonus($hero, 'bonus_des_attaque'))->toBe(1);
+
+    // Un seul monstre RÉVÉLÉ, les autres dormants derrière leurs portes.
+    $monstres = $quete->instancesMonstres()->get();
+    expect($monstres)->not->toBeEmpty();
+    $engage = $monstres->first();
+    $engage->update(['revele' => true, 'etat' => 'actif']);
+    foreach ($monstres->skip(1) as $dormant) {
+        $dormant->update(['revele' => false, 'etat' => 'actif']);
+    }
+
+    // Le combat continue tant que l'engagé tient : le buff reste.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+    expect(bonus($hero, 'bonus_des_attaque'))->toBe(1);
+
+    // L'engagé tombe. Il RESTE des monstres actifs dans le donjon (dormants),
+    // donc `donjon_nettoye` est faux — le combat, lui, est bel et bien fini.
+    $engage->update(['etat' => 'vaincu', 'pv_body' => 0]);
+    expect($quete->instancesMonstres()->where('etat', 'actif')->exists())->toBeTrue();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+    expect(bonus($hero, 'bonus_des_attaque'))->toBe(0);
 });
 
 it('ne pose aucun compteur de tours pour une durée à mot-clé', function () {

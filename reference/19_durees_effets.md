@@ -45,7 +45,7 @@ Cinq mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
 | `prochaine_defense` | quand le porteur **se défend** | Potion de défense |
 | `ce_tour` | à la **fin du tour du porteur** | Vent Véloce |
 | `prochain_tour` | au **début du prochain tour du porteur** | Voile de Brume |
-| `fin_du_combat` | quand **plus aucun monstre n'est actif** dans la quête | Potion de rage, Peau de Pierre |
+| `fin_du_combat` | quand **plus aucun monstre n'est engagé** (actif ET révélé) | Potion de rage, Peau de Pierre |
 
 ### `ce_tour` vs `prochain_tour` — la distinction est mécanique
 
@@ -59,17 +59,27 @@ Elle n'est pas cosmétique : entre les deux se trouve **la phase des monstres**.
 Voile de Brume rend le héros inattaquable : le mettre en `ce_tour` le rendrait
 inutile, puisqu'il expirerait juste avant les attaques dont il protège.
 
-### `fin_du_combat`
+### `fin_du_combat` — monstres ENGAGÉS, pas donjon vidé
 
-Le moteur ne connaît **pas** de notion d'« engagement » plus fine qu'une quête :
-il n'y a pas de compteur de rencontres, pas de sortie de mêlée. Le seul
-événement de fin de combat qui existe est **« plus aucun monstre actif »**
-(`donjon_nettoye`). C'est donc la définition retenue, et elle est volontairement
-généreuse : un buff « combat » couvre toute la descente jusqu'au dernier monstre.
+**Le combat s'arrête quand plus aucun monstre n'est engagé**, c'est-à-dire quand
+il ne reste aucune instance à la fois `etat = actif` **et** `revele = true`.
 
-Trois chemins mènent au nettoyage du donjon (déplacement, action, phase des
-alliés) : ils passent tous par `ResolveurTour::donjonNettoye()`, précisément pour
-qu'aucun ne puisse laisser survivre un buff.
+⚠ Ce n'est **pas** « plus aucun monstre dans le donjon ». `etat = actif` veut
+seulement dire « pas encore vaincu » : une quête conserve des monstres actifs
+mais `revele = 0` dans toutes les salles jamais ouvertes. Confondre les deux
+repousserait la fin du combat au **nettoyage complet du donjon**, et un buff
+« un combat » couvrirait alors toute la descente — ce qui n'est pas un combat,
+c'est la quête entière.
+
+Conséquence voulue : on nettoie la salle, le combat se termine, les buffs
+tombent. Ouvrir une porte plus loin réveille des dormants et rouvre un **nouveau**
+combat — auquel le buff dépensé ne s'applique plus.
+
+`ResolveurTour::combatTermine()` porte cette définition, et
+`verifierFinDuCombat()` (idempotent) l'applique après chaque action de héros,
+après la phase des alliés, et à la victoire. Le nettoyage complet du donjon y
+délègue plutôt que de dupliquer le test : **une seule définition de la fin du
+combat**.
 
 ## 3. Une `duree` ENTIÈRE : le décompte en tours
 
@@ -95,7 +105,7 @@ compteur » : la condition attend un déclencheur ou un retrait explicite.
 | `prochaine_defense` | résolution de l'attaque d'un monstre sur un héros |
 | `ce_tour` | `ResolveurTour::marquerCreneau()`, créneau `tour` |
 | `prochain_tour` | fin de round, après la phase des monstres |
-| `fin_du_combat` | `ResolveurTour::donjonNettoye()` |
+| `fin_du_combat` | `ResolveurTour::verifierFinDuCombat()` |
 
 La durée est **relue sur la source** du buff (`sort:{Nom}` / `potion:{Nom}`) au
 moment d'expirer, jamais recopiée sur le pivot : corriger un catalogue s'applique

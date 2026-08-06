@@ -108,7 +108,7 @@ Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.dure
 | `prochaine_defense` | quand le porteur se défend |
 | `ce_tour` | à la fin du tour du porteur (n'atteint pas la phase des monstres) |
 | `prochain_tour` | au début de son prochain tour (couvre donc la phase des monstres) |
-| `fin_du_combat` | quand plus aucun monstre n'est actif dans la quête |
+| `fin_du_combat` | quand plus aucun monstre n'est **engagé** (actif *et* révélé) — pas quand le donjon est vidé |
 
 Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte en **tours**, décrémenté en fin de round (c'est ce que porte `conditions.duree_defaut` — Empoisonné 3 tours). Ajouter un mot-clé sans câbler son déclencheur crée un effet qui ne s'arrête jamais.
 

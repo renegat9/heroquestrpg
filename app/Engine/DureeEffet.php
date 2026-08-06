@@ -53,9 +53,13 @@ final class DureeEffet
     public const PROCHAIN_TOUR = 'prochain_tour';
 
     /**
-     * Jusqu'à ce qu'il ne reste plus AUCUN monstre actif dans la quête
-     * (décision de René, 2026-08-05). Le moteur ne connaît pas d'« engagement »
-     * plus fin : `donjon_nettoye` est le seul événement de fin de combat.
+     * Jusqu'à ce qu'il ne reste plus aucun monstre ENGAGÉ — ni vaincu, ni
+     * encore dormant derrière une porte close (décision de René, 2026-08-06).
+     *
+     * ⚠ Ce n'est PAS « plus aucun monstre dans le donjon » : `etat = actif`
+     * signifie seulement « pas encore vaincu », et une quête garde des monstres
+     * actifs mais `revele = 0` dans les salles jamais ouvertes. Voir
+     * `ResolveurTour::combatTermine()`.
      */
     public const FIN_DU_COMBAT = 'fin_du_combat';
 

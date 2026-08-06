@@ -248,6 +248,10 @@ final class ResolveurTour
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
             $this->decouvrirSalle($groupe, $quete, $etat);
 
+            // Fin du COMBAT (plus aucun monstre engagé) — distincte de la fin de
+            // quête : il peut rester des dormants derrière des portes closes.
+            $this->verifierFinDuCombat($quete);
+
             // Fin de quête : plus aucun monstre actif → victoire.
             if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
                 return $this->donjonNettoye($resultat, $quete);
@@ -261,6 +265,7 @@ final class ResolveurTour
 
             if (! $enAttente) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
+                $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
             }
 
             return $resultat;
@@ -1976,14 +1981,45 @@ final class ResolveurTour
      * @return array<string, mixed>
      */
     /**
-     * Le dernier monstre actif vient de tomber : c'est le SEUL événement de fin
-     * de combat que connaisse le moteur (décision de René, 2026-08-05 — pas de
-     * notion d'« engagement » plus fine). Les buffs `fin_du_combat` (Potion de
-     * rage, Peau de Pierre) s'arrêtent donc ici, pour TOUT le groupe.
+     * Le combat est-il terminé ? — plus aucun monstre **ENGAGÉ**, c'est-à-dire
+     * ni vaincu ni encore dormant derrière une porte close.
      *
-     * Passe par un helper car trois chemins mènent au nettoyage du donjon
-     * (déplacement, action, phase des alliés) : les laisser diverger, c'est
-     * garantir qu'un buff survive par l'un d'eux.
+     * ⚠ Ce n'est PAS « plus aucun monstre dans le donjon » (décision de René,
+     * 2026-08-06). `etat = actif` signifie seulement « pas encore vaincu » :
+     * une quête garde des monstres actifs mais `revele = 0` dans les salles
+     * jamais ouvertes. Les confondre repoussait la fin du combat au nettoyage
+     * COMPLET du donjon — un buff « un combat » couvrait alors toute la
+     * descente. On termine bien le combat en cours quand la salle est nettoyée,
+     * même s'il reste des ennemis endormis ailleurs ; rouvrir une porte plus
+     * loin rouvre un NOUVEAU combat.
+     */
+    private function combatTermine(Quete $quete): bool
+    {
+        return ! $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->exists();
+    }
+
+    /**
+     * Expire les buffs `fin_du_combat` (Potion de rage, Peau de Pierre) dès que
+     * plus aucun monstre n'est engagé. Idempotent : appelable après chaque
+     * action sans risque.
+     */
+    private function verifierFinDuCombat(Quete $quete): void
+    {
+        if ($this->combatTermine($quete)) {
+            $this->sorts->expirerBuffsQuete($quete, DureeEffet::FIN_DU_COMBAT);
+        }
+    }
+
+    /**
+     * Plus aucun monstre actif du tout : le donjon est nettoyé (victoire).
+     *
+     * Passe par un helper car trois chemins y mènent (déplacement, action,
+     * phase des alliés) : les laisser diverger, c'est garantir qu'un buff
+     * survive par l'un d'eux. Un donjon nettoyé implique un combat terminé,
+     * d'où la délégation — une seule définition de la fin du combat.
      *
      * @param  array<string, mixed>  $resultat
      * @return array<string, mixed>
@@ -1991,7 +2027,7 @@ final class ResolveurTour
     private function donjonNettoye(array $resultat, Quete $quete): array
     {
         $resultat['donjon_nettoye'] = true;
-        $this->sorts->expirerBuffsQuete($quete, DureeEffet::FIN_DU_COMBAT);
+        $this->verifierFinDuCombat($quete);
 
         return $resultat;
     }
@@ -2001,6 +2037,10 @@ final class ResolveurTour
         // Hook post-combat (portes « monstres_vaincus ») aussi sur les chemins
         // à retour anticipé (héros endormi/commandé).
         $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
+
+        // Fin du COMBAT (plus aucun monstre engagé), avant la fin de QUÊTE :
+        // les dormants derrière les portes closes ne prolongent pas un combat.
+        $this->verifierFinDuCombat($quete);
 
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
             return $this->donjonNettoye($resultat, $quete);
@@ -2013,6 +2053,7 @@ final class ResolveurTour
 
         if (! $enAttente) {
             $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
+            $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
         }
 
         return $resultat;
