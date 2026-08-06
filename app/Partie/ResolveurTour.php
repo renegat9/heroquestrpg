@@ -9,6 +9,7 @@ use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
+use App\Engine\MotsClesSort;
 use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
@@ -1172,9 +1173,17 @@ final class ResolveurTour
             // Résistance magique (capacité boss) : +2 dés de défense contre les sorts de dégâts.
             $bonusResistance = $this->dread->bonusDefenseResistanceMagique($instance);
 
+            // `defense_applicable` PILOTE désormais le jet de défense au lieu de
+            // seulement le décrire : un sort qui la met à false frappe sans que
+            // la cible puisse parer. Par défaut true — comportement inchangé
+            // pour les trois sorts de dégâts actuels.
+            $defense = ($sort->effet['defense_applicable'] ?? true)
+                ? $instance->defenseEffective() + $bonusResistance
+                : 0;
+
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $des,
-                desDefense: $instance->defenseEffective() + $bonusResistance,
+                desDefense: $defense,
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
             );
@@ -1208,9 +1217,13 @@ final class ResolveurTour
         /** @var Personnage $heros */
         $heros = $cible['personnage'];
 
+        // Même règle qu'en face : `defense_applicable` pilote, et un héros visé
+        // par un tir ami se défend exactement comme un monstre (S3).
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $des,
-            desDefense: (int) $heros->des_defense + $this->sorts->bonusDes($heros, 'bonus_des_defense'),
+            desDefense: ($sort->effet['defense_applicable'] ?? true)
+                ? (int) $heros->des_defense + $this->sorts->bonusDes($heros, 'bonus_des_defense')
+                : 0,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $heros->pv_body,
         );
@@ -1257,6 +1270,19 @@ final class ResolveurTour
         $mind = $cible['type'] === 'monstre'
             ? (int) $cible['monstre']->pv_mind
             : (int) $cible['personnage']->attribut_mind;
+
+        // `resistance` PILOTE la façon dont la cible résiste. Un seul mot
+        // aujourd'hui — `jet_mind`, le jet binaire de Engine\SortMental — et il
+        // reste le défaut : la clé décrivait jusqu'ici ce que `type = mental`
+        // imposait de toute façon. La lire ici permet d'en ajouter d'autres
+        // sans toucher au routage par type.
+        $resistance = (string) ($sort->effet['resistance'] ?? MotsClesSort::RESISTANCE_JET_MIND);
+
+        if ($resistance !== MotsClesSort::RESISTANCE_JET_MIND) {
+            throw ValidationException::withMessages([
+                'option_id' => "Résistance inconnue pour {$sort->nom} : {$resistance}.",
+            ]);
+        }
 
         $resultat = (new SortMental($this->des))->resoudre($mind);
 
@@ -1344,7 +1370,10 @@ final class ResolveurTour
 
         // Traverser la Pierre : franchir UN mur adjacent — vaut le déplacement.
         if (isset($effet['franchit_mur'])) {
-            return $this->franchirMur($quete, $lanceur, $etat, $parametres);
+            $resultat = $this->franchirMur($quete, $lanceur, $etat, $parametres);
+            $cout = $this->appliquerCoutSort($effet, $etat);
+
+            return $cout === null ? $resultat : $resultat + ['cout' => $cout];
         }
 
         // Buff (Courage, Peau de Pierre, Voile de Brume, Vent Véloce) : cible
@@ -1407,6 +1436,30 @@ final class ResolveurTour
         $etat->update(['position_x' => $x, 'position_y' => $y]);
 
         return ['mur' => ['x' => $murX, 'y' => $murY], 'vers' => ['x' => $x, 'y' => $y]];
+    }
+
+    /**
+     * Applique le COÛT déclaré par un sort (`effet.cout`), en plus du créneau
+     * d'action que tout sort consomme déjà.
+     *
+     * `deplacement_du_tour` vide les points de déplacement restants : c'est ce
+     * que Traverser la Pierre annonce (« vaut son déplacement »). La clé n'avait
+     * AUCUN lecteur — le héros traversait le mur et gardait son allonce entière,
+     * donc le sort était gratuit (audit 2026-08-06).
+     *
+     * @param  array<string, mixed>  $effet
+     */
+    private function appliquerCoutSort(array $effet, EtatPersonnageQuete $etat): ?string
+    {
+        $cout = $effet['cout'] ?? null;
+
+        if ($cout !== MotsClesSort::COUT_DEPLACEMENT_DU_TOUR) {
+            return null;
+        }
+
+        $etat->update(['deplacement_restant' => 0, 'a_deplace' => true]);
+
+        return MotsClesSort::COUT_DEPLACEMENT_DU_TOUR;
     }
 
     /**

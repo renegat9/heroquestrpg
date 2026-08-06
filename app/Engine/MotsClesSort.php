@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Engine;
+
+/**
+ * Vocabulaire des sorts : CIBLE, COÛT, RÉSISTANCE.
+ *
+ * Pendant de `DureeEffet` (qui, lui, est partagé avec les objets). Même
+ * principe et même raison d'être : un effet de sort est une **donnée**, donc
+ * chaque valeur qu'il porte doit être un mot déclaré, câblé et documenté —
+ * sans quoi elle promet au joueur une règle que le moteur n'applique pas.
+ *
+ * Le projet a déjà dû retirer `attaque_second_rang` et `ligne_de_vue` pour
+ * cette raison. Référence complète : `reference/19_mots_cles_effets.md` §7.
+ */
+final class MotsClesSort
+{
+    // ---------------------------------------------------------------- CIBLE
+
+    /** Le lanceur lui-même — aucune liste de cibles n'est proposée. */
+    public const CIBLE_SOI = 'soi';
+
+    /** Un héros de la quête (le lanceur exclu du choix par le menu). */
+    public const CIBLE_HEROS = 'heros';
+
+    /** Un héros, le lanceur compris (Soin du Corps). */
+    public const CIBLE_HEROS_OU_SOI = 'heros_ou_soi';
+
+    /** Un monstre. */
+    public const CIBLE_MONSTRE = 'monstre';
+
+    /**
+     * Plusieurs monstres d'une zone.
+     *
+     * ⚠ **NON IMPLÉMENTÉ** : `ciblesLegales()` ne distingue aucune zone et
+     * `sortMental()` résout sur UNE cible. Un sort marqué ainsi se comporte
+     * aujourd'hui comme `CIBLE_MONSTRE`. Déclaré ici pour que le mot existe et
+     * soit repérable — pas pour laisser croire que la mécanique tourne. Voir
+     * `NON_IMPLEMENTES`.
+     */
+    public const CIBLE_MONSTRES_ZONE = 'monstres_zone';
+
+    /**
+     * ⚠ Pour un sort de **dégâts ou mental**, `cible` documente l'intention,
+     * il ne RESTREINT pas : le tir ami est délibéré (doc 02 §5, S3), donc la
+     * liste légale contient monstres ET héros en ligne de vue. La restriction
+     * ne s'applique qu'aux sorts **utilitaires**.
+     */
+    public const CIBLES = [
+        self::CIBLE_SOI,
+        self::CIBLE_HEROS,
+        self::CIBLE_HEROS_OU_SOI,
+        self::CIBLE_MONSTRE,
+        self::CIBLE_MONSTRES_ZONE,
+    ];
+
+    // ----------------------------------------------------------------- COÛT
+
+    /**
+     * Le sort consomme TOUT le déplacement restant du tour, en plus du créneau
+     * d'action (Traverser la Pierre : « vaut son déplacement »).
+     *
+     * Sans lecteur, ce coût n'était jamais débité — `franchirMur()` déplaçait
+     * le héros et lui laissait son allonce entière : le sort était gratuit.
+     */
+    public const COUT_DEPLACEMENT_DU_TOUR = 'deplacement_du_tour';
+
+    public const COUTS = [self::COUT_DEPLACEMENT_DU_TOUR];
+
+    // ----------------------------------------------------------- RÉSISTANCE
+
+    /** La cible résiste par son Mind (Engine\SortMental, binaire — Mind 0 immunisé). */
+    public const RESISTANCE_JET_MIND = 'jet_mind';
+
+    public const RESISTANCES = [self::RESISTANCE_JET_MIND];
+
+    // ------------------------------------------------------------------ ---
+
+    /**
+     * Mots déclarés mais dont la MÉCANIQUE N'EXISTE PAS. Le catalogue peut les
+     * porter — le moteur les ignore, et le guide ne doit pas les annoncer comme
+     * acquis. Toute entrée d'ici est une dette explicite, pas un oubli.
+     *
+     * @var array<string, string>
+     */
+    public const NON_IMPLEMENTES = [
+        self::CIBLE_MONSTRES_ZONE => 'Aucun ciblage de surface : le sort touche une seule cible.',
+        'invocation_ephemere' => 'Aucun mécanisme d\'invocation : Génie reste un sort de dégâts.',
+    ];
+
+    public static function estNonImplemente(string $mot): bool
+    {
+        return array_key_exists($mot, self::NON_IMPLEMENTES);
+    }
+}

@@ -18,7 +18,7 @@ use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Vocabulaire des durées d'effet (reference/19_durees_effets.md).
+ * Vocabulaire des durées d'effet (reference/19_mots_cles_effets.md).
  *
  * La clé `duree` existait dans les données sans aucun lecteur : les buffs
  * expiraient — quand ils expiraient — sur leur CLÉ D'EFFET, pas sur leur durée.

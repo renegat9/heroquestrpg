@@ -49,7 +49,6 @@ const EFFETS_BOOL = {
     defense_applicable: 'Défense applicable',
     empeche_attaque: "Empêche d'attaquer",
     franchit_mur: 'Franchit les murs',
-    invocation_ephemere: 'Invocation éphémère',
     bloque_passage: 'Bloque le passage',
     franchissable: 'Franchissable',
     permet_desamorcage: 'Permet le désamorçage',
@@ -104,7 +103,13 @@ export function effetVersChips(effet) {
     // `sort_nom` double le nom de la pièce (un parchemin porte le nom de son
     // sort) ; `sort_id` est une référence interne. Ni l'un ni l'autre n'apprend
     // quoi que ce soit au joueur.
-    const IGNORE = new Set(['sort_id', 'sort_nom']);
+    // Mots dont la MÉCANIQUE N'EXISTE PAS (App\Engine\MotsClesSort::NON_IMPLEMENTES).
+    // Le guide annonçait « Invocation éphémère » sur Génie alors qu'aucun
+    // mécanisme d'invocation n'est implémenté : promettre au joueur une règle
+    // que le moteur n'applique pas est pire que se taire. À réafficher le jour
+    // où la mécanique existe.
+    const NON_IMPLEMENTES = new Set(['invocation_ephemere']);
+    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES]);
     const chips = [];
     for (const [k, v] of Object.entries(effet)) {
         if (IGNORE.has(k) || v == null) continue;

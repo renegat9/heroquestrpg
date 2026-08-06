@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Engine\MotsClesSort;
 use App\Models\Objet;
 use App\Models\Sort;
 use App\Partie\MoteurSorts;
@@ -17,7 +18,12 @@ use Database\Seeders\SortSeeder;
  * seeder force une décision : lui écrire un lecteur, ou la déclarer décorative.
  */
 beforeEach(function () {
-    $this->seed([SortSeeder::class, ObjetSeeder::class]);
+    Illuminate\Support\Facades\Http::fake();
+    config(['services.anthropic.api_key' => null, 'services.gemini.api_key' => null]);
+    $this->seed([SortSeeder::class, ObjetSeeder::class,
+        Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
+        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class,
+        Database\Seeders\ConditionSeeder::class]);
 });
 
 /** Clés lues par le moteur (audit du 2026-08-06, fichier applicatif en regard). */
@@ -33,19 +39,17 @@ const CLES_SORT_ACTIVES = [
     'franchit_mur',          // ResolveurTour, franchissement
     'empeche_attaque',       // condition posée sur le monstre
     'cible',                 // MoteurSorts::ciblesLegales()
+    'cout',                  // ResolveurTour::appliquerCoutSort()
+    'defense_applicable',    // ResolveurTour::sortDegats(), pilote le jet de défense
+    'resistance',            // ResolveurTour::sortMental(), pilote la résistance
 ];
 
 /**
- * Clés SANS lecteur. Les trois premières DÉCRIVENT fidèlement ce que fait le
- * moteur ; les trois dernières annoncent une mécanique qui n'existe pas et
- * attendent un arbitrage (verdict 2026-08-05 §6 quater).
+ * Clés SANS lecteur, tolérées en connaissance de cause.
  */
 const CLES_SORT_INERTES = [
-    'defense_applicable',  // exact : la défense est TOUJOURS appliquée
-    'resistance',          // exact : c'est `type = mental` qui déclenche SortMental
     'fin',                 // descriptif (le réveil est câblé dans reveillerHeros)
-    'cout',                // ⚠ CONTREDIT le moteur : forfait COUT_FRANCHISSEMENT
-    'invocation_ephemere', // ⚠ aucun mécanisme d'invocation n'existe
+    'invocation_ephemere', // déclaré NON IMPLÉMENTÉ dans MotsClesSort
 ];
 
 it('n\'introduit aucune clé d\'effet inconnue dans le catalogue de sorts', function () {
@@ -77,6 +81,60 @@ it('n\'expose de sorts qu\'aux classes lanceuses', function () {
     expect(MoteurSorts::LANCEURS)->toBe(['magicien', 'elfe'])
         ->and(MoteurSorts::LANCEURS)->not->toContain('barbare')
         ->and(MoteurSorts::LANCEURS)->not->toContain('nain');
+});
+
+it('n\'emploie que des cibles, coûts et résistances déclarés', function () {
+    foreach (Sort::all() as $sort) {
+        $effet = (array) $sort->effet;
+
+        // ⚠ toContain() de Pest accepte PLUSIEURS valeurs : y glisser un message
+        // le transformerait en second élément à chercher. On passe donc par
+        // in_array + message sur toBeTrue().
+        foreach ([['cible', MotsClesSort::CIBLES], ['cout', MotsClesSort::COUTS],
+            ['resistance', MotsClesSort::RESISTANCES]] as [$cle, $vocabulaire]) {
+            if (! isset($effet[$cle])) {
+                continue;
+            }
+
+            expect(in_array($effet[$cle], $vocabulaire, true))
+                ->toBeTrue("{$sort->nom} : {$cle} « {$effet[$cle]} » hors vocabulaire.");
+        }
+    }
+});
+
+it('recense explicitement les mots dont la mécanique n\'existe pas', function () {
+    // Une dette déclarée est une dette qu'on peut retrouver. Ce test tombe le
+    // jour où l'un de ces mots est implémenté : c'est le rappel de le retirer
+    // de NON_IMPLEMENTES et de le documenter comme acquis.
+    expect(MotsClesSort::NON_IMPLEMENTES)->toHaveKeys(['monstres_zone', 'invocation_ephemere'])
+        ->and(MotsClesSort::estNonImplemente('monstres_zone'))->toBeTrue()
+        ->and(MotsClesSort::estNonImplemente('cout'))->toBeFalse();
+});
+
+it('fait payer son déplacement à Traverser la Pierre (le sort était gratuit)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'elfe']);
+
+    $sort = Sort::where('nom', 'Traverser la Pierre')->firstOrFail();
+    expect(($sort->effet)['cout'])->toBe(MotsClesSort::COUT_DEPLACEMENT_DU_TOUR);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    // Le héros a des points de déplacement en réserve…
+    $etat->update(['deplacement_tour' => 8, 'deplacement_restant' => 8, 'a_deplace' => false]);
+
+    // …que le coût du sort doit intégralement consommer.
+    app(App\Partie\ResolveurTour::class);
+    $reflet = new ReflectionMethod(App\Partie\ResolveurTour::class, 'appliquerCoutSort');
+    $reflet->invoke(app(App\Partie\ResolveurTour::class), (array) $sort->effet, $etat);
+
+    $etat->refresh();
+    expect((int) $etat->deplacement_restant)->toBe(0)
+        ->and((bool) $etat->a_deplace)->toBeTrue();
 });
 
 it('donne un parchemin par sort, chacun résoluble et de difficulté synchronisée', function () {

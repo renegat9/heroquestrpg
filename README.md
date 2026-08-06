@@ -100,7 +100,7 @@ Une campagne neuve démarre à **0 or** : les héros partent avec leur arme de c
 
 ### ⏳ Durées d'effet
 
-Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Cinq mots-clés, et rien d'autre — voir `reference/19_durees_effets.md` et `App\Engine\DureeEffet` :
+Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Cinq mots-clés, et rien d'autre — voir `reference/19_mots_cles_effets.md` et `App\Engine\DureeEffet` :
 
 | mot-clé | prend fin… |
 |---|---|
@@ -111,6 +111,8 @@ Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.dure
 | `fin_du_combat` | quand plus aucun monstre n'est **engagé** (actif *et* révélé) — pas quand le donjon est vidé |
 
 Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte en **tours**, décrémenté en fin de round (c'est ce que porte `conditions.duree_defaut` — Empoisonné 3 tours). Ajouter un mot-clé sans câbler son déclencheur crée un effet qui ne s'arrête jamais.
+
+Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `heros_ou_soi`, `monstre`, `monstres_zone`), **`cout`** (`deplacement_du_tour`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
 
 ## 🧪 Tests
 
@@ -132,7 +134,7 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 ## 📚 Documentation
 
 - **`docs/contrat-api.md`** — contrat API / front / temps réel (**source de vérité** ; à modifier en premier).
-- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**. Docs **16–18** sont des extraits sourcés des livrets officiels Avalon Hill 2021 (ne jamais semer une valeur qu'ils ne sourcent pas) ; **`19_durees_effets.md`** fixe le vocabulaire des durées d'effet.
+- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**. Docs **16–18** sont des extraits sourcés des livrets officiels Avalon Hill 2021 (ne jamais semer une valeur qu'ils ne sourcent pas) ; **`19_mots_cles_effets.md`** fixe le vocabulaire des durées d'effet.
 - **`CLAUDE.md`** — guide pour les agents de code (incantations Docker, gotchas).
 
 ## 🔒 Sécurité (doc 11)

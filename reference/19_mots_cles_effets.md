@@ -1,4 +1,4 @@
-# 19 — Durées d'effet : le vocabulaire de `duree`
+# 19 — Mots-clés d’effet : durées, cibles, coûts, résistances
 
 > **Nature de ce document.** Contrairement aux docs 16-18, ce n'est pas un
 > extrait de livret officiel : c'est une **décision de portage**. Le jeu de
@@ -127,7 +127,72 @@ donc aux buffs **déjà posés**.
   précisément parce que `appliquerBuffPotion()` le lisait qu'aucune potion
   n'expirait.
 
-## 6. Ajouter un effet à durée
+## 6. Les autres vocabulaires de sort (`App\Engine\MotsClesSort`)
+
+`duree` n'est pas la seule valeur textuelle d'un effet. Trois autres sont des
+mots-clés déclarés, et désormais **lus** :
+
+### `cible` — qui le sort vise
+
+| mot-clé | sens |
+|---|---|
+| `soi` | le lanceur ; aucune liste de cibles n'est proposée (Traverser la Pierre) |
+| `heros` | un héros de la quête |
+| `heros_ou_soi` | un héros, le lanceur compris (Soin du Corps) |
+| `monstre` | un monstre |
+| `monstres_zone` | plusieurs monstres — ⚠ **non implémenté**, voir §7 |
+
+⚠ Pour un sort de **dégâts ou mental**, `cible` documente l'INTENTION, il ne
+restreint pas : le **tir ami est délibéré** (doc 02 §5, S3), donc la liste légale
+contient monstres *et* héros en ligne de vue. La restriction ne s'applique qu'aux
+sorts **utilitaires**.
+
+### `cout` — ce que le sort coûte EN PLUS du créneau d'action
+
+| mot-clé | sens |
+|---|---|
+| `deplacement_du_tour` | vide les points de déplacement restants (Traverser la Pierre) |
+
+Sans lecteur, ce coût n'était jamais débité : `franchirMur()` déplaçait le héros
+à travers le mur et lui laissait son allonce **entière** — le sort était gratuit,
+alors que son libellé et son docblock annonçaient tous deux qu'il « vaut son
+déplacement ». Corrigé par `ResolveurTour::appliquerCoutSort()`.
+
+### `resistance` — comment la cible résiste
+
+| mot-clé | sens |
+|---|---|
+| `jet_mind` | jet binaire de Mind (`Engine\SortMental`) ; un Mind 0 est immunisé |
+
+C'est le défaut. La clé décrivait jusqu'ici ce que `type = mental` imposait de
+toute façon ; la lire permet d'ajouter d'autres résistances sans toucher au
+routage par type. Une valeur inconnue **échoue bruyamment** (422) plutôt que de
+résoudre en silence avec la mauvaise règle.
+
+### `defense_applicable` — booléen
+
+`true` (défaut) : la cible lance sa défense. `false` : le sort frappe sans parade
+possible. Aucun sort ne l'utilise à `false` aujourd'hui, mais la clé **pilote**
+désormais le jet au lieu de le décrire.
+
+## 7. Mots déclarés dont la MÉCANIQUE N'EXISTE PAS
+
+`MotsClesSort::NON_IMPLEMENTES` recense les mots qu'on peut écrire dans un
+catalogue mais que le moteur **n'applique pas**. Une dette déclarée est une dette
+qu'on retrouve ; un test la verrouille, et le guide ne les affiche pas — promettre
+au joueur une règle absente est pire que se taire.
+
+| mot | porté par | ce qui manque |
+|---|---|---|
+| `cible: monstres_zone` | Tempête | aucun ciblage de surface : `ciblesLegales()` ne distingue pas de zone et `sortMental()` résout sur UNE cible. Le sort est mono-cible |
+| `invocation_ephemere` | Génie | aucun mécanisme d'invocation : Génie reste un sort de dégâts à 5 dés |
+
+Le jour où l'une des deux est implémentée, le test
+`SortsFonctionnelsTest` (« recense explicitement les mots dont la mécanique
+n'existe pas ») tombe : c'est le rappel de la retirer d'ici et de la documenter
+comme acquise.
+
+## 8. Ajouter un effet à durée
 
 1. Choisis un mot-clé de §2 (ou un entier si c'est un décompte de tours).
 2. Pose-le dans `effet.duree` du sort ou de l'objet.

@@ -35,19 +35,20 @@ use Illuminate\Validation\ValidationException;
  * est marqué en cache (clé groupe+personnage), purgé au démarrage suivant.
  *
  * BUFFS DES SORTS UTILITAIRES : ils vivent en `personnage_conditions`
- * (condition du catalogue + pivot source `sort:{Nom}` + duree en tours).
- * Les valeurs chiffrées (bonus de dés, multiplicateur…) ne sont jamais
- * recopiées : elles sont relues dans l'effet JSON du sort pointé par la
- * source, aux résolutions d'attaque / défense / déplacement (ResolveurTour).
- *  - Courage (bonus_des_attaque)      : duree 0, consommé à la PROCHAINE attaque ;
- *  - Peau de Pierre (bonus_des_defense): duree 0, jusqu'à la fin de la quête
- *    (MVP — le doc dit « fin du combat », notion sans état dédié ici ;
- *    purgé par reinitialiserQuete au démarrage suivant) ;
- *  - Voile de Brume (condition Caché) : duree 1 — couvre la phase des
- *    monstres du tour courant, expire au décompte de fin de tour ;
- *  - Vent Véloce (deplacement_multiplie): duree 2 — actif au déplacement du
- *    tour SUIVANT (lancer le sort consomme l'action du tour), consommé à
- *    l'usage.
+ * (condition du catalogue + pivot source `sort:{Nom}`). Les valeurs chiffrées
+ * (bonus de dés, multiplicateur…) ne sont jamais recopiées : elles sont relues
+ * dans l'effet JSON du sort pointé par la source, aux résolutions d'attaque /
+ * défense / déplacement (ResolveurTour).
+ *
+ * Leur EXPIRATION est pilotée par le mot-clé `effet.duree` (App\Engine\DureeEffet,
+ * cf. reference/19_mots_cles_effets.md) — plus par un compteur de tours ni par
+ * des appels câblés sur la clé d'effet :
+ *  - Courage (bonus_des_attaque)       : `prochaine_attaque` ;
+ *  - Peau de Pierre (bonus_des_defense): `fin_du_combat` — plus aucun monstre
+ *    ENGAGÉ (actif ET révélé), et non plus « fin de quête » comme au MVP ;
+ *  - Voile de Brume (condition Caché)  : `prochain_tour` — couvre la phase des
+ *    monstres, ce qui est tout l'intérêt d'une protection ;
+ *  - Vent Véloce (deplacement_multiplie): `ce_tour`.
  *
  * CONDITIONS DES MONSTRES : il n'existe pas de pivot conditions pour les
  * instances de monstres (et pas de nouvelle migration) — elles vivent dans
@@ -471,7 +472,7 @@ final class MoteurSorts
 
     /**
      * Retire les buffs dont la source déclare la `duree` donnée (vocabulaire
-     * `App\Engine\DureeEffet`, cf. reference/19_durees_effets.md).
+     * `App\Engine\DureeEffet`, cf. reference/19_mots_cles_effets.md).
      *
      * C'est l'autorité : la durée est relue sur l'effet du SORT ou de l'OBJET
      * source, jamais recopiée sur le pivot — un catalogue corrigé s'applique

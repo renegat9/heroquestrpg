@@ -29,7 +29,7 @@ namespace App\Engine;
  * géré par `MoteurSorts::decrementerDurees()` (Empoisonné 3 tours…). Les
  * mots-clés ci-dessous couvrent ce qu'un compteur de tours ne sait pas dire.
  *
- * Référence complète et exemples : `reference/19_durees_effets.md`.
+ * Référence complète et exemples : `reference/19_mots_cles_effets.md`.
  */
 final class DureeEffet
 {
