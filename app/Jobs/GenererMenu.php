@@ -115,6 +115,53 @@ class GenererMenu implements ShouldQueue
     }
 
     /**
+     * Dernier filet : ce job est mort pour de bon (toutes tentatives épuisées).
+     *
+     * Le repli ci-dessus ne couvre QUE l'appel LLM. Tout ce qui le précède —
+     * `MenuMoteur::generer()`, la résolution du personnage, la base — s'exécute
+     * hors du try, si bien qu'une seule exception moteur ne laissait AUCUN menu :
+     * la manette restait sur « Le maître du jeu prépare la suite… » indéfiniment,
+     * sans erreur visible ni côté joueur ni côté table, et le groupe entier était
+     * gelé — le menu est la seule chose qui rende la main. (Test de jeu du
+     * 2026-08-05 : workers de file sur du code périmé après migration, colonne
+     * `mobilier.bloquant` disparue, partie figée > 20 min avant diagnostic.)
+     *
+     * On publie donc un menu de SECOURS minimal : passer son tour reste toujours
+     * possible, la partie repart. Volontairement sans dépendance (ni moteur, ni
+     * IA, ni carte) : c'est le chemin qu'on emprunte précisément quand l'une
+     * d'elles vient de casser.
+     */
+    public function failed(?Throwable $e): void
+    {
+        Log::error('GenererMenu a échoué — publication du menu de secours.', [
+            'groupe_id' => $this->groupeId,
+            'joueur_id' => $this->joueurId,
+            'personnage_id' => $this->personnageId,
+            'erreur' => $e?->getMessage(),
+        ]);
+
+        try {
+            $groupe = Groupe::findOrFail($this->groupeId);
+            $personnage = $this->personnage($groupe);
+        } catch (Throwable $secondaire) {
+            Log::error('Menu de secours impossible — groupe ou personnage introuvable.', [
+                'groupe_id' => $this->groupeId,
+                'erreur' => $secondaire->getMessage(),
+            ]);
+
+            return;
+        }
+
+        $this->publier($groupe, $personnage, [
+            'situation' => "Le maître du jeu a perdu le fil. Reprenez la main : terminez ce tour, "
+                ."la partie continue.",
+            'options' => [
+                ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'],
+            ],
+        ]);
+    }
+
+    /**
      * Mémorise le menu (référence de validation de POST choix) et le diffuse
      * sur le canal privé du joueur.
      *
