@@ -82,9 +82,10 @@ it('relève un allié tombé quand sa case est libre et le sauveteur adjacent', 
 
     // Relevé à la MOITIÉ des PV max (correctifs §3 : plus de boucle relevé/retombe).
     $perso = $tombe->personnage->fresh();
+    // Relevé à 1 POINT sur la jauge tombée à zéro (décision de René,
+    // 2026-08-06) — c'était la moitié des PV max jusque-là.
     expect($tombe->fresh()->tombe)->toBeFalse()
-        ->and((int) $perso->pv_body)->toBe(max(1, (int) round((int) $perso->pv_body_max * 0.5)))
-        ->and((int) $perso->pv_body)->toBeGreaterThan(1);
+        ->and((int) $perso->pv_body)->toBe(1);
 });
 
 it('refuse de relever si une autre figure occupe la case du tombé', function () {

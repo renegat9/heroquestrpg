@@ -59,9 +59,9 @@ return [
      * relève désormais à une FRACTION de ses PV max (plancher 1 PV), pour tenir
      * au moins un échange. Valeur de départ à régler en playtest.
      */
-    'relevage' => [
-        'fraction_pv' => (float) env('JEU_RELEVAGE_FRACTION_PV', 0.5), // 0..1 des PV Body max
-        'pv_min' => (int) env('JEU_RELEVAGE_PV_MIN', 1),
-    ],
+    // `relevage` RETIRÉ (2026-08-06) : relever ramène désormais à 1 POINT, sur
+    // la jauge tombée à zéro (Body ou Mind) — décision de René. La fraction des
+    // PV max n'a plus de lecteur, et un réglage que personne ne lit est une
+    // promesse faite au narrateur que le moteur ne tient pas.
 
 ];

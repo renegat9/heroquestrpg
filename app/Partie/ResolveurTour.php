@@ -1616,38 +1616,43 @@ final class ResolveurTour
             ]);
         }
 
-        // Debout à une FRACTION des PV Body max (plancher configurable) : relever
-        // à 1 PV enfermait dans une boucle « relevé/retombe » (correctifs §3).
-        // La figure n'occupe plus la case en « tombée ».
-        $pvReleve = $this->pvRelevage($cible->personnage);
+        // Debout à 1 POINT — Body ou Mind, celui qui est à zéro (décision de
+        // René, 2026-08-06). Remplace la fraction des PV max introduite pour
+        // éviter la boucle « relevé/retombe » : le compromis est assumé, un
+        // héros relevé repart bien au bord du gouffre.
+        //
+        // Les deux jauges sont traitées, pas seulement Body : c'est celle qui
+        // est tombée à zéro qui remonte. ⚠ Aucun chemin ne réduit `pv_mind`
+        // d'un héros aujourd'hui (seuls des soins l'augmentent), la branche
+        // Mind est donc correcte mais dormante — elle le restera tant qu'un
+        // effet ne saura pas entamer l'esprit.
+        $soins = [];
+        if ((int) $cible->personnage->pv_body <= 0) {
+            $soins['pv_body'] = 1;
+        }
+        if ((int) $cible->personnage->pv_mind <= 0) {
+            $soins['pv_mind'] = 1;
+        }
+        // Tombé sans jauge à zéro (chute dans la roche, effet futur) : c'est le
+        // corps qu'on remet debout.
+        $soins = $soins === [] ? ['pv_body' => 1] : $soins;
+
         $cible->update(['tombe' => false]);
-        $cible->personnage->update(['pv_body' => $pvReleve]);
+        $cible->personnage->update($soins);
 
         $payload = [
             'type' => 'relever',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'cible' => ['personnage_id' => $cible->personnage_id, 'nom' => $cible->personnage->nom],
-            'pv_body' => $pvReleve,
+            'pv_body' => (int) $cible->personnage->fresh()->pv_body,
+            'pv_mind' => (int) $cible->personnage->fresh()->pv_mind,
+            'jauges_relevees' => array_keys($soins),
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
-    }
-
-    /**
-     * PV Body auxquels un allié se relève (correctifs §3) : fraction de ses PV
-     * max, plancher configurable, jamais au-dessus du max — de quoi tenir un
-     * échange au lieu de retomber au coup suivant.
-     */
-    private function pvRelevage(Personnage $personnage): int
-    {
-        $max = (int) $personnage->pv_body_max;
-        $fraction = (float) config('jeu.relevage.fraction_pv', 0.5);
-        $min = (int) config('jeu.relevage.pv_min', 1);
-
-        return max($min, min($max, (int) round($max * $fraction)));
     }
 
     /**
