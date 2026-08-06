@@ -94,6 +94,47 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
         expect(lignes(['type' => 'deplacement']))->toBe([]);
     });
 
+    it('restitue un piège marché PENDANT un déplacement (clé plurielle)', function () {
+        // Les pièges du chemin arrivent sous `pieges_declenches` (liste), pas
+        // sous le `declenchement` singulier des coffres piégés : le héros
+        // perdait ses PV en silence (test de jeu 2026-08-05).
+        $l = lignes([
+            'type' => 'deplacement',
+            'pieges_declenches' => [[
+                'type' => 'piege_declenche',
+                'contexte' => 'deplacement',
+                'piege' => ['nom' => 'Fosse', 'x' => 25, 'y' => 42],
+                'personnage' => ['id' => 17, 'nom' => 'Krogar'],
+                'degats' => 1,
+                'tombe' => false,
+                'immobilise' => true,
+            ]],
+        ], 'Krogar');
+
+        expect($l)->toHaveCount(2)
+            ->and($l[0]['texte'])->toBe('Fosse se déclenche sur Krogar !')
+            ->and($l[0]['ton'])->toBe('subit')
+            ->and($l[1]['texte'])->toBe('Krogar encaisse −1 PV')
+            ->and($l[1]['ton'])->toBe('degats');
+    });
+
+    it('restitue CHAQUE piège quand un chemin en croise plusieurs', function () {
+        $piege = fn (string $nom) => [
+            'piege' => ['nom' => $nom],
+            'personnage' => ['nom' => 'Krogar'],
+            'degats' => 1,
+        ];
+
+        $l = lignes([
+            'type' => 'deplacement',
+            'pieges_declenches' => [$piege('Fosse'), $piege('Lames')],
+        ], 'Krogar');
+
+        expect($l)->toHaveCount(4)
+            ->and($l[0]['texte'])->toContain('Fosse')
+            ->and($l[2]['texte'])->toContain('Lames');
+    });
+
     it('agrège action du héros + tour des alliés + tour des monstres dans l\'ordre', function () {
         $resultat = [
             'type' => 'attaque', 'degats' => 2, 'cible' => ['nom' => 'Gargouille'],

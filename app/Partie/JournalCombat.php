@@ -76,6 +76,23 @@ final class JournalCombat
             }
         }
 
+        // …et les pièges marchés PENDANT un déplacement, qui arrivent sous une
+        // clé DIFFÉRENTE et au PLURIEL (`pieges_declenches`, un chemin pouvant
+        // en croiser plusieurs). Le correctif précédent n'avait couvert que le
+        // singulier : un héros tombait dans une fosse, perdait ses PV et se
+        // retrouvait immobilisé sans une seule ligne au fil du combat, alors
+        // que le coffre piégé de son compagnon, lui, était bien journalisé
+        // (test de jeu 2026-08-05 — Krogar, Fosse en 25,42, −1 PV muet).
+        foreach ((array) ($a['pieges_declenches'] ?? []) as $declenchement) {
+            if (! is_array($declenchement)) {
+                continue;
+            }
+
+            foreach ($this->piegeDeclenche($declenchement, $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
         return $lignes;
     }
 
