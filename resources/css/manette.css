@@ -285,6 +285,14 @@
 .scene-ctrl button.on { background: var(--torch); color: var(--stone-950); }
 .scene-ctrl .lbl { color: var(--ink-700); font-size: 10px; padding: 6px 4px 6px 8px; letter-spacing: 0.08em; text-transform: uppercase; align-self: center; }
 @media (max-width: 480px) { .scene-ctrl { bottom: 8px; } }
+/* Le lien « Hub » flotte en bas au CENTRE (z-index 200) — exactement où chaque
+   feuille pose son bouton « Fermer » (.overlay, z-index 60). Taper Fermer suivait
+   donc le lien et QUITTAIT la partie (verdict §2.2). ManetteView masque déjà le
+   lien pour les feuilles qu'il possède, mais cette liste ne peut pas connaître les
+   feuilles ouvertes par un onglet : SpellInfoSheet (onglet Sorts) recouvrait de
+   nouveau son propre « Fermer » (test de jeu 2026-08-05). La garde est donc portée
+   par la PRÉSENCE d'une feuille, pas par une énumération à tenir à jour. */
+body:has(.overlay) .scene-ctrl { display: none; }
 
 .empty-note { text-align: center; color: var(--ink-500); font-size: 13px; padding: 30px 20px; font-family: var(--font-narr); font-style: italic; }
 

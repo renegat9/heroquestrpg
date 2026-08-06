@@ -117,8 +117,8 @@ function onOverlayClick(e) {
                      de n'afficher que des alliés (ce qui se lit comme un bug). -->
                 <p v-if="aucuneCibleEnVue" class="cible-vide">
                     <MSym n="visibility_off" :size="16" />
-                    Aucune cible en vue — un mur ou un allié bloque ta ligne de vue.
-                    Déplace-toi pour dégager un angle.
+                    Aucune cible en vue — un mur, un meuble haut ou un allié bloque ta ligne
+                    de vue. Déplace-toi pour dégager un angle.
                 </p>
                 <template v-if="ciblesAlliees.length">
                     <div class="cible-sep" :class="{ 'cible-sep-neutre': !offensif }">
