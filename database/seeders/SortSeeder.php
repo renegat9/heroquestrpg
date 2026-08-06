@@ -26,7 +26,7 @@ class SortSeeder extends Seeder
             ['element' => 'eau', 'nom' => 'Sommeil', 'type' => 'mental', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
             ['element' => 'eau', 'nom' => 'Voile de Brume', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros', 'condition_appliquee' => 'Caché', 'duree' => 'jusqu_au_prochain_tour']],
+                'effet' => ['cible' => 'heros', 'condition_appliquee' => 'Caché', 'duree' => 'prochain_tour']],
             ['element' => 'eau', 'nom' => 'Eau de Guérison', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
 

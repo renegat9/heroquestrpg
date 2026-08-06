@@ -30,7 +30,7 @@ class ConditionSeeder extends Seeder
             ['nom' => 'Immobilisé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'liberation']],
             ['nom' => 'Caché', 'type' => 'physique', 'duree_defaut' => 0,
-                'effet' => ['inattaquable' => true, 'fin' => 'son_prochain_tour']],
+                'effet' => ['inattaquable' => true, 'fin' => 'prochain_tour']],
             ['nom' => 'Renforcé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['bonus_des' => 'attaque_ou_defense_selon_source', 'fin' => 'un_combat_ou_duree_du_sort']],
             ['nom' => 'Tombé', 'type' => 'physique', 'duree_defaut' => 0,

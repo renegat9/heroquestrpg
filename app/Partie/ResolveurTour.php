@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Engine\Combat;
 use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
+use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
 use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
@@ -249,9 +250,7 @@ final class ResolveurTour
 
             // Fin de quête : plus aucun monstre actif → victoire.
             if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-                $resultat['donjon_nettoye'] = true;
-
-                return $resultat;
+                return $this->donjonNettoye($resultat, $quete);
             }
 
             // Tous les héros ont joué (ou sont tombés) → phase des monstres (C2).
@@ -597,9 +596,12 @@ final class ResolveurTour
             relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
         );
 
-        if ($bonusAttaque > 0) {
-            $this->sorts->consommerBuffs($personnage, 'bonus_des_attaque');
-        }
+        // Le héros vient de frapper : les buffs déclarés `prochaine_attaque`
+        // (Courage, Potion de force) sont consommés — quel que soit le résultat,
+        // c'est bien l'attaque qui les dépense. Ceux qui durent le combat
+        // (Potion de rage) survivent, ce que l'ancien `consommerBuffs` sur la
+        // clé d'effet ne savait pas distinguer.
+        $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
 
         $instance->update([
             'pv_body' => $resultat->pvBodyApres,
@@ -1973,6 +1975,27 @@ final class ResolveurTour
      * @param  array<string, mixed>  $resultat
      * @return array<string, mixed>
      */
+    /**
+     * Le dernier monstre actif vient de tomber : c'est le SEUL événement de fin
+     * de combat que connaisse le moteur (décision de René, 2026-08-05 — pas de
+     * notion d'« engagement » plus fine). Les buffs `fin_du_combat` (Potion de
+     * rage, Peau de Pierre) s'arrêtent donc ici, pour TOUT le groupe.
+     *
+     * Passe par un helper car trois chemins mènent au nettoyage du donjon
+     * (déplacement, action, phase des alliés) : les laisser diverger, c'est
+     * garantir qu'un buff survive par l'un d'eux.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, mixed>
+     */
+    private function donjonNettoye(array $resultat, Quete $quete): array
+    {
+        $resultat['donjon_nettoye'] = true;
+        $this->sorts->expirerBuffsQuete($quete, DureeEffet::FIN_DU_COMBAT);
+
+        return $resultat;
+    }
+
     private function apresActionHeros(array $resultat, Groupe $groupe, Quete $quete): array
     {
         // Hook post-combat (portes « monstres_vaincus ») aussi sur les chemins
@@ -1980,9 +2003,7 @@ final class ResolveurTour
         $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
 
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            $resultat['donjon_nettoye'] = true;
-
-            return $resultat;
+            return $this->donjonNettoye($resultat, $quete);
         }
 
         $enAttente = $quete->etatsPersonnages()
@@ -2042,8 +2063,13 @@ final class ResolveurTour
             'attaque_supplementaire' => false,
         ]);
 
-        // Fin de tour : décompte des durées des conditions de sorts des héros
-        // (Caché expire ici ; Vent Véloce survit jusqu'au déplacement suivant).
+        // Fin de round, APRÈS la phase des monstres : c'est le début du prochain
+        // tour des héros. Les effets `prochain_tour` (Voile de Brume) expirent
+        // donc ici — ils ont couvert la phase des monstres, ce qui est tout leur
+        // intérêt.
+        $this->sorts->expirerBuffsQuete($quete, DureeEffet::PROCHAIN_TOUR);
+
+        // Puis le décompte des durées EXPRIMÉES EN TOURS (Empoisonné 3 tours…).
         $this->sorts->decrementerDurees($quete);
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
@@ -2338,6 +2364,12 @@ final class ResolveurTour
         $personnage->update(['pv_body' => $resultat->pvBodyApres]);
         $this->sorts->reveillerHeros($personnage); // être attaqué réveille (Endormi)
 
+        // Le héros vient de se défendre : les buffs `prochaine_defense`
+        // (Potion de défense) sont dépensés ici. Ce déclencheur N'EXISTAIT PAS —
+        // aucun chemin ne retirait un bonus de défense, et une durée 0 n'étant
+        // jamais décrémentée, le bonus valait pour toute la campagne.
+        $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_DEFENSE);
+
         if ($resultat->cibleTombee) {
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
@@ -2508,6 +2540,13 @@ final class ResolveurTour
         if ($creneau === 'tour') {
             // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
+
+            // `ce_tour` s'arrête ICI, et pas au round : le héros décide seul de
+            // la fin de son tour, donc un effet « ce tour » n'atteint jamais la
+            // phase des monstres — c'est ce qui le distingue de `prochain_tour`.
+            if ($etat->personnage !== null) {
+                $this->sorts->expirerBuffs($etat->personnage, DureeEffet::CE_TOUR);
+            }
         } elseif ($creneau === 'action') {
             if ($bonusReserveArcanique) {
                 // Réserve arcanique (nœud magicien) : ce sort consomme le
@@ -2814,9 +2853,7 @@ final class ResolveurTour
 
         // Les alliés ont pu nettoyer le dernier monstre → victoire avant les monstres.
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            $resultat['donjon_nettoye'] = true;
-
-            return $resultat;
+            return $this->donjonNettoye($resultat, $quete);
         }
 
         $resultat['tour_monstres'] = $this->phaseMonstres($groupe, $quete);

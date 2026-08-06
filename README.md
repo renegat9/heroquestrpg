@@ -18,7 +18,7 @@ moteur résout l'option choisie*.
 > (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
 > (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
 > **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
-> à playtester). **224 tests Pest verts.**
+> à playtester). **549 tests Pest verts.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
@@ -96,9 +96,25 @@ sont **régénérables** et hors dépôt (gitignored).
 3. Quand **tous les membres sont « prêts »** et qu'un **narrateur est actif**, la quête démarre.
 4. La table affiche carte + narration ; chaque téléphone est une **manette** qui propose le menu de choix du héros.
 
+Une campagne neuve démarre à **0 or** : les héros partent avec leur arme de classe et le premier butin se gagne au donjon — le marché ne prend son sens qu'après la première quête.
+
+### ⏳ Durées d'effet
+
+Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.duree`. Cinq mots-clés, et rien d'autre — voir `reference/19_durees_effets.md` et `App\Engine\DureeEffet` :
+
+| mot-clé | prend fin… |
+|---|---|
+| `prochaine_attaque` | quand le porteur attaque |
+| `prochaine_defense` | quand le porteur se défend |
+| `ce_tour` | à la fin du tour du porteur (n'atteint pas la phase des monstres) |
+| `prochain_tour` | au début de son prochain tour (couvre donc la phase des monstres) |
+| `fin_du_combat` | quand plus aucun monstre n'est actif dans la quête |
+
+Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte en **tours**, décrémenté en fin de round (c'est ce que porte `conditions.duree_defaut` — Empoisonné 3 tours). Ajouter un mot-clé sans câbler son déclencheur crée un effet qui ne s'arrête jamais.
+
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **224 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **549 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
@@ -116,7 +132,7 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 ## 📚 Documentation
 
 - **`docs/contrat-api.md`** — contrat API / front / temps réel (**source de vérité** ; à modifier en premier).
-- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**.
+- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**. Docs **16–18** sont des extraits sourcés des livrets officiels Avalon Hill 2021 (ne jamais semer une valeur qu'ils ne sourcent pas) ; **`19_durees_effets.md`** fixe le vocabulaire des durées d'effet.
 - **`CLAUDE.md`** — guide pour les agents de code (incantations Docker, gotchas).
 
 ## 🔒 Sécurité (doc 11)

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\DureeEffet;
 use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\Groupe;
@@ -403,8 +404,12 @@ final class MoteurSorts
     {
         $condition = $this->condition((string) data_get($objet->effet, 'condition_appliquee', self::CONDITION_BUFF_DEFAUT));
 
+        // `duree` fait autorité (DureeEffet) : un ENTIER pose un décompte de
+        // tours, un MOT-CLÉ laisse le pivot à 0 et confie l'expiration au
+        // déclencheur correspondant. On lisait auparavant `duree_tours`, clé
+        // qu'aucun objet ne porte — d'où des buffs de potion éternels.
         $cible->conditions()->attach($condition->id, [
-            'duree' => (int) data_get($objet->effet, 'duree_tours', 0),
+            'duree' => DureeEffet::tours(data_get($objet->effet, 'duree')),
             'source' => self::PREFIXE_SOURCE_POTION.$objet->nom,
         ]);
 
@@ -443,8 +448,15 @@ final class MoteurSorts
     }
 
     /**
-     * Consomme les buffs de sorts portant la clé d'effet donnée (Courage à
-     * la prochaine attaque, Vent Véloce au déplacement).
+     * Consomme les buffs de sorts portant la clé d'effet donnée (Vent Véloce au
+     * déplacement : le multiplicateur est comptabilisé une fois pour le tour).
+     *
+     * ⚠ Ne PAS étendre ce chemin : consommer un buff sur sa clé d'EFFET
+     * confond ce qu'il fait et quand il s'arrête. C'est ce qui rendait
+     * impossible « +2 en défense jusqu'à la prochaine défense », et qui faisait
+     * disparaître la Potion de rage (« un combat ») dès la première attaque.
+     * Pour toute nouvelle expiration, déclare une `duree` et sers-toi de
+     * `expirerBuffs()`.
      */
     public function consommerBuffs(Personnage $personnage, string $cle): void
     {
@@ -452,13 +464,50 @@ final class MoteurSorts
             $source = (string) $condition->pivot->source;
 
             if (array_key_exists($cle, $this->effetSortSource($source))) {
-                DB::table('personnage_conditions')
-                    ->where('personnage_id', $personnage->id)
-                    ->where('condition_id', $condition->id)
-                    ->where('source', $source)
-                    ->delete();
+                $this->retirerBuff($personnage, (int) $condition->id, $source);
             }
         }
+    }
+
+    /**
+     * Retire les buffs dont la source déclare la `duree` donnée (vocabulaire
+     * `App\Engine\DureeEffet`, cf. reference/19_durees_effets.md).
+     *
+     * C'est l'autorité : la durée est relue sur l'effet du SORT ou de l'OBJET
+     * source, jamais recopiée sur le pivot — un catalogue corrigé s'applique
+     * donc aux buffs déjà posés.
+     */
+    public function expirerBuffs(Personnage $personnage, string $declencheur): void
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $source = (string) $condition->pivot->source;
+
+            if (($this->effetSortSource($source)['duree'] ?? null) === $declencheur) {
+                $this->retirerBuff($personnage, (int) $condition->id, $source);
+            }
+        }
+    }
+
+    /**
+     * Même chose pour TOUS les héros d'une quête : `fin_du_combat` n'est pas un
+     * événement personnel, il tombe quand le dernier monstre actif disparaît.
+     */
+    public function expirerBuffsQuete(Quete $quete, string $declencheur): void
+    {
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            if ($etat->personnage !== null) {
+                $this->expirerBuffs($etat->personnage, $declencheur);
+            }
+        }
+    }
+
+    private function retirerBuff(Personnage $personnage, int $conditionId, string $source): void
+    {
+        DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('condition_id', $conditionId)
+            ->where('source', $source)
+            ->delete();
     }
 
     /** Héros inattaquable (condition « Caché » du catalogue — Voile de Brume). */

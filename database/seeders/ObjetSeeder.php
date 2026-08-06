@@ -62,10 +62,15 @@ class ObjetSeeder extends Seeder
             // rendu la carte du plateau.
             ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['attaque_supplementaire' => true]],
+            // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_durees_effets.md).
+            // Ces deux-là portaient `duree => 0`, qui n'est pas une durée mais
+            // l'absence de compteur : rien ne les retirait jamais. Force et
+            // Défense sont donc des BURSTS (+2 sur un jet), là où Rage, au même
+            // prix, tient tout le combat pour +1 — départ playtest.
             ['nom' => 'Potion de force', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 2, 'duree' => 0, 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
             ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_defense' => 2, 'duree' => 0, 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé']],
 
             // ----- Artefacts : armes UNIQUES (doc 04 §4/§6) -----
             // Jamais à l'achat (PhaseMarche filtre `rarete != unique`), jamais
@@ -123,7 +128,7 @@ class ObjetSeeder extends Seeder
             ['nom' => "Potion d'esprit clair", 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_mind' => 4]],
             ['nom' => 'Potion de rage', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 1, 'duree' => 'un_combat', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_attaque' => 1, 'duree' => 'fin_du_combat', 'condition_appliquee' => 'Renforcé']],
             ['nom' => 'Antidote', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 50, 'emplacement' => 'consommable',
                 'effet' => ['retire_condition' => 'Empoisonné']],
         ];
