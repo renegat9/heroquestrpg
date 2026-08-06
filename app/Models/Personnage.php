@@ -29,6 +29,34 @@ class Personnage extends Model
         'or',
     ];
 
+    /**
+     * Point de passage UNIQUE du « premier dégât subi ».
+     *
+     * Les PV d'un héros baissent depuis une dizaine d'endroits — attaque de
+     * monstre, piège, sort de Dread, tir ami. Câbler l'expiration dans chacun,
+     * c'est garantir d'en oublier un aujourd'hui et tous les prochains ; on
+     * observe donc la BAISSE elle-même, comme `FabriqueGrille` tient l'unique
+     * boucle du mobilier.
+     *
+     * Ne se déclenche que si `pv_body` DIMINUE réellement : un soin, une
+     * sauvegarde sans changement ou un jet paré à 0 dégât ne consomment pas
+     * Peau de Pierre — c'est le sang versé qui compte, pas le jet.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (Personnage $personnage): void {
+            $avant = $personnage->getOriginal('pv_body');
+            $apres = $personnage->pv_body;
+
+            if ($avant === null || $apres === null || (int) $apres >= (int) $avant) {
+                return;
+            }
+
+            app(\App\Partie\MoteurSorts::class)
+                ->expirerBuffs($personnage, \App\Engine\DureeEffet::PREMIER_DEGAT_SUBI);
+        });
+    }
+
     /** Propriétaire (roster). */
     public function joueur(): BelongsTo
     {

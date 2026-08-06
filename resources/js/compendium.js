@@ -48,6 +48,7 @@ const EFFETS_BOOL = {
     jetable: 'Jetable',
     defense_applicable: 'Défense applicable',
     saute_tour: 'La cible passe son prochain tour',
+    ouvre_porte: 'Ou : ouvre une porte à distance',
     franchit_mur: 'Franchit les murs',
     bloque_passage: 'Bloque le passage',
     franchissable: 'Franchissable',

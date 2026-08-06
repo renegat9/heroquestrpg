@@ -13,6 +13,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Objet;
 use App\Models\Sort;
+use App\Partie\MoteurPortes;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -251,6 +252,15 @@ final class MoteurSorts
                 $lanceur,
                 $grille,
             );
+
+            // Sorts à DEUX modes (Génie : « ouvre une porte au choix OU attaque
+            // avec 5 dés » — Kellar's Keep p. 15). Le second mode devient une
+            // option distincte par porte connue plutôt qu'un paramètre : il
+            // réutilise ainsi tout le rendu des options `ouvrir_porte`, sans
+            // nouvelle feuille de sélection côté manette.
+            foreach ($this->optionsPorteAuChoix($quete, $sort) as $option) {
+                $options[] = $option;
+            }
         }
 
         // Parchemins au sac (ObjetSeeder : effet.sort_id pointe le sort) —
@@ -595,6 +605,56 @@ final class MoteurSorts
      * @param  list<array<string, mixed>>  $ciblesHeros
      * @return array<string, mixed>
      */
+    /**
+     * Second mode d'un sort à deux options : « ouvre une porte AU CHOIX ».
+     *
+     * Une option par porte encore fermée d'une salle DÉCOUVERTE — le magicien
+     * ne choisit pas une porte qu'il n'a jamais vue, et on évite d'inonder le
+     * menu avec tout le donjon. Contrairement à `ouvrir_porte` du MenuMoteur,
+     * aucune adjacence n'est requise : c'est tout l'intérêt du sort, ouvrir à
+     * distance une porte que des figures bloquent.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function optionsPorteAuChoix(Quete $quete, Sort $sort): array
+    {
+        if (! (bool) data_get($sort->effet, 'ouvre_porte', false) || $quete->carte === null) {
+            return [];
+        }
+
+        $decouvertes = $quete->sallesDecouvertes();
+        $options = [];
+
+        foreach ((array) data_get($quete->carte->grille, 'portes', []) as $porte) {
+            // Ni déjà ouverte, ni secrète non révélée (on ne choisit pas ce
+            // qu'on ignore), et donnant sur une salle explorée.
+            if (($porte['etat'] ?? null) !== MoteurPortes::ETAT_FERMEE) {
+                continue;
+            }
+
+            $arete = (array) data_get($quete->carte->grille, 'aretes.'.($porte['jonction'] ?? -1), []);
+            $salles = [(int) ($arete['a'] ?? -1), (int) ($arete['b'] ?? -1)];
+
+            if (array_intersect($salles, $decouvertes) === []) {
+                continue;
+            }
+
+            $cote = (string) ($porte['cote'] ?? 'e');
+            $options[] = [
+                'id' => "sort_{$sort->id}_porte_{$porte['x']}_{$porte['y']}_{$cote}",
+                'libelle' => "Lancer {$sort->nom} — ouvrir une porte à distance",
+                'type' => 'sort',
+                'parametres' => [
+                    'sort_id' => $sort->id,
+                    'mode' => 'ouvre_porte',
+                    'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y'], 'cote' => $cote],
+                ],
+            ];
+        }
+
+        return $options;
+    }
+
     private function optionSort(
         string $id,
         string $libelle,

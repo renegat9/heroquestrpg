@@ -40,6 +40,17 @@ final class DureeEffet
     public const PROCHAINE_DEFENSE = 'prochaine_defense';
 
     /**
+     * Jusqu'au PREMIER DÉGÂT réellement subi par le porteur — se défendre sans
+     * rien encaisser ne le consomme pas (Peau de Pierre).
+     *
+     * Distinct de `PROCHAINE_DEFENSE` : là, c'est le jet qui dépense le buff ;
+     * ici, c'est le sang versé. Texte officiel : « 1 dé de défense
+     * supplémentaire **jusqu'au premier dégât subi** » (Witch Lord / Kellar's
+     * Keep, reference/18_extensions.md §3).
+     */
+    public const PREMIER_DEGAT_SUBI = 'premier_degat_subi';
+
+    /**
      * Jusqu'à la fin du tour du porteur — il décide lui-même quand son tour
      * s'arrête (« Terminer le tour »). N'atteint donc PAS la phase des monstres.
      */
@@ -69,6 +80,7 @@ final class DureeEffet
         return [
             self::PROCHAINE_ATTAQUE,
             self::PROCHAINE_DEFENSE,
+            self::PREMIER_DEGAT_SUBI,
             self::CE_TOUR,
             self::PROCHAIN_TOUR,
             self::FIN_DU_COMBAT,

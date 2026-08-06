@@ -38,6 +38,7 @@ const CLES_SORT_ACTIVES = [
     'deplacement_multiplie', // multiplicateurDeplacement()
     'franchit_mur',          // ResolveurTour, franchissement
     'saute_tour',            // condition posée sur le monstre (Tempête)
+    'ouvre_porte',           // second mode (Génie) : MoteurSorts::optionsPorteAuChoix()
     'cible',                 // MoteurSorts::ciblesLegales()
     'cout',                  // ResolveurTour::appliquerCoutSort()
     'defense_applicable',    // ResolveurTour::sortDegats(), pilote le jet de défense
@@ -68,7 +69,7 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
     // Un sort qui ne fait ni dégâts, ni soin, ni condition, ni bonus, ni
     // déplacement est un sort qu'on lance pour rien.
     $agissantes = ['des_degats', 'soin_pv_body', 'condition_appliquee', 'bonus_des_attaque',
-        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour'];
+        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour', 'ouvre_porte'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -149,6 +150,40 @@ it('fait payer son déplacement à Traverser la Pierre (le sort était gratuit)'
     $etat->refresh();
     expect((int) $etat->deplacement_restant)->toBe(0)
         ->and((bool) $etat->a_deplace)->toBeTrue();
+});
+
+it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'magicien']);
+
+    // Le magicien doit connaître l'Air pour disposer de Génie.
+    app(MoteurSorts::class)->attacherElement($hero, 'air');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $options = app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh());
+    $genie = Sort::where('nom', 'Génie')->firstOrFail();
+
+    $attaque = collect($options)->firstWhere('id', "sort_{$genie->id}");
+    $portes = collect($options)->filter(
+        fn (array $o) => str_starts_with((string) $o['id'], "sort_{$genie->id}_porte_")
+    );
+
+    // Mode 1 : l'attaque, avec ses cibles légales.
+    expect($attaque)->not->toBeNull()
+        ->and($attaque['parametres'])->toHaveKey('sort_id');
+
+    // Mode 2 : une option par porte fermée d'une salle découverte. Le texte
+    // officiel dit « ouvre une porte AU CHOIX » : aucune adjacence requise,
+    // c'est ce qui permet de dégager un passage bloqué par des figures.
+    expect($portes)->not->toBeEmpty();
+    foreach ($portes as $option) {
+        expect($option['parametres']['mode'])->toBe('ouvre_porte')
+            ->and($option['parametres'])->toHaveKey('porte')
+            ->and($option['parametres']['sort_id'])->toBe($genie->id);
+    }
 });
 
 it('donne un parchemin par sort, chacun résoluble et de difficulté synchronisée', function () {

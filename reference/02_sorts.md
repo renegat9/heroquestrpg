@@ -93,12 +93,12 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 |---|---|
 | **Soin du Corps** | Rend jusqu'à **4 Points de Body** (lançable sur soi). |
 | **Traverser la Pierre** | Le héros franchit **un mur** (vaut son déplacement). |
-| **Peau de Pierre** | **+2 dés de défense** à un héros jusqu'à la fin du combat. |
+| **Peau de Pierre** | **+1 dé de défense** à un héros, **jusqu'au premier dégât subi** — se défendre sans rien encaisser ne le consomme pas. Aligné le 2026-08-06 sur le texte officiel (« 1 dé de défense supplémentaire jusqu'au premier dégât subi », reference/18_extensions.md §3) : on donnait auparavant **2 dés pour tout le combat**. |
 
 ### Air — mobilité / puissance
 | Sort | Effet |
 |---|---|
-| **Génie** | **Une attaque à 5 dés** de combat, à distance. ⚠ Le texte officiel offre un **second mode** — « ouvre une porte au choix **ou** attaque avec 5 dés » (Kellar's Keep p. 15) — que nous n'implémentons pas encore. Aucune invocation persistante n'est attestée : la clé `invocation_ephemere` a été retirée (2026-08-06). |
+| **Génie** | **DEUX modes au choix** (texte officiel, Kellar's Keep p. 15) : une **attaque à 5 dés** à distance, **ou** **ouvrir une porte au choix** — sans adjacence ni clé, ce qui dégage un passage bloqué par des figures. Le menu propose une option par porte fermée d'une salle découverte. Aucune invocation persistante n'est attestée : `invocation_ephemere` retiré (2026-08-06). |
 | **Vent Véloce** | **Double le déplacement** d'un héros ce tour (total base + 1d6, ×2). |
 | **Tempête** | **UN monstre choisi** tente un jet de Mind ; échec → il **passe son prochain tour** (ni déplacement ni attaque). Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
 

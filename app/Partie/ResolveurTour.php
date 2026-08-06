@@ -1163,6 +1163,13 @@ final class ResolveurTour
      */
     private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres): array
     {
+        // Second mode (Génie) : « ouvre une porte au choix OU attaque avec 5
+        // dés ». Le mode est porté par l'OPTION, donc par le menu moteur — le
+        // joueur a choisi l'un ou l'autre avant d'envoyer son choix.
+        if (data_get($option, 'parametres.mode') === 'ouvre_porte') {
+            return $this->sortOuvrePorte($quete, $sort, $option);
+        }
+
         $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
         $cible = $this->cibleSort($quete, $option, $parametres);
 
@@ -1750,6 +1757,49 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * Génie, second mode : « ouvre une porte AU CHOIX » (Kellar's Keep p. 15).
+     *
+     * Aucune adjacence requise — c'est tout l'intérêt : ouvrir à distance une
+     * porte que des figures bloquent, ou dégager un passage sans traverser la
+     * salle. Aucune clé non plus : le génie force le verrou. Comme toute
+     * ouverture, la salle derrière se révèle (monstres compris).
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function sortOuvrePorte(Quete $quete, Sort $sort, array $option): array
+    {
+        $x = (int) data_get($option, 'parametres.porte.x', -1);
+        $y = (int) data_get($option, 'parametres.porte.y', -1);
+        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+
+        $index = null;
+        foreach ((array) data_get($quete->carte?->grille, 'portes', []) as $i => $porte) {
+            if ((int) $porte['x'] === $x && (int) $porte['y'] === $y
+                && (string) ($porte['cote'] ?? 'e') === $cote) {
+                $index = $i;
+                break;
+            }
+        }
+
+        if ($index === null || $quete->carte === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cette porte n\'existe pas sur la carte.']);
+        }
+
+        $porte = (array) data_get($quete->carte->grille, "portes.{$index}");
+        $this->portes->ouvrir($quete->groupe, $quete->carte, $index, 'sort', ['type' => 'sort', 'nom' => $sort->nom]);
+
+        foreach ($this->sallesAdjacentesPorte($quete, $porte) as $salleAdjacente) {
+            $this->revelerSalle($quete->groupe, $quete, $salleAdjacente);
+        }
+
+        return [
+            'mode' => 'ouvre_porte',
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+        ];
     }
 
     /**

@@ -52,8 +52,8 @@ function bonus(Personnage $heros, string $cle): int
     return app(MoteurSorts::class)->bonusDes($heros->fresh(), $cle);
 }
 
-it('nomme exactement cinq mots-clés, et les distingue d\'un décompte de tours', function () {
-    expect(DureeEffet::toutes())->toHaveCount(5)
+it('nomme exactement six mots-clés, et les distingue d\'un décompte de tours', function () {
+    expect(DureeEffet::toutes())->toHaveCount(6)
         ->and(DureeEffet::estMotCle('prochaine_defense'))->toBeTrue()
         ->and(DureeEffet::estMotCle('un_combat'))->toBeFalse()   // ancienne orthographe
         ->and(DureeEffet::estMotCle(3))->toBeFalse()
@@ -149,6 +149,27 @@ it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon e
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
     expect(bonus($hero, 'bonus_des_attaque'))->toBe(0);
+});
+
+it('retire « premier_degat_subi » au sang versé, pas au simple jet de défense', function () {
+    $heros = herosPourDuree();
+    app(MoteurSorts::class)->appliquerBuff($heros, Sort::where('nom', 'Peau de Pierre')->firstOrFail());
+
+    // Texte officiel : 1 dé, jusqu'au PREMIER DÉGÂT SUBI.
+    expect(bonus($heros, 'bonus_des_defense'))->toBe(1);
+
+    // Une défense sans dégât ne le consomme pas…
+    app(MoteurSorts::class)->expirerBuffs($heros, DureeEffet::PROCHAINE_DEFENSE);
+    expect(bonus($heros, 'bonus_des_defense'))->toBe(1);
+
+    // …et un SOIN non plus (les PV montent).
+    $heros->update(['pv_body' => $heros->pv_body_max]);
+    expect(bonus($heros, 'bonus_des_defense'))->toBe(1);
+
+    // Seule une baisse réelle de PV le dépense — quelle qu'en soit la source,
+    // puisque l'observateur est sur le modèle et non sur un chemin d'attaque.
+    $heros->update(['pv_body' => $heros->pv_body - 1]);
+    expect(bonus($heros, 'bonus_des_defense'))->toBe(0);
 });
 
 it('ne pose aucun compteur de tours pour une durée à mot-clé', function () {

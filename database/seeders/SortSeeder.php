@@ -36,7 +36,10 @@ class SortSeeder extends Seeder
             ['element' => 'terre', 'nom' => 'Traverser la Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
                 'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'cout' => 'deplacement_du_tour']],
             ['element' => 'terre', 'nom' => 'Peau de Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros', 'bonus_des_defense' => 2, 'duree' => 'fin_du_combat', 'condition_appliquee' => 'Renforcé']],
+                // Texte officiel : « 1 dé de défense supplémentaire jusqu'au
+                // PREMIER DÉGÂT SUBI » (reference/18_extensions.md §3). On
+                // donnait 2 dés pour tout le combat — deux écarts d'un coup.
+                'effet' => ['cible' => 'heros', 'bonus_des_defense' => 1, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Renforcé']],
 
             // Air — mobilité / puissance
             // `invocation_ephemere` RETIRÉ : clé sans lecteur, et surtout sans
@@ -46,7 +49,7 @@ class SortSeeder extends Seeder
             // exacts ; c'est le second mode, l'ouverture de porte, qui manque
             // encore (à trancher).
             ['element' => 'air', 'nom' => 'Génie', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true]],
+                'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true, 'ouvre_porte' => true]],
             ['element' => 'air', 'nom' => 'Vent Véloce', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
                 'effet' => ['cible' => 'heros', 'deplacement_multiplie' => 2, 'duree' => 'ce_tour']],
             ['element' => 'air', 'nom' => 'Tempête', 'type' => 'mental', 'difficulte_parchemin' => 3,
