@@ -164,6 +164,45 @@ it('fait traverser la roche tout le tour, et fait tomber qui y finit son mouveme
         ->and((int) $hero->fresh()->pv_body)->toBe(0);
 });
 
+it('exige une ligne de vue pour TOUT sort, et laisse toujours le lanceur se cibler', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $lanceur = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'elfe']);
+    $compagnon = creerHeros($alice, $groupe, 'Brunhilde', 2);
+    app(MoteurSorts::class)->attacherElement($lanceur, 'terre');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $etatL = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $lanceur->id)->firstOrFail();
+    $etatC = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $compagnon->id)->firstOrFail();
+
+    // On enferme le compagnon DANS la roche : aucune ligne de vue possible.
+    $roche = null;
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $c) {
+            if ($c !== 's') { $roche = ['x' => $x, 'y' => $y]; break 2; }
+        }
+    }
+    $etatC->update(['position_x' => $roche['x'], 'position_y' => $roche['y']]);
+
+    $soin = Sort::where('nom', 'Soin du Corps')->firstOrFail();
+    $cibles = collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete->fresh(), $lanceur->fresh()))
+        ->firstWhere('id', "sort_{$soin->id}")['parametres']['cibles'] ?? [];
+    $ids = collect($cibles)->pluck('id')->all();
+
+    // Le lanceur se voit toujours lui-même — « may be cast on any one hero,
+    // INCLUDING YOURSELF » (Heal Body, LR p. 8).
+    expect($ids)->toContain($lanceur->id);
+
+    // …mais un compagnon hors de vue n'est plus ciblable. La ligne de vue est
+    // exigée pour TOUT sort, pas seulement les offensifs (LR p. 14) : on
+    // soignait auparavant à travers les murs, à l'autre bout du donjon.
+    expect($ids)->not->toContain($compagnon->id);
+});
+
 it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

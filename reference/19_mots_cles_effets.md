@@ -140,15 +140,26 @@ mots-clés déclarés, et désormais **lus** :
 | mot-clé | sens |
 |---|---|
 | `soi` | le lanceur ; aucune liste de cibles n'est proposée (Traverser la Pierre) |
-| `heros` | un héros de la quête |
-| `heros_ou_soi` | un héros, le lanceur compris (Soin du Corps) |
+| `heros` | un héros de la quête, **lanceur compris** |
 | `monstre` | un monstre |
 | `monstres_zone` | plusieurs monstres — ⚠ **non implémenté**, voir §7 |
 
+**Le lanceur est toujours une cible légale** d'un sort bénéfique : « This spell
+may be cast on any one hero, **including yourself** » (Heal Body, LR p. 8) et
+« un sort peut cibler soi-même, un autre héros, ou un monstre » (LR p. 14). Un
+`heros_ou_soi` a existé jusqu'au 2026-08-06 ; il produisait **exactement** la
+même liste que `heros`, sans recouvrir la moindre règle — retiré.
+
+**La LIGNE DE VUE est exigée pour TOUT sort**, pas seulement les offensifs :
+« nécessaire pour lancer un sort ou observer une cible » (LR p. 14,
+reference/16_armurerie.md §6.4). Le filtre n'était appliqué qu'aux sorts de
+dégâts et mentaux : on soignait donc un compagnon à l'autre bout du donjon, à
+travers les murs, jusque dans une salle jamais explorée. Le lanceur, lui, se voit
+toujours — il reste ciblable en toutes circonstances.
+
 ⚠ Pour un sort de **dégâts ou mental**, `cible` documente l'INTENTION, il ne
 restreint pas : le **tir ami est délibéré** (doc 02 §5, S3), donc la liste légale
-contient monstres *et* héros en ligne de vue. La restriction ne s'applique qu'aux
-sorts **utilitaires**.
+contient monstres *et* héros en ligne de vue.
 
 ### `cout` — retiré
 

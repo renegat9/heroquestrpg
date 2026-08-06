@@ -32,7 +32,7 @@ class SortSeeder extends Seeder
 
             // Terre — défense / soin
             ['element' => 'terre', 'nom' => 'Soin du Corps', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros_ou_soi', 'soin_pv_body' => 4]],
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
             ['element' => 'terre', 'nom' => 'Traverser la Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
                 // « Traverse les murs sur TOUT LE DÉPLACEMENT du jet, danger de
                 // rester bloqué dans la roche massive » (Witch Lord,

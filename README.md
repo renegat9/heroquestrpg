@@ -18,7 +18,7 @@ moteur résout l'option choisie*.
 > (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
 > (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
 > **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
-> à playtester). **559 tests Pest verts.**
+> à playtester). **560 tests Pest verts.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
@@ -113,11 +113,11 @@ Un buff (sort ou potion) déclare **quand il s'arrête** via sa clé `effet.dure
 
 Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte en **tours**, décrémenté en fin de round (c'est ce que porte `conditions.duree_defaut` — Empoisonné 3 tours). Ajouter un mot-clé sans câbler son déclencheur crée un effet qui ne s'arrête jamais.
 
-Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `heros_ou_soi`, `monstre`, `monstres_zone`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
+Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `monstre`, `monstres_zone`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **559 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **560 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \

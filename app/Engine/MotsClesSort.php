@@ -22,11 +22,17 @@ final class MotsClesSort
     /** Le lanceur lui-même — aucune liste de cibles n'est proposée. */
     public const CIBLE_SOI = 'soi';
 
-    /** Un héros de la quête (le lanceur exclu du choix par le menu). */
+    /**
+     * Un héros de la quête, **LANCEUR COMPRIS** — « This spell may be cast on
+     * any one hero, including yourself » (Heal Body, LR p. 8), et « un sort
+     * peut cibler soi-même, un autre héros, ou un monstre » (LR p. 14).
+     *
+     * Un `heros_ou_soi` a existé jusqu'au 2026-08-06 : il produisait EXACTEMENT
+     * la même liste que `heros`, la distinction ne recouvrait donc aucune règle.
+     * Retiré plutôt que laissé — deux mots pour une seule idée finissent par se
+     * contredire.
+     */
     public const CIBLE_HEROS = 'heros';
-
-    /** Un héros, le lanceur compris (Soin du Corps). */
-    public const CIBLE_HEROS_OU_SOI = 'heros_ou_soi';
 
     /** Un monstre. */
     public const CIBLE_MONSTRE = 'monstre';
@@ -51,7 +57,6 @@ final class MotsClesSort
     public const CIBLES = [
         self::CIBLE_SOI,
         self::CIBLE_HEROS,
-        self::CIBLE_HEROS_OU_SOI,
         self::CIBLE_MONSTRE,
         self::CIBLE_MONSTRES_ZONE,
     ];

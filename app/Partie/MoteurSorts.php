@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\DureeEffet;
+use App\Engine\MotsClesSort;
 use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\Groupe;
@@ -323,19 +324,30 @@ final class MoteurSorts
      */
     public function ciblesLegales(Sort $sort, array $monstres, array $heros, ?array $lanceur = null, ?Grille $grille = null): ?array
     {
-        if (in_array($sort->type, ['degats', 'mental'], true)) {
-            $cibles = [...$monstres, ...$heros];
+        $cible = (string) data_get($sort->effet, 'cible', MotsClesSort::CIBLE_SOI);
 
-            if ($lanceur !== null && $grille !== null) {
-                $cibles = $this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $cibles);
-            }
-
-            return $this->nettoyerCibles($cibles);
+        // `soi` (Traverser la Pierre) : le lanceur, donc aucune liste à choisir.
+        if (! in_array($sort->type, ['degats', 'mental'], true)
+            && $cible !== MotsClesSort::CIBLE_HEROS) {
+            return null;
         }
 
-        $cible = (string) data_get($sort->effet, 'cible', 'soi');
+        $cibles = in_array($sort->type, ['degats', 'mental'], true)
+            ? [...$monstres, ...$heros]   // tir ami délibéré (S3)
+            : $heros;                      // bénéfique : les héros, LANCEUR COMPRIS
 
-        return str_contains($cible, 'heros') ? $this->nettoyerCibles($heros) : null;
+        // LIGNE DE VUE, pour TOUT sort — pas seulement les offensifs.
+        // « Nécessaire pour lancer un sort ou observer une cible » (LR p. 14,
+        // reference/16_armurerie.md §6.4). Le filtre n'était appliqué qu'aux
+        // sorts de dégâts et mentaux : on soignait donc un compagnon à l'autre
+        // bout du donjon, à travers les murs, jusque dans une salle jamais
+        // explorée. Le lanceur se voit toujours lui-même, il reste donc
+        // ciblable — « may be cast on any one hero, including yourself ».
+        if ($lanceur !== null && $grille !== null) {
+            $cibles = $this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $cibles);
+        }
+
+        return $this->nettoyerCibles($cibles);
     }
 
     /**
