@@ -114,12 +114,28 @@ onUnmounted(() => {
    On repingue donc DÈS que l'onglet redevient visible, sans attendre le prochain
    tour de l'intervalle. */
 function pingAuReveil() {
-    if (!document.hidden) api.pingTable().catch(() => {});
+    if (document.hidden) return;
+
+    api.pingTable().catch(() => {});
+    // L'onglet endormi a manqué les diffusions, pas seulement les pings.
+    reconcilierEtat();
 }
 document.addEventListener('visibilitychange', pingAuReveil);
 
 /* ---- heartbeat Narrateur (POST /api/table/ping toutes les 15 s) ---- */
 let heartbeatTimer = null;
+
+/* Resynchronise l'état depuis le serveur.
+   FILET DE SÉCURITÉ, pas le canal normal : l'état arrive par `.groupe.etat`.
+   Mais ce canal n'a aucune garantie de livraison — une coupure Wi-Fi, un
+   redémarrage de Reverb ou un onglet mis en veille par Chromium suffisent à
+   faire manquer une diffusion, et la table restait alors en retard POUR
+   TOUJOURS : rien ne la rattrapait, puisque seul un nouvel événement l'aurait
+   mise à jour. Le narrateur affichait les figurines à leur position d'il y a
+   plusieurs tours (constaté en partie réelle par René, 2026-08-07). */
+function reconcilierEtat() {
+    api.getEtatReprise(props.groupe).then((e) => store.appliquerEtat(e)).catch(() => {});
+}
 
 function demarrerHeartbeat() {
     arreterHeartbeat();
@@ -127,13 +143,17 @@ function demarrerHeartbeat() {
     api.pingTable().catch(() => {}); // non bloquant
     heartbeatTimer = setInterval(() => {
         api.pingTable().catch(() => {}); // non bloquant
+        reconcilierEtat();              // …et on se recale, au cas où
     }, 15_000);
 }
 
 /* Reconnexion WebSocket : la coupure a pu couvrir plusieurs pings ratés — on se
    réannonce immédiatement plutôt que d'attendre l'intervalle. */
 watch(() => store.state.connexion, (etat, avant) => {
-    if (etat === 'ok' && avant !== 'ok') api.pingTable().catch(() => {});
+    if (etat === 'ok' && avant !== 'ok') {
+        api.pingTable().catch(() => {});
+        reconcilierEtat(); // la coupure a pu avaler des états, pas seulement des pings
+    }
 });
 
 function arreterHeartbeat() {
