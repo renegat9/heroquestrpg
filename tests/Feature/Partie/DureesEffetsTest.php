@@ -202,3 +202,26 @@ it('applique la MÊME autorité de durée aux buffs de SORT qu\'aux potions', fu
             ->and((int) $pivot->duree)->toBe(0, "{$nom} : compteur de tours parasite");
     }
 });
+
+it('expose le bonus des buffs dans l\'état, pour que le joueur le VOIE', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $entite = fn () => collect(app(App\Partie\EtatGroupe::class)->payload($groupe->fresh())['entites'])
+        ->firstWhere('id', $hero->id);
+
+    expect($entite()['bonus_des_defense'])->toBe(0);
+
+    // Peau de Pierre : le moteur ajoutait bien +1 au JET, mais rien ne le disait
+    // au joueur — la fiche affichait le même chiffre avant et après (constaté en
+    // partie réelle, 2026-08-06).
+    app(MoteurSorts::class)->appliquerBuff($hero, Sort::where('nom', 'Peau de Pierre')->firstOrFail());
+
+    expect($entite()['bonus_des_defense'])->toBe(1)
+        ->and($entite()['bonus_des_attaque'])->toBe(0)
+        // La BASE ne bouge pas : le bonus est temporaire, il s'affiche à part.
+        ->and($entite()['des_defense'])->toBe((int) $hero->des_defense);
+});

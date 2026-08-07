@@ -42,8 +42,25 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
 
         <div class="sect-title"><MSym n="casino" :size="16" /> Attributs (dés de jet)</div>
         <div class="stat-grid">
-            <div class="stat"><div class="k">Attaque</div><div class="v" style="color: var(--torch)">{{ hero.atk }}<span class="die-n">dés crâne</span></div></div>
-            <div class="stat"><div class="k">Défense</div><div class="v" style="color: var(--mind-bright)">{{ hero.def }}<span class="die-n">dés bouclier</span></div></div>
+            <!-- Dés EFFECTIFS : base (équipement + talents) + bonus temporaire
+                 des buffs actifs. Sans le bonus, un joueur qui venait de lancer
+                 Peau de Pierre ou de boire une Potion de force voyait le même
+                 chiffre qu'avant et ne pouvait pas vérifier ce qu'il avait payé
+                 — alors que le moteur, lui, l'ajoutait bien au jet. -->
+            <div class="stat">
+                <div class="k">Attaque</div>
+                <div class="v" style="color: var(--torch)">
+                    {{ hero.atk + hero.bonusAtk }}<span class="die-n">dés crâne</span>
+                    <span v-if="hero.bonusAtk" class="buff">+{{ hero.bonusAtk }} temporaire</span>
+                </div>
+            </div>
+            <div class="stat">
+                <div class="k">Défense</div>
+                <div class="v" style="color: var(--mind-bright)">
+                    {{ hero.def + hero.bonusDef }}<span class="die-n">dés bouclier</span>
+                    <span v-if="hero.bonusDef" class="buff">+{{ hero.bonusDef }} temporaire</span>
+                </div>
+            </div>
             <div class="stat"><div class="k">Body (attr.)</div><div class="v" style="color: var(--body-bright)">{{ hero.atkAttr }}</div></div>
             <div class="stat"><div class="k">Mind (attr.)</div><div class="v" style="color: var(--mind-bright)">{{ hero.mindAttr }}</div></div>
         </div>
@@ -97,4 +114,9 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
 .talent-item .tbody { min-width: 0; }
 .talent-item .tn { font-size: 14px; font-weight: 700; color: var(--parch-100); }
 .talent-item .tdesc { font-size: 12px; color: var(--ink-300); margin-top: 2px; line-height: 1.4; }
+
+/* Bonus TEMPORAIRE d'un buff actif : distinct du chiffre de base, pour qu'on
+   voie d'où vient la différence — et qu'on la voie disparaître. */
+.buff { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--gold, #d8a23a); text-transform: uppercase; margin-top: 2px; }
 </style>

@@ -196,6 +196,9 @@ function habiller(perso, nom, niveau, conds, img = null) {
         mindAttr: perso?.attribut_mind ?? 0,
         atk: perso?.des_attaque ?? 0,
         def: perso?.des_defense ?? 0,
+        // Bonus des buffs actifs (EtatGroupe) : 0 tant que l'état n'est pas là.
+        bonusAtk: monEntite.value?.bonus_des_attaque ?? 0,
+        bonusDef: monEntite.value?.bonus_des_defense ?? 0,
         conds,
         img, // portrait réel (image_url / portrait_url) si présent, sinon null → icône
         // Maîtrises d'équipement (doc 01 §7) : classe + nœuds débloqués, rendues

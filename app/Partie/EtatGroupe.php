@@ -26,6 +26,8 @@ use Illuminate\Support\Facades\Cache;
  */
 final class EtatGroupe
 {
+    public function __construct(private readonly MoteurSorts $sorts) {}
+
     /** Clé du cache de l'indicateur « MJ réfléchit » (écrite par MjReflechit). */
     public static function cleMjReflechit(int $groupeId): string
     {
@@ -541,6 +543,16 @@ final class EtatGroupe
                     // de stats au clic sur l'ordre de jeu (table, C3).
                     'des_attaque' => (int) $p->des_attaque,
                     'des_defense' => (int) $p->des_defense,
+                    // …et le BONUS TEMPORAIRE des buffs actifs, relu sur l'effet
+                    // du sort/de la potion source. Les colonnes ci-dessus ne
+                    // portent que l'équipement et les talents : Peau de Pierre,
+                    // Courage ou une Potion de force n'y apparaissaient nulle
+                    // part, si bien qu'un joueur ne pouvait PAS vérifier le
+                    // bonus qu'il venait de payer — la fiche affichait le même
+                    // chiffre avant et après (constaté en partie réelle,
+                    // 2026-08-06). Le moteur, lui, les ajoutait bien au jet.
+                    'bonus_des_attaque' => $this->sorts->bonusDes($p, 'bonus_des_attaque'),
+                    'bonus_des_defense' => $this->sorts->bonusDes($p, 'bonus_des_defense'),
                     'attribut_body' => (int) $p->attribut_body,
                     'attribut_mind' => (int) $p->attribut_mind,
                     'tombe' => (bool) ($etat?->tombe ?? false),
