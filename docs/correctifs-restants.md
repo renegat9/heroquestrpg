@@ -125,14 +125,29 @@ Corrigés :
 Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) :
 - **Prix vs revenus** : potion 100 or vs ~50 or de butin — à recalibrer (prix des
   consommables, or de quête, ou butin de boss).
-- **Relevage à 1 PV** — ⚠ **REVENU AU 2026-08-06, sur décision de René.** Un
-  allié relevé repart à **1 point**, posé sur la **jauge tombée à zéro** (Body
-  ou Mind). La fraction des PV max (défaut ½) avait été introduite ici même pour
-  éviter la boucle « relevé/retombe » : ce compromis est **assumé de nouveau**,
-  un héros relevé revient bien au bord du gouffre. `jeu.relevage.*` et
-  `ResolveurTour::pvRelevage()` ont été retirés — un réglage sans lecteur est
-  une promesse faite au narrateur que le moteur ne tient pas. *(Un plafond de
-  relevages par quête reste possible si le playtest le réclame.)*
+- **Relevage à 1 PV** — ⚠ **REVENU AU 2026-08-06, sur décision de René, et à ne
+  pas re-corriger.** Un allié relevé repart à **1 point**, posé sur la **jauge
+  tombée à zéro** (Body ou Mind).
+
+  Cette valeur a déjà fait l'aller-retour (1 PV → moitié des PV max → 1 PV).
+  **L'intention, à conserver** : `relever` n'est pas une action de combat, c'est
+  le **dernier recours** quand il ne reste ni potion ni sort de soin, employé
+  typiquement **après l'engagement** pour ramener un compagnon. Hors combat,
+  repartir à 1 point ne boucle sur rien — rien ne frappe. C'est ce qui rend le
+  compromis acceptable, et c'est ce qu'il faut relire avant de retoucher au
+  chiffre. Relever en pleine mêlée reste permis, et reste un pari.
+
+  `jeu.relevage.*` et `ResolveurTour::pvRelevage()` ont été retirés — un réglage
+  sans lecteur est une promesse faite au narrateur que le moteur ne tient pas.
+  *(Un plafond de relevages par quête reste possible si le playtest le réclame.)*
+
+  **Asymétrie à trancher** : un **sort** de soin relève bien un héros à terre
+  (`sortUtilitaire` remet `tombe` à false dès que les PV repassent au-dessus de
+  zéro), mais une **potion** non — `MoteurPotions::boire()` ne touche jamais à
+  `tombe`. Or boire est une action *gratuite et non bloquée pour un tombé* : un
+  héros à terre peut donc vider sa fiole, remonter à 4 PV… et rester couché. Le
+  cadrage de René (« relever quand on n'a plus de potion **ou** de sort de
+  soin ») suppose que les deux relèvent.
 
 ## 4. Modérés — ~~FAIT~~
 

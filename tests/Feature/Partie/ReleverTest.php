@@ -99,6 +99,40 @@ it('relève la jauge tombée à ZÉRO : Mind si c\'est le Mind qui est vide', fu
         ->and((int) $khazra->fresh()->pv_body)->toBe(3);
 });
 
+it('ne RETIRE jamais de PV à un tombé qui en a encore (potion bue à terre)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $grimnar = creerHeros($alice, $groupe, 'Grimnar', 1, ['classe' => 'barbare']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $khazra = creerHeros($bob, $groupe, 'Khazra', 2, ['classe' => 'nain']);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $eG = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $grimnar->id)->firstOrFail();
+
+    $contact = caseAdjacenteLibre($quete, (int) $eG->position_x, (int) $eG->position_y);
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $khazra->id)
+        ->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'tombe' => true]);
+
+    // À TERRE mais avec des PV : boire une potion soigne sans relever, donc cet
+    // état existe réellement en jeu. Un repli aveugle à 1 PV lui coûterait 3 PV.
+    $khazra->update(['pv_body' => 4, 'pv_mind' => 3]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $grimnar->id);
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    $relever = collect($menu['options'])->firstWhere('type', 'relever');
+
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => $relever['id']])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.jauges_relevees', []);
+
+    expect((bool) EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $khazra->id)->first()->tombe)->toBeFalse()
+        ->and((int) $khazra->fresh()->pv_body)->toBe(4)  // intacts
+        ->and((int) $khazra->fresh()->pv_mind)->toBe(3);
+});
+
 it('ne propose pas « relever » si aucun allié tombé adjacent', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

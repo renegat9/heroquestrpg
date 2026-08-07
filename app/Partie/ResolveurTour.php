@@ -1617,9 +1617,16 @@ final class ResolveurTour
         }
 
         // Debout à 1 POINT — Body ou Mind, celui qui est à zéro (décision de
-        // René, 2026-08-06). Remplace la fraction des PV max introduite pour
-        // éviter la boucle « relevé/retombe » : le compromis est assumé, un
-        // héros relevé repart bien au bord du gouffre.
+        // René, 2026-08-06).
+        //
+        // ⚠ INTENTION, à ne pas « corriger » une troisième fois. Cette valeur a
+        // déjà fait l'aller-retour : 1 PV → moitié des PV max (pour casser la
+        // boucle « relevé/retombe ») → 1 PV. Le compromis est assumé parce que
+        // `relever` n'est PAS une action de combat : c'est le dernier recours
+        // quand il ne reste ni potion ni sort de soin, et on s'en sert
+        // typiquement APRÈS l'engagement, pour ramener un compagnon. Hors
+        // combat, repartir à 1 point ne boucle sur rien — rien ne frappe.
+        // Relever au milieu d'une mêlée reste possible, et reste un pari.
         //
         // Les deux jauges sont traitées, pas seulement Body : c'est celle qui
         // est tombée à zéro qui remonte. ⚠ Aucun chemin ne réduit `pv_mind`
@@ -1633,12 +1640,15 @@ final class ResolveurTour
         if ((int) $cible->personnage->pv_mind <= 0) {
             $soins['pv_mind'] = 1;
         }
-        // Tombé sans jauge à zéro (chute dans la roche, effet futur) : c'est le
-        // corps qu'on remet debout.
-        $soins = $soins === [] ? ['pv_body' => 1] : $soins;
-
+        // ⚠ Tombé SANS jauge à zéro : on le remet debout, POINT — surtout pas
+        // « pv_body = 1 ». Un héros peut être à terre avec des PV positifs (il
+        // a bu sa potion de soin, qui ne relève pas ; il a chuté dans la roche),
+        // et un repli à 1 lui RETIRERAIT des points au lieu de l'aider.
         $cible->update(['tombe' => false]);
-        $cible->personnage->update($soins);
+
+        if ($soins !== []) {
+            $cible->personnage->update($soins);
+        }
 
         $payload = [
             'type' => 'relever',

@@ -49,7 +49,10 @@ function deuxHerosUnTombe(): array
     // Case libre adjacente au sauveteur → on y couche le héros tombé.
     $caseTombe = caseAdjacenteLibre($quete, $sx, $sy);
     $etatTombe = $quete->etatsPersonnages()->where('personnage_id', $tombeHeros->id)->firstOrFail();
+    // Un héros tombe parce que son Body atteint ZÉRO : la fixture doit le dire,
+    // sinon elle décrit un état que le jeu ne produit pas.
     $etatTombe->update(['position_x' => $caseTombe['x'], 'position_y' => $caseTombe['y'], 'tombe' => true]);
+    $etatTombe->personnage->update(['pv_body' => 0]);
 
     return ['quete' => $quete, 'joueurId' => (int) $alice->id, 'sauveteur' => $etatSauveteur->fresh(), 'tombe' => $etatTombe->fresh(), 'caseTombe' => $caseTombe];
 }

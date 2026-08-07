@@ -18,7 +18,7 @@ moteur résout l'option choisie*.
 > (campagne multi-quêtes, sous-boss, boss final, clôture), avec **narration IA
 > (Claude ou Gemini, au choix)**, **voix TTS**, **musique d'ambiance** et
 > **illustrations** générées. Reste surtout l'**équilibrage** (valeurs de départ
-> à playtester). **560 tests Pest verts.**
+> à playtester). **562 tests Pest verts.**
 
 | Domaine | Statut | Notes |
 |---|:---:|---|
@@ -117,7 +117,7 @@ Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`so
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **560 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **562 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
