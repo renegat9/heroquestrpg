@@ -1107,6 +1107,17 @@ final class ResolveurTour
         array $option,
         array $parametres,
     ): array {
+        // Second mode (Génie : « ouvre une porte au choix OU attaque ») — traité
+        // AVANT tout garde-fou de ciblage, parce qu'il ne vise pas une figure
+        // mais une PORTE. Placé plus bas, il n'était jamais atteint : le
+        // contrôle de ligne de vue ci-dessous appelle `cibleSort()`, qui exigeait
+        // un `cible_id` que ce mode ne porte pas — chaque tentative d'ouverture à
+        // distance échouait donc sur « Cible requise : parametres.cible_id »
+        // (constaté en partie réelle, 2026-08-06).
+        if (data_get($option, 'parametres.mode') === 'ouvre_porte') {
+            return $this->sortOuvrePorte($quete, $sort, $option);
+        }
+
         // Garde-fou de ligne de vue (doc 03 §36) : un sort offensif (degats /
         // mental) exige que la cible soit VISIBLE — une figure interposée coupe
         // la vue. Revérifié ici même si un menu périmé listait la cible.
@@ -1167,13 +1178,6 @@ final class ResolveurTour
      */
     private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres): array
     {
-        // Second mode (Génie) : « ouvre une porte au choix OU attaque avec 5
-        // dés ». Le mode est porté par l'OPTION, donc par le menu moteur — le
-        // joueur a choisi l'un ou l'autre avant d'envoyer son choix.
-        if (data_get($option, 'parametres.mode') === 'ouvre_porte') {
-            return $this->sortOuvrePorte($quete, $sort, $option);
-        }
-
         $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
         $cible = $this->cibleSort($quete, $option, $parametres);
 

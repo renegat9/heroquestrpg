@@ -259,7 +259,7 @@ final class MoteurSorts
             // option distincte par porte connue plutôt qu'un paramètre : il
             // réutilise ainsi tout le rendu des options `ouvrir_porte`, sans
             // nouvelle feuille de sélection côté manette.
-            foreach ($this->optionsPorteAuChoix($quete, $sort) as $option) {
+            foreach ($this->optionsPorteAuChoix($quete, $sort, $lanceur) as $option) {
                 $options[] = $option;
             }
         }
@@ -658,7 +658,7 @@ final class MoteurSorts
      *
      * @return list<array<string, mixed>>
      */
-    private function optionsPorteAuChoix(Quete $quete, Sort $sort): array
+    private function optionsPorteAuChoix(Quete $quete, Sort $sort, ?array $lanceur = null): array
     {
         if (! (bool) data_get($sort->effet, 'ouvre_porte', false) || $quete->carte === null) {
             return [];
@@ -684,7 +684,11 @@ final class MoteurSorts
             $cote = (string) ($porte['cote'] ?? 'e');
             $options[] = [
                 'id' => "sort_{$sort->id}_porte_{$porte['x']}_{$porte['y']}_{$cote}",
-                'libelle' => "Lancer {$sort->nom} — ouvrir une porte à distance",
+                // Repère DIRECTIONNEL depuis le lanceur : six libellés
+                // rigoureusement identiques ne se distinguaient que par leur
+                // index, ce qui revenait à choisir au hasard (constaté en partie
+                // réelle, 2026-08-06).
+                'libelle' => "Lancer {$sort->nom} — ouvrir la porte {$this->reperePorte($lanceur, $porte)}",
                 'type' => 'sort',
                 'parametres' => [
                     'sort_id' => $sort->id,
@@ -695,6 +699,39 @@ final class MoteurSorts
         }
 
         return $options;
+    }
+
+    /**
+     * Repère d'une porte VU DU LANCEUR : « au nord-est, à 7 cases ».
+     *
+     * Le joueur ne voit ni coordonnées ni numéros de salle — une direction et
+     * une distance sont les seules informations qu'il puisse rapporter à ce
+     * qu'il a sous les yeux.
+     *
+     * @param  array{x: int, y: int}|null  $lanceur
+     * @param  array<string, mixed>  $porte
+     */
+    private function reperePorte(?array $lanceur, array $porte): string
+    {
+        if ($lanceur === null) {
+            return 'à distance';
+        }
+
+        $dx = (int) $porte['x'] - $lanceur['x'];
+        $dy = (int) $porte['y'] - $lanceur['y'];
+        $distance = abs($dx) + abs($dy);
+
+        if ($distance === 0) {
+            return 'sous tes pieds';
+        }
+
+        // Une composante négligeable devant l'autre (moins d'un tiers) ne mérite
+        // pas d'être nommée : « au nord » se lit mieux que « au nord-nord-est ».
+        $vertical = abs($dy) * 3 >= abs($dx) ? ($dy < 0 ? 'nord' : 'sud') : '';
+        $horizontal = abs($dx) * 3 >= abs($dy) ? ($dx < 0 ? 'ouest' : 'est') : '';
+        $direction = trim($vertical.($vertical && $horizontal ? '-' : '').$horizontal);
+
+        return "au {$direction}, à {$distance} cases";
     }
 
     private function optionSort(

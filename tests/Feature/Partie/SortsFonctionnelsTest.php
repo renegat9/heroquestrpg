@@ -235,6 +235,41 @@ it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance'
             ->and($option['parametres'])->toHaveKey('porte')
             ->and($option['parametres']['sort_id'])->toBe($genie->id);
     }
+
+    // Les libellés doivent être DISTINCTS : six « ouvrir une porte à distance »
+    // identiques revenaient à choisir au hasard (constaté en partie réelle).
+    $libelles = $portes->pluck('libelle');
+    expect($libelles->unique()->count())->toBe($libelles->count());
+});
+
+it('résout le mode « ouvrir une porte » sans exiger de cible-figurine', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'magicien']);
+    app(MoteurSorts::class)->attacherElement($hero, 'air');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $genie = Sort::where('nom', 'Génie')->firstOrFail();
+
+    $option = collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh()))
+        ->first(fn (array $o) => str_starts_with((string) $o['id'], "sort_{$genie->id}_porte_"));
+    expect($option)->not->toBeNull();
+
+    // Le mode porte ne porte AUCUN `cible_id` : le garde-fou de ligne de vue,
+    // qui s'exécutait avant l'aiguillage, le rejetait donc systématiquement par
+    // « Cible requise : parametres.cible_id » — chaque ouverture à distance
+    // échouait (constaté en partie réelle, 2026-08-06).
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+        ->assertAccepted()
+        ->assertJsonPath('resultat.mode', 'ouvre_porte');
+
+    // …et la porte visée est bien ouverte sur la carte.
+    $p = $option['parametres']['porte'];
+    $ouverte = collect($quete->fresh()->carte->grille['portes'])
+        ->first(fn (array $x) => (int) $x['x'] === $p['x'] && (int) $x['y'] === $p['y']
+            && (string) ($x['cote'] ?? 'e') === $p['cote']);
+    expect($ouverte['etat'])->toBe('ouverte');
 });
 
 it('donne un parchemin par sort, chacun résoluble et de difficulté synchronisée', function () {
