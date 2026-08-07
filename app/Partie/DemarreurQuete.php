@@ -171,7 +171,7 @@ final class DemarreurQuete
             $quete = Quete::create([
                 'groupe_id' => $groupe->id,
                 'gabarit_id' => $gabarit->id,
-                'titre' => "Quête {$positionArc} — {$gabarit->nom}",
+                'titre' => $this->titreQuete($groupe, $positionArc),
                 'position_arc' => $positionArc,
                 'type_jalon' => $typeJalon,
                 'etat' => 'en_cours',
@@ -328,6 +328,30 @@ final class DemarreurQuete
         }
 
         return $quete;
+    }
+
+    /**
+     * Titre affiché de la quête.
+     *
+     * Le PLAN DE CAMPAGNE porte déjà un titre narratif pour chaque jalon
+     * (« Le Gardien Déchu du Seuil ») : on le reprend quand la position
+     * correspond. Sinon on s'en tient à « Quête N ».
+     *
+     * On composait auparavant « Quête N — {nom du gabarit} », ce qui affichait
+     * au joueur un libellé de MODÈLE interne — « Exploration simple », « Antre
+     * du sous-boss », « Confrontation finale » —, et ignorait les titres que
+     * l'IA avait écrits pour la campagne (signalé par René, 2026-08-07). Même
+     * famille que le slug de groupe qui s'était glissé dans la fiction.
+     */
+    private function titreQuete(Groupe $groupe, int $positionArc): string
+    {
+        foreach ((array) data_get($groupe->plan_campagne, 'jalons', []) as $jalon) {
+            if ((int) ($jalon['position'] ?? 0) === $positionArc && ! empty($jalon['titre'])) {
+                return (string) $jalon['titre'];
+            }
+        }
+
+        return "Quête {$positionArc}";
     }
 
     /**

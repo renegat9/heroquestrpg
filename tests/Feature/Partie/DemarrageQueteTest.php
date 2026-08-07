@@ -266,3 +266,40 @@ it('expose les CRÉNEAUX du tour sur chaque héros (pour griser côté manette)'
 
     expect($entite())->toMatchArray(['a_joue' => false, 'a_deplace' => false, 'a_agi' => true]);
 });
+
+it('titre la quête d\'après le PLAN de campagne, jamais d\'après le gabarit', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    // Plan de campagne tel que l'IA le produit : un titre narratif par jalon.
+    $groupe->update(['plan_campagne' => [
+        'jalons' => [
+            ['position' => 1, 'type' => 'normale', 'titre' => 'Le Seuil des Murmures'],
+        ],
+    ]]);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // On affichait « Quête 1 — Exploration simple » : le nom du MODÈLE interne,
+    // et les titres écrits par l'IA restaient inutilisés (signalé par René).
+    expect($quete->titre)->toBe('Le Seuil des Murmures')
+        ->and($quete->titre)->not->toContain($quete->gabarit->nom);
+});
+
+it('se rabat sur « Quête N » quand le plan ne titre pas cette position', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $groupe->update(['plan_campagne' => ['jalons' => [
+        ['position' => 3, 'type' => 'boss_final', 'titre' => 'La Fin des Temps'],
+    ]]]);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    expect($quete->titre)->toBe('Quête 1')
+        ->and($quete->titre)->not->toContain('Exploration');
+});
