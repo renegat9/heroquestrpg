@@ -182,3 +182,23 @@ it('ne pose aucun compteur de tours pour une durée à mot-clé', function () {
     // decrementerDurees() ne doit donc jamais l'emporter par erreur.
     expect((int) $pivot->duree)->toBe(0);
 });
+
+it('applique la MÊME autorité de durée aux buffs de SORT qu\'aux potions', function () {
+    $heros = herosPourDuree();
+
+    // Repéré en partie réelle : les buffs de sort passaient par un second
+    // système, `dureeBuff()`, qui DEVINAIT la durée d'après la clé d'effet —
+    // Traverser la Pierre portait `ce_tour` ET un compteur de 1 tour.
+    foreach (['Peau de Pierre', 'Traverser la Pierre', 'Voile de Brume', 'Vent Véloce', 'Courage'] as $nom) {
+        DB::table('personnage_conditions')->where('personnage_id', $heros->id)->delete();
+
+        $sort = Sort::where('nom', $nom)->firstOrFail();
+        app(MoteurSorts::class)->appliquerBuff($heros, $sort);
+
+        $pivot = DB::table('personnage_conditions')->where('personnage_id', $heros->id)->first();
+
+        // Tous ces sorts déclarent un MOT-CLÉ : aucun ne doit poser de compteur.
+        expect(DureeEffet::estMotCle(($sort->effet)['duree'] ?? null))->toBeTrue("{$nom} : durée non mot-clé")
+            ->and((int) $pivot->duree)->toBe(0, "{$nom} : compteur de tours parasite");
+    }
+});

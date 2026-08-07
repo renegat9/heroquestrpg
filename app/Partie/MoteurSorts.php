@@ -398,8 +398,20 @@ final class MoteurSorts
     {
         $condition = $this->condition((string) data_get($sort->effet, 'condition_appliquee', self::CONDITION_BUFF_DEFAUT));
 
+        // `duree` fait autorité, comme pour les potions (DureeEffet) : un
+        // ENTIER pose un compteur de tours, un MOT-CLÉ laisse le pivot à 0 et
+        // confie l'expiration au déclencheur.
+        //
+        // On devinait auparavant la durée d'après la CLÉ D'EFFET du sort
+        // (`dureeBuff()` : bonus_des_attaque → 0, deplacement_multiplie → 2,
+        // défaut → 1) — un second système de durée, parallèle au vocabulaire et
+        // câblé sur exactement ce que DureeEffet devait cesser de confondre.
+        // Les deux tombaient d'accord par chance sur les sorts actuels ; le
+        // premier sort dont le mot-clé aurait contredit la devinette aurait
+        // divergé en silence. Repéré en partie réelle (2026-08-06) : Traverser
+        // la Pierre portait `ce_tour` ET un compteur de 1 tour.
         $cible->conditions()->attach($condition->id, [
-            'duree' => $this->dureeBuff($sort),
+            'duree' => DureeEffet::tours(data_get($sort->effet, 'duree')),
             'source' => self::PREFIXE_SOURCE.$sort->nom,
         ]);
 
@@ -754,22 +766,6 @@ final class MoteurSorts
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * Durée (en tours) du buff d'un sort utilitaire — voir le bloc de doc
-     * de classe pour la justification de chaque valeur.
-     */
-    private function dureeBuff(Sort $sort): int
-    {
-        $effet = $sort->effet ?? [];
-
-        return match (true) {
-            isset($effet['bonus_des_attaque']) => 0,        // consommé à la prochaine attaque
-            isset($effet['bonus_des_defense']) => 0,        // fin de quête (MVP), purgé au démarrage suivant
-            isset($effet['deplacement_multiplie']) => 2,    // déplacement du tour suivant, consommé à l'usage
-            default => 1,                                   // Caché : jusqu'au prochain tour du héros
-        };
     }
 
     /**
