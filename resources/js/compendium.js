@@ -57,6 +57,31 @@ const EFFETS_BOOL = {
     automatique: 'Automatique',
 };
 
+/**
+ * Vocabulaires de mots-clés (App\Engine\DureeEffet, App\Engine\MotsClesSort) →
+ * français lisible. Sans ces tables, le repli générique affichait la valeur
+ * brute : « Durée : premier degat subi », « Résistance : jet mind » — lisible
+ * de justesse, et sans accents.
+ */
+const VALEURS = {
+    duree: {
+        prochaine_attaque: "jusqu'à la prochaine attaque",
+        prochaine_defense: "jusqu'à la prochaine défense",
+        premier_degat_subi: "jusqu'au premier dégât subi",
+        ce_tour: 'ce tour',
+        prochain_tour: "jusqu'au prochain tour",
+        fin_du_combat: "jusqu'à la fin du combat",
+    },
+    resistance: { jet_mind: 'jet de Mind' },
+    cible: {
+        soi: 'soi-même',
+        heros: 'un héros (soi compris)',
+        monstre: 'un monstre',
+        monstres_zone: 'des monstres (zone)',
+    },
+    portee: { distance: 'à distance', corps_a_corps: 'au contact' },
+};
+
 /** Clés à valeur textuelle/énumérée → « libellé : valeur ». */
 const EFFETS_ENUM = {
     portee: 'Portée',
@@ -134,7 +159,7 @@ export function effetVersChips(effet) {
         } else if (k in EFFETS_BOOL) {
             if (v) chips.push({ texte: EFFETS_BOOL[k] });
         } else if (k in EFFETS_ENUM) {
-            chips.push({ texte: `${EFFETS_ENUM[k]} : ${humaniser(v)}` });
+            chips.push({ texte: `${EFFETS_ENUM[k]} : ${VALEURS[k]?.[v] ?? humaniser(v)}` });
         } else {
             chips.push({ texte: `${humaniser(k)} : ${humaniser(v)}` });
         }
