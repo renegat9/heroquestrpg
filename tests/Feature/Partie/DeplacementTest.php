@@ -157,7 +157,7 @@ it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-ca
     });
 });
 
-it('garde le déplacement restant APRÈS une action : on agit puis on continue à se déplacer, le tour ne finit que sur décision', function () {
+it('SACRIFIE le déplacement restant quand on agit après avoir bougé, sans terminer le tour pour autant', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heroA = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -176,22 +176,25 @@ it('garde le déplacement restant APRÈS une action : on agit puis on continue �
         ->assertStatus(202);
     expect($etatA->fresh()->deplacement_restant)->toBe(7);
 
-    // Puis « Fouiller » (action) : le mouvement restant est CONSERVÉ (on peut
-    // agir puis continuer). a_agi posé, mais le tour N'EST PAS terminé.
+    // Puis « Fouiller » (action) : le mouvement entamé est PERDU — règle du
+    // plateau, on se déplace puis on agit, ou l'inverse, jamais les trois
+    // (décision de René, 2026-08-07 ; ce test verrouillait l'intercalation).
+    // Le tour n'est pas terminé pour autant : le joueur garde la main.
     desFiges(array_fill(0, 20, 1));
     $this->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
         ->assertStatus(202);
     $etatA->refresh();
-    expect($etatA->deplacement_restant)->toBe(7)
-        ->and($etatA->a_deplace)->toBeFalse()
+    expect($etatA->deplacement_restant)->toBe(0)
+        ->and($etatA->a_deplace)->toBeTrue()
         ->and($etatA->a_agi)->toBeTrue()
         ->and($etatA->a_joue)->toBeFalse();
 
-    // Le menu régénéré propose ENCORE de se déplacer (au restant) + « Terminer le tour ».
+    // Le menu régénéré n'offre PLUS de déplacement (allonce sacrifiée), mais
+    // toujours « Terminer le tour » — le héros n'est jamais sans issue.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heroA->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
-    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->not->toBeNull()
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->toBeNull()
         ->and(collect($menu['options'])->firstWhere('id', 'attendre'))->not->toBeNull();
 
     // Le joueur DÉCIDE de terminer → a_joue.
@@ -268,4 +271,51 @@ it('permet d\'AGIR PUIS de se déplacer (action avant mouvement), le mouvement r
     $etatA->refresh();
     expect((int) $etatA->position_x)->toBe($cible['x'])
         ->and((int) $etatA->position_y)->toBe($cible['y']);
+});
+
+it('sacrifie le déplacement restant quand on AGIT après avoir commencé à bouger', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    // Mouvement ENTAMÉ : 8 points au tour, 5 encore en poche.
+    $etat->update(['deplacement_tour' => 8, 'deplacement_restant' => 5, 'a_deplace' => false, 'a_agi' => false]);
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202);
+
+    // Règle du plateau : se déplacer PUIS agir, ou agir PUIS se déplacer —
+    // jamais les trois. Le reste de l'allonce est perdu.
+    $etat->refresh();
+    expect((int) $etat->deplacement_restant)->toBe(0)
+        ->and((bool) $etat->a_deplace)->toBeTrue()
+        ->and((bool) $etat->a_agi)->toBeTrue();
+});
+
+it('garde le déplacement ENTIER quand on agit AVANT d\'avoir bougé', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    // Aucun mouvement entamé : le d6 du tour n'est même pas lancé.
+    $etat->update(['deplacement_tour' => null, 'deplacement_restant' => null,
+        'a_deplace' => false, 'a_agi' => false]);
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202);
+
+    // Agir d'abord ne coûte RIEN au déplacement : il reste entier.
+    $etat->refresh();
+    expect((bool) $etat->a_agi)->toBeTrue()
+        ->and((bool) $etat->a_deplace)->toBeFalse();
 });

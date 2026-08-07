@@ -365,22 +365,34 @@ it('ouvre chaque jonction sur 2 CASES DE FRONT, portes comprises', function () {
     }
 });
 
-it('ouvre TOUTE la jonction quand on ouvre une seule de ses portes', function () {
+it('ouvre les 2 voies du SEUIL poussé, et laisse fermé le seuil d\'en face', function () {
     [$groupe, $quete] = groupeAvecCarte(7717);
 
     $portes = $quete->carte->grille['portes'];
     $index = collect($portes)->search(fn ($p) => ($p['etat'] ?? '') === 'fermee');
-    $jonction = $portes[$index]['jonction'];
+    $poussee = $portes[$index];
+    $jonction = $poussee['jonction'];
 
     app(App\Partie\MoteurPortes::class)->ouvrir($groupe, $quete->carte, (int) $index, 'test');
 
     $apres = collect($quete->carte->fresh()->grille['portes'])
         ->filter(fn ($p) => ($p['jonction'] ?? null) === $jonction);
 
-    // Une jonction s'ouvre d'un bloc : à moitié ouverte, elle redeviendrait un
-    // goulot d'une case — exactement ce que l'élargissement supprime.
-    expect($apres)->toHaveCount(4)
-        ->and($apres->every(fn ($p) => $p['etat'] === 'ouverte'))->toBeTrue();
+    // Un SEUIL s'ouvre d'un bloc : à moitié ouvert, il redeviendrait un goulot
+    // d'une case — exactement ce que l'élargissement supprime. Mais une
+    // jonction compte DEUX seuils (un par salle) reliés par le couloir, et le
+    // seuil d'en face reste clos : sinon le groupe arrive au bout du corridor
+    // devant une porte déjà ouverte, sur une salle non révélée (test de jeu
+    // 2026-08-07). Ce test verrouillait l'ancien comportement.
+    $axe = (string) ($poussee['cote'] ?? 'e') === 'e' ? 'x' : 'y';
+
+    foreach ($apres as $p) {
+        $memeSeuil = (int) $p[$axe] === (int) $poussee[$axe];
+        expect($p['etat'] === 'ouverte')->toBe($memeSeuil,
+            "porte ({$p['x']},{$p['y']}) — seuil ".($memeSeuil ? 'poussé' : 'opposé'));
+    }
+
+    expect($apres->where('etat', 'ouverte'))->toHaveCount(2);
 });
 
 it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 formes)', function () {

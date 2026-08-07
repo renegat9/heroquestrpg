@@ -510,3 +510,41 @@ it('révèle la salle et ses monstres quand un LEVIER ouvre la porte', function 
     expect($quete->fresh()->sallesDecouvertes())->toContain(1)
         ->and((bool) $dormant->fresh()->revele)->toBeTrue();
 });
+
+it('n\'ouvre que le seuil poussé, pas le bout opposé du couloir', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $mp = app(App\Partie\MoteurPortes::class);
+
+    // Une jonction porte JUSQU'À 4 portes : 2 par seuil (les 2 voies d'un
+    // passage large), et 2 seuils (un par salle) aux deux bouts du couloir.
+    $parJonction = collect($quete->carte->grille['portes'])
+        ->map(fn (array $p, int $i) => $p + ['index' => $i])
+        ->groupBy(fn (array $p) => $p['jonction'] ?? -1)
+        ->first(fn ($portes) => $portes->count() === 4);
+
+    expect($parJonction)->not->toBeNull('aucune jonction à 4 portes dans ce donjon');
+
+    $premiere = $parJonction->first();
+    $mp->ouvrir($groupe, $quete->carte, (int) $premiere['index'], 'main');
+
+    $apres = $quete->fresh()->carte->grille['portes'];
+    $cote = (string) ($premiere['cote'] ?? 'e');
+    $axe = $cote === 'e' ? 'x' : 'y';
+
+    foreach ($parJonction as $p) {
+        $ouverte = ($apres[$p['index']]['etat'] ?? '') === 'ouverte';
+        $memeSeuil = (int) $p[$axe] === (int) $premiere[$axe];
+
+        // Même seuil → ouvert avec (sinon le passage large reste un goulot).
+        // Seuil OPPOSÉ → toujours fermé : le groupe arrivait au bout du couloir
+        // et trouvait la porte déjà ouverte, salle d'en face non révélée
+        // (constaté en partie réelle, 2026-08-07).
+        expect($ouverte)->toBe($memeSeuil,
+            "porte ({$p['x']},{$p['y']}) : seuil ".($memeSeuil ? 'poussé' : 'opposé'));
+    }
+});

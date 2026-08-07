@@ -178,17 +178,23 @@ final class MoteurPortes
 
         $this->changer($carte, $index, ['etat' => self::ETAT_OUVERTE, 'revele' => true]);
 
-        // Une JONCTION large de 2 cases est faite de plusieurs arêtes-portes
+        // Un SEUIL large de 2 cases est fait de deux arêtes-portes côte à côte
         // (AssembleurCarte) : elles s'ouvrent ENSEMBLE, sinon le passage
         // resterait un goulot d'une case — exactement ce que l'élargissement
         // vise à supprimer.
-        $jonction = $porte['jonction'] ?? null;
-        if ($jonction !== null) {
-            foreach ($this->portes($carte) as $autre => $p) {
-                if ($autre !== $index && ($p['jonction'] ?? null) === $jonction
-                    && ($p['etat'] ?? null) !== self::ETAT_OUVERTE) {
-                    $this->changer($carte, $autre, ['etat' => self::ETAT_OUVERTE, 'revele' => true]);
-                }
+        //
+        // ⚠ Seulement les portes du MÊME seuil, pas toute la jonction. Un
+        // couloir a DEUX seuils (un par salle) qui partagent le même
+        // `jonction` : les grouper tous ouvrait les 4 portes d'un coup, donc
+        // celles du bout opposé du couloir. Le groupe arrivait au bout d'un
+        // corridor et trouvait la porte déjà ouverte, sans jamais la pousser —
+        // et la salle d'en face restait NON révélée, ouverte mais noire
+        // (constaté en partie réelle par René, 2026-08-07).
+        foreach ($this->portes($carte) as $autre => $p) {
+            if ($autre !== $index
+                && $this->memeSeuil($porte, $p)
+                && ($p['etat'] ?? null) !== self::ETAT_OUVERTE) {
+                $this->changer($carte, $autre, ['etat' => self::ETAT_OUVERTE, 'revele' => true]);
             }
         }
 
@@ -197,6 +203,39 @@ final class MoteurPortes
             'cause' => $cause,
             'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y'], 'cote' => (string) ($porte['cote'] ?? 'e')],
         ], $acteur);
+    }
+
+    /**
+     * Deux portes forment-elles le MÊME seuil (les 2 voies d'un passage large) ?
+     *
+     * Même jonction ET même ligne de front : deux portes `e` du même seuil
+     * partagent leur `x` (elles sont l'une au-dessus de l'autre), deux portes
+     * `s` partagent leur `y`. Les deux seuils d'un couloir partagent la
+     * jonction mais PAS cette coordonnée — c'est ce qui les distingue.
+     *
+     * Dérivé de la géométrie plutôt que d'un champ ajouté : les cartes déjà
+     * en base sont ainsi corrigées elles aussi, sans régénération.
+     *
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private function memeSeuil(array $a, array $b): bool
+    {
+        if (($a['jonction'] ?? null) === null || ($a['jonction'] ?? null) !== ($b['jonction'] ?? null)) {
+            return false;
+        }
+
+        $cote = (string) ($a['cote'] ?? 'e');
+
+        if ($cote !== (string) ($b['cote'] ?? 'e')) {
+            return false;
+        }
+
+        // Porte EST : l'arête est verticale, le seuil s'étend en Y → même X.
+        // Porte SUD : l'arête est horizontale, le seuil s'étend en X → même Y.
+        return $cote === 'e'
+            ? (int) $a['x'] === (int) $b['x']
+            : (int) $a['y'] === (int) $b['y'];
     }
 
     /**

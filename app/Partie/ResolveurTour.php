@@ -2676,10 +2676,25 @@ final class ResolveurTour
                 // créneau — le héros a bien frappé deux fois ce tour.
                 $etat->attaque_supplementaire = false;
             } else {
-                // Agir NE force plus la fin du mouvement : on peut agir PUIS se
-                // déplacer, se déplacer PUIS agir, ou intercaler — dans n'importe
-                // quel ordre, tant qu'il reste des points de mouvement / l'action.
                 $etat->a_agi = true;
+
+                // Règle du plateau (décision de René, 2026-08-07) : on se déplace
+                // PUIS on agit, ou on agit PUIS on se déplace — jamais les trois.
+                // Agir après avoir COMMENCÉ à bouger sacrifie donc le reste de
+                // l'allonce. On n'intercale plus : fouiller au milieu de son
+                // mouvement puis repartir n'est plus possible.
+                //
+                // ⚠ La condition porte sur « avoir déjà bougé », pas sur
+                // `a_deplace` (posé seulement quand l'allonce est ÉPUISÉE) :
+                // c'est `deplacement_restant`, non nul et inférieur au total du
+                // tour, qui signale un mouvement entamé. Agir sans avoir bougé
+                // laisse au contraire le déplacement entier.
+                if ($etat->deplacement_restant !== null
+                    && (int) $etat->deplacement_restant > 0
+                    && (int) $etat->deplacement_restant < (int) ($etat->deplacement_tour ?? 0)) {
+                    $etat->deplacement_restant = 0;
+                    $etat->a_deplace = true;
+                }
             }
         }
         // 'mouvement' : a_deplace / deplacement_restant déjà posés par resoudreDeplacement.
