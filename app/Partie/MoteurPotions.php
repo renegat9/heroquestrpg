@@ -69,6 +69,15 @@ class MoteurPotions
         }
         $personnage->save();
 
+        // Un soin RELÈVE, comme le sort (décision de René, 2026-08-06).
+        //
+        // Boire est une action gratuite que rien n'interdit à un héros à terre,
+        // mais `tombe` n'était jamais touché ici : le compagnon vidait sa fiole,
+        // remontait à 4 PV… et restait couché, alors que le même soin lancé en
+        // SORT le remettait debout (`ResolveurTour::sortUtilitaire`). Deux
+        // chemins pour un même effet ne doivent pas raconter deux règles.
+        $this->releverSiSoigne($personnage);
+
         // Antidote — retire une condition nommée si présente.
         // Potion d'héroïsme : une ATTAQUE SUPPLÉMENTAIRE ce tour-ci — deux
         // attaques au lieu d'une, et non des dés en plus. Même patron que la
@@ -116,5 +125,34 @@ class MoteurPotions
             'pv_mind' => (int) $personnage->pv_mind,
             'pv_mind_max' => (int) $personnage->pv_mind_max,
         ];
+    }
+
+    /**
+     * Remet debout un héros à terre dont le soin vient de rouvrir une jauge.
+     *
+     * Même condition que le sort de soin (`ResolveurTour::sortUtilitaire`) : on
+     * ne relève que si les PV Body repassent AU-DESSUS de zéro — un antidote ou
+     * un soin de Mind ne suffit pas à faire tenir un corps sur ses jambes.
+     *
+     * Cherche l'état de quête du héros dans la quête COURANTE de son groupe : la
+     * potion se boit hors tour, donc on ne peut pas compter sur un état déjà
+     * chargé par le résolveur.
+     */
+    private function releverSiSoigne(Personnage $personnage): void
+    {
+        if ((int) $personnage->pv_body <= 0) {
+            return;
+        }
+
+        $queteId = $personnage->groupeActif?->quete_courante_id;
+
+        if ($queteId === null) {
+            return; // au hub : personne n'est « tombé »
+        }
+
+        $personnage->etatsQuete()
+            ->where('quete_id', $queteId)
+            ->where('tombe', true)
+            ->update(['tombe' => false]);
     }
 }

@@ -110,3 +110,61 @@ it('refuse la potion d\'un héros qui n\'est pas à soi', function () {
     $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligneBob->id])
         ->assertStatus(422);
 });
+
+it('RELÈVE un héros à terre, exactement comme le sort de soin', function () {
+    // Démarrer une quête demande la carte et le bestiaire, absents du
+    // beforeEach de ce fichier (les autres tests n'en ont pas besoin).
+    $this->seed([Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
+        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    // À terre, Body à zéro. Boire reste permis : c'est une action gratuite que
+    // rien n'interdit à un tombé.
+    $etat->update(['tombe' => true]);
+    $hero->update(['pv_body' => 0]);
+
+    $ligne = donnerConsommable($hero, 'Potion de soin');
+
+    $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligne->id])
+        ->assertOk();
+
+    // Le soin remet debout — le SORT le faisait déjà, la potion non : deux
+    // chemins pour un même effet racontaient deux règles (aligné 2026-08-06).
+    expect((int) $hero->fresh()->pv_body)->toBeGreaterThan(0)
+        ->and((bool) $etat->fresh()->tombe)->toBeFalse();
+});
+
+it('ne relève PAS sur un soin qui ne rouvre pas le Body (antidote)', function () {
+    // Démarrer une quête demande la carte et le bestiaire, absents du
+    // beforeEach de ce fichier (les autres tests n'en ont pas besoin).
+    $this->seed([Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
+        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    $etat->update(['tombe' => true]);
+    $hero->update(['pv_body' => 0]);
+    $hero->conditions()->attach(Condition::where('nom', 'Empoisonné')->firstOrFail()->id, ['duree' => 2]);
+
+    $ligne = donnerConsommable($hero, 'Antidote');
+    $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligne->id])->assertOk();
+
+    // Le poison part, mais un corps à zéro ne se relève pas pour autant.
+    expect((int) $hero->fresh()->pv_body)->toBe(0)
+        ->and((bool) $etat->fresh()->tombe)->toBeTrue();
+});

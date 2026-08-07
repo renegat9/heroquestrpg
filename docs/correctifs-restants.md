@@ -141,13 +141,14 @@ Restent (nombres de playtest, à trancher — ne pas « corriger » en silence) 
   sans lecteur est une promesse faite au narrateur que le moteur ne tient pas.
   *(Un plafond de relevages par quête reste possible si le playtest le réclame.)*
 
-  **Asymétrie à trancher** : un **sort** de soin relève bien un héros à terre
-  (`sortUtilitaire` remet `tombe` à false dès que les PV repassent au-dessus de
-  zéro), mais une **potion** non — `MoteurPotions::boire()` ne touche jamais à
-  `tombe`. Or boire est une action *gratuite et non bloquée pour un tombé* : un
-  héros à terre peut donc vider sa fiole, remonter à 4 PV… et rester couché. Le
-  cadrage de René (« relever quand on n'a plus de potion **ou** de sort de
-  soin ») suppose que les deux relèvent.
+  ~~**Asymétrie sort / potion**~~ — **RÉGLÉE le 2026-08-06** : une potion de
+  soin relève désormais, exactement comme le sort. `MoteurPotions::boire()` ne
+  touchait jamais à `tombe`, si bien qu'un héros à terre pouvait vider sa fiole,
+  remonter à 4 PV… et rester couché, alors que le même soin lancé en SORT le
+  remettait debout. Deux chemins pour un même effet racontaient deux règles.
+  Même condition des deux côtés : on ne relève que si les **PV Body** repassent
+  au-dessus de zéro — un antidote ou un soin de Mind ne remet pas un corps sur
+  ses jambes (test dédié).
 
 ## 4. Modérés — ~~FAIT~~
 
