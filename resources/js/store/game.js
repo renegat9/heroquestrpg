@@ -291,6 +291,24 @@ export const CLASSES = {
     elfe: { l: 'Elfe', ic: 'park' },
 };
 
+/**
+ * Classes réellement CRÉABLES — celles que porte la table `classes_heros`, la
+ * seule chose que valide `POST /groupes` (`Rule::exists`).
+ *
+ * ⚠ `CLASSES` ci-dessus sert à l'AFFICHAGE et contient `magicienne`, qui n'est
+ * pas une classe : le moteur ne la connaît nulle part — aucun élément de magie
+ * (`MoteurSorts::NB_ELEMENTS_DEPART`), aucun arbre de talents
+ * (`CompetenceSeeder`), aucune maîtrise d'équipement. La proposer à la création
+ * garantissait l'échec : le serveur répondait « The selected classe is
+ * invalid », en anglais, sur le tout premier écran d'un nouveau joueur.
+ *
+ * Faire de la magicienne une vraie classe demanderait sa ligne de catalogue et
+ * tout ce qui va avec ; l'alternative propre serait un champ de GENRE distinct
+ * de la classe. Les deux sont des décisions de conception — en attendant, on
+ * n'offre que ce que le moteur sait honorer.
+ */
+export const CLASSES_JOUABLES = ['barbare', 'magicien', 'nain', 'elfe'];
+
 function classeDe(entite) {
     return CLASSES[(entite.classe ?? '').toLowerCase()] ?? null;
 }
