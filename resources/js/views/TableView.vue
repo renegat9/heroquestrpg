@@ -133,8 +133,18 @@ let heartbeatTimer = null;
    TOUJOURS : rien ne la rattrapait, puisque seul un nouvel événement l'aurait
    mise à jour. Le narrateur affichait les figurines à leur position d'il y a
    plusieurs tours (constaté en partie réelle par René, 2026-08-07). */
+let signatureEtat = null;
 function reconcilierEtat() {
-    api.getEtatReprise(props.groupe).then((e) => store.appliquerEtat(e)).catch(() => {});
+    api.getEtatReprise(props.groupe).then((e) => {
+        // N'APPLIQUER QUE SI ÇA A CHANGÉ. Réappliquer un état identique toutes
+        // les 15 s ferait re-rendre la carte entière pour rien — coûteux sur la
+        // tablette du narrateur, qui est la machine la plus faible de la table.
+        // Une comparaison de chaîne coûte une fraction d'un rendu.
+        const sig = JSON.stringify(e);
+        if (sig === signatureEtat) return;
+        signatureEtat = sig;
+        store.appliquerEtat(e);
+    }).catch(() => {});
 }
 
 function demarrerHeartbeat() {

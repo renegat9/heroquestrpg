@@ -89,3 +89,26 @@ it('GenererImageHub sort avant tout appel HTTP quand images_actif=false, même a
 
     Http::assertNothingSent();
 });
+
+it('préfère le jumeau WebP quand il existe, sans casser le repli PNG', function () {
+    $lib = app(App\Partie\Images\BibliothequeImages::class);
+    $dossier = public_path('images/catalogue/classes');
+    @mkdir($dossier, 0775, true);
+
+    $png = $dossier.'/testwebp.png';
+    $webp = $dossier.'/testwebp.webp';
+    file_put_contents($png, 'png');
+
+    // Sans jumeau : le PNG est servi.
+    expect($lib->url('catalogue/classes/testwebp.png'))->toBe('/images/catalogue/classes/testwebp.png');
+
+    // Avec jumeau : le WebP l'emporte. Les images générées sont des PNG de
+    // 1024×1024 à ~1,3 Mo affichés sur quelques dizaines de pixels — trois
+    // suffisaient à faire télécharger 4 Mo à la tablette du narrateur.
+    file_put_contents($webp, 'webp');
+    expect($lib->url('catalogue/classes/testwebp.png'))->toBe('/images/catalogue/classes/testwebp.webp');
+
+    // Rien du tout : null, comme avant.
+    @unlink($png); @unlink($webp);
+    expect($lib->url('catalogue/classes/testwebp.png'))->toBeNull();
+});

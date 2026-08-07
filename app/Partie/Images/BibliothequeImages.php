@@ -24,10 +24,28 @@ final class BibliothequeImages
 {
     public const FORMAT = 'png';
 
-    /** URL publique d'un relatif sous public/images, ou null si absent. */
+    /**
+     * URL publique d'un relatif sous public/images, ou null si absent.
+     *
+     * Un jumeau **.webp** l'emporte quand il existe. Les images générées sont
+     * des PNG de 1024×1024 pesant ~1,3 Mo pièce, affichées sur quelques dizaines
+     * de pixels : trois d'entre elles suffisaient à faire télécharger 4 Mo à
+     * l'écran de table, la machine la plus faible de la tablée (signalé par
+     * René, 2026-08-07 — « la tablette prend vraiment du temps à charger »).
+     *
+     * La préférence est posée ICI plutôt que sur les chemins : aucun appelant ne
+     * change, `FORMAT` reste `png` pour la génération, et un `.webp` absent
+     * retombe simplement sur le PNG d'origine — la conversion est donc
+     * réversible et peut rester partielle.
+     */
     public function url(string $relatif): ?string
     {
         $relatif = ltrim($relatif, '/');
+        $webp = preg_replace('/\.png$/i', '.webp', $relatif);
+
+        if ($webp !== $relatif && is_file(public_path("images/{$webp}"))) {
+            return "/images/{$webp}";
+        }
 
         return is_file(public_path("images/{$relatif}"))
             ? "/images/{$relatif}"
