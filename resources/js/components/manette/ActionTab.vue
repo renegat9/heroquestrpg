@@ -40,6 +40,9 @@ const emit = defineEmits(['choose']);
 const ICONE_TYPE = {
     action: 'touch_app',
     dialogue: 'forum',
+    // Fouiller un meuble (coffre, tombeau, armoire — doc 17) : icône distincte
+    // de la fouille de salle, ce n'est pas la même action ni le même créneau.
+    fouille_mobilier: 'inventory_2',
     jet: 'casino',
     attaque: 'swords',
     deplacement: 'directions_walk',

@@ -104,6 +104,7 @@ final class ResolveurTour
         private readonly EtatGroupe $etatGroupe,
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
+        private readonly MoteurMobilier $mobilier,
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly MonteeNiveau $monteeNiveau,
@@ -227,6 +228,7 @@ final class ResolveurTour
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
@@ -1851,6 +1853,62 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Fouiller un MEUBLE au contact (doc 17) — coffre, tombeau, armoire…
+     *
+     * Une seule fois pour tout le GROUPE : un meuble est un objet physique, le
+     * premier qui l'ouvre le vide. C'est ce qui le distingue de la fouille de
+     * salle, qui est une par héros.
+     *
+     * Le butin vient du MÊME deck que la fouille de salle : un seul barème de
+     * trésor pour le donjon, et le meuble consomme donc une carte.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreFouilleMobilier(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $index = (int) data_get($option, 'parametres.index', -1);
+        $carteQuete = $quete->carte;
+
+        if ($carteQuete === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cette quête n\'a pas de carte.']);
+        }
+
+        // Revalidé ici : le menu peut dater d'avant qu'un compagnon ne vide le
+        // meuble, ou d'avant un déplacement qui a éloigné le héros.
+        $adjacents = $this->mobilier->fouillablesAdjacents(
+            $carteQuete, (int) $etat->position_x, (int) $etat->position_y,
+        );
+        $meuble = collect($adjacents)->firstWhere('index', $index);
+
+        if ($meuble === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Ce meuble n\'est plus à ta portée, ou il a déjà été fouillé.',
+            ]);
+        }
+
+        $this->mobilier->marquerFouille($carteQuete, $index);
+
+        $payload = $this->appliquerButin($this->deck->piocher($quete), [
+            'type' => 'fouille_mobilier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => $meuble['nom'],
+        ], $groupe, $quete, $personnage, $etat);
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreFouilleTresor(
         Groupe $groupe,
         Quete $quete,
@@ -1879,16 +1937,42 @@ final class ResolveurTour
             ? $this->deck->carteCoffre($quete, $salle)
             : $this->deck->piocher($quete);
 
-        $issue = (string) ($carte['issue'] ?? 'rien');
-
-        $payload = [
+        $payload = $this->appliquerButin($carte, [
             'type' => 'fouille_tresor',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'salle' => $salle,
-            'issue' => $issue,
-            'deck_restant' => count($quete->deckFouille()),
-        ];
+        ], $groupe, $quete, $personnage, $etat);
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Applique le butin d'une carte de fouille (deck ou coffre) et complète le
+     * payload : or au pot commun, objet au fouilleur, errant sur le plateau,
+     * piège déclenché.
+     *
+     * Partagé par la fouille de SALLE et celle du MOBILIER — deux entrées, un
+     * seul barème : les laisser diverger, c'est se retrouver avec deux tables
+     * de trésor à maintenir.
+     *
+     * @param  array<string, mixed>  $carte
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function appliquerButin(
+        array $carte,
+        array $payload,
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+    ): array {
+        $issue = (string) ($carte['issue'] ?? 'rien');
+        $payload['issue'] = $issue;
+        $payload['deck_restant'] = count($quete->deckFouille());
 
         foreach (['coffre', 'deck_vide'] as $drapeau) {
             if (! empty($carte[$drapeau])) {
@@ -1926,8 +2010,6 @@ final class ResolveurTour
                 $groupe, $personnage, $etat, $piege, 'fouille_tresor', narrer: false,
             );
         }
-
-        Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
     }

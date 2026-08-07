@@ -30,6 +30,7 @@ final class MenuMoteur
     public function __construct(
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
+        private readonly MoteurMobilier $mobilier,
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
         private readonly Equipement $equipement,
@@ -516,6 +517,19 @@ final class MenuMoteur
                             'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                         ];
                     }
+                }
+
+                // Mobilier fouillable au contact (doc 17) : un coffre, un
+                // tombeau, une armoire s'ouvrent — ce n'est pas du décor. Une
+                // seule fois pour le groupe : c'est un objet, pas une table de
+                // trésor. Créneau ACTION, comme la fouille de salle.
+                foreach ($this->mobilier->fouillablesAdjacents($quete->carte, $px, $py) as $meuble) {
+                    $options[] = [
+                        'id' => "fouiller_mobilier_{$meuble['index']}",
+                        'libelle' => "Fouiller : {$meuble['nom']}",
+                        'type' => 'fouille_mobilier',
+                        'parametres' => ['index' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
                 }
 
                 foreach ($this->portes->leviersAdjacents($quete->carte, $px, $py) as $levier) {

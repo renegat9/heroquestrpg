@@ -111,7 +111,7 @@ final class JournalCombat
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
-            'fouille_tresor' => $this->fouille($a, $acteurNom),
+            'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],

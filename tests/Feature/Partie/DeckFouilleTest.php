@@ -33,8 +33,11 @@ beforeEach(function () {
     Http::fake();
     config(['services.anthropic.api_key' => null, 'services.gemini.api_key' => null]);
 
+    // MobilierSeeder inclus : sans lui aucun meuble n'est posé sur la carte, et
+    // la fouille de mobilier n'aurait rien à fouiller.
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
-        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class]);
+        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class,
+        Database\Seeders\MobilierSeeder::class]);
 });
 
 /**
@@ -582,4 +585,44 @@ it('donne à CHAQUE héros sa fouille dans une même salle', function () {
     deplacerVersSalle($quete->fresh(), $etat, 0);
     test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(422);
+});
+
+it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+    $mm = app(App\Partie\MoteurMobilier::class);
+
+    // Un meuble fouillable quelconque de la carte (le donjon en pose toujours).
+    $grille = $quete->carte->grille;
+    $fouillables = App\Models\Mobilier::where('fouillable', true)->pluck('id');
+    $index = collect($grille['mobilier'] ?? [])
+        ->search(fn (array $m) => $fouillables->contains($m['mobilier_id']));
+
+    expect($index)->not->toBeFalse('aucun meuble fouillable sur cette carte');
+    $meuble = $grille['mobilier'][$index];
+
+    // On se place À CÔTÉ : le meuble bloque le passage, on ne monte pas dessus.
+    $etat->refresh();
+    $etat->update([
+        'position_x' => (int) $meuble['x'] + 1, 'position_y' => (int) $meuble['y'],
+        'a_joue' => false, 'a_agi' => false, 'a_deplace' => false,
+    ]);
+    $quete->marquerSalleDecouverte((int) $meuble['salle']);
+
+    expect($mm->fouillablesAdjacents($quete->carte, (int) $meuble['x'] + 1, (int) $meuble['y']))
+        ->not->toBeEmpty();
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $menu = Illuminate\Support\Facades\Cache::get(App\Jobs\GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    $option = collect($menu['options'])->firstWhere('type', 'fouille_mobilier');
+
+    expect($option)->not->toBeNull('« Fouiller : <meuble> » absent du menu');
+
+    test()->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'fouille_mobilier');
+
+    // Un meuble est un OBJET : vidé une fois, il ne se refouille pas — ni par le
+    // même héros, ni par un compagnon (contrairement à la fouille de salle).
+    expect($mm->fouillablesAdjacents($quete->carte->fresh(), (int) $meuble['x'] + 1, (int) $meuble['y']))
+        ->toBeEmpty();
 });
