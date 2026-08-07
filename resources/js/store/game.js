@@ -282,32 +282,24 @@ export function useGameStore() {
    Mapping EtatGroupe → formats attendus par les composants existants
    ========================================================================= */
 
-/** Habillage par classe de héros (icônes Material Symbols). */
+/**
+ * Habillage par classe de héros (icônes Material Symbols).
+ *
+ * ⚠ Doit contenir EXACTEMENT les classes de la table `classes_heros` — c'est
+ * la seule chose que valide `POST /groupes` (`Rule::exists`), et cet objet
+ * alimente le sélecteur de création. Une entrée purement décorative s'y traduit
+ * par un choix qui échoue à coup sûr : « Magicienne » y a figuré jusqu'au
+ * 2026-08-07 sans exister nulle part côté moteur (ni élément de magie, ni arbre
+ * de talents, ni maîtrise d'équipement), et la choisir renvoyait « The selected
+ * classe is invalid » sur le tout premier écran d'un nouveau joueur.
+ */
 export const CLASSES = {
     barbare: { l: 'Barbare', ic: 'sports_martial_arts' },
     magicien: { l: 'Magicien', ic: 'auto_fix_high' },
-    magicienne: { l: 'Magicienne', ic: 'auto_fix_high' },
     nain: { l: 'Nain', ic: 'construction' },
     elfe: { l: 'Elfe', ic: 'park' },
 };
 
-/**
- * Classes réellement CRÉABLES — celles que porte la table `classes_heros`, la
- * seule chose que valide `POST /groupes` (`Rule::exists`).
- *
- * ⚠ `CLASSES` ci-dessus sert à l'AFFICHAGE et contient `magicienne`, qui n'est
- * pas une classe : le moteur ne la connaît nulle part — aucun élément de magie
- * (`MoteurSorts::NB_ELEMENTS_DEPART`), aucun arbre de talents
- * (`CompetenceSeeder`), aucune maîtrise d'équipement. La proposer à la création
- * garantissait l'échec : le serveur répondait « The selected classe is
- * invalid », en anglais, sur le tout premier écran d'un nouveau joueur.
- *
- * Faire de la magicienne une vraie classe demanderait sa ligne de catalogue et
- * tout ce qui va avec ; l'alternative propre serait un champ de GENRE distinct
- * de la classe. Les deux sont des décisions de conception — en attendant, on
- * n'offre que ce que le moteur sait honorer.
- */
-export const CLASSES_JOUABLES = ['barbare', 'magicien', 'nain', 'elfe'];
 
 function classeDe(entite) {
     return CLASSES[(entite.classe ?? '').toLowerCase()] ?? null;

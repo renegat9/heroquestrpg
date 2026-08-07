@@ -291,7 +291,6 @@ class GroupeController extends Controller
         'nain' => ['Hachette', 'Trousse à outils'],
         'elfe' => ['Épée courte'],
         'magicien' => ['Dague'],
-        'magicienne' => ['Dague'],
     ];
 
     private function equiperDepart(Personnage $personnage, string $classe): void

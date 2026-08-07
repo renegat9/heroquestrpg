@@ -40,6 +40,5 @@ return [
         'nain' => 'nain robuste à la barbe tressée, en armure, avec un marteau de guerre',
         'elfe' => 'elfe agile aux traits fins, avec un arc',
         'magicien' => 'magicien en longue robe, tenant un bâton, entouré d\'une aura arcanique',
-        'magicienne' => 'magicienne en longue robe, tenant un bâton, entourée d\'une aura arcanique',
     ],
 ];

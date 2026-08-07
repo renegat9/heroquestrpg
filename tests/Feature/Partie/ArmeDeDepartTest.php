@@ -33,7 +33,7 @@ function creerHerosParApi(string $nom, string $classe): Personnage
     if ($classe === 'elfe') {
         $charge['elements'] = ['air'];
     }
-    if (in_array($classe, ['magicien', 'magicienne'], true)) {
+    if ($classe === 'magicien') {
         $charge['elements'] = ['feu', 'eau', 'terre'];
     }
 

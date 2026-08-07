@@ -33,7 +33,7 @@ const emit = defineEmits(['choose']);
 const groupes = computed(() => sortsParElement(props.sorts ?? []));
 const dispos = computed(() => (props.sorts ?? []).filter((s) => s.disponible !== false).length);
 // Élision devant voyelle (« L'Elfe » et non « Le Elfe ») — les classes non
-// magiciennes restantes sont masculines (Le Barbare / Le Nain).
+// classes restantes sont masculines (Le Barbare / Le Nain / Le Magicien).
 const article = computed(() => (/^[aeiouyéèêh]/i.test(props.hero?.cls ?? '') ? "L'" : 'Le '));
 
 /** Carte d'un sort réel : option de menu associée + raison du blocage

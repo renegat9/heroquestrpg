@@ -8,7 +8,7 @@ import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import { useApi } from '../composables/useApi';
-import { CLASSES, CLASSES_JOUABLES, ELEMENTS, statutPersonnage, useGameStore } from '../store/game';
+import { CLASSES, ELEMENTS, statutPersonnage, useGameStore } from '../store/game';
 
 const router = useRouter();
 const api = useApi();
@@ -86,13 +86,12 @@ const erreurCreerPerso = ref('');
 // Nombre d'éléments choisis à la création par classe (parité HeroQuest de
 // base — doc 02 §2) : Magicien 3, Elfe 1, autres 0. Doit refléter
 // MoteurSorts::NB_ELEMENTS_DEPART côté serveur.
-const NB_ELEMENTS_CLASSE = { magicien: 3, magicienne: 3, elfe: 1 };
+const NB_ELEMENTS_CLASSE = { magicien: 3, elfe: 1 };
 const nbElementsRequis = computed(() => NB_ELEMENTS_CLASSE[nouvelleClasse.value] ?? 0);
 const estLanceur = computed(() => nbElementsRequis.value > 0);
 const listeElements = Object.entries(ELEMENTS).map(([k, v]) => ({ v: k, l: v.l, ic: v.ic }));
-// Seules les classes que le serveur accepte (CLASSES_JOUABLES) : lister tout
-// CLASSES offrait « Magicienne », que `Rule::exists('classes_heros')` rejette.
-const listeClasses = CLASSES_JOUABLES.map((k) => ({ v: k, l: CLASSES[k].l }));
+// CLASSES = exactement les classes de `classes_heros` (cf. store/game.js).
+const listeClasses = Object.entries(CLASSES).map(([k, v]) => ({ v: k, l: v.l }));
 
 // Changer de classe remet à zéro la sélection (les quotas diffèrent).
 watch(nouvelleClasse, () => { elementsChoisis.value = []; });
