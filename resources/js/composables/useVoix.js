@@ -150,6 +150,7 @@ let narrAudio = null;
 let narrPending = null;
 let narrBusy = false;
 let narApres = null; // callback « lecture terminée » de la narration en cours (B1)
+let narrChien = null; // chien de garde : libère le tour si la fin de lecture ne vient jamais
 
 function narrer(p) {
     const payload = typeof p === 'string' ? { texte: p } : (p || {});
@@ -174,6 +175,12 @@ function narrer(p) {
 
 /** Coupe net la narration en cours (audio pré-généré ou voix navigateur). */
 function stopNarration() {
+    // Le chien de garde de la narration COUPÉE doit mourir avec elle : sinon il
+    // se déclencherait plus tard et consommerait le callback de la narration
+    // SUIVANTE (narApres est au niveau module), en annulant son audio au passage.
+    clearTimeout(narrChien);
+    narrChien = null;
+
     if (narrAudio) { try { narrAudio.pause(); } catch { /* noop */ } narrAudio = null; }
     if (supporte) window.speechSynthesis.cancel();
     narrPending = null;
@@ -182,11 +189,34 @@ function stopNarration() {
     speaking.value = false;
 }
 
+/**
+ * Durée de lecture PLAUSIBLE d'un texte, en ms — base du chien de garde.
+ * ~2,5 mots/seconde en français, corrigé du débit, avec une marge large : on
+ * veut libérer un tour bloqué, pas couper une narration qui se déroule bien.
+ */
+function dureePlausible(texte, debitVoix) {
+    const mots = String(texte ?? '').trim().split(/\s+/).filter(Boolean).length;
+    const secondes = (mots / 2.5) / Math.max(0.5, debitVoix || 1);
+
+    return Math.min(120000, Math.max(12000, Math.round(secondes * 1000 * 1.8)));
+}
+
 function lancerNarration({ texte, url, apres }) {
     narrBusy = true;
     speaking.value = true;
     narApres = apres ?? null;
+    let termine = false;
+
     const fin = () => {
+        // IDEMPOTENT : `fin` peut être appelé par onend/onended, par onerror ET
+        // par le chien de garde ci-dessous — sans ce verrou, on enchaînerait
+        // deux fois la narration suivante et on posterait deux fois la fin de
+        // lecture.
+        if (termine) return;
+        termine = true;
+        clearTimeout(narrChien);
+        narrChien = null;
+
         narrBusy = false;
         speaking.value = false;
         narrAudio = null;
@@ -194,6 +224,18 @@ function lancerNarration({ texte, url, apres }) {
         if (narrPending) { const n = narrPending; narrPending = null; lancerNarration(n); }
         cb?.(); // « lecture terminée » (B1) — après avoir éventuellement enchaîné la suivante
     };
+
+    // CHIEN DE GARDE (B1). `apres` déclenche POST /table/lecture-terminee, qui
+    // est la SEULE chose éteignant « MJ réfléchit » : tant qu'il n'part pas,
+    // tous les joueurs restent gelés. Or on en dépend d'événements qui ne
+    // viennent pas toujours — `onend` de Web Speech ne se déclenche pas si
+    // l'onglet passe en arrière-plan, sur un texte long, ou quand la synthèse
+    // se coince ; un `<audio>` dont le réseau cale ne lève ni `onended` ni
+    // `onerror`. Le narrateur restait alors figé, `narrBusy` bloqué à true, et
+    // les narrations suivantes s'empilaient sans jamais être lues (constaté en
+    // partie réelle par René, 2026-08-07).
+    clearTimeout(narrChien);
+    narrChien = setTimeout(fin, dureePlausible(texte, debit.value));
     // « Narration par la voix du navigateur » (réglage de l'appareil) : la
     // voix du NARRATEUR est remplacée par Web Speech — on ignore l'audio
     // généré (IA dynamique comme répliques pré-enregistrées, même narrateur)
