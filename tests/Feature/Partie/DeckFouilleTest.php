@@ -626,3 +626,45 @@ it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function (
     expect($mm->fouillablesAdjacents($quete->carte->fresh(), (int) $meuble['x'] + 1, (int) $meuble['y']))
         ->toBeEmpty();
 });
+
+it('ne paie le coffre de salle qu UNE FOIS : le second fouilleur pioche normalement', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    // Coffre ORDINAIRE (celui qu'ouvre une porte secrète), pas celui de
+    // l'artefact : c'est lui qui payait chaque héros. Planté explicitement, le
+    // donjon de test n'en produisant pas toujours.
+    $salle = collect(array_keys($quete->carte->grille['salles']))
+        ->first(fn ($s) => (int) $s !== (int) $quete->salle_artefact && (int) $s !== 0);
+    $quete->update(['salles_coffre' => [(int) $salle]]);
+    $quete->refresh();
+
+    expect($quete->coffrePlein((int) $salle))->toBeTrue();
+
+    deplacerVersSalle($quete, $etat, (int) $salle);
+    $premier = fouiller();
+
+    expect($premier['coffre'] ?? false)->toBeTrue()
+        ->and($quete->fresh()->coffrePlein((int) $salle))->toBeFalse();
+
+    // Le compagnon fouille la MÊME salle : il a droit à sa fouille (une par
+    // héros), mais le coffre est VIDE — il pioche une carte du deck au lieu de
+    // remporter une seconde fois le même butin. À quatre héros, ce coffre
+    // payait quatre fois avant correctif (aligné sur le mobilier, décision de
+    // René 2026-08-07).
+    // Le premier a joué : l'initiative (figée pour la quête) passe au second.
+    $etat->refresh();
+    $etat->update(['a_joue' => true]);
+
+    $second = App\Models\Personnage::where('nom', 'Brunhilde')->firstOrFail();
+    $etatSecond = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $second->id)->firstOrFail();
+
+    deplacerVersSalle($quete->fresh(), $etatSecond, (int) $salle);
+
+    $resultat = test()->actingAs(JoueurAuthentifiable::where('identifiant', 'bob')->firstOrFail(), 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)
+        ->json('resultat');
+
+    expect($resultat['coffre'] ?? false)->toBeFalse();
+});

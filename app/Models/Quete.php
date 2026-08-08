@@ -179,6 +179,27 @@ class Quete extends Model
         return in_array($salle, $this->sallesCoffre(), true);
     }
 
+    /**
+     * Le coffre de cette salle est-il ENCORE plein ?
+     *
+     * Un coffre est un objet unique : le premier qui l'ouvre le vide, pour tout
+     * le groupe — comme le mobilier fouillable (décision de René, 2026-08-07).
+     * La fouille restant UNE PAR HÉROS, chaque compagnon repartait sinon avec le
+     * même butin : à quatre, un coffre payait quatre fois (vérifié en base sur
+     * une partie réelle — même potion rendue à chaque appel).
+     *
+     * Dérivé de `tresors_fouilles` plutôt que d'un nouveau marqueur : une salle
+     * déjà fouillée par QUI QUE CE SOIT a vu son coffre ouvert. Aucune colonne
+     * en plus, et l'état suit les snapshots tout seul.
+     *
+     * ⚠ À interroger AVANT `marquerTresorFouille()`, qui inscrit justement la
+     * salle dans cette liste.
+     */
+    public function coffrePlein(int $salle): bool
+    {
+        return $this->estSalleCoffre($salle) && ! in_array($salle, $this->tresorsFouilles(), true);
+    }
+
     /** Cette salle est-elle le coffre désigné (celui qui abrite l'artefact) ? */
     public function estSalleArtefact(int $salle): bool
     {

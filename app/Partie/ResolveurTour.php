@@ -1928,12 +1928,17 @@ final class ResolveurTour
         if ($quete->aFouille($salle, (int) $personnage->id)) {
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
         }
+
+        // Interrogé AVANT de marquer : `marquerTresorFouille` inscrit la salle
+        // dans la liste dont `coffrePlein` se déduit.
+        $coffre = $quete->coffrePlein($salle);
         $quete->marquerTresorFouille($salle, (int) $personnage->id);
 
-        // Une salle à COFFRE ne consomme aucune carte du deck : son butin est un
-        // bonus net. La salle du fond rend l'arme unique, celles ouvertes par une
-        // porte secrète rendent or ou potion.
-        $carte = $quete->estSalleCoffre($salle)
+        // Un coffre ne consomme aucune carte du deck : son butin est un bonus
+        // net. La salle du fond rend l'arme unique, celles ouvertes par une porte
+        // secrète rendent or ou potion. Mais UNE SEULE FOIS pour le groupe : les
+        // fouilleurs suivants cherchent dans la salle et piochent normalement.
+        $carte = $coffre
             ? $this->deck->carteCoffre($quete, $salle)
             : $this->deck->piocher($quete);
 
