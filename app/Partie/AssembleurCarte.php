@@ -34,14 +34,16 @@ use RuntimeException;
  *     ce qui garantit des couloirs droits ;
  *  4. chaque tuile est peinte sur `cases` (ses propres cases « p » sont
  *     refermées en mur : les portes réelles sont percées par le générateur) ;
- *  5. pour chaque arête (parent, enfant) : un couloir à 2 voies, et une
- *     JONCTION large de 2 cases — les deux voies débouchent dans les salles et
- *     portent chacune une porte-arête (4 portes par jonction, même `jonction`,
- *     ouvertes ENSEMBLE par MoteurPortes). Le passage à une seule case faisait
- *     du seuil un goulot : le tank le bouchait et le tireur derrière n'avait
- *     aucune ligne de vue (test de jeu 2026-07-31 — magicien muet 8 tours).
- *     Repli à une case quand l'intérieur d'une des deux salles est trop mince
- *     (jonctionElargissable), pour ne pas percer un angle ;
+ *  5. pour chaque arête (parent, enfant) : un couloir à 2 voies, débouchant
+ *     par un SEUIL D'UNE SEULE CASE — une porte-arête par salle, soit 2 par
+ *     jonction (décision de René, 2026-08-08 : le plateau n'a que des portes
+ *     d'une case). Les seuils étaient larges de 2 cases pour qu'un tank ne
+ *     bouche pas le passage au tireur (test de jeu 2026-07-31, magicien muet
+ *     8 tours) ; mais le jeu officiel règle ce cas AUTREMENT, par l'attaque en
+ *     DIAGONALE — « deux héros à la fois peuvent attaquer un monstre qui bloque
+ *     un seuil de porte », LR p. 14, cf. reference/16_armurerie.md §6.2, règle
+ *     que le moteur applique déjà (`attaque_diagonale`). La seconde voie du
+ *     couloir subsiste : elle élargit le COULOIR, jamais le seuil ;
  *  6. pièges (structure.pieges.min) posés au milieu des couloirs ;
  *  7. spawns : héros dans la salle 0 ; monstres en ROUND-ROBIN sur les autres
  *     salles (répartition — fini « tous dans la dernière pièce ») en
@@ -659,7 +661,10 @@ final class AssembleurCarte
         $parent = $arete['parent'];
         $enfant = $arete['enfant'];
         $direction = $arete['direction'];
-        $secondaires = [];   // 2e paire de portes quand la jonction est élargie
+        // Un SEUIL FAIT UNE CASE (décision de René, 2026-08-08) : plus de
+        // seconde paire de portes. Conservé vide pour ne pas changer le contrat
+        // de retour de creuserArete(), lu par l'appelant.
+        $secondaires = [];
 
         if ($direction === 'E' || $direction === 'W') {
             [$gauche, $droite] = $direction === 'E' ? [$parent, $enfant] : [$enfant, $parent];
@@ -677,14 +682,9 @@ final class AssembleurCarte
             for ($cx = $xPorteGauche; $cx <= $xPorteDroite; $cx++) {
                 $cases[$r][$cx] = 's';
             }
-            // Voie parallèle (r-1). Elle va jusqu'aux MURS DES SALLES quand les
-            // deux intérieurs l'autorisent : la jonction devient alors large de
-            // 2 cases, deux héros passent de front et un tireur a une ligne de
-            // vue à côté du tank. Sinon elle reste un cul-de-sac (1 case).
-            $large = $this->jonctionElargissable($cases, $salleGauche, $salleDroite, $r - 1, 'ew');
-            $debut = $large ? $xPorteGauche : $xPorteGauche + 1;
-            $fin = $large ? $xPorteDroite : $xPorteDroite - 1;
-            for ($cx = $debut; $cx <= $fin; $cx++) {
+            // Voie parallèle (r-1) : elle élargit le COULOIR, jamais le seuil —
+            // elle s'arrête donc avant les murs des salles (cf. SEUIL_UNE_CASE).
+            for ($cx = $xPorteGauche + 1; $cx <= $xPorteDroite - 1; $cx++) {
                 $cases[$r - 1][$cx] = 's';
             }
 
@@ -693,13 +693,6 @@ final class AssembleurCarte
             // (arête xPorteDroite-1|xPorteDroite). Les cases restent du sol.
             $porteGauche = $this->construirePorte($xPorteGauche, $r, 'e', $gauche === $parent ? $spec : null);
             $porteDroite = $this->construirePorte($xPorteDroite - 1, $r, 'e', $droite === $parent ? $spec : null);
-
-            if ($large) {
-                $secondaires = [
-                    $this->construirePorte($xPorteGauche, $r - 1, 'e', $gauche === $parent ? $spec : null),
-                    $this->construirePorte($xPorteDroite - 1, $r - 1, 'e', $droite === $parent ? $spec : null),
-                ];
-            }
 
             $porteParent = $gauche === $parent ? $porteGauche : $porteDroite;
             $porteEnfant = $gauche === $parent ? $porteDroite : $porteGauche;
@@ -720,10 +713,8 @@ final class AssembleurCarte
             for ($cy = $yPorteHaut; $cy <= $yPorteBas; $cy++) {
                 $cases[$cy][$c] = 's';
             }
-            $large = $this->jonctionElargissable($cases, $salleHaut, $salleBas, $c - 1, 'ns');
-            $debut = $large ? $yPorteHaut : $yPorteHaut + 1;
-            $fin = $large ? $yPorteBas : $yPorteBas - 1;
-            for ($cy = $debut; $cy <= $fin; $cy++) {
+            // Voie parallèle : élargit le COULOIR, jamais le seuil.
+            for ($cy = $yPorteHaut + 1; $cy <= $yPorteBas - 1; $cy++) {
                 $cases[$cy][$c - 1] = 's';
             }
 
@@ -731,13 +722,6 @@ final class AssembleurCarte
             // et entrée de la salle basse (arête yPorteBas-1|yPorteBas).
             $porteHaut = $this->construirePorte($c, $yPorteHaut, 's', $haut === $parent ? $spec : null);
             $porteBas = $this->construirePorte($c, $yPorteBas - 1, 's', $bas === $parent ? $spec : null);
-
-            if ($large) {
-                $secondaires = [
-                    $this->construirePorte($c - 1, $yPorteHaut, 's', $haut === $parent ? $spec : null),
-                    $this->construirePorte($c - 1, $yPorteBas - 1, 's', $bas === $parent ? $spec : null),
-                ];
-            }
 
             $porteParent = $haut === $parent ? $porteHaut : $porteBas;
             $porteEnfant = $haut === $parent ? $porteBas : $porteHaut;
@@ -751,48 +735,6 @@ final class AssembleurCarte
             'portes_secondaires' => $secondaires,
             'milieu' => $milieu,
         ];
-    }
-
-    /**
-     * La jonction peut-elle être large de 2 cases ?
-     *
-     * Condition : la voie parallèle doit tomber sur l'INTÉRIEUR des deux salles
-     * (du sol), pas sur leur mur. Une salle dont l'intérieur ne fait qu'une case
-     * d'épaisseur sur cet axe ne peut pas offrir d'ouverture double — on garde
-     * alors le passage à une case plutôt que de percer un trou dans un angle.
-     *
-     * @param  list<list<string>>  $cases
-     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salleA
-     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salleB
-     */
-    private function jonctionElargissable(array $cases, array $salleA, array $salleB, int $voie, string $axe): bool
-    {
-        foreach ([$salleA, $salleB] as $salle) {
-            if ($axe === 'ew') {
-                // Voie = une LIGNE : elle doit être une ligne intérieure de la salle.
-                if ($voie <= $salle['y'] || $voie >= $salle['y'] + $salle['hauteur'] - 1) {
-                    return false;
-                }
-                // …et la case juste en retrait du mur doit être du sol.
-                if (($cases[$voie][$salle['x'] + 1] ?? 'm') !== 's'
-                    || ($cases[$voie][$salle['x'] + $salle['largeur'] - 2] ?? 'm') !== 's') {
-                    return false;
-                }
-
-                continue;
-            }
-
-            // Voie = une COLONNE.
-            if ($voie <= $salle['x'] || $voie >= $salle['x'] + $salle['largeur'] - 1) {
-                return false;
-            }
-            if (($cases[$salle['y'] + 1][$voie] ?? 'm') !== 's'
-                || ($cases[$salle['y'] + $salle['hauteur'] - 2][$voie] ?? 'm') !== 's') {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

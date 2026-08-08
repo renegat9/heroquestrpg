@@ -339,7 +339,7 @@ it('répartit les monstres sur AU MOINS 2 salles distinctes, boss en position 0'
 // Jonctions larges de 2 cases (test de jeu 2026-07-31)
 // ---------------------------------------------------------------------------
 
-it('ouvre chaque jonction sur 2 CASES DE FRONT, portes comprises', function () {
+it('ne pose qu\'UNE porte par salle : un seuil fait UNE case, comme au plateau', function () {
     $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 7717);
 
     $parJonction = collect($carte['portes'])->groupBy('jonction');
@@ -347,25 +347,25 @@ it('ouvre chaque jonction sur 2 CASES DE FRONT, portes comprises', function () {
     expect($parJonction)->not->toBeEmpty();
 
     foreach ($parJonction as $jonction => $portes) {
-        // 4 portes = 2 par bord de salle (voie médiane + voie parallèle) : le
-        // passage fait deux cases de large de bout en bout. Sans ça, le tank
-        // bouchait le seuil et le tireur derrière n'avait aucune ligne de vue
-        // (constat du test de jeu à 2 : magicien muet pendant 8 tours).
-        expect($portes)->toHaveCount(4, "jonction {$jonction} : passage rétréci");
+        // 2 portes par jonction : une par salle, aux deux bouts du couloir.
+        // Ce test en exigeait 4 (seuils larges de 2 cases, pour qu'un tank ne
+        // bouche pas la vue au tireur). Le jeu officiel n'a que des portes
+        // d'UNE case et règle ce cas par l'attaque en DIAGONALE — « deux héros
+        // à la fois peuvent attaquer un monstre qui bloque un seuil de porte »
+        // (LR p. 14, reference/16_armurerie.md §6.2). Décision de René,
+        // 2026-08-08.
+        expect($portes)->toHaveCount(2, "jonction {$jonction} : seuil dédoublé");
 
-        // Les deux portes d'un même bord sont VOISINES (vraie ouverture double,
-        // pas deux passages distincts).
-        $paires = $portes->groupBy(fn ($p) => $p['cote'] === 'e' ? $p['x'] : $p['y']);
-        foreach ($paires as $bord) {
-            expect($bord)->toHaveCount(2);
-            $a = $bord[0];
-            $b = $bord[1];
-            expect(abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']))->toBe(1);
+        // …et jamais deux portes accolées sur un même bord.
+        $parBord = $portes->groupBy(fn ($p) => $p['cote'] === 'e' ? $p['x'] : $p['y']);
+        foreach ($parBord as $bord => $surCeBord) {
+            expect($surCeBord)->toHaveCount(1, "bord {$bord} : deux portes côte à côte");
         }
     }
 });
 
-it('ouvre les 2 voies du SEUIL poussé, et laisse fermé le seuil d\'en face', function () {
+
+it('n\'ouvre que le seuil poussé, et laisse fermé celui d\'en face', function () {
     [$groupe, $quete] = groupeAvecCarte(7717);
 
     $portes = $quete->carte->grille['portes'];
@@ -378,22 +378,18 @@ it('ouvre les 2 voies du SEUIL poussé, et laisse fermé le seuil d\'en face', f
     $apres = collect($quete->carte->fresh()->grille['portes'])
         ->filter(fn ($p) => ($p['jonction'] ?? null) === $jonction);
 
-    // Un SEUIL s'ouvre d'un bloc : à moitié ouvert, il redeviendrait un goulot
-    // d'une case — exactement ce que l'élargissement supprime. Mais une
-    // jonction compte DEUX seuils (un par salle) reliés par le couloir, et le
-    // seuil d'en face reste clos : sinon le groupe arrive au bout du corridor
-    // devant une porte déjà ouverte, sur une salle non révélée (test de jeu
-    // 2026-08-07). Ce test verrouillait l'ancien comportement.
-    $axe = (string) ($poussee['cote'] ?? 'e') === 'e' ? 'x' : 'y';
+    // Un couloir a DEUX seuils, un par salle, désormais d'une seule case
+    // chacun. Pousser l'un ne doit pas ouvrir l'autre : sinon le groupe arrive
+    // au bout du corridor devant une porte déjà ouverte, sur une salle non
+    // révélée (test de jeu 2026-08-07).
+    expect($apres)->toHaveCount(2)
+        ->and($apres->where('etat', 'ouverte'))->toHaveCount(1);
 
-    foreach ($apres as $p) {
-        $memeSeuil = (int) $p[$axe] === (int) $poussee[$axe];
-        expect($p['etat'] === 'ouverte')->toBe($memeSeuil,
-            "porte ({$p['x']},{$p['y']}) — seuil ".($memeSeuil ? 'poussé' : 'opposé'));
-    }
-
-    expect($apres->where('etat', 'ouverte'))->toHaveCount(2);
+    $ouverte = $apres->firstWhere('etat', 'ouverte');
+    expect($ouverte['x'])->toBe($poussee['x'])
+        ->and($ouverte['y'])->toBe($poussee['y']);
 });
+
 
 it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 formes)', function () {
     $formes = App\Models\Tuile::where('type', 'salle')->where('theme', 'generique')->get()
