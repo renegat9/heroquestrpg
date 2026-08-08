@@ -62,7 +62,42 @@ const doors = computed(() => (props.carte.portes ?? [])
             cadenas: p.etat === 'verrouillee',
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
-    }));
+    })
+    // FUSION DES DEUX VOIES D'UN MÊME SEUIL. Un passage large de 2 cases porte
+    // deux arêtes-portes côte à côte (AssembleurCarte) : dessinées séparément,
+    // chacune avec ses deux montants, elles se lisaient comme DEUX PORTES
+    // accolées au lieu d'une ouverture large (signalé par René, 2026-08-07).
+    // On les rend en un seul battant couvrant les deux cases, avec ses montants
+    // aux extrémités — ce que la géométrie décrit réellement.
+    //
+    // Fusion purement GÉOMÉTRIQUE : le contrat n'expose pas la `jonction` aux
+    // clients. Deux portes du même côté, même état, adjacentes sur l'axe du
+    // seuil, sont forcément les deux voies d'un même passage — c'est ainsi que
+    // la carte les produit.
+    // Trié d'abord : la carte ne garantit aucun ordre, et deux voies arrivaient
+    // en Y décroissant (19 puis 18) — la voisine n'était alors jamais reconnue.
+    .sort((a, b) => a.cote.localeCompare(b.cote) || (a.x - b.x) || (a.y - b.y))
+    .reduce((fusionnees, porte) => {
+        // Porte EST : le seuil s'étend en Y (même x, y qui se suivent).
+        // Porte SUD : le seuil s'étend en X (même y, x qui se suivent).
+        const axe = porte.cote === 'e' ? 'y' : 'x';
+        const fixe = porte.cote === 'e' ? 'x' : 'y';
+
+        const voisine = fusionnees.find((f) => f.cote === porte.cote
+            && f.etat === porte.etat
+            && f[fixe] === porte[fixe]
+            && f[axe] + f.span === porte[axe]);
+
+        if (voisine) {
+            voisine.span += 1;
+
+            return fusionnees;
+        }
+
+        fusionnees.push({ ...porte, span: 1 });
+
+        return fusionnees;
+    }, []));
 </script>
 
 <template>
@@ -113,7 +148,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             v-for="(d, i) in doors"
             :key="`d-${d.x}-${d.y}-${d.cote}-${i}`"
             class="dg-door-holder"
-            :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
+            :style="d.cote === 'e'
+                ? { gridColumn: d.x + 1, gridRow: `${d.y + 1} / span ${d.span}` }
+                : { gridColumn: `${d.x + 1} / span ${d.span}`, gridRow: d.y + 1 }"
         >
             <div class="dg-door" :class="[`cote-${d.cote}`, d.etat]" :title="d.titre">
                 <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
