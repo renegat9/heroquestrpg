@@ -9,10 +9,20 @@ use Illuminate\Database\Seeder;
 /**
  * Catalogue Market (doc 04 §4) + consommables du doc 01 §8 + un parchemin par sort (doc 02 §6).
  *
+ * **Armes, armures et outil sont la conversion des CARTES ÉQUIPEMENT du
+ * plateau** — prix, dés et mots-clés : la table ligne à ligne, avec le niveau
+ * de source de chaque valeur, est `reference/16_armurerie.md` §2.2. Les clés
+ * d'`effet` employées ici forment un vocabulaire fermé
+ * (`App\Engine\MotsClesEquipement`, référence `reference/19_mots_cles_effets.md`
+ * §9) : toute clé nouvelle doit y être déclarée, sans quoi
+ * `ObjetsFonctionnelsTest` casse.
+ *
  * Choix faits où les docs sont muets :
  * - prix des potions (« variable » dans le doc) : valeurs de départ à équilibrer ;
  * - parchemins : rareté/prix dérivés de la difficulté du sort (1 → commun/100, 2 → peu_commun/200, 3 → rare/350) ;
- * - casque/cotte/plates partagent l'emplacement « armure » (un seul slot d'armure au MVP).
+ * - casque/cotte/plates partagent l'emplacement « armure » (un seul slot d'armure
+ *   au MVP) — écart assumé avec le plateau, où casque, armure de corps et
+ *   bouclier se CUMULENT (reference/16 §10).
  */
 class ObjetSeeder extends Seeder
 {
@@ -38,15 +48,30 @@ class ObjetSeeder extends Seeder
             // est bien attestée pour les armes longues (livret p. 14).
             ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
-            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            // Broadsword : 3 dés, PAS de diagonale — le diagramme des armes
+            // longues (livret p. 14) lui oppose justement le bâton. Le prix est
+            // celui de la carte (250), pas les 350 qu'on portait : à 350 elle
+            // coûtait autant que l'arbalète et que l'épée longue, qui la
+            // dominent toutes deux.
+            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
+            // Longsword : la SECONDE arme que le livret nomme explicitement
+            // comme frappant en diagonale (« like the staff and the longsword »,
+            // p. 14) — et elle manquait au catalogue depuis le début, alors que
+            // le seul autre porteur de la diagonale était un bâton à 1 dé. Une
+            // main : elle se combine au bouclier.
+            ['nom' => 'Épée longue', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 // Pas de clé `ligne_de_vue` : c'est `portee: distance` qui la
                 // gouverne — MenuMoteur appelle Grille::ligneDeVue pour toute
                 // arme à distance. La clé ne faisait que doubler, sans lecteur.
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
+            // La hache de bataille N'EST PAS une arme longue : sa carte ne dit
+            // que « both hands ». Elle portait `attaque_diagonale`, ce qui en
+            // faisait la meilleure arme du jeu sur les deux axes à la fois.
             ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
-                'effet' => ['des_attaque' => 4, 'deux_mains' => true, 'attaque_diagonale' => true]],
+                'effet' => ['des_attaque' => 4, 'deux_mains' => true]],
 
             // Fiole trouvée en fouille : soin ALÉATOIRE (1d6), là où la potion
             // achetée au marché rend un montant fixe. Rareté `unique` pour la
@@ -62,7 +87,7 @@ class ObjetSeeder extends Seeder
             // rendu la carte du plateau.
             ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['attaque_supplementaire' => true]],
-            // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_durees_effets.md).
+            // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_mots_cles_effets.md).
             // Ces deux-là portaient `duree => 0`, qui n'est pas une durée mais
             // l'absence de compteur : rien ne les retirait jamais. Force et
             // Défense sont donc des BURSTS (+2 sur un jet), là où Rage, au même

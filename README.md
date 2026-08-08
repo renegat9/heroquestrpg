@@ -115,9 +115,25 @@ Un **entier** à la place d'un mot-clé signifie tout autre chose : un décompte
 
 Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`soi`, `heros`, `monstre`, `monstres_zone`) et **`resistance`** (`jet_mind`). `MotsClesSort::NON_IMPLEMENTES` recense à part les mots qu'un catalogue peut porter mais que le moteur n'applique pas encore — le guide ne les affiche pas, pour ne jamais promettre une règle absente.
 
+### ⚔️ Équipement : des cartes du plateau aux mots-clés
+
+Au plateau, une carte d'équipement dit son effet en une phrase — *« This weapon allows you to attack diagonally »*, *« You may not use a shield when using the battle axe »*. Ici l'effet est une **donnée** : chaque carte est convertie en **statistiques** (prix, dés) + **mots-clés** d'un vocabulaire fermé, `App\Engine\MotsClesEquipement`. La conversion carte par carte est en `reference/16_armurerie.md` §2.2, les mots en `reference/19_mots_cles_effets.md` §9.
+
+| famille | mots-clés |
+|---|---|
+| statistiques | `des_attaque` (**remplace** la valeur du porteur), `des_defense` (**s'ajoute**) |
+| portée | `attaque_diagonale`, `portee: distance`, `inutilisable_adjacent`, `jetable` |
+| mains / corps | `deux_mains`, `incompatible_deux_mains`, `deplacement_sans_d6` |
+| outil | `permet_desamorcage` |
+| consommables | `soin_pv_body`, `soin_pv_body_de`, `soin_pv_mind`, `bonus_des_attaque`, `bonus_des_defense`, `attaque_supplementaire`, `condition_appliquee`, `retire_condition`, `duree` |
+
+Deux phrases de carte ne passent **pas** par un mot-clé, exprès : *« may not be used by the wizard »* est porté par le couple `tag_equipement` × `classes_heros.tags_equipement` (le magicien ne déclare aucun tag d'armure — la règle est dite une fois, côté classe), et *« you may only move 1 red die »* devient `deplacement_sans_d6`, notre déplacement étant *base de classe + 1d6* et non deux dés rouges.
+
+Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalogue hors du vocabulaire (une règle annoncée que personne n'applique), et aucun mot déclaré que plus aucun objet ne porte (une règle qui n'existe que sur le papier).
+
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **564 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **581 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
@@ -135,7 +151,7 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 ## 📚 Documentation
 
 - **`docs/contrat-api.md`** — contrat API / front / temps réel (**source de vérité** ; à modifier en premier).
-- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**. Docs **16–18** sont des extraits sourcés des livrets officiels Avalon Hill 2021 (ne jamais semer une valeur qu'ils ne sourcent pas) ; **`19_mots_cles_effets.md`** fixe le vocabulaire des durées d'effet.
+- **`reference/`** — documents de conception (français). `00_synthese.md` est l'index : décisions par domaine, dépendances, questions ouvertes, périmètre MVP vs Phase 2. Docs 01–05 décidés ; 06–10 ont des questions ouvertes à ne pas trancher en silence. Toutes les valeurs chiffrées sont des **propositions de départ**. Docs **16–18** sont des extraits sourcés des livrets officiels Avalon Hill 2021 (ne jamais semer une valeur qu'ils ne sourcent pas — le §2 du doc 16 sépare explicitement ce que les *livrets* attestent de ce que les *cartes équipement* portent) ; **`19_mots_cles_effets.md`** fixe les vocabulaires d'effet : durées, sorts, équipement.
 - **`CLAUDE.md`** — guide pour les agents de code (incantations Docker, gotchas).
 
 ## 🔒 Sécurité (doc 11)

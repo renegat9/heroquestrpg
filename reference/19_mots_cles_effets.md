@@ -1,12 +1,15 @@
-# 19 — Mots-clés d’effet : durées, cibles, résistances
+# 19 — Mots-clés d’effet : durées, cibles, résistances, équipement
 
 > **Nature de ce document.** Contrairement aux docs 16-18, ce n'est pas un
 > extrait de livret officiel : c'est une **décision de portage**. Le jeu de
 > plateau n'a pas de système de durées — ses cartes disent leur effet en
 > toutes lettres. Nous en avons besoin parce que nos effets sont des données.
 >
-> Décidé le **2026-08-05** par René. Autorité côté code :
-> `App\Engine\DureeEffet`.
+> Décidé le **2026-08-05** par René. Autorité côté code : `App\Engine\DureeEffet`
+> (§2-5), `App\Engine\MotsClesSort` (§6-7), `App\Engine\MotsClesEquipement` (§9,
+> ajouté le 2026-08-08). Les trois classes disent la même chose : un effet est
+> une **donnée**, donc chaque valeur qu'il porte est un mot déclaré, câblé et
+> documenté — jamais du texte libre.
 
 ## 1. Pourquoi ce document existe
 
@@ -225,3 +228,88 @@ Si aucun mot-clé ne convient, **n'invente pas de valeur** : ajoute-la à
 `DureeEffet`, câble son déclencheur, et documente-la ici. Une valeur sans
 déclencheur est un effet qui ne s'arrête jamais — c'est exactement le bug que ce
 document referme.
+
+## 9. Mots-clés d'ÉQUIPEMENT (`App\Engine\MotsClesEquipement`)
+
+Troisième vocabulaire, et celui qui a la source la plus directe : au plateau,
+une **carte d'équipement** dit son effet en une phrase — « This weapon allows you
+to attack diagonally », « You may not use a shield when using the battle axe ».
+Convertir la carte, c'est traduire cette phrase en mots-clés. La conversion carte
+par carte est en `reference/16_armurerie.md` §2.2 ; ici, ce sont les mots.
+
+### Statistiques
+
+| clé | ce qu'elle fait | ⚠ |
+|---|---|---|
+| `des_attaque` | Dés d'attaque de l'arme. **REMPLACE** la valeur du porteur (doc 03 §8 : l'attaque vient de l'arme) — à mains nues, 1 dé. | |
+| `des_defense` | Dés de défense de la pièce. **S'AJOUTE** aux 2 dés communs aux quatre classes (LR p. 21). | |
+
+L'asymétrie remplace/ajoute n'est pas un détail d'implémentation : elle vient du
+plateau, et l'avoir manquée avait produit un barbare à 6 dés d'attaque (sa classe
+encodait déjà l'épée large, puis l'arme achetée s'y ajoutait).
+
+### Portée et ciblage
+
+| clé | ce qu'elle fait | ⚠ |
+|---|---|---|
+| `attaque_diagonale` | Le contact inclut les 8 cases au lieu de 4. **Asymétrique** : le monstre ne riposte jamais en diagonale, le livret qualifiant cette case de « safe » (LR p. 14). | |
+| `portee: distance` | Arme à distance : déclenche à elle seule le contrôle de ligne de vue. Pas de clé `ligne_de_vue` à côté — elle a été retirée, elle ne faisait que doubler. | |
+| `inutilisable_adjacent` | Interdit le tir quand un ennemi est au contact (arbalète). | **de nous** — le livret n'interdit pas le tir à bout portant |
+| `jetable` | L'arme peut être lancée en ligne de vue, puis elle est **détruite**. | la destruction est **de nous** : la dague officielle est une arme à distance permanente (LR p. 14) |
+
+### Mains, déplacement, outil
+
+| clé | ce qu'elle fait | ⚠ |
+|---|---|---|
+| `deux_mains` | Interdit le bouclier. **Orthogonal au `tag_equipement`** : ce mot dit « pas de bouclier avec », le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est `deux_mains` ET `arme_legere`, donc jouable par le magicien. | |
+| `incompatible_deux_mains` | La pièce **est** un bouclier : refuse de cohabiter avec `deux_mains`. | |
+| `deplacement_sans_d6` | Armure lourde : plus de d6, la base de classe seule. Porte le « unlike normal plate mail, this […] does not slow down its wearer » de *Borin's Armor* (LR p. 7). | |
+| `permet_desamorcage` | Désamorçage de piège — « you must possess a tool kit (or be the dwarf) » (LR p. 19). | |
+
+### Consommables
+
+`soin_pv_body` (montant fixe) · `soin_pv_body_de` (1d6 — Fiole de soin, ⚠ de
+nous : les potions officielles annoncent toujours leur montant) · `soin_pv_mind` ·
+`bonus_des_attaque` · `bonus_des_defense` · `attaque_supplementaire` (une
+**seconde attaque** ce tour, pas des dés en plus : chez nous l'attaque vient de
+l'arme) · `condition_appliquee` · `retire_condition` · `duree`.
+
+⚠ **Un bonus sans `duree` ne s'arrête jamais.** C'est le bug de §1, et c'est
+`bonus_des_attaque`/`bonus_des_defense` qui l'ont attrapé. Toute clé `bonus_*`
+s'accompagne d'un mot de §2.
+
+### Ce que la conversion NE passe PAS par un mot-clé
+
+Deux phrases de carte sont portées ailleurs, exprès :
+
+- **« May not be used by the wizard »** → `objets.tag_equipement` ×
+  `classes_heros.tags_equipement`. Le magicien ne déclare aucun tag d'armure,
+  donc aucune armure ne lui est accessible : la règle est dite une fois, côté
+  classe, plutôt que répétée sur chaque pièce.
+- **« Both hands »** → `deux_mains`, mais c'est le tag `arme_deux_mains` qui dit
+  *qui* peut la manier. Les deux mots coexistent parce qu'ils répondent à deux
+  questions différentes ; les fusionner interdirait le Bâton des Sept Sceaux au
+  magicien.
+
+### Clés inertes assumées
+
+`MotsClesEquipement::INERTES` — même principe que `NON_IMPLEMENTES` §7 : une clé
+d'affichage ou un doublon d'une autorité qui vit ailleurs, déclarée pour qu'on
+sache que son absence de lecteur est voulue.
+
+| clé | pourquoi elle est inerte |
+|---|---|
+| `sort_nom` | libellé de confort : le nom du sort double déjà celui du parchemin |
+| `difficulte_non_lanceur` | copie d'affichage ; `ResolveurTour` roule contre `sorts.difficulte_parchemin`, qui reste l'autorité (un test garde les deux synchronisées) |
+
+### Le garde-fou
+
+`ObjetsFonctionnelsTest` teste le vocabulaire **dans les deux sens** :
+
+1. aucune clé de catalogue hors de `MotsClesEquipement` — sinon c'est une règle
+   annoncée au joueur que personne n'applique ;
+2. aucun mot déclaré que plus aucun objet ne porte — sinon c'est une règle qui
+   n'existe que sur le papier.
+
+C'est le deuxième sens qui aurait attrapé `attaque_second_rang` : déclaré, affiché
+par le guide, porté par une Lance… et sans mécanique derrière.

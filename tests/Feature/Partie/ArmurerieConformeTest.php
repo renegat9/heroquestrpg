@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\GroupeController;
 use App\Models\Objet;
 use Database\Seeders\ObjetSeeder;
 
@@ -14,10 +15,12 @@ use Database\Seeders\ObjetSeeder;
  * liste exacte qu'on a acceptée). Ajouter une arme au seeder casse donc le
  * test tant qu'on n'a pas tranché : sourcée, ou divergence assumée.
  *
- * ⚠ Rappel du doc : AUCUN PRIX n'apparaît dans les deux livrets, et presque
- * aucun nombre de dés — ils vivaient sur les cartes équipement, jamais
- * numérisées. Les prix ne sont donc jamais testés ici : il n'y a rien à quoi
- * les comparer.
+ * ⚠ Deux NIVEAUX DE SOURCE, à ne pas mélanger (doc 16 §2) : les **livrets**
+ * (§2.1) ne donnent aucun prix et presque aucun nombre de dés ; ces valeurs
+ * vivent sur les **cartes équipement** (§2.2), un composant cartonné absent des
+ * PDF. Le premier test ci-dessous ne teste que le niveau « livret » ; le test
+ * de conversion (« convertit les cartes… ») fige le niveau « carte », qui n'est
+ * opposable qu'au paquet lui-même.
  */
 beforeEach(function () {
     $this->seed([ObjetSeeder::class]);
@@ -33,9 +36,15 @@ it('respecte les effets ATTESTÉS par les livrets', function () {
     // Dague : 1 dé, déduit de la carte magicien (LR p. 6).
     expect(effetDe('Dague')['des_attaque'])->toBe(1);
 
-    // Bâton : « Some long weapons, like the staff and the longsword, allow you
-    // to attack diagonally » (LR p. 14).
-    expect(effetDe('Bâton')['attaque_diagonale'])->toBeTrue();
+    // Bâton ET épée longue : le livret nomme EXACTEMENT ces deux-là — « Some
+    // long weapons, like the staff and the longsword, allow you to attack
+    // diagonally » (LR p. 14). Les deux doivent porter la diagonale…
+    expect(effetDe('Bâton')['attaque_diagonale'])->toBeTrue()
+        ->and(effetDe('Épée longue')['attaque_diagonale'])->toBeTrue();
+
+    // …et rien d'autre ne doit se l'attribuer sans source. La hache de bataille
+    // la portait : elle devenait la meilleure arme du jeu sur les deux axes.
+    expect(effetDe('Hache de bataille')['attaque_diagonale'] ?? false)->toBeFalse();
 
     // Épée large = Broadsword, « the most powerful starting weapon » (LR p. 13)
     // — donc au-dessus de l'épée courte, seule comparaison que le texte permet.
@@ -45,6 +54,9 @@ it('respecte les effets ATTESTÉS par les livrets', function () {
     // …et elle n'est PAS citée parmi les armes longues à diagonale (LR p. 14) :
     // le diagramme lui oppose justement le bâton.
     expect(effetDe('Épée large')['attaque_diagonale'] ?? false)->toBeFalse();
+
+    // Hache de bataille : « both hands », donc pas de bouclier avec.
+    expect(effetDe('Hache de bataille')['deux_mains'])->toBeTrue();
 
     // Arbalète : « daggers and crossbows [...] hit a monster from a distance ».
     expect(effetDe('Arbalète')['portee'])->toBe('distance');
@@ -73,7 +85,7 @@ it('donne aux héros l\'arme de départ des livrets', function () {
         'magicien' => 'Dague',
     ];
 
-    $reflet = new ReflectionClass(App\Http\Controllers\Api\GroupeController::class);
+    $reflet = new ReflectionClass(GroupeController::class);
     $depart = $reflet->getConstant('EQUIPEMENT_DEPART');
 
     foreach ($attendu as $classe => $arme) {
@@ -88,7 +100,7 @@ it('ne s\'écarte du plateau que sur les objets DÉJÀ recensés', function () {
     $horsSource = ['Hachette', 'Lance', 'Hache de bataille', 'Cotte de mailles'];
 
     // Attestés par leur nom dans les livrets (§2).
-    $sources = ['Dague', 'Bâton', 'Épée courte', 'Épée large', 'Arbalète',
+    $sources = ['Dague', 'Bâton', 'Épée courte', 'Épée large', 'Épée longue', 'Arbalète',
         'Bouclier', 'Casque', 'Armure de plates', 'Trousse à outils'];
 
     $catalogue = Objet::whereIn('categorie', ['arme', 'armure', 'outil'])
@@ -101,6 +113,42 @@ it('ne s\'écarte du plateau que sur les objets DÉJÀ recensés', function () {
 
     // Et l'inverse : un objet attesté ne doit pas disparaître du catalogue.
     expect(array_values(array_diff($sources, $catalogue)))->toBe([]);
+});
+
+it('convertit les cartes équipement en prix et en dés', function () {
+    // Niveau de source « CARTE » (reference/16_armurerie.md §2.2) : ces valeurs
+    // ne viennent PAS des deux livrets — qui n'en donnent aucune —, mais du
+    // paquet de cartes équipement lui-même. Elles sont figées ici pour que la
+    // conversion soit opposable : le catalogue portait une épée large à 350 (le
+    // prix de l'arbalète ET de l'épée longue, toutes deux supérieures) sans que
+    // rien ne le signale.
+    //
+    // [prix, dés d'attaque, dés de défense]
+    $cartes = [
+        'Dague' => [25, 1, 0],
+        'Bâton' => [100, 1, 0],
+        'Épée courte' => [150, 2, 0],
+        'Hachette' => [200, 2, 0],
+        'Lance' => [250, 2, 0],
+        'Épée large' => [250, 3, 0],
+        'Arbalète' => [350, 3, 0],
+        'Épée longue' => [350, 3, 0],
+        'Hache de bataille' => [450, 4, 0],
+        'Casque' => [125, 0, 1],
+        'Bouclier' => [150, 0, 1],
+        'Cotte de mailles' => [500, 0, 1],
+        'Armure de plates' => [850, 0, 2],
+        'Trousse à outils' => [250, 0, 0],
+    ];
+
+    foreach ($cartes as $nom => [$prix, $attaque, $defense]) {
+        $piece = Objet::where('nom', $nom)->firstOrFail();
+        $effet = (array) $piece->effet;
+
+        expect((int) $piece->prix_base)->toBe($prix, "{$nom} : prix")
+            ->and((int) ($effet['des_attaque'] ?? 0))->toBe($attaque, "{$nom} : dés d'attaque")
+            ->and((int) ($effet['des_defense'] ?? 0))->toBe($defense, "{$nom} : dés de défense");
+    }
 });
 
 it('recense les mécaniques que le plateau n\'atteste pas', function () {

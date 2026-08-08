@@ -141,11 +141,10 @@ export function effetVersChips(effet) {
         if (IGNORE.has(k) || v == null) continue;
         // `duree: 0` n'est pas une durée : c'est l'absence de durée. Le guide
         // affichait « Durée : 0 » sur les potions de force et de défense, ce
-        // qui se lit comme « expire immédiatement ». ⚠ Ces potions portent
-        // `duree`, que RIEN ne lit — le moteur (MoteurSorts::appliquerBuffPotion)
-        // lit `duree_tours`, qu'aucun objet ne porte : leur buff est en réalité
-        // consommé à la prochaine attaque, pas au bout d'un compte de tours.
-        // Clé décorative à trancher, cf. verdict 2026-08-05 §3.
+        // qui se lit comme « expire immédiatement ». La clé est désormais
+        // CÂBLÉE (App\Engine\DureeEffet, doc 19 §2) : les potions portent un
+        // mot-clé — `prochaine_attaque`, `fin_du_combat` — que le guide traduit
+        // via VALEURS.duree. Le filtre ne reste que pour les catalogues d'avant.
         if (k === 'duree' && (v === 0 || v === '0')) continue;
         if (k in EFFETS_DE && typeof v === 'number') {
             chips.push({ texte: `1d${v} ${EFFETS_DE[k]}` });
