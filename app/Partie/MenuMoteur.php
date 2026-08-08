@@ -358,7 +358,7 @@ final class MenuMoteur
 
             foreach ($adjacents->concat($aDistance) as $instance) {
                 $nomBase = $instance->monstre->nom_base;
-                $nom = $instance->habillage['nom'] ?? $nomBase;
+                $nom = $instance->nomAffiche();
                 $aPortee = in_array($instance->id, $idsADistance, true);
                 $lance = $armeJetable && ! $armeADistance && $aPortee;
 

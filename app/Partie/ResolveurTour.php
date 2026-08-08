@@ -635,7 +635,7 @@ final class ResolveurTour
             'des_attaque_effectifs' => $desAttaqueEffectifs,
             'cible' => [
                 'instance_id' => $instance->id,
-                'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
+                'nom' => $instance->nomAffiche(),
             ],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
@@ -1219,7 +1219,7 @@ final class ResolveurTour
                 'cible' => [
                     'type' => 'monstre',
                     'instance_id' => $instance->id,
-                    'nom' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
+                    'nom' => $instance->nomAffiche(),
                 ],
                 'touches' => $resultat->touches,
                 'boucliers' => $resultat->boucliers,
@@ -1308,7 +1308,7 @@ final class ResolveurTour
                 ? [
                     'type' => 'monstre',
                     'instance_id' => $cible['monstre']->id,
-                    'nom' => $cible['monstre']->habillage['nom'] ?? $cible['monstre']->monstre->nom_base,
+                    'nom' => $cible['monstre']->nomAffiche(),
                 ]
                 : ['type' => 'heros', 'personnage_id' => $cible['personnage']->id, 'nom' => $cible['personnage']->nom],
             'mind_cible' => $mind,
@@ -2001,7 +2001,7 @@ final class ResolveurTour
             } else {
                 $payload['monstre'] = [
                     'instance_id' => $errant->id,
-                    'nom' => $errant->habillage['nom'] ?? $errant->monstre->nom_base,
+                    'nom' => $errant->nomAffiche(),
                     'x' => (int) $errant->position_x,
                     'y' => (int) $errant->position_y,
                 ];
@@ -2351,7 +2351,7 @@ final class ResolveurTour
      */
     private function jouerMonstre(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
     {
-        $nomMonstre = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
+        $nomMonstre = $instance->nomAffiche();
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
 
         // Sommeil (doc 02 §7) : le monstre endormi NE JOUE PAS tant qu'il
@@ -2957,7 +2957,7 @@ final class ResolveurTour
         // narrateur ne recevait qu'un « salle découverte » nu et a décrit une
         // salle vide devant trois monstres qui venaient de surgir.
         $nomsReveles = $aReveler
-            ->map(fn ($i) => $i->habillage['nom'] ?? $i->monstre?->nom_base)
+            ->map(fn ($i) => $i->nomAffiche())
             ->filter()
             ->values()
             ->all();
@@ -3242,7 +3242,7 @@ final class ResolveurTour
             'portee' => $portee,
             'cible' => [
                 'instance_id' => $cible->id,
-                'nom' => $cible->habillage['nom'] ?? $cible->monstre->nom_base,
+                'nom' => $cible->nomAffiche(),
             ],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,

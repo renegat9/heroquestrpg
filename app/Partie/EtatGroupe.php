@@ -585,7 +585,7 @@ final class EtatGroupe
             ->map(fn (InstanceMonstre $i) => [
                 'type' => 'monstre',
                 'id' => $i->id,
-                'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                'nom' => $i->nomAffiche(),
                 // Type du CATALOGUE (bestiaire du guide) : le nom ci-dessus peut
                 // être un habillage IA (« Écumeur des cryptes ») — nom_base permet
                 // de relier le monstre à sa fiche du guide (mêmes stats).
@@ -679,7 +679,7 @@ final class EtatGroupe
             ->map(fn (InstanceMonstre $i) => [
                 'entite' => 'monstre',
                 'id' => $i->id,
-                'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                'nom' => $i->nomAffiche(),
                 'a_joue' => false, // les monstres jouent en bloc après les héros (C2)
                 'tombe' => false,
             ]);

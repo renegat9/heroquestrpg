@@ -288,7 +288,14 @@ class GroupeController extends Controller
      */
     private const EQUIPEMENT_DEPART = [
         'barbare' => ['Épée large'],
-        'nain' => ['Hachette', 'Trousse à outils'],
+        // Épée courte, comme l'elfe : « the shortsword is the starting weapon
+        // of the dwarf AND the elf » (LR p. 13, reference/16_armurerie.md §2).
+        // Le code donnait une Hachette — arme qui n'existe NULLE PART dans le
+        // matériel officiel (§10), et jetable, donc perdable définitivement —
+        // en contradiction avec le tableau du docblock juste au-dessus, qui
+        // annonçait déjà l'épée courte. Même attaque (2 dés), donc aucun
+        // rééquilibrage.
+        'nain' => ['Épée courte', 'Trousse à outils'],
         'elfe' => ['Épée courte'],
         'magicien' => ['Dague'],
     ];

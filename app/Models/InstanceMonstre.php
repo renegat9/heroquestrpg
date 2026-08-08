@@ -81,4 +81,24 @@ class InstanceMonstre extends Model
     {
         return $this->belongsTo(Monstre::class, 'monstre_id');
     }
+
+    /**
+     * Nom tel qu'on le MONTRE au joueur : l'habillage IA (ou le nom de
+     * catalogue), suivi d'une **étoile** quand l'instance est une élite.
+     *
+     * Une élite a plus de PV que sa fiche de bestiaire, et rien ne le disait :
+     * deux « Pilleur des Cryptes affamé » côte à côte, l'un à 1 PV et l'autre à
+     * 2, sans le moindre indice (signalé par René, 2026-08-07 — « un gobelin
+     * devrait avoir 1 pv pas 2 »).
+     *
+     * ⚠ Réservé à l'AFFICHAGE. Le contexte de l'IA (`ContexteAssembleur`) reçoit
+     * le nom NU : lui passer l'étoile ferait écrire au narrateur « le Gobelin ★
+     * s'avance ».
+     */
+    public function nomAffiche(): string
+    {
+        $nom = $this->habillage['nom'] ?? $this->monstre?->nom_base ?? 'Créature';
+
+        return $this->elite ? "{$nom} ★" : (string) $nom;
+    }
 }

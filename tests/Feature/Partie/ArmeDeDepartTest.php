@@ -54,7 +54,11 @@ it('donne à chaque classe son arme de départ et la valeur d\'attaque du platea
         ->and((int) $hero->fresh()->des_defense)->toBe(2);
 })->with([
     ['barbare', 'Épée large', 3],
-    ['nain', 'Hachette', 2],   // arme de départ du nain au plateau
+    // « The shortsword is the starting weapon of the dwarf and the elf »
+    // (LR p. 13, reference/16_armurerie.md §2). Ce test affirmait « Hachette,
+    // arme de départ du nain au plateau » — or la hachette n'existe NULLE PART
+    // dans les 43 pages des deux livrets (§10). Même attaque (2 dés).
+    ['nain', 'Épée courte', 2],
     ['elfe', 'Épée courte', 2],
     ['magicien', 'Dague', 1],
 ]);

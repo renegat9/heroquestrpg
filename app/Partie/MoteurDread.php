@@ -165,7 +165,7 @@ final class MoteurDread
         InstanceMonstre $instance,
         Collection $cibles,
     ): ?array {
-        $nomMonstre = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
+        $nomMonstre = $instance->nomAffiche();
         $acteur = ['type' => 'monstre', 'id' => $instance->id, 'nom' => $nomMonstre];
 
         // Collecte les actions Dread jouées ce tour (régénération + action principale).
@@ -390,7 +390,7 @@ final class MoteurDread
         Collection $cibles,
         array $acteur,
     ): array {
-        $nomMonstre = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
+        $nomMonstre = $instance->nomAffiche();
         $adjacents = $cibles->filter(function (EtatPersonnageQuete $c) use ($instance) {
             return abs((int) $instance->position_x - (int) $c->position_x)
                 + abs((int) $instance->position_y - (int) $c->position_y) === 1;
@@ -886,7 +886,7 @@ final class MoteurDread
         Collection $cibles,
         array $acteur,
     ): ?array {
-        $nomMonstre = $instance->habillage['nom'] ?? $instance->monstre->nom_base;
+        $nomMonstre = $instance->nomAffiche();
         $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
 
         // Vérifier que le monstre n'est pas déjà adjacent.
@@ -1090,7 +1090,7 @@ final class MoteurDread
 
         $payload = [
             'type' => 'regeneration',
-            'monstre' => $instance->habillage['nom'] ?? $instance->monstre->nom_base,
+            'monstre' => $instance->nomAffiche(),
             'pv_avant' => $avant,
             'pv_apres' => $apres,
         ];

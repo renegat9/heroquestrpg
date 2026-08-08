@@ -774,7 +774,7 @@ final class MoteurSorts
                 return [
                     'type' => 'monstre',
                     'id' => $i->id,
-                    'nom' => $i->habillage['nom'] ?? $i->monstre->nom_base,
+                    'nom' => $i->nomAffiche(),
                     'x' => (int) $i->position_x,
                     'y' => (int) $i->position_y,
                     'l' => (int) $e['l'],
