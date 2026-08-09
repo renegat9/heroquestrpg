@@ -2,11 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Models\Carte;
 use App\Models\GabaritQuete;
+use App\Models\Groupe;
 use App\Models\Mobilier;
+use App\Models\Quete;
+use App\Models\Tuile;
 use App\Partie\AssembleurCarte;
 use App\Partie\FabriqueGrille;
 use App\Partie\Grille;
+use App\Partie\MoteurPortes;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MobilierSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -35,14 +40,14 @@ function gabaritNormal(): GabaritQuete
  * Groupe minimal + quête + carte assemblée à cette graine — pour exercer
  * MoteurPortes sur une vraie carte sans démarrer une quête complète.
  *
- * @return array{0: \App\Models\Groupe, 1: \App\Models\Quete}
+ * @return array{0: Groupe, 1: Quete}
  */
 function groupeAvecCarte(int $graine): array
 {
     $groupe = creerGroupe();
     $carteAssemblee = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
 
-    $quete = \App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
         'gabarit_id' => gabaritNormal()->id,
         'titre' => 'Quête de test',
@@ -52,7 +57,7 @@ function groupeAvecCarte(int $graine): array
         'or_initial' => 0,
     ]);
 
-    \App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id,
         'largeur' => $carteAssemblee['largeur'],
         'hauteur' => $carteAssemblee['hauteur'],
@@ -77,13 +82,13 @@ function gabaritAvecBoss(): GabaritQuete
  *
  * @param  list<list<string>>  $cases
  * @param  list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>  $mobilier
- * @return array{0: \App\Models\Groupe, 1: \App\Models\Quete}
+ * @return array{0: Groupe, 1: Quete}
  */
 function groupeAvecCarteMobilier(array $cases, array $mobilier): array
 {
     $groupe = creerGroupe();
 
-    $quete = \App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
         'gabarit_id' => gabaritNormal()->id,
         'titre' => 'Quête de test',
@@ -96,7 +101,7 @@ function groupeAvecCarteMobilier(array $cases, array $mobilier): array
     $largeur = count($cases[0] ?? []);
     $hauteur = count($cases);
 
-    \App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id,
         'largeur' => $largeur,
         'hauteur' => $hauteur,
@@ -364,7 +369,6 @@ it('ne pose qu\'UNE porte par salle : un seuil fait UNE case, comme au plateau',
     }
 });
 
-
 it('n\'ouvre que le seuil poussé, et laisse fermé celui d\'en face', function () {
     [$groupe, $quete] = groupeAvecCarte(7717);
 
@@ -373,7 +377,7 @@ it('n\'ouvre que le seuil poussé, et laisse fermé celui d\'en face', function 
     $poussee = $portes[$index];
     $jonction = $poussee['jonction'];
 
-    app(App\Partie\MoteurPortes::class)->ouvrir($groupe, $quete->carte, (int) $index, 'test');
+    app(MoteurPortes::class)->ouvrir($groupe, $quete->carte, (int) $index, 'test');
 
     $apres = collect($quete->carte->fresh()->grille['portes'])
         ->filter(fn ($p) => ($p['jonction'] ?? null) === $jonction);
@@ -390,9 +394,8 @@ it('n\'ouvre que le seuil poussé, et laisse fermé celui d\'en face', function 
         ->and($ouverte['y'])->toBe($poussee['y']);
 });
 
-
 it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 formes)', function () {
-    $formes = App\Models\Tuile::where('type', 'salle')->where('theme', 'generique')->get()
+    $formes = Tuile::where('type', 'salle')->where('theme', 'generique')->get()
         ->map(fn ($t) => $t->grille['largeur'].'×'.$t->grille['hauteur'])
         ->unique();
 
@@ -401,11 +404,10 @@ it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 for
     expect($formes->count())->toBeGreaterThanOrEqual(6);
 
     // …et le seeder est re-semable sans dupliquer.
-    $avant = App\Models\Tuile::count();
-    (new Database\Seeders\TuileSeeder())->run();
-    expect(App\Models\Tuile::count())->toBe($avant);
+    $avant = Tuile::count();
+    (new TuileSeeder)->run();
+    expect(Tuile::count())->toBe($avant);
 });
-
 
 it('ne rend JAMAIS une salle tributaire d\'une porte secrète', function () {
     // Les liaisons supplémentaires ouvrent des BOUCLES : ce sont des raccourcis,
@@ -476,7 +478,7 @@ it('ne met jamais une porte secrète et une porte normale sur le même seuil', f
 
         $parCase = [];
         foreach ($carte['portes'] as $porte) {
-            foreach (App\Partie\Grille::casesPorte($porte) as $case) {
+            foreach (Grille::casesPorte($porte) as $case) {
                 $parCase[$case['x'].','.$case['y']][] = $porte['etat'];
             }
         }
@@ -501,7 +503,7 @@ it('ne pose qu\'UNE seule jonction par côté de salle, secrète comprise', func
             $parCote = [];
 
             foreach ($carte['portes'] as $porte) {
-                foreach (App\Partie\Grille::casesPorte($porte) as $case) {
+                foreach (Grille::casesPorte($porte) as $case) {
                     if ($case['x'] < $s['x'] || $case['x'] >= $s['x'] + $s['largeur']
                         || $case['y'] < $s['y'] || $case['y'] >= $s['y'] + $s['hauteur']) {
                         continue;

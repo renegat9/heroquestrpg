@@ -3,14 +3,19 @@
 declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
+use App\Events\MouvementAnime;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Inventaire;
+use App\Models\Objet;
 use App\Models\Quete;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
+use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -50,7 +55,7 @@ it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', fun
     expect((int) $etat->fresh()->deplacement_tour)->toBe(8);
 });
 
-it('Armure de plates : le héros avance de sa base SEULE, sans lancer le 1d6', function () {
+it('Armure de plates : le héros perd 2 cases de déplacement (encombrement)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1); // deplacement_base = 4
@@ -61,28 +66,29 @@ it('Armure de plates : le héros avance de sa base SEULE, sans lancer le 1d6', f
 
     // Armure ENFILÉE directement : on teste la règle de déplacement, pas la
     // maîtrise d'équipement (qui a ses propres tests).
-    $this->seed(Database\Seeders\ObjetSeeder::class);
-    App\Models\Inventaire::create([
+    $this->seed(ObjetSeeder::class);
+    Inventaire::create([
         'personnage_id' => $hero->id,
-        'objet_id' => App\Models\Objet::where('nom', 'Armure de plates')->firstOrFail()->id,
+        'objet_id' => Objet::where('nom', 'Armure de plates')->firstOrFail()->id,
         'emplacement' => 'armure',
         'quantite' => 1,
     ]);
 
     $etat->update(['deplacement_tour' => null, 'a_joue' => false]);
-    desFiges([6]); // un 6 : s'il était lu, l'allonce serait 10 au lieu de 4
+    desFiges([6]); // base 4 + d6 6 − malus 2 = 8
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     $dep = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
         ->firstWhere('type', 'deplacement');
 
-    // `de` à null est ce que le menu annonçait DÉJÀ (« null si Armure de
-    // plates ») alors qu'aucun appelant ne passait le drapeau : le dé était
-    // bel et bien lancé et ajouté. L'armure la plus chère n'avait aucun défaut.
+    // Le malus n'avait JAMAIS joué : aucun appelant ne le passait au moteur, et
+    // l'armure la plus chère du jeu n'avait que des avantages. Il vaut
+    // aujourd'hui 2 cases — « a 2 square movement penalty » (carte Plate Mail)
+    // — et non plus la suppression du d6, qui coûtait 3,5 cases en moyenne ET
+    // rendait le déplacement déterministe.
     expect($dep['parametres']['base'])->toBe(4)
-        ->and($dep['parametres']['de'])->toBeNull()
-        ->and($dep['parametres']['portee'])->toBe(4)
-        ->and((int) $etat->fresh()->deplacement_tour)->toBe(4);
+        ->and($dep['parametres']['portee'])->toBe(8)
+        ->and((int) $etat->fresh()->deplacement_tour)->toBe(8);
 });
 
 it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se déplacer (E1)', function () {
@@ -126,7 +132,7 @@ it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se
 });
 
 it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-case (E4)', function () {
-    \Illuminate\Support\Facades\Event::fake([\App\Events\MouvementAnime::class]);
+    Event::fake([MouvementAnime::class]);
 
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
@@ -146,7 +152,7 @@ it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-ca
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
         ->assertStatus(202);
 
-    \Illuminate\Support\Facades\Event::assertDispatched(\App\Events\MouvementAnime::class, function ($e) use ($groupe, $heroA, $depart, $cible) {
+    Event::assertDispatched(MouvementAnime::class, function ($e) use ($groupe, $heroA, $depart, $cible) {
         $mv = collect($e->mouvements)->firstWhere('id', $heroA->id);
 
         return $e->groupe->id === $groupe->id
@@ -279,14 +285,14 @@ it('sacrifie le déplacement restant quand on AGIT après avoir commencé à bou
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
     // Mouvement ENTAMÉ : 8 points au tour, 5 encore en poche.
     $etat->update(['deplacement_tour' => 8, 'deplacement_restant' => 5, 'a_deplace' => false, 'a_agi' => false]);
 
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202);
 
     // Règle du plateau : se déplacer PUIS agir, ou agir PUIS se déplacer —
@@ -303,15 +309,15 @@ it('garde le déplacement ENTIER quand on agit AVANT d\'avoir bougé', function 
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
     // Aucun mouvement entamé : le d6 du tour n'est même pas lancé.
     $etat->update(['deplacement_tour' => null, 'deplacement_restant' => null,
         'a_deplace' => false, 'a_agi' => false]);
 
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])->assertStatus(202);
 
     // Agir d'abord ne coûte RIEN au déplacement : il reste entier.

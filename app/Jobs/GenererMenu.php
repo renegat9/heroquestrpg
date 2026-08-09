@@ -153,8 +153,8 @@ class GenererMenu implements ShouldQueue
         }
 
         $this->publier($groupe, $personnage, [
-            'situation' => "Le maître du jeu a perdu le fil. Reprenez la main : terminez ce tour, "
-                ."la partie continue.",
+            'situation' => 'Le maître du jeu a perdu le fil. Reprenez la main : terminez ce tour, '
+                .'la partie continue.',
             'options' => [
                 ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'],
             ],

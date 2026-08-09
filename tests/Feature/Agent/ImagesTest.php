@@ -91,7 +91,7 @@ it('GenererImageHub sort avant tout appel HTTP quand images_actif=false, même a
 });
 
 it('préfère le jumeau WebP quand il existe, sans casser le repli PNG', function () {
-    $lib = app(App\Partie\Images\BibliothequeImages::class);
+    $lib = app(BibliothequeImages::class);
     $dossier = public_path('images/catalogue/classes');
     @mkdir($dossier, 0775, true);
 
@@ -109,6 +109,7 @@ it('préfère le jumeau WebP quand il existe, sans casser le repli PNG', functio
     expect($lib->url('catalogue/classes/testwebp.png'))->toBe('/images/catalogue/classes/testwebp.webp');
 
     // Rien du tout : null, comme avant.
-    @unlink($png); @unlink($webp);
+    @unlink($png);
+    @unlink($webp);
     expect($lib->url('catalogue/classes/testwebp.png'))->toBeNull();
 });

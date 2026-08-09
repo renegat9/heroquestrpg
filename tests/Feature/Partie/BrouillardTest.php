@@ -3,12 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\Quete;
-use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**

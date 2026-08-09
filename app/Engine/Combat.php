@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Engine;
 
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 
 /**
@@ -22,17 +23,15 @@ use App\Engine\Des\LanceurDes;
  */
 final class Combat
 {
-    public function __construct(private readonly LanceurDes $des)
-    {
-    }
+    public function __construct(private readonly LanceurDes $des) {}
 
     /**
-     * @param int          $desAttaque             dés de combat de l'attaquant (valeur d'Attaque, modificateurs inclus)
-     * @param int          $desDefense             dés de combat du défenseur (Défense + armure, modificateurs inclus)
-     * @param TypeFigurine $typeDefenseur          camp du DÉFENSEUR (détermine la face de bouclier qui compte)
-     * @param int          $pvBodyDefenseur        PV de Body courants du défenseur avant l'attaque
-     * @param bool         $relanceDesAttaqueRatee Coup puissant (nœud barbare) : relance UNE FOIS chaque dé
-     *                                              d'attaque raté (non-crâne), en gardant les crânes déjà obtenus
+     * @param  int  $desAttaque  dés de combat de l'attaquant (valeur d'Attaque, modificateurs inclus)
+     * @param  int  $desDefense  dés de combat du défenseur (Défense + armure, modificateurs inclus)
+     * @param  TypeFigurine  $typeDefenseur  camp du DÉFENSEUR (détermine la face de bouclier qui compte)
+     * @param  int  $pvBodyDefenseur  PV de Body courants du défenseur avant l'attaque
+     * @param  bool  $relanceDesAttaqueRatee  Coup puissant (nœud barbare) : relance UNE FOIS chaque dé
+     *                                        d'attaque raté (non-crâne), en gardant les crânes déjà obtenus
      */
     public function resoudreAttaque(
         int $desAttaque,
@@ -80,8 +79,8 @@ final class Combat
     }
 
     /**
-     * @param  list<\App\Engine\Des\FaceDeCombat>  $faces
-     * @return list<\App\Engine\Des\FaceDeCombat>
+     * @param  list<FaceDeCombat>  $faces
+     * @return list<FaceDeCombat>
      */
     private function relancerRatees(array $faces): array
     {

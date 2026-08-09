@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\GabaritQuete;
 use App\Models\Monstre;
 use App\Models\Quete;
 use Database\Seeders\GabaritQueteSeeder;
@@ -62,7 +63,7 @@ it('scène « defaite » au hub après un TPK (dernière quête échouée)', fun
 
     Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => \App\Models\GabaritQuete::query()->value('id'),
+        'gabarit_id' => GabaritQuete::query()->value('id'),
         'titre' => 'Quête 1', 'position_arc' => 1, 'type_jalon' => 'normale',
         'etat' => 'echouee', 'or_initial' => 0,
     ]);
@@ -77,7 +78,7 @@ it('scène « victoire » au hub après le boss final vaincu', function () {
 
     Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => \App\Models\GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
+        'gabarit_id' => GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
         'titre' => 'Confrontation finale', 'position_arc' => 1, 'type_jalon' => 'boss_final',
         'etat' => 'terminee', 'or_initial' => 0,
     ]);

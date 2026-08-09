@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Auth\JoueurAuthentifiable;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
+use App\Partie\Equipement;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\CapaciteSac;
 use Illuminate\Http\JsonResponse;
@@ -148,7 +149,8 @@ class AuthController extends Controller
                         // sac général à part — doc 01 §7 (emplacements). Chaque
                         // pièce ÉQUIPÉE porte son inventaire_id (pour déséquiper) ;
                         // chaque objet du sac porte `equipable` (pièce montable
-                        // dans un slot : arme_principale/arme_secondaire/armure).
+                        // dans un slot — cf. Equipement::SLOTS, qui compte le
+                        // `casque` à part depuis le 2026-08-08).
                         'equipement' => [
                             'armes' => $p->inventaire
                                 ->filter(fn ($l) => in_array($l->emplacement, ['arme_principale', 'arme_secondaire'], true) && $l->objet !== null)
@@ -167,6 +169,14 @@ class AuthController extends Controller
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
                             ),
+                            // Slot propre depuis le 2026-08-08 : le casque se
+                            // CUMULE avec l'armure de corps, comme au plateau.
+                            // Sans cette clé la manette affichait le héros
+                            // tête nue et ne proposait pas de le déséquiper.
+                            'casque' => with(
+                                $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                            ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
                                 ->map(fn ($l) => [
@@ -175,7 +185,7 @@ class AuthController extends Controller
                                     'categorie' => $l->objet->categorie,
                                     'rarete' => $l->objet->rarete,
                                     'quantite' => (int) $l->quantite,
-                                    'equipable' => in_array($l->objet->emplacement, \App\Partie\Equipement::SLOTS, true),
+                                    'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
                                 ])
                                 ->values()
                                 ->all(),
@@ -190,7 +200,7 @@ class AuthController extends Controller
                             // `acces_equipement`. Rendues par le service qui fait
                             // AUSSI le contrôle, pour que le badge « non maîtrisé »
                             // de l'étal ne puisse pas diverger de la règle réelle.
-                            'maitrises' => app(\App\Partie\Equipement::class)->tagsAccessibles($p),
+                            'maitrises' => app(Equipement::class)->tagsAccessibles($p),
                         ],
                         // Consommables (potions) réels : la manette propose « Boire »
                         // à tout moment (action gratuite, canon) — POST /potions.

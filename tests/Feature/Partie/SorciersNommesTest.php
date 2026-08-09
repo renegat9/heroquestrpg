@@ -18,6 +18,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -50,8 +51,8 @@ function repertoireDe(string $nomMonstre): array
     $methode = new ReflectionMethod($moteur, 'sortsDisponibles');
     $methode->setAccessible(true);
 
-    /** @var \Illuminate\Support\Collection<int, SortDread> $sorts */
-    $sorts = $methode->invoke($moteur, $instance, new Quete());
+    /** @var Collection<int, SortDread> $sorts */
+    $sorts = $methode->invoke($moteur, $instance, new Quete);
 
     return $sorts->pluck('nom')->all();
 }

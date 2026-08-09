@@ -28,6 +28,7 @@ final class GeminiClient implements ClientLLM
 {
     /** Réessais sur 429/5xx (rate limit) ; au-delà d'une attente trop longue, on abandonne. */
     private const MAX_REESSAIS = 6;
+
     private const ATTENTE_MAX_SECONDES = 65;
 
     public function __construct(

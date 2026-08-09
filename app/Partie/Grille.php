@@ -72,7 +72,7 @@ final class Grille
      * cleArete(). Une porte NON ouverte coupe le PASSAGE et la VUE sur cette
      * arête ; une porte ouverte est franchissable et transparente.
      *
-     * @var array<string, string>  clé arête → 'ouverte' | 'fermee' | 'verrouillee' | 'secrete'
+     * @var array<string, string> clé arête → 'ouverte' | 'fermee' | 'verrouillee' | 'secrete'
      */
     private array $portes = [];
 

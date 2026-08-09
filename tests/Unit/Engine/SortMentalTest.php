@@ -65,7 +65,7 @@ describe('SortMental — résolution binaire (décision S2, doc 02 §5)', functi
 
 describe('SortMental — immunité Mind 0 (doc 09 §2)', function () {
     it('une cible à Mind 0 (mort-vivant) est immunisée, aucun dé lancé', function () {
-        $lanceur = new LanceurDeterministe(); // file vide : tout tirage exploserait
+        $lanceur = new LanceurDeterministe; // file vide : tout tirage exploserait
         $resultat = (new SortMental($lanceur))->resoudre(mindCible: 0);
 
         expect($resultat->issue)->toBe(IssueSortMental::Immunise)
@@ -75,7 +75,7 @@ describe('SortMental — immunité Mind 0 (doc 09 §2)', function () {
     });
 
     it('l immunité vaut quelle que soit la difficulté du sort', function () {
-        $resultat = (new SortMental(new LanceurDeterministe()))
+        $resultat = (new SortMental(new LanceurDeterministe))
             ->resoudre(mindCible: 0, difficulte: 3);
 
         expect($resultat->issue)->toBe(IssueSortMental::Immunise);

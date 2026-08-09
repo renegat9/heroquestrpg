@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Agent\Image;
 
+use App\Agent\Audio\TtsGemini;
 use App\Agent\Exceptions\AppelLlmException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Http;
  * images FIXES (catalogue) sont pré-générées hors-ligne (commande
  * `images:generer`) ; les DYNAMIQUES (boss/scène/hub/portrait) en arrière-plan
  * (jobs). Jamais bloquant en jeu ; sans clé/asset, le front retombe sur les
- * icônes. Calqué sur {@see \App\Agent\Audio\TtsGemini} (même HTTP + retry 429).
+ * icônes. Calqué sur {@see TtsGemini} (même HTTP + retry 429).
  *
  * L'API renvoie une image inline (base64, généralement PNG) dans
  * `candidates[0].content.parts[].inlineData.data` — on renvoie les octets bruts.
@@ -26,6 +27,7 @@ final class ImageGemini
 {
     /** Réessais sur 429/5xx ; au-delà d'une attente trop longue, on abandonne (quota). */
     private const MAX_REESSAIS = 6;
+
     private const ATTENTE_MAX_SECONDES = 65;
 
     public function __construct(
@@ -124,7 +126,7 @@ final class ImageGemini
     /**
      * Délai avant réessai sur 429/5xx : le `retryDelay` (details.RetryInfo)
      * s'il est présent, sinon un backoff exponentiel. +1 s de marge.
-     * (Repris de {@see \App\Agent\Audio\TtsGemini}.)
+     * (Repris de {@see TtsGemini}.)
      */
     private function delaiReessai(Response $reponse, int $tentative): int
     {

@@ -33,7 +33,7 @@ it('appelle Voyage AI avec le bon payload et parse le vecteur', function () {
     });
 });
 
-it("distingue les textes de recherche (input_type query)", function () {
+it('distingue les textes de recherche (input_type query)', function () {
     config()->set('services.voyage.api_key', 'cle-test');
     config()->set('services.voyage.dimension', 4);
 
@@ -59,7 +59,7 @@ it('lève une AppelLlmException sur erreur API ou vecteur de mauvaise dimension'
     expect(fn () => (new EmbeddingsVoyage)->vecteur('x'))->toThrow(AppelLlmException::class);
 });
 
-it("binde Voyage quand la clé est présente, le repli lexical sinon", function () {
+it('binde Voyage quand la clé est présente, le repli lexical sinon', function () {
     config()->set('services.voyage.api_key', 'cle-test');
     expect(app(Embeddings::class))->toBeInstanceOf(EmbeddingsVoyage::class);
 

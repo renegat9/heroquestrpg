@@ -7,6 +7,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Partie\EtatGroupe;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -16,6 +17,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Vocabulaire des durées d'effet (reference/19_mots_cles_effets.md).
@@ -27,7 +29,7 @@ use Illuminate\Support\Facades\DB;
  * attaque. Ces tests verrouillent le sens de chaque mot-clé.
  */
 beforeEach(function () {
-    Illuminate\Support\Facades\Http::fake();
+    Http::fake();
     config(['services.anthropic.api_key' => null, 'services.gemini.api_key' => null]);
     $this->seed([SortSeeder::class, ObjetSeeder::class, ConditionSeeder::class,
         MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
@@ -210,7 +212,7 @@ it('expose le bonus des buffs dans l\'état, pour que le joueur le VOIE', functi
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    $entite = fn () => collect(app(App\Partie\EtatGroupe::class)->payload($groupe->fresh())['entites'])
+    $entite = fn () => collect(app(EtatGroupe::class)->payload($groupe->fresh())['entites'])
         ->firstWhere('id', $hero->id);
 
     expect($entite()['bonus_des_defense'])->toBe(0);

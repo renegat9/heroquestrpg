@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
+use App\Events\MjReflechit;
 use App\Http\Controllers\Api\TableController;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\EtatGroupe;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
@@ -13,6 +16,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -141,14 +145,14 @@ it('lecture-terminee (table) éteint « MJ réfléchit » — dégèle le joueur
     $groupe = creerGroupe('table-1');
     $this->postJson('/api/table', ['code' => 'table-1'])->assertOk();
 
-    Illuminate\Support\Facades\Event::fake([App\Events\MjReflechit::class]);
+    Event::fake([MjReflechit::class]);
     // Simule l'état « MJ réfléchit » posé à la résolution d'une action.
-    Illuminate\Support\Facades\Cache::put(App\Partie\EtatGroupe::cleMjReflechit($groupe->id), true, now()->addMinutes(5));
+    Cache::put(EtatGroupe::cleMjReflechit($groupe->id), true, now()->addMinutes(5));
 
     $this->postJson('/api/table/lecture-terminee')->assertNoContent();
 
-    Illuminate\Support\Facades\Event::assertDispatched(
-        App\Events\MjReflechit::class,
+    Event::assertDispatched(
+        MjReflechit::class,
         fn ($e) => $e->groupe->id === $groupe->id && $e->actif === false,
     );
 });
@@ -344,7 +348,7 @@ it('refuse d\'utiliser un perso qui n\'appartient pas au joueur', function () {
     $personnage->update(['groupe_actif_id' => null]);
 
     // Joueur B essaie de créer un groupe avec le perso de A.
-    $joueurB = \App\Auth\JoueurAuthentifiable::create([
+    $joueurB = JoueurAuthentifiable::create([
         'pseudo' => 'bob',
         'identifiant' => 'bob',
         'mot_de_passe' => 'secret',
@@ -392,7 +396,7 @@ it('POST pret stocke le statut et broadcast PretsMaj', function () {
     $groupe = creerGroupe('table-1');
     $perso = creerHeros($joueur, $groupe, 'Albrecht', 1);
 
-    $reponse = $this->postJson("/api/groupes/table-1/pret", [
+    $reponse = $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso->id,
         'pret' => true,
     ])->assertOk();
@@ -412,7 +416,7 @@ it('la quête ne démarre PAS si le narrateur est inactif', function () {
     $perso = creerHeros($joueur, $groupe, 'Albrecht', 1);
 
     // Pas de heartbeat actif.
-    $reponse = $this->postJson("/api/groupes/table-1/pret", [
+    $reponse = $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso->id,
         'pret' => true,
     ])->assertOk();
@@ -433,7 +437,7 @@ it('la quête ne démarre PAS si un joueur n\'est pas prêt', function () {
     Cache::put(TableController::cleActive($groupe->id), true, now()->addSeconds(30));
 
     // Seul le premier perso est prêt.
-    $reponse = $this->postJson("/api/groupes/table-1/pret", [
+    $reponse = $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso1->id,
         'pret' => true,
     ])->assertOk();
@@ -455,7 +459,7 @@ it('la quête DÉMARRE quand tous prêts et narrateur actif', function () {
     Cache::put(TableController::cleActive($groupe->id), true, now()->addSeconds(30));
 
     // Perso 1 prêt (pas encore tous).
-    $this->postJson("/api/groupes/table-1/pret", [
+    $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso1->id,
         'pret' => true,
     ])->assertOk();
@@ -464,7 +468,7 @@ it('la quête DÉMARRE quand tous prêts et narrateur actif', function () {
     expect($groupe->phase)->toBe('hub');
 
     // Perso 2 prêt (tous prêts + narrateur) → démarrage.
-    $reponse = $this->postJson("/api/groupes/table-1/pret", [
+    $reponse = $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso2->id,
         'pret' => true,
     ])->assertOk();
@@ -490,7 +494,7 @@ it('refuse la route pret pour un non-membre du groupe', function () {
     $autreGroupe = creerGroupe('table-autre');
     $perso = creerHeros($joueur, $autreGroupe, 'Albrecht', 1);
 
-    $this->postJson("/api/groupes/table-1/pret", [
+    $this->postJson('/api/groupes/table-1/pret', [
         'personnage_id' => $perso->id,
         'pret' => true,
     ])->assertStatus(422);

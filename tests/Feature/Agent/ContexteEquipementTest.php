@@ -41,7 +41,7 @@ it("expose l'équipement porté et le sac réels des héros dans l'état vivant"
         ->and($equip['sac'])->toContain($auSac->nom);
 });
 
-it("décrit un héros les mains vides quand il ne porte rien (aucun objet inventé)", function () {
+it('décrit un héros les mains vides quand il ne porte rien (aucun objet inventé)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Nu', 1, ['classe' => 'magicien']); // sans inventaire

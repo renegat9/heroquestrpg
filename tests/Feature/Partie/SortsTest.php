@@ -23,6 +23,7 @@ use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -58,7 +59,7 @@ function sortIdParNom(string $nom): int
 /**
  * Options du menu MOTEUR re-proposé à un joueur pour un héros.
  */
-function optionsMenuSorts(Groupe $groupe, JoueurAuthentifiable $joueur, Personnage $hero): \Illuminate\Support\Collection
+function optionsMenuSorts(Groupe $groupe, JoueurAuthentifiable $joueur, Personnage $hero): Collection
 {
     GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id);
 
@@ -359,7 +360,7 @@ it('soigne +4 PV Body plafonnés au maximum (Eau de Guérison)', function () {
     expect($brunhilde->fresh()->pv_body)->toBe(8);
 });
 
-it("Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la condition est consommée", function () {
+it('Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la condition est consommée', function () {
     [$alice, $groupe, $mage, $quete, $bob, $brunhilde] = demarrerQueteSorts(avecSecond: true);
 
     // Un seul monstre, affaibli, au contact de Brunhilde (3 dés d'attaque).

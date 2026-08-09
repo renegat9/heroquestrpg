@@ -6,6 +6,7 @@ namespace App\Agent\Audio;
 
 use App\Agent\Exceptions\AppelLlmException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -27,6 +28,7 @@ final class TtsGemini
 
     /** Réessais sur 429 (rate limit) ; au-delà d'une attente trop longue, on abandonne (quota journalier). */
     private const MAX_REESSAIS = 6;
+
     private const ATTENTE_MAX_SECONDES = 65;
 
     public function __construct(
@@ -124,7 +126,7 @@ final class TtsGemini
      * par l'API (details.RetryInfo) s'il est présent, sinon un backoff
      * exponentiel. +1 s de marge.
      */
-    private function delaiReessai(\Illuminate\Http\Client\Response $reponse, int $tentative): int
+    private function delaiReessai(Response $reponse, int $tentative): int
     {
         foreach ((array) $reponse->json('error.details', []) as $detail) {
             if (($detail['@type'] ?? '') === 'type.googleapis.com/google.rpc.RetryInfo'

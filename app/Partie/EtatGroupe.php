@@ -6,8 +6,10 @@ namespace App\Partie;
 
 use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
+use App\Models\Condition;
 use App\Models\Evenement;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Personnage;
@@ -470,7 +472,7 @@ final class EtatGroupe
             ->with('mercenaire')
             ->orderBy('id')
             ->get()
-            ->map(fn (\App\Models\GroupeMercenaire $a) => [
+            ->map(fn (GroupeMercenaire $a) => [
                 'type' => 'allie',
                 'id' => $a->id,
                 'nom' => $a->mercenaire->nom,
@@ -498,7 +500,7 @@ final class EtatGroupe
             ->with('mercenaire')
             ->orderBy('id')
             ->get()
-            ->map(fn (\App\Models\GroupeMercenaire $a) => [
+            ->map(fn (GroupeMercenaire $a) => [
                 'id' => $a->id,
                 'mercenaire_id' => $a->mercenaire_id,
                 'nom' => $a->mercenaire->nom,
@@ -621,7 +623,7 @@ final class EtatGroupe
     {
         return $personnage->conditions()
             ->get()
-            ->map(fn (\App\Models\Condition $c) => [
+            ->map(fn (Condition $c) => [
                 'nom' => $c->nom,
                 'duree' => (int) $c->pivot->duree,
             ])

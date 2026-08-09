@@ -9,10 +9,16 @@ use Illuminate\Database\Seeder;
 /**
  * Catalogue Market (doc 04 §4) + consommables du doc 01 §8 + un parchemin par sort (doc 02 §6).
  *
- * **Armes, armures et outil sont la conversion des CARTES ÉQUIPEMENT du
- * plateau** — prix, dés et mots-clés : la table ligne à ligne, avec le niveau
- * de source de chaque valeur, est `reference/16_armurerie.md` §2.2. Les clés
- * d'`effet` employées ici forment un vocabulaire fermé
+ * **Armes et armures sont la conversion carte par carte du paquet d'armurerie
+ * de Ye Olde Inn** (« Sjeng's equipment », 26 cartes retenues sur 27) — prix,
+ * dés, restrictions de classe et mots-clés : la table ligne à ligne, avec le
+ * niveau de source de chaque valeur, est `reference/16_armurerie.md` §2.2.
+ * ⚠ Ce paquet est une RÉVISION assumée du jeu de base, pas le paquet officiel
+ * Avalon Hill : son auteur écrit « I have changed some item costs and
+ * functionality ». Les prix et les dés viennent donc de LUI, et le §2.2 dit
+ * pour chaque ligne ce que les livrets officiels corroborent par ailleurs.
+ *
+ * Les clés d'`effet` employées ici forment un vocabulaire fermé
  * (`App\Engine\MotsClesEquipement`, référence `reference/19_mots_cles_effets.md`
  * §9) : toute clé nouvelle doit y être déclarée, sans quoi
  * `ObjetsFonctionnelsTest` casse.
@@ -20,58 +26,92 @@ use Illuminate\Database\Seeder;
  * Choix faits où les docs sont muets :
  * - prix des potions (« variable » dans le doc) : valeurs de départ à équilibrer ;
  * - parchemins : rareté/prix dérivés de la difficulté du sort (1 → commun/100, 2 → peu_commun/200, 3 → rare/350) ;
- * - casque/cotte/plates partagent l'emplacement « armure » (un seul slot d'armure
- *   au MVP) — écart assumé avec le plateau, où casque, armure de corps et
- *   bouclier se CUMULENT (reference/16 §10).
+ * - la trousse à outils ne vient pas de ce paquet (il n'a que des armes et des
+ *   armures) mais du livret officiel, LR p. 19.
  */
 class ObjetSeeder extends Seeder
 {
     public function run(): void
     {
         $objets = [
-            // ----- Armes -----
-            ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
-                'effet' => ['des_attaque' => 1, 'jetable' => true]],
-            ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+            // ----- Armes (20 cartes, par prix croissant) -----
+            //
+            // Les RESTRICTIONS DE CLASSE des cartes passent par `tag_equipement`
+            // × `classes_heros.tags_equipement` — jamais par une clé d'effet :
+            //   sans mention        → `arme_legere`   (les quatre classes)
+            //   « not Wizard »      → `arme_courante` / `arme_distance`
+            //   « not Wizard/Elf »  → `arme_deux_mains`
+            //   « not Wizard/Dwarf »→ `arme_arc_long`
+            //   « not Wizard/Barb. »→ `arme_arc_court`
+            //   « not Barb./Dwarf » → `arme_erudit`
+            // `deux_mains` reste ORTHOGONAL au tag : la hallebarde est à deux
+            // mains et pourtant `arme_courante`, le bâton à deux mains et
+            // pourtant accessible au magicien.
+            //
+            // Non portée : la TORCHE (2 dés, dégâts de feu, éclaire toute case
+            // vue, dure une quête). Ni l'éclairage ni un type de dégât « feu »
+            // n'existent chez nous ; la semer reviendrait à annoncer au joueur
+            // deux règles que le moteur n'applique pas (reference/16 §10).
+            ['nom' => 'Canne', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_erudit',
                 'effet' => ['des_attaque' => 1, 'attaque_diagonale' => true]],
-            ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Fronde', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 1, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
+            ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 1, 'jetable' => true]],
+            ['nom' => 'Fouet', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 175, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 1, 'attaque_diagonale' => true]],
+            // Le bâton est à DEUX MAINS sur sa carte, et passe de 1 à 2 dés :
+            // l'arme du magicien cesse d'être un objet de figuration.
+            ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'deux_mains' => true]],
+            ['nom' => 'Arc court', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_arc_court',
+                'effet' => ['des_attaque' => 2, 'portee' => 'distance', 'inutilisable_adjacent' => true, 'deux_mains' => true]],
+            ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 225, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2]],
-            // Arme de départ du NAIN au plateau : mêmes 2 dés que l'épée courte
-            // — sa force est ailleurs (outils, Forge, robustesse) —, mais
-            // lançable, et perdue une fois lancée comme toute arme de jet.
-            ['nom' => 'Hachette', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            // Hachette et Lance sont les deux autres armes de JET du paquet, avec
+            // la dague. La carte dit « thrown at an enemy in your line of sight,
+            // but not adjacent » — et ne dit RIEN d'une perte : c'est nous qui
+            // détruisons l'arme lancée (reference/16 §10).
+            ['nom' => 'Hachette', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'jetable' => true]],
-            // L'« attaque au second rang » a été retirée : clé sans lecteur, et
-            // le mécanisme n'existe nulle part dans le jeu de plateau — pas plus
-            // que l'arme « Spear » elle-même, dont seul un PIÈGE porte le nom
-            // (reference/16_armurerie.md §10). La Lance garde sa diagonale, qui
-            // est bien attestée pour les armes longues (livret p. 14).
             ['nom' => 'Lance', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'jetable' => true]],
+            ['nom' => 'Rapière', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 275, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
             // Broadsword : 3 dés, PAS de diagonale — le diagramme des armes
-            // longues (livret p. 14) lui oppose justement le bâton. Le prix est
-            // celui de la carte (250), pas les 350 qu'on portait : à 350 elle
-            // coûtait autant que l'arbalète et que l'épée longue, qui la
-            // dominent toutes deux.
-            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            // longues du livret officiel (p. 14) lui oppose justement le bâton.
+            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 300, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
-            // Longsword : la SECONDE arme que le livret nomme explicitement
-            // comme frappant en diagonale (« like the staff and the longsword »,
-            // p. 14) — et elle manquait au catalogue depuis le début, alors que
-            // le seul autre porteur de la diagonale était un bâton à 1 dé. Une
-            // main : elle se combine au bouclier.
+            ['nom' => 'Hallebarde', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 325, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true, 'deux_mains' => true]],
+            ['nom' => 'Masse', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3]],
+            // Longsword : l'une des deux seules armes que le livret OFFICIEL
+            // nomme comme frappant en diagonale (« like the staff and the
+            // longsword », p. 14). Une main : elle se combine au bouclier.
             ['nom' => 'Épée longue', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 // Pas de clé `ligne_de_vue` : c'est `portee: distance` qui la
                 // gouverne — MenuMoteur appelle Grille::ligneDeVue pour toute
                 // arme à distance. La clé ne faisait que doubler, sans lecteur.
+                // `inutilisable_adjacent` traduit le mot-clé « Ranged » du
+                // paquet : « you may not use it against an opponent who is
+                // adjacent to you » — la règle qu'on portait sans source.
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
+            ['nom' => 'Fléau', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 400, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
             // La hache de bataille N'EST PAS une arme longue : sa carte ne dit
-            // que « both hands ». Elle portait `attaque_diagonale`, ce qui en
+            // que « Two-handed ». Elle portait `attaque_diagonale`, ce qui en
             // faisait la meilleure arme du jeu sur les deux axes à la fois.
-            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 475, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true]],
+            ['nom' => 'Espadon', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 525, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 4, 'attaque_diagonale' => true, 'deux_mains' => true]],
+            ['nom' => 'Arc long', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 525, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_arc_long',
+                'effet' => ['des_attaque' => 4, 'portee' => 'distance', 'inutilisable_adjacent' => true, 'deux_mains' => true]],
+            ['nom' => 'Épée bâtarde', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 825, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+                'effet' => ['des_attaque' => 5, 'attaque_diagonale' => true, 'deux_mains' => true]],
 
             // Fiole trouvée en fouille : soin ALÉATOIRE (1d6), là où la potion
             // achetée au marché rend un montant fixe. Rareté `unique` pour la
@@ -133,15 +173,30 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Fendoir des Titans', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1600, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 6, 'deux_mains' => true]],
 
-            // ----- Armures -----
-            ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+            // ----- Armures (6 cartes) -----
+            //
+            // Elles se CUMULENT, comme au plateau : casque (slot propre depuis
+            // le 2026-08-08) + corps + bouclier. Défense maximale 2 + 1 + 2 + 1
+            // = 6, la valeur du livret officiel (LR p. 7).
+            //
+            // Brassards et Cape sont « May ONLY be used by a Wizard » : le seul
+            // équipement défensif du magicien, qu'aucune autre classe ne peut
+            // porter — d'où un tag à eux (`armure_magicien`).
+            ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'casque', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
-            ['nom' => 'Bouclier', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
+            ['nom' => 'Bouclier', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
                 'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true]],
-            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Brassards', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'armure', 'tag_equipement' => 'armure_magicien',
                 'effet' => ['des_defense' => 1]],
+            ['nom' => 'Cape de protection', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'armure', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['des_defense' => 1]],
+            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+                'effet' => ['des_defense' => 1]],
+            // « While wearing the Plate Mail, you have a 2 square movement
+            // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en
+            // moyenne). Le malus vient de la carte, pas d'une décision de table.
             ['nom' => 'Armure de plates', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
-                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true]], // décision AP : dépl. = base seule
+                'effet' => ['des_defense' => 2, 'malus_deplacement' => 2]],
 
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'sac',

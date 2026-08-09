@@ -9,11 +9,11 @@ use App\Events\JournalCombatDiffuse;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Quete;
-use Illuminate\Support\Facades\Event;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
 /*

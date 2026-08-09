@@ -104,13 +104,18 @@ final class MotsClesEquipement
     // ------------------------------------------------------------ DÉPLACEMENT
 
     /**
-     * Armure lourde : le porteur ne lance plus son d6 de déplacement, il n'a
-     * que sa base de classe. Porte le « unlike normal plate mail, this […] does
-     * not slow down its wearer » de *Borin's Armor* (LR p. 7), qui dit en creux
-     * qu'une armure de plates ordinaire, elle, ralentit.
-     * Lecteur : `Engine\Deplacement` via `Equipement::effetPorte()`.
+     * Encombrement de l'armure lourde, **en cases** retranchées du déplacement
+     * du tour — « While wearing the Plate Mail, you have a 2 square movement
+     * penalty » (carte Plate Mail). Corroboré en creux par *Borin's Armor* :
+     * « unlike normal plate mail, this […] does not slow down its wearer »
+     * (LR p. 7) dit qu'une armure de plates ordinaire, elle, ralentit.
+     *
+     * Chiffré, pas booléen : on supprimait auparavant le d6 entier
+     * (`deplacement_sans_d6`, −3,5 cases en moyenne) et le déplacement devenait
+     * DÉTERMINISTE — deux écarts à la carte pour le prix d'un.
+     * Lecteur : `Engine\Deplacement` via `Equipement::valeurEffetPorte()`.
      */
-    public const DEPLACEMENT_SANS_D6 = 'deplacement_sans_d6';
+    public const MALUS_DEPLACEMENT = 'malus_deplacement';
 
     // ------------------------------------------------------------------ OUTIL
 
@@ -200,7 +205,7 @@ final class MotsClesEquipement
         self::JETABLE,
         self::DEUX_MAINS,
         self::INCOMPATIBLE_DEUX_MAINS,
-        self::DEPLACEMENT_SANS_D6,
+        self::MALUS_DEPLACEMENT,
         self::PERMET_DESAMORCAGE,
         self::SOIN_PV_BODY,
         self::SOIN_PV_BODY_DE,

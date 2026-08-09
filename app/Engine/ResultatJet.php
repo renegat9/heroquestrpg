@@ -12,15 +12,14 @@ use App\Engine\Des\FaceDeCombat;
 final readonly class ResultatJet
 {
     /**
-     * @param list<FaceDeCombat> $faces faces obtenues, dans l'ordre du tirage
+     * @param  list<FaceDeCombat>  $faces  faces obtenues, dans l'ordre du tirage
      */
     public function __construct(
         public array $faces,
         public int $succes,
         public int $difficulte,
         public IssueJet $issue,
-    ) {
-    }
+    ) {}
 
     public function estReussi(): bool
     {

@@ -108,7 +108,6 @@ compteur » : la condition attend un déclencheur ou un retrait explicite.
 | `prochaine_attaque` | `ResolveurTour::resoudreAttaque()`, après le jet |
 | `prochaine_defense` | résolution de l'attaque d'un monstre sur un héros |
 | `premier_degat_subi` | observateur `Personnage::booted()` — toute BAISSE de `pv_body`, quelle qu'en soit la source (monstre, piège, Dread, tir ami) |
-| `premier_degat_subi` | observateur `Personnage::booted()` — toute BAISSE de `pv_body`, quelle qu'en soit la source |
 | `ce_tour` | `ResolveurTour::marquerCreneau()`, créneau `tour` |
 | `prochain_tour` | fin de round, après la phase des monstres |
 | `fin_du_combat` | `ResolveurTour::verifierFinDuCombat()` |
@@ -263,7 +262,7 @@ encodait déjà l'épée large, puis l'arme achetée s'y ajoutait).
 |---|---|---|
 | `deux_mains` | Interdit le bouclier. **Orthogonal au `tag_equipement`** : ce mot dit « pas de bouclier avec », le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est `deux_mains` ET `arme_legere`, donc jouable par le magicien. | |
 | `incompatible_deux_mains` | La pièce **est** un bouclier : refuse de cohabiter avec `deux_mains`. | |
-| `deplacement_sans_d6` | Armure lourde : plus de d6, la base de classe seule. Porte le « unlike normal plate mail, this […] does not slow down its wearer » de *Borin's Armor* (LR p. 7). | |
+| `malus_deplacement` | Encombrement de l'armure lourde, **en cases** : « a 2 square movement penalty » (carte Plate Mail). Le dé est toujours lancé, et le total ne descend jamais sous 1. On supprimait auparavant le d6 entier (`deplacement_sans_d6`) : −3,5 cases en moyenne, **et** un déplacement devenu déterministe. | |
 | `permet_desamorcage` | Désamorçage de piège — « you must possess a tool kit (or be the dwarf) » (LR p. 19). | |
 
 ### Consommables
@@ -282,10 +281,16 @@ s'accompagne d'un mot de §2.
 
 Deux phrases de carte sont portées ailleurs, exprès :
 
-- **« May not be used by the wizard »** → `objets.tag_equipement` ×
-  `classes_heros.tags_equipement`. Le magicien ne déclare aucun tag d'armure,
-  donc aucune armure ne lui est accessible : la règle est dite une fois, côté
-  classe, plutôt que répétée sur chaque pièce.
+- **Toutes les restrictions de classe** — « May not be used by a Wizard »,
+  « …by a Wizard or Elf », « May **only** be used by a Wizard » → `objets.tag_equipement`
+  × `classes_heros.tags_equipement`. La règle est dite une fois, côté classe,
+  plutôt que répétée sur chaque pièce. Onze tags couvrent les sept exclusions
+  distinctes du paquet d'armurerie : `arme_legere` (aucune restriction),
+  `arme_courante` / `arme_distance` (pas le magicien), `arme_deux_mains` (ni
+  magicien ni elfe), `arme_arc_long` (ni magicien ni nain), `arme_arc_court` (ni
+  magicien ni barbare), `arme_erudit` (ni barbare ni nain), `armure_legere` /
+  `armure_lourde` / `bouclier` (pas le magicien), `armure_magicien` (**le
+  magicien seul**). Détail en `reference/16_armurerie.md` §2.2.
 - **« Both hands »** → `deux_mains`, mais c'est le tag `arme_deux_mains` qui dit
   *qui* peut la manier. Les deux mots coexistent parce qu'ils répondent à deux
   questions différentes ; les fusionner interdirait le Bâton des Sept Sceaux au

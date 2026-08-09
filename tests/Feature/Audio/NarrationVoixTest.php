@@ -63,8 +63,7 @@ it('diffuse la cérémonie de lancement au démarrage de quête', function () {
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    Event::assertDispatched(NarrationDiffusee::class, fn (NarrationDiffusee $e) =>
-        in_array($e->texte, config('narration.lancement.variantes'), true)
+    Event::assertDispatched(NarrationDiffusee::class, fn (NarrationDiffusee $e) => in_array($e->texte, config('narration.lancement.variantes'), true)
         && $e->groupe->id === $groupe->id);
 });
 

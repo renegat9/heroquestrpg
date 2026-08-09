@@ -10,11 +10,11 @@ use App\Models\Groupe;
 use App\Models\Quete;
 use App\Partie\EtatGroupe;
 use App\Partie\ScorePuissance;
+use App\Support\Journal;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
-use App\Support\Journal;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -280,7 +280,7 @@ it('titre la quête d\'après le PLAN de campagne, jamais d\'après le gabarit',
     ]]);
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
     // On affichait « Quête 1 — Exploration simple » : le nom du MODÈLE interne,
     // et les titres écrits par l'IA restaient inutilisés (signalé par René).
@@ -298,7 +298,7 @@ it('se rabat sur « Quête N » quand le plan ne titre pas cette position', func
     ]]]);
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
     expect($quete->titre)->toBe('Quête 1')
         ->and($quete->titre)->not->toContain('Exploration');

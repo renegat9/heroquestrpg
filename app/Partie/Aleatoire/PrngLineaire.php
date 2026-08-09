@@ -24,13 +24,13 @@ final class PrngLineaire
 
     public function __construct(int $graine = 0)
     {
-        $this->etat = $graine & 0x7fffffff;
+        $this->etat = $graine & 0x7FFFFFFF;
     }
 
     /** Entier pseudo-aléatoire suivant. */
     public function suivant(): int
     {
-        return $this->etat = ($this->etat * 1103515245 + 12345) & 0x7fffffff;
+        return $this->etat = ($this->etat * 1103515245 + 12345) & 0x7FFFFFFF;
     }
 
     /** Entier dans [$min, $max] inclus. */

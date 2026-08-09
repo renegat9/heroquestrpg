@@ -7,6 +7,8 @@ use App\Models\Competence;
 use App\Models\ForgeAmelioration;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
+use App\Partie\Equipement;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ForgeAmeliorationSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -23,7 +25,7 @@ beforeEach(function () {
     $this->seed([ObjetSeeder::class, CompetenceSeeder::class, ForgeAmeliorationSeeder::class]);
 });
 
-function sacDeForge(App\Models\Personnage $p, string $nomObjet, string $emplacement = 'sac'): Inventaire
+function sacDeForge(Personnage $p, string $nomObjet, string $emplacement = 'sac'): Inventaire
 {
     $objet = Objet::where('nom', $nomObjet)->firstOrFail();
 
@@ -35,7 +37,7 @@ function sacDeForge(App\Models\Personnage $p, string $nomObjet, string $emplacem
     ]);
 }
 
-function donneForge(App\Models\Personnage $nain): void
+function donneForge(Personnage $nain): void
 {
     $nain->competences()->attach(Competence::where('classe', 'nain')->where('nom', 'Forge')->value('id'));
 }
@@ -101,7 +103,7 @@ it('le bonus de Forge s\'applique à l\'équipement ultérieur d\'une pièce am�
 
     expect($nain->fresh()->des_attaque)->toBe(2); // toujours dans le sac, aucun effet
 
-    (new App\Partie\Equipement())->equiper($nain, $ligne->fresh());
+    (new Equipement)->equiper($nain, $ligne->fresh());
 
     // L'épée courte FIXE l'attaque à 2, puis Affûtée ajoute +1 → 3.
     // (Avant : 2 de classe + 2 d'objet + 1 = 5.) Le bonus de Forge suit bien

@@ -25,8 +25,13 @@ final class ScorePuissance
 {
     public const PLANCHER = 4;
 
-    /** Emplacements d'inventaire comptés comme équipement porté. */
-    private const EMPLACEMENTS_EQUIPES = ['arme_principale', 'arme_secondaire', 'armure'];
+    /**
+     * Emplacements d'inventaire comptés comme équipement porté — la liste de
+     * `Equipement::SLOTS`, pas une copie : un slot ajouté ici et oublié là
+     * (le `casque` du 2026-08-08) sous-évalue le groupe et lui envoie des
+     * rencontres trop faciles.
+     */
+    private const EMPLACEMENTS_EQUIPES = Equipement::SLOTS;
 
     public function calculer(Groupe $groupe): int
     {

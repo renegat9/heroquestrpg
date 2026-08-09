@@ -40,16 +40,18 @@ Cette section a **deux niveaux de source**, et il faut les tenir séparés :
 - **§2.1 — les livrets.** Ce que les 43 pages imprimées attestent noir sur blanc.
   C'est le niveau opposable du reste du document. Il ne donne **aucun prix** et
   presque **aucun nombre de dés**.
-- **§2.2 — les cartes.** Le paquet de **23 cartes équipement** (LR p. 4), qui
-  porte les prix et les dés que les livrets refusent de répéter. C'est un
-  composant cartonné : il n'est dans aucun des deux PDF, donc **aucune ligne de
-  §2.2 ne peut citer une page**. Les valeurs y sont transcrites depuis le paquet
-  lui-même, et le tableau dit pour chacune si le livret la **corrobore**.
+- **§2.2 — le paquet d'armurerie.** Les livrets renvoient 4 fois à un paquet de
+  **23 cartes équipement** (LR p. 4, p. 13, p. 14) qu'ils ne reproduisent jamais :
+  c'est du carton, absent des deux PDF, et il porte tous les prix et presque tous
+  les dés. Faute de l'avoir, on porte à sa place le paquet **Sjeng / Ye Olde
+  Inn** (27 cartes), choisi par René le 2026-08-08. Aucune ligne de §2.2 ne peut
+  donc citer une page : chaque valeur vient d'une carte, et la colonne
+  « corroboré » dit ce que le livret confirme par ailleurs.
 
 Ce découpage est nouveau (2026-08-08). Jusque-là le document s'arrêtait à §2.1 et
 concluait « l'armurerie complète n'est pas sourçable » — ce qui est vrai des PDF,
 mais laissait notre catalogue **sans documentation du tout** : ses prix et ses dés
-venaient déjà des cartes, sans que rien ne le dise ni ne le vérifie. Une valeur
+venaient déjà de cartes, sans que rien ne le dise ni ne le vérifie. Une valeur
 non documentée ne se relit pas : l'épée large portait 350 po (le prix de
 l'arbalète *et* de l'épée longue, toutes deux supérieures), la hache de bataille
 s'était attribué la diagonale des armes longues, et l'**épée longue elle-même
@@ -77,70 +79,118 @@ explicitement comme frappant en diagonale.
 
 **Armes/armures de `notre_catalogue.md` introuvables dans ce matériel** : *Hachette*, *Lance*, *Hache de bataille*, *Cotte de mailles* ne sont mentionnées **nulle part**, sous aucun nom, dans les 43 pages imprimées couvertes par les deux livrets. Voir §10 pour le détail.
 
-### 2.2 Les cartes équipement, converties en statistiques et en mots-clés
+### 2.2 Le paquet d'armurerie, converti en statistiques et en mots-clés
 
-Une carte d'équipement dit son effet **en toutes lettres** : « This weapon allows
-you to attack diagonally », « You may not use a shield when using the battle
-axe », « You may only move 1 red die ». Chez nous cet effet est une **donnée** —
-`objets.effet`, lu par le moteur. Convertir une carte, c'est donc décomposer sa
-phrase en (a) des **statistiques** (prix, dés) et (b) des **mots-clés** d'un
-vocabulaire fermé (`App\Engine\MotsClesEquipement`, référence
-`reference/19_mots_cles_effets.md` §9).
+**Source : `sjeng-equipment.pdf`, Ye Olde Inn** — 27 cartes recto, artwork Gary
+Chalk, [english.yeoldeinn.com/downloads/cards/sjeng-equipment.pdf](https://english.yeoldeinn.com/downloads/cards/sjeng-equipment.pdf).
+Choisi par René le 2026-08-08 comme paquet de référence de l'armurerie.
 
-Colonne **Corroboré** : ce que §2.1 confirme indépendamment de la carte.
+⚠ **Ce n'est pas le paquet officiel Avalon Hill.** Son auteur l'écrit en page 5 :
+« I have changed some item costs and functionality, and added a few new rules ».
+Les prix, les dés et les restrictions de classe viennent donc de LUI, pas des
+livrets — d'où la colonne « corroboré », qui dit ce que §2.1 confirme par
+ailleurs. Le paquet ajoute par ailleurs des armes qui n'ont jamais existé au
+plateau de base (canne, fouet, fronde, arcs, espadon, épée bâtarde…) : c'est un
+choix de jeu assumé, pas une lecture de livret.
 
-| Carte | Prix | Dés | Mots-clés | Corroboré par le livret |
-|---|---|---|---|---|
-| **Dague** / Dagger | 25 | Att. 1 | `jetable` ⚠ | Dés : oui (carte magicien, LR p. 6). Frappe à distance : oui (LR p. 14). **La perte de l'arme est de nous** — voir §10. |
-| **Bâton** / Staff | 100 | Att. 1 | `attaque_diagonale` | Diagonale : **oui, nommément** (LR p. 14). |
-| **Épée courte** / Shortsword | 150 | Att. 2 | — | Arme de départ nain + elfe (LR p. 13). |
-| **Hachette** / Hand Axe | 200 | Att. 2 | `jetable` ⚠ | Aucune mention de l'arme dans les livrets. Le jet est de nous. |
-| **Lance** / Spear | 250 | Att. 2 | `attaque_diagonale` | Aucune mention de l'arme (seul un *piège* porte ce nom, LR p. 18-19). La diagonale est cohérente avec la règle des armes longues (LR p. 14). |
-| **Épée large** / Broadsword | 250 | Att. 3 | — (explicitement **pas** de diagonale) | Arme de départ du barbare, « the most powerful starting weapon » (LR p. 13). Le diagramme des armes longues lui **oppose** le bâton (LR p. 14). |
-| **Arbalète** / Crossbow | 350 | Att. 3 | `portee: distance`, `inutilisable_adjacent` ⚠ | Arme à distance : oui (LR p. 14). **L'interdiction au contact est de nous.** |
-| **Épée longue** / Longsword | 350 | Att. 3 | `attaque_diagonale` | Diagonale : **oui, nommément** — « like the staff and the longsword » (LR p. 14). |
-| **Hache de bataille** / Battle Axe | 450 | Att. 4 | `deux_mains` | Aucune mention de l'arme. Le « both hands » est le texte de la carte ; il n'y a **pas** de diagonale dessus. |
-| **Casque** / Helmet | 125 | Déf. +1 | — | Objet attesté (LR p. 7, LQ p. 29), bonus non chiffré. |
-| **Bouclier** / Shield | 150 | Déf. +1 | `incompatible_deux_mains` | Objet attesté (LR p. 7, LQ p. 25), bonus non chiffré. |
-| **Cotte de mailles** / Chain Mail | 500 | Déf. +1 | — | Aucune mention de l'armure. |
-| **Armure de plates** / Plate Mail | 850 | Déf. +2 | `deplacement_sans_d6` | **+2 : oui**, valeur de *Borin's Armor* (LR p. 7). Le ralentissement : oui, en creux — « unlike normal plate mail, this […] does not slow down its wearer ». |
-| **Trousse à outils** / Tool Kit | 250 | — | `permet_desamorcage` | Fonction confirmée à l'identique (LR p. 19). |
+**Les trois mots-clés de règle du paquet** (page 5, texte de l'auteur) :
 
-Deux mécanismes de carte ne passent **pas** par `objets.effet`, et c'est
-volontaire :
+| mot du paquet | texte | chez nous |
+|---|---|---|
+| **Ranged** | « can be used to attack any enemy in your line of sight, but **not adjacent** » | `portee: distance` + `inutilisable_adjacent` |
+| **Two-handed** | « cannot be wielded with a shield or any offhand weapon » | `deux_mains` |
+| **Dual-wielding** | « you may use these weapons instead of a shield in your off hand » | ❌ **non porté** — voir plus bas |
 
-- **« May not be used by the wizard »** (cotte de mailles, armure de plates,
-  *Borin's Armor*) → porté par le couple `objets.tag_equipement` ×
-  `classes_heros.tags_equipement`, pas par un mot-clé d'effet. Le magicien ne
-  déclare **aucun** tag d'armure, donc aucune armure ne lui est accessible — ce
-  qui rend la phrase de la carte sans avoir à la répéter sur chaque pièce, et
-  couvre du même coup « hindered by their inability to wear normal armor or use
-  large weapons » (LR p. 6, p. 13).
-- **« You may only move 1 red die »** → notre déplacement n'est pas 2 dés rouges
-  mais *base de classe + 1d6* (écart assumé, §10 et §5) ; la carte se convertit
-  donc en `deplacement_sans_d6` = « base seule, sans le dé ». Même intention —
-  l'armure lourde retire l'aléa du déplacement — sur une échelle différente.
+Le « Ranged » referme au passage une question ouverte : `inutilisable_adjacent`
+était jusqu'ici une règle **de nous**, que rien ne sourçait (§10). Elle est
+désormais le texte même du paquet.
 
-**Ce que la conversion ne couvre pas.** Le paquet officiel compte 23 cartes
-(LR p. 4) là où nous en convertissons 14 : le reste est fait de **doublons** (le
-paquet limite physiquement les achats simultanés, cf. §10) et de pièces que nous
-n'avons pas reprises. Aucune carte de potion n'est ici : les potions sont un
-autre paquet, traité §7.1 et §10.
+#### Armes (20 cartes portées sur 21)
 
-### 2.3 Le cumul des armures — écart assumé
+Les restrictions de classe des cartes passent par `tag_equipement` ×
+`classes_heros.tags_equipement` — **jamais** par une clé d'effet. C'est le même
+mécanisme que le « May not be used by the wizard » officiel : la règle est dite
+une fois, côté classe, au lieu d'être répétée sur chaque pièce.
+
+| Carte | Prix | Dés | Mots-clés | Restriction → tag | Corroboré |
+|---|---|---|---|---|---|
+| **Canne** / Cane | 125 | 1 | `attaque_diagonale` | pas barbare ni nain → `arme_erudit` | — |
+| **Fronde** / Sling | 125 | 1 | `portee: distance`, `inutilisable_adjacent` | aucune → `arme_legere` | — |
+| **Dague** / Dagger | 150 | 1 | `jetable` ⚠ | aucune → `arme_legere` | Dés : oui (carte magicien, LR p. 6). Arme de jet : oui (LR p. 14). |
+| **Fouet** / Whip | 175 | 1 | `attaque_diagonale` | aucune → `arme_legere` | — |
+| **Bâton** / Staff | 200 | 2 | `attaque_diagonale`, `deux_mains` | aucune → `arme_legere` | Diagonale : **oui, nommément** (LR p. 14). |
+| **Arc court** / Shortbow | 200 | 2 | `portee: distance`, `inutilisable_adjacent`, `deux_mains` | pas magicien ni barbare → `arme_arc_court` | — |
+| **Épée courte** / Shortsword | 225 | 2 | — | pas magicien → `arme_courante` | Arme de départ nain + elfe (LR p. 13). |
+| **Hachette** / Hand Axe | 250 | 2 | `jetable` ⚠ | pas magicien → `arme_courante` | — |
+| **Lance** / Spear | 250 | 2 | `attaque_diagonale`, `jetable` ⚠ | pas magicien → `arme_courante` | Aucune arme « Spear » au plateau officiel : seul un **piège** porte ce nom (LR p. 18-19). |
+| **Rapière** / Rapier | 275 | 2 | `attaque_diagonale` | pas magicien → `arme_courante` | — |
+| **Épée large** / Broadsword | 300 | 3 | — (explicitement **pas** de diagonale) | pas magicien → `arme_courante` | Arme de départ du barbare, « the most powerful starting weapon » (LR p. 13). Le diagramme des armes longues lui **oppose** le bâton (LR p. 14). |
+| **Hallebarde** / Halberd | 325 | 3 | `attaque_diagonale`, `deux_mains` | pas magicien → `arme_courante` | — |
+| **Masse** / Mace | 350 | 3 | — | pas magicien → `arme_courante` | — |
+| **Épée longue** / Longsword | 350 | 3 | `attaque_diagonale` | pas magicien → `arme_courante` | Diagonale : **oui, nommément** — « like the staff and the longsword » (LR p. 14). |
+| **Arbalète** / Crossbow | 350 | 3 | `portee: distance`, `inutilisable_adjacent` | pas magicien → `arme_distance` | Arme à distance : oui (LR p. 14). Le « not adjacent » vient du mot-clé Ranged du paquet. |
+| **Fléau** / Flail | 400 | 3 | `attaque_diagonale` | pas magicien → `arme_courante` | — |
+| **Hache de bataille** / Battle Axe | 475 | 4 | `deux_mains` | pas magicien ni elfe → `arme_deux_mains` | Aucune mention au plateau officiel. Pas de diagonale sur la carte. |
+| **Espadon** / Greatsword | 525 | 4 | `attaque_diagonale`, `deux_mains` | pas magicien ni elfe → `arme_deux_mains` | — |
+| **Arc long** / Longbow | 525 | 4 | `portee: distance`, `inutilisable_adjacent`, `deux_mains` | pas magicien ni nain → `arme_arc_long` | — |
+| **Épée bâtarde** / Bastard Sword | 825 | 5 | `attaque_diagonale`, `deux_mains` | pas magicien ni elfe → `arme_deux_mains` | — |
+
+**Carte NON portée : la Torche** (2 dés, dégâts de feu, « illuminates any square
+the hero holding it can see, without being obstructed by heroes or monsters »,
+dure une quête, 125 po). Ni système d'éclairage ni type de dégât « feu »
+n'existent chez nous ; la semer reviendrait à annoncer au joueur deux règles que
+le moteur n'applique pas — exactement ce que ce document sert à empêcher.
+
+#### Armures (6 cartes)
+
+| Carte | Prix | Dés | Emplacement | Mots-clés | Restriction → tag |
+|---|---|---|---|---|---|
+| **Casque** / Helmet | 125 | Déf. +1 | `casque` | — | pas magicien → `armure_legere` |
+| **Bouclier** / Shield | 125 | Déf. +1 | `arme_secondaire` | `incompatible_deux_mains` | pas magicien → `bouclier` |
+| **Brassards** / Bracers | 200 | Déf. +1 | `armure` | — | **magicien seul** → `armure_magicien` |
+| **Cape de protection** / Cloak of Protection | 350 | Déf. +1 | `armure` | — | **magicien seul** → `armure_magicien` |
+| **Cotte de mailles** / Chain Mail | 450 | Déf. +1 | `armure` | — | pas magicien → `armure_legere` |
+| **Armure de plates** / Plate Mail | 850 | Déf. +2 | `armure` | `malus_deplacement: 2` | pas magicien → `armure_lourde` |
+
+Deux conséquences qui changent le jeu :
+
+- **Le magicien a enfin une défense.** Brassards et cape sont « May **only** be
+  used by a Wizard » : les seules pièces qu'il puisse porter, et que personne
+  d'autre ne peut lui prendre. Il passait jusqu'ici toute la campagne à 2 dés.
+- **L'armure de plates coûte 2 cases**, pas le d6. « While wearing the Plate
+  Mail, you have a 2 square movement penalty » : un chiffre, là où l'on
+  supprimait le dé entier — −3,5 cases en moyenne **et** un déplacement devenu
+  déterministe, deux écarts pour le prix d'un.
+
+#### Ce qui n'est pas porté : le dual-wielding
+
+Dix cartes portent « may be dual wielded » — la troisième règle de la page 5 :
+« you may use these weapons instead of a shield in your off hand ». Elle n'est
+**pas** implémentée, et pas par oubli :
+
+1. Notre `equiper()` choisit le slot depuis `objets.emplacement`, une valeur
+   unique par pièce. Une arme qui va **soit** en main principale **soit** en main
+   secondaire exige que le slot devienne un paramètre de l'API et de la manette.
+2. Surtout, **aucune carte ne dit ce que la seconde arme apporte**. Sans bénéfice
+   chiffré, la main gauche est un choix mort : personne ne renonce au +1 de
+   défense du bouclier pour rien. Inventer ce bénéfice serait exactement le
+   genre de valeur non sourcée que ce document existe pour empêcher.
+
+À trancher avec René, puis à porter d'un bloc : slot au choix + effet de la
+seconde arme.
+
+### 2.3 Le cumul des armures
 
 Au plateau, **casque + armure de corps + bouclier se cumulent** : « [Borin's
 Armor] may be combined with the helmet and/or shield » (LR p. 7). Un héros
-complètement équipé atteint donc 2 + 1 + 2 + 1 = **6 dés de défense**.
+complètement équipé atteint 2 + 1 + 2 + 1 = **6 dés de défense**.
 
-Chez nous, casque, cotte de mailles et armure de plates partagent **un seul
-emplacement** `armure` (`Equipement::SLOTS` = arme principale / arme secondaire /
-armure) : on porte l'un **ou** l'autre, et le plafond est 2 + 2 + 1 = 5. C'est une
-simplification MVP, pas une lecture du livret. La lever demande un quatrième
-emplacement (`casque`) — donc une migration sur l'enum `emplacement` des tables
-`objets` **et** `inventaire`, plus la fiche héros côté manette.
-
----
+C'était un **écart** jusqu'au 2026-08-08 : casque, cotte et plates partageaient
+l'emplacement `armure`, on portait l'un **ou** l'autre, le plafond tombait à 5,
+et le casque n'était qu'un achat de début de campagne qu'on jetait dès la
+première vraie armure. Le casque a désormais son propre emplacement
+(`Equipement::SLOTS` = arme principale / arme secondaire / **casque** / armure),
+et le plafond est bien 6. Verrouillé par `ArmurerieConformeTest`.
 
 ## 3. Les sorts (pour mémoire, croisé avec `notre_catalogue.md`)
 
@@ -311,10 +361,12 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 
 | Objet chez nous | Prix/effet chez nous | Constat officiel |
 |---|---|---|
-| **Hachette** (200 po, jetable) | 2 dés d'attaque | **Aucune mention**, sous aucun nom, dans les 43 pages des deux livrets. |
+| **Hachette** (250 po, jetable) | 2 dés d'attaque | **Aucune mention**, sous aucun nom, dans les 43 pages des deux livrets — mais bien présente au paquet d'armurerie (§2.2), où elle est une arme de jet. |
 | **Lance** (250 po, diagonale) | 2 dés, diagonale | **Aucune arme « Spear » n'existe** dans ce matériel — seul un **piège** appelé « spear trap » y figure (LR p. 18-19), sans rapport. L'« attaque au second rang » qu'elle portait n'apparaît **nulle part** : clé retirée. |
 | **Hache de bataille** (450 po, deux mains) | 4 dés | **Aucune mention.** Elle portait en plus `attaque_diagonale`, ce qui la rendait supérieure à l'épée longue sur les deux axes à la fois ; rien ne l'atteste et sa carte ne dit que « both hands » — **retiré le 2026-08-08**. |
-| **Cotte de mailles** (500 po) | +1 dé défense | **Aucune mention** — seule l'« armure de plates » (plate mail) est nommée, via l'artefact *Borin's Armor* (§2). |
+| **Cotte de mailles** (450 po) | +1 dé défense | **Aucune mention** — seule l'« armure de plates » (plate mail) est nommée, via l'artefact *Borin's Armor* (§2). |
+| **Canne, Fouet, Fronde, Arc court, Arc long, Rapière, Hallebarde, Masse, Fléau, Espadon, Épée bâtarde** (125-825 po) | 1 à 5 dés | **Aucune mention.** Ce sont les armes ajoutées par le paquet Sjeng, qui n'ont jamais existé au plateau de base (§2.2). Portées en connaissance de cause : c'est le paquet qu'on a choisi. |
+| **Brassards, Cape de protection** (200 / 350 po) | +1 dé défense, magicien seul | **Aucune mention.** Ajouts du même paquet — et le seul équipement défensif que le magicien puisse porter, lui qui restait sinon à 2 dés toute la campagne. |
 | **7 artefacts « uniques »** (Lame d'Aube, Kriss du Fossoyeur, Arbalète des Murmures, Bâton des Sept Sceaux, Marteau du Gardien de Pierre, Hache du Roi sous la Montagne, Fendoir des Titans) | 900-1600 po, 4-6 dés | **Aucun ne correspond** à un nom d'artefact officiel. Le livret de quêtes en nomme **10** (§9 ci-dessus : Talisman of Lore, Borin's Armor, Wizard's Cloak, Wand of Magic, Elixir of Life, Ring of Return, Orc's Bane, Wizard's Staff, Spirit Blade, Spell Ring) — **aucun recouvrement**, ni en nom ni en effet (les nôtres sont tous des armes à dégâts croissants ; les originaux sont surtout des armures/objets à pouvoir spécial, pas des armes qui montent en dés). |
 
 ### Armes / armures — valeurs numériques invérifiables
@@ -323,11 +375,11 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 |---|---|
 | **Dague** (25 po, 1 dé, jetable/consommée au lancer) | Le nombre de dés (1) est cohérent avec la carte magicien (LR p. 6). En revanche, la dague officielle est groupée avec l'arbalète comme arme *frappant à distance* (LR p. 14) sans qu'aucune mention ne suggère qu'elle **disparaisse après un lancer** — chez nous, `consommerArmeLancee()` la **supprime** définitivement (CLAUDE.md, §Throwing a weapon). C'est un mécanisme (arme à distance permanente vs. jet à usage unique consommé) qui n'est **pas confirmé** dans un sens ou dans l'autre par ce texte, mais le parallèle explicite avec l'arbalète (jamais présentée comme consommable) va plutôt contre notre choix. |
 | **Bâton** (100 po, 1 dé, diagonale) | La diagonale est confirmée (LR p. 14). Le nombre de dés (1) n'est **jamais donné** officiellement. |
-| **Épée large** (250 po, 3 dés, **pas** de diagonale) | Correspond au *Broadsword* du barbare, « the most powerful starting weapon » (LR p. 13) — mais aucun nombre de dés ni prix n'est donné dans les livrets pour vérifier le « 3 » (il vient de la carte, §2.2). L'absence de diagonale, elle, est appuyée par le diagramme de la p. 14, qui lui oppose le bâton. Le prix était de **350** jusqu'au 2026-08-08 : aligné sur la carte. |
+| **Épée large** (300 po, 3 dés, **pas** de diagonale) | Correspond au *Broadsword* du barbare, « the most powerful starting weapon » (LR p. 13) — mais aucun nombre de dés ni prix n'est donné dans les livrets pour vérifier le « 3 » (il vient de la carte, §2.2). L'absence de diagonale, elle, est appuyée par le diagramme de la p. 14, qui lui oppose le bâton. |
 | **Épée longue** (350 po, 3 dés, diagonale) | **Absente du catalogue jusqu'au 2026-08-08**, alors que c'est — avec le bâton — l'une des deux seules armes que le livret nomme comme frappant en diagonale (LR p. 14). Son absence laissait la diagonale au seul bâton, une arme à 1 dé que personne n'achète : la règle existait dans le moteur sans avoir d'objet pour la porter. |
-| **Arbalète** (350 po, 3 dés, inutilisable si adjacent) | Le caractère « à distance » est confirmé (LR p. 14). La restriction « inutilisable si un ennemi est adjacent » **n'apparaît nulle part** dans ce matériel. |
-| **Casque** (125 po, +1 défense) / **Bouclier** (150 po, +1 défense, incompatible deux mains) | Les deux objets sont bien attestés par leur nom (§2), mais **aucun bonus chiffré ni prix** n'est donné pour l'un ou l'autre isolément — le seul chiffre disponible (+2) concerne l'armure de plates *artefact*, pas le casque/bouclier de base. L'incompatibilité bouclier/deux-mains n'est **pas énoncée** textuellement (bien que logique). |
-| **Armure de plates** (850 po, +2 défense, `deplacement_sans_d6`) | Le **+2 dés de défense** correspond exactement au texte de l'artefact *Borin's Armor* (LR p. 7). Le malus de déplacement de l'armure lourde normale (`deplacement_sans_d6`) est **cohérent par contraste** avec la même carte : « unlike normal plate mail, this... does not slow down its wearer » implique qu'une armure de plates ordinaire ralentit son porteur — mais ce n'est jamais énoncé comme règle générale autonome, seulement en creux d'un artefact. Aucun prix officiel. |
+| **Arbalète** (350 po, 3 dés, inutilisable si adjacent) | Le caractère « à distance » est confirmé (LR p. 14). La restriction « inutilisable si un ennemi est adjacent » **n'apparaît nulle part** dans les livrets — mais c'est le mot-clé **Ranged** du paquet d'armurerie (§2.2), qui l'énonce mot pour mot : « you may not use it against an opponent who is adjacent to you ». Ce n'était donc pas une invention, seulement une règle sans source jusqu'au 2026-08-08. |
+| **Casque** (125 po, +1 défense) / **Bouclier** (125 po, +1 défense, incompatible deux mains) | Les deux objets sont bien attestés par leur nom (§2), mais **aucun bonus chiffré ni prix** n'est donné pour l'un ou l'autre isolément — le seul chiffre disponible (+2) concerne l'armure de plates *artefact*, pas le casque/bouclier de base. L'incompatibilité bouclier/deux-mains n'est **pas énoncée** textuellement (bien que logique). |
+| **Armure de plates** (850 po, +2 défense, `malus_deplacement: 2`) | Le **+2 dés de défense** correspond exactement au texte de l'artefact *Borin's Armor* (LR p. 7). Le ralentissement est **cohérent par contraste** avec la même carte : « unlike normal plate mail, this... does not slow down its wearer » implique qu'une armure de plates ordinaire ralentit son porteur — jamais énoncé comme règle autonome, seulement en creux d'un artefact. Sa VALEUR, elle, vient de la carte du paquet : « a 2 square movement penalty ». On retirait auparavant le d6 entier (`deplacement_sans_d6`), soit −3,5 cases en moyenne **et** un déplacement déterministe. Aucun prix officiel. |
 | **Trousse à outils** (250 po) | Fonction confirmée à l'identique (LR p. 19). Aucun prix. |
 | **Fiole de soin** (100 po, `soin_pv_body_de: 6` — soin par jet de 1d6) | Le mécanisme d'un soin **tiré au dé** n'apparaît **nulle part** : toutes les potions de soin rencontrées dans les notes de quêtes soignent un **montant fixe** annoncé sur la carte (« restores up to 4 », « up to 2 » — LQ p. 7, 13, 17…), jamais un jet de dé. |
 | **Potion de soin** (100 po, fixe 4 PV) | Le montant "4" est bien attesté dans plusieurs quêtes (LQ p. 7, p. 17, p. 29), mais **pas universel** : une même potion de soin restaure ailleurs « up to 2 » (LQ p. 13) — la valeur varie par carte/quête dans le jeu officiel, alors que chez nous elle est figée à 4. |
@@ -368,5 +420,5 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 - **Pièges — mécanique de franchissement/désarmement** : notre catalogue (doc 10) résume les 4 pièges officiels en un modèle plus simple et plus uniforme (détection → désarmement par jet de Body/trousse à outils, franchissement par jet de Body) ; le livret distingue en réalité **quatre mécaniques bien différentes** par type de piège (voir §7.3 : jets à 1 ou 3 dés selon le piège, franchissement uniquement pour la fosse, piège-lance à usage unique et sans tuile, chute de blocs sans aucun désamorçage possible une fois déclenchée). Ce n'est pas qu'une divergence de valeurs : c'est une simplification structurelle assumée.
 - **Restriction « pas de fouille de trésor si un monstre est visible »** (LR p. 14) : confirmée présente dans notre moteur (`app/Partie/MenuMoteur.php::salleFouillableTresor()`, commentaire « Salle "vide" : aucun monstre actif révélé dans ses limites ») — **conforme**, pas un écart.
 - **Assignation de sorts par classe** (magicien = 3 groupes/9 sorts, elfe = 1 groupe/3 sorts) : confirmée codée à l'identique dans `app/Partie/MoteurSorts.php` (`NB_ELEMENTS_DEPART = ['magicien' => 3, 'elfe' => 1]`) — **conforme**, pas un écart.
-- **Cumul des pièces d'armure** : le livret dit explicitement qu'une armure de corps « may be combined with the helmet and/or shield » (LR p. 7). Chez nous casque, cotte et plates partagent **un seul emplacement** `armure` : on porte l'un ou l'autre. Plafond de défense 5 au lieu de 6, et le casque devient un achat de début de partie qu'on jette dès la première armure. Simplification MVP documentée en §2.3 — la lever demande un quatrième emplacement et une migration sur les deux enums `emplacement`.
+- **Cumul des pièces d'armure** : « may be combined with the helmet and/or shield » (LR p. 7) — **conforme depuis le 2026-08-08**, plus un écart. Le casque a son propre emplacement, le plafond de défense est bien 6 (2 + casque 1 + plates 2 + bouclier 1). Il partageait auparavant le slot `armure` avec la cotte et les plates : on plafonnait à 5 et le casque n'était qu'un achat de dépannage (§2.3).
 - **Restriction d'armure du magicien** : « hindered by their inability to wear normal armor » (LR p. 6, p. 13) et « May not be used by the wizard » sur *Borin's Armor* (LR p. 7) — **conforme** : `classes_heros.tags_equipement` ne donne au magicien que `arme_legere`, donc aucune armure ne lui est accessible, et ses deux nœuds de déblocage (*Cuir d'apprenti*, *Escrime de fortune*) sont le seul moyen de lever la limite. C'est un mécanisme de tags, pas un mot-clé d'effet (§2.2).

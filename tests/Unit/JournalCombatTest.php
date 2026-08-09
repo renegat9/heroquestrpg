@@ -6,7 +6,7 @@ use App\Partie\JournalCombat;
 
 function lignes(array $resultat, string $acteur = 'Borin'): array
 {
-    return (new JournalCombat())->depuisResultat($resultat, $acteur);
+    return (new JournalCombat)->depuisResultat($resultat, $acteur);
 }
 
 describe('JournalCombat — restitution mécanique (aucun LLM)', function () {

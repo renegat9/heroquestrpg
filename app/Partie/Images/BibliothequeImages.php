@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Partie\Images;
 
+use App\Partie\Audio\BanqueBarks;
 use Illuminate\Support\Str;
 
 /**
  * Résolveur d'images du jeu : transforme une entité en URL d'asset (ou null si
  * l'image n'a pas été générée → le front retombe sur l'icône). Tout est basé
  * sur l'EXISTENCE de fichiers sous `public/images/` (aucune colonne DB) — comme
- * l'audio (cf. {@see \App\Partie\Audio\BanqueBarks}).
+ * l'audio (cf. {@see BanqueBarks}).
  *
  * Disposition :
  *  - FIXE (catalogue, pré-généré)   : images/catalogue/{type}/{id}-{slug}.png

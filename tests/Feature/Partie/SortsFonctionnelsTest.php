@@ -3,11 +3,20 @@
 declare(strict_types=1);
 
 use App\Engine\MotsClesSort;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Objet;
+use App\Models\Quete;
 use App\Models\Sort;
+use App\Partie\FabriqueGrille;
 use App\Partie\MoteurSorts;
+use Database\Seeders\ConditionSeeder;
+use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
+use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
+use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Les sorts et parchemins sont-ils FONCTIONNELS ?
@@ -18,12 +27,12 @@ use Database\Seeders\SortSeeder;
  * seeder force une décision : lui écrire un lecteur, ou la déclarer décorative.
  */
 beforeEach(function () {
-    Illuminate\Support\Facades\Http::fake();
+    Http::fake();
     config(['services.anthropic.api_key' => null, 'services.gemini.api_key' => null]);
     $this->seed([SortSeeder::class, ObjetSeeder::class,
-        Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
-        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class,
-        Database\Seeders\ConditionSeeder::class]);
+        MonstreSeeder::class, TuileSeeder::class,
+        GabaritQueteSeeder::class, PiegeSeeder::class,
+        ConditionSeeder::class]);
 });
 
 /** Clés lues par le moteur (audit du 2026-08-06, fichier applicatif en regard). */
@@ -132,16 +141,19 @@ it('fait traverser la roche tout le tour, et fait tomber qui y finit son mouveme
     app(MoteurSorts::class)->attacherElement($hero, 'terre');
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
     // Sans le sort, la roche barre le passage…
-    $grille = App\Partie\FabriqueGrille::pour($quete);
+    $grille = FabriqueGrille::pour($quete);
     $roche = null;
     foreach ($quete->carte->grille['cases'] as $y => $ligne) {
         foreach ($ligne as $x => $c) {
-            if ($c !== 's') { $roche = ['x' => $x, 'y' => $y]; break 2; }
+            if ($c !== 's') {
+                $roche = ['x' => $x, 'y' => $y];
+                break 2;
+            }
         }
     }
     expect($roche)->not->toBeNull()
@@ -152,7 +164,7 @@ it('fait traverser la roche tout le tour, et fait tomber qui y finit son mouveme
     app(MoteurSorts::class)->appliquerBuff($hero, Sort::where('nom', 'Traverser la Pierre')->firstOrFail());
     expect(app(MoteurSorts::class)->traverseRoche($hero->fresh()))->toBeTrue();
 
-    $traversante = App\Partie\FabriqueGrille::pour($quete, traverseRoche: true);
+    $traversante = FabriqueGrille::pour($quete, traverseRoche: true);
     expect($traversante->estTraversable($roche['x'], $roche['y']))->toBeTrue();
 
     // Terminer son mouvement DANS la roche fait tomber le héros (décision de
@@ -172,18 +184,21 @@ it('exige une ligne de vue pour TOUT sort, et laisse toujours le lanceur se cibl
     app(MoteurSorts::class)->attacherElement($lanceur, 'terre');
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
-    $etatL = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $etatL = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $lanceur->id)->firstOrFail();
-    $etatC = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $etatC = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $compagnon->id)->firstOrFail();
 
     // On enferme le compagnon DANS la roche : aucune ligne de vue possible.
     $roche = null;
     foreach ($quete->carte->grille['cases'] as $y => $ligne) {
         foreach ($ligne as $x => $c) {
-            if ($c !== 's') { $roche = ['x' => $x, 'y' => $y]; break 2; }
+            if ($c !== 's') {
+                $roche = ['x' => $x, 'y' => $y];
+                break 2;
+            }
         }
     }
     $etatC->update(['position_x' => $roche['x'], 'position_y' => $roche['y']]);
@@ -212,7 +227,7 @@ it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance'
     app(MoteurSorts::class)->attacherElement($hero, 'air');
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
     $options = app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh());
     $genie = Sort::where('nom', 'Génie')->firstOrFail();
@@ -249,7 +264,7 @@ it('résout le mode « ouvrir une porte » sans exiger de cible-figurine', funct
     app(MoteurSorts::class)->attacherElement($hero, 'air');
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $genie = Sort::where('nom', 'Génie')->firstOrFail();
 
     $option = collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh()))

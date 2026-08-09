@@ -117,7 +117,7 @@ final class BibliothequeNarration
 
         try {
             $wav = $tts->synthetiser($texte, $voix, $style);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('Synthèse voix narrateur (dynamique) impossible — lecture navigateur.', [
                 'erreur' => $e->getMessage(),
             ]);

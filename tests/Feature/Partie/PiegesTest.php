@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
+use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
@@ -106,7 +107,7 @@ function demarrerQueteAvecHeros(array $attributs = []): array
  * Cherche depuis (hx,hy) une ligne droite de 3 cases libres avec une case
  * perpendiculaire libre au 2e pas (où poser le piège caché, HORS chemin).
  */
-function trouverSceneCourse(\App\Models\Quete $quete, int $hx, int $hy): ?array
+function trouverSceneCourse(Quete $quete, int $hx, int $hy): ?array
 {
     foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
         $p1 = ['x' => $hx + $dx, 'y' => $hy + $dy];
@@ -131,7 +132,7 @@ function trouverSceneCourse(\App\Models\Quete $quete, int $hx, int $hy): ?array
 it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adjacent, en gardant les points restants', function () {
     [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
     $hero->competences()->syncWithoutDetaching([
-        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Œil du mineur')->value('id'),
+        Competence::where('classe', 'nain')->where('nom', 'Œil du mineur')->value('id'),
     ]);
 
     // On CHERCHE une case de départ offrant la géométrie voulue au lieu de
@@ -350,7 +351,7 @@ it('déclenche le piège sur le désamorceur quand le jet échoue', function () 
 it('Désamorçage (nœud) épargne le déclenchement sur un jet raté', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
     $hero->competences()->attach(
-        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Désamorçage')->value('id'),
+        Competence::where('classe', 'nain')->where('nom', 'Désamorçage')->value('id'),
     );
 
     $cible = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);

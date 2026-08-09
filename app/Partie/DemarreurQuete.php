@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\LanceurDes;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
-use App\Engine\Des\LanceurDes;
 use App\Jobs\HabillerMonstres;
-use App\Partie\Narration\BibliothequeNarration;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -21,7 +20,7 @@ use App\Models\Monstre;
 use App\Models\Parametre;
 use App\Models\Quete;
 use App\Partie\Fouille\DeckFouille;
-use App\Partie\MoteurDread;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;

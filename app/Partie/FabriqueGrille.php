@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Models\GroupeMercenaire;
-use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Quete;
 use Illuminate\Validation\ValidationException;

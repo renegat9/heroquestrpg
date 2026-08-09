@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Events\PretsMaj;
+use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\TableController;
 use App\Jobs\GenererSqueletteCampagne;
 use App\Models\ClasseHeros;
-use App\Models\Objet;
 use App\Models\Groupe;
+use App\Models\Objet;
 use App\Models\Personnage;
-use App\Partie\Equipement;
 use App\Partie\DemarreurQuete;
+use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
-use App\Partie\Images\BibliothequeImages;
 use App\Partie\MoteurSorts;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +33,7 @@ use Illuminate\Validation\ValidationException;
  */
 class GroupeController extends Controller
 {
-    use \App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
+    use AutoriseLectureGroupe;
 
     /** Bornes de quêtes par longueur de campagne (doc 05 §2). */
     private const QUETES_PAR_LONGUEUR = [
@@ -166,7 +165,6 @@ class GroupeController extends Controller
             ],
         ], 201);
     }
-
 
     /**
      * POST /api/groupes/{identifiant}/joueurs — rejoindre avec ses héros.

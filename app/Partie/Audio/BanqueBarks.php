@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie\Audio;
 
+use App\Jobs\GenererBarksBoss;
 use App\Models\InstanceMonstre;
 
 /**
@@ -13,7 +14,7 @@ use App\Models\InstanceMonstre;
  * AUDIO. Sans audio, l'écran de table lit le texte via Web Speech.
  *
  * Pour un boss/sous-boss habillé par l'IA, des répliques sur mesure peuvent
- * avoir été générées par quête ({@see \App\Jobs\GenererBarksBoss}) : elles
+ * avoir été générées par quête ({@see GenererBarksBoss}) : elles
  * priment sur la banque d'archétype.
  */
 final class BanqueBarks

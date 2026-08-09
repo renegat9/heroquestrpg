@@ -9,6 +9,7 @@ use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Tuile;
 use App\Partie\Aleatoire\PrngLineaire;
+use Illuminate\Support\Collection;
 use RuntimeException;
 
 /**
@@ -470,10 +471,14 @@ final class AssembleurCarte
 
             // Mur de l'enfant collé au mur de la parente (colonne/ligne partagée).
             switch ($arete['direction']) {
-                case 'E': $vise['x'] = $p['x'] + $p['largeur'] - 1; break;
-                case 'W': $vise['x'] = $p['x'] - $e['largeur'] + 1; break;
-                case 'S': $vise['y'] = $p['y'] + $p['hauteur'] - 1; break;
-                case 'N': $vise['y'] = $p['y'] - $e['hauteur'] + 1; break;
+                case 'E': $vise['x'] = $p['x'] + $p['largeur'] - 1;
+                    break;
+                case 'W': $vise['x'] = $p['x'] - $e['largeur'] + 1;
+                    break;
+                case 'S': $vise['y'] = $p['y'] + $p['hauteur'] - 1;
+                    break;
+                case 'N': $vise['y'] = $p['y'] - $e['hauteur'] + 1;
+                    break;
                 default: continue 2;
             }
 
@@ -1024,7 +1029,7 @@ final class AssembleurCarte
      * une case interdite ni un meuble déjà posé, ET si la salle reste
      * entièrement connexe une fois la case posée (`salleResteConnexe()`).
      *
-     * @param  \Illuminate\Support\Collection<int, Mobilier>  $catalogue
+     * @param  Collection<int, Mobilier>  $catalogue
      * @param  list<list<string>>  $cases
      * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
      * @param  list<array{x: int, y: int}>  $interieur
@@ -1034,7 +1039,7 @@ final class AssembleurCarte
      * @return array{mobilier_id: int, x: int, y: int, l: int, h: int, cellules: list<array{x: int, y: int}>}|null
      */
     private function tenterPoseMobilier(
-        \Illuminate\Support\Collection $catalogue,
+        Collection $catalogue,
         array $cases,
         array $salle,
         array $interieur,

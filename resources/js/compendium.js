@@ -37,10 +37,14 @@ const EFFETS_VALEUR = {
     deplacement_multiplie: 'Déplacement ×',
 };
 
+/** Valeurs chiffrées « libellé puis −nombre » (malus). */
+const EFFETS_MALUS = {
+    malus_deplacement: 'Déplacement',
+};
+
 /** Clés booléennes → libellé affiché quand la valeur est vraie. */
 const EFFETS_BOOL = {
     attaque_supplementaire: 'Attaque supplémentaire ce tour',
-    deplacement_sans_d6: 'Déplacement fixe (sans dé)',
     deux_mains: 'Arme à deux mains',
     incompatible_deux_mains: 'Incompatible deux mains',
     attaque_diagonale: 'Attaque en diagonale',
@@ -155,6 +159,9 @@ export function effetVersChips(effet) {
         } else if (k in EFFETS_VALEUR && typeof v === 'number') {
             const label = EFFETS_VALEUR[k];
             chips.push({ texte: label.endsWith('×') ? `${label}${v}` : `${label} ${v}` });
+        } else if (k in EFFETS_MALUS && typeof v === 'number') {
+            // Signe explicite : « Déplacement 2 » se lirait comme un bonus.
+            chips.push({ texte: `${EFFETS_MALUS[k]} −${v}` });
         } else if (k in EFFETS_BOOL) {
             if (v) chips.push({ texte: EFFETS_BOOL[k] });
         } else if (k in EFFETS_ENUM) {
@@ -185,7 +192,7 @@ export const RARETE = {
     commun: 'Commun', peu_commun: 'Peu commun', rare: 'Rare', unique: 'Unique',
 };
 export const EMPLACEMENT = {
-    arme_principale: 'Main principale', arme_secondaire: 'Main secondaire', armure: 'Armure', sac: 'Sac', consommable: 'Consommable',
+    arme_principale: 'Main principale', arme_secondaire: 'Main secondaire', casque: 'Casque', armure: 'Armure', sac: 'Sac', consommable: 'Consommable',
 };
 export const TIER_MONSTRE = { base: 'Sbires', sous_boss: 'Sous-boss', boss: 'Boss' };
 export const ELEMENT = {
@@ -211,8 +218,12 @@ export const TAG_EQUIPEMENT = {
     arme_courante: 'Armes courantes',
     arme_distance: 'Armes de jet et de tir',
     arme_deux_mains: 'Armes à deux mains',
+    arme_arc_long: 'Arcs longs',
+    arme_arc_court: 'Arcs courts',
+    arme_erudit: 'Armes d\u2019érudit',
     armure_legere: 'Armures légères',
     armure_lourde: 'Armures lourdes',
+    armure_magicien: 'Protections arcaniques',
     bouclier: 'Boucliers',
 };
 

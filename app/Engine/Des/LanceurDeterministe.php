@@ -18,7 +18,7 @@ final class LanceurDeterministe implements LanceurDes
     private array $valeurs = [];
 
     /**
-     * @param list<int> $valeurs valeurs de d6 (1-6) servies dans l'ordre
+     * @param  list<int>  $valeurs  valeurs de d6 (1-6) servies dans l'ordre
      */
     public function __construct(array $valeurs = [])
     {

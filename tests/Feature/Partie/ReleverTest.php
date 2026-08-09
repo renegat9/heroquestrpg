@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
-use App\Auth\JoueurAuthentifiable;
 use App\Models\Quete;
-use App\Partie\MenuMoteur;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;

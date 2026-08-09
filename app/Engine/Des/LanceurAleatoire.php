@@ -21,7 +21,7 @@ final class LanceurAleatoire implements LanceurDes
     public function __construct(?int $graine = null)
     {
         $this->randomizer = new Randomizer(
-            $graine === null ? new Mt19937() : new Mt19937($graine)
+            $graine === null ? new Mt19937 : new Mt19937($graine)
         );
     }
 

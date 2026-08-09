@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Groupe;
 use App\Models\Monstre;
 use App\Models\Parametre;
 use App\Partie\DemarreurQuete;
@@ -18,7 +19,7 @@ beforeEach(function () {
     $this->seed(MonstreSeeder::class);
 });
 
-/** @return list<App\Models\Monstre> */
+/** @return list<Monstre> */
 function acheter(int $budget, int $maxSpawns, int $positionArc, array $structure = []): array
 {
     $demarreur = app(DemarreurQuete::class);
@@ -121,7 +122,7 @@ it('n\'adapte que les pivots : la piétaille garde ses PV catalogue', function (
  * affronte un boss avec moins de serviteurs autour ; le facteur monte vers son
  * plein au fil des niveaux.
  */
-function facteurJalon(App\Models\Groupe $groupe, string $type): float
+function facteurJalon(Groupe $groupe, string $type): float
 {
     $demarreur = app(DemarreurQuete::class);
     $methode = new ReflectionMethod($demarreur, 'facteurJalon');

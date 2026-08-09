@@ -6,8 +6,11 @@ use App\Jobs\GenererMenu;
 use App\Models\Competence;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
+use App\Models\Monstre;
 use App\Models\Objet;
+use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Equipement;
 use App\Partie\Grille;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -42,7 +45,7 @@ beforeEach(function () {
     ]);
 });
 
-function equipeArbalete(App\Models\Personnage $p): Inventaire
+function equipeArbalete(Personnage $p): Inventaire
 {
     $objet = Objet::where('nom', 'Arbalète')->firstOrFail();
     $ligne = Inventaire::create([
@@ -113,9 +116,9 @@ it('refuse le tir sans ligne de vue dégagée (figure interposée)', function ()
     [$inter, $spot] = $trio;
 
     $ctx['instance']->update(['position_x' => $spot['x'], 'position_y' => $spot['y']]);
-    App\Models\InstanceMonstre::create([
+    InstanceMonstre::create([
         'quete_id' => $ctx['quete']->id,
-        'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id'),
+        'monstre_id' => Monstre::where('nom_base', 'Orque')->value('id'),
         'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 0,
         'position_x' => $inter['x'], 'position_y' => $inter['y'],
         'etat' => 'actif', 'revele' => true,
@@ -185,11 +188,11 @@ it('lance une hache à main sur une cible à distance, et la PERD', function () 
     $hero->inventaire()->delete();
     $hache = Inventaire::create([
         'personnage_id' => $hero->id,
-        'objet_id' => App\Models\Objet::where('nom', 'Hachette')->firstOrFail()->id,
+        'objet_id' => Objet::where('nom', 'Hachette')->firstOrFail()->id,
         'emplacement' => 'arme_principale',
         'quantite' => 1,
     ]);
-    app(App\Partie\Equipement::class)->recalculerCombat($hero->refresh());
+    app(Equipement::class)->recalculerCombat($hero->refresh());
     expect($hero->fresh()->des_attaque)->toBe(2);
 
     placerMonstreADistance($ctx['quete'], $ctx['instance'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);

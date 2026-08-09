@@ -67,11 +67,11 @@ return new class extends Migration
         // re-semées par ailleurs, mais une base vivante ne doit pas attendre le
         // prochain `db:seed` pour appliquer les restrictions.
         foreach (self::TAGS as $tag => $noms) {
-            \DB::table('objets')->whereIn('nom', $noms)->update(['tag_equipement' => $tag]);
+            DB::table('objets')->whereIn('nom', $noms)->update(['tag_equipement' => $tag]);
         }
 
         foreach (self::BASE as $classe => $tags) {
-            \DB::table('classes_heros')->where('nom', $classe)->update(['tags_equipement' => json_encode($tags)]);
+            DB::table('classes_heros')->where('nom', $classe)->update(['tags_equipement' => json_encode($tags)]);
         }
     }
 

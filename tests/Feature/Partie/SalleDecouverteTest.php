@@ -6,12 +6,10 @@ use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Quete;
-use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
@@ -51,8 +49,7 @@ it('décrit une salle nouvellement explorée quand un héros y agit', function (
     Queue::fake();
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    Queue::assertPushed(GenererNarration::class, fn (GenererNarration $j) =>
-        ($j->resultatMoteur['type'] ?? null) === 'salle_decouverte' && ($j->resultatMoteur['salle'] ?? null) === 1);
+    Queue::assertPushed(GenererNarration::class, fn (GenererNarration $j) => ($j->resultatMoteur['type'] ?? null) === 'salle_decouverte' && ($j->resultatMoteur['salle'] ?? null) === 1);
 
     expect($quete->fresh()->sallesDecouvertes())->toContain(1);
 });

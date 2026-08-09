@@ -148,12 +148,12 @@ final class MenuMoteur
         }
 
         if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue) {
-            // Armure de plates : base SEULE, sans le 1d6 (doc 03 §3). `Deplacement`
-            // sait le faire depuis toujours, mais aucun appelant ne le lui avait
-            // jamais dit — le malus n'avait donc jamais joué, et l'armure la plus
-            // chère n'avait que des avantages.
+            // Armure lourde : « a 2 square movement penalty » (carte Plate Mail).
+            // `Deplacement` savait appliquer un malus depuis toujours, mais
+            // aucun appelant ne le lui avait jamais dit — il n'avait donc
+            // jamais joué, et l'armure la plus chère n'avait que des avantages.
             $etat->update(['deplacement_tour' => (new Deplacement($this->des))
-                ->calculer($base, $this->equipement->effetPorte($personnage, 'deplacement_sans_d6'))
+                ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'))
                 ->total]);
         }
 

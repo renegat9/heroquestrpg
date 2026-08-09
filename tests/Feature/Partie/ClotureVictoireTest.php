@@ -6,6 +6,7 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\Des\LanceurDeterministe;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\GabaritQuete;
 use App\Models\Quete;
 use App\Partie\ClotureCampagne;
 use Database\Seeders\ClasseHerosSeeder;
@@ -75,7 +76,7 @@ it('ouverture MANUELLE au hub après boss final vaincu → issue victoire', func
 
     Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => \App\Models\GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
+        'gabarit_id' => GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
         'titre' => 'Confrontation finale',
         'position_arc' => 1,
         'type_jalon' => 'boss_final',
@@ -97,7 +98,7 @@ it('un TPK sur la quête finale clôturé SANS drapeau → echec (or plafonné),
 
     Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => \App\Models\GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
+        'gabarit_id' => GabaritQuete::where('type_jalon', 'boss_final')->value('id'),
         'titre' => 'Confrontation finale',
         'position_arc' => 1,
         'type_jalon' => 'boss_final',

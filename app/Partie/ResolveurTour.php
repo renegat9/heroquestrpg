@@ -14,11 +14,10 @@ use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
-use App\Events\MouvementAnime;
 use App\Events\MjReflechit;
+use App\Events\MouvementAnime;
 use App\Jobs\GenererNarration;
-use App\Partie\Audio\BanqueBarks;
-use App\Partie\Fouille\DeckFouille;
+use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
@@ -29,12 +28,13 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Partie\Audio\BanqueBarks;
+use App\Partie\Fouille\DeckFouille;
 use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Models\Condition;
 
 /**
  * Résolution d'une option de menu VALIDÉE pendant une quête (doc 11 §4) —
@@ -350,7 +350,7 @@ final class ResolveurTour
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
         $base = (int) $personnage->deplacement_base;
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->effetPorte($personnage, 'deplacement_sans_d6'))
+            ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'))
             ->total;
         $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
@@ -2096,8 +2096,6 @@ final class ResolveurTour
             return null;
         }
 
-
-
         return $quete->instancesMonstres()->create([
             'monstre_id' => $monstre->id,
             'pv_body' => $monstre->pv_body,
@@ -2506,8 +2504,7 @@ final class ResolveurTour
 
         // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
         if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
-            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) =>
-                $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y)
+            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) => $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y)
             )->values();
 
             if ($adjacents->count() >= 2) {
@@ -2673,8 +2670,7 @@ final class ResolveurTour
         // Ligne de TIR (doc 03 §36) : une figure interposée (héros OU monstre)
         // coupe la vue — un archer ne tire pas sur un héros caché DERRIÈRE
         // d'autres figures. `$grille` porte déjà l'occupation (FabriqueGrille).
-        $visibles = $cibles->filter(fn (EtatPersonnageQuete $c) =>
-            $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true)
+        $visibles = $cibles->filter(fn (EtatPersonnageQuete $c) => $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true)
         )->values();
 
         if ($visibles->isEmpty()) {

@@ -117,23 +117,25 @@ Trois autres vocabulaires de sort (`App\Engine\MotsClesSort`) : **`cible`** (`so
 
 ### ⚔️ Équipement : des cartes du plateau aux mots-clés
 
-Au plateau, une carte d'équipement dit son effet en une phrase — *« This weapon allows you to attack diagonally »*, *« You may not use a shield when using the battle axe »*. Ici l'effet est une **donnée** : chaque carte est convertie en **statistiques** (prix, dés) + **mots-clés** d'un vocabulaire fermé, `App\Engine\MotsClesEquipement`. La conversion carte par carte est en `reference/16_armurerie.md` §2.2, les mots en `reference/19_mots_cles_effets.md` §9.
+Au plateau, une carte d'équipement dit son effet en une phrase — *« This weapon allows you to attack diagonally »*, *« Two-handed »*, *« a 2 square movement penalty »*. Ici l'effet est une **donnée** : chaque carte est convertie en **statistiques** (prix, dés) + **mots-clés** d'un vocabulaire fermé, `App\Engine\MotsClesEquipement`. Le paquet porté est celui de **Ye Olde Inn** (`sjeng-equipment.pdf`, 26 cartes retenues sur 27) — une révision assumée du jeu de base, pas le paquet officiel. La conversion carte par carte est en `reference/16_armurerie.md` §2.2, les mots en `reference/19_mots_cles_effets.md` §9.
 
 | famille | mots-clés |
 |---|---|
 | statistiques | `des_attaque` (**remplace** la valeur du porteur), `des_defense` (**s'ajoute**) |
 | portée | `attaque_diagonale`, `portee: distance`, `inutilisable_adjacent`, `jetable` |
-| mains / corps | `deux_mains`, `incompatible_deux_mains`, `deplacement_sans_d6` |
+| mains / corps | `deux_mains`, `incompatible_deux_mains`, `malus_deplacement` |
 | outil | `permet_desamorcage` |
 | consommables | `soin_pv_body`, `soin_pv_body_de`, `soin_pv_mind`, `bonus_des_attaque`, `bonus_des_defense`, `attaque_supplementaire`, `condition_appliquee`, `retire_condition`, `duree` |
 
-Deux phrases de carte ne passent **pas** par un mot-clé, exprès : *« may not be used by the wizard »* est porté par le couple `tag_equipement` × `classes_heros.tags_equipement` (le magicien ne déclare aucun tag d'armure — la règle est dite une fois, côté classe), et *« you may only move 1 red die »* devient `deplacement_sans_d6`, notre déplacement étant *base de classe + 1d6* et non deux dés rouges.
+**Les restrictions de classe** ne passent **pas** par un mot-clé, exprès : *« May not be used by a Wizard »*, *« …by a Wizard or Elf »*, *« May **only** be used by a Wizard »* sont portées par le couple `tag_equipement` × `classes_heros.tags_equipement` — la règle est dite une fois, côté classe, plutôt que répétée sur chaque pièce. Onze tags couvrent les sept exclusions distinctes du paquet, dont `armure_magicien` pour les deux protections réservées au magicien : sa première armure, lui qui restait sinon à 2 dés de défense toute la campagne.
+
+Les pièces d'armure se **cumulent**, comme au plateau : le casque a son propre emplacement depuis le 2026-08-08, donc casque + armure de corps + bouclier montent bien à **6 dés de défense** (LR p. 7). Une règle du paquet reste **non portée** et c'est délibéré : le *dual-wielding* demanderait que l'emplacement devienne un paramètre d'API, et aucune carte ne dit ce que la seconde arme rapporte.
 
 Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalogue hors du vocabulaire (une règle annoncée que personne n'applique), et aucun mot déclaré que plus aucun objet ne porte (une règle qui n'existe que sur le papier).
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **581 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **584 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \

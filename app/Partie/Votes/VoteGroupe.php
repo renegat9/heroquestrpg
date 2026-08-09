@@ -13,6 +13,7 @@ use App\Models\Joueur;
 use App\Models\Personnage;
 use App\Partie\ClotureCampagne;
 use App\Partie\EtatGroupe;
+use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -381,7 +382,7 @@ final class VoteGroupe
 
             $quete = $groupe->queteCourante;
             if ($applique && $quete !== null) {
-                $resultat['quete'] = app(\App\Partie\ResolveurTour::class)->terminerQuete($groupe, $quete);
+                $resultat['quete'] = app(ResolveurTour::class)->terminerQuete($groupe, $quete);
             }
 
             Journal::ajouter($groupe->fresh(), 'systeme', [

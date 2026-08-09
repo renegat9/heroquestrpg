@@ -3,10 +3,15 @@
 use App\Auth\JoueurAuthentifiable;
 use App\Engine\Des\LanceurDes;
 use App\Engine\Des\LanceurDeterministe;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Joueur;
+use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\MoteurDread;
+use App\Partie\ResolveurTour;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -138,7 +143,7 @@ function desFiges(array $valeurs): LanceurDeterministe
  * comportement des monstres (capacités tactiques, sorciers nommés…).
  *
  * @param  array<string, mixed>  $herosAttrs  surcharges de stats du héros
- * @return array{alice: \App\Auth\JoueurAuthentifiable, groupe: \App\Models\Groupe, heros: \App\Models\Personnage, quete: \App\Models\Quete, instance: \App\Models\InstanceMonstre, etatHeros: \App\Models\EtatPersonnageQuete}
+ * @return array{alice: JoueurAuthentifiable, groupe: Groupe, heros: Personnage, quete: Quete, instance: InstanceMonstre, etatHeros: EtatPersonnageQuete}
  */
 function demarrerQueteAvecMonstre(string $nomMonstre, array $herosAttrs = []): array
 {
@@ -148,10 +153,10 @@ function demarrerQueteAvecMonstre(string $nomMonstre, array $herosAttrs = []): a
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    $quete = \App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $quete->instancesMonstres()->update(['revele' => true]);
 
-    $catalogue = \App\Models\Monstre::where('nom_base', $nomMonstre)->firstOrFail();
+    $catalogue = Monstre::where('nom_base', $nomMonstre)->firstOrFail();
 
     $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);
@@ -164,9 +169,9 @@ function demarrerQueteAvecMonstre(string $nomMonstre, array $herosAttrs = []): a
     ]);
     $instance->refresh()->load('monstre');
 
-    app(\App\Partie\MoteurDread::class)->reinitialiserUsagesInstance($instance, $quete);
+    app(MoteurDread::class)->reinitialiserUsagesInstance($instance, $quete);
 
-    $etatHeros = \App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $heros->id)->firstOrFail();
 
     $contact = caseAdjacenteLibre($quete, (int) $etatHeros->position_x, (int) $etatHeros->position_y);
@@ -285,5 +290,5 @@ function acheverLaQuete(Groupe $groupe): array
         return [];
     }
 
-    return app(App\Partie\ResolveurTour::class)->terminerQuete($groupe, $quete);
+    return app(ResolveurTour::class)->terminerQuete($groupe, $quete);
 }

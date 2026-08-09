@@ -11,6 +11,4 @@ use RuntimeException;
  * inexploitable). Distinct d'une sortie syntaxiquement valide mais
  * rejetée par la validation (SortieInvalideException).
  */
-class AppelLlmException extends RuntimeException
-{
-}
+class AppelLlmException extends RuntimeException {}

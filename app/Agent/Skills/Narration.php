@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Agent\Skills;
 
+use App\Partie\Narration\BibliothequeNarration;
+
 /**
  * Skill « narration » (doc 06 §1, étape 5 : mise en récit du résultat moteur).
  *
@@ -75,7 +77,7 @@ class Narration extends Skill
     {
         // Variante scriptée (config/narration.php) avec sa vraie voix de
         // narrateur si l'asset est pré-généré — le jeu reste jouable sans LLM.
-        return app(\App\Partie\Narration\BibliothequeNarration::class)
+        return app(BibliothequeNarration::class)
             ->repli($this->cleRepli($contexte['resultat_moteur'] ?? []));
     }
 

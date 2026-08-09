@@ -31,13 +31,11 @@ use App\Engine\Des\LanceurDes;
  */
 final class SortMental
 {
-    public function __construct(private readonly LanceurDes $des)
-    {
-    }
+    public function __construct(private readonly LanceurDes $des) {}
 
     /**
-     * @param int $mindCible  dés de résistance de la cible (attribut Mind héros / PV Mind monstre)
-     * @param int $difficulte succès requis pour résister (défaut : 1)
+     * @param  int  $mindCible  dés de résistance de la cible (attribut Mind héros / PV Mind monstre)
+     * @param  int  $difficulte  succès requis pour résister (défaut : 1)
      */
     public function resoudre(int $mindCible, int $difficulte = 1): ResultatSortMental
     {

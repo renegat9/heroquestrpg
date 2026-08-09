@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\EtatPersonnageQuete;
-use App\Models\GroupeMercenaire;
 use App\Models\Mercenaire;
 use App\Models\Quete;
 use Database\Seeders\ClasseHerosSeeder;

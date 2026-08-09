@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Jobs\GenererMenu;
+use App\Models\Monstre;
+use App\Partie\EtatGroupe;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -36,8 +39,8 @@ beforeEach(function () {
 });
 
 it('expose une emprise 1×2 pour l Ogre (1×1 par défaut sinon)', function () {
-    $ogre = \App\Models\Monstre::where('nom_base', 'Ogre')->firstOrFail();
-    $gobelin = \App\Models\Monstre::where('nom_base', 'Gobelin')->first();
+    $ogre = Monstre::where('nom_base', 'Ogre')->firstOrFail();
+    $gobelin = Monstre::where('nom_base', 'Gobelin')->first();
 
     expect($ogre->emprise())->toBe(['l' => 1, 'h' => 2])
         ->and($ogre->grandeTaille())->toBeTrue();
@@ -86,7 +89,7 @@ it('offre et résout l attaque de l Ogre via le contact de sa case BASSE seule',
     expect(abs($ancreX - $hx) + abs($ancreY - $hy))->toBe(2);
 
     // Le menu moteur DOIT offrir l'attaque (adjacence à l'emprise).
-    \App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
 
     desFiges(array_fill(0, 50, 4)); // boucliers : aucun dégât
 
@@ -116,7 +119,7 @@ it('fait attaquer l Ogre, à la phase des monstres, un héros adjacent à son em
 it('expose l emprise du monstre dans l état du groupe', function () {
     $ctx = demarrerQueteAvecMonstre('Ogre');
 
-    $etat = app(\App\Partie\EtatGroupe::class)->payload($ctx['groupe']->fresh());
+    $etat = app(EtatGroupe::class)->payload($ctx['groupe']->fresh());
 
     $ogre = collect(data_get($etat, 'entites', []))->firstWhere('nom', 'Ogre');
 

@@ -89,7 +89,7 @@ describe('JetCompetence — réussite mixte (décision P4)', function () {
 
 describe('JetCompetence — cas limites', function () {
     it('0 dé (attribut 0) donne 0 succès et un échec automatique, sans tirage', function () {
-        $lanceur = new LanceurDeterministe(); // file vide : tout tirage exploserait
+        $lanceur = new LanceurDeterministe; // file vide : tout tirage exploserait
         $resultat = (new JetCompetence($lanceur))->resoudre(nbDes: 0, difficulte: 1);
 
         expect($resultat->succes)->toBe(0)

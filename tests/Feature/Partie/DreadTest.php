@@ -3,13 +3,19 @@
 declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
+use App\Engine\Des\LanceurDeterministe;
+use App\Engine\SortMental;
 use App\Jobs\GenererMenu;
+use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ClasseHerosSeeder;
@@ -56,13 +62,13 @@ beforeEach(function () {
  *
  * @return array{
  *     alice: JoueurAuthentifiable,
- *     groupe: \App\Models\Groupe,
- *     heros: \App\Models\Personnage,
+ *     groupe: Groupe,
+ *     heros: Personnage,
  *     quete: Quete,
  *     boss: InstanceMonstre,
  *     etatHeros: EtatPersonnageQuete,
  *     bob?: JoueurAuthentifiable,
- *     heros2?: \App\Models\Personnage,
+ *     heros2?: Personnage,
  *     etatHeros2?: EtatPersonnageQuete,
  * }
  */
@@ -485,7 +491,7 @@ it('Invocation : 2 squelettes apparaissent et l\'usage ne se reproduit pas (1×/
     // On simule l'invocation directement via le moteur dread.
     $nbMonstresAvant = $quete->instancesMonstres()->where('etat', 'actif')->count();
 
-    $sortInvocation = \App\Models\SortDread::where('nom', 'Invocation de morts-vivants')->firstOrFail();
+    $sortInvocation = SortDread::where('nom', 'Invocation de morts-vivants')->firstOrFail();
 
     // Pas encore d'invocation pour cette instance.
     expect(Cache::has(MoteurDread::cleInvocation($boss->id, $quete->id)))->toBeFalse();
@@ -817,15 +823,15 @@ it('le Magicien (Mind 4) résiste là où le Barbare (Mind 1) échoue avec les m
 
     // Dés pour le Barbare (Mind 1) : 1 dé = face 4 (BouclierBlanc = 0 crâne → subit).
     // Attribution du résultat via Engine\SortMental, injecté avec LanceurDeterministe.
-    $lanceur = new \App\Engine\Des\LanceurDeterministe([4]);
-    $sortMental = new \App\Engine\SortMental($lanceur);
+    $lanceur = new LanceurDeterministe([4]);
+    $sortMental = new SortMental($lanceur);
     $resultatBarbare = $sortMental->resoudre(1); // Mind = 1 dé
     expect($resultatBarbare->effetApplique())->toBeTrue() // 0 crânes < 1 requis → subit
         ->and($resultatBarbare->succes)->toBe(0);
 
     // Dés pour le Magicien (Mind 4) : 4 dés = [1,1,1,4] → 3 crânes → résiste.
-    $lanceur2 = new \App\Engine\Des\LanceurDeterministe([1, 1, 1, 4]);
-    $sortMental2 = new \App\Engine\SortMental($lanceur2);
+    $lanceur2 = new LanceurDeterministe([1, 1, 1, 4]);
+    $sortMental2 = new SortMental($lanceur2);
     $resultatMage = $sortMental2->resoudre(4); // Mind = 4 dés
     expect($resultatMage->effetApplique())->toBeFalse() // 3 crânes ≥ 1 requis → résiste
         ->and($resultatMage->succes)->toBe(3);
@@ -882,7 +888,7 @@ it('Contresort annule Sommeil quand la résistance naturelle échoue mais le con
 
     $heros->update(['classe' => 'magicien']);
     $heros->competences()->attach(
-        \App\Models\Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
+        Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
     );
 
     desFiges([
@@ -913,7 +919,7 @@ it('Contresort raté : Sommeil s\'applique quand même', function () {
 
     $heros->update(['classe' => 'magicien']);
     $heros->competences()->attach(
-        \App\Models\Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
+        Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
     );
 
     desFiges([

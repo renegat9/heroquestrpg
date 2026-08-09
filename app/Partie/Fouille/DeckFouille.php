@@ -49,7 +49,7 @@ final class DeckFouille
         // L'ordre des APPELS au PRNG reste stable — ce n'est plus la
         // reproductibilité qui l'exige, mais la lisibilité : deck, puis salle
         // du coffre, puis arme unique.
-        $prng = new PrngLineaire(random_int(0, 0x7fffffff));
+        $prng = new PrngLineaire(random_int(0, 0x7FFFFFFF));
 
         $composition = (array) data_get($gabarit->structure, 'deck_fouille', []);
         $salles = (array) data_get($carte, 'salles', []);

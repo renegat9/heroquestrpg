@@ -20,6 +20,7 @@ use App\Models\SortDread;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Moteur de la magie du Chaos et des capacités de boss (doc 09 §4, contrat
@@ -549,7 +550,7 @@ final class MoteurDread
      *
      * @return list<string>
      */
-    private function repertoireSorts(\App\Models\Monstre $monstre): array
+    private function repertoireSorts(Monstre $monstre): array
     {
         $archetype = $monstre->archetype_lanceur;
 
@@ -877,7 +878,7 @@ final class MoteurDread
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @param  array<string, mixed>  $acteur
-     * @return array<string, mixed>|null  null si charge non applicable
+     * @return array<string, mixed>|null null si charge non applicable
      */
     private function tentativeCharge(
         Groupe $groupe,
@@ -1056,7 +1057,7 @@ final class MoteurDread
     {
         $ids = Condition::where('nom', $nomCondition)->pluck('id');
 
-        \Illuminate\Support\Facades\DB::table('personnage_conditions')
+        DB::table('personnage_conditions')
             ->where('personnage_id', $personnage->id)
             ->whereIn('condition_id', $ids)
             ->delete();
@@ -1241,8 +1242,7 @@ final class MoteurDread
 
         // Allié le plus proche (distance de Manhattan).
         $plusProche = $allies
-            ->sortBy(fn (EtatPersonnageQuete $a) =>
-                abs((int) $etat->position_x - (int) $a->position_x)
+            ->sortBy(fn (EtatPersonnageQuete $a) => abs((int) $etat->position_x - (int) $a->position_x)
                 + abs((int) $etat->position_y - (int) $a->position_y)
             )
             ->first();

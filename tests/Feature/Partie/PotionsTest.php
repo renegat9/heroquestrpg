@@ -2,14 +2,22 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
 use App\Models\Condition;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
+use App\Models\Quete;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\ConditionSeeder;
+use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
+use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
+use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -23,7 +31,7 @@ beforeEach(function () {
     $this->seed([ClasseHerosSeeder::class, ConditionSeeder::class, SortSeeder::class, ObjetSeeder::class]);
 });
 
-function donnerConsommable(\App\Models\Personnage $perso, string $nom, int $quantite = 1): Inventaire
+function donnerConsommable(Personnage $perso, string $nom, int $quantite = 1): Inventaire
 {
     $objet = Objet::where('nom', $nom)->firstOrFail();
 
@@ -100,7 +108,7 @@ it('applique le buff de la Potion de rage (bonus de dés d\'attaque)', function 
 
 it('refuse la potion d\'un héros qui n\'est pas à soi', function () {
     $alice = connecterJoueur('alice');
-    $bob = \App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
     $persoBob = creerHeros($bob, $groupe, 'Brunhilde', 2);
@@ -114,16 +122,16 @@ it('refuse la potion d\'un héros qui n\'est pas à soi', function () {
 it('RELÈVE un héros à terre, exactement comme le sort de soin', function () {
     // Démarrer une quête demande la carte et le bestiaire, absents du
     // beforeEach de ce fichier (les autres tests n'en ont pas besoin).
-    $this->seed([Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
-        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class,
+        GabaritQueteSeeder::class, PiegeSeeder::class]);
 
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
     // À terre, Body à zéro. Boire reste permis : c'est une action gratuite que
@@ -145,16 +153,16 @@ it('RELÈVE un héros à terre, exactement comme le sort de soin', function () {
 it('ne relève PAS sur un soin qui ne rouvre pas le Body (antidote)', function () {
     // Démarrer une quête demande la carte et le bestiaire, absents du
     // beforeEach de ce fichier (les autres tests n'en ont pas besoin).
-    $this->seed([Database\Seeders\MonstreSeeder::class, Database\Seeders\TuileSeeder::class,
-        Database\Seeders\GabaritQueteSeeder::class, Database\Seeders\PiegeSeeder::class]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class,
+        GabaritQueteSeeder::class, PiegeSeeder::class]);
 
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $etat = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $hero->id)->firstOrFail();
 
     $etat->update(['tombe' => true]);

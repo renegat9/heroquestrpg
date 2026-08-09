@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\LanceurDes;
 use App\Models\Condition;
 use App\Models\Inventaire;
 use App\Models\Personnage;
@@ -21,7 +22,7 @@ class MoteurPotions
 {
     public function __construct(
         private readonly MoteurSorts $sorts,
-        private readonly \App\Engine\Des\LanceurDes $des,
+        private readonly LanceurDes $des,
     ) {}
 
     /**

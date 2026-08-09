@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
 use App\Models\ForgeAmelioration;
+use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\ForgeAmeliorationSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -45,7 +47,7 @@ function donnerAuSac(int $personnageId, string $nomObjet, string $emplacement = 
 /**
  * Groupe au hub avec deux joueurs, un héros chacun.
  *
- * @return array{0: JoueurAuthentifiable, 1: \App\Models\Groupe, 2: \App\Models\Personnage, 3: \App\Models\Personnage, 4: JoueurAuthentifiable}
+ * @return array{0: JoueurAuthentifiable, 1: Groupe, 2: Personnage, 3: Personnage, 4: JoueurAuthentifiable}
  */
 function groupeAuHub(): array
 {
@@ -62,7 +64,7 @@ function groupeAuHub(): array
 }
 
 it('transmet un objet du sac au héros d\'un AUTRE joueur', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $ligne = donnerAuSac($albrecht->id, 'Épée courte');
 
@@ -80,7 +82,7 @@ it('transmet un objet du sac au héros d\'un AUTRE joueur', function () {
 });
 
 it('DÉPLACE la ligne pour préserver les améliorations de Forge', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $affutee = ForgeAmelioration::where('nom', 'Affûtée')->firstOrFail();
     $ligne = donnerAuSac($albrecht->id, 'Épée courte');
@@ -103,7 +105,7 @@ it('DÉPLACE la ligne pour préserver les améliorations de Forge', function () 
 });
 
 it('EMPILE les consommables chez le receveur et décrémente la pile du donneur', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $potion = Objet::where('nom', 'Potion de soin')->firstOrFail();
     $source = donnerAuSac($albrecht->id, 'Potion de soin', 'consommable', 3);
@@ -124,7 +126,7 @@ it('EMPILE les consommables chez le receveur et décrémente la pile du donneur'
 });
 
 it('supprime la ligne du donneur quand il donne toute sa pile', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $source = donnerAuSac($albrecht->id, 'Potion de soin', 'consommable', 2);
 
@@ -140,7 +142,7 @@ it('supprime la ligne du donneur quand il donne toute sa pile', function () {
 });
 
 it('fait circuler un ARTEFACT : l\'arme unique appartient au groupe', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     // Trouvé par Brunhilde, il revient au barbare qui saura s'en servir.
     $ligne = donnerAuSac($brunhilde->id, 'Hache du Roi sous la Montagne');
@@ -156,7 +158,7 @@ it('fait circuler un ARTEFACT : l\'arme unique appartient au groupe', function (
 });
 
 it('refuse si le sac du receveur est plein', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $babiole = Objet::where('categorie', '!=', 'consommable')->where('rarete', 'commun')->firstOrFail();
     for ($i = 0; $i < 12; $i++) {
@@ -178,7 +180,7 @@ it('refuse si le sac du receveur est plein', function () {
 });
 
 it('laisse un donneur EN DÉPASSEMENT se délester — c\'est la façon de régulariser', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     // Sac au-delà de la capacité (butin de quête remis en dépassement).
     $babiole = Objet::where('categorie', '!=', 'consommable')->where('rarete', 'commun')->firstOrFail();
@@ -200,7 +202,7 @@ it('laisse un donneur EN DÉPASSEMENT se délester — c\'est la façon de régu
 });
 
 it('refuse de donner une pièce ÉQUIPÉE sans la déséquiper d\'abord', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $ligne = donnerAuSac($albrecht->id, 'Épée courte', 'arme_principale');
 
@@ -214,7 +216,7 @@ it('refuse de donner une pièce ÉQUIPÉE sans la déséquiper d\'abord', functi
 });
 
 it('refuse hors du hub, depuis le héros d\'autrui, ou vers un non-membre', function () {
-    [$alice, $groupe, $albrecht, $brunhilde, ] = groupeAuHub();
+    [$alice, $groupe, $albrecht, $brunhilde] = groupeAuHub();
 
     $ligne = donnerAuSac($albrecht->id, 'Épée courte');
     $aLui = donnerAuSac($brunhilde->id, 'Dague');
@@ -253,7 +255,7 @@ it('refuse hors du hub, depuis le héros d\'autrui, ou vers un non-membre', func
 });
 
 it('refuse une quantité supérieure à la pile', function () {
-    [, , $albrecht, $brunhilde, ] = groupeAuHub();
+    [, , $albrecht, $brunhilde] = groupeAuHub();
 
     $source = donnerAuSac($albrecht->id, 'Potion de soin', 'consommable', 2);
 

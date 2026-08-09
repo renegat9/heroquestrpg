@@ -66,7 +66,15 @@ const deborde = computed(() => {
             <div><div class="nm">{{ equipement.armure.nom }}</div><div class="rar">Armure équipée</div></div>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.armure.inventaire_id)">Déséquiper</button>
         </div>
-        <div v-if="!equipement.armes.length && !equipement.armure" class="slots">
+        <!-- Le casque a son propre slot : il se CUMULE avec l'armure de corps.
+             `equipement.casque` peut manquer sur une réponse antérieure au
+             slot — d'où l'optionnel, comme partout ailleurs sur cette fiche. -->
+        <div v-if="equipement.casque" class="item">
+            <span class="ic"><MSym n="sports_martial_arts" /></span>
+            <div><div class="nm">{{ equipement.casque.nom }}</div><div class="rar">Casque équipé</div></div>
+            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.casque.inventaire_id)">Déséquiper</button>
+        </div>
+        <div v-if="!equipement.armes.length && !equipement.armure && !equipement.casque" class="slots">
             <div class="slot">
                 <span class="ic"><MSym n="swords" /></span>
                 <div><div class="sn">Arme</div><div class="iv">Aucune</div></div>

@@ -125,6 +125,5 @@ it('diffuse un bark « mort » sur le canal de groupe quand un héros tue un mon
         ->assertStatus(202)
         ->assertJsonPath('resultat.cible_vaincue', true);
 
-    Event::assertDispatched(BarkDiffuse::class, fn (BarkDiffuse $e) =>
-        $e->evenement === 'mort' && $e->groupe->id === $groupe->id);
+    Event::assertDispatched(BarkDiffuse::class, fn (BarkDiffuse $e) => $e->evenement === 'mort' && $e->groupe->id === $groupe->id);
 });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Agent\StatutIA;
 use App\Models\Parametre;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Réglages globaux du serveur (GET/PUT /api/parametres) : route PUBLIQUE,
@@ -171,8 +172,8 @@ it('teste un fournisseur : refuse un fournisseur inconnu ou sans clé (422)', fu
 
 it('teste Anthropic avec le modèle du formulaire (même non enregistré)', function () {
     config(['services.anthropic.api_key' => 'cle-test']);
-    Illuminate\Support\Facades\Http::fake([
-        'api.anthropic.com/*' => Illuminate\Support\Facades\Http::response([
+    Http::fake([
+        'api.anthropic.com/*' => Http::response([
             'content' => [['type' => 'text', 'text' => 'OK']],
         ]),
     ]);
@@ -187,14 +188,14 @@ it('teste Anthropic avec le modèle du formulaire (même non enregistré)', func
         ->and($data['extrait'])->toBe('OK')
         ->and($data['duree_ms'])->toBeGreaterThanOrEqual(0);
 
-    Illuminate\Support\Facades\Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com')
+    Http::assertSent(fn ($req) => str_contains($req->url(), 'api.anthropic.com')
         && $req['model'] === 'claude-test-x');
 });
 
 it('teste un fournisseur en échec : ok=false avec le message, sans exception', function () {
     config(['services.gemini.api_key' => 'cle-test']);
-    Illuminate\Support\Facades\Http::fake([
-        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response(
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(
             ['error' => ['message' => 'clé invalide']], 400,
         ),
     ]);
@@ -209,9 +210,9 @@ it('teste un fournisseur en échec : ok=false avec le message, sans exception', 
 
 it('le test sans modèle explicite retombe sur la surcharge enregistrée puis le défaut', function () {
     config(['services.anthropic.api_key' => 'cle-test']);
-    App\Models\Parametre::actuel()->update(['modele_anthropic' => 'claude-surcharge']);
-    Illuminate\Support\Facades\Http::fake([
-        'api.anthropic.com/*' => Illuminate\Support\Facades\Http::response([
+    Parametre::actuel()->update(['modele_anthropic' => 'claude-surcharge']);
+    Http::fake([
+        'api.anthropic.com/*' => Http::response([
             'content' => [['type' => 'text', 'text' => 'OK']],
         ]),
     ]);
@@ -234,8 +235,8 @@ it('teste une voix : refuse sans clé Gemini (422)', function () {
 
 it('synthétise la voix demandée, met en cache, et ne re-synthétise pas au second appel', function () {
     config(['services.gemini.api_key' => 'cle-test']);
-    Illuminate\Support\Facades\Http::fake([
-        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response([
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response([
             'candidates' => [['content' => ['parts' => [['inlineData' => ['data' => base64_encode('PCMDATA')]]]]]],
         ]),
     ]);
@@ -252,11 +253,11 @@ it('synthétise la voix demandée, met en cache, et ne re-synthétise pas au sec
             ->and(is_file($fichier))->toBeTrue();
 
         // La voix DEMANDÉE part bien dans la requête TTS (chemin JSON vérifié TtsGemini.php:66-69).
-        Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'] === $voixTest);
+        Http::assertSent(fn ($r) => $r['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'] === $voixTest);
 
         // Second appel : servi du cache, AUCUNE nouvelle synthèse.
         $this->postJson('/api/parametres/test-voix', ['voix' => $voixTest])->assertOk();
-        Illuminate\Support\Facades\Http::assertSentCount(1);
+        Http::assertSentCount(1);
     } finally {
         @unlink($fichier); // ne pas laisser l'échantillon de test dans public/
     }
@@ -266,8 +267,8 @@ it('teste une voix en échec de synthèse : ok=false avec le message, rien d\'é
     config(['services.gemini.api_key' => 'cle-test']);
     // 400 (jamais retenté) plutôt que 429 : TtsGemini retente les 429 avec de
     // vrais sleep() — un fake 429 ferait dormir le test en boucle.
-    Illuminate\Support\Facades\Http::fake([
-        'generativelanguage.googleapis.com/*' => Illuminate\Support\Facades\Http::response(
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response(
             ['error' => ['message' => 'voix inconnue']], 400,
         ),
     ]);

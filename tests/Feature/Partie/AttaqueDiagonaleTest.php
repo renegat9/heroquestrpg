@@ -5,6 +5,14 @@ declare(strict_types=1);
 use App\Jobs\GenererMenu;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
+use App\Models\Quete;
+use App\Partie\Equipement;
+use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
+use Database\Seeders\ObjetSeeder;
+use Database\Seeders\PiegeSeeder;
+use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -27,16 +35,16 @@ beforeEach(function () {
     config(['services.anthropic.api_key' => null]);
 
     $this->seed([
-        Database\Seeders\MonstreSeeder::class,
-        Database\Seeders\TuileSeeder::class,
-        Database\Seeders\GabaritQueteSeeder::class,
-        Database\Seeders\PiegeSeeder::class,
-        Database\Seeders\ObjetSeeder::class,
+        MonstreSeeder::class,
+        TuileSeeder::class,
+        GabaritQueteSeeder::class,
+        PiegeSeeder::class,
+        ObjetSeeder::class,
     ]);
 });
 
 /** Équipe l'arme nommée en main principale, sans passer par la maîtrise. */
-function armerEnMain(App\Models\Personnage $heros, string $nomObjet): void
+function armerEnMain(Personnage $heros, string $nomObjet): void
 {
     $heros->inventaire()->where('emplacement', 'arme_principale')->delete();
 
@@ -47,11 +55,11 @@ function armerEnMain(App\Models\Personnage $heros, string $nomObjet): void
         'quantite' => 1,
     ]);
 
-    app(App\Partie\Equipement::class)->recalculerCombat($heros->refresh());
+    app(Equipement::class)->recalculerCombat($heros->refresh());
 }
 
 /** Première case DIAGONALE libre autour de (x,y), ou null. */
-function caseDiagonaleLibre(App\Models\Quete $quete, int $x, int $y): ?array
+function caseDiagonaleLibre(Quete $quete, int $x, int $y): ?array
 {
     foreach ([[1, 1], [-1, 1], [1, -1], [-1, -1]] as [$dx, $dy]) {
         if (caseQueteLibre($quete, $x + $dx, $y + $dy)) {

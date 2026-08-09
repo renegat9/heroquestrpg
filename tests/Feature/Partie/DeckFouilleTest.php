@@ -5,14 +5,19 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Groupe;
 use App\Models\Inventaire;
+use App\Models\Mobilier;
 use App\Models\Objet;
+use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\Fouille\DeckFouille;
+use App\Partie\MoteurMobilier;
 use App\Partie\Sauvegarde;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -37,14 +42,14 @@ beforeEach(function () {
     // la fouille de mobilier n'aurait rien à fouiller.
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
         PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class,
-        Database\Seeders\MobilierSeeder::class]);
+        MobilierSeeder::class]);
 });
 
 /**
  * Quête démarrée avec deux héros (le second empêche la phase des monstres de
  * s'enchaîner après l'action du premier).
  *
- * @return array{0: JoueurAuthentifiable, 1: \App\Models\Groupe, 2: \App\Models\Personnage, 3: Quete, 4: EtatPersonnageQuete}
+ * @return array{0: JoueurAuthentifiable, 1: Groupe, 2: Personnage, 3: Quete, 4: EtatPersonnageQuete}
  */
 function demarrerFouille(): array
 {
@@ -99,7 +104,7 @@ function deplacerVersSalle(Quete $quete, EtatPersonnageQuete $etat, int $salle):
     $personnage = $etat->personnage_id;
     GenererMenu::dispatchSync(
         $groupe->id,
-        (int) \App\Models\Personnage::findOrFail($personnage)->joueur_id,
+        (int) Personnage::findOrFail($personnage)->joueur_id,
         (int) $personnage,
     );
 }
@@ -109,7 +114,7 @@ function deplacerVersSalle(Quete $quete, EtatPersonnageQuete $etat, int $salle):
 // ---------------------------------------------------------------------------
 
 it('bâtit le deck depuis la composition du gabarit, avec plus de cartes que de salles', function () {
-    [, , , $quete, ] = demarrerFouille();
+    [, , , $quete] = demarrerFouille();
 
     $deck = $quete->deckFouille();
     $nbSalles = count($quete->carte->grille['salles']);
@@ -139,7 +144,7 @@ it('bâtit le deck depuis la composition du gabarit, avec plus de cartes que de 
 });
 
 it('rend un deck de MÊME composition mais d\'ordre différent à chaque construction', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     $service = app(DeckFouille::class);
     $gabarit = $quete->gabarit;
@@ -161,7 +166,7 @@ it('rend un deck de MÊME composition mais d\'ordre différent à chaque constru
 });
 
 it('remet la carte piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas', function () {
-    [, , , $quete, ] = demarrerFouille();
+    [, , , $quete] = demarrerFouille();
 
     $avant = count($quete->deckFouille());
 
@@ -177,7 +182,7 @@ it('remet la carte piochée SOUS le paquet : le deck cycle, il ne s\'épuise pas
 });
 
 it('rétrograde en « rien » quand le deck est épuisé', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     $quete->update(['deck_fouille' => []]);
 
@@ -193,7 +198,7 @@ it('rétrograde en « rien » quand le deck est épuisé', function () {
 // ---------------------------------------------------------------------------
 
 it('range la potion trouvée dans les consommables du FOUILLEUR, hors capacité de sac', function () {
-    [, , $hero, $quete, ] = demarrerFouille();
+    [, , $hero, $quete] = demarrerFouille();
 
     $potion = Objet::where('nom', 'Potion de soin')->firstOrFail();
     empilerCarteFouille($quete, ['issue' => 'potion', 'objet_id' => $potion->id]);
@@ -232,7 +237,7 @@ it('EMPILE une seconde potion identique au lieu de créer une ligne', function (
 // ---------------------------------------------------------------------------
 
 it('désigne une salle-coffre qui n\'est jamais la salle de départ, et lui attribue une arme unique', function () {
-    [, , , $quete, ] = demarrerFouille();
+    [, , , $quete] = demarrerFouille();
 
     expect($quete->salle_artefact)->not->toBeNull()
         ->and((int) $quete->salle_artefact)->not->toBe(0);
@@ -281,7 +286,7 @@ it('ne donne qu\'UN SEUL artefact, même en fouillant toutes les salles', functi
 });
 
 it('rebrasse le deck à CHAQUE construction, jamais deux fois le même ordre', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     // La graine dérivait de crc32("{identifiant}:{positionArc}:fouille") : deux
     // constructions pour le même groupe et la même quête donnaient un ordre
@@ -297,7 +302,7 @@ it('rebrasse le deck à CHAQUE construction, jamais deux fois le même ordre', f
 });
 
 it('exclut du tirage une arme unique déjà possédée par un héros du groupe', function () {
-    [, $groupe, $hero, $quete, ] = demarrerFouille();
+    [, $groupe, $hero, $quete] = demarrerFouille();
 
     $dejaLa = Objet::findOrFail($quete->artefact_objet_id);
     Inventaire::create([
@@ -438,7 +443,7 @@ it('restaure le deck et les salles fouillées depuis un snapshot `nouveau_tour`'
 });
 
 it('remélange le deck à la reprise : même composition, ordre différent', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     $sauvegarde = app(Sauvegarde::class);
     $snapshot = $sauvegarde->snapshotter($groupe->fresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
@@ -486,7 +491,7 @@ it('rend l\'artefact re-trouvable UNE SEULE FOIS après une reprise en début de
 // ---------------------------------------------------------------------------
 
 it('n\'attribue jamais une arme à maîtrise lourde à un groupe SANS barbare', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     // demarrerFouille() crée deux héros ; on s'assure qu'aucun n'est barbare.
     $groupe->personnages()->update(['classe' => 'elfe']);
@@ -508,7 +513,7 @@ it('n\'attribue jamais une arme à maîtrise lourde à un groupe SANS barbare', 
 });
 
 it('attribue l\'arme à maîtrise lourde dès qu\'un barbare est actif', function () {
-    [, $groupe, $hero, $quete, ] = demarrerFouille();
+    [, $groupe, $hero, $quete] = demarrerFouille();
 
     $hero->update(['classe' => 'barbare']);
 
@@ -527,7 +532,7 @@ it('attribue l\'arme à maîtrise lourde dès qu\'un barbare est actif', functio
 });
 
 it('place un coffre derrière CHAQUE porte secrète, en plus de celui du fond', function () {
-    [, $groupe, , $quete, ] = demarrerFouille();
+    [, $groupe, , $quete] = demarrerFouille();
 
     $carte = $quete->carte->grille;
     $choix = app(DeckFouille::class)->construire($quete->gabarit, $carte, $groupe, 1);
@@ -589,11 +594,11 @@ it('donne à CHAQUE héros sa fouille dans une même salle', function () {
 
 it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
-    $mm = app(App\Partie\MoteurMobilier::class);
+    $mm = app(MoteurMobilier::class);
 
     // Un meuble fouillable quelconque de la carte (le donjon en pose toujours).
     $grille = $quete->carte->grille;
-    $fouillables = App\Models\Mobilier::where('fouillable', true)->pluck('id');
+    $fouillables = Mobilier::where('fouillable', true)->pluck('id');
     $index = collect($grille['mobilier'] ?? [])
         ->search(fn (array $m) => $fouillables->contains($m['mobilier_id']));
 
@@ -611,8 +616,8 @@ it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function (
     expect($mm->fouillablesAdjacents($quete->carte, (int) $meuble['x'] + 1, (int) $meuble['y']))
         ->not->toBeEmpty();
 
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $menu = Illuminate\Support\Facades\Cache::get(App\Jobs\GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
     $option = collect($menu['options'])->firstWhere('type', 'fouille_mobilier');
 
     expect($option)->not->toBeNull('« Fouiller : <meuble> » absent du menu');
@@ -655,8 +660,8 @@ it('ne paie le coffre de salle qu UNE FOIS : le second fouilleur pioche normalem
     $etat->refresh();
     $etat->update(['a_joue' => true]);
 
-    $second = App\Models\Personnage::where('nom', 'Brunhilde')->firstOrFail();
-    $etatSecond = App\Models\EtatPersonnageQuete::where('quete_id', $quete->id)
+    $second = Personnage::where('nom', 'Brunhilde')->firstOrFail();
+    $etatSecond = EtatPersonnageQuete::where('quete_id', $quete->id)
         ->where('personnage_id', $second->id)->firstOrFail();
 
     deplacerVersSalle($quete->fresh(), $etatSecond, (int) $salle);

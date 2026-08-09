@@ -18,6 +18,7 @@ use App\Models\Quete;
 use App\Models\Snapshot;
 use App\Partie\Aleatoire\PrngLineaire;
 use App\Support\Journal;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -431,7 +432,7 @@ final class Sauvegarde
         // tirages. Les re-tirer déplacerait le coffre sous les pieds du groupe,
         // voire lui offrirait une seconde arme unique.
         if (isset($champs['deck_fouille']) && is_array($champs['deck_fouille'])) {
-            $champs['deck_fouille'] = (new PrngLineaire(random_int(0, 0x7fffffff)))
+            $champs['deck_fouille'] = (new PrngLineaire(random_int(0, 0x7FFFFFFF)))
                 ->melanger(array_values($champs['deck_fouille']));
         }
 
@@ -567,9 +568,9 @@ final class Sauvegarde
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, Personnage>
+     * @return Collection<int, Personnage>
      */
-    private function herosActifs(Groupe $groupe): \Illuminate\Database\Eloquent\Collection
+    private function herosActifs(Groupe $groupe): Collection
     {
         return $groupe->personnages()
             ->wherePivot('actif', true)

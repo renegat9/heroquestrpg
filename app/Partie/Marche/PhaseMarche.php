@@ -14,6 +14,7 @@ use App\Models\Joueur;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Partie\EtatGroupe;
+use App\Partie\Images\BibliothequeImages;
 use App\Partie\RangementObjet;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
@@ -98,7 +99,7 @@ final class PhaseMarche
                 'tag_equipement' => $o->tag_equipement,
                 'prix' => (int) round($o->prix_base * $config['multiplicateur']),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,
-                'image_url' => app(\App\Partie\Images\BibliothequeImages::class)->urlObjet($o->id, $o->nom),
+                'image_url' => app(BibliothequeImages::class)->urlObjet($o->id, $o->nom),
             ])
             ->values()
             ->all();

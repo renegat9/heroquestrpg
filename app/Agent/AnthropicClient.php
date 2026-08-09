@@ -28,8 +28,7 @@ class AnthropicClient implements ClientLLM
         private readonly ?string $baseUrl = null,
         private readonly ?int $maxTokens = null,
         private readonly ?int $timeout = null,
-    ) {
-    }
+    ) {}
 
     public function modeleParDefaut(): string
     {

@@ -7,7 +7,6 @@ namespace App\Partie;
 use App\Models\ForgeAmelioration;
 use App\Models\Groupe;
 use App\Models\Inventaire;
-use App\Models\Personnage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -70,7 +69,7 @@ final class Forge
             ]);
         }
 
-        return DB::transaction(function () use ($groupe, $ligne, $amelioration, $objet) {
+        return DB::transaction(function () use ($groupe, $ligne, $amelioration) {
             $groupe->decrement('or', $amelioration->prix);
 
             $ligne->update(['ameliorations' => [[

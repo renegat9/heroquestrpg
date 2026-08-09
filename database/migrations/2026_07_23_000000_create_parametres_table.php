@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Parametre;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -8,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  * Réglages globaux du serveur (panneau « Réglages » — écran de Narrateur/
  * table) : fournisseur/modèle IA, bascules RAG/voix dynamique/illustrations,
  * voix du narrateur, équilibrage des rencontres. UNE SEULE ligne (singleton,
- * {@see \App\Models\Parametre::actuel()}) — colonnes NULLABLES = « suit le
+ * {@see Parametre::actuel()}) — colonnes NULLABLES = « suit le
  * défaut .env/config » tant qu'aucune surcharge n'a été enregistrée.
  */
 return new class extends Migration

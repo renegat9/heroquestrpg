@@ -16,8 +16,8 @@ use App\Engine\Des\FaceDeCombat;
 final readonly class ResultatAttaque
 {
     /**
-     * @param list<FaceDeCombat> $facesAttaque faces lancées par l'attaquant
-     * @param list<FaceDeCombat> $facesDefense faces lancées par le défenseur
+     * @param  list<FaceDeCombat>  $facesAttaque  faces lancées par l'attaquant
+     * @param  list<FaceDeCombat>  $facesDefense  faces lancées par le défenseur
      */
     public function __construct(
         public array $facesAttaque,
@@ -28,6 +28,5 @@ final readonly class ResultatAttaque
         public int $pvBodyAvant,
         public int $pvBodyApres,
         public bool $cibleTombee,
-    ) {
-    }
+    ) {}
 }

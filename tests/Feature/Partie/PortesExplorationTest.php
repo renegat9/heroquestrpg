@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
+use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\Grille;
-use App\Partie\ResolveurTour;
+use App\Partie\MoteurPortes;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -72,7 +75,7 @@ function poserPiegesExplo(Quete $quete, array $entrees): void
  * Quête démarrée avec deux héros (le second empêche la phase des monstres de
  * se déclencher après l'action du premier).
  *
- * @return array{0: JoueurAuthentifiable, 1: \App\Models\Groupe, 2: \App\Models\Personnage, 3: Quete, 4: EtatPersonnageQuete}
+ * @return array{0: JoueurAuthentifiable, 1: Groupe, 2: Personnage, 3: Quete, 4: EtatPersonnageQuete}
  */
 function demarrerExplo(): array
 {
@@ -221,7 +224,7 @@ it('ouvre la porte liée quand le héros actionne le LEVIER au contact', functio
     );
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
-    $optionId = "actionner_levier_" . ($hx + 1) . "_{$hy}";
+    $optionId = 'actionner_levier_'.($hx + 1)."_{$hy}";
     expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id'))
         ->toContain($optionId);
 
@@ -259,7 +262,7 @@ it('ouvre AUTOMATIQUEMENT une porte « monstres_vaincus » quand le gardien tomb
 });
 
 it('« Fouiller — trésor » verse de l\'or au groupe sur l\'issue trésor', function () {
-    [, $groupe, , $quete, ] = demarrerExplo();
+    [, $groupe, , $quete] = demarrerExplo();
 
     empilerCarteFouille($quete, ['issue' => 'tresor', 'or' => 30]);
 
@@ -273,7 +276,7 @@ it('« Fouiller — trésor » verse de l\'or au groupe sur l\'issue trésor', f
 });
 
 it('« Fouiller — trésor » peut ne rien donner', function () {
-    [, $groupe, , $quete, ] = demarrerExplo();
+    [, $groupe, , $quete] = demarrerExplo();
 
     empilerCarteFouille($quete, ['issue' => 'rien']);
 
@@ -285,7 +288,7 @@ it('« Fouiller — trésor » peut ne rien donner', function () {
 });
 
 it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans le poser sur la grille', function () {
-    [, , $hero, $quete, ] = demarrerExplo();
+    [, , $hero, $quete] = demarrerExplo();
 
     $avantPieges = count($quete->carte->grille['pieges'] ?? []);
 
@@ -305,7 +308,7 @@ it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans
 });
 
 it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue aléatoire)', function () {
-    [, , $hero, $quete, ] = demarrerExplo();
+    [, , $hero, $quete] = demarrerExplo();
 
     empilerCarteFouille($quete, ['issue' => 'piege']);
     desFiges([6]); // branche « condition_appliquee: Empoisonné »
@@ -320,10 +323,10 @@ it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue
 });
 
 it('Sang robuste (Nain) résiste à l\'Empoisonné du Piège de coffre', function () {
-    [$alice, $groupe, $hero, $quete, ] = demarrerExplo();
+    [$alice, $groupe, $hero, $quete] = demarrerExplo();
     $hero->update(['classe' => 'nain']);
     $hero->competences()->attach(
-        \App\Models\Competence::where('classe', 'nain')->where('nom', 'Sang robuste')->value('id'),
+        Competence::where('classe', 'nain')->where('nom', 'Sang robuste')->value('id'),
     );
 
     empilerCarteFouille($quete, ['issue' => 'piege']);
@@ -465,7 +468,7 @@ it('propose « Ouvrir la porte » même quand une porte SECRÈTE est adjacente',
         ['x' => $hx, 'y' => $hy, 'etat' => 'fermee', 'cote' => 'e'],
     ]);
 
-    $trouvee = app(App\Partie\MoteurPortes::class)->porteFermeeAdjacente($quete->carte, $hx, $hy);
+    $trouvee = app(MoteurPortes::class)->porteFermeeAdjacente($quete->carte, $hx, $hy);
 
     expect($trouvee)->not->toBeNull()
         ->and($trouvee['porte']['etat'])->toBe('fermee')
@@ -517,8 +520,8 @@ it('n\'ouvre que le seuil poussé, pas le bout opposé du couloir', function () 
     creerHeros($alice, $groupe, 'Albrecht', 1);
 
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
-    $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $mp = app(App\Partie\MoteurPortes::class);
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $mp = app(MoteurPortes::class);
 
     // Une jonction porte JUSQU'À 4 portes : 2 par seuil (les 2 voies d'un
     // passage large), et 2 seuils (un par salle) aux deux bouts du couloir.

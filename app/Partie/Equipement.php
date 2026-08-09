@@ -34,8 +34,16 @@ use Illuminate\Validation\ValidationException;
  */
 final class Equipement
 {
-    /** Emplacements « portés » (par opposition à sac / consommable). */
-    public const SLOTS = ['arme_principale', 'arme_secondaire', 'armure'];
+    /**
+     * Emplacements « portés » (par opposition à sac / consommable).
+     *
+     * `casque` est un slot À PART depuis le 2026-08-08 : au plateau les pièces
+     * d'armure se CUMULENT (« may be combined with the helmet and/or shield »,
+     * LR p. 7). Tant que casque et cotte partageaient `armure`, le casque
+     * n'était qu'un achat de dépannage qu'on jetait dès la première vraie
+     * armure, et la défense plafonnait à 5 au lieu de 6.
+     */
+    public const SLOTS = ['arme_principale', 'arme_secondaire', 'casque', 'armure'];
 
     /** Clés d'`effet` d'objet appliquées comme delta de colonne au personnage. */
     private const COLONNES = [
@@ -76,7 +84,7 @@ final class Equipement
         $this->verifierMains($personnage, $objet);
         $this->verifierAccesEquipement($personnage, $objet);
 
-        return DB::transaction(function () use ($personnage, $ligne, $objet, $slot) {
+        return DB::transaction(function () use ($personnage, $ligne, $slot) {
             // Auto-swap : l'occupant actuel du slot retourne au sac (effet révoqué).
             $occupant = $personnage->inventaire()->where('emplacement', $slot)->with('objet')->first();
             if ($occupant !== null) {
@@ -109,7 +117,7 @@ final class Equipement
             ]);
         }
 
-        return DB::transaction(function () use ($personnage, $ligne, $objet) {
+        return DB::transaction(function () use ($personnage, $ligne) {
             $ligne->update(['emplacement' => 'sac']);
             // Recalcul APRÈS le retrait : sinon l'arme est encore comptée comme
             // portée et le héros garde ses dés.
@@ -258,7 +266,7 @@ final class Equipement
      * BOOLÉENS n'ont nulle part où se poser — d'où cette interrogation directe
      * de l'équipement porté, au moment où la règle s'applique.
      *
-     * Premier usage : `deplacement_sans_d6` de l'Armure de plates.
+     * Premier usage : `incompatible_deux_mains` du Bouclier.
      */
     public function effetPorte(Personnage $personnage, string $cle): bool
     {
@@ -267,6 +275,24 @@ final class Equipement
             ->with('objet')
             ->get()
             ->contains(fn ($ligne) => (bool) (($ligne->objet?->effet ?? [])[$cle] ?? false));
+    }
+
+    /**
+     * Valeur CHIFFRÉE la plus forte portée par l'équipement pour cette clé, 0
+     * si aucune pièce ne la porte.
+     *
+     * Le max, pas la somme : `malus_deplacement` est une pénalité d'encombrement
+     * (« a 2 square movement penalty » sur l'armure de plates), pas un coût qui
+     * s'additionnerait pièce par pièce — deux armures lourdes ne se cumulent
+     * d'ailleurs pas, elles partagent un slot.
+     */
+    public function valeurEffetPorte(Personnage $personnage, string $cle): int
+    {
+        return (int) $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->max(fn ($ligne) => (int) (($ligne->objet?->effet ?? [])[$cle] ?? 0));
     }
 
     public function recalculerCombat(Personnage $personnage): void

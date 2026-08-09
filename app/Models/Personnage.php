@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Engine\DureeEffet;
+use App\Partie\MoteurSorts;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -52,8 +54,8 @@ class Personnage extends Model
                 return;
             }
 
-            app(\App\Partie\MoteurSorts::class)
-                ->expirerBuffs($personnage, \App\Engine\DureeEffet::PREMIER_DEGAT_SUBI);
+            app(MoteurSorts::class)
+                ->expirerBuffs($personnage, DureeEffet::PREMIER_DEGAT_SUBI);
         });
     }
 

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Models\InstanceMonstre;
+use App\Models\Monstre;
 use App\Partie\Grille;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -104,9 +106,9 @@ it('ne tire PAS sur un héros caché derrière une figure interposée (#7)', fun
 
     $archer->update(['position_x' => $spot['x'], 'position_y' => $spot['y']]);
     // Figure INTERPOSÉE (un monstre) entre l'archer et le héros.
-    App\Models\InstanceMonstre::create([
+    InstanceMonstre::create([
         'quete_id' => $quete->id,
-        'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id'),
+        'monstre_id' => Monstre::where('nom_base', 'Orque')->value('id'),
         'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 0,
         'position_x' => $inter['x'], 'position_y' => $inter['y'],
         'etat' => 'actif', 'revele' => true,

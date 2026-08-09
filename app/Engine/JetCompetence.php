@@ -31,9 +31,7 @@ use App\Engine\Des\LanceurDes;
  */
 final class JetCompetence
 {
-    public function __construct(private readonly LanceurDes $des)
-    {
-    }
+    public function __construct(private readonly LanceurDes $des) {}
 
     public function resoudre(int $nbDes, int $difficulte): ResultatJet
     {

@@ -75,7 +75,7 @@ it('ne laisse l\'IA ni inventer une action, ni masquer une option du moteur', fu
     // pouvait donc porter un id mécanique que le moteur venait de retirer
     // (« fouiller_tresor » sur une salle déjà fouillée) : l'option passait le
     // contrôle de légalité et n'échouait qu'au fond du résolveur.
-    $job = new ReflectionClass(App\Jobs\GenererMenu::class);
+    $job = new ReflectionClass(GenererMenu::class);
     $fusionner = $job->getMethod('fusionner');
     $fusionner->setAccessible(true);
 

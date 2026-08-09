@@ -80,6 +80,7 @@ class HabillerMonstres implements ShouldQueue
         if ($habillages->isEmpty()) {
             GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
             GenererImagesQuete::dispatch($this->groupeId, $this->queteId); // scène + boss (noms catalogue)
+
             return; // repli : rien à appliquer.
         }
 

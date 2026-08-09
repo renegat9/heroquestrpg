@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Personnage;
 use App\Partie\EtatGroupe;
 use App\Partie\MenuMoteur;
 use Database\Seeders\GabaritQueteSeeder;
@@ -28,7 +30,7 @@ beforeEach(function () {
 });
 
 /** Menu moteur régénéré pour le héros depuis l'état exact. */
-function menuMoteurPour(App\Models\Groupe $groupe, App\Models\Personnage $heros): array
+function menuMoteurPour(Groupe $groupe, Personnage $heros): array
 {
     desFiges(array_fill(0, 20, 4));
 

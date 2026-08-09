@@ -15,7 +15,7 @@ describe('Deplacement — base + 1d6 (doc 03 §3)', function () {
         expect($resultat->base)->toBe(5)
             ->and($resultat->de)->toBe(4)
             ->and($resultat->total)->toBe(9)
-            ->and($resultat->armureDePlates)->toBeFalse();
+            ->and($resultat->malus)->toBe(0);
     });
 
     it('borne le total entre base+1 et base+6', function () {
@@ -38,23 +38,34 @@ describe('Deplacement — base + 1d6 (doc 03 §3)', function () {
     })->throws(InvalidArgumentException::class);
 });
 
-describe('Deplacement — armure de plates (décision AP)', function () {
-    it('en plates : base seule, aucun d6 lancé', function () {
-        $lanceur = new LanceurDeterministe(); // file vide : un d6 exploserait
-        $resultat = (new Deplacement($lanceur))->calculer(base: 4, armureDePlates: true);
+describe('Deplacement — encombrement de l\'armure lourde', function () {
+    it('retranche le malus en CASES, sans supprimer le d6', function () {
+        // « While wearing the Plate Mail, you have a 2 square movement
+        // penalty » (carte Plate Mail) : base 4 + d6 5 − 2 = 7. Le dé est bien
+        // lancé — on retirait auparavant le d6 tout entier, ce qui rendait le
+        // déplacement DÉTERMINISTE en plus de coûter 3,5 cases en moyenne.
+        $lanceur = new LanceurDeterministe([5]);
+        $resultat = (new Deplacement($lanceur))->calculer(base: 4, malus: 2);
 
-        expect($resultat->total)->toBe(4)
-            ->and($resultat->de)->toBeNull()
-            ->and($resultat->armureDePlates)->toBeTrue();
+        expect($resultat->total)->toBe(7)
+            ->and($resultat->de)->toBe(5)
+            ->and($resultat->malus)->toBe(2)
+            ->and($lanceur->valeursRestantes())->toBe(0); // le dé A été consommé
     });
 
-    it('en plates le total ne dépend d aucun hasard', function () {
-        $lanceur = new LanceurDeterministe([6, 6, 6]);
-        $deplacement = new Deplacement($lanceur);
+    it('ne cloue jamais un héros sur place : plancher à 1 case', function () {
+        // Base 1, d6 = 1, malus 2 → −0 sur le papier. Rien au plateau
+        // n'immobilise un personnage, et un héros à 0 case ne pourrait ni
+        // fuir ni rejoindre le groupe.
+        $resultat = (new Deplacement(new LanceurDeterministe([1])))->calculer(base: 1, malus: 2);
 
-        $resultat = $deplacement->calculer(base: 4, armureDePlates: true);
+        expect($resultat->total)->toBe(1);
+    });
 
-        expect($resultat->total)->toBe(4)
-            ->and($lanceur->valeursRestantes())->toBe(3); // rien consommé
+    it('ignore un malus négatif (il ne devient jamais un bonus)', function () {
+        $resultat = (new Deplacement(new LanceurDeterministe([3])))->calculer(base: 4, malus: -5);
+
+        expect($resultat->total)->toBe(7)
+            ->and($resultat->malus)->toBe(0);
     });
 });

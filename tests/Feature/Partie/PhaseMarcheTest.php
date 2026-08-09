@@ -62,7 +62,7 @@ it('ouvre la phase au hub : profil bourg par défaut, raretés et stocks du prof
     // Prix = prix_base × 1,0 ; stocks playtest : commun illimité, peu_commun 3.
     $epee = $inventaire->firstWhere('nom', 'Épée courte');
     $lance = $inventaire->firstWhere('nom', 'Lance');
-    expect($epee['prix'])->toBe(150)
+    expect($epee['prix'])->toBe(225)
         ->and($epee['stock'])->toBeNull()
         ->and($lance['prix'])->toBe(250)
         ->and($lance['stock'])->toBe(3);
@@ -85,7 +85,7 @@ it('applique le profil de lieu : village = commun seul à ×1,2', function () {
 
     $inventaire = collect($reponse->json('inventaire'));
     expect($inventaire->pluck('rarete')->unique()->all())->toBe(['commun'])
-        ->and($inventaire->firstWhere('nom', 'Dague')['prix'])->toBe(30); // 25 × 1,2
+        ->and($inventaire->firstWhere('nom', 'Dague')['prix'])->toBe(180); // 150 × 1,2
 });
 
 it('refuse d\'ouvrir le marché pendant une quête (hub uniquement)', function () {
@@ -110,23 +110,23 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
 
     $this->postJson('/api/groupes/table-1/marche')->assertCreated();
 
-    // Alice achète une épée courte (150) et 2 potions de soin (2 × 100).
+    // Alice achète une épée courte (225) et 2 potions de soin (2 × 100).
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [
             ['objet_id' => Objet::where('nom', 'Épée courte')->first()->id],
             ['objet_id' => Objet::where('nom', 'Potion de soin')->first()->id, 'quantite' => 2],
         ],
         'ventes' => [],
-    ])->assertOk()->assertJsonPath('total_projete', 1000 - 350);
+    ])->assertOk()->assertJsonPath('total_projete', 1000 - 425);
 
-    // Bob revend sa dague : 50 % du prix marchand courant (M1) = 25 ÷ 2 = 12.
+    // Bob revend sa dague : 50 % du prix marchand courant (M1) = 150 ÷ 2 = 75.
     $this->actingAs($bob, 'joueur');
     $etat = $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [],
         'ventes' => [['inventaire_id' => $dague->id]],
     ])->assertOk()->json();
 
-    expect($etat['total_projete'])->toBe(1000 - 350 + 12)
+    expect($etat['total_projete'])->toBe(1000 - 425 + 75)
         ->and($etat['or_courant'])->toBe(1000);
 
     // Panier consolidé : chaque ligne est étiquetée de son joueur.
@@ -134,7 +134,7 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
     expect($paniers[$alice->id]['achats'])->toHaveCount(2)
         ->and($paniers[$alice->id]['achats'][0]['personnage_id'])->toBe($heroAlice->id)
         ->and($paniers[$bob->id]['ventes'][0]['nom'])->toBe('Dague')
-        ->and($paniers[$bob->id]['ventes'][0]['prix_revente'])->toBe(12);
+        ->and($paniers[$bob->id]['ventes'][0]['prix_revente'])->toBe(75);
 
     // Modifier son panier annule SA confirmation (et seulement la sienne).
     $this->postJson('/api/groupes/table-1/marche/confirmation')->assertOk()->assertJsonPath('applique', null);
@@ -195,7 +195,7 @@ it('refuse la finalisation si la bourse commune ne couvre pas le total (total pr
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [['objet_id' => Objet::where('nom', 'Épée courte')->first()->id]],
         'ventes' => [],
-    ])->assertOk()->assertJsonPath('total_projete', -50);
+    ])->assertOk()->assertJsonPath('total_projete', -125);
 
     // Seul membre → sa confirmation déclencherait l'application : refusée.
     $this->postJson('/api/groupes/table-1/marche/confirmation')->assertStatus(422);
@@ -297,7 +297,7 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
         ->assertOk()->assertJsonPath('applique', null);
     expect($groupe->fresh()->or)->toBe(1000);
 
-    // Bob vend sa dague (+12) et confirme → application atomique + clôture.
+    // Bob vend sa dague (+75) et confirme → application atomique + clôture.
     $this->actingAs($bob, 'joueur');
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [],
@@ -307,8 +307,8 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
     $this->postJson('/api/groupes/table-1/marche/confirmation')
         ->assertOk()->assertJsonPath('applique', true);
 
-    // Or débité/crédité sur la bourse commune : 1000 − 350 + 12.
-    expect($groupe->fresh()->or)->toBe(662);
+    // Or débité/crédité sur la bourse commune : 1000 − 425 + 75.
+    expect($groupe->fresh()->or)->toBe(650);
 
     // Achats rangés : l'épée au SAC d'Albrecht, les potions empilées hors sac.
     $sac = Inventaire::where('personnage_id', $heroAlice->id)->get();
@@ -392,7 +392,10 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
     $perso = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
         ->firstWhere('id', $magicien->id);
 
-    expect($perso['equipement']['maitrises'])->toBe(['arme_legere']);
+    // Le magicien porte les armes légères, les armes d'érudit (canne) et les
+    // protections arcaniques (brassards, cape) — les seules pièces défensives
+    // que les cartes lui RÉSERVENT. Aucune armure ordinaire.
+    expect($perso['equipement']['maitrises'])->toBe(['arme_legere', 'arme_erudit', 'armure_magicien']);
 
     // Le badge se déduit des deux : l'épée est hors de portée du magicien…
     expect(in_array($etal->firstWhere('nom', 'Épée courte')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeFalse()
