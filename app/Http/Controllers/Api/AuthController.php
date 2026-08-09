@@ -177,6 +177,11 @@ class AuthController extends Controller
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
                             ),
+                            // Talisman (artefact de classe) : cinquième slot.
+                            'talisman' => with(
+                                $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                            ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
                                 ->map(fn ($l) => [

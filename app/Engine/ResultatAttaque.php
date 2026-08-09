@@ -29,4 +29,30 @@ final readonly class ResultatAttaque
         public int $pvBodyApres,
         public bool $cibleTombee,
     ) {}
+
+    /**
+     * Attaque qui NE PASSE PAS par les dés : un montant de dégâts garanti, sans
+     * jet d'attaque ni jet de défense.
+     *
+     * Une seule arme en produit — la Dague de jet magique, « This weapon always
+     * inflicts one Body Point of damage » (paquet d'artefacts, reference/16 §9).
+     * Les deux listes de faces sont vides, ce qui est la vérité : aucun dé n'a
+     * été lancé, et la manette affichera donc zéro dé plutôt que d'en inventer.
+     */
+    public static function sansJet(int $degats, int $pvBodyDefenseur): self
+    {
+        $degats = max(0, $degats);
+        $apres = max(0, $pvBodyDefenseur - $degats);
+
+        return new self(
+            facesAttaque: [],
+            facesDefense: [],
+            touches: $degats,
+            boucliers: 0,
+            degats: $degats,
+            pvBodyAvant: $pvBodyDefenseur,
+            pvBodyApres: $apres,
+            cibleTombee: $apres === 0,
+        );
+    }
 }

@@ -14,6 +14,7 @@ use App\Models\Quete;
 use App\Partie\Fouille\DeckFouille;
 use App\Partie\MoteurMobilier;
 use App\Partie\Sauvegarde;
+use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -40,9 +41,13 @@ beforeEach(function () {
 
     // MobilierSeeder inclus : sans lui aucun meuble n'est posé sur la carte, et
     // la fouille de mobilier n'aurait rien à fouiller.
+    // ClasseHerosSeeder : c'est lui qui porte `tags_equipement`, et le choix de
+    // l'artefact écarte ce qu'aucune classe ACTIVE ne pourrait porter. Sans ce
+    // catalogue la règle tombe en « fail open » et les tests de réservation
+    // passeraient sans rien vérifier.
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
         PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class,
-        MobilierSeeder::class]);
+        MobilierSeeder::class, ClasseHerosSeeder::class]);
 });
 
 /**
@@ -245,7 +250,7 @@ it('désigne une salle-coffre qui n\'est jamais la salle de départ, et lui attr
     $arme = Objet::find($quete->artefact_objet_id);
     expect($arme)->not->toBeNull()
         ->and($arme->rarete)->toBe('unique')
-        ->and($arme->categorie)->toBe('arme');
+        ->and($arme->categorie)->toBeIn(['arme', 'armure']);
 });
 
 it('remet l\'artefact au fouilleur du coffre SANS consommer de carte du deck', function () {
@@ -279,7 +284,7 @@ it('ne donne qu\'UN SEUL artefact, même en fouillant toutes les salles', functi
     // Les ARMES uniques : la fiole de soin du deck est aussi `unique` (hors
     // étal), elle ne doit pas être comptée comme un artefact.
     $armes = Inventaire::where('personnage_id', $hero->id)
-        ->whereHas('objet', fn ($q) => $q->where('rarete', 'unique')->where('categorie', 'arme'))
+        ->whereHas('objet', fn ($q) => $q->where('rarete', 'unique')->whereIn('categorie', ['arme', 'armure']))
         ->count();
 
     expect($armes)->toBe(1);
@@ -487,20 +492,22 @@ it('rend l\'artefact re-trouvable UNE SEULE FOIS après une reprise en début de
 });
 
 // ---------------------------------------------------------------------------
-// Artefact à MAÎTRISE LOURDE (nœud barbare) — jouable grâce au don entre héros
+// Artefact RÉSERVÉ à une classe — écarté quand personne ne pourrait le porter
 // ---------------------------------------------------------------------------
 
-it('n\'attribue jamais une arme à maîtrise lourde à un groupe SANS barbare', function () {
+it('n\'attribue jamais un artefact réservé à un groupe SANS la classe', function () {
     [, $groupe, , $quete] = demarrerFouille();
 
     // demarrerFouille() crée deux héros ; on s'assure qu'aucun n'est barbare.
     $groupe->personnages()->update(['classe' => 'elfe']);
 
-    $fendoir = Objet::where('nom', 'Fendoir des Titans')->firstOrFail();
+    $reserveBarbare = Objet::where('nom', 'Amulette du Nord')->firstOrFail();
 
-    // Toutes les autres uniques sont déjà détenues : seul le Fendoir reste
-    // disponible. Sans barbare, il est écarté → le coffre doit verser de l'or.
-    foreach (Objet::where('rarete', 'unique')->where('id', '!=', $fendoir->id)->get() as $autre) {
+    // Toutes les autres uniques sont déjà détenues : seule l'Amulette du Nord
+    // reste disponible, et elle est réservée au barbare (`talisman_barbare`).
+    // Sans barbare, elle est écartée → le coffre doit verser de l'or, plutôt
+    // que de consommer l'unique artefact de la quête en butin mort.
+    foreach (Objet::where('rarete', 'unique')->where('id', '!=', $reserveBarbare->id)->get() as $autre) {
         Inventaire::create([
             'personnage_id' => $groupe->personnages()->first()->id,
             'objet_id' => $autre->id, 'emplacement' => 'sac', 'quantite' => 1,
@@ -512,14 +519,14 @@ it('n\'attribue jamais une arme à maîtrise lourde à un groupe SANS barbare', 
     expect($choix['artefact_objet_id'])->toBeNull(); // butin mort évité
 });
 
-it('attribue l\'arme à maîtrise lourde dès qu\'un barbare est actif', function () {
+it('attribue l\'artefact réservé dès qu\'un héros de la classe est actif', function () {
     [, $groupe, $hero, $quete] = demarrerFouille();
 
     $hero->update(['classe' => 'barbare']);
 
-    $fendoir = Objet::where('nom', 'Fendoir des Titans')->firstOrFail();
+    $reserveBarbare = Objet::where('nom', 'Amulette du Nord')->firstOrFail();
 
-    foreach (Objet::where('rarete', 'unique')->where('id', '!=', $fendoir->id)->get() as $autre) {
+    foreach (Objet::where('rarete', 'unique')->where('id', '!=', $reserveBarbare->id)->get() as $autre) {
         Inventaire::create([
             'personnage_id' => $hero->id,
             'objet_id' => $autre->id, 'emplacement' => 'sac', 'quantite' => 1,
@@ -528,7 +535,7 @@ it('attribue l\'arme à maîtrise lourde dès qu\'un barbare est actif', functio
 
     $choix = app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe, 1);
 
-    expect($choix['artefact_objet_id'])->toBe($fendoir->id);
+    expect($choix['artefact_objet_id'])->toBe($reserveBarbare->id);
 });
 
 it('place un coffre derrière CHAQUE porte secrète, en plus de celui du fond', function () {

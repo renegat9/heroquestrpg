@@ -35,16 +35,24 @@ class ClasseHerosSeeder extends Seeder
             // de départ — c'est l'équipement initial qui les produit désormais,
             // au lieu d'être codé en dur dans la classe puis CUMULÉ avec l'arme
             // achetée (un barbare avec une épée large montait à 6 dés).
-            // Les quatre nouveaux tags (`arme_arc_long`, `arme_arc_court`,
+            // Les quatre tags d'ARMURERIE (`arme_arc_long`, `arme_arc_court`,
             // `arme_erudit`, `armure_magicien`) portent les restrictions que les
-            // cartes d'armurerie énoncent classe par classe et que les 7 tags
-            // précédents ne savaient pas dire : l'arc long est refusé au nain,
-            // l'arc court au barbare, la canne aux deux costauds, et brassards
-            // et cape sont RÉSERVÉS au magicien (reference/16 §2.2).
-            ['nom' => 'barbare',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'armure_legere', 'bouclier', 'arme_deux_mains']],
-            ['nom' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'armure_legere', 'bouclier', 'armure_lourde']],
-            ['nom' => 'elfe',     'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'arme_arc_court', 'arme_erudit', 'armure_legere', 'bouclier']],
-            ['nom' => 'magicien', 'pv_body' => 4, 'pv_mind' => 6, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien']],
+            // cartes énoncent classe par classe et que les 7 tags précédents ne
+            // savaient pas dire : l'arc long est refusé au nain, l'arc court au
+            // barbare, la canne aux deux costauds, et brassards et cape sont
+            // RÉSERVÉS au magicien (reference/16 §2.2).
+            //
+            // Les quatre tags de TALISMAN font de même pour les bijoux
+            // d'artefact, un par classe et réservé à elle : Amulette du Nord
+            // (barbare), Brassards elfiques (elfe), Capuche du Magister
+            // (magicien), Runes naines (nain) — reference/16 §9. DeckFouille
+            // écarte du tirage tout artefact qu'aucune classe active du groupe
+            // ne pourrait porter, sans quoi le coffre du fond aurait pu rendre
+            // des runes naines à un groupe sans nain.
+            ['nom' => 'barbare',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'armure_legere', 'bouclier', 'arme_deux_mains', 'talisman_barbare']],
+            ['nom' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'armure_legere', 'bouclier', 'armure_lourde', 'talisman_nain']],
+            ['nom' => 'elfe',     'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'arme_arc_court', 'arme_erudit', 'armure_legere', 'bouclier', 'talisman_elfe']],
+            ['nom' => 'magicien', 'pv_body' => 4, 'pv_mind' => 6, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_magicien']],
         ];
 
         foreach ($classes as $classe) {

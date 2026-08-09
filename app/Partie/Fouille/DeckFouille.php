@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Partie\Fouille;
 
+use App\Models\ClasseHeros;
+use App\Models\Competence;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
@@ -345,12 +347,18 @@ final class DeckFouille
     }
 
     /**
-     * Une arme unique que le GROUPE ne possède pas déjà.
+     * Un artefact PORTABLE que le GROUPE ne possède pas déjà.
      *
      * Portée volontairement limitée au groupe : deux campagnes parallèles
-     * peuvent posséder la même Lame d'Aube, comme deux tablées voisines. On
+     * peuvent posséder la même Lame des Esprits, comme deux tablées voisines. On
      * inclut les héros INACTIFS — un personnage au banc garde son artefact
      * dans son inventaire, l'oublier créerait un doublon.
+     *
+     * Armes ET armures : depuis la conversion du paquet d'artefacts
+     * (reference/16 §9), le coffre peut rendre l'Armure de Borin ou un talisman
+     * de classe, pas seulement une arme. Les consommables en restent exclus —
+     * le coffre le plus profond du donjon ne doit pas verser une fiole à usage
+     * unique après une quête entière d'exploration.
      */
     private function choisirArtefact(Groupe $groupe, PrngLineaire $prng): ?int
     {
@@ -358,31 +366,73 @@ final class DeckFouille
 
         $possedes = Inventaire::query()->whereIn('personnage_id', $idsHeros)->pluck('objet_id');
 
-        // Le tag `arme_deux_mains` n'est ouvert que par Maîtrise lourde, nœud de
-        // l'arbre BARBARE : sans barbare actif, une telle arme serait du butin
-        // mort — personne ne pourrait jamais l'équiper, et elle occuperait la
-        // place du seul artefact de la quête. On teste la CLASSE, pas la
-        // possession du nœud : un barbare de niveau 1 ne l'a pas encore, mais il
-        // pourra le prendre.
-        $barbareActif = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->where('classe', 'barbare')
-            ->exists();
+        // Maîtrises que le groupe pourra atteindre : celles des classes ACTIVES,
+        // plus celles que leurs arbres de compétences ouvrent. On teste la
+        // classe, pas les nœuds acquis — un barbare de niveau 1 n'a pas encore
+        // Maîtrise lourde, mais il pourra la prendre.
+        //
+        // Cette règle remplace un test codé en dur sur le seul barbare. Elle
+        // couvre désormais tous les artefacts verrouillés d'un coup : les quatre
+        // talismans de classe (Amulette du Nord, Brassards elfiques, Capuche du
+        // Magister, Runes naines) seraient sinon du BUTIN MORT — un groupe sans
+        // elfe pouvait perdre son unique artefact de quête sur des brassards
+        // que personne ne porterait jamais.
+        $accessibles = $this->tagsAccessiblesAuGroupe($groupe);
+
+        // Aucune maîtrise déclarée (catalogue de classes non semé) : on
+        // n'applique AUCUN filtre — même repli « fail open » que
+        // `Equipement::verifierAccesEquipement()`. Une donnée de référence
+        // manquante ne doit pas transformer tous les artefacts en butin mort.
+        $filtrer = $accessibles !== [];
 
         $candidats = Objet::query()
             ->where('rarete', 'unique')
-            ->where('categorie', 'arme')
+            ->whereIn('categorie', ['arme', 'armure'])
             ->whereNotIn('id', $possedes)
             ->orderBy('id')
             ->get(['id', 'tag_equipement'])
-            ->reject(fn (Objet $o) => ! $barbareActif && $o->tag_equipement === 'arme_deux_mains')
+            ->reject(fn (Objet $o) => $filtrer
+                && $o->tag_equipement !== null
+                && $o->tag_equipement !== ''
+                && ! in_array($o->tag_equipement, $accessibles, true))
             ->pluck('id')
             ->all();
 
         if ($candidats === []) {
-            return null; // toutes déjà trouvées → le coffre versera de l'or
+            return null; // tous déjà trouvés → le coffre versera de l'or
         }
 
         return (int) $candidats[$prng->suivant() % count($candidats)];
+    }
+
+    /**
+     * Tags de maîtrise qu'au moins un héros ACTIF du groupe peut atteindre :
+     * ceux de sa classe, plus ceux qu'ouvrent les nœuds `acces_equipement` de
+     * son arbre.
+     *
+     * @return list<string>
+     */
+    private function tagsAccessiblesAuGroupe(Groupe $groupe): array
+    {
+        $classes = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->pluck('personnages.classe')
+            ->unique()
+            ->values();
+
+        if ($classes->isEmpty()) {
+            return [];
+        }
+
+        $base = ClasseHeros::whereIn('nom', $classes)
+            ->pluck('tags_equipement')
+            ->flatMap(fn ($tags) => (array) $tags);
+
+        $noeuds = Competence::whereIn('classe', $classes)
+            ->get(['effet'])
+            ->filter(fn ($c) => ($c->effet['mecanique'] ?? null) === 'acces_equipement')
+            ->flatMap(fn ($c) => (array) ($c->effet['tags'] ?? []));
+
+        return $base->merge($noeuds)->unique()->values()->all();
     }
 }

@@ -10,6 +10,7 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
 use App\Engine\MotsClesSort;
+use App\Engine\ResultatAttaque;
 use App\Engine\SortMental;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
@@ -598,15 +599,31 @@ final class ResolveurTour
         // Tir précis (nœud elfe) : +1 dé d'attaque sur un tir à distance véritable.
         $bonusTirPrecis = $tirADistance && $this->possedeCompetence($personnage, 'Tir précis') ? 1 : 0;
 
-        $desAttaqueEffectifs = max(0, (int) $personnage->des_attaque + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis);
+        // Lame des Esprits : « three combat dice in attack OR four dice against
+        // undead creatures such as Skeletons, Zombies and Mummies ». Le bonus
+        // remplace la valeur de l'arme, il ne s'y ajoute pas — d'où un max, pas
+        // une somme : contre une momie l'arme vaut 4, jamais 3 + 4.
+        $desArmeContre = $this->desArmeContre($armePrincipale, $instance);
 
-        $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: $desAttaqueEffectifs,
-            desDefense: $instance->defenseEffective(),
-            typeDefenseur: TypeFigurine::Monstre,
-            pvBodyDefenseur: (int) $instance->pv_body,
-            relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
-        );
+        $desAttaqueEffectifs = max(0, max((int) $personnage->des_attaque, $desArmeContre)
+            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis);
+
+        // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
+        // damage. » Aucun jet, aucune défense — le seul cas du jeu où l'attaque
+        // ne passe pas par les dés. Traité avant `Combat` plutôt qu'à travers
+        // lui : y faire entrer un « toujours N » obligerait le moteur de combat
+        // à connaître l'équipement, qu'il ignore par construction.
+        $degatsFixes = (int) ($armePrincipale?->effet['degats_fixes'] ?? 0);
+
+        $resultat = $degatsFixes > 0
+            ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
+            : (new Combat($this->des))->resoudreAttaque(
+                desAttaque: $desAttaqueEffectifs,
+                desDefense: $instance->defenseEffective(),
+                typeDefenseur: TypeFigurine::Monstre,
+                pvBodyDefenseur: (int) $instance->pv_body,
+                relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
+            );
 
         // Le héros vient de frapper : les buffs déclarés `prochaine_attaque`
         // (Courage, Potion de force) sont consommés — quel que soit le résultat,
@@ -646,6 +663,11 @@ final class ResolveurTour
             'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
         ];
 
+        // Fléau des Orques : une seconde attaque ce tour si la cible en était un.
+        if ($this->accorderSecondeAttaque($armePrincipale, $instance, $etat)) {
+            $payload['attaque_supplementaire'] = true;
+        }
+
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         // Bark d'ambiance du monstre touché (mort / blessé / paré), best-effort.
@@ -657,6 +679,51 @@ final class ResolveurTour
         }
 
         return $payload;
+    }
+
+    /**
+     * Dés d'attaque que l'arme oppose SPÉCIFIQUEMENT à cette créature, 0 si
+     * elle n'a pas de clause contre elle (`des_attaque_contre`).
+     *
+     * Le test porte sur `nom_base`, le nom de CATALOGUE : le nom affiché est
+     * habillé par l'IA (« Grull l'Éventreur »), donc une Lame des Esprits
+     * cesserait de reconnaître les morts-vivants dès la première quête narrée.
+     */
+    private function desArmeContre(?Objet $arme, InstanceMonstre $instance): int
+    {
+        $clause = (array) ($arme?->effet['des_attaque_contre'] ?? []);
+        $noms = array_map('mb_strtolower', array_map('strval', (array) ($clause['noms'] ?? [])));
+
+        if ($noms === [] || ! in_array(mb_strtolower((string) $instance->monstre?->nom_base), $noms, true)) {
+            return 0;
+        }
+
+        return (int) ($clause['des'] ?? 0);
+    }
+
+    /**
+     * L'arme accorde-t-elle une SECONDE attaque contre cette créature ?
+     *
+     * Fléau des Orques : « You may attack TWICE if you are fighting Orcs. » On
+     * réutilise `etat.attaque_supplementaire`, le créneau que pose déjà la
+     * Potion d'héroïsme — un second mécanisme aurait permis de cumuler deux
+     * attaques bonus dans le même tour sans que rien ne l'ait voulu.
+     */
+    private function accorderSecondeAttaque(?Objet $arme, InstanceMonstre $instance, EtatPersonnageQuete $etat): bool
+    {
+        $noms = array_map('mb_strtolower', array_map('strval', (array) ($arme?->effet['attaque_double_contre'] ?? [])));
+
+        if ($noms === [] || ! in_array(mb_strtolower((string) $instance->monstre?->nom_base), $noms, true)) {
+            return false;
+        }
+
+        if ((bool) $etat->attaque_supplementaire) {
+            return false; // déjà une attaque bonus en réserve : pas de cumul
+        }
+
+        $etat->update(['attaque_supplementaire' => true]);
+
+        return true;
     }
 
     /**

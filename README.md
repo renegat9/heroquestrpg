@@ -124,6 +124,7 @@ Au plateau, une carte d'équipement dit son effet en une phrase — *« This wea
 | statistiques | `des_attaque` (**remplace** la valeur du porteur), `des_defense` (**s'ajoute**) |
 | portée | `attaque_diagonale`, `portee: distance`, `inutilisable_adjacent`, `jetable` |
 | mains / corps | `deux_mains`, `incompatible_deux_mains`, `malus_deplacement` |
+| artefacts | `degats_fixes`, `des_attaque_contre`, `attaque_double_contre`, `bonus_pv_body_max`, `bonus_pv_mind_max` |
 | outil | `permet_desamorcage` |
 | consommables | `soin_pv_body`, `soin_pv_body_de`, `soin_pv_mind`, `bonus_des_attaque`, `bonus_des_defense`, `attaque_supplementaire`, `condition_appliquee`, `retire_condition`, `duree` |
 
@@ -133,9 +134,11 @@ Les pièces d'armure se **cumulent**, comme au plateau : le casque a son propre 
 
 Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalogue hors du vocabulaire (une règle annoncée que personne n'applique), et aucun mot déclaré que plus aucun objet ne porte (une règle qui n'existe que sur le papier).
 
+Les **artefacts** viennent du même endroit : `sjeng-artefacts.pdf` (34 cartes, cinq sources officielles). Ils remplacent 7 artefacts inventés qui ne faisaient que monter la courbe des dés — 4, 5, puis 6 — là où un vrai artefact fait ce que rien d'autre ne fait : frapper deux fois un orque, blesser à coup sûr, porter des PV en plus. Neuf cartes sont portées, **25 ne le sont pas** et le doc 16 §9.1 dit pour chacune la mécanique qui lui manque (économie de sorts, types de dégâts, charges, téléportation…). Un cinquième emplacement, `talisman`, accueille les quatre bijoux de classe.
+
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **584 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **594 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \

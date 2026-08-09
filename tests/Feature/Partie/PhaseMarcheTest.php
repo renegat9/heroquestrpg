@@ -352,7 +352,7 @@ it('n\'expose aucun ARTEFACT à l\'étal ni à la revente, et refuse de le vendr
     $groupe->update(['or' => 1000]);
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
-    $artefact = donnerObjet($hero->id, "Lame d'Aube");
+    $artefact = donnerObjet($hero->id, 'Lame des Esprits');
     $dague = donnerObjet($hero->id, 'Dague');
 
     $reponse = $this->postJson('/api/groupes/table-1/marche')->assertCreated();
@@ -364,7 +364,7 @@ it('n\'expose aucun ARTEFACT à l\'étal ni à la revente, et refuse de le vendr
     // serait un piège.
     $vendables = collect($reponse->json('paniers.0.inventaire'));
     expect($vendables->pluck('nom'))->toContain('Dague')
-        ->and($vendables->pluck('nom'))->not->toContain("Lame d'Aube");
+        ->and($vendables->pluck('nom'))->not->toContain('Lame des Esprits');
 
     // Et le refus est côté MOTEUR, pas seulement côté affichage.
     $this->putJson('/api/groupes/table-1/marche/panier', [
@@ -395,7 +395,8 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
     // Le magicien porte les armes légères, les armes d'érudit (canne) et les
     // protections arcaniques (brassards, cape) — les seules pièces défensives
     // que les cartes lui RÉSERVENT. Aucune armure ordinaire.
-    expect($perso['equipement']['maitrises'])->toBe(['arme_legere', 'arme_erudit', 'armure_magicien']);
+    expect($perso['equipement']['maitrises'])
+        ->toBe(['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_magicien']);
 
     // Le badge se déduit des deux : l'épée est hors de portée du magicien…
     expect(in_array($etal->firstWhere('nom', 'Épée courte')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeFalse()

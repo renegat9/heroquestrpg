@@ -298,8 +298,18 @@ final class MenuMoteur
             }
         }
 
+        // Attaque BONUS : la Potion d'héroïsme et le Fléau des Orques posent
+        // `attaque_supplementaire`, une seconde frappe au-delà du créneau
+        // d'action. `ResolveurTour` l'acceptait déjà (`$bonusHeroisme`) mais le
+        // MENU ne la proposait pas — et le contrôleur refuse toute option
+        // absente du dernier menu : l'effet de la potion était donc
+        // inatteignable par le jeu normal. Même traitement que la Réserve
+        // arcanique du magicien, plus bas.
+        $bonusAttaqueDisponible = $etat !== null && $aAgi && ! $aJoue
+            && (bool) ($etat->attaque_supplementaire ?? false);
+
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
-        if (! $aAgi && $etat !== null && $etat->position_x !== null) {
+        if ((! $aAgi || $bonusAttaqueDisponible) && $etat !== null && $etat->position_x !== null) {
             $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
             // Arme longue (Bâton, Épée longue) : frappe aussi en DIAGONALE, sans
             // pénalité — « the attack is made and defended normally »
@@ -392,6 +402,18 @@ final class MenuMoteur
                     'type' => 'attaque',
                     'lancer' => true,
                     'parametres' => ['lancer' => true, 'cibles' => $cibles['lancer']],
+                ];
+            }
+
+            // Tout ce qui suit est une action ORDINAIRE : hors bonus d'attaque,
+            // le créneau doit encore être libre. Le héros garde toutefois le
+            // droit de terminer son tour sans dépenser la frappe offerte.
+            if ($bonusAttaqueDisponible) {
+                $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+
+                return [
+                    'situation' => 'Une attaque supplémentaire vous est offerte ce tour.',
+                    'options' => $options,
                 ];
             }
 

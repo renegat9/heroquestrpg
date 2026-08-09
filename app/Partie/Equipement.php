@@ -43,12 +43,19 @@ final class Equipement
      * n'était qu'un achat de dépannage qu'on jetait dès la première vraie
      * armure, et la défense plafonnait à 5 au lieu de 6.
      */
-    public const SLOTS = ['arme_principale', 'arme_secondaire', 'casque', 'armure'];
+    public const SLOTS = ['arme_principale', 'arme_secondaire', 'casque', 'armure', 'talisman'];
 
-    /** Clés d'`effet` d'objet appliquées comme delta de colonne au personnage. */
-    private const COLONNES = [
-        'des_attaque' => 'des_attaque',
-        'des_defense' => 'des_defense',
+    /**
+     * Clés d'`effet` d'objet qui AUGMENTENT une jauge maximale du héros.
+     *
+     * Les talismans (Amulette du Nord, Brassards elfiques…) « add 2 Body points
+     * and 1 Mind point to the … totals » : ils ne donnent pas de dés, ils
+     * relèvent le plafond. Appliqué comme les dés — recalcul complet depuis
+     * l'équipement porté, jamais un delta ±N qui dérive.
+     */
+    private const JAUGES = [
+        'bonus_pv_body_max' => ['pv_body_max', 'pv_body'],
+        'bonus_pv_mind_max' => ['pv_mind_max', 'pv_mind'],
     ];
 
     /**
@@ -85,6 +92,8 @@ final class Equipement
         $this->verifierAccesEquipement($personnage, $objet);
 
         return DB::transaction(function () use ($personnage, $ligne, $slot) {
+            $jaugesAvant = $this->bonusJauges($personnage);
+
             // Auto-swap : l'occupant actuel du slot retourne au sac (effet révoqué).
             $occupant = $personnage->inventaire()->where('emplacement', $slot)->with('objet')->first();
             if ($occupant !== null) {
@@ -93,7 +102,9 @@ final class Equipement
             }
 
             $ligne->update(['emplacement' => $slot]);
-            $this->recalculerCombat($personnage->refresh());
+            $personnage->refresh();
+            $this->appliquerEcartJauges($personnage, $jaugesAvant);
+            $this->recalculerCombat($personnage);
 
             return $ligne->fresh();
         });
@@ -118,10 +129,14 @@ final class Equipement
         }
 
         return DB::transaction(function () use ($personnage, $ligne) {
+            $jaugesAvant = $this->bonusJauges($personnage);
+
             $ligne->update(['emplacement' => 'sac']);
             // Recalcul APRÈS le retrait : sinon l'arme est encore comptée comme
             // portée et le héros garde ses dés.
-            $this->recalculerCombat($personnage->refresh());
+            $personnage->refresh();
+            $this->appliquerEcartJauges($personnage, $jaugesAvant);
+            $this->recalculerCombat($personnage);
 
             return $ligne->fresh();
         });
@@ -275,6 +290,68 @@ final class Equipement
             ->with('objet')
             ->get()
             ->contains(fn ($ligne) => (bool) (($ligne->objet?->effet ?? [])[$cle] ?? false));
+    }
+
+    /**
+     * Bonus de jauges MAXIMALES actuellement portés, par clé d'effet.
+     *
+     * @return array<string, int>
+     */
+    private function bonusJauges(Personnage $personnage): array
+    {
+        $portes = $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get();
+
+        $bonus = [];
+
+        foreach (array_keys(self::JAUGES) as $cle) {
+            $bonus[$cle] = (int) $portes->sum(fn ($ligne) => (int) (($ligne->objet?->effet ?? [])[$cle] ?? 0));
+        }
+
+        return $bonus;
+    }
+
+    /**
+     * Applique l'ÉCART de bonus de jauges entre deux états de l'équipement.
+     *
+     * Un écart réconcilié, pas un delta qui s'accumule : les deux termes sont
+     * chacun un recalcul complet depuis l'équipement porté, donc une exécution
+     * manquée ne peut pas décaler durablement la jauge (le prochain équipement
+     * repart des vraies pièces). C'est la seule façon de toucher `pv_body_max`
+     * sans stocker une valeur « de base » quelque part : ce maximum encaisse
+     * aussi les montées de niveau, on ne peut pas le recalculer depuis zéro.
+     *
+     * Gagner le talisman DONNE les points (« adds 2 Body points … to the
+     * totals ») ; le retirer les reprend, en écrêtant la valeur courante — un
+     * héros ne reste jamais au-dessus de son maximum.
+     *
+     * @param  array<string, int>  $avant
+     */
+    private function appliquerEcartJauges(Personnage $personnage, array $avant): void
+    {
+        $apres = $this->bonusJauges($personnage);
+        $modifs = [];
+
+        foreach (self::JAUGES as $cle => [$colonneMax, $colonneCourante]) {
+            $ecart = ($apres[$cle] ?? 0) - ($avant[$cle] ?? 0);
+
+            if ($ecart === 0) {
+                continue;
+            }
+
+            // Plancher à 1 : un maximum nul rendrait le héros mort-né, et
+            // aucune pièce ne doit pouvoir produire ça.
+            $max = max(1, (int) $personnage->{$colonneMax} + $ecart);
+            $modifs[$colonneMax] = $max;
+            $modifs[$colonneCourante] = min($max, max(0, (int) $personnage->{$colonneCourante} + max(0, $ecart)));
+        }
+
+        if ($modifs !== []) {
+            $personnage->update($modifs);
+            $personnage->refresh();
+        }
     }
 
     /**

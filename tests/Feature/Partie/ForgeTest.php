@@ -200,7 +200,7 @@ it('refuse d\'améliorer un ARTEFACT (rareté unique)', function () {
     donneForge($nain);
 
     // Un artefact est déjà au sommet de la courbe : la Forge n'y ajoute rien.
-    $ligne = sacDeForge($nain, "Lame d'Aube");
+    $ligne = sacDeForge($nain, 'Lame des Esprits');
     $affutee = ForgeAmelioration::where('nom', 'Affûtée')->firstOrFail();
 
     $this->postJson('/api/groupes/table-1/forge', [

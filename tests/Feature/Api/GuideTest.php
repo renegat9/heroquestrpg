@@ -58,8 +58,16 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         ->and($classes['barbare']['tags_equipement'])->toContain('arme_deux_mains')
         ->and($classes['nain']['tags_equipement'])->toContain('armure_lourde');
 
-    // Chaque arme/armure porte la maîtrise qu'elle EXIGE.
-    $portables = collect($data['objets'])->whereIn('categorie', ['arme', 'armure']);
+    // Chaque arme/armure porte la maîtrise qu'elle EXIGE — sauf celles dont la
+    // carte n'énonce AUCUNE restriction de classe, qui n'ont légitimement pas de
+    // tag (`verifierAccesEquipement` les laisse passer). Elles sont nommées ici
+    // pour qu'un tag oublié ne se cache pas derrière la même absence.
+    $sansMaitrise = ['Talisman du Savoir'];
+
+    $portables = collect($data['objets'])
+        ->whereIn('categorie', ['arme', 'armure'])
+        ->reject(fn ($o) => in_array($o['nom'], $sansMaitrise, true));
+
     expect($portables)->not->toBeEmpty()
         ->and($portables->every(fn ($o) => ! empty($o['tag_equipement'])))->toBeTrue();
 

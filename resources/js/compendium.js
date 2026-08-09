@@ -6,6 +6,8 @@
 
 /** Bonus chiffrés → « +N libellé » (valeur positive préfixée d'un +). */
 const EFFETS_BONUS = {
+    bonus_pv_body_max: 'PV Body maximum',
+    bonus_pv_mind_max: 'PV Mind maximum',
     des_attaque: "dé(s) d'attaque",
     des_defense: 'dé(s) de défense',
     bonus_des_attaque: "dé(s) d'attaque",
@@ -18,6 +20,8 @@ const EFFETS_BONUS = {
 /** Valeurs chiffrées « nombre puis libellé » (ex. « 1 dégât de Body »). */
 const EFFETS_QTE = {
     degats_pv_body: 'dégât(s) de Body',
+    // Dague de jet magique : « always inflicts one Body Point of damage ».
+    degats_fixes: 'dégât(s) garanti(s), sans jet ni défense',
 };
 
 /** Soins exprimés en DÉS (`soin_pv_body_de: 6` = 1d6) — la Fiole de soin du
@@ -139,8 +143,21 @@ export function effetVersChips(effet) {
     // que le moteur n'applique pas est pire que se taire. À réafficher le jour
     // où la mécanique existe.
     const NON_IMPLEMENTES = new Set(['invocation_ephemere']);
-    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES]);
+    // Clauses conditionnelles des artefacts : rendues À PART juste en dessous,
+    // pas ignorées — le repli générique en aurait fait du JSON brut.
+    const RENDUES_A_PART = new Set(['des_attaque_contre', 'attaque_double_contre']);
+    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES, ...RENDUES_A_PART]);
     const chips = [];
+
+    // Clauses CONDITIONNELLES des artefacts : « 4 dés contre Squelette,
+    // Zombie, Momie », « frappe deux fois : Orque ». Le repli générique
+    // rendait l'objet JSON brut à l'écran.
+    if (Array.isArray(effet.des_attaque_contre?.noms)) {
+        chips.push({ texte: `${effet.des_attaque_contre.des} dé(s) contre ${effet.des_attaque_contre.noms.join(', ')}` });
+    }
+    if (Array.isArray(effet.attaque_double_contre)) {
+        chips.push({ texte: `Frappe deux fois : ${effet.attaque_double_contre.join(', ')}` });
+    }
     for (const [k, v] of Object.entries(effet)) {
         if (IGNORE.has(k) || v == null) continue;
         // `duree: 0` n'est pas une durée : c'est l'absence de durée. Le guide
@@ -192,7 +209,7 @@ export const RARETE = {
     commun: 'Commun', peu_commun: 'Peu commun', rare: 'Rare', unique: 'Unique',
 };
 export const EMPLACEMENT = {
-    arme_principale: 'Main principale', arme_secondaire: 'Main secondaire', casque: 'Casque', armure: 'Armure', sac: 'Sac', consommable: 'Consommable',
+    arme_principale: 'Main principale', arme_secondaire: 'Main secondaire', casque: 'Casque', armure: 'Armure', talisman: 'Talisman', sac: 'Sac', consommable: 'Consommable',
 };
 export const TIER_MONSTRE = { base: 'Sbires', sous_boss: 'Sous-boss', boss: 'Boss' };
 export const ELEMENT = {

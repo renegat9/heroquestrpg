@@ -83,11 +83,15 @@ it('garde la difficulté des parchemins synchronisée avec celle du sort', funct
 });
 
 it('donne à toute arme et armure des dés, et à tout consommable un effet réel', function () {
-    foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
-        $effet = (array) $piece->effet;
+    // Une arme ou une armure doit changer QUELQUE CHOSE au porteur : des dés,
+    // des dégâts garantis (Dague de jet magique) ou une jauge maximale
+    // (talismans de classe). Sans ça, l'équiper est un clic pour rien.
+    $utilesPortes = ['des_attaque', 'des_defense', 'degats_fixes',
+        'bonus_pv_body_max', 'bonus_pv_mind_max'];
 
-        expect(($effet['des_attaque'] ?? 0) + ($effet['des_defense'] ?? 0))
-            ->toBeGreaterThan(0, "{$piece->nom} : ne donne aucun dé, la porter ne change rien.");
+    foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
+        expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
+            ->not->toBeEmpty("{$piece->nom} : ne change rien au porteur.");
     }
 
     // Un consommable doit soigner, retirer une condition, ou poser un buff —

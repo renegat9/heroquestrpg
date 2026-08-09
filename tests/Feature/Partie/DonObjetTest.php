@@ -145,7 +145,7 @@ it('fait circuler un ARTEFACT : l\'arme unique appartient au groupe', function (
     [, , $albrecht, $brunhilde] = groupeAuHub();
 
     // Trouvé par Brunhilde, il revient au barbare qui saura s'en servir.
-    $ligne = donnerAuSac($brunhilde->id, 'Hache du Roi sous la Montagne');
+    $ligne = donnerAuSac($brunhilde->id, 'Lame des Esprits');
 
     test()->actingAs(JoueurAuthentifiable::where('identifiant', 'bob')->firstOrFail(), 'joueur')
         ->postJson('/api/groupes/table-1/dons', [

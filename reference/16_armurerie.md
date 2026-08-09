@@ -351,6 +351,88 @@ Le livret de quêtes officiel attribue un **artefact unique et nommé** à la pl
 
 Plus l'exemple générique donné dans le livret de règles lui-même : **Borin's Armor** (LR p. 7, texte cité en §2).
 
+### 9.1 Le paquet d'artefacts, converti
+
+**Source : `sjeng-artefacts.pdf`, Ye Olde Inn** — 34 cartes distinctes,
+[english.yeoldeinn.com/downloads/cards/sjeng-artefacts.pdf](https://english.yeoldeinn.com/downloads/cards/sjeng-artefacts.pdf).
+Choisi par René le 2026-08-09, comme le paquet d'armurerie du §2.2. Il rassemble
+les cartes artefact de **cinq sources** : boîte de base, *Kellar's Keep* /
+*Return of the Witch Lord*, *The Frozen Horror*, *The Mage of the Mirror*, et
+*White Dwarf Magazine* — plus trois cartes « custom » déclarées comme telles par
+l'auteur. La colonne « Quête » du tableau ci-dessus **corrobore** neuf des noms
+de la première page : le paquet et le livret de quêtes disent la même chose.
+
+Ces cartes **remplacent les 7 artefacts qu'on avait inventés** (Lame d'Aube,
+Kriss du Fossoyeur, Arbalète des Murmures, Bâton des Sept Sceaux, Marteau du
+Gardien de Pierre, Hache du Roi sous la Montagne, Fendoir des Titans). Aucun
+n'avait d'équivalent officiel, et surtout : c'étaient **sept armes à dés
+croissants** — 4, puis 5, puis 6 dés. Un vrai artefact ne monte pas la courbe,
+il fait quelque chose que rien d'autre ne fait. Le Fendoir à 6 dés rendait toute
+l'armurerie caduque dès qu'on le trouvait ; la Lame des Esprits qui le remplace
+vaut 3 dés, sauf contre les morts-vivants.
+
+#### Portés (9 cartes)
+
+| Carte | Texte de la carte | Chez nous |
+|---|---|---|
+| **Fléau des Orques** / Orcs Bane | « two combat dice in attack. You may attack TWICE if you are fighting Orcs » | arme, 2 dés, `attaque_double_contre: [Orque]` |
+| **Lame des Esprits** / Spirit Blade | « three combat dice in attack OR four dice against undead creatures such as Skeletons, Zombies and Mummies » | arme, 3 dés, `des_attaque_contre: {noms: [Squelette, Zombie, Momie], des: 4}` |
+| **Dague de jet magique** / Magical Throwing Dagger | « always inflicts one Body Point of damage… may be thrown at any monster visible… lost once thrown… cannot be used on an adjacent target » | arme, `degats_fixes: 1` + `jetable` + `portee: distance` + `inutilisable_adjacent` |
+| **Armure de Borin** / Borin's Armour | « 2 extra combat dice in defence. May be combined with a helmet and a shield » | armure, +2 défense, **sans** `malus_deplacement` — c'est là sa supériorité sur l'armure de plates |
+| **Talisman du Savoir** / Talisman of Lore | « increase your Mind points by two as long as you have the Talisman » | talisman, `bonus_pv_mind_max: 2`, aucune restriction de classe |
+| **Amulette du Nord** / Amulet of the North | « may be worn only by a Barbarian… adds 2 Body points and 1 Mind point » | talisman, `bonus_pv_body_max: 2` + `bonus_pv_mind_max: 1`, tag `talisman_barbare` |
+| **Brassards elfiques** / Elven Bracers | idem, « only an Elf » | tag `talisman_elfe` |
+| **Capuche du Magister** / Magister's Hood | idem, « only by a Wizard » | tag `talisman_magicien` |
+| **Runes naines** / Dwarven Runestones | idem, « only by a Dwarf » | tag `talisman_nain` |
+
+La **Dague de jet magique** referme au passage un point ouvert du §10 : sa carte
+dit noir sur blanc « **the dagger is lost once thrown** ». La destruction de
+l'arme lancée, qu'on appliquait sans source, en a donc une — au moins pour cette
+dague-là.
+
+#### Non portées (25 cartes) — et ce qui leur manque
+
+Aucune n'est semée : une carte dont le moteur n'applique pas l'effet central
+serait une règle annoncée au joueur et jamais tenue, exactement ce que ce
+document sert à empêcher.
+
+| Mécanique absente | Cartes concernées |
+|---|---|
+| **Économie de sorts** (récupérer, mémoriser, relancer un sort) | Spell Ring, Wand of Recall, Rod of Memory, Scroll of Spells, Wand of Galimatias |
+| **Types de dégâts** (feu, froid) et résistances | Fire Ring, Armband of Ice, Ring of Warmth |
+| **Charges** (un objet à N usages) | Elven Bow of Vindication (4 flèches), Sky Orb (4 jetons) |
+| **Téléportation / déplacement forcé** | Ring of Return |
+| **Traverser les figures** | Dust of Disappearance |
+| **Contrôle de monstre** | Bone Wand |
+| **Contre-sort** | Ancient Staff |
+| **Objet qui en exige un autre** | Thor's Hammer (exige les Thunder God's Gloves), Thunder God's Gloves |
+| **Régions de terrain** (glace, zones chaudes) | Snowshoes of Speed, Rabbit Boots |
+| **Retour automatique d'une arme lancée** | Sognirstane |
+| **Résurrection / restauration totale** | Elixir of Life, Armband of Healing |
+| **Choix permanent à l'acquisition** | Ring of Brilliance |
+| Déjà couvert par un objet commun (Antidote) | Anti-Poison Quill |
+| Pas d'emplacement de ceinture | Thunder God's Belt |
+
+Plusieurs sont à portée de main — les **charges** et l'**économie de sorts**
+sont les deux plus rentables (5 cartes à elles deux). À ouvrir quand on voudra
+étoffer le butin, en suivant la même règle : déclarer le mot-clé, câbler son
+lecteur, documenter.
+
+#### Le coffre du fond
+
+`DeckFouille::choisirArtefact()` tire parmi les artefacts `unique` de catégorie
+**arme ou armure** — les consommables en sont exclus : le coffre le plus profond
+du donjon ne doit pas verser une fiole à usage unique après une quête entière
+d'exploration.
+
+Il écarte aussi tout artefact qu'**aucune classe active du groupe ne pourrait
+porter**, en croisant `tag_equipement` avec les `tags_equipement` des classes
+présentes et les nœuds `acces_equipement` de leurs arbres. C'est ce qui évite que
+le coffre unique d'une quête rende des Runes naines à un groupe sans nain — du
+butin mort, à la place du seul artefact qu'on pouvait espérer. La règle remplace
+un test codé en dur sur le seul barbare, et couvre désormais les quatre
+talismans de classe d'un coup.
+
 ---
 
 ## 10. Écarts avec notre implémentation
@@ -367,7 +449,7 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 | **Cotte de mailles** (450 po) | +1 dé défense | **Aucune mention** — seule l'« armure de plates » (plate mail) est nommée, via l'artefact *Borin's Armor* (§2). |
 | **Canne, Fouet, Fronde, Arc court, Arc long, Rapière, Hallebarde, Masse, Fléau, Espadon, Épée bâtarde** (125-825 po) | 1 à 5 dés | **Aucune mention.** Ce sont les armes ajoutées par le paquet Sjeng, qui n'ont jamais existé au plateau de base (§2.2). Portées en connaissance de cause : c'est le paquet qu'on a choisi. |
 | **Brassards, Cape de protection** (200 / 350 po) | +1 dé défense, magicien seul | **Aucune mention.** Ajouts du même paquet — et le seul équipement défensif que le magicien puisse porter, lui qui restait sinon à 2 dés toute la campagne. |
-| **7 artefacts « uniques »** (Lame d'Aube, Kriss du Fossoyeur, Arbalète des Murmures, Bâton des Sept Sceaux, Marteau du Gardien de Pierre, Hache du Roi sous la Montagne, Fendoir des Titans) | 900-1600 po, 4-6 dés | **Aucun ne correspond** à un nom d'artefact officiel. Le livret de quêtes en nomme **10** (§9 ci-dessus : Talisman of Lore, Borin's Armor, Wizard's Cloak, Wand of Magic, Elixir of Life, Ring of Return, Orc's Bane, Wizard's Staff, Spirit Blade, Spell Ring) — **aucun recouvrement**, ni en nom ni en effet (les nôtres sont tous des armes à dégâts croissants ; les originaux sont surtout des armures/objets à pouvoir spécial, pas des armes qui montent en dés). |
+| **7 artefacts « uniques »** (Lame d'Aube, Kriss du Fossoyeur, Arbalète des Murmures, Bâton des Sept Sceaux, Marteau du Gardien de Pierre, Hache du Roi sous la Montagne, Fendoir des Titans) | 900-1600 po, 4-6 dés | **Écart RÉSOLU le 2026-08-09** : ils n'avaient aucun équivalent officiel, ni en nom ni en effet — les nôtres étaient tous des armes à dés croissants, les originaux sont des objets à pouvoir spécial. Supprimés et remplacés par la conversion du paquet d'artefacts (§9.1). |
 
 ### Armes / armures — valeurs numériques invérifiables
 

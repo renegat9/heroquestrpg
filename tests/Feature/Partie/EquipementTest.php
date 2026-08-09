@@ -245,17 +245,18 @@ it('interdit au magicien l\'armure et les armes de mêlée courantes', function 
     expect($magicien->refresh()->des_attaque)->toBe(1);
 });
 
-it('laisse le magicien porter le Bâton des Sept Sceaux : `deux_mains` n\'est pas une maîtrise', function () {
+it('laisse le magicien porter le Bâton : `deux_mains` n\'est pas une maîtrise', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
 
-    // L'artefact est à deux mains (donc pas de bouclier avec) mais tagué
-    // `arme_legere` — il a été conçu pour lui.
-    (new Equipement)->equiper($magicien, sacDe($magicien, 'Bâton des Sept Sceaux'));
+    // Le bâton est à deux mains (donc pas de bouclier avec) mais sa carte ne
+    // porte AUCUNE restriction de classe : tag `arme_legere`, accessible à
+    // tous. Les deux notions sont orthogonales, et c'est ce qui laisse au
+    // magicien la seule arme à 2 dés qu'il puisse manier.
+    (new Equipement)->equiper($magicien, sacDe($magicien, 'Bâton'));
 
-    expect($magicien->refresh()->des_attaque)->toBe(3)
-        ->and($magicien->refresh()->des_defense)->toBe(3); // 2 + 1
+    expect($magicien->refresh()->des_attaque)->toBe(2);
 });
 
 it('ouvre au magicien l\'armure légère via le nœud « Cuir d\'apprenti »', function () {

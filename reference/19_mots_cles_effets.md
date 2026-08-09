@@ -265,6 +265,24 @@ encodait déjà l'épée large, puis l'arme achetée s'y ajoutait).
 | `malus_deplacement` | Encombrement de l'armure lourde, **en cases** : « a 2 square movement penalty » (carte Plate Mail). Le dé est toujours lancé, et le total ne descend jamais sous 1. On supprimait auparavant le d6 entier (`deplacement_sans_d6`) : −3,5 cases en moyenne, **et** un déplacement devenu déterministe. | |
 | `permet_desamorcage` | Désamorçage de piège — « you must possess a tool kit (or be the dwarf) » (LR p. 19). | |
 
+### Artefacts
+
+Le paquet d'artefacts (reference/16 §9.1) a demandé cinq mots de plus — tous
+câblés, aucun décoratif :
+
+| clé | ce qu'elle fait | carte |
+|---|---|---|
+| `degats_fixes` | Dégâts GARANTIS : ni jet d'attaque, ni jet de défense. Seule clé qui court-circuite `Engine\Combat`. | « This weapon always inflicts one Body Point of damage » |
+| `des_attaque_contre` | `{noms: […], des: N}` — dés opposés à des créatures nommées. La valeur **remplace** celle de l'arme (le « OR » de la carte), elle ne s'y ajoute pas. | « three combat dice OR four against undead » |
+| `attaque_double_contre` | Liste de `nom_base` contre lesquels l'arme accorde une SECONDE attaque ce tour. | « You may attack TWICE if you are fighting Orcs » |
+| `bonus_pv_body_max` | PV de Body **maximum** en plus tant que la pièce est portée. Les gagner donne les points, les perdre écrête la valeur courante. | « adds 2 Body points … to the totals » |
+| `bonus_pv_mind_max` | Idem pour le Mind. | idem |
+
+⚠ Les deux clés « contre » testent `monstres.nom_base`, le nom de **catalogue** —
+jamais le nom affiché, que l'IA habille à chaque quête (« Grull l'Éventreur ») :
+une Lame des Esprits aurait cessé de reconnaître les morts-vivants dès la
+première quête narrée.
+
 ### Consommables
 
 `soin_pv_body` (montant fixe) · `soin_pv_body_de` (1d6 — Fiole de soin, ⚠ de

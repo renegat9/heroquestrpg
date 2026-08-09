@@ -117,6 +117,52 @@ final class MotsClesEquipement
      */
     public const MALUS_DEPLACEMENT = 'malus_deplacement';
 
+    // ------------------------------------------------------- ARTEFACTS D'ARME
+
+    /**
+     * Dégâts GARANTIS : l'attaque ne passe par aucun dé et la cible ne défend
+     * pas — « This weapon always inflicts one Body Point of damage » (Dague de
+     * jet magique). Seule clé du jeu qui court-circuite `Engine\Combat`.
+     * Lecteur : `ResolveurTour::resoudreAttaque()` via `ResultatAttaque::sansJet()`.
+     */
+    public const DEGATS_FIXES = 'degats_fixes';
+
+    /**
+     * Dés d'attaque opposés à des créatures NOMMÉES : `{noms: […], des: N}`.
+     * « Spirit Blade allows you to roll three combat dice in attack OR four
+     * dice against undead creatures such as Skeletons, Zombies and Mummies. »
+     *
+     * La valeur REMPLACE celle de l'arme (le « OR » de la carte), elle ne s'y
+     * ajoute pas. Le test porte sur `monstres.nom_base` — le nom de catalogue,
+     * pas le nom habillé par l'IA, qui change à chaque quête.
+     * Lecteur : `ResolveurTour::desArmeContre()`.
+     */
+    public const DES_ATTAQUE_CONTRE = 'des_attaque_contre';
+
+    /**
+     * Liste de `nom_base` contre lesquels l'arme accorde une SECONDE attaque ce
+     * tour — « You may attack TWICE if you are fighting Orcs » (Fléau des
+     * Orques). Réutilise `etat.attaque_supplementaire`, le créneau de la Potion
+     * d'héroïsme : deux mécanismes se seraient cumulés sans le vouloir.
+     * Lecteur : `ResolveurTour::accorderSecondeAttaque()`.
+     */
+    public const ATTAQUE_DOUBLE_CONTRE = 'attaque_double_contre';
+
+    // --------------------------------------------------------------- JAUGES
+
+    /**
+     * Points de Body MAXIMUM en plus tant que la pièce est portée — « adds 2
+     * Body points and 1 Mind point to the Barbarian's totals » (Amulette du
+     * Nord et ses trois sœurs de classe).
+     *
+     * Les gagner DONNE les points ; les perdre écrête la valeur courante.
+     * Lecteur : `Partie\Equipement::appliquerEcartJauges()`.
+     */
+    public const BONUS_PV_BODY_MAX = 'bonus_pv_body_max';
+
+    /** Idem pour le Mind (Talisman du Savoir : +2). */
+    public const BONUS_PV_MIND_MAX = 'bonus_pv_mind_max';
+
     // ------------------------------------------------------------------ OUTIL
 
     /**
@@ -206,6 +252,11 @@ final class MotsClesEquipement
         self::DEUX_MAINS,
         self::INCOMPATIBLE_DEUX_MAINS,
         self::MALUS_DEPLACEMENT,
+        self::DEGATS_FIXES,
+        self::DES_ATTAQUE_CONTRE,
+        self::ATTAQUE_DOUBLE_CONTRE,
+        self::BONUS_PV_BODY_MAX,
+        self::BONUS_PV_MIND_MAX,
         self::PERMET_DESAMORCAGE,
         self::SOIN_PV_BODY,
         self::SOIN_PV_BODY_DE,
