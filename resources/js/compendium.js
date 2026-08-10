@@ -99,6 +99,8 @@ const VALEURS = {
 /** Clés à valeur textuelle/énumérée → « libellé : valeur ». */
 const EFFETS_ENUM = {
     portee: 'Portée',
+    type_degat: 'Nature du dégât',
+    immunite_degat: 'Immunise contre',
     cible: 'Cible',
     condition_appliquee: 'Applique',
     retire_condition: 'Retire',

@@ -330,6 +330,36 @@ ressource rare derrière un effet gratuit.
 de la quête. Ici le choix se fait en le lançant — même résultat, sans imposer un
 pari à l'aveugle avant d'avoir vu le donjon.
 
+### Types de dégâts (`App\Engine\TypeDegat`)
+
+Un dégât était un dégât : nos sorts retiraient des points de Body sans dire de
+quelle **nature**. `effet.type_degat`, posé sur la SOURCE (un sort de héros ou de
+Dread), le dit désormais.
+
+| clé | où | valeurs |
+|---|---|---|
+| `type_degat` | `sorts.effet`, `sorts_dread.effet` | `feu` · `froid` |
+| `immunite_degat` | `objets.effet` | annule **intégralement** les dégâts de cette nature, contre une charge (Anneau de Feu, 2 charges) |
+
+Une nature n'a d'intérêt que si elle a **une source ET un lecteur** :
+
+- **`feu`** est complet — sources : Boule de Feu, Trait de Feu, Tempête de feu ;
+  lecteurs : l'Anneau de Feu et la **régénération du troll**, qu'une brûlure
+  interrompt définitivement (`instances_monstres.brule`).
+- **`froid`** est déclaré **sans source** : les six sorts de *The Frozen Horror*
+  sont nommés par le livret, leurs effets sont introuvables. `TypeDegat::SANS_SOURCE`
+  le dit dans le code.
+
+⚠ Un seul lecteur pour les deux chemins qui blessent un héros —
+`MoteurSorts::absorbeDegat()`, appelé par le tir ami d'un sort de héros **et**
+par le sort d'un Dread. La carte vise « Fire **or Chaos Fire** spells » : un
+anneau qui protégerait d'un feu sur deux serait pire que pas d'anneau.
+
+⚠ Écart assumé sur le troll : la carte rend permanents les seuls PV perdus **par
+le feu**, ce qui demanderait une comptabilité des dégâts par nature. Ici, une
+créature brûlée cesse simplement de régénérer — même intention tactique (le feu
+est la réponse au troll), pour un booléen au lieu d'un grand livre.
+
 ### Ce que la conversion NE passe PAS par un mot-clé
 
 Deux phrases de carte sont portées ailleurs, exprès :

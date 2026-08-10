@@ -173,7 +173,10 @@ final class MoteurDread
         $actions = [];
 
         // 1. Régénération : +1 PV Body au DÉBUT du tour (avant toute action).
-        if ($this->aCapacite($instance, 'regeneration')) {
+        //    Une créature BRÛLÉE ne régénère plus : « damage done by fire is
+        //    permanent and cannot be regenerated » (carte du troll). Le feu est
+        //    la réponse au troll, et il faut que ça se voie en jeu.
+        if ($this->aCapacite($instance, 'regeneration') && ! $instance->brule) {
             $regenPayload = $this->appliquerRegeneration($groupe, $instance, $acteur);
 
             if ($regenPayload !== null) {
@@ -620,6 +623,14 @@ final class MoteurDread
         }
 
         $personnage = $cible->personnage;
+
+        // Anneau de Feu : la carte vise « Fire OR CHAOS FIRE spells » — les
+        // sorts de Dread comptent donc autant que ceux des héros. Même lecteur
+        // des deux côtés, pour qu'un anneau ne protège pas d'un feu sur deux.
+        if ($this->sorts->absorbeDegat($personnage, data_get($sort->effet, 'type_degat'))) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $desDegats,
             desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),

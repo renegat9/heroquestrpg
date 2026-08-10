@@ -13,6 +13,7 @@ use App\Engine\JetCompetence;
 use App\Engine\MotsClesSort;
 use App\Engine\ResultatAttaque;
 use App\Engine\SortMental;
+use App\Engine\TypeDegat;
 use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
@@ -1387,6 +1388,14 @@ final class ResolveurTour
             /** @var InstanceMonstre $instance */
             $instance = $cible['monstre'];
 
+            // Un sort de FEU brûle : le troll cesse définitivement de régénérer
+            // (« damage done by fire is permanent and cannot be regenerated »).
+            // Marqué avant la résolution — la brûlure ne dépend pas des dégâts
+            // encaissés, seulement de la nature du sort reçu.
+            if (($sort->effet['type_degat'] ?? null) === TypeDegat::FEU && ! $instance->brule) {
+                $instance->update(['brule' => true]);
+            }
+
             // Résistance magique (capacité boss) : +2 dés de défense contre les sorts de dégâts.
             $bonusResistance = $this->dread->bonusDefenseResistanceMagique($instance);
 
@@ -1433,6 +1442,24 @@ final class ResolveurTour
 
         /** @var Personnage $heros */
         $heros = $cible['personnage'];
+
+        // Anneau de Feu : « prevents the wearer from being affected by the next
+        // two Fire spells ». Immunité TOTALE, avant tout jet — un héros protégé
+        // ne lance même pas sa défense.
+        $typeDegat = $sort->effet['type_degat'] ?? null;
+
+        if ($this->sorts->absorbeDegat($heros, $typeDegat)) {
+            return [
+                'des_degats' => $des,
+                'tir_ami' => true,
+                'degats' => 0,
+                'immunite_degat' => $typeDegat,
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'pv_body_apres' => (int) $heros->pv_body,
+                'faces_attaque' => [],
+                'faces_defense' => [],
+            ];
+        }
 
         // Même règle qu'en face : `defense_applicable` pilote, et un héros visé
         // par un tir ami se défend exactement comme un monstre (S3).

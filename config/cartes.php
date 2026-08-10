@@ -114,9 +114,7 @@ return [
 
             // ---- Kellar's Keep & Return of the Witch Lord (5) ----
             ['carte' => 'Magical Throwing Dagger', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Dague de jet magique'],
-            ['carte' => 'Fire Ring', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'nom' => 'Anneau de Feu',
-                'texte' => 'Protège des deux prochains sorts de Feu ou de Feu du Chaos rencontrés, puis tombe en cendres. Permet aussi de traverser sans risque les zones brûlantes.',
-                'manque' => 'Aucun TYPE de dégât : nos sorts infligent des points, jamais du feu ou du froid — il n\'y a donc rien contre quoi protéger.'],
+            ['carte' => 'Fire Ring', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Anneau de Feu'],
             ['carte' => 'Anti-Poison Quill', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Plume anti-poison'],
             ['carte' => 'Armband of Healing', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'nom' => 'Bracelet de Guérison',
                 'texte' => 'Rend 2 points de Body au porteur, une fois par quête. Si le porteur tombe à 0 et que le bracelet n\'a pas servi, il le relève aussitôt avec 2 points de Body.',
@@ -132,10 +130,10 @@ return [
                 'manque' => 'Franchir un piège par un saut : notre franchissement est un jet de Body, sans notion de saut par tour.'],
             ['carte' => 'Armband of Ice', 'paquet' => 'The Frozen Horror', 'nom' => 'Bracelet de Glace',
                 'texte' => 'Immunise contre Gel de l\'Esprit et réduit d\'un point les dégâts de froid de tout sort ou effet, pour le seul porteur.',
-                'manque' => 'Types de dégât (froid) et immunité nommée à un sort.'],
+                'manque' => 'Le mécanisme de types de dégât existe depuis le 2026-08-09 (App\\Engine\\TypeDegat) — mais AUCUNE SOURCE de froid : les 6 sorts de The Frozen Horror sont nommés par le livret sans que leurs effets figurent nulle part. Il n\'y a donc rien contre quoi résister.'],
             ['carte' => 'Ring of Warmth', 'paquet' => 'The Frozen Horror', 'nom' => 'Anneau de Chaleur',
                 'texte' => 'Confère une résistance au froid : réduit d\'un point les dégâts de froid de tout sort ou effet.',
-                'manque' => 'Types de dégât (froid).'],
+                'manque' => 'Idem le Bracelet de Glace : le mécanisme existe, la source de froid non.'],
             ['carte' => 'Snowshoes of Speed', 'paquet' => 'The Frozen Horror', 'nom' => 'Raquettes de Vitesse',
                 'texte' => 'Ajoutent 2 cases au déplacement et annulent la glace glissante, tant qu\'elles sont portées. Ne fonctionnent que dans les régions froides et glacées.',
                 'manque' => 'Régions de terrain : nos donjons n\'ont ni glace ni climat, la carte perdrait sa condition et deviendrait un bonus permanent.'],

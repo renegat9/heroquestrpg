@@ -16,11 +16,11 @@ class SortSeeder extends Seeder
         $sorts = [
             // Feu — offensif
             ['element' => 'feu', 'nom' => 'Boule de Feu', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'des_degats' => 2, 'defense_applicable' => true]],
+                'effet' => ['portee' => 'distance', 'des_degats' => 2, 'defense_applicable' => true, 'type_degat' => 'feu']],
             ['element' => 'feu', 'nom' => 'Courage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
             ['element' => 'feu', 'nom' => 'Trait de Feu', 'type' => 'degats', 'difficulte_parchemin' => 1,
-                'effet' => ['portee' => 'distance', 'des_degats' => 1, 'defense_applicable' => true]],
+                'effet' => ['portee' => 'distance', 'des_degats' => 1, 'defense_applicable' => true, 'type_degat' => 'feu']],
 
             // Eau — contrôle / soin
             ['element' => 'eau', 'nom' => 'Sommeil', 'type' => 'mental', 'difficulte_parchemin' => 3,

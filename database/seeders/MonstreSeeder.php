@@ -15,23 +15,51 @@ class MonstreSeeder extends Seeder
     public function run(): void
     {
         $monstres = [
-            // ----- Bestiaire de base -----
+            // ----- Bestiaire de base : les 8 CARTES MONSTRE -----
+            //
+            // Aligné le 2026-08-09 sur `sjeng-monsters.pdf` (Ye Olde Inn). C'est
+            // la première fois que ces valeurs sont SOURCÉES : le doc 16 §4
+            // portait « ⚠ non trouvé » sur toute la table, parce que le tableau
+            // chiffré des monstres vit sur l'écran du MJ, un carton jamais
+            // numérisé. Deux recoupements indépendants confirment le paquet :
+            //   - la momie à 3 dés d'attaque, déduite de « It rolls 4 Attack
+            //     dice INSTEAD OF 3 » (livret de quêtes p. 5) ;
+            //   - squelette / zombie / momie à Mind 0, ce qui explique enfin
+            //     « Sleep may not be used against mummies, zombies, or
+            //     skeletons » (livret de règles p. 8) — Mind 0 = pas de jet.
+            //
+            // ⚠ CONSÉQUENCE D'ÉQUILIBRAGE : au plateau, TOUT monstre de base a
+            // **1 seul point de Body**. On en donnait 2 ou 3 aux plus costauds.
+            // Un gobelin et une gargouille tombent donc désormais du même coup
+            // réussi — c'est le design du jeu (les héros encaissent, les
+            // monstres non), et c'est ce qui rend les paliers sous_boss/boss
+            // lisibles. Les `cout` sont réajustés en conséquence : ils ne
+            // dépendaient plus des vraies stats.
             ['nom_base' => 'Gobelin', 'deplacement' => 10, 'attaque' => 2, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
                 'tier' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Orque', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Fimir', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Squelette', 'deplacement' => 6, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Zombie', 'deplacement' => 6, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
+            ['nom_base' => 'Zombie', 'deplacement' => 4, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 2, 'pv_mind' => 0,
+            ['nom_base' => 'Orque', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Fimir', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 3,
+                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 3,
+                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
                 'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 7, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+
+            // Troll (carte « Cave Troll ») : la seule créature du paquet dont
+            // le texte NOMME le feu — « Trolls may choose to regenerate 1 Body
+            // point instead of attacking. Damage done by fire is permanent and
+            // cannot be regenerated. » C'est ce qui donne un second lecteur au
+            // type de dégât `feu`, à côté de l'Anneau de Feu : sans lui, la
+            // nature d'un dégât n'aurait servi qu'à une carte défensive.
+            ['nom_base' => 'Troll', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 6, 'capacites' => ['regeneration'], 'sorts_dread' => []],
 
             // ----- Gabarits élites (doc 09 §4 — exemples proposés, à équilibrer) -----
             // capacites = bibliothèque assignable (l'IA choisit l'habillage, le moteur résout)
@@ -62,7 +90,7 @@ class MonstreSeeder extends Seeder
             // `choix_attaque` : cible robuste (PV > seuil) → coup massif unique
             // (dés +massive_des_bonus) ; cible affaiblie → double_nombre attaques.
             // Décision 100 % moteur (ResolveurTour). `cout` sous le leader sous_boss.
-            ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 2,
+            ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 4, 'pv_mind' => 2,
                 'tier' => 'sous_boss', 'cout' => 9,
                 'capacites' => ['choix_attaque' => ['seuil' => 2, 'massive_des_bonus' => 2, 'double_nombre' => 2]],
                 'sorts_dread' => []],

@@ -21,7 +21,9 @@ class SortDreadSeeder extends Seeder
             ['nom' => 'Sommeil', 'palier' => 'sous_boss', 'type' => 'controle',
                 'effet' => ['cible' => 'heros', 'resistance' => 'jet_mind', 'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
             ['nom' => 'Tempête de feu', 'palier' => 'sous_boss', 'type' => 'degats',
-                'effet' => ['cible' => 'heros_zone', 'des_degats' => 2, 'defense_applicable' => true]],
+                // « Fire OR CHAOS FIRE spells » : l'Anneau de Feu protège aussi des
+                // sorts du MJ, pas seulement de ceux des héros.
+                'effet' => ['cible' => 'heros_zone', 'des_degats' => 2, 'defense_applicable' => true, 'type_degat' => 'feu']],
             ['nom' => 'Invocation de morts-vivants', 'palier' => 'boss', 'type' => 'invocation',
                 'effet' => ['invoque' => ['Squelette', 'Zombie'], 'nombre' => 2]],
             ['nom' => 'Commandement', 'palier' => 'boss', 'type' => 'controle',

@@ -51,6 +51,10 @@ const CLES_SORT_ACTIVES = [
     'cible',                 // MoteurSorts::ciblesLegales()
     'defense_applicable',    // ResolveurTour::sortDegats(), pilote le jet de défense
     'resistance',            // ResolveurTour::sortMental(), pilote la résistance
+    // NATURE du dégât (App\Engine\TypeDegat) : lue par MoteurSorts::absorbeDegat()
+    // — l'Anneau de Feu annule un sort de feu — et par ResolveurTour, qui marque
+    // `brule` sur le monstre touché pour lui couper la régénération.
+    'type_degat',
 ];
 
 /**

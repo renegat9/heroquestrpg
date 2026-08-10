@@ -20,6 +20,9 @@ class InstanceMonstre extends Model
         'etat',
         'elite',
         'revele',
+        // Brûlée : la régénération s'arrête définitivement (carte du troll,
+        // « damage done by fire is permanent »).
+        'brule',
         'habillage',
     ];
 
@@ -29,6 +32,7 @@ class InstanceMonstre extends Model
             'habillage' => 'array',
             'revele' => 'boolean',
             'elite' => 'boolean',
+            'brule' => 'boolean',
         ];
     }
 

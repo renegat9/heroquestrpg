@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\EtatPersonnageQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Models\Sort;
 use App\Partie\Equipement;
 use App\Partie\Grille;
 use App\Partie\MoteurCharges;
+use App\Partie\MoteurDread;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -109,6 +112,23 @@ function premierSortCiblable(array $ctx, Personnage $mage): array
     expect($option)->not->toBeNull('Aucun sort ciblable au menu.');
 
     return [(int) $option['parametres']['sort_id'], $option['parametres']['cibles'][0]];
+}
+
+/**
+ * Remet le héros en début de tour. On requête la ligne plutôt que d'appeler
+ * `update()` sur l'instance du contexte : après une action, la phase des
+ * monstres et la fin de round ont pu la réécrire, et un modèle périmé
+ * réécrirait des colonnes obsolètes.
+ */
+function rearmerTour(array $ctx, Personnage $heros): void
+{
+    EtatPersonnageQuete::where('quete_id', $ctx['quete']->id)
+        ->where('personnage_id', $heros->id)
+        ->update([
+            'a_agi' => false, 'a_joue' => false, 'a_deplace' => false,
+            'bonus_sort_utilise' => false, 'tombe' => false,
+            'deplacement_tour' => null, 'deplacement_restant' => null,
+        ]);
 }
 
 /** Épuise tous les sorts du héros (comme s'il les avait tous lancés). */
@@ -359,4 +379,110 @@ it('le Sceptre de Mémoire épargne le sort sur un bouclier noir, pas autrement'
 
     // Le sceptre est illimité — c'est le dé qui limite, pas une charge.
     expect($magicien->fresh()->inventaire()->where('emplacement', 'talisman')->first()->charges)->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Types de dégâts — le feu (App\Engine\TypeDegat)
+// ---------------------------------------------------------------------------
+
+it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    $magicien = $ctx['heros'];
+    armerDeSorts($magicien);
+
+    // Le magicien se vise lui-même : le tir ami est délibéré (doc 02 §5, S3),
+    // c'est le chemin le plus court pour éprouver l'immunité.
+    $anneau = poser($magicien, 'Anneau de Feu', 'talisman');
+    $pvAvant = (int) $magicien->pv_body;
+
+    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+
+    foreach ([1, 2] as $tour) {
+        rearmerTour($ctx, $magicien);
+        $magicien->sorts()->updateExistingPivot($boule->id, ['disponible' => true]);
+
+        GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+        desFiges(array_fill(0, 30, 1)); // que des crânes : sans l'anneau, ça fait mal
+
+        test()->postJson('/api/groupes/table-1/choix', [
+            'option_id' => "sort_{$boule->id}",
+            'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros'],
+        ])->assertStatus(202)
+            ->assertJsonPath('resultat.immunite_degat', 'feu')
+            ->assertJsonPath('resultat.degats', 0);
+    }
+
+    // Deux sorts encaissés sans une égratignure, et l'anneau est vide.
+    expect((int) $magicien->fresh()->pv_body)->toBe($pvAvant)
+        ->and((int) $anneau->fresh()->charges)->toBe(0);
+
+    // Le troisième passe : « the ring turns to ash after the second spell ».
+    rearmerTour($ctx, $magicien);
+    $magicien->sorts()->updateExistingPivot($boule->id, ['disponible' => true]);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+    desFiges(array_fill(0, 30, 1));
+
+    test()->postJson('/api/groupes/table-1/choix', [
+        'option_id' => "sort_{$boule->id}",
+        'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros'],
+    ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
+
+    expect((int) $magicien->fresh()->pv_body)->toBeLessThan($pvAvant);
+});
+
+it('ne protège que du FEU : un sort d\'une autre nature passe', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    $magicien = $ctx['heros'];
+    armerDeSorts($magicien);
+    $anneau = poser($magicien, 'Anneau de Feu', 'talisman');
+
+    // Génie : 5 dés, élément air, AUCUN `type_degat` — donc neutre.
+    $magicien->sorts()->syncWithoutDetaching([
+        Sort::where('nom', 'Génie')->firstOrFail()->id => ['disponible' => true],
+    ]);
+    $genie = Sort::where('nom', 'Génie')->firstOrFail();
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+    desFiges(array_fill(0, 30, 1));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => "sort_{$genie->id}",
+        'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros', 'mode' => 'degats'],
+    ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
+
+    // La charge est intacte : un anneau de feu ne se dépense pas sur autre chose.
+    expect((int) ($anneau->fresh()->charges ?? 2))->toBe(2);
+});
+
+it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function () {
+    $ctx = demarrerQueteAvecMonstre('Troll', ['classe' => 'magicien']);
+    $magicien = $ctx['heros'];
+    armerDeSorts($magicien);
+
+    expect((bool) $ctx['instance']->fresh()->brule)->toBeFalse();
+
+    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+    desFiges(array_fill(0, 30, 4)); // boucliers : le troll survit, mais il a pris le feu
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => "sort_{$boule->id}",
+        'parametres' => ['cible_id' => $ctx['instance']->id, 'cible_type' => 'monstre'],
+    ])->assertStatus(202);
+
+    // « Damage done by fire is permanent and cannot be regenerated. »
+    expect((bool) $ctx['instance']->fresh()->brule)->toBeTrue();
+
+    // Et la régénération ne repart pas : on blesse, on laisse jouer le monstre,
+    // ses PV ne remontent pas.
+    $instance = $ctx['instance']->fresh();
+    $instance->update(['pv_body' => 1]);
+
+    app(MoteurDread::class)->jouerTourDread(
+        $ctx['groupe'], $ctx['quete'], $instance,
+        $ctx['quete']->etatsPersonnages()->get(),
+    );
+
+    expect((int) $instance->fresh()->pv_body)->toBe(1); // aucun PV regagné
 });

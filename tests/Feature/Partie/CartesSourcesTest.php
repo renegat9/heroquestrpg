@@ -125,5 +125,5 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
     ));
 
     expect($portees('armurerie'))->toBe(26)
-        ->and($portees('artefacts'))->toBe(16);
+        ->and($portees('artefacts'))->toBe(17);
 });

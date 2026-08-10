@@ -217,7 +217,7 @@ Voir §10 pour l'écart entre ces textes et les effets de `notre_catalogue.md`.
 
 **8 cartes monstre**, pour une composition physique de 31 figurines : « 8 orcs, 6 goblins, 3 abominations, 4 Dread warriors, Dread sorcerer, gargoyle, 4 skeletons, 2 zombies, 2 mummies » (LR p. 4). Le **Dread sorcerer** n'a pas de carte monstre générique dédiée : c'est une figurine polyvalente réutilisée pour incarner les **méchants nommés** de chaque quête (Sir Ragnar — un allié, en fait —, Ulag, Grak, Balur, le Witch Lord…), chacun avec son propre bloc de stats donné dans les notes de quête (LQ). La liste complète des monstres de base, avec leur flaveur, apparaît en fin de livret de quêtes (LQ p. 34-35) : **Goblins, Orcs, Abomination, Dread Warriors, Skeletons, Zombies, Mummies, Gargoyles, Dread Sorcerer** — texte descriptif uniquement, **aucune statistique chiffrée**.
 
-**Le tableau chiffré Déplacement/Attaque/Défense/Body/Mind des 8 monstres de base n'existe dans aucun des deux documents fournis** : il est explicitement renvoyé à « the monster chart on the Game Master's screen » (LR p. 7, p. 13, p. 20), un composant cartonné absent de l'extraction. Toute valeur Move/Attack/Defend/Body/Mind pour Gobelin, Orque, Abomination, Dread Warrior, Squelette, Zombie, Momie, Gargouille est donc : **⚠ non trouvé dans le livret.**
+**Le tableau chiffré Déplacement/Attaque/Défense/Body/Mind des 8 monstres de base n'existe dans aucun des deux documents fournis** : il est explicitement renvoyé à « the monster chart on the Game Master's screen » (LR p. 7, p. 13, p. 20), un composant cartonné absent de l'extraction. **⚠ non trouvé dans le livret** — et ça l'est resté jusqu'au 2026-08-09, où le **paquet de cartes monstre** l'a enfin donné (§4.4).
 
 ### 4.2 Ce qui fuite indirectement (à défaut du tableau)
 
@@ -238,6 +238,83 @@ Chaque grand méchant de quête reçoit son propre tableau Move/Attack/Defend/Bo
 | **Witch Lord**, forme renforcée | 14 — Return to Barak Tor | 10 | 5 | 6 | 4 | 6 | LQ p. 31 |
 
 Ces cinq blocs n'ont **aucun équivalent nominal** dans `notre_catalogue.md` : ce sont des rencontres scriptées uniques (« use the Dread sorcerer figure »), pas des archétypes réutilisables. Ils confirment simplement que le *format* Move/Attack/Defend/Body/Mind est bien celui du jeu — et que rien de comparable n'existe pour Gobelin/Orque/Squelette/etc. dans ce matériel.
+
+---
+
+### 4.4 Le tableau des 8 monstres, enfin sourcé
+
+**Source : `sjeng-monsters.pdf`, Ye Olde Inn** —
+[english.yeoldeinn.com/downloads/cards/sjeng-monsters.pdf](https://english.yeoldeinn.com/downloads/cards/sjeng-monsters.pdf),
+choisi par René le 2026-08-09. Le paquet reproduit les cartes monstre, dont les
+**huit de la boîte de base** que l'écran du MJ gardait pour lui.
+
+| Monstre | Dépl. | Attaque | Défense | Body | Mind |
+|---|---|---|---|---|---|
+| **Gobelin** | 10 | 2 | 1 | 1 | 1 |
+| **Squelette** | 6 | 2 | 2 | 1 | 0 |
+| **Zombie** | 4 | 2 | 3 | 1 | 0 |
+| **Orque** | 8 | 3 | 2 | 1 | 2 |
+| **Fimir** | 6 | 3 | 3 | 1 | 3 |
+| **Momie** | 4 | 3 | 4 | 1 | 0 |
+| **Guerrier du Chaos** | 6 | 3 | 4 | 1 | 3 |
+| **Gargouille** | 6 | 4 | 4 | 1 | 4 |
+
+**Deux recoupements indépendants** valident le paquet contre les livrets — c'est
+ce qui le distingue d'une simple table trouvée quelque part :
+
+1. La momie de la Quête 1 « rolls 4 Attack dice **instead of 3** » (LQ p. 5).
+   Le livret impliquait donc une momie de base à **3 dés** : c'est exactement ce
+   que porte la carte.
+2. *Sleep* « **may not be used against mummies, zombies, or skeletons** » (LR
+   p. 8). La carte donne à ces trois créatures — et à elles seules — **Mind 0**.
+   Notre moteur traite déjà Mind 0 comme une immunité aux jets de Mind : la
+   règle du livret n'était pas une exception arbitraire, c'était une conséquence
+   de la statistique.
+
+Les trois cartes portent d'ailleurs « this is an undead creature », ce qui
+recoupe la liste de la *Lame des Esprits* (§9.1) : squelette, zombie, momie.
+
+⚠ **Conséquence d'équilibrage, à connaître.** Au plateau, **tout** monstre de
+base a **1 seul point de Body** — le gobelin comme la gargouille. Nous en
+donnions 2 ou 3 aux plus costauds (Fimir 2, Momie 2, Guerrier du Chaos 3,
+Gargouille 3) : notre bestiaire est donc devenu nettement plus fragile le
+2026-08-09. C'est le design du jeu — les héros encaissent (4 à 8 Body), les
+monstres tombent en un coup réussi — et c'est ce qui rend les paliers
+`sous_boss`/`boss`, qui restent nos créations, réellement lisibles. Les `cout`
+du budget de rencontre ont été réajustés en conséquence.
+
+**Ce que nous NE reprenons pas.** Le paquet compte une soixantaine de cartes :
+créatures des extensions (Frozen Horror, Ice Gremlin, Yeti, Polar Warbear…),
+mais aussi beaucoup d'ajouts d'inspiration Warhammer/D&D — Skaven, Gnoll,
+Bugbear, Carrion Crawler — qui n'ont jamais appartenu à HeroQuest. En reprendre
+soixante demanderait un `tier`, un `cout`, une illustration et des barks pour
+chacun, et referait entièrement l'équilibrage des rencontres. Une seule addition
+a été faite, pour une raison mécanique : le **Troll** (carte *Cave Troll*, 8 /
+4 / 4 / 3 / 2), seule créature du paquet dont le texte nomme le feu — « damage
+done by fire is permanent and cannot be regenerated ». Il donne un second
+lecteur au type de dégât `feu` (§4.5), à côté de l'Anneau de Feu. L'**Ours
+polaire de guerre** a par ailleurs été aligné sur la carte *Polar Warbear*
+(Body 6 → 4, Défense 4 → 3).
+
+### 4.5 Types de dégâts — le feu, pas le froid
+
+`App\Engine\TypeDegat` déclare deux natures, et une seule est jouable :
+
+- **`feu`** — sources : *Boule de Feu*, *Trait de Feu* (catalogue), *Tempête de
+  feu* (Dread). Lecteurs : l'**Anneau de Feu**, qui annule intégralement les
+  deux prochains sorts de feu (« prevents the wearer from being affected by the
+  next two Fire **or Chaos Fire** spells » — d'où la prise en compte des sorts
+  du MJ), et la **régénération du troll**, qu'une brûlure interrompt.
+- **`froid`** — ⚠ **aucune source**. Les six sorts de froid de *The Frozen
+  Horror* (*Chill, Ice Storm, Ice Wall, Mind Freeze, Skate, Soothe*) sont
+  **nommés** par le livret (reference/18) mais leurs effets ne figurent nulle
+  part dans ce qu'on a. Le mot est déclaré parce que la mécanique le supporte ;
+  le **Bracelet de Glace** et l'**Anneau de Chaleur** restent donc non portés —
+  non plus faute de mécanique, mais faute de quoi que ce soit contre quoi
+  résister.
+
+Un sort sans `type_degat` est **neutre** : il ne déclenche ni immunité ni
+interdiction de régénération. C'est le cas de tous les autres.
 
 ---
 

@@ -229,6 +229,14 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Parchemin de Sorts', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 600, 'emplacement' => 'consommable',
                 'effet' => ['restaure_sorts' => true]],
 
+            // « This ring prevents the wearer from being affected by the next
+            // two Fire or Chaos Fire spells they encounter. The ring turns to
+            // ash after protecting the wearer from the second spell. » — deux
+            // charges, chacune annulant INTÉGRALEMENT un sort de feu (immunité,
+            // pas réduction : la carte dit « not affected »).
+            ['nom' => 'Anneau de Feu', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'talisman',
+                'effet' => ['immunite_degat' => 'feu', 'charges' => 2]],
+
             // « Restores any of the owner's Body Points lost by poisoning if
             // used immediately. » — même clé que l'Antidote, aucune mécanique
             // nouvelle. Elle n'attendait qu'un CANAL : depuis que le coffre

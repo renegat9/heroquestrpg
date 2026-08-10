@@ -174,6 +174,18 @@ final class MotsClesEquipement
      */
     public const TUE_SAUF_BOUCLIER_NOIR = 'tue_sauf_bouclier_noir';
 
+    /**
+     * Annule intégralement les dégâts d'une NATURE donnée (`App\Engine\TypeDegat`),
+     * au prix d'une charge — « prevents the wearer from being affected by the
+     * next two Fire or Chaos Fire spells they encounter. The ring turns to ash
+     * after protecting the wearer from the second spell » (Anneau de Feu).
+     *
+     * Immunité, pas réduction : la carte dit « not affected », pas « moins ».
+     * Lecteur : `MoteurSorts::absorbeDegat()`, consulté par les deux chemins qui
+     * blessent un héros — un sort de héros en tir ami et un sort de Dread.
+     */
+    public const IMMUNITE_DEGAT = 'immunite_degat';
+
     // ------------------------------------------------------- ÉCONOMIE DE SORTS
 
     /**
@@ -329,6 +341,7 @@ final class MotsClesEquipement
         self::BONUS_PV_MIND_MAX,
         self::CHARGES,
         self::TUE_SAUF_BOUCLIER_NOIR,
+        self::IMMUNITE_DEGAT,
         self::RESTAURE_SORTS,
         self::SECOND_SORT_PAR_TOUR,
         self::SORT_NON_EPUISE,

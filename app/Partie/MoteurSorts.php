@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\DureeEffet;
 use App\Engine\MotsClesSort;
+use App\Engine\TypeDegat;
 use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\Groupe;
@@ -193,6 +194,37 @@ final class MoteurSorts
             ->delete();
 
         Cache::forget(self::cleConcentration($groupe->id, $personnage->id));
+    }
+
+    /**
+     * Une pièce portée absorbe-t-elle intégralement un dégât de cette NATURE ?
+     *
+     * Consomme une charge et rend `true` — l'appelant n'applique alors aucun
+     * dégât. « Prevents the wearer from being affected by the next two Fire
+     * spells… the ring turns to ash after the second » (Anneau de Feu) : c'est
+     * une immunité, pas une réduction, et elle s'épuise.
+     *
+     * UN SEUL lecteur pour les deux chemins qui blessent un héros — le tir ami
+     * d'un sort de héros et le sort d'un Dread. Deux implémentations auraient
+     * fini par diverger, et un anneau qui protège d'un feu mais pas de l'autre
+     * serait pire que pas d'anneau du tout.
+     */
+    public function absorbeDegat(Personnage $personnage, ?string $typeDegat): bool
+    {
+        if (! TypeDegat::estConnu($typeDegat)) {
+            return false;
+        }
+
+        $charges = app(MoteurCharges::class);
+
+        $piece = $personnage->inventaire()
+            ->whereIn('emplacement', Equipement::SLOTS)
+            ->with('objet')
+            ->get()
+            ->first(fn ($ligne) => ($ligne->objet?->effet['immunite_degat'] ?? null) === $typeDegat
+                && $charges->disponible($ligne));
+
+        return $piece !== null && $charges->consommer($piece);
     }
 
     /**
