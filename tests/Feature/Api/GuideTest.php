@@ -98,3 +98,33 @@ it('trie le bestiaire par palier puis coût', function () {
         $precedent = $rang[$m['tier']];
     }
 });
+
+it('expose la provenance des cartes, portées et non portées', function () {
+    $data = $this->getJson('/api/guide')->assertOk()->json();
+
+    // Deux paquets exposés : sans eux la page /guide affichait un catalogue
+    // sans jamais dire d'où viennent ses prix et ses dés.
+    $paquets = collect($data['cartes'] ?? []);
+    expect($paquets->pluck('cle')->all())->toBe(['armurerie', 'artefacts']);
+
+    $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
+    expect($cartes)->toHaveCount(61);
+
+    // Chaque carte dit si elle est portée, et celles qui ne le sont pas
+    // annoncent leur texte de plateau ET la mécanique qui leur manque.
+    foreach ($cartes as $carte) {
+        expect($carte['porte'])->toBeBool();
+
+        if (! $carte['porte']) {
+            expect($carte['texte'])->not->toBeEmpty("{$carte['carte']} : texte de carte manquant")
+                ->and($carte['manque'])->not->toBeEmpty("{$carte['carte']} : mécanique manquante non dite");
+        }
+    }
+
+    // …et une carte portée pointe bien un objet réel du catalogue.
+    $noms = collect($data['objets'])->pluck('nom')->all();
+    foreach ($cartes->where('porte', true) as $carte) {
+        expect(in_array($carte['nom'], $noms, true))
+            ->toBeTrue("{$carte['carte']} → « {$carte['nom']} » absent du catalogue exposé.");
+    }
+});

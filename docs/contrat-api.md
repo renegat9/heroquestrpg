@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges} (catalogues seedés, effets bruts mis en forme côté front). Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les deux paquets sources (`config/cartes.php`, 61 cartes) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...]} |
 | POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |
@@ -340,11 +340,14 @@ tracé, non servies dans le payload).
 
   Le monstre errant ne survient **que** par cette action (jamais par « Fouiller la zone »).
 - **Coffre à artefact** : chaque quête désigne **une** salle — la plus profonde dans
-  l'arbre des couloirs (`quetes.salle_artefact`) — abritant **au plus une** arme de
-  rareté `unique` (`quetes.artefact_objet_id`). Elle **ne consomme aucune carte** du
-  deck : c'est un bonus net, et le héros qui fouille la reçoit. Aucune arme unique
-  disponible (toutes déjà détenues par le groupe) → le coffre verse
-  `deck_fouille.or_coffre`. La salle-coffre n'est **jamais** exposée dans `EtatGroupe`
+  l'arbre des couloirs (`quetes.salle_artefact`) — abritant **au plus un** artefact de
+  rareté `unique` (`quetes.artefact_objet_id`) : une **arme ou une armure**, jamais un
+  consommable. Il **ne consomme aucune carte** du deck : c'est un bonus net, et le
+  héros qui fouille le reçoit. Le tirage **écarte tout artefact qu'aucune classe
+  ACTIVE du groupe ne pourrait porter** (croisement `tag_equipement` × maîtrises de
+  classe × nœuds `acces_equipement`) — sinon l'unique artefact d'une quête pouvait
+  être du butin mort. Plus aucun artefact disponible (tous déjà détenus, ou tous
+  hors de portée du groupe) → le coffre verse `deck_fouille.or_coffre`. La salle-coffre n'est **jamais** exposée dans `EtatGroupe`
   (la table ne doit pas savoir où chercher).
 - **Artefacts (rareté `unique`)** : **ni achat ni revente**. Ils n'apparaissent dans
   aucun profil de marchand, sont retirés de la liste vendable d'un panier, et une
@@ -415,14 +418,23 @@ commune et que le don entre héros existe — acheter une pièce pour un coéqui
 est légitime. `maitrises` absent (ancien client) → aucun badge, plutôt qu'un badge
 faux sur tout l'étal.
 
+**Emplacements équipés** : cinq (`App\Partie\Equipement::SLOTS`) —
+`arme_principale`, `arme_secondaire` (bouclier), `casque`, `armure`, `talisman`.
+Casque, armure de corps et bouclier se **cumulent** jusqu'aux 6 dés de défense du
+plateau (LR p. 7) ; le talisman porte les bijoux d'artefact, qui relèvent les PV
+maximum au lieu de donner des dés.
+
 **Maîtrises d'équipement** (doc 01 §7) : chaque arme/armure porte un
 `tag_equipement`, chaque classe un `tags_equipement` de base
 (`classes_heros`), et les nœuds `{mecanique: acces_equipement, tags: […]}` en
-ajoutent. Profil canon HeroQuest : barbare/nain/elfe prennent tout sauf le lourd
-(nœud *Maîtrise lourde*) ; le **magicien** est limité aux armes légères et ne
-porte aucune armure, ses nœuds *Cuir d'apprenti* et *Escrime de fortune* levant
-chaque limite. `deux_mains` reste **orthogonal** au tag (il interdit le bouclier,
-rien d'autre). Le message d'erreur **nomme le nœud** à prendre quand il en existe
+ajoutent. Les tags traduisent, une pour une, les restrictions de classe écrites
+sur les cartes (`reference/16_armurerie.md` §2.2) : barbare/nain/elfe prennent
+tout sauf le lourd (nœud *Maîtrise lourde*) ; le **magicien** est limité aux
+armes légères et d'érudit, et ne porte aucune armure ordinaire — ses nœuds *Cuir
+d'apprenti* et *Escrime de fortune* levant chaque limite —, mais il est le
+**seul** à pouvoir porter brassards et cape (`armure_magicien`). Quatre tags
+`talisman_*` réservent de même un bijou d'artefact à chaque classe.
+`deux_mains` reste **orthogonal** au tag (il interdit le bouclier, rien d'autre). Le message d'erreur **nomme le nœud** à prendre quand il en existe
 un dans l'arbre de la classe, et dit « hors de portée » sinon. Classe sans tags
 déclarés → **aucune restriction** (échec ouvert). La vérification n'a lieu qu'à
 l'équipement : une pièce déjà portée n'est jamais retirée rétroactivement.
@@ -617,7 +629,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 |---|---|---|---|
 | POST | /api/inscription | {pseudo, identifiant} | crée le compte et connecte ; 422 si identifiant pris (sans mot de passe) |
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
-| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom}…], armure: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
+| GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
 | POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |

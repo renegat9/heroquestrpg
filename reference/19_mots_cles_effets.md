@@ -260,7 +260,7 @@ encodait déjà l'épée large, puis l'arme achetée s'y ajoutait).
 
 | clé | ce qu'elle fait | ⚠ |
 |---|---|---|
-| `deux_mains` | Interdit le bouclier. **Orthogonal au `tag_equipement`** : ce mot dit « pas de bouclier avec », le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est `deux_mains` ET `arme_legere`, donc jouable par le magicien. | |
+| `deux_mains` | Interdit le bouclier. **Orthogonal au `tag_equipement`** : ce mot dit « pas de bouclier avec », le tag dit « qui a le droit d'en porter ». Le **Bâton** est `deux_mains` ET `arme_legere` — sa carte n'énonce aucune restriction de classe —, donc jouable par le magicien. | |
 | `incompatible_deux_mains` | La pièce **est** un bouclier : refuse de cohabiter avec `deux_mains`. | |
 | `malus_deplacement` | Encombrement de l'armure lourde, **en cases** : « a 2 square movement penalty » (carte Plate Mail). Le dé est toujours lancé, et le total ne descend jamais sous 1. On supprimait auparavant le d6 entier (`deplacement_sans_d6`) : −3,5 cases en moyenne, **et** un déplacement devenu déterministe. | |
 | `permet_desamorcage` | Désamorçage de piège — « you must possess a tool kit (or be the dwarf) » (LR p. 19). | |
@@ -311,8 +311,8 @@ Deux phrases de carte sont portées ailleurs, exprès :
   magicien seul**). Détail en `reference/16_armurerie.md` §2.2.
 - **« Both hands »** → `deux_mains`, mais c'est le tag `arme_deux_mains` qui dit
   *qui* peut la manier. Les deux mots coexistent parce qu'ils répondent à deux
-  questions différentes ; les fusionner interdirait le Bâton des Sept Sceaux au
-  magicien.
+  questions différentes ; les fusionner interdirait le Bâton au magicien, sa
+  seule arme à 2 dés.
 
 ### Clés inertes assumées
 

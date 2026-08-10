@@ -72,6 +72,47 @@ class GuideController extends Controller
                 ->get(['nom', 'detectable', 'desarmable', 'usage', 'effet'])
                 ->values()
                 ->all(),
+
+            // PROVENANCE : les 61 cartes des deux paquets sources (armurerie et
+            // artefacts), portées ou non. Sans ça, la page /guide affichait un
+            // catalogue sans dire d'où il vient — et surtout, elle taisait les
+            // 26 cartes qui existent au plateau et ne tournent pas encore ici.
+            // Un test (CartesSourcesTest) confronte ce registre au catalogue
+            // dans les deux sens : la provenance affichée ne peut pas dériver.
+            'cartes' => $this->cartes(),
         ]);
+    }
+
+    /**
+     * Registre des paquets de cartes sources (`config/cartes.php`), enrichi du
+     * nom d'affichage : une carte portée prend le nom de notre catalogue, une
+     * carte écartée garde le nom qu'on lui a donné en français.
+     *
+     * @return array<string, mixed>
+     */
+    private function cartes(): array
+    {
+        $paquets = [];
+
+        foreach (['armurerie', 'artefacts'] as $cle) {
+            $paquet = (array) config("cartes.{$cle}", []);
+
+            $paquets[] = [
+                'cle' => $cle,
+                'libelle' => $paquet['libelle'] ?? $cle,
+                'source' => $paquet['source'] ?? null,
+                'url' => $paquet['url'] ?? null,
+                'cartes' => array_map(static fn (array $c) => [
+                    'carte' => $c['carte'],
+                    'nom' => $c['objet'] ?? $c['nom'] ?? $c['carte'],
+                    'paquet' => $c['paquet'] ?? null,
+                    'porte' => isset($c['objet']),
+                    'texte' => $c['texte'] ?? null,
+                    'manque' => $c['manque'] ?? null,
+                ], (array) ($paquet['cartes'] ?? [])),
+            ];
+        }
+
+        return $paquets;
     }
 }

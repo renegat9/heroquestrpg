@@ -141,12 +141,30 @@ Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds 
 ## 7. Équipement et inventaire
 
 ### Emplacements équipés
-Chaque héros porte un équipement réparti en emplacements fixes, **distincts du sac à dos** :
-- **Arme principale**
-- **Arme secondaire / bouclier**
-- **Armure**
+Chaque héros porte un équipement réparti en **cinq** emplacements fixes,
+distincts du sac à dos (`App\Partie\Equipement::SLOTS`) :
 
-Chaque pièce équipée modifie les valeurs de combat (ex. épée large = +1 dé d'attaque) ou débloque une action. (Cartes d'équipement HeroQuest réutilisées — stats au doc Market.)
+| Emplacement | Ce qu'il reçoit |
+|---|---|
+| **Arme principale** | l'arme qui fait l'attaque |
+| **Arme secondaire** | le bouclier |
+| **Casque** | le casque *(slot propre depuis le 2026-08-08)* |
+| **Armure** | cotte, plates, brassards, cape |
+| **Talisman** | les bijoux d'artefact *(depuis le 2026-08-09)* |
+
+Casque, armure et bouclier **se cumulent**, comme au plateau — « [Borin's Armor]
+may be combined with the helmet and/or shield » (livret de règles p. 7) : un
+héros complètement équipé atteint **6 dés de défense** (2 de base + 1 + 2 + 1).
+Le casque partageait auparavant le slot `armure` : on plafonnait à 5, et le
+casque n'était qu'un achat de dépannage qu'on jetait dès la première vraie
+armure.
+
+`des_attaque` **remplace** la valeur du porteur (l'arme fait l'attaque, doc 03
+§8) ; `des_defense` **s'ajoute**. Les talismans ne touchent ni l'un ni l'autre :
+ils relèvent les **PV maximum**, d'où leur emplacement à part.
+
+Stats pièce par pièce : doc Market §Catalogue. Provenance carte par carte :
+`reference/16_armurerie.md` §2.2 et §9.1.
 
 ### Maîtrises d'équipement (qui peut porter quoi)
 
@@ -157,20 +175,34 @@ le magicien est le seul vraiment bridé, comme au plateau.
 
 | | armes | armures |
 |---|---|---|
-| **Barbare** | légère, courante, distance, **deux mains** | légère, bouclier |
-| **Nain** | légère, courante, distance | légère, bouclier, **lourde** |
-| **Elfe** | légère, courante, distance | légère, bouclier |
-| **Magicien** | légère **seule** (dague, bâton) | **aucune** |
+| **Barbare** | légère, courante, distance, **deux mains**, arc long | légère, bouclier |
+| **Nain** | légère, courante, distance, arc court | légère, bouclier, **lourde** |
+| **Elfe** | légère, courante, distance, arc long, arc court, érudit | légère, bouclier |
+| **Magicien** | légère **seule**, plus érudit | **arcanique seule** (brassards, cape) |
 
-| Tag | Pièces | Ouvert par |
-|---|---|---|
-| `arme_legere` | Dague, Bâton, Bâton des Sept Sceaux | *(base, toutes classes)* |
-| `arme_courante` | Épée courte, Lance, Épée large, Kriss du Fossoyeur, Lame d'Aube | base sauf magicien → *Escrime de fortune* |
-| `arme_distance` | Arbalète, Arbalète des Murmures | base sauf magicien |
-| `arme_deux_mains` | Hache de bataille, Marteau du Gardien, Hache du Roi, Fendoir des Titans | base pour le **barbare** ; *Poigne de forgeron* (nain) |
-| `armure_legere` | Casque, Cotte de mailles | base sauf magicien → *Cuir d'apprenti* |
-| `bouclier` | Bouclier | base sauf magicien |
-| `armure_lourde` | Armure de plates | base pour le **nain** ; *Maîtrise lourde* (barbare) |
+Les tags portent les restrictions que les cartes énoncent classe par classe
+(reference/16 §2.2) : sept ne suffisaient pas — l'arc long est refusé au nain,
+l'arc court au barbare, la canne aux deux costauds, et deux protections sont
+*réservées* au magicien. Chaque tag correspond exactement à une phrase de carte.
+
+| Tag | Pièces | Phrase de carte | Ouvert par |
+|---|---|---|---|
+| `arme_legere` | Dague, Bâton, Fouet, Fronde | *(aucune restriction)* | base, toutes classes |
+| `arme_erudit` | Canne | « not… by a Barbarian or Dwarf » | base : elfe, magicien |
+| `arme_courante` | Épée courte/large/longue, Lance, Hachette, Rapière, Hallebarde, Masse, Fléau, **Fléau des Orques**, **Lame des Esprits** | « not… by a Wizard » | base sauf magicien → *Escrime de fortune* |
+| `arme_distance` | Arbalète | « not… by a Wizard » | base sauf magicien |
+| `arme_arc_long` | Arc long | « not… by a Wizard or Dwarf » | base : barbare, elfe |
+| `arme_arc_court` | Arc court | « not… by a Wizard or Barbarian » | base : nain, elfe |
+| `arme_deux_mains` | Hache de bataille, Espadon, Épée bâtarde | « not… by a Wizard or Elf » | base pour le **barbare** ; *Poigne de forgeron* (nain) |
+| `armure_legere` | Casque, Cotte de mailles, **Armure de Borin** | « not… by a Wizard » | base sauf magicien → *Cuir d'apprenti* |
+| `bouclier` | Bouclier | « not… by a Wizard » | base sauf magicien |
+| `armure_lourde` | Armure de plates | « not… by a Wizard » | base pour le **nain** ; *Maîtrise lourde* (barbare) |
+| `armure_magicien` | Brassards, Cape de protection | « may **only** be used by a Wizard » | base : magicien **seul** |
+| `talisman_barbare` · `talisman_nain` · `talisman_elfe` · `talisman_magicien` | Amulette du Nord, Runes naines, Brassards elfiques, Capuche du Magister | « may be worn only by a… » | base : la classe nommée, **seule** |
+
+⚠ `deux_mains` (interdit le bouclier) reste **orthogonal** au tag : le Bâton est
+à deux mains ET `arme_legere`, donc jouable par le magicien. Les deux mots
+répondent à deux questions différentes — *avec quoi* et *par qui*.
 
 > **Symétrie des deux costauds** : chacun a sa spécialité gratuite et paie l'autre.
 > Le barbare manie les armes à deux mains de naissance et achète l'armure lourde ;

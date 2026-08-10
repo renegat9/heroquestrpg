@@ -135,11 +135,11 @@ une fois, côté classe, au lieu d'être répétée sur chaque pièce.
 | **Arc long** / Longbow | 525 | 4 | `portee: distance`, `inutilisable_adjacent`, `deux_mains` | pas magicien ni nain → `arme_arc_long` | — |
 | **Épée bâtarde** / Bastard Sword | 825 | 5 | `attaque_diagonale`, `deux_mains` | pas magicien ni elfe → `arme_deux_mains` | — |
 
-**Carte NON portée : la Torche** (2 dés, dégâts de feu, « illuminates any square
-the hero holding it can see, without being obstructed by heroes or monsters »,
-dure une quête, 125 po). Ni système d'éclairage ni type de dégât « feu »
-n'existent chez nous ; la semer reviendrait à annoncer au joueur deux règles que
-le moteur n'applique pas — exactement ce que ce document sert à empêcher.
+**La 21ᵉ carte, NON portée :**
+
+| Carte | Texte | Ce qui manque |
+|---|---|---|
+| **Torche** / Torch (125 po) | 2 dés d'attaque, **dégâts de feu**, « illuminates any square the hero holding it can see, without being obstructed by heroes or monsters », dure une quête | Aucun système d'**éclairage**, et aucun **type de dégât** « feu ». La semer annoncerait au joueur deux règles que le moteur n'applique pas — exactement ce que ce document sert à empêcher. |
 
 #### Armures (6 cartes)
 
@@ -390,33 +390,60 @@ dit noir sur blanc « **the dagger is lost once thrown** ». La destruction de
 l'arme lancée, qu'on appliquait sans source, en a donc une — au moins pour cette
 dague-là.
 
-#### Non portées (25 cartes) — et ce qui leur manque
+#### Non portées (25 cartes) — carte par carte, et ce qui manque
 
 Aucune n'est semée : une carte dont le moteur n'applique pas l'effet central
-serait une règle annoncée au joueur et jamais tenue, exactement ce que ce
-document sert à empêcher.
+serait une règle annoncée au joueur et jamais tenue. Chacune est **nommée** ici
+avec son texte de plateau — une dette nommée se retrouve, un oubli silencieux
+jamais. La page **/guide → onglet « Cartes sources »** affiche la même liste aux
+joueurs.
 
-| Mécanique absente | Cartes concernées |
-|---|---|
-| **Économie de sorts** (récupérer, mémoriser, relancer un sort) | Spell Ring, Wand of Recall, Rod of Memory, Scroll of Spells, Wand of Galimatias |
-| **Types de dégâts** (feu, froid) et résistances | Fire Ring, Armband of Ice, Ring of Warmth |
-| **Charges** (un objet à N usages) | Elven Bow of Vindication (4 flèches), Sky Orb (4 jetons) |
-| **Téléportation / déplacement forcé** | Ring of Return |
-| **Traverser les figures** | Dust of Disappearance |
-| **Contrôle de monstre** | Bone Wand |
-| **Contre-sort** | Ancient Staff |
-| **Objet qui en exige un autre** | Thor's Hammer (exige les Thunder God's Gloves), Thunder God's Gloves |
-| **Régions de terrain** (glace, zones chaudes) | Snowshoes of Speed, Rabbit Boots |
-| **Retour automatique d'une arme lancée** | Sognirstane |
-| **Résurrection / restauration totale** | Elixir of Life, Armband of Healing |
-| **Choix permanent à l'acquisition** | Ring of Brilliance |
-| Déjà couvert par un objet commun (Antidote) | Anti-Poison Quill |
-| Pas d'emplacement de ceinture | Thunder God's Belt |
+| Carte | Paquet | Ce qu'elle fait au plateau | Ce qui manque chez nous |
+|---|---|---|---|
+| **Élixir de Vie** / Elixir of Life | Base | Restaure entièrement Body et Mind ; ressuscite un héros mort si le porteur est adjacent à sa case. Défaussé après usage. | Ni restauration totale ni résurrection : « relever » ramène à 1 PV et ne cible pas une case. |
+| **Anneau du Retour** / Ring of Return | Base | Ramène le porteur et les héros de la même salle au point de départ. Usage unique. | Aucune téléportation, ni individuelle ni de groupe. |
+| **Anneau de Sort** / Spell Ring | Base | Permet à l'elfe ou au magicien de lancer **deux fois** un même sort dans la quête, choisi au départ. | Économie de sorts : rien ne rend un sort précis relançable. |
+| **Baguette de Rappel** / Wand of Recall | Base | Deux sorts au lieu d'un pendant le tour. | Le second sort par tour existe (Réserve arcanique) mais comme **nœud** : aucun objet ne sait l'accorder. |
+| **Sceptre de Mémoire** / Rod of Memory | Base | Un sort choisi devient relançable ; 1 dé de combat par tour, bouclier noir = relance, sinon l'action est perdue. Magicien seul. | Économie de sorts, et jet de relance porté par un objet. |
+| **Anneau de Feu** / Fire Ring | KK / Witch Lord | Protège des deux prochains sorts de Feu, puis tombe en cendres. Traverse les zones brûlantes. | Aucun **type** de dégât : nos sorts infligent des points, jamais du feu — il n'y a rien contre quoi protéger. |
+| **Plume anti-poison** / Anti-Poison Quill | KK / Witch Lord | Restaure les PV perdus par empoisonnement si utilisée aussitôt. | Rien côté moteur (l'Antidote applique déjà `retire_condition`) : ce qui manque est un **canal**, le coffre ne rendant que des pièces portables. |
+| **Bracelet de Guérison** / Armband of Healing | KK / Witch Lord | Rend 2 PV, une fois par quête ; relève automatiquement le porteur tombé à 0 s'il n'a pas servi. | Charges par quête sur un objet porté, et déclenchement automatique à 0 PV. |
+| **Poudre d'Invisibilité** / Dust of Disappearance | KK / Witch Lord | Jetée sur un héros : il traverse tous les monstres à son prochain tour. | Traverser les **figures** (Traverser la Pierre traverse la roche, pas les créatures). |
+| **Bottes du Lièvre** / Rabbit Boots | Frozen Horror | Sauter une fosse par tour en évitant le bouclier noir sur 1 dé. | Franchir un piège par un **saut** : notre franchissement est un jet de Body. |
+| **Bracelet de Glace** / Armband of Ice | Frozen Horror | Immunise contre Gel de l'Esprit ; −1 aux dégâts de froid. | Types de dégât (froid) et immunité nommée à un sort. |
+| **Anneau de Chaleur** / Ring of Warmth | Frozen Horror | −1 aux dégâts de froid. | Types de dégât (froid). |
+| **Raquettes de Vitesse** / Snowshoes of Speed | Frozen Horror | +2 cases de déplacement et annulent la glace — **uniquement en région froide**. | Régions de terrain : nos donjons n'ont ni glace ni climat, la carte perdrait sa condition et deviendrait un bonus permanent. |
+| **Bâton Ancien** / Ancient Staff | Mage of the Mirror | Contre un sort lancé sur son porteur (1 dé : rien / annulé / bâton détruit). | Contre-sort : rien n'interrompt un sort de Dread en cours de résolution. |
+| **Baguette d'Os** / Bone Wand | Mage of the Mirror | Contrôle tous les squelettes d'une salle pendant un tour, une fois par quête. | Contrôle de monstre : un monstre est joué par le moteur, jamais par un héros. |
+| **Bottes elfiques** / Elven Boots | Mage of the Mirror | Un dé rouge de plus au déplacement pour l'elfe ; détruites si trois dés donnent le même chiffre. | Notre déplacement est base + 1d6, pas des dés rouges cumulables — et rien ne détruit un objet porté sur un jet. |
+| **Arc elfique de Vindication** / Elven Bow | Mage of the Mirror | Tue instantanément un monstre en ligne de vue (sauf bouclier noir). Quatre flèches. | Charges, et mort instantanée. |
+| **Orbe Céleste** / Sky Orb | Mage of the Mirror | Absorbe 4 points de dégât de Mind, un jeton à la fois, puis se brise. | Charges, et interception des dégâts avant application. |
+| **Parchemin de Sorts** / Scroll of Spells | White Dwarf | Sauter un tour pour retrouver **tous** les sorts du début de quête. | Économie de sorts : « Se concentrer » en récupère un seul. |
+| **Anneau de Brillance** / Ring of Brilliance | White Dwarf | Un bonus permanent **au choix** : +1 attaque, +1 défense, +1 Body ou +1 Mind. | Choix du joueur au moment d'acquérir un objet : nos butins s'appliquent tels quels. |
+| **Sognirstane** | White Dwarf | Marteau 2 dés, lançable ; revient en main si la cible survit, reste au sol sinon. Immunise aux sorts élémentaires. | Retour automatique d'une arme lancée, arme au sol à ramasser, immunité élémentaire. |
+| **Marteau de Thor** / Thor's Hammer | White Dwarf | 3 dés. Utilisable seulement avec les Gants du Dieu du Tonnerre ; tue les orques de la salle au ramassage. | Un objet qui en **exige** un autre. |
+| **Gants du Dieu du Tonnerre** / Thunder God's Gloves | White Dwarf | Permettent de manier le Marteau de Thor. | Sans le marteau, la carte n'a aucun effet propre : la porter seule serait une pièce qui ne fait rien. |
+| **Ceinture du Dieu du Tonnerre** / Thunder God's Belt | White Dwarf | +1 dé de défense. | Aucune mécanique — il manque un emplacement de **ceinture**. La ranger dans le slot talisman la ferait concurrencer les bijoux de classe, pour un effet d'une autre nature. |
+| **Baguette de Galimatias** / Wand of Galimatias | Custom | Retrouve tous les sorts déjà utilisés dans la quête ; +2 Mind. | Économie de sorts (le +2 Mind, lui, existe : `bonus_pv_mind_max`). |
 
-Plusieurs sont à portée de main — les **charges** et l'**économie de sorts**
-sont les deux plus rentables (5 cartes à elles deux). À ouvrir quand on voudra
-étoffer le butin, en suivant la même règle : déclarer le mot-clé, câbler son
-lecteur, documenter.
+Plusieurs sont à portée de main. Les deux chantiers les plus rentables :
+l'**économie de sorts** (5 cartes) et les **charges** (3 cartes). À ouvrir quand
+on voudra étoffer le butin, en suivant la même règle que partout : déclarer le
+mot-clé, câbler son lecteur, documenter.
+
+#### Le registre est VÉRIFIÉ, pas déclaré
+
+Les 61 cartes des deux paquets vivent aussi dans **`config/cartes.php`**, et
+`CartesSourcesTest` le confronte au catalogue **dans les deux sens** : toute
+carte marquée portée doit exister en base, et aucune arme, armure ou artefact ne
+peut exister sans carte. Deux exceptions nommées dans le test — la **trousse à
+outils** (livret officiel, LR p. 19) et la **fiole de soin** (deck de trésor).
+
+C'est ce qui empêche ce document de dériver : « le catalogue vient des cartes »
+n'est plus une affirmation de documentation mais une propriété testée. Le même
+registre alimente `GET /api/guide`, donc la page **/guide → « Cartes sources »**,
+où les joueurs voient la provenance de chaque pièce et les cartes qui n'ont pas
+encore de mécanique.
 
 #### Le coffre du fond
 
@@ -455,7 +482,7 @@ Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_
 
 | Objet chez nous | Constat officiel |
 |---|---|
-| **Dague** (25 po, 1 dé, jetable/consommée au lancer) | Le nombre de dés (1) est cohérent avec la carte magicien (LR p. 6). En revanche, la dague officielle est groupée avec l'arbalète comme arme *frappant à distance* (LR p. 14) sans qu'aucune mention ne suggère qu'elle **disparaisse après un lancer** — chez nous, `consommerArmeLancee()` la **supprime** définitivement (CLAUDE.md, §Throwing a weapon). C'est un mécanisme (arme à distance permanente vs. jet à usage unique consommé) qui n'est **pas confirmé** dans un sens ou dans l'autre par ce texte, mais le parallèle explicite avec l'arbalète (jamais présentée comme consommable) va plutôt contre notre choix. |
+| **Dague** (150 po, 1 dé, jetable/consommée au lancer) | Le nombre de dés (1) est cohérent avec la carte magicien (LR p. 6). En revanche, la dague officielle est groupée avec l'arbalète comme arme *frappant à distance* (LR p. 14) sans qu'aucune mention ne suggère qu'elle **disparaisse après un lancer** — chez nous, `consommerArmeLancee()` la **supprime** définitivement (CLAUDE.md, §Throwing a weapon). C'est un mécanisme (arme à distance permanente vs. jet à usage unique consommé) qui n'est **pas confirmé** dans un sens ou dans l'autre par ce texte, mais le parallèle explicite avec l'arbalète (jamais présentée comme consommable) va plutôt contre notre choix. **Nuance apportée le 2026-08-09** : la carte *Magical Throwing Dagger* du paquet d'artefacts dit, elle, « the dagger is lost once thrown » — la destruction a donc bien une source, au moins pour cette dague-là (§9.1). |
 | **Bâton** (100 po, 1 dé, diagonale) | La diagonale est confirmée (LR p. 14). Le nombre de dés (1) n'est **jamais donné** officiellement. |
 | **Épée large** (300 po, 3 dés, **pas** de diagonale) | Correspond au *Broadsword* du barbare, « the most powerful starting weapon » (LR p. 13) — mais aucun nombre de dés ni prix n'est donné dans les livrets pour vérifier le « 3 » (il vient de la carte, §2.2). L'absence de diagonale, elle, est appuyée par le diagramme de la p. 14, qui lui oppose le bâton. |
 | **Épée longue** (350 po, 3 dés, diagonale) | **Absente du catalogue jusqu'au 2026-08-08**, alors que c'est — avec le bâton — l'une des deux seules armes que le livret nomme comme frappant en diagonale (LR p. 14). Son absence laissait la diagonale au seul bâton, une arme à 1 dé que personne n'achète : la règle existait dans le moteur sans avoir d'objet pour la porter. |

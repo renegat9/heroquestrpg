@@ -89,8 +89,8 @@ final class MotsClesEquipement
      * Hands » sur les cartes récentes.
      *
      * **Orthogonal au `tag_equipement`** : ce mot dit « pas de bouclier avec »,
-     * le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est
-     * `deux_mains` ET `arme_legere`, donc jouable par le magicien.
+     * le tag dit « qui a le droit d'en porter ». Le Bâton est `deux_mains` ET
+     * `arme_legere`, donc jouable par le magicien.
      * Lecteur : `Partie\Equipement::verifierMains()`.
      */
     public const DEUX_MAINS = 'deux_mains';

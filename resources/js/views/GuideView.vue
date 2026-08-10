@@ -34,7 +34,27 @@ const ONGLETS = [
     ['equipement', 'inventory_2', 'Équipements'],
     ['sorts', 'auto_awesome', 'Sorts'],
     ['pieges', 'crisis_alert', 'Pièges'],
+    ['cartes', 'style', 'Cartes sources'],
 ];
+
+/* ---- Provenance : de quelle CARTE vient chaque pièce du catalogue ----
+   Les armes, armures et artefacts sont la conversion de deux paquets de cartes
+   (config/cartes.php, exposé par /api/guide). Sans cette table, la page listait
+   un catalogue sans jamais dire d'où viennent ses prix et ses dés. */
+const carteParObjet = computed(() => {
+    const index = {};
+    for (const paquet of guide.value?.cartes ?? []) {
+        for (const c of paquet.cartes) {
+            if (c.porte) index[c.nom] = { ...c, paquetLibelle: paquet.libelle };
+        }
+    }
+    return index;
+});
+
+/** Cartes NON portées, par paquet — ce qui existe au plateau mais pas ici. */
+const cartesAbsentes = computed(() => (guide.value?.cartes ?? [])
+    .map((p) => ({ ...p, cartes: p.cartes.filter((c) => !c.porte) }))
+    .filter((p) => p.cartes.length));
 
 async function charger() {
     pret.value = false;
@@ -106,7 +126,7 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                 <div class="guide-crest"><MSym n="menu_book" fill /></div>
                 <div>
                     <h1 class="guide-titre">Guide de jeu</h1>
-                    <p class="guide-sub">Bestiaire, talents, équipements, sorts et pièges — les règles en un coup d'œil.</p>
+                    <p class="guide-sub">Bestiaire, talents, équipements, sorts, pièges — et les cartes dont tout cela est tiré.</p>
                 </div>
             </div>
         </header>
@@ -227,6 +247,12 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                             <div v-if="effetVersChips(o.effet).length" class="chips">
                                 <span v-for="(ch, i) in effetVersChips(o.effet)" :key="i" class="chip">{{ ch.texte }}</span>
                             </div>
+                            <!-- D'où vient cette pièce : nom de la carte du
+                                 plateau dont ses prix et ses dés sont tirés. -->
+                            <p v-if="carteParObjet[o.nom]" class="provenance">
+                                <MSym n="style" :size="12" /> Carte « {{ carteParObjet[o.nom].carte }} »
+                                <span class="via">{{ carteParObjet[o.nom].paquet ?? carteParObjet[o.nom].paquetLibelle }}</span>
+                            </p>
                             <!-- Qui peut la porter : la restriction ne se lisait
                                  qu'au refus, au moment d'équiper. -->
                             <p v-if="o.tag_equipement" class="porteurs">
@@ -281,11 +307,86 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                     </article>
                 </div>
             </section>
+
+            <!-- ===================== CARTES SOURCES ===================== -->
+            <section v-show="tab === 'cartes'" class="guide-sec">
+                <p class="cartes-intro">
+                    Les armes, les armures et les artefacts ne sont pas des valeurs inventées :
+                    chacun est la conversion d'une <strong>carte du jeu de plateau</strong>, dont le
+                    texte devient des statistiques (prix, dés) et des mots-clés lus par le moteur.
+                    Les potions, les parchemins et la trousse à outils viennent d'ailleurs
+                    (deck de trésor, sorts, livret de règles).
+                </p>
+
+                <template v-for="paquet in guide.cartes ?? []" :key="paquet.cle">
+                    <h3 class="grp-title">
+                        <MSym n="style" :size="16" /> {{ paquet.libelle }}
+                        <span class="grp-n">{{ paquet.cartes.length }}</span>
+                    </h3>
+                    <p class="cartes-src">
+                        <MSym n="picture_as_pdf" :size="13" />
+                        <a v-if="paquet.url" :href="paquet.url" target="_blank" rel="noopener">{{ paquet.source }}</a>
+                        <span v-else>{{ paquet.source }}</span>
+                    </p>
+
+                    <div class="cartes-grille">
+                        <div
+                            v-for="c in paquet.cartes"
+                            :key="c.carte"
+                            class="carte-ligne"
+                            :class="{ absente: !c.porte }"
+                        >
+                            <MSym :n="c.porte ? 'check_circle' : 'schedule'" :size="15" class="carte-ic" />
+                            <div class="carte-corps">
+                                <div class="carte-nom">
+                                    {{ c.nom }}
+                                    <span class="carte-vo">{{ c.carte }}</span>
+                                    <span v-if="c.paquet" class="tag ghost">{{ c.paquet }}</span>
+                                </div>
+                                <!-- Une carte non portée dit CE QU'ELLE FAIT au
+                                     plateau, et ce qui manque pour l'appliquer :
+                                     une dette nommée se retrouve. -->
+                                <p v-if="!c.porte && c.texte" class="carte-txt">{{ c.texte }}</p>
+                                <p v-if="!c.porte && c.manque" class="carte-manque">
+                                    <MSym n="construction" :size="12" /> {{ c.manque }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <p v-if="cartesAbsentes.length" class="cartes-bilan">
+                    <MSym n="info" :size="14" />
+                    {{ cartesAbsentes.reduce((n, p) => n + p.cartes.length, 0) }} cartes existent au
+                    plateau et ne sont pas encore jouables ici — chacune attend une mécanique
+                    précise, listée ci-dessus. Elles ne sont pas semées : une carte dont le moteur
+                    n'applique pas l'effet serait une règle promise et jamais tenue.
+                </p>
+            </section>
         </main>
     </div>
 </template>
 
 <style scoped>
+/* ---- onglet « Cartes sources » ---- */
+.cartes-intro { max-width: 900px; margin: 0 0 18px; color: var(--ink-300); font-size: 14px; line-height: 1.6; }
+.cartes-src { margin: -6px 0 12px; font-size: 12px; color: var(--ink-400); display: flex; align-items: center; gap: 6px; }
+.cartes-src a { color: var(--torch); }
+.cartes-grille { display: grid; gap: 8px; margin-bottom: 22px; }
+.carte-ligne { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--stone-900) 80%, transparent); border: 1px solid var(--stone-800); }
+.carte-ligne.absente { opacity: 0.82; border-style: dashed; }
+.carte-ic { flex: none; margin-top: 2px; color: var(--moss, #7fae6a); }
+.carte-ligne.absente .carte-ic { color: var(--ink-500); }
+.carte-corps { min-width: 0; }
+.carte-nom { font-weight: 700; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.carte-vo { font-weight: 500; font-size: 12px; color: var(--ink-500); font-style: italic; }
+.carte-txt { margin: 4px 0 0; font-size: 13px; color: var(--ink-300); line-height: 1.5; }
+.carte-manque { margin: 5px 0 0; font-size: 12px; color: var(--ink-400); display: flex; align-items: flex-start; gap: 5px; }
+.cartes-bilan { max-width: 900px; margin: 4px 0 0; font-size: 13px; color: var(--ink-400);
+  display: flex; align-items: flex-start; gap: 6px; line-height: 1.55; }
+.provenance { margin: 6px 0 0; font-size: 12px; color: var(--ink-500); display: flex; align-items: center; gap: 5px; }
+
 .guide-screen { min-height: 100vh; background: var(--stone-950); color: var(--ink-100);
   padding: 22px clamp(14px, 4vw, 40px) 60px; }
 

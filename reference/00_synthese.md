@@ -46,7 +46,7 @@ Un jeu de rôle **fondé sur HeroQuest**, avec un **maître de jeu IA**. Le comb
 
 **Sorts** — 4 éléments, 12 sorts ; récupération **1×/quête** ; parchemins à **difficulté variable** (S1) via jet de Mind ; sorts mentaux **binaires** (S2) ; **tir ami possible** (S3) ; **pas de fabrication** (S4) ; **aucun repos** (S5) ; *Concentration* = **1×/quête en sacrifiant son tour** (S6).
 
-**Combat** — Fidèle HeroQuest ; déplacement **base + 1d6** ; initiative **figée par quête, par personnage** (C1) ; monstres **scriptés** (C2) ; **pas d'attaque d'opportunité** (C3) ; figure tombée **occupe sa case, relevable** (C4) ; armure de plates = **base seule** (AP).
+**Combat** — Fidèle HeroQuest ; déplacement **base + 1d6** ; initiative **figée par quête, par personnage** (C1) ; monstres **scriptés** (C2) ; **pas d'attaque d'opportunité** (C3) ; figure tombée **occupe sa case, relevable** (C4) ; armure lourde = **−2 cases** de déplacement (AP, texte de la carte).
 
 **Market** — **Bourse commune** (M3) ; profils de lieu ; rareté **Commun/Peu commun/Rare/Unique** ; **phase marché atomique**, paniers par joueur étiquetés ; revente **50 % du prix marchand** (M1) ; marchandage **phase 2** (M2) ; prix **statiques** au MVP (M4).
 

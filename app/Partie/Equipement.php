@@ -147,8 +147,8 @@ final class Equipement
      * ne coexistent pas. Rejet explicite (pas d'auto-déséquipement croisé).
      *
      * INDÉPENDANT du tag de maîtrise : `deux_mains` dit « pas de bouclier avec »,
-     * le tag dit « qui a le droit d'en porter ». Le Bâton des Sept Sceaux est à
-     * deux mains ET `arme_legere`, donc jouable par le magicien.
+     * le tag dit « qui a le droit d'en porter ». Le Bâton est à deux mains ET
+     * `arme_legere`, donc jouable par le magicien.
      */
     private function verifierMains(Personnage $personnage, Objet $aEquiper): void
     {

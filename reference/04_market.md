@@ -55,34 +55,43 @@ forge pas** ; il est retiré de la liste vendable, et une vente forcée est un 4
 Rappel de règle de combat (doc 03 §8) : `des_attaque` **remplace** la valeur du
 porteur — l'arme fait l'attaque —, tandis que `des_defense` **s'ajoute**.
 
-| Artefact | Prix indicatif | Effet | Intention |
+Les neuf artefacts sont la conversion du paquet de cartes `sjeng-artefacts.pdf`
+(**reference/16_armurerie.md §9.1** ; registre machine : `config/cartes.php`).
+Ils ont remplacé le 2026-08-09 sept artefacts **inventés** — Lame d'Aube, Kriss
+du Fossoyeur, Arbalète des Murmures, Bâton des Sept Sceaux, Marteau du Gardien
+de Pierre, Hache du Roi sous la Montagne, Fendoir des Titans — et la raison
+compte : c'étaient sept **armes à dés croissants** (4, puis 5, puis 6). Le
+Fendoir rendait toute l'armurerie caduque dès qu'on le trouvait. Un artefact ne
+doit pas monter la courbe, il doit faire ce que rien d'autre ne fait.
+
+| Artefact | Prix indicatif | Effet | Carte |
 |---|---|---|---|
-| Lame d'Aube | 900 | 4 dés d'attaque | L'étalon, sans contrainte |
-| Kriss du Fossoyeur | 900 | 3 attaque, +1 défense | Main gauche libre → cumule bouclier + casque |
-| Arbalète des Murmures | 1000 | 4 attaque, à distance, inutilisable au contact | Elfe/tireur, cumule avec « Tir précis » |
-| Bâton des Sept Sceaux | 1000 | 3 attaque, +1 défense, deux mains | Le seul pensé pour le Magicien (1 → 3 dés) |
-| Marteau du Gardien de Pierre | 1100 | 4 attaque, +1 défense, deux mains | Le tank |
-| Hache du Roi sous la Montagne | 1300 | 5 attaque, deux mains | Butin de boss, sommet de courbe |
-| Fendoir des Titans | 1600 | 6 attaque, deux mains, **Maîtrise lourde requise** | Apex absolu — il coûte en plus un point de compétence |
+| Dague de jet magique | 700 | **1 PV garanti** (aucun dé, aucune défense) ; lancée elle est perdue ; interdite au contact | *Magical Throwing Dagger* |
+| Talisman du Savoir | 800 | +2 Mind maximum ; aucune restriction de classe | *Talisman of Lore* |
+| Fléau des Orques | 900 | 2 dés ; **frappe deux fois** contre un orque | *Orcs Bane* |
+| Amulette du Nord | 1000 | +2 Body, +1 Mind — **barbare seul** | *Amulet of the North* |
+| Brassards elfiques | 1000 | idem — **elfe seul** | *Elven Bracers* |
+| Capuche du Magister | 1000 | idem — **magicien seul** | *Magister's Hood* |
+| Runes naines | 1000 | idem — **nain seul** | *Dwarven Runestones* |
+| Lame des Esprits | 1100 | 3 dés, **4 contre Squelette / Zombie / Momie** | *Spirit Blade* |
+| Armure de Borin | 1200 | +2 défense, **sans malus de déplacement** (là est sa supériorité sur la plate) | *Borin's Armour* |
 
 Le « prix indicatif » ne sert qu'à situer la pièce sur la courbe de puissance : il
 n'est **jamais** payé ni encaissé. Valeurs à playtester, comme le reste des chiffres
 du projet.
 
-Le **Fendoir des Titans** est le seul artefact **verrouillé** : il exige le nœud
-*Maîtrise lourde* (arbre barbare), d'où un cran de puissance au-dessus de la Hache
-du Roi, qui elle ne coûte rien à personne. C'est le don entre héros qui le rend
-jouable — sans lui, tombé au magicien, il aurait été perdu pour la campagne. Le
-coffre **l'écarte du tirage quand aucun barbare n'est actif** dans le groupe, sinon
-il occuperait la place du seul artefact de la quête sans que personne puisse jamais
-le porter.
+Cinq artefacts sont **verrouillés par une classe** : les quatre bijoux (un par
+héros) et rien d'autre. Le coffre **écarte du tirage tout artefact qu'aucune
+classe active du groupe ne pourrait porter** — sans quoi l'unique artefact d'une
+quête pourrait être des Runes naines dans un groupe sans nain, c'est-à-dire du
+butin mort. La règle croise `tag_equipement` avec les `tags_equipement` des
+classes présentes et les nœuds `acces_equipement` de leurs arbres ; elle a
+remplacé un test codé en dur sur le seul barbare.
 
 **Un artefact appartient au GROUPE, pas à son découvreur** : il circule librement entre
 héros au hub (§ Don d'objets ci-dessous). C'est ce qui rend le coffre jouable — sans
-quoi une hache à deux mains tombée au magicien serait perdue pour la campagne. Donner
-n'est pas vendre : l'interdiction de revente tient toujours. Aucun des six artefacts
-actuels ne porte `necessite_maitrise_lourde`, prudence héritée de l'époque où rien ne
-circulait ; la contrainte peut être rouverte.
+quoi des brassards elfiques tombés au nain seraient perdus pour la campagne. Donner
+n'est pas vendre : l'interdiction de revente tient toujours.
 
 ## Don d'objets entre héros (doc 01 §7)
 
@@ -100,24 +109,54 @@ préserve les améliorations de Forge attachées à l'exemplaire.
 
 > La rareté se combine au **multiplicateur du profil** (§3) : un objet rare reste cher en cité et introuvable dans un village.
 
-### Armes
-| Arme | Rareté | Prix ≈ | Effet |
-|---|---|---|---|
-| **Dague** | Commun | 25 | 1 dé d'attaque ; jetable (à distance, 1×/combat). |
-| **Bâton** | Commun | 100 | 1 dé ; attaque en diagonale (utile aux lanceurs). |
-| **Épée courte** | Commun | 150 | 2 dés. |
-| **Lance** | Peu commun | 250 | 2 dés ; attaque en diagonale et au 2ᵉ rang. |
-| **Épée large** | Peu commun | 350 | 3 dés ; pas d'attaque diagonale. |
-| **Arbalète** | Peu commun | 350 | 3 dés à distance (ligne de vue) ; inutilisable si ennemi adjacent. |
-| **Hache de bataille** | Rare | 450 | 4 dés ; deux mains (pas de bouclier) ; diagonale. |
+> **Source.** Les 26 pièces ci-dessous sont la conversion carte par carte du
+> paquet `sjeng-equipment.pdf` — prix, dés et mots-clés viennent des cartes, pas
+> d'un arbitrage de table. Table complète avec le niveau de source de chaque
+> valeur : **reference/16_armurerie.md §2.2**. Registre machine :
+> `config/cartes.php`, verrouillé par `CartesSourcesTest`.
 
-### Armures
-| Pièce | Rareté | Prix ≈ | Effet |
+### Armes (20)
+| Arme | Rareté | Prix | Effet |
 |---|---|---|---|
-| **Casque** | Commun | 125 | +1 dé de défense. |
-| **Bouclier** | Commun | 150 | +1 dé de défense ; incompatible armes à deux mains. |
-| **Cotte de mailles** | Peu commun | 500 | +1 dé de défense. |
-| **Armure de plates** | Rare | 850 | +2 dés de défense ; *déplacement = base seule, sans le 1d6* (décision AP). |
+| **Canne** | Commun | 125 | 1 dé ; diagonale. Ni barbare ni nain. |
+| **Fronde** | Commun | 125 | 1 dé à distance ; inutilisable au contact. |
+| **Dague** | Commun | 150 | 1 dé ; lançable (perdue au lancer). |
+| **Fouet** | Commun | 175 | 1 dé ; diagonale. |
+| **Bâton** | Commun | 200 | 2 dés ; diagonale ; **deux mains**. Toutes classes. |
+| **Arc court** | Commun | 200 | 2 dés à distance ; deux mains. Ni magicien ni barbare. |
+| **Épée courte** | Commun | 225 | 2 dés. |
+| **Hachette** | Peu commun | 250 | 2 dés ; lançable. |
+| **Lance** | Peu commun | 250 | 2 dés ; diagonale ; lançable. |
+| **Rapière** | Peu commun | 275 | 2 dés ; diagonale. |
+| **Épée large** | Peu commun | 300 | 3 dés ; **pas** de diagonale. |
+| **Hallebarde** | Peu commun | 325 | 3 dés ; diagonale ; deux mains. |
+| **Masse** | Peu commun | 350 | 3 dés. |
+| **Épée longue** | Peu commun | 350 | 3 dés ; diagonale (livret p. 14). |
+| **Arbalète** | Peu commun | 350 | 3 dés à distance ; inutilisable au contact. |
+| **Fléau** | Peu commun | 400 | 3 dés ; diagonale. |
+| **Hache de bataille** | Rare | 475 | 4 dés ; deux mains. Ni magicien ni elfe. |
+| **Espadon** | Rare | 525 | 4 dés ; diagonale ; deux mains. Ni magicien ni elfe. |
+| **Arc long** | Rare | 525 | 4 dés à distance ; deux mains. Ni magicien ni nain. |
+| **Épée bâtarde** | Rare | 825 | 5 dés ; diagonale ; deux mains. Ni magicien ni elfe. |
+
+*Carte non portée : la **Torche** (2 dés, dégâts de feu, éclaire la salle, dure
+une quête) — nous n'avons ni éclairage ni type de dégât « feu ».*
+
+### Armures (6)
+Elles se **cumulent**, comme au plateau : casque + armure de corps + bouclier →
+plafond de **6 dés de défense** (2 de base + 1 + 2 + 1).
+
+| Pièce | Rareté | Prix | Emplacement | Effet |
+|---|---|---|---|---|
+| **Casque** | Commun | 125 | `casque` | +1 dé de défense. |
+| **Bouclier** | Commun | 125 | `arme_secondaire` | +1 dé ; incompatible deux mains. |
+| **Brassards** | Commun | 200 | `armure` | +1 dé — **magicien seul**. |
+| **Cape de protection** | Peu commun | 350 | `armure` | +1 dé — **magicien seul**. |
+| **Cotte de mailles** | Rare | 450 | `armure` | +1 dé de défense. |
+| **Armure de plates** | Rare | 850 | `armure` | +2 dés ; **−2 cases de déplacement** (texte de la carte). |
+
+Brassards et cape sont le premier — et le seul — équipement défensif du
+magicien, qui restait sinon à 2 dés toute la campagne.
 
 ### Outils & consommables
 | Objet | Rareté | Prix ≈ | Effet |
@@ -210,6 +249,6 @@ La transaction est **groupée et atomique** sur tous les paniers : chaque joueur
 
 1. **Revente (M1)** : **50 % du prix de vente du marchand courant** (variable selon le lieu) ; à défaut, 50 % du prix de base.
 2. **Marchandage (M2)** : **phase 2**.
-3. **Armure de plates (AP)** : déplacement = **base seule, sans le 1d6** (cohérent avec Combat).
+3. **Armure de plates (AP)** : **−2 cases** de déplacement (`malus_deplacement`, texte de la carte ; cohérent avec Combat §3).
 4. **Or (M3)** : **bourse commune au groupe** — ressource de la partie, pas du personnage.
 5. **Prix dynamiques (M4)** : **statiques au MVP** (profils fixes) ; dynamiques en phase 2.

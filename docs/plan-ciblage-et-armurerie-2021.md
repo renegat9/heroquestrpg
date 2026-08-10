@@ -1,5 +1,11 @@
 # Plan — ciblage en deux étapes & armurerie 2021
 
+> ⚠ **Document HISTORIQUE, daté.** Il rend compte d'un état du projet à sa date
+> et n'est pas maintenu : ses tables de valeurs (prix, dés, emplacements) sont
+> périmées. La référence à jour est `reference/16_armurerie.md` (§2.2 armurerie,
+> §9.1 artefacts), le registre machine `config/cartes.php`, et la page
+> **/guide → « Cartes sources »**. Ne pas s'en servir comme source.
+
 Deux chantiers demandés ensemble, de coût très inégal. Le A est petit et
 autonome. Le B est bloqué sur une donnée que je n'ai pas pu retrouver, et son
 vrai poids n'est pas le catalogue mais le **moteur manquant** derrière les

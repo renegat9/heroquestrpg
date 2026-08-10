@@ -118,6 +118,6 @@ Adaptation du tour HeroQuest au modèle tablette-hôte + téléphones :
 1. **Initiative (C1)** : ordre des héros **figé pour toute la quête**, défini au départ.
 2. **Monstres (C2)** : **comportement scripté simple** (cible le plus proche / le plus faible), résolu par le moteur. Pas de décisions confiées au LLM.
 3. **Attaque d'opportunité (C3)** : **aucune** — le désengagement est libre (fidèle au jeu de base).
-4. **Armure de plates (AP)** : déplacement = **base seule, sans le 1d6**.
+4. **Armure lourde (AP)** : le déplacement du tour perd **2 cases** (`malus_deplacement`, texte de la carte *Plate Mail* : « a 2 square movement penalty »). Le d6 est toujours lancé — on supprimait auparavant le dé entier, ce qui coûtait 3,5 cases en moyenne **et** rendait le déplacement déterministe. Le total ne descend jamais sous 1 case.
 5. **Figure tombée (C4)** : **occupe sa case** et reste **relevable** (voir P1 pour la mort).
 6. **TPK** : choix de groupe par vote — **recharger** la dernière sauvegarde, ou **abandonner** (clôture, or d'avant la mission réparti) ; égalité → recharger.

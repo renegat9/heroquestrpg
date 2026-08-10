@@ -1,5 +1,11 @@
 # Correctifs restants — test de campagne complet (2026-07-11)
 
+> ⚠ **Document HISTORIQUE, daté.** Journal de ce qui a été livré à partir du
+> test du 2026-07-11 : ses descriptions décrivent le code **de l'époque** (trois
+> emplacements d'équipement, anciens artefacts, anciens prix) et ne sont pas
+> mises à jour. Pour l'état actuel : `reference/16_armurerie.md`,
+> `reference/01_personnages.md` §Emplacements, `docs/contrat-api.md`.
+
 > Issu du test de bout en bout « Les Piliers de Karak » : campagne 3 quêtes jouée
 > par l'UI réelle (2 joueurs nain + elfe + table narrateur, clés IA actives),
 > quêtes 1-2 gagnées, boss final ×2 TPK, reprise snapshot, clôture par abandon.

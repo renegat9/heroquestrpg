@@ -136,9 +136,11 @@ Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalo
 
 Les **artefacts** viennent du même endroit : `sjeng-artefacts.pdf` (34 cartes, cinq sources officielles). Ils remplacent 7 artefacts inventés qui ne faisaient que monter la courbe des dés — 4, 5, puis 6 — là où un vrai artefact fait ce que rien d'autre ne fait : frapper deux fois un orque, blesser à coup sûr, porter des PV en plus. Neuf cartes sont portées, **25 ne le sont pas** et le doc 16 §9.1 dit pour chacune la mécanique qui lui manque (économie de sorts, types de dégâts, charges, téléportation…). Un cinquième emplacement, `talisman`, accueille les quatre bijoux de classe.
 
+**Les 61 cartes vivent dans `config/cartes.php`**, et un test les confronte au catalogue dans les deux sens : toute carte marquée portée doit exister en base, aucune arme/armure/artefact ne peut exister sans carte. « Le catalogue vient des cartes » n'est donc pas une affirmation de documentation mais une propriété testée. Le même registre alimente `GET /api/guide` : la page **/guide → onglet « Cartes sources »** montre aux joueurs la provenance de chaque pièce et les cartes du plateau qui n'ont pas encore de mécanique, chacune avec ce qui lui manque.
+
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **594 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **600 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
