@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Combat;
 use App\Engine\Deplacement;
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
@@ -23,6 +24,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -114,6 +116,7 @@ final class ResolveurTour
         private readonly BanqueBarks $barks,
         private readonly Equipement $equipement,
         private readonly DeckFouille $deck,
+        private readonly MoteurCharges $charges,
     ) {}
 
     /**
@@ -159,10 +162,15 @@ final class ResolveurTour
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
         // créneau action normal — une seule fois par tour (bonus_sort_utilise).
         $creneau = $this->creneauOption((string) ($option['type'] ?? ''));
+        // Second sort du tour : le nœud magicien *Réserve arcanique* OU la
+        // Baguette de Rappel (« cast two spells instead of one »). Les deux
+        // passent par le MÊME drapeau `bonus_sort_utilise`, donc un magicien
+        // équipé n'obtient pas trois sorts — ils ne se cumulent pas.
         $bonusReserveArcanique = $creneau === 'action' && $etat->a_agi
             && ($option['type'] ?? null) === 'sort'
             && ! $etat->bonus_sort_utilise
-            && $this->possedeCompetence($personnage, 'Réserve arcanique');
+            && ($this->possedeCompetence($personnage, 'Réserve arcanique')
+                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
@@ -615,6 +623,31 @@ final class ResolveurTour
         // à connaître l'équipement, qu'il ignore par construction.
         $degatsFixes = (int) ($armePrincipale?->effet['degats_fixes'] ?? 0);
 
+        // Arc elfique de Vindication : « instantly kills any one monster within
+        // the Elf's line of sight, unless the monster rolls a black shield on
+        // 1 combat die ». Une FLÈCHE par tir, et l'arc n'en a que quatre — sans
+        // les charges, une mort instantanée illimitée viderait un donjon sans
+        // combat. À court de flèches il devient inerte et retombe sur ses dés.
+        $fleche = $this->flecheDeVindication($personnage, $armePrincipale);
+
+        if ($fleche !== null) {
+            $face = FaceDeCombat::depuisD6($this->des->d6());
+            $survit = $face === FaceDeCombat::BouclierNoir;
+
+            $payload = $this->payloadVindication($option, $instance, $face, $survit, $fleche);
+            $instance->update([
+                'pv_body' => $survit ? (int) $instance->pv_body : 0,
+                'etat' => $survit ? 'actif' : 'vaincu',
+            ]);
+
+            $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
+            Journal::ajouter($groupe, 'combat', $payload, $acteur);
+            $this->diffuserBark($groupe, $instance, $survit ? 'rate' : 'mort');
+
+            return $payload;
+        }
+
         $resultat = $degatsFixes > 0
             ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
             : (new Combat($this->des))->resoudreAttaque(
@@ -679,6 +712,99 @@ final class ResolveurTour
         }
 
         return $payload;
+    }
+
+    /**
+     * L'arme est-elle un arc de Vindication encore chargé ? Rend la LIGNE
+     * d'inventaire (dont la flèche vient d'être décomptée), ou `null`.
+     *
+     * La flèche est dépensée ici, avant le jet : elle part que le monstre
+     * survive ou non — c'est ce que dit la carte, quatre flèches, pas quatre
+     * morts.
+     */
+    private function flecheDeVindication(Personnage $personnage, ?Objet $arme): ?Inventaire
+    {
+        if (! (bool) ($arme?->effet['tue_sauf_bouclier_noir'] ?? false)) {
+            return null;
+        }
+
+        $ligne = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
+
+        // Épuisé : l'arc reste en main mais redevient une arme ordinaire, et
+        // l'attaque repart par le chemin normal (ses 2 dés).
+        return $this->charges->consommer($ligne) ? $ligne : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function payloadVindication(
+        array $option,
+        InstanceMonstre $instance,
+        FaceDeCombat $face,
+        bool $survit,
+        Inventaire $arc,
+    ): array {
+        return [
+            'type' => 'attaque',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'portee' => 'distance',
+            'vindication' => true,
+            'faces_defense' => [$face->value],
+            'faces_attaque' => [],
+            'des_attaque_effectifs' => 0,
+            'touches' => 0,
+            'boucliers' => $survit ? 1 : 0,
+            'degats' => $survit ? 0 : (int) $instance->pv_body,
+            'pv_body_apres' => $survit ? (int) $instance->pv_body : 0,
+            'cible_vaincue' => ! $survit,
+            'fleches_restantes' => $this->charges->restantes($arc->fresh()),
+            'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+        ];
+    }
+
+    /**
+     * Le sort qu'on vient de lancer échappe-t-il à l'épuisement ?
+     *
+     * Deux artefacts, deux économies opposées :
+     *  - **Sceptre de Mémoire** : un dé de combat après chaque sort, bouclier
+     *    noir (1 chance sur 6) → le sort reste disponible. Illimité, c'est le
+     *    dé qui limite. Testé EN PREMIER, parce qu'il ne coûte rien : réussir
+     *    ici évite de gaspiller la charge de l'anneau.
+     *  - **Anneau de Sort** : une charge, aucun jet, le sort reste disponible.
+     *    « cast one spell twice in the same Quest » — l'écart assumé est que le
+     *    sort se choisit en le lançant, pas au début de la quête.
+     *
+     * `$payload` reçoit la trace de ce qui a joué : sans elle, le joueur verrait
+     * son sort rester allumé sans comprendre pourquoi.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function preserverSort(Personnage $personnage, array &$payload): bool
+    {
+        if ($this->charges->pieceActive($personnage, 'sort_non_epuise_sur_bouclier_noir') !== null) {
+            $face = FaceDeCombat::depuisD6($this->des->d6());
+            $payload['jet_memoire'] = $face->value;
+
+            if ($face === FaceDeCombat::BouclierNoir) {
+                $payload['sort_preserve'] = 'sceptre_de_memoire';
+
+                return true;
+            }
+        }
+
+        $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise');
+
+        if ($anneau !== null && $this->charges->consommer($anneau)) {
+            $payload['sort_preserve'] = 'anneau_de_sort';
+            $payload['charges_restantes'] = $this->charges->restantes($anneau->fresh());
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -1032,7 +1158,14 @@ final class ResolveurTour
             ...$this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres),
         ];
 
-        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+        // Économie de sorts : deux artefacts peuvent épargner le sort qu'on
+        // vient de lancer. On ne les cumule pas — l'anneau dépense une charge,
+        // il ne doit pas la gaspiller derrière un sceptre qui a déjà réussi.
+        $preserve = $this->preserverSort($personnage, $payload);
+
+        if (! $preserve) {
+            $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+        }
 
         Journal::ajouter($groupe, $sort->type === 'degats' ? 'combat' : 'action', $payload, $acteur);
 

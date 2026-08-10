@@ -195,6 +195,21 @@ final class MoteurSorts
         Cache::forget(self::cleConcentration($groupe->id, $personnage->id));
     }
 
+    /**
+     * Rend TOUS les sorts épuisés du héros, et dit combien l'ont été.
+     *
+     * Le nœud *Concentration* n'en récupère qu'un, au prix du tour ; ce
+     * mouvement-là est celui du Parchemin de Sorts et de la Baguette de
+     * Galimatias — la différence d'échelle EST la valeur de ces cartes.
+     */
+    public function restaurerTousLesSorts(Personnage $personnage): int
+    {
+        return DB::table('personnage_sorts')
+            ->where('personnage_id', $personnage->id)
+            ->where('disponible', false)
+            ->update(['disponible' => true]);
+    }
+
     /** Clé du marqueur « Concentration déjà utilisée cette quête ». */
     public static function cleConcentration(int $groupeId, int $personnageId): string
     {

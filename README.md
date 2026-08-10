@@ -125,6 +125,8 @@ Au plateau, une carte d'équipement dit son effet en une phrase — *« This wea
 | portée | `attaque_diagonale`, `portee: distance`, `inutilisable_adjacent`, `jetable` |
 | mains / corps | `deux_mains`, `incompatible_deux_mains`, `malus_deplacement` |
 | artefacts | `degats_fixes`, `des_attaque_contre`, `attaque_double_contre`, `bonus_pv_body_max`, `bonus_pv_mind_max` |
+| charges | `charges`, `tue_sauf_bouclier_noir` |
+| économie de sorts | `restaure_sorts`, `second_sort_par_tour`, `sort_non_epuise`, `sort_non_epuise_sur_bouclier_noir` |
 | outil | `permet_desamorcage` |
 | consommables | `soin_pv_body`, `soin_pv_body_de`, `soin_pv_mind`, `bonus_des_attaque`, `bonus_des_defense`, `attaque_supplementaire`, `condition_appliquee`, `retire_condition`, `duree` |
 
@@ -134,13 +136,15 @@ Les pièces d'armure se **cumulent**, comme au plateau : le casque a son propre 
 
 Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalogue hors du vocabulaire (une règle annoncée que personne n'applique), et aucun mot déclaré que plus aucun objet ne porte (une règle qui n'existe que sur le papier).
 
-Les **artefacts** viennent du même endroit : `sjeng-artefacts.pdf` (34 cartes, cinq sources officielles). Ils remplacent 7 artefacts inventés qui ne faisaient que monter la courbe des dés — 4, 5, puis 6 — là où un vrai artefact fait ce que rien d'autre ne fait : frapper deux fois un orque, blesser à coup sûr, porter des PV en plus. Neuf cartes sont portées, **25 ne le sont pas** et le doc 16 §9.1 dit pour chacune la mécanique qui lui manque (économie de sorts, types de dégâts, charges, téléportation…). Un cinquième emplacement, `talisman`, accueille les quatre bijoux de classe.
+Les **artefacts** viennent du même endroit : `sjeng-artefacts.pdf` (34 cartes, cinq sources officielles). Ils remplacent 7 artefacts inventés qui ne faisaient que monter la courbe des dés — 4, 5, puis 6 — là où un vrai artefact fait ce que rien d'autre ne fait : frapper deux fois un orque, blesser à coup sûr, porter des PV en plus. Seize cartes sont portées, **18 ne le sont pas** et le doc 16 §9.1 dit pour chacune la mécanique qui lui manque (types de dégâts, téléportation, contrôle de monstre…). Un cinquième emplacement, `talisman`, accueille les quatre bijoux de classe.
+
+Deux mécaniques ont été ouvertes le 2026-08-09 pour débloquer sept de ces cartes d'un coup. Les **charges** disent « cet exemplaire-ci a N utilisations » — ce que `quantite`, qui compte des exemplaires identiques, ne savait pas dire : un arc à quatre flèches est un seul objet utilisable quatre fois. À zéro il devient inerte, il ne disparaît pas. L'**économie de sorts** dit quand un sort épuisé revient : jusque-là un simple booléen remis à zéro par quête, que seuls deux nœuds de compétence savaient contourner et qu'aucun objet ne pouvait toucher.
 
 **Les 61 cartes vivent dans `config/cartes.php`**, et un test les confronte au catalogue dans les deux sens : toute carte marquée portée doit exister en base, aucune arme/armure/artefact ne peut exister sans carte. « Le catalogue vient des cartes » n'est donc pas une affirmation de documentation mais une propriété testée. Le même registre alimente `GET /api/guide` : la page **/guide → onglet « Cartes sources »** montre aux joueurs la provenance de chaque pièce et les cartes du plateau qui n'ont pas encore de mécanique, chacune avec ce qui lui manque.
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **600 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **611 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \

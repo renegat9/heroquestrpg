@@ -73,6 +73,8 @@ it('n\'admet aucune arme, armure ou artefact SANS carte source', function () {
     //  - la fiole de soin est une carte du deck de TRÉSOR, pas d'armurerie.
     $horsPaquets = ['Trousse à outils', 'Fiole de soin'];
 
+    // Les consommables `unique` du paquet d'artefacts comptent aussi.
+
     $portes = array_values(array_filter(array_column(toutesLesCartes(), 'objet')));
 
     $catalogue = Objet::whereIn('categorie', ['arme', 'armure', 'outil'])
@@ -123,5 +125,5 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
     ));
 
     expect($portees('armurerie'))->toBe(26)
-        ->and($portees('artefacts'))->toBe(9);
+        ->and($portees('artefacts'))->toBe(16);
 });

@@ -371,7 +371,7 @@ il fait quelque chose que rien d'autre ne fait. Le Fendoir à 6 dés rendait tou
 l'armurerie caduque dès qu'on le trouvait ; la Lame des Esprits qui le remplace
 vaut 3 dés, sauf contre les morts-vivants.
 
-#### Portés (9 cartes)
+#### Portés (16 cartes)
 
 | Carte | Texte de la carte | Chez nous |
 |---|---|---|
@@ -384,13 +384,20 @@ vaut 3 dés, sauf contre les morts-vivants.
 | **Brassards elfiques** / Elven Bracers | idem, « only an Elf » | tag `talisman_elfe` |
 | **Capuche du Magister** / Magister's Hood | idem, « only by a Wizard » | tag `talisman_magicien` |
 | **Runes naines** / Dwarven Runestones | idem, « only by a Dwarf » | tag `talisman_nain` |
+| **Arc elfique de Vindication** / Elven Bow | « instantly kills any one monster… unless the monster rolls a black shield on 1 combat die. There are only 4 arrows » | arme, `tue_sauf_bouclier_noir` + `charges: 4` |
+| **Anneau de Sort** / Spell Ring | « cast one spell twice in the same Quest » | talisman, `sort_non_epuise` + `charges: 1` |
+| **Baguette de Rappel** / Wand of Recall | « cast two spells instead of one during your turn » | talisman, `second_sort_par_tour` |
+| **Sceptre de Mémoire** / Rod of Memory | « roll one combat die per turn. On a black shield, the chosen spell may be cast again » | talisman, `sort_non_epuise_sur_bouclier_noir` |
+| **Parchemin de Sorts** / Scroll of Spells | « restores all spells that Hero possessed at the beginning of the quest » | consommable, `restaure_sorts` |
+| **Baguette de Galimatias** / Wand of Galimatias | « recover all spells he has used so far… also grants 2 extra Mind points » | talisman, `restaure_sorts` + `charges: 1` + `bonus_pv_mind_max: 2` |
+| **Plume anti-poison** / Anti-Poison Quill | « restores any Body Points lost by poisoning » | consommable, `retire_condition: Empoisonné` |
 
 La **Dague de jet magique** referme au passage un point ouvert du §10 : sa carte
 dit noir sur blanc « **the dagger is lost once thrown** ». La destruction de
 l'arme lancée, qu'on appliquait sans source, en a donc une — au moins pour cette
 dague-là.
 
-#### Non portées (25 cartes) — carte par carte, et ce qui manque
+#### Non portées (18 cartes) — carte par carte, et ce qui manque
 
 Aucune n'est semée : une carte dont le moteur n'applique pas l'effet central
 serait une règle annoncée au joueur et jamais tenue. Chacune est **nommée** ici
@@ -402,11 +409,7 @@ joueurs.
 |---|---|---|---|
 | **Élixir de Vie** / Elixir of Life | Base | Restaure entièrement Body et Mind ; ressuscite un héros mort si le porteur est adjacent à sa case. Défaussé après usage. | Ni restauration totale ni résurrection : « relever » ramène à 1 PV et ne cible pas une case. |
 | **Anneau du Retour** / Ring of Return | Base | Ramène le porteur et les héros de la même salle au point de départ. Usage unique. | Aucune téléportation, ni individuelle ni de groupe. |
-| **Anneau de Sort** / Spell Ring | Base | Permet à l'elfe ou au magicien de lancer **deux fois** un même sort dans la quête, choisi au départ. | Économie de sorts : rien ne rend un sort précis relançable. |
-| **Baguette de Rappel** / Wand of Recall | Base | Deux sorts au lieu d'un pendant le tour. | Le second sort par tour existe (Réserve arcanique) mais comme **nœud** : aucun objet ne sait l'accorder. |
-| **Sceptre de Mémoire** / Rod of Memory | Base | Un sort choisi devient relançable ; 1 dé de combat par tour, bouclier noir = relance, sinon l'action est perdue. Magicien seul. | Économie de sorts, et jet de relance porté par un objet. |
 | **Anneau de Feu** / Fire Ring | KK / Witch Lord | Protège des deux prochains sorts de Feu, puis tombe en cendres. Traverse les zones brûlantes. | Aucun **type** de dégât : nos sorts infligent des points, jamais du feu — il n'y a rien contre quoi protéger. |
-| **Plume anti-poison** / Anti-Poison Quill | KK / Witch Lord | Restaure les PV perdus par empoisonnement si utilisée aussitôt. | Rien côté moteur (l'Antidote applique déjà `retire_condition`) : ce qui manque est un **canal**, le coffre ne rendant que des pièces portables. |
 | **Bracelet de Guérison** / Armband of Healing | KK / Witch Lord | Rend 2 PV, une fois par quête ; relève automatiquement le porteur tombé à 0 s'il n'a pas servi. | Charges par quête sur un objet porté, et déclenchement automatique à 0 PV. |
 | **Poudre d'Invisibilité** / Dust of Disappearance | KK / Witch Lord | Jetée sur un héros : il traverse tous les monstres à son prochain tour. | Traverser les **figures** (Traverser la Pierre traverse la roche, pas les créatures). |
 | **Bottes du Lièvre** / Rabbit Boots | Frozen Horror | Sauter une fosse par tour en évitant le bouclier noir sur 1 dé. | Franchir un piège par un **saut** : notre franchissement est un jet de Body. |
@@ -416,20 +419,24 @@ joueurs.
 | **Bâton Ancien** / Ancient Staff | Mage of the Mirror | Contre un sort lancé sur son porteur (1 dé : rien / annulé / bâton détruit). | Contre-sort : rien n'interrompt un sort de Dread en cours de résolution. |
 | **Baguette d'Os** / Bone Wand | Mage of the Mirror | Contrôle tous les squelettes d'une salle pendant un tour, une fois par quête. | Contrôle de monstre : un monstre est joué par le moteur, jamais par un héros. |
 | **Bottes elfiques** / Elven Boots | Mage of the Mirror | Un dé rouge de plus au déplacement pour l'elfe ; détruites si trois dés donnent le même chiffre. | Notre déplacement est base + 1d6, pas des dés rouges cumulables — et rien ne détruit un objet porté sur un jet. |
-| **Arc elfique de Vindication** / Elven Bow | Mage of the Mirror | Tue instantanément un monstre en ligne de vue (sauf bouclier noir). Quatre flèches. | Charges, et mort instantanée. |
 | **Orbe Céleste** / Sky Orb | Mage of the Mirror | Absorbe 4 points de dégât de Mind, un jeton à la fois, puis se brise. | Charges, et interception des dégâts avant application. |
-| **Parchemin de Sorts** / Scroll of Spells | White Dwarf | Sauter un tour pour retrouver **tous** les sorts du début de quête. | Économie de sorts : « Se concentrer » en récupère un seul. |
 | **Anneau de Brillance** / Ring of Brilliance | White Dwarf | Un bonus permanent **au choix** : +1 attaque, +1 défense, +1 Body ou +1 Mind. | Choix du joueur au moment d'acquérir un objet : nos butins s'appliquent tels quels. |
 | **Sognirstane** | White Dwarf | Marteau 2 dés, lançable ; revient en main si la cible survit, reste au sol sinon. Immunise aux sorts élémentaires. | Retour automatique d'une arme lancée, arme au sol à ramasser, immunité élémentaire. |
 | **Marteau de Thor** / Thor's Hammer | White Dwarf | 3 dés. Utilisable seulement avec les Gants du Dieu du Tonnerre ; tue les orques de la salle au ramassage. | Un objet qui en **exige** un autre. |
 | **Gants du Dieu du Tonnerre** / Thunder God's Gloves | White Dwarf | Permettent de manier le Marteau de Thor. | Sans le marteau, la carte n'a aucun effet propre : la porter seule serait une pièce qui ne fait rien. |
 | **Ceinture du Dieu du Tonnerre** / Thunder God's Belt | White Dwarf | +1 dé de défense. | Aucune mécanique — il manque un emplacement de **ceinture**. La ranger dans le slot talisman la ferait concurrencer les bijoux de classe, pour un effet d'une autre nature. |
-| **Baguette de Galimatias** / Wand of Galimatias | Custom | Retrouve tous les sorts déjà utilisés dans la quête ; +2 Mind. | Économie de sorts (le +2 Mind, lui, existe : `bonus_pv_mind_max`). |
 
-Plusieurs sont à portée de main. Les deux chantiers les plus rentables :
-l'**économie de sorts** (5 cartes) et les **charges** (3 cartes). À ouvrir quand
-on voudra étoffer le butin, en suivant la même règle que partout : déclarer le
-mot-clé, câbler son lecteur, documenter.
+**Les deux chantiers annoncés ont été ouverts le 2026-08-09** — les *charges* et
+l'*économie de sorts* (doc 19 §9) — et ils ont débloqué sept cartes d'un coup :
+l'arc elfique, l'anneau de sort, les deux baguettes, le sceptre, le parchemin et
+la plume. Cette dernière n'attendait d'ailleurs aucune mécanique, seulement un
+CANAL : le coffre accepte désormais un artefact consommable en repli, plutôt que
+de verser de l'or, quand tout le portable est déjà détenu.
+
+Ce qui reste demande à chaque fois une brique de plus, listée ci-dessus. Les
+plus proches : les **types de dégâts** (3 cartes : anneau de feu, bracelet de
+glace, anneau de chaleur) et le **déclenchement automatique à 0 PV** (bracelet
+de guérison, dont les charges, elles, existent maintenant).
 
 #### Le registre est VÉRIFIÉ, pas déclaré
 

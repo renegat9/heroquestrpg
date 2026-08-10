@@ -14,6 +14,9 @@ class Inventaire extends Model
         'objet_id',
         'emplacement',
         'quantite',
+        // Charges RESTANTES de cet exemplaire (arc à 4 flèches, anneau à usage
+        // unique). `null` = jamais entamé, pas épuisé — voir MoteurCharges.
+        'charges',
         'ameliorations',
     ];
 

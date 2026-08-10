@@ -295,6 +295,41 @@ l'arme) · `condition_appliquee` · `retire_condition` · `duree`.
 `bonus_des_attaque`/`bonus_des_defense` qui l'ont attrapé. Toute clé `bonus_*`
 s'accompagne d'un mot de §2.
 
+### Charges et économie de sorts
+
+Deux mécaniques ouvertes le **2026-08-09**, qui bloquaient à elles seules sept
+cartes des deux paquets.
+
+**Une charge** dit « cet exemplaire-ci a N utilisations ». C'est autre chose que
+`inventaire.quantite`, qui compte des exemplaires IDENTIQUES (une pile de
+potions) : un arc à quatre flèches est un seul objet, utilisable quatre fois.
+
+| clé | ce qu'elle fait | carte |
+|---|---|---|
+| `charges` | Nombre d'utilisations INITIAL. Le restant vit sur l'exemplaire (`inventaire.charges`), pas sur le catalogue. `null` = jamais entamé, **pas** épuisé : toute ligne d'inventaire démarre donc pleine sans que les chemins qui la créent (marché, coffre, don, butin) aient à connaître les charges. À zéro l'objet devient **inerte** — il reste au sac, son effet ne s'applique plus. | Arc elfique (4), Anneau de Sort (1), Baguette de Galimatias (1) |
+| `tue_sauf_bouclier_noir` | Tue la cible d'emblée, sauf si elle sort un **bouclier noir** sur un unique dé. S'accompagne toujours de `charges` : une mort instantanée illimitée viderait un donjon sans combat. | Arc elfique de Vindication |
+
+**L'économie de sorts** dit quand un sort épuisé peut revenir. Le pivot
+`personnage_sorts` n'a qu'un booléen `disponible`, remis à vrai au début de
+chaque quête ; les deux seules exceptions étaient des **nœuds** (Concentration
+en rend un, Réserve arcanique donne un second sort par tour). Aucun objet ne
+savait toucher à cette économie.
+
+| clé | ce qu'elle fait | carte |
+|---|---|---|
+| `restaure_sorts` | Rend **tous** les sorts épuisés. À distinguer du nœud *Concentration*, qui n'en rend qu'un au prix du tour : la différence d'échelle est la valeur de ces cartes. | Parchemin de Sorts (consommable), Baguette de Galimatias (à l'équipement, une charge) |
+| `second_sort_par_tour` | Un second sort dans le tour. Exactement le pouvoir de *Réserve arcanique*, accordé par un OBJET — et les deux passent par le même `etat.bonus_sort_utilise`, donc ils ne se cumulent pas. | Baguette de Rappel |
+| `sort_non_epuise` | Le prochain sort lancé ne s'épuise pas, contre une charge. | Anneau de Sort |
+| `sort_non_epuise_sur_bouclier_noir` | Après chaque sort, un dé : bouclier noir (1 sur 6) → le sort reste disponible. Illimité — c'est le dé qui limite, pas une charge. | Sceptre de Mémoire |
+
+⚠ **Ordre d'évaluation** : le sceptre est testé **avant** l'anneau. Réussir son
+jet évite de gaspiller la charge de l'anneau — l'inverse aurait dépensé une
+ressource rare derrière un effet gratuit.
+
+⚠ **Écart assumé sur l'Anneau de Sort** : la carte fait CHOISIR le sort au début
+de la quête. Ici le choix se fait en le lançant — même résultat, sans imposer un
+pari à l'aveugle avant d'avoir vu le donjon.
+
 ### Ce que la conversion NE passe PAS par un mot-clé
 
 Deux phrases de carte sont portées ailleurs, exprès :

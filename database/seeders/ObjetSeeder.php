@@ -203,6 +203,68 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Runes naines', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_nain',
                 'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
 
+            // Artefacts à CHARGES et d'ÉCONOMIE DE SORTS (2026-08-09). Les deux
+            // mécaniques manquaient et bloquaient à elles seules six cartes ;
+            // elles ont été écrites ensemble parce que trois de ces cartes ont
+            // besoin des DEUX (l'anneau et la baguette de Galimatias dépensent
+            // une charge pour agir sur les sorts).
+
+            // « Only an Elf may use this bow. An arrow fired from this bow hits
+            // and instantly kills any one monster within the Elf's line of
+            // sight, unless the monster rolls a black shield on 1 combat die.
+            // There are only 4 arrows with this bow. »
+            ['nom' => 'Arc elfique de Vindication', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_arc_long',
+                'effet' => ['des_attaque' => 2, 'portee' => 'distance', 'inutilisable_adjacent' => true,
+                    'deux_mains' => true, 'tue_sauf_bouclier_noir' => true, 'charges' => 4]],
+
+            // « The Hero holding this magical scroll may choose to skip a turn
+            // trying to read it. When read, it restores all spells that Hero
+            // possessed at the beginning of the quest. »
+            //
+            // Consommable : c'est le seul artefact à usage unique du catalogue,
+            // et il a un canal — le coffre ne rend que des pièces portables,
+            // mais un parchemin s'achète… non : `unique` le tient hors de
+            // l'étal. Il arrive par le coffre, qui accepte désormais un
+            // consommable en REPLI quand tout le portable est déjà détenu.
+            ['nom' => 'Parchemin de Sorts', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 600, 'emplacement' => 'consommable',
+                'effet' => ['restaure_sorts' => true]],
+
+            // « Restores any of the owner's Body Points lost by poisoning if
+            // used immediately. » — même clé que l'Antidote, aucune mécanique
+            // nouvelle. Elle n'attendait qu'un CANAL : depuis que le coffre
+            // accepte un consommable en repli, elle en a un.
+            ['nom' => 'Plume anti-poison', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 300, 'emplacement' => 'consommable',
+                'effet' => ['retire_condition' => 'Empoisonné', 'soin_pv_body' => 2]],
+
+            // « The Wand of Recall allows you to cast two spells instead of one
+            // during your turn. » — le pouvoir du nœud Réserve arcanique, mais
+            // porté par un objet. Les deux partagent `bonus_sort_utilise` : ils
+            // ne se cumulent donc pas.
+            ['nom' => 'Baguette de Rappel', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['second_sort_par_tour' => true]],
+
+            // « This Ring can be used to store extra magic before an adventure.
+            // It enables the Elf or Wizard who carries it to cast one spell
+            // twice in the same Quest. » — une charge, dépensée sur le prochain
+            // sort lancé, qui ne s'épuise alors pas.
+            ['nom' => 'Anneau de Sort', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
+                'effet' => ['sort_non_epuise' => true, 'charges' => 1]],
+
+            // « The Rod of Memory allows you to attempt to cast this spell as
+            // often as you wish during the quest. You may roll one combat die
+            // per turn. On a black shield, the chosen spell may be cast again.
+            // May only be used by a Wizard. » — illimité, mais 1 chance sur 6.
+            ['nom' => 'Sceptre de Mémoire', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['sort_non_epuise_sur_bouclier_noir' => true]],
+
+            // « Immediately upon acquiring this item, the adventurer will
+            // recover all spells he has used so far during this quest. It also
+            // grants the wielder 2 extra Mind points. » — la restauration se
+            // déclenche en L'ÉQUIPANT (une charge), le +2 Mind tient tant qu'on
+            // le porte.
+            ['nom' => 'Baguette de Galimatias', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['bonus_pv_mind_max' => 2, 'restaure_sorts' => true, 'charges' => 1]],
+
             // ----- Armures (6 cartes) -----
             //
             // Elles se CUMULENT, comme au plateau : casque (slot propre depuis

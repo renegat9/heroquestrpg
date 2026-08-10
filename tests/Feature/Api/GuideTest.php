@@ -62,7 +62,7 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
     // carte n'énonce AUCUNE restriction de classe, qui n'ont légitimement pas de
     // tag (`verifierAccesEquipement` les laisse passer). Elles sont nommées ici
     // pour qu'un tag oublié ne se cache pas derrière la même absence.
-    $sansMaitrise = ['Talisman du Savoir'];
+    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])

@@ -148,6 +148,76 @@ final class MotsClesEquipement
      */
     public const ATTAQUE_DOUBLE_CONTRE = 'attaque_double_contre';
 
+    // -------------------------------------------------------------- CHARGES
+
+    /**
+     * Nombre d'utilisations INITIAL de l'objet — « There are only 4 arrows with
+     * this bow. It becomes useless afterwards » (Arc elfique de Vindication).
+     *
+     * Le restant vit sur l'exemplaire (`inventaire.charges`), pas sur le
+     * catalogue : deux héros portent le même arc avec des flèches différentes.
+     * À zéro l'objet devient INERTE — il reste au sac, son effet ne s'applique
+     * plus. Rien n'est détruit : un objet qui disparaîtrait seul du sac serait
+     * une surprise, pas une règle.
+     * Lecteur : `Partie\MoteurCharges`.
+     */
+    public const CHARGES = 'charges';
+
+    /**
+     * Tue la cible d'emblée, sauf si elle obtient un **bouclier noir** sur un
+     * unique dé de défense — « instantly kills any one monster within the Elf's
+     * line of sight, unless the monster rolls a black shield on 1 combat die ».
+     *
+     * S'accompagne TOUJOURS de `charges` : une mort instantanée illimitée
+     * viderait un donjon sans combat.
+     * Lecteur : `ResolveurTour::resoudreAttaque()`.
+     */
+    public const TUE_SAUF_BOUCLIER_NOIR = 'tue_sauf_bouclier_noir';
+
+    // ------------------------------------------------------- ÉCONOMIE DE SORTS
+
+    /**
+     * Rend TOUS les sorts épuisés du porteur — « restores all spells that Hero
+     * possessed at the beginning of the quest » (Parchemin de Sorts).
+     *
+     * À distinguer du nœud *Concentration*, qui n'en récupère qu'UN.
+     * Lecteurs : `MoteurPotions` (consommable), `Partie\Equipement::equiper()`
+     * (pièce à charge, dépensée en l'enfilant).
+     */
+    public const RESTAURE_SORTS = 'restaure_sorts';
+
+    /**
+     * Un SECOND sort dans le même tour — « allows you to cast two spells instead
+     * of one during your turn » (Baguette de Rappel).
+     *
+     * Exactement le pouvoir du nœud *Réserve arcanique*, mais accordé par un
+     * OBJET : les deux passent par `etat.bonus_sort_utilise`, donc ils ne se
+     * cumulent pas (un magicien équipé n'obtient pas trois sorts).
+     * Lecteurs : `MenuMoteur`, `ResolveurTour`.
+     */
+    public const SECOND_SORT_PAR_TOUR = 'second_sort_par_tour';
+
+    /**
+     * Le prochain sort lancé **ne s'épuise pas**, au prix d'une charge —
+     * « enables the Elf or Wizard who carries it to cast one spell twice in the
+     * same Quest » (Anneau de Sort).
+     *
+     * ⚠ Écart assumé : la carte fait CHOISIR le sort au début de la quête. Ici
+     * le choix se fait en le lançant, ce qui donne le même résultat sans imposer
+     * un pari à l'aveugle avant d'avoir vu le donjon.
+     * Lecteur : `ResolveurTour::lancerSort()`.
+     */
+    public const SORT_NON_EPUISE = 'sort_non_epuise';
+
+    /**
+     * Après chaque sort, un dé de combat : sur un **bouclier noir** le sort n'est
+     * pas épuisé — « You may roll one combat die per turn. On a black shield, the
+     * chosen spell may be cast again » (Sceptre de Mémoire). Illimité, sans
+     * charge : c'est le dé qui limite.
+     * Lecteur : `ResolveurTour::lancerSort()`.
+     */
+    public const SORT_NON_EPUISE_SUR_BOUCLIER_NOIR = 'sort_non_epuise_sur_bouclier_noir';
+
     // --------------------------------------------------------------- JAUGES
 
     /**
@@ -257,6 +327,12 @@ final class MotsClesEquipement
         self::ATTAQUE_DOUBLE_CONTRE,
         self::BONUS_PV_BODY_MAX,
         self::BONUS_PV_MIND_MAX,
+        self::CHARGES,
+        self::TUE_SAUF_BOUCLIER_NOIR,
+        self::RESTAURE_SORTS,
+        self::SECOND_SORT_PAR_TOUR,
+        self::SORT_NON_EPUISE,
+        self::SORT_NON_EPUISE_SUR_BOUCLIER_NOIR,
         self::PERMET_DESAMORCAGE,
         self::SOIN_PV_BODY,
         self::SOIN_PV_BODY_DE,

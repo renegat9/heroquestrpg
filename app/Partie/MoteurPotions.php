@@ -93,6 +93,13 @@ class MoteurPotions
             }
         }
 
+        // Parchemin de Sorts : « restores all spells that Hero possessed at the
+        // beginning of the quest ». À distinguer du nœud Concentration, qui n'en
+        // récupère qu'UN — c'est toute la valeur de la carte.
+        if (! empty($effet['restaure_sorts'])) {
+            $applique['sorts_restaures'] = app(MoteurSorts::class)->restaurerTousLesSorts($personnage);
+        }
+
         if (isset($effet['retire_condition'])) {
             $condition = Condition::query()->where('nom', $effet['retire_condition'])->first();
             if ($condition !== null) {

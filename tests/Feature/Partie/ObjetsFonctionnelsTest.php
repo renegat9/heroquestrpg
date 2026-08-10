@@ -87,7 +87,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
     // des dégâts garantis (Dague de jet magique) ou une jauge maximale
     // (talismans de classe). Sans ça, l'équiper est un clic pour rien.
     $utilesPortes = ['des_attaque', 'des_defense', 'degats_fixes',
-        'bonus_pv_body_max', 'bonus_pv_mind_max'];
+        'bonus_pv_body_max', 'bonus_pv_mind_max',
+        // Artefacts d'économie de sorts : ils ne donnent ni dé ni PV, mais
+        // changent bel et bien ce que le porteur peut faire de son tour.
+        'restaure_sorts', 'second_sort_par_tour', 'sort_non_epuise',
+        'sort_non_epuise_sur_bouclier_noir'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
@@ -97,7 +101,8 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
     // Un consommable doit soigner, retirer une condition, ou poser un buff —
     // sans quoi le boire est un clic pour rien.
     $utiles = ['soin_pv_body', 'soin_pv_body_de', 'soin_pv_mind', 'retire_condition',
-        'bonus_des_attaque', 'bonus_des_defense', 'attaque_supplementaire'];
+        'bonus_des_attaque', 'bonus_des_defense', 'attaque_supplementaire',
+        'restaure_sorts'];
 
     foreach (Objet::where('categorie', 'consommable')->get() as $potion) {
         expect(array_intersect($utiles, array_keys((array) $potion->effet)))

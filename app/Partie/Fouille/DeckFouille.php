@@ -356,9 +356,10 @@ final class DeckFouille
      *
      * Armes ET armures : depuis la conversion du paquet d'artefacts
      * (reference/16 §9), le coffre peut rendre l'Armure de Borin ou un talisman
-     * de classe, pas seulement une arme. Les consommables en restent exclus —
-     * le coffre le plus profond du donjon ne doit pas verser une fiole à usage
-     * unique après une quête entière d'exploration.
+     * de classe, pas seulement une arme. Un artefact CONSOMMABLE ne vient qu'en
+     * repli, quand tout le portable est déjà détenu — un coffre de fin de donjon
+     * ne doit pas verser un parchemin à usage unique tant qu'il reste une pièce
+     * permanente à donner, mais un parchemin vaut mieux que de l'or.
      */
     private function choisirArtefact(Groupe $groupe, PrngLineaire $prng): ?int
     {
@@ -385,9 +386,9 @@ final class DeckFouille
         // manquante ne doit pas transformer tous les artefacts en butin mort.
         $filtrer = $accessibles !== [];
 
-        $candidats = Objet::query()
+        $eligibles = fn (array $categories) => Objet::query()
             ->where('rarete', 'unique')
-            ->whereIn('categorie', ['arme', 'armure'])
+            ->whereIn('categorie', $categories)
             ->whereNotIn('id', $possedes)
             ->orderBy('id')
             ->get(['id', 'tag_equipement'])
@@ -397,6 +398,20 @@ final class DeckFouille
                 && ! in_array($o->tag_equipement, $accessibles, true))
             ->pluck('id')
             ->all();
+
+        $candidats = $eligibles(['arme', 'armure']);
+
+        // REPLI : un artefact consommable (Parchemin de Sorts) plutôt que de
+        // l'or quand tout le portable est déjà détenu. La Fiole de soin en est
+        // exclue — c'est une carte du deck de TRÉSOR, pas un artefact de coffre,
+        // et elle reviendrait sans fin. L'ordre compte : un coffre de fin de
+        // donjon doit rendre une pièce permanente s'il en reste une.
+        if ($candidats === []) {
+            $candidats = array_values(array_diff(
+                $eligibles(['consommable']),
+                Objet::where('nom', 'Fiole de soin')->pluck('id')->all(),
+            ));
+        }
 
         if ($candidats === []) {
             return null; // tous déjà trouvés → le coffre versera de l'or

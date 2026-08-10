@@ -34,6 +34,7 @@ final class MenuMoteur
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
         private readonly Equipement $equipement,
+        private readonly MoteurCharges $charges,
     ) {}
 
     /**
@@ -494,9 +495,16 @@ final class MenuMoteur
         // Sorts / parchemins / concentration = créneau ACTION. Réserve arcanique
         // (nœud magicien) : un SECOND sort reste proposé même après avoir déjà
         // agi ce tour, tant que ce bonus n'a pas encore été consommé.
+        // …ou par la Baguette de Rappel, qui accorde le même second sort sans
+        // coûter de point de compétence. Le menu doit connaître les DEUX
+        // sources : le résolveur accepte l'objet, mais le contrôleur refuse
+        // toute option absente du dernier menu — c'est exactement le trou par
+        // lequel la seconde attaque de la Potion d'héroïsme était devenue
+        // injouable.
         $bonusReserveArcaniqueDisponible = $etat !== null && $aAgi
             && ! (bool) ($etat->bonus_sort_utilise ?? false)
-            && $personnage->competences()->where('nom', 'Réserve arcanique')->exists();
+            && ($personnage->competences()->where('nom', 'Réserve arcanique')->exists()
+                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
         if ($etat !== null && ! $aAgi) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {

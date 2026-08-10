@@ -105,6 +105,7 @@ final class Equipement
             $personnage->refresh();
             $this->appliquerEcartJauges($personnage, $jaugesAvant);
             $this->recalculerCombat($personnage);
+            $this->declencherAEquipement($personnage, $ligne->fresh());
 
             return $ligne->fresh();
         });
@@ -290,6 +291,32 @@ final class Equipement
             ->with('objet')
             ->get()
             ->contains(fn ($ligne) => (bool) (($ligne->objet?->effet ?? [])[$cle] ?? false));
+    }
+
+    /**
+     * Effets qui se déclenchent AU MOMENT D'ENFILER la pièce, une fois.
+     *
+     * Un seul aujourd'hui : la Baguette de Galimatias, « immediately upon
+     * acquiring this item, the adventurer will recover all spells he has used
+     * so far during this quest ». C'est une charge, pas un passif — sans elle,
+     * déséquiper puis rééquiper rendrait les sorts en boucle.
+     *
+     * Le `+2 Mind` de la même baguette, lui, reste un passif porté (`JAUGES`) :
+     * une carte peut mêler les deux natures, et il faut les traiter séparément.
+     */
+    private function declencherAEquipement(Personnage $personnage, Inventaire $ligne): void
+    {
+        $effet = (array) ($ligne->objet?->effet ?? []);
+
+        if (empty($effet['restaure_sorts'])) {
+            return;
+        }
+
+        $charges = app(MoteurCharges::class);
+
+        if ($charges->consommer($ligne)) {
+            app(MoteurSorts::class)->restaurerTousLesSorts($personnage);
+        }
     }
 
     /**
