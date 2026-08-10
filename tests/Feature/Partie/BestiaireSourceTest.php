@@ -55,11 +55,11 @@ it('donne 1 SEUL point de Body à tout monstre de base, comme au plateau', funct
     // tombe d'un coup réussi. On donnait 2 ou 3 aux plus costauds, ce qui
     // écrasait la lisibilité des paliers sous_boss/boss.
     //
-    // Le Troll est la seule exception assumée du palier : ce n'est pas un des
-    // huit, c'est un ajout de 2026-08-09 pour donner un second lecteur au feu.
+    // Plus d'exception : le Troll y a séjourné un jour, et un test de jeu a
+    // montré qu'un monstre à 3 PV dans un palier où tout le monde en a 1
+    // transforme la première rencontre en anéantissement (2026-08-10).
     $trop = Monstre::where('tier', 'base')
         ->where('pv_body', '>', 1)
-        ->where('nom_base', '!=', 'Troll')
         ->pluck('nom_base')
         ->all();
 
@@ -167,4 +167,30 @@ it('donne à chaque créature de Jungles le trait que son livret lui prête', fu
             expect(in_array($trait, $capacites, true))->toBeTrue("{$nom} devrait porter « {$trait} »");
         }
     }
+});
+
+it('interdit au palier `base` la créature ENDURANTE — celle qu\'on ne peut pas tuer', function () {
+    // Ce qui a fait un anéantissement le 2026-08-10 n'est pas la puissance de
+    // frappe : c'est l'ENDURANCE. Le Troll cumulait 3 PV et 4 dés de défense
+    // dans un palier où tout le monde a 1 PV — un barbare lui arrachait 0,98 PV
+    // par attaque là où il tue n'importe quel autre monstre de base d'un coup,
+    // pendant que le troll rendait 1,40 PV par coup.
+    //
+    // À l'inverse, l'Assassin frappe à 5 dés et c'est très bien : avec 2 PV et
+    // 3 dés de défense, il meurt en deux coups. Une brute de verre est un
+    // danger jouable ; une brute qui encaisse est un sous-boss déguisé, et le
+    // budget de rencontre la lâche sur des héros de niveau 1 sans talent.
+    $endurants = Monstre::where('tier', 'base')
+        ->where('pv_body', '>=', 3)
+        ->where('defense', '>=', 4)
+        ->pluck('nom_base')
+        ->all();
+
+    expect($endurants)->toBe([], 'créature(s) trop endurantes pour le palier base : '.implode(', ', $endurants));
+
+    // …et le coût le plus cher du palier reste sous celui du palier au-dessus.
+    $maxBase = (int) Monstre::where('tier', 'base')->max('cout');
+    $minSousBoss = (int) Monstre::where('tier', 'sous_boss')->min('cout');
+
+    expect($maxBase)->toBeLessThan($minSousBoss, 'les paliers se chevauchent en coût');
 });

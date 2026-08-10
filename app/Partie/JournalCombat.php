@@ -215,9 +215,20 @@ final class JournalCombat
             return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
         }
 
+        // Un sort de DÉGÂTS qui n'en fait aucun a été PARÉ : il faut le dire, et
+        // montrer les dés. La ligne se contentait de « Aldric lance Trait de Feu
+        // sur X » — indiscernable d'un sort utilitaire, et le joueur ne pouvait
+        // pas savoir s'il avait raté, été paré, ou rien fait du tout. Constaté
+        // en test de jeu (2026-08-10) : deux Boules de Feu sur un troll, aucune
+        // trace de ce qui s'était passé, là où l'attaque du monstre affichait
+        // « (−2 PV) · 3 crânes / 1 bouclier ».
+        if ($cible !== null && isset($a['faces_attaque'])) {
+            return [['texte' => "{$cible} encaisse le {$nom} d'{$acteurNom} sans dommage{$des}", 'ton' => 'pare']];
+        }
+
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
-        return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}", 'ton' => 'info']];
+        return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
     }
 
     /**

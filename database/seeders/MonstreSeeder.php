@@ -58,8 +58,22 @@ class MonstreSeeder extends Seeder
             // cannot be regenerated. » C'est ce qui donne un second lecteur au
             // type de dégât `feu`, à côté de l'Anneau de Feu : sans lui, la
             // nature d'un dégât n'aurait servi qu'à une carte défensive.
+            // ⚠ Palier SOUS-BOSS, pas `base` (test de jeu du 2026-08-10). Il y a
+            // été placé le 2026-08-09 en pensant à la mécanique du feu, pas au
+            // budget de rencontre — et c'était une erreur de rangement : avec
+            // 3 PV et 4 dés de défense, il a TROIS FOIS les PV de n'importe quel
+            // autre monstre de base (tous à 1 depuis l'alignement sur les
+            // cartes) et la meilleure défense du palier.
+            //
+            // Conséquence mesurée en partie réelle : le budget d'une quête 1 (14
+            // points) a acheté « Troll + 2 gobelins + orque + squelette +
+            // zombie » et l'a lâché sur deux héros de niveau 1 sans talent ni or.
+            // Un barbare à 3 dés lui arrache 0,98 PV par attaque là où il tue
+            // n'importe quel autre monstre de base d'un coup ; le troll, lui,
+            // rend 1,40 PV par attaque — soit un magicien mort en 3 coups. TPK
+            // dès la première salle avec un ennemi.
             ['nom_base' => 'Troll', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 6, 'capacites' => ['regeneration'], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => ['regeneration'], 'sorts_dread' => []],
 
             // ----- Gabarits élites (doc 09 §4 — exemples proposés, à équilibrer) -----
             // capacites = bibliothèque assignable (l'IA choisit l'habillage, le moteur résout)
