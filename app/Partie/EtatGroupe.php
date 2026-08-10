@@ -135,7 +135,60 @@ final class EtatGroupe
             // une plus récente déjà affichée (jobs asynchrones, ordre non garanti).
             'narration_sequence' => $derniereNarration['sequence'] ?? null,
             'mj_reflechit' => (bool) Cache::get(self::cleMjReflechit($groupe->id), false),
+            // Fil du combat REJOUÉ depuis la base : le store ne le remplissait
+            // qu'en direct (`.combat.journal`), si bien qu'un rafraîchissement
+            // du téléphone — ou une session reprise, ou un joueur arrivé en
+            // retard — repartait sur un fil vide. Pour un simple fil de texte
+            // c'était un désagrément ; depuis qu'il porte l'HISTORIQUE DES JETS,
+            // c'était perdre la seule trace consultable des dés.
+            'journal_combat' => $quete === null ? [] : $this->journalCombat($groupe, $quete),
         ];
+    }
+
+    /**
+     * Les derniers jets/actions de la quête en cours, remis en lignes.
+     *
+     * On repasse par le MÊME formateur que la diffusion temps réel
+     * (`JournalCombat`) plutôt que de reconstruire des lignes ici : deux
+     * fabriques de lignes finiraient par diverger, et le client afficherait
+     * un historique qui ne ressemble pas à ce qu'il a vu passer en direct.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function journalCombat(Groupe $groupe, Quete $quete): array
+    {
+        $evenements = Evenement::query()
+            ->where('groupe_id', $groupe->id)
+            ->where('quete_id', $quete->id)
+            ->where('type', 'combat')
+            ->orderByDesc('sequence')
+            ->limit(40)
+            ->get(['payload', 'acteur'])
+            ->reverse();
+
+        $formateur = app(JournalCombat::class);
+        $lignes = [];
+
+        foreach ($evenements as $evenement) {
+            $payload = $evenement->payload;
+            if (is_string($payload)) {
+                $payload = json_decode($payload, true);
+            }
+            if (! is_array($payload)) {
+                continue;
+            }
+
+            $acteur = $evenement->acteur;
+            if (is_string($acteur)) {
+                $acteur = json_decode($acteur, true);
+            }
+
+            foreach ($formateur->depuisResultat($payload, (string) (data_get($acteur, 'nom') ?: 'Un héros')) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
+        return array_slice($lignes, -24);
     }
 
     /**

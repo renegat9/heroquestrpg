@@ -90,7 +90,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 |---|---|---|---|
 | `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
-| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué |
+| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe | table + manettes |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
@@ -191,6 +191,22 @@ hors `entites`), les recrues actives sont exposées dans le préambule sous
 pv_body_max}]` (mis à jour en direct par `.groupe.etat` après un recrutement). La
 résolution d'un tour de choix peut porter `resultat.tour_allies.actions`
 (déplacements/attaques alliées), en regard de `resultat.tour_monstres.actions`.
+
+`EtatGroupe` porte aussi **`journal_combat`** : les 24 dernières lignes de la
+quête en cours, **rejouées depuis les événements** par le même formateur que la
+diffusion temps réel. Le client ne s'en sert que si son fil local est VIDE
+(chargement, reconnexion, joueur arrivé en retard) — le réappliquer à chaque
+`.groupe.etat` écraserait les lignes reçues en direct par un instantané plus
+ancien. Sans cela, un simple rafraîchissement du téléphone effaçait tout
+l'historique des jets. Vide hors quête.
+
+Tout `resultat` d'attaque porte les quatre clés de jet — `faces_attaque`,
+`faces_defense`, **`face_touchante`**, **`face_defensive`** (valeurs de
+`App\Engine\Des\FaceDeCombat`). Les deux dernières disent quelle face
+RÉUSSIT pour chaque volée ; sans elles un client ne peut pas afficher un jet,
+puisqu'un dé n'est un succès que relativement à qui le lance. La manette s'en
+sert pour entourer les dés gagnants en vert (`JetDes.vue`), et les mêmes
+valeurs repartent sous `des` dans `.combat.journal`.
 
 ## Votes de groupe (doc 05 §5)
 

@@ -346,8 +346,7 @@ final class MoteurDread
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_tombee' => $resultat->cibleTombee,
-            'faces_attaque' => array_map(fn ($f) => $f->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($f) => $f->value, $resultat->facesDefense),
+            ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
@@ -681,8 +680,7 @@ final class MoteurDread
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_tombee' => $resultat->cibleTombee,
-            'faces_attaque' => array_map(fn ($f) => $f->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($f) => $f->value, $resultat->facesDefense),
+            ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
@@ -758,8 +756,7 @@ final class MoteurDread
                 'degats' => $resultat->degats,
                 'pv_body_apres' => $resultat->pvBodyApres,
                 'cible_tombee' => $resultat->cibleTombee,
-                'faces_attaque' => array_map(fn ($f) => $f->value, $resultat->facesAttaque),
-                'faces_defense' => array_map(fn ($f) => $f->value, $resultat->facesDefense),
+                ...$resultat->pourJournal(),
             ];
         }
 
@@ -1175,8 +1172,7 @@ final class MoteurDread
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_tombee' => $resultat->cibleTombee,
-            'faces_attaque' => array_map(fn ($f) => $f->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($f) => $f->value, $resultat->facesDefense),
+            ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 

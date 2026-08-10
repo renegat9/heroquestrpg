@@ -17,7 +17,10 @@ namespace App\Partie;
  * aussi le DÉTAIL DES DÉS (crânes touchés / boucliers parés — C1) quand le
  * payload les fournit, pour que chaque jet soit lisible sur la table.
  *
- * Chaque ligne : {texte, ton}. Le `ton` pilote l'icône/couleur côté manette
+ * Chaque ligne : {texte, ton, des?}. `des` porte le JET qui a produit la ligne
+ * — les deux volées et la face gagnante de chacune — pour que le fil serve
+ * d'historique consultable (manette : ActionTab.vue). Le `ton` pilote
+ * l'icône/couleur côté manette
  * (voir resources/js/components/manette/ActionTab.vue) :
  *  - `degats`  : un héros/allié inflige des dégâts
  *  - `mort`    : une cible est vaincue
@@ -93,7 +96,62 @@ final class JournalCombat
             }
         }
 
+        // Les DÉS du jet, attachés à la ligne qui décrit le coup (la première :
+        // les suivantes sont des conséquences — chute, piège imbriqué). C'est
+        // ce qui donne l'HISTORIQUE : le fil garde ses jets, là où l'overlay de
+        // la manette ne montrait le sien que 3 secondes, et seulement pour SA
+        // propre action — un joueur n'avait jamais vu un seul dé du monstre qui
+        // le frappait.
+        $des = $this->desDuJet($a, $acteurNom);
+
+        if ($des !== null && $lignes !== []) {
+            $lignes[0]['des'] = $des;
+        }
+
         return $lignes;
+    }
+
+    /**
+     * Le jet complet d'une action — les deux volées, et QUELLE FACE compte pour
+     * chacune.
+     *
+     * Les faces seules ne sont pas affichables : un dé n'est un succès que
+     * relativement à qui le lance (voir `ResultatAttaque::pourJournal()`). Le
+     * moteur publie donc `face_touchante` / `face_defensive` avec chaque
+     * payload, et cette méthode ne fait que les recopier en y joignant les deux
+     * NOMS — sans eux, la manette affichait deux rangées de dés sans dire
+     * laquelle appartenait à qui.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null  null si aucun dé n'a été lancé
+     */
+    private function desDuJet(array $a, string $acteurNom): ?array
+    {
+        $atk = array_values((array) ($a['faces_attaque'] ?? []));
+        $def = array_values((array) ($a['faces_defense'] ?? []));
+
+        if ($atk === [] && $def === []) {
+            return null;
+        }
+
+        // Qui frappe : le monstre a son propre nom, l'allié aussi ; sinon c'est
+        // le héros qui agit. Qui encaisse : toujours `cible.nom`.
+        $attaquant = match ($a['type'] ?? null) {
+            'attaque_monstre' => (string) ($a['monstre'] ?? 'Le monstre'),
+            'attaque_allie' => (string) ($a['allie'] ?? 'Allié'),
+            default => $acteurNom,
+        };
+
+        return [
+            'atk' => $atk,
+            'def' => $def,
+            'touchante' => (string) ($a['face_touchante'] ?? 'crane'),
+            'defensive' => (string) ($a['face_defensive'] ?? 'bouclier_blanc'),
+            'attaquant' => $attaquant,
+            'defenseur' => isset($a['cible']['nom']) ? (string) $a['cible']['nom'] : null,
+            'touches' => isset($a['touches']) ? (int) $a['touches'] : null,
+            'boucliers' => isset($a['boucliers']) ? (int) $a['boucliers'] : null,
+        ];
     }
 
     /**

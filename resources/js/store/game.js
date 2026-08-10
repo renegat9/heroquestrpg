@@ -114,6 +114,22 @@ export function useGameStore() {
                 state.journalCombat = [];
                 state.journalCombatSeq = null;
             }
+            // Réamorçage depuis la base (EtatGroupe.journal_combat) UNIQUEMENT
+            // si on n'a rien en local : au chargement, à la reconnexion, ou pour
+            // un joueur arrivé après le début du combat. Le fil n'était nourri
+            // que par `.combat.journal` en direct, donc un simple rafraîchissement
+            // du téléphone effaçait tout l'historique des jets.
+            // ⚠ Seulement quand il est VIDE : réappliquer à chaque `.groupe.etat`
+            // (il en arrive plusieurs par tour) écraserait les lignes reçues en
+            // direct par un instantané plus ancien.
+            if (state.journalCombat.length === 0 && Array.isArray(etat?.journal_combat) && etat.journal_combat.length) {
+                state.journalCombat = etat.journal_combat.map((l) => ({
+                    id: ++jcId,
+                    texte: String(l?.texte ?? ''),
+                    ton: String(l?.ton ?? 'info'),
+                    des: l?.des ?? null,
+                }));
+            }
             // NOTE : on NE libère PAS menuEnAttente ici. Un tour déclenche
             // plusieurs .groupe.etat (phase monstres, autres joueurs, potion
             // bue…) avant NOTRE prochain menu ; libérer au 1er état rouvrait les
@@ -169,8 +185,15 @@ export function useGameStore() {
                 id: ++jcId,
                 texte: String(l?.texte ?? ''),
                 ton: String(l?.ton ?? 'info'),
+                // Le JET qui a produit la ligne (App\Partie\JournalCombat) : on
+                // le conservait pas, et le fil ne pouvait donc pas servir
+                // d'historique — seul un overlay de 3 s montrait des dés, et
+                // uniquement ceux de SA propre action.
+                des: l?.des ?? null,
             }));
-            state.journalCombat = [...state.journalCombat, ...ajout].slice(-12);
+            // 24 et non 12 : le fil est devenu l'historique des jets, il lui
+            // faut de quoi remonter au-delà du tour en cours.
+            state.journalCombat = [...state.journalCombat, ...ajout].slice(-24);
         },
         setConnexion(statut) {
             state.connexion = statut;

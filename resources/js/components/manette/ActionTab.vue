@@ -6,6 +6,7 @@
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
+import JetDes from './JetDes.vue';
 import { elementInfo, TYPES_SORT } from '../../store/game';
 
 const props = defineProps({
@@ -177,9 +178,15 @@ const ICONE_JOURNAL = {
     <div v-if="journal.length" class="cbt-log">
         <div class="sect-title"><MSym n="history" :size="16" /> Fil du combat</div>
         <div class="cbt-lines">
-            <div v-for="l in journal" :key="l.id" class="cbt-line" :class="`t-${l.ton}`">
-                <MSym :n="ICONE_JOURNAL[l.ton] || 'chevron_right'" :size="15" fill />
-                <span>{{ l.texte }}</span>
+            <div v-for="l in journal" :key="l.id" class="cbt-entree">
+                <div class="cbt-line" :class="`t-${l.ton}`">
+                    <MSym :n="ICONE_JOURNAL[l.ton] || 'chevron_right'" :size="15" fill />
+                    <span>{{ l.texte }}</span>
+                </div>
+                <!-- Le jet qui a produit la ligne : c'est l'HISTORIQUE. Les dés
+                     du monstre qui vient de frapper y sont aussi — l'overlay ne
+                     révélait que ceux de sa propre action. -->
+                <JetDes v-if="l.des" :jet="l.des" compact />
             </div>
         </div>
     </div>
@@ -188,6 +195,8 @@ const ICONE_JOURNAL = {
 <style scoped>
 .cbt-log { margin-top: 16px; }
 .cbt-lines { display: flex; flex-direction: column; gap: 4px; }
+.cbt-entree { display: flex; flex-direction: column; gap: 3px; }
+.cbt-entree :deep(.jet-des) { padding: 2px 9px 5px; }
 .cbt-line {
     display: flex; align-items: center; gap: 7px;
     font-size: 13.5px; line-height: 1.35;

@@ -729,8 +729,7 @@ final class ResolveurTour
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_vaincue' => $resultat->pvBodyApres === 0,
-            'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
+            ...$resultat->pourJournal(),
         ];
 
         // Fléau des Orques : une seconde attaque ce tour si la cible en était un.
@@ -791,6 +790,9 @@ final class ResolveurTour
             'vindication' => true,
             'faces_defense' => [$face->value],
             'faces_attaque' => [],
+            // Le monstre ne survit QUE sur un bouclier noir (ligne 662) : c'est
+            // donc la face qui « pare » ce jet, et la seule à entourer en vert.
+            'face_defensive' => FaceDeCombat::BouclierNoir->value,
             'des_attaque_effectifs' => 0,
             'touches' => 0,
             'boucliers' => $survit ? 1 : 0,
@@ -860,6 +862,9 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'cible' => ['personnage_id' => $porteur->personnage_id, 'nom' => $porteur->personnage?->nom],
             'faces_attaque' => array_map(fn ($face) => $face->value, $faces),
+            // Un rejeton s'arrache PAR CRÂNE — la figure a Body 1 / Défense 0,
+            // elle ne pare rien : il n'y a pas de jet de défense à afficher.
+            'face_touchante' => FaceDeCombat::Crane->value,
             'retires' => $retires,
             'restants' => (int) $porteur->fresh()->jetons_rejeton,
         ];
@@ -1706,8 +1711,7 @@ final class ResolveurTour
                 'degats' => $resultat->degats,
                 'pv_body_apres' => $resultat->pvBodyApres,
                 'cible_vaincue' => $resultat->pvBodyApres === 0,
-                'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
-                'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
+                ...$resultat->pourJournal(),
             ];
         }
 
@@ -1759,8 +1763,7 @@ final class ResolveurTour
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_tombee' => $resultat->cibleTombee,
-            'faces_attaque' => array_map(fn ($face) => $face->value, $resultat->facesAttaque),
-            'faces_defense' => array_map(fn ($face) => $face->value, $resultat->facesDefense),
+            ...$resultat->pourJournal(),
         ];
     }
 

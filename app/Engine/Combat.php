@@ -87,6 +87,8 @@ final class Combat
             pvBodyAvant: $pvBodyDefenseur,
             pvBodyApres: $pvBodyApres,
             cibleTombee: $pvBodyDefenseur > 0 && $pvBodyApres === 0,
+            faceTouchante: $touchante,
+            faceDefensive: $faceDefensive,
         );
     }
 

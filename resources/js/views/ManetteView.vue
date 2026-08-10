@@ -15,7 +15,7 @@ import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
-import DieFace from '../components/manette/DieFace.vue';
+import JetDes from '../components/manette/JetDes.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
@@ -497,21 +497,31 @@ async function envoyerOption(option, parametres) {
    quelques secondes pour qu'on VOIE le résultat (sinon seul .groupe.etat met à
    jour les PV — trop rapide, le joueur ne perçoit pas le lancer). ---- */
 const desReveles = ref(null);
-function faceVersDe(v, camp) {
-    if (camp === 'atk') return v === 'crane' ? 'skull' : 'blank';
-    return (v === 'bouclier_blanc' || v === 'bouclier_noir') ? 'shield' : 'blank';
-}
 let timerDes = null;
 function revelerDesResultat(r) {
-    if (!r || !Array.isArray(r.faces_attaque)) return; // seulement les jets d'attaque
+    if (!r) return;
+    const atk = Array.isArray(r.faces_attaque) ? r.faces_attaque : [];
+    const def = Array.isArray(r.faces_defense) ? r.faces_defense : [];
+    if (atk.length === 0 && def.length === 0) return; // aucun dé lancé (dégâts fixes)
+
+    // ⚠ On transmet les faces BRUTES du moteur, pas une traduction. L'ancienne
+    // version repliait `bouclier_blanc` ET `bouclier_noir` sur une même icône
+    // « bouclier » : en frappant un monstre — qui ne pare que sur du noir — le
+    // joueur voyait donc trois boucliers et en déduisait trois parades, quand
+    // le moteur n'en comptait qu'une. Le succès dépend du lanceur, et c'est le
+    // moteur qui le dit (`face_touchante` / `face_defensive`).
     desReveles.value = {
-        atk: r.faces_attaque.map((v) => faceVersDe(v, 'atk')),
-        def: (r.faces_defense ?? []).map((v) => faceVersDe(v, 'def')),
+        atk,
+        def,
+        touchante: r.face_touchante ?? 'crane',
+        defensive: r.face_defensive ?? 'bouclier_blanc',
+        attaquant: monPerso.value?.nom ?? 'Attaque',
+        defenseur: r.cible?.nom ?? r.cible_nom ?? null,
         degats: r.degats ?? 0,
         cible: r.cible?.nom ?? r.cible_nom ?? null,
     };
     if (timerDes) clearTimeout(timerDes);
-    timerDes = setTimeout(() => { desReveles.value = null; }, 3200);
+    timerDes = setTimeout(() => { desReveles.value = null; }, 4200);
 }
 
 /* ---- Potions : action GRATUITE jouable À TOUT MOMENT (canon), même hors de
@@ -1053,10 +1063,7 @@ const navItems = computed(() => (scene.value === 'marche'
                     <!-- Révélation du jet de dés (mode connecté) : tap pour fermer -->
                     <div v-if="desReveles" class="des-reveal" @click="desReveles = null">
                         <div class="des-reveal-card">
-                            <div class="dr-row"><DieFace v-for="(d, i) in desReveles.atk" :key="'a' + i" :face="d" reveal /></div>
-                            <div v-if="desReveles.def.length" class="dr-row dr-def">
-                                <DieFace v-for="(d, i) in desReveles.def" :key="'d' + i" :face="d" reveal />
-                            </div>
+                            <JetDes :jet="desReveles" />
                             <div class="dr-txt">
                                 <template v-if="desReveles.degats > 0">
                                     {{ desReveles.degats }} blessure{{ desReveles.degats > 1 ? 's' : '' }}<template v-if="desReveles.cible"> · {{ desReveles.cible }}</template>
@@ -1110,8 +1117,6 @@ const navItems = computed(() => (scene.value === 'marche'
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
     animation: dr-pop 0.18s ease-out;
 }
-.des-reveal .dr-row { display: flex; gap: 8px; }
-.des-reveal .dr-def { opacity: 0.85; }
 .des-reveal .dr-txt {
     margin-top: 4px;
     font-weight: 800;
