@@ -550,3 +550,26 @@ it('laisse un talent de résistance nommée bloquer le venin', function () {
 
     expect($ctx['heros']->fresh()->conditions()->where('nom', 'Envenimé')->exists())->toBeFalse();
 });
+
+it('couvre les DEUX poisons avec Sang robuste : Empoisonné et Envenimé', function () {
+    // Le nœud ne nommait que « Empoisonné », écrit à une époque où c'était le
+    // seul poison du jeu. « Envenimé » est arrivé le 2026-08-09 avec les
+    // créatures venimeuses : un serpent paralysait donc le nain « au sang
+    // robuste ». `condition_nom` accepte désormais une liste (choix de René).
+    $ctx = demarrerQueteAvecMonstre('Serpent géant', ['classe' => 'nain']);
+    $heros = $ctx['heros'];
+
+    $sangRobuste = Competence::where('nom', 'Sang robuste')->firstOrFail();
+    $heros->competences()->attach($sangRobuste->id);
+
+    // Le jet de résistance du venin ÉCHOUE (1) : seul le talent peut sauver.
+    desFiges([1]);
+    expect(app(MoteurDread::class)->appliquerVenin($ctx['instance'], $heros->fresh()))->toBeFalse()
+        ->and($heros->fresh()->conditions()->where('nom', 'Envenimé')->exists())->toBeFalse();
+
+    // …et l'ancien poison reste couvert : on n'a pas déplacé la protection.
+    expect(Competence::resisteA($heros->fresh(), 'Empoisonné'))->toBeTrue()
+        ->and(Competence::resisteA($heros->fresh(), 'Envenimé'))->toBeTrue()
+        // …sans devenir une immunité générale.
+        ->and(Competence::resisteA($heros->fresh(), 'Apeuré'))->toBeFalse();
+});

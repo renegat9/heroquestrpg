@@ -53,7 +53,19 @@ class Competence extends Model
     {
         return $personnage->competences()
             ->get(['competences.id', 'competences.effet'])
-            ->contains(fn (self $c) => ($c->effet['mecanique'] ?? null) === 'resistance_condition'
-                && ($c->effet['condition_nom'] ?? null) === $nomCondition);
+            ->contains(function (self $c) use ($nomCondition) {
+                if (($c->effet['mecanique'] ?? null) !== 'resistance_condition') {
+                    return false;
+                }
+
+                // `condition_nom` accepte une chaîne OU une liste : un même
+                // talent peut couvrir plusieurs poisons. Sang robuste, qui ne
+                // nommait que « Empoisonné », laissait passer « Envenimé » —
+                // un serpent paralysait donc le nain « au sang robuste »
+                // (audit des talents, 2026-08-10).
+                $couvertes = (array) ($c->effet['condition_nom'] ?? []);
+
+                return in_array($nomCondition, $couvertes, true);
+            });
     }
 }

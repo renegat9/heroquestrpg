@@ -30,7 +30,12 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Désamorçage', 'type' => 'actif', 'description' => 'Tente de neutraliser un piège détecté (jet de Body).', 'effet' => ['mecanique' => 'desamorcer_piege', 'jet' => 'body']],
                 ['nom' => 'Garde tenace', 'type' => 'passif', 'description' => "+1 dé de défense contre la première attaque d'un combat.", 'effet' => ['mecanique' => 'bonus_des_defense', 'valeur' => 1, 'condition' => 'premiere_attaque_du_combat']],
                 ['nom' => 'Forge', 'type' => 'deblocage', 'description' => 'Au hub, améliore définitivement un équipement (+1 dé ou une propriété).', 'effet' => ['mecanique' => 'forge_amelioration', 'lieu' => 'hub', 'catalogue' => 'forge_ameliorations']],
-                ['nom' => 'Sang robuste', 'type' => 'passif', 'description' => 'Résistance à la condition Empoisonné.', 'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => 'Empoisonné']],
+                // Couvre les DEUX poisons du jeu. Il n'en existait qu'un quand
+                // ce nœud a été écrit ; le venin des créatures de Jungles of
+                // Delthrak (condition « Envenimé ») est arrivé le 2026-08-09, et
+                // un talent nommé « résistance au poison » qui laisse un serpent
+                // paralyser son porteur est une promesse rompue.
+                ['nom' => 'Sang robuste', 'type' => 'passif', 'description' => 'Résistance aux conditions Empoisonné et Envenimé.', 'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Empoisonné', 'Envenimé']]],
                 ['nom' => 'Solides épaules', 'type' => 'passif', 'description' => '+2 emplacements de sac à dos.', 'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
                 // Le nain porte déjà l'armure lourde de naissance (ClasseHerosSeeder) ;
                 // ce nœud n'ouvre que les armes à deux mains, pour que les grosses

@@ -114,7 +114,7 @@ Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds 
 - *(actif)* **Désamorçage** : tente de neutraliser un piège (jet de Body).
 - *(passif)* **Garde tenace** : +1 dé de défense contre la première attaque d'un combat.
 - *(déblocage)* **Forge** : **améliore** un équipement de façon **permanente** (+1 dé ou une propriété).
-- *(passif)* **Sang robuste** : résistance au poison.
+- *(passif)* **Sang robuste** : résistance au poison — les **deux** conditions du jeu, *Empoisonné* (pièges, doc 10) et *Envenimé* (créatures venimeuses de Jungles of Delthrak). `effet.condition_nom` accepte donc une liste.
 - *(passif)* **Solides épaules** : +2 emplacements de sac à dos.
 - *(déblocage)* **Poigne de forgeron** : débloque les **armes à deux mains**. (Le nain porte l'**armure lourde** sans nœud — c'est le robuste du groupe.)
 
