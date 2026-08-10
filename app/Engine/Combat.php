@@ -32,6 +32,12 @@ final class Combat
      * @param  int  $pvBodyDefenseur  PV de Body courants du défenseur avant l'attaque
      * @param  bool  $relanceDesAttaqueRatee  Coup puissant (nœud barbare) : relance UNE FOIS chaque dé
      *                                        d'attaque raté (non-crâne), en gardant les crânes déjà obtenus
+     * @param  bool  $defenseurEthere  Monstre ÉTHÉRÉ (Rise of the Dread Moon) : « une attaque de héros ne
+     *                                 les touche que sur un **bouclier noir** (au lieu d'un crâne) ». Une
+     *                                 face sur six au lieu de trois — c'est la seule règle du jeu qui
+     *                                 change la CONDITION DE SUCCÈS d'un dé d'attaque, et elle ne vaut que
+     *                                 pour une arme : le livret excepte « sort ou artefact », que
+     *                                 l'appelant filtre.
      */
     public function resoudreAttaque(
         int $desAttaque,
@@ -39,6 +45,7 @@ final class Combat
         TypeFigurine $typeDefenseur,
         int $pvBodyDefenseur,
         bool $relanceDesAttaqueRatee = false,
+        bool $defenseurEthere = false,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
             throw new \InvalidArgumentException("Dés d'attaque invalides : {$desAttaque}.");
@@ -58,7 +65,13 @@ final class Combat
 
         $facesDefense = $this->des->desCombat($desDefense);
 
-        $touches = count(array_filter($facesAttaque, fn ($face) => $face->estCrane()));
+        // Contre un éthéré, seul le bouclier noir touche. `relancerRatees()`
+        // (Coup puissant) continue de raisonner en crânes : le nœud parle de
+        // « dé raté », et le livret ne l'exempte pas — un barbare relance donc
+        // ses non-crânes, ce qui ne l'aide guère face à un spectre. C'est
+        // cohérent avec l'esprit de la règle : les armes sont le mauvais outil.
+        $touchante = $defenseurEthere ? FaceDeCombat::BouclierNoir : FaceDeCombat::Crane;
+        $touches = count(array_filter($facesAttaque, fn ($face) => $face === $touchante));
 
         $faceDefensive = $typeDefenseur->faceDefensive();
         $boucliers = count(array_filter($facesDefense, fn ($face) => $face === $faceDefensive));

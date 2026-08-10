@@ -224,6 +224,21 @@ final class Grille
         $this->occupees = [];
     }
 
+    /**
+     * **Éthéré** (Rise of the Dread Moon) : « traversent héros / murs / objets
+     * solides ». Roche, portes closes, mobilier et figures : tout s'efface.
+     *
+     * ⚠ La règle ajoute deux interdits que la GRILLE ne peut pas porter, et que
+     * l'appelant doit tenir : « jamais dans une zone non découverte » et
+     * « jamais pour finir sur une case occupée ». Le second surtout — une
+     * traversée n'est pas une superposition.
+     */
+    public function autoriserEthere(): void
+    {
+        $this->autoriserLaRoche();
+        $this->autoriserFranchissement();
+    }
+
     public function autoriserLaRoche(): void
     {
         $this->traverseRoche = true;

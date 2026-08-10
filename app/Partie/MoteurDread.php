@@ -872,6 +872,81 @@ final class MoteurDread
     }
 
     /**
+     * **Spawn** (Jungles of Delthrak, p. 48) : « le monstre crée un Spawnling
+     * adjacent OU déplace tous ses Spawnlings actifs, **en alternative** à
+     * chaque tour ».
+     *
+     * « En alternative » est la limite écrite, et la seule : pas de plafond de
+     * population dans le livret. On n'en invente donc pas — le monstre pond au
+     * lieu d'agir, ce qui lui coûte son attaque. Le CHOIX entre les deux options
+     * de la carte est le nôtre : il pond quand il n'a personne au contact
+     * (attaquer lui est de toute façon interdit), et frappe sinon. Déplacer ses
+     * rejetons n'est pas porté — nos monstres se déplacent déjà seuls.
+     *
+     * La créature engendrée est nommée par la capacité
+     * (`['spawn' => ['creature' => 'Rejeton putride']]`) : notre capacité
+     * `invocation` ne sait invoquer que ce que dit un SORT, c'est-à-dire des
+     * morts-vivants — elle aurait fait cracher des squelettes au serpent.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function pondre(Groupe $groupe, Quete $quete, InstanceMonstre $instance, array $acteur): ?array
+    {
+        $creature = (string) data_get($instance->monstre?->capacites, 'spawn.creature', '');
+
+        if ($creature === '') {
+            return null;
+        }
+
+        $catalogue = Monstre::where('nom_base', $creature)->first();
+
+        if ($catalogue === null) {
+            return null; // catalogue non semé : on n'invente pas de créature
+        }
+
+        $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $libre = null;
+
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+            $x = (int) $instance->position_x + $dx;
+            $y = (int) $instance->position_y + $dy;
+
+            if ($grille->estTraversable($x, $y)) {
+                $libre = ['x' => $x, 'y' => $y];
+                break;
+            }
+        }
+
+        if ($libre === null) {
+            return null; // ceinturé : rien à faire de ce tour
+        }
+
+        $rejeton = InstanceMonstre::create([
+            'quete_id' => $quete->id,
+            'monstre_id' => $catalogue->id,
+            'pv_body' => $catalogue->pv_body,
+            'pv_mind' => $catalogue->pv_mind,
+            'position_x' => $libre['x'],
+            'position_y' => $libre['y'],
+            'etat' => 'actif',
+            'revele' => true,
+        ]);
+
+        $this->reinitialiserUsagesInstance($rejeton, $quete);
+
+        $payload = [
+            'type' => 'spawn',
+            'monstre' => $instance->nomAffiche(),
+            'engendre' => ['instance_id' => $rejeton->id, 'nom' => $catalogue->nom_base,
+                'x' => $libre['x'], 'y' => $libre['y']],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * **Tacticien** — la cible est-elle FLANQUÉE, c'est-à-dire au contact d'un
      * second monstre actif ?
      *

@@ -128,8 +128,10 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
     // ABSENTS du seeder, et documentés en reference/16 §4.6.
     $implementees = ['invocation', 'frappe_de_zone', 'regeneration',
         'resistance_magique', 'charge', 'choix_attaque', 'vol', 'peur',
-        // Mots-clés de Jungles of Delthrak, portés le 2026-08-10.
-        'agile', 'venimeux', 'tacticien', 'racines_entravantes'];
+        // Mots-clés de Jungles of Delthrak, portés le 2026-08-10…
+        'agile', 'venimeux', 'tacticien', 'racines_entravantes', 'spawn',
+        // …et l'éthéré de Rise of the Dread Moon.
+        'ethere'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(

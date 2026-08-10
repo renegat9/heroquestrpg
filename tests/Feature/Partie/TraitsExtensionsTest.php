@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Jobs\GenererMenu;
 use App\Models\Condition;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Monstre;
+use App\Models\Objet;
+use App\Partie\Equipement;
 use App\Partie\Grille;
 use App\Partie\MoteurDread;
 use Database\Seeders\ClasseHerosSeeder;
@@ -221,4 +225,157 @@ it('ignore un monstre VAINCU ou non révélé pour le flanc', function () {
     // Un dormant derrière une porte jamais ouverte ne flanque personne non plus.
     $complice->update(['etat' => 'actif', 'revele' => false]);
     expect($dread->cibleFlanquee($ctx['quete'], $ctx['instance'], $etat))->toBeFalse();
+});
+
+// ---------------------------------------------------------------------------
+// Éthéré — « touché seulement sur un bouclier noir, sauf sort ou artefact »
+// ---------------------------------------------------------------------------
+
+it('encaisse une arme ordinaire : seuls les boucliers noirs touchent', function () {
+    $ctx = demarrerQueteAvecMonstre('Spectre');
+    $pv = (int) $ctx['instance']->pv_body;
+
+    // Épée large : 3 dés. Que des CRÂNES (1) — mortels contre n'importe qui
+    // d'autre, inoffensifs contre un éthéré.
+    Inventaire::create([
+        'personnage_id' => $ctx['heros']->id,
+        'objet_id' => Objet::where('nom', 'Épée large')->firstOrFail()->id,
+        'emplacement' => 'arme_principale', 'quantite' => 1,
+    ]);
+    app(Equipement::class)->recalculerCombat($ctx['heros']->refresh());
+
+    desFiges(array_fill(0, 20, 1));
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 20, 1));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.cible_etheree', true)
+        ->assertJsonPath('resultat.touches', 0);
+
+    expect((int) $ctx['instance']->fresh()->pv_body)->toBe($pv);
+});
+
+it('tombe sous une arme ARTEFACT, que la règle excepte', function () {
+    $ctx = demarrerQueteAvecMonstre('Spectre');
+
+    // « sauf via sort ou artefact » : la Lame des Esprits est `unique`, et
+    // c'est en plus une lame anti-morts-vivants — le spectre en est un.
+    Inventaire::create([
+        'personnage_id' => $ctx['heros']->id,
+        'objet_id' => Objet::where('nom', 'Lame des Esprits')->firstOrFail()->id,
+        'emplacement' => 'arme_principale', 'quantite' => 1,
+    ]);
+    app(Equipement::class)->recalculerCombat($ctx['heros']->refresh());
+
+    desFiges(array_fill(0, 20, 1)); // crânes
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 20, 1));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.cible_etheree', false);
+
+    expect((int) $ctx['instance']->fresh()->pv_body)->toBe(0); // 1 PV, il tombe
+});
+
+it('ouvre murs, portes et figures au déplacement éthéré', function () {
+    $ctx = demarrerQueteAvecMonstre('Spectre');
+    $grille = Grille::depuisCarte($ctx['quete']->carte);
+
+    // Une case de ROCHE : infranchissable pour tout le monde…
+    $roche = null;
+    foreach ($ctx['quete']->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $c) {
+            if ($c === 'm') {
+                $roche = ['x' => $x, 'y' => $y];
+                break 2;
+            }
+        }
+    }
+    expect($roche)->not->toBeNull();
+    expect($grille->estTraversable($roche['x'], $roche['y']))->toBeFalse();
+
+    // …sauf pour un éthéré, qui la traverse.
+    $grille->autoriserEthere();
+    expect($grille->estTraversable($roche['x'], $roche['y']))->toBeTrue();
+});
+
+// ---------------------------------------------------------------------------
+// Spawn — « crée un Spawnling adjacent, en alternative à son tour »
+// ---------------------------------------------------------------------------
+
+it('engendre un Rejeton adjacent, et la créature engendrée est celle de la capacité', function () {
+    $ctx = demarrerQueteAvecMonstre('Serpent géant');
+    $avant = $ctx['quete']->instancesMonstres()->where('etat', 'actif')->count();
+
+    $ponte = app(MoteurDread::class)->pondre(
+        $ctx['groupe'], $ctx['quete'], $ctx['instance'],
+        ['type' => 'monstre', 'id' => $ctx['instance']->id, 'nom' => 'Serpent'],
+    );
+
+    expect($ponte)->not->toBeNull()
+        // Pas un squelette : c'est tout l'intérêt d'avoir paramétré la créature.
+        ->and($ponte['engendre']['nom'])->toBe('Rejeton putride');
+
+    $rejeton = InstanceMonstre::findOrFail($ponte['engendre']['instance_id']);
+
+    expect($ctx['quete']->instancesMonstres()->where('etat', 'actif')->count())->toBe($avant + 1)
+        ->and(abs((int) $rejeton->position_x - (int) $ctx['instance']->position_x)
+            + abs((int) $rejeton->position_y - (int) $ctx['instance']->position_y))
+        ->toBe(1, 'le rejeton doit apparaître ADJACENT à son géniteur');
+});
+
+it('ne pond pas pour une créature sans la capacité', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+
+    expect(app(MoteurDread::class)->pondre(
+        $ctx['groupe'], $ctx['quete'], $ctx['instance'],
+        ['type' => 'monstre', 'id' => $ctx['instance']->id, 'nom' => 'Gobelin'],
+    ))->toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Double-action du tacticien — « peut bouger avant ET après son action »
+// ---------------------------------------------------------------------------
+
+it('décroche après avoir frappé, sauf si toute case libre est encore au contact', function () {
+    $ctx = demarrerQueteAvecMonstre('Raptor');
+
+    desFiges(array_fill(0, 30, 4)); // boucliers : personne ne tombe
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $raptor = $ctx['instance']->fresh();
+    $heros = $ctx['quete']->etatsPersonnages()->where('tombe', false)->get();
+
+    $auContact = fn (int $x, int $y) => $heros->contains(
+        fn ($h) => abs((int) $h->position_x - $x) + abs((int) $h->position_y - $y) === 1,
+    );
+
+    if (! $auContact((int) $raptor->position_x, (int) $raptor->position_y)) {
+        expect(true)->toBeTrue(); // il a décroché : c'est la règle appliquée
+
+        return;
+    }
+
+    // Toujours au contact : ce n'est légitime QUE si aucune case libre
+    // alentour ne l'aurait sorti du corps-à-corps. On le vérifie plutôt que
+    // de l'admettre — sans quoi le test passerait même si le repli ne
+    // tournait pas du tout.
+    $grille = Grille::depuisCarte($ctx['quete']->carte);
+    $echappatoire = false;
+
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $x = (int) $raptor->position_x + $dx;
+        $y = (int) $raptor->position_y + $dy;
+
+        if ($grille->estTraversable($x, $y) && ! $auContact($x, $y)) {
+            $echappatoire = true;
+            break;
+        }
+    }
+
+    expect($echappatoire)->toBeFalse('le tacticien avait une case de repli et ne l\'a pas prise');
 });

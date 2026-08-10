@@ -674,6 +674,14 @@ final class ResolveurTour
             return $payload;
         }
 
+        // Éthéré (Rise of the Dread Moon) : « une attaque de héros ne les touche
+        // que sur un bouclier noir (au lieu d'un crâne), **sauf via sort ou
+        // artefact** ». L'exception est prise au mot : une arme `unique` — un
+        // artefact — frappe normalement, et les sorts passent par un tout autre
+        // chemin (`sortDegats`), donc ne sont pas concernés ici.
+        $ethere = $this->dread->aCapacite($instance, 'ethere')
+            && ($armePrincipale?->rarete ?? null) !== 'unique';
+
         $resultat = $degatsFixes > 0
             ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
             : (new Combat($this->des))->resoudreAttaque(
@@ -682,6 +690,7 @@ final class ResolveurTour
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
                 relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
+                defenseurEthere: $ethere,
             );
 
         // Le héros vient de frapper : les buffs déclarés `prochaine_attaque`
@@ -708,6 +717,7 @@ final class ResolveurTour
             'bonus_frenesie' => $bonusFrenesie,
             'bonus_tir_precis' => $bonusTirPrecis,
             'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
+            'cible_etheree' => $ethere,
             'des_attaque_effectifs' => $desAttaqueEffectifs,
             'cible' => [
                 'instance_id' => $instance->id,
@@ -789,6 +799,114 @@ final class ResolveurTour
             'fleches_restantes' => $this->charges->restantes($arc->fresh()),
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
         ];
+    }
+
+    /**
+     * **Double-action du tacticien** — le mouvement d'APRÈS l'attaque.
+     *
+     * « Peut bouger avant et après son action » (Jungles of Delthrak, p. 48).
+     * La carte accorde la permission sans dire quoi en faire : le décrochage est
+     * NOTRE lecture, et la seule qui donne un sens à un second mouvement — un
+     * monstre qui resterait au contact n'aurait rien gagné à bouger deux fois.
+     *
+     * Il recule d'un pas hors de portée de tout héros. S'il n'existe aucune case
+     * libre non adjacente, il reste où il est : mieux vaut ne pas bouger que
+     * reculer dans un autre corps-à-corps.
+     *
+     * @return array{x: int, y: int}|null
+     */
+    private function replierTacticien(InstanceMonstre $instance): ?array
+    {
+        $quete = $instance->quete;
+
+        if ($quete === null) {
+            return null;
+        }
+
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id);
+
+        $heros = $quete->etatsPersonnages()
+            ->where('tombe', false)
+            ->whereNotNull('position_x')
+            ->get();
+
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+            $x = (int) $instance->position_x + $dx;
+            $y = (int) $instance->position_y + $dy;
+
+            if (! $grille->estTraversable($x, $y)) {
+                continue;
+            }
+
+            $auContact = $heros->contains(fn ($h) => abs((int) $h->position_x - $x)
+                + abs((int) $h->position_y - $y) === 1);
+
+            if (! $auContact) {
+                $instance->update(['position_x' => $x, 'position_y' => $y]);
+
+                return ['x' => $x, 'y' => $y];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Dernière case du trajet où la figurine a le DROIT de s'arrêter.
+     *
+     * Un monstre ordinaire s'arrête au bout de son allonce : sa grille lui
+     * interdisait déjà tout le reste. Un traversant (éthéré, agile) a pu se
+     * frayer un chemin à travers murs et figures — il peut PASSER, pas
+     * stationner. On recule donc jusqu'à la dernière case libre et découverte,
+     * et `null` s'il n'en existe aucune (il reste alors sur place).
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return array{x: int, y: int}|null
+     */
+    private function derniereCaseOuSArreter(Quete $quete, InstanceMonstre $instance, array $chemin, int $pas): ?array
+    {
+        $traversant = $this->dread->aCapacite($instance, 'ethere')
+            || $this->dread->aCapacite($instance, 'agile');
+
+        if (! $traversant) {
+            return $chemin[$pas - 1];
+        }
+
+        // Grille NORMALE : elle dit ce qui est réellement occupé/infranchissable.
+        $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
+        $decouvertes = $quete->sallesDecouvertes();
+
+        for ($i = $pas - 1; $i >= 0; $i--) {
+            $case = $chemin[$i];
+
+            if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])
+                && $this->salleDecouverte($quete, $decouvertes, (int) $case['x'], (int) $case['y'])) {
+                return $case;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * La case appartient-elle à une salle DÉCOUVERTE (ou à un couloir) ?
+     *
+     * « Jamais dans une zone non découverte » : un éthéré ne doit pas traverser
+     * un mur pour aller se poster dans une pièce que le groupe n'a pas encore
+     * ouverte — il y serait invisible et injouable.
+     *
+     * @param  list<int>  $decouvertes
+     */
+    private function salleDecouverte(Quete $quete, array $decouvertes, int $x, int $y): bool
+    {
+        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $index => $salle) {
+            if ($x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
+                && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur']) {
+                return in_array((int) $index, $decouvertes, true);
+            }
+        }
+
+        return true; // couloir : jamais « non découvert »
     }
 
     /**
@@ -2692,6 +2810,17 @@ final class ResolveurTour
             }
         }
 
+        // Éthéré : murs, portes, mobilier et figures s'effacent. Agile : le
+        // mobilier et les figures seulement. Les deux interdits que la grille ne
+        // sait pas porter — ne pas finir sur une case occupée, ne pas entrer
+        // dans une zone non découverte — sont tenus juste après, au moment de
+        // choisir la case d'arrivée.
+        if ($this->dread->aCapacite($instance, 'ethere')) {
+            $grille->autoriserEthere();
+        } elseif ($this->dread->aCapacite($instance, 'agile')) {
+            $grille->autoriserFranchissement();
+        }
+
         // Héros le plus proche : plus court chemin vers une case adjacente
         // (sa propre case si déjà au contact).
         $meilleure = null; // [etat héros, chemin]
@@ -2713,10 +2842,20 @@ final class ResolveurTour
         }
 
         if ($meilleure === null) {
-            return ['monstre' => $nomMonstre, 'action' => 'immobile']; // aucun héros joignable
+            // Spawn : ceinturé de personne, il pond. « En alternative à chaque
+            // tour » — c'est l'action de ce tour, il n'attaquera pas.
+            $ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur);
+
+            return $ponte ?? ['monstre' => $nomMonstre, 'action' => 'immobile'];
         }
 
         [$cible, $chemin] = $meilleure;
+
+        // Spawn : hors contact, pondre vaut mieux qu'avancer d'un pas — la
+        // carte en fait une alternative au tour, pas un bonus.
+        if ($chemin !== [] && ($ponte = $this->dread->pondre($groupe, $quete, $instance, $acteur)) !== null) {
+            return $ponte;
+        }
 
         // Se rapprocher : déplacement fixe du catalogue, le long du chemin.
         $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
@@ -2753,12 +2892,23 @@ final class ResolveurTour
                     }
                 }
             } else {
-                $arrivee = $chemin[$pas - 1];
-                $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-                $cheminParcouruMonstre = array_map(
-                    fn ($c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']],
-                    array_slice($chemin, 0, $pas),
-                );
+                // Une figurine traversante (éthéré/agile) peut avoir un chemin
+                // qui PASSE par des cases occupées ou non découvertes. Elle les
+                // traverse, mais ne s'y arrête pas : on recule jusqu'à la
+                // dernière case d'arrêt légale — « jamais pour finir sur une
+                // case occupée, jamais dans une zone non découverte ».
+                $arrivee = $this->derniereCaseOuSArreter($quete, $instance, $chemin, $pas);
+
+                if ($arrivee !== null) {
+                    $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+
+                    foreach (array_slice($chemin, 0, $pas) as $c) {
+                        $cheminParcouruMonstre[] = ['x' => (int) $c['x'], 'y' => (int) $c['y']];
+                        if ((int) $c['x'] === (int) $arrivee['x'] && (int) $c['y'] === (int) $arrivee['y']) {
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -2869,6 +3019,15 @@ final class ResolveurTour
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
 
+        // Tacticien : « peut bouger AVANT *et* APRÈS son action ». Le second
+        // mouvement est une PERMISSION, pas une obligation — c'est donc à nous
+        // de décider ce qu'il en fait. Choix retenu : le décrochage. Il se
+        // retire du contact après avoir frappé, ce qui est tout l'intérêt de
+        // pouvoir bouger deux fois et donne au raptor sa morsure fuyante.
+        $repli = $this->dread->aCapacite($instance, 'tacticien')
+            ? $this->replierTacticien($instance)
+            : null;
+
         $payload = [
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
@@ -2876,6 +3035,7 @@ final class ResolveurTour
             'bonus_garde_tenace' => $bonusGardeTenace,
             'bonus_flanc' => $bonusFlanc,
             'venin' => $venin,
+            'repli' => $repli,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,

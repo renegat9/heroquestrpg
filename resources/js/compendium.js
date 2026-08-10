@@ -131,6 +131,8 @@ const CAPACITES = {
     venimeux: 'Venimeux (paralysie)',
     tacticien: 'Tacticien (+1 dé sur cible flanquée)',
     racines_entravantes: 'Racines entravantes (stoppe net)',
+    spawn: 'Engendre des rejetons',
+    ethere: 'Éthéré (touché seulement sur bouclier noir)',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */

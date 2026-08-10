@@ -130,11 +130,11 @@ class MonstreSeeder extends Seeder
             // règles citées en reference/18) sont PORTÉS depuis le 2026-08-10 :
             // `agile`, `venimeux`, `tacticien`, `racines_entravantes`.
             //
-            // ⚠ Restent dehors : **Spawn** — notre `invocation` invoque ce que
-            // dit le SORT, des morts-vivants ; la donner au Serpent lui ferait
-            // cracher des squelettes — et la seconde moitié de *Clever
-            // Tactician* (bouger AVANT et APRÈS son action), le tour de monstre
-            // ne fractionnant pas son déplacement. Documenté reference/16 §4.6.
+            // `spawn` (2026-08-10) porte le nom de la créature engendrée :
+            // notre `invocation` ne sait invoquer que ce que dit un SORT, des
+            // morts-vivants, et aurait fait cracher des squelettes au serpent.
+            // `ethere` (Rise of the Dread Moon) et la double-action du
+            // tacticien sont portés le même jour — reference/16 §4.7.
 
             // ---- Kellar's Keep : l'Abomination n'est PAS semée. Ses stats ne
             //      sont chiffrées dans aucun livret (doc 18 note †), seulement
@@ -145,13 +145,13 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Cultiste du Dread', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
                 'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Spectre', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'cout' => 5, 'capacites' => ['ethere'], 'sorts_dread' => []],
             ['nom_base' => 'Assassin', 'deplacement' => 10, 'attaque' => 5, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
                 'tier' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Garde-mage', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
                 'tier' => 'sous_boss', 'cout' => 8, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Ombre du Dread', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'cout' => 15, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'boss', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => []],
 
             // ---- The Mage of the Mirror (doc 18) ----
             // L'archer elfe est la seconde créature à distance du bestiaire :
@@ -202,10 +202,13 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Raptor', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 3,
                 'tier' => 'base', 'cout' => 5, 'capacites' => ['tacticien'], 'sorts_dread' => []],
             ['nom_base' => 'Rampant putride', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'cout' => 10, 'capacites' => ['agile', 'venimeux'], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'cout' => 11,
+                'capacites' => ['agile', 'venimeux', 'spawn' => ['creature' => 'Rejeton putride']],
+                'sorts_dread' => []],
             ['nom_base' => 'Serpent géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
-                'capacites' => ['venimeux'], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['venimeux', 'spawn' => ['creature' => 'Rejeton putride']],
+                'sorts_dread' => []],
             ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
                 'tier' => 'sous_boss', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile'], 'sorts_dread' => []],

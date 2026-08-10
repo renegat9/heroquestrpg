@@ -351,12 +351,14 @@ déjà exprimer.
 - **L'Abomination** (Kellar's Keep). Doc 18 le note † : ses statistiques ne sont
   chiffrées dans **aucun livret**, seulement dans la table de tournoi d'une
   *autre* boîte. On ne sème pas une valeur qu'aucune source n'assume.
-- ***Spawn*** — notre capacité `invocation` existe, mais elle invoque ce que dit
-  le SORT : des morts-vivants. La donner au Serpent lui ferait cracher des
-  squelettes. Il faudrait paramétrer la créature invoquée.
-- **La seconde moitié de *Clever Tactician*** — « peut bouger AVANT *et* APRÈS
-  son action ». Le tour de monstre ne fractionne pas son déplacement ; le
-  **+1 dé contre une cible flanquée**, lui, est porté (§4.7).
+- **Le jeton de dégât différé du Spawnling** — « un jeton posé sur la fiche d'un
+  héros inflige 1 Body Point automatique et indéfendable à chaque fin de tour
+  tant qu'il reste en sa possession, cumulable » (doc 18 §5). La règle est
+  écrite… **sauf comment s'en débarrasser**. « Tant qu'il reste en sa
+  possession » suppose un moyen de le perdre que le livret ne donne pas. Sans
+  lui, le jeton serait une condamnation à mort silencieuse. Le Rejeton est donc
+  semé comme figurine (Attaque 0 : il bloque le passage, il ne frappe pas) et le
+  jeton attend sa règle.
 - **La cinquantaine de cartes non officielles** du paquet (Skaven, Gnoll,
   Bugbear, Carrion Crawler, Rat Ogre, White Seer…) : inspiration Warhammer/D&D,
   jamais HeroQuest.
@@ -378,8 +380,40 @@ et non seulement dans le catalogue.
 | **Agile** | « ignore terrain gênant / mobilier / héros en se déplaçant » | `agile` → `Grille::autoriserFranchissement()` sur la grille de poursuite. Les **murs tiennent** : la carte parle de terrain et de créatures, pas de pierre. C'est l'exact inverse de `autoriserLaRoche()` (Traverser la Pierre), qui ouvre la roche et laisse les figures bloquer. |
 | **Entangling Roots** | « un héros entrant dans une case adjacente au monstre voit son mouvement stoppé net » | `racines_entravantes` → `ResolveurTour::tronquerSurRacines()`, au même endroit que les pièges tronquent déjà le chemin. Le héros s'arrête **sur** la case, pas avant : s'arrêter une case plus tôt l'empêcherait d'aller au contact, donc de frapper. |
 | **Venomous** | « dégât = paralysie, jet de 1 dé rouge pour résister sur 5-6, sinon jeton venin jusqu'à la fin du tour suivant » | `venimeux` → condition **Envenimé** (1 tour). Le seuil est lu sur le **d6 brut** (≥ 5), pas sur une face de combat : nos faces regroupent 4-5 en bouclier blanc, ce qui écraserait la moitié de la règle. Le venin ne passe que si le coup a **porté**. |
-| **Clever Tactician** | « peut bouger avant *et* après son action, +1 dé d'attaque contre une cible flanquée par un autre monstre » | `tacticien` → le **+1 dé** est porté (`MoteurDread::cibleFlanquee()`) ; l'assaillant ne compte pas comme son propre flanc, et un monstre vaincu ou non révélé ne flanque personne. La **double-action**, elle, n'est pas portée : le tour de monstre ne fractionne pas son déplacement. |
-| **Spawn** | « crée un Spawnling adjacent OU déplace tous ses Spawnlings actifs » | ❌ non porté — voir §4.6. |
+| **Clever Tactician** | « peut bouger avant *et* après son action, +1 dé d'attaque contre une cible flanquée par un autre monstre » | `tacticien` → les **deux moitiés** sont portées. Le +1 dé (`cibleFlanquee()`) : l'assaillant ne compte pas comme son propre flanc, et un monstre vaincu ou non révélé ne flanque personne. La **double-action** (`replierTacticien()`) : après avoir frappé, il recule d'un pas hors de tout contact. ⚠ Le livret accorde la permission sans dire quoi en faire — le **décrochage est notre lecture**, et la seule qui donne un sens à un second mouvement : rester au contact n'aurait rien gagné. S'il n'existe aucune case libre non adjacente, il ne bouge pas. |
+| **Spawn** | « crée un Spawnling adjacent OU déplace tous ses Spawnlings actifs, **en alternative** à chaque tour » | `spawn` → `MoteurDread::pondre()`. La créature engendrée est **nommée par la capacité** (`['spawn' => ['creature' => 'Rejeton putride']]`) : notre `invocation` ne sait invoquer que ce que dit un SORT, des morts-vivants, et aurait fait cracher des squelettes au serpent. « En alternative » est la **seule** limite écrite — pas de plafond de population dans le livret, on n'en invente donc pas : pondre coûte l'action du tour. |
+
+### Éthéré (Rise of the Dread Moon)
+
+Règle écrite (doc 18 §5) : « traversent héros / murs / objets solides (mais
+**jamais dans une zone non découverte, jamais pour finir sur une case
+occupée**), insensibles à tous les pièges ; une attaque de héros ne les touche
+que sur un **bouclier noir** (au lieu d'un crâne), **sauf via sort ou
+artefact** ». Porté le 2026-08-10, `ethere` — Spectre et Ombre du Dread.
+
+Deux moitiés, deux endroits :
+
+- **Le déplacement** — `Grille::autoriserEthere()` efface roche, portes closes,
+  mobilier et figures. Mais la grille ne sait pas porter les deux interdits :
+  c'est `ResolveurTour::derniereCaseOuSArreter()` qui, une fois le chemin
+  calculé, **recule jusqu'à la dernière case réellement libre et découverte**.
+  Traverser n'est pas se superposer, et une créature ne va pas se poster dans
+  une pièce que le groupe n'a pas ouverte — elle y serait invisible et
+  injouable.
+- **La touche** — `Engine\Combat` reçoit `defenseurEthere` et compte les
+  **boucliers noirs** au lieu des crânes : une face sur six au lieu de trois.
+  C'est la seule règle du jeu qui change la CONDITION DE SUCCÈS d'un dé
+  d'attaque. L'exception « sort ou artefact » est prise au mot : une arme de
+  rareté `unique` frappe normalement, et les sorts passent de toute façon par un
+  autre chemin (`sortDegats`), donc ne sont pas concernés.
+
+**L'immunité aux pièges est déjà acquise** : `MoteurPieges::declencher()` prend
+un `Personnage`, un monstre ne peut pas lui être passé. Rien à écrire.
+
+⚠ *Coup puissant* (nœud barbare) continue de relancer ses **non-crânes** face à
+un éthéré : le nœud parle de « dé raté » et le livret ne l'exempte pas. Le
+barbare relance donc beaucoup pour rien — ce qui est l'esprit même de la règle,
+les armes sont le mauvais outil contre un spectre.
 
 **Effet de bord voulu** : porter *Venomous* a obligé à câbler
 `conditions.effet.deplacement_interdit`, une clé qui vivait au catalogue depuis
