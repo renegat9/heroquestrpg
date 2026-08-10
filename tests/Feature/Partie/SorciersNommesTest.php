@@ -101,7 +101,15 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
     );
     expect($achats[0]->nom_base)->toBe('Liche');
 
-    // Sans indice d'archétype : leader de coût du tier (Seigneur, comportement d'origine).
+    // Sans indice d'archétype : le LEADER DE COÛT du palier. On ne fige pas son
+    // nom — le bestiaire s'est enrichi des créatures d'extension le 2026-08-10,
+    // et le Seigneur ogre (coût 22) a pris la tête. Ce que le test garde, c'est
+    // la règle : à défaut d'archétype, on prend le boss le plus cher abordable.
+    $plusCher = Monstre::where('tier', 'boss')
+        ->where('cout', '<=', 30)
+        ->orderByDesc('cout')
+        ->firstOrFail();
+
     $achatsDefaut = $methode->invoke(
         $demarreur,
         ['rencontre_finale' => ['tier' => 'boss']],
@@ -109,7 +117,7 @@ it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit
         5,
         1, // positionArc
     );
-    expect($achatsDefaut[0]->nom_base)->toBe('Seigneur');
+    expect($achatsDefaut[0]->nom_base)->toBe($plusCher->nom_base);
 });
 
 it('fait lancer en jeu un sort du répertoire de l\'archétype (champ sorts_dread vide)', function () {

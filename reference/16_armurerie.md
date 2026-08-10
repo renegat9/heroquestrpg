@@ -316,6 +316,54 @@ polaire de guerre** a par ailleurs été aligné sur la carte *Polar Warbear*
 Un sort sans `type_degat` est **neutre** : il ne déclenche ni immunité ni
 interdiction de régénération. C'est le cas de tous les autres.
 
+
+### 4.6 Les créatures des extensions officielles
+
+Intégrées le **2026-08-10**. Leurs stats **ne viennent pas des cartes de fans**
+mais de `reference/18_extensions.md`, qui les tient des **livrets Hasbro** — et
+c'est mieux : les deux sources se contredisent sur plusieurs valeurs (le paquet
+donne au Gremlin des glaces 2 points de Body au lieu de 3, à l'Ours polaire
+3+3 dés au lieu de 4+4). **Le livret gagne**, comme partout ailleurs dans ce
+document.
+
+| Boîte | Créatures intégrées |
+|---|---|
+| **Rise of the Dread Moon** | Cultiste du Dread, Spectre, Assassin, Garde-mage, Ombre du Dread |
+| **The Mage of the Mirror** | Archer elfe, Guerrier elfe, Loup géant, Ogre *(aligné)* |
+| **The Frozen Horror** | Gremlin des glaces, Yéti, Horreur des Glaces, Ours polaire de guerre *(aligné)* |
+| **Against the Ogre Horde** | Ogre guerrier, Ogre champion, Ogre commandant, Seigneur ogre |
+| **Jungles of Delthrak** | Rejeton putride, Archer squelette, Tisseur putride, Crâne putride, Raptor, Rampant putride, Serpent géant, Singe géant, Gobelin archer *(aligné)* |
+
+**23 nouvelles créatures, 3 alignées.** `tier` et `cout` sont les **seules**
+valeurs de nous : ils pilotent le budget de rencontre (doc 06), qui n'existe pas
+au plateau. Comme tous les chiffres d'équilibrage du projet, ce sont des
+propositions de départ.
+
+Deux ajouts changent la forme des paliers : le **Seigneur ogre** (10 points de
+Body) devient la créature la plus résistante du catalogue et prend la tête du
+palier `boss` devant notre Seigneur ; l'**Archer elfe** donne au bestiaire une
+seconde créature à distance — « Attack 4 (1 si adjacent) », soit 4 dés en tir et
+1 seul au contact, ce que nos colonnes `portee` / `attaque_distance` savaient
+déjà exprimer.
+
+**Ce qui n'est PAS intégré, et pourquoi :**
+
+- **L'Abomination** (Kellar's Keep). Doc 18 le note † : ses statistiques ne sont
+  chiffrées dans **aucun livret**, seulement dans la table de tournoi d'une
+  *autre* boîte. On ne sème pas une valeur qu'aucune source n'assume.
+- **Les traits nommés de Jungles of Delthrak** — *Agile*, *Venomous*, *Clever
+  Tactician*, *Entangling Roots* — et ***Spawn***. Aucune mécanique côté moteur.
+  Les stats sont donc semées **sans** le trait plutôt qu'avec une capacité que
+  rien n'applique, et le manque est écrit ici. *Spawn* mérite un mot : notre
+  capacité `invocation` existe, mais elle invoque ce que dit le SORT — des
+  morts-vivants. La donner au Serpent lui ferait cracher des squelettes.
+- **La cinquantaine de cartes non officielles** du paquet (Skaven, Gnoll,
+  Bugbear, Carrion Crawler, Rat Ogre, White Seer…) : inspiration Warhammer/D&D,
+  jamais HeroQuest.
+
+`BestiaireSourceTest` fige les deux ensembles sourçables — les 8 cartes de base
+et les 23 fiches de livret — et refuse toute capacité sans lecteur.
+
 ---
 
 ## 5. Règles de déplacement

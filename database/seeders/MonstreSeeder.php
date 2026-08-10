@@ -90,7 +90,7 @@ class MonstreSeeder extends Seeder
             // `choix_attaque` : cible robuste (PV > seuil) → coup massif unique
             // (dés +massive_des_bonus) ; cible affaiblie → double_nombre attaques.
             // Décision 100 % moteur (ResolveurTour). `cout` sous le leader sous_boss.
-            ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 4, 'pv_mind' => 2,
+            ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 2,
                 'tier' => 'sous_boss', 'cout' => 9,
                 'capacites' => ['choix_attaque' => ['seuil' => 2, 'massive_des_bonus' => 2, 'double_nombre' => 2]],
                 'sorts_dread' => []],
@@ -98,15 +98,114 @@ class MonstreSeeder extends Seeder
             // ----- Monstre à distance (3.4) -----
             // `portee` distance + `attaque_distance` (dés en tir) ; au contact il
             // perd un dé (attaque corps-à-corps moindre). Exige la ligne de vue.
-            ['nom_base' => 'Gobelin archer', 'deplacement' => 8, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
-                'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 3,
+            // Aligné sur la fiche officielle de *Jungles of Delthrak* (doc 18) :
+            // « Attack 2 (1 adj.) » — 2 dés en tir, 1 seul au contact.
+            ['nom_base' => 'Gobelin archer', 'deplacement' => 10, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
+                'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
                 'capacites' => [], 'sorts_dread' => []],
 
             // ----- Grande figurine multi-cases (3.9) -----
             // `grande_taille` : emprise 1×2 (deux cases). Adjacence/ligne de vue/
             // déplacement raisonnent sur l'emprise (moteur Grille).
-            ['nom_base' => 'Ogre', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'cout' => 9, 'grande_taille' => ['l' => 1, 'h' => 2],
+            // Aligné sur la fiche officielle de *The Mage of the Mirror* (doc 18).
+            ['nom_base' => 'Ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 2,
+                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => [], 'sorts_dread' => []],
+
+            // ================= CRÉATURES DES EXTENSIONS OFFICIELLES =================
+            //
+            // Stats issues de `reference/18_extensions.md`, qui les tient des
+            // LIVRETS officiels Hasbro — une meilleure source que les cartes de
+            // fans : le paquet `sjeng-monsters.pdf` diverge d'ailleurs sur
+            // plusieurs (Gremlin des glaces Body 2 au lieu de 3, Ours polaire
+            // 3+3 au lieu de 4+4). Quand les deux se contredisent, le livret
+            // gagne — c'est la règle du doc 16.
+            //
+            // `tier` et `cout` sont les SEULES valeurs de nous : ils pilotent le
+            // budget de rencontre (doc 06), qui n'existe pas au plateau. Comme
+            // tous les chiffres d'équilibrage du projet, ce sont des propositions
+            // de départ à régler en playtest.
+            //
+            // ⚠ Traits NON portés, faute de mécanique : *Agile*, *Venomous*,
+            // *Clever Tactician*, *Entangling Roots* (Jungles of Delthrak) et
+            // *Spawn*. Ce dernier mérite un mot : notre capacité `invocation`
+            // existe, mais elle invoque ce que dit le SORT — des morts-vivants.
+            // La donner au Serpent lui ferait cracher des squelettes. Les stats
+            // sont donc semées sans le trait, et le manque est documenté
+            // (reference/16 §4.6) plutôt que travesti.
+
+            // ---- Kellar's Keep : l'Abomination n'est PAS semée. Ses stats ne
+            //      sont chiffrées dans aucun livret (doc 18 note †), seulement
+            //      dans la table de tournoi d'une AUTRE boîte. On ne sème pas une
+            //      valeur qu'aucune source n'assume.
+
+            // ---- Rise of the Dread Moon (doc 18) ----
+            ['nom_base' => 'Cultiste du Dread', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Spectre', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Assassin', 'deplacement' => 10, 'attaque' => 5, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Garde-mage', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'cout' => 8, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Ombre du Dread', 'deplacement' => 9, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 5,
+                'tier' => 'boss', 'cout' => 15, 'capacites' => [], 'sorts_dread' => []],
+
+            // ---- The Mage of the Mirror (doc 18) ----
+            // L'archer elfe est la seconde créature à distance du bestiaire :
+            // « Attack 4 (1 si adjacent) ».
+            ['nom_base' => 'Archer elfe', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 5, 'portee' => 'distance', 'attaque_distance' => 4,
+                'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Guerrier elfe', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Loup géant', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 1,
+                'tier' => 'sous_boss', 'cout' => 11, 'capacites' => ['charge'], 'sorts_dread' => []],
+
+            // ---- The Frozen Horror (doc 18) ----
+            ['nom_base' => 'Gremlin des glaces', 'deplacement' => 10, 'attaque' => 2, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Yéti', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
+                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
+            // Boss de sa boîte. Grande figurine, comme l'ogre.
+            ['nom_base' => 'Horreur des Glaces', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 4,
+                'tier' => 'boss', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['resistance_magique'], 'sorts_dread' => []],
+
+            // ---- Against the Ogre Horde (doc 18) ----
+            ['nom_base' => 'Ogre guerrier', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 1,
+                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Ogre champion', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 1,
+                'tier' => 'sous_boss', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Ogre commandant', 'deplacement' => 4, 'attaque' => 6, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 2,
+                'tier' => 'boss', 'cout' => 15, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['charge'], 'sorts_dread' => []],
+            // 10 points de Body : la créature la plus résistante du catalogue.
+            ['nom_base' => 'Seigneur ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 6, 'pv_body' => 10, 'pv_mind' => 5,
+                'tier' => 'boss', 'cout' => 22, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['frappe_de_zone', 'resistance_magique'], 'sorts_dread' => []],
+
+            // ---- Jungles of Delthrak (doc 18) ----
+            ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Archer squelette', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
+                'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Tisseur putride', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
+                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Crâne putride', 'deplacement' => 6, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Raptor', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Rampant putride', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Serpent géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => [], 'sorts_dread' => []],
+            ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
+                'tier' => 'sous_boss', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
         ];
 
