@@ -369,6 +369,12 @@ final class ResolveurTour
 
         // Traverser la Pierre : tant que le buff tient (ce tour), la roche et
         // les portes closes ne barrent plus le chemin de CE héros.
+        if ($this->sorts->deplacementInterdit($personnage)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Impossible de bouger : tu es immobilisé.',
+            ]);
+        }
+
         $traverseRoche = $this->sorts->traverseRoche($personnage);
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
@@ -392,6 +398,25 @@ final class ResolveurTour
         //  - Œil du mineur : entrer sur une case rendant un piège caché adjacent
         //    le RÉVÈLE et interrompt la course sur cette case (arrêt SOUPLE : les
         //    points restants sont conservés, le héros peut réagir).
+        // Racines entravantes (Jungles of Delthrak) : « un héros entrant dans une
+        // case adjacente au monstre voit son mouvement stoppé net ». On tronque
+        // AVANT le contrôle des pièges — les racines arrêtent la course, le
+        // héros ne traverse donc pas les cases suivantes et ne peut pas y
+        // déclencher de piège.
+        //
+        // ⚠ Il ne suffit PAS de raccourcir le chemin : plus bas, l'arrivée
+        // retombe sur la destination DEMANDÉE quand aucun piège n'arrête le
+        // héros. Sans réécrire $x/$y ici, le héros se téléportait à bon port en
+        // ayant l'air d'avoir été stoppé.
+        $tronque = $this->tronquerSurRacines($quete, $chemin);
+
+        if (count($tronque) < count($chemin)) {
+            $chemin = $tronque;
+            $derniere = end($chemin);
+            $x = (int) $derniere['x'];
+            $y = (int) $derniere['y'];
+        }
+
         $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin);
         $interrompu = $controle['arret'] !== null;
         $arretDur = $controle['dur'] ?? false;
@@ -764,6 +789,43 @@ final class ResolveurTour
             'fleches_restantes' => $this->charges->restantes($arc->fresh()),
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
         ];
+    }
+
+    /**
+     * Coupe le chemin à la PREMIÈRE case adjacente à une créature à racines
+     * entravantes — « un héros entrant dans une case adjacente au monstre voit
+     * son mouvement stoppé net » (Jungles of Delthrak, p. 49).
+     *
+     * Le héros s'arrête SUR cette case : il est entré, la racine l'a saisi. Un
+     * arrêt une case avant l'aurait empêché d'atteindre la créature au contact,
+     * donc de la frapper — l'inverse de ce que la carte décrit.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return list<array{x: int, y: int}>
+     */
+    private function tronquerSurRacines(Quete $quete, array $chemin): array
+    {
+        $gardiens = $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->with('monstre')
+            ->get()
+            ->filter(fn (InstanceMonstre $i) => in_array('racines_entravantes', (array) ($i->monstre?->capacites ?? []), true));
+
+        if ($gardiens->isEmpty()) {
+            return $chemin;
+        }
+
+        foreach ($chemin as $index => $case) {
+            $adjacent = $gardiens->contains(fn (InstanceMonstre $i) => abs((int) $i->position_x - (int) $case['x'])
+                + abs((int) $i->position_y - (int) $case['y']) === 1);
+
+            if ($adjacent) {
+                return array_slice($chemin, 0, $index + 1);
+            }
+        }
+
+        return $chemin;
     }
 
     /**
@@ -2779,8 +2841,13 @@ final class ResolveurTour
             $cible->update(['garde_tenace_utilisee' => true]);
         }
 
+        // Tacticien (Jungles of Delthrak) : +1 dé contre une cible FLANQUÉE,
+        // c'est-à-dire au contact d'un second monstre. Le tacticien lui-même ne
+        // compte pas comme son propre flanc.
+        $bonusFlanc = $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0;
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: max(0, $desAttaque),
+            desAttaque: max(0, $desAttaque + $bonusFlanc),
             desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense') + $bonusGardeTenace,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
@@ -2795,6 +2862,9 @@ final class ResolveurTour
         // jamais décrémentée, le bonus valait pour toute la campagne.
         $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_DEFENSE);
 
+        // Venimeux : le venin ne passe que si le coup a porté.
+        $venin = $resultat->degats > 0 && $this->dread->appliquerVenin($instance, $personnage);
+
         if ($resultat->cibleTombee) {
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
@@ -2804,6 +2874,8 @@ final class ResolveurTour
             'monstre' => $nomMonstre,
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'bonus_garde_tenace' => $bonusGardeTenace,
+            'bonus_flanc' => $bonusFlanc,
+            'venin' => $venin,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,

@@ -35,6 +35,14 @@ class ConditionSeeder extends Seeder
                 'effet' => ['bonus_des' => 'attaque_ou_defense_selon_source', 'fin' => 'un_combat_ou_duree_du_sort']],
             ['nom' => 'Tombé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['hors_combat' => true, 'occupe_sa_case' => true, 'relevable' => true, 'fin' => 'releve_ou_fin_de_combat', 'mort_si_non_releve' => true]],
+            // Venin (Jungles of Delthrak, p. 48) : « dégât = paralysie, jet de
+            // 1 dé rouge pour résister sur 5-6, sinon jeton venin jusqu'à la
+            // fin du tour suivant ». `deplacement_interdit` est CÂBLÉ depuis le
+            // 2026-08-10 — MenuMoteur retire « Se déplacer », ResolveurTour
+            // refuse le mouvement —, ce qui rend du même coup `Immobilisé`
+            // réellement immobilisant.
+            ['nom' => 'Envenimé', 'type' => 'physique', 'duree_defaut' => 1,
+                'effet' => ['deplacement_interdit' => true, 'fin' => 'prochain_tour']],
         ];
 
         foreach ($conditions as $condition) {

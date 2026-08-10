@@ -126,13 +126,15 @@ class MonstreSeeder extends Seeder
             // tous les chiffres d'équilibrage du projet, ce sont des propositions
             // de départ à régler en playtest.
             //
-            // ⚠ Traits NON portés, faute de mécanique : *Agile*, *Venomous*,
-            // *Clever Tactician*, *Entangling Roots* (Jungles of Delthrak) et
-            // *Spawn*. Ce dernier mérite un mot : notre capacité `invocation`
-            // existe, mais elle invoque ce que dit le SORT — des morts-vivants.
-            // La donner au Serpent lui ferait cracher des squelettes. Les stats
-            // sont donc semées sans le trait, et le manque est documenté
-            // (reference/16 §4.6) plutôt que travesti.
+            // Les mots-clés de capacité de Jungles of Delthrak (livret p. 48-49,
+            // règles citées en reference/18) sont PORTÉS depuis le 2026-08-10 :
+            // `agile`, `venimeux`, `tacticien`, `racines_entravantes`.
+            //
+            // ⚠ Restent dehors : **Spawn** — notre `invocation` invoque ce que
+            // dit le SORT, des morts-vivants ; la donner au Serpent lui ferait
+            // cracher des squelettes — et la seconde moitié de *Clever
+            // Tactician* (bouger AVANT et APRÈS son action), le tour de monstre
+            // ne fractionnant pas son déplacement. Documenté reference/16 §4.6.
 
             // ---- Kellar's Keep : l'Abomination n'est PAS semée. Ses stats ne
             //      sont chiffrées dans aucun livret (doc 18 note †), seulement
@@ -189,24 +191,24 @@ class MonstreSeeder extends Seeder
 
             // ---- Jungles of Delthrak (doc 18) ----
             ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'cout' => 2, 'capacites' => ['venimeux', 'agile'], 'sorts_dread' => []],
             ['nom_base' => 'Archer squelette', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Tisseur putride', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
                 'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Crâne putride', 'deplacement' => 6, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'cout' => 5, 'capacites' => ['racines_entravantes'], 'sorts_dread' => []],
             ['nom_base' => 'Raptor', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'cout' => 5, 'capacites' => ['tacticien'], 'sorts_dread' => []],
             ['nom_base' => 'Rampant putride', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'cout' => 10, 'capacites' => ['agile', 'venimeux'], 'sorts_dread' => []],
             ['nom_base' => 'Serpent géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
-                'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
                 'tier' => 'sous_boss', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
-                'capacites' => [], 'sorts_dread' => []],
+                'capacites' => ['venimeux'], 'sorts_dread' => []],
+            ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
+                'tier' => 'sous_boss', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['agile'], 'sorts_dread' => []],
         ];
 
         foreach ($monstres as $monstre) {

@@ -351,18 +351,46 @@ déjà exprimer.
 - **L'Abomination** (Kellar's Keep). Doc 18 le note † : ses statistiques ne sont
   chiffrées dans **aucun livret**, seulement dans la table de tournoi d'une
   *autre* boîte. On ne sème pas une valeur qu'aucune source n'assume.
-- **Les traits nommés de Jungles of Delthrak** — *Agile*, *Venomous*, *Clever
-  Tactician*, *Entangling Roots* — et ***Spawn***. Aucune mécanique côté moteur.
-  Les stats sont donc semées **sans** le trait plutôt qu'avec une capacité que
-  rien n'applique, et le manque est écrit ici. *Spawn* mérite un mot : notre
-  capacité `invocation` existe, mais elle invoque ce que dit le SORT — des
-  morts-vivants. La donner au Serpent lui ferait cracher des squelettes.
+- ***Spawn*** — notre capacité `invocation` existe, mais elle invoque ce que dit
+  le SORT : des morts-vivants. La donner au Serpent lui ferait cracher des
+  squelettes. Il faudrait paramétrer la créature invoquée.
+- **La seconde moitié de *Clever Tactician*** — « peut bouger AVANT *et* APRÈS
+  son action ». Le tour de monstre ne fractionne pas son déplacement ; le
+  **+1 dé contre une cible flanquée**, lui, est porté (§4.7).
 - **La cinquantaine de cartes non officielles** du paquet (Skaven, Gnoll,
   Bugbear, Carrion Crawler, Rat Ogre, White Seer…) : inspiration Warhammer/D&D,
   jamais HeroQuest.
 
 `BestiaireSourceTest` fige les deux ensembles sourçables — les 8 cartes de base
 et les 23 fiches de livret — et refuse toute capacité sans lecteur.
+
+---
+
+### 4.7 Les mots-clés de capacité de *Jungles of Delthrak*
+
+Le livret définit **5 mots-clés** en pages 48-49 (texte cité dans
+`reference/18_extensions.md`). **Quatre sont portés** depuis le 2026-08-10 —
+c'est la première fois qu'un trait d'extension entre réellement dans le moteur,
+et non seulement dans le catalogue.
+
+| Mot-clé | Texte du livret | Chez nous |
+|---|---|---|
+| **Agile** | « ignore terrain gênant / mobilier / héros en se déplaçant » | `agile` → `Grille::autoriserFranchissement()` sur la grille de poursuite. Les **murs tiennent** : la carte parle de terrain et de créatures, pas de pierre. C'est l'exact inverse de `autoriserLaRoche()` (Traverser la Pierre), qui ouvre la roche et laisse les figures bloquer. |
+| **Entangling Roots** | « un héros entrant dans une case adjacente au monstre voit son mouvement stoppé net » | `racines_entravantes` → `ResolveurTour::tronquerSurRacines()`, au même endroit que les pièges tronquent déjà le chemin. Le héros s'arrête **sur** la case, pas avant : s'arrêter une case plus tôt l'empêcherait d'aller au contact, donc de frapper. |
+| **Venomous** | « dégât = paralysie, jet de 1 dé rouge pour résister sur 5-6, sinon jeton venin jusqu'à la fin du tour suivant » | `venimeux` → condition **Envenimé** (1 tour). Le seuil est lu sur le **d6 brut** (≥ 5), pas sur une face de combat : nos faces regroupent 4-5 en bouclier blanc, ce qui écraserait la moitié de la règle. Le venin ne passe que si le coup a **porté**. |
+| **Clever Tactician** | « peut bouger avant *et* après son action, +1 dé d'attaque contre une cible flanquée par un autre monstre » | `tacticien` → le **+1 dé** est porté (`MoteurDread::cibleFlanquee()`) ; l'assaillant ne compte pas comme son propre flanc, et un monstre vaincu ou non révélé ne flanque personne. La **double-action**, elle, n'est pas portée : le tour de monstre ne fractionne pas son déplacement. |
+| **Spawn** | « crée un Spawnling adjacent OU déplace tous ses Spawnlings actifs » | ❌ non porté — voir §4.6. |
+
+**Effet de bord voulu** : porter *Venomous* a obligé à câbler
+`conditions.effet.deplacement_interdit`, une clé qui vivait au catalogue depuis
+la création de la table **sans le moindre lecteur**. Un héros « Immobilisé »
+marchait normalement. `MenuMoteur` retire désormais « Se déplacer » et
+`ResolveurTour` refuse le mouvement — ce qui rend du même coup la condition
+**Immobilisé** réellement immobilisante.
+
+`TraitsExtensionsTest` éprouve les quatre traits **en jeu**, pas au catalogue :
+un trait déclaré ne prouve rien, c'est la leçon d'`attaque_second_rang`, du
+`jetable` décoratif et de la Potion d'héroïsme injouable.
 
 ---
 

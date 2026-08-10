@@ -127,7 +127,9 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
     // extensions qu'on ne sait pas porter (Agile, Venomous, Spawn…) sont donc
     // ABSENTS du seeder, et documentés en reference/16 §4.6.
     $implementees = ['invocation', 'frappe_de_zone', 'regeneration',
-        'resistance_magique', 'charge', 'choix_attaque', 'vol', 'peur'];
+        'resistance_magique', 'charge', 'choix_attaque', 'vol', 'peur',
+        // Mots-clés de Jungles of Delthrak, portés le 2026-08-10.
+        'agile', 'venimeux', 'tacticien', 'racines_entravantes'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(
@@ -141,4 +143,25 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         ->all();
 
     expect($inconnues)->toBe([], 'capacité(s) sans lecteur : '.implode(', ', $inconnues));
+});
+
+it('donne à chaque créature de Jungles le trait que son livret lui prête', function () {
+    // Les 4 mots-clés portés (p. 48-49). *Spawn* et la double-action du
+    // tacticien restent dehors, faute de mécanique — reference/16 §4.6.
+    $traits = [
+        'Rejeton putride' => ['venimeux', 'agile'],
+        'Crâne putride' => ['racines_entravantes'],
+        'Raptor' => ['tacticien'],
+        'Rampant putride' => ['agile', 'venimeux'],
+        'Serpent géant' => ['venimeux'],
+        'Singe géant' => ['agile'],
+    ];
+
+    foreach ($traits as $nom => $attendus) {
+        $capacites = (array) Monstre::where('nom_base', $nom)->firstOrFail()->capacites;
+
+        foreach ($attendus as $trait) {
+            expect(in_array($trait, $capacites, true))->toBeTrue("{$nom} devrait porter « {$trait} »");
+        }
+    }
 });

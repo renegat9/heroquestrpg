@@ -50,7 +50,20 @@ use Illuminate\Support\Facades\DB;
  *   - resistance_magique : +2 dés de défense quand un héros lui lance un sort de
  *     dégâts — branchement dans MoteurSorts::bonusDefenseResistanceMagique() ;
  *   - charge         : si hors contact mais joignable ce tour : déplacement
- *     puis attaque à +1 dé.
+ *     puis attaque à +1 dé ;
+ *
+ * CAPACITÉS DES EXTENSIONS (Jungles of Delthrak, livret p. 48-49 — règles
+ * citées dans reference/18_extensions.md, portées le 2026-08-10) :
+ *   - agile          : « ignore terrain gênant/mobilier/héros en se
+ *     déplaçant » — les murs, eux, tiennent ;
+ *   - tacticien      : « +1 dé d'attaque contre une cible flanquée par un
+ *     autre monstre » (la seconde moitié de la carte, bouger AVANT et APRÈS
+ *     son action, n'est pas portée : le tour de monstre ne fractionne pas) ;
+ *   - venimeux       : « dégât = paralysie, jet de 1 dé rouge pour résister
+ *     sur 5-6, sinon jeton venin jusqu'à la fin du tour suivant » ;
+ *   - racines_entravantes : « un héros entrant dans une case adjacente au
+ *     monstre voit son mouvement stoppé net » — appliqué côté héros, dans
+ *     ResolveurTour, là où les pièges tronquent déjà le chemin.
  *
  * DÉCISION DE SORT (jouerMonstreDread) — priorités :
  *   1. Tempête de feu / Trait de Chaos si héros à portée de vue (score ≥ 2 héros
@@ -69,6 +82,9 @@ final class MoteurDread
 
     /** Bonus de dés de défense de la capacité Résistance magique. */
     public const BONUS_RESISTANCE_MAGIQUE = 2;
+
+    /** Condition posée par une créature venimeuse (Jungles of Delthrak). */
+    public const CONDITION_ENVENIME = 'Envenimé';
 
     /** Nombre de sbires invoqués par sort/capacité d'invocation. */
     public const NB_SBIRES_INVOQUES = 2;
@@ -404,8 +420,15 @@ final class MoteurDread
 
         foreach ($adjacents as $cible) {
             $personnage = $cible->personnage;
+
+            // Tacticien : « +1 dé contre une cible flanquée par un autre
+            // monstre ». Le flanc, c'est un SECOND assaillant au contact — pas
+            // le monstre qui frappe, sinon tout monstre serait son propre flanc.
+            $bonusFlanc = $this->aCapacite($instance, 'tacticien')
+                && $this->cibleFlanquee($quete, $instance, $cible) ? 1 : 0;
+
             $resultat = (new Combat($this->des))->resoudreAttaque(
-                desAttaque: (int) $instance->monstre->attaque,
+                desAttaque: $instance->attaqueEffective() + $bonusFlanc,
                 desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
                 typeDefenseur: TypeFigurine::Heros,
                 pvBodyDefenseur: (int) $personnage->pv_body,
@@ -413,6 +436,9 @@ final class MoteurDread
 
             $personnage->update(['pv_body' => $resultat->pvBodyApres]);
             $this->sorts->reveillerHeros($personnage);
+
+            // Venimeux : le venin ne passe QUE si le coup a porté.
+            $venin = $resultat->degats > 0 && $this->appliquerVenin($instance, $personnage);
 
             if ($resultat->cibleTombee) {
                 $cible->update(['tombe' => true]);
@@ -846,6 +872,55 @@ final class MoteurDread
     }
 
     /**
+     * **Tacticien** — la cible est-elle FLANQUÉE, c'est-à-dire au contact d'un
+     * second monstre actif ?
+     *
+     * L'assaillant lui-même ne compte pas : sans cette exclusion, tout monstre
+     * serait son propre flanc et le bonus vaudrait tout le temps.
+     */
+    public function cibleFlanquee(Quete $quete, InstanceMonstre $assaillant, EtatPersonnageQuete $cible): bool
+    {
+        return $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->whereKeyNot($assaillant->id)
+            ->get()
+            ->contains(fn (InstanceMonstre $autre) => abs((int) $autre->position_x - (int) $cible->position_x)
+                + abs((int) $autre->position_y - (int) $cible->position_y) === 1);
+    }
+
+    /**
+     * **Venimeux** — « dégât = paralysie, jet de 1 dé rouge pour résister sur
+     * 5-6, sinon jeton venin jusqu'à la fin du tour suivant ».
+     *
+     * Le seuil est lu sur le d6 BRUT (5 ou 6) et non sur une face de combat :
+     * nos faces regroupent 4-5 en bouclier blanc, ce qui écraserait la moitié
+     * de la règle. Rend `true` si le venin a pris.
+     */
+    public function appliquerVenin(InstanceMonstre $instance, Personnage $personnage): bool
+    {
+        if (! $this->aCapacite($instance, 'venimeux')) {
+            return false;
+        }
+
+        if ($this->des->d6() >= 5) {
+            return false; // résisté
+        }
+
+        $condition = Condition::where('nom', self::CONDITION_ENVENIME)->first();
+
+        if ($condition === null) {
+            return false; // catalogue non semé : on n'invente pas de condition
+        }
+
+        $personnage->conditions()->syncWithoutDetaching([
+            $condition->id => ['duree' => max(1, (int) $condition->duree_defaut), 'source' => 'venin'],
+        ]);
+
+        return true;
+    }
+
+    /**
      * Fuite : téléportation du lanceur sur la case libre la plus éloignée
      * des héros (distance de Manhattan maximale), 1×/rencontre.
      *
@@ -900,6 +975,11 @@ final class MoteurDread
     ): ?array {
         $nomMonstre = $instance->nomAffiche();
         $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+
+        // Agile : ni le mobilier ni les figures ne barrent plus le chemin.
+        if ($this->aCapacite($instance, 'agile')) {
+            $grille->autoriserFranchissement();
+        }
 
         // Vérifier que le monstre n'est pas déjà adjacent.
         foreach ($cibles as $cible) {

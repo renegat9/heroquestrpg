@@ -250,7 +250,12 @@ final class MenuMoteur
         // case orthogonale traversable : murs / portes fermées / figures) — sinon
         // c'était une option morte (0 case) qui forçait « Terminer le tour ». Le
         // plateau est celui du moteur (occupation identique à ResolveurTour).
-        if (! $aDeplace && $this->peutSeDeplacer($quete, $personnage, $etat)) {
+        // `deplacement_interdit` (Envenimé, Immobilisé) : la clé vivait dans le
+        // catalogue des conditions sans AUCUN lecteur — un héros « immobilisé »
+        // se déplaçait comme si de rien n'était. Câblée le 2026-08-10, en même
+        // temps que le venin des créatures de Jungles of Delthrak.
+        if (! $aDeplace && ! $this->sorts->deplacementInterdit($personnage)
+            && $this->peutSeDeplacer($quete, $personnage, $etat)) {
             $portee = $this->deplacementDuTour($personnage, $etat);
 
             // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son

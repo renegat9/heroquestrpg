@@ -126,6 +126,11 @@ const CAPACITES = {
     vol: 'Vol',
     peur: 'Peur',
     regeneration: 'Régénération',
+    resistance_magique: 'Résistance magique',
+    agile: 'Agile (ignore mobilier et figures)',
+    venimeux: 'Venimeux (paralysie)',
+    tacticien: 'Tacticien (+1 dé sur cible flanquée)',
+    racines_entravantes: 'Racines entravantes (stoppe net)',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */

@@ -209,6 +209,21 @@ final class Grille
      * traverse pas un compagnon), et la ligne de vue n'est pas touchée — voir
      * au-delà d'un mur reste impossible.
      */
+    /**
+     * **Agile** (Jungles of Delthrak, p. 48) : « ignore le terrain gênant, le
+     * mobilier et les héros en se déplaçant ».
+     *
+     * Le mobilier et les figures cessent de barrer le chemin — les MURS, eux,
+     * tiennent : la carte parle de terrain et de créatures, pas de pierre. À
+     * distinguer donc de `autoriserLaRoche()`, qui est l'inverse (la roche
+     * s'ouvre, les figures continuent de bloquer).
+     */
+    public function autoriserFranchissement(): void
+    {
+        $this->obstacles = [];
+        $this->occupees = [];
+    }
+
     public function autoriserLaRoche(): void
     {
         $this->traverseRoche = true;

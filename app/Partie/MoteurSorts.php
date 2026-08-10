@@ -197,6 +197,21 @@ final class MoteurSorts
     }
 
     /**
+     * Une CONDITION portée interdit-elle tout déplacement (`Envenimé`,
+     * `Immobilisé`) ?
+     *
+     * La clé `deplacement_interdit` existait au catalogue depuis la création de
+     * la table sans le moindre lecteur : un héros « immobilisé » marchait
+     * normalement. Lue depuis le 2026-08-10.
+     */
+    public function deplacementInterdit(Personnage $personnage): bool
+    {
+        return $personnage->conditions()
+            ->get()
+            ->contains(fn (Condition $c) => (bool) ($c->effet['deplacement_interdit'] ?? false));
+    }
+
+    /**
      * Une pièce portée absorbe-t-elle intégralement un dégât de cette NATURE ?
      *
      * Consomme une charge et rend `true` — l'appelant n'applique alors aucun
