@@ -224,3 +224,40 @@ describe('Combat — Coup puissant (relance des dés d\'attaque ratés)', functi
         expect($resultat->touches)->toBe(1);
     });
 });
+
+it('Coup puissant relance ce qui RATE, pas ce qui touche (défenseur éthéré)', function () {
+    // Régression : `relancerRatees` jugeait « raté » sur le crâne. Contre un
+    // éthéré — où c'est le BOUCLIER NOIR qui touche — elle gardait donc les
+    // ratés et relançait les réussites. Coup puissant faisait tomber la chance
+    // de toucher de 1/6 à 1/12 : le talent rendait le barbare deux fois pire.
+    //
+    // 3 dés : bouclier noir (6, touche), crâne (1, raté), bouclier blanc (4,
+    // raté). Les deux ratés sont relancés en 6 → 3 touches.
+    $lanceur = new LanceurDeterministe([6, 1, 4, 6, 6, 4, 4, 4]);
+
+    $resultat = (new Combat($lanceur))->resoudreAttaque(
+        desAttaque: 3,
+        desDefense: 0,
+        typeDefenseur: TypeFigurine::Monstre,
+        pvBodyDefenseur: 5,
+        relanceDesAttaqueRatee: true,
+        defenseurEthere: true,
+    );
+
+    expect($resultat->touches)->toBe(3);
+});
+
+it('garde le crâne comme face touchante quand la cible n\'est pas éthérée', function () {
+    // 3 dés : crâne (1) gardé, deux ratés relancés en crânes.
+    $lanceur = new LanceurDeterministe([1, 4, 6, 1, 1, 4, 4, 4]);
+
+    $resultat = (new Combat($lanceur))->resoudreAttaque(
+        desAttaque: 3,
+        desDefense: 0,
+        typeDefenseur: TypeFigurine::Monstre,
+        pvBodyDefenseur: 5,
+        relanceDesAttaqueRatee: true,
+    );
+
+    expect($resultat->touches)->toBe(3);
+});

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
+use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
@@ -527,4 +528,25 @@ it('expose le compteur dans l\'état du groupe, pour qu\'il SE VOIE', function (
     expect($heros)->not->toBeNull();
 
     expect((int) ($heros['jetons_rejeton'] ?? 0))->toBe(2);
+});
+
+it('laisse un talent de résistance nommée bloquer le venin', function () {
+    // Régression : `appliquerVenin` posait sa condition en direct, sans passer
+    // par `Competence::resisteA` — le chemin qu'empruntent pièges et sorts de
+    // Dread. Un talent de résistance ne doit pas dépendre de QUI applique
+    // l'effet (audit des talents, 2026-08-10).
+    $ctx = demarrerQueteAvecMonstre('Serpent géant', ['classe' => 'nain']);
+
+    $resistance = Competence::create([
+        'classe' => 'nain', 'nom' => 'Sang de fer', 'description' => 'test',
+        'type' => 'passif',
+        'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => 'Envenimé'],
+    ]);
+    $ctx['heros']->competences()->attach($resistance->id);
+
+    desFiges([1]); // le jet de résistance échoue : seul le talent peut sauver
+    expect(app(MoteurDread::class)->appliquerVenin($ctx['instance'], $ctx['heros']->fresh()))
+        ->toBeFalse();
+
+    expect($ctx['heros']->fresh()->conditions()->where('nom', 'Envenimé')->exists())->toBeFalse();
 });

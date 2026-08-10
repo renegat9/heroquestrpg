@@ -57,20 +57,19 @@ final class Combat
             throw new \InvalidArgumentException("PV de Body invalides : {$pvBodyDefenseur}.");
         }
 
+        // Quelle face TOUCHE ? Un crâne d'ordinaire ; un bouclier noir contre un
+        // éthéré. Cette valeur doit être connue AVANT la relance, sinon
+        // « Coup puissant » relance les mauvais dés (voir ci-dessous).
+        $touchante = $defenseurEthere ? FaceDeCombat::BouclierNoir : FaceDeCombat::Crane;
+
         $facesAttaque = $this->des->desCombat($desAttaque);
 
         if ($relanceDesAttaqueRatee) {
-            $facesAttaque = $this->relancerRatees($facesAttaque);
+            $facesAttaque = $this->relancerRatees($facesAttaque, $touchante);
         }
 
         $facesDefense = $this->des->desCombat($desDefense);
 
-        // Contre un éthéré, seul le bouclier noir touche. `relancerRatees()`
-        // (Coup puissant) continue de raisonner en crânes : le nœud parle de
-        // « dé raté », et le livret ne l'exempte pas — un barbare relance donc
-        // ses non-crânes, ce qui ne l'aide guère face à un spectre. C'est
-        // cohérent avec l'esprit de la règle : les armes sont le mauvais outil.
-        $touchante = $defenseurEthere ? FaceDeCombat::BouclierNoir : FaceDeCombat::Crane;
         $touches = count(array_filter($facesAttaque, fn ($face) => $face === $touchante));
 
         $faceDefensive = $typeDefenseur->faceDefensive();
@@ -95,9 +94,15 @@ final class Combat
      * @param  list<FaceDeCombat>  $faces
      * @return list<FaceDeCombat>
      */
-    private function relancerRatees(array $faces): array
+    private function relancerRatees(array $faces, FaceDeCombat $touchante = FaceDeCombat::Crane): array
     {
-        $nbRatees = count(array_filter($faces, fn ($face) => ! $face->estCrane()));
+        // ⚠ « Raté » se juge sur la face QUI TOUCHE, pas sur le crâne.
+        // L'ancienne version relançait tout ce qui n'était pas un crâne : contre
+        // un éthéré — où c'est le bouclier noir qui touche — elle gardait les
+        // ratés et relançait les réussites, faisant tomber la chance de toucher
+        // de 1/6 à 1/12. Coup puissant rendait le barbare DEUX FOIS PIRE contre
+        // un spectre (audit des talents, 2026-08-10).
+        $nbRatees = count(array_filter($faces, fn ($face) => $face !== $touchante));
 
         if ($nbRatees === 0) {
             return $faces;
@@ -107,7 +112,7 @@ final class Combat
         $indexRelance = 0;
 
         return array_map(
-            fn ($face) => $face->estCrane() ? $face : $relances[$indexRelance++],
+            fn ($face) => $face === $touchante ? $face : $relances[$indexRelance++],
             $faces,
         );
     }

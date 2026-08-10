@@ -1020,7 +1020,16 @@ final class MoteurDread
         }
 
         if ($this->des->d6() >= 5) {
-            return false; // résisté
+            return false; // résisté au jet
+        }
+
+        // …et la résistance NOMMÉE d'un talent s'applique aussi : le venin
+        // posait sa condition en direct, court-circuitant `Competence::resisteA`
+        // par lequel passent tous les autres chemins (pièges, sorts de Dread).
+        // Un talent de résistance ne doit pas dépendre de QUI applique l'effet
+        // (audit des talents, 2026-08-10).
+        if (Competence::resisteA($personnage, self::CONDITION_ENVENIME)) {
+            return false;
         }
 
         $condition = Condition::where('nom', self::CONDITION_ENVENIME)->first();
