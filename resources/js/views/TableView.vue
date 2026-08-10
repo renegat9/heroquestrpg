@@ -679,6 +679,9 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <div v-if="figureInspectee.attribut_body != null" class="stat-b"><span>Body</span><b>{{ figureInspectee.attribut_body }}</b></div>
                         <div v-if="figureInspectee.attribut_mind != null" class="stat-b"><span>Mind</span><b>{{ figureInspectee.attribut_mind }}</b></div>
                     </div>
+                    <div v-if="figureInspectee.jetons_rejeton > 0" class="stat-conds">
+                        <span class="stat-cond stat-rejetons">Rejetons accrochés ×{{ figureInspectee.jetons_rejeton }}</span>
+                    </div>
                     <div v-if="figureInspectee.conditions?.length" class="stat-conds">
                         <span v-for="(c, i) in figureInspectee.conditions" :key="i" class="stat-cond">{{ c.nom }}</span>
                     </div>
@@ -800,6 +803,9 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .stat-b i { font-style: normal; color: var(--ink-500); font-weight: 600; font-size: 14px; }
 .table-screen .stat-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .table-screen .stat-cond { font-size: 11px; padding: 3px 8px; border-radius: 999px; background: oklch(0.3 0.05 300 / 0.4); border: 1px solid oklch(0.5 0.08 300 / 0.5); color: var(--ink-200); }
+/* Rejetons accrochés : un dégât automatique et indéfendable chaque fin de tour
+   — il doit sauter aux yeux du narrateur, pas se fondre dans les conditions. */
+.table-screen .stat-rejetons { background: oklch(0.32 0.11 30 / 0.55); border-color: oklch(0.55 0.16 30 / 0.7); color: oklch(0.92 0.06 40); font-weight: 700; }
 .table-screen .status-top { display: flex; align-items: center; gap: 14px; }
 .table-screen .status-top .status-params { width: 34px; height: 34px; border-radius: 999px; flex: none;
   display: grid; place-items: center; border: var(--line); background: var(--stone-850); color: var(--ink-300);

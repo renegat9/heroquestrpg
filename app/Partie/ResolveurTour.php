@@ -234,6 +234,7 @@ final class ResolveurTour
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
+                'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
@@ -799,6 +800,95 @@ final class ResolveurTour
             'fleches_restantes' => $this->charges->restantes($arc->fresh()),
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
         ];
+    }
+
+    /**
+     * Arracher les rejetons accrochés à un COMPAGNON adjacent.
+     *
+     * « Un héros adjacent à un autre héros portant des jetons peut les attaquer
+     * en ciblant le jeton, et non le joueur » (règle de retrait, René
+     * 2026-08-10). On ne se débarrasse donc pas des siens seul : il faut qu'on
+     * vienne vous les arracher.
+     *
+     * Combien par attaque ? Le bloc de stats du Rejeton le dit sans qu'on ait à
+     * l'inventer : **Body 1, Défense 0**. Un jeton n'a rien pour parer et tombe
+     * au premier point — chaque CRÂNE en détache donc un.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDetacherRejetons(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $cibleId = (int) ($parametres['personnage_id'] ?? data_get($option, 'parametres.personnage_id', 0));
+
+        $porteur = $quete->etatsPersonnages()
+            ->where('personnage_id', $cibleId)
+            ->where('jetons_rejeton', '>', 0)
+            ->with('personnage')
+            ->first();
+
+        if ($porteur === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun rejeton à arracher sur ce héros.',
+            ]);
+        }
+
+        if (abs((int) $porteur->position_x - (int) $etat->position_x)
+            + abs((int) $porteur->position_y - (int) $etat->position_y) !== 1) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Il faut être au contact pour arracher les rejetons d\'un compagnon.',
+            ]);
+        }
+
+        $faces = $this->des->desCombat((int) $etat->personnage?->des_attaque);
+        $cranes = count(array_filter($faces, fn ($face) => $face->estCrane()));
+        $retires = min($cranes, (int) $porteur->jetons_rejeton);
+
+        $porteur->update(['jetons_rejeton' => (int) $porteur->jetons_rejeton - $retires]);
+
+        $payload = [
+            'type' => 'detacher_rejetons',
+            'option_id' => $option['id'],
+            'cible' => ['personnage_id' => $porteur->personnage_id, 'nom' => $porteur->personnage?->nom],
+            'faces_attaque' => array_map(fn ($face) => $face->value, $faces),
+            'retires' => $retires,
+            'restants' => (int) $porteur->fresh()->jetons_rejeton,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Les rejetons accrochés rongent leur porteur en fin de tour : 1 PV de Body
+     * par jeton, automatique et indéfendable (Jungles of Delthrak, doc 18 §5).
+     *
+     * Aucun jet, ni d'attaque ni de défense : c'est le seul dégât du jeu qui ne
+     * passe par aucun dé. Un héros qui tombe ainsi tombe comme d'un coup reçu.
+     */
+    private function rongerParRejetons(EtatPersonnageQuete $etat): void
+    {
+        $jetons = (int) $etat->jetons_rejeton;
+        $personnage = $etat->personnage;
+
+        if ($jetons <= 0 || $personnage === null || $etat->tombe) {
+            return;
+        }
+
+        $personnage->update(['pv_body' => max(0, (int) $personnage->pv_body - $jetons)]);
+
+        if ((int) $personnage->fresh()->pv_body === 0) {
+            $etat->update(['tombe' => true]); // C4 : il occupe sa case, relevable
+        }
     }
 
     /**
@@ -2821,6 +2911,14 @@ final class ResolveurTour
             $grille->autoriserFranchissement();
         }
 
+        // Le rejeton s'accroche plutôt que de frapper : sa fiche porte Attaque 0,
+        // sa menace est le jeton qu'il dépose sur la fiche du héros.
+        $accroche = $this->dread->accrocher($groupe, $instance, $cibles, $acteur);
+
+        if ($accroche !== null) {
+            return $accroche;
+        }
+
         // Héros le plus proche : plus court chemin vers une case adjacente
         // (sa propre case si déjà au contact).
         $meilleure = null; // [etat héros, chemin]
@@ -3208,6 +3306,11 @@ final class ResolveurTour
             if ($etat->personnage !== null) {
                 $this->sorts->expirerBuffs($etat->personnage, DureeEffet::CE_TOUR);
             }
+
+            // Rejetons accrochés : « 1 Body Point automatique et indéfendable à
+            // chaque fin de tour, cumulable ». Aucun jet, ni d'attaque ni de
+            // défense — c'est le seul dégât du jeu qui ne passe par aucun dé.
+            $this->rongerParRejetons($etat);
         } elseif ($creneau === 'action') {
             if ($bonusReserveArcanique) {
                 // Réserve arcanique (nœud magicien) : ce sort consomme le

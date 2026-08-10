@@ -8,6 +8,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Monstre;
 use App\Models\Objet;
+use App\Models\Quete;
 use App\Partie\Equipement;
 use App\Partie\Grille;
 use App\Partie\MoteurDread;
@@ -22,6 +23,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -378,4 +380,113 @@ it('décroche après avoir frappé, sauf si toute case libre est encore au conta
     }
 
     expect($echappatoire)->toBeFalse('le tacticien avait une case de repli et ne l\'a pas prise');
+});
+
+// ---------------------------------------------------------------------------
+// Rejetons — jetons cumulables, 1 PV automatique, arrachés par un compagnon
+// ---------------------------------------------------------------------------
+
+it('s\'accroche au lieu de frapper : la figurine devient un jeton', function () {
+    $ctx = demarrerQueteAvecMonstre('Rejeton putride');
+    $etat = $ctx['etatHeros'];
+
+    expect((int) $etat->jetons_rejeton)->toBe(0);
+
+    $accroche = app(MoteurDread::class)->accrocher(
+        $ctx['groupe'], $ctx['instance'],
+        $ctx['quete']->etatsPersonnages()->get(),
+        ['type' => 'monstre', 'id' => $ctx['instance']->id, 'nom' => 'Rejeton'],
+    );
+
+    expect($accroche)->not->toBeNull()
+        ->and((int) $etat->fresh()->jetons_rejeton)->toBe(1)
+        // La figurine quitte le plateau : elle EST le jeton, désormais.
+        ->and($ctx['instance']->fresh()->etat)->toBe('vaincu');
+});
+
+it('cumule les jetons et ronge 1 PV par jeton à la fin du tour', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $etat = $ctx['etatHeros'];
+    $heros = $ctx['heros'];
+
+    $etat->update(['jetons_rejeton' => 3]);
+    $pv = (int) $heros->pv_body;
+
+    // Que des boucliers : la phase des monstres qui suit ne fera aucun dégât.
+    // Ce qui reste vient donc EXCLUSIVEMENT des jetons — et vaut exactement
+    // leur nombre, sans jet d'attaque ni de défense.
+    desFiges(array_fill(0, 40, 4));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    expect((int) $heros->fresh()->pv_body)->toBe($pv - 3);
+});
+
+it('laisse un compagnon ADJACENT arracher les jetons, un par crâne', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $porteur = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $sauveur = creerHeros($alice, $groupe, 'Brunhilde', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // L'ordre d'initiative est figé à la quête : le SAUVEUR doit être celui
+    // dont c'est le tour, sinon le contrôleur refuse (à raison).
+    $acteurId = (int) $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('etat.acteur.id');
+
+    if ($acteurId !== $sauveur->id) {
+        [$porteur, $sauveur] = [$sauveur, $porteur];
+    }
+
+    $etatPorteur = $quete->etatsPersonnages()->where('personnage_id', $porteur->id)->firstOrFail();
+    $etatSauveur = $quete->etatsPersonnages()->where('personnage_id', $sauveur->id)->firstOrFail();
+
+    $etatPorteur->update(['jetons_rejeton' => 3]);
+    $contact = caseAdjacenteLibre($quete, (int) $etatPorteur->position_x, (int) $etatPorteur->position_y);
+    $etatSauveur->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+
+    // C'est le SAUVEUR qui joue, et l'option vise le JETON, pas son compagnon.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $sauveur->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('type', 'detacher_rejetons');
+
+    expect($option)->not->toBeNull('l\'option d\'arrachage doit être proposée au voisin');
+
+    // 3 dés d'attaque, 2 crânes (1) et 1 bouclier (4) → 2 jetons arrachés :
+    // le Rejeton a Body 1 et Défense 0, un crâne suffit à en détacher un.
+    desFiges([1, 1, 4]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'personnage_id' => $sauveur->id, 'option_id' => $option['id'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.retires', 2)
+        ->assertJsonPath('resultat.restants', 1);
+
+    expect((int) $etatPorteur->fresh()->jetons_rejeton)->toBe(1);
+});
+
+it('n\'offre pas l\'arrachage à distance, ni à soi-même', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['etatHeros']->update(['jetons_rejeton' => 2]);
+
+    // On ne se débarrasse pas des siens seul : il faut qu'un compagnon vienne
+    // les arracher. C'est la règle, et c'est ce qui en fait un moment de groupe.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $options = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options']);
+
+    expect($options->where('type', 'detacher_rejetons'))->toBeEmpty();
+});
+
+it('expose le compteur dans l\'état du groupe, pour qu\'il SE VOIE', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['etatHeros']->update(['jetons_rejeton' => 2]);
+
+    // Sans ça, un dégât automatique de 2 PV par tour frapperait sans que rien
+    // ne l'annonce — et personne ne saurait qu'il faut venir les arracher.
+    $heros = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('entites'))
+        ->first(fn ($e) => ($e['type'] ?? null) === 'heros' && (int) $e['id'] === $ctx['heros']->id);
+
+    expect($heros)->not->toBeNull();
+
+    expect((int) ($heros['jetons_rejeton'] ?? 0))->toBe(2);
 });

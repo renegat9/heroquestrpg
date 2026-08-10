@@ -190,8 +190,14 @@ class MonstreSeeder extends Seeder
                 'capacites' => ['frappe_de_zone', 'resistance_magique'], 'sorts_dread' => []],
 
             // ---- Jungles of Delthrak (doc 18) ----
-            ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 2, 'capacites' => ['venimeux', 'agile'], 'sorts_dread' => []],
+            // Attaque 0 au livret : le rejeton ne frappe pas, il S'ACCROCHE.
+            // Son tour adjacent à un héros le convertit en JETON sur sa fiche —
+            // 1 PV automatique et indéfendable par fin de tour, cumulable. Sa
+            // Défense 0 et son Body 1 disent aussi comment on s'en débarrasse :
+            // un seul crâne suffit à en détacher un (règle de retrait précisée
+            // par René le 2026-08-10).
+            ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 0, 'defense' => 0, 'pv_body' => 1, 'pv_mind' => 0,
+                'tier' => 'base', 'cout' => 2, 'capacites' => ['agile', 's_accroche'], 'sorts_dread' => []],
             ['nom_base' => 'Archer squelette', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
                 'capacites' => [], 'sorts_dread' => []],

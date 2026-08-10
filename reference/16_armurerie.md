@@ -351,14 +351,8 @@ déjà exprimer.
 - **L'Abomination** (Kellar's Keep). Doc 18 le note † : ses statistiques ne sont
   chiffrées dans **aucun livret**, seulement dans la table de tournoi d'une
   *autre* boîte. On ne sème pas une valeur qu'aucune source n'assume.
-- **Le jeton de dégât différé du Spawnling** — « un jeton posé sur la fiche d'un
-  héros inflige 1 Body Point automatique et indéfendable à chaque fin de tour
-  tant qu'il reste en sa possession, cumulable » (doc 18 §5). La règle est
-  écrite… **sauf comment s'en débarrasser**. « Tant qu'il reste en sa
-  possession » suppose un moyen de le perdre que le livret ne donne pas. Sans
-  lui, le jeton serait une condamnation à mort silencieuse. Le Rejeton est donc
-  semé comme figurine (Attaque 0 : il bloque le passage, il ne frappe pas) et le
-  jeton attend sa règle.
+*(Le jeton du Spawnling, un temps laissé de côté faute de règle de retrait, est
+porté depuis que René l'a donnée — §4.8.)*
 - **La cinquantaine de cartes non officielles** du paquet (Skaven, Gnoll,
   Bugbear, Carrion Crawler, Rat Ogre, White Seer…) : inspiration Warhammer/D&D,
   jamais HeroQuest.
@@ -421,6 +415,46 @@ la création de la table **sans le moindre lecteur**. Un héros « Immobilisé �
 marchait normalement. `MenuMoteur` retire désormais « Se déplacer » et
 `ResolveurTour` refuse le mouvement — ce qui rend du même coup la condition
 **Immobilisé** réellement immobilisante.
+
+### 4.8 Les REJETONS : des jetons qu'on arrache
+
+Le Rejeton putride porte **Attaque 0** au livret : il ne frappe pas. Sa menace
+est le **jeton** — « un jeton posé sur la fiche d'un héros inflige 1 Body Point
+automatique et indéfendable à chaque fin de tour tant qu'il reste en sa
+possession, cumulable » (doc 18 §5).
+
+Il manquait **comment s'en débarrasser**. René l'a donnée le 2026-08-10 : **on
+les attaque**. Un héros **adjacent** à un porteur peut viser le *jeton* plutôt
+que son compagnon.
+
+Le cycle complet, tel qu'il tourne :
+
+1. **Le serpent pond** (`spawn`) — une figurine Rejeton adjacente.
+2. **Le rejeton s'accroche** (`s_accroche`) : sur son tour, au contact d'un
+   héros, la figurine quitte le plateau et devient un jeton sur sa fiche.
+   `etat_personnage_quete.jetons_rejeton` les compte, et ils **se cumulent**.
+3. **Ils rongent** : à la fin de chaque tour du porteur, 1 PV de Body par jeton.
+   Aucun dé, ni d'attaque ni de défense — c'est le seul dégât du jeu qui ne
+   passe par aucun jet.
+4. **Un compagnon les arrache** : l'option « Arracher les rejetons de X »
+   apparaît au héros adjacent. Combien par attaque ? Le bloc de stats du Rejeton
+   le dit sans qu'on ait à l'inventer — **Body 1, Défense 0** : il n'a rien pour
+   parer et tombe au premier point, donc **chaque crâne en détache un**.
+
+⚠ **On ne se débarrasse pas des siens tout seul.** La règle parle d'un héros
+adjacent *à un autre* héros, et un personnage n'est pas adjacent à lui-même :
+il faut qu'on vienne vous les arracher. C'est ce qui en fait un vrai moment de
+groupe plutôt qu'une formalité.
+
+**Ça doit se VOIR** (demande de René) : `EtatGroupe` expose `jetons_rejeton` sur
+chaque héros, la manette en fait un badge rouge à côté des conditions, et la
+table l'affiche en clair sur la figurine inspectée. Un dégât automatique que
+rien n'annoncerait serait injouable — et c'est au voisin de décider de venir
+aider.
+
+Le compteur vit sur l'état de **quête** : les rejetons sont une saleté qu'on
+ramasse dans un donjon, pas une infirmité qu'on traîne de campagne en campagne.
+Sortir du donjon les décroche.
 
 `TraitsExtensionsTest` éprouve les quatre traits **en jeu**, pas au catalogue :
 un trait déclaré ne prouve rien, c'est la leçon d'`attaque_second_rang`, du

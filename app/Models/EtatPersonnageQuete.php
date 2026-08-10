@@ -25,6 +25,9 @@ class EtatPersonnageQuete extends Model
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
         'attaque_supplementaire',
+        // Rejetons accrochés (Jungles of Delthrak) : 1 PV automatique et
+        // indéfendable par jeton, à chaque fin de tour du porteur.
+        'jetons_rejeton',
     ];
 
     protected function casts(): array

@@ -423,6 +423,29 @@ final class MenuMoteur
                 ];
             }
 
+            // Détacher les REJETONS d'un compagnon adjacent (Jungles of
+            // Delthrak, règle de retrait précisée par René le 2026-08-10) :
+            // « un héros adjacent à un autre héros portant des jetons peut les
+            // attaquer en ciblant le JETON, et non le joueur ». On ne peut donc
+            // pas s'en débarrasser seul — c'est un compagnon qui vient les
+            // arracher, ce qui en fait un vrai moment de coopération.
+            $porteurs = $quete->etatsPersonnages()
+                ->where('jetons_rejeton', '>', 0)
+                ->whereKeyNot($etat->id)
+                ->with('personnage')
+                ->get()
+                ->filter(fn ($p) => abs((int) $p->position_x - (int) $etat->position_x)
+                    + abs((int) $p->position_y - (int) $etat->position_y) === 1);
+
+            foreach ($porteurs as $porteur) {
+                $options[] = [
+                    'id' => "detacher_rejetons_{$porteur->personnage_id}",
+                    'libelle' => "Arracher les rejetons de {$porteur->personnage?->nom} (×{$porteur->jetons_rejeton})",
+                    'type' => 'detacher_rejetons',
+                    'parametres' => ['personnage_id' => (int) $porteur->personnage_id],
+                ];
+            }
+
             // Relever un allié TOMBÉ adjacent (doc 03 §48) : sacrifie le tour.
             $allies = $quete->etatsPersonnages()
                 ->where('tombe', true)

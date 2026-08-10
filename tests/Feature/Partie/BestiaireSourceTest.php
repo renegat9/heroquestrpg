@@ -96,7 +96,7 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Ogre commandant' => [4, 6, 5, 6, 2],
         'Seigneur ogre' => [4, 6, 6, 10, 5],
         // Jungles of Delthrak
-        'Rejeton putride' => [3, 1, 1, 1, 0],
+        'Rejeton putride' => [3, 0, 0, 1, 0],
         'Tisseur putride' => [7, 2, 2, 1, 2],
         'Crâne putride' => [6, 3, 2, 2, 0],
         'Raptor' => [8, 3, 2, 2, 3],
@@ -129,7 +129,7 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
     $implementees = ['invocation', 'frappe_de_zone', 'regeneration',
         'resistance_magique', 'charge', 'choix_attaque', 'vol', 'peur',
         // Mots-clés de Jungles of Delthrak, portés le 2026-08-10…
-        'agile', 'venimeux', 'tacticien', 'racines_entravantes', 'spawn',
+        'agile', 'venimeux', 'tacticien', 'racines_entravantes', 'spawn', 's_accroche',
         // …et l'éthéré de Rise of the Dread Moon.
         'ethere'];
 
@@ -151,7 +151,8 @@ it('donne à chaque créature de Jungles le trait que son livret lui prête', fu
     // Les 4 mots-clés portés (p. 48-49). *Spawn* et la double-action du
     // tacticien restent dehors, faute de mécanique — reference/16 §4.6.
     $traits = [
-        'Rejeton putride' => ['venimeux', 'agile'],
+        // Attaque 0 : il ne frappe pas, il s'accroche (jeton sur la fiche).
+        'Rejeton putride' => ['agile', 's_accroche'],
         'Crâne putride' => ['racines_entravantes'],
         'Raptor' => ['tacticien'],
         'Rampant putride' => ['agile', 'venimeux'],

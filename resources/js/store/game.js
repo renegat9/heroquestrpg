@@ -357,6 +357,33 @@ export function conditionsVersBadges(conditions) {
     });
 }
 
+/**
+ * Badges d'une FIGURE : ses conditions, plus les **rejetons accrochés** quand
+ * il y en a (Jungles of Delthrak).
+ *
+ * Les rejetons ne sont pas une condition — ce sont des jetons cumulables sur la
+ * fiche — mais ils doivent se voir au même endroit et avec la même force : ils
+ * infligent 1 PV **automatique et indéfendable** par jeton à chaque fin de tour,
+ * et rien d'autre ne les annonce. C'est aussi ce qui décide un compagnon
+ * adjacent à venir les détacher.
+ */
+export function badgesFigure(entite) {
+    const badges = conditionsVersBadges(entite?.conditions);
+    const jetons = Number(entite?.jetons_rejeton ?? 0);
+
+    if (jetons > 0) {
+        badges.unshift({
+            nom: 'rejetons',
+            t: 'poison',
+            l: `Rejetons ×${jetons}`,
+            ic: 'pest_control',
+            d: null,
+        });
+    }
+
+    return badges;
+}
+
 /** Conditions de contrôle (doc 09 §4) : le héros ne joue pas (endormi)
  *  ou est joué par le moteur (commande). */
 const CONDITIONS_CONTROLE = ['endormi', 'commande'];

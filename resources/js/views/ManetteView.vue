@@ -22,7 +22,7 @@ import VoteSheet from '../components/manette/VoteSheet.vue';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
 import {
-    acteurCourant, ciblesVersListe, CLASSES, conditionControle, conditionsVersBadges,
+    acteurCourant, badgesFigure, ciblesVersListe, CLASSES, conditionControle, conditionsVersBadges,
     initiativeVersMini, inventaireVendable, issueCloture, labelCourt, marcheVersEchoppe,
     montantPanier, niveauMonteVersListe, panierDuJoueur, pretsVersEtat, sortsEpuises,
     useGameStore, voteVersFeuille,
@@ -210,7 +210,7 @@ function habiller(perso, nom, niveau, conds, img = null) {
 const hero = computed(() => {
     const p = monPerso.value;
     const e = monEntite.value;
-    if (e) return habiller(p, e.nom, e.niveau, conditionsVersBadges(e.conditions), e.image_url ?? p?.portrait_url ?? null);
+    if (e) return habiller(p, e.nom, e.niveau, badgesFigure(e), e.image_url ?? p?.portrait_url ?? null);
     if (p) return habiller(p, p.nom, p.niveau, [], p.portrait_url ?? null);
     return habiller(null, '…', 1, []); // avant chargement (bref, sous garde chargement/erreurChargement)
 });

@@ -566,6 +566,12 @@ final class EtatGroupe
                     'a_joue' => (bool) ($etat?->a_joue ?? false),
                     'a_deplace' => (bool) ($etat?->a_deplace ?? false),
                     'a_agi' => (bool) ($etat?->a_agi ?? false),
+                    // Rejetons ACCROCHÉS (Jungles of Delthrak) : 1 PV automatique
+                    // et indéfendable par jeton, à chaque fin de tour. Exposé
+                    // parce qu'il DOIT se voir — c'est un dégât que rien
+                    // n'annonce autrement, et c'est un compagnon adjacent qui
+                    // doit décider de venir les détacher.
+                    'jetons_rejeton' => (int) ($etat?->jetons_rejeton ?? 0),
                     'conditions' => $this->conditionsHeros($p),
                 ];
             })

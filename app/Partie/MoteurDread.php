@@ -947,6 +947,47 @@ final class MoteurDread
     }
 
     /**
+     * **Le rejeton s'ACCROCHE** au lieu de frapper (Jungles of Delthrak).
+     *
+     * Sa fiche officielle porte **Attaque 0** : il ne fait aucun dégât de
+     * combat. Sa menace est le JETON — « un jeton posé sur la fiche d'un héros
+     * inflige 1 Body Point automatique et indéfendable à chaque fin de tour tant
+     * qu'il reste en sa possession, cumulable ». Sur son tour, adjacent à un
+     * héros, la figurine devient donc ce jeton et quitte le plateau.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    public function accrocher(Groupe $groupe, InstanceMonstre $instance, Collection $cibles, array $acteur): ?array
+    {
+        if (! $this->aCapacite($instance, 's_accroche')) {
+            return null;
+        }
+
+        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => abs((int) $c->position_x - (int) $instance->position_x)
+            + abs((int) $c->position_y - (int) $instance->position_y) === 1);
+
+        if ($porteur === null) {
+            return null; // personne au contact : il avance, il n'accroche pas
+        }
+
+        $porteur->update(['jetons_rejeton' => (int) $porteur->jetons_rejeton + 1]);
+        $instance->update(['etat' => 'vaincu']); // la figurine devient le jeton
+
+        $payload = [
+            'type' => 'rejeton_accroche',
+            'monstre' => $instance->nomAffiche(),
+            'cible' => ['personnage_id' => $porteur->personnage_id, 'nom' => $porteur->personnage?->nom],
+            'jetons' => (int) $porteur->fresh()->jetons_rejeton,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * **Tacticien** — la cible est-elle FLANQUÉE, c'est-à-dire au contact d'un
      * second monstre actif ?
      *

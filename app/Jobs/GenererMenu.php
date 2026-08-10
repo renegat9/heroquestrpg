@@ -195,6 +195,10 @@ class GenererMenu implements ShouldQueue
         'ouvrir_porte', 'actionner_levier', 'fouille_tresor', 'fouille_mobilier',
         // Équipement en quête (doc 01 §149) : ancré sur une ligne d'inventaire.
         'equiper', 'desequiper',
+        // Arracher les rejetons d'un compagnon : ancré sur un personnage précis,
+        // et c'est la SEULE façon de s'en débarrasser — l'IA ne doit jamais
+        // pouvoir la faire disparaître du menu.
+        'detacher_rejetons',
     ];
 
     /**
