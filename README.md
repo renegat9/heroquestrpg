@@ -139,7 +139,7 @@ Un test verrouille le vocabulaire **dans les deux sens** : aucune clé de catalo
 
 Le **bestiaire** suit la même discipline. Les 8 monstres de base viennent des cartes monstre — une table que les livrets renvoyaient à l'écran du MJ, jamais numérisé — et deux passages des livrets la recoupent. Les **23 créatures d'extension** (Dread Moon, Mage of the Mirror, Frozen Horror, Ogre Horde, Jungles of Delthrak) viennent, elles, des **livrets officiels** via `reference/18_extensions.md` : quand les cartes de fans les contredisent, le livret gagne. ⚠ Au plateau, tout monstre de base a **1 point de Body** — le gobelin comme la gargouille : le bestiaire est nettement plus fragile depuis le 2026-08-09, et c'est le design du jeu.
 
-Six **traits d'extension** sont dans le moteur depuis le 2026-08-10 : `agile` (ignore mobilier et figures, pas les murs), `racines_entravantes` (arrête net le héros qui entre au contact), `venimeux` (paralysie, sauf 5-6 sur un d6), `tacticien` (+1 dé contre une cible flanquée, puis décrochage), `spawn` (engendre la créature nommée par la capacité, qui **s'accroche** au héros en jeton cumulable — 1 PV automatique et indéfendable par fin de tour, qu'un **compagnon adjacent** doit venir arracher, un par crâne) et `ethere` (traverse tout, mais ne s'arrête ni sur une case occupée ni dans une salle non découverte — et **seul un bouclier noir le touche**, sauf sort ou artefact). Porter le venin a obligé à câbler `deplacement_interdit`, une clé de condition qui n'avait **aucun lecteur** : un héros « Immobilisé » marchait normalement.
+Six **traits d'extension** sont dans le moteur depuis le 2026-08-10 : `agile` (ignore mobilier et figures, pas les murs), `racines_entravantes` (arrête net le héros qui entre au contact), `venimeux` (paralysie, sauf 5-6 sur un d6), `tacticien` (+1 dé contre une cible flanquée, puis décrochage), `spawn` (engendre la créature nommée par la capacité, qui **s'accroche** au héros en jeton cumulable — 1 PV automatique et indéfendable par fin de tour, que le **porteur ou un compagnon au contact** arrache, un par crâne) et `ethere` (traverse tout, mais ne s'arrête ni sur une case occupée ni dans une salle non découverte — et **seul un bouclier noir le touche**, sauf sort ou artefact). Porter le venin a obligé à câbler `deplacement_interdit`, une clé de condition qui n'avait **aucun lecteur** : un héros « Immobilisé » marchait normalement.
 
 Les **artefacts** viennent du même endroit : `sjeng-artefacts.pdf` (34 cartes, cinq sources officielles). Ils remplacent 7 artefacts inventés qui ne faisaient que monter la courbe des dés — 4, 5, puis 6 — là où un vrai artefact fait ce que rien d'autre ne fait : frapper deux fois un orque, blesser à coup sûr, porter des PV en plus. Dix-sept cartes sont portées, **17 ne le sont pas** et le doc 16 §9.1 dit pour chacune la mécanique qui lui manque (types de dégâts, téléportation, contrôle de monstre…). Un cinquième emplacement, `talisman`, accueille les quatre bijoux de classe.
 
@@ -149,7 +149,7 @@ Deux mécaniques ont été ouvertes le 2026-08-09 pour débloquer sept de ces ca
 
 ## 🧪 Tests
 
-Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **637 tests verts**.
+Suite **Pest** (moteur sous `tests/Unit/Engine`, jeu sous `tests/Feature`) — **638 tests verts**.
 
 ```bash
 docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \

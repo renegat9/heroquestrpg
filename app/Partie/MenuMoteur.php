@@ -423,24 +423,30 @@ final class MenuMoteur
                 ];
             }
 
-            // Détacher les REJETONS d'un compagnon adjacent (Jungles of
-            // Delthrak, règle de retrait précisée par René le 2026-08-10) :
-            // « un héros adjacent à un autre héros portant des jetons peut les
-            // attaquer en ciblant le JETON, et non le joueur ». On ne peut donc
-            // pas s'en débarrasser seul — c'est un compagnon qui vient les
-            // arracher, ce qui en fait un vrai moment de coopération.
+            // Attaquer les REJETONS accrochés (Jungles of Delthrak, règle de
+            // retrait précisée par René le 2026-08-10) : « un héros portant des
+            // jetons peut les attaquer, et un héros adjacent à un autre héros
+            // portant des jetons peut les attaquer aussi, en ciblant le JETON et
+            // non le joueur ».
+            //
+            // Donc SOI-MÊME (distance 0) ou un voisin au CONTACT (distance 1) —
+            // jamais à distance : on arrache une bestiole accrochée, on ne la
+            // tire pas d'une salle à l'autre.
             $porteurs = $quete->etatsPersonnages()
                 ->where('jetons_rejeton', '>', 0)
-                ->whereKeyNot($etat->id)
                 ->with('personnage')
                 ->get()
                 ->filter(fn ($p) => abs((int) $p->position_x - (int) $etat->position_x)
-                    + abs((int) $p->position_y - (int) $etat->position_y) === 1);
+                    + abs((int) $p->position_y - (int) $etat->position_y) <= 1);
 
             foreach ($porteurs as $porteur) {
+                $soi = (int) $porteur->personnage_id === (int) $etat->personnage_id;
+
                 $options[] = [
                     'id' => "detacher_rejetons_{$porteur->personnage_id}",
-                    'libelle' => "Arracher les rejetons de {$porteur->personnage?->nom} (×{$porteur->jetons_rejeton})",
+                    'libelle' => $soi
+                        ? "Arracher tes rejetons (×{$porteur->jetons_rejeton})"
+                        : "Arracher les rejetons de {$porteur->personnage?->nom} (×{$porteur->jetons_rejeton})",
                     'type' => 'detacher_rejetons',
                     'parametres' => ['personnage_id' => (int) $porteur->personnage_id],
                 ];

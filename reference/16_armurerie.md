@@ -424,8 +424,9 @@ automatique et indéfendable à chaque fin de tour tant qu'il reste en sa
 possession, cumulable » (doc 18 §5).
 
 Il manquait **comment s'en débarrasser**. René l'a donnée le 2026-08-10 : **on
-les attaque**. Un héros **adjacent** à un porteur peut viser le *jeton* plutôt
-que son compagnon.
+les attaque**. Le **porteur lui-même** peut s'en occuper, et un héros
+**adjacent** peut aussi venir les lui arracher — en visant le *jeton*, pas son
+compagnon.
 
 Le cycle complet, tel qu'il tourne :
 
@@ -436,15 +437,17 @@ Le cycle complet, tel qu'il tourne :
 3. **Ils rongent** : à la fin de chaque tour du porteur, 1 PV de Body par jeton.
    Aucun dé, ni d'attaque ni de défense — c'est le seul dégât du jeu qui ne
    passe par aucun jet.
-4. **Un compagnon les arrache** : l'option « Arracher les rejetons de X »
-   apparaît au héros adjacent. Combien par attaque ? Le bloc de stats du Rejeton
-   le dit sans qu'on ait à l'inventer — **Body 1, Défense 0** : il n'a rien pour
-   parer et tombe au premier point, donc **chaque crâne en détache un**.
+4. **On les arrache** : l'option apparaît au **porteur** (« Arracher tes
+   rejetons ») comme à tout héros **au contact** (« Arracher les rejetons de
+   X »). Combien par attaque ? Le bloc de stats du Rejeton le dit sans qu'on ait
+   à l'inventer — **Body 1, Défense 0** : il n'a rien pour parer et tombe au
+   premier point, donc **chaque crâne en détache un**.
 
-⚠ **On ne se débarrasse pas des siens tout seul.** La règle parle d'un héros
-adjacent *à un autre* héros, et un personnage n'est pas adjacent à lui-même :
-il faut qu'on vienne vous les arracher. C'est ce qui en fait un vrai moment de
-groupe plutôt qu'une formalité.
+⚠ **Distance 0 ou 1, jamais plus.** On arrache une bestiole accrochée sur soi ou
+sur son voisin ; on ne la tire pas d'une salle à l'autre. Un porteur isolé n'est
+donc pas condamné — mais y consacrer son action, c'est un tour qu'il ne passe
+pas à se battre, et à plusieurs jetons il vaut souvent mieux qu'un compagnon
+s'en charge pendant qu'on tient la ligne.
 
 **Ça doit se VOIR** (demande de René) : `EtatGroupe` expose `jetons_rejeton` sur
 chaque héros, la manette en fait un badge rouge à côté des conditions, et la

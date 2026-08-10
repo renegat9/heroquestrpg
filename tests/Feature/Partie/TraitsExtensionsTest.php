@@ -421,7 +421,7 @@ it('cumule les jetons et ronge 1 PV par jeton à la fin du tour', function () {
     expect((int) $heros->fresh()->pv_body)->toBe($pv - 3);
 });
 
-it('laisse un compagnon ADJACENT arracher les jetons, un par crâne', function () {
+it('laisse aussi un COMPAGNON adjacent les arracher, un par crâne', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $porteur = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -465,16 +465,54 @@ it('laisse un compagnon ADJACENT arracher les jetons, un par crâne', function (
     expect((int) $etatPorteur->fresh()->jetons_rejeton)->toBe(1);
 });
 
-it('n\'offre pas l\'arrachage à distance, ni à soi-même', function () {
+it('laisse le PORTEUR arracher ses propres rejetons', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $ctx['etatHeros']->update(['jetons_rejeton' => 2]);
 
-    // On ne se débarrasse pas des siens seul : il faut qu'un compagnon vienne
-    // les arracher. C'est la règle, et c'est ce qui en fait un moment de groupe.
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
-    $options = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options']);
+    $option = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options'])
+        ->firstWhere('type', 'detacher_rejetons');
 
-    expect($options->where('type', 'detacher_rejetons'))->toBeEmpty();
+    expect($option)->not->toBeNull('le porteur doit pouvoir s\'en occuper lui-même')
+        ->and($option['libelle'])->toContain('tes rejetons');
+
+    // Que des crânes : les deux jetons partent (un par crâne).
+    desFiges(array_fill(0, 10, 1));
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.restants', 0);
+
+    expect((int) $ctx['etatHeros']->fresh()->jetons_rejeton)->toBe(0);
+});
+
+it('refuse l\'arrachage À DISTANCE', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $acteur = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $loin = creerHeros($alice, $groupe, 'Brunhilde', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $etatLoin = $quete->etatsPersonnages()->where('personnage_id', $loin->id)->firstOrFail();
+    $etatActeur = $quete->etatsPersonnages()->where('personnage_id', $acteur->id)->firstOrFail();
+
+    // Porteur volontairement écarté : on arrache une bestiole accrochée sur soi
+    // ou sur son voisin, on ne la tire pas d'une salle à l'autre.
+    $etatLoin->update([
+        'jetons_rejeton' => 2,
+        'position_x' => (int) $etatActeur->position_x + 5,
+        'position_y' => (int) $etatActeur->position_y + 5,
+    ]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'personnage_id' => $acteur->id,
+        'option_id' => "detacher_rejetons_{$loin->id}",
+        'parametres' => ['personnage_id' => $loin->id],
+    ])->assertStatus(422);
+
+    expect((int) $etatLoin->fresh()->jetons_rejeton)->toBe(2);
 });
 
 it('expose le compteur dans l\'état du groupe, pour qu\'il SE VOIE', function () {

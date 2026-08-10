@@ -803,12 +803,13 @@ final class ResolveurTour
     }
 
     /**
-     * Arracher les rejetons accrochés à un COMPAGNON adjacent.
+     * Attaquer les rejetons accrochés — les SIENS ou ceux d'un voisin.
      *
-     * « Un héros adjacent à un autre héros portant des jetons peut les attaquer
-     * en ciblant le jeton, et non le joueur » (règle de retrait, René
-     * 2026-08-10). On ne se débarrasse donc pas des siens seul : il faut qu'on
-     * vienne vous les arracher.
+     * « Un héros portant des jetons peut les attaquer, et un héros adjacent à un
+     * autre héros portant des jetons peut les attaquer aussi, en ciblant le
+     * jeton et non le joueur » (règle de retrait, René 2026-08-10). Soi-même
+     * (distance 0) ou au contact (distance 1) — jamais à distance : on arrache
+     * une bestiole accrochée, on ne la tire pas d'une salle à l'autre.
      *
      * Combien par attaque ? Le bloc de stats du Rejeton le dit sans qu'on ait à
      * l'inventer : **Body 1, Défense 0**. Un jeton n'a rien pour parer et tombe
@@ -842,9 +843,9 @@ final class ResolveurTour
         }
 
         if (abs((int) $porteur->position_x - (int) $etat->position_x)
-            + abs((int) $porteur->position_y - (int) $etat->position_y) !== 1) {
+            + abs((int) $porteur->position_y - (int) $etat->position_y) > 1) {
             throw ValidationException::withMessages([
-                'option_id' => 'Il faut être au contact pour arracher les rejetons d\'un compagnon.',
+                'option_id' => 'Trop loin : on arrache un rejeton sur soi ou sur un compagnon au contact.',
             ]);
         }
 
