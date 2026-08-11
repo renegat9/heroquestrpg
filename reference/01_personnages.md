@@ -183,6 +183,24 @@ remplacent ou les complètent, au choix.
 | **Striker** | 5 | 4 | **5** | 2 | 2 | 100 po | — |
 | **Ogre Mercenary** | 8 | 4 | 4 | **4** | 1 | 150 po | — |
 
+Et **trois compagnons animaux** (fournis par René, 2026-08-12) :
+
+| Animal | Dépl. | Attaque | Défense | Body | Mind | Capacité |
+|---|---|---|---|---|---|---|
+| **Loup** | 10 | 3 | 2 | **5** | 1 | attaque en diagonale |
+| **Croc-sabre** | 10 | 2 | 3 | **5** | 1 | attaque en diagonale |
+| **Raptor** | 8 | 2 | 2 | 3 | 3 | se déplace **avant et après** son attaque |
+
+⚠ Les animaux sont bien plus **endurants** que les mercenaires humains — 5 PV
+de Body contre 2 — et le paient en Mind (1), ce qui les rend fragiles aux sorts
+mentaux. La règle « un seul compagnon animal par groupe » s'applique à eux
+seuls. Leur **prix est la seule valeur de nous** : les cartes n'en portent pas,
+il est calé sur l'échelle officielle (Éclaireur 50 → Ogre 150).
+
+Le « *move before and after an attack* » du Raptor est **exactement** le second
+mouvement du `tacticien`, déjà écrit pour les monstres de *Jungles of Delthrak*
+— dont le raptor du bestiaire, qui porte le même trait.
+
 Le **déplacement est en CASES**, pas en dés : les cartes d'allié disent
 « Movement Squares » là où les cartes de héros disent « 2 Red Dice ». C'est
 donc un mouvement **fixe**, ce que notre modèle sait déjà exprimer.

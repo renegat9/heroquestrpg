@@ -275,8 +275,16 @@ final class Grille
         return ($this->cases[$y][$x] ?? 'm') !== 's';
     }
 
-    public function sontAdjacentes(int $x1, int $y1, int $x2, int $y2): bool
+    public function sontAdjacentes(int $x1, int $y1, int $x2, int $y2, bool $diagonales = false): bool
     {
+        // Par défaut ORTHOGONAL (doc 03 §12). `$diagonales` sert aux figures
+        // dont la carte dit « can attack diagonally » — le Fauchard, le Loup,
+        // le Croc-sabre — et n'ouvre QUE le test d'attaque : le déplacement,
+        // lui, reste orthogonal pour tout le monde.
+        if ($diagonales) {
+            return max(abs($x1 - $x2), abs($y1 - $y2)) === 1;
+        }
+
         return abs($x1 - $x2) + abs($y1 - $y2) === 1;
     }
 
@@ -306,10 +314,10 @@ final class Grille
      * grand monstre dès qu'il jouxte l'une de ses cases). Pour une emprise 1×1,
      * équivaut exactement à sontAdjacentes(x,y,tx,ty).
      */
-    public function adjacenteAEmprise(int $x, int $y, int $l, int $h, int $tx, int $ty): bool
+    public function adjacenteAEmprise(int $x, int $y, int $l, int $h, int $tx, int $ty, bool $diagonales = false): bool
     {
         foreach ($this->cellulesEmprise($x, $y, $l, $h) as $c) {
-            if ($this->sontAdjacentes($c['x'], $c['y'], $tx, $ty)) {
+            if ($this->sontAdjacentes($c['x'], $c['y'], $tx, $ty, $diagonales)) {
                 return true;
             }
         }

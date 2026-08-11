@@ -119,16 +119,7 @@ it('n\'autorise qu\'un seul compagnon animal par groupe', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 1000]);
 
-    // ⚠ Depuis le 2026-08-12 le catalogue ne contient QUE les 5 alliés
-    // officiels, et aucun n'est un animal — le Loup fidèle était de nous. La
-    // règle « un seul animal par groupe » reste néanmoins active et gardée :
-    // le bestiaire a des loups, un scénario pourra en donner un. On fabrique
-    // donc le sujet ici plutôt que de retirer la garde.
-    $loup = Mercenaire::create([
-        'nom' => 'Loup de test', 'type' => 'compagnon', 'deplacement' => 10,
-        'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'prix' => 120, 'animal' => true,
-        'description' => 'Compagnon animal fabriqué pour ce test.',
-    ]);
+    $loup = Mercenaire::where('animal', true)->firstOrFail();
 
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $loup->id])->assertStatus(201);
     // Deuxième animal refusé.
@@ -259,4 +250,43 @@ it('consomme les alliés en fin de quête (victoire)', function () {
     expect($groupe->fresh()->phase)->toBe('hub')
         // Alliés consommés en fin de quête.
         ->and($groupe->fresh()->mercenaires()->count())->toBe(0);
+});
+
+it('donne aux alliés officiels leur Mind et leurs capacités de carte', function () {
+    // Les cartes portent CINQ valeurs — Movement, Attack, Defend, Body ET Mind.
+    // Notre table n'en gardait que quatre : un allié sans Mind est insensible
+    // à la peur et au sommeil sans que personne l'ait décidé.
+    $allies = Mercenaire::all()->keyBy('nom');
+
+    expect($allies)->toHaveCount(8, 'les 5 mercenaires humains et les 3 compagnons animaux');
+
+    expect((int) $allies['Ogre mercenaire']->pv_mind)->toBe(1)
+        ->and((int) $allies['Éclaireur']->pv_mind)->toBe(2);
+
+    // Les trois animaux : plus endurants que les humains (5 PV contre 2), et
+    // fragiles d'esprit en échange.
+    expect((int) $allies['Loup']->pv_body)->toBe(5)
+        ->and((int) $allies['Loup']->pv_mind)->toBe(1)
+        ->and((bool) $allies['Loup']->animal)->toBeTrue();
+
+    // « can attack diagonally » et « move before and after an attack ».
+    expect($allies['Fauchard']->capacites)->toContain('attaque_diagonale')
+        ->and($allies['Croc-sabre']->capacites)->toContain('attaque_diagonale')
+        ->and($allies['Raptor apprivoisé']->capacites)->toContain('tacticien');
+
+    // Et l'inverse : personne ne frappe en diagonale sans que sa carte le dise.
+    expect($allies['Estafier']->capacites ?? [])->not->toContain('attaque_diagonale');
+});
+
+it('laisse un allié DIAGONAL frapper une cible que l\'orthogonal n\'atteint pas', function () {
+    // La règle vit dans Grille::sontAdjacentes : sans le drapeau, une cible en
+    // diagonale est à distance 2 en Manhattan, donc hors de portée.
+    $grille = new App\Partie\Grille(['cases' => array_fill(0, 5, array_fill(0, 5, 's'))]);
+
+    expect($grille->sontAdjacentes(2, 2, 3, 3))->toBeFalse()
+        ->and($grille->sontAdjacentes(2, 2, 3, 3, true))->toBeTrue()
+        // ⚠ Le drapeau élargit d'UNE case, pas plus : deux cases restent hors
+        // de portée, en diagonale comme en ligne droite.
+        ->and($grille->sontAdjacentes(2, 2, 4, 4, true))->toBeFalse()
+        ->and($grille->sontAdjacentes(2, 2, 2, 4, true))->toBeFalse();
 });

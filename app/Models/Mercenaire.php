@@ -21,6 +21,8 @@ class Mercenaire extends Model
         'attaque_distance',
         'defense',
         'pv_body',
+        'pv_mind',
+        'capacites',
         'prix',
         'animal',
         'description',
@@ -29,6 +31,7 @@ class Mercenaire extends Model
     protected function casts(): array
     {
         return [
+            'capacites' => 'array',
             'animal' => 'boolean',
         ];
     }

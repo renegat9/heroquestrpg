@@ -3731,6 +3731,10 @@ final class ResolveurTour
      */
     private function jouerAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, $monstres): ?array
     {
+        // « This mercenary can attack diagonally » (Fauchard, Loup, Croc-sabre,
+        // Raptor). N'ouvre QUE le test d'attaque : le déplacement d'un allié
+        // reste orthogonal, comme celui de tout le monde.
+        $diagonales = in_array('attaque_diagonale', (array) ($allie->mercenaire?->capacites ?? []), true);
         $merc = $allie->mercenaire;
         $nom = $merc->nom;
         $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
@@ -3750,7 +3754,7 @@ final class ResolveurTour
             if ($visibles->isNotEmpty()) {
                 $cible = $visibles->sortBy(fn (InstanceMonstre $m) => (int) $m->pv_body)->first();
                 $e = $cible->monstre->emprise();
-                $adjacent = $grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay);
+                $adjacent = $grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales);
                 $des = $adjacent ? (int) $merc->attaque : (int) ($merc->attaque_distance ?? $merc->attaque);
 
                 return $this->resoudreAttaqueAllie($groupe, $allie, $cible, $des, $adjacent ? 'corps_a_corps' : 'distance', $acteur, $nom);
@@ -3763,7 +3767,7 @@ final class ResolveurTour
         foreach ($monstres as $m) {
             $e = $m->monstre->emprise();
 
-            if ($grille->adjacenteAEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], $ax, $ay)) {
+            if ($grille->adjacenteAEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales)) {
                 $meilleure = [$m, []];
                 break;
             }
@@ -3793,8 +3797,18 @@ final class ResolveurTour
         }
 
         $e = $cible->monstre->emprise();
-        if ($grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay)) {
-            return $this->resoudreAttaqueAllie($groupe, $allie, $cible, (int) $merc->attaque, 'corps_a_corps', $acteur, $nom);
+        if ($grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales)) {
+            $attaque = $this->resoudreAttaqueAllie($groupe, $allie, $cible, (int) $merc->attaque, 'corps_a_corps', $acteur, $nom);
+
+            // « Move before and after an attack » (Raptor) : c'est le second
+            // mouvement du `tacticien`, déjà écrit pour les monstres. Une
+            // PERMISSION, pas une obligation — on en fait un décrochage, comme
+            // pour eux : rester au contact ne gagnerait rien à bouger deux fois.
+            if (in_array('tacticien', (array) ($merc->capacites ?? []), true)) {
+                $attaque['repli'] = $this->replierAllie($allie, $grille);
+            }
+
+            return $attaque;
         }
 
         $payload = ['type' => 'deplacement_allie', 'allie' => $nom, 'vers' => ['x' => $ax, 'y' => $ay]];
@@ -3811,6 +3825,33 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Décrochage d'un allié `tacticien` : il se retire du contact après avoir
+     * frappé. Rend la case d'arrivée, ou null s'il n'a nulle part où aller.
+     *
+     * @return array{x: int, y: int}|null
+     */
+    private function replierAllie(GroupeMercenaire $allie, Grille $grille): ?array
+    {
+        $ax = (int) $allie->position_x;
+        $ay = (int) $allie->position_y;
+
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+            $x = $ax + $dx;
+            $y = $ay + $dy;
+
+            // Même primitive que `replierTacticien` côté monstre : une case
+            // traversable, donc ni mur, ni meuble, ni figure.
+            if ($grille->estTraversable($x, $y)) {
+                $allie->update(['position_x' => $x, 'position_y' => $y]);
+
+                return ['x' => $x, 'y' => $y];
+            }
+        }
+
+        return null;
+    }
+
     private function resoudreAttaqueAllie(Groupe $groupe, GroupeMercenaire $allie, InstanceMonstre $cible, int $desAttaque, string $portee, array $acteur, string $nom): array
     {
         $resultat = (new Combat($this->des))->resoudreAttaque(
