@@ -55,6 +55,13 @@ const CLES_SORT_ACTIVES = [
     // — l'Anneau de Feu annule un sort de feu — et par ResolveurTour, qui marque
     // `brule` sur le monstre touché pour lui couper la régénération.
     'type_degat',
+    // ---- Répertoires de classe (2026-08-12) ----
+    'exclut_soi',              // MoteurSorts::ciblesLegales() — « excluding yourself »
+    'zone',                    // ResolveurTour::soinDeZone() — soin à tous les héros vus
+    'condition_bonus_attaque', // MoteurSorts::bonusDes() — dé conditionnel (au contact)
+    'regain',                  // MoteurSorts::regagnerSorts() — App\Engine\RegainEffet
+    'reaction',                // MoteurReactions::sortReactifDisponible() — hors tour
+    'ignore_pieges_fosse',     // MoteurPieges::declencher() via MoteurSorts::aBuff()
 ];
 
 /**
@@ -81,7 +88,10 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
     // Un sort qui ne fait ni dégâts, ni soin, ni condition, ni bonus, ni
     // déplacement est un sort qu'on lance pour rien.
     $agissantes = ['des_degats', 'soin_pv_body', 'condition_appliquee', 'bonus_des_attaque',
-        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour', 'ouvre_porte'];
+        'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour', 'ouvre_porte',
+        // Un sort de RÉACTION agit hors tour (Ailes sombres) : son effet n'est
+        // ni un dégât ni un buff, il annule un coup — mais il agit bel et bien.
+        'reaction'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))

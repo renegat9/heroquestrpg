@@ -161,13 +161,30 @@ it('déclare chaque regain sans utilisateur comme une DETTE nommée', function (
     // mot-clé décoratif, mais accepte la dette — à condition qu'elle dise ce
     // qui lui manque. Les trois moteurs existent ; ce sont les sorts qui
     // attendent leurs classes.
+    // ⚠ Depuis le 2026-08-12 les TROIS sont portés — Conte inspirant (Barde),
+    // Métamorphose (Druide), Forme démoniaque (Warlock) —, donc la branche
+    // « dette » ne s'exécute plus. Sans les deux assertions ci-dessous le test
+    // ne vérifiait plus rien du tout et PHPUnit le signalait « risky » : un
+    // test qui n'assure plus rien est pire qu'un test absent, il rassure à tort.
+    $sansPorteur = [];
+
     foreach (RegainEffet::tous() as $regain) {
         $porte = Sort::query()->get()->contains(fn (Sort $s) => ($s->effet['regain'] ?? null) === $regain);
 
         if (! $porte) {
+            $sansPorteur[] = $regain;
+
             expect(array_key_exists($regain, RegainEffet::SANS_UTILISATEUR))->toBeTrue(
                 "Le regain « {$regain} » n'est porté par aucun sort et n'est pas déclaré comme dette.",
             );
         }
     }
+
+    // Et l'inverse, qui est la vraie garde aujourd'hui : un regain PORTÉ ne
+    // doit plus figurer parmi les dettes, sinon `/guide` continuerait de
+    // l'annoncer comme non implémenté.
+    $dettesPerimees = array_diff(array_keys(RegainEffet::SANS_UTILISATEUR), $sansPorteur);
+
+    expect($dettesPerimees)->toBe([], 'dette(s) réglée(s) mais toujours déclarée(s) dans '
+        .'RegainEffet::SANS_UTILISATEUR : '.implode(', ', $dettesPerimees));
 });

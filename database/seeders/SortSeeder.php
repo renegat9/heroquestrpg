@@ -67,6 +67,65 @@ class SortSeeder extends Seeder
                 // On lisait auparavant `monstres_zone` (ciblage inexistant) et
                 // `empeche_attaque` (le monstre avançait quand même).
                 'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'saute_tour' => true, 'duree' => 'prochain_tour']],
+
+            // ================================================================
+            // RÉPERTOIRES DE CLASSE (2026-08-12) — Barde, Druide, Warlock.
+            //
+            // Ces trois classes n'ont PAS d'éléments : leur carte leur donne
+            // trois sorts FIXES, acquis d'emblée. `element` sert ici de nom de
+            // répertoire plutôt que d'école — la colonne existait, la
+            // réutiliser évite une table de plus pour trois lignes.
+            //
+            // Texte des cartes : reference/18_extensions.md §HasLab Mythic Tier.
+            // ================================================================
+
+            // ---- Barde (© 2021 Hasbro) ----
+            ['element' => 'barde', 'nom' => 'Conte inspirant', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'exclut_soi' => true, 'bonus_des_attaque' => 1,
+                    'duree' => 'prochaine_attaque', 'regain' => 'allie_deux_boucliers_blancs',
+                    'condition_appliquee' => 'Renforcé']],
+            // Mot pour mot notre Sommeil, exclusion des Mind 0 comprise :
+            // « May not be used against mummies, zombies, or skeletons. »
+            ['element' => 'barde', 'nom' => 'Berceuse', 'type' => 'mental', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
+            ['element' => 'barde', 'nom' => 'Chant de guérison', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 2, 'zone' => 'heros_en_vue']],
+
+            // ---- Druide (© 2021 Hasbro) ----
+            // ⚠ Le dé de DÉFENSE est inconditionnel ; celui d'ATTAQUE ne vaut
+            // qu'« when attacking a monster that you are adjacent to ».
+            ['element' => 'druide', 'nom' => 'Métamorphose', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'soi', 'bonus_des_defense' => 1, 'bonus_des_attaque' => 1,
+                    'condition_bonus_attaque' => 'au_contact',
+                    'duree' => 'premier_degat_subi', 'regain' => 'body_au_max',
+                    'condition_appliquee' => 'Renforcé']],
+            // ⚠ Le second mode de la carte — « or search : the pixie reveals
+            // all traps and secret doors in any location you can see » — n'est
+            // PAS porté : il attend un mode alternatif de sort, comme celui du
+            // Génie. Seul le soin est actif.
+            ['element' => 'druide', 'nom' => 'Luciole', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 2]],
+            ['element' => 'druide', 'nom' => 'Force vitale', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
+
+            // ---- Warlock (© 2021 Hasbro) ----
+            // « Cast this spell on an enemies turn AFTER YOU HAVE SUFFERED
+            // DAMAGE. Reduce that damage to zero […] » — la moitié annulation
+            // passe par MoteurReactions, écrit pour elle. ⚠ La téléportation
+            // qui suit (« move instantly to any unoccupied square you can
+            // see ») n'est PAS portée : aucun déplacement instantané choisi.
+            ['element' => 'warlock', 'nom' => 'Ailes sombres', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'soi', 'condition_appliquee' => 'Renforcé',
+                    'reaction' => ['sur' => 'degats_subis', 'action' => 'annule_degats']]],
+            ['element' => 'warlock', 'nom' => 'Forme démoniaque', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'soi', 'bonus_des_attaque' => 1, 'ignore_pieges_fosse' => true,
+                    'duree' => 'premier_degat_subi', 'regain' => 'monstre_vaincu',
+                    'condition_appliquee' => 'Renforcé']],
+
+            // ⚠ TERREUR (Fear) n'est PAS semé : « attacks are reduced to 1
+            // combat die » suppose de modifier les dés d'attaque d'un MONSTRE
+            // par une condition, ce que le moteur ne sait pas faire — nos
+            // malus de dés sont tous côté héros. Dette nommée, pas oubli.
         ];
 
         foreach ($sorts as $sort) {

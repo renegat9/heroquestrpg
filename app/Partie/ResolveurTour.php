@@ -623,7 +623,12 @@ final class ResolveurTour
         $tirADistance = ! $adjacentes;
 
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
-        $bonusAttaque = $this->sorts->bonusDes($personnage, 'bonus_des_attaque');
+        // Le contexte `au_contact` sert aux bonus CONDITIONNELS — la
+        // Métamorphose du Druide n'accorde son dé qu'« en attaquant un monstre
+        // ADJACENT », donc jamais sur un tir.
+        $bonusAttaque = $this->sorts->bonusDes(
+            $personnage, 'bonus_des_attaque', $tirADistance ? 'a_distance' : 'au_contact',
+        );
 
         // Frayeur (Dread) : condition Apeuré → −1 dé d'attaque (min 0), 2 tours.
         $malusFrayeur = $this->dread->malusDesAttaqueFrayeur($personnage);
@@ -1871,6 +1876,54 @@ final class ResolveurTour
      * @param  array<string, mixed>  $parametres
      * @return array<string, mixed>
      */
+    /**
+     * Soin de zone : le lanceur et tous les héros qu'il VOIT.
+     *
+     * La ligne de vue est la seule portée du sort — pas de rayon en cases.
+     * Un héros tombé et soigné au-dessus de 0 se relève, comme au soin simple.
+     *
+     * @return array<string, mixed>
+     */
+    private function soinDeZone(Quete $quete, Personnage $lanceur, EtatPersonnageQuete $etat, int $soin): array
+    {
+        $grille = $this->grille($quete);
+        $soignes = [];
+
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $cible) {
+            $heros = $cible->personnage;
+
+            if ($heros === null || $cible->position_x === null) {
+                continue;
+            }
+
+            $visible = $cible->personnage_id === $lanceur->id || $grille->ligneDeVue(
+                (int) $etat->position_x, (int) $etat->position_y,
+                (int) $cible->position_x, (int) $cible->position_y,
+            );
+
+            if (! $visible) {
+                continue;
+            }
+
+            $avant = (int) $heros->pv_body;
+            $apres = min((int) $heros->pv_body_max, $avant + $soin);
+
+            if ($apres === $avant) {
+                continue;
+            }
+
+            $heros->update(['pv_body' => $apres]);
+
+            if ($apres > 0 && $cible->tombe) {
+                $cible->update(['tombe' => false]);
+            }
+
+            $soignes[] = ['personnage_id' => $heros->id, 'nom' => $heros->nom, 'soin' => $apres - $avant];
+        }
+
+        return ['zone' => true, 'soignes' => $soignes];
+    }
+
     private function sortUtilitaire(
         Quete $quete,
         Personnage $lanceur,
@@ -1880,6 +1933,14 @@ final class ResolveurTour
         array $parametres,
     ): array {
         $effet = $sort->effet ?? [];
+
+        // Soin de ZONE : « You and all the heroes that you see restore up to 2
+        // lost Body Points each » (Chant de guérison du Barde). Le lanceur
+        // COMPRIS — il se voit toujours lui-même —, et sans jamais dépasser le
+        // maximum de chacun.
+        if (isset($effet['soin_pv_body'], $effet['zone'])) {
+            return $this->soinDeZone($quete, $lanceur, $etat, (int) $effet['soin_pv_body']);
+        }
 
         // Soin du Corps / Eau de Guérison : +4 PV Body, PLAFONNÉ au maximum.
         if (isset($effet['soin_pv_body'])) {

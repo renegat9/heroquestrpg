@@ -456,6 +456,17 @@ final class MoteurSorts
             $cibles = $this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $cibles);
         }
 
+        // « may be cast on any one hero, EXCLUDING YOURSELF » (Conte inspirant
+        // du Barde). L'inverse de la règle par défaut, et il faut le dire : ce
+        // sort revient quand un ALLIÉ pare, alors se l'accorder à soi-même en
+        // ferait un bonus quasi permanent.
+        if (data_get($sort->effet, 'exclut_soi') && $lanceur !== null && isset($lanceur['personnage_id'])) {
+            $cibles = array_values(array_filter(
+                $cibles,
+                fn ($c) => ($c['personnage_id'] ?? null) !== $lanceur['personnage_id'],
+            ));
+        }
+
         return $this->nettoyerCibles($cibles);
     }
 
@@ -573,15 +584,45 @@ final class MoteurSorts
      * portés par les buffs de sorts du héros — relus dans l'effet JSON du
      * sort source, jamais recopiés.
      */
-    public function bonusDes(Personnage $personnage, string $cle): int
+    public function bonusDes(Personnage $personnage, string $cle, ?string $contexte = null): int
     {
         $total = 0;
 
         foreach ($this->buffsSorts($personnage) as $condition) {
-            $total += (int) ($this->effetSortSource((string) $condition->pivot->source)[$cle] ?? 0);
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+
+            // Bonus CONDITIONNEL : « 1 extra Attack dice when attacking a
+            // monster that you are ADJACENT TO » (Métamorphose du Druide). Le
+            // dé de défense du même sort, lui, est inconditionnel — d'où une
+            // condition portée par la clé d'attaque seule, et non par le sort.
+            $requis = $effet['condition_bonus_attaque'] ?? null;
+
+            if ($cle === 'bonus_des_attaque' && $requis !== null && $requis !== $contexte) {
+                continue;
+            }
+
+            $total += (int) ($effet[$cle] ?? 0);
         }
 
         return $total;
+    }
+
+    /**
+     * Un buff actif du héros porte-t-il ce DRAPEAU ?
+     *
+     * Pour les clés booléennes qui ne se cumulent pas — `ignore_pieges_fosse`
+     * (Forme démoniaque du Warlock : « the warlock ignores pit traps »), là où
+     * `bonusDes()` additionne des dés.
+     */
+    public function aBuff(Personnage $personnage, string $cle): bool
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            if (! empty($this->effetSortSource((string) $condition->pivot->source)[$cle])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Multiplicateur de déplacement (Vent Véloce) — 1 sans buff. */

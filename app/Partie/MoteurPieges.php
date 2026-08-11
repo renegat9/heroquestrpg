@@ -54,7 +54,9 @@ final class MoteurPieges
     public function __construct(
         private readonly LanceurDes $des,
         private readonly MoteurDegats $degats,
+        private readonly MoteurSorts $sorts,
     ) {}
+
 
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
@@ -129,6 +131,17 @@ final class MoteurPieges
     ): array {
         $entree = $carte->grille['pieges'][$index];
         $piege = Piege::find($entree['piege_id']);
+
+        // « The warlock ignores pit traps » (Forme démoniaque). La FOSSE
+        // seulement : les flèches et les lames le touchent comme tout le monde,
+        // c'est le sol qui ne l'avale plus.
+        if ($this->estFosse($piege) && $this->sorts->aBuff($personnage, 'ignore_pieges_fosse')) {
+            return [
+                'type' => 'piege_ignore',
+                'piege' => $piege?->nom,
+                'personnage' => $personnage->nom,
+            ];
+        }
 
         $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
         $subis = $this->degats->infligerAHeros(

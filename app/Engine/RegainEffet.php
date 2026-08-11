@@ -76,17 +76,20 @@ final class RegainEffet
      *
      * Même dispositif que `TypeDegat::SANS_SOURCE` : le projet interdit la clé
      * décorative — un mot déclaré que rien n'applique —, mais il accepte la
-     * **dette nommée**, à condition qu'elle dise ce qui lui manque. Ici le
-     * moteur applique bien les trois ; ce sont les trois SORTS qui ne sont pas
-     * encore semés, faute de leurs classes (Druide, Warlock, Barde — voir
-     * `reference/18_extensions.md`).
+     * **dette nommée**, à condition qu'elle dise ce qui lui manque.
+     *
+     * ✅ Le tableau est VIDE depuis le 2026-08-12 : les trois sorts qui
+     * l'attendaient sont semés avec leurs classes.
      *
      * @var array<string, string>
      */
     public const SANS_UTILISATEUR = [
-        self::BODY_AU_MAX => 'Attend le sort Shapeshift, qui attend la classe Druide.',
-        self::MONSTRE_VAINCU => 'Attend le sort Demonform, qui attend la classe Warlock.',
-        self::ALLIE_DEUX_BOUCLIERS_BLANCS => 'Attend le sort Inspiring Tale, qui attend la classe Barde.',
+        // ✅ VIDE depuis le 2026-08-12 : les trois regains ont trouvé leur
+        // porteur en même temps que leurs classes — `body_au_max` la
+        // Métamorphose du Druide, `monstre_vaincu` la Forme démoniaque du
+        // Warlock, `allie_deux_boucliers_blancs` le Conte inspirant du Barde.
+        // Le tableau reste, et son test avec lui : le jour où un quatrième
+        // événement sera déclaré sans sort, il devra s'inscrire ici.
     ];
 
     public static function estConnu(mixed $regain): bool
