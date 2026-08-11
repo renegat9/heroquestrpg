@@ -16,6 +16,7 @@ import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/manette/JetDes.vue';
+import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
@@ -84,6 +85,9 @@ onMounted(async () => {
             }),
             souscrireJoueur(joueur.id, {
                 '.menu.propose': (e) => store.setMenu(e.menu),
+                // Réaction hors tour : arrive PENDANT le tour d'un monstre,
+                // donc en dehors de toute boucle de menu.
+                '.reaction.proposee': (e) => { reactionProposee.value = e?.reaction ?? null; },
             }),
         );
         // Rattrapage du menu courant : à la reconnexion, on a raté le
@@ -403,6 +407,49 @@ const initCur = computed(() => {
    { option, mode: 'cible'|'concentration', cibles?|sorts? }. Un nouveau
    menu (.menu.propose) la referme — l'option ne serait plus légale. */
 const feuilleOption = ref(null);
+
+/* ---- Réaction HORS TOUR (Dark Wings, Twisting Torrent) ----
+   Deux entrées, et il en faut deux : le broadcast privé `.reaction.proposee`
+   pour l'immédiateté, et `/etat` pour une manette rechargée entre-temps — sans
+   la seconde, un rafraîchissement au mauvais moment volerait son pouvoir au
+   joueur sans qu'aucun écran ne le dise. ---- */
+const reactionProposee = ref(null);
+const reactionEnCours = ref(false);
+
+// Le serveur expose la proposition sur l'entité du héros ; on la reprend tant
+// qu'on n'en affiche pas déjà une (le broadcast est plus riche : il porte la
+// description du sort).
+watch(monPerso, (p) => {
+    const attente = p?.reaction_en_attente;
+    if (attente && !reactionProposee.value) {
+        reactionProposee.value = {
+            personnage_id: monPersonnageId.value,
+            sort: attente.nom,
+            source: attente.source,
+            degats: attente.degats,
+            expire_dans: 20, // on ignore depuis quand elle attend : fenêtre courte
+        };
+    } else if (!attente && reactionProposee.value) {
+        reactionProposee.value = null; // résolue ailleurs (expiration serveur)
+    }
+});
+
+async function repondreReaction(accepte) {
+    if (reactionEnCours.value) return;
+    const perso = reactionProposee.value?.personnage_id ?? monPersonnageId.value;
+    reactionEnCours.value = true;
+    try {
+        await api.repondreReaction(props.groupe, perso, accepte);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        // Fermée dans TOUS les cas, y compris sur erreur : une feuille qui
+        // reste après un refus serveur bloquerait la manette hors de son tour.
+        reactionProposee.value = null;
+        reactionEnCours.value = false;
+        rafraichirMoi();
+    }
+}
 watch(() => store.state.menu, () => { feuilleOption.value = null; });
 
 function choisirOption(option) {
@@ -1059,6 +1106,15 @@ const navItems = computed(() => (scene.value === 'marche'
                         @close="feuilleOption = null"
                     />
                     <VoteSheet v-if="voteAffiche" :vote="voteAffiche" @cast="castVote" @close="fermerVote" />
+
+                    <!-- Réaction hors tour : passe DEVANT le reste, sa fenêtre
+                         est de quelques secondes et la partie continue. -->
+                    <ReactionSheet
+                        v-if="reactionProposee"
+                        :reaction="reactionProposee"
+                        :pending="reactionEnCours"
+                        @repondre="repondreReaction"
+                    />
 
                     <!-- Révélation du jet de dés (mode connecté) : tap pour fermer -->
                     <div v-if="desReveles" class="des-reveal" @click="desReveles = null">

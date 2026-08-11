@@ -56,6 +56,8 @@ final class MoteurDegats
      *
      * @param  array<string, mixed>  $contexte
      */
+    public function __construct(private readonly MoteurReactions $reactions) {}
+
     public function infligerAHeros(
         Personnage $heros,
         int $degats,
@@ -84,8 +86,16 @@ final class MoteurDegats
         $avant = (int) $heros->pv_body;
         $heros->update(['pv_body' => max(0, $avant - $retenus)]);
 
+        $subis = $avant - (int) $heros->pv_body;
+
+        // Réaction HORS TOUR : le coup a porté, on propose au joueur de
+        // l'annuler (Dark Wings, Twisting Torrent). La proposition part sur son
+        // canal privé et attend — la phase des monstres, elle, continue : rien
+        // ici ne bloque la résolution en cours.
+        $this->reactions->proposer($heros, $subis, $source, $contexte);
+
         // `Personnage::booted()` prend le relais pour `premier_degat_subi`.
-        return $avant - (int) $heros->pv_body;
+        return $subis;
     }
 
 }

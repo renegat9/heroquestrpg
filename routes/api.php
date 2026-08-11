@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
+use App\Http\Controllers\Api\ReactionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -157,6 +158,12 @@ Route::middleware('auth:joueur')->group(function () {
     // Snapshots (contrat, doc 12 §4) : liste des points de reprise du moteur
     // (debut_quete / nouveau_tour). (POST reprise : route membre-OU-table plus haut.)
     Route::get('/groupes/{identifiant}/snapshots', [SauvegardeController::class, 'index']);
+
+    // Réaction HORS TOUR (Dark Wings, Twisting Torrent) : la SEULE action du
+    // jeu qui arrive en dehors du tour de son auteur. Elle ne peut donc passer
+    // ni par le menu (il n'y en a pas à ce moment-là) ni par /choix, qui
+    // suppose que c'est votre tour.
+    Route::post('/groupes/{identifiant}/reaction', [ReactionController::class, 'repondre']);
 
     // Votes de groupe (doc 05 §5) : un seul vote actif par groupe ; au hub,
     // le départ est libre avec sa part du pot commun.

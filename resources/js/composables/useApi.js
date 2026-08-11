@@ -250,6 +250,17 @@ export function useApi() {
             request('POST', `/groupes/${identifiant}/choix`, payload),
 
         /**
+         * POST /api/groupes/{identifiant}/reaction {personnage_id, accepte}.
+         * Réaction HORS TOUR (Dark Wings, Twisting Torrent) : la seule action
+         * du jeu qui arrive pendant le tour de quelqu'un d'autre. Ne passe donc
+         * pas par /choix, qui suppose que c'est le vôtre.
+         */
+        repondreReaction: (identifiant, personnageId, accepte) =>
+            request('POST', `/groupes/${identifiant}/reaction`, {
+                personnage_id: personnageId, accepte,
+            }),
+
+        /**
          * POST /api/groupes/{identifiant}/potions {inventaire_id} → {resultat}.
          * Action GRATUITE, à tout moment (même hors de son tour) — canon.
          */

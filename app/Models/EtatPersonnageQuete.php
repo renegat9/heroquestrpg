@@ -28,6 +28,9 @@ class EtatPersonnageQuete extends Model
         // Rejetons accrochés (Jungles of Delthrak) : 1 PV automatique et
         // indéfendable par jeton, à chaque fin de tour du porteur.
         'jetons_rejeton',
+        // Réaction hors tour proposée au joueur (Dark Wings, Twisting Torrent) :
+        // {sort_id, nom, source, degats, expire_a}. Voir App\Partie\MoteurReactions.
+        'reaction_en_attente',
     ];
 
     protected function casts(): array
@@ -42,6 +45,7 @@ class EtatPersonnageQuete extends Model
             'attaque_supplementaire' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
+            'reaction_en_attente' => 'array',
         ];
     }
 

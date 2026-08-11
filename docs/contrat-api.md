@@ -90,6 +90,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 |---|---|---|---|
 | `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
+| `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
 | `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe | table + manettes |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
@@ -207,6 +208,56 @@ RÉUSSIT pour chaque volée ; sans elles un client ne peut pas afficher un jet,
 puisqu'un dé n'est un succès que relativement à qui le lance. La manette s'en
 sert pour entourer les dés gagnants en vert (`JetDes.vue`), et les mêmes
 valeurs repartent sous `des` dans `.combat.journal`.
+
+## Réactions hors tour
+
+`POST /api/groupes/{identifiant}/reaction` — `{personnage_id, accepte}` →
+`{reaction: {…}}`. **Membre uniquement**, et seulement pour **ses propres**
+héros (422 sinon).
+
+C'est la **seule action du jeu qui arrive en dehors du tour de son auteur**,
+d'où sa route dédiée : elle ne peut passer ni par le menu (il n'y en a pas à ce
+moment-là) ni par `/choix`, qui suppose que c'est votre tour. Deux cartes
+officielles la réclament — *Dark Wings* (Warlock, « Reduce that damage to
+zero ») et *Twisting Torrent* (Moine, « cancel that damage »), toutes deux
+déclenchées **quand leur porteur encaisse**, donc pendant le tour d'un monstre.
+
+**Ordre des opérations, et il est délibéré.** La phase des monstres se résout
+dans la requête HTTP d'un *autre* joueur, à l'intérieur d'une transaction :
+rien ne peut l'y suspendre le temps d'un aller-retour vers un téléphone. Le
+coup est donc **appliqué**, puis la question posée — l'ordre même de la table,
+où l'on annonce les dégâts avant que le joueur dise « j'annule ». Accepter
+**défait** le coup.
+
+1. `MoteurDegats` applique les dégâts, puis `MoteurReactions::proposer()` dépose
+   `etat_personnage_quete.reaction_en_attente` si le héros a un sort réactif
+   **disponible**.
+2. `.reaction.proposee` part sur le canal **privé** `joueur.{id}` :
+   `{groupe, reaction: {personnage_id, sort, description, source, degats,
+   expire_dans}}`. C'est sa décision — ni la table ni les autres manettes ne la
+   reçoivent.
+3. La proposition est **aussi** exposée dans `EtatGroupe.entites[]` du héros
+   sous `reaction_en_attente` : une manette rechargée entre-temps perdrait
+   sinon la proposition, et avec elle le pouvoir du joueur, sans qu'aucun écran
+   ne le dise.
+4. Le joueur répond. `accepte: true` → PV rendus, héros **relevé** s'il était
+   tombé de ce coup, sort passé à `disponible = false`, entrée `combat` au
+   journal, `.groupe.etat` rediffusé. `accepte: false` → rien, le sort est
+   conservé. Dans les **deux** cas la proposition est consommée.
+
+Sources réactives : `attaque_monstre` · `sort_dread` · `tir_ami`. ⚠ **Pas**
+`rejeton` : les cartes parlent d'un coup encaissé, alors que les jetons de
+rejeton sont une hémorragie automatique en fin de son propre tour — les faire
+annuler viderait la mécanique du jeton. Fenêtre de décision : **45 s**
+(`ReactionEffet::FENETRE_SECONDES`) ; passée, la réponse `true` est refusée en
+422 et la manette répond `false` d'elle-même plutôt que d'afficher une feuille
+morte.
+
+⚠ **Limite assumée** : un coup qui achève le **dernier** héros debout provoque
+le TPK en fin de round, avant que le joueur ait pu répondre ; la quête passe
+`echouee` et la proposition est refusée. Un héros qui tombe pendant que ses
+compagnons tiennent debout, lui, est bien relevé par sa réaction. Le groupe
+garde `/reprise` pour l'autre cas.
 
 ## Votes de groupe (doc 05 §5)
 

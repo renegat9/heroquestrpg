@@ -625,6 +625,12 @@ final class EtatGroupe
                     // n'annonce autrement, et c'est un compagnon adjacent qui
                     // doit décider de venir les détacher.
                     'jetons_rejeton' => (int) ($etat?->jetons_rejeton ?? 0),
+                    // Réaction HORS TOUR en attente de décision (Dark Wings,
+                    // Twisting Torrent). Exposée ici en plus du broadcast privé
+                    // `.reaction.proposee` : une manette rechargée au mauvais
+                    // moment perdrait sinon la proposition — et avec elle le
+                    // pouvoir du joueur — sans qu'aucun écran ne le dise.
+                    'reaction_en_attente' => $etat?->reaction_en_attente,
                     'conditions' => $this->conditionsHeros($p),
                 ];
             })
