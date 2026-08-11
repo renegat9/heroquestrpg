@@ -62,6 +62,8 @@ const CLES_SORT_ACTIVES = [
     'regain',                  // MoteurSorts::regagnerSorts() — App\Engine\RegainEffet
     'reaction',                // MoteurReactions::sortReactifDisponible() — hors tour
     'ignore_pieges_fosse',     // MoteurPieges::declencher() via MoteurSorts::aBuff()
+    'condition_monstre',       // ResolveurTour::appliquerEffetMental() — MoteurSorts::CONDITIONS_MONSTRE
+    'seuil_mind_max',          // ResolveurTour::sortMental() — s'applique SANS jet sous le seuil
 ];
 
 /**
@@ -91,7 +93,10 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'bonus_des_defense', 'deplacement_multiplie', 'franchit_mur', 'saute_tour', 'ouvre_porte',
         // Un sort de RÉACTION agit hors tour (Ailes sombres) : son effet n'est
         // ni un dégât ni un buff, il annule un coup — mais il agit bel et bien.
-        'reaction'];
+        'reaction',
+        // Une condition posée sur un MONSTRE agit (Terreur, Ralentissement) :
+        // elle plafonne ou réduit ses dés, lus par InstanceMonstre.
+        'condition_monstre'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))

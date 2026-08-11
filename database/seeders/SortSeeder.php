@@ -122,10 +122,38 @@ class SortSeeder extends Seeder
                     'duree' => 'premier_degat_subi', 'regain' => 'monstre_vaincu',
                     'condition_appliquee' => 'Renforcé']],
 
-            // ⚠ TERREUR (Fear) n'est PAS semé : « attacks are reduced to 1
-            // combat die » suppose de modifier les dés d'attaque d'un MONSTRE
-            // par une condition, ce que le moteur ne sait pas faire — nos
-            // malus de dés sont tous côté héros. Dette nommée, pas oubli.
+            // « This spell causes any one monster to become so fearful that
+            // their attacks are reduced to 1 combat die. » ⚠ Un PLAFOND, pas un
+            // malus : l'ogre à 4 dés tombe à 1 comme le gobelin à 2.
+            ['element' => 'warlock', 'nom' => 'Terreur', 'type' => 'mental', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind',
+                    'condition_monstre' => 'terrifie', 'condition_appliquee' => 'Terrifié',
+                    'fin' => 'jet_mind_reussi']],
+
+            // ================================================================
+            // RÉPERTOIRE ELFIQUE (© 2023 Hasbro, The Mage of the Mirror)
+            //
+            // L'Elfe choisira 3 sorts parmi celui-ci, au lieu d'une école
+            // élémentaire (décision de René, 2026-08-11 — doc 02 §7bis).
+            // ================================================================
+
+            // « Reduces any one monster's movement to 1 square per turn. The
+            // monster also rolls 1 LESS combat die when it attacks OR DEFENDS.
+            // Cannot be less than 1. »
+            ['element' => 'elfique', 'nom' => 'Ralentissement', 'type' => 'mental', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind',
+                    'condition_monstre' => 'ralenti', 'condition_appliquee' => 'Ralenti',
+                    'fin' => 'mort_ou_hors_de_vue']],
+
+            // « […] IF the monster has from 1 to 3 Mind Points. The monster
+            // falls asleep IMMEDIATELY. » Aucun jet de résistance : c'est le
+            // seuil de Mind qui décide, et un Mind 0 reste hors de portée.
+            ['element' => 'elfique', 'nom' => 'Sommeil profond', 'type' => 'mental', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'monstre', 'seuil_mind_max' => 3,
+                    'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
+
+            ['element' => 'elfique', 'nom' => 'Eau de Guérison elfique', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
         ];
 
         foreach ($sorts as $sort) {

@@ -42,7 +42,37 @@ class InstanceMonstre extends Model
     /** Dés d'attaque effectifs (bloc de stats + bonus élite éventuel). */
     public function attaqueEffective(): int
     {
-        return (int) $this->monstre->attaque + ($this->elite ? self::BONUS_ELITE : 0);
+        $des = (int) $this->monstre->attaque + ($this->elite ? self::BONUS_ELITE : 0);
+
+        return $this->apresConditions($des, 'attaque');
+    }
+
+    /**
+     * Applique les conditions posées sur l'instance (`habillage.conditions`) à
+     * un nombre de dés — deux sorts en dépendent, et tous deux plafonnent :
+     *
+     *  - **Terreur** (Warlock) : « attacks are reduced to 1 combat die ». Ce
+     *    n'est PAS un malus : c'est un plafond, qui ramène un ogre à 4 dés
+     *    comme un gobelin à 2.
+     *  - **Ralenti** (Slow, répertoire elfique) : « rolls 1 less combat die
+     *    when it attacks OR DEFENDS », donc les deux, « cannot be less than 1 ».
+     *
+     * ⚠ Un plancher à 1 dans les deux cas : le texte des deux cartes l'exige,
+     * et un monstre à 0 dé d'attaque ne pourrait plus jamais toucher.
+     */
+    private function apresConditions(int $des, string $volee): int
+    {
+        $conditions = (array) data_get($this->habillage, 'conditions', []);
+
+        if ($volee === 'attaque' && ! empty($conditions['terrifie'])) {
+            $des = min($des, 1);
+        }
+
+        if (! empty($conditions['ralenti'])) {
+            $des -= 1;
+        }
+
+        return max(1, $des);
     }
 
     /** Dés d'attaque à distance effectifs (null si le monstre n'a pas de portée). */
@@ -60,7 +90,9 @@ class InstanceMonstre extends Model
     /** Dés de défense effectifs (bloc de stats + bonus élite éventuel). */
     public function defenseEffective(): int
     {
-        return (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
+        $des = (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
+
+        return $this->apresConditions($des, 'defense');
     }
 
     /**

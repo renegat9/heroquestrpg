@@ -1824,6 +1824,26 @@ final class ResolveurTour
             ]);
         }
 
+        // SEUIL DE MIND : « may be cast on any monster […] IF THE MONSTER HAS
+        // FROM 1 TO 3 MIND POINTS. The monster falls asleep IMMEDIATELY »
+        // (Sommeil profond, répertoire elfique). Deux règles en une : au-delà
+        // du seuil le sort ne prend pas du tout, et en deçà il n'y a AUCUN jet
+        // de résistance — c'est automatique. Un Mind 0 reste hors de portée,
+        // comme partout ailleurs.
+        $seuil = $sort->effet['seuil_mind_max'] ?? null;
+
+        if ($seuil !== null) {
+            $applicable = $mind >= 1 && $mind <= (int) $seuil;
+
+            $payload = $this->payloadSortMental($cible, $mind, $applicable);
+
+            if (! $applicable) {
+                return $payload;
+            }
+
+            return $this->appliquerEffetMental($sort, $cible, $payload);
+        }
+
         $resultat = (new SortMental($this->des))->resoudre($mind);
 
         $payload = [
@@ -1846,6 +1866,38 @@ final class ResolveurTour
             return $payload;
         }
 
+        return $this->appliquerEffetMental($sort, $cible, $payload);
+    }
+
+    /**
+     * Payload d'un sort mental résolu SANS jet (chemin `seuil_mind_max`).
+     *
+     * @param  array<string, mixed>  $cible
+     * @return array<string, mixed>
+     */
+    private function payloadSortMental(array $cible, int $mind, bool $applique): array
+    {
+        return [
+            'cible' => $cible['type'] === 'monstre'
+                ? ['type' => 'monstre', 'instance_id' => $cible['monstre']->id, 'nom' => $cible['monstre']->nomAffiche()]
+                : ['type' => 'heros', 'personnage_id' => $cible['personnage']->id, 'nom' => $cible['personnage']->nom],
+            'mind_cible' => $mind,
+            'sans_jet' => true,
+            'effet_applique' => $applique,
+        ];
+    }
+
+    /**
+     * Pose l'effet d'un sort mental sur sa cible. Extrait pour être partagé
+     * entre le chemin AVEC jet de résistance et le chemin à seuil de Mind.
+     *
+     * @param  array<string, mixed>  $cible
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function appliquerEffetMental(Sort $sort, array $cible, array $payload): array
+    {
+
         $conditionNom = data_get($sort->effet, 'condition_appliquee');
 
         if ($cible['type'] === 'monstre') {
@@ -1855,6 +1907,23 @@ final class ResolveurTour
             if ((bool) data_get($sort->effet, 'saute_tour', false)) {
                 $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_SAUTE_TOUR);
                 $conditionNom ??= 'Étourdi';
+            }
+
+            // Clé GÉNÉRIQUE (2026-08-12) : chaque condition de monstre était
+            // jusqu'ici câblée en dur, un `if` par sort. `condition_monstre`
+            // ouvre la liste — Terreur du Warlock, Ralentissement elfique — et
+            // 422 sur un mot inconnu plutôt que de poser une condition muette.
+            $conditionMonstre = data_get($sort->effet, 'condition_monstre');
+
+            if (is_string($conditionMonstre)) {
+                if (! in_array($conditionMonstre, MoteurSorts::CONDITIONS_MONSTRE, true)) {
+                    throw ValidationException::withMessages([
+                        'option_id' => "Condition de monstre inconnue : « {$conditionMonstre} ».",
+                    ]);
+                }
+
+                $this->sorts->poserConditionMonstre($cible['monstre'], $conditionMonstre);
+                $conditionNom ??= ucfirst($conditionMonstre);
             }
         } else {
             $conditionNom ??= 'Étourdi'; // Tempête côté héros : perd_prochain_tour (catalogue)

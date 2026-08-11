@@ -147,6 +147,28 @@ final class MoteurSorts
     public const MONSTRE_SAUTE_TOUR = 'saute_tour';
 
     /**
+     * Conditions de sort posables sur un MONSTRE par la clé générique
+     * `effet.condition_monstre` (2026-08-12).
+     *
+     * Jusqu'ici chaque condition de monstre était câblée en dur dans
+     * `ResolveurTour::sortMental()` — un `if` par nom de sort. Deux cartes de
+     * plus en demandaient deux autres ; la clé rend la liste ouverte, et les
+     * dés effectifs sont lus par `InstanceMonstre::attaqueEffective()` /
+     * `defenseEffective()`.
+     */
+    public const MONSTRE_TERRIFIE = 'terrifie';
+
+    public const MONSTRE_RALENTI = 'ralenti';
+
+    /** @var list<string> */
+    public const CONDITIONS_MONSTRE = [
+        self::MONSTRE_ENDORMI,
+        self::MONSTRE_SAUTE_TOUR,
+        self::MONSTRE_TERRIFIE,
+        self::MONSTRE_RALENTI,
+    ];
+
+    /**
      * Dés de dégâts de repli si l'effet JSON du catalogue n'en donne pas
      * (départ playtest doc 02 §7) — le seeder fait toujours foi.
      */
