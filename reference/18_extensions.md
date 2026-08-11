@@ -1877,13 +1877,16 @@ avec personne — les 4 classes de base sont toutes à 2.
 | **Terre** | *Strength of Mountain* | « Roll 2 additional Attack dice on an unarmed attack. » |
 | **Terre** | *Speak with Stone* | Chercher portes secrètes et pièges **en une seule action**. ⚠ nom fourni par René, libellé exact non photographié |
 | **Eau** | *Tidal Surge* | « Activate this technique on your turn to split your total movement roll before and after your action. » |
-| **Eau** | ⚠ *nom incertain* | Annuler entièrement les dégâts d'un coup subi. ⚠ deux noms candidats avancés (*Twisting Torrent*, *Defensive Flow*), aucun photographié |
+| **Eau** | *Twisting Torrent* | « Activate this technique when you take damage to cancel that damage. » ⚠ libellé rapporté par deux sources concordantes, non photographié |
 | **Feu** | *Burning Spirit* | « As an action, expel a beam of brilliant energy from your soul's core. This beam may be straight or diagonal and continues until it meets a wall or closed door. Each enemy in the beam takes 2 Body Points of damage. » |
 | **Feu** | *Touch of Endless Inferno* | « As an action, inflict 1 Body Point of damage to any one adjacent enemy. The target takes an additional 2 Body Points of damage at the end of its next turn. » |
 
-⚠ **Une seule technique manque** : le verso Eau, dont ni le nom ni le libellé
-n'ont pu être photographiés. L'effet est corroboré par deux sources
-indépendantes (« cancel any damage the monk takes »).
+**Les 8 techniques sont donc connues.** Seul le verso Eau (*Twisting
+Torrent*) n'a pas été lu sur une photo : son nom et son effet sont rapportés
+par deux sources indépendantes et concordantes. Un recoupement utile confirme
+au passage la fiche : une source décrit *Strength of Mountain* comme donnant
+« **four** attack dice for an unarmed attack » — soit 2 à mains nues + 2, ce
+qui vaut confirmation croisée du `1*` et de sa note de bas de carte.
 
 *Burning Spirit* est un **rayon en ligne** qui traverse et frappe tout sur son
 passage : aucune de nos zones d'effet ne fait ça (`monstres_zone` a d'ailleurs
@@ -1895,10 +1898,20 @@ près qu'il expire.
 
 ## Rogue Heir of Elethorn — cartes TRANSCRITES (2026-08-11)
 
-Photo publique des 5 cartes (© 2022 Hasbro). ⚠ **La fiche de personnage
-manque toujours** : ces photos couvrent les capacités et l'équipement, pas les
-Attaque/Défense/Body/Mind. C'est la **seule des cinq classes** dont la ligne de
-stats reste inconnue.
+Photo publique des 5 cartes (© 2022 Hasbro).
+
+**Fiche de personnage** — Attaque **1**, Défense **2**, Body **5**,
+Mind **4**.
+
+⚠ **Niveau de preuve inférieur aux quatre autres** : cette ligne n'a **pas**
+été lue sur une image, elle est rapportée par un compte rendu de première main
+du GenCon 2022 (elvyler.com, qui photographiait la carte) et corroborée par une
+seconde source. Les quatre autres fiches, elles, ont été transcrites de la
+photo. À revérifier sur carte physique — et le **déplacement**, l'**arme de
+départ** et la **restriction d'armure** de la fiche restent inconnus : la
+restriction (« ni armure métallique ni bouclier ») ne vient que de sources
+tierces, et la carte *Bandolier* établit seulement qu'il est « *always
+considered to be armed with a dagger* ».
 
 | Carte | Texte |
 |---|---|
@@ -1993,21 +2006,24 @@ compte pour l'implémentation :
 | **Druide** | ✅ 3 sorts **transcrits** | ✅ pas d'armure métallique | ✅ **A1 D2 B6 M4** |
 | **Warlock** | ✅ 3 sorts **transcrits** | ✅ règles d'armure du magicien | ✅ **A2 D2 B4 M5** |
 | **Moine** | ✅ 7 techniques sur 8 **transcrites** | ⚠ énoncée par source tierce seulement | ✅ **A1\* D3 B6 M4** |
-| **Rogue** | ✅ 3 capacités **transcrites** | ✅ énoncées | ❌ **la seule qui manque** |
+| **Rogue** | ✅ 3 capacités **transcrites** | ⚠ tierces | ⚠ **A1 D2 B5 M4** (rapportée, non lue sur image) |
 | **Explorateur** | ⚠ 1 règle officielle (pièges, seuil 5-6) | ⚠ rien | ❌ |
 | **Chevalier-Gardien** | ❌ 3 pouvoirs **sans aucun texte** | ⚠ « cotte de mailles » | ❌ |
 | **Berserker** | ❌ néant | ❌ | ❌ |
 
-**Quatre fiches sur cinq sont désormais sourcées** (photos des cartes,
-2026-08-11), et c'est ce qui débloque le portage. Le tableau ci-dessus a
+**Les cinq fiches sont désormais connues** (photos des cartes,
+2026-08-11), et c'est ce qui débloque le portage — quatre lues sur image, la
+cinquième (Rogue) rapportée par deux sources concordantes et signalée comme
+telle. Le tableau ci-dessus a
 remplacé une conclusion qui disait « aucune fiche chiffrée dans un PDF
 Hasbro » : c'est toujours vrai des PDF, et c'est justement pourquoi la photo
 était la seule voie — comme pour les prix d'équipement et le tableau des
 8 monstres de base.
 
-Reste à obtenir : la **fiche du Rogue** (Attaque/Défense/Body/Mind), le verso
-Eau du Moine, et tout ce qui concerne l'Explorateur, le Chevalier-Gardien et
-le Berserker. `classes_heros` exige 8 valeurs par classe (`pv_body`,
+Reste à obtenir : la **photo** de la fiche du Rogue (pour la hisser au même
+niveau que les quatre autres) ainsi que son déplacement et son armure, la photo
+du verso Eau du Moine, et tout ce qui concerne l'Explorateur, le
+Chevalier-Gardien et le Berserker. `classes_heros` exige 8 valeurs par classe (`pv_body`,
 `pv_mind`, `attr_body`, `attr_mind`, `des_attaque`, `des_defense`,
 `deplacement_base`, `bonus_sac`) : les cartes en donnent 4 à 5, le reste
 (`attr_*`, `bonus_sac`) suit nos propres conventions et doit être signalé
