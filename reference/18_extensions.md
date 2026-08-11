@@ -1713,6 +1713,93 @@ sans contenu de donjon.
 
 ---
 
+## HasLab Mythic Tier (2021) — Barde, Druide, Warlock
+
+**Source :** ⚠ **aucun livret.** Le Mythic Tier est le palier haut du
+financement participatif HasLab de la réédition 2021 : un lot de figurines
+et de cartes, jamais accompagné d'un livret de quêtes propre. Hasbro Pulse
+le décrit comme « *27 new miniatures […] and four completely new hero
+characters* » (`old.hasbropulse.com`, billet « HeroQuest: HasLab Mythic
+Tier First Look »).
+
+⚠ **Recherche d'images de cartes menée et infructueuse** (2026-08-11), ce
+qui est la raison d'être de cette section : sans elle, la même impasse
+serait refaite. Testés sans succès — Cults3D (403 sur deux pages « + Cards »
+pourtant annoncées comme des scans haute résolution), `heroquest.fandom.com`
+(402), BoardGameGeek (403), et huit noms de fichiers plausibles chez
+Sjeng / Ye Olde Inn (`sjeng-heroes.pdf`, `sjeng-hero-cards.pdf`… tous en 302,
+avec `sjeng-equipment.pdf` à 200 comme témoin : **il n'existe pas de paquet
+de cartes de héros** dans la série qui nous a servi pour l'armurerie, les
+artefacts et le bestiaire). Le fil dédié de Ye Olde Inn (« Mythic Tier Bard,
+Druid, Warlock character/spell card scans? ») existe mais reste sans scans
+publiés, copyright invoqué.
+
+### 1. Où vivent réellement les règles de ces trois héros
+
+C'est le point qui **corrigeait une erreur de ce document**. Les figurines
+sortent du Mythic Tier, mais les **cartes de personnage** ont été publiées
+avec des boîtes de détail :
+
+| Héros | Figurine | Carte de règles publiée avec |
+|---|---|---|
+| **Barde** (Orc) | Mythic Tier | *Spirit Queen's Torment* — d'où la règle de remplacement posthume, elle, sourcée (voir §Spirit Queen's Torment) |
+| **Druide** | Mythic Tier | *Against the Ogre Horde* |
+| **Warlock** (halfling) | Mythic Tier | *Prophecy of Telor* |
+
+Les sections de ce document consacrées à ces deux boîtes concluent « aucune
+nouvelle classe » : **c'est exact pour le livret de quêtes**, seul objet de
+l'extraction, et faux pour la boîte. La note ‡ du tableau de synthèse
+(« miniature Druid Hero, rôle non confirmé ») était le symptôme de cet
+angle mort. Aucune de ces cartes n'est dans un PDF Hasbro — même limite
+que l'armurerie et le tableau des 8 monstres de base.
+
+### 2. Capacités connues (⚠ sources tierces, à confirmer sur carte)
+
+- **Druide** — *Shapeshift* : prend la forme d'un ours, **+1 dé d'attaque,
+  +1 dé de défense, +1 Body** ; ne peut ni lancer de sort ni utiliser
+  d'objet ou de parchemin sous cette forme ; la forme prend fin quand le
+  Body supplémentaire est perdu **ou** quand la salle est vidée de ses
+  monstres. *Pixie* : révèle tous les pièges et portes secrètes d'une salle,
+  **ou** rend 1 Body à un héros. *Lifegive* : rend jusqu'à 4 Body perdus.
+- **Warlock** — équipement de départ cité : dague (1 dé) et **Soul Bolt**,
+  attaque à distance sans limite d'usage ; le plus haut Mind du jeu et
+  seulement 4 Body ; ni armure lourde ni arme lourde. Trois sorts **nommés
+  sans texte d'effet** : *Fear*, *Demonform*, *Dark Wings*.
+- **Barde** — voir §Spirit Queen's Torment.
+
+⚠ **Les chiffres se contredisent d'une source à l'autre** : le Druide est
+donné à *1 dé d'attaque / 2 de défense* par une source et à *2 d'attaque /
+1 de défense, 6 Body, 6 Mind* par une autre. Aucune valeur chiffrée n'est
+retenue ici — c'est exactement le cas de figure qui impose la photo.
+
+---
+
+## Commander of the Guardian Knights (2021, gamme « Hero Collection »)
+
+**Source :** ⚠ **livret non trouvé** — troisième pack Hero Collection,
+même situation que Rogue Heir of Elethorn et Path of the Wandering Monk.
+Réf. F5903, « *2 highly-detailed Champion of the Guardian Knights figures
+on 25mm bases […] and 12 game cards* ».
+
+### 1. Nouveaux héros jouables
+
+**Le Chevalier-Gardien (Commander of the Guardian Knights)** — vendu en
+2 sculpts. « (source tierce, à confirmer) » : profil de tank, « *3 unique
+powers and knight skills* », un paquet de cartes propre nommé **Knight
+Skills**, et une capacité liée au port de la **cotte de mailles**.
+
+⚠ **Aucun texte d'effet trouvé, pour aucun des trois pouvoirs** — seulement
+leur existence. C'est la différence avec le Rogue et le Moine, dont les
+capacités sont citées mot pour mot par les sources tierces : ici il n'y a
+rien à porter, seulement un nom. Semer cette classe reviendrait à inventer
+intégralement ce qu'elle fait.
+
+### 2-5. Monstres, objets, mobilier, mécaniques
+
+⚠ Non trouvé — pack de héros pur, comme les deux autres Hero Collection.
+
+---
+
 ## Tableau de synthèse
 
 | Boîte | Année | Héros jouables | Monstres neufs (types) | Mécaniques neuves majeures |
@@ -1735,16 +1822,50 @@ sans contenu de donjon.
 lui-même ; confirmées comme faisant partie du bestiaire standard 2021 par
 le contenu de boîte de *First Light*, chiffrées uniquement (à prendre avec
 prudence) par la table de tournoi d'*Against the Ogre Horde*.
-‡ Contenu mentionne un miniature « Druid Hero », rôle non confirmé.
+‡ Contenu mentionne un miniature « Druid Hero » : **c'est bien un héros
+jouable**, dont la carte de personnage est publiée avec cette boîte (voir
+§HasLab Mythic Tier). Le livret de quêtes n'en dit rien, d'où le « 0 » de
+cette colonne, qui ne compte que ce que le livret source.
 ⚠ = classe confirmée jouable par le texte mais **fiche chiffrée absente
 du livret officiel** (ou aucun livret officiel trouvé).
 
-**Total de héros jouables recensés dans cette passe : 4** (Rogue,
-Moine, Barde, Explorateur confirmés — + 1 Berserker probable mais non
-confirmé textuellement) — **aucun avec une fiche de statistiques
-officielle chiffrée retrouvée dans un PDF Hasbro.** C'est la limite la
-plus significative de cet inventaire au regard de l'objectif annoncé
-(rendre ces classes jouables) : les capacités qualitatives sont
-documentées pour 4 des 5 candidats, mais l'implémentation moteur devra
-s'appuyer sur les cartes physiques (photographiées ou scannées) plutôt que
-sur ce document pour les valeurs de dés/Body/Mind.
+### Héros jouables — recensement corrigé (2026-08-11)
+
+La première passe n'en comptait que 4, faute d'avoir couvert le **Mythic
+Tier** et le pack **Guardian Knights** (deux sections ajoutées depuis). Le
+roster officiel complet est de **13 héros** — Barbare, Barde, Berserker,
+Druide, Nain, Elfe, Explorateur, Chevalier, Moine, Rogue, Warlock,
+Magicien, Sir Ragnar (retiré) —, dont **4 dans le jeu de base**, ce qui
+laisse **9 candidats** et non 5.
+
+Ils ne sont **pas au même stade**, et c'est la seule distinction qui
+compte pour l'implémentation :
+
+| Candidat | Texte d'effet des capacités | Restrictions d'équipement | Les 8 nombres |
+|---|---|---|---|
+| **Moine** | ✅ 4 Styles Élémentaires, cités | ✅ **énoncées** : ni armure ni bouclier ; dague, arbalète, hachette, épée courte, bâton | ❌ (relatif seulement) |
+| **Rogue** | ✅ 3 capacités, citées | ✅ **énoncées** : ni armure métallique ni bouclier | ❌ |
+| **Druide** | ✅ Shapeshift, Pixie, Lifegive, citées | ⚠ rien | ❌ **sources contradictoires** |
+| **Barde** | ✅ remplacement posthume **officiel** ; 3 sorts (tiers) | ⚠ rapière seule | ❌ |
+| **Explorateur** | ⚠ 1 règle officielle (pièges, seuil 5-6) | ⚠ rien | ❌ |
+| **Warlock** | ⚠ 3 sorts **nommés sans effet** | ⚠ partiellement | ❌ |
+| **Chevalier-Gardien** | ❌ 3 pouvoirs **sans aucun texte** | ⚠ « cotte de mailles » | ❌ |
+| **Berserker** | ❌ néant | ❌ | ❌ |
+
+**Aucun des 9 n'a de fiche chiffrée dans un PDF Hasbro**, et c'est la
+limite décisive : `classes_heros` exige 8 valeurs par classe (`pv_body`,
+`pv_mind`, `attr_body`, `attr_mind`, `des_attaque`, `des_defense`,
+`deplacement_base`, `bonus_sac`). Aucune n'est sourçable, et pour le
+Druide les sources tierces se **contredisent** franchement — 1 dé
+d'attaque / 2 de défense chez l'une, 2 / 1 avec 6 Body et 6 Mind chez
+l'autre. Ces valeurs viendront des **cartes physiques photographiées**,
+comme les prix d'équipement et le tableau des 8 monstres de base avant
+elles ; ce document ne peut pas les fournir et ne doit pas les deviner.
+
+Ce qui, en revanche, est portable **sans aucune carte** : les capacités et
+les restrictions d'équipement des quatre premiers, qui sont des *phrases*
+et non des chiffres — et dont la plupart tombent sur des mécaniques que le
+moteur applique déjà (`tacticien` pour *Opportunistic Striker*, `agile`
+pour *Combat Mobility*, `permet_desamorcage` pour le *Bandolier*,
+`attaque_supplementaire` pour *Ambidextrous*, le second mouvement du
+tacticien pour le *Style de l'Eau*).
