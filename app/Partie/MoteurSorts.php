@@ -84,7 +84,39 @@ final class MoteurSorts
     public const ELEMENT_DEFAUT = 'eau';
 
     /** Classes lanceuses de sorts (parchemins en réussite auto, doc 02 §6). */
+    // ⚠ Barde, Druide et Warlock N'Y SONT PAS ENCORE, et c'est délibéré : leurs
+    // sorts ne sont pas semés (leurs clés d'effet attendent leurs lecteurs, voir
+    // REPERTOIRES_CLASSE ci-dessous). Les déclarer lanceurs maintenant en ferait
+    // des lanceurs sans le moindre sort — un mensonge que `/moi` et le menu
+    // relaieraient jusqu'à la manette.
     public const LANCEURS = ['magicien', 'elfe'];
+
+    /**
+     * Classes dont les sorts sont FIXES : leur carte en donne trois, acquis
+     * d'emblée, sans aucun choix d'école (2026-08-12).
+     *
+     * ⚠ Le mécanisme d'attache existe, les SORTS pas encore : les leurs
+     * emploient neuf clés d'effet (`exclut_soi`, `zone`, `regain`, `reaction`,
+     * `des_attaque_cible`…) dont `SortsFonctionnelsTest` exige à juste titre un
+     * lecteur. Semer les sorts avant leurs lecteurs aurait produit neuf clés
+     * décoratives d'un coup.
+     *
+     * La valeur est le `sorts.element` qui sert de nom de RÉPERTOIRE. Ce n'est
+     * donc pas une école élémentaire — la colonne est réutilisée plutôt que
+     * d'ajouter une table pour trois lignes.
+     */
+    public const REPERTOIRES_CLASSE = [
+        'barde' => 'barde',
+        'druide' => 'druide',
+        'warlock' => 'warlock',
+    ];
+
+    /**
+     * Répertoire ELFIQUE (Mage of the Mirror) : l'Elfe choisit à la création
+     * soit une école élémentaire, soit 3 sorts pris ici (décision de René,
+     * 2026-08-11). Fermé, et il ne se mélange pas aux quatre éléments.
+     */
+    public const REPERTOIRE_ELFIQUE = 'elfique';
 
     /** Mécanique des nœuds d'arbre qui débloquent un élément (CompetenceSeeder). */
     public const MECANIQUE_ELEMENT = 'emplacement_element';
@@ -149,6 +181,20 @@ final class MoteurSorts
         }
 
         return $choix ?? self::ELEMENTS_DEPART_DEFAUT[$classe] ?? [];
+    }
+
+    /**
+     * Attache le répertoire FIXE d'une classe (Barde, Druide, Warlock), s'il en
+     * a un. Sans effet pour les autres — y compris l'Elfe et le Magicien, dont
+     * les sorts se CHOISISSENT.
+     */
+    public function attacherRepertoireClasse(Personnage $personnage, string $classe): void
+    {
+        $repertoire = self::REPERTOIRES_CLASSE[$classe] ?? null;
+
+        if ($repertoire !== null) {
+            $this->attacherElement($personnage, $repertoire);
+        }
     }
 
     /**

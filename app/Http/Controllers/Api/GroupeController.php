@@ -373,6 +373,9 @@ class GroupeController extends Controller
             $sorts->attacherElement($personnage, $element);
         }
 
+        // Barde, Druide, Warlock : leurs 3 sorts sont FIXES, pas choisis.
+        $sorts->attacherRepertoireClasse($personnage, $classe);
+
         $this->attacherCapacitesInnees($personnage, $classe);
         $this->equiperDepart($personnage, $classe);
 
