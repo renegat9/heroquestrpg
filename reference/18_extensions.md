@@ -1753,26 +1753,172 @@ l'extraction, et faux pour la boîte. La note ‡ du tableau de synthèse
 angle mort. Aucune de ces cartes n'est dans un PDF Hasbro — même limite
 que l'armurerie et le tableau des 8 monstres de base.
 
-### 2. Capacités connues (⚠ sources tierces, à confirmer sur carte)
+### 2. Fiches de personnage — TRANSCRITES DE LA CARTE (2026-08-11)
 
-- **Druide** — *Shapeshift* : prend la forme d'un ours, **+1 dé d'attaque,
-  +1 dé de défense, +1 Body** ; ne peut ni lancer de sort ni utiliser
-  d'objet ou de parchemin sous cette forme ; la forme prend fin quand le
-  Body supplémentaire est perdu **ou** quand la salle est vidée de ses
-  monstres. *Pixie* : révèle tous les pièges et portes secrètes d'une salle,
-  **ou** rend 1 Body à un héros. *Lifegive* : rend jusqu'à 4 Body perdus.
-- **Warlock** — équipement de départ cité : dague (1 dé) et **Soul Bolt**,
-  attaque à distance sans limite d'usage ; le plus haut Mind du jeu et
-  seulement 4 Body ; ni armure lourde ni arme lourde. Trois sorts **nommés
-  sans texte d'effet** : *Fear*, *Demonform*, *Dark Wings*.
-- **Barde** — voir §Spirit Queen's Torment.
+Photos des trois cartes fournies par René, lues à l'écran. C'est la **même
+voie que les prix d'équipement et le tableau des 8 monstres de base** : le
+composant est cartonné, aucun PDF ne le porte, la photo est la seule entrée.
+Mention de copyright visible : © 2021 Hasbro.
 
-⚠ **Les chiffres se contredisent d'une source à l'autre** : le Druide est
-donné à *1 dé d'attaque / 2 de défense* par une source et à *2 d'attaque /
-1 de défense, 6 Body, 6 Mind* par une autre. Aucune valeur chiffrée n'est
-retenue ici — c'est exactement le cas de figure qui impose la photo.
+| | Attaque | Défense | Body | Mind | Déplacement | Arme de départ | Armure |
+|---|---|---|---|---|---|---|---|
+| **Barde** | 2 | 2 | 5 | 4 | 2 dés rouges | Dague | — |
+| **Druide** | 1 | 2 | 6 | 4 | 2 dés rouges | Dague | Aucune |
+| **Warlock** | 2 | 2 | 4 | 5 | 2 dés rouges | Baguette | Aucune |
+
+⚠ **Les résumés tiers étaient faux sur plusieurs points**, ce qui justifie
+après coup d'avoir refusé de les semer : le Druide était donné tantôt à
+1 attaque / 2 défense (juste), tantôt à 2 / 1 avec 6 Mind (faux — Mind 4) ;
+et *Shapeshift* était résumé comme accordant « +1 Body », que la carte ne
+donne pas du tout.
+
+**Texte des fiches :**
+
+- **Barde** — « *You are the Bard. Your songs invigorate your allies. You
+  prefer to stay light on your feet so when you are wearing no "metal" armor
+  and carrying no shield you have 1 extra defend die. You have 3 bard spells
+  at your disposal.* » ⇒ un **bonus conditionnel** de défense, pas une
+  restriction : il peut porter du métal, il y perd le dé.
+- **Druide** — « *You are the Druid, a woodland guardian and healer. […] A
+  Druid hero may not wear metal armor.* » ⇒ interdiction ferme, elle.
+- **Warlock** — « *You are the Warlock, a magical artillerist who has bonded
+  with a sinister creature in winged form. […] The Warlock follows the same
+  rules for wearing armor as the wizard.* » ⇒ se branche sur nos tags
+  `armure_magicien` existants.
+
+### 3. Sorts — texte intégral des cartes
+
+**Barde** (3 sorts) :
+- **Inspiring Tale** — « *This spell may be cast on any one hero, excluding
+  yourself. The next time that hero attacks, they may roll 1 extra combat die.
+  Regain this spell when any hero you can see, excluding yourself, rolls
+  Defend dice that result in 2 white shields* »
+- **Lullaby** — « *This spell puts one enemy into a deep sleep so they cannot
+  move, attack, or defend themselves. The spell can be broken at once or on a
+  future turn if the enemy rolls 1 red die for each of their Mind Points. If a
+  6 is rolled, the spell is broken. May not be used against mummies, zombies,
+  or skeletons* » ⇒ c'est notre *Sommeil*, avec la même exception Mind 0.
+- **Healing Song** — « *You and all the heroes that you see restore up to 2
+  lost Body Points each. The spell does not give a hero more than their
+  starting number.* »
+- **Rapier** (250 po) — « *Weapon - This long, slender sword allows you to roll
+  2 Attack dice and may be used to attack diagonally. May not be used by the
+  wizard* » ⇒ `attaque_diagonale`, tag hors magicien.
+
+**Druide** (3 sorts) :
+- **Shapeshift** — « *Shapeshift grants you 1 Defend dice and 1 extra Attack
+  dice when attacking a monster that you are adjacent to. The spell is broken
+  when the hero suffers 1 Body Point of damage. Regain this spell when your
+  Body Points return to their starting number* »
+- **Pixie** — « *This spell conjures up a pixie who does one of the following:
+  restore up to 2 Body Points that have been lost to one hero or search. The
+  pixie reveals all traps and secret doors in any location you can see* »
+- **Lifeforce** — « *This spell may be cast on any one hero, including
+  yourself. Its magical power immediately restores up to 4 lost Body Points,
+  but it does not give a hero more than their starting number* »
+
+**Warlock** (3 sorts) :
+- **Fear** — « *This spell causes any one monster to become so fearful that
+  their attacks are reduced to 1 combat die. The spell can be broken on a
+  future turn by rolling 1 red die for each of their mind points. If a 6 is
+  rolled, the spell is broken.* »
+- **Dark Wings** — « *Cast this spell on an enemies turn after you have
+  suffered damage. Reduce that damage to zero and move instantly to any
+  unoccupied square you can see.* » ⇒ **réaction hors tour**, mécanique que
+  le moteur n'a pas (tout y est résolu dans le tour de l'acteur).
+- **Demonform** — « *The warlock ignores pit traps and may roll 1 extra combat
+  die when they attack, until the spell is broken. The spell is broken when
+  the hero suffers 1 Body Point of damage. Regain this spell when you reduce a
+  monster's Body Points to zero.* »
+- **Wand** (125 po) — « *This wand gives you 2 Attack dice against any monster
+  you can see. It can be used only by the warlock.* » ⇒ arme **à distance**
+  réservée par tag.
+
+**Note de conception, valable pour les trois** : *Shapeshift* et *Demonform*
+partagent une forme que notre `DureeEffet` ne connaît pas — un buff **rompu
+par le premier point de dégât subi**, puis **regagné à une condition
+d'événement** (revenir à son Body de départ, tuer un monstre, voir un allié
+faire 2 boucliers blancs). Ce n'est ni un compteur de tours ni un de nos cinq
+mots-clés : c'est un sixième type de durée, à déclarer et à ancrer avant de
+porter ces classes (voir `reference/19_mots_cles_effets.md`).
 
 ---
+
+## Path of the Wandering Monk — fiche et Styles TRANSCRITS (2026-08-11)
+
+Complète le §Path of the Wandering Monk ci-dessus, qui ne disposait que d'un
+résumé tiers. Photos fournies par René + photo publique des cartes (© 2024
+Hasbro).
+
+**Fiche de personnage** — Attaque **1\***, Défense **3**, Body **6**,
+Mind **4**, déplacement **2 dés rouges**.
+« *\*When attacking unarmed, roll one additional Attack die.* » ⇒ 2 dés à
+mains nues. Le résumé tiers (« +1 défense et +1 Body par rapport au héros le
+plus proche ») se vérifie : c'est **la meilleure défense du jeu**, à égalité
+avec personne — les 4 classes de base sont toutes à 2.
+
+**Règle des Styles Élémentaires** (carte *Using Elemental Styles*) :
+- « *Each Elemental Style contains two techniques that can be found on either
+  side of its card. Once per turn, choose one technique to activate. After you
+  use a technique, that Elemental Style is exhausted.* »
+- « *The Elemental Style of Fire cannot be used until you have exhausted Air,
+  Earth, and Water.* »
+- « *If there are no monsters in your line of sight at the start of your turn,
+  recover all exhausted Elemental Styles.* » ⇒ la condition de recharge est
+  **exactement notre `combatTermine()`** (aucun monstre actif et révélé),
+  déjà écrite pour `fin_du_combat`.
+
+**Les 8 techniques** (4 cartes recto-verso) :
+
+| Élément | Technique | Texte |
+|---|---|---|
+| **Air** | *Eye of the Storm* | « As an action, make one unarmed attack against all adjacent enemies. This technique enables you to attack diagonally. » |
+| **Air** | *Soaring Dragon* | « Automatically succeed when jumping over a trap. » |
+| **Terre** | *Strength of Mountain* | « Roll 2 additional Attack dice on an unarmed attack. » |
+| **Terre** | *Speak with Stone* | Chercher portes secrètes et pièges **en une seule action**. ⚠ nom fourni par René, libellé exact non photographié |
+| **Eau** | *Tidal Surge* | « Activate this technique on your turn to split your total movement roll before and after your action. » |
+| **Eau** | ⚠ *nom incertain* | Annuler entièrement les dégâts d'un coup subi. ⚠ deux noms candidats avancés (*Twisting Torrent*, *Defensive Flow*), aucun photographié |
+| **Feu** | *Burning Spirit* | « As an action, expel a beam of brilliant energy from your soul's core. This beam may be straight or diagonal and continues until it meets a wall or closed door. Each enemy in the beam takes 2 Body Points of damage. » |
+| **Feu** | *Touch of Endless Inferno* | « As an action, inflict 1 Body Point of damage to any one adjacent enemy. The target takes an additional 2 Body Points of damage at the end of its next turn. » |
+
+⚠ **Une seule technique manque** : le verso Eau, dont ni le nom ni le libellé
+n'ont pu être photographiés. L'effet est corroboré par deux sources
+indépendantes (« cancel any damage the monk takes »).
+
+*Burning Spirit* est un **rayon en ligne** qui traverse et frappe tout sur son
+passage : aucune de nos zones d'effet ne fait ça (`monstres_zone` a d'ailleurs
+été retiré faute de source). *Touch of Endless Inferno* est un **dégât différé
+au tour suivant de la cible** — même famille que le jeton de Rejeton, à ceci
+près qu'il expire.
+
+---
+
+## Rogue Heir of Elethorn — cartes TRANSCRITES (2026-08-11)
+
+Photo publique des 5 cartes (© 2022 Hasbro). ⚠ **La fiche de personnage
+manque toujours** : ces photos couvrent les capacités et l'équipement, pas les
+Attaque/Défense/Body/Mind. C'est la **seule des cinq classes** dont la ligne de
+stats reste inconnue.
+
+| Carte | Texte |
+|---|---|
+| **Combat Mobility** | « You may move unseen through spaces occupied by monsters. Do not discard after use. » |
+| **Ambidextrous** | « Once per turn, when you attack with a shortsword or dagger you may make one additional attack with a dagger. Do not discard after use. » |
+| **Opportunistic Striker** | « Once per turn, you may throw 1 extra combat die when attacking a monster next to another hero. Do not discard after use. » |
+| **Bandolier** (300 po) | « Counts as a Tool Kit for disarming traps and you are always considered to be armed with a dagger. It can only be used by the Rogue. » |
+| **Dagger** (25 po) | « Weapon—This sharp knife gives you the attack strength of 1 combat die. A dagger can also be thrown at any monster you can see but is lost once it is thrown. » |
+
+Les trois capacités tombent sur des mécaniques **déjà écrites** :
+*Combat Mobility* est `agile` (`Grille::autoriserFranchissement()`),
+*Opportunistic Striker* est `tacticien` (le dé de flanquement, écrit pour les
+monstres), *Ambidextrous* est le motif `attaque_supplementaire` de la Potion
+d'héroïsme, et le *Bandolier* est `permet_desamorcage`. La carte **Dagger**
+confirme en outre notre `jetable` mot pour mot — « *is lost once it is
+thrown* » —, là où doc 16 notait cette perte comme une divergence assumée du
+plateau : **ce n'en est pas une**.
+
+---
+
 
 ## Commander of the Guardian Knights (2021, gamme « Hero Collection »)
 
@@ -1841,26 +1987,31 @@ laisse **9 candidats** et non 5.
 Ils ne sont **pas au même stade**, et c'est la seule distinction qui
 compte pour l'implémentation :
 
-| Candidat | Texte d'effet des capacités | Restrictions d'équipement | Les 8 nombres |
+| Candidat | Capacités | Restrictions d'équipement | Fiche chiffrée |
 |---|---|---|---|
-| **Moine** | ✅ 4 Styles Élémentaires, cités | ✅ **énoncées** : ni armure ni bouclier ; dague, arbalète, hachette, épée courte, bâton | ❌ (relatif seulement) |
-| **Rogue** | ✅ 3 capacités, citées | ✅ **énoncées** : ni armure métallique ni bouclier | ❌ |
-| **Druide** | ✅ Shapeshift, Pixie, Lifegive, citées | ⚠ rien | ❌ **sources contradictoires** |
-| **Barde** | ✅ remplacement posthume **officiel** ; 3 sorts (tiers) | ⚠ rapière seule | ❌ |
+| **Barde** | ✅ 3 sorts **transcrits de la carte** | ✅ bonus conditionnel (ni métal ni bouclier → +1 déf) | ✅ **A2 D2 B5 M4** |
+| **Druide** | ✅ 3 sorts **transcrits** | ✅ pas d'armure métallique | ✅ **A1 D2 B6 M4** |
+| **Warlock** | ✅ 3 sorts **transcrits** | ✅ règles d'armure du magicien | ✅ **A2 D2 B4 M5** |
+| **Moine** | ✅ 7 techniques sur 8 **transcrites** | ⚠ énoncée par source tierce seulement | ✅ **A1\* D3 B6 M4** |
+| **Rogue** | ✅ 3 capacités **transcrites** | ✅ énoncées | ❌ **la seule qui manque** |
 | **Explorateur** | ⚠ 1 règle officielle (pièges, seuil 5-6) | ⚠ rien | ❌ |
-| **Warlock** | ⚠ 3 sorts **nommés sans effet** | ⚠ partiellement | ❌ |
 | **Chevalier-Gardien** | ❌ 3 pouvoirs **sans aucun texte** | ⚠ « cotte de mailles » | ❌ |
 | **Berserker** | ❌ néant | ❌ | ❌ |
 
-**Aucun des 9 n'a de fiche chiffrée dans un PDF Hasbro**, et c'est la
-limite décisive : `classes_heros` exige 8 valeurs par classe (`pv_body`,
+**Quatre fiches sur cinq sont désormais sourcées** (photos des cartes,
+2026-08-11), et c'est ce qui débloque le portage. Le tableau ci-dessus a
+remplacé une conclusion qui disait « aucune fiche chiffrée dans un PDF
+Hasbro » : c'est toujours vrai des PDF, et c'est justement pourquoi la photo
+était la seule voie — comme pour les prix d'équipement et le tableau des
+8 monstres de base.
+
+Reste à obtenir : la **fiche du Rogue** (Attaque/Défense/Body/Mind), le verso
+Eau du Moine, et tout ce qui concerne l'Explorateur, le Chevalier-Gardien et
+le Berserker. `classes_heros` exige 8 valeurs par classe (`pv_body`,
 `pv_mind`, `attr_body`, `attr_mind`, `des_attaque`, `des_defense`,
-`deplacement_base`, `bonus_sac`). Aucune n'est sourçable, et pour le
-Druide les sources tierces se **contredisent** franchement — 1 dé
-d'attaque / 2 de défense chez l'une, 2 / 1 avec 6 Body et 6 Mind chez
-l'autre. Ces valeurs viendront des **cartes physiques photographiées**,
-comme les prix d'équipement et le tableau des 8 monstres de base avant
-elles ; ce document ne peut pas les fournir et ne doit pas les deviner.
+`deplacement_base`, `bonus_sac`) : les cartes en donnent 4 à 5, le reste
+(`attr_*`, `bonus_sac`) suit nos propres conventions et doit être signalé
+comme tel.
 
 Ce qui, en revanche, est portable **sans aucune carte** : les capacités et
 les restrictions d'équipement des quatre premiers, qui sont des *phrases*
