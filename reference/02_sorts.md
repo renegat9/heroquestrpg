@@ -17,7 +17,7 @@ La magie reste **fidèle à HeroQuest** : sorts regroupés par **éléments**, *
 | Héros | Accès |
 |---|---|
 | **Magicien** | Lanceur complet. Démarre avec **3 éléments au choix** (9 sorts, parité HeroQuest de base), débloque le 4ᵉ via le nœud *Écoles* (répétable) de son arbre. |
-| **Elfe** | Magie légère. Démarre avec **1 élément au choix** (3 sorts, parité HeroQuest de base) ; éléments supplémentaires via les nœuds *Première magie* / *Second élément* de l'arbre. |
+| **Elfe** | Magie légère. Démarre au **CHOIX** : soit **1 élément** (ses 3 sorts), soit **3 sorts du répertoire elfique** (§7 bis) — décision de René, 2026-08-11, adossée au livret elfique officiel. Éléments supplémentaires via les nœuds *Première magie* / *Second élément* de l'arbre. |
 | **Barbare / Nain** | Pas de sorts connus. Peuvent utiliser des **parchemins** (voir §6). |
 
 ---
@@ -25,6 +25,7 @@ La magie reste **fidèle à HeroQuest** : sorts regroupés par **éléments**, *
 ## 3. Acquisition des sorts
 
 - À la création, le lanceur **choisit ses éléments** de départ parmi Feu, Eau, Terre, Air (**Magicien 3, Elfe 1** — parité HeroQuest de base). Connaître un élément = connaître ses 3 sorts.
+- **L'Elfe a une seconde voie** (2026-08-11) : au lieu d'un élément, il peut prendre **3 sorts au choix parmi les 8 du répertoire elfique** (§7 bis). C'est un choix EXCLUSIF — élément *ou* sorts elfiques, jamais les deux au départ —, et il porte sur un répertoire **fermé** qui n'appartient à aucun élément.
 - La progression débloque des **éléments supplémentaires** via l'arbre de compétences, pas automatiquement.
 - Les **parchemins** donnent un accès *ponctuel* à un sort, même hors de son répertoire.
 
@@ -103,6 +104,42 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 | **Tempête** | **UN monstre choisi** tente un jet de Mind ; échec → il **passe son prochain tour** (ni déplacement ni attaque). Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
 
 ---
+
+## 7 bis. Répertoire elfique (8 sorts — SOURCÉS, © 2023 Hasbro)
+
+Livret de sorts elfique de *The Mage of the Mirror*, numérisé par René
+(2026-08-11). C'est la seconde voie de l'Elfe : **3 sorts au choix parmi ces
+8**, au lieu d'un élément. Le répertoire n'appartient à aucun élément et ne
+se mélange pas avec eux.
+
+| Sort | Texte de la carte | Portable ? |
+|---|---|---|
+| **Twist Wood** | « causes any wooden weapon, such as a staff, bow, or crossbow, to become so warped it is rendered useless » | ⚠ suppose une **matière** sur les armes ; `objets` n'en a pas |
+| **Disappear** | cible le lanceur ou un héros ; se déplace invisible s'il fait **8 ou moins** aux dés rouges (9-12 rompt le sort) ; ne peut que **bouger et ouvrir des portes** — ni attaquer, fouiller, désamorcer, lancer, déclencher un piège, ni **être affecté** par attaques et sorts, sauf s'il annule lui-même | ⚠ un état d'**intangibilité** ; proche d'`ethere`, mais côté héros |
+| **Flashback** | le lanceur ou un héros **rejoue son tour entier**, tous les résultats du premier étant annulés ; lançable **après le tour de n'importe quel héros** ; **ne compte pas comme action** | ❌ demande d'**annuler un tour résolu** — le moteur ne sait pas revenir en arrière |
+| **Slow** | un monstre tombe à **1 case** de déplacement et **−1 dé** en attaque comme en défense (jamais sous 1) ; dure jusqu'à sa mort ou sa **sortie de la ligne de vue** du lanceur | ✅ malus de dés + de déplacement, tout existe |
+| **Double Image** | cible le lanceur ou un héros ; si une attaque le touche, **1 dé rouge** : sur **1-3** c'est l'image qui est frappée et le héros ne subit rien ; rompu dès que le héros ne voit plus de monstre | ✅ **un lecteur de `HerosVaSubirDegats`** — annulation AUTOMATIQUE sur jet, sans choix du joueur, donc portable telle quelle |
+| **Hypnotic Blaze** | toute figure de la salle ou du couloir **sauf le lanceur** jette 1 dé rouge ; **≤ Mind** = indemne, **> Mind** = **paralysée 3 tours** (ni bouger, ni attaquer, ni défendre) | ⚠ vrai sort de **zone**, mot-clé retiré faute de source — celle-ci en est une |
+| **Deep Sleep** | tout monstre en ligne de vue ayant **1 à 3 Mind** s'endort **immédiatement**, jusqu'au prochain tour de Zargon ; **ne peut pas défendre** pendant ce temps | ✅ notre *Sommeil*, sans jet de résistance et avec un seuil de Mind |
+| **Timestop** | le lanceur ou un héros **rejoue un tour immédiatement** après le sien | ✅ motif `attaque_supplementaire` étendu au tour entier |
+
+**Ce que ce répertoire apporte au moteur, au-delà de l'Elfe :**
+
+- **Double Image** est le premier effet qui peut être porté **tout de suite**
+  sur `HerosVaSubirDegats` : il annule des dégâts sur un jet de dé, sans
+  demander de décision au joueur — donc sans la moitié interface qui manque
+  encore aux réactions à choix.
+- **Hypnotic Blaze** **re-source le sort de zone**. `monstres_zone` avait été
+  retiré parce que la seule zone qu'on croyait avoir (Tempête) était une erreur
+  de lecture ; ici la zone est écrite noir sur blanc, et elle frappe **toute
+  figure**, alliés compris — cohérent avec notre tir ami assumé.
+- **Deep Sleep** confirme rétroactivement notre traitement du **Mind 0** : le
+  sort exige « from 1 to 3 Mind Points », donc une créature à 0 n'est pas
+  seulement immunisée au jet, elle est **hors de portée du sort**.
+- **Flashback** est la seule des huit que je marque **non portable sans
+  réserve** : annuler un tour déjà résolu suppose un point de restauration par
+  tour de héros. Nos snapshots existent (`debut_quete`, `nouveau_tour`) mais
+  pas à cette granularité.
 
 ## 8. Intégration avec le reste
 

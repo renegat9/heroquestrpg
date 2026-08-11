@@ -78,6 +78,121 @@ Valeurs de vie tirées du canon HeroQuest ; attributs de jet = proposition nouve
 | **Elfe** | 6 | 4 | 2 | 3 | 2 | 2 | 5 | Polyvalent, magie légère |
 | **Magicien** | 4 | 6 | 1 | 4 | 1 | 2 | 4 | Lanceur de sorts, fragile |
 
+**L'Elfe est vérifié sur sa carte** (numérisation de René, 2026-08-11, © 2023
+Hasbro) : *Attack 2 · Defend 2 · Body 6 · Mind 4 · Movement 2 Red Dice ·
+Starting Weapon Shortsword · Starting Armor None*. Nos chiffres concordent, y
+compris la lecture « attaque = avec l'arme de départ » du bandeau ci-dessus.
+⚠ Les colonnes **Attr. Body / Attr. Mind** et **Dépl. base** restent **de
+nous** : aucune carte ne les porte (le plateau lance 2 dés rouges sans base,
+divergence actée doc 00).
+
+### 4 bis. Les sept classes d'extension — TOUTES SOURCÉES (2026-08-11)
+
+Cartes de personnage numérisées par René. C'est la même voie que les prix
+d'équipement et le tableau des 8 monstres de base : composants cartonnés,
+absents de tout PDF Hasbro, débloqués par la photo.
+
+| Classe | Attaque | Défense | Body | Mind | Arme de départ | Armure | Provenance |
+|---|---|---|---|---|---|---|---|
+| **Barde** | 2 | 2 | 5 | 4 | Dague | — | Mythic Tier / Spirit Queen's Torment |
+| **Druide** | 1 | 2 | 6 | 4 | Dague | Aucune | Mythic Tier / Against the Ogre Horde |
+| **Warlock** | 2 | 2 | 4 | 5 | Baguette | Aucune | Mythic Tier / Prophecy of Telor |
+| **Rogue** | 1 | 2 | 5 | 4 | Dague | — | Rogue Heir of Elethorn |
+| **Moine** | 1\* | **3** | 6 | 4 | — (mains nues) | — | Path of the Wandering Monk |
+| **Chevalier** | 2 | **3** | **7** | 2 | Épée courte | **Bouclier** | Commander of the Guardian Knights |
+| **Berserker** | **3** | 2 | **7** | 2 | Épée large | — | Jungles of Delthrak |
+| **Explorateur** | 2 | 2 | 5 | 5 | Hachette | — | Jungles of Delthrak |
+
+Toutes à **2 dés rouges** de déplacement, comme les quatre de base.
+\* Moine : « *When attacking unarmed, roll one additional Attack die* » — donc
+**2 dés à mains nues**, et c'est là que tout son jeu se passe.
+
+Trois observations qui pèsent sur l'équilibrage :
+
+- Le **Chevalier** et le **Berserker** montent à **7 Body**, entre le Nain (7)
+  et le Barbare (8) — mais le Chevalier ajoute **3 dés de défense** et un
+  bouclier de départ, ce qu'aucun héros de base n'a. Le **Moine** aussi est à
+  3, sans armure ni bouclier : ce sont les deux seules classes du jeu dont la
+  défense de base dépasse 2.
+- Le **Berserker** est la seule classe à **3 dés d'attaque** de base, et il
+  paie en Mind (2, à égalité avec le Barbare et le Chevalier).
+- L'**Explorateur** est le seul héros **équilibré 5/5** — et le seul, avec le
+  Warlock, à avoir plus de Mind que de Body sans être magicien.
+
+⚠ Le **Berserker était donné « probable, non confirmé »** par
+`reference/18_extensions.md`, faute de carte : elle existe, il est jouable.
+
+### 4 ter. Capacités de classe — texte des cartes
+
+Portées quand leur mécanique existe ; les autres sont nommées comme dettes.
+
+**Chevalier** (© 2023) — les trois exigent le **bouclier** sauf la dernière :
+- *Stalwart* : « Use this skill when your Body Points are reduced to 0 to
+  instead reduce them to 1. Once per quest. **Requires shield.** »
+- *Shield Block* : « Use this skill on an enemy's turn when **a hero next to
+  you** takes damage to cancel that damage. Once per quest. **Requires
+  shield.** »
+- *Knight's Challenge* : « Use this skill when a Wandering Monster is revealed
+  in the same room as you. You are now considered the treasure-searcher for the
+  encounter. The Wandering Monster is placed next to you and immediately
+  attacks you. Once per quest. »
+
+**Berserker** (© 2024) — deux des trois exigent d'être **blessé** :
+- *Enrage* : « As an action, you may lose up to 2 Body Points to immediately
+  make an attack. Add additional Attack dice equal to the number of Body Points
+  you lose. Once per quest. »
+- *Retaliation* : « *Cannot be used unless you have 5 or fewer Body Points.*
+  You may use this skill when you take damage from an adjacent monster.
+  Immediately make an attack against that monster. Once per quest. »
+- *Frenzy* : « *Cannot be used unless you have 3 or fewer Body Points.* As an
+  action, a single sweeping attack against all monsters adjacent **and
+  diagonal** to you. Once per quest. »
+
+**Explorateur** (© 2024) — trois capacités tournées vers le **deck de trésor**
+et les pièges :
+- *Treasure Hunter* : « Whenever you draw a card from the treasure deck that
+  rewards you with gold coins, you find an additional 25 gold coins. »
+- *Danger Sense* : « Once per turn, when you draw a hazard card from the
+  treasure deck, you may return that card to the bottom of the deck and draw a
+  new card. »
+- *Trapsmith* : « Once per turn, when you move onto a square adjacent to one or
+  more traps, Zargon must alert you. Zargon does not place trap tiles on the
+  board. The traps are still considered concealed and not triggered. »
+
+**Rogue** (© 2022) et **Moine** (© 2024) : texte intégral dans
+`reference/18_extensions.md`.
+
+⚠ **Trois de ces capacités sont des RÉACTIONS HORS TOUR** — *Shield Block*,
+*Retaliation*, et côté sorts *Dark Wings* / *Twisting Torrent*. Le moteur en a
+désormais le dispositif (`App\Partie\MoteurReactions`), mais **une seule des
+deux formes** : il propose la réaction à **la victime**. *Shield Block* protège
+le **voisin**, ce qui demande d'offrir la réaction à un AUTRE héros que celui
+qui encaisse — extension à faire avant de porter le Chevalier.
+
+### 4 quater. Alliés mercenaires — les cinq officiels
+
+Cartes numérisées (© 2023 Hasbro). ⚠ Nos trois mercenaires actuels — Archer
+mercenaire, Hallebardier, Loup fidèle — sont **de nous** ; ceux-ci les
+remplacent ou les complètent, au choix.
+
+| Allié | Dépl. | Attaque | Défense | Body | Mind | Coût/quête | Capacité |
+|---|---|---|---|---|---|---|---|
+| **Scout** | 9 | 2 | 3 | 2 | 2 | 50 po | « has the Dwarf's ability to detect and disarm traps » |
+| **Arbalist** | 6 | 3 | 3 | 2 | 2 | 75 po | arbalète ; **épée large au contact** |
+| **Glaive** | 6 | 3 | 3 | 2 | 2 | 75 po | « can attack diagonally » |
+| **Striker** | 5 | 4 | **5** | 2 | 2 | 100 po | — |
+| **Ogre Mercenary** | 8 | 4 | 4 | **4** | 1 | 150 po | — |
+
+Le **déplacement est en CASES**, pas en dés : les cartes d'allié disent
+« Movement Squares » là où les cartes de héros disent « 2 Red Dice ». C'est
+donc un mouvement **fixe**, ce que notre modèle sait déjà exprimer.
+
+Trois remarques utiles au portage : tous sont à **2 Body** sauf l'Ogre (4) —
+ce sont des figures qui tombent vite ; le **Striker** a **5 dés de défense**,
+plus que n'importe quel héros ou monstre du jeu ; et l'**Arbalist** est
+exactement notre `portee: distance` + arme de contact distincte, motif que
+l'Archer elfe utilise déjà.
+
 ---
 
 ## 5. Progression : niveaux

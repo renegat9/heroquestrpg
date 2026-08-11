@@ -1903,15 +1903,13 @@ Photo publique des 5 cartes (© 2022 Hasbro).
 **Fiche de personnage** — Attaque **1**, Défense **2**, Body **5**,
 Mind **4**.
 
-⚠ **Niveau de preuve inférieur aux quatre autres** : cette ligne n'a **pas**
-été lue sur une image, elle est rapportée par un compte rendu de première main
-du GenCon 2022 (elvyler.com, qui photographiait la carte) et corroborée par une
-seconde source. Les quatre autres fiches, elles, ont été transcrites de la
-photo. À revérifier sur carte physique — et le **déplacement**, l'**arme de
-départ** et la **restriction d'armure** de la fiche restent inconnus : la
-restriction (« ni armure métallique ni bouclier ») ne vient que de sources
-tierces, et la carte *Bandolier* établit seulement qu'il est « *always
-considered to be armed with a dagger* ».
+✅ **Confirmé sur image** le 2026-08-11 (numérisation de René) : la carte donne
+exactement **A1 D2 B5 M4**, déplacement **2 dés rouges**, arme de départ
+**Dague** — ce que la source tierce annonçait, au chiffre près. Elle
+n'énonce en revanche **aucune restriction d'armure** : le « ni armure
+métallique ni bouclier » ne vient que de sources tierces, et la carte
+*Bandolier* établit seulement qu'il est « *always considered to be armed with a
+dagger* ».
 
 | Carte | Texte |
 |---|---|
@@ -2002,14 +2000,35 @@ compte pour l'implémentation :
 
 | Candidat | Capacités | Restrictions d'équipement | Fiche chiffrée |
 |---|---|---|---|
-| **Barde** | ✅ 3 sorts **transcrits de la carte** | ✅ bonus conditionnel (ni métal ni bouclier → +1 déf) | ✅ **A2 D2 B5 M4** |
+| **Barde** | ✅ 3 sorts **transcrits** | ✅ bonus conditionnel (ni métal ni bouclier → +1 déf) | ✅ **A2 D2 B5 M4** |
 | **Druide** | ✅ 3 sorts **transcrits** | ✅ pas d'armure métallique | ✅ **A1 D2 B6 M4** |
 | **Warlock** | ✅ 3 sorts **transcrits** | ✅ règles d'armure du magicien | ✅ **A2 D2 B4 M5** |
-| **Moine** | ✅ 7 techniques sur 8 **transcrites** | ⚠ énoncée par source tierce seulement | ✅ **A1\* D3 B6 M4** |
-| **Rogue** | ✅ 3 capacités **transcrites** | ⚠ tierces | ⚠ **A1 D2 B5 M4** (rapportée, non lue sur image) |
-| **Explorateur** | ⚠ 1 règle officielle (pièges, seuil 5-6) | ⚠ rien | ❌ |
-| **Chevalier-Gardien** | ❌ 3 pouvoirs **sans aucun texte** | ⚠ « cotte de mailles » | ❌ |
-| **Berserker** | ❌ néant | ❌ | ❌ |
+| **Moine** | ✅ **8 techniques sur 8** | ⚠ énoncée par source tierce seulement | ✅ **A1\* D3 B6 M4** |
+| **Rogue** | ✅ 3 capacités **transcrites** | ⚠ tierces | ✅ **A1 D2 B5 M4** |
+| **Explorateur** | ✅ **3 capacités transcrites** | ⚠ rien | ✅ **A2 D2 B5 M5** |
+| **Chevalier** | ✅ **3 capacités transcrites** | ✅ **bouclier de départ**, requis par 2 des 3 | ✅ **A2 D3 B7 M2** |
+| **Berserker** | ✅ **3 capacités transcrites** | ⚠ rien | ✅ **A3 D2 B7 M2** |
+
+**Les huit sont sourcées** depuis la numérisation de René (2026-08-11, dossier
+Drive « Heroquest2021 » : 11 fichiers, cartes de personnage et de compétence).
+Détail complet, capacité par capacité, dans `reference/01_personnages.md`
+§4bis-4quater — c'est le document des personnages, sa place est là.
+
+⚠ **Deux corrections que cette numérisation impose à ce document :**
+
+1. Le **Berserker** y était « probable, non confirmé textuellement », inféré
+   d'une liste de figurines. Sa carte existe : **A3 D2 B7 M2**, épée large, et
+   trois compétences (*Enrage*, *Retaliation*, *Frenzy*). C'est une classe
+   jouable, pas une hypothèse.
+2. Le **Chevalier** était donné « 3 pouvoirs sans aucun texte », ce qui en
+   interdisait le portage. Les trois sont lus : *Stalwart*, *Shield Block*,
+   *Knight's Challenge*. La restriction d'armure supposée (« cotte de
+   mailles ») était fausse — la carte donne un **bouclier de départ**, et deux
+   compétences sur trois portent la mention « **Requires shield** ».
+
+Reste ouvert : la **restriction d'équipement** du Rogue, du Moine, du Berserker
+et de l'Explorateur, qu'aucune carte de personnage n'énonce (seules des sources
+tierces l'affirment pour les deux premiers).
 
 **Les cinq fiches sont désormais connues** (photos des cartes,
 2026-08-11), et c'est ce qui débloque le portage — quatre lues sur image, la
@@ -2020,10 +2039,9 @@ Hasbro » : c'est toujours vrai des PDF, et c'est justement pourquoi la photo
 était la seule voie — comme pour les prix d'équipement et le tableau des
 8 monstres de base.
 
-Reste à obtenir : la **photo** de la fiche du Rogue (pour la hisser au même
-niveau que les quatre autres) ainsi que son déplacement et son armure, la photo
-du verso Eau du Moine, et tout ce qui concerne l'Explorateur, le
-Chevalier-Gardien et le Berserker. `classes_heros` exige 8 valeurs par classe (`pv_body`,
+Reste à obtenir : les **restrictions d'équipement** (aucune carte de personnage
+n'en porte, sauf le bouclier du Chevalier), et la photo du verso Eau du Moine
+— *Twisting Torrent* n'est connu que par deux sources concordantes. `classes_heros` exige 8 valeurs par classe (`pv_body`,
 `pv_mind`, `attr_body`, `attr_mind`, `des_attaque`, `des_defense`,
 `deplacement_base`, `bonus_sac`) : les cartes en donnent 4 à 5, le reste
 (`attr_*`, `bonus_sac`) suit nos propres conventions et doit être signalé
