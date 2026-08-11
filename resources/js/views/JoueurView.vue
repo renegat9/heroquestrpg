@@ -787,7 +787,17 @@ function libelleClasse(classe) {
 .joueur-radio-sub { font-size: 11px; color: var(--ink-600); margin-left: 2px; }
 
 /* ---- sélecteur de classe ---- */
-.joueur-classe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+/* 12 classes depuis le 2026-08-12 (4 historiques + 8 d'extension) : une grille
+   fixe à 3 colonnes donnait 4 rangées et poussait le bouton « Créer » hors de
+   l'écran sur téléphone. `auto-fill` s'adapte à la largeur réelle, et la liste
+   défile plutôt que de repousser la validation. */
+.joueur-classe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 6px;
+    max-height: 46vh;
+    overflow-y: auto;
+}
 @media (max-width: 480px) { .joueur-classe-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ---- éléments de magie ---- */

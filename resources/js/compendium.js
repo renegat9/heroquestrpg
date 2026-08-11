@@ -240,6 +240,14 @@ export const CLASSE = {
     nain: { l: 'Nain', ic: 'hardware' },
     elfe: { l: 'Elfe', ic: 'nature' },
     magicien: { l: 'Magicien', ic: 'auto_awesome' },
+    barde: { l: 'Barde', ic: 'music_note' },
+    druide: { l: 'Druide', ic: 'forest' },
+    warlock: { l: 'Warlock', ic: 'local_fire_department' },
+    rogue: { l: 'Rogue', ic: 'swords' },
+    moine: { l: 'Moine', ic: 'self_improvement' },
+    chevalier: { l: 'Chevalier', ic: 'shield' },
+    berserker: { l: 'Berserker', ic: 'whatshot' },
+    explorateur: { l: 'Explorateur', ic: 'explore' },
 };
 export const DESARMABLE = { oui: 'Désamorçable', non: 'Non désamorçable', partiel: 'Désamorçage partiel' };
 

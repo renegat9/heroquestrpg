@@ -40,5 +40,15 @@ return [
         'nain' => 'nain robuste à la barbe tressée, en armure, avec un marteau de guerre',
         'elfe' => 'elfe agile aux traits fins, avec un arc',
         'magicien' => 'magicien en longue robe, tenant un bâton, entouré d\'une aura arcanique',
+        // Les 8 classes d'extension. Les descriptions suivent l'illustration
+        // de leur carte officielle (numérisation du 2026-08-11).
+        'barde' => 'barde orc à la peau verte, chapeau à plume violet, luth dans le dos et rapière à la ceinture',
+        'druide' => 'druide, femme aux cheveux tressés et couronne de fleurs, bâton de bois noueux, vêtue de cuir et de feuilles',
+        'warlock' => 'sorcière halfeline frêle, flamme verte spectrale flottant à sa main, longue robe en lambeaux',
+        'rogue' => 'voleur elfe blond en manteau à col de fourrure, dague et épée courte, silhouette agile',
+        'moine' => 'moine en tunique de lin, mains nues en garde, sans armure, posture de combat',
+        'chevalier' => 'chevalier en armure de plates bleue et rouge, grand bouclier au lion doré, cape',
+        'berserker' => 'berserker torse nu sous des fourrures, hache à deux mains levée, hurlant',
+        'explorateur' => 'exploratrice encapuchonnée de jaune, sac de voyage, piolet à la main, lampe à la ceinture',
     ],
 ];

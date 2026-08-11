@@ -56,14 +56,14 @@ it('expose les alliés recrutés au hub dans EtatGroupe.groupe.mercenaires', fun
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
     $groupe->refresh();
     $mercos = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('groupe.mercenaires');
 
     expect($mercos)->toHaveCount(1)
-        ->and($mercos[0]['nom'])->toBe('Hallebardier')
+        ->and($mercos[0]['nom'])->toBe('Fauchard')
         ->and($mercos[0]['animal'])->toBeFalse()
         ->and($mercos[0])->toHaveKeys(['id', 'mercenaire_id', 'type', 'pv_body', 'pv_body_max']);
 });
@@ -74,11 +74,11 @@ it('recrute un mercenaire au hub en débitant la bourse commune', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $hallebardier = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $hallebardier = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
 
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $hallebardier->id])
         ->assertStatus(201)
-        ->assertJsonPath('recrue.nom', 'Hallebardier')
+        ->assertJsonPath('recrue.nom', 'Fauchard')
         ->assertJsonPath('or', 500 - (int) $hallebardier->prix);
 
     expect($groupe->fresh()->mercenaires()->count())->toBe(1)
@@ -91,7 +91,7 @@ it('refuse le recrutement hors du hub', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500, 'phase' => 'quete']);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
 
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])
         ->assertStatus(422);
@@ -105,7 +105,7 @@ it('refuse le recrutement si l\'or est insuffisant', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 10]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
 
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])
         ->assertStatus(422);
@@ -119,7 +119,16 @@ it('n\'autorise qu\'un seul compagnon animal par groupe', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 1000]);
 
-    $loup = Mercenaire::where('animal', true)->firstOrFail();
+    // ⚠ Depuis le 2026-08-12 le catalogue ne contient QUE les 5 alliés
+    // officiels, et aucun n'est un animal — le Loup fidèle était de nous. La
+    // règle « un seul animal par groupe » reste néanmoins active et gardée :
+    // le bestiaire a des loups, un scénario pourra en donner un. On fabrique
+    // donc le sujet ici plutôt que de retirer la garde.
+    $loup = Mercenaire::create([
+        'nom' => 'Loup de test', 'type' => 'compagnon', 'deplacement' => 10,
+        'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'prix' => 120, 'animal' => true,
+        'description' => 'Compagnon animal fabriqué pour ce test.',
+    ]);
 
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $loup->id])->assertStatus(201);
     // Deuxième animal refusé.
@@ -134,7 +143,7 @@ it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', fun
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
@@ -147,7 +156,7 @@ it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', fun
     $etat = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     $allieEntite = collect($etat['entites'])->firstWhere('type', 'allie');
     expect($allieEntite)->not->toBeNull()
-        ->and($allieEntite['nom'])->toBe('Hallebardier');
+        ->and($allieEntite['nom'])->toBe('Fauchard');
 });
 
 it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', function () {
@@ -156,7 +165,7 @@ it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', fu
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
@@ -189,7 +198,7 @@ it('restaure le mercenaire payé à la reprise après un TPK', function () {
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
@@ -220,7 +229,7 @@ it('restaure le mercenaire payé à la reprise après un TPK', function () {
 
     $recrues = $groupe->fresh()->mercenaires()->with('mercenaire')->get();
     expect($recrues)->toHaveCount(1)
-        ->and($recrues->first()->mercenaire->nom)->toBe('Hallebardier')
+        ->and($recrues->first()->mercenaire->nom)->toBe('Fauchard')
         ->and($recrues->first()->etat)->toBe('actif');
 });
 
@@ -230,7 +239,7 @@ it('consomme les alliés en fin de quête (victoire)', function () {
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
-    $merc = Mercenaire::where('nom', 'Hallebardier')->firstOrFail();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();

@@ -321,6 +321,15 @@ export const CLASSES = {
     magicien: { l: 'Magicien', ic: 'auto_fix_high' },
     nain: { l: 'Nain', ic: 'construction' },
     elfe: { l: 'Elfe', ic: 'park' },
+    // Les 8 classes d'extension (2026-08-12), sourcées sur carte.
+    barde: { l: 'Barde', ic: 'music_note' },
+    druide: { l: 'Druide', ic: 'forest' },
+    warlock: { l: 'Warlock', ic: 'local_fire_department' },
+    rogue: { l: 'Rogue', ic: 'swords' },
+    moine: { l: 'Moine', ic: 'self_improvement' },
+    chevalier: { l: 'Chevalier', ic: 'shield' },
+    berserker: { l: 'Berserker', ic: 'whatshot' },
+    explorateur: { l: 'Explorateur', ic: 'explore' },
 };
 
 
