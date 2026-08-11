@@ -178,4 +178,34 @@ return [
             ['carte' => 'Wand of Galimatias', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Baguette de Galimatias'],
         ],
     ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | Cartes de HÉROS — numérisation de René (2026-08-11)
+    |---------------------------------------------------------------------------
+    |
+    | Troisième source, distincte des deux paquets Ye Olde Inn : les cartes de
+    | personnage et d'équipement des 8 classes d'extension, photographiées à
+    | partir des boîtes. Ce sont des composants cartonnés qu'aucun PDF Hasbro ne
+    | contient — même situation que les prix d'équipement et le tableau des 8
+    | monstres de base, débloquée les trois fois par la photo.
+    |
+    | Détail complet, capacité par capacité, dans reference/01_personnages.md
+    | §4bis-4quater.
+    */
+    'heros' => [
+        'source' => 'Cartes de personnage (photos)',
+        'url' => null,
+        'libelle' => 'Cartes de héros (officielles, numérisées)',
+        'cartes' => [
+            ['carte' => 'Wand', 'paquet' => 'Mythic Tier — Warlock', 'objet' => 'Baguette'],
+            // ⚠ La RAPIÈRE du Barde n'est PAS listée ici : elle figure déjà au
+            // paquet d'armurerie Sjeng, et une carte ne doit apparaître qu'une
+            // fois dans le registre. Sa carte de héros ne fait que la lui
+            // donner au départ.
+            ['carte' => 'Bandolier', 'paquet' => 'Rogue Heir of Elethorn', 'nom' => 'Bandolier',
+                'texte' => 'Compte comme une trousse à outils pour désamorcer les pièges, et son porteur est toujours considéré comme armé d\'une dague. Réservé au Rogue.',
+                'manque' => 'La partie « toujours armé d\'une dague » suppose une arme VIRTUELLE, sans ligne d\'inventaire : notre équipement lit un objet réel par emplacement.'],
+        ],
+    ],
 ];

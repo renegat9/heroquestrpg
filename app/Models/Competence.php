@@ -16,6 +16,10 @@ class Competence extends Model
         'nom',
         'description',
         'type',
+        // Capacité de CARTE, acquise d'emblée et gratuitement (Stalwart,
+        // Enrage, Ambidextrous…) : au plateau la carte vient avec la figurine.
+        // Un nœud `innee` est attaché à la création et ne coûte aucun point.
+        'innee',
         'effet',
         'prerequis_id',
     ];
@@ -24,6 +28,7 @@ class Competence extends Model
     {
         return [
             'effet' => 'array',
+            'innee' => 'boolean',
         ];
     }
 

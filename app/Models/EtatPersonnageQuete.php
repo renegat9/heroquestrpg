@@ -31,6 +31,9 @@ class EtatPersonnageQuete extends Model
         // Réaction hors tour proposée au joueur (Dark Wings, Twisting Torrent) :
         // {sort_id, nom, source, degats, expire_a}. Voir App\Partie\MoteurReactions.
         'reaction_en_attente',
+        // Capacités « once per quest » déjà dépensées (liste de noms). Un
+        // booléen par capacité aurait fait 24 colonnes.
+        'capacites_utilisees',
     ];
 
     protected function casts(): array
@@ -46,6 +49,7 @@ class EtatPersonnageQuete extends Model
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
             'reaction_en_attente' => 'array',
+            'capacites_utilisees' => 'array',
         ];
     }
 

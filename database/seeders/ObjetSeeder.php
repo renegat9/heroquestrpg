@@ -78,6 +78,14 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true, 'jetable' => true]],
             ['nom' => 'Rapière', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 275, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
+            // Baguette du Warlock — carte Mythic Tier (© 2021 Hasbro) : « This
+            // wand gives you 2 Attack dice against any monster you can see. It
+            // can be used only by the warlock. » Arme À DISTANCE réservée par
+            // son tag `armure_magicien`, que seuls le magicien et le warlock
+            // portent. ⚠ Elle n'a PAS `inutilisable_adjacent` : la carte ne
+            // l'interdit pas au contact, contrairement aux arcs.
+            ['nom' => 'Baguette', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['des_attaque' => 2, 'portee' => 'distance']],
             // Broadsword : 3 dés, PAS de diagonale — le diagramme des armes
             // longues du livret officiel (p. 14) lui oppose justement le bâton.
             ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 300, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',

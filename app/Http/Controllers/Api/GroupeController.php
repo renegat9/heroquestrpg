@@ -12,6 +12,7 @@ use App\Models\ClasseHeros;
 use App\Models\Groupe;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Competence;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
@@ -296,6 +297,22 @@ class GroupeController extends Controller
         'nain' => ['Épée courte', 'Trousse à outils'],
         'elfe' => ['Épée courte'],
         'magicien' => ['Dague'],
+        // Les 8 classes d'extension : arme LUE SUR LA CARTE (« Starting
+        // Weapon »), reference/01_personnages.md §4bis.
+        'barde' => ['Dague'],
+        'druide' => ['Dague'],
+        'warlock' => ['Baguette'],
+        'rogue' => ['Dague'],
+        // Le Moine n'a PAS d'arme de départ, et ce n'est pas un oubli : sa
+        // carte n'en donne aucune, ses mains nues SONT son arme (2 dés, contre
+        // 1 pour tout le monde).
+        'moine' => [],
+        // Seul héros du jeu à démarrer avec une ARMURE : sa carte porte
+        // « Starting Armor …… Shield », et deux de ses trois capacités exigent
+        // « Requires shield ».
+        'chevalier' => ['Épée courte', 'Bouclier'],
+        'berserker' => ['Épée large'],
+        'explorateur' => ['Hachette'],
     ];
 
     private function equiperDepart(Personnage $personnage, string $classe): void
@@ -356,9 +373,31 @@ class GroupeController extends Controller
             $sorts->attacherElement($personnage, $element);
         }
 
+        $this->attacherCapacitesInnees($personnage, $classe);
         $this->equiperDepart($personnage, $classe);
 
         return $personnage;
+    }
+
+    /**
+     * Capacités de CARTE, attachées d'emblée et sans coûter de point.
+     *
+     * Au plateau la carte vient avec la figurine : un Chevalier arrive avec
+     * *Stalwart*, un Rogue avec *Ambidextrous*. Elles vivent dans `competences`
+     * (marquées `innee`) pour réutiliser tout l'outillage d'arbre déjà écrit —
+     * le pivot, la lecture par `$personnage->competences()`, l'affichage — sans
+     * jamais entrer dans le décompte des points dépensés.
+     *
+     * Les 4 classes historiques n'en ont aucune, et c'est voulu : aucune carte
+     * officielle ne leur en donne.
+     */
+    private function attacherCapacitesInnees(Personnage $personnage, string $classe): void
+    {
+        $innees = Competence::where('classe', $classe)->where('innee', true)->pluck('id');
+
+        if ($innees->isNotEmpty()) {
+            $personnage->competences()->syncWithoutDetaching($innees->all());
+        }
     }
 
     /**

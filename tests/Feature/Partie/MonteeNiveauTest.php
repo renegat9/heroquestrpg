@@ -149,10 +149,12 @@ it('acquiert un nœud d\'arbre et applique ses effets passifs chiffrés au perso
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1, ['niveau' => 3]); // 2 points dérivés
 
-    // Catalogue complet des arbres (contrat GET /api/competences).
+    // Catalogue complet des arbres (contrat GET /api/competences) : les 4
+    // classes historiques ET les 8 d'extension (2026-08-12). Une classe sans
+    // arbre ne pourrait rien acheter en montant de niveau.
     $catalogue = $this->getJson('/api/competences')->assertOk()->json('competences');
     expect(collect($catalogue)->pluck('classe')->unique()->sort()->values()->all())
-        ->toBe(['barbare', 'elfe', 'magicien', 'nain']);
+        ->toBe(['barbare', 'barde', 'berserker', 'chevalier', 'druide', 'elfe', 'explorateur', 'magicien', 'moine', 'nain', 'rogue', 'warlock']);
 
     // Chaque nœud porte une DESCRIPTION lisible (affichée à la sélection et sur
     // la fiche — doc 01 §6). Aucun talent muet.

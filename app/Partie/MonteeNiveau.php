@@ -68,7 +68,12 @@ final class MonteeNiveau
         $gains = ['+1 niveau', '+1 point de compétence'];
 
         if ($niveau % 2 === 0) {
-            if (in_array($personnage->classe, ['barbare', 'nain'], true)) {
+            // Les classes de CORPS gagnent du Body, les autres du Mind. Les
+            // trois ajoutées le 2026-08-12 se rangent d'après leur fiche :
+            // Chevalier et Berserker à 7 Body / 2 Mind, Moine à 6/4 avec la
+            // meilleure défense du jeu — ce sont des combattants. Le Rogue,
+            // l'Explorateur, le Barde, le Druide et le Warlock non.
+            if (in_array($personnage->classe, ['barbare', 'nain', 'chevalier', 'berserker', 'moine'], true)) {
                 $attributs['pv_body_max'] = (int) $personnage->pv_body_max + 1;
                 $attributs['pv_body'] = (int) $personnage->pv_body + 1;
                 $gains[] = '+1 PV de Body maximum';

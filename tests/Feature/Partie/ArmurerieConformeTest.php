@@ -123,7 +123,11 @@ it('ne s\'écarte du plateau que sur les objets DÉJÀ recensés', function () {
 
     // Attestés par leur nom dans les livrets (§2).
     $sources = ['Dague', 'Bâton', 'Épée courte', 'Épée large', 'Épée longue', 'Arbalète',
-        'Bouclier', 'Casque', 'Armure de plates', 'Trousse à outils'];
+        'Bouclier', 'Casque', 'Armure de plates', 'Trousse à outils',
+        // Attestée par une CARTE DE PERSONNAGE officielle, photographiée
+        // (Warlock, Mythic Tier) : ce n'est pas un écart du plateau, c'est une
+        // troisième source — voir config/cartes.php §heros.
+        'Baguette'];
 
     $catalogue = Objet::whereIn('categorie', ['arme', 'armure', 'outil'])
         ->where('rarete', '!=', 'unique')   // les artefacts sont un autre débat (§10)

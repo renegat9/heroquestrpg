@@ -29,9 +29,10 @@ it('sert le compendium complet sans authentification', function () {
         expect($data[$cle] ?? [])->not->toBeEmpty("Rubrique {$cle} vide.");
     }
 
-    // Les 4 classes, chacune avec ses stats de base.
+    // Les 12 classes, chacune avec ses stats de base : 4 historiques + les 8
+    // d'extension sourcées sur carte (2026-08-12).
     expect(collect($data['classes'])->pluck('nom')->sort()->values()->all())
-        ->toBe(['barbare', 'elfe', 'magicien', 'nain']);
+        ->toBe(['barbare', 'barde', 'berserker', 'chevalier', 'druide', 'elfe', 'explorateur', 'magicien', 'moine', 'nain', 'rogue', 'warlock']);
     expect($data['classes'][0])->toHaveKeys(['nom', 'pv_body', 'pv_mind', 'des_attaque', 'des_defense', 'deplacement_base']);
 
     // Les talents portent leur description (correctif précédent).

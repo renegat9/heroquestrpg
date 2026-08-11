@@ -34,15 +34,21 @@ function toutesLesCartes(): array
     return array_merge(
         (array) config('cartes.armurerie.cartes'),
         (array) config('cartes.artefacts.cartes'),
+        // Troisième source (2026-08-11) : les cartes de PERSONNAGE des classes
+        // d'extension, photographiées faute de PDF Hasbro.
+        (array) config('cartes.heros.cartes'),
     );
 }
 
-it('recense exactement les deux paquets, sans doublon de carte', function () {
+it('recense exactement les trois sources, sans doublon de carte', function () {
     $armurerie = (array) config('cartes.armurerie.cartes');
     $artefacts = (array) config('cartes.artefacts.cartes');
 
+    $heros = (array) config('cartes.heros.cartes');
+
     expect($armurerie)->toHaveCount(27)
-        ->and($artefacts)->toHaveCount(34);
+        ->and($artefacts)->toHaveCount(34)
+        ->and($heros)->toHaveCount(2);
 
     $noms = array_column(toutesLesCartes(), 'carte');
     expect(array_values(array_diff_assoc($noms, array_unique($noms))))
