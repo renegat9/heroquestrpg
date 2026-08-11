@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Engine\DureeEffet;
+use App\Engine\RegainEffet;
 use App\Partie\MoteurSorts;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -56,6 +57,25 @@ class Personnage extends Model
 
             app(MoteurSorts::class)
                 ->expirerBuffs($personnage, DureeEffet::PREMIER_DEGAT_SUBI);
+        });
+
+        // Symétrique du précédent, et pour la même raison : les PV REMONTENT
+        // depuis autant d'endroits qu'ils descendent — potion, sort de soin,
+        // relèvement, reprise de snapshot, montée de niveau. Le regain
+        // `body_au_max` (« Regain this spell when your Body Points return to
+        // their starting number », Shapeshift) s'observe donc lui aussi sur la
+        // colonne, jamais sur les appelants.
+        static::updated(function (Personnage $personnage): void {
+            $avant = $personnage->getOriginal('pv_body');
+            $apres = $personnage->pv_body;
+
+            if ($avant === null || $apres === null || (int) $apres <= (int) $avant) {
+                return;
+            }
+
+            if ((int) $apres >= (int) $personnage->pv_body_max) {
+                app(MoteurSorts::class)->regagnerSorts($personnage, RegainEffet::BODY_AU_MAX);
+            }
         });
     }
 

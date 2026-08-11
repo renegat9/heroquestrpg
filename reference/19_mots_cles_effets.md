@@ -116,6 +116,80 @@ La durée est **relue sur la source** du buff (`sort:{Nom}` / `potion:{Nom}`) au
 moment d'expirer, jamais recopiée sur le pivot : corriger un catalogue s'applique
 donc aux buffs **déjà posés**.
 
+## 4 bis. Le REGAIN — troisième axe, à ne pas confondre avec la durée
+
+Ajouté le 2026-08-11 (`App\Engine\RegainEffet`, clé `effet.regain`). Trois
+choses différentes vivent côte à côte et se confondaient :
+
+| | question | porté par |
+|---|---|---|
+| `effet.duree` | quand le **buff** s'arrête | `DureeEffet` (§2) |
+| `personnage_sorts.disponible` | le **sort** est-il relançable | pivot |
+| `effet.regain` | à quel **événement** il le redevient | `RegainEffet` |
+
+⚠ Un regain **n'est pas une durée**. Dire qu'un sort « dure jusqu'à ce que
+vous tuiez un monstre » serait faux : le buff est fini depuis longtemps, c'est
+le *droit de le relancer* qui revient. Avant ce chantier, `disponible` ne se
+rechargeait qu'au **changement de quête**, ou par deux nœuds d'arbre codés en
+dur (Concentration rend un sort, Réserve arcanique en accorde un second) —
+aucune **donnée** ne pouvait dire « ce sort revient quand… », alors que les
+cartes officielles le disent constamment.
+
+| regain | événement | point d'ancrage |
+|---|---|---|
+| `body_au_max` | les PV de Body du lanceur reviennent au maximum | observateur `Personnage::booted()`, sur toute HAUSSE de `pv_body` — comme `premier_degat_subi` l'est sur la baisse |
+| `monstre_vaincu` | le lanceur réduit un monstre à 0 Body | `ResolveurTour::resoudreAttaque()`, après le jet |
+| `allie_deux_boucliers_blancs` | un **autre** héros en vue obtient 2 boucliers blancs en défense | `MoteurSorts::regainSurParade()` |
+
+Deux subtilités portées par les cartes et toutes deux mécaniques : « **any
+hero you can see, excluding yourself** » — le lanceur ne se recharge pas sur sa
+propre parade (ce serait quasi permanent à 4 dés de défense), et il doit avoir
+**vue** sur le défenseur. On compte les boucliers **blancs** : c'est la face qui
+pare pour un héros, un bouclier noir dans sa volée ne vaut rien.
+
+Les trois sorts qui les porteront — *Shapeshift* (Druide), *Demonform*
+(Warlock), *Inspiring Tale* (Barde) — attendent leurs **classes**
+(`reference/18_extensions.md`). Le moteur, lui, les applique déjà, et
+`RegainEffet::SANS_UTILISATEUR` déclare la dette nommément, comme
+`TypeDegat::SANS_SOURCE` le fait pour le froid.
+
+## 4 ter. Les dégâts subis par un héros : un point de passage INTERCEPTABLE
+
+`App\Partie\MoteurDegats::infligerAHeros()` (2026-08-11). Douze endroits
+écrivaient `pv_body` à la main — attaque de monstre, sort de Dread, piège, tir
+ami, jetons de rejeton. Chacun calculait son « après » et l'écrivait, ce qui
+interdisait deux choses :
+
+1. **Intervenir avant.** `Personnage::booted()` observe la baisse une fois
+   écrite : assez pour expirer un buff, inutile pour l'**annuler**. Or deux
+   cartes officielles annulent des dégâts — *Dark Wings* (Warlock, « Reduce
+   that damage to zero ») et *Twisting Torrent* (Moine, « cancel that
+   damage »), toutes deux **pendant le tour d'un monstre**.
+2. **Savoir d'où ça vient.** L'observateur voit « −2 PV » et rien d'autre. Une
+   réaction qui annule le coup d'un monstre ne doit pas annuler une chute dans
+   une fosse.
+
+L'événement `App\Events\HerosVaSubirDegats` est émis **avant** l'écriture ;
+son champ `degats` est **mutable**, un écouteur peut le réduire jusqu'à 0, et
+le moteur applique ce qu'il en reste. Il ne peut pas l'**augmenter** : le
+point d'interception protège, il ne frappe pas plus fort. Sources déclarées :
+`attaque_monstre` · `sort_dread` · `piege` · `tir_ami` · `rejeton`.
+
+⚠ **La moitié interface n'existe pas.** Demander « veux-tu annuler ? » suppose
+d'interroger une manette au milieu de la phase des monstres, ce que la boucle
+de jeu ne sait pas faire. Un écouteur **automatique** (une charge dépensée sans
+choix) fonctionne dès aujourd'hui ; un **choix**, non.
+
+⚠ **`Personnage::booted()` reste en place** et ce n'est pas un doublon : il est
+le filet. Le moteur couvre les chemins connus, l'observateur rattrape tout ce
+qui écrirait `pv_body` sans passer par lui. L'un intercepte, l'autre constate.
+
+Conséquence pour les payloads : ils publient désormais les dégâts **relus après
+application** (`$subis`, `(int) $personnage->pv_body`) et non
+`$resultat->pvBodyApres`, que `Engine\Combat` calcule avant toute réaction.
+Publier le calcul plutôt que le fait ferait mentir le journal dès la première
+réaction portée.
+
 ## 5. Ce qui n'est PAS couvert
 
 - **`conditions.effet.fin`** (`jet_mind_reussi`, `reveil_ou_attaque`,

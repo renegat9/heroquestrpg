@@ -51,7 +51,10 @@ final class MoteurPieges
 
     public const ETAT_DECLENCHE = 'declenche';
 
-    public function __construct(private readonly LanceurDes $des) {}
+    public function __construct(
+        private readonly LanceurDes $des,
+        private readonly MoteurDegats $degats,
+    ) {}
 
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
@@ -128,10 +131,12 @@ final class MoteurPieges
         $piege = Piege::find($entree['piege_id']);
 
         $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
-        $pvApres = max(0, (int) $personnage->pv_body - $degats);
-        $personnage->update(['pv_body' => $pvApres]);
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom],
+        );
+        $pvApres = (int) $personnage->pv_body;
 
-        $tombe = $pvApres === 0;
+        $tombe = $pvApres === 0 && $subis > 0;
         if ($tombe) {
             $etat->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
@@ -191,10 +196,12 @@ final class MoteurPieges
         $issue = $this->tirerIssueAleatoire($piege?->effet);
 
         $degats = (int) data_get($issue, 'degats_pv_body', 0);
-        $pvApres = max(0, (int) $personnage->pv_body - $degats);
-        $personnage->update(['pv_body' => $pvApres]);
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom, 'coffre' => true],
+        );
+        $pvApres = (int) $personnage->pv_body;
 
-        $tombe = $pvApres === 0;
+        $tombe = $pvApres === 0 && $subis > 0;
 
         // Carte PIÈGE du deck de trésor : elle coûte le reste du tour (trou où
         // l'on chute, volée de flèches qui cloue sur place), comme au plateau.

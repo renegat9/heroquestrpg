@@ -15,6 +15,7 @@ use App\Engine\ResultatAttaque;
 use App\Engine\SortMental;
 use App\Engine\TypeDegat;
 use App\Engine\TypeFigurine;
+use App\Engine\RegainEffet;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
@@ -111,6 +112,7 @@ final class ResolveurTour
         private readonly MoteurMobilier $mobilier,
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
+        private readonly MoteurDegats $degats,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
@@ -732,6 +734,12 @@ final class ResolveurTour
             ...$resultat->pourJournal(),
         ];
 
+        // *Demonform* : « Regain this spell when you reduce a monster's Body
+        // Points to zero » — c'est l'ABATTEUR qui recharge, pas le groupe.
+        if ($resultat->pvBodyApres === 0) {
+            $this->sorts->regagnerSorts($personnage, RegainEffet::MONSTRE_VAINCU);
+        }
+
         // Fléau des Orques : une seconde attaque ce tour si la cible en était un.
         if ($this->accorderSecondeAttaque($armePrincipale, $instance, $etat)) {
             $payload['attaque_supplementaire'] = true;
@@ -890,7 +898,9 @@ final class ResolveurTour
             return;
         }
 
-        $personnage->update(['pv_body' => max(0, (int) $personnage->pv_body - $jetons)]);
+        $this->degats->infligerAHeros(
+            $personnage, $jetons, MoteurDegats::SOURCE_REJETON, ['jetons' => $jetons],
+        );
 
         if ((int) $personnage->fresh()->pv_body === 0) {
             $etat->update(['tombe' => true]); // C4 : il occupe sa case, relevable
@@ -1747,10 +1757,12 @@ final class ResolveurTour
             pvBodyDefenseur: (int) $heros->pv_body,
         );
 
-        $heros->update(['pv_body' => $resultat->pvBodyApres]);
+        $subis = $this->degats->infligerAHeros(
+            $heros, $resultat->degats, MoteurDegats::SOURCE_TIR_AMI, ['sort' => $sort->nom],
+        );
         $this->sorts->reveillerHeros($heros); // être attaqué réveille
 
-        if ($resultat->cibleTombee) {
+        if ((int) $heros->pv_body === 0 && $subis > 0) {
             $cible['etat']->update(['tombe' => true]); // C4
         }
 
@@ -1760,9 +1772,14 @@ final class ResolveurTour
             'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_tombee' => $resultat->cibleTombee,
+            // ⚠ Les DÉGÂTS et la CHUTE sont relus après application, jamais
+            // repris de `$resultat` : celui-ci porte ce que `Engine\Combat` a
+            // calculé AVANT qu'un écouteur de `HerosVaSubirDegats` ait pu
+            // réduire le coup. Publier le calcul plutôt que le fait ferait
+            // mentir le journal dès la première réaction portée.
+            'degats' => $subis,
+            'pv_body_apres' => (int) $heros->pv_body,
+            'cible_tombee' => (int) $heros->pv_body === 0 && $subis > 0,
             ...$resultat->pourJournal(),
         ];
     }
@@ -3105,8 +3122,19 @@ final class ResolveurTour
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
 
-        $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+            ['monstre' => $instance->nomAffiche()],
+        );
         $this->sorts->reveillerHeros($personnage); // être attaqué réveille (Endormi)
+
+        // Parade spectaculaire : 2 boucliers blancs rechargent *Inspiring Tale*
+        // chez les héros qui EN SONT TÉMOINS (le défenseur excepté).
+        if ($cible->quete !== null) {
+            $this->sorts->regainSurParade($cible->quete, $personnage, array_map(
+                fn ($face) => $face->value, $resultat->facesDefense,
+            ));
+        }
 
         // Le héros vient de se défendre : les buffs `prochaine_defense`
         // (Potion de défense) sont dépensés ici. Ce déclencheur N'EXISTAIT PAS —
@@ -3114,10 +3142,12 @@ final class ResolveurTour
         // jamais décrémentée, le bonus valait pour toute la campagne.
         $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_DEFENSE);
 
-        // Venimeux : le venin ne passe que si le coup a porté.
-        $venin = $resultat->degats > 0 && $this->dread->appliquerVenin($instance, $personnage);
+        // Venimeux : le venin ne passe que si le coup a porté — donc sur les
+        // dégâts RÉELLEMENT subis, pas sur ceux qu'annonçait le jet : un coup
+        // annulé n'empoisonne pas.
+        $venin = $subis > 0 && $this->dread->appliquerVenin($instance, $personnage);
 
-        if ($resultat->cibleTombee) {
+        if ((int) $personnage->pv_body === 0 && $subis > 0) {
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
 
@@ -3140,9 +3170,9 @@ final class ResolveurTour
             'repli' => $repli,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_tombee' => $resultat->cibleTombee,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);

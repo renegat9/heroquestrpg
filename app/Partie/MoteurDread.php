@@ -113,6 +113,7 @@ final class MoteurDread
     public function __construct(
         private readonly LanceurDes $des,
         private readonly MoteurSorts $sorts,
+        private readonly MoteurDegats $degats,
     ) {}
 
     // ------------------------------------------------------------------
@@ -330,10 +331,13 @@ final class MoteurDread
             pvBodyDefenseur: (int) $ciblePersonnage->pv_body,
         );
 
-        $ciblePersonnage->update(['pv_body' => $resultat->pvBodyApres]);
+        $subis = $this->degats->infligerAHeros(
+            $ciblePersonnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
+            ['par' => $personnage->nom, 'commandement' => true],
+        );
         $this->sorts->reveillerHeros($ciblePersonnage); // être attaqué réveille
 
-        if ($resultat->cibleTombee) {
+        if ((int) $ciblePersonnage->pv_body === 0 && $subis > 0) {
             $cibleEtat->update(['tombe' => true]);
         }
 
@@ -343,9 +347,9 @@ final class MoteurDread
             'cible' => ['personnage_id' => $ciblePersonnage->id, 'nom' => $ciblePersonnage->nom],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_tombee' => $resultat->cibleTombee,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $ciblePersonnage->pv_body,
+            'cible_tombee' => (int) $ciblePersonnage->pv_body === 0 && $subis > 0,
             ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -433,13 +437,18 @@ final class MoteurDread
                 pvBodyDefenseur: (int) $personnage->pv_body,
             );
 
-            $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+            $subis = $this->degats->infligerAHeros(
+                $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+                ['monstre' => $instance->nomAffiche()],
+            );
             $this->sorts->reveillerHeros($personnage);
 
             // Venimeux : le venin ne passe QUE si le coup a porté.
             $venin = $resultat->degats > 0 && $this->appliquerVenin($instance, $personnage);
 
-            if ($resultat->cibleTombee) {
+            $tombe = (int) $personnage->pv_body === 0 && $subis > 0;
+
+            if ($tombe) {
                 $cible->update(['tombe' => true]);
             }
 
@@ -447,9 +456,9 @@ final class MoteurDread
                 'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
                 'touches' => $resultat->touches,
                 'boucliers' => $resultat->boucliers,
-                'degats' => $resultat->degats,
-                'pv_body_apres' => $resultat->pvBodyApres,
-                'cible_tombee' => $resultat->cibleTombee,
+                'degats' => $subis,
+                'pv_body_apres' => (int) $personnage->pv_body,
+                'cible_tombee' => $tombe,
             ];
         }
 
@@ -663,10 +672,13 @@ final class MoteurDread
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
 
-        $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
+            ['sort' => $sort['nom'] ?? null],
+        );
         $this->sorts->reveillerHeros($personnage);
 
-        if ($resultat->cibleTombee) {
+        if ((int) $personnage->pv_body === 0 && $subis > 0) {
             $cible->update(['tombe' => true]);
         }
 
@@ -677,9 +689,9 @@ final class MoteurDread
             'des_degats' => $desDegats,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_tombee' => $resultat->cibleTombee,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
             ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -741,10 +753,13 @@ final class MoteurDread
                 pvBodyDefenseur: (int) $personnage->pv_body,
             );
 
-            $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+            $subis = $this->degats->infligerAHeros(
+                $personnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
+                ['sort' => 'Tempête de feu'],
+            );
             $this->sorts->reveillerHeros($personnage);
 
-            if ($resultat->cibleTombee) {
+            if ((int) $personnage->pv_body === 0 && $subis > 0) {
                 $cible->update(['tombe' => true]);
             }
 
@@ -753,9 +768,9 @@ final class MoteurDread
                 'des_degats' => $desDegats,
                 'touches' => $resultat->touches,
                 'boucliers' => $resultat->boucliers,
-                'degats' => $resultat->degats,
-                'pv_body_apres' => $resultat->pvBodyApres,
-                'cible_tombee' => $resultat->cibleTombee,
+                'degats' => $subis,
+                'pv_body_apres' => (int) $personnage->pv_body,
+                'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
                 ...$resultat->pourJournal(),
             ];
         }
@@ -1154,10 +1169,13 @@ final class MoteurDread
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
 
-        $personnage->update(['pv_body' => $resultat->pvBodyApres]);
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+            ['monstre' => $nomMonstre, 'charge' => true],
+        );
         $this->sorts->reveillerHeros($personnage);
 
-        if ($resultat->cibleTombee) {
+        if ((int) $personnage->pv_body === 0 && $subis > 0) {
             $cible->update(['tombe' => true]);
         }
 
@@ -1169,9 +1187,9 @@ final class MoteurDread
             'des_attaque' => (int) $instance->monstre->attaque + 1,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
-            'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_tombee' => $resultat->cibleTombee,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
             ...$resultat->pourJournal(),
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);

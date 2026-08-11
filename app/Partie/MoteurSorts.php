@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\DureeEffet;
 use App\Engine\MotsClesSort;
+use App\Engine\RegainEffet;
 use App\Engine\TypeDegat;
 use App\Models\Competence;
 use App\Models\Condition;
@@ -588,6 +590,89 @@ final class MoteurSorts
 
             if (($this->effetSortSource($source)['duree'] ?? null) === $declencheur) {
                 $this->retirerBuff($personnage, (int) $condition->id, $source);
+            }
+        }
+    }
+
+    /**
+     * Rend relançables les sorts ÉPUISÉS dont l'effet déclare ce `regain`
+     * (vocabulaire `App\Engine\RegainEffet`).
+     *
+     * Troisième axe de la vie d'un effet, à ne pas confondre avec les deux
+     * autres : `duree` dit quand le BUFF s'arrête, `disponible` si le SORT est
+     * relançable, et `regain` à quel événement il le redevient. Les cartes
+     * officielles l'expriment sans cesse — « Regain this spell when you reduce
+     * a monster's Body Points to zero » — et aucune donnée ne savait le dire :
+     * `disponible` ne se rechargeait qu'au changement de quête, ou par deux
+     * nœuds d'arbre codés en dur.
+     *
+     * Ne touche QUE les sorts épuisés : un sort disponible n'a rien à regagner,
+     * et l'événement ne doit pas être consommé pour rien.
+     *
+     * @return int  nombre de sorts rendus (0 = l'événement n'intéressait personne)
+     */
+    public function regagnerSorts(Personnage $personnage, string $evenement): int
+    {
+        $rendus = 0;
+
+        foreach ($personnage->sorts()->wherePivot('disponible', false)->get() as $sort) {
+            if (($sort->effet['regain'] ?? null) !== $evenement) {
+                continue;
+            }
+
+            DB::table('personnage_sorts')
+                ->where('personnage_id', $personnage->id)
+                ->where('sort_id', $sort->id)
+                ->update(['disponible' => true]);
+
+            $rendus++;
+        }
+
+        return $rendus;
+    }
+
+    /**
+     * Parade d'un héros : les AUTRES héros qui le voient regagnent leurs sorts
+     * `allie_deux_boucliers_blancs` (*Inspiring Tale* du Barde).
+     *
+     * ⚠ Deux subtilités portées par la carte, et toutes deux mécaniques :
+     * « **any hero you can see, excluding yourself** » — le lanceur ne se
+     * recharge donc pas sur sa propre parade (il serait quasi permanent à
+     * 4 dés de défense), et il doit AVOIR VUE sur le défenseur. On compte les
+     * boucliers **blancs** parce que c'est la face qui pare pour un héros ;
+     * un bouclier noir dans sa volée ne vaut rien et ne compte pas.
+     *
+     * @param  list<string>  $facesDefense  faces brutes du jet de défense
+     */
+    public function regainSurParade(Quete $quete, Personnage $defenseur, array $facesDefense): void
+    {
+        $blancs = count(array_filter($facesDefense, fn ($f) => $f === FaceDeCombat::BouclierBlanc->value));
+
+        if ($blancs < 2) {
+            return;
+        }
+
+        $grille = FabriqueGrille::pour($quete);
+        $etatDefenseur = $quete->etatsPersonnages()->where('personnage_id', $defenseur->id)->first();
+
+        if ($etatDefenseur?->position_x === null) {
+            return;
+        }
+
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            if ($etat->personnage === null
+                || $etat->personnage_id === $defenseur->id   // « excluding yourself »
+                || $etat->position_x === null) {
+                continue;
+            }
+
+            $voit = $grille->ligneDeVue(
+                (int) $etat->position_x, (int) $etat->position_y,
+                (int) $etatDefenseur->position_x, (int) $etatDefenseur->position_y,
+            );
+
+            if ($voit) {
+                $this->regagnerSorts($etat->personnage, RegainEffet::ALLIE_DEUX_BOUCLIERS_BLANCS);
             }
         }
     }
