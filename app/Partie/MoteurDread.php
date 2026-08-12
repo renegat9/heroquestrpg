@@ -439,7 +439,7 @@ final class MoteurDread
 
             $subis = $this->degats->infligerAHeros(
                 $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
-                ['monstre' => $instance->nomAffiche()],
+                ['monstre' => $instance->nomAffiche(), 'instance_id' => (int) $instance->id],
             );
             $this->sorts->reveillerHeros($personnage);
 
@@ -1171,7 +1171,7 @@ final class MoteurDread
 
         $subis = $this->degats->infligerAHeros(
             $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
-            ['monstre' => $nomMonstre, 'charge' => true],
+            ['monstre' => $nomMonstre, 'charge' => true, 'instance_id' => (int) $instance->id],
         );
         $this->sorts->reveillerHeros($personnage);
 

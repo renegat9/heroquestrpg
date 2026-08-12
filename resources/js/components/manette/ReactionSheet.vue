@@ -61,6 +61,10 @@ const LIBELLE_ACTION = {
     riposte: 'Riposter aussitôt',
 };
 
+/* Un bouclier sur un bouton qui REND le coup serait un contresens : la
+   Représailles du Berserker n'encaisse rien, elle frappe. */
+const ICONE_ACTION = { riposte: 'swords' };
+
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
 
 /** La réaction protège quelqu'un d'AUTRE (Parade au bouclier du Chevalier). */
@@ -93,7 +97,7 @@ const degats = computed(() => Number(props.reaction.degats ?? 0));
 
             <div class="rx-actions">
                 <button class="rx-btn oui" :disabled="pending" @click="emit('repondre', true)">
-                    <MSym n="shield" :size="18" fill />
+                    <MSym :n="ICONE_ACTION[reaction.action] || 'shield'" :size="18" fill />
                     {{ LIBELLE_ACTION[reaction.action] || 'Annuler les dégâts' }}
                 </button>
                 <button class="rx-btn non" :disabled="pending" @click="emit('repondre', false)">

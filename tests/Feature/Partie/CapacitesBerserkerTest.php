@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
 use App\Models\Competence;
+use App\Partie\MoteurDegats;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -131,6 +132,89 @@ it('refuse une FURIE forgée dans un menu périmé quand la capacité est absent
 
     // Et surtout : aucun PV perdu pour une capacité qu'il n'a pas.
     expect((int) $ctx['heros']->fresh()->pv_body)->toBe((int) $ctx['heros']->pv_body_max);
+});
+
+it('REPRÉSAILLES est proposée quand un monstre AU CONTACT blesse un Berserker entamé', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+    $heros = $ctx['heros'];
+
+    // Au-dessus de 5 PV, la capacité est fermée : « Cannot be used unless you
+    // have 5 or fewer Body Points. »
+    $heros->update(['pv_body' => 7]);
+    app(MoteurDegats::class)->infligerAHeros($heros, 1, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+        ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id]);
+
+    expect($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
+
+    // Le coup qui le fait passer à 5 ouvre la capacité : le seuil se lit sur
+    // les PV D'APRÈS, c'est bien le coup encaissé qui la déclenche.
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 1, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+        ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id]);
+
+    $attente = $ctx['etatHeros']->fresh()->reaction_en_attente;
+
+    expect($attente)->not->toBeNull()
+        ->and($attente['action'])->toBe('riposte')
+        ->and($attente['instance_id'])->toBe($ctx['instance']->id);
+});
+
+it('REPRÉSAILLES rend le coup sans annuler celui qu\'on a pris', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker', 'des_attaque' => 3]);
+    $heros = $ctx['heros'];
+    $heros->update(['pv_body' => 5]);
+
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 2, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+        ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id]);
+
+    expect((int) $heros->fresh()->pv_body)->toBe(3);
+
+    desFiges(array_fill(0, 20, 1)); // crânes partout : la riposte porte
+
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => true,
+    ])->assertOk()
+        ->assertJsonPath('reaction.active', true)
+        // ⚠ Le Berserker encaisse ET rend : aucun PV restitué.
+        ->assertJsonPath('reaction.degats_annules', 0)
+        ->assertJsonPath('reaction.frappe.cible_vaincue', true);
+
+    expect((int) $heros->fresh()->pv_body)->toBe(3)
+        ->and($ctx['instance']->fresh()->etat)->toBe('vaincu')
+        // Dépensée pour la quête.
+        ->and(app(App\Partie\CapacitesInnees::class)
+            ->disponible($heros->fresh(), $ctx['etatHeros']->fresh(), 'riposte'))->toBeFalse();
+});
+
+it('ne propose pas de REPRÉSAILLES à un Berserker mis à terre', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+    $heros = $ctx['heros'];
+    $heros->update(['pv_body' => 2]);
+
+    // Un héros à 0 PV est à terre : il ne rend pas de coup. *Inébranlable*
+    // couvre ce cas-là, pas celle-ci.
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 2, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+        ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id]);
+
+    expect((int) $heros->fresh()->pv_body)->toBe(0)
+        ->and($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
+});
+
+it('ne propose pas de REPRÉSAILLES contre un tireur hors de contact', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+    $heros = $ctx['heros'];
+    $heros->update(['pv_body' => 4]);
+
+    // « damage from an ADJACENT monster » : le monstre s'éloigne, plus rien à
+    // riposter — on ne rend pas un coup à travers la salle.
+    $ctx['instance']->update([
+        'position_x' => (int) $ctx['etatHeros']->position_x + 4,
+        'position_y' => (int) $ctx['etatHeros']->position_y + 4,
+    ]);
+
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 1, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+        ['monstre' => 'Gobelin', 'instance_id' => $ctx['instance']->id]);
+
+    expect($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
 });
 
 it('n\'ouvre les capacités de sang qu\'une fois le Berserker BLESSÉ', function () {

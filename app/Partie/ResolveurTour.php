@@ -3515,7 +3515,9 @@ final class ResolveurTour
 
         $subis = $this->degats->infligerAHeros(
             $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
-            ['monstre' => $instance->nomAffiche()],
+            // `instance_id` : *Représailles* (Berserker) rend le coup à CE
+            // monstre-là — un nom d'affichage ne suffit pas à le retrouver.
+            ['monstre' => $instance->nomAffiche(), 'instance_id' => (int) $instance->id],
         );
         $this->sorts->reveillerHeros($personnage); // être attaqué réveille (Endormi)
 

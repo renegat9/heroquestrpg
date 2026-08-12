@@ -8,6 +8,7 @@ use App\Engine\ReactionEffet;
 use App\Events\ReactionProposee;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Sort;
 use App\Support\Journal;
@@ -96,11 +97,87 @@ final class MoteurReactions
             }
         }
 
+        // *Représailles* (Berserker) : « you may use this skill when you take
+        // damage from an adjacent monster. Immediately make an attack against
+        // that monster. »
+        //
+        // ⚠ Trois conditions que le texte impose et que rien d'autre ne porte :
+        // le coup vient d'un MONSTRE identifié (d'où `contexte.instance_id`),
+        // ce monstre est encore AU CONTACT, et le Berserker tient debout — un
+        // héros à terre ne rend pas de coup. Le seuil « 5 PV ou moins » est
+        // lu par `disponible()`, sur les PV D'APRÈS le coup : c'est bien le
+        // coup encaissé qui ouvre la capacité.
+        if ((int) $heros->pv_body > 0
+            && $source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
+            && $this->capacites->disponible($heros, $etat, ReactionEffet::RIPOSTE)) {
+            $instance = $this->monstreAuContact($etat, $contexte);
+
+            if ($instance !== null) {
+                $noeud = $this->capacites->noeud($heros, ReactionEffet::RIPOSTE);
+
+                $this->deposer($etat, $heros, $heros, [
+                    'action' => ReactionEffet::RIPOSTE,
+                    'capacite' => $noeud?->nom,
+                    'nom' => $noeud?->nom,
+                    'description' => $noeud?->description,
+                    'instance_id' => (int) $instance->id,
+                ], $degats, $source, $contexte);
+
+                return;
+            }
+        }
+
         // 2. Un VOISIN : *Parade au bouclier* (Chevalier). La seule réaction
         // proposée à quelqu'un d'autre que la victime — d'où un protecteur
         // distinct dans la proposition, et une adjacence revérifiée à la
         // résolution (les figures ont pu bouger entre-temps).
         $this->proposerAuVoisin($etat, $heros, $degats, $source, $contexte);
+    }
+
+    /**
+     * L'assaillant désigné par le contexte, s'il est encore actif, révélé et
+     * AU CONTACT du héros. `null` sinon — un tir venu d'en face ne se riposte
+     * pas au corps à corps.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    private function monstreAuContact(EtatPersonnageQuete $etat, array $contexte): ?InstanceMonstre
+    {
+        $id = (int) ($contexte['instance_id'] ?? 0);
+
+        if ($id === 0 || $etat->position_x === null) {
+            return null;
+        }
+
+        $instance = InstanceMonstre::query()
+            ->whereKey($id)
+            ->where('quete_id', $etat->quete_id)
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->with('monstre')
+            ->first();
+
+        if ($instance === null || $instance->position_x === null) {
+            return null;
+        }
+
+        // Emprise comprise : une grande figurine est au contact par n'importe
+        // laquelle de ses cases (3.9), comme pour l'attaque du héros. Contact
+        // ORTHOGONAL : c'est celui qui a permis au monstre de frapper.
+        $emprise = $instance->monstre->emprise();
+
+        for ($dy = 0; $dy < $emprise['h']; $dy++) {
+            for ($dx = 0; $dx < $emprise['l']; $dx++) {
+                $ex = abs(((int) $instance->position_x + $dx) - (int) $etat->position_x);
+                $ey = abs(((int) $instance->position_y + $dy) - (int) $etat->position_y);
+
+                if ($ex + $ey === 1) {
+                    return $instance;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -276,6 +353,13 @@ final class MoteurReactions
 
         $degats = (int) ($attente['degats'] ?? 0);
 
+        // *Représailles* : le coup n'est PAS annulé — le Berserker encaisse et
+        // rend. C'est tout l'esprit de la classe, dont deux capacités sur trois
+        // exigent d'être blessé.
+        if ($action === ReactionEffet::RIPOSTE) {
+            return $this->riposter($groupe, $heros, $etat, $attente);
+        }
+
         if ($action === ReactionEffet::PLANCHER_PV) {
             // « reduced to 0 → instead reduce them to 1 » : on ne rend pas le
             // coup, on pose un plancher. Un seul PV, jamais davantage.
@@ -318,6 +402,73 @@ final class MoteurReactions
         Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
 
         return $payload;
+    }
+
+    /**
+     * Rend le coup — *Représailles*. Une vraie attaque, avec les dés, les
+     * bonus et le journal des autres : c'est la même frappe, jouée hors tour.
+     *
+     * ⚠ `app(ResolveurTour::class)` et non une injection au constructeur : le
+     * résolveur dépend de `MoteurDegats`, qui dépend de ce moteur-ci. Le
+     * conteneur bouclerait à l'infini. La dépendance est réelle mais elle ne
+     * naît qu'ICI, au moment où le joueur accepte.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function riposter(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+    ): array {
+        $instance = $this->monstreAuContact($etat, ['instance_id' => $attente['instance_id'] ?? 0]);
+
+        // Le monstre a pu tomber ou s'éloigner pendant que le joueur réfléchit
+        // (la phase des monstres, elle, ne s'est pas arrêtée). On ne frappe
+        // pas dans le vide, et la capacité n'est pas dépensée pour rien.
+        if ($instance === null) {
+            return [
+                'type' => 'reaction',
+                'personnage' => $heros->nom,
+                'action' => ReactionEffet::RIPOSTE,
+                'active' => false,
+                'raison' => 'La cible n\'est plus au contact.',
+            ];
+        }
+
+        if (isset($attente['capacite'])) {
+            $utilisees = (array) ($etat->capacites_utilisees ?? []);
+            $utilisees[] = (string) $attente['capacite'];
+            $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+        }
+
+        $frappe = app(ResolveurTour::class)->frapper(
+            $groupe,
+            $etat->quete,
+            $etat,
+            $heros,
+            $instance,
+            meta: [
+                'option_id' => ReactionEffet::RIPOSTE,
+                'libelle' => $attente['nom'] ?? 'Représailles',
+                'riposte' => true,
+            ],
+            acteur: ['type' => 'personnage', 'id' => $heros->id, 'nom' => $heros->nom],
+        );
+
+        return [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $heros->nom,
+            'sort' => $attente['nom'] ?? null,
+            'action' => ReactionEffet::RIPOSTE,
+            'active' => true,
+            // ⚠ Aucun PV rendu : la carte ne parle que de rendre le COUP.
+            'degats_annules' => 0,
+            'source' => $attente['source'] ?? null,
+            'frappe' => $frappe,
+        ];
     }
 
     /**
