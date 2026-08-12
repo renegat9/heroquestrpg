@@ -631,6 +631,63 @@ final class ResolveurTour
 
         $tirADistance = ! $adjacentes;
 
+        // FURIE (Berserker) — « As an action, you may lose up to 2 Body Points
+        // to immediately make an attack. Add additional Attack dice equal to
+        // the number of Body Points you lose. » Le sang se verse AVANT le jet :
+        // ce sont les PV perdus qui donnent les dés. Le montant vient du MENU
+        // (`parametres.furie`, une option par valeur), donc du serveur — jamais
+        // du client, qui n'envoie que sa cible.
+        $furie = $this->payerLaFurie($personnage, $etat, $option);
+
+        return $this->frapper(
+            $groupe, $quete, $etat, $personnage, $instance,
+            tirADistance: $tirADistance,
+            lancer: $lancer,
+            desBonus: $furie,
+            meta: [
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                ...($furie > 0 ? ['furie' => $furie] : []),
+            ],
+            acteur: $acteur,
+        );
+    }
+
+    /**
+     * Cœur de la FRAPPE d'un héros contre un monstre : dés effectifs, jet,
+     * dégâts, journal, bark.
+     *
+     * Public et séparé depuis le 2026-08-12, parce qu'il a désormais plusieurs
+     * entrées — l'attaque du menu, la Furie du Berserker, sa Frénésie balayée,
+     * et sa riposte HORS TOUR (*Représailles*, qui arrive par
+     * `MoteurReactions`). Chacune apporte ses dés et son libellé ; aucune ne
+     * doit refaire le calcul, sinon le prochain bonus d'attaque ne vaudra que
+     * par endroits — c'est exactement le travers que `desDefenseHeros()` vient
+     * de corriger côté défense.
+     *
+     * ⚠ La PORTÉE et la ligne de vue restent à l'appelant : elles n'ont pas le
+     * même sens d'un chemin à l'autre (une riposte est au contact par
+     * définition, une frappe balayée n'a pas de cible unique à vérifier).
+     *
+     * @param  int  $desBonus  dés ajoutés par la capacité qui déclenche la frappe
+     * @param  array<string, mixed>  $meta  clés fusionnées dans le payload (option_id, libelle…)
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    public function frapper(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Personnage $personnage,
+        InstanceMonstre $instance,
+        bool $tirADistance = false,
+        bool $lancer = false,
+        int $desBonus = 0,
+        array $meta = [],
+        array $acteur = [],
+    ): array {
+        $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         // Le contexte `au_contact` sert aux bonus CONDITIONNELS — la
         // Métamorphose du Druide n'accorde son dé qu'« en attaquant un monstre
@@ -664,7 +721,7 @@ final class ResolveurTour
         $desArmeContre = $this->desArmeContre($armePrincipale, $instance);
 
         $desAttaqueEffectifs = max(0, max((int) $personnage->des_attaque, $desArmeContre)
-            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc);
+            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc + $desBonus);
 
         // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
         // damage. » Aucun jet, aucune défense — le seul cas du jeu où l'attaque
@@ -684,7 +741,7 @@ final class ResolveurTour
             $face = FaceDeCombat::depuisD6($this->des->d6());
             $survit = $face === FaceDeCombat::BouclierNoir;
 
-            $payload = $this->payloadVindication($option, $instance, $face, $survit, $fleche);
+            $payload = $this->payloadVindication($meta, $instance, $face, $survit, $fleche);
             $instance->update([
                 'pv_body' => $survit ? (int) $instance->pv_body : 0,
                 'etat' => $survit ? 'actif' : 'vaincu',
@@ -734,8 +791,6 @@ final class ResolveurTour
 
         $payload = [
             'type' => 'attaque',
-            'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? null,
             'bonus_des_attaque' => $bonusAttaque,
             'malus_frayeur' => $malusFrayeur,
             'bonus_frenesie' => $bonusFrenesie,
@@ -754,6 +809,9 @@ final class ResolveurTour
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_vaincue' => $resultat->pvBodyApres === 0,
             ...$resultat->pourJournal(),
+            // En dernier : l'appelant nomme sa frappe (option_id, libellé,
+            // « furie »…) et doit pouvoir écraser les valeurs par défaut.
+            ...$meta,
         ];
 
         // *Demonform* : « Regain this spell when you reduce a monster's Body
@@ -781,6 +839,57 @@ final class ResolveurTour
     }
 
     /**
+     * FURIE (Berserker) — encaisse le prix de la capacité et rend les dés
+     * gagnés, ou 0 si l'option n'en demande pas.
+     *
+     * ⚠ Le montant est PLAFONNÉ par ce que le héros peut payer en restant
+     * debout (`pv_body - 1`). La carte dit « up to 2 Body Points » sans se
+     * prononcer sur qui s'assomme lui-même ; notre lecture est qu'une capacité
+     * dont le texte promet une attaque « immédiate » ne peut pas coucher son
+     * porteur avant qu'il ne frappe. C'est une décision de portage, signalée
+     * comme telle — le menu, lui, n'offre déjà que les montants payables.
+     *
+     * @param  array<string, mixed>  $option
+     */
+    private function payerLaFurie(Personnage $personnage, EtatPersonnageQuete $etat, array $option): int
+    {
+        $demande = (int) ($option['parametres']['furie'] ?? 0);
+
+        if ($demande <= 0) {
+            return 0;
+        }
+
+        if (! $this->capacites->disponible($personnage, $etat, 'sacrifice_pv_pour_des')) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Furie indisponible : capacité absente ou déjà dépensée dans cette quête.',
+            ]);
+        }
+
+        $noeud = $this->capacites->noeud($personnage, 'sacrifice_pv_pour_des');
+        $plafond = min((int) ($noeud->effet['max'] ?? 2), (int) $personnage->pv_body - 1);
+        $paye = min($demande, $plafond);
+
+        if ($paye <= 0) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Furie impossible : il ne reste pas assez de PV de Body à sacrifier.',
+            ]);
+        }
+
+        // Passe par le point de passage UNIQUE des dégâts au héros : le sang
+        // versé est un vrai dégât, il expire les buffs « premier dégât subi »
+        // et se voit dans l'état. La source, elle, n'est pas réactive — on
+        // n'annule pas d'une réaction un coup qu'on s'est porté soi-même.
+        $this->degats->infligerAHeros(
+            $personnage, $paye, MoteurDegats::SOURCE_SACRIFICE,
+            ['capacite' => $noeud->nom],
+        );
+
+        $this->capacites->consommer($personnage, $etat, 'sacrifice_pv_pour_des');
+
+        return $paye;
+    }
+
+    /**
      * L'arme est-elle un arc de Vindication encore chargé ? Rend la LIGNE
      * d'inventaire (dont la flèche vient d'être décomptée), ou `null`.
      *
@@ -802,11 +911,11 @@ final class ResolveurTour
     }
 
     /**
-     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $meta
      * @return array<string, mixed>
      */
     private function payloadVindication(
-        array $option,
+        array $meta,
         InstanceMonstre $instance,
         FaceDeCombat $face,
         bool $survit,
@@ -814,8 +923,8 @@ final class ResolveurTour
     ): array {
         return [
             'type' => 'attaque',
-            'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? null,
+            'option_id' => $meta['option_id'] ?? null,
+            'libelle' => $meta['libelle'] ?? null,
             'portee' => 'distance',
             'vindication' => true,
             'faces_defense' => [$face->value],

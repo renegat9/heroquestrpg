@@ -46,6 +46,16 @@ final class MoteurDegats
     public const SOURCE_REJETON = 'rejeton';
 
     /**
+     * Le héros se blesse LUI-MÊME pour payer une capacité — la *Furie* du
+     * Berserker, « you may lose up to 2 Body Points to immediately make an
+     * attack ».
+     *
+     * ⚠ Volontairement hors de `ReactionEffet::SOURCES_REACTIVES` : annuler
+     * d'une réaction le prix qu'on vient de payer rendrait la capacité gratuite.
+     */
+    public const SOURCE_SACRIFICE = 'sacrifice';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et

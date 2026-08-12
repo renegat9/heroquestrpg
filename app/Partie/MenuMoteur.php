@@ -43,6 +43,7 @@ final class MenuMoteur
         private readonly LanceurDes $des,
         private readonly Equipement $equipement,
         private readonly MoteurCharges $charges,
+        private readonly CapacitesInnees $capacites,
     ) {}
 
     /**
@@ -419,6 +420,34 @@ final class MenuMoteur
                     'lancer' => false,
                     'parametres' => ['cibles' => $cibles['attaquer']],
                 ];
+            }
+
+            // FURIE (Berserker) — « As an action, you may lose up to 2 Body
+            // Points to immediately make an attack. Add additional Attack dice
+            // equal to the number of Body Points you lose. »
+            //
+            // « Up to 2 » est un vrai choix, donc une option par montant : le
+            // joueur doit pouvoir payer 1 quand il ne peut plus payer 2. Elles
+            // portent le type `attaque`, ce qui leur donne gratuitement la
+            // feuille de ciblage, la liste blanche des cibles et le créneau
+            // d'action — une Furie reste une attaque, simplement payée.
+            //
+            // ⚠ Rien au-dessus de `pv_body - 1` : voir `payerLaFurie()`, on ne
+            // s'assomme pas soi-même avant de frapper.
+            if ($cibles['attaquer'] !== []
+                && $this->capacites->disponible($personnage, $etat, 'sacrifice_pv_pour_des')) {
+                $noeud = $this->capacites->noeud($personnage, 'sacrifice_pv_pour_des');
+                $plafond = min((int) ($noeud->effet['max'] ?? 2), (int) $personnage->pv_body - 1);
+
+                for ($pv = 1; $pv <= $plafond; $pv++) {
+                    $options[] = [
+                        'id' => "furie_{$pv}",
+                        'libelle' => "Furie — sacrifier {$pv} PV pour +{$pv} dé".($pv > 1 ? 's' : ''),
+                        'type' => 'attaque',
+                        'lancer' => false,
+                        'parametres' => ['furie' => $pv, 'cibles' => $cibles['attaquer']],
+                    ];
+                }
             }
 
             if ($cibles['lancer'] !== []) {

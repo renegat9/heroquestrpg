@@ -288,9 +288,10 @@ class GenererMenu implements ShouldQueue
     {
         // L'attaque discriminait sur `cible_id` du temps où le moteur émettait
         // une option par monstre. Elle n'en émet plus qu'une, cibles jointes —
-        // sauf « Lancer », qui partage le type `attaque`. Ce libellé-là n'est
-        // JAMAIS emprunté : il porte une information mécanique — l'arme est
-        // PERDUE — qu'une paraphrase de l'IA ferait disparaître.
+        // sauf « Lancer » et « Furie », qui partagent le type `attaque`. Ces
+        // libellés-là ne sont JAMAIS empruntés : ils portent une information
+        // mécanique — l'arme est PERDUE, la frappe coûte 2 PV de Body — qu'une
+        // paraphrase de l'IA ferait disparaître.
         if (($optMoteur['type'] ?? null) === 'attaque' && ($optMoteur['id'] ?? null) !== 'attaquer') {
             return null;
         }
