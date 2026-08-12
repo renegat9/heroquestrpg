@@ -84,12 +84,11 @@ final class MoteurSorts
     public const ELEMENT_DEFAUT = 'eau';
 
     /** Classes lanceuses de sorts (parchemins en réussite auto, doc 02 §6). */
-    // ⚠ Barde, Druide et Warlock N'Y SONT PAS ENCORE, et c'est délibéré : leurs
-    // sorts ne sont pas semés (leurs clés d'effet attendent leurs lecteurs, voir
-    // REPERTOIRES_CLASSE ci-dessous). Les déclarer lanceurs maintenant en ferait
-    // des lanceurs sans le moindre sort — un mensonge que `/moi` et le menu
-    // relaieraient jusqu'à la manette.
-    public const LANCEURS = ['magicien', 'elfe'];
+    // Barde, Druide et Warlock rejoignent la liste le 2026-08-12, une fois
+    // leurs sorts SEMÉS et leurs lecteurs écrits — pas avant : les déclarer
+    // lanceurs sans le moindre sort aurait été un mensonge que `/moi` et le
+    // menu auraient relayé jusqu'à la manette.
+    public const LANCEURS = ['magicien', 'elfe', 'barde', 'druide', 'warlock'];
 
     /**
      * Classes dont les sorts sont FIXES : leur carte en donne trois, acquis

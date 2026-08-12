@@ -111,9 +111,29 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
-    expect(MoteurSorts::LANCEURS)->toBe(['magicien', 'elfe'])
+    expect(MoteurSorts::LANCEURS)->toBe(['magicien', 'elfe', 'barde', 'druide', 'warlock'])
         ->and(MoteurSorts::LANCEURS)->not->toContain('barbare')
         ->and(MoteurSorts::LANCEURS)->not->toContain('nain');
+});
+
+it('ne déclare lanceuse aucune classe dont les sorts ne seraient pas semés', function () {
+    // ⚠ La vraie règle n'est pas la liste, c'est ce qu'elle promet : un lanceur
+    // réussit ses parchemins d'office (doc 02 §6) et se voit offrir « Lancer un
+    // sort ». Le déclarer sans qu'aucun sort ne lui soit accessible en ferait un
+    // lanceur sans magie — un mensonge que `/moi` et le menu relaieraient
+    // jusqu'à la manette. On vérifie donc en base, pas sur la constante.
+    foreach (MoteurSorts::LANCEURS as $classe) {
+        $repertoire = MoteurSorts::REPERTOIRES_CLASSE[$classe] ?? null;
+
+        $sorts = $repertoire !== null
+            ? Sort::where('element', $repertoire)->count()
+            // Le magicien pioche dans les quatre écoles élémentaires, l'elfe
+            // dans une école OU le répertoire elfique : dans les deux cas la
+            // preuve est qu'il existe des sorts qu'il peut atteindre.
+            : Sort::whereIn('element', array_merge(MoteurSorts::ELEMENTS, [MoteurSorts::REPERTOIRE_ELFIQUE]))->count();
+
+        expect($sorts)->toBeGreaterThan(0, "{$classe} est déclarée lanceuse sans qu'aucun sort ne lui soit semé.");
+    }
 });
 
 it('n\'emploie que des cibles, coûts et résistances déclarés', function () {
