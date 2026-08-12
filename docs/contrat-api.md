@@ -119,9 +119,15 @@ n'en désigne **pas** la cible : elle joint les cibles légales dans
 `parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,
 distance?}]` — et la manette ouvre sa feuille de ciblage. Le choix part en
 `POST choix {option_id, parametres: {cible_id, cible_type?}}`, **à plat**.
-Le combat n'émet donc que deux identifiants : `attaquer` et, arme jetable en
-main et cible hors contact, `lancer` (l'arme est perdue — libellé jamais
-habillé par l'IA, il porte cette information mécanique).
+Le combat émet **une option par ARME EN MAIN** (dual-wielding, 2026-08-12) :
+`attaquer` pour la main droite, `attaquer_secondaire` pour la gauche, plus
+`lancer` / `lancer_secondaire` quand l'arme se jette et que la cible est hors
+contact (l'arme est perdue — libellé jamais habillé par l'IA, il porte cette
+information mécanique). Chaque option porte `parametres.arme`
+(`arme_principale` | `arme_secondaire`) et **ses propres** `cibles` : la portée,
+les diagonales et le jet appartiennent à l'arme, pas au héros. Avec une seule
+arme en main (ou les mains nues), rien ne change — une seule option, libellée
+« Attaquer ».
 
 **Capacités de carte** (classes d'extension, 2026-08-12). Elles ajoutent des
 options de type `attaque` — donc avec feuille de ciblage et liste blanche — que
@@ -503,7 +509,7 @@ calcul « effectif » séparé.
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | équipe une pièce du **sac** dans son slot naturel (`objet.emplacement`) ; auto-swap de l'occupant vers le sac ; 422 : pas au hub, pas son héros, objet non montable, bouclier + arme à deux mains, ou **maîtrise manquante** (`objets.tag_equipement` absent des tags de la classe et de ses nœuds) |
+| POST | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id, emplacement?} | équipe une pièce du **sac** ; auto-swap de l'occupant vers le sac ; 422 : pas au hub, pas son héros, objet non montable, main occupée (voir ci-dessous), ou **maîtrise manquante** (`objets.tag_equipement` absent des tags de la classe et de ses nœuds) |
 | DELETE | /groupes/{identifiant}/equipement | {personnage_id, inventaire_id} | déséquipe (retour au sac, dés révoqués) ; 422 : pas au hub, objet non équipé, ou **sac plein** |
 | POST | /groupes/{identifiant}/dons | {personnage_id, inventaire_id, vers_personnage_id, quantite?} | **donne** un objet à un autre héros actif du groupe ; 422 : pas au hub, `personnage_id` pas son héros, `vers_personnage_id` hors du groupe ou = donneur, objet **équipé** (à déséquiper d'abord), `quantite` > pile, ou **sac du receveur plein** |
 
@@ -512,6 +518,23 @@ jour, équipement inclus). La source complète reste `GET /moi` — le front
 re-`GET /moi` après chaque manip pour rafraîchir fiche + sac. Slots :
 `arme_principale`, `arme_secondaire` (bouclier), `armure`. Journal `systeme` :
 `equipement_equipe` / `equipement_retire`.
+
+**Les deux mains** (dual-wielding, 2026-08-12). `emplacement` n'a de sens que
+pour une arme à **une** main, qui va en `arme_principale` **ou** en
+`arme_secondaire` ; omis, c'est l'emplacement naturel de la pièce. `/moi` expose
+`equipement.sac[].slots` — un seul pour toute pièce ordinaire, **deux** pour une
+arme à une main —, ce qui permet à la manette d'afficher « Main droite » / « Main
+gauche » plutôt qu'un « Équiper » aveugle ; et `equipement.armes[]` porte
+`emplacement`, `bouclier`, `deux_mains` et les `des_attaque` **de cette arme**
+(la colonne du héros ne connaît que la main droite).
+
+Quatre tenues sont légales, et quatre seulement : deux armes à une main · une
+arme à deux mains · une arme à une main + un bouclier · une arme à une main
+seule. Une arme à deux mains prend donc les deux : rejet explicite (jamais
+d'auto-déséquipement croisé), c'est au joueur de choisir ce qu'il pose. ⚠ La
+seconde arme **n'apporte aucun dé** — elle apporte une option d'attaque de plus
+(voir §Ciblage en deux temps). En quête, l'action d'équipement se dédouble de la
+même façon : `equiper_{id}` (main droite) et `equiper_{id}_gauche`.
 
 `achats[].personnage_id` est accepté mais **jamais envoyé par la manette**, qui
 n'expose aucun sélecteur de destinataire : **chacun achète pour soi**, et corrige

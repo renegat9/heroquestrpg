@@ -99,7 +99,7 @@ choix de jeu assumé, pas une lecture de livret.
 |---|---|---|
 | **Ranged** | « can be used to attack any enemy in your line of sight, but **not adjacent** » | `portee: distance` + `inutilisable_adjacent` |
 | **Two-handed** | « cannot be wielded with a shield or any offhand weapon » | `deux_mains` |
-| **Dual-wielding** | « you may use these weapons instead of a shield in your off hand » | ❌ **non porté** — voir plus bas |
+| **Dual-wielding** | « you may use these weapons instead of a shield in your off hand » | ✅ **porté** (2026-08-12) — toute arme à une main ; la seconde n'ajoute aucun dé, elle ajoute une option d'attaque. Voir plus bas |
 
 Le « Ranged » referme au passage une question ouverte : `inutilisable_adjacent`
 était jusqu'ici une règle **de nous**, que rien ne sourçait (§10). Elle est
@@ -162,22 +162,37 @@ Deux conséquences qui changent le jeu :
   supprimait le dé entier — −3,5 cases en moyenne **et** un déplacement devenu
   déterministe, deux écarts pour le prix d'un.
 
-#### Ce qui n'est pas porté : le dual-wielding
+#### Le dual-wielding, porté le 2026-08-12
 
 Dix cartes portent « may be dual wielded » — la troisième règle de la page 5 :
-« you may use these weapons instead of a shield in your off hand ». Elle n'est
-**pas** implémentée, et pas par oubli :
+« you may use these weapons instead of a shield in your off hand ». Elle a
+longtemps attendu, et ce document disait pourquoi : le slot déduit de
+`objets.emplacement` (valeur unique par pièce), et surtout **aucune carte ne dit
+ce que la seconde arme apporte**.
 
-1. Notre `equiper()` choisit le slot depuis `objets.emplacement`, une valeur
-   unique par pièce. Une arme qui va **soit** en main principale **soit** en main
-   secondaire exige que le slot devienne un paramètre de l'API et de la manette.
-2. Surtout, **aucune carte ne dit ce que la seconde arme apporte**. Sans bénéfice
-   chiffré, la main gauche est un choix mort : personne ne renonce au +1 de
-   défense du bouclier pour rien. Inventer ce bénéfice serait exactement le
-   genre de valeur non sourcée que ce document existe pour empêcher.
+**Décision de René (2026-08-12) : elle n'apporte RIEN de chiffré — elle apporte
+le CHOIX de l'arme avec laquelle on frappe.** C'est ce qui débloque le portage
+sans inventer le moindre nombre : il n'y a pas de bénéfice à sourcer, il y a une
+option de plus dans le menu. Quatre tenues sont désormais légales — deux armes à
+une main, une arme à deux mains, une arme + bouclier, une arme seule — et le menu
+d'action offre **une attaque par arme**, chacune avec ses propres cibles légales
+(la portée, les diagonales et le jet appartiennent à l'arme, pas au héros).
 
-À trancher avec René, puis à porter d'un bloc : slot au choix + effet de la
-seconde arme.
+Ce que ça change vraiment, et qui n'est pas une question d'optimisation :
+
+- porter une arme de mêlée **et** une arme de jet, sans fouiller son sac en plein
+  combat ;
+- l'*Ambidextrie* du Rogue devient littérale — « one additional attack **with a
+  dagger** » se fait enfin avec une dague réellement tenue ;
+- renoncer au bouclier se paie plein pot (−1 dé de défense), ce qui laisse le
+  choix ouvert au lieu de le trancher d'avance.
+
+⚠ **Ce qui n'est toujours pas porté du deck**, et sciemment : le mot-clé « may be
+dual wielded » lui-même. Nos armes éligibles sont celles **à une main** (critère
+`deux_mains`, déjà au catalogue), et non la liste des dix cartes — que Sjeng
+compose selon ses propres choix (« I have changed some item costs and
+functionality », p. 5). Aligner les deux exigerait une donnée de plus par arme
+pour une règle qui ne dit rien de mécaniquement différent.
 
 ### 2.3 Le cumul des armures
 

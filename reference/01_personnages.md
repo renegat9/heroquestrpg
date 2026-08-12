@@ -129,8 +129,8 @@ Rogue 3, Chevalier 3, Berserker 3, Explorateur 3, Moine 4 cartes recto-verso
 (8 techniques). Druide et Warlock n'en ont pas — leurs cartes sont des **sorts**
 (§répertoires de classe). Trois lectures de portage sont signalées à l'endroit
 où elles se prennent : le plafond de la *Furie* (`pv_body - 1`), la seconde
-frappe de l'*Ambidextrie* (avec l'arme équipée, faute d'emplacement de main
-gauche), et *Parler à la Pierre* (réussite automatique, notre fouille cherchant
+frappe de l'*Ambidextrie* (résolue depuis que la main gauche existe : la dague
+peut y être portée pour de bon), et *Parler à la Pierre* (réussite automatique, notre fouille cherchant
 déjà pièges ET portes secrètes en une action).
 
 **Chevalier** (© 2023) — les trois exigent le **bouclier** sauf la dernière :
@@ -287,11 +287,28 @@ distincts du sac à dos (`App\Partie\Equipement::SLOTS`) :
 
 | Emplacement | Ce qu'il reçoit |
 |---|---|
-| **Arme principale** | l'arme qui fait l'attaque |
-| **Arme secondaire** | le bouclier |
+| **Arme principale** | une arme — la main droite |
+| **Arme secondaire** | le bouclier **ou** une seconde arme à une main *(depuis le 2026-08-12)* |
 | **Casque** | le casque *(slot propre depuis le 2026-08-08)* |
 | **Armure** | cotte, plates, brassards, cape |
 | **Talisman** | les bijoux d'artefact *(depuis le 2026-08-09)* |
+
+**Les deux mains** (décision de René, 2026-08-12) — quatre tenues, et quatre
+seulement :
+
+1. deux armes à **une** main ;
+2. une arme à **deux** mains, seule ;
+3. une arme à une main **+ un bouclier** ;
+4. une arme à une main, seule (ou rien).
+
+⚠ La seconde arme **n'apporte aucun dé** : elle apporte un **choix**. Le menu
+d'action offre une attaque *par arme* — chacune avec ses propres cibles légales,
+puisque portée, diagonales et jet sont des propriétés de l'arme. C'est ce qui
+rend l'*Ambidextrie* du Rogue littérale (« one additional attack **with a
+dagger** ») et ce qui permet de porter une arme de mêlée et une arme de jet sans
+rien reprendre au sac en plein combat. `objets.emplacement` reste la valeur
+naturelle d'une pièce ; pour une arme à une main, l'emplacement devient un
+**paramètre** (`Equipement::slotsPossibles()`).
 
 Casque, armure et bouclier **se cumulent**, comme au plateau — « [Borin's Armor]
 may be combined with the helmet and/or shield » (livret de règles p. 7) : un
@@ -301,7 +318,9 @@ casque n'était qu'un achat de dépannage qu'on jetait dès la première vraie
 armure.
 
 `des_attaque` **remplace** la valeur du porteur (l'arme fait l'attaque, doc 03
-§8) ; `des_defense` **s'ajoute**. Les talismans ne touchent ni l'un ni l'autre :
+§8) ; `des_defense` **s'ajoute**. La colonne `des_attaque` est celle de la
+**main droite** : frapper de la gauche n'en échange que la part de l'arme, tout
+le reste (Forge, nœuds passifs, progression) étant conservé. Les talismans ne touchent ni l'un ni l'autre :
 ils relèvent les **PV maximum**, d'où leur emplacement à part.
 
 Stats pièce par pièce : doc Market §Catalogue. Provenance carte par carte :
