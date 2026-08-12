@@ -72,6 +72,12 @@ class InstanceMonstre extends Model
             $des -= 1;
         }
 
+        // Paralysé : « unable to move, attack, or defend ». Zéro dé, pas un
+        // malus — c'est le seul cas où le plancher à 1 ne s'applique pas.
+        if (! empty($conditions['paralyse'])) {
+            return 0;
+        }
+
         return max(1, $des);
     }
 

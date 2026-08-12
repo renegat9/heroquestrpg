@@ -27,6 +27,13 @@ use App\Models\Quete;
  */
 final class MenuMoteur
 {
+    /**
+     * Jet de déplacement à partir duquel l'Évanescence se rompt (décision de
+     * René, 2026-08-12) : le plateau lit 9+ sur 2 dés rouges, nous 4+ sur notre
+     * unique d6.
+     */
+    private const RUPTURE_EVANESCENCE = 4;
+
     public function __construct(
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
@@ -153,9 +160,23 @@ final class MenuMoteur
             // `Deplacement` savait appliquer un malus depuis toujours, mais
             // aucun appelant ne le lui avait jamais dit — il n'avait donc
             // jamais joué, et l'armure la plus chère n'avait que des avantages.
-            $etat->update(['deplacement_tour' => (new Deplacement($this->des))
-                ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'))
-                ->total]);
+            $jet = (new Deplacement($this->des))
+                ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'));
+
+            $etat->update(['deplacement_tour' => $jet->total]);
+
+            // ÉVANESCENCE : « The hero moves unseen if they roll [bas] on their
+            // movement dice ; if [haut] is rolled, the spell ends. » Le plateau
+            // lance 2 dés rouges et rompt à 9+ ; nous lançons UN d6 et rompons
+            // à 4+ (décision de René, 2026-08-12) — une chance sur deux, là où
+            // le plateau est à un peu plus d'une sur quatre.
+            //
+            // ⚠ C'est bien le JET DU TOUR qui décide, pas le déplacement
+            // effectif : le sort tient ou tombe avant que le héros n'ait fait
+            // un pas.
+            if ($jet->de >= self::RUPTURE_EVANESCENCE) {
+                $this->sorts->rompreEvanescence($personnage);
+            }
         }
 
         $total = $etat->deplacement_tour ?? $base;
@@ -540,7 +561,13 @@ final class MenuMoteur
             && ($personnage->competences()->where('nom', 'Réserve arcanique')->exists()
                 || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
-        if ($etat !== null && ! $aAgi) {
+        // `action_interdite` (Paralysé, Évanescent) : le pendant de
+        // `deplacement_interdit`. Un Évanescent MARCHE encore et ouvre les
+        // portes — c'est tout l'intérêt du sort —, mais ne peut ni attaquer,
+        // ni fouiller, ni désamorcer, ni lancer.
+        $actionInterdite = $this->sorts->actionInterdite($personnage);
+
+        if ($etat !== null && ! $aAgi && ! $actionInterdite) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
                 $options[] = $option;
             }

@@ -66,6 +66,7 @@ const CLES_SORT_ACTIVES = [
     'seuil_mind_max',          // ResolveurTour::sortMental() — s'applique SANS jet sous le seuil
     'image_miroir',            // App\Listeners\ImageMiroir — écouteur de HerosVaSubirDegats
     'tour_supplementaire',     // ResolveurTour::marquerCreneau() — le tour recommence
+    'jet_contre_mind',         // ResolveurTour::sortDeZone() — 1 d6 par figure, > Mind = touché
 ];
 
 /**

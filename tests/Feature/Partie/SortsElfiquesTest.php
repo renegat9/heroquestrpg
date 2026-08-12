@@ -37,10 +37,10 @@ beforeEach(function () {
 it('sème un répertoire elfique DISTINCT des quatre écoles', function () {
     $elfiques = Sort::where('element', MoteurSorts::REPERTOIRE_ELFIQUE)->pluck('nom')->all();
 
-    // 4 des 8 cartes sont portées ; les 4 autres sont des dettes nommées dans
-    // SortSeeder (Flashback écarté par René, Twist Wood sans cible possible,
-    // Hypnotic Blaze faute de zone, Disappear faute d'intangibilité).
-    expect($elfiques)->toHaveCount(4);
+    // 6 des 8 cartes sont portées. Les 2 restantes sont des dettes nommées dans
+    // SortSeeder : Flashback (écartée par René) et Twist Wood (nos monstres
+    // n'ont aucun objet d'arme — le sort n'a pas de cible).
+    expect($elfiques)->toHaveCount(6);
 
     // ⚠ Il ne se mélange pas aux éléments : un sort elfique ne doit jamais
     // arriver par le choix d'une école, sinon la seconde voie de l'Elfe n'en
@@ -129,4 +129,49 @@ it('ARRÊT DU TEMPS réarme le tour au lieu de le terminer, et une seule fois', 
         ->and((bool) $apres->a_deplace)->toBeFalse()
         // ⚠ Consommé : sans ça le héros jouerait indéfiniment.
         ->and((bool) $apres->tour_supplementaire)->toBeFalse();
+});
+
+it('PARALYSÉ retire tout au monstre : ni déplacement, ni attaque, ni défense', function () {
+    $ogre = new App\Models\Monstre(['attaque' => 4, 'defense' => 4]);
+
+    $instance = new App\Models\InstanceMonstre(['elite' => false]);
+    $instance->setRelation('monstre', $ogre);
+    $instance->habillage = ['conditions' => ['paralyse' => true]];
+
+    // ⚠ Zéro, pas un malus : c'est le seul cas où le plancher à 1 ne
+    // s'applique pas — « unable to move, attack, or defend ».
+    expect($instance->attaqueEffective())->toBe(0)
+        ->and($instance->defenseEffective())->toBe(0);
+});
+
+it('ÉVANESCENT laisse marcher mais interdit toute action, et rend intouchable', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    $sort = Sort::where('nom', 'Évanescence')->firstOrFail();
+    app(MoteurSorts::class)->appliquerConditionCatalogue($heros, 'Évanescent', $sort);
+
+    $sorts = app(MoteurSorts::class);
+
+    // Le contraire de Paralysé sur le déplacement : il marche encore.
+    expect($sorts->deplacementInterdit($heros))->toBeFalse()
+        ->and($sorts->actionInterdite($heros))->toBeTrue()
+        ->and($sorts->estInattaquable($heros))->toBeTrue();
+});
+
+it('rompt l\'ÉVANESCENCE sur un jet de déplacement de 4 ou plus', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    $sorts = app(MoteurSorts::class);
+
+    $sort = Sort::where('nom', 'Évanescence')->firstOrFail();
+    $sorts->appliquerConditionCatalogue($heros, 'Évanescent', $sort);
+
+    expect($sorts->actionInterdite($heros))->toBeTrue();
+
+    // Le plateau rompt à 9+ sur 2 dés rouges ; nous à 4+ sur notre unique d6
+    // (décision de René). C'est le JET DU TOUR qui décide, pas les pas faits.
+    $sorts->rompreEvanescence($heros);
+
+    expect($sorts->actionInterdite($heros->fresh()))->toBeFalse();
 });

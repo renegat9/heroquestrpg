@@ -160,12 +160,16 @@ final class MoteurSorts
 
     public const MONSTRE_RALENTI = 'ralenti';
 
+    /** Flamme hypnotique : la créature ne bouge, n'attaque ni ne défend plus. */
+    public const MONSTRE_PARALYSE = 'paralyse';
+
     /** @var list<string> */
     public const CONDITIONS_MONSTRE = [
         self::MONSTRE_ENDORMI,
         self::MONSTRE_SAUTE_TOUR,
         self::MONSTRE_TERRIFIE,
         self::MONSTRE_RALENTI,
+        self::MONSTRE_PARALYSE,
     ];
 
     /**
@@ -279,6 +283,55 @@ final class MoteurSorts
         return $personnage->conditions()
             ->get()
             ->contains(fn (Condition $c) => (bool) ($c->effet['deplacement_interdit'] ?? false));
+    }
+
+    /**
+     * Rompt l'Évanescence : la condition tombe et le buff avec elle.
+     *
+     * Appelée sur un jet de déplacement trop élevé (MenuMoteur). Sans effet si
+     * le héros n'est pas évanescent — c'est le cas ordinaire.
+     */
+    public function rompreEvanescence(Personnage $personnage): void
+    {
+        $condition = Condition::where('nom', 'Évanescent')->first();
+
+        if ($condition === null) {
+            return;
+        }
+
+        DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('condition_id', $condition->id)
+            ->delete();
+    }
+
+    /**
+     * Une CONDITION portée interdit-elle toute ACTION — attaquer, fouiller,
+     * désamorcer, lancer un sort ?
+     *
+     * Jumelle de `deplacementInterdit()`, et les deux se combinent différemment
+     * selon la carte : *Évanescence* interdit l'action mais laisse marcher et
+     * ouvrir des portes, *Paralysie* interdit les deux.
+     */
+    public function actionInterdite(Personnage $personnage): bool
+    {
+        return $personnage->conditions()
+            ->get()
+            ->contains(fn (Condition $c) => (bool) ($c->effet['action_interdite'] ?? false));
+    }
+
+    /**
+     * Une CONDITION portée annule-t-elle la défense ?
+     *
+     * « Paralyzed for 3 turns — unable to move, attack, OR DEFEND » (Flamme
+     * hypnotique). Le héros lance alors zéro dé : ce n'est pas un malus, c'est
+     * une suppression.
+     */
+    public function defenseNulle(Personnage $personnage): bool
+    {
+        return $personnage->conditions()
+            ->get()
+            ->contains(fn (Condition $c) => (bool) ($c->effet['defense_nulle'] ?? false));
     }
 
     /**

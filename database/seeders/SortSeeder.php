@@ -166,8 +166,27 @@ class SortSeeder extends Seeder
             ['element' => 'elfique', 'nom' => 'Arrêt du temps', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'heros', 'tour_supplementaire' => true]],
 
-            // ⚠ QUATRE cartes du répertoire ne sont PAS portées, chacune pour
-            // une raison précise :
+            // « Every figure in the room or corridor (EXCEPT for the
+            // spellcaster) must roll 1 red die. A figure that rolls equal to or
+            // less than its Mind Points is unaffected. Rolling a number greater
+            // than its Mind Points means that the figure is PARALYZED for 3
+            // turns — unable to move, attack, or defend. »
+            // ⚠ Frappe TOUTE FIGURE, alliés compris : cohérent avec notre tir
+            // ami assumé (doc 02 §5, S3).
+            ['element' => 'elfique', 'nom' => 'Flamme hypnotique', 'type' => 'mental', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'soi', 'zone' => 'salle_du_lanceur',
+                    'jet_contre_mind' => true, 'condition_appliquee' => 'Paralysé',
+                    'condition_monstre' => 'paralyse']],
+
+            // « The hero can only move and open doors. They cannot attack,
+            // search, disarm, cast spells, spring traps, or be affected by
+            // attacks or spells, unless the hero chooses to cancel the spell. »
+            // Rupture : le plateau lit 9+ sur 2 dés rouges ; nous 4+ sur notre
+            // unique d6 (décision de René, 2026-08-12).
+            ['element' => 'elfique', 'nom' => 'Évanescence', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'heros', 'condition_appliquee' => 'Évanescent']],
+
+            // ⚠ DEUX cartes du répertoire ne sont pas portées :
             //  - *Flashback* : rejouer un tour DÉJÀ RÉSOLU suppose un point de
             //    restauration par tour de héros ; nos snapshots existent
             //    (debut_quete, nouveau_tour) mais pas à cette granularité.
@@ -175,13 +194,6 @@ class SortSeeder extends Seeder
             //  - *Twist Wood* : « any wooden weapon, such as a staff, bow, or
             //    crossbow » — nos monstres n'ont AUCUN objet d'arme, le sort
             //    n'a donc littéralement pas de cible.
-            //  - *Hypnotic Blaze* : vraie zone « salle ou couloir », frappant
-            //    toute figure sauf le lanceur. `monstres_zone` reste déclaré
-            //    non implémenté (MotsClesSort::NON_IMPLEMENTES).
-            //  - *Disappear* : état d'intangibilité — ne peut que bouger et
-            //    ouvrir des portes, n'est affecté par rien, se rompt sur un jet
-            //    de déplacement ≥ 9. Proche d'`ethere`, mais côté héros et avec
-            //    des interdictions d'action qu'aucune condition ne sait poser.
         ];
 
         foreach ($sorts as $sort) {

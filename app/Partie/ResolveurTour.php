@@ -1621,7 +1621,7 @@ final class ResolveurTour
 
         return match ($sort->type) {
             'degats' => $this->sortDegats($quete, $sort, $option, $parametres),
-            'mental' => $this->sortMental($quete, $sort, $option, $parametres),
+            'mental' => $this->sortMental($quete, $sort, $option, $parametres, $lanceur),
             default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $option, $parametres),
         };
     }
@@ -1803,8 +1803,15 @@ final class ResolveurTour
      * @param  array<string, mixed>  $parametres
      * @return array<string, mixed>
      */
-    private function sortMental(Quete $quete, Sort $sort, array $option, array $parametres): array
+    private function sortMental(Quete $quete, Sort $sort, array $option, array $parametres, ?Personnage $lanceur = null): array
     {
+        // ZONE « salle ou couloir du lanceur » (Flamme hypnotique) : le sort ne
+        // se cible pas, il balaie. Traité avant tout, puisqu'il n'a pas de
+        // `cible` unique à résoudre.
+        if (($sort->effet['zone'] ?? null) === 'salle_du_lanceur' && $lanceur !== null) {
+            return $this->sortDeZone($quete, $sort, $lanceur);
+        }
+
         $cible = $this->cibleSort($quete, $option, $parametres);
 
         $mind = $cible['type'] === 'monstre'
@@ -1867,6 +1874,89 @@ final class ResolveurTour
         }
 
         return $this->appliquerEffetMental($sort, $cible, $payload);
+    }
+
+    /**
+     * Sort de ZONE : toute figure de la salle (ou du couloir) du lanceur, LUI
+     * EXCEPTÉ, jette 1 d6 contre son Mind.
+     *
+     * « A figure that rolls equal to or less than its Mind Points is
+     * unaffected. Rolling a number GREATER than its Mind Points means that the
+     * figure is paralyzed. » Donc un Mind élevé protège, et un Mind 0 est
+     * touché à coup sûr — cohérent avec le reste du moteur, où Mind 0 vaut
+     * absence d'esprit et non invulnérabilité mentale… ⚠ à une exception près :
+     * `SortMental` immunise les Mind 0, mais ici la carte fait jeter TOUTE
+     * figure, sans clause d'exclusion. On suit la carte.
+     *
+     * ⚠ « EVERY figure » : monstres ET héros ET alliés. Le tir ami est assumé
+     * (doc 02 §5, S3) ; épargner les compagnons serait une invention.
+     *
+     * @return array<string, mixed>
+     */
+    private function sortDeZone(Quete $quete, Sort $sort, Personnage $lanceur): array
+    {
+        $lanceurId = (int) $lanceur->id;
+
+        $etatLanceur = $quete->etatsPersonnages()->where('personnage_id', $lanceurId)->first();
+
+        if ($etatLanceur?->position_x === null) {
+            return ['zone' => true, 'touches' => []];
+        }
+
+        $salle = $this->salleDeCase($quete, (int) $etatLanceur->position_x, (int) $etatLanceur->position_y);
+        $touches = [];
+
+        // Héros de la même zone, lanceur excepté.
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            if ($etat->personnage === null || $etat->personnage_id === $lanceurId || $etat->position_x === null) {
+                continue;
+            }
+
+            if ($this->salleDeCase($quete, (int) $etat->position_x, (int) $etat->position_y) !== $salle) {
+                continue;
+            }
+
+            $de = $this->des->d6();
+
+            if ($de > (int) $etat->personnage->attribut_mind) {
+                $this->sorts->appliquerConditionCatalogue($etat->personnage, $sort->effet['condition_appliquee'], $sort);
+                $touches[] = ['type' => 'heros', 'nom' => $etat->personnage->nom, 'de' => $de];
+            }
+        }
+
+        // Monstres de la même zone.
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->get() as $instance) {
+            if ($instance->position_x === null
+                || $this->salleDeCase($quete, (int) $instance->position_x, (int) $instance->position_y) !== $salle) {
+                continue;
+            }
+
+            $de = $this->des->d6();
+
+            if ($de > (int) $instance->pv_mind) {
+                $this->sorts->poserConditionMonstre($instance, (string) $sort->effet['condition_monstre']);
+                $touches[] = ['type' => 'monstre', 'nom' => $instance->nomAffiche(), 'de' => $de];
+            }
+        }
+
+        return ['zone' => true, 'salle' => $salle, 'touches' => $touches];
+    }
+
+    /**
+     * Indice de la salle contenant cette case, ou null si c'est un couloir.
+     * Deux figures « dans le même couloir » partagent donc la valeur null —
+     * une approximation assumée : nos couloirs n'ont pas d'identifiant de zone.
+     */
+    private function salleDeCase(Quete $quete, int $x, int $y): ?int
+    {
+        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $i => $salle) {
+            if ($x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
+                && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur']) {
+                return (int) $i;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -3041,6 +3131,16 @@ final class ResolveurTour
             return $payload;
         }
 
+        // Paralysé (Flamme hypnotique) : « unable to move, attack, or defend »
+        // pendant 3 tours. ⚠ La condition n'est PAS consommée ici, contrairement
+        // à la tempête : elle dure, et c'est `decrementerDurees()` qui la retire.
+        if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_PARALYSE)) {
+            $payload = ['type' => 'monstre_paralyse', 'monstre' => $nomMonstre, 'action' => 'paralyse'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         // Boss / sous-boss : sorts de Dread + capacités spéciales (Régénération,
         // Charge). Si une action Dread a été jouée, on retourne son payload.
         $tier = $instance->monstre->tier ?? 'base';
@@ -3263,7 +3363,7 @@ final class ResolveurTour
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: max(0, $desAttaque + $bonusFlanc),
-            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense') + $bonusGardeTenace,
+            desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense') + $bonusGardeTenace,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );

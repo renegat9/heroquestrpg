@@ -172,6 +172,7 @@ final class JournalCombat
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
+            'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],
             'heros_endormi' => [$this->info(($a['personnage'] ?? $acteurNom).' est endormi — tour sauté')],
             default => [],

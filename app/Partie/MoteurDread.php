@@ -326,7 +326,7 @@ final class MoteurDread
         // Attaquer l'allié adjacent.
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: (int) $personnage->des_attaque,
-            desDefense: (int) $ciblePersonnage->des_defense + $this->sorts->bonusDes($ciblePersonnage, 'bonus_des_defense'),
+            desDefense: $this->sorts->defenseNulle($ciblePersonnage) ? 0 : (int) $ciblePersonnage->des_defense + $this->sorts->bonusDes($ciblePersonnage, 'bonus_des_defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $ciblePersonnage->pv_body,
         );
@@ -432,7 +432,7 @@ final class MoteurDread
 
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $instance->attaqueEffective() + $bonusFlanc,
-                desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
+                desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
                 typeDefenseur: TypeFigurine::Heros,
                 pvBodyDefenseur: (int) $personnage->pv_body,
             );
@@ -667,7 +667,7 @@ final class MoteurDread
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $desDegats,
-            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
+            desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
@@ -748,7 +748,7 @@ final class MoteurDread
             $personnage = $cible->personnage;
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $desDegats,
-                desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
+                desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
                 typeDefenseur: TypeFigurine::Heros,
                 pvBodyDefenseur: (int) $personnage->pv_body,
             );
@@ -1164,7 +1164,7 @@ final class MoteurDread
         $personnage = $cible->personnage;
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: (int) $instance->monstre->attaque + 1,
-            desDefense: (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
+            desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense'),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );

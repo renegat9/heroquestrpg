@@ -43,6 +43,23 @@ class ConditionSeeder extends Seeder
             // réellement immobilisant.
             ['nom' => 'Envenimé', 'type' => 'physique', 'duree_defaut' => 1,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'prochain_tour']],
+
+            // Flamme hypnotique (répertoire elfique, © 2023) : « paralyzed for
+            // 3 turns — unable to move, attack, or defend ». Les trois d'un
+            // coup, et `defense_nulle` est une SUPPRESSION, pas un malus : la
+            // figure ne lance aucun dé.
+            ['nom' => 'Paralysé', 'type' => 'mental', 'duree_defaut' => 3,
+                'effet' => ['deplacement_interdit' => true, 'action_interdite' => true,
+                    'defense_nulle' => true, 'fin' => 'duree']],
+
+            // Évanescence (répertoire elfique) : « The hero can only move and
+            // open doors. They cannot attack, search, disarm, cast spells,
+            // spring traps, or be affected by attacks or spells. »
+            // ⚠ Le contraire de Paralysé sur le déplacement : il marche, mais
+            // ne peut RIEN faire d'autre — et rien ne peut le toucher.
+            ['nom' => 'Évanescent', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['action_interdite' => true, 'inattaquable' => true,
+                    'ignore_pieges' => true, 'fin' => 'jet_de_deplacement_eleve']],
         ];
 
         foreach ($conditions as $condition) {
