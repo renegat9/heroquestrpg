@@ -162,6 +162,14 @@ class AuthController extends Controller
                                     'nom' => $l->objet->nom,
                                     'emplacement' => $l->emplacement,
                                     'bouclier' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false),
+                                    'deux_mains' => (bool) ($l->objet->effet['deux_mains'] ?? false),
+                                    // Les dés de CETTE arme : avec deux armes en
+                                    // main, la colonne `des_attaque` ne dit plus
+                                    // qu'une moitié de la vérité (elle ne connaît
+                                    // que la main droite).
+                                    'des_attaque' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false)
+                                        ? null
+                                        : app(Equipement::class)->desAttaqueAvec($p, $l),
                                 ])
                                 ->values()
                                 ->all(),
@@ -191,6 +199,13 @@ class AuthController extends Controller
                                     'rarete' => $l->objet->rarete,
                                     'quantite' => (int) $l->quantite,
                                     'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
+                                    // Emplacements POSSIBLES : deux pour une arme
+                                    // à une main (main droite ou main gauche —
+                                    // dual-wielding), un seul pour tout le reste.
+                                    // Sans cette clé la manette ne pourrait pas
+                                    // proposer le choix, et le second slot
+                                    // n'existerait que pour l'API.
+                                    'slots' => app(Equipement::class)->slotsPossibles($l->objet),
                                 ])
                                 ->values()
                                 ->all(),

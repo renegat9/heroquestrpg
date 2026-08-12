@@ -312,9 +312,13 @@ export function useApi() {
 
         /** POST /groupes/{id}/equipement {personnage_id, inventaire_id} —
          *  équipe une pièce du sac dans son slot (ses dés s'appliquent). */
-        equiper: (identifiant, personnageId, inventaireId) =>
+        /* `emplacement` (optionnel) : `arme_principale` ou `arme_secondaire` pour
+           une arme à une main — le dual-wielding. Omis, le serveur prend
+           l'emplacement naturel de la pièce. */
+        equiper: (identifiant, personnageId, inventaireId, emplacement = null) =>
             request('POST', `/groupes/${identifiant}/equipement`, {
                 personnage_id: personnageId, inventaire_id: inventaireId,
+                ...(emplacement ? { emplacement } : {}),
             }),
 
         /** DELETE /groupes/{id}/equipement {personnage_id, inventaire_id} —

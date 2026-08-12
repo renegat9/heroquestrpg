@@ -13,6 +13,7 @@ use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -31,12 +32,19 @@ class EquipementController extends Controller
 {
     public function __construct(private readonly Equipement $equipement) {}
 
-    /** POST /api/groupes/{identifiant}/equipement {personnage_id, inventaire_id} */
+    /**
+     * POST /api/groupes/{identifiant}/equipement
+     * `{personnage_id, inventaire_id, emplacement?}`.
+     *
+     * `emplacement` n'a de sens que pour une arme à UNE main, qui va en main
+     * droite (`arme_principale`) ou en main gauche (`arme_secondaire`) — le
+     * dual-wielding. Absent, l'emplacement naturel de la pièce.
+     */
     public function equiper(Request $request, string $identifiant): JsonResponse
     {
         [$groupe, $personnage, $ligne] = $this->contexte($request, $identifiant);
 
-        $this->equipement->equiper($personnage, $ligne);
+        $this->equipement->equiper($personnage, $ligne, $request->input('emplacement'));
 
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'equipement_equipe',
@@ -77,6 +85,9 @@ class EquipementController extends Controller
         $donnees = $request->validate([
             'personnage_id' => ['required', 'integer'],
             'inventaire_id' => ['required', 'integer'],
+            // Slot visé (dual-wielding) : la légalité — arme à une main, main
+            // libre — est tranchée par `Equipement`, pas ici.
+            'emplacement' => ['sometimes', 'nullable', Rule::in(Equipement::SLOTS)],
         ]);
 
         if ($groupe->phase !== 'hub') {

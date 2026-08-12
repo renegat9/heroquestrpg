@@ -69,11 +69,39 @@ final class Equipement
     ];
 
     /**
-     * Équipe une ligne d'inventaire du SAC dans l'emplacement naturel de l'objet
-     * (objet.emplacement). L'occupant actuel du slot repart au sac (auto-swap :
-     * capacité de sac neutre, une pièce sort, une pièce entre).
+     * Les emplacements où cette pièce peut être montée, dans l'ordre naturel.
+     *
+     * Une pièce n'en a qu'un — SAUF une arme à UNE main, qui va en main droite
+     * **ou** en main gauche (dual-wielding, décision de René 2026-08-12 ; carte
+     * du deck : « you may use these weapons **instead of a shield in your off
+     * hand** »). C'est ce qui rend le slot paramétrable au lieu d'être déduit
+     * de `objets.emplacement`, valeur unique par pièce.
+     *
+     * @return list<string>
      */
-    public function equiper(Personnage $personnage, Inventaire $ligne): Inventaire
+    public function slotsPossibles(Objet $objet): array
+    {
+        $naturel = (string) $objet->emplacement;
+
+        if (! in_array($naturel, self::SLOTS, true)) {
+            return [];
+        }
+
+        // Deux mains : elle occupe les deux, il n'y a pas de choix à faire.
+        if ($naturel !== 'arme_principale' || ! empty($objet->effet['deux_mains'])) {
+            return [$naturel];
+        }
+
+        return ['arme_principale', 'arme_secondaire'];
+    }
+
+    /**
+     * Équipe une ligne d'inventaire du SAC. Sans `$slot`, l'emplacement naturel
+     * de l'objet (objet.emplacement) ; une arme à une main accepte aussi
+     * `arme_secondaire` — la main gauche. L'occupant actuel du slot repart au
+     * sac (auto-swap : capacité de sac neutre, une pièce sort, une pièce entre).
+     */
+    public function equiper(Personnage $personnage, Inventaire $ligne, ?string $slot = null): Inventaire
     {
         $objet = $this->objetDeLaLigne($personnage, $ligne);
 
@@ -81,14 +109,23 @@ final class Equipement
             throw ValidationException::withMessages(['inventaire_id' => 'Cet objet n\'est pas dans le sac.']);
         }
 
-        $slot = $objet->emplacement;
-        if (! in_array($slot, self::SLOTS, true)) {
+        $possibles = $this->slotsPossibles($objet);
+
+        if ($possibles === []) {
             throw ValidationException::withMessages([
                 'inventaire_id' => "« {$objet->nom} » n'est pas une pièce d'équipement.",
             ]);
         }
 
-        $this->verifierMains($personnage, $objet);
+        $slot ??= $possibles[0];
+
+        if (! in_array($slot, $possibles, true)) {
+            throw ValidationException::withMessages([
+                'emplacement' => "« {$objet->nom} » ne se porte pas à cet emplacement.",
+            ]);
+        }
+
+        $this->verifierMains($personnage, $objet, $slot);
         $this->verifierAccesEquipement($personnage, $objet);
 
         return DB::transaction(function () use ($personnage, $ligne, $slot) {
@@ -144,28 +181,52 @@ final class Equipement
     }
 
     /**
-     * Incompatibilité main(s) (doc 01 §7) : une arme à deux mains et un bouclier
-     * ne coexistent pas. Rejet explicite (pas d'auto-déséquipement croisé).
+     * LES DEUX MAINS (doc 01 §7, règle de René 2026-08-12). Quatre tenues, et
+     * quatre seulement :
      *
-     * INDÉPENDANT du tag de maîtrise : `deux_mains` dit « pas de bouclier avec »,
+     *  - deux armes à UNE main ;
+     *  - une arme à deux mains, seule ;
+     *  - une arme à une main + un bouclier ;
+     *  - une arme à une main, seule (ou rien du tout).
+     *
+     * Une arme à deux mains prend donc les deux mains : ni bouclier, ni seconde
+     * arme. Rejet explicite (jamais d'auto-déséquipement croisé) : c'est au
+     * joueur de choisir ce qu'il pose.
+     *
+     * INDÉPENDANT du tag de maîtrise : `deux_mains` dit « les deux mains »,
      * le tag dit « qui a le droit d'en porter ». Le Bâton est à deux mains ET
      * `arme_legere`, donc jouable par le magicien.
      */
-    private function verifierMains(Personnage $personnage, Objet $aEquiper): void
+    private function verifierMains(Personnage $personnage, Objet $aEquiper, string $slot): void
     {
-        $portes = $personnage->inventaire()->whereIn('emplacement', self::SLOTS)->with('objet')->get();
-        $estDeuxMains = fn (?Objet $o) => (bool) ($o?->effet['deux_mains'] ?? false);
-        $estBouclier = fn (?Objet $o) => (bool) ($o?->effet['incompatible_deux_mains'] ?? false);
+        if (! in_array($slot, ['arme_principale', 'arme_secondaire'], true)) {
+            return; // casque, armure, talisman : les mains ne les concernent pas
+        }
 
-        if ($estDeuxMains($aEquiper) && $portes->contains(fn ($l) => $estBouclier($l->objet))) {
+        $estDeuxMains = fn (?Objet $o) => (bool) ($o?->effet['deux_mains'] ?? false);
+        $portes = $personnage->inventaire()
+            ->whereIn('emplacement', ['arme_principale', 'arme_secondaire'])
+            ->with('objet')
+            ->get();
+
+        // L'occupant du slot visé s'en va de toute façon (auto-swap) : seule
+        // l'AUTRE main compte.
+        $autreMain = $slot === 'arme_principale' ? 'arme_secondaire' : 'arme_principale';
+        $occupantAutreMain = $portes->firstWhere('emplacement', $autreMain)?->objet;
+
+        if ($occupantAutreMain === null) {
+            return;
+        }
+
+        if ($estDeuxMains($aEquiper)) {
             throw ValidationException::withMessages([
-                'inventaire_id' => "« {$aEquiper->nom} » se manie à deux mains — déséquipe d'abord ton bouclier.",
+                'inventaire_id' => "« {$aEquiper->nom} » se manie à deux mains — libère d'abord ton autre main (« {$occupantAutreMain->nom} »).",
             ]);
         }
 
-        if ($estBouclier($aEquiper) && $portes->contains(fn ($l) => $estDeuxMains($l->objet))) {
+        if ($estDeuxMains($occupantAutreMain)) {
             throw ValidationException::withMessages([
-                'inventaire_id' => 'Tu manies une arme à deux mains — impossible d\'y ajouter un bouclier.',
+                'inventaire_id' => "Tu manies « {$occupantAutreMain->nom} » à deux mains : il ne te reste aucune main libre.",
             ]);
         }
     }
@@ -424,8 +485,6 @@ final class Equipement
     public function recalculerCombat(Personnage $personnage): void
     {
         $base = ClasseHeros::where('nom', $personnage->classe)->first();
-
-        $attaque = (int) ($base?->des_attaque ?? 1);
         $defense = (int) ($base?->des_defense ?? 2);
 
         $portes = $personnage->inventaire()
@@ -434,26 +493,77 @@ final class Equipement
             ->get();
 
         foreach ($portes as $ligne) {
-            $effet = (array) ($ligne->objet?->effet ?? []);
-            $ameliorations = (array) ($ligne->ameliorations ?? []);
+            $defense += (int) (($ligne->objet?->effet ?? [])['des_defense'] ?? 0);
 
-            // L'ARME PRINCIPALE impose sa valeur d'attaque (remplacement).
-            if ($ligne->emplacement === 'arme_principale' && isset($effet['des_attaque'])) {
-                $attaque = (int) $effet['des_attaque'];
-            }
-
-            $defense += (int) ($effet['des_defense'] ?? 0);
-
-            foreach ($ameliorations as $amelioration) {
-                $attaque += (int) ($amelioration['effet']['bonus_des_attaque'] ?? 0);
+            foreach ((array) ($ligne->ameliorations ?? []) as $amelioration) {
                 $defense += (int) ($amelioration['effet']['bonus_des_defense'] ?? 0);
             }
         }
 
         $personnage->update([
-            'des_attaque' => max(0, $attaque),
+            // La COLONNE reste celle de la main droite : c'est elle que lisent
+            // la fiche, le score de puissance et le budget de rencontre. La main
+            // gauche ne s'y ajoute pas — elle ne donne aucun dé, elle offre un
+            // second choix d'arme au moment d'attaquer (décision de René).
+            'des_attaque' => $this->desAttaqueAvec($personnage, $portes->firstWhere('emplacement', 'arme_principale')),
             'des_defense' => max(0, $defense),
         ]);
+    }
+
+    /**
+     * Dés d'attaque du héros AVEC cette arme — `null` = à mains nues.
+     *
+     * Existe parce qu'un héros peut désormais tenir DEUX armes et choisir la
+     * sienne au moment de frapper : la colonne `des_attaque` ne peut plus être
+     * la seule vérité, elle ne connaît que la main droite. Même calcul dans les
+     * deux cas — l'arme REMPLACE les dés de classe (elle ne s'y ajoute pas), les
+     * améliorations de Forge de toutes les pièces portées s'ajoutent.
+     */
+    public function desAttaqueAvec(Personnage $personnage, ?Inventaire $arme): int
+    {
+        $base = ClasseHeros::where('nom', $personnage->classe)->first();
+        $attaque = (int) ($base?->des_attaque ?? 1);
+
+        $effet = (array) ($arme?->objet?->effet ?? []);
+
+        if (isset($effet['des_attaque'])) {
+            $attaque = (int) $effet['des_attaque'];
+        }
+
+        $portes = $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get();
+
+        foreach ($portes as $ligne) {
+            foreach ((array) ($ligne->ameliorations ?? []) as $amelioration) {
+                $attaque += (int) ($amelioration['effet']['bonus_des_attaque'] ?? 0);
+            }
+        }
+
+        return max(0, $attaque);
+    }
+
+    /**
+     * Les armes réellement EN MAIN, main droite d'abord — matière des options
+     * d'attaque du menu (une par arme) et de la garde « à mains nues » du Moine.
+     *
+     * Un bouclier n'en est pas une : il occupe la main gauche sans jamais
+     * frapper.
+     *
+     * @return list<Inventaire>
+     */
+    public function armesEnMain(Personnage $personnage): array
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', ['arme_principale', 'arme_secondaire'])
+            ->with('objet')
+            ->get()
+            ->filter(fn (Inventaire $l) => $l->objet !== null
+                && empty($l->objet->effet['incompatible_deux_mains']))
+            ->sortBy(fn (Inventaire $l) => $l->emplacement === 'arme_principale' ? 0 : 1)
+            ->values()
+            ->all();
     }
 
     private function objetDeLaLigne(Personnage $personnage, Inventaire $ligne): Objet

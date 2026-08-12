@@ -41,6 +41,15 @@ const peutDonner = computed(() => props.auHub && props.compagnons.length > 0);
 // Sac en dépassement : un butin de quête est remis MÊME sac plein (refuser un
 // artefact unique le perdrait à jamais). Le héros régularise en équipant la
 // pièce — elle quitte le sac — ou en écoulant au marché.
+/* Nommer la MAIN : depuis le dual-wielding, `arme_secondaire` peut porter un
+   bouclier OU une seconde arme, et « Arme équipée » deux fois de suite ne dirait
+   pas laquelle est où. */
+function libelleMain(a) {
+    if (a.bouclier) return 'Bouclier équipé';
+    if (a.deux_mains) return 'Arme à deux mains';
+    return a.emplacement === 'arme_secondaire' ? 'Arme — main gauche' : 'Arme — main droite';
+}
+
 const deborde = computed(() => {
     const cap = props.equipement?.capacite;
     const occ = props.equipement?.occupation;
@@ -57,7 +66,7 @@ const deborde = computed(() => {
             <span class="ic"><MSym :n="a.bouclier ? 'shield' : 'swords'" /></span>
             <div>
                 <div class="nm">{{ a.nom }}</div>
-                <div class="rar">{{ a.bouclier ? 'Bouclier équipé' : 'Arme équipée' }}</div>
+                <div class="rar">{{ libelleMain(a) }}</div>
             </div>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', a.inventaire_id)">Déséquiper</button>
         </div>
@@ -147,12 +156,27 @@ const deborde = computed(() => {
                     title="Donner à un compagnon"
                     @click="basculerDon(it.inventaire_id)"
                 ><MSym n="volunteer_activism" :size="18" /></button>
-                <button
-                    v-if="it.equipable && auHub"
-                    class="sac-btn gold"
-                    :disabled="equipEnCours"
-                    @click="emit('equiper', it.inventaire_id)"
-                >Équiper</button>
+                <!-- Une arme à UNE main se porte à droite OU à gauche
+                     (dual-wielding) : deux boutons, sinon le second slot
+                     n'existerait que pour l'API. `slots` peut manquer sur une
+                     réponse antérieure — on retombe alors sur le bouton unique. -->
+                <template v-if="it.equipable && auHub">
+                    <template v-if="(it.slots?.length ?? 1) > 1">
+                        <button
+                            v-for="slot in it.slots"
+                            :key="slot"
+                            class="sac-btn gold"
+                            :disabled="equipEnCours"
+                            @click="emit('equiper', it.inventaire_id, slot)"
+                        >{{ slot === 'arme_principale' ? 'Main droite' : 'Main gauche' }}</button>
+                    </template>
+                    <button
+                        v-else
+                        class="sac-btn gold"
+                        :disabled="equipEnCours"
+                        @click="emit('equiper', it.inventaire_id)"
+                    >Équiper</button>
+                </template>
                 <span v-else-if="!peutDonner" class="qty" style="margin-left: auto; font-weight: 700; color: var(--ink-300)">×{{ it.quantite }}</span>
             </div>
             <div v-if="donEnCours === it.inventaire_id" class="don-cible">

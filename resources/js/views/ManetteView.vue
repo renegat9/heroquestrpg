@@ -599,11 +599,14 @@ async function boirePotion(inventaireId) {
    du sac. Le serveur applique les deltas de combat aux colonnes du héros ; on
    recharge /moi pour rafraîchir dés (fiche) + sac (onglet). ---- */
 const equipEnCours = ref(false);
-async function equiper(inventaireId) {
+/* `emplacement` n'est passé que pour une arme à UNE main, qui va en main droite
+   ou en main gauche (dual-wielding) ; absent, le serveur prend l'emplacement
+   naturel de la pièce. */
+async function equiper(inventaireId, emplacement = null) {
     if (equipEnCours.value || !monPersonnageId.value) return;
     equipEnCours.value = true;
     try {
-        await api.equiper(props.groupe, monPersonnageId.value, inventaireId);
+        await api.equiper(props.groupe, monPersonnageId.value, inventaireId, emplacement);
         rafraichirMoi();
     } catch (e) {
         store.setNarration(e.message);

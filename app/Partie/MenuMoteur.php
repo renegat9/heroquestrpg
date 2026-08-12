@@ -10,6 +10,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 
@@ -86,6 +87,80 @@ final class MenuMoteur
         }
 
         return false;
+    }
+
+    /**
+     * Cibles légales d'UNE arme donnée (`null` = à mains nues), séparées en
+     * « attaquer » et « lancer ».
+     *
+     * Extrait du bloc d'action le 2026-08-12, parce que le dual-wielding en
+     * demande une passe par arme : la portée, les diagonales et le jet sont des
+     * propriétés de l'ARME, pas du héros.
+     *
+     * ⚠ `parametres.cibles` est la LISTE BLANCHE : c'était l'identifiant
+     * d'option qui portait la légalité de la cible, et le contrôleur la validait
+     * en validant l'option. `ResolveurTour` vérifie donc l'appartenance, sinon
+     * on pourrait viser n'importe quel monstre de la quête, hors portée et hors
+     * ligne de vue.
+     *
+     * @return array{attaquer: list<array<string, mixed>>, lancer: list<array<string, mixed>>}
+     */
+    private function ciblesPourArme(Quete $quete, EtatPersonnageQuete $etat, Personnage $personnage, ?Objet $arme): array
+    {
+        // Arme longue (Bâton, Épée longue) : frappe aussi en DIAGONALE, sans
+        // pénalité — « the attack is made and defended normally »
+        // (reference/16_armurerie.md §6.2, livret de règles p. 14).
+        $diagonale = (bool) ($arme?->effet['attaque_diagonale'] ?? false);
+        $aDistanceArme = ($arme?->effet['portee'] ?? null) === 'distance';
+        // Arme JETABLE (dague, hachette) : elle vise aussi à distance, mais
+        // quitte la main du héros — d'où une option distincte.
+        $jetable = (bool) ($arme?->effet['jetable'] ?? false);
+
+        $actives = $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true) // dormant (salle non découverte) = non ciblable (aligné sur ResolveurTour)
+            ->with('monstre')
+            ->orderBy('id')
+            ->get();
+
+        $adjacents = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+            && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonale));
+        $idsAdjacents = $adjacents->pluck('id')->all();
+
+        // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais en
+        // ligne de vue dégagée, si l'arme porte.
+        $aDistance = collect();
+
+        if ($aDistanceArme || $jetable) {
+            $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+            $aDistance = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                && ! in_array($i->id, $idsAdjacents, true)
+                && $grille->ligneDeVue(
+                    (int) $etat->position_x, (int) $etat->position_y,
+                    (int) $i->position_x, (int) $i->position_y,
+                    figuresBloquent: true,
+                ));
+        }
+
+        $idsADistance = $aDistance->pluck('id')->all();
+        $cibles = ['attaquer' => [], 'lancer' => []];
+
+        foreach ($adjacents->concat($aDistance) as $instance) {
+            $aPortee = in_array($instance->id, $idsADistance, true);
+            $lance = $jetable && ! $aDistanceArme && $aPortee;
+
+            $cibles[$lance ? 'lancer' : 'attaquer'][] = [
+                'id' => $instance->id,
+                'type' => 'monstre',
+                'nom' => $instance->nomAffiche(),
+                // Rappel du TYPE du catalogue quand le nom est un habillage
+                // IA → le joueur retrouve la fiche du bestiaire (guide).
+                'nom_base' => $instance->monstre->nom_base,
+                'distance' => $aPortee,
+            ];
+        }
+
+        return $cibles;
     }
 
     /**
@@ -417,88 +492,61 @@ final class MenuMoteur
 
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
         if ((! $aAgi || $bonusAttaqueDisponible) && $etat !== null && $etat->position_x !== null) {
-            $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
-            // Arme longue (Bâton, Épée longue) : frappe aussi en DIAGONALE, sans
-            // pénalité — « the attack is made and defended normally »
-            // (reference/16_armurerie.md §6.2, livret de règles p. 14).
-            $armeDiagonale = (bool) ($armePrincipale?->effet['attaque_diagonale'] ?? false);
-
-            $adjacents = $quete->instancesMonstres()
-                ->where('etat', 'actif')
-                ->where('revele', true) // dormant (salle non découverte) = non ciblable (aligné sur ResolveurTour)
-                ->with('monstre')
-                ->orderBy('id')
-                ->get()
-                ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
-                    && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $armeDiagonale));
-
-            $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
-            // Arme JETABLE (dague, hache à main) : elle vise aussi à distance,
-            // mais quitte la main du héros — d'où une option distincte.
-            $armeJetable = (bool) ($armePrincipale?->effet['jetable'] ?? false);
-            $idsAdjacents = $adjacents->pluck('id')->all();
-
-            // Tir à distance (Arbalète, Tir précis) : monstres HORS contact mais
-            // en ligne de vue dégagée, si le héros porte une arme à distance.
-            $aDistance = collect();
-            if ($armeADistance || $armeJetable) {
-                $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
-                $aDistance = $quete->instancesMonstres()
-                    ->where('etat', 'actif')
-                    ->where('revele', true)
-                    ->with('monstre')
-                    ->orderBy('id')
-                    ->get()
-                    ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
-                        && ! in_array($i->id, $idsAdjacents, true)
-                        && $grille->ligneDeVue(
-                            (int) $etat->position_x, (int) $etat->position_y,
-                            (int) $i->position_x, (int) $i->position_y,
-                            figuresBloquent: true,
-                        ));
-            }
-
-            $idsADistance = $aDistance->pluck('id')->all();
-
-            // Ciblage en DEUX TEMPS : une seule option « Attaquer » (et une
-            // « Lancer »), les cibles légales jointes dans `parametres.cibles`
-            // — la manette ouvre sa feuille de ciblage, comme pour les sorts.
-            // Une option par monstre noyait le menu dès trois ennemis et
-            // multipliait les identifiants mécaniques pour rien.
+            // DUAL-WIELDING (règle de René, 2026-08-12) : un héros peut tenir
+            // DEUX armes à une main, et la seconde n'apporte aucun dé — elle
+            // apporte un CHOIX. D'où une option d'attaque par arme, et non plus
+            // une seule : « attaquer avec l'arme A », « attaquer avec l'arme B ».
             //
-            // ⚠ `parametres.cibles` est désormais la LISTE BLANCHE : c'était
-            // l'identifiant d'option qui portait la légalité de la cible, et le
-            // contrôleur la validait en validant l'option. `ResolveurTour`
-            // vérifie donc l'appartenance, sinon on pourrait viser n'importe
-            // quel monstre de la quête, hors portée et hors ligne de vue.
-            $cibles = ['attaquer' => [], 'lancer' => []];
+            // ⚠ Les cibles légales ne sont pas les mêmes d'une arme à l'autre :
+            // l'arbalète voit toute la salle, l'épée touche ses quatre voisines,
+            // l'épée longue ajoute les diagonales. Chaque option porte donc SA
+            // liste blanche, recalculée pour SON arme.
+            $armes = $this->equipement->armesEnMain($personnage);
+            $mainsNues = $armes === [];
+            $armePrincipale = $armes[0]->objet ?? null;
 
-            foreach ($adjacents->concat($aDistance) as $instance) {
-                $nomBase = $instance->monstre->nom_base;
-                $nom = $instance->nomAffiche();
-                $aPortee = in_array($instance->id, $idsADistance, true);
-                $lance = $armeJetable && ! $armeADistance && $aPortee;
+            // Mains nues : une seule passe, sans arme — le Moine frappe ainsi,
+            // et n'importe qui peut toujours cogner.
+            $lignesArmes = $mainsNues ? [null] : $armes;
+            $ciblesParArme = [];
 
-                $cibles[$lance ? 'lancer' : 'attaquer'][] = [
-                    'id' => $instance->id,
-                    'type' => 'monstre',
-                    'nom' => $nom,
-                    // Rappel du TYPE du catalogue quand le nom est un habillage
-                    // IA → le joueur retrouve la fiche du bestiaire (guide).
-                    'nom_base' => $nomBase,
-                    'distance' => $aPortee,
-                ];
+            foreach ($lignesArmes as $ligneArme) {
+                $arme = $ligneArme?->objet;
+                $slot = $ligneArme?->emplacement ?? 'arme_principale';
+                $cibles = $this->ciblesPourArme($quete, $etat, $personnage, $arme);
+                $ciblesParArme[$slot] = $cibles;
+
+                // Suffixe seulement s'il y a un choix à faire : « Attaquer »
+                // reste « Attaquer » quand une seule arme est en main.
+                $suffixe = count($lignesArmes) > 1 && $arme !== null ? " — {$arme->nom}" : '';
+                $second = $slot === 'arme_secondaire';
+
+                if ($cibles['attaquer'] !== []) {
+                    $options[] = [
+                        'id' => $second ? 'attaquer_secondaire' : 'attaquer',
+                        'libelle' => "Attaquer{$suffixe}",
+                        'type' => 'attaque',
+                        'lancer' => false,
+                        'parametres' => ['arme' => $slot, 'cibles' => $cibles['attaquer']],
+                    ];
+                }
+
+                if ($cibles['lancer'] !== []) {
+                    $options[] = [
+                        'id' => $second ? 'lancer_secondaire' : 'lancer',
+                        // Lancer PERD l'arme : le libellé doit le dire, sinon le
+                        // joueur se retrouve les mains vides sans l'avoir voulu.
+                        'libelle' => "Lancer {$arme->nom} (perdue)",
+                        'type' => 'attaque',
+                        'lancer' => true,
+                        'parametres' => ['arme' => $slot, 'lancer' => true, 'cibles' => $cibles['lancer']],
+                    ];
+                }
             }
 
-            if ($cibles['attaquer'] !== []) {
-                $options[] = [
-                    'id' => 'attaquer',
-                    'libelle' => 'Attaquer',
-                    'type' => 'attaque',
-                    'lancer' => false,
-                    'parametres' => ['cibles' => $cibles['attaquer']],
-                ];
-            }
+            // Les capacités qui frappent (Furie, Force de la Montagne) partent
+            // de la PREMIÈRE arme en main — la main droite s'il y en a une.
+            $cibles = $ciblesParArme[array_key_first($ciblesParArme)] ?? ['attaquer' => [], 'lancer' => []];
 
             // FURIE (Berserker) — « As an action, you may lose up to 2 Body
             // Points to immediately make an attack. Add additional Attack dice
@@ -539,7 +587,7 @@ final class MenuMoteur
             // « Make one UNARMED attack » (Œil du Cyclone) : sans cette garde,
             // le Moine armé verrait un bouton que le résolveur refuse.
             if ($balayee !== null
-                && (empty($balayee['effet']['mains_nues']) || $armePrincipale === null)) {
+                && (empty($balayee['effet']['mains_nues']) || $mainsNues)) {
                 $diagonales = (bool) ($balayee['effet']['diagonales'] ?? true);
 
                 // Recompté avec la portée de la CAPACITÉ, jamais avec celle de
@@ -580,7 +628,15 @@ final class MenuMoteur
                 }
             }
 
-            $brasier = $adjacents->isNotEmpty()
+            // TOUCHER DU BRASIER : « any one ADJACENT enemy » — le contact du
+            // héros, jamais la portée de son arme. On repart donc des cibles
+            // « à mains nues », qui sont exactement les quatre voisines.
+            $auContact = array_values(array_filter(
+                $this->ciblesPourArme($quete, $etat, $personnage, null)['attaquer'],
+                static fn (array $cible) => empty($cible['distance']),
+            ));
+
+            $brasier = $auContact !== []
                 ? $this->styles->sourceActivable($personnage, $etat, 'degat_differe')
                 : null;
 
@@ -589,15 +645,7 @@ final class MenuMoteur
                     'id' => 'toucher_brasier',
                     'libelle' => "{$brasier['nom']} — brûler un ennemi au contact",
                     'type' => 'degat_differe',
-                    'parametres' => [
-                        'cibles' => $adjacents->map(fn (InstanceMonstre $i) => [
-                            'id' => $i->id,
-                            'type' => 'monstre',
-                            'nom' => $i->nomAffiche(),
-                            'nom_base' => $i->monstre->nom_base,
-                            'distance' => false,
-                        ])->values()->all(),
-                    ],
+                    'parametres' => ['cibles' => $auContact],
                 ];
             }
 
@@ -606,7 +654,9 @@ final class MenuMoteur
             // d'attaque de plus, comme la Furie : le type `attaque` lui donne la
             // feuille de ciblage et la liste blanche, `parametres.style` porte
             // la technique. À mains nues seulement, donc jamais offerte armé.
-            $poing = $armePrincipale === null
+            // « à mains nues » = AUCUNE des deux mains armée (un bouclier ne
+            // compte pas : il ne frappe pas).
+            $poing = $mainsNues
                 ? $this->styles->sourceActivable($personnage, $etat, 'bonus_des_attaque_mains_nues')
                 : null;
 
@@ -622,18 +672,6 @@ final class MenuMoteur
                         'style' => 'bonus_des_attaque_mains_nues',
                         'cibles' => $cibles['attaquer'],
                     ],
-                ];
-            }
-
-            if ($cibles['lancer'] !== []) {
-                $options[] = [
-                    'id' => 'lancer',
-                    // Lancer PERD l'arme : le libellé doit le dire, sinon le
-                    // joueur se retrouve les mains vides sans l'avoir voulu.
-                    'libelle' => "Lancer {$armePrincipale->nom} (perdue)",
-                    'type' => 'attaque',
-                    'lancer' => true,
-                    'parametres' => ['lancer' => true, 'cibles' => $cibles['lancer']],
                 ];
             }
 
@@ -735,12 +773,26 @@ final class MenuMoteur
                 }
 
                 if ($ligne->emplacement === 'sac') {
-                    $options[] = [
-                        'id' => "equiper_{$ligne->id}",
-                        'libelle' => "Équiper {$objet->nom}",
-                        'type' => 'equiper',
-                        'parametres' => ['inventaire_id' => (int) $ligne->id],
-                    ];
+                    // Une arme à UNE main se porte à droite OU à gauche : une
+                    // option par main, sinon le dual-wielding n'existerait qu'au
+                    // hub. Les autres pièces gardent leur bouton unique.
+                    $slots = $this->equipement->slotsPossibles($objet);
+
+                    foreach ($slots as $slot) {
+                        $main = count($slots) > 1
+                            ? ($slot === 'arme_principale' ? ' (main droite)' : ' (main gauche)')
+                            : '';
+
+                        // La main droite garde l'identifiant historique
+                        // `equiper_{id}` : c'est le geste ordinaire, et tout ce
+                        // qui l'appelait déjà continue de marcher.
+                        $options[] = [
+                            'id' => $slot === 'arme_secondaire' ? "equiper_{$ligne->id}_gauche" : "equiper_{$ligne->id}",
+                            'libelle' => "Équiper {$objet->nom}{$main}",
+                            'type' => 'equiper',
+                            'parametres' => ['inventaire_id' => (int) $ligne->id, 'emplacement' => $slot],
+                        ];
+                    }
                 } elseif (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
                     $options[] = [
                         'id' => "desequiper_{$ligne->id}",

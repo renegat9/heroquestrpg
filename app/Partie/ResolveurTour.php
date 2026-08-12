@@ -613,10 +613,30 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas une cible active et visible dans la quête.']);
         }
 
+        // DUAL-WIELDING : l'option dit AVEC QUELLE MAIN on frappe. Le menu émet
+        // une option par arme (« Attaquer — Épée large », « Attaquer — Dague »),
+        // chacune avec ses propres cibles ; le résolveur relit le slot plutôt
+        // que de supposer la main droite.
+        $slotArme = (string) ($option['parametres']['arme'] ?? 'arme_principale');
+
+        if (! in_array($slotArme, ['arme_principale', 'arme_secondaire'], true)) {
+            throw ValidationException::withMessages(['option_id' => 'Main inconnue pour cette attaque.']);
+        }
+
+        $ligneArme = $personnage->inventaire()->where('emplacement', $slotArme)->with('objet')->first();
+        $armePrincipale = $ligneArme?->objet;
+
+        // Un bouclier n'attaque pas : si la main gauche n'en tient pas d'autre,
+        // l'option est périmée (le joueur a rangé son arme entre-temps).
+        if ($armePrincipale !== null && ! empty($armePrincipale->effet['incompatible_deux_mains'])) {
+            throw ValidationException::withMessages([
+                'option_id' => "« {$armePrincipale->nom} » ne frappe pas : c'est un bouclier.",
+            ]);
+        }
+
         // Arme à distance équipée (Arbalète, ObjetSeeder `portee: distance`) :
         // permet d'attaquer un monstre non adjacent en ligne de vue dégagée
         // (Tir précis, nœud elfe) ; `inutilisable_adjacent` l'interdit au contact.
-        $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
         $armeADistance = ($armePrincipale?->effet['portee'] ?? null) === 'distance';
 
         // Arme longue (Bâton, Épée longue) : le contact inclut les diagonales.
@@ -676,6 +696,7 @@ final class ResolveurTour
             tirADistance: $tirADistance,
             lancer: $lancer,
             desBonus: $furie + $poing,
+            ligneArme: $ligneArme,
             meta: [
                 'option_id' => $option['id'],
                 'libelle' => $option['libelle'] ?? null,
@@ -742,6 +763,7 @@ final class ResolveurTour
      * définition, une frappe balayée n'a pas de cible unique à vérifier).
      *
      * @param  int  $desBonus  dés ajoutés par la capacité qui déclenche la frappe
+     * @param  Inventaire|null  $ligneArme  arme employée ; `null` = la main droite
      * @param  array<string, mixed>  $meta  clés fusionnées dans le payload (option_id, libelle…)
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
@@ -755,10 +777,14 @@ final class ResolveurTour
         bool $tirADistance = false,
         bool $lancer = false,
         int $desBonus = 0,
+        ?Inventaire $ligneArme = null,
         array $meta = [],
         array $acteur = [],
     ): array {
-        $armePrincipale = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet;
+        // Par défaut la main droite : riposte, frappe balayée et technique du
+        // Moine ne choisissent pas d'arme, elles frappent avec ce qu'on tient.
+        $ligneArme ??= $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
+        $armePrincipale = $ligneArme?->objet;
 
         // Courage (doc 02 §7) : +2 dés à la PROCHAINE attaque, consommé ici.
         // Le contexte `au_contact` sert aux bonus CONDITIONNELS — la
@@ -801,7 +827,22 @@ final class ResolveurTour
         // une somme : contre une momie l'arme vaut 4, jamais 3 + 4.
         $desArmeContre = $this->desArmeContre($armePrincipale, $instance);
 
-        $desAttaqueEffectifs = max(0, max((int) $personnage->des_attaque, $desArmeContre)
+        // Dés d'attaque : la COLONNE reste la référence — elle porte la classe,
+        // l'arme de la main droite, la Forge et les nœuds passifs. Frapper de la
+        // MAIN GAUCHE n'y change qu'une chose : la part de l'arme. On échange
+        // donc cette part, plutôt que de tout recalculer et de perdre le reste
+        // en route (dual-wielding, 2026-08-12).
+        $desArme = (int) $personnage->des_attaque;
+
+        if ($ligneArme !== null && $ligneArme->emplacement === 'arme_secondaire') {
+            $mainDroite = $personnage->inventaire()
+                ->where('emplacement', 'arme_principale')->with('objet')->first();
+
+            $desArme += $this->equipement->desAttaqueAvec($personnage, $ligneArme)
+                - $this->equipement->desAttaqueAvec($personnage, $mainDroite);
+        }
+
+        $desAttaqueEffectifs = max(0, max($desArme, $desArmeContre)
             + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc + $desBonus);
 
         // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
@@ -816,7 +857,7 @@ final class ResolveurTour
         // 1 combat die ». Une FLÈCHE par tir, et l'arc n'en a que quatre — sans
         // les charges, une mort instantanée illimitée viderait un donjon sans
         // combat. À court de flèches il devient inerte et retombe sur ses dés.
-        $fleche = $this->flecheDeVindication($personnage, $armePrincipale);
+        $fleche = $this->flecheDeVindication($ligneArme);
 
         if ($fleche !== null) {
             $face = FaceDeCombat::depuisD6($this->des->d6());
@@ -913,7 +954,7 @@ final class ResolveurTour
             $resultat->pvBodyApres === 0 ? 'mort' : ($resultat->degats > 0 ? 'touche' : 'rate'));
 
         if ($lancer) {
-            $payload['lancer'] = $this->consommerArmeLancee($personnage);
+            $payload['lancer'] = $this->consommerArmeLancee($personnage, $ligneArme);
         }
 
         return $payload;
@@ -1376,10 +1417,10 @@ final class ResolveurTour
      */
     private function armeEnMain(Personnage $personnage): ?Objet
     {
-        return $personnage->inventaire()
-            ->where('emplacement', 'arme_principale')
-            ->with('objet')
-            ->first()?->objet;
+        // ⚠ LES DEUX mains depuis le dual-wielding : une dague en main gauche
+        // suffit à ne plus être à mains nues. Un bouclier, lui, ne compte pas —
+        // il ne frappe pas (`Equipement::armesEnMain`).
+        return $this->equipement->armesEnMain($personnage)[0]?->objet ?? null;
     }
 
     /**
@@ -1459,13 +1500,11 @@ final class ResolveurTour
      * survive ou non — c'est ce que dit la carte, quatre flèches, pas quatre
      * morts.
      */
-    private function flecheDeVindication(Personnage $personnage, ?Objet $arme): ?Inventaire
+    private function flecheDeVindication(?Inventaire $ligne): ?Inventaire
     {
-        if (! (bool) ($arme?->effet['tue_sauf_bouclier_noir'] ?? false)) {
+        if (! (bool) ($ligne?->objet?->effet['tue_sauf_bouclier_noir'] ?? false)) {
             return null;
         }
-
-        $ligne = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
 
         // Épuisé : l'arc reste en main mais redevient une arme ordinaire, et
         // l'attaque repart par le chemin normal (ses 2 dés).
@@ -1842,10 +1881,8 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function consommerArmeLancee(Personnage $personnage): array
+    private function consommerArmeLancee(Personnage $personnage, ?Inventaire $ligne): array
     {
-        $ligne = $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
-
         if ($ligne === null) {
             return ['arme' => null];
         }
@@ -3039,7 +3076,9 @@ final class ResolveurTour
         }
 
         $ligne = $equiper
-            ? $this->equipement->equiper($personnage, $ligne)
+            // Le slot vient du MENU (une option par main pour une arme à une
+            // main), donc du serveur : le client n'envoie que l'identifiant.
+            ? $this->equipement->equiper($personnage, $ligne, data_get($option, 'parametres.emplacement'))
             : $this->equipement->desequiper($personnage, $ligne);
 
         $payload = [
