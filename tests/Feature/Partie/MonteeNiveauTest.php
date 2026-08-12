@@ -259,3 +259,35 @@ it('rediffuse `.groupe.etat` quand un nœud est acquis pendant une quête', func
         return $herosEtat !== null && $herosEtat['niveau'] === 2;
     });
 });
+
+it('sème un arbre COMPLET pour chacune des 12 classes, capacités innées comprises', function () {
+    // ⚠ Garde née d'un bug réel (2026-08-12) : `competences.description` était
+    // un `varchar(255)`, et la description du Style du Feu du Moine — une carte
+    // RECTO-VERSO, donc deux techniques dans un même nœud — le dépassait.
+    // MariaDB refusait l'insert et le seeder s'arrêtait au Moine, laissant le
+    // Chevalier, le Berserker et l'Explorateur ABSENTS de la base réelle.
+    //
+    // La suite était pourtant verte : elle tourne sur sqlite, qui n'applique
+    // pas la longueur d'un varchar. Ce test ne rattrape pas cette divergence de
+    // moteur — rien en sqlite ne le peut — mais il attrape sa CONSÉQUENCE :
+    // un arbre tronqué, quelle qu'en soit la cause.
+    $parClasse = Competence::all()->groupBy('classe');
+
+    expect($parClasse->keys()->sort()->values()->all())->toHaveCount(12);
+
+    foreach ($parClasse as $classe => $noeuds) {
+        expect($noeuds->count())->toBeGreaterThanOrEqual(
+            5, "La classe {$classe} n'a que {$noeuds->count()} nœud(s) : arbre tronqué.",
+        );
+    }
+
+    // Les capacités de CARTE, gratuites : 1 Barde, 3 Rogue, 4 Moine (les 4
+    // Styles), 3 Chevalier, 3 Berserker, 3 Explorateur. Les 4 classes
+    // historiques n'en ont aucune, et c'est voulu — aucune carte ne leur en
+    // donne.
+    expect(Competence::where('innee', true)->count())->toBe(17);
+
+    foreach (['barbare', 'nain', 'elfe', 'magicien'] as $historique) {
+        expect(Competence::where('classe', $historique)->where('innee', true)->count())->toBe(0);
+    }
+});
