@@ -217,6 +217,79 @@ it('ne propose pas de REPRÉSAILLES contre un tireur hors de contact', function 
     expect($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
 });
 
+it('FRÉNÉSIE balaie tout ce qui touche le héros, diagonales comprises', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker', 'des_attaque' => 3]);
+    $heros = $ctx['heros'];
+    $etat = $ctx['etatHeros'];
+
+    // Un second gobelin en DIAGONALE : une attaque ordinaire ne le verrait pas
+    // (sauf arme longue), le balayage si.
+    $diagonale = null;
+    foreach ([[1, 1], [-1, 1], [1, -1], [-1, -1]] as [$dx, $dy]) {
+        if (caseQueteLibre($ctx['quete'], (int) $etat->position_x + $dx, (int) $etat->position_y + $dy)) {
+            $diagonale = ['x' => (int) $etat->position_x + $dx, 'y' => (int) $etat->position_y + $dy];
+            break;
+        }
+    }
+    expect($diagonale)->not->toBeNull('Pas de case diagonale libre pour le scénario.');
+
+    $voisin = App\Models\InstanceMonstre::create([
+        'quete_id' => $ctx['quete']->id,
+        'monstre_id' => $ctx['instance']->monstre_id,
+        'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 0,
+        'position_x' => $diagonale['x'], 'position_y' => $diagonale['y'],
+        'etat' => 'actif', 'revele' => true,
+    ]);
+
+    // Seuil : « Cannot be used unless you have 3 or fewer Body Points. »
+    $heros->update(['pv_body' => 3]);
+
+    $ids = collect(menuDe($ctx)['options'])->pluck('id');
+    expect($ids)->toContain('frappe_balayee');
+
+    desFiges(array_fill(0, 40, 1)); // crânes partout
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'frappe_balayee'])
+        ->assertStatus(202);
+
+    // Les DEUX tombent : l'orthogonal et le diagonal, chacun défendant pour son
+    // compte — un balayage est une salve de frappes, pas une zone d'effet.
+    $reponse->assertJsonPath('resultat.cibles', 2);
+    expect($ctx['instance']->fresh()->etat)->toBe('vaincu')
+        ->and($voisin->fresh()->etat)->toBe('vaincu');
+});
+
+it('ne propose pas la FRÉNÉSIE tant que le Berserker n\'est pas au seuil', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+
+    // 8 PV : la capacité est fermée, et le menu ne doit pas la montrer.
+    expect(collect(menuDe($ctx)['options'])->pluck('id'))->not->toContain('frappe_balayee');
+
+    $ctx['heros']->update(['pv_body' => 3]);
+
+    expect(collect(menuDe($ctx)['options'])->pluck('id'))->toContain('frappe_balayee');
+});
+
+it('refuse la FRÉNÉSIE quand il n\'y a rien au contact — sans dépenser la capacité', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
+    $ctx['heros']->update(['pv_body' => 3]);
+
+    menuDe($ctx);
+
+    // Le monstre s'éloigne APRÈS la génération du menu : le résolveur recalcule
+    // l'entourage lui-même et ne fait pas confiance au menu.
+    $ctx['instance']->update([
+        'position_x' => (int) $ctx['etatHeros']->position_x + 5,
+        'position_y' => (int) $ctx['etatHeros']->position_y + 5,
+    ]);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'frappe_balayee'])
+        ->assertStatus(422);
+
+    expect(app(App\Partie\CapacitesInnees::class)
+        ->disponible($ctx['heros']->fresh(), $ctx['etatHeros']->fresh(), 'attaque_balayee'))->toBeTrue();
+});
+
 it('n\'ouvre les capacités de sang qu\'une fois le Berserker BLESSÉ', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'berserker']);
     $capacites = app(App\Partie\CapacitesInnees::class);

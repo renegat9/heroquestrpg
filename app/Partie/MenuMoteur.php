@@ -450,6 +450,36 @@ final class MenuMoteur
                 }
             }
 
+            // FRÉNÉSIE SANGUINAIRE (Berserker) — « a single sweeping attack
+            // against all monsters adjacent AND diagonal to you ». Aucune cible
+            // à choisir : elle prend tout ce qui touche le héros, d'où un type
+            // à part et pas de `parametres.cibles`. Offerte seulement s'il y a
+            // quelque chose à balayer — sinon c'est un bouton qui gaspille une
+            // capacité « once per quest » sur du vide.
+            if ($this->capacites->disponible($personnage, $etat, 'attaque_balayee')) {
+                $noeud = $this->capacites->noeud($personnage, 'attaque_balayee');
+                $diagonales = (bool) ($noeud->effet['diagonales'] ?? true);
+
+                // Recompté avec la portée de la CAPACITÉ, jamais avec celle de
+                // l'arme : le balayage touche les diagonales même à la dague.
+                $balayees = $quete->instancesMonstres()
+                    ->where('etat', 'actif')
+                    ->where('revele', true)
+                    ->with('monstre')
+                    ->get()
+                    ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                        && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales))
+                    ->count();
+
+                if ($balayees > 0) {
+                    $options[] = [
+                        'id' => 'frappe_balayee',
+                        'libelle' => "{$noeud->nom} — frapper ".($balayees > 1 ? "les {$balayees} ennemis au contact" : "l'ennemi au contact"),
+                        'type' => 'attaque_balayee',
+                    ];
+                }
+            }
+
             if ($cibles['lancer'] !== []) {
                 $options[] = [
                     'id' => 'lancer',

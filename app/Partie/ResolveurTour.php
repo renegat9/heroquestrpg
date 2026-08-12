@@ -231,6 +231,7 @@ final class ResolveurTour
             $resultat = match ($option['type']) {
                 'deplacement' => $this->resoudreDeplacement($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'attaque' => $this->resoudreAttaque($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
+                'attaque_balayee' => $this->resoudreAttaqueBalayee($groupe, $quete, $etat, $personnage, $option, $acteur),
                 'jet' => $this->resoudreJet($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'desamorcage' => $this->resoudreDesamorcage($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -836,6 +837,98 @@ final class ResolveurTour
         }
 
         return $payload;
+    }
+
+    /**
+     * FRÉNÉSIE SANGUINAIRE (Berserker) — « As an action, a single sweeping
+     * attack against all monsters adjacent **and diagonal** to you. »
+     *
+     * Une seule action, plusieurs cibles : chacune se DÉFEND pour son compte,
+     * comme au plateau où l'on refait le jet d'attaque contre chaque figurine.
+     * Un balayage n'est pas une zone d'effet — c'est une salve de frappes, et
+     * elles passent donc toutes par `frapper()`.
+     *
+     * ⚠ Rien n'est ciblé : la capacité prend TOUT ce qui touche le héros. Il
+     * n'y a donc pas de liste blanche à valider, mais l'inverse — le résolveur
+     * recalcule lui-même l'entourage, sans faire confiance au menu.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueBalayee(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Personnage $personnage,
+        array $option,
+        array $acteur,
+    ): array {
+        if (! $this->capacites->disponible($personnage, $etat, 'attaque_balayee')) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Frappe balayée indisponible : capacité absente, déjà dépensée, ou seuil de PV non atteint.',
+            ]);
+        }
+
+        $noeud = $this->capacites->noeud($personnage, 'attaque_balayee');
+        $cibles = $this->ciblesBalayees($quete, $etat, (bool) ($noeud->effet['diagonales'] ?? true));
+
+        if ($cibles->isEmpty()) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun monstre au contact : il n\'y a rien à balayer.',
+            ]);
+        }
+
+        $this->capacites->consommer($personnage, $etat, 'attaque_balayee');
+
+        $payload = [
+            'type' => 'attaque_balayee',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? $noeud->nom,
+            'capacite' => $noeud->nom,
+            'cibles' => $cibles->count(),
+        ];
+
+        // Annoncé AVANT les frappes : le fil du combat doit dire d'où viennent
+        // les trois lignes d'attaque qui suivent.
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        $frappes = [];
+
+        foreach ($cibles as $instance) {
+            $frappes[] = $this->frapper(
+                $groupe, $quete, $etat, $personnage, $instance,
+                meta: [
+                    'option_id' => $option['id'],
+                    'libelle' => $noeud->nom,
+                    'balayee' => true,
+                ],
+                acteur: $acteur,
+            );
+        }
+
+        $payload['frappes'] = $frappes;
+        $payload['vaincus'] = count(array_filter($frappes, static fn ($f) => ! empty($f['cible_vaincue'])));
+
+        return $payload;
+    }
+
+    /**
+     * Les monstres actifs et révélés que touche une frappe balayée : tout ce
+     * qui jouxte le héros, diagonales comprises quand la capacité le dit.
+     *
+     * @return Collection<int, InstanceMonstre>
+     */
+    private function ciblesBalayees(Quete $quete, EtatPersonnageQuete $etat, bool $diagonales): Collection
+    {
+        return $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->with('monstre')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                && $this->heroAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales));
     }
 
     /**

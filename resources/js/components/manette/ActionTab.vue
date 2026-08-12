@@ -46,6 +46,9 @@ const ICONE_TYPE = {
     fouille_mobilier: 'inventory_2',
     jet: 'casino',
     attaque: 'swords',
+    // Frappe balayée (Frénésie sanguinaire) : sans cible à choisir, elle part
+    // au clic — l'icône doit dire que ça tourne sur soi-même.
+    attaque_balayee: 'cyclone',
     deplacement: 'directions_walk',
     desamorcer: 'handyman',
     franchir: 'sprint',

@@ -162,6 +162,12 @@ final class JournalCombat
     {
         return match ($a['type'] ?? null) {
             'attaque' => $this->attaqueHeros($a, $acteurNom),
+            // Frappe balayée : la ligne ANNONCE la salve, les frappes qui
+            // suivent la détaillent cible par cible.
+            'attaque_balayee' => [$this->info(
+                "{$acteurNom} — ".($a['capacite'] ?? 'frappe balayée')." : {$a['cibles']} ennemi".
+                (((int) ($a['cibles'] ?? 0)) > 1 ? 's' : '').' au contact',
+            )],
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
