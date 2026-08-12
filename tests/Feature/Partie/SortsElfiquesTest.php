@@ -159,7 +159,7 @@ it('ÉVANESCENT laisse marcher mais interdit toute action, et rend intouchable',
         ->and($sorts->estInattaquable($heros))->toBeTrue();
 });
 
-it('rompt l\'ÉVANESCENCE sur un jet de déplacement de 4 ou plus', function () {
+it('rompt l\'ÉVANESCENCE sur un jet de déplacement de 5 ou plus', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $heros = $ctx['heros'];
     $sorts = app(MoteurSorts::class);
@@ -169,9 +169,34 @@ it('rompt l\'ÉVANESCENCE sur un jet de déplacement de 4 ou plus', function () 
 
     expect($sorts->actionInterdite($heros))->toBeTrue();
 
-    // Le plateau rompt à 9+ sur 2 dés rouges ; nous à 4+ sur notre unique d6
+    // Le plateau rompt à 9+ sur 2 dés rouges ; nous à 5+ sur notre unique d6
     // (décision de René). C'est le JET DU TOUR qui décide, pas les pas faits.
     $sorts->rompreEvanescence($heros);
 
     expect($sorts->actionInterdite($heros->fresh()))->toBeFalse();
+});
+
+it('FLAMME HYPNOTIQUE épargne les Mind 0 : un mort-vivant n\'a pas d\'esprit à hypnotiser', function () {
+    // Correction de René (2026-08-12) : c'est une attaque MENTALE, donc la
+    // règle générale du jeu s'applique — celle qui interdit Sommeil « against
+    // mummies, zombies, or skeletons » (LR p. 8), et qui vaut précisément
+    // parce que ces trois-là ont Mind 0. Je l'avais d'abord lu à l'envers, en
+    // suivant la lettre du jeton plutôt que la nature du sort.
+    //
+    // Le test porte sur la DONNÉE dont dépend la règle — les trois morts-vivants
+    // sont bien à Mind 0 — et sur le fait que le code les écarte : sans cette
+    // garde, `$de > $mind` serait vrai pour TOUT jet contre un Mind 0, donc la
+    // flamme les paralyserait à coup sûr, exactement l'inverse de la règle.
+    $mindsNuls = App\Models\Monstre::whereIn('nom_base', ['Squelette', 'Zombie', 'Momie'])
+        ->pluck('pv_mind', 'nom_base');
+
+    expect($mindsNuls->values()->all())->each->toBe(0);
+
+    $source = file_get_contents(base_path('app/Partie/ResolveurTour.php'));
+    $zone = substr($source, strpos($source, 'private function sortDeZone'));
+    $zone = substr($zone, 0, strpos($zone, 'private function salleDeCase'));
+
+    // Deux gardes, une par camp (héros et monstres) : retirer l'une des deux
+    // rendrait la moitié des figures vulnérables sans que rien ne le signale.
+    expect(substr_count($zone, '$mind === 0'))->toBe(2);
 });

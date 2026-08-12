@@ -29,10 +29,11 @@ final class MenuMoteur
 {
     /**
      * Jet de déplacement à partir duquel l'Évanescence se rompt (décision de
-     * René, 2026-08-12) : le plateau lit 9+ sur 2 dés rouges, nous 4+ sur notre
-     * unique d6.
+     * René, 2026-08-12) : le plateau lit 9+ sur 2 dés rouges — un peu plus
+     * d'une chance sur quatre — et nous 5+ sur notre unique d6, soit une sur
+     * trois. C'est l'approximation la plus proche que permet un seul dé.
      */
-    private const RUPTURE_EVANESCENCE = 4;
+    private const RUPTURE_EVANESCENCE = 5;
 
     public function __construct(
         private readonly MoteurPieges $pieges,
@@ -165,11 +166,11 @@ final class MenuMoteur
 
             $etat->update(['deplacement_tour' => $jet->total]);
 
-            // ÉVANESCENCE : « The hero moves unseen if they roll [bas] on their
-            // movement dice ; if [haut] is rolled, the spell ends. » Le plateau
-            // lance 2 dés rouges et rompt à 9+ ; nous lançons UN d6 et rompons
-            // à 4+ (décision de René, 2026-08-12) — une chance sur deux, là où
-            // le plateau est à un peu plus d'une sur quatre.
+            // ÉVANESCENCE : « The hero moves unseen if they roll an 8 or lower
+            // on their red movement dice. If a 9, 10, 11, or 12 is rolled, the
+            // spell ends. » Le plateau lance 2 dés rouges ; nous lançons UN d6
+            // et rompons à 5+ (décision de René, 2026-08-12) — une chance sur
+            // trois, contre un peu plus d'une sur quatre au plateau.
             //
             // ⚠ C'est bien le JET DU TOUR qui décide, pas le déplacement
             // effectif : le sort tient ou tombe avant que le héros n'ait fait

@@ -181,7 +181,7 @@ class SortSeeder extends Seeder
             // « The hero can only move and open doors. They cannot attack,
             // search, disarm, cast spells, spring traps, or be affected by
             // attacks or spells, unless the hero chooses to cancel the spell. »
-            // Rupture : le plateau lit 9+ sur 2 dés rouges ; nous 4+ sur notre
+            // Rupture : le plateau lit 9+ sur 2 dés rouges ; nous 5+ sur notre
             // unique d6 (décision de René, 2026-08-12).
             ['element' => 'elfique', 'nom' => 'Évanescence', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'heros', 'condition_appliquee' => 'Évanescent']],

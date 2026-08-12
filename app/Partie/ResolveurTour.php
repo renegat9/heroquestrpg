@@ -1882,11 +1882,16 @@ final class ResolveurTour
      *
      * « A figure that rolls equal to or less than its Mind Points is
      * unaffected. Rolling a number GREATER than its Mind Points means that the
-     * figure is paralyzed. » Donc un Mind élevé protège, et un Mind 0 est
-     * touché à coup sûr — cohérent avec le reste du moteur, où Mind 0 vaut
-     * absence d'esprit et non invulnérabilité mentale… ⚠ à une exception près :
-     * `SortMental` immunise les Mind 0, mais ici la carte fait jeter TOUTE
-     * figure, sans clause d'exclusion. On suit la carte.
+     * figure is paralyzed. » Un Mind élevé protège donc.
+     *
+     * ⚠ **Mind 0 = IMMUNISÉ**, et non touché à coup sûr comme la lettre du
+     * jeton le laisserait croire (correction de René, 2026-08-12). C'est une
+     * attaque MENTALE : la règle générale du jeu s'applique, celle qui interdit
+     * *Sommeil* « against mummies, zombies, or skeletons » (LR p. 8) — et si
+     * elle l'interdit, c'est précisément parce que ces trois-là ont Mind 0
+     * (reference/16 §4.4). Un mort-vivant n'a pas d'esprit à hypnotiser. C'est
+     * aussi ce que fait `Engine\SortMental` partout ailleurs : traiter cette
+     * carte autrement aurait ouvert une exception que rien ne justifie.
      *
      * ⚠ « EVERY figure » : monstres ET héros ET alliés. Le tir ami est assumé
      * (doc 02 §5, S3) ; épargner les compagnons serait une invention.
@@ -1916,9 +1921,15 @@ final class ResolveurTour
                 continue;
             }
 
+            $mind = (int) $etat->personnage->attribut_mind;
+
+            if ($mind === 0) {
+                continue; // sans esprit, rien à hypnotiser
+            }
+
             $de = $this->des->d6();
 
-            if ($de > (int) $etat->personnage->attribut_mind) {
+            if ($de > $mind) {
                 $this->sorts->appliquerConditionCatalogue($etat->personnage, $sort->effet['condition_appliquee'], $sort);
                 $touches[] = ['type' => 'heros', 'nom' => $etat->personnage->nom, 'de' => $de];
             }
@@ -1931,9 +1942,17 @@ final class ResolveurTour
                 continue;
             }
 
+            $mind = (int) $instance->pv_mind;
+
+            // Momies, zombies, squelettes : Mind 0, donc hors d'atteinte d'un
+            // sort mental — la même raison qui interdit Sommeil contre eux.
+            if ($mind === 0) {
+                continue;
+            }
+
             $de = $this->des->d6();
 
-            if ($de > (int) $instance->pv_mind) {
+            if ($de > $mind) {
                 $this->sorts->poserConditionMonstre($instance, (string) $sort->effet['condition_monstre']);
                 $touches[] = ['type' => 'monstre', 'nom' => $instance->nomAffiche(), 'de' => $de];
             }
