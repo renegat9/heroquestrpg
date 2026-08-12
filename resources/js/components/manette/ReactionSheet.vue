@@ -52,7 +52,19 @@ const LIBELLE_SOURCE = {
     tir_ami: 'le sort de ton compagnon',
 };
 
+/* Le libellé du bouton dit ce que la réaction FAIT : « annuler » serait faux
+   pour un plancher de PV, qui ne rend pas le coup mais empêche la chute. */
+const LIBELLE_ACTION = {
+    annule_degats: 'Annuler les dégâts',
+    annule_degats_voisin: 'Le couvrir de ton bouclier',
+    plancher_pv: 'Tenir debout (1 PV)',
+    riposte: 'Riposter aussitôt',
+};
+
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
+
+/** La réaction protège quelqu'un d'AUTRE (Parade au bouclier du Chevalier). */
+const pourAutrui = computed(() => props.reaction.action === 'annule_degats_voisin');
 const degats = computed(() => Number(props.reaction.degats ?? 0));
 </script>
 
@@ -65,7 +77,11 @@ const degats = computed(() => Number(props.reaction.degats ?? 0));
                 {{ reaction.sort }}
             </h3>
 
-            <p class="rx-coup">
+            <p v-if="pourAutrui" class="rx-coup">
+                <b>{{ reaction.victime }}</b> vient d'encaisser <b>{{ degats }} PV</b> —
+                {{ origine }}. Tu es à son contact.
+            </p>
+            <p v-else class="rx-coup">
                 Tu viens d'encaisser <b>{{ degats }} PV</b> — {{ origine }}.
             </p>
             <p v-if="reaction.description" class="rx-desc">{{ reaction.description }}</p>
@@ -78,14 +94,14 @@ const degats = computed(() => Number(props.reaction.degats ?? 0));
             <div class="rx-actions">
                 <button class="rx-btn oui" :disabled="pending" @click="emit('repondre', true)">
                     <MSym n="shield" :size="18" fill />
-                    Annuler les dégâts
+                    {{ LIBELLE_ACTION[reaction.action] || 'Annuler les dégâts' }}
                 </button>
                 <button class="rx-btn non" :disabled="pending" @click="emit('repondre', false)">
                     Laisser passer
                 </button>
             </div>
 
-            <p class="rx-note">Activer dépense le sort pour cette quête.</p>
+            <p class="rx-note">Activer dépense cette capacité pour la quête.</p>
         </div>
     </div>
 </template>

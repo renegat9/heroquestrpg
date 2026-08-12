@@ -193,3 +193,107 @@ it('expose la proposition dans /etat — un rafraîchissement ne la perd pas', f
     expect($entite['reaction_en_attente'])->not->toBeNull()
         ->and($entite['reaction_en_attente']['degats'])->toBe(2);
 });
+
+it('INÉBRANLABLE ne se propose QUE sur un coup mortel, et pose un plancher à 1 PV', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    $noeud = App\Models\Competence::where('classe', 'chevalier')->where('nom', 'Inébranlable')->firstOrFail();
+    $heros->competences()->syncWithoutDetaching([$noeud->id]);
+    donnerBouclier($heros);
+
+    // Coup NON mortel : rien ne doit être proposé. Une capacité « once per
+    // quest » gaspillée sur une égratignure serait pire que pas de capacité.
+    $heros->update(['pv_body' => 5]);
+    app(MoteurDegats::class)->infligerAHeros($heros, 2, MoteurDegats::SOURCE_ATTAQUE_MONSTRE);
+
+    expect($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
+
+    // Coup mortel : la proposition arrive.
+    app(MoteurDegats::class)->infligerAHeros($heros->fresh(), 3, MoteurDegats::SOURCE_ATTAQUE_MONSTRE);
+
+    $attente = $ctx['etatHeros']->fresh()->reaction_en_attente;
+
+    expect($attente)->not->toBeNull()
+        ->and($attente['action'])->toBe('plancher_pv');
+
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => true,
+    ])->assertOk();
+
+    // ⚠ UN seul PV, pas la restitution du coup : « instead reduce them to 1 ».
+    expect((int) $heros->fresh()->pv_body)->toBe(1)
+        ->and((bool) $ctx['etatHeros']->fresh()->tombe)->toBeFalse();
+});
+
+it('PARADE AU BOUCLIER est proposée au VOISIN, pas à la victime', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $victime = $ctx['heros'];
+
+    $bob = App\Auth\JoueurAuthentifiable::create([
+        'pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret',
+    ]);
+    $chevalier = creerHeros($bob, $ctx['groupe'], 'Roland', 2, ['classe' => 'chevalier']);
+    donnerBouclier($chevalier);
+
+    // On le place AU CONTACT de la victime.
+    $etatVictime = $ctx['etatHeros'];
+    $etatChevalier = App\Models\EtatPersonnageQuete::create([
+        'personnage_id' => $chevalier->id, 'quete_id' => $ctx['quete']->id,
+        'position_x' => (int) $etatVictime->position_x + 1, 'position_y' => $etatVictime->position_y,
+    ]);
+
+    app(MoteurDegats::class)->infligerAHeros($victime, 2, MoteurDegats::SOURCE_ATTAQUE_MONSTRE);
+
+    // ⚠ La proposition est déposée chez le PROTECTEUR, pas chez le blessé :
+    // c'est lui qui décide de couvrir son compagnon.
+    expect($etatVictime->fresh()->reaction_en_attente)->toBeNull();
+
+    $attente = $etatChevalier->fresh()->reaction_en_attente;
+
+    expect($attente)->not->toBeNull()
+        ->and($attente['action'])->toBe('annule_degats_voisin')
+        ->and($attente['victime_id'])->toBe($victime->id);
+
+    $max = (int) $victime->pv_body_max;
+
+    test()->actingAs($bob, 'joueur');
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $chevalier->id, 'accepte' => true,
+    ])->assertOk();
+
+    // Les PV rendus vont à la VICTIME, pas au protecteur.
+    expect((int) $victime->fresh()->pv_body)->toBe($max);
+});
+
+it('refuse la parade à un Chevalier SANS bouclier', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $victime = $ctx['heros'];
+
+    $bob = App\Auth\JoueurAuthentifiable::create([
+        'pseudo' => 'bob2', 'identifiant' => 'bob2', 'mot_de_passe' => 'secret',
+    ]);
+    $chevalier = creerHeros($bob, $ctx['groupe'], 'Sans-écu', 2, ['classe' => 'chevalier']);
+    // Aucun bouclier : « Requires shield » sur la carte.
+
+    $etatVictime = $ctx['etatHeros'];
+    $etatChevalier = App\Models\EtatPersonnageQuete::create([
+        'personnage_id' => $chevalier->id, 'quete_id' => $ctx['quete']->id,
+        'position_x' => (int) $etatVictime->position_x + 1, 'position_y' => $etatVictime->position_y,
+    ]);
+
+    app(MoteurDegats::class)->infligerAHeros($victime, 2, MoteurDegats::SOURCE_ATTAQUE_MONSTRE);
+
+    expect($etatChevalier->fresh()->reaction_en_attente)->toBeNull();
+});
+
+/** Équipe un bouclier — deux capacités du Chevalier l'exigent. */
+function donnerBouclier(App\Models\Personnage $heros): void
+{
+    $bouclier = App\Models\Objet::where('nom', 'Bouclier')->firstOrFail();
+
+    App\Models\Inventaire::create([
+        'personnage_id' => $heros->id, 'objet_id' => $bouclier->id,
+        'quantite' => 1, 'emplacement' => 'arme_secondaire',
+    ]);
+}

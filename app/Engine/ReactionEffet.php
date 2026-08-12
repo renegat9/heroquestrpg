@@ -33,6 +33,43 @@ final class ReactionEffet
     /** Action : les dégâts qui viennent d'être subis sont rendus. */
     public const ANNULE_DEGATS = 'annule_degats';
 
+    /**
+     * Action : au lieu d'annuler, on RIPOSTE — *Représailles* du Berserker,
+     * « you may use this skill when you take damage from an adjacent monster.
+     * Immediately make an attack against that monster. »
+     *
+     * ⚠ Le coup subi n'est PAS annulé : le Berserker encaisse et rend. C'est
+     * tout l'esprit de la classe, dont deux capacités sur trois exigent d'être
+     * blessé.
+     */
+    public const RIPOSTE = 'riposte';
+
+    /**
+     * Action : les PV ne tombent pas sous 1 — *Inébranlable* du Chevalier,
+     * « use this skill when your Body Points are reduced to 0 to instead
+     * reduce them to 1 ».
+     *
+     * ⚠ Ne se propose QUE si le coup est mortel : proposer un plancher à un
+     * héros qui garde des PV gaspillerait une capacité « once per quest ».
+     */
+    public const PLANCHER_PV = 'plancher_pv';
+
+    /**
+     * Action : annuler les dégâts d'un héros VOISIN — *Parade au bouclier* du
+     * Chevalier, « when a hero next to you takes damage to cancel that damage ».
+     *
+     * ⚠ C'est la seule réaction proposée à quelqu'un d'AUTRE que la victime, et
+     * elle a coûté une extension : la proposition porte donc un protecteur en
+     * plus du blessé.
+     */
+    public const ANNULE_DEGATS_VOISIN = 'annule_degats_voisin';
+
+    /** @return list<string> */
+    public static function actionsToutes(): array
+    {
+        return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV, self::ANNULE_DEGATS_VOISIN];
+    }
+
     /** @return list<string> */
     public static function declencheurs(): array
     {
