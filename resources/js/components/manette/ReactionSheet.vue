@@ -59,17 +59,23 @@ const LIBELLE_ACTION = {
     annule_degats_voisin: 'Le couvrir de ton bouclier',
     plancher_pv: 'Tenir debout (1 PV)',
     riposte: 'Riposter aussitôt',
+    defi_errant: 'Le défier — qu\'il vienne à toi',
 };
 
 /* Un bouclier sur un bouton qui REND le coup serait un contresens : la
    Représailles du Berserker n'encaisse rien, elle frappe. */
-const ICONE_ACTION = { riposte: 'swords' };
+const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords' };
 
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
 
 /** La réaction protège quelqu'un d'AUTRE (Parade au bouclier du Chevalier). */
 const pourAutrui = computed(() => props.reaction.action === 'annule_degats_voisin');
 const degats = computed(() => Number(props.reaction.degats ?? 0));
+
+/* Défi du chevalier : rien n'a encore été encaissé, une bête vient de surgir.
+   Le texte du coup serait un mensonge (« tu viens d'encaisser 0 PV »). */
+const defi = computed(() => props.reaction.action === 'defi_errant');
+const monstre = computed(() => props.reaction.contexte?.monstre ?? props.reaction.monstre ?? 'Un monstre errant');
 </script>
 
 <template>
@@ -81,7 +87,12 @@ const degats = computed(() => Number(props.reaction.degats ?? 0));
                 {{ reaction.sort }}
             </h3>
 
-            <p v-if="pourAutrui" class="rx-coup">
+            <p v-if="defi" class="rx-coup">
+                <b>{{ monstre }}</b> surgit dans ta salle, attiré par
+                <b>{{ reaction.victime }}</b>. Le prendre sur toi : il se place à ton
+                contact et frappe aussitôt.
+            </p>
+            <p v-else-if="pourAutrui" class="rx-coup">
                 <b>{{ reaction.victime }}</b> vient d'encaisser <b>{{ degats }} PV</b> —
                 {{ origine }}. Tu es à son contact.
             </p>

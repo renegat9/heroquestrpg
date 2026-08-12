@@ -27,8 +27,16 @@ namespace App\Engine;
  */
 final class ReactionEffet
 {
-    /** Déclencheur : le porteur vient de subir des dégâts. Le seul pour l'instant. */
+    /** Déclencheur : le porteur vient de subir des dégâts. Le premier écrit. */
     public const SUR_DEGATS_SUBIS = 'degats_subis';
+
+    /**
+     * Déclencheur : un monstre ERRANT vient de surgir d'une fouille — le seul
+     * qui ne parte pas d'un coup encaissé, et il fallait bien qu'il en existe
+     * un pour *Défi du chevalier*, « use this skill when a Wandering Monster is
+     * revealed in the same room as you ».
+     */
+    public const SUR_ERRANT_REVELE = 'errant_revele';
 
     /** Action : les dégâts qui viennent d'être subis sont rendus. */
     public const ANNULE_DEGATS = 'annule_degats';
@@ -64,16 +72,27 @@ final class ReactionEffet
      */
     public const ANNULE_DEGATS_VOISIN = 'annule_degats_voisin';
 
+    /**
+     * Action : détourner sur soi le monstre errant qui vient de surgir — *Défi
+     * du chevalier*, « the Wandering Monster is placed next to you and
+     * immediately attacks you ».
+     *
+     * ⚠ La seule réaction qui AGGRAVE volontairement la situation de celui qui
+     * l'active : il prend le coup à la place d'un compagnon plus fragile.
+     */
+    public const DEFI_ERRANT = 'defi_errant';
+
     /** @return list<string> */
     public static function actionsToutes(): array
     {
-        return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV, self::ANNULE_DEGATS_VOISIN];
+        return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
+            self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT];
     }
 
     /** @return list<string> */
     public static function declencheurs(): array
     {
-        return [self::SUR_DEGATS_SUBIS];
+        return [self::SUR_DEGATS_SUBIS, self::SUR_ERRANT_REVELE];
     }
 
     /** @return list<string> */

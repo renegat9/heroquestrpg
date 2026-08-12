@@ -425,6 +425,13 @@ watch(monPerso, (p) => {
         reactionProposee.value = {
             personnage_id: monPersonnageId.value,
             sort: attente.nom,
+            description: attente.description,
+            // `action` décide du libellé du bouton ET du texte : sans elle, un
+            // rechargement transformait « Riposter » ou « Relever le défi » en
+            // « Annuler les dégâts », qui n'est vrai d'aucune des deux.
+            action: attente.action,
+            victime: attente.victime,
+            contexte: attente.contexte,
             source: attente.source,
             degats: attente.degats,
             expire_dans: 20, // on ignore depuis quand elle attend : fenêtre courte

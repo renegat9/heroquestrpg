@@ -12,6 +12,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Sort;
 use App\Support\Journal;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -178,6 +179,61 @@ final class MoteurReactions
         }
 
         return null;
+    }
+
+    /**
+     * DÉFI DU CHEVALIER — « Use this skill when a Wandering Monster is revealed
+     * in the same room as you. You are now considered the treasure-searcher for
+     * the encounter. The Wandering Monster is placed next to you and
+     * immediately attacks you. »
+     *
+     * Le seul déclencheur qui ne soit pas un coup encaissé, et la seule
+     * réaction qui aggrave volontairement la situation de son auteur : il prend
+     * la bête à la place du fouilleur. D'où une entrée à part — `proposer()`
+     * part de dégâts, pas d'une apparition.
+     *
+     * ⚠ Le FOUILLEUR est exclu : c'est déjà lui que l'errant vient chercher, se
+     * défier soi-même ne changerait rien et gaspillerait la capacité.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $candidats  héros de la salle
+     */
+    public function proposerDefi(
+        InstanceMonstre $errant,
+        Personnage $fouilleur,
+        Collection $candidats,
+    ): void {
+        foreach ($candidats as $etat) {
+            $chevalier = $etat->personnage;
+
+            if ($chevalier === null
+                || $chevalier->id === $fouilleur->id
+                || $etat->tombe
+                || $etat->position_x === null
+                || $etat->reaction_en_attente !== null) {
+                continue;
+            }
+
+            if (! $this->capacites->disponible($chevalier, $etat, ReactionEffet::DEFI_ERRANT)) {
+                continue;
+            }
+
+            $noeud = $this->capacites->noeud($chevalier, ReactionEffet::DEFI_ERRANT);
+
+            if (! $this->bouclierSiRequis($chevalier, $noeud?->effet ?? [])) {
+                continue;
+            }
+
+            $this->deposer($etat, $chevalier, $fouilleur, [
+                'action' => ReactionEffet::DEFI_ERRANT,
+                'capacite' => $noeud?->nom,
+                'nom' => $noeud?->nom,
+                'description' => $noeud?->description,
+                'instance_id' => (int) $errant->id,
+                'monstre' => $errant->nomAffiche(),
+            ], 0, ReactionEffet::SUR_ERRANT_REVELE, ['monstre' => $errant->nomAffiche()]);
+
+            return; // un seul champion sollicité
+        }
     }
 
     /**
@@ -360,6 +416,12 @@ final class MoteurReactions
             return $this->riposter($groupe, $heros, $etat, $attente);
         }
 
+        // *Défi du chevalier* : rien à rendre non plus — la bête change de
+        // cible et frappe, ici et maintenant.
+        if ($action === ReactionEffet::DEFI_ERRANT) {
+            return $this->releverLeDefi($groupe, $heros, $etat, $attente);
+        }
+
         if ($action === ReactionEffet::PLANCHER_PV) {
             // « reduced to 0 → instead reduce them to 1 » : on ne rend pas le
             // coup, on pose un plancher. Un seul PV, jamais davantage.
@@ -467,6 +529,71 @@ final class MoteurReactions
             // ⚠ Aucun PV rendu : la carte ne parle que de rendre le COUP.
             'degats_annules' => 0,
             'source' => $attente['source'] ?? null,
+            'frappe' => $frappe,
+        ];
+    }
+
+    /**
+     * Relève le défi : l'errant est déplacé au contact du Chevalier et frappe
+     * aussitôt. Même dépendance différée que la riposte — le résolveur est
+     * demandé au conteneur ici, pas injecté.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function releverLeDefi(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+    ): array {
+        $errant = InstanceMonstre::query()
+            ->whereKey((int) ($attente['instance_id'] ?? 0))
+            ->where('quete_id', $etat->quete_id)
+            ->where('etat', 'actif')
+            ->with('monstre')
+            ->first();
+
+        // Un compagnon a pu l'abattre pendant que le Chevalier réfléchissait :
+        // le défi tombe, la capacité reste.
+        if ($errant === null) {
+            return [
+                'type' => 'reaction',
+                'personnage' => $heros->nom,
+                'action' => ReactionEffet::DEFI_ERRANT,
+                'active' => false,
+                'raison' => 'Le monstre errant n\'est plus en jeu.',
+            ];
+        }
+
+        $frappe = app(ResolveurTour::class)->releverLeDefi($groupe, $heros, $etat, $errant);
+
+        if ($frappe === null) {
+            return [
+                'type' => 'reaction',
+                'personnage' => $heros->nom,
+                'action' => ReactionEffet::DEFI_ERRANT,
+                'active' => false,
+                'raison' => 'Aucune case libre à ton contact pour l\'y placer.',
+            ];
+        }
+
+        if (isset($attente['capacite'])) {
+            $utilisees = (array) ($etat->capacites_utilisees ?? []);
+            $utilisees[] = (string) $attente['capacite'];
+            $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+        }
+
+        return [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $heros->nom,
+            'sort' => $attente['nom'] ?? null,
+            'action' => ReactionEffet::DEFI_ERRANT,
+            'active' => true,
+            'degats_annules' => 0,
+            'source' => $attente['source'] ?? null,
+            'monstre' => $attente['monstre'] ?? null,
             'frappe' => $frappe,
         ];
     }

@@ -113,6 +113,7 @@ final class ResolveurTour
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly MoteurDegats $degats,
+        private readonly MoteurReactions $reactions,
         private readonly CapacitesInnees $capacites,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
@@ -643,7 +644,7 @@ final class ResolveurTour
         // du client, qui n'envoie que sa cible.
         $furie = $this->payerLaFurie($personnage, $etat, $option);
 
-        return $this->frapper(
+        $payload = $this->frapper(
             $groupe, $quete, $etat, $personnage, $instance,
             tirADistance: $tirADistance,
             lancer: $lancer,
@@ -655,6 +656,45 @@ final class ResolveurTour
             ],
             acteur: $acteur,
         );
+
+        if ($this->ambidextrie($personnage, $etat, $armePrincipale)) {
+            $payload['attaque_supplementaire'] = true;
+            $payload['ambidextrie'] = true;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * AMBIDEXTRIE (Rogue) — « Once per turn, when you attack with a shortsword
+     * or dagger you may make one additional attack with a dagger. »
+     *
+     * Rendue par le même canal que la Potion d'héroïsme (`attaque_supplementaire`)
+     * : une frappe de plus au-delà du créneau d'action, que le menu propose au
+     * tour suivant l'attaque. Branchée sur le chemin du MENU seulement — une
+     * riposte hors tour n'ouvre pas de seconde attaque, il n'y aurait pas de tour
+     * pour la jouer.
+     *
+     * ⚠ Divergence assumée : la seconde frappe se fait avec l'arme ÉQUIPÉE, pas
+     * avec une dague de main gauche. Nos dés d'attaque viennent de l'arme
+     * principale, et une arme en second emplacement est précisément ce que le
+     * projet ne porte pas (`objets.emplacement` est une valeur unique, doc 16
+     * §2.2). L'écart vaut 1 dé, et seulement à l'épée courte.
+     */
+    private function ambidextrie(Personnage $personnage, EtatPersonnageQuete $etat, ?Objet $arme): bool
+    {
+        $noeud = $this->capacites->noeud($personnage, 'attaque_supplementaire_arme');
+
+        if ($noeud === null || $arme === null
+            || ! in_array($arme->nom, (array) ($noeud->effet['armes'] ?? []), true)
+            || ! $this->capacites->disponible($personnage, $etat, 'attaque_supplementaire_arme')) {
+            return false;
+        }
+
+        $this->capacites->consommer($personnage, $etat, 'attaque_supplementaire_arme');
+        $etat->update(['attaque_supplementaire' => true]);
+
+        return true;
     }
 
     /**
@@ -3075,6 +3115,14 @@ final class ResolveurTour
                     'x' => (int) $errant->position_x,
                     'y' => (int) $errant->position_y,
                 ];
+
+                // DÉFI DU CHEVALIER : « when a Wandering Monster is revealed in
+                // the SAME ROOM as you ». On propose au Chevalier de détourner
+                // la bête sur lui — le seul déclencheur de réaction qui ne soit
+                // pas un coup encaissé.
+                $this->reactions->proposerDefi(
+                    $errant, $personnage, $this->herosDeLaSalle($quete, $etat, $personnage),
+                );
             }
         } elseif ($issue === 'piege') {
             $piege = Piege::query()->where('nom', 'Piège de coffre')->first()
@@ -3129,6 +3177,56 @@ final class ResolveurTour
         }
 
         return $ajout;
+    }
+
+    /**
+     * DÉFI DU CHEVALIER — déplace l'errant AU CONTACT du Chevalier et le lui
+     * fait frapper aussitôt. `null` si aucune case libre à son contact : on ne
+     * téléporte pas la bête à trois cases pour qu'elle attaque de loin.
+     *
+     * Public parce que la réaction se résout dans `MoteurReactions`, qui ne
+     * peut pas injecter ce résolveur (cycle par `MoteurDegats`).
+     *
+     * @return array<string, mixed>|null  payload de l'attaque du monstre
+     */
+    public function releverLeDefi(
+        Groupe $groupe,
+        Personnage $chevalier,
+        EtatPersonnageQuete $etat,
+        InstanceMonstre $errant,
+    ): ?array {
+        $quete = $etat->quete;
+
+        if ($quete === null || $etat->position_x === null) {
+            return null;
+        }
+
+        $grille = $this->grille($quete, exceptInstanceId: $errant->id);
+        $place = null;
+
+        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+            $cx = (int) $etat->position_x + $dx;
+            $cy = (int) $etat->position_y + $dy;
+
+            if ($grille->estTraversable($cx, $cy)) {
+                $place = ['x' => $cx, 'y' => $cy];
+                break;
+            }
+        }
+
+        if ($place === null) {
+            return null;
+        }
+
+        $errant->update(['position_x' => $place['x'], 'position_y' => $place['y'], 'revele' => true]);
+
+        $acteur = ['type' => 'monstre', 'id' => $errant->id, 'nom' => $errant->nomAffiche()];
+
+        // « …and IMMEDIATELY attacks you » : le coup part maintenant, pas au
+        // tour des monstres. C'est le prix du défi.
+        return $this->resoudreAttaqueMonstre(
+            $groupe, $errant, $etat, $errant->attaqueEffective(), $acteur, $errant->nomAffiche(),
+        );
     }
 
     /**
@@ -3977,6 +4075,31 @@ final class ResolveurTour
      * Index de la salle (carte.grille.salles) contenant la case (x, y), ou null
      * si la case n'appartient à aucune salle (couloir).
      */
+    /**
+     * Héros présents dans la MÊME SALLE que le fouilleur — matière du *Défi du
+     * chevalier*. Le fouilleur y figure : c'est `MoteurReactions` qui l'écarte,
+     * lui seul sachant à qui la réaction s'adresse.
+     *
+     * Hors salle (couloir), la liste est vide : « in the same ROOM as you » ne
+     * s'étend pas à un corridor, où l'errant surgirait de toute façon au contact.
+     *
+     * @return Collection<int, EtatPersonnageQuete>
+     */
+    private function herosDeLaSalle(Quete $quete, EtatPersonnageQuete $etat, Personnage $fouilleur): Collection
+    {
+        $salle = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            return new Collection;
+        }
+
+        return $quete->etatsPersonnages()
+            ->with('personnage')
+            ->get()
+            ->filter(fn (EtatPersonnageQuete $e) => $e->position_x !== null
+                && $this->salleA($quete, (int) $e->position_x, (int) $e->position_y) === $salle);
+    }
+
     private function salleA(Quete $quete, int $x, int $y): ?int
     {
         foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $i => $s) {
