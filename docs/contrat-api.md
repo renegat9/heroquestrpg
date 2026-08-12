@@ -123,6 +123,26 @@ Le combat n'émet donc que deux identifiants : `attaquer` et, arme jetable en
 main et cible hors contact, `lancer` (l'arme est perdue — libellé jamais
 habillé par l'IA, il porte cette information mécanique).
 
+**Capacités de carte** (classes d'extension, 2026-08-12). Elles ajoutent des
+options de type `attaque` — donc avec feuille de ciblage et liste blanche — que
+le MENU seul peut émettre, leur coût vivant dans `parametres` :
+
+| Option | Type | `parametres` | Carte |
+|---|---|---|---|
+| `furie_1` / `furie_2` | `attaque` | `{furie: n, cibles}` | *Furie* (Berserker) : n PV de Body contre n dés. Une option par montant — « up to 2 » est un choix, et le plafond est `pv_body - 1` |
+| `style_poing` | `attaque` | `{style, cibles}` | *Force de la Montagne* (Moine) : +2 dés, **à mains nues** |
+| `frappe_balayee` | `attaque_balayee` | — | *Frénésie sanguinaire* / *Œil du Cyclone* : **aucune cible à choisir**, elle prend tout ce qui touche le héros |
+| `toucher_brasier` | `degat_differe` | `{cibles}` | *Toucher du Brasier* : 1 PV maintenant, 2 à la fin du tour suivant de la cible |
+| `rayon_{direction}` | `rayon` | `{direction}` | *Esprit Ardent* : un rayon droit ou diagonal, une option par direction où il y a quelqu'un |
+| `style_vague` | `style` | `{style}` | *Vague Montante* : **interaction gratuite**, aucun créneau |
+| `fouiller_pierre` | `jet` | `{style}` | *Parler à la Pierre* : la fouille de zone sans risque d'échec |
+| `franchir_dragon_{x}_{y}` | `franchissement` | `{piege, cout, style}` | *Dragon Bondissant* : le saut de fosse réussit d'office |
+
+⚠ Le type `style` est une **interaction** au sens des créneaux (comme
+`ouvrir_porte`) : `ActionTab.creneauConsomme()` doit le refléter. Et les
+libellés de ces options ne sont **jamais** habillés par l'IA — ils portent le
+prix (« sacrifier 2 PV », « à mains nues »), qu'une paraphrase effacerait.
+
 ⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
 porte plus la légalité de la cible, donc la valider contre le menu ne la valide
 plus. Le résolveur vérifie l'appartenance et répond 422 sinon — sans quoi un
@@ -222,6 +242,23 @@ officielles la réclament — *Dark Wings* (Warlock, « Reduce that damage to
 zero ») et *Twisting Torrent* (Moine, « cancel that damage »), toutes deux
 déclenchées **quand leur porteur encaisse**, donc pendant le tour d'un monstre.
 
+**Cinq actions** de réaction existent aujourd'hui (`App\Engine\ReactionEffet`),
+et la proposition porte laquelle dans `action` — le libellé du bouton en
+dépend, « annuler les dégâts » étant faux pour trois d'entre elles :
+
+| `action` | Carte | Ce qu'elle fait |
+|---|---|---|
+| `annule_degats` | *Dark Wings*, *Twisting Torrent* | rend les PV du coup |
+| `plancher_pv` | *Inébranlable* (Chevalier) | les PV tombent à **1**, pas au-dessus — proposée **seulement** sur un coup mortel |
+| `annule_degats_voisin` | *Parade au bouclier* (Chevalier) | annule le coup d'un héros **au contact** : la proposition va au PROTECTEUR, les PV rendus à la victime (`victime_id`) |
+| `riposte` | *Représailles* (Berserker) | **n'annule rien** : le Berserker encaisse et attaque aussitôt le monstre (`instance_id`), adjacence revérifiée à la résolution |
+| `defi_errant` | *Défi du chevalier* | détourne sur soi le monstre errant qui vient de surgir : il se place au contact et frappe immédiatement |
+
+⚠ `defi_errant` a un **déclencheur à part** (`errant_revele`) : c'est la seule
+réaction qui ne parte pas d'un coup encaissé, mais d'une carte de fouille qui
+fait surgir un errant dans la salle. `degats` y vaut 0 — la manette doit donc
+lire `action` avant d'écrire « tu viens d'encaisser… ».
+
 **Ordre des opérations, et il est délibéré.** La phase des monstres se résout
 dans la requête HTTP d'un *autre* joueur, à l'intérieur d'une transaction :
 rien ne peut l'y suspendre le temps d'un aller-retour vers un téléphone. Le
@@ -244,6 +281,12 @@ où l'on annonce les dégâts avant que le joueur dise « j'annule ». Accepter
    tombé de ce coup, sort passé à `disponible = false`, entrée `combat` au
    journal, `.groupe.etat` rediffusé. `accepte: false` → rien, le sort est
    conservé. Dans les **deux** cas la proposition est consommée.
+
+La ressource dépensée dépend de la source : un **sort** (`disponible = false`),
+une **capacité de carte** « once per quest » (`capacites_utilisees`), ou un
+**Style Élémentaire** du Moine (`styles_epuises`, cf. §Capacités de carte). Une
+réaction dont la cible a disparu entre-temps — le monstre abattu, éloigné — ne
+dépense rien et répond `active: false` avec une `raison`.
 
 Sources réactives : `attaque_monstre` · `sort_dread` · `tir_ami`. ⚠ **Pas**
 `rejeton` : les cartes parlent d'un coup encaissé, alors que les jetons de

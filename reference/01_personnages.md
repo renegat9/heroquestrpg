@@ -124,7 +124,14 @@ Trois observations qui pèsent sur l'équilibrage :
 
 ### 4 ter. Capacités de classe — texte des cartes
 
-Portées quand leur mécanique existe ; les autres sont nommées comme dettes.
+**Les 17 capacités de carte sont PORTÉES et jouées** (2026-08-12) : Barde 1,
+Rogue 3, Chevalier 3, Berserker 3, Explorateur 3, Moine 4 cartes recto-verso
+(8 techniques). Druide et Warlock n'en ont pas — leurs cartes sont des **sorts**
+(§répertoires de classe). Trois lectures de portage sont signalées à l'endroit
+où elles se prennent : le plafond de la *Furie* (`pv_body - 1`), la seconde
+frappe de l'*Ambidextrie* (avec l'arme équipée, faute d'emplacement de main
+gauche), et *Parler à la Pierre* (réussite automatique, notre fouille cherchant
+déjà pièges ET portes secrètes en une action).
 
 **Chevalier** (© 2023) — les trois exigent le **bouclier** sauf la dernière :
 - *Stalwart* : « Use this skill when your Body Points are reduced to 0 to
@@ -162,12 +169,13 @@ et les pièges :
 **Rogue** (© 2022) et **Moine** (© 2024) : texte intégral dans
 `reference/18_extensions.md`.
 
-⚠ **Trois de ces capacités sont des RÉACTIONS HORS TOUR** — *Shield Block*,
-*Retaliation*, et côté sorts *Dark Wings* / *Twisting Torrent*. Le moteur en a
-désormais le dispositif (`App\Partie\MoteurReactions`), mais **une seule des
-deux formes** : il propose la réaction à **la victime**. *Shield Block* protège
-le **voisin**, ce qui demande d'offrir la réaction à un AUTRE héros que celui
-qui encaisse — extension à faire avant de porter le Chevalier.
+⚠ **Quatre de ces capacités sont des RÉACTIONS HORS TOUR** — *Shield Block*,
+*Retaliation*, *Knight's Challenge*, et côté sorts *Dark Wings* / *Twisting
+Torrent*. Toutes sont en jeu (`App\Partie\MoteurReactions`), y compris les deux
+formes que le dispositif ne savait pas rendre au départ : proposer la réaction à
+un AUTRE héros que la victime (*Shield Block*), et partir d'autre chose que d'un
+coup encaissé (*Knight's Challenge*, déclenché par l'apparition d'un errant).
+Détail des cinq actions dans `docs/contrat-api.md` §Réactions hors tour.
 
 ### 4 quater. Alliés mercenaires — les cinq officiels
 
