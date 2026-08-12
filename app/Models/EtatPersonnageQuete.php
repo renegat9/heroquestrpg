@@ -36,6 +36,9 @@ class EtatPersonnageQuete extends Model
         // Capacités « once per quest » déjà dépensées (liste de noms). Un
         // booléen par capacité aurait fait 24 colonnes.
         'capacites_utilisees',
+        // Idem pour les « once per TURN » — remises à zéro avec les créneaux,
+        // en fin de round, et non à la quête suivante.
+        'capacites_tour',
     ];
 
     protected function casts(): array
@@ -53,6 +56,7 @@ class EtatPersonnageQuete extends Model
             'deplacement_restant' => 'integer',
             'reaction_en_attente' => 'array',
             'capacites_utilisees' => 'array',
+            'capacites_tour' => 'array',
         ];
     }
 

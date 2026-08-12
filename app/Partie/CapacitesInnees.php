@@ -67,9 +67,15 @@ final class CapacitesInnees
             ->first(fn (Competence $c) => ($c->effet['mecanique'] ?? null) === $mecanique);
     }
 
+    /** Fréquences déclarées par les cartes, et la colonne qui les compte. */
+    private const COMPTEURS = [
+        'une_fois_par_quete' => 'capacites_utilisees',
+        'une_fois_par_tour' => 'capacites_tour',
+    ];
+
     /**
-     * La capacité est-elle DISPONIBLE ce tour-ci : possédée, seuil de PV
-     * respecté, et pas encore dépensée si elle est « once per quest » ?
+     * La capacité est-elle DISPONIBLE : possédée, seuil de PV respecté, et pas
+     * encore dépensée dans sa fenêtre (quête ou tour) ?
      *
      * Le seuil `pv_body_max` vient des cartes du Berserker : *Représailles*
      * exige « 5 or fewer Body Points », *Frénésie sanguinaire* « 3 or fewer ».
@@ -90,34 +96,40 @@ final class CapacitesInnees
             return false;
         }
 
-        if (($noeud->effet['frequence'] ?? null) === 'une_fois_par_quete') {
-            return $etat !== null && ! $this->dejaUtilisee($etat, $noeud->nom);
+        $compteur = self::COMPTEURS[$noeud->effet['frequence'] ?? ''] ?? null;
+
+        if ($compteur !== null) {
+            return $etat !== null && ! $this->dejaUtilisee($etat, $noeud->nom, $compteur);
         }
 
         return true;
     }
 
-    /** La capacité a-t-elle déjà été dépensée dans cette quête ? */
-    public function dejaUtilisee(EtatPersonnageQuete $etat, string $nom): bool
+    /**
+     * La capacité a-t-elle déjà été dépensée dans sa fenêtre ? Par défaut celle
+     * de la quête, la seule qui existait avant les capacités « par tour ».
+     */
+    public function dejaUtilisee(EtatPersonnageQuete $etat, string $nom, string $compteur = 'capacites_utilisees'): bool
     {
-        return in_array($nom, (array) ($etat->capacites_utilisees ?? []), true);
+        return in_array($nom, (array) ($etat->{$compteur} ?? []), true);
     }
 
     /**
-     * Marque la capacité comme dépensée pour la quête. Sans effet si elle n'est
-     * pas « once per quest » — les passifs permanents ne se consomment pas.
+     * Marque la capacité comme dépensée dans sa fenêtre. Sans effet si elle
+     * n'en déclare aucune — les passifs permanents ne se consomment pas.
      */
     public function consommer(Personnage $personnage, EtatPersonnageQuete $etat, string $mecanique): void
     {
         $noeud = $this->noeud($personnage, $mecanique);
+        $compteur = $noeud === null ? null : (self::COMPTEURS[$noeud->effet['frequence'] ?? ''] ?? null);
 
-        if ($noeud === null || ($noeud->effet['frequence'] ?? null) !== 'une_fois_par_quete') {
+        if ($compteur === null) {
             return;
         }
 
-        $utilisees = (array) ($etat->capacites_utilisees ?? []);
+        $utilisees = (array) ($etat->{$compteur} ?? []);
         $utilisees[] = $noeud->nom;
 
-        $etat->update(['capacites_utilisees' => array_values(array_unique($utilisees))]);
+        $etat->update([$compteur => array_values(array_unique($utilisees))]);
     }
 }

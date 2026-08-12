@@ -482,6 +482,9 @@ final class ResolveurTour
             'arret_detection' => $interrompu && ! $arretDur, // stoppé par un talent de détection (Œil du mineur)
             'pieges_declenches' => $controle['declenchements'],
             'pieges_reveles' => $controle['detections'], // révélés en chemin par la détection adjacente
+            // *Sens du piège* (Explorateur) : AVERTIS mais toujours cachés — ils
+            // ne sont pas posés sur le plateau, seul l'Explorateur les sait là.
+            'pieges_pressentis' => $controle['alertes'] ?? [],
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -708,12 +711,21 @@ final class ResolveurTour
         // Tir précis (nœud elfe) : +1 dé d'attaque sur un tir à distance véritable.
         $bonusTirPrecis = $tirADistance && $this->possedeCompetence($personnage, 'Tir précis') ? 1 : 0;
 
-        // FRAPPE OPPORTUNISTE (Rogue) : « +1 extra combat die when attacking a
-        // monster next to another hero ». Le pendant exact du `tacticien` des
-        // monstres, mais côté héros — et il faut un AUTRE héros au contact de
-        // la cible, jamais soi-même, sinon tout corps-à-corps le déclencherait.
-        $bonusFlanc = $this->capacites->a($personnage, 'bonus_des_attaque_flanc')
+        // FRAPPE OPPORTUNISTE (Rogue) : « ONCE PER TURN, you may throw 1 extra
+        // combat die when attacking a monster next to another hero ». Le pendant
+        // exact du `tacticien` des monstres, mais côté héros — et il faut un
+        // AUTRE héros au contact de la cible, jamais soi-même, sinon tout
+        // corps-à-corps le déclencherait.
+        //
+        // « Once per turn » compte depuis que les capacités par TOUR ont un
+        // compteur : sans lui, une seconde frappe dans le même tour (Potion
+        // d'héroïsme, Frénésie balayée) reprenait le dé à chaque cible.
+        $bonusFlanc = $this->capacites->disponible($personnage, $etat, 'bonus_des_attaque_flanc')
             && $this->cibleFlanqueeParUnHeros($quete, $instance, $personnage) ? 1 : 0;
+
+        if ($bonusFlanc > 0) {
+            $this->capacites->consommer($personnage, $etat, 'bonus_des_attaque_flanc');
+        }
 
         // Lame des Esprits : « three combat dice in attack OR four dice against
         // undead creatures such as Skeletons, Zombies and Mummies ». Le bonus
@@ -2889,12 +2901,22 @@ final class ResolveurTour
 
         $this->mobilier->marquerFouille($carteQuete, $index);
 
-        $payload = $this->appliquerButin($this->deck->piocher($quete), [
+        // Même deck, donc mêmes capacités : le Sixième sens de l'Explorateur
+        // écarte aussi la carte de danger tirée d'un meuble.
+        [$carte, $ecartee] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+
+        $entete = [
             'type' => 'fouille_mobilier',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'mobilier' => $meuble['nom'],
-        ], $groupe, $quete, $personnage, $etat);
+        ];
+
+        if ($ecartee !== null) {
+            $entete['carte_ecartee'] = $ecartee;
+        }
+
+        $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -2930,20 +2952,59 @@ final class ResolveurTour
         // net. La salle du fond rend l'arme unique, celles ouvertes par une porte
         // secrète rendent or ou potion. Mais UNE SEULE FOIS pour le groupe : les
         // fouilleurs suivants cherchent dans la salle et piochent normalement.
-        $carte = $coffre
-            ? $this->deck->carteCoffre($quete, $salle)
-            : $this->deck->piocher($quete);
-
-        $payload = $this->appliquerButin($carte, [
+        $entete = [
             'type' => 'fouille_tresor',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'salle' => $salle,
-        ], $groupe, $quete, $personnage, $etat);
+        ];
+
+        if ($coffre) {
+            $carte = $this->deck->carteCoffre($quete, $salle);
+        } else {
+            [$carte, $ecartee] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+
+            if ($ecartee !== null) {
+                $entete['carte_ecartee'] = $ecartee;
+            }
+        }
+
+        $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * SIXIÈME SENS (Explorateur) — « Once per turn, when you draw a hazard card
+     * from the treasure deck, you may return that card to the bottom of the
+     * deck and draw a new card. »
+     *
+     * Les cartes de danger de notre deck sont les deux qui mordent : le piège
+     * et le monstre errant. Remettre la carte sous le paquet ne demande rien —
+     * `Quete::piocherCarte()` le fait déjà pour TOUTES les cartes, le deck
+     * cyclant au lieu de s'épuiser ; repiocher suffit donc.
+     *
+     * ⚠ « You MAY » est ici résolu AUTOMATIQUEMENT, et c'est assumé : la carte
+     * écartée est strictement mauvaise, la question n'a qu'une réponse
+     * rationnelle. Demander au joueur coûterait un aller-retour HTTP au milieu
+     * de la résolution d'une action pour un choix qui n'en est pas un.
+     *
+     * @return array{0: array<string, mixed>, 1: string|null}  carte retenue, issue écartée
+     */
+    private function piocherAvecSixiemeSens(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        $carte = $this->deck->piocher($quete);
+        $danger = in_array((string) ($carte['issue'] ?? ''), ['piege', 'errant'], true);
+
+        if (! $danger || ! $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
+            return [$carte, null];
+        }
+
+        $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
+
+        return [$this->deck->piocher($quete), (string) $carte['issue']];
     }
 
     /**
@@ -2979,8 +3040,25 @@ final class ResolveurTour
 
         if ($issue === 'tresor') {
             $or = max(0, (int) ($carte['or'] ?? 0));
-            $groupe->update(['or' => (int) $groupe->or + $or]);
-            $payload['or'] = $or;
+
+            // CHASSEUR DE TRÉSOR (Explorateur) — « Whenever you draw a card
+            // from the TREASURE DECK that rewards you with gold coins, you find
+            // an additional 25 gold coins. »
+            //
+            // ⚠ Le deck seulement : un coffre ne consomme aucune carte, son or
+            // n'en vient donc pas. Et l'or trouvé va au pot COMMUN, comme tout
+            // l'or du jeu chez nous — l'Explorateur enrichit le groupe, pas sa
+            // bourse.
+            $bonus = $or > 0 && empty($carte['coffre'])
+                ? (int) ($this->capacites->noeud($personnage, 'bonus_or_tresor')?->effet['valeur'] ?? 0)
+                : 0;
+
+            $groupe->update(['or' => (int) $groupe->or + $or + $bonus]);
+            $payload['or'] = $or + $bonus;
+
+            if ($bonus > 0) {
+                $payload['bonus_or_tresor'] = $bonus;
+            }
         } elseif ($issue === 'potion' || $issue === 'artefact') {
             $payload = [...$payload, ...$this->remettreButin($carte, $personnage, $issue)];
         } elseif ($issue === 'errant') {
@@ -3255,6 +3333,10 @@ final class ResolveurTour
             'deplacement_tour' => null, 'deplacement_restant' => null,
             'bonus_sort_utilise' => false,
             'attaque_supplementaire' => false,
+            // Capacités « once per turn » (Ambidextrie, Sixième sens…) : leur
+            // compteur est le seul qui doive être remis à zéro à la main, les
+            // « once per quest » mourant avec l'état de quête.
+            'capacites_tour' => null,
         ]);
 
         // Fin de round, APRÈS la phase des monstres : c'est le début du prochain

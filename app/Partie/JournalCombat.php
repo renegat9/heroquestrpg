@@ -169,6 +169,11 @@ final class JournalCombat
                 (((int) ($a['cibles'] ?? 0)) > 1 ? 's' : '').' au contact',
             )],
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
+            // Le déplacement est MUET par principe (le fil raconterait chaque
+            // pas). Une seule chose s'y dit : l'avertissement du *Sens du
+            // piège*. À la table, Zargon prévient à voix haute — tout le monde
+            // l'entend, mais aucune tuile n'est posée pour autant.
+            'deplacement' => $this->alertePiege($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
             'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
@@ -294,6 +299,26 @@ final class JournalCombat
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
         return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
+    }
+
+    /**
+     * *Sens du piège* (Explorateur) : la seule ligne qu'un déplacement produise.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function alertePiege(array $a, string $acteurNom): array
+    {
+        $nombre = count($a['pieges_pressentis'] ?? []);
+
+        if ($nombre === 0) {
+            return [];
+        }
+
+        return [[
+            'texte' => "{$acteurNom} pressent {$nombre} piège".($nombre > 1 ? 's' : '').' tout près — il s\'arrête net',
+            'ton' => 'info',
+        ]];
     }
 
     /**

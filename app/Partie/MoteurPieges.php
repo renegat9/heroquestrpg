@@ -51,10 +51,17 @@ final class MoteurPieges
 
     public const ETAT_DECLENCHE = 'declenche';
 
+    /**
+     * *Sens du piège* (Explorateur) — mécanique de la capacité de carte, et
+     * l'exact contraire de l'Œil du mineur : elle AVERTIT sans révéler.
+     */
+    public const MECANIQUE_ALERTE = 'alerte_pieges_adjacents';
+
     public function __construct(
         private readonly LanceurDes $des,
         private readonly MoteurDegats $degats,
         private readonly MoteurSorts $sorts,
+        private readonly CapacitesInnees $capacites,
     ) {}
 
 
@@ -106,6 +113,33 @@ final class MoteurPieges
                     $detections = [...$detections, ...$reveles];
 
                     return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections];
+                }
+            }
+
+            // 3) SENS DU PIÈGE (Explorateur) — « Once per turn, when you move
+            //    onto a square adjacent to one or more traps, Zargon must alert
+            //    you. Zargon does not place trap tiles on the board. The traps
+            //    are still considered CONCEALED and not triggered. »
+            //
+            //    L'exact contraire de l'Œil du mineur, qui pose la tuile : ici
+            //    le piège reste `cache` — pour les autres héros, pour la carte,
+            //    pour tout le monde. Seul l'Explorateur sait.
+            //
+            //    ⚠ L'arrêt SOUPLE (points conservés) n'est pas dans le texte,
+            //    c'est notre lecture : à la table on avance case par case et le
+            //    joueur décide APRÈS l'avertissement. Un chemin résolu d'un
+            //    bloc marcherait sur le piège au pas suivant, et l'alerte ne
+            //    servirait à rien.
+            if (! $etat->tombe
+                && $this->capacites->disponible($personnage, $etat, self::MECANIQUE_ALERTE)) {
+                $alertes = $this->piegesCachesAdjacents($carte, $x, $y);
+
+                if ($alertes !== []) {
+                    $this->capacites->consommer($personnage, $etat, self::MECANIQUE_ALERTE);
+
+                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false,
+                        'declenchements' => $declenchements, 'detections' => $detections,
+                        'alertes' => $alertes];
                 }
             }
         }
@@ -402,6 +436,35 @@ final class MoteurPieges
         return $personnage->competences()
             ->where('nom', self::NOEUD_OEIL_DU_MINEUR)
             ->exists();
+    }
+
+    /**
+     * Pièges encore CACHÉS orthogonalement adjacents à une case — la matière
+     * de l'alerte du *Sens du piège*. Rien n'est révélé : on ne rend que les
+     * positions, à l'usage du seul héros averti.
+     *
+     * @return list<array{x: int, y: int, nom: string}>
+     */
+    public function piegesCachesAdjacents(Carte $carte, int $x, int $y): array
+    {
+        $caches = [];
+
+        foreach ($carte->grille['pieges'] ?? [] as $entree) {
+            if (($entree['etat'] ?? null) !== self::ETAT_CACHE) {
+                continue;
+            }
+            if (abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) !== 1) {
+                continue;
+            }
+
+            $caches[] = [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'nom' => Piege::find($entree['piege_id'])?->nom ?? 'Piège',
+            ];
+        }
+
+        return $caches;
     }
 
     /** Index du piège encore CACHÉ posé sur une case (null sinon). */
