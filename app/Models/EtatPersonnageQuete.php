@@ -25,6 +25,8 @@ class EtatPersonnageQuete extends Model
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
         'attaque_supplementaire',
+        // Arrêt du temps : un TOUR entier de plus, consommé à la fin du tour.
+        'tour_supplementaire',
         // Rejetons accrochés (Jungles of Delthrak) : 1 PV automatique et
         // indéfendable par jeton, à chaque fin de tour du porteur.
         'jetons_rejeton',
@@ -46,6 +48,7 @@ class EtatPersonnageQuete extends Model
             'garde_tenace_utilisee' => 'boolean',
             'bonus_sort_utilise' => 'boolean',
             'attaque_supplementaire' => 'boolean',
+            'tour_supplementaire' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
             'reaction_en_attente' => 'array',

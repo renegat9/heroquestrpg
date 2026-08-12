@@ -64,6 +64,8 @@ const CLES_SORT_ACTIVES = [
     'ignore_pieges_fosse',     // MoteurPieges::declencher() via MoteurSorts::aBuff()
     'condition_monstre',       // ResolveurTour::appliquerEffetMental() — MoteurSorts::CONDITIONS_MONSTRE
     'seuil_mind_max',          // ResolveurTour::sortMental() — s'applique SANS jet sous le seuil
+    'image_miroir',            // App\Listeners\ImageMiroir — écouteur de HerosVaSubirDegats
+    'tour_supplementaire',     // ResolveurTour::marquerCreneau() — le tour recommence
 ];
 
 /**
@@ -96,7 +98,10 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'reaction',
         // Une condition posée sur un MONSTRE agit (Terreur, Ralentissement) :
         // elle plafonne ou réduit ses dés, lus par InstanceMonstre.
-        'condition_monstre'];
+        'condition_monstre',
+        // Un tour de plus (Arrêt du temps) et une annulation automatique
+        // (Image double) agissent, sans être ni dégât ni buff de dés.
+        'tour_supplementaire', 'image_miroir'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))

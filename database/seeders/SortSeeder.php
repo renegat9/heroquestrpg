@@ -152,8 +152,36 @@ class SortSeeder extends Seeder
                 'effet' => ['cible' => 'monstre', 'seuil_mind_max' => 3,
                     'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
 
-            ['element' => 'elfique', 'nom' => 'Eau de Guérison elfique', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
+            // « If an attack against the hero is successful, they roll 1 red
+            // die. On a 1, 2, or 3, THE IMAGE is attacked, and the hero suffers
+            // no damage. » Annulation AUTOMATIQUE, sur jet — d'où un écouteur
+            // (App\Listeners\ImageMiroir) et non une réaction à choix.
+            ['element' => 'elfique', 'nom' => 'Image double', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'heros', 'image_miroir' => true,
+                    'duree' => 'fin_du_combat', 'condition_appliquee' => 'Renforcé']],
+
+            // « It temporarily stops time for everyone else on the gameboard,
+            // enabling the hero to take another turn immediately after their
+            // current turn. »
+            ['element' => 'elfique', 'nom' => 'Arrêt du temps', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'heros', 'tour_supplementaire' => true]],
+
+            // ⚠ QUATRE cartes du répertoire ne sont PAS portées, chacune pour
+            // une raison précise :
+            //  - *Flashback* : rejouer un tour DÉJÀ RÉSOLU suppose un point de
+            //    restauration par tour de héros ; nos snapshots existent
+            //    (debut_quete, nouveau_tour) mais pas à cette granularité.
+            //    Écartée sur décision de René (2026-08-12).
+            //  - *Twist Wood* : « any wooden weapon, such as a staff, bow, or
+            //    crossbow » — nos monstres n'ont AUCUN objet d'arme, le sort
+            //    n'a donc littéralement pas de cible.
+            //  - *Hypnotic Blaze* : vraie zone « salle ou couloir », frappant
+            //    toute figure sauf le lanceur. `monstres_zone` reste déclaré
+            //    non implémenté (MotsClesSort::NON_IMPLEMENTES).
+            //  - *Disappear* : état d'intangibilité — ne peut que bouger et
+            //    ouvrir des portes, n'est affecté par rien, se rompt sur un jet
+            //    de déplacement ≥ 9. Proche d'`ethere`, mais côté héros et avec
+            //    des interdictions d'action qu'aucune condition ne sait poser.
         ];
 
         foreach ($sorts as $sort) {

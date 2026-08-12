@@ -2033,6 +2033,22 @@ final class ResolveurTour
             ];
         }
 
+        // ARRÊT DU TEMPS : « the spellcaster OR any one hero the spellcaster
+        // chooses […] take another turn immediately after their current turn ».
+        if (! empty($effet['tour_supplementaire'])) {
+            $cibleTour = isset($option['parametres']['cibles'])
+                ? $this->cibleSort($quete, $option, $parametres)
+                : ['personnage' => $lanceur, 'etat' => $etat];
+
+            $cibleTour['etat']->update(['tour_supplementaire' => true]);
+
+            return [
+                'cible' => ['type' => 'heros', 'personnage_id' => $cibleTour['personnage']->id,
+                    'nom' => $cibleTour['personnage']->nom],
+                'tour_supplementaire' => true,
+            ];
+        }
+
         // Buff (Courage, Peau de Pierre, Voile de Brume, Vent Véloce) : cible
         // héros si le sort est ciblé, sinon le lanceur lui-même.
         $cibleBuff = isset($option['parametres']['cibles'])
@@ -3456,6 +3472,26 @@ final class ResolveurTour
         }
 
         if ($creneau === 'tour') {
+            // ARRÊT DU TEMPS : le tour ne s'achève pas, il RECOMMENCE. Le
+            // drapeau se consomme ici plutôt qu'au lancement du sort, parce que
+            // la carte dit « another turn immediately AFTER their current turn »
+            // — et parce que cela vaut aussi bien pour le lanceur que pour le
+            // héros qu'il a choisi, sans toucher à la file d'initiative.
+            //
+            // ⚠ On sort AVANT l'expiration des buffs `ce_tour` : le tour
+            // continue, donc ils ne doivent pas tomber. Les rejetons ne rongent
+            // pas non plus — la fin de tour n'a pas eu lieu.
+            if ($etat->tour_supplementaire) {
+                $etat->tour_supplementaire = false;
+                $etat->a_agi = false;
+                $etat->a_deplace = false;
+                $etat->deplacement_tour = null;
+                $etat->deplacement_restant = null; // relancé au prochain déplacement
+                $etat->save();
+
+                return;
+            }
+
             // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
 

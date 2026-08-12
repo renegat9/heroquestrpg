@@ -14,6 +14,8 @@ use App\Engine\Des\LanceurDes;
 use App\Models\Parametre;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
+use App\Listeners\ImageMiroir;
+use Illuminate\Support\Facades\Event;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -91,6 +93,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Écouteurs d'interception des dégâts subis par un héros. Ils doivent
+        // être des écouteurs AUTOMATIQUES : `HerosVaSubirDegats` part au milieu
+        // de la phase des monstres, là où rien ne peut interroger une manette.
+        // Les effets qui exigent un CHOIX du joueur passent par
+        // App\Partie\MoteurReactions, qui propose puis défait le coup.
+        Event::listen(ImageMiroir::class);
     }
 }
