@@ -37,7 +37,10 @@ use Illuminate\Validation\ValidationException;
  */
 final class MoteurReactions
 {
-    public function __construct(private readonly CapacitesInnees $capacites) {}
+    public function __construct(
+        private readonly CapacitesInnees $capacites,
+        private readonly StylesElementaires $styles,
+    ) {}
 
     /**
      * Le héros a-t-il de quoi réagir à ce coup ? Si oui, dépose la proposition
@@ -73,6 +76,25 @@ final class MoteurReactions
                 'sort_id' => $sort->id,
                 'nom' => $sort->nom,
                 'description' => $sort->description,
+            ], $degats, $source, $contexte);
+
+            return;
+        }
+
+        // *Torrent Tournoyant* (Moine, Style de l'Eau) : « Activate this
+        // technique when you take damage to cancel that damage. » Même action
+        // qu'un sort réactif, mais elle se paie en STYLE — d'où le passage par
+        // l'arbitre, qui sait épuiser l'Eau et non un compteur de quête.
+        $technique = $this->styles->sourceActivable(
+            $heros, $etat, ReactionEffet::ANNULE_DEGATS, horsTour: true,
+        );
+
+        if ($technique !== null && ! empty($technique['effet']['reaction'])) {
+            $this->deposer($etat, $heros, $heros, [
+                'action' => ReactionEffet::ANNULE_DEGATS,
+                'style' => $technique['mecanique'],
+                'nom' => $technique['nom'],
+                'description' => $technique['style']?->description,
             ], $degats, $source, $contexte);
 
             return;
@@ -441,6 +463,17 @@ final class MoteurReactions
         // Le sort est dépensé — c'est ce qui empêche d'annuler tous les coups.
         if (isset($attente['sort_id'])) {
             $heros->sorts()->updateExistingPivot((int) $attente['sort_id'], ['disponible' => false]);
+        }
+
+        // …et une technique du Moine épuise SON STYLE, pas un compteur de quête.
+        if (isset($attente['style'])) {
+            $source = $this->styles->sourceActivable(
+                $heros, $etat, (string) $attente['style'], horsTour: true,
+            );
+
+            if ($source !== null) {
+                $this->styles->depenser($heros, $etat, $source, horsTour: true);
+            }
         }
 
         // …et une capacité « once per quest » se marque comme dépensée.

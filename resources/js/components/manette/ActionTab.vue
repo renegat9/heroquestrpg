@@ -49,6 +49,10 @@ const ICONE_TYPE = {
     // Frappe balayée (Frénésie sanguinaire) : sans cible à choisir, elle part
     // au clic — l'icône doit dire que ça tourne sur soi-même.
     attaque_balayee: 'cyclone',
+    // Styles Élémentaires du Moine : activation, rayon, braise.
+    style: 'self_improvement',
+    rayon: 'bolt',
+    degat_differe: 'local_fire_department',
     deplacement: 'directions_walk',
     desamorcer: 'handyman',
     franchir: 'sprint',
@@ -119,6 +123,9 @@ function creneauConsomme(option) {
         case 'ouvrir_porte':
         case 'actionner_levier':
         case 'sortie':
+        // Activer un Style Élémentaire ne coûte aucun créneau (miroir de
+        // `ResolveurTour::creneauOption`).
+        case 'style':
             return false;
         // Actions terminantes : disponibles tant que le tour n'est pas fini.
         case 'concentration':

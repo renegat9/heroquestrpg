@@ -162,6 +162,19 @@ final class JournalCombat
     {
         return match ($a['type'] ?? null) {
             'attaque' => $this->attaqueHeros($a, $acteurNom),
+            // Techniques du Moine : le fil doit dire ce que le style vient de
+            // faire, sinon un Feu dépensé ressemblerait à un tour perdu.
+            'style' => [$this->info(($a['technique'] ?? 'Une technique').' — '.$acteurNom.' prend sa garde')],
+            'rayon' => $this->rayon($a, $acteurNom),
+            'degat_differe' => [[
+                'texte' => "{$acteurNom} embrase ".($a['cible']['nom'] ?? 'la cible')." (−{$a['degats']} PV) — la braise achèvera son œuvre",
+                'ton' => 'degats',
+            ]],
+            'braise' => [[
+                'texte' => ($a['monstre'] ?? 'La créature').' est consumée par la braise (−'.($a['degats'] ?? 0).' PV)'
+                    .(! empty($a['vaincu']) ? ' — elle tombe !' : ''),
+                'ton' => ! empty($a['vaincu']) ? 'mort' : 'degats',
+            ]],
             // Frappe balayée : la ligne ANNONCE la salve, les frappes qui
             // suivent la détaillent cible par cible.
             'attaque_balayee' => [$this->info(
@@ -299,6 +312,29 @@ final class JournalCombat
         $suffixe = $cible !== null ? " sur {$cible}" : '';
 
         return [['texte' => "{$acteurNom} lance {$nom}{$suffixe}{$des}", 'ton' => 'info']];
+    }
+
+    /**
+     * *Esprit Ardent* : un rayon qui traverse. Une ligne par ennemi brûlé, plus
+     * l'annonce — sans quoi trois monstres perdraient des PV sans explication.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function rayon(array $a, string $acteurNom): array
+    {
+        $lignes = [$this->info("{$acteurNom} projette ".($a['technique'] ?? 'un rayon'))];
+
+        foreach ((array) ($a['touches'] ?? []) as $touche) {
+            $lignes[] = [
+                'texte' => empty($touche['vaincu'])
+                    ? "{$touche['nom']} est traversé (−{$touche['degats']} PV)"
+                    : "{$touche['nom']} est réduit en cendres !",
+                'ton' => empty($touche['vaincu']) ? 'degats' : 'mort',
+            ];
+        }
+
+        return $lignes;
     }
 
     /**

@@ -84,6 +84,16 @@ final class ResolveurTour
      */
     public const COUT_FRANCHISSEMENT = 2;
 
+    /**
+     * Identifiants d'option qui fouillent la ZONE (doc 14 §3.1) : la fouille
+     * ordinaire et celle du Moine, qui ne peut pas rater. Les deux révèlent
+     * pièges et portes secrètes — le tester sur le seul `fouiller` a failli
+     * faire de *Parler à la Pierre* un jet sans découverte.
+     *
+     * @var list<string>
+     */
+    private const OPTIONS_FOUILLE_ZONE = ['fouiller', 'fouiller_pierre'];
+
     /** Nœud barbare (CompetenceSeeder) : +1 dé d'attaque sous la moitié des PV de Body. */
     public const NOEUD_FRENESIE = 'Frénésie';
 
@@ -115,6 +125,7 @@ final class ResolveurTour
         private readonly MoteurDegats $degats,
         private readonly MoteurReactions $reactions,
         private readonly CapacitesInnees $capacites,
+        private readonly StylesElementaires $styles,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
@@ -161,6 +172,13 @@ final class ResolveurTour
         }
 
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
+
+        // DÉBUT DE TOUR du Moine — « If there are no monsters in your line of
+        // sight at the start of your turn, recover all exhausted Elemental
+        // Styles. » Idempotent, et sans effet dès qu'un créneau est entamé :
+        // le menu appelle le même point, les deux doivent montrer la MÊME
+        // disponibilité.
+        $this->styles->recupererSiHorsDeVue($quete, $etat);
 
         // Créneau visé (doc 03 §28 : un déplacement + une action par tour) :
         // on refuse de rejouer un créneau déjà consommé ce tour. Réserve
@@ -233,6 +251,9 @@ final class ResolveurTour
                 'deplacement' => $this->resoudreDeplacement($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'attaque' => $this->resoudreAttaque($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
                 'attaque_balayee' => $this->resoudreAttaqueBalayee($groupe, $quete, $etat, $personnage, $option, $acteur),
+                'style' => $this->resoudreStyle($groupe, $personnage, $etat, $option, $acteur),
+                'rayon' => $this->resoudreRayon($groupe, $quete, $etat, $personnage, $option, $acteur),
+                'degat_differe' => $this->resoudreDegatDiffere($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
                 'jet' => $this->resoudreJet($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'desamorcage' => $this->resoudreDesamorcage($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -644,15 +665,22 @@ final class ResolveurTour
         // du client, qui n'envoie que sa cible.
         $furie = $this->payerLaFurie($personnage, $etat, $option);
 
+        // FORCE DE LA MONTAGNE (Moine) — « Roll 2 additional Attack dice on an
+        // UNARMED attack ». Même forme que la Furie : le menu nomme la
+        // technique dans `parametres.style`, le résolveur la paie et rend les
+        // dés. Elle épuise le Style de la Terre, pas un compteur de quête.
+        $poing = $this->activerPoingDeMontagne($personnage, $etat, $option);
+
         $payload = $this->frapper(
             $groupe, $quete, $etat, $personnage, $instance,
             tirADistance: $tirADistance,
             lancer: $lancer,
-            desBonus: $furie,
+            desBonus: $furie + $poing,
             meta: [
                 'option_id' => $option['id'],
                 'libelle' => $option['libelle'] ?? null,
                 ...($furie > 0 ? ['furie' => $furie] : []),
+                ...($poing > 0 ? ['style_mains_nues' => $poing] : []),
             ],
             acteur: $acteur,
         );
@@ -892,6 +920,366 @@ final class ResolveurTour
     }
 
     /**
+     * Activation d'une technique qui ne se résout pas sur-le-champ mais change
+     * la suite du tour — aujourd'hui la seule *Vague Montante*.
+     *
+     * Gratuite en créneau, et c'est le texte : « Activate this technique on your
+     * turn », pas « as an action ». Une technique qui sert à encadrer l'action
+     * du tour ne peut pas la dévorer.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreStyle(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $mecanique = (string) ($option['parametres']['style'] ?? '');
+        $source = $this->styles->sourceActivable($personnage, $etat, $mecanique);
+
+        if ($source === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Technique indisponible : style épuisé, verrouillé, ou déjà activé ce tour.',
+            ]);
+        }
+
+        $this->styles->depenser($personnage, $etat, $source);
+        $this->styles->marquerActive($etat->fresh(), $mecanique);
+
+        $payload = [
+            'type' => 'style',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? $source['nom'],
+            'style' => $mecanique,
+            'technique' => $source['nom'],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Fait tomber la braise du *Toucher du Brasier* à la fin du tour de la
+     * créature, puis l'éteint. `null` s'il n'y en avait pas.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function consumerBraise(Groupe $groupe, ?InstanceMonstre $instance): ?array
+    {
+        if ($instance === null || $instance->etat !== 'actif' || (int) $instance->degat_differe <= 0) {
+            return null;
+        }
+
+        $degats = (int) $instance->degat_differe;
+        $restants = max(0, (int) $instance->pv_body - $degats);
+
+        $instance->update([
+            'pv_body' => $restants,
+            'etat' => $restants === 0 ? 'vaincu' : 'actif',
+            'degat_differe' => null,
+        ]);
+
+        $payload = [
+            'type' => 'braise',
+            'monstre' => $instance->nomAffiche(),
+            'degats' => $degats,
+            'pv_body_apres' => $restants,
+            'vaincu' => $restants === 0,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, [
+            'type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche(),
+        ]);
+
+        $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+
+        return $payload;
+    }
+
+    /**
+     * Les huit directions d'un rayon (*Esprit Ardent*) : « This beam may be
+     * STRAIGHT OR DIAGONAL ».
+     *
+     * @var array<string, array{0: int, 1: int, 2: string}>
+     */
+    public const DIRECTIONS_RAYON = [
+        'n' => [0, -1, 'au nord'], 's' => [0, 1, 'au sud'],
+        'e' => [1, 0, "à l'est"], 'o' => [-1, 0, "à l'ouest"],
+        'ne' => [1, -1, 'au nord-est'], 'no' => [-1, -1, 'au nord-ouest'],
+        'se' => [1, 1, 'au sud-est'], 'so' => [-1, 1, 'au sud-ouest'],
+    ];
+
+    /**
+     * ESPRIT ARDENT (Moine, Style du Feu) — « As an action, expel a beam of
+     * brilliant energy from your soul's core. This beam may be straight or
+     * diagonal and **continues until it meets a wall or closed door**. Each
+     * enemy in the beam takes 2 Body Points of damage. »
+     *
+     * ⚠ Le rayon TRAVERSE les figures : seuls la roche et une porte close
+     * l'arrêtent, c'est écrit. Il n'y a donc pas de cible à choisir mais une
+     * DIRECTION — et pas de jet : les 2 PV tombent, sans défense, comme un
+     * dégât de sort. Le résolveur recalcule la ligne lui-même, le menu ne fait
+     * qu'annoncer combien d'ennemis s'y trouvent.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreRayon(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Personnage $personnage,
+        array $option,
+        array $acteur,
+    ): array {
+        $direction = (string) ($option['parametres']['direction'] ?? '');
+
+        if (! isset(self::DIRECTIONS_RAYON[$direction])) {
+            throw ValidationException::withMessages(['option_id' => 'Direction de rayon inconnue.']);
+        }
+
+        $source = $this->styles->sourceActivable($personnage, $etat, 'rayon');
+
+        if ($source === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Technique indisponible : style épuisé, verrouillé, ou déjà activé ce tour.',
+            ]);
+        }
+
+        $degats = (int) ($source['effet']['degats'] ?? 2);
+        $touches = [];
+
+        foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
+            foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
+                $restants = max(0, (int) $instance->pv_body - $degats);
+                $instance->update([
+                    'pv_body' => $restants,
+                    'etat' => $restants === 0 ? 'vaincu' : 'actif',
+                ]);
+
+                $touches[] = [
+                    'instance_id' => $instance->id,
+                    'nom' => $instance->nomAffiche(),
+                    'degats' => $degats,
+                    'vaincu' => $restants === 0,
+                ];
+
+                $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+            }
+        }
+
+        $this->styles->depenser($personnage, $etat, $source);
+
+        $payload = [
+            'type' => 'rayon',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? $source['nom'],
+            'technique' => $source['nom'],
+            'direction' => $direction,
+            'degats' => $degats,
+            'touches' => $touches,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Les cases parcourues par un rayon, du premier pas jusqu'au mur ou à la
+     * porte close — la case du lanceur exclue.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    private function casesDuRayon(Quete $quete, int $x, int $y, string $direction): array
+    {
+        [$dx, $dy] = self::DIRECTIONS_RAYON[$direction];
+        $grille = $this->grille($quete);
+        $cases = [];
+
+        while (true) {
+            $suivantX = $x + $dx;
+            $suivantY = $y + $dy;
+
+            if ($grille->estRoche($suivantX, $suivantY)
+                || $grille->porteBloqueEntre($x, $y, $suivantX, $suivantY)) {
+                break;
+            }
+
+            $cases[] = ['x' => $suivantX, 'y' => $suivantY];
+            $x = $suivantX;
+            $y = $suivantY;
+        }
+
+        return $cases;
+    }
+
+    /**
+     * Monstres actifs et révélés occupant une case (emprise comprise).
+     *
+     * @return Collection<int, InstanceMonstre>
+     */
+    private function monstresSur(Quete $quete, int $x, int $y): Collection
+    {
+        return $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->with('monstre')
+            ->orderBy('id')
+            ->get()
+            ->filter(function (InstanceMonstre $i) use ($x, $y) {
+                $e = $i->monstre->emprise();
+
+                return $i->position_x !== null
+                    && $x >= (int) $i->position_x && $x < (int) $i->position_x + $e['l']
+                    && $y >= (int) $i->position_y && $y < (int) $i->position_y + $e['h'];
+            });
+    }
+
+    /**
+     * TOUCHER DU BRASIER (Moine, Style du Feu) — « As an action, inflict 1 Body
+     * Point of damage to any one adjacent enemy. The target takes an additional
+     * 2 Body Points of damage **at the end of its next turn**. »
+     *
+     * Le premier dégât différé posé sur un monstre : `instances_monstres.
+     * degat_differe`, appliqué et éteint quand la créature a fini de jouer. Le
+     * premier point, lui, tombe tout de suite — sans jet, sans défense.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDegatDiffere(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Personnage $personnage,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $cibleId = (int) ($parametres['cible_id'] ?? 0);
+        $legales = array_map(
+            static fn ($c) => (int) (is_array($c) ? ($c['id'] ?? 0) : $c),
+            (array) ($option['parametres']['cibles'] ?? []),
+        );
+
+        if (! in_array($cibleId, $legales, true)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible invalide : ce monstre ne fait pas partie des cibles proposées.',
+            ]);
+        }
+
+        $instance = $quete->instancesMonstres()
+            ->whereKey($cibleId)->where('etat', 'actif')->where('revele', true)
+            ->with('monstre')->first();
+
+        if ($instance === null || ! $this->heroAuContact($instance, (int) $etat->position_x, (int) $etat->position_y)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Cible hors de portée : la technique frappe un ennemi ADJACENT.',
+            ]);
+        }
+
+        $source = $this->styles->sourceActivable($personnage, $etat, 'degat_differe');
+
+        if ($source === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Technique indisponible : style épuisé, verrouillé, ou déjà activé ce tour.',
+            ]);
+        }
+
+        $immediat = (int) ($source['effet']['immediat'] ?? 1);
+        $differe = (int) ($source['effet']['differe'] ?? 2);
+        $restants = max(0, (int) $instance->pv_body - $immediat);
+
+        $instance->update([
+            'pv_body' => $restants,
+            'etat' => $restants === 0 ? 'vaincu' : 'actif',
+            // La braise ne s'allume que sur une créature encore debout : la
+            // poser sur un mort la ferait tomber dans le vide.
+            'degat_differe' => $restants === 0 ? null : $differe,
+        ]);
+
+        $this->styles->depenser($personnage, $etat, $source);
+        $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+
+        $payload = [
+            'type' => 'degat_differe',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? $source['nom'],
+            'technique' => $source['nom'],
+            'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+            'degats' => $immediat,
+            'differe' => $restants === 0 ? 0 : $differe,
+            'cible_vaincue' => $restants === 0,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Épuise le style qui porte cette technique et rend son nom, pour le
+     * payload — *Dragon Bondissant*, *Parler à la Pierre*. Lève un 422 plutôt
+     * que de laisser passer une technique qu'aucun menu n'aurait proposée.
+     */
+    private function activerTechnique(Personnage $personnage, EtatPersonnageQuete $etat, string $mecanique): string
+    {
+        $source = $this->styles->sourceActivable($personnage, $etat, $mecanique);
+
+        if ($source === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Technique indisponible : style épuisé, verrouillé, ou déjà activé ce tour.',
+            ]);
+        }
+
+        $this->styles->depenser($personnage, $etat, $source);
+
+        return $source['nom'];
+    }
+
+    /**
+     * FORCE DE LA MONTAGNE (Moine, Style de la Terre) — épuise le style et rend
+     * les dés gagnés, ou 0 si l'option ne la demande pas.
+     *
+     * @param  array<string, mixed>  $option
+     */
+    private function activerPoingDeMontagne(Personnage $personnage, EtatPersonnageQuete $etat, array $option): int
+    {
+        if (($option['parametres']['style'] ?? null) !== 'bonus_des_attaque_mains_nues') {
+            return 0;
+        }
+
+        $source = $this->styles->sourceActivable($personnage, $etat, 'bonus_des_attaque_mains_nues');
+
+        if ($source === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Technique indisponible : style épuisé, verrouillé, ou déjà activé ce tour.',
+            ]);
+        }
+
+        // « on an UNARMED attack » : l'arme au poing annule la technique — et
+        // la dépenser pour rien serait pire que la refuser.
+        if ($this->armeEnMain($personnage) !== null) {
+            throw ValidationException::withMessages([
+                'option_id' => "« {$source['nom']} » ne vaut qu'à MAINS NUES : range ton arme d'abord.",
+            ]);
+        }
+
+        $this->styles->depenser($personnage, $etat, $source);
+
+        return (int) ($source['effet']['valeur'] ?? 2);
+    }
+
+    /**
      * FRÉNÉSIE SANGUINAIRE (Berserker) — « As an action, a single sweeping
      * attack against all monsters adjacent **and diagonal** to you. »
      *
@@ -916,14 +1304,18 @@ final class ResolveurTour
         array $option,
         array $acteur,
     ): array {
-        if (! $this->capacites->disponible($personnage, $etat, 'attaque_balayee')) {
+        // Deux sources pour une même frappe : la *Frénésie sanguinaire* du
+        // Berserker et l'*Œil du Cyclone* du Moine (Style de l'Air), qui la
+        // porte « unarmed » et de toute façon en diagonale.
+        $source = $this->styles->sourceActivable($personnage, $etat, 'attaque_balayee');
+
+        if ($source === null) {
             throw ValidationException::withMessages([
                 'option_id' => 'Frappe balayée indisponible : capacité absente, déjà dépensée, ou seuil de PV non atteint.',
             ]);
         }
 
-        $noeud = $this->capacites->noeud($personnage, 'attaque_balayee');
-        $cibles = $this->ciblesBalayees($quete, $etat, (bool) ($noeud->effet['diagonales'] ?? true));
+        $cibles = $this->ciblesBalayees($quete, $etat, (bool) ($source['effet']['diagonales'] ?? true));
 
         if ($cibles->isEmpty()) {
             throw ValidationException::withMessages([
@@ -931,13 +1323,23 @@ final class ResolveurTour
             ]);
         }
 
-        $this->capacites->consommer($personnage, $etat, 'attaque_balayee');
+        // « Make one UNARMED attack » : l'Œil du Cyclone se frappe à mains nues,
+        // ce qui pour le Moine vaut mieux que son arme (fiche « 1* », 2 dés à
+        // mains nues). On refuse plutôt que de convertir en silence — le menu ne
+        // l'a pas proposé, et frapper à l'épée ne serait pas la technique.
+        if (! empty($source['effet']['mains_nues']) && $this->armeEnMain($personnage) !== null) {
+            throw ValidationException::withMessages([
+                'option_id' => "« {$source['nom']} » se frappe à MAINS NUES : range ton arme d'abord.",
+            ]);
+        }
+
+        $this->styles->depenser($personnage, $etat, $source);
 
         $payload = [
             'type' => 'attaque_balayee',
             'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? $noeud->nom,
-            'capacite' => $noeud->nom,
+            'libelle' => $option['libelle'] ?? $source['nom'],
+            'capacite' => $source['nom'],
             'cibles' => $cibles->count(),
         ];
 
@@ -952,7 +1354,7 @@ final class ResolveurTour
                 $groupe, $quete, $etat, $personnage, $instance,
                 meta: [
                     'option_id' => $option['id'],
-                    'libelle' => $noeud->nom,
+                    'libelle' => $source['nom'],
                     'balayee' => true,
                 ],
                 acteur: $acteur,
@@ -963,6 +1365,21 @@ final class ResolveurTour
         $payload['vaincus'] = count(array_filter($frappes, static fn ($f) => ! empty($f['cible_vaincue'])));
 
         return $payload;
+    }
+
+    /**
+     * L'arme en main principale, ou `null` — c'est-à-dire « à mains nues », ce
+     * que les techniques du Moine exigent et ce qui, pour lui, vaut mieux
+     * qu'une arme : sa fiche donne « Attaque 1* — when attacking unarmed, roll
+     * one additional Attack die », soit les 2 dés que porte `classes_heros`.
+     * Nos dés d'attaque venant de l'arme équipée, ne rien porter les rend.
+     */
+    private function armeEnMain(Personnage $personnage): ?Objet
+    {
+        return $personnage->inventaire()
+            ->where('emplacement', 'arme_principale')
+            ->with('objet')
+            ->first()?->objet;
     }
 
     /**
@@ -1471,7 +1888,26 @@ final class ResolveurTour
         $nbDes = ($attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind) + $bonusAvantage;
         $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
 
+        // PARLER À LA PIERRE (Moine, Style de la Terre) — la fouille ne peut
+        // plus échouer.
+        //
+        // ⚠ Décision de portage, à dire clairement : la carte promet de
+        // chercher pièges ET portes secrètes « en une seule action », or notre
+        // « Fouiller la zone » fait déjà les deux depuis toujours (doc 14 §3.1)
+        // — la technique ne vaudrait donc RIEN, un style dépensé pour ce que
+        // tout le monde a gratuitement. Au plateau, en revanche, fouiller ne
+        // demande aucun jet : Zargon répond, point. La réussite automatique est
+        // la lecture la moins inventée de cet écart.
+        $pierre = ($option['parametres']['style'] ?? null) === 'fouille_complete'
+            ? $this->activerTechnique($personnage, $etat, 'fouille_complete')
+            : null;
+
+        if ($pierre !== null) {
+            $resultat = $resultat->force();
+        }
+
         $payload = [
+            ...($pierre !== null ? ['style' => $pierre] : []),
             'type' => 'jet',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
@@ -1487,7 +1923,7 @@ final class ResolveurTour
         // Fouille de la zone RÉUSSIE (doc 14 §3.1) : un seul jet de Mind révèle
         // dans le rayon de fouille les pièges cachés (doc 10 §3) ET les portes
         // secrètes (passées révélées + ouvertes).
-        if ($option['id'] === 'fouiller' && $resultat->estReussi()
+        if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true) && $resultat->estReussi()
             && $quete->carte !== null && $etat->position_x !== null) {
             $payload['pieges_reveles'] = $this->pieges->revelerAutour(
                 $groupe, $quete->carte, $personnage,
@@ -1503,7 +1939,7 @@ final class ResolveurTour
         // `issue: reussite` et écrivait une découverte inexistante (« elle décèle
         // des indices cruciaux ») pendant que le journal mécanique disait
         // « rien de suspect ». On distingue explicitement les deux.
-        if ($option['id'] === 'fouiller') {
+        if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true)) {
             $payload['a_trouve'] = ($payload['pieges_reveles'] ?? []) !== []
                 || ($payload['portes_revelees'] ?? []) !== [];
         }
@@ -1626,11 +2062,24 @@ final class ResolveurTour
             ]);
         }
 
+        // DRAGON BONDISSANT (Moine, Style de l'Air) — « Automatically succeed
+        // when jumping over a trap. » Le jet a QUAND MÊME lieu : il ne décide
+        // plus, mais le joueur voit ses dés, et le fil du combat garde la trace
+        // de ce que le style vient de lui épargner.
+        $dragon = ($option['parametres']['style'] ?? null) === 'saut_piege_automatique'
+            ? $this->activerTechnique($personnage, $etat, 'saut_piege_automatique')
+            : null;
+
         $resultat = (new JetCompetence($this->des))
             ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_FRANCHISSEMENT);
 
+        if ($dragon !== null) {
+            $resultat = $resultat->force();
+        }
+
         $payload = [
             'type' => 'franchissement',
+            ...($dragon !== null ? ['style' => $dragon] : []),
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'piege' => ['nom' => $cible['piege']?->nom ?? 'Fosse', 'x' => $cible['x'], 'y' => $cible['y']],
@@ -3422,6 +3871,16 @@ final class ResolveurTour
             } else {
                 $actions[] = $resultatMonstre;
             }
+
+            // TOUCHER DU BRASIER : « an additional 2 Body Points of damage AT
+            // THE END OF ITS NEXT TURN ». La braise tombe ici, une fois, et
+            // s'éteint — c'est ce qui la distingue du jeton de Rejeton, qui lui
+            // ronge tous les tours.
+            $braise = $this->consumerBraise($groupe, $instance->fresh());
+
+            if ($braise !== null) {
+                $actions[] = $braise;
+            }
         }
 
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
@@ -3970,7 +4429,11 @@ final class ResolveurTour
             // ne consomme ni le déplacement ni l'action — on s'arrête devant la
             // porte, on l'ouvre, puis on continue son mouvement s'il reste des points.
             // Proposer de rentrer ne coûte rien : le donjon est déjà nettoyé.
-            'ouvrir_porte', 'actionner_levier', 'sortie' => 'interaction',
+            // Activer un Style Élémentaire ne coûte aucun créneau : « Activate
+            // this technique on your turn », pas « as an action » — et Vague
+            // Montante n'aurait aucun sens si elle mangeait l'action qu'elle
+            // sert justement à encadrer.
+            'ouvrir_porte', 'actionner_levier', 'sortie', 'style' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -4054,7 +4517,11 @@ final class ResolveurTour
                 // c'est `deplacement_restant`, non nul et inférieur au total du
                 // tour, qui signale un mouvement entamé. Agir sans avoir bougé
                 // laisse au contraire le déplacement entier.
+                // VAGUE MONTANTE (Moine, Style de l'Eau) — « split your total
+                // movement roll before and after your action » : la technique
+                // lève exactement cette confiscation, et rien d'autre.
                 if ($etat->deplacement_restant !== null
+                    && ! $this->styles->estActiveCeTour($etat, 'deplacement_scinde')
                     && (int) $etat->deplacement_restant > 0
                     && (int) $etat->deplacement_restant < (int) ($etat->deplacement_tour ?? 0)) {
                     $etat->deplacement_restant = 0;

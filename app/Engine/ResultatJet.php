@@ -35,4 +35,17 @@ final readonly class ResultatJet
     {
         return $this->issue === IssueJet::Echec;
     }
+
+    /**
+     * Le MÊME jet, déclaré réussi — *Dragon Bondissant* du Moine,
+     * « automatically succeed when jumping over a trap ».
+     *
+     * ⚠ On garde les faces telles qu'elles sont tombées : le joueur doit voir
+     * les dés que sa technique vient de démentir, sinon le « saut automatique »
+     * ressemble à un jet chanceux et la technique disparaît de la table.
+     */
+    public function force(): self
+    {
+        return new self($this->faces, max($this->succes, $this->difficulte), $this->difficulte, IssueJet::Reussite);
+    }
 }

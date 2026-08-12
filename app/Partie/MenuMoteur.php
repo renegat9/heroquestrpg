@@ -44,6 +44,7 @@ final class MenuMoteur
         private readonly Equipement $equipement,
         private readonly MoteurCharges $charges,
         private readonly CapacitesInnees $capacites,
+        private readonly StylesElementaires $styles,
     ) {}
 
     /**
@@ -85,6 +86,55 @@ final class MenuMoteur
         }
 
         return false;
+    }
+
+    /**
+     * Directions de rayon qui touchent AU MOINS un ennemi, avec leur compte —
+     * *Esprit Ardent*. Un rayon lancé dans le vide serait un Style du Feu
+     * dépensé pour rien, et le Feu ne s'ouvre qu'une fois par combat.
+     *
+     * ⚠ Le résolveur recalcule la ligne : ceci n'est qu'un cadran de visée.
+     *
+     * @return array<string, int>
+     */
+    private function directionsDeRayon(Quete $quete, EtatPersonnageQuete $etat): array
+    {
+        $grille = FabriqueGrille::pour($quete);
+        $monstres = $quete->instancesMonstres()
+            ->where('etat', 'actif')->where('revele', true)->with('monstre')->get();
+        $trouvees = [];
+
+        foreach (ResolveurTour::DIRECTIONS_RAYON as $code => [$dx, $dy]) {
+            $x = (int) $etat->position_x;
+            $y = (int) $etat->position_y;
+            $ennemis = 0;
+
+            while (true) {
+                $sx = $x + $dx;
+                $sy = $y + $dy;
+
+                if ($grille->estRoche($sx, $sy) || $grille->porteBloqueEntre($x, $y, $sx, $sy)) {
+                    break;
+                }
+
+                $ennemis += $monstres->filter(function (InstanceMonstre $i) use ($sx, $sy) {
+                    $e = $i->monstre->emprise();
+
+                    return $i->position_x !== null
+                        && $sx >= (int) $i->position_x && $sx < (int) $i->position_x + $e['l']
+                        && $sy >= (int) $i->position_y && $sy < (int) $i->position_y + $e['h'];
+                })->count();
+
+                $x = $sx;
+                $y = $sy;
+            }
+
+            if ($ennemis > 0) {
+                $trouvees[$code] = $ennemis;
+            }
+        }
+
+        return $trouvees;
     }
 
     /**
@@ -263,6 +313,13 @@ final class MenuMoteur
         // pose a_joue sans consommer les deux créneaux : on la traite comme si
         // les DEUX étaient pris, sinon le menu proposait encore des actions
         // fantômes alors que le tour est fini.
+        // Styles Élémentaires du Moine : la recharge se lit « au début de ton
+        // tour », donc avant de bâtir le menu — sinon le joueur verrait ses
+        // styles revenir seulement après avoir agi.
+        if ($etat !== null) {
+            $this->styles->recupererSiHorsDeVue($quete, $etat);
+        }
+
         $aJoue = (bool) ($etat?->a_joue ?? false);
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
         $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);
@@ -323,6 +380,27 @@ final class MenuMoteur
                             'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
                         ],
                     ];
+
+                    // DRAGON BONDISSANT (Moine, Style de l'Air) — « Automatically
+                    // succeed when jumping over a trap. » Le même saut, sans le
+                    // risque, au prix du Style de l'Air : deux boutons, parce
+                    // que dépenser un style pour un saut qu'on aurait réussi
+                    // doit rester un choix.
+                    $dragon = $this->styles->sourceActivable($personnage, $etat, 'saut_piege_automatique');
+
+                    if ($dragon !== null) {
+                        $options[] = [
+                            'id' => "franchir_dragon_{$adjacent['x']}_{$adjacent['y']}",
+                            'libelle' => "{$dragon['nom']} — franchir {$nomPiege} à coup sûr",
+                            'type' => 'franchissement',
+                            'jet' => ['attribut' => 'body', 'difficulte' => ResolveurTour::DIFFICULTE_FRANCHISSEMENT],
+                            'parametres' => [
+                                'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
+                                'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
+                                'style' => 'saut_piege_automatique',
+                            ],
+                        ];
+                    }
                 }
             }
         }
@@ -456,9 +534,13 @@ final class MenuMoteur
             // à part et pas de `parametres.cibles`. Offerte seulement s'il y a
             // quelque chose à balayer — sinon c'est un bouton qui gaspille une
             // capacité « once per quest » sur du vide.
-            if ($this->capacites->disponible($personnage, $etat, 'attaque_balayee')) {
-                $noeud = $this->capacites->noeud($personnage, 'attaque_balayee');
-                $diagonales = (bool) ($noeud->effet['diagonales'] ?? true);
+            $balayee = $this->styles->sourceActivable($personnage, $etat, 'attaque_balayee');
+
+            // « Make one UNARMED attack » (Œil du Cyclone) : sans cette garde,
+            // le Moine armé verrait un bouton que le résolveur refuse.
+            if ($balayee !== null
+                && (empty($balayee['effet']['mains_nues']) || $armePrincipale === null)) {
+                $diagonales = (bool) ($balayee['effet']['diagonales'] ?? true);
 
                 // Recompté avec la portée de la CAPACITÉ, jamais avec celle de
                 // l'arme : le balayage touche les diagonales même à la dague.
@@ -474,10 +556,73 @@ final class MenuMoteur
                 if ($balayees > 0) {
                     $options[] = [
                         'id' => 'frappe_balayee',
-                        'libelle' => "{$noeud->nom} — frapper ".($balayees > 1 ? "les {$balayees} ennemis au contact" : "l'ennemi au contact"),
+                        'libelle' => "{$balayee['nom']} — frapper ".($balayees > 1 ? "les {$balayees} ennemis au contact" : "l'ennemi au contact"),
                         'type' => 'attaque_balayee',
                     ];
                 }
+            }
+
+            // STYLE DU FEU (Moine) — les deux techniques verrouillées jusqu'à
+            // ce que l'Air, la Terre et l'Eau soient tombés. `sourceActivable`
+            // porte le verrou : ici, il suffit de proposer.
+            $rayon = $this->styles->sourceActivable($personnage, $etat, 'rayon');
+
+            if ($rayon !== null) {
+                foreach ($this->directionsDeRayon($quete, $etat) as $direction => $ennemis) {
+                    [, , $libelleDirection] = ResolveurTour::DIRECTIONS_RAYON[$direction];
+
+                    $options[] = [
+                        'id' => "rayon_{$direction}",
+                        'libelle' => "{$rayon['nom']} — rayon {$libelleDirection} ({$ennemis} ennemi".($ennemis > 1 ? 's' : '').')',
+                        'type' => 'rayon',
+                        'parametres' => ['direction' => $direction],
+                    ];
+                }
+            }
+
+            $brasier = $adjacents->isNotEmpty()
+                ? $this->styles->sourceActivable($personnage, $etat, 'degat_differe')
+                : null;
+
+            if ($brasier !== null) {
+                $options[] = [
+                    'id' => 'toucher_brasier',
+                    'libelle' => "{$brasier['nom']} — brûler un ennemi au contact",
+                    'type' => 'degat_differe',
+                    'parametres' => [
+                        'cibles' => $adjacents->map(fn (InstanceMonstre $i) => [
+                            'id' => $i->id,
+                            'type' => 'monstre',
+                            'nom' => $i->nomAffiche(),
+                            'nom_base' => $i->monstre->nom_base,
+                            'distance' => false,
+                        ])->values()->all(),
+                    ],
+                ];
+            }
+
+            // FORCE DE LA MONTAGNE (Moine, Style de la Terre) — « Roll 2
+            // additional Attack dice on an unarmed attack. » Une option
+            // d'attaque de plus, comme la Furie : le type `attaque` lui donne la
+            // feuille de ciblage et la liste blanche, `parametres.style` porte
+            // la technique. À mains nues seulement, donc jamais offerte armé.
+            $poing = $armePrincipale === null
+                ? $this->styles->sourceActivable($personnage, $etat, 'bonus_des_attaque_mains_nues')
+                : null;
+
+            if ($poing !== null && $cibles['attaquer'] !== []) {
+                $bonus = (int) ($poing['effet']['valeur'] ?? 2);
+
+                $options[] = [
+                    'id' => 'style_poing',
+                    'libelle' => "{$poing['nom']} — frapper à mains nues (+{$bonus} dés)",
+                    'type' => 'attaque',
+                    'lancer' => false,
+                    'parametres' => [
+                        'style' => 'bonus_des_attaque_mains_nues',
+                        'cibles' => $cibles['attaquer'],
+                    ],
+                ];
             }
 
             if ($cibles['lancer'] !== []) {
@@ -700,6 +845,22 @@ final class MenuMoteur
                 'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
             ];
 
+            // PARLER À LA PIERRE (Moine, Style de la Terre) : la même fouille,
+            // mais qui ne peut pas rater. Voir `ResolveurTour::resoudreJet()`
+            // pour la décision de portage — notre fouille cherche déjà pièges
+            // ET portes secrètes en une action.
+            $pierre = $this->styles->sourceActivable($personnage, $etat, 'fouille_complete');
+
+            if ($pierre !== null) {
+                $options[] = [
+                    'id' => 'fouiller_pierre',
+                    'libelle' => "{$pierre['nom']} — fouiller sans risque d'échec",
+                    'type' => 'jet',
+                    'jet' => ['attribut' => 'mind', 'difficulte' => 1, 'contexte' => 'perception'],
+                    'parametres' => ['style' => 'fouille_complete'],
+                ];
+            }
+
             // Fouiller — trésor (doc 14 §3.2) : action SÉPARÉE, table
             // risque/récompense, offerte dans une salle « vide » non encore
             // fouillée (rencontres prévues nettoyées).
@@ -736,6 +897,25 @@ final class MenuMoteur
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',
                 'type' => 'sortie',
+            ];
+        }
+
+        // VAGUE MONTANTE (Moine, Style de l'Eau) — « Activate this technique on
+        // your turn to split your total movement roll before and after your
+        // action. » Chez nous, agir après avoir ENTAMÉ son mouvement confisque
+        // le reste (règle de René, 2026-08-07) : la technique lève exactement
+        // cette confiscation. Gratuite en créneau, donc offerte tant que le
+        // tour n'est pas fini — et inutile une fois qu'on a agi, d'où le filtre.
+        $vague = $etat !== null && ! $aJoue && ! $aAgi
+            ? $this->styles->sourceActivable($personnage, $etat, 'deplacement_scinde')
+            : null;
+
+        if ($vague !== null) {
+            $options[] = [
+                'id' => 'style_vague',
+                'libelle' => "{$vague['nom']} — garder ton déplacement après avoir agi",
+                'type' => 'style',
+                'parametres' => ['style' => 'deplacement_scinde'],
             ];
         }
 

@@ -23,6 +23,9 @@ class InstanceMonstre extends Model
         // Brûlée : la régénération s'arrête définitivement (carte du troll,
         // « damage done by fire is permanent »).
         'brule',
+        // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
+        // fin du PROCHAIN tour de la créature, puis s'éteignent.
+        'degat_differe',
         'habillage',
     ];
 
@@ -33,6 +36,7 @@ class InstanceMonstre extends Model
             'revele' => 'boolean',
             'elite' => 'boolean',
             'brule' => 'boolean',
+            'degat_differe' => 'integer',
         ];
     }
 

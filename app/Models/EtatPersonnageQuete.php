@@ -39,6 +39,9 @@ class EtatPersonnageQuete extends Model
         // Idem pour les « once per TURN » — remises à zéro avec les créneaux,
         // en fin de round, et non à la quête suivante.
         'capacites_tour',
+        // Styles Élémentaires dépensés (Moine) : un troisième rythme, qui se
+        // recharge dès qu'aucun monstre n'est en vue. Voir StylesElementaires.
+        'styles_epuises',
     ];
 
     protected function casts(): array
@@ -57,6 +60,7 @@ class EtatPersonnageQuete extends Model
             'reaction_en_attente' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
+            'styles_epuises' => 'array',
         ];
     }
 
