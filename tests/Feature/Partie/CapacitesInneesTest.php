@@ -36,6 +36,42 @@ beforeEach(function () {
         MobilierSeeder::class, ClasseHerosSeeder::class, SortSeeder::class]);
 });
 
+it('n\'annonce aucune capacité de carte que rien n\'applique — et réciproquement', function () {
+    // Même garde-fou que `ObjetsFonctionnelsTest`, dans les DEUX SENS : une
+    // capacité est une phrase imprimée sur une carte et montrée au joueur. Sans
+    // lecteur, c'est une promesse non tenue ; déclarée sans porteuse, c'est une
+    // règle qui n'existe que sur le papier.
+    $portees = [];
+
+    foreach (Competence::where('innee', true)->get() as $carte) {
+        $mecanique = $carte->effet['mecanique'] ?? null;
+
+        // ⚠ `toHaveKey()` de Pest prend une VALEUR en second argument, pas un
+        // message : on passe par `array_key_exists` + `toBeTrue()`.
+        expect($mecanique)->toBeString("{$carte->nom} : capacité innée sans mécanique.")
+            ->and(array_key_exists((string) $mecanique, CapacitesInnees::MECANIQUES))
+            ->toBeTrue("{$carte->nom} : mécanique « {$mecanique} » sans lecteur déclaré.");
+
+        $portees[$mecanique] = true;
+
+        // Les techniques du Moine vivent DANS la carte de style : elles doivent
+        // passer le même contrôle, sinon quatre cartes en cacheraient huit.
+        foreach ((array) ($carte->effet['techniques'] ?? []) as $technique) {
+            $interne = $technique['effet']['mecanique'] ?? null;
+
+            expect(array_key_exists((string) $interne, CapacitesInnees::MECANIQUES))
+                ->toBeTrue("{$technique['nom']} : technique sans lecteur déclaré.");
+
+            $portees[$interne] = true;
+        }
+    }
+
+    foreach (array_keys(CapacitesInnees::MECANIQUES) as $declaree) {
+        expect(array_key_exists($declaree, $portees))
+            ->toBeTrue("« {$declaree} » est déclarée lue, mais aucune carte ne la porte.");
+    }
+});
+
 it('attache les capacités de carte à la création, sans coûter de point', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

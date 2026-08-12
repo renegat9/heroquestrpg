@@ -67,6 +67,50 @@ final class CapacitesInnees
             ->first(fn (Competence $c) => ($c->effet['mecanique'] ?? null) === $mecanique);
     }
 
+    /**
+     * VOCABULAIRE des capacités de carte : une mécanique par ligne, et le
+     * lecteur qui l'applique. Même garde-fou que `MotsClesEquipement` et
+     * `DureeEffet` — et pour la même raison : une capacité annoncée au joueur
+     * que rien n'applique est une promesse non tenue, et c'est ce que le projet
+     * retire depuis des semaines.
+     *
+     * `CapacitesInneesTest` la vérifie DANS LES DEUX SENS : aucune mécanique du
+     * seeder hors de cette liste, et aucune ligne d'ici que plus aucune carte ne
+     * porte. Ajouter une capacité, c'est donc lui écrire un lecteur — ou
+     * renoncer à la semer.
+     *
+     * @var array<string, string>  mécanique => lecteur
+     */
+    public const MECANIQUES = [
+        // Barde
+        'bonus_des_defense_sans_metal' => 'MoteurSorts::desDefenseHeros()',
+        // Rogue
+        'attaque_supplementaire_arme' => 'ResolveurTour::ambidextrie()',
+        'franchit_figures' => 'Grille::autoriserFranchissement()',
+        'bonus_des_attaque_flanc' => 'ResolveurTour::frapper()',
+        // Chevalier
+        'plancher_pv' => 'MoteurReactions::resoudre()',
+        'annule_degats_voisin' => 'MoteurReactions::proposerAuVoisin()',
+        'defi_errant' => 'MoteurReactions::proposerDefi()',
+        // Berserker
+        'sacrifice_pv_pour_des' => 'ResolveurTour::payerLaFurie()',
+        'riposte' => 'MoteurReactions::riposter()',
+        'attaque_balayee' => 'ResolveurTour::resoudreAttaqueBalayee()',
+        // Explorateur
+        'bonus_or_tresor' => 'ResolveurTour::appliquerButin()',
+        'repiocher_carte_piege' => 'ResolveurTour::piocherAvecSixiemeSens()',
+        'alerte_pieges_adjacents' => 'MoteurPieges::controlerChemin()',
+        // Moine — la carte de style, puis ses deux techniques
+        'style_elementaire' => 'StylesElementaires',
+        'saut_piege_automatique' => 'ResolveurTour::resoudreFranchissement()',
+        'bonus_des_attaque_mains_nues' => 'ResolveurTour::activerPoingDeMontagne()',
+        'fouille_complete' => 'ResolveurTour::resoudreJet()',
+        'deplacement_scinde' => 'ResolveurTour::marquerCreneau()',
+        'annule_degats' => 'MoteurReactions::proposer()',
+        'rayon' => 'ResolveurTour::resoudreRayon()',
+        'degat_differe' => 'ResolveurTour::resoudreDegatDiffere()',
+    ];
+
     /** Fréquences déclarées par les cartes, et la colonne qui les compte. */
     private const COMPTEURS = [
         'une_fois_par_quete' => 'capacites_utilisees',
