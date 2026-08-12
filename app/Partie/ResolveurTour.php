@@ -113,6 +113,7 @@ final class ResolveurTour
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly MoteurDegats $degats,
+        private readonly CapacitesInnees $capacites,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
         private readonly Sauvegarde $sauvegarde,
@@ -381,6 +382,14 @@ final class ResolveurTour
         $traverseRoche = $this->sorts->traverseRoche($personnage);
 
         $grille = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
+
+        // MOBILITÉ DE COMBAT (Rogue) : « You may move UNSEEN through spaces
+        // occupied by monsters. » Exactement `agile` côté héros — le mobilier
+        // et les figures cessent de barrer, **les murs non** : la carte parle
+        // des cases occupées, pas de la pierre.
+        if ($this->capacites->a($personnage, 'franchit_figures')) {
+            $grille->autoriserFranchissement();
+        }
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
         if ($chemin === null || $chemin === []) {
@@ -641,6 +650,13 @@ final class ResolveurTour
         // Tir précis (nœud elfe) : +1 dé d'attaque sur un tir à distance véritable.
         $bonusTirPrecis = $tirADistance && $this->possedeCompetence($personnage, 'Tir précis') ? 1 : 0;
 
+        // FRAPPE OPPORTUNISTE (Rogue) : « +1 extra combat die when attacking a
+        // monster next to another hero ». Le pendant exact du `tacticien` des
+        // monstres, mais côté héros — et il faut un AUTRE héros au contact de
+        // la cible, jamais soi-même, sinon tout corps-à-corps le déclencherait.
+        $bonusFlanc = $this->capacites->a($personnage, 'bonus_des_attaque_flanc')
+            && $this->cibleFlanqueeParUnHeros($quete, $instance, $personnage) ? 1 : 0;
+
         // Lame des Esprits : « three combat dice in attack OR four dice against
         // undead creatures such as Skeletons, Zombies and Mummies ». Le bonus
         // remplace la valeur de l'arme, il ne s'y ajoute pas — d'où un max, pas
@@ -648,7 +664,7 @@ final class ResolveurTour
         $desArmeContre = $this->desArmeContre($armePrincipale, $instance);
 
         $desAttaqueEffectifs = max(0, max((int) $personnage->des_attaque, $desArmeContre)
-            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis);
+            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc);
 
         // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
         // damage. » Aucun jet, aucune défense — le seul cas du jeu où l'attaque
@@ -724,6 +740,7 @@ final class ResolveurTour
             'malus_frayeur' => $malusFrayeur,
             'bonus_frenesie' => $bonusFrenesie,
             'bonus_tir_precis' => $bonusTirPrecis,
+            'bonus_flanc' => $bonusFlanc,
             'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
             'cible_etheree' => $ethere,
             'des_attaque_effectifs' => $desAttaqueEffectifs,
@@ -1756,7 +1773,7 @@ final class ResolveurTour
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $des,
             desDefense: ($sort->effet['defense_applicable'] ?? true)
-                ? (int) $heros->des_defense + $this->sorts->bonusDes($heros, 'bonus_des_defense')
+                ? $this->sorts->desDefenseHeros($heros)
                 : 0,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $heros->pv_body,
@@ -3382,7 +3399,7 @@ final class ResolveurTour
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: max(0, $desAttaque + $bonusFlanc),
-            desDefense: $this->sorts->defenseNulle($personnage) ? 0 : (int) $personnage->des_defense + $this->sorts->bonusDes($personnage, 'bonus_des_defense') + $bonusGardeTenace,
+            desDefense: $this->sorts->desDefenseHeros($personnage) + $bonusGardeTenace,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
@@ -3928,6 +3945,31 @@ final class ResolveurTour
      * tombés, C4 — et monstres actifs), avec une figurine exclue (celle qui
      * se déplace).
      */
+    /**
+     * Un AUTRE héros est-il au contact de ce monstre ?
+     *
+     * Frappe opportuniste du Rogue — « attacking a monster next to another
+     * hero ». ⚠ « another » : l'attaquant ne se flanque pas lui-même, sans quoi
+     * tout corps-à-corps donnerait le dé. Un héros tombé ne flanque pas non
+     * plus : il est à terre, il ne menace personne.
+     */
+    private function cibleFlanqueeParUnHeros(Quete $quete, InstanceMonstre $instance, Personnage $attaquant): bool
+    {
+        $emprise = $instance->monstre->emprise();
+        $grille = $this->grille($quete);
+
+        return $quete->etatsPersonnages()
+            ->where('personnage_id', '!=', $attaquant->id)
+            ->where('tombe', false)
+            ->whereNotNull('position_x')
+            ->get()
+            ->contains(fn ($etat) => $grille->adjacenteAEmprise(
+                (int) $instance->position_x, (int) $instance->position_y,
+                $emprise['l'], $emprise['h'],
+                (int) $etat->position_x, (int) $etat->position_y,
+            ));
+    }
+
     private function grille(
         Quete $quete,
         ?int $exceptPersonnageId = null,

@@ -120,6 +120,12 @@ function creerHeros(
 
     $groupe->personnages()->attach($personnage->id, ['ordre_initiative' => $ordre, 'actif' => true]);
 
+    // Capacités de CARTE (2026-08-12) : le helper doit produire le même héros
+    // que la vraie création, sinon un test « passe » sur une figure que
+    // l'API n'aurait jamais fabriquée. Sans effet pour les 4 classes
+    // historiques, qui n'en ont aucune.
+    app(App\Partie\CapacitesInnees::class)->attacherA($personnage);
+
     return $personnage;
 }
 

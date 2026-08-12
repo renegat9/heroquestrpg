@@ -321,6 +321,38 @@ final class MoteurSorts
     }
 
     /**
+     * Dés de défense EFFECTIFS d'un héros — le seul calcul qui fasse foi.
+     *
+     * Sept endroits reproduisaient `des_defense + bonusDes(...)` à la main :
+     * attaque de monstre, frappe de zone, charge, sorts Dread, commandement…
+     * Chaque nouvelle règle de défense devait donc être recopiée sept fois, ou
+     * ne valoir que par endroits. Elle vit ici désormais.
+     *
+     * Trois couches, dans cet ordre :
+     *  1. **Paralysé** met tout à ZÉRO — « unable to move, attack, or defend ».
+     *  2. La valeur du héros plus ses buffs de sort.
+     *  3. **Léger sur ses pieds** (Barde) : +1 dé « when you are wearing no
+     *     "metal" armor and carrying no shield ». Un bonus conditionnel, pas
+     *     une interdiction — libre à lui de s'alourdir et d'y renoncer.
+     */
+    public function desDefenseHeros(Personnage $personnage): int
+    {
+        if ($this->defenseNulle($personnage)) {
+            return 0;
+        }
+
+        $des = (int) $personnage->des_defense + $this->bonusDes($personnage, 'bonus_des_defense');
+
+        $leger = app(CapacitesInnees::class)->noeud($personnage, 'bonus_des_defense_sans_metal');
+
+        if ($leger !== null && ! app(Equipement::class)->porteMetalOuBouclier($personnage)) {
+            $des += (int) ($leger->effet['valeur'] ?? 1);
+        }
+
+        return max(0, $des);
+    }
+
+    /**
      * Une CONDITION portée annule-t-elle la défense ?
      *
      * « Paralyzed for 3 turns — unable to move, attack, OR DEFEND » (Flamme

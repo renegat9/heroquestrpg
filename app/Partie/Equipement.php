@@ -390,6 +390,28 @@ final class Equipement
      * s'additionnerait pièce par pièce — deux armures lourdes ne se cumulent
      * d'ailleurs pas, elles partagent un slot.
      */
+    /**
+     * Le héros porte-t-il du MÉTAL (armure) ou un bouclier ?
+     *
+     * Carte du Barde : « when you are wearing no "metal" armor and carrying no
+     * shield you have 1 extra defend die ». Le métal se reconnaît au tag de
+     * maîtrise — `armure_legere` et `armure_lourde` sont les deux familles
+     * d'armure du catalogue, la cape et les brassards du magicien
+     * (`armure_magicien`) n'en sont pas.
+     */
+    public function porteMetalOuBouclier(Personnage $personnage): bool
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->contains(fn ($ligne) => in_array(
+                $ligne->objet?->tag_equipement,
+                ['armure_legere', 'armure_lourde', 'bouclier'],
+                true,
+            ));
+    }
+
     public function valeurEffetPorte(Personnage $personnage, string $cle): int
     {
         return (int) $personnage->inventaire()

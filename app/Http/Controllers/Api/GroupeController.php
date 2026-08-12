@@ -17,6 +17,7 @@ use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurSorts;
+use App\Partie\CapacitesInnees;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -376,31 +377,10 @@ class GroupeController extends Controller
         // Barde, Druide, Warlock : leurs 3 sorts sont FIXES, pas choisis.
         $sorts->attacherRepertoireClasse($personnage, $classe);
 
-        $this->attacherCapacitesInnees($personnage, $classe);
+        app(CapacitesInnees::class)->attacherA($personnage);
         $this->equiperDepart($personnage, $classe);
 
         return $personnage;
-    }
-
-    /**
-     * Capacités de CARTE, attachées d'emblée et sans coûter de point.
-     *
-     * Au plateau la carte vient avec la figurine : un Chevalier arrive avec
-     * *Stalwart*, un Rogue avec *Ambidextrous*. Elles vivent dans `competences`
-     * (marquées `innee`) pour réutiliser tout l'outillage d'arbre déjà écrit —
-     * le pivot, la lecture par `$personnage->competences()`, l'affichage — sans
-     * jamais entrer dans le décompte des points dépensés.
-     *
-     * Les 4 classes historiques n'en ont aucune, et c'est voulu : aucune carte
-     * officielle ne leur en donne.
-     */
-    private function attacherCapacitesInnees(Personnage $personnage, string $classe): void
-    {
-        $innees = Competence::where('classe', $classe)->where('innee', true)->pluck('id');
-
-        if ($innees->isNotEmpty()) {
-            $personnage->competences()->syncWithoutDetaching($innees->all());
-        }
     }
 
     /**
