@@ -5,11 +5,15 @@ declare(strict_types=1);
 use App\Jobs\GenererMenu;
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Inventaire;
+use App\Models\Objet;
 use App\Models\Quete;
+use App\Partie\Equipement;
 use App\Partie\Marche\CapaciteSac;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\ObjetSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
@@ -29,7 +33,7 @@ beforeEach(function () {
     config(['services.anthropic.api_key' => null]);
 
     $this->seed([ClasseHerosSeeder::class, CompetenceSeeder::class, MonstreSeeder::class,
-        TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+        TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class, ObjetSeeder::class]);
 });
 
 function idNoeudCompetence(string $classe, string $nom): int
@@ -282,4 +286,69 @@ it('un jet de Mind sans nœud correspondant au contexte ne reçoit aucun avantag
         ->assertStatus(202)
         ->assertJsonPath('resultat.bonus_avantage_mind', 0)
         ->assertJsonPath('resultat.des_lances', 1);
+});
+
+it('garde le bonus PERMANENT d\'un nœud quand on équipe quoi que ce soit', function () {
+    // ⚠ Aucun nœud du catalogue n'est aujourd'hui dans ce cas — les neuf nœuds à
+    // dés portent tous une `condition`. Le test fabrique donc le premier nœud
+    // permanent à dés, précisément pour que la trappe reste fermée le jour où le
+    // seeder en sèmera un : `recalculerCombat` ÉCRASE la colonne, et tant qu'il
+    // ignorait l'arbre, le premier « équiper » venu effaçait le bonus en silence.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+
+    $noeud = Competence::create([
+        'classe' => 'barbare', 'nom' => 'Bras d\'airain', 'type' => 'passif',
+        'description' => "+1 dé d'attaque, toujours.",
+        'effet' => ['mecanique' => 'bonus_des_attaque', 'valeur' => 1],
+    ]);
+    $heros->update(['niveau' => 2]);
+
+    $this->postJson('/api/groupes/table-1/competences', [
+        'personnage_id' => $heros->id, 'competence_id' => $noeud->id,
+    ])->assertCreated();
+
+    // Le nœud est visible tout de suite : 1 dé de classe + 1.
+    expect((int) $heros->fresh()->des_attaque)->toBe(2);
+
+    // …et il SURVIT à l'équipement, qui reconstruit pourtant la colonne.
+    $epee = Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Épée large')->firstOrFail()->id,
+        'quantite' => 1, 'emplacement' => 'sac',
+    ]);
+    app(Equipement::class)->equiper($heros->fresh(), $epee);
+
+    // L'arme REMPLACE les dés de classe (3), le nœud s'y AJOUTE (+1).
+    expect((int) $heros->fresh()->des_attaque)->toBe(4);
+
+    // …et au déséquipement on revient à la classe + le nœud, jamais à la classe
+    // seule (c'est là que le bonus disparaissait).
+    app(Equipement::class)->desequiper($heros->fresh(), $epee->fresh());
+
+    expect((int) $heros->fresh()->des_attaque)->toBe(2);
+});
+
+it('ne compte JAMAIS un passif conditionnel dans la colonne', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Krogar', 1, ['classe' => 'nain']);
+    $heros->update(['niveau' => 2]);
+
+    // Garde tenace : « +1 dé de défense à la PREMIÈRE attaque du combat » — lu
+    // en situation par ResolveurTour. Dans la colonne, il vaudrait pour toutes.
+    $noeud = Competence::where('classe', 'nain')->where('nom', 'Garde tenace')->firstOrFail();
+    $defenseAvant = (int) $heros->des_defense;
+
+    $this->postJson('/api/groupes/table-1/competences', [
+        'personnage_id' => $heros->id, 'competence_id' => $noeud->id,
+    ])->assertCreated();
+
+    expect((int) $heros->fresh()->des_defense)->toBe($defenseAvant);
+
+    // Et un recalcul complet ne le fait pas apparaître non plus.
+    app(Equipement::class)->recalculerCombat($heros->fresh());
+
+    expect((int) $heros->fresh()->des_defense)->toBe($defenseAvant);
 });

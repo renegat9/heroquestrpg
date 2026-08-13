@@ -482,10 +482,27 @@ final class Equipement
             ->max(fn ($ligne) => (int) (($ligne->objet?->effet ?? [])[$cle] ?? 0));
     }
 
+    /**
+     * Reconstruit `des_attaque` / `des_defense` depuis TOUTES leurs sources :
+     * les dés de classe, les **nœuds passifs permanents** (arbre de
+     * compétences), l'équipement porté et les améliorations de Forge.
+     *
+     * ⚠ C'est un recalcul COMPLET, pas un delta — et c'est ce qui impose d'y
+     * faire entrer les compétences. La méthode écrase la colonne : tant qu'elle
+     * ignorait l'arbre, le premier « équiper » venu effaçait en silence le +1
+     * permanent qu'un nœud y avait posé (le mapping de
+     * `CompetenceController::EFFETS_PASSIFS` l'y écrivait bel et bien). Aucun
+     * nœud du catalogue n'est aujourd'hui dans ce cas — les neuf nœuds à dés
+     * portent tous une `condition` — mais la trappe était armée pour le
+     * premier qui n'en aurait pas.
+     *
+     * Un passif CONDITIONNEL n'y entre jamais : Frénésie et Garde tenace sont
+     * lues en situation par `ResolveurTour`, les compter ici les doublerait.
+     */
     public function recalculerCombat(Personnage $personnage): void
     {
         $base = ClasseHeros::where('nom', $personnage->classe)->first();
-        $defense = (int) ($base?->des_defense ?? 2);
+        $defense = (int) ($base?->des_defense ?? 2) + $this->bonusPermanent($personnage, 'bonus_des_defense');
 
         $portes = $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
@@ -526,9 +543,14 @@ final class Equipement
 
         $effet = (array) ($arme?->objet?->effet ?? []);
 
+        // L'ARME REMPLACE les dés de classe (l'arme fait l'attaque, doc 03 §8) ;
+        // le bonus d'un nœud permanent, lui, s'AJOUTE — c'est le héros qui
+        // frappe mieux, pas l'arme qui coupe plus.
         if (isset($effet['des_attaque'])) {
             $attaque = (int) $effet['des_attaque'];
         }
+
+        $attaque += $this->bonusPermanent($personnage, 'bonus_des_attaque');
 
         $portes = $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
@@ -542,6 +564,24 @@ final class Equipement
         }
 
         return max(0, $attaque);
+    }
+
+    /**
+     * Somme des nœuds PASSIFS PERMANENTS portant cette mécanique.
+     *
+     * La règle « permanent » vit dans `Competence::estBonusPermanent()`, point
+     * de passage unique partagé avec `CompetenceController` : c'est lui qui
+     * pose le bonus à l'acquisition, c'est ici qu'on le rejoue à chaque
+     * recalcul. Les deux doivent trancher pareil, sinon le bonus est doublé
+     * d'un côté ou perdu de l'autre.
+     */
+    private function bonusPermanent(Personnage $personnage, string $mecanique): int
+    {
+        return (int) $personnage->competences()
+            ->get(['competences.id', 'competences.type', 'competences.effet'])
+            ->filter(fn (Competence $c) => ($c->effet['mecanique'] ?? null) === $mecanique
+                && $c->estBonusPermanent())
+            ->sum(fn (Competence $c) => (int) ($c->effet['valeur'] ?? 0));
     }
 
     /**

@@ -494,6 +494,16 @@ deplacement_base/bonus_sac` +n) sont appliqués au personnage ; les nœuds
 `actif`/`deblocage` sont seulement enregistrés (résolution ultérieure). *Œil du
 mineur* (Nain) est lu par le moteur de pièges dès acquisition.
 
+⚠ Un passif portant une **`condition`** (Frénésie « sous la moitié des PV »,
+Garde tenace « à la première attaque du combat ») n'est **pas** un bonus
+permanent : il n'entre dans aucune colonne et se résout en situation — l'y
+mettre le ferait valoir tout le temps. La règle est unique
+(`Competence::estBonusPermanent()`). Et les deux colonnes de dés
+(`des_attaque`, `des_defense`) appartiennent à `Equipement::recalculerCombat()`,
+qui les **reconstruit** depuis toutes leurs sources — classe + nœuds permanents
++ équipement + Forge — à chaque changement d'équipement : elles ne reçoivent
+donc jamais de delta à l'acquisition, sous peine d'être comptées deux fois.
+
 Broadcast canal `groupe.{identifiant}` : `.niveau.monte`
 ({personnages: [{id, nom, niveau, points_competence, gains: [...]}]}) émis à la
 clôture victorieuse d'une quête à jalon, avant `.groupe.etat`.

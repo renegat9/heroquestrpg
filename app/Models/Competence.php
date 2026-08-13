@@ -32,6 +32,28 @@ class Competence extends Model
         ];
     }
 
+    /**
+     * Ce nœud est-il un bonus PERMANENT et chiffré — c'est-à-dire quelque chose
+     * qui doit vivre dans une colonne du personnage, et non être résolu en
+     * situation ?
+     *
+     * Deux conditions, et la seconde est celle qui compte : un passif portant
+     * une `condition` (Frénésie « sous la moitié des PV », Garde tenace « à la
+     * première attaque du combat ») n'est PAS permanent — il est lu au moment
+     * où il s'applique. L'ajouter à la colonne le compterait deux fois.
+     *
+     * ⚠ Point de passage UNIQUE de cette règle : `CompetenceController`
+     * l'applique à l'acquisition, `Equipement::recalculerCombat()` la rejoue à
+     * chaque changement d'équipement. Les deux DOIVENT trancher pareil — sinon
+     * un bonus est perdu d'un côté ou doublé de l'autre.
+     */
+    public function estBonusPermanent(): bool
+    {
+        return $this->type === 'passif'
+            && ! isset($this->effet['condition'])
+            && (int) ($this->effet['valeur'] ?? 0) !== 0;
+    }
+
     /** Nœud parent dans l'arbre. */
     public function prerequis(): BelongsTo
     {

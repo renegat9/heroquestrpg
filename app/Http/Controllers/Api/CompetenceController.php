@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Competence;
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurSorts;
 use App\Support\Journal;
@@ -201,10 +202,18 @@ class CompetenceController extends Controller
      * Applique les effets passifs CHIFFRÉS d'un nœud aux colonnes du
      * personnage (mapping EFFETS_PASSIFS) ; tout le reste — actif,
      * deblocage, passif conditionnel ou non chiffré — est sans effet ici.
+     *
+     * ⚠ `des_attaque` / `des_defense` font exception : ces deux colonnes
+     * appartiennent à `Equipement::recalculerCombat()`, qui les RECONSTRUIT
+     * (classe + nœuds permanents + équipement + Forge) à chaque changement
+     * d'équipement. Y ajouter un delta ici le compterait deux fois — et ne pas
+     * les recalculer du tout laisserait le bonus invisible jusqu'au prochain
+     * « équiper ». On délègue donc, et la règle du « bonus permanent » est
+     * lue des deux côtés dans `Competence::estBonusPermanent()`.
      */
     private function appliquerEffetsPassifs(Personnage $personnage, Competence $competence): void
     {
-        if ($competence->type !== 'passif' || isset($competence->effet['condition'])) {
+        if (! $competence->estBonusPermanent()) {
             return;
         }
 
@@ -212,6 +221,12 @@ class CompetenceController extends Controller
         $valeur = (int) ($competence->effet['valeur'] ?? 0);
 
         if ($colonne === null || $valeur === 0) {
+            return;
+        }
+
+        if (in_array($colonne, ['des_attaque', 'des_defense'], true)) {
+            app(Equipement::class)->recalculerCombat($personnage);
+
             return;
         }
 
