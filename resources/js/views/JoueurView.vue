@@ -6,6 +6,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import SortsElfiquesPicker from '../components/SortsElfiquesPicker.vue';
 import Vignette from '../components/ui/Vignette.vue';
 import { useApi } from '../composables/useApi';
 import { CLASSES, ELEMENTS, statutPersonnage, useGameStore } from '../store/game';
@@ -89,12 +90,32 @@ const erreurCreerPerso = ref('');
 const NB_ELEMENTS_CLASSE = { magicien: 3, elfe: 1 };
 const nbElementsRequis = computed(() => NB_ELEMENTS_CLASSE[nouvelleClasse.value] ?? 0);
 const estLanceur = computed(() => nbElementsRequis.value > 0);
+
+/* LES DEUX VOIES DE L'ELFE (doc 02 §7bis) : une école élémentaire, ou 3 sorts
+   du répertoire elfique. Exclusives — le serveur refuse les deux à la fois — et
+   elles n'engagent pas pareil : l'école est définitive, les 3 sorts elfiques se
+   rechoisissent au hub. C'est ce que dit l'aide sous les onglets. */
+const estElfe = computed(() => nouvelleClasse.value === 'elfe');
+const voieElfe = ref('ecole'); // 'ecole' | 'elfique'
+const sortsElfiquesChoisis = ref([]);
+const NB_SORTS_ELFIQUES = 3;
+
+const choixMagiqueComplet = computed(() => {
+    if (estElfe.value && voieElfe.value === 'elfique') {
+        return sortsElfiquesChoisis.value.length === NB_SORTS_ELFIQUES;
+    }
+    return !estLanceur.value || elementsChoisis.value.length === nbElementsRequis.value;
+});
 const listeElements = Object.entries(ELEMENTS).map(([k, v]) => ({ v: k, l: v.l, ic: v.ic }));
 // CLASSES = exactement les classes de `classes_heros` (cf. store/game.js).
 const listeClasses = Object.entries(CLASSES).map(([k, v]) => ({ v: k, l: v.l }));
 
 // Changer de classe remet à zéro la sélection (les quotas diffèrent).
-watch(nouvelleClasse, () => { elementsChoisis.value = []; });
+watch(nouvelleClasse, () => {
+    elementsChoisis.value = [];
+    sortsElfiquesChoisis.value = [];
+    voieElfe.value = 'ecole';
+});
 
 function toggleElement(el) {
     if (elementsChoisis.value.includes(el)) {
@@ -110,7 +131,10 @@ async function creerPersonnage() {
     erreurCreerPerso.value = '';
     try {
         const payload = { nom: nouveauNom.value.trim(), classe: nouvelleClasse.value };
-        if (estLanceur.value && elementsChoisis.value.length === nbElementsRequis.value) {
+        if (estElfe.value && voieElfe.value === 'elfique') {
+            // ⚠ JAMAIS les deux clés : le serveur refuse école + répertoire.
+            payload.sorts_elfiques = sortsElfiquesChoisis.value;
+        } else if (estLanceur.value && elementsChoisis.value.length === nbElementsRequis.value) {
             payload.elements = elementsChoisis.value;
         }
         await api.creerPersonnage(payload);
@@ -119,6 +143,8 @@ async function creerPersonnage() {
         nouveauNom.value = '';
         nouvelleClasse.value = 'barbare';
         elementsChoisis.value = [];
+        sortsElfiquesChoisis.value = [];
+        voieElfe.value = 'ecole';
         montrerCreerPerso.value = false;
     } catch (e) {
         erreurCreerPerso.value = e.message;
@@ -566,8 +592,44 @@ function libelleClasse(classe) {
                                 </label>
                             </div>
 
+                            <!-- L'ELFE choisit sa VOIE : une école élémentaire
+                                 (définitive) ou 3 sorts elfiques (rechoisissables
+                                 au hub entre deux quêtes). -->
+                            <template v-if="estElfe">
+                                <label class="joueur-lbl">Voie magique</label>
+                                <div class="joueur-mini-btns">
+                                    <button
+                                        type="button"
+                                        class="joueur-elem-btn"
+                                        :class="{ on: voieElfe === 'ecole' }"
+                                        @click="voieElfe = 'ecole'"
+                                    >
+                                        <MSym n="auto_awesome" :size="16" /> École élémentaire
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="joueur-elem-btn"
+                                        :class="{ on: voieElfe === 'elfique' }"
+                                        @click="voieElfe = 'elfique'"
+                                    >
+                                        <MSym n="forest" :size="16" /> Répertoire elfique
+                                    </button>
+                                </div>
+                                <p class="joueur-lbl-hint" style="margin: 4px 0 8px">
+                                    {{ voieElfe === 'ecole'
+                                        ? 'Trois sorts d\'un élément — choix DÉFINITIF, mais l\'arbre en ouvrira d\'autres.'
+                                        : 'Trois sorts parmi huit — rechoisissables au hub entre deux quêtes.' }}
+                                </p>
+
+                                <SortsElfiquesPicker
+                                    v-if="voieElfe === 'elfique'"
+                                    v-model="sortsElfiquesChoisis"
+                                    :max="NB_SORTS_ELFIQUES"
+                                />
+                            </template>
+
                             <!-- éléments (lanceurs : Magicien 3, Elfe 1) -->
-                            <template v-if="estLanceur">
+                            <template v-if="estLanceur && !(estElfe && voieElfe === 'elfique')">
                                 <label class="joueur-lbl">
                                     Éléments de magie
                                     <span class="joueur-lbl-hint">(choisissez {{ nbElementsRequis }})</span>
@@ -598,8 +660,7 @@ function libelleClasse(classe) {
                                 <button
                                     class="joueur-btn-primary-sm"
                                     type="submit"
-                                    :disabled="creerPersoEnCours || !nouveauNom.trim()
-                                        || (estLanceur && elementsChoisis.length < nbElementsRequis)"
+                                    :disabled="creerPersoEnCours || !nouveauNom.trim() || !choixMagiqueComplet"
                                 >
                                     <MSym n="add_circle" />
                                     {{ creerPersoEnCours ? 'Création…' : 'Créer le personnage' }}

@@ -148,7 +148,15 @@ class GroupeController extends Controller
             'classe' => ['required', Rule::exists('classes_heros', 'nom')],
             'elements' => $this->reglesElements($request->input('classe')),
             'elements.*' => ['string', 'distinct', Rule::in(MoteurSorts::ELEMENTS)],
+            // VOIE ELFIQUE (décision de René, 2026-08-11) : l'Elfe prend une
+            // école élémentaire OU 3 sorts du répertoire elfique — jamais les
+            // deux, jamais aucun des deux.
+            'sorts_elfiques' => ['sometimes', 'array', 'size:'.MoteurSorts::NB_SORTS_ELFIQUES_DEPART],
+            'sorts_elfiques.*' => ['integer', 'distinct',
+                Rule::exists('sorts', 'id')->where('element', MoteurSorts::REPERTOIRE_ELFIQUE)],
         ]);
+
+        $this->verifierVoieElfique($donnees);
 
         $personnage = $this->creerHeros(
             $sorts,
@@ -156,6 +164,7 @@ class GroupeController extends Controller
             $donnees['nom'],
             $donnees['classe'],
             $donnees['elements'] ?? null,
+            $donnees['sorts_elfiques'] ?? null,
         );
 
         return response()->json([
@@ -350,38 +359,87 @@ class GroupeController extends Controller
      *
      * @param  list<string>|null  $elements
      */
-    private function creerHeros(MoteurSorts $sorts, int $joueurId, string $nom, string $classe, ?array $elements = null): Personnage
+    /**
+     * Les DEUX VOIES de l'Elfe s'excluent : une école élémentaire, ou 3 sorts
+     * elfiques. Les deux à la fois lui donneraient 6 sorts au lieu de 3 ;
+     * aucune des deux le laisserait lanceur sans magie.
+     *
+     * ⚠ Le silence total reste permis — `elementsDepart()` retombe alors sur
+     * l'école par défaut (eau). C'est ce qui garde les anciens clients, les
+     * seeders et les helpers de test fonctionnels : ne rien dire, c'est prendre
+     * la voie historique.
+     *
+     * @param  array<string, mixed>  $donnees
+     */
+    private function verifierVoieElfique(array $donnees): void
     {
-        $base = ClasseHeros::where('nom', $classe)->firstOrFail();
+        if (($donnees['classe'] ?? null) !== MoteurSorts::CLASSE_ELFIQUE) {
+            if (isset($donnees['sorts_elfiques'])) {
+                throw ValidationException::withMessages([
+                    'sorts_elfiques' => 'Seul l\'Elfe puise dans le répertoire elfique.',
+                ]);
+            }
 
-        $personnage = Personnage::create([
-            'joueur_id' => $joueurId,
-            'nom' => $nom,
-            'classe' => $classe,
-            'niveau' => 1,
-            'attribut_body' => $base->attr_body,
-            'attribut_mind' => $base->attr_mind,
-            'pv_body_max' => $base->pv_body,
-            'pv_body' => $base->pv_body,
-            'pv_mind_max' => $base->pv_mind,
-            'pv_mind' => $base->pv_mind,
-            'des_attaque' => $base->des_attaque,
-            'des_defense' => $base->des_defense,
-            'deplacement_base' => $base->deplacement_base,
-            'or' => 0,
-        ]);
-
-        foreach (MoteurSorts::elementsDepart($classe, $elements) as $element) {
-            $sorts->attacherElement($personnage, $element);
+            return;
         }
 
-        // Barde, Druide, Warlock : leurs 3 sorts sont FIXES, pas choisis.
-        $sorts->attacherRepertoireClasse($personnage, $classe);
+        if (isset($donnees['elements'], $donnees['sorts_elfiques'])) {
+            throw ValidationException::withMessages([
+                'sorts_elfiques' => 'L\'Elfe choisit une école élémentaire OU trois sorts elfiques, pas les deux.',
+            ]);
+        }
+    }
 
-        app(CapacitesInnees::class)->attacherA($personnage);
-        $this->equiperDepart($personnage, $classe);
+    private function creerHeros(
+        MoteurSorts $sorts,
+        int $joueurId,
+        string $nom,
+        string $classe,
+        ?array $elements = null,
+        ?array $sortsElfiques = null,
+    ): Personnage {
+        $base = ClasseHeros::where('nom', $classe)->firstOrFail();
 
-        return $personnage;
+        // TRANSACTION : un héros naît en plusieurs gestes — la fiche, les sorts,
+        // les capacités innées, l'équipement de départ. Qu'un seul échoue et la
+        // ligne `personnages` restait, orpheline et injouable (attrapé par le
+        // test « exige exactement TROIS sorts » : le 422 partait bien, mais
+        // « Tricheur » existait déjà en base).
+        return DB::transaction(function () use ($base, $joueurId, $nom, $classe, $elements, $sortsElfiques, $sorts) {
+            $personnage = Personnage::create([
+                'joueur_id' => $joueurId,
+                'nom' => $nom,
+                'classe' => $classe,
+                'niveau' => 1,
+                'attribut_body' => $base->attr_body,
+                'attribut_mind' => $base->attr_mind,
+                'pv_body_max' => $base->pv_body,
+                'pv_body' => $base->pv_body,
+                'pv_mind_max' => $base->pv_mind,
+                'pv_mind' => $base->pv_mind,
+                'des_attaque' => $base->des_attaque,
+                'des_defense' => $base->des_defense,
+                'deplacement_base' => $base->deplacement_base,
+                'or' => 0,
+            ]);
+
+            // Voie elfique : les 3 sorts choisis REMPLACENT l'école de départ.
+            if ($sortsElfiques !== null) {
+                $sorts->fixerSortsElfiques($personnage, $sortsElfiques);
+            } else {
+                foreach (MoteurSorts::elementsDepart($classe, $elements) as $element) {
+                    $sorts->attacherElement($personnage, $element);
+                }
+            }
+
+            // Barde, Druide, Warlock : leurs 3 sorts sont FIXES, pas choisis.
+            $sorts->attacherRepertoireClasse($personnage, $classe);
+
+            app(CapacitesInnees::class)->attacherA($personnage);
+            $this->equiperDepart($personnage, $classe);
+
+            return $personnage;
+        });
     }
 
     /**

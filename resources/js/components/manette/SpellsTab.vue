@@ -13,6 +13,7 @@
 // POST choix) ; sinon « Lancer » reste désactivé avec la raison (épuisé /
 // pas son tour / pas proposé ce tour).
 import { computed, ref, watch } from 'vue';
+import SortsElfiquesPicker from '../SortsElfiquesPicker.vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import SpellInfoSheet from './SpellInfoSheet.vue';
@@ -26,9 +27,38 @@ const props = defineProps({
     menu: { type: Object, default: null },
     /** Choix envoyé, en attente de la résolution du moteur. */
     pending: { type: Boolean, default: false },
+    /** Au hub : le rechoix des sorts elfiques n'est offert qu'entre deux quêtes. */
+    auHub: { type: Boolean, default: false },
+    /** Envoi du rechoix en cours. */
+    rechoixEnCours: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['choose']);
+const emit = defineEmits(['choose', 'rechoisir-elfiques']);
+
+/* RECHOIX ELFIQUE (doc 02 §7bis) — réservé à l'Elfe qui a pris la voie du
+   répertoire : ses 3 sorts se rechoisissent au hub, là où une école élémentaire
+   est définitive. On le déduit de SES sorts plutôt que d'un drapeau : porter un
+   sort `elfique`, c'est avoir choisi cette voie. */
+const voieElfique = computed(() => (props.sorts ?? []).some((s) => s.element === 'elfique'));
+const rechoixOuvert = ref(false);
+const nouveauxSorts = ref([]);
+
+function ouvrirRechoix() {
+    nouveauxSorts.value = (props.sorts ?? [])
+        .filter((s) => s.element === 'elfique')
+        .map((s) => s.sort_id);
+    rechoixOuvert.value = true;
+}
+
+function confirmerRechoix() {
+    emit('rechoisir-elfiques', [...nouveauxSorts.value]);
+    rechoixOuvert.value = false;
+}
+
+// Le rechoix est refermé dès que les sorts du héros changent (le serveur a
+// répondu et /moi a été relu) : garder la feuille ouverte laisserait croire
+// que rien ne s'est passé.
+watch(() => props.sorts, () => { rechoixOuvert.value = false; });
 
 const groupes = computed(() => sortsParElement(props.sorts ?? []));
 const dispos = computed(() => (props.sorts ?? []).filter((s) => s.disponible !== false).length);
@@ -92,6 +122,30 @@ function lancerConfirme() {
             <span><MSym n="psychology" fill /> Grimoire</span>
             <span style="font-size: 12px">{{ dispos }}/{{ sorts.length }} disponibles · 1×/quête</span>
         </div>
+
+        <!-- Voie elfique : les 3 sorts se rechoisissent AU HUB, entre deux
+             quêtes (une école élémentaire, elle, est définitive). -->
+        <div v-if="voieElfique && auHub" class="spl-rechoix">
+            <template v-if="!rechoixOuvert">
+                <button class="sac-btn ghost" :disabled="rechoixEnCours" @click="ouvrirRechoix">
+                    <MSym n="swap_horiz" :size="16" /> Rechoisir mes trois sorts
+                </button>
+                <p class="spl-note">Avant de repartir, tu peux emporter d'autres sorts du répertoire.</p>
+            </template>
+            <template v-else>
+                <SortsElfiquesPicker v-model="nouveauxSorts" :max="3" />
+                <div class="spl-btns">
+                    <button
+                        class="sac-btn gold"
+                        :disabled="rechoixEnCours || nouveauxSorts.length !== 3"
+                        @click="confirmerRechoix"
+                    >Emporter ces trois-là</button>
+                    <button class="sac-btn ghost" :disabled="rechoixEnCours" @click="rechoixOuvert = false">
+                        Annuler
+                    </button>
+                </div>
+            </template>
+        </div>
         <div v-for="g in groupes" :key="g.element">
             <div class="sect-title">
                 <span :style="{ width: '9px', height: '9px', borderRadius: '50%', background: g.cle ? `var(--elem-${g.cle})` : 'var(--ink-500)' }" />
@@ -122,3 +176,11 @@ function lancerConfirme() {
         />
     </div>
 </template>
+
+<style scoped>
+/* Préfixe `spl-` : les blocs <style> globaux du projet font fuir les noms
+   génériques d'une vue à l'autre. */
+.spl-rechoix { margin: 10px 0 14px; }
+.spl-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-300, #b6a88a); }
+.spl-btns { display: flex; gap: 8px; margin-top: 8px; }
+</style>

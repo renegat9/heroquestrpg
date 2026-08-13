@@ -62,8 +62,11 @@ class GuideController extends Controller
                 ->values()
                 ->all(),
 
+            // `id` exposé : le sélecteur de sorts elfiques (création et rechoix
+            // au hub) choisit ICI ses 3 sorts et les renvoie par identifiant —
+            // sans lui, la seule liste publique du répertoire serait inutilisable.
             'sorts' => Sort::query()
-                ->get(['element', 'nom', 'type', 'difficulte_parchemin', 'effet'])
+                ->get(['id', 'element', 'nom', 'type', 'difficulte_parchemin', 'effet'])
                 ->sortBy(fn ($s) => sprintf('%d|%s', $rangElement[$s->element] ?? 9, $s->nom))
                 ->values()
                 ->all(),

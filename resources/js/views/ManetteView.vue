@@ -607,6 +607,24 @@ const equipEnCours = ref(false);
 /* `emplacement` n'est passé que pour une arme à UNE main, qui va en main droite
    ou en main gauche (dual-wielding) ; absent, le serveur prend l'emplacement
    naturel de la pièce. */
+/* Rechoix des 3 sorts elfiques (hub) : le serveur diffuse `.groupe.etat`, mais
+   c'est /moi qui porte les sorts du héros — on le relit explicitement. */
+const rechoixElfiqueEnCours = ref(false);
+
+async function rechoisirSortsElfiques(sorts) {
+    if (rechoixElfiqueEnCours.value || !monPersonnageId.value) return;
+    rechoixElfiqueEnCours.value = true;
+    try {
+        await api.rechoisirSortsElfiques(props.groupe, monPersonnageId.value, sorts);
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        rechoixElfiqueEnCours.value = false;
+    }
+}
+
 async function equiper(inventaireId, emplacement = null) {
     if (equipEnCours.value || !monPersonnageId.value) return;
     equipEnCours.value = true;
@@ -1043,7 +1061,10 @@ const navItems = computed(() => (scene.value === 'marche'
                             :sorts="mesSorts"
                             :menu="menuCourant"
                             :pending="boutonsGeles"
+                            :au-hub="auHub"
+                            :rechoix-en-cours="rechoixElfiqueEnCours"
                             @choose="choisirOption"
+                            @rechoisir-elfiques="rechoisirSortsElfiques"
                         />
                         <SacTab
                             v-else-if="tab === 'sac'"

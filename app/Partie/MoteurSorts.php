@@ -117,6 +117,17 @@ final class MoteurSorts
      */
     public const REPERTOIRE_ELFIQUE = 'elfique';
 
+    /**
+     * Combien de sorts elfiques l'Elfe emporte s'il prend cette voie : TROIS,
+     * comme les 3 sorts d'une école — les deux voies pèsent pareil, seule la
+     * liberté du choix change (8 sorts au catalogue elfique, contre un lot de
+     * 3 imposé par l'école).
+     */
+    public const NB_SORTS_ELFIQUES_DEPART = 3;
+
+    /** La classe qui a le droit de piocher dans le répertoire elfique. */
+    public const CLASSE_ELFIQUE = 'elfe';
+
     /** Mécanique des nœuds d'arbre qui débloquent un élément (CompetenceSeeder). */
     public const MECANIQUE_ELEMENT = 'emplacement_element';
 
@@ -244,6 +255,54 @@ final class MoteurSorts
     public function elementsConnus(Personnage $personnage): array
     {
         return $personnage->sorts()->pluck('element')->unique()->values()->all();
+    }
+
+    /**
+     * L'Elfe a-t-il pris la VOIE ELFIQUE plutôt qu'une école ?
+     *
+     * Déduit de ses sorts, sans colonne dédiée : porter un sort `elfique`, c'est
+     * avoir choisi cette voie. Une donnée de plus sur `personnages` aurait pu
+     * mentir dès la première divergence — celle-ci est le fait lui-même.
+     */
+    public function aRepertoireElfique(Personnage $personnage): bool
+    {
+        return $personnage->sorts()->where('element', self::REPERTOIRE_ELFIQUE)->exists();
+    }
+
+    /**
+     * Fixe les sorts elfiques du héros : les précédents partent, les choisis
+     * arrivent DISPONIBLES.
+     *
+     * Sert à la création et au RECHOIX au hub (décision de René : les 3 sorts
+     * elfiques se rechoisissent entre deux quêtes, à la différence d'une école
+     * qui est définitive). ⚠ Ne touche qu'aux sorts `elfique` : un Elfe qui a
+     * acheté une école par l'arbre garde ses éléments intacts.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Sort> sorts attachés
+     */
+    public function fixerSortsElfiques(Personnage $personnage, array $ids): Collection
+    {
+        $sorts = Sort::query()
+            ->where('element', self::REPERTOIRE_ELFIQUE)
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get();
+
+        if ($sorts->count() !== count(array_unique($ids))) {
+            throw ValidationException::withMessages([
+                'sorts' => 'Ces sorts ne font pas tous partie du répertoire elfique.',
+            ]);
+        }
+
+        $anciens = $personnage->sorts()->where('element', self::REPERTOIRE_ELFIQUE)->pluck('sorts.id');
+        $personnage->sorts()->detach($anciens->all());
+
+        foreach ($sorts as $sort) {
+            $personnage->sorts()->syncWithoutDetaching([$sort->id => ['disponible' => true]]);
+        }
+
+        return $sorts;
     }
 
     // ------------------------------------------------------------------

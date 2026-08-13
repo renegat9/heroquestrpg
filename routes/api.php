@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\MercenaireController;
 use App\Http\Controllers\Api\ParametresController;
 use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\SauvegardeController;
+use App\Http\Controllers\Api\SortsElfiquesController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
 use App\Http\Controllers\Api\ReactionController;
@@ -139,6 +140,10 @@ Route::middleware('auth:joueur')->group(function () {
     // Don d'un objet à un autre héros du groupe (doc 01 §7) — au hub : répartition
     // du butin. Depuis SES héros vers n'importe quel héros actif du groupe.
     Route::post('/groupes/{identifiant}/dons', [DonController::class, 'donner']);
+
+    // Rechoix des 3 sorts elfiques — HUB uniquement, comme équiper / Forge /
+    // dons. L'école élémentaire, elle, est définitive (doc 02 §7bis).
+    Route::put('/groupes/{identifiant}/sorts-elfiques', [SortsElfiquesController::class, 'rechoisir']);
 
     // Forge du Nain (nœud d'arbre, doc 01 §6 + doc 04 §4) — au hub uniquement,
     // améliore DÉFINITIVEMENT une pièce d'un membre actif contre de l'or commun.

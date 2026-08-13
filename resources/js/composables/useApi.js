@@ -302,6 +302,14 @@ export function useApi() {
         /** GET /api/guide → compendium public (classes, competences, monstres, objets, sorts, pieges). */
         getGuide: () => request('GET', '/guide'),
 
+        /* PUT /groupes/{id}/sorts-elfiques {personnage_id, sorts: [3]} — rechoix
+           des 3 sorts du répertoire elfique. HUB uniquement : une école
+           élémentaire, elle, est définitive (doc 02 §7bis). */
+        rechoisirSortsElfiques: (identifiant, personnageId, sorts) =>
+            request('PUT', `/groupes/${identifiant}/sorts-elfiques`, {
+                personnage_id: personnageId, sorts,
+            }),
+
         /**
          * POST /groupes/{id}/competences {personnage_id, competence_id,
          * element?} — acquiert un nœud d'arbre (422 : pas son héros, classe
