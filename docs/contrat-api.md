@@ -521,6 +521,18 @@ nb de nœuds acquis` (dérivé, toujours juste).
 | GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [ids acquis]` |
 | GET | /api/competences | — | catalogue des arbres : `[{id, classe, nom, type, effet, prerequis_id}]` |
 
+**Création d'un personnage** (`POST /api/personnages`) — `{nom, classe,
+elements?, sorts_elfiques?}`. `elements` vaut pour les lanceurs à écoles
+(Magicien 3, Elfe 1) ; **`sorts_elfiques` (3 identifiants) est la seconde voie de
+l'Elfe**, exclusive de `elements` (422 si les deux, 422 pour toute autre classe,
+422 si un identifiant n'est pas du répertoire `elfique`). Ne rien envoyer reste
+permis et vaut l'école par défaut. Le catalogue du répertoire se lit dans
+`GET /api/guide` (`sorts[]`, filtrés sur `element === 'elfique'`, `id` inclus).
+
+| Méthode | Route | Corps | Effet |
+|---|---|---|---|
+| PUT | /groupes/{identifiant}/sorts-elfiques | {personnage_id, sorts: [3]} | **rechoix** des 3 sorts elfiques — **hub uniquement**. 422 : en quête, héros d'un autre joueur, classe ≠ elfe, sorts hors répertoire, ou **Elfe parti sur une école** (ce choix-là est définitif) |
+
 À l'acquisition, les effets **passifs chiffrés** du nœud (`effet` JSON :
 `attribut_body/attribut_mind/des_attaque/des_defense/pv_body_max/pv_mind_max/
 deplacement_base/bonus_sac` +n) sont appliqués au personnage ; les nœuds

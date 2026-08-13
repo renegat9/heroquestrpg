@@ -285,6 +285,51 @@ résoudre en silence avec la mauvaise règle.
 possible. Aucun sort ne l'utilise à `false` aujourd'hui, mais la clé **pilote**
 désormais le jet au lieu de le décrire.
 
+## 6 bis. Les mots-clés des RÉPERTOIRES DE CLASSE (2026-08-12)
+
+Semés avec les sorts du Barde, du Druide, du Warlock et le répertoire elfique.
+Tous ont un lecteur — c'est la condition pour être semés — et aucun n'invente de
+valeur : chacun traduit une phrase de carte.
+
+| clé | ce qu'elle fait | lecteur | sort porteur |
+|---|---|---|---|
+| `zone` | `salle_du_lanceur` : le sort ne se cible pas, il **balaie la salle ou le couloir du lanceur** | `ResolveurTour::sortDeZone()` / `soinDeZone()` | Flamme hypnotique, Chant de guérison |
+| `condition_monstre` | pose sur un MONSTRE une condition de `MoteurSorts::CONDITIONS_MONSTRE` (`terrifie`, `ralenti`, `paralyse`, `endormi`, `saute_tour`) | `InstanceMonstre::attaqueEffective()` / `defenseEffective()` | Terreur, Ralentissement, Flamme hypnotique |
+| `seuil_mind_max` | s'applique **sans jet** aux créatures dont le Mind est au niveau ou en dessous du seuil | `ResolveurTour::sortMental()` | Sommeil profond |
+| `exclut_soi` | « any hero you can see, **excluding yourself** » : le lanceur sort de la liste des cibles | `MoteurSorts::ciblesLegales()` | Conte inspirant |
+| `condition_bonus_attaque` | le bonus de dés ne vaut que dans un contexte (`au_contact`) | `MoteurSorts::bonusDes()` | Métamorphose |
+| `image_miroir` | un leurre encaisse le coup sur 1-3 d'un d6, **sans décision du joueur** | écouteur `App\Listeners\ImageMiroir` | Image double |
+| `tour_supplementaire` | le tour ne s'achève pas, il **recommence** | `ResolveurTour::marquerCreneau()` | Arrêt du temps |
+| `regain` | à quel ÉVÉNEMENT le sort redevient lançable (§4 bis) | `MoteurSorts::regagnerSorts()` | Métamorphose, Forme démoniaque, Conte inspirant |
+| `reaction` | le sort s'active **hors tour**, quand son porteur encaisse (§4 ter) | `MoteurReactions::sortReactifDisponible()` | Ailes sombres |
+| `ignore_pieges_fosse` | « the warlock ignores pit traps » — la FOSSE seulement | `MoteurPieges::declencher()` via `aBuff()` | Forme démoniaque |
+
+⚠ **`jet_contre_mind` a été retiré le 2026-08-13.** Il décrivait la règle du
+sort de zone — *1 d6 par figure, touchée si le dé dépasse son Mind* — sans que
+personne ne le lise : c'est `zone: salle_du_lanceur` qui route vers
+`sortDeZone()`, dont **la règle est le chemin lui-même**. Troisième mot supprimé
+plutôt que laissé décoratif, après `cout` et `heros_ou_soi`. Dette nommée en
+échange, dans le code : le jour où un sort de zone infligera des DÉGÂTS et non
+une condition, ce routage devra se scinder.
+
+### Deux conditions neuves (`conditions`, ConditionSeeder)
+
+| condition | effet | durée | posée par |
+|---|---|---|---|
+| **Paralysé** | `deplacement_interdit` + `action_interdite` + `defense_nulle` | 3 tours | Flamme hypnotique |
+| **Évanescent** | `action_interdite` + `inattaquable` + `ignore_pieges` | jusqu'à rupture | Évanescence |
+
+⚠ Les deux **interdisent l'action, pas le même reste**, et c'est ce qui les rend
+jouables : l'Évanescent **marche encore et ouvre les portes** — c'est tout
+l'intérêt du sort —, quand le Paralysé ne fait plus rien du tout et **ne pare
+même plus**. `MenuMoteur` retire les options correspondantes, `ResolveurTour`
+refuse l'action si elle arrive quand même.
+
+L'Évanescence ne s'éteint pas au compteur mais sur un **jet de déplacement ≥ 5**
+(décision de René, 2026-08-12) : le plateau lit 9+ sur 2 dés rouges — un peu plus
+d'une chance sur quatre — et nous 5+ sur notre unique d6, soit une sur trois.
+C'est l'approximation la plus proche que permet un seul dé.
+
 ## 7. Mots déclarés dont la MÉCANIQUE N'EXISTE PAS
 
 `MotsClesSort::NON_IMPLEMENTES` recense les mots qu'on peut écrire dans un

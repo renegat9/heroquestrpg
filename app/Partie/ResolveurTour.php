@@ -2670,6 +2670,16 @@ final class ResolveurTour
      */
     private function sortDeZone(Quete $quete, Sort $sort, Personnage $lanceur): array
     {
+        // ⚠ La règle de ce chemin — **1 d6 par figure, touchée si le dé dépasse
+        // son Mind** — est portée par le chemin lui-même, pas par une clé.
+        // `jet_contre_mind` l'a décrite jusqu'au 2026-08-13 sans que personne ne
+        // la lise : retirée, comme `cout` et `heros_ou_soi` avant elle. C'est
+        // `zone: salle_du_lanceur` qui route ici.
+        //
+        // Dette nommée : le jour où un sort de zone infligera des DÉGÂTS plutôt
+        // qu'une condition, ce routage devra se scinder — il applique
+        // aujourd'hui le jet mental à tout ce qui passe.
+
         $lanceurId = (int) $lanceur->id;
 
         $etatLanceur = $quete->etatsPersonnages()->where('personnage_id', $lanceurId)->first();

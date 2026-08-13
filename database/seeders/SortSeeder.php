@@ -174,8 +174,12 @@ class SortSeeder extends Seeder
             // ⚠ Frappe TOUTE FIGURE, alliés compris : cohérent avec notre tir
             // ami assumé (doc 02 §5, S3).
             ['element' => 'elfique', 'nom' => 'Flamme hypnotique', 'type' => 'mental', 'difficulte_parchemin' => 3,
+                // ⚠ Pas de `jet_contre_mind` : la clé a été retirée le 2026-08-13,
+                // elle n'était lue par PERSONNE. C'est `zone: salle_du_lanceur`
+                // qui route vers `ResolveurTour::sortDeZone()`, dont la règle EST
+                // le d6 par figure contre son Mind.
                 'effet' => ['cible' => 'soi', 'zone' => 'salle_du_lanceur',
-                    'jet_contre_mind' => true, 'condition_appliquee' => 'Paralysé',
+                    'condition_appliquee' => 'Paralysé',
                     'condition_monstre' => 'paralyse']],
 
             // « The hero can only move and open doors. They cannot attack,

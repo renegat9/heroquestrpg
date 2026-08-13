@@ -119,9 +119,31 @@ se mélange pas avec eux.
 | **Flashback** | le lanceur ou un héros **rejoue son tour entier**, tous les résultats du premier étant annulés ; lançable **après le tour de n'importe quel héros** ; **ne compte pas comme action** | ❌ demande d'**annuler un tour résolu** — le moteur ne sait pas revenir en arrière |
 | **Slow** | un monstre tombe à **1 case** de déplacement et **−1 dé** en attaque comme en défense (jamais sous 1) ; dure jusqu'à sa mort ou sa **sortie de la ligne de vue** du lanceur | ✅ malus de dés + de déplacement, tout existe |
 | **Double Image** | cible le lanceur ou un héros ; si une attaque le touche, **1 dé rouge** : sur **1-3** c'est l'image qui est frappée et le héros ne subit rien ; rompu dès que le héros ne voit plus de monstre | ✅ **un lecteur de `HerosVaSubirDegats`** — annulation AUTOMATIQUE sur jet, sans choix du joueur, donc portable telle quelle |
-| **Hypnotic Blaze** | toute figure de la salle ou du couloir **sauf le lanceur** jette 1 dé rouge ; **≤ Mind** = indemne, **> Mind** = **paralysée 3 tours** (ni bouger, ni attaquer, ni défendre) | ⚠ vrai sort de **zone**, mot-clé retiré faute de source — celle-ci en est une |
+| **Hypnotic Blaze** | toute figure de la salle ou du couloir **sauf le lanceur** jette 1 dé rouge ; **≤ Mind** = indemne, **> Mind** = **paralysée 3 tours** (ni bouger, ni attaquer, ni défendre) | ✅ **porté** sous le nom *Flamme hypnotique* — le premier vrai sort de zone, `zone: salle_du_lanceur` |
 | **Deep Sleep** | tout monstre en ligne de vue ayant **1 à 3 Mind** s'endort **immédiatement**, jusqu'au prochain tour de Zargon ; **ne peut pas défendre** pendant ce temps | ✅ notre *Sommeil*, sans jet de résistance et avec un seuil de Mind |
 | **Timestop** | le lanceur ou un héros **rejoue un tour immédiatement** après le sien | ✅ motif `attaque_supplementaire` étendu au tour entier |
+
+### Comment l'Elfe choisit — et rechoisit
+
+Porté le 2026-08-13. Les deux voies s'excluent **à la création**
+(`POST /personnages` : `elements: [1]` **ou** `sorts_elfiques: [3]`, jamais les
+deux, 422 sinon), mais elles n'engagent pas pareil :
+
+| voie | ce qu'il emporte | après |
+|---|---|---|
+| **École élémentaire** | les 3 sorts d'un élément | **définitive** — mais l'arbre en ouvre d'autres (*Première magie*, *Second élément*) |
+| **Répertoire elfique** | 3 sorts parmi 8 | **rechoisissables au hub**, entre deux quêtes (`PUT /groupes/{id}/sorts-elfiques`) |
+
+⚠ C'est cette asymétrie qui équilibre les deux voies, et elle est **gardée
+côté serveur** : un Elfe parti sur une école se voit refuser le rechoix. Sans
+cela, la voie élémentaire serait strictement meilleure — même liberté, **plus**
+la progression par l'arbre. Réciproquement, le répertoire donne 8 sorts pour
+3 emplacements : on emporte ce que la prochaine quête semble demander, et on
+n'entre jamais dans le donjon sans avoir tranché.
+
+La voie prise se **déduit des sorts du héros** (porter un sort `elfique`, c'est
+avoir choisi cette voie) plutôt que d'une colonne : un drapeau aurait pu mentir
+dès la première divergence.
 
 **Ce que ce répertoire apporte au moteur, au-delà de l'Elfe :**
 
