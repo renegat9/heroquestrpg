@@ -320,11 +320,26 @@ annuler viderait la mécanique du jeton. Fenêtre de décision : **45 s**
 422 et la manette répond `false` d'elle-même plutôt que d'afficher une feuille
 morte.
 
-⚠ **Limite assumée** : un coup qui achève le **dernier** héros debout provoque
-le TPK en fin de round, avant que le joueur ait pu répondre ; la quête passe
-`echouee` et la proposition est refusée. Un héros qui tombe pendant que ses
-compagnons tiennent debout, lui, est bien relevé par sa réaction. Le groupe
-garde `/reprise` pour l'autre cas.
+**Le TPK attend la réponse** (2026-08-13). Un coup qui achève le **dernier**
+héros debout concluait le round en `echouee` avant que le téléphone ait sonné :
+la potion arrivait sur une quête déjà perdue. Le verdict de fin de round est
+désormais **suspendu** tant qu'une proposition capable de relever quelqu'un
+attend — `annule_degats`, `plancher_pv`, `annule_degats_voisin`, `soin_urgence`
+(ni `riposte` ni `defi_errant` : ils frappent, ils ne relèvent personne). La
+quête reste `en_cours`, tout le monde à terre, et c'est la **réponse** qui
+tranche : accepter la relève, refuser prononce le TPK.
+
+⚠ Un round suspendu ne prend **aucun snapshot** `nouveau_tour` : un instantané
+« tout le monde au sol » deviendrait faux dès la potion bue, et c'est lui que
+`/reprise` rechargerait.
+
+⚠ Si personne ne répond — téléphone verrouillé, appli fermée — l'expiration
+côté serveur **n'atteint aucun client**. Le rattrapage
+(`MoteurReactions::rattraperExpiration()`) purge les propositions périmées et
+reprend le verdict ; il est appelé au **battement de cœur de la table**
+(`POST /table/ping`, le seul ticker fiable) et à chaque **`GET /etat`** pour une
+partie jouée sans écran de table. Sans lui, un groupe entièrement à terre
+resterait en quête pour toujours.
 
 ## Votes de groupe (doc 05 §5)
 

@@ -100,6 +100,16 @@ function provoquerTpk(Groupe $groupe, Personnage $mage, Quete $quete): void
 
     attendreEtPhaseMonstres(array_fill(0, 60, 1));
 
+    // ⚠ Depuis le SOIN D'URGENCE (2026-08-13), le dernier héros à tomber se voit
+    // proposer sa potion ou son sort de soin, et le TPK est SUSPENDU tant qu'il
+    // n'a pas répondu — c'est tout l'objet de la mécanique. Le mage porte un
+    // sort de soin : il faut donc qu'il refuse pour que la quête tombe.
+    if ($etat->fresh()->reaction_en_attente !== null) {
+        test()->postJson('/api/groupes/table-1/reaction', [
+            'personnage_id' => $mage->id, 'accepte' => false,
+        ])->assertOk();
+    }
+
     expect($quete->fresh()->etat)->toBe('echouee')
         ->and($groupe->fresh()->phase)->toBe('hub');
 }

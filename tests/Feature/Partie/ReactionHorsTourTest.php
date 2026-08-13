@@ -453,3 +453,115 @@ it('laisse le héros à terre s\'il refuse', function () {
     expect((int) $heros->fresh()->pv_body)->toBe(0)
         ->and(App\Models\Inventaire::find($potion->id))->not->toBeNull();
 });
+
+/*
+ * TPK SUSPENDU — le cas que le soin d'urgence ne pouvait pas honorer.
+ *
+ * Un coup qui achève le DERNIER héros debout concluait le round en `echouee`
+ * avant que le téléphone ait sonné : la potion arrivait sur une quête déjà
+ * perdue, et le moment le plus dramatique du jeu se jouait sans son joueur. Le
+ * verdict attend désormais la réponse — et, si elle ne vient jamais, la fenêtre
+ * qui expire le tranche à sa place.
+ */
+
+it('SUSPEND le TPK tant que le dernier héros tombé peut encore se soigner', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    potionDeSoin($heros);
+    $heros->update(['pv_body' => 1]);
+
+    // Seul héros de la quête : sa chute est un TPK.
+    desFiges(array_fill(0, 60, 1)); // crânes partout : le gobelin frappe et touche
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $quete = $ctx['quete']->fresh();
+
+    // ⚠ La quête TIENT : tout le monde est à terre, mais une offre attend.
+    expect((int) $heros->fresh()->pv_body)->toBe(0)
+        ->and((bool) $ctx['etatHeros']->fresh()->tombe)->toBeTrue()
+        ->and($quete->etat)->toBe('en_cours')
+        ->and($ctx['etatHeros']->fresh()->reaction_en_attente['action'])->toBe('soin_urgence');
+
+    // Il boit : il se relève, et la quête continue pour de bon.
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => true,
+    ])->assertOk()->assertJsonPath('reaction.debout', true);
+
+    expect($ctx['quete']->fresh()->etat)->toBe('en_cours')
+        ->and((bool) $ctx['etatHeros']->fresh()->tombe)->toBeFalse()
+        ->and($ctx['groupe']->fresh()->phase)->toBe('quete');
+});
+
+it('conclut le TPK dès que le joueur REFUSE', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    potionDeSoin($heros);
+    $heros->update(['pv_body' => 1]);
+
+    desFiges(array_fill(0, 60, 1));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    expect($ctx['quete']->fresh()->etat)->toBe('en_cours');
+
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => false,
+    ])->assertOk();
+
+    // C'est ce « non » qui tranche.
+    expect($ctx['quete']->fresh()->etat)->toBe('echouee')
+        ->and($ctx['groupe']->fresh()->phase)->toBe('hub');
+});
+
+it('tranche le TPK quand la fenêtre expire sans réponse — le groupe ne reste jamais figé', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    potionDeSoin($heros);
+    $heros->update(['pv_body' => 1]);
+
+    desFiges(array_fill(0, 60, 1));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    expect($ctx['quete']->fresh()->etat)->toBe('en_cours');
+
+    // Téléphone verrouillé, appli fermée : personne ne répond jamais. Une
+    // expiration côté serveur n'atteint AUCUN client — sans rattrapage, le
+    // groupe resterait à terre, en quête, pour toujours.
+    $this->travel(ReactionEffet::FENETRE_SECONDES + 5)->seconds();
+
+    expect(app(App\Partie\MoteurReactions::class)->rattraperExpiration($ctx['groupe']->fresh()))->toBeTrue();
+
+    expect($ctx['quete']->fresh()->etat)->toBe('echouee')
+        ->and($ctx['groupe']->fresh()->phase)->toBe('hub')
+        ->and($ctx['etatHeros']->fresh()->reaction_en_attente)->toBeNull();
+});
+
+it('rattrape aussi l\'expiration au battement de cœur de la table', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    potionDeSoin($heros);
+    $heros->update(['pv_body' => 1]);
+
+    desFiges(array_fill(0, 60, 1));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    // La table ouvre le groupe par son code, puis bat la mesure toutes les 15 s.
+    $this->postJson('/api/table', ['code' => 'table-1'])->assertOk();
+    $this->travel(ReactionEffet::FENETRE_SECONDES + 5)->seconds();
+    $this->postJson('/api/table/ping')->assertNoContent();
+
+    expect($ctx['quete']->fresh()->etat)->toBe('echouee');
+});
+
+it('ne suspend RIEN pour une réaction qui ne relève personne', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    $heros->update(['pv_body' => 1]);
+
+    // Aucun remède, aucune capacité : rien ne peut le relever, le verdict tombe
+    // tout de suite — c'est le comportement historique, et il ne bouge pas.
+    desFiges(array_fill(0, 60, 1));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    expect($ctx['quete']->fresh()->etat)->toBe('echouee')
+        ->and($ctx['groupe']->fresh()->phase)->toBe('hub');
+});

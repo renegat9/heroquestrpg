@@ -15,6 +15,7 @@ use App\Engine\ResultatAttaque;
 use App\Engine\SortMental;
 use App\Engine\TypeDegat;
 use App\Engine\TypeFigurine;
+use App\Engine\ReactionEffet;
 use App\Engine\RegainEffet;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
@@ -93,6 +94,18 @@ final class ResolveurTour
      * @var list<string>
      */
     private const OPTIONS_FOUILLE_ZONE = ['fouiller', 'fouiller_pierre'];
+
+    /** Au moins un héros tient encore debout : la quête continue. */
+    public const CHUTE_DEBOUT = 'debout';
+
+    /**
+     * Tout le monde est à terre, mais une réaction attend une réponse qui peut
+     * relever quelqu'un : le verdict est REPORTÉ, pas rendu.
+     */
+    public const CHUTE_SUSPENDUE = 'suspendu';
+
+    /** Tout le monde est à terre et plus rien ne peut l'empêcher : quête échouée. */
+    public const CHUTE_TPK = 'tpk';
 
     /** Nœud barbare (CompetenceSeeder) : +1 dé d'attaque sous la moitié des PV de Body. */
     public const NOEUD_FRENESIE = 'Frénésie';
@@ -3946,18 +3959,19 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
-        // Tous les héros tombés → quête échouée, retour au hub : le groupe
-        // vote recharger (POST reprise) ou abandonner (doc 05 §6) — les
-        // snapshots de la quête sont CONSERVÉS pour la reprise.
-        if (! $quete->etatsPersonnages()->where('tombe', false)->exists()) {
-            $quete->update(['etat' => 'echouee']);
-            Journal::ajouter($groupe, 'systeme', ['action' => 'quete_echouee', 'quete_id' => $quete->id]);
-            $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+        $verdict = $this->verdictDeChute($groupe, $quete);
 
-            // Alliés (3.5) consommés même en cas d'échec de la quête.
-            GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
-
+        if ($verdict === self::CHUTE_TPK) {
             return ['actions' => $actions];
+        }
+
+        // SUSPENDU : tout le monde est à terre, mais une réaction attend encore
+        // une réponse qui peut relever quelqu'un. On ne conclut pas — et on ne
+        // snapshotte pas non plus : un instantané « tout le monde au sol » pris
+        // maintenant deviendrait faux dès que le joueur boit sa potion, et
+        // c'est lui que `/reprise` rechargerait.
+        if ($verdict === self::CHUTE_SUSPENDUE) {
+            return ['actions' => $actions, 'tpk_suspendu' => true];
         }
 
         // Snapshot `nouveau_tour` après la phase des monstres (contrat
@@ -3965,6 +3979,57 @@ final class ResolveurTour
         $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
 
         return ['actions' => $actions];
+    }
+
+    /**
+     * Verdict de chute du groupe : `debout`, `suspendu`, ou `tpk` — et dans ce
+     * dernier cas la quête est close sur place.
+     *
+     * ⚠ Le cas `suspendu` est la raison d'être de cette méthode. Le coup qui
+     * achevait le DERNIER héros debout concluait le round en `echouee` avant que
+     * le joueur ait pu répondre à sa réaction : sa potion arrivait sur une quête
+     * déjà perdue, et le moment le plus dramatique du jeu se jouait sans lui.
+     * Tant qu'une offre CAPABLE de relever (`ACTIONS_RELEVANTES`) attend, on ne
+     * tranche pas. Le verdict est repris à la résolution de l'offre — et, si le
+     * téléphone ne répond jamais, à son expiration (`rattraperExpiration`).
+     *
+     * Idempotent : appelable autant de fois qu'on veut, il ne referme pas une
+     * quête déjà close.
+     */
+    public function verdictDeChute(Groupe $groupe, Quete $quete): string
+    {
+        if ($quete->etat !== 'en_cours') {
+            return self::CHUTE_TPK; // déjà tranché
+        }
+
+        if ($quete->etatsPersonnages()->where('tombe', false)->exists()) {
+            return self::CHUTE_DEBOUT;
+        }
+
+        $enAttente = $quete->etatsPersonnages()
+            ->whereNotNull('reaction_en_attente')
+            ->get()
+            ->contains(fn (EtatPersonnageQuete $e) => in_array(
+                (string) ($e->reaction_en_attente['action'] ?? ''),
+                ReactionEffet::ACTIONS_RELEVANTES,
+                true,
+            ));
+
+        if ($enAttente) {
+            return self::CHUTE_SUSPENDUE;
+        }
+
+        // Tous les héros tombés → quête échouée, retour au hub : le groupe
+        // vote recharger (POST reprise) ou abandonner (doc 05 §6) — les
+        // snapshots de la quête sont CONSERVÉS pour la reprise.
+        $quete->update(['etat' => 'echouee']);
+        Journal::ajouter($groupe, 'systeme', ['action' => 'quete_echouee', 'quete_id' => $quete->id]);
+        $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+
+        // Alliés (3.5) consommés même en cas d'échec de la quête.
+        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+
+        return self::CHUTE_TPK;
     }
 
     /**

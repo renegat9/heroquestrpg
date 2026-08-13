@@ -101,6 +101,25 @@ final class ReactionEffet
             self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE];
     }
 
+    /**
+     * Actions dont l'acceptation peut REMETTRE UN HÉROS DEBOUT — et qui, tant
+     * qu'elles attendent une réponse, SUSPENDENT le verdict de TPK.
+     *
+     * ⚠ C'est la liste qui empêche la partie la plus dramatique du jeu de se
+     * jouer sans son joueur : le coup qui achève le dernier héros debout
+     * concluait le round en `echouee` avant que le téléphone ait sonné, et
+     * l'offre arrivait sur une quête déjà perdue. La riposte du Berserker et le
+     * défi du Chevalier n'y sont pas : ils frappent, ils ne relèvent personne.
+     *
+     * @var list<string>
+     */
+    public const ACTIONS_RELEVANTES = [
+        self::ANNULE_DEGATS,
+        self::PLANCHER_PV,
+        self::ANNULE_DEGATS_VOISIN,
+        self::SOIN_URGENCE,
+    ];
+
     /** @return list<string> */
     public static function declencheurs(): array
     {

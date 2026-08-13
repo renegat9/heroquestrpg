@@ -16,6 +16,7 @@ use App\Models\Competence;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
+use App\Partie\MoteurReactions;
 use App\Partie\MoteurSorts;
 use App\Partie\CapacitesInnees;
 use App\Support\Journal;
@@ -423,6 +424,13 @@ class GroupeController extends Controller
 
         if (! $this->peutVoirGroupe($request, $groupe)) {
             abort(403, 'Accès refusé : vous n\'êtes ni membre ni la table de ce groupe.');
+        }
+
+        // Second filet, pour une partie jouée SANS écran de table (donc sans
+        // battement de cœur) : une proposition de réaction périmée est purgée
+        // ici aussi, et le verdict de chute repris avec elle. Idempotent.
+        if (app(MoteurReactions::class)->rattraperExpiration($groupe)) {
+            $groupe = $groupe->fresh();
         }
 
         return response()->json($etatGroupe->payload($groupe));

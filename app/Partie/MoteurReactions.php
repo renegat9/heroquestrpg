@@ -29,11 +29,15 @@ use Illuminate\Validation\ValidationException;
  * coup si le joueur accepte. Ce n'est pas un pis-aller : décider APRÈS avoir
  * vu le résultat est une meilleure décision, et c'est ainsi qu'on joue.
  *
- * ⚠ Limite assumée : un coup qui achève le DERNIER héros debout provoque un
- * TPK en fin de round, avant que le joueur ait pu répondre — la quête est alors
- * `echouee` et la proposition refusée. Un héros qui tombe pendant que ses
- * compagnons tiennent debout, lui, peut parfaitement être relevé par sa
- * réaction. Le groupe garde `/reprise` pour l'autre cas.
+ * Le coup qui achève le DERNIER héros debout a longtemps été le trou de cette
+ * mécanique : le TPK se prononçait en fin de round, avant que le téléphone ait
+ * sonné, et la réaction arrivait sur une quête déjà `echouee` — le moment le
+ * plus dramatique du jeu se jouait sans son joueur. Depuis le 2026-08-13 le
+ * verdict est SUSPENDU tant qu'une offre capable de relever quelqu'un attend
+ * (`ReactionEffet::ACTIONS_RELEVANTES`, `ResolveurTour::verdictDeChute`), et il
+ * se tranche à la réponse — ou, si elle ne vient jamais, à l'expiration de la
+ * fenêtre (`rattraperExpiration`, appelée au battement de cœur de la table et à
+ * chaque lecture d'état).
  */
 final class MoteurReactions
 {
@@ -525,6 +529,10 @@ final class MoteurReactions
         $etat->update(['reaction_en_attente' => null]);
 
         if (! $accepte) {
+            // ⚠ Refuser peut CONCLURE le TPK : si le groupe ne tenait encore
+            // que par cette offre en attente, c'est ce « non » qui tranche.
+            $this->reprendreVerdictDeChute($groupe);
+
             return ['type' => 'reaction', 'sort' => $attente['nom'] ?? null, 'active' => false];
         }
 
@@ -618,6 +626,7 @@ final class MoteurReactions
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+        $this->reprendreVerdictDeChute($groupe);
 
         return $payload;
     }
@@ -778,6 +787,7 @@ final class MoteurReactions
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+        $this->reprendreVerdictDeChute($groupe);
 
         return $payload;
     }
@@ -845,6 +855,77 @@ final class MoteurReactions
             'monstre' => $attente['monstre'] ?? null,
             'frappe' => $frappe,
         ];
+    }
+
+    /**
+     * Reprend le verdict de chute maintenant qu'une offre est consommée.
+     *
+     * Le TPK a pu être SUSPENDU en fin de round parce que cette réaction
+     * attendait (`ResolveurTour::verdictDeChute`) : c'est ici qu'il se tranche,
+     * dans un sens ou dans l'autre. Sans ce rappel, un groupe entièrement à
+     * terre resterait en quête pour toujours.
+     *
+     * `app()` plutôt qu'une injection : le résolveur dépend de `MoteurDegats`,
+     * qui dépend de ce moteur-ci — le conteneur boucterait.
+     */
+    private function reprendreVerdictDeChute(Groupe $groupe): void
+    {
+        $quete = $groupe->fresh()->queteCourante;
+
+        if ($quete !== null && $quete->etat === 'en_cours') {
+            app(ResolveurTour::class)->verdictDeChute($groupe, $quete);
+        }
+    }
+
+    /**
+     * RATTRAPAGE : consomme les propositions dont la fenêtre est passée, puis
+     * reprend le verdict de chute. Rend `true` si quelque chose a bougé.
+     *
+     * ⚠ Filet indispensable, et la leçon a déjà été payée une fois avec le
+     * verrou « MJ réfléchit » : **une expiration côté serveur n'atteint aucun
+     * client**. Si le joueur ne répond jamais — téléphone verrouillé, appli
+     * fermée, batterie morte — sa proposition reste en attente, et avec elle un
+     * verdict de TPK suspendu : le groupe resterait figé à terre, en quête,
+     * sans que rien ne puisse plus trancher. On repasse donc ici à chaque
+     * battement de cœur de la table et à chaque lecture d'état.
+     */
+    public function rattraperExpiration(Groupe $groupe): bool
+    {
+        $quete = $groupe->queteCourante;
+
+        if ($quete === null || $quete->etat !== 'en_cours') {
+            return false;
+        }
+
+        $purgees = 0;
+
+        foreach ($quete->etatsPersonnages()->whereNotNull('reaction_en_attente')->with('personnage')->get() as $etat) {
+            $attente = (array) $etat->reaction_en_attente;
+            $expire = $attente['expire_a'] ?? null;
+
+            if ($expire === null || now()->lessThanOrEqualTo($expire)) {
+                continue;
+            }
+
+            $etat->update(['reaction_en_attente' => null]);
+            $purgees++;
+
+            Journal::ajouter($groupe, 'combat', [
+                'type' => 'reaction',
+                'personnage' => $etat->personnage?->nom,
+                'action' => $attente['action'] ?? null,
+                'active' => false,
+                'raison' => 'Fenêtre de réaction écoulée.',
+            ], ['nom' => $etat->personnage?->nom ?? 'Un héros']);
+        }
+
+        if ($purgees === 0) {
+            return false;
+        }
+
+        app(ResolveurTour::class)->verdictDeChute($groupe, $quete);
+
+        return true;
     }
 
     /**

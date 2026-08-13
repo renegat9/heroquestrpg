@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api;
 use App\Events\MjReflechit;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
+use App\Partie\MoteurReactions;
+use App\Events\EtatGroupeDiffuse;
 use App\Partie\EtatGroupe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -84,6 +86,15 @@ class TableController extends Controller
         }
 
         Cache::put(self::cleActive($groupe->id), true, now()->addSeconds(self::TTL_PRESENCE_SECONDES));
+
+        // Battement de cœur = le seul TICKER fiable de la partie. On en profite
+        // pour rattraper les propositions de réaction dont la fenêtre est
+        // passée : une expiration côté serveur n'atteint aucun client, et un
+        // TPK suspendu par une offre sans réponse laisserait le groupe figé à
+        // terre, en quête, pour toujours (App\Partie\MoteurReactions).
+        if (app(MoteurReactions::class)->rattraperExpiration($groupe)) {
+            EtatGroupeDiffuse::dispatch($groupe->fresh(), app(EtatGroupe::class)->payload($groupe->fresh()));
+        }
 
         return response()->noContent();
     }
