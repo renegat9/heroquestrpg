@@ -39,6 +39,10 @@ class ReactionController extends Controller
         $donnees = $request->validate([
             'personnage_id' => ['required', 'integer'],
             'accepte' => ['required', 'boolean'],
+            // Soin d'urgence : QUELLE potion / QUEL sort — `potion:{id}` ou
+            // `sort:{id}`. La légalité est revalidée contre la liste déposée
+            // dans la proposition, jamais prise pour argent comptant.
+            'soin' => ['sometimes', 'nullable', 'string', 'max:32'],
         ]);
 
         /** @var Personnage|null $heros */
@@ -53,7 +57,9 @@ class ReactionController extends Controller
             ]);
         }
 
-        $resultat = $this->reactions->resoudre($groupe, $heros, (bool) $donnees['accepte']);
+        $resultat = $this->reactions->resoudre(
+            $groupe, $heros, (bool) $donnees['accepte'], $donnees['soin'] ?? null,
+        );
 
         // Les PV ont pu remonter et le héros se relever : tout le monde doit le
         // voir, table comprise.

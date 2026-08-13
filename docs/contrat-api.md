@@ -259,11 +259,29 @@ dépend, « annuler les dégâts » étant faux pour trois d'entre elles :
 | `annule_degats_voisin` | *Parade au bouclier* (Chevalier) | annule le coup d'un héros **au contact** : la proposition va au PROTECTEUR, les PV rendus à la victime (`victime_id`) |
 | `riposte` | *Représailles* (Berserker) | **n'annule rien** : le Berserker encaisse et attaque aussitôt le monstre (`instance_id`), adjacence revérifiée à la résolution |
 | `defi_errant` | *Défi du chevalier* | détourne sur soi le monstre errant qui vient de surgir : il se place au contact et frappe immédiatement |
+| `soin_urgence` | — (potion / sort du héros) | le héros vient de **tomber** : il dépense une potion ou un sort de soin pour rester debout |
 
 ⚠ `defi_errant` a un **déclencheur à part** (`errant_revele`) : c'est la seule
 réaction qui ne parte pas d'un coup encaissé, mais d'une carte de fouille qui
 fait surgir un errant dans la salle. `degats` y vaut 0 — la manette doit donc
 lire `action` avant d'écrire « tu viens d'encaisser… ».
+
+⚠ **`soin_urgence` est la seule qui ne DÉFAIT rien : elle paie.** Elle n'est
+proposée que si le héros tombe **à 0 PV** et qu'il lui reste un remède, et elle
+arrive **après** toutes les autres — une capacité comme *Inébranlable* ne coûte
+aucun objet, autant qu'elle passe d'abord. Deux conséquences :
+
+- la proposition porte **`soins: [{cle, type, nom, soin}]`** — `cle` vaut
+  `potion:{inventaire_id}` ou `sort:{sort_id}`, potions d'abord. La manette
+  affiche **un bouton par remède** (le choix compte : une potion se consomme
+  pour de bon, un sort revient à la quête suivante), et la réponse porte
+  `soin` : `POST /reaction {personnage_id, accepte, soin?}`. ⚠ `soins` **est la
+  liste blanche** — une clé absente retombe sur la première entrée proposée,
+  jamais sur l'inventaire d'un compagnon ;
+- elle vaut **quelle que soit la cause de la chute**, y compris `piege` et
+  `rejeton`, hors de `SOURCES_REACTIVES`. Cette liste répond à « quel coup
+  peut-on annuler ? » ; se soigner n'annule rien, et refuser la potion à un
+  héros tombé dans une fosse n'aurait aucun sens à la table.
 
 **Ordre des opérations, et il est délibéré.** La phase des monstres se résout
 dans la requête HTTP d'un *autre* joueur, à l'intérieur d'une transaction :

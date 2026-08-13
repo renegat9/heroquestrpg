@@ -432,6 +432,9 @@ watch(monPerso, (p) => {
             action: attente.action,
             victime: attente.victime,
             contexte: attente.contexte,
+            // Sans la liste des remèdes, une manette rechargée afficherait un
+            // « Rester debout » sans rien à boire.
+            soins: attente.soins,
             source: attente.source,
             degats: attente.degats,
             expire_dans: 20, // on ignore depuis quand elle attend : fenêtre courte
@@ -441,12 +444,14 @@ watch(monPerso, (p) => {
     }
 });
 
-async function repondreReaction(accepte) {
+/* `soin` (optionnel) : la clé du remède choisi pour un soin d'urgence
+   (`potion:{id}` / `sort:{id}`). Les autres réactions n'ont rien à choisir. */
+async function repondreReaction(accepte, soin = null) {
     if (reactionEnCours.value) return;
     const perso = reactionProposee.value?.personnage_id ?? monPersonnageId.value;
     reactionEnCours.value = true;
     try {
-        await api.repondreReaction(props.groupe, perso, accepte);
+        await api.repondreReaction(props.groupe, perso, accepte, soin);
     } catch (e) {
         store.setNarration(e.message);
     } finally {

@@ -82,11 +82,23 @@ final class ReactionEffet
      */
     public const DEFI_ERRANT = 'defi_errant';
 
+    /**
+     * Action : le héros vient de TOMBER et dépense une potion ou un sort de
+     * soin pour rester debout (demande de René, 2026-08-13).
+     *
+     * ⚠ La seule réaction qui n'annule, ne rende ni ne détourne rien : elle
+     * PAIE. C'est aussi la seule qui vaille quelle que soit la cause de la
+     * chute — `SOURCES_REACTIVES` dit quel coup peut être défait, pas qui a le
+     * droit de se soigner. Mourir avec une potion au sac est la frustration la
+     * plus bête du jeu ; au plateau, on la boit.
+     */
+    public const SOIN_URGENCE = 'soin_urgence';
+
     /** @return list<string> */
     public static function actionsToutes(): array
     {
         return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
-            self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT];
+            self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE];
     }
 
     /** @return list<string> */

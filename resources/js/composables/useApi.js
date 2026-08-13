@@ -255,9 +255,12 @@ export function useApi() {
          * du jeu qui arrive pendant le tour de quelqu'un d'autre. Ne passe donc
          * pas par /choix, qui suppose que c'est le vôtre.
          */
-        repondreReaction: (identifiant, personnageId, accepte) =>
+        repondreReaction: (identifiant, personnageId, accepte, soin = null) =>
             request('POST', `/groupes/${identifiant}/reaction`, {
                 personnage_id: personnageId, accepte,
+                // Soin d'urgence : quel remède dépenser (`potion:{id}` /
+                // `sort:{id}`). Les autres réactions n'ont rien à choisir.
+                ...(soin ? { soin } : {}),
             }),
 
         /**

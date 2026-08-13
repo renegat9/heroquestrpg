@@ -60,11 +60,12 @@ const LIBELLE_ACTION = {
     plancher_pv: 'Tenir debout (1 PV)',
     riposte: 'Riposter aussitôt',
     defi_errant: 'Le défier — qu\'il vienne à toi',
+    soin_urgence: 'Rester debout',
 };
 
 /* Un bouclier sur un bouton qui REND le coup serait un contresens : la
    Représailles du Berserker n'encaisse rien, elle frappe. */
-const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords' };
+const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords', soin_urgence: 'healing' };
 
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
 
@@ -76,6 +77,13 @@ const degats = computed(() => Number(props.reaction.degats ?? 0));
    Le texte du coup serait un mensonge (« tu viens d'encaisser 0 PV »). */
 const defi = computed(() => props.reaction.action === 'defi_errant');
 const monstre = computed(() => props.reaction.contexte?.monstre ?? props.reaction.monstre ?? 'Un monstre errant');
+
+/* SOIN D'URGENCE : le héros vient de tomber et il lui reste de quoi tenir. Un
+   bouton PAR remède — potion ou sort —, parce que le choix compte : une potion
+   se consomme pour de bon, un sort revient à la quête suivante. La liste vient
+   du serveur, qui la revalide à la résolution. */
+const soins = computed(() => props.reaction.soins ?? []);
+const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && soins.value.length > 0);
 </script>
 
 <template>
@@ -87,7 +95,11 @@ const monstre = computed(() => props.reaction.contexte?.monstre ?? props.reactio
                 {{ reaction.sort }}
             </h3>
 
-            <p v-if="defi" class="rx-coup">
+            <p v-if="soinUrgence" class="rx-coup">
+                Tu tombes sous <b>{{ degats }} PV</b> de dégâts — {{ origine }}.
+                Il te reste de quoi tenir.
+            </p>
+            <p v-else-if="defi" class="rx-coup">
                 <b>{{ monstre }}</b> surgit dans ta salle, attiré par
                 <b>{{ reaction.victime }}</b>. Le prendre sur toi : il se place à ton
                 contact et frappe aussitôt.
@@ -107,16 +119,33 @@ const monstre = computed(() => props.reaction.contexte?.monstre ?? props.reactio
             </div>
 
             <div class="rx-actions">
-                <button class="rx-btn oui" :disabled="pending" @click="emit('repondre', true)">
+                <!-- Un bouton par remède : le joueur choisit CE qu'il dépense. -->
+                <template v-if="soinUrgence">
+                    <button
+                        v-for="s in soins"
+                        :key="s.cle"
+                        class="rx-btn oui"
+                        :disabled="pending"
+                        @click="emit('repondre', true, s.cle)"
+                    >
+                        <MSym :n="s.type === 'potion' ? 'science' : 'auto_awesome'" :size="18" fill />
+                        {{ s.type === 'potion' ? 'Boire' : 'Lancer' }} {{ s.nom }} (+{{ s.soin }} PV)
+                    </button>
+                </template>
+                <button v-else class="rx-btn oui" :disabled="pending" @click="emit('repondre', true)">
                     <MSym :n="ICONE_ACTION[reaction.action] || 'shield'" :size="18" fill />
                     {{ LIBELLE_ACTION[reaction.action] || 'Annuler les dégâts' }}
                 </button>
                 <button class="rx-btn non" :disabled="pending" @click="emit('repondre', false)">
-                    Laisser passer
+                    {{ soinUrgence ? 'Tomber' : 'Laisser passer' }}
                 </button>
             </div>
 
-            <p class="rx-note">Activer dépense cette capacité pour la quête.</p>
+            <p class="rx-note">
+                {{ soinUrgence
+                    ? 'La potion est consommée ; un sort se recharge à la quête suivante.'
+                    : 'Activer dépense cette capacité pour la quête.' }}
+            </p>
         </div>
     </div>
 </template>

@@ -54,7 +54,7 @@ final class MoteurReactions
         string $source,
         array $contexte = [],
     ): void {
-        if ($degats <= 0 || ! in_array($source, ReactionEffet::SOURCES_REACTIVES, true)) {
+        if ($degats <= 0) {
             return;
         }
 
@@ -65,6 +65,16 @@ final class MoteurReactions
 
         if ($etat === null || $etat->reaction_en_attente !== null) {
             return; // hors quête, ou une proposition attend déjà : pas d'empilement
+        }
+
+        // Les réactions qui DÉFONT le coup sont réservées aux COUPS : c'est le
+        // sens de `SOURCES_REACTIVES`. Le soin d'urgence, lui, ne défait rien —
+        // il se paie — et vaut donc quelle que soit la cause de la chute (plus
+        // bas).
+        if (! in_array($source, ReactionEffet::SOURCES_REACTIVES, true)) {
+            $this->proposerSoinUrgence($etat, $heros, $degats, $source, $contexte);
+
+            return;
         }
 
         // 1. La VICTIME elle-même : un sort réactif, ou une capacité de carte.
@@ -155,6 +165,114 @@ final class MoteurReactions
         // distinct dans la proposition, et une adjacence revérifiée à la
         // résolution (les figures ont pu bouger entre-temps).
         $this->proposerAuVoisin($etat, $heros, $degats, $source, $contexte);
+
+        // 3. DERNIER RECOURS — le héros vient de tomber et il lui restait de
+        // quoi tenir. Proposé après tout le reste, et c'est voulu : une
+        // capacité « once per quest » comme *Inébranlable* ne coûte aucun
+        // objet, mieux vaut qu'elle passe d'abord.
+        if ($etat->fresh()->reaction_en_attente === null) {
+            $this->proposerSoinUrgence($etat, $heros, $degats, $source, $contexte);
+        }
+    }
+
+    /**
+     * SOIN D'URGENCE (demande de René, 2026-08-13) — « quand le joueur tombe,
+     * lui offrir d'utiliser une potion ou un sort de soin pour rester en vie ».
+     *
+     * Mourir avec une potion au sac est la frustration la plus bête du jeu : au
+     * plateau, on la boit — le canon dit d'ailleurs qu'une potion se boit à
+     * TOUT MOMENT, y compris pendant le tour d'un monstre (`MoteurPotions`).
+     * Notre boucle, elle, résout la phase des monstres d'un bloc : le héros
+     * tombait sans qu'on lui demande rien.
+     *
+     * ⚠ Contrairement aux autres réactions, celle-ci vaut quelle que soit la
+     * CAUSE de la chute — coup de monstre, sort de Dread, piège, jetons de
+     * rejeton. La liste `SOURCES_REACTIVES` répond à la question « quel coup
+     * peut-on ANNULER ? » ; ici on n'annule rien, on dépense une ressource pour
+     * rester debout. Refuser le soin à un héros tombé dans une fosse n'aurait
+     * eu aucun sens à la table.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    private function proposerSoinUrgence(
+        EtatPersonnageQuete $etat,
+        Personnage $heros,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): void {
+        // Seulement s'il TOMBE : un héros qui garde des PV se soignera à son
+        // tour, sans qu'on l'interrompe.
+        if ((int) $heros->pv_body > 0) {
+            return;
+        }
+
+        $soins = $this->soinsDisponibles($heros);
+
+        if ($soins === []) {
+            return;
+        }
+
+        $this->deposer($etat, $heros, $heros, [
+            'action' => ReactionEffet::SOIN_URGENCE,
+            'nom' => 'Rester debout',
+            'description' => "Tu tombes. Il te reste de quoi te soigner — c'est maintenant ou jamais.",
+            'soins' => $soins,
+        ], $degats, $source, $contexte);
+    }
+
+    /**
+     * Ce dont le héros dispose pour se soigner LUI-MÊME, potions d'abord.
+     *
+     * Chaque entrée porte une `cle` (`potion:{inventaire_id}` /
+     * `sort:{sort_id}`) : c'est elle que le joueur renvoie, et c'est la LISTE
+     * BLANCHE que la résolution revalide — même principe que
+     * `parametres.cibles` pour une attaque.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function soinsDisponibles(Personnage $heros): array
+    {
+        $soins = [];
+
+        foreach ($heros->inventaire()->with('objet')->get() as $ligne) {
+            $effet = (array) ($ligne->objet?->effet ?? []);
+
+            if ($ligne->objet?->categorie !== 'consommable'
+                || (! isset($effet['soin_pv_body']) && ! isset($effet['soin_pv_body_de']))) {
+                continue;
+            }
+
+            $soins[] = [
+                'cle' => "potion:{$ligne->id}",
+                'type' => 'potion',
+                'nom' => $ligne->objet->nom,
+                // Une fiole de fouille soigne 1d6 : on annonce le dé, pas un
+                // chiffre qu'on ne connaît pas encore.
+                'soin' => isset($effet['soin_pv_body_de'])
+                    ? '1d'.(int) $effet['soin_pv_body_de']
+                    : (string) (int) $effet['soin_pv_body'],
+            ];
+        }
+
+        foreach ($heros->sorts()->wherePivot('disponible', true)->get() as $sort) {
+            $soin = (int) (($sort->effet['soin_pv_body'] ?? 0));
+
+            // Un soin de ZONE se lance sur les héros vus : hors sujet ici, le
+            // lanceur est à terre et c'est lui qu'il s'agit de relever.
+            if ($soin <= 0) {
+                continue;
+            }
+
+            $soins[] = [
+                'cle' => "sort:{$sort->id}",
+                'type' => 'sort',
+                'nom' => $sort->nom,
+                'soin' => (string) $soin,
+            ];
+        }
+
+        return $soins;
     }
 
     /**
@@ -387,7 +505,7 @@ final class MoteurReactions
      *
      * @return array<string, mixed>  compte rendu, journalisable
      */
-    public function resoudre(Groupe $groupe, Personnage $heros, bool $accepte): array
+    public function resoudre(Groupe $groupe, Personnage $heros, bool $accepte, ?string $soin = null): array
     {
         $etat = EtatPersonnageQuete::query()
             ->where('personnage_id', $heros->id)
@@ -442,6 +560,11 @@ final class MoteurReactions
         // cible et frappe, ici et maintenant.
         if ($action === ReactionEffet::DEFI_ERRANT) {
             return $this->releverLeDefi($groupe, $heros, $etat, $attente);
+        }
+
+        // SOIN D'URGENCE : on ne défait rien, on paie pour rester debout.
+        if ($action === ReactionEffet::SOIN_URGENCE) {
+            return $this->soigner($groupe, $heros, $etat, $attente, $soin);
         }
 
         if ($action === ReactionEffet::PLANCHER_PV) {
@@ -564,6 +687,99 @@ final class MoteurReactions
             'source' => $attente['source'] ?? null,
             'frappe' => $frappe,
         ];
+    }
+
+    /**
+     * Boit la potion ou lance le sort choisi, puis remet le héros debout si les
+     * PV sont revenus au-dessus de zéro.
+     *
+     * ⚠ La `cle` renvoyée par le joueur est revalidée contre la liste DÉPOSÉE :
+     * c'est la même règle que `parametres.cibles` pour une attaque — l'offre
+     * porte la liste blanche, et rien d'autre n'est buvable. Sans elle, un
+     * client pourrait faire boire n'importe quelle ligne d'inventaire, y compris
+     * celle d'un compagnon.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function soigner(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+        ?string $choix,
+    ): array {
+        $proposes = (array) ($attente['soins'] ?? []);
+        $cles = array_column($proposes, 'cle');
+
+        // Sans choix explicite, la première entrée — les potions d'abord. Un
+        // client ancien (ou un joueur pressé) doit pouvoir répondre « oui ».
+        $cle = $choix !== null && in_array($choix, $cles, true) ? $choix : ($cles[0] ?? null);
+
+        if ($cle === null) {
+            throw ValidationException::withMessages([
+                'reaction' => 'Plus rien à boire ni à lancer.',
+            ]);
+        }
+
+        [$type, $id] = array_pad(explode(':', $cle, 2), 2, null);
+        $avant = (int) $heros->pv_body;
+        $detail = collect($proposes)->firstWhere('cle', $cle);
+
+        if ($type === 'potion') {
+            $ligne = $heros->inventaire()->with('objet')->whereKey((int) $id)->first();
+
+            if ($ligne === null) {
+                throw ValidationException::withMessages([
+                    'reaction' => "Cette potion n'est plus dans ton sac.",
+                ]);
+            }
+
+            // Le moteur des potions fait foi : c'est lui qui connaît les soins
+            // fixes, le 1d6 de la fiole et la consommation de l'exemplaire.
+            app(MoteurPotions::class)->boire($heros, $ligne);
+        } else {
+            $sort = $heros->sorts()->wherePivot('disponible', true)->find((int) $id);
+
+            if ($sort === null) {
+                throw ValidationException::withMessages([
+                    'reaction' => "Ce sort n'est plus disponible.",
+                ]);
+            }
+
+            $heros->update(['pv_body' => min(
+                (int) $heros->pv_body_max,
+                $avant + (int) ($sort->effet['soin_pv_body'] ?? 0),
+            )]);
+            $heros->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+        }
+
+        $heros->refresh();
+        $rendus = (int) $heros->pv_body - $avant;
+
+        // Debout — c'est tout l'objet de la manœuvre. Un soin qui laisserait le
+        // héros à 0 (aucun PV rendu) le laisse à terre : la potion aura été bue
+        // pour rien, mais rien n'est inventé pour le sauver.
+        if ((int) $heros->pv_body > 0 && $etat->tombe) {
+            $etat->update(['tombe' => false]);
+        }
+
+        $payload = [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $heros->nom,
+            'sort' => $detail['nom'] ?? null,
+            'action' => ReactionEffet::SOIN_URGENCE,
+            'active' => true,
+            'soin' => $rendus,
+            'pv_body' => (int) $heros->pv_body,
+            'debout' => (int) $heros->pv_body > 0,
+            'source' => $attente['source'] ?? null,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+
+        return $payload;
     }
 
     /**
