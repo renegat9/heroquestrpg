@@ -109,6 +109,19 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
     }
 });
 
+it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
+    // ⚠ Trouvé en partie réelle le 2026-08-13, pas par les tests : la base
+    // MariaDB portait un « Eau de Guérison elfique » absent du seeder — donc
+    // absent d'une installation neuve. Le sélecteur de sorts elfiques
+    // l'offrait, et deux groupes n'auraient pas eu le même répertoire selon la
+    // date de leur base. Un seeder qui n'efface pas ne suffit pas : il faut
+    // aussi que rien ne survive à côté de lui.
+    $attendus = collect(Sort::all())->groupBy('element')->map->count();
+
+    expect($attendus[MoteurSorts::REPERTOIRE_ELFIQUE] ?? 0)->toBe(6)
+        ->and(Sort::count())->toBe(27);
+});
+
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
     expect(MoteurSorts::LANCEURS)->toBe(['magicien', 'elfe', 'barde', 'druide', 'warlock'])
         ->and(MoteurSorts::LANCEURS)->not->toContain('barbare')

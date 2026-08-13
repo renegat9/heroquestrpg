@@ -132,7 +132,7 @@ deux, 422 sinon), mais elles n'engagent pas pareil :
 | voie | ce qu'il emporte | après |
 |---|---|---|
 | **École élémentaire** | les 3 sorts d'un élément | **définitive** — mais l'arbre en ouvre d'autres (*Première magie*, *Second élément*) |
-| **Répertoire elfique** | 3 sorts parmi 8 | **rechoisissables au hub**, entre deux quêtes (`PUT /groupes/{id}/sorts-elfiques`) |
+| **Répertoire elfique** | 3 sorts parmi les **6 portés** (8 cartes, 2 hors moteur) | **rechoisissables au hub**, entre deux quêtes (`PUT /groupes/{id}/sorts-elfiques`) |
 
 ⚠ C'est cette asymétrie qui équilibre les deux voies, et elle est **gardée
 côté serveur** : un Elfe parti sur une école se voit refuser le rechoix. Sans
@@ -140,6 +140,13 @@ cela, la voie élémentaire serait strictement meilleure — même liberté, **p
 la progression par l'arbre. Réciproquement, le répertoire donne 8 sorts pour
 3 emplacements : on emporte ce que la prochaine quête semble demander, et on
 n'entre jamais dans le donjon sans avoir tranché.
+
+⚠ **6 sorts portés, pas 8** : *Twist Wood* et *Flashback* restent hors moteur
+(tableau ci-dessus). L'écran ne promet donc aucun chiffre — il affiche la liste
+réelle, et « 3 / 3 choisis ». Un sort **fantôme** s'y était d'ailleurs glissé
+(« Eau de Guérison elfique », présent en base réelle et absent du seeder,
+trouvé en jouant le 2026-08-13) : supprimé, et un test fige désormais la taille
+du catalogue.
 
 La voie prise se **déduit des sorts du héros** (porter un sort `elfique`, c'est
 avoir choisi cette voie) plutôt que d'une colonne : un drapeau aurait pu mentir

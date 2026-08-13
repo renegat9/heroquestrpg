@@ -618,7 +618,7 @@ function libelleClasse(classe) {
                                 <p class="joueur-lbl-hint" style="margin: 4px 0 8px">
                                     {{ voieElfe === 'ecole'
                                         ? 'Trois sorts d\'un élément — choix DÉFINITIF, mais l\'arbre en ouvrira d\'autres.'
-                                        : 'Trois sorts parmi huit — rechoisissables au hub entre deux quêtes.' }}
+                                        : 'Trois sorts au choix — rechoisissables au hub entre deux quêtes.' }}
                                 </p>
 
                                 <SortsElfiquesPicker
