@@ -26,6 +26,23 @@ class ClasseHerosSeeder extends Seeder
         // l'autre. Le BARBARE manie les armes à deux mains de naissance et
         // achète l'armure lourde (Maîtrise lourde) ; le NAIN porte l'armure
         // lourde de naissance et achète les armes à deux mains.
+        // ─────────── MOUVEMENT DE BASE : la RACE, plus un trait de classe ───────────
+        //
+        // ⚠ Ce socle est ENTIÈREMENT de nous : les cartes officielles ne donnent
+        // que « 2 dés rouges », sans base (divergence assumée, cf. CLAUDE.md).
+        // Il n'y a donc aucune source à respecter — seulement une cohérence à
+        // tenir, et elle ne l'était pas : l'EXPLORATEUR, qui est un nain,
+        // marchait à 5 quand le Nain marche à 3, soit plus vite que l'Elfe.
+        //
+        // Règle arbitrée par René le 2026-08-13 :
+        //
+        //   socle racial   nain 3 · halfling 3 · humain 4 · elfe 5
+        //   +1 si la classe est explicitement AGILE (sa carte la vend rapide)
+        //
+        // Races : Warlock = halfling, Explorateur = nain, Elfe = elfe, Nain =
+        // nain, tout le reste = humain. Agiles : Rogue, Moine, Berserker
+        // (4+1 = 5) et Explorateur (3+1 = 4) — un nain d'exploration reste un
+        // nain, mais le meilleur marcheur des siens.
         $classes = [
             // nom, pv_body, pv_mind, attr_body, attr_mind, attaque, defense, dépl., bonus_sac
             //
@@ -95,7 +112,7 @@ class ClasseHerosSeeder extends Seeder
             // Warlock — « follows the same rules for wearing armor as the
             // wizard » : on reprend donc EXACTEMENT le profil du magicien,
             // `armure_magicien` compris. Sa baguette est son arme.
-            ['nom' => 'warlock', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_warlock']],
+            ['nom' => 'warlock', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_warlock']],
 
             // Rogue — profil de lame agile. Pas d'armure lourde ni d'arme à
             // deux mains : ses trois capacités parlent toutes de dague et
@@ -120,7 +137,7 @@ class ClasseHerosSeeder extends Seeder
             // Explorateur — le seul 5/5 du jeu, tourné vers les pièges et le
             // deck de trésor. Profil polyvalent sans excès, proche du nain sans
             // sa plate.
-            ['nom' => 'explorateur', 'pv_body' => 5, 'pv_mind' => 5, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 2, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'arme_arc_long', 'armure_legere', 'bouclier', 'talisman_explorateur']],
+            ['nom' => 'explorateur', 'pv_body' => 5, 'pv_mind' => 5, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 2, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'arme_arc_long', 'armure_legere', 'bouclier', 'talisman_explorateur']],
         ];
 
         foreach ($classes as $classe) {

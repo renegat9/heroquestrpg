@@ -160,3 +160,37 @@ it('LÉGER SUR SES PIEDS donne un dé de défense — et le retire sous le méta
 
     expect($sorts->desDefenseHeros($barde->fresh()))->toBe($base);
 });
+
+it('donne à chaque classe le mouvement de sa RACE, plus un trait d\'agilité', function () {
+    // ⚠ Ce socle est ENTIÈREMENT de nous — les cartes ne donnent que « 2 dés
+    // rouges », sans base. Il n'y a donc rien à sourcer, seulement une
+    // cohérence à tenir : elle ne l'était pas, l'EXPLORATEUR (un nain) marchait
+    // à 5 quand le Nain marche à 3, soit plus vite que l'Elfe.
+    //
+    // Règle arbitrée par René le 2026-08-13 : socle racial (nain 3 · halfling 3
+    // · humain 4 · elfe 5), +1 si la carte de la classe la vend AGILE.
+    $attendu = [
+        'nain' => 3,          // nain
+        'warlock' => 3,       // halfling
+        'barbare' => 4,       // humain
+        'magicien' => 4,      // humain
+        'barde' => 4,         // humain
+        'druide' => 4,        // humain
+        'chevalier' => 4,     // humain
+        'explorateur' => 4,   // nain AGILE (3+1) — le meilleur marcheur des siens
+        'rogue' => 5,         // humain AGILE (4+1)
+        'moine' => 5,         // humain AGILE (4+1)
+        'berserker' => 5,     // humain AGILE (4+1)
+        'elfe' => 5,          // elfe
+    ];
+
+    foreach ($attendu as $classe => $deplacement) {
+        expect((int) App\Models\ClasseHeros::where('nom', $classe)->value('deplacement_base'))
+            ->toBe($deplacement, "{$classe} : mouvement de base hors grille raciale.");
+    }
+
+    // Aucun nain ne dépasse l'elfe, aucun halfling ne dépasse un humain : c'est
+    // l'invariant que la contradiction violait.
+    expect($attendu['explorateur'])->toBeLessThan($attendu['elfe'])
+        ->and($attendu['warlock'])->toBeLessThan($attendu['barbare']);
+});

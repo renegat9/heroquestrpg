@@ -122,6 +122,36 @@ Trois observations qui pèsent sur l'équilibrage :
 ⚠ Le **Berserker était donné « probable, non confirmé »** par
 `reference/18_extensions.md`, faute de carte : elle existe, il est jouable.
 
+### 4 bis-2. Mouvement de base — la RACE, plus un trait de classe
+
+⚠ **Entièrement de nous.** Les cartes officielles ne donnent que « 2 dés
+rouges » sans socle : notre base + 1d6 est une divergence assumée (doc 00). Il
+n'y a donc rien à sourcer ici — seulement une cohérence à tenir, et elle ne
+l'était pas. L'**Explorateur, qui est un nain**, marchait à 5 quand le Nain
+marche à 3 : plus vite que l'Elfe.
+
+Grille arbitrée par René le 2026-08-13 :
+
+| Socle racial | | Trait de classe |
+|---|---|---|
+| **nain** 3 | | **+1** si la carte vend la classe comme AGILE |
+| **halfling** 3 | | |
+| **humain** 4 | | |
+| **elfe** 5 | | |
+
+| Classe | Race | Base | Agile | Total |
+|---|---|---|---|---|
+| Nain | nain | 3 | — | **3** |
+| Warlock | halfling | 3 | — | **3** |
+| Barbare · Magicien · Barde · Druide · Chevalier | humain | 4 | — | **4** |
+| Explorateur | **nain** | 3 | +1 | **4** |
+| Rogue · Moine · Berserker | humain | 4 | +1 | **5** |
+| Elfe | elfe | 5 | — | **5** |
+
+Deux invariants, tenus par un test : **aucun nain ne dépasse l'elfe**, **aucun
+halfling ne dépasse un humain**. L'Explorateur reste un nain — simplement le
+meilleur marcheur des siens.
+
 ### 4 ter. Capacités de classe — texte des cartes
 
 **Les 17 capacités de carte sont PORTÉES et jouées** (2026-08-12) : Barde 1,
