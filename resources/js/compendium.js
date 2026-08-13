@@ -245,6 +245,16 @@ export const ELEMENT = {
 /* Ordre d'affichage des groupes de sorts : les écoles d'abord (elles sont le
    socle), puis les répertoires réservés à une classe. */
 export const ORDRE_ELEMENTS = ['feu', 'eau', 'terre', 'air', 'elfique', 'barde', 'druide', 'warlock'];
+/* RACE d'une classe (`classes_heros.race`) : elle porte le SOCLE de mouvement
+   — nain 3 · halfling 3 · humain 4 · elfe 5 — et n'existait qu'en commentaire
+   avant le 2026-08-13. */
+export const RACE = {
+    humain: { l: 'Humain', ic: 'person' },
+    nain: { l: 'Nain', ic: 'hardware' },
+    elfe: { l: 'Elfe', ic: 'nature' },
+    halfling: { l: 'Halfling', ic: 'child_care' },
+};
+
 export const TYPE_SORT = { degats: 'Dégâts', mental: 'Mental', utilitaire: 'Utilitaire' };
 export const TYPE_TALENT = { passif: 'Passif', actif: 'Actif', deblocage: 'Déblocage' };
 export const CLASSE = {

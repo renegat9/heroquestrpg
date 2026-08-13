@@ -130,6 +130,13 @@ n'y a donc rien à sourcer ici — seulement une cohérence à tenir, et elle ne
 l'était pas. L'**Explorateur, qui est un nain**, marchait à 5 quand le Nain
 marche à 3 : plus vite que l'Elfe.
 
+La **race est une colonne** (`classes_heros.race`, migration
+`2026_08_13_000001`) et non plus un commentaire : le guide l'affiche sur chaque
+fiche, et l'infobulle du déplacement dit d'où vient le chiffre (« 3 (Nain) +1 —
+classe agile »). Sans elle, un Explorateur plus lent qu'un Rogue restait
+inexplicable pour le joueur. Quatre valeurs : `humain` · `nain` · `elfe` ·
+`halfling`.
+
 Grille arbitrée par René le 2026-08-13 :
 
 | Socle racial | | Trait de classe |

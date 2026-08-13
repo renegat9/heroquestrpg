@@ -15,6 +15,7 @@ import {
     effetVersChips,
     ELEMENT,
     ORDRE_ELEMENTS,
+    RACE,
     EMPLACEMENT,
     RARETE,
     TAG_EQUIPEMENT,
@@ -80,6 +81,20 @@ const talentsParClasse = computed(() => {
     }
     return m;
 });
+/* Le mouvement s'explique par la RACE, plus un éventuel trait d'agilité
+   (doc 01 §4bis-2). L'infobulle le dit, sinon le chiffre reste opaque. */
+const SOCLE_RACE = { nain: 3, halfling: 3, humain: 4, elfe: 5 };
+
+function detailDeplacement(c) {
+    const socle = SOCLE_RACE[c.race];
+    if (socle === undefined) return 'Déplacement de base';
+    const agile = (c.deplacement_base ?? socle) - socle;
+    const race = RACE[c.race]?.l ?? c.race;
+    return agile > 0
+        ? `Déplacement de base : ${socle} (${race}) +${agile} — classe agile`
+        : `Déplacement de base : ${socle} (${race})`;
+}
+
 /* SORTS DE CLASSE — Barde, Druide et Warlock n'ont pas d'« arbre de cartes » :
    leurs cartes SONT des sorts, rangés dans l'onglet Sorts. Le Barde paraissait
    donc n'avoir qu'une seule capacité, alors qu'il en a quatre en tout.
@@ -205,6 +220,13 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                     <div class="hero-head">
                         <div class="hero-seal"><MSym :n="CLASSE[c.nom]?.ic ?? 'person'" fill /></div>
                         <h2>{{ nomClasse(c.nom) }}</h2>
+                        <!-- La RACE porte le socle de mouvement (doc 01 §4bis-2) :
+                             sans elle, un Explorateur plus lent qu'un Rogue
+                             paraissait arbitraire. -->
+                        <span v-if="c.race" class="hero-race" :title="`Race : ${RACE[c.race]?.l ?? c.race}`">
+                            <MSym :n="RACE[c.race]?.ic ?? 'person'" :size="13" />
+                            {{ RACE[c.race]?.l ?? c.race }}
+                        </span>
                     </div>
                     <div class="stat-row">
                         <span class="stat" title="PV de Body"><MSym n="favorite" fill :size="15" class="c-body" /> {{ c.pv_body }} <em>Body</em></span>
@@ -213,7 +235,7 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <span class="stat" title="Attribut Mind"><MSym n="neurology" :size="15" /> {{ c.attr_mind }} <em>attr. Mind</em></span>
                         <span class="stat" title="Dés d'attaque"><MSym n="swords" :size="15" class="c-atk" /> {{ c.des_attaque }} <em>attaque</em></span>
                         <span class="stat" title="Dés de défense"><MSym n="shield" :size="15" class="c-def" /> {{ c.des_defense }} <em>défense</em></span>
-                        <span class="stat" title="Déplacement de base"><MSym n="directions_walk" :size="15" /> {{ c.deplacement_base }} <em>dépl.</em></span>
+                        <span class="stat" :title="detailDeplacement(c)"><MSym n="directions_walk" :size="15" /> {{ c.deplacement_base }} <em>dépl.</em></span>
                         <span v-if="c.bonus_sac" class="stat" title="Bonus de sac"><MSym n="backpack" :size="15" /> +{{ c.bonus_sac }} <em>sac</em></span>
                     </div>
                     <div class="hero-talents-t"><MSym n="shield_with_heart" :size="14" /> Équipement maîtrisé</div>
@@ -561,6 +583,11 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
 /* Capacité de CARTE : gratuite, donc distinguée d'un nœud qu'on achète. */
 .tt-innee { color: var(--torch); background: rgba(255, 143, 107, 0.12); }
 .tt-sort { color: var(--elem-water, #6fb6ff); }
+/* Race : une identité, affichée près du nom et non parmi les statistiques. */
+.hero-race { display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
+  padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--ink-300); background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08); }
 .tl-gratuit { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0;
   color: var(--ink-500); margin-left: 6px; }
 /* Les deux faces d'une carte de style du Moine. */

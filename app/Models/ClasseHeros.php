@@ -10,6 +10,9 @@ class ClasseHeros extends Model
 
     protected $fillable = [
         'nom',
+        // `humain` · `nain` · `elfe` · `halfling` — porte le SOCLE de mouvement
+        // (doc 01 §4bis-2) et s'affiche sur la fiche de classe du guide.
+        'race',
         'pv_body',
         'pv_mind',
         'attr_body',

@@ -169,28 +169,45 @@ it('donne à chaque classe le mouvement de sa RACE, plus un trait d\'agilité', 
     //
     // Règle arbitrée par René le 2026-08-13 : socle racial (nain 3 · halfling 3
     // · humain 4 · elfe 5), +1 si la carte de la classe la vend AGILE.
-    $attendu = [
-        'nain' => 3,          // nain
-        'warlock' => 3,       // halfling
-        'barbare' => 4,       // humain
-        'magicien' => 4,      // humain
-        'barde' => 4,         // humain
-        'druide' => 4,        // humain
-        'chevalier' => 4,     // humain
-        'explorateur' => 4,   // nain AGILE (3+1) — le meilleur marcheur des siens
-        'rogue' => 5,         // humain AGILE (4+1)
-        'moine' => 5,         // humain AGILE (4+1)
-        'berserker' => 5,     // humain AGILE (4+1)
-        'elfe' => 5,          // elfe
-    ];
+    // ⚠ Le socle se DÉDUIT de `classes_heros.race` (colonne depuis le
+    // 2026-08-13) : recopier douze chiffres à la main aurait laissé la grille
+    // et les données diverger au premier ajout de classe.
+    $socle = ['nain' => 3, 'halfling' => 3, 'humain' => 4, 'elfe' => 5];
+    $agiles = ['rogue', 'moine', 'berserker', 'explorateur'];
 
-    foreach ($attendu as $classe => $deplacement) {
-        expect((int) App\Models\ClasseHeros::where('nom', $classe)->value('deplacement_base'))
-            ->toBe($deplacement, "{$classe} : mouvement de base hors grille raciale.");
+    foreach (App\Models\ClasseHeros::all() as $classe) {
+        // ⚠ `toHaveKey()` de Pest prend une VALEUR en second argument, pas un
+        // message (piège déjà rencontré plus haut dans ce fichier).
+        expect(array_key_exists((string) $classe->race, $socle))
+            ->toBeTrue("{$classe->nom} : race « {$classe->race} » sans socle de mouvement déclaré.");
+
+        $attendu = $socle[$classe->race] + (in_array($classe->nom, $agiles, true) ? 1 : 0);
+
+        expect((int) $classe->deplacement_base)->toBe($attendu,
+            "{$classe->nom} ({$classe->race}) : mouvement hors grille raciale.");
     }
 
-    // Aucun nain ne dépasse l'elfe, aucun halfling ne dépasse un humain : c'est
-    // l'invariant que la contradiction violait.
-    expect($attendu['explorateur'])->toBeLessThan($attendu['elfe'])
-        ->and($attendu['warlock'])->toBeLessThan($attendu['barbare']);
+    // Les deux invariants que la contradiction violait : aucun nain ne dépasse
+    // l'elfe, aucun halfling ne dépasse un humain.
+    $par = App\Models\ClasseHeros::all()->keyBy('nom');
+
+    expect((int) $par['explorateur']->deplacement_base)->toBeLessThan((int) $par['elfe']->deplacement_base)
+        ->and((int) $par['warlock']->deplacement_base)->toBeLessThan((int) $par['barbare']->deplacement_base);
+});
+
+it('donne une RACE à chaque classe, et une seule des quatre connues', function () {
+    // La race n'était qu'un COMMENTAIRE avant le 2026-08-13 : le guide ne
+    // pouvait pas l'afficher, et un Explorateur plus lent qu'un Rogue restait
+    // inexplicable pour le joueur.
+    foreach (App\Models\ClasseHeros::all() as $classe) {
+        expect(['humain', 'nain', 'elfe', 'halfling'])->toContain((string) $classe->race);
+    }
+
+    $races = App\Models\ClasseHeros::all()->groupBy('race')->map->count();
+
+    // Rappel de René (2026-08-13) : hors Warlock (halfling) et Explorateur
+    // (nain), toutes les classes d'extension sont humaines.
+    expect((int) ($races['halfling'] ?? 0))->toBe(1)
+        ->and((int) ($races['nain'] ?? 0))->toBe(2)   // le Nain et l'Explorateur
+        ->and((int) ($races['elfe'] ?? 0))->toBe(1);
 });

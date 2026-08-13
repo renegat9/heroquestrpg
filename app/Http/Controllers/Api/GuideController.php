@@ -38,7 +38,11 @@ class GuideController extends Controller
             // gagnés par l'arbre de talents sont déductibles côté front depuis
             // `competences.effet` (mecanique `acces_equipement`).
             'classes' => ClasseHeros::query()->orderBy('id')
-                ->get(['nom', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement'])
+                // `race` exposée (2026-08-13) : c'est elle qui explique le
+                // mouvement de base (doc 01 §4bis-2). Sans elle, un joueur
+                // voyait l'Explorateur marcher moins vite qu'un Rogue sans
+                // pouvoir deviner que c'est un nain.
+                ->get(['nom', 'race', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement'])
                 ->values()
                 ->all(),
 
