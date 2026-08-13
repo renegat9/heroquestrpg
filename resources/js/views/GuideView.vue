@@ -73,7 +73,20 @@ onMounted(charger);
 const classes = computed(() => guide.value?.classes ?? []);
 const talentsParClasse = computed(() => {
     const m = {};
-    for (const c of guide.value?.competences ?? []) (m[c.classe] ??= []).push(c);
+    for (const c of guide.value?.competences ?? []) {
+        if (c.innee) continue; // les capacités de carte ont leur propre bloc
+        (m[c.classe] ??= []).push(c);
+    }
+    return m;
+});
+/* Capacités de CARTE (classes d'extension) : acquises d'emblée et gratuitement,
+   là où un nœud d'arbre se paie un point. Les mélanger faisait croire qu'on
+   devait acheter « Furie » ou les Styles du Moine. */
+const inneesParClasse = computed(() => {
+    const m = {};
+    for (const c of guide.value?.competences ?? []) {
+        if (c.innee) (m[c.classe] ??= []).push(c);
+    }
     return m;
 });
 const monstresParTier = computed(() => {
@@ -187,6 +200,22 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                     <p v-else class="maitrise-libre">
                         <MSym n="info" :size="13" /> Aucune restriction déclarée : cette classe peut porter tout l'équipement.
                     </p>
+
+                    <template v-if="(inneesParClasse[c.nom] ?? []).length">
+                        <div class="hero-talents-t">
+                            <MSym n="badge" :size="14" /> Capacités de carte
+                            <span class="tl-gratuit">acquises d'emblée, sans coûter de point</span>
+                        </div>
+                        <ul class="talent-ul">
+                            <li v-for="t in inneesParClasse[c.nom]" :key="t.id" class="talent-li">
+                                <div class="tl-head">
+                                    <span class="tl-nom">{{ t.nom }}</span>
+                                    <span class="tl-type tt-innee">innée</span>
+                                </div>
+                                <div v-if="t.description" class="tl-desc">{{ t.description }}</div>
+                            </li>
+                        </ul>
+                    </template>
 
                     <div class="hero-talents-t"><MSym n="hub" :size="14" /> Arbre de talents</div>
                     <ul class="talent-ul">
@@ -467,6 +496,10 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
 .tt-passif { color: var(--ok, oklch(0.7 0.14 150)); }
 .tt-actif { color: var(--torch); }
 .tt-deblocage { color: var(--gold); }
+/* Capacité de CARTE : gratuite, donc distinguée d'un nœud qu'on achète. */
+.tt-innee { color: var(--torch); background: rgba(255, 143, 107, 0.12); }
+.tl-gratuit { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0;
+  color: var(--ink-500); margin-left: 6px; }
 .tl-prereq { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: var(--ink-600); }
 .tl-desc { font-size: 12.5px; color: var(--ink-300); margin-top: 4px; line-height: 1.45; }
 

@@ -42,8 +42,13 @@ class GuideController extends Controller
                 ->values()
                 ->all(),
 
+            // `innee` exposé (2026-08-13) : une capacité de CARTE est acquise
+            // d'emblée et gratuitement, un nœud d'arbre se paie un point. Sans
+            // ce drapeau, la page /guide affichait les deux dans la même liste —
+            // un joueur lisant « Furie » dans l'arbre du Berserker croyait
+            // devoir l'acheter.
             'competences' => Competence::query()->orderBy('classe')->orderBy('id')
-                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id'])
+                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id', 'innee'])
                 ->values()
                 ->all(),
 
