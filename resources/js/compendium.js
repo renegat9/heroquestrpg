@@ -227,12 +227,24 @@ export const EMPLACEMENT = {
     arme_principale: 'Main principale', arme_secondaire: 'Main secondaire', casque: 'Casque', armure: 'Armure', talisman: 'Talisman', sac: 'Sac', consommable: 'Consommable',
 };
 export const TIER_MONSTRE = { base: 'Sbires', sous_boss: 'Sous-boss', boss: 'Boss' };
+/* Les 4 écoles élémentaires ET les RÉPERTOIRES DE CLASSE (2026-08-12).
+   ⚠ Sans ces quatre dernières entrées, le guide jetait 15 sorts en silence :
+   son groupement filtrait sur les seuls éléments, et les sorts du Barde, du
+   Druide, du Warlock et de l'Elfe n'apparaissaient NULLE PART. */
 export const ELEMENT = {
     feu: { l: 'Feu', ic: 'local_fire_department' },
     eau: { l: 'Eau', ic: 'water_drop' },
     terre: { l: 'Terre', ic: 'landslide' },
     air: { l: 'Air', ic: 'air' },
+    barde: { l: 'Répertoire du Barde', ic: 'music_note' },
+    druide: { l: 'Répertoire du Druide', ic: 'forest' },
+    warlock: { l: 'Répertoire du Warlock', ic: 'local_fire_department' },
+    elfique: { l: 'Répertoire elfique', ic: 'nature' },
 };
+
+/* Ordre d'affichage des groupes de sorts : les écoles d'abord (elles sont le
+   socle), puis les répertoires réservés à une classe. */
+export const ORDRE_ELEMENTS = ['feu', 'eau', 'terre', 'air', 'elfique', 'barde', 'druide', 'warlock'];
 export const TYPE_SORT = { degats: 'Dégâts', mental: 'Mental', utilitaire: 'Utilitaire' };
 export const TYPE_TALENT = { passif: 'Passif', actif: 'Actif', deblocage: 'Déblocage' };
 export const CLASSE = {

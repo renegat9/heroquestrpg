@@ -14,6 +14,7 @@ import {
     DESARMABLE,
     effetVersChips,
     ELEMENT,
+    ORDRE_ELEMENTS,
     EMPLACEMENT,
     RARETE,
     TAG_EQUIPEMENT,
@@ -79,6 +80,34 @@ const talentsParClasse = computed(() => {
     }
     return m;
 });
+/* SORTS DE CLASSE — Barde, Druide et Warlock n'ont pas d'« arbre de cartes » :
+   leurs cartes SONT des sorts, rangés dans l'onglet Sorts. Le Barde paraissait
+   donc n'avoir qu'une seule capacité, alors qu'il en a quatre en tout.
+   L'Elfe est le cas à part : son répertoire est un CHOIX (3 sur 6), pas une
+   dotation — d'où la mention distincte. */
+const REPERTOIRE_DE_CLASSE = { barde: 'barde', druide: 'druide', warlock: 'warlock', elfe: 'elfique' };
+
+function sortsDeClasse(classe) {
+    const el = REPERTOIRE_DE_CLASSE[classe];
+    if (!el) return [];
+    return (guide.value?.sorts ?? []).filter((s) => s.element === el);
+}
+
+/* Les DEUX faces d'une carte de style (Moine) : `effet.techniques` porte deux
+   techniques par carte, et leur nom n'apparaissait nulle part — la description
+   les mentionne en prose, mais on ne pouvait pas les LISTER. Le résumé se tire
+   de la description, découpée sur le « — ou — » qui sépare les deux faces. */
+function techniquesDe(noeud) {
+    const techs = noeud?.effet?.techniques;
+    if (!Array.isArray(techs)) return [];
+    const morceaux = (noeud.description ?? '').split(/\s+—\s+ou\s+—\s+/);
+    return techs.map((t, i) => ({
+        nom: t.nom,
+        // « Nom : effet » → on ne garde que l'effet, le nom est déjà à gauche.
+        resume: (morceaux[i] ?? '').replace(new RegExp(`^\\s*${t.nom}\\s*:\\s*`), '').trim(),
+    }));
+}
+
 /* Capacités de CARTE (classes d'extension) : acquises d'emblée et gratuitement,
    là où un nœud d'arbre se paie un point. Les mélanger faisait croire qu'on
    devait acheter « Furie » ou les Styles du Moine. */
@@ -121,10 +150,14 @@ function maitrises(classe) {
 }
 
 const sortsParElement = computed(() => {
-    const ordre = ['feu', 'eau', 'terre', 'air'];
     const m = {};
     for (const x of guide.value?.sorts ?? []) (m[x.element] ??= []).push(x);
-    return ordre.filter((e) => m[e]).map((e) => [e, m[e]]);
+    // ⚠ Tout élément inconnu de l'ordre déclaré est ajouté À LA FIN plutôt que
+    // jeté : c'est ce filtrage muet qui faisait disparaître les 15 sorts des
+    // répertoires de classe. Un catalogue incomplet doit se voir, pas se taire.
+    const connus = ORDRE_ELEMENTS.filter((e) => m[e]);
+    const autres = Object.keys(m).filter((e) => !ORDRE_ELEMENTS.includes(e)).sort();
+    return [...connus, ...autres].map((e) => [e, m[e]]);
 });
 const pieges = computed(() => guide.value?.pieges ?? []);
 
@@ -201,6 +234,23 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <MSym n="info" :size="13" /> Aucune restriction déclarée : cette classe peut porter tout l'équipement.
                     </p>
 
+                    <template v-if="sortsDeClasse(c.nom).length">
+                        <div class="hero-talents-t">
+                            <MSym n="auto_awesome" :size="14" /> Sorts de classe
+                            <span class="tl-gratuit">{{ c.nom === 'elfe'
+                                ? '3 au choix parmi ceux-ci, rechoisissables au hub'
+                                : 'acquis d\'emblée, comme ses capacités de carte' }}</span>
+                        </div>
+                        <ul class="talent-ul">
+                            <li v-for="s in sortsDeClasse(c.nom)" :key="s.id" class="talent-li">
+                                <div class="tl-head">
+                                    <span class="tl-nom">{{ s.nom }}</span>
+                                    <span class="tl-type tt-sort">{{ TYPE_SORT[s.type] ?? s.type }}</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </template>
+
                     <template v-if="(inneesParClasse[c.nom] ?? []).length">
                         <div class="hero-talents-t">
                             <MSym n="badge" :size="14" /> Capacités de carte
@@ -211,8 +261,20 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                                 <div class="tl-head">
                                     <span class="tl-nom">{{ t.nom }}</span>
                                     <span class="tl-type tt-innee">innée</span>
+                                    <span v-if="techniquesDe(t).length" class="tl-prereq">
+                                        <MSym n="style" :size="11" /> {{ techniquesDe(t).length }} techniques
+                                    </span>
                                 </div>
                                 <div v-if="t.description" class="tl-desc">{{ t.description }}</div>
+                                <!-- Les 4 cartes du Moine sont RECTO-VERSO : chacune
+                                     porte deux techniques, listées ici parce qu'elles
+                                     n'existent nulle part ailleurs dans le guide. -->
+                                <ul v-if="techniquesDe(t).length" class="tech-ul">
+                                    <li v-for="(tech, i) in techniquesDe(t)" :key="i" class="tech-li">
+                                        <span class="tech-nom">{{ tech.nom }}</span>
+                                        <span v-if="tech.resume" class="tech-res">{{ tech.resume }}</span>
+                                    </li>
+                                </ul>
                             </li>
                         </ul>
                     </template>
@@ -498,8 +560,14 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
 .tt-deblocage { color: var(--gold); }
 /* Capacité de CARTE : gratuite, donc distinguée d'un nœud qu'on achète. */
 .tt-innee { color: var(--torch); background: rgba(255, 143, 107, 0.12); }
+.tt-sort { color: var(--elem-water, #6fb6ff); }
 .tl-gratuit { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0;
   color: var(--ink-500); margin-left: 6px; }
+/* Les deux faces d'une carte de style du Moine. */
+.tech-ul { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid rgba(201, 162, 74, 0.25); }
+.tech-li { margin-top: 4px; font-size: 12px; }
+.tech-nom { font-weight: 700; color: var(--torch); margin-right: 6px; }
+.tech-res { color: var(--ink-400, #9c8f76); }
 .tl-prereq { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: var(--ink-600); }
 .tl-desc { font-size: 12.5px; color: var(--ink-300); margin-top: 4px; line-height: 1.45; }
 
