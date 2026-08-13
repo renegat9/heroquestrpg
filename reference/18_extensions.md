@@ -2047,10 +2047,15 @@ n'en porte, sauf le bouclier du Chevalier), et la photo du verso Eau du Moine
 (`attr_*`, `bonus_sac`) suit nos propres conventions et doit être signalé
 comme tel.
 
-Ce qui, en revanche, est portable **sans aucune carte** : les capacités et
-les restrictions d'équipement des quatre premiers, qui sont des *phrases*
-et non des chiffres — et dont la plupart tombent sur des mécaniques que le
-moteur applique déjà (`tacticien` pour *Opportunistic Striker*, `agile`
-pour *Combat Mobility*, `permet_desamorcage` pour le *Bandolier*,
-`attaque_supplementaire` pour *Ambidextrous*, le second mouvement du
-tacticien pour le *Style de l'Eau*).
+Ce qui était portable **sans aucune carte** — les capacités, qui sont des
+*phrases* et non des chiffres — **l'a été le 2026-08-12** : les 17 capacités des
+six classes qui en ont sont en jeu, techniques du Moine comprises
+(`reference/01_personnages.md` §4ter). Le pari tenait : la plupart tombaient sur
+des mécaniques déjà écrites (`tacticien` pour *Opportunistic Striker*, `agile`
+pour *Combat Mobility*, `permet_desamorcage` pour le *Bandolier*), et les rares
+qui manquaient — frappe balayée, rayon, dégât différé — ont été écrites une fois
+puis partagées entre Berserker et Moine.
+
+⚠ Restent ouvertes, et ce sont bien des **données** manquantes, pas du moteur :
+les **restrictions d'équipement** du Rogue, du Moine, du Berserker et de
+l'Explorateur, qu'aucune carte de personnage n'énonce.

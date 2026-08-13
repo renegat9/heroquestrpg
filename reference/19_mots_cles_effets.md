@@ -147,11 +147,12 @@ propre parade (ce serait quasi permanent à 4 dés de défense), et il doit avoi
 **vue** sur le défenseur. On compte les boucliers **blancs** : c'est la face qui
 pare pour un héros, un bouclier noir dans sa volée ne vaut rien.
 
-Les trois sorts qui les porteront — *Shapeshift* (Druide), *Demonform*
-(Warlock), *Inspiring Tale* (Barde) — attendent leurs **classes**
-(`reference/18_extensions.md`). Le moteur, lui, les applique déjà, et
-`RegainEffet::SANS_UTILISATEUR` déclare la dette nommément, comme
-`TypeDegat::SANS_SOURCE` le fait pour le froid.
+Les trois sorts qui les portent sont **semés depuis le 2026-08-12**, en même
+temps que leurs classes (`reference/18_extensions.md`) : *Métamorphose*
+(Druide, `body_au_max`), *Forme démoniaque* (Warlock, `monstre_vaincu`) et
+*Conte inspirant* (Barde, `allie_deux_boucliers_blancs`). Les trois événements
+avaient été écrits **avant** leurs porteurs, et c'est l'ordre qui a marché :
+`RegainEffet::SANS_UTILISATEUR` nommait la dette, elle a été payée.
 
 ## 4 ter. Les dégâts subis par un héros : un point de passage INTERCEPTABLE
 
@@ -175,10 +176,27 @@ le moteur applique ce qu'il en reste. Il ne peut pas l'**augmenter** : le
 point d'interception protège, il ne frappe pas plus fort. Sources déclarées :
 `attaque_monstre` · `sort_dread` · `piege` · `tir_ami` · `rejeton`.
 
-⚠ **La moitié interface n'existe pas.** Demander « veux-tu annuler ? » suppose
-d'interroger une manette au milieu de la phase des monstres, ce que la boucle
-de jeu ne sait pas faire. Un écouteur **automatique** (une charge dépensée sans
-choix) fonctionne dès aujourd'hui ; un **choix**, non.
+**La moitié interface existe depuis le 2026-08-11** (`App\Partie\MoteurReactions`,
+`POST /groupes/{id}/reaction`). Ce paragraphe a d'abord dit l'inverse — « demander
+« veux-tu annuler ? » suppose d'interroger une manette au milieu de la phase des
+monstres, ce que la boucle de jeu ne sait pas faire » — et la solution n'a pas
+été de suspendre la boucle, mais d'inverser l'ordre : le coup est **appliqué**,
+puis la question posée sur le canal privé du joueur, et accepter **défait** le
+coup. C'est exactement l'ordre de la table, où l'on annonce les dégâts avant que
+le joueur dise « j'annule ».
+
+Six actions en vivent aujourd'hui (contrat §Réactions hors tour) : annuler,
+plancher de PV, couvrir un voisin, riposter, relever un défi, et **se soigner
+d'urgence** — cette dernière offrant un vrai choix de remède, pas un oui/non. Un
+écouteur **automatique** (*Image double*, une charge dépensée sans décision)
+reste par ailleurs le bon outil quand la carte ne demande pas d'arbitrage : il
+ne coûte aucun aller-retour.
+
+⚠ Ce que la boucle ne sait toujours pas faire : **s'arrêter**. La phase des
+monstres se résout d'un bloc, dans la requête d'un autre joueur. Toute réaction
+est donc POSTÉRIEURE à son déclencheur — et le seul verdict qui attende
+vraiment une réponse est celui du TPK, suspendu tant qu'une offre peut encore
+relever quelqu'un (`ResolveurTour::verdictDeChute()`, 2026-08-13).
 
 ⚠ **`Personnage::booted()` reste en place** et ce n'est pas un doublon : il est
 le filet. Le moteur couvre les chemins connus, l'observateur rattrape tout ce
