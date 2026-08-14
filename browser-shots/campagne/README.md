@@ -41,3 +41,27 @@ et ont dû être relancés à la main (2026-08-13).
    propose des destinations que le serveur refuse.
 5. Les sessions expirent : prévoir `POST /api/connexion {identifiant}` pour
    reprendre la main sur une partie longue.
+
+## Ce qu'il faut PRÉPARER pour éprouver un rôle
+
+Deux campagnes ont montré qu'un rôle ne se teste pas en espérant qu'il se
+présente. À monter explicitement avant de lancer les agents :
+
+- **Nain / pièges** — l'**Œil du mineur est un NŒUD D'ARBRE**, pas une capacité
+  innée : un nain de niveau 1 ne l'a PAS et marche dans les fosses. Le lui
+  accorder, puis poser une fosse **à deux cases** (à une case, il marche dessus
+  avant de la détecter). Chaîne validée le 2026-08-14 : arrêt du déplacement à
+  une case, `pieges_reveles`, options `desamorcer_X_Y` ET `franchir_X_Y`,
+  désamorçage réussi puis piège `desarme`.
+- **Chevalier / réactions** — il faut qu'un monstre ATTAQUE : placer une
+  créature au contact avant la phase des monstres, sinon *Parade au bouclier* et
+  *Inébranlable* ne se proposent jamais. Pour *Défi du chevalier*, empiler une
+  carte `errant` sur le deck de fouille de sa salle.
+- **Rogue / flanquement** — la *Frappe opportuniste* exige un ALLIÉ au contact
+  de la cible : donner la consigne de rester groupés, ou placer les figures.
+- **Warlock / fosses** — c'est *Forme démoniaque* qui donne
+  `ignore_pieges_fosse`, pas *Ailes sombres*. Le préciser dans la consigne.
+
+Les agents ont des durées de vie différentes : quand l'un s'arrête, son héros ne
+joue plus et le tour du groupe se fige sur lui, sans que les autres puissent le
+savoir. Prévoir de le relancer, ou faire jouer plusieurs héros au même agent.
