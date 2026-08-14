@@ -56,7 +56,12 @@ présente. À monter explicitement avant de lancer les agents :
 - **Chevalier / réactions** — il faut qu'un monstre ATTAQUE : placer une
   créature au contact avant la phase des monstres, sinon *Parade au bouclier* et
   *Inébranlable* ne se proposent jamais. Pour *Défi du chevalier*, empiler une
-  carte `errant` sur le deck de fouille de sa salle.
+  carte `errant` sur le deck de fouille de sa salle — mais **ce n'est PAS le
+  chevalier qui doit fouiller** : `proposerDefi()` exclut le fouilleur, et à
+  raison, puisque l'errant surgit déjà à son contact. Faire fouiller un VOISIN.
+  Les trois capacités validées le 2026-08-14 : l'errant sauté de (17,29) à
+  (19,28) puis attaque immédiate ; 2 dégâts sur le voisin rendus (le chevalier
+  n'encaisse rien à sa place) ; PV 0 → 1 avec relevé du héros.
 - **Rogue / flanquement** — la *Frappe opportuniste* exige un ALLIÉ au contact
   de la cible : donner la consigne de rester groupés, ou placer les figures.
 - **Warlock / fosses** — c'est *Forme démoniaque* qui donne
@@ -65,3 +70,18 @@ présente. À monter explicitement avant de lancer les agents :
 Les agents ont des durées de vie différentes : quand l'un s'arrête, son héros ne
 joue plus et le tour du groupe se fige sur lui, sans que les autres puissent le
 savoir. Prévoir de le relancer, ou faire jouer plusieurs héros au même agent.
+
+## Les noms de colonnes qui font perdre une heure
+
+En montant une scène à la main (tinker), trois attributs n'existent PAS et
+reviennent `null` sans la moindre erreur — on croit alors avoir trouvé un bug :
+
+| on écrit | la colonne réelle est | ce qu'on croit à tort |
+|---|---|---|
+| `$inventaire->equipe` | `inventaire.emplacement` (`sac` ou le nom du slot) | « rien n'est équipé » |
+| `$quete->fouilles_effectuees` | `quetes.tresors_fouilles` (`"{salle}:{perso}"`) | « personne n'a fouillé » |
+| `$personnage->classeHeros` | `classe()` / `classe_id` | « le héros n'a pas de classe » |
+
+Et deux préconditions muettes bloquent `fouiller_tresor` sans rien dire : le
+héros doit être DANS les bornes d'une salle (un couloir n'offre pas l'option) et
+la salle ne doit contenir aucun monstre actif **révélé**.

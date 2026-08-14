@@ -55,3 +55,8 @@ browser-shots/jd-*.json
 /browser-shots/campagne/jar-*.txt
 /browser-shots/campagne/perso-*.txt
 /browser-shots/campagne/groupe.txt
+# Les PID des boucles de fond (battement de cœur de la table, figurants) : ils
+# ne valent que pour la session qui les a lancées, et un PID versionné revient
+# à demander à la prochaine campagne de tuer un processus qui ne lui appartient
+# pas — voire un autre programme réutilisant le même numéro.
+/browser-shots/campagne/*.pid

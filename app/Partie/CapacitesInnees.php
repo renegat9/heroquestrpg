@@ -63,7 +63,14 @@ final class CapacitesInnees
     public function noeud(Personnage $personnage, string $mecanique): ?Competence
     {
         return $personnage->competences()
-            ->get(['competences.id', 'competences.nom', 'competences.effet'])
+            // ⚠ `description` FAIT PARTIE du minimum : les offres de réaction la
+            // publient (`MoteurReactions::deposer()`) et `ReactionSheet.vue` la
+            // rend sous le nom de la capacité. Tant qu'elle manquait à ce
+            // `get()`, elle revenait `null` sans erreur nulle part — le joueur
+            // voyait « Inébranlable » avec un compte à rebours et RIEN qui dise
+            // ce qu'accepter allait dépenser, pour une ressource qui ne sert
+            // qu'une fois par quête (constaté en validation le 2026-08-14).
+            ->get(['competences.id', 'competences.nom', 'competences.description', 'competences.effet'])
             ->first(fn (Competence $c) => ($c->effet['mecanique'] ?? null) === $mecanique);
     }
 

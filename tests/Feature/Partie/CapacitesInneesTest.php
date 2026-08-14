@@ -211,3 +211,26 @@ it('donne une RACE à chaque classe, et une seule des quatre connues', function 
         ->and((int) ($races['nain'] ?? 0))->toBe(2)   // le Nain et l'Explorateur
         ->and((int) ($races['elfe'] ?? 0))->toBe(1);
 });
+
+it('charge la DESCRIPTION du nœud : une offre de réaction doit être lisible', function () {
+    // Défaut trouvé en validation live (2026-08-14) : `noeud()` ne sélectionnait
+    // que id/nom/effet. Les trois réactions du Chevalier arrivaient donc sur la
+    // manette avec `description: null` — `ReactionSheet.vue` la rend, mais il
+    // n'y avait rien à rendre. Le joueur lisait « Inébranlable » et un compte à
+    // rebours, sans une ligne disant ce qu'accepter allait consommer, pour une
+    // capacité qui ne sert QU'UNE FOIS par quête.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $chevalier = creerHeros($alice, $groupe, 'Roland', 1, ['classe' => 'chevalier']);
+
+    $capacites = app(App\Partie\CapacitesInnees::class);
+
+    foreach (['plancher_pv', 'annule_degats_voisin', 'defi_errant'] as $mecanique) {
+        $noeud = $capacites->noeud($chevalier, $mecanique);
+
+        expect($noeud)->not->toBeNull("Le chevalier devrait porter {$mecanique}.")
+            ->and($noeud->description)->not->toBeNull(
+                "{$noeud->nom} : description absente, l'offre de réaction serait muette.")
+            ->and(trim((string) $noeud->description))->not->toBe('');
+    }
+});
