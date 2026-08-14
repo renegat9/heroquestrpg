@@ -197,7 +197,7 @@ class ChoixController extends Controller
         $cle = GenererMenu::cleMenu($groupe->id, (int) $joueur->id);
         $cache = Cache::get($cle);
 
-        if (! is_array($cache) && $groupe->phase === 'quete' && $groupe->quete_courante_id !== null) {
+        if ($groupe->phase === 'quete' && $groupe->quete_courante_id !== null) {
             $hero = $groupe->personnages()
                 ->wherePivot('actif', true)
                 ->where('joueur_id', $joueur->id)
@@ -207,6 +207,22 @@ class ChoixController extends Controller
                 ->where('quete_id', $groupe->quete_courante_id)
                 ->where('personnage_id', $hero->id)
                 ->first();
+
+            $peutAgir = $etat !== null && ! $etat->a_joue && ! $etat->tombe
+                && $this->estSonTour($groupe, $hero->id);
+
+            // ⚠ La garde vaut aussi pour le menu DÉJÀ EN CACHE, et c'est ce que
+            // la première version ratait : un menu mis en cache avant que le
+            // héros ne tombe restait servi tant qu'il n'était pas CONSOMMÉ — et
+            // un héros à terre ne consomme rien. Une joueuse est ainsi restée
+            // trois tours avec un menu « Attaquer » pleinement cliquable, qui
+            // répondait « Ce héros est tombé » à chaque fois (partie du
+            // 2026-08-14). Périmé, le menu s'efface.
+            if (! $peutAgir) {
+                Cache::forget($cle);
+
+                return response()->json(['menu' => null]);
+            }
 
             // ⚠ L'ORDRE D'INITIATIVE, pas seulement « n'a pas encore joué ».
             // Sans cette garde (constatée en partie réelle le 2026-08-13 par
@@ -219,8 +235,7 @@ class ChoixController extends Controller
             //
             // C'est l'anti-patron que le projet traque partout ailleurs : le
             // menu ne doit jamais proposer ce que le résolveur refusera.
-            if ($etat !== null && ! $etat->a_joue && ! $etat->tombe
-                && $this->estSonTour($groupe, $hero->id)) {
+            if (! is_array($cache)) {
                 GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id, enrichir: false);
                 $cache = Cache::get($cle);
             }

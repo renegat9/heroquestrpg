@@ -125,9 +125,20 @@ class SortSeeder extends Seeder
             // « This spell causes any one monster to become so fearful that
             // their attacks are reduced to 1 combat die. » ⚠ Un PLAFOND, pas un
             // malus : l'ogre à 4 dés tombe à 1 comme le gobelin à 2.
+            // ⚠ Côté HÉROS (tir ami assumé, doc 02 §5), la condition est
+            // « Apeuré » — celle du catalogue, déjà lue par
+            // `MoteurDread::malusDesAttaqueFrayeur()`. Elle disait « Terrifié »
+            // jusqu'au 2026-08-14, un nom qui n'existait NULLE PART : le sort
+            // partait en 422 « Condition « Terrifié » absente du catalogue »
+            // dès qu'une cible ratait sa résistance, et ne « marchait » donc
+            // que quand il échouait. Trouvé en jouant, jamais par les tests.
+            //
+            // Deux effets distincts pour deux camps, et c'est voulu : le
+            // monstre voit son attaque PLAFONNÉE à 1 dé (`terrifie`), le héros
+            // subit −1 dé (`Apeuré`).
             ['element' => 'warlock', 'nom' => 'Terreur', 'type' => 'mental', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind',
-                    'condition_monstre' => 'terrifie', 'condition_appliquee' => 'Terrifié',
+                    'condition_monstre' => 'terrifie', 'condition_appliquee' => 'Apeuré',
                     'fin' => 'jet_mind_reussi']],
 
             // ================================================================

@@ -363,3 +363,37 @@ it('donne un parchemin par sort, chacun résoluble et de difficulté synchronis�
             ->and((int) $sort->difficulte_parchemin)->toBeLessThanOrEqual(3);
     }
 });
+
+it('ne nomme aucune condition qui n\'existe pas au catalogue', function () {
+    // ⚠ Trouvé en PARTIE RÉELLE le 2026-08-14, pas par les tests : le sort
+    // *Terreur* du Warlock posait une condition « Terrifié » absente du
+    // catalogue. Il partait donc en 422 dès qu'une cible RATAIT sa résistance,
+    // et ne paraissait fonctionner que lorsqu'il échouait — le pire des
+    // masques. Les tests vérifiaient que chaque CLÉ d'effet a un lecteur ;
+    // aucun ne vérifiait que la VALEUR désigne quelque chose de réel.
+    $catalogue = App\Models\Condition::pluck('nom')->all();
+
+    foreach (Sort::all() as $sort) {
+        $nom = $sort->effet['condition_appliquee'] ?? null;
+
+        if ($nom === null) {
+            continue;
+        }
+
+        expect(in_array($nom, $catalogue, true))
+            ->toBeTrue("{$sort->nom} : condition « {$nom} » absente du catalogue.");
+    }
+
+    // Même garde pour les conditions posées sur un MONSTRE : elles ne vivent
+    // pas dans `conditions` mais dans le vocabulaire du moteur.
+    foreach (Sort::all() as $sort) {
+        $nom = $sort->effet['condition_monstre'] ?? null;
+
+        if ($nom === null) {
+            continue;
+        }
+
+        expect(in_array($nom, MoteurSorts::CONDITIONS_MONSTRE, true))
+            ->toBeTrue("{$sort->nom} : condition de monstre « {$nom} » hors vocabulaire.");
+    }
+});
