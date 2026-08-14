@@ -3119,15 +3119,20 @@ final class ResolveurTour
 
     private function resoudreNarratif(Groupe $groupe, array $option, array $acteur): array
     {
-        $payload = [
+        // ⚠ AUCUNE journalisation ici. `ChoixController` a déjà consigné le
+        // choix (type `choix`, « source de vérité rejouable »), et une action
+        // narrative n'a pas d'autre résultat que le choix lui-même : le
+        // rejournaliser sous le MÊME type produisait deux événements
+        // identiques et faisait avancer `sequence` deux fois (constaté en
+        // partie réelle le 2026-08-13 : Krogar, `attendre`, seq 18 et 19).
+        //
+        // Les autres résolveurs journalisent bien, mais sous un type
+        // SÉMANTIQUE (`action`, `combat`, `jet`) — un choix, une trace typée.
+        return [
             'type' => $option['type'],
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
         ];
-
-        Journal::ajouter($groupe, 'choix', $payload, $acteur);
-
-        return $payload;
     }
 
     /**

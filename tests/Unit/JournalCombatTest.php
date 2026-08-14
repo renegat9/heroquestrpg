@@ -24,9 +24,41 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
             ->and($l[0]['texte'])->toBe('Borin terrasse Gobelin !');
     });
 
-    it('décrit une attaque parée (0 dégât)', function () {
-        $l = lignes(['type' => 'attaque', 'degats' => 0, 'cible' => ['nom' => 'Gargouille']]);
-        expect($l[0]['ton'])->toBe('pare');
+    it('distingue le coup MANQUÉ du coup PARÉ — ce n\'est pas la même nouvelle', function () {
+        // ⚠ Ces deux issues partageaient la même phrase (« X pare l'assaut de
+        // Y ») jusqu'au 2026-08-13, où une partie réelle l'a mis en évidence :
+        // « Gobelin pare l'assaut de Borin · 0 crâne ». Le gobelin n'avait rien
+        // paré — Borin avait raté. Dire au joueur que l'armure adverse tient
+        // quand ce sont ses dés qui échouent lui fait changer de tactique pour
+        // une mauvaise raison.
+
+        // 0 crâne : l'attaquant a manqué, le défenseur n'a rien fait.
+        $manque = lignes(['type' => 'attaque', 'degats' => 0, 'touches' => 0, 'boucliers' => 0,
+            'cible' => ['nom' => 'Gargouille']]);
+
+        expect($manque[0]['ton'])->toBe('echec')
+            ->and($manque[0]['texte'])->toContain('Borin manque Gargouille');
+
+        // Des crânes, tous bloqués : le défenseur a VRAIMENT paré.
+        $pare = lignes(['type' => 'attaque', 'degats' => 0, 'touches' => 2, 'boucliers' => 2,
+            'cible' => ['nom' => 'Gargouille']]);
+
+        expect($pare[0]['ton'])->toBe('pare')
+            ->and($pare[0]['texte'])->toContain('Gargouille pare');
+    });
+
+    it('fait la même distinction pour le coup d\'un MONSTRE', function () {
+        $manque = lignes(['type' => 'attaque_monstre', 'monstre' => 'Gobelin', 'degats' => 0,
+            'touches' => 0, 'cible' => ['nom' => 'Borin']]);
+
+        expect($manque[0]['ton'])->toBe('echec')
+            ->and($manque[0]['texte'])->toContain('Gobelin manque Borin');
+
+        $pare = lignes(['type' => 'attaque_monstre', 'monstre' => 'Gobelin', 'degats' => 0,
+            'touches' => 1, 'boucliers' => 1, 'cible' => ['nom' => 'Borin']]);
+
+        expect($pare[0]['ton'])->toBe('pare')
+            ->and($pare[0]['texte'])->toContain('Borin pare');
     });
 
     it('annexe le détail des dés quand le payload les porte (C1)', function () {
@@ -142,7 +174,9 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
                 ['type' => 'attaque_allie', 'allie' => 'Archer', 'degats' => 1, 'cible' => ['nom' => 'Gobelin']],
             ]],
             'tour_monstres' => ['actions' => [
-                ['type' => 'attaque_monstre', 'monstre' => 'Gobelin', 'degats' => 0, 'cible' => ['nom' => 'Borin']],
+                // 1 crâne bloqué par 1 bouclier : une VRAIE parade.
+                ['type' => 'attaque_monstre', 'monstre' => 'Gobelin', 'degats' => 0,
+                    'touches' => 1, 'boucliers' => 1, 'cible' => ['nom' => 'Borin']],
             ]],
         ];
         $l = lignes($resultat);

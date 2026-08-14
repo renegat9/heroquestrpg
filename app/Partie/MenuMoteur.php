@@ -490,8 +490,23 @@ final class MenuMoteur
         $bonusAttaqueDisponible = $etat !== null && $aAgi && ! $aJoue
             && (bool) ($etat->attaque_supplementaire ?? false);
 
+        // `action_interdite` (Paralysé, Évanescent) : le pendant de
+        // `deplacement_interdit`. ⚠ Il ne gardait QUE le bloc des sorts jusqu'au
+        // 2026-08-14 — un héros Paralysé attaquait, fouillait et désamorçait
+        // normalement, et n'était privé que de sa magie. Constaté en partie
+        // réelle : Alaric, paralysé par la Flamme hypnotique d'une coéquipière,
+        // a tué un gobelin de son tour. La règle était pourtant écrite dans le
+        // docblock d'`actionInterdite()` — « attaquer, fouiller, désamorcer,
+        // lancer » — et dans la condition elle-même.
+        //
+        // Un Évanescent, lui, MARCHE encore et ouvre les portes : c'est tout
+        // l'intérêt du sort, et c'est pourquoi la garde porte sur l'ACTION et
+        // jamais sur le déplacement.
+        $actionInterdite = $this->sorts->actionInterdite($personnage);
+
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
-        if ((! $aAgi || $bonusAttaqueDisponible) && $etat !== null && $etat->position_x !== null) {
+        if ((! $aAgi || $bonusAttaqueDisponible) && ! $actionInterdite
+            && $etat !== null && $etat->position_x !== null) {
             // DUAL-WIELDING (règle de René, 2026-08-12) : un héros peut tenir
             // DEUX armes à une main, et la seconde n'apporte aucun dé — elle
             // apporte un CHOIX. D'où une option d'attaque par arme, et non plus
@@ -818,12 +833,6 @@ final class MenuMoteur
             && ($personnage->competences()->where('nom', 'Réserve arcanique')->exists()
                 || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
-        // `action_interdite` (Paralysé, Évanescent) : le pendant de
-        // `deplacement_interdit`. Un Évanescent MARCHE encore et ouvre les
-        // portes — c'est tout l'intérêt du sort —, mais ne peut ni attaquer,
-        // ni fouiller, ni désamorcer, ni lancer.
-        $actionInterdite = $this->sorts->actionInterdite($personnage);
-
         if ($etat !== null && ! $aAgi && ! $actionInterdite) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
                 $options[] = $option;
@@ -838,6 +847,10 @@ final class MenuMoteur
             }
         }
 
+        // ⚠ PAS de garde `action_interdite` sur ce bloc entier : ouvrir une
+        // porte et actionner un levier restent permis à l'ÉVANESCENT — « il ne
+        // peut que bouger et ouvrir des portes », c'est le texte de la carte et
+        // tout l'intérêt du sort. Seules les FOUILLES sont gardées, plus bas.
         if (! $aAgi && $etat !== null) {
             // Ouvrir une porte verrouillée par CLÉ au contact (héros porteur).
             // Actionner un levier au contact (ouvre la porte liée).
@@ -871,7 +884,7 @@ final class MenuMoteur
                 // tombeau, une armoire s'ouvrent — ce n'est pas du décor. Une
                 // seule fois pour le groupe : c'est un objet, pas une table de
                 // trésor. Créneau ACTION, comme la fouille de salle.
-                foreach ($this->mobilier->fouillablesAdjacents($quete->carte, $px, $py) as $meuble) {
+                foreach (($actionInterdite ? [] : $this->mobilier->fouillablesAdjacents($quete->carte, $px, $py)) as $meuble) {
                     $options[] = [
                         'id' => "fouiller_mobilier_{$meuble['index']}",
                         'libelle' => "Fouiller : {$meuble['nom']}",
@@ -888,6 +901,15 @@ final class MenuMoteur
                         'parametres' => ['levier' => ['x' => $levier['x'], 'y' => $levier['y'], 'levier_id' => $levier['levier_id']]],
                     ];
                 }
+            }
+
+            if ($actionInterdite) {
+                // Paralysé : ni fouille de zone, ni trésor, ni technique du
+                // Moine. Le déplacement et les portes, eux, ont déjà été
+                // traités au-dessus.
+                $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
+
+                return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $options];
             }
 
             $options[] = [

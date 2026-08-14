@@ -38,6 +38,38 @@ use Illuminate\Validation\ValidationException;
 class ChoixController extends Controller
 {
     /**
+     * Est-ce VRAIMENT le tour de ce héros ? Même règle que
+     * `ResolveurTour::verifierInitiative()` : le premier de l'ordre figé qui
+     * soit encore debout et n'ait pas joué.
+     *
+     * Dupliquer la lecture plutôt que d'exposer le résolveur est assumé — le
+     * contrôleur ne fait que DÉCIDER S'IL PROPOSE, le résolveur reste seul
+     * juge de ce qu'il accepte. Les deux doivent simplement dire « non » au
+     * même moment.
+     */
+    private function estSonTour(Groupe $groupe, int $personnageId): bool
+    {
+        $etats = $groupe->queteCourante?->etatsPersonnages()->get();
+
+        if ($etats === null) {
+            return false;
+        }
+
+        foreach ($groupe->personnages()->wherePivot('actif', true)
+            ->orderBy('groupe_personnages.ordre_initiative')->pluck('personnages.id') as $id) {
+            $etat = $etats->firstWhere('personnage_id', $id);
+
+            if ($etat === null || $etat->a_joue || $etat->tombe) {
+                continue;
+            }
+
+            return (int) $id === $personnageId;
+        }
+
+        return false;
+    }
+
+    /**
      * POST /api/groupes/{identifiant}/choix
      *
      * ResolveurTour est injecté PAR MÉTHODE (pas au constructeur) : Laravel
@@ -176,7 +208,19 @@ class ChoixController extends Controller
                 ->where('personnage_id', $hero->id)
                 ->first();
 
-            if ($etat !== null && ! $etat->a_joue && ! $etat->tombe) {
+            // ⚠ L'ORDRE D'INITIATIVE, pas seulement « n'a pas encore joué ».
+            // Sans cette garde (constatée en partie réelle le 2026-08-13 par
+            // TROIS joueurs indépendamment), ce rattrapage servait un menu
+            // complet et cliquable à un héros dont ce n'était pas le tour :
+            // chaque action repartait en 422 « Ce n'est pas le tour de ce
+            // héros ». La manette appelle ce point d'entrée au montage et à
+            // chaque reconnexion — un joueur qui rechargeait son téléphone
+            // pendant le tour d'un autre héritait donc d'un menu mort.
+            //
+            // C'est l'anti-patron que le projet traque partout ailleurs : le
+            // menu ne doit jamais proposer ce que le résolveur refusera.
+            if ($etat !== null && ! $etat->a_joue && ! $etat->tombe
+                && $this->estSonTour($groupe, $hero->id)) {
                 GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id, enrichir: false);
                 $cache = Cache::get($cle);
             }

@@ -231,7 +231,13 @@ final class JournalCombat
             return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
         }
 
-        return [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}", 'ton' => 'pare']];
+        // ⚠ MANQUÉ ≠ PARÉ. Le repli disait « pare » dans les deux cas, et un
+        // joueur en concluait que l'armure adverse était trop bonne quand
+        // c'étaient ses propres dés qui échouaient (constaté en partie réelle
+        // le 2026-08-13 : « Gobelin pare l'assaut de Borin · 0 crâne »).
+        return (int) ($a['touches'] ?? 0) === 0
+            ? [['texte' => "{$attaquant} manque {$cible}{$des}", 'ton' => 'echec']]
+            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}", 'ton' => 'pare']];
     }
 
     /**
@@ -268,7 +274,11 @@ final class JournalCombat
         $des = $this->detailDes($a);
 
         if ($degats <= 0) {
-            return [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}", 'ton' => 'pare']];
+            // Même distinction côté monstre : un héros lisait « je pare »
+            // quand la créature l'avait simplement manqué.
+            return (int) ($a['touches'] ?? 0) === 0
+                ? [['texte' => "{$monstre} manque {$cible}{$des}", 'ton' => 'echec']]
+                : [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}", 'ton' => 'pare']];
         }
 
         $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'subit']];

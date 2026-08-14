@@ -25,6 +25,8 @@ use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Cache;
+use App\Partie\MenuMoteur;
+use App\Partie\MoteurSorts;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -572,4 +574,35 @@ it('couvre les DEUX poisons avec Sang robuste : Empoisonné et Envenimé', funct
         ->and(Competence::resisteA($heros->fresh(), 'Envenimé'))->toBeTrue()
         // …sans devenir une immunité générale.
         ->and(Competence::resisteA($heros->fresh(), 'Apeuré'))->toBeFalse();
+});
+
+it('PARALYSÉ interdit vraiment TOUTE action — pas seulement les sorts', function () {
+    // ⚠ Défaut trouvé en PARTIE RÉELLE le 2026-08-14, jamais par les tests :
+    // `MenuMoteur` ne gardait que le bloc des sorts derrière `actionInterdite`.
+    // Un héros paralysé attaquait, fouillait et désamorçait normalement — seule
+    // sa magie était bloquée. La règle était pourtant écrite noir sur blanc dans
+    // la condition elle-même ET dans le docblock d'`actionInterdite()`.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    $groupe = $ctx['groupe']->fresh();
+    $menu = app(MenuMoteur::class)->generer($groupe, $heros->fresh());
+    $ids = collect($menu['options'])->pluck('id');
+
+    // Avant la paralysie : il attaque et il fouille.
+    expect($ids)->toContain('attaquer')->toContain('fouiller');
+
+    // La Flamme hypnotique est justement le sort qui paralyse (répertoire elfique).
+    app(MoteurSorts::class)->appliquerConditionCatalogue(
+        $heros, 'Paralysé', App\Models\Sort::where('nom', 'Flamme hypnotique')->firstOrFail(),
+    );
+
+    $menu = app(MenuMoteur::class)->generer($groupe, $heros->fresh());
+    $ids = collect($menu['options'])->pluck('id');
+
+    expect($ids)->not->toContain('attaquer')
+        ->not->toContain('fouiller')
+        ->not->toContain('fouiller_tresor')
+        // Il lui reste de quoi finir son tour : un menu vide bloquerait la partie.
+        ->toContain('attendre');
 });

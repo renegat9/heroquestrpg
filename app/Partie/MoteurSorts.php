@@ -516,9 +516,15 @@ final class MoteurSorts
             : null;
 
         foreach ($personnage->sorts()->wherePivot('disponible', true)->orderBy('sorts.id')->get() as $sort) {
+            // Le libellé DIT la zone : sans cible à choisir, c'est la seule
+            // chose qui prévienne le joueur qu'il va toucher ses alliés.
+            $libelle = data_get($sort->effet, 'zone') !== null
+                ? "Lancer {$sort->nom} — toute la salle, alliés compris"
+                : "Lancer {$sort->nom}";
+
             $options[] = $this->optionSort(
                 "sort_{$sort->id}",
-                "Lancer {$sort->nom}",
+                $libelle,
                 'sort',
                 ['sort_id' => $sort->id],
                 $sort,
@@ -599,6 +605,17 @@ final class MoteurSorts
     public function ciblesLegales(Sort $sort, array $monstres, array $heros, ?array $lanceur = null, ?Grille $grille = null): ?array
     {
         $cible = (string) data_get($sort->effet, 'cible', MotsClesSort::CIBLE_SOI);
+
+        // ZONE : il n'y a RIEN à choisir — le sort balaie la salle du lanceur,
+        // et `ResolveurTour::sortMental()` route vers `sortDeZone()` AVANT même
+        // de lire une cible. Offrir une liste ici faisait pire que rien
+        // (constaté en partie réelle le 2026-08-13) : le joueur visait un
+        // gobelin, son choix était silencieusement ignoré, et la Flamme
+        // hypnotique paralysait DEUX de ses alliés pendant 3 tours. Le tir ami
+        // est assumé (doc 02 §5, S3) ; faire semblant de viser ne l'est pas.
+        if (data_get($sort->effet, 'zone') !== null) {
+            return null;
+        }
 
         // `soi` (Traverser la Pierre) : le lanceur, donc aucune liste à choisir.
         if (! in_array($sort->type, ['degats', 'mental'], true)
