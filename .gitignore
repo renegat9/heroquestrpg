@@ -48,3 +48,10 @@ browser-shots/pilote/etats/
 # États de session Playwright (cookies) écrits par jet-des.mjs
 browser-shots/*-state.json
 browser-shots/jd-*.json
+
+# Harnais de campagne : le CODE est versionné (browser-shots/campagne/*.sh|py|md),
+# l'ÉTAT d'une partie jouée ne l'est pas — cookies de session, identifiants de
+# héros, code de groupe.
+/browser-shots/campagne/jar-*.txt
+/browser-shots/campagne/perso-*.txt
+/browser-shots/campagne/groupe.txt

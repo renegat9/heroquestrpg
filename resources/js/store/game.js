@@ -385,7 +385,20 @@ export function conditionsVersBadges(conditions) {
         const objet = c !== null && typeof c === 'object';
         const nom = objet ? c.nom : c;
         const info = conditionInfo(nom);
-        return { nom, t: info.t, l: info.l, ic: info.ic, d: objet ? (c.duree ?? null) : null };
+        // D'OÙ vient le buff : « Renforcé » est la condition GÉNÉRIQUE des
+        // bonus chiffrés, donc Courage (+2 attaque) et Peau de Pierre
+        // (+1 défense) s'affichaient sous le même nom, indiscernables. La
+        // source (`sort:Courage`) précise lequel est lequel.
+        const src = objet ? (c.source ?? null) : null;
+        const origine = src ? String(src).split(':').slice(1).join(':') : null;
+        return {
+            nom,
+            t: info.t,
+            l: origine ? `${info.l} (${origine})` : info.l,
+            ic: info.ic,
+            d: objet ? (c.duree ?? null) : null,
+            origine,
+        };
     });
 }
 

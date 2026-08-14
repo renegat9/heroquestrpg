@@ -691,6 +691,15 @@ final class EtatGroupe
             ->map(fn (Condition $c) => [
                 'nom' => $c->nom,
                 'duree' => (int) $c->pivot->duree,
+                // D'OÙ elle vient (`sort:Courage`, `potion:Potion de rage`…).
+                // ⚠ Sans elle, deux buffs très différents s'affichaient sous le
+                // même nom : *Courage* (+2 dés d'attaque) et *Peau de Pierre*
+                // (+1 de défense) portent tous deux la condition générique
+                // « Renforcé », et un joueur voyait donc deux lignes identiques
+                // sans pouvoir dire laquelle faisait quoi (constaté en partie
+                // réelle le 2026-08-14). La source était en base depuis
+                // toujours, elle n'était simplement pas remontée.
+                'source' => $c->pivot->source,
             ])
             ->values()
             ->all();
