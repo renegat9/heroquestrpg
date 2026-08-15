@@ -77,7 +77,94 @@ explicitement comme frappant en diagonale.
 | **Potion de soin / Healing potion** | Attestée en toutes lettres au fil des quêtes, montants **variables** : « restores up to 4 lost Body Points » (LQ p. 7, p. 17, p. 29…) mais aussi « restores up to 2 lost Body Points » (LQ p. 13) | Peut se boire à tout moment, y compris pour se sauver **avant** de tomber à 0 PV (LR p. 21-22) ; on peut en boire plusieurs à la fois ; on peut en donner une à un allié, mais seulement sur son propre tour (LR p. 16) | — | ⚠ non trouvé |
 | **Cotte de mailles, hachette/hache de bataille, lance, parchemins individuels** | **Jamais nommés**, ni dans le livret de règles ni dans le livret de quêtes | — | — | ⚠ non trouvé |
 
-**Armes/armures de `notre_catalogue.md` introuvables dans ce matériel** : *Hachette*, *Lance*, *Hache de bataille*, *Cotte de mailles* ne sont mentionnées **nulle part**, sous aucun nom, dans les 43 pages imprimées couvertes par les deux livrets. Voir §10 pour le détail.
+**Armes/armures de `notre_catalogue.md` introuvables dans ce matériel** : *Hachette*, *Lance*, *Hache de bataille*, *Cotte de mailles* ne sont mentionnées **nulle part**, sous aucun nom, dans les 43 pages imprimées couvertes par les deux livrets. Voir §10 pour le détail. ⚠ **Cette phrase ne vaut plus que pour les LIVRETS** : §2.1bis ci-dessous produit les cartes officielles de la *Handaxe*, de la *Battle Axe* et de la *Chain Mail*. Seule la *Lance* reste introuvable.
+
+### 2.1bis Le paquet OFFICIEL Avalon Hill — photographié (35 cartes)
+
+**Source : photos de René, `equipments.pdf` (20 cartes) et `potions.pdf` (15
+cartes)**, dossier Drive du projet
+[`1seESGzXRhVw7ijIPuRVisaE36BPPoJ53`](https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53),
+relevées le 2026-08-14. Chaque carte porte sa mention de copyright — **© 2021,
+2022 ou 2023 Hasbro** — reproduite ci-dessous, parce qu'elle date la vague de
+publication et distingue le jeu de base de ses extensions.
+
+⚠ **Ce paquet-ci PRIME sur le paquet Sjeng de §2.2**, et c'est tout l'enjeu :
+§2.2 documente une conversion fan dont l'auteur écrit lui-même « I have changed
+some item costs and functionality ». Les valeurs ci-dessous sont celles des
+cartes vendues avec le jeu. Elles lèvent la plus vieille impasse de ce document
+— « les prix n'existent dans aucun livret » (§1) : ils existent, sur du carton,
+et les voici.
+
+#### Équipement (`equipments.pdf`)
+
+| carte | © | prix | effet, texte de la carte |
+|---|---|---|---|
+| **Bandolier** | 2022 | 300 | compte comme une *Tool Kit* pour désamorcer, et le porteur est **toujours considéré armé d'une dague**. Rogue uniquement |
+| **Battle Axe** | 2021 | 450 | 4 dés d'attaque. **Pas de bouclier** avec cette arme. Pas le magicien |
+| **Bracers** | 2021 | 550 | *Armor* — +1 dé de défense. **Cumulable** avec le casque et/ou le bouclier |
+| **Broadsword** | 2021 | 250 | 3 dés d'attaque. Pas le magicien |
+| **Caltrops** | 2023 | 100 | pose une tuile sur une case traversée ; une créature qui y entre lance 1 dé de combat — bouclier blanc : elle continue, sinon son mouvement s'arrête. Retirée si une créature y finit son tour. Perdue à l'usage |
+| **Chain Mail** | 2021 | 500 | *Armor* — +1 dé de défense. Cumulable casque et/ou bouclier. Pas le magicien |
+| **Crossbow** | 2021 | 350 | 3 dés. Tire sur **tout monstre visible**, mais **jamais au contact**. Flèches illimitées. Pas le magicien |
+| **Dagger** | 2022 | **25** | 1 dé. Peut être **lancée** sur tout monstre visible, **perdue** une fois lancée |
+| **Handaxe** | 2023 | 200 | 2 dés. Lançable en ligne de vue, **perdue** une fois lancée. Pas le magicien |
+| **Helmet** | 2023 | 125 | *Armor* — +1 dé de défense. Pas le magicien |
+| **Holy Water** | 2021 | 400 | **à la place d'attaquer** : tue n'importe quel mort-vivant (squelette, zombie, momie). Carte défaussée après usage |
+| **Longsword** | 2021 | 350 | 3 dés. **Attaque en diagonale** (à cause de sa longueur). Pas le magicien |
+| **Plate Mail** | 2021 | 850 | *Armor* — +2 dés de défense, mais **1 seul dé rouge de mouvement**. Cumulable casque et/ou bouclier. Pas le magicien |
+| **Rapier** | 2023 | 250 | 2 dés, **attaque en diagonale**. Pas le magicien |
+| **Shield** | 2021 | 150 | *Armor* — +1 dé de défense. **Ni avec la hache de bataille, ni avec le bâton.** Pas le magicien |
+| **Shortsword** | 2021 | 150 | 2 dés. Pas le magicien |
+| **Smoke Bomb** | 2023 | 100 | pendant le mouvement : enveloppe **un** monstre adjacent ; jusqu'au prochain tour de ce monstre, tous les héros **traversent sa case sans être vus**. Perdue à l'usage |
+| **Staff** | 2021 | 100 | **1 dé**, **attaque en diagonale**. Pas de bouclier avec cette arme |
+| **Tool Kit** | 2021 | 250 | *Disarm Traps* — **50 %** de chances de désamorcer un piège cherché-et-trouvé non déclenché |
+| **Wand** | 2023 | 125 | 2 dés d'attaque contre **tout monstre en ligne de vue**. **Warlock uniquement** |
+
+#### Potions (`potions.pdf`)
+
+| carte | © | prix | effet, texte de la carte |
+|---|---|---|---|
+| **Potion of Battle** | 2021 | 200 | **1 relance** de ses dés d'attaque |
+| **Potion of Battle Rage** | 2022 | 400 | **Barbare seul** — 2 attaques par tour **tant qu'un monstre est en vue** ; l'effet cesse dès qu'il n'y en a plus |
+| **Potion of Dexterity** | 2021 | 100 | **+5 cases** au prochain jet de mouvement, **ou** un saut de fosse réussi d'office. ⚠ **une seule potion par tour**, même si on en possède plusieurs |
+| **Potion of Frost Skin** | 2022 | 300 | **Barbare seul** — +2 dés de défense tant qu'un monstre est en vue |
+| **Potion of Healing** | 2023 | 500 | lance **1 dé rouge**, rend autant de PV de Body (sans dépasser le maximum) |
+| **Potion of Icy Strength** | 2022 | 200 | **Barbare seul** — la prochaine attaque inflige **le double** des PV de Body obtenus aux dés |
+| **Potion of Lesser Healing** | 2023 | 200 | rend **jusqu'à 2** PV de Body |
+| **Potion of Magic** | 2023 | 400 | récupère **jusqu'à 3 sorts** lancés pendant cette quête |
+| **Potion of Recall** | 2023 | 400 | **Elfe seul** — récupère **un** sort lancé plus tôt dans la quête |
+| **Potion of Rejuvenation** | 2022 | 500 | **jusqu'à 6** PV de Body perdus, lance 1 dé rouge ; jamais au-dessus du total de départ |
+| **Potion of Restoration** | 2022 | 500 | rend **1 PV de Body et 1 PV de Mind** |
+| **Potion of Speed** | 2021 | 200 | **deux fois plus de dés** au prochain mouvement. Carte défaussée |
+| **Potion of Superior Restoration** | 2023 | 800 | ramène Body **et** Mind au niveau du **début de la quête**. Guérit aussi un héros changé en loup-garou |
+| **Potion of Vision** | 2023 | 500 | **Elfe seul** — voit **toutes** les portes secrètes et les pièges ordinaires en ligne de vue, jusqu'à ce que l'Elfe subisse **au moins 1 PV** de dégâts |
+| **Venom Antidote** | 2022 | 300 | soigne **jusqu'à 2** PV de Body causés **uniquement** par aiguilles ou fléchettes empoisonnées |
+
+#### Ce que ces cartes corrigent dans ce document
+
+1. **« Les prix n'existent dans aucun livret » est levé.** Ils sont sur les
+   cartes, et ce sont ces 35 valeurs qui font foi.
+2. **La *Hachette* existe.** §2.1 et un commentaire de `GroupeController`
+   affirmaient qu'elle « n'existe NULLE PART dans le matériel officiel » — la
+   *Handaxe* a sa carte © 2023, à 200 po, 2 dés, lançable. Même sort pour la
+   *Battle Axe* et la *Chain Mail*. Seule la **Lance** reste introuvable.
+3. **Le *Bâton* vaut 1 dé, pas 2.** La carte © 2021 est explicite. Notre
+   catalogue lui en donne 2 — c'est une divergence de nous, à assumer ou à
+   corriger, pas une lecture.
+4. **Le *Bouclier* exclut nommément la hache de bataille et le bâton**, pas
+   « les armes à deux mains » en général : notre `incompatible_deux_mains` est
+   une généralisation, qui se trouve donner le même résultat sur ces deux-là.
+5. **La *Dague* coûte 25 po**, contre 150 chez nous — le plus gros écart de prix
+   du paquet, et il compte : c'est l'arme de départ du magicien et du Rogue.
+6. **Quatre cartes n'ont aucun équivalent chez nous** : *Bandolier*, *Caltrops*,
+   *Holy Water*, *Smoke Bomb*. La *Wand* du Warlock non plus, alors que
+   `GroupeController` lui en donne une au départ — l'objet n'existe pas au
+   catalogue.
+7. **Les potions sont une divergence quasi totale.** Aucune des 15 cartes ne
+   porte le nom d'une des nôtres. Nos potions de force / défense / rage /
+   héroïsme sont des inventions du projet ; les cartes, elles, réservent trois
+   potions au **Barbare** et deux à l'**Elfe**, ce que notre catalogue ne fait
+   pour aucune potion.
 
 ### 2.2 Le paquet d'armurerie, converti en statistiques et en mots-clés
 
