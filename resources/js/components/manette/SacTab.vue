@@ -117,9 +117,17 @@ const deborde = computed(() => {
                         title="Donner à un compagnon"
                         @click="basculerDon(p.inventaire_id)"
                     ><MSym n="volunteer_activism" :size="18" /></button>
+                    <!--
+                        `utilisable === false` : potion réservée à une autre
+                        classe (trois au Barbare, deux à l'Elfe sur les cartes
+                        officielles). On la laisse VISIBLE et on grise le bouton
+                        — le héros a le droit de la porter pour un compagnon, et
+                        cacher l'objet ferait croire qu'il a disparu du sac.
+                    -->
                     <button
                         class="sac-btn gold"
-                        :disabled="potionEnCours"
+                        :disabled="potionEnCours || p.utilisable === false"
+                        :title="p.utilisable === false ? 'Réservée à une autre classe' : null"
                         @click="emit('boire', p.inventaire_id)"
                     >Boire</button>
                 </div>

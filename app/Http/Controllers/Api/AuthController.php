@@ -231,6 +231,12 @@ class AuthController extends Controller
                                 'nom' => $l->objet->nom,
                                 'quantite' => (int) $l->quantite,
                                 'effet' => $l->objet->effet,
+                                // Trois potions officielles sont réservées au
+                                // Barbare, deux à l'Elfe. On BADGE, on ne filtre
+                                // pas : un héros a le droit de PORTER la potion
+                                // d'un compagnon — le marché autorise déjà
+                                // l'achat pour autrui. La manette grise « Boire ».
+                                'utilisable' => app(Equipement::class)->estAccessible($p, $l->objet),
                             ])
                             ->values()
                             ->all(),

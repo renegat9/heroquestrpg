@@ -166,7 +166,15 @@ et les voici.
    potions au **Barbare** et deux à l'**Elfe**, ce que notre catalogue ne fait
    pour aucune potion.
 
-### 2.2 Le paquet d'armurerie, converti en statistiques et en mots-clés
+### 2.2 ⚠ ANNEXE HISTORIQUE — le paquet fan, remplacé le 2026-08-15
+
+> Cette section documentait la source de l'armurerie jusqu'à ce que les photos
+> du matériel officiel (§2.1bis) la rendent caduque. Elle est **conservée pour
+> mémoire** : elle explique d'où venaient les douze pièces supprimées et les
+> prix corrigés. **Ne plus s'en servir comme source** — en cas de désaccord,
+> §2.1bis fait foi.
+
+### 2.2 (historique) Le paquet d'armurerie, converti en statistiques et en mots-clés
 
 **Source : `sjeng-equipment.pdf`, Ye Olde Inn** — 27 cartes recto, artwork Gary
 Chalk, [english.yeoldeinn.com/downloads/cards/sjeng-equipment.pdf](https://english.yeoldeinn.com/downloads/cards/sjeng-equipment.pdf).
@@ -796,6 +804,26 @@ talismans de classe d'un coup.
 ---
 
 ## 10. Écarts avec notre implémentation
+
+### ⚠ Ce que le paquet officiel a corrigé (2026-08-15)
+
+Les tableaux ci-dessous ont été écrits quand seuls les livrets étaient
+sourçables. **§2.1bis en a périmé une partie** : la *Hachette*, la *Hache de
+bataille* et la *Cotte de mailles* ont bel et bien une carte officielle — seule
+la **Lance** reste introuvable, et elle a quitté le catalogue avec les onze
+autres pièces du paquet fan.
+
+**Divergences NEUVES, assumées, apportées par le portage des 35 cartes :**
+
+| Carte | Ce que la carte dit | Ce que nous faisons, et pourquoi |
+|---|---|---|
+| **Holy Water** | aucune portée n'est écrite | On retient la **ligne de vue**, comme la Flèche de Vindication — l'autre effet du jeu qui tue sans jet. Ne rien décider aurait rendu la carte injouable. |
+| **Bandolier** | « always considered to be armed with a dagger » | Le porteur ne gagne **aucun dé** : il gagne les règles qui EXIGENT une dague (Ambidextrie du Rogue, fermeture des techniques mains nues). Aucune arme virtuelle n'entre dans `armesEnMain()`, dont les entrées sont de vraies lignes d'inventaire qu'on supprime et qu'on équipe. |
+| **Venom Antidote** | « caused by poison needles or poison darts **only** » | La restriction **n'est pas portable** : la source d'un dégât n'est mémorisée nulle part sur le héros. On garde la forme de la Plume anti-poison — retirer le poison et rendre 2 PV, sans condition d'origine. |
+| **Potion of Healing** / **of Rejuvenation** | « roll 1 red die » / « up to 6 lost Body Points. Roll 1 red die » | **Mécaniquement identiques chez nous** (1d6 plafonné, même prix). C'est le texte des deux cartes ; on les sème quand même toutes les deux plutôt que d'en inventer une différence. |
+| **Potion of Battle Rage / Frost Skin** | « as long as there are monsters in sight » | Évalué au **DÉBUT DU TOUR** du porteur, pas en continu — c'est le seul crochet de ce genre dans le moteur. Conséquence : la peau de givre protège encore pendant la phase de monstres qui suit la mort du dernier ennemi. |
+| **Potion of Superior Restoration** | « cure a hero who has been turned into a werewolf » | Sans objet : aucun lycanthrope au bestiaire. L'effet central (Body et Mind au niveau du début de quête) est porté, la clause est ignorée. |
+| **Bracers** | aucune restriction de classe | Nous en faisions une pièce **réservée au magicien** (`armure_magicien`, repris du paquet fan). Le tag saute : tout le monde les porte, le magicien compris. |
 
 Comparaison ligne à ligne entre ce que ce matériel officiel atteste et `notre_catalogue.md` (+ les docs 01/03/04/09 qui en dérivent). Seuls les écarts réels ou les valeurs invérifiables sont listés — les correspondances exactes (ex. magicien 1/2/4/6, `Fendoir des Titans`-style artefacts mis à part) sont signalées en ligne dans les sections ci-dessus quand elles apparaissent, pas ici.
 

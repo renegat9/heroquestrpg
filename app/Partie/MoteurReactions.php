@@ -247,6 +247,15 @@ final class MoteurReactions
                 continue;
             }
 
+            // ⚠ Ici on FILTRE, là où `/moi` se contente d'un badge : proposer un
+            // soin d'urgence que la résolution refuserait serait pire que de ne
+            // rien proposer — le joueur perdrait son tour à répondre à une offre
+            // morte. Aucune potion de soin n'est restreinte aujourd'hui ; la
+            // garde tient la cohérence des trois chemins.
+            if (! app(Equipement::class)->estAccessible($heros, $ligne->objet)) {
+                continue;
+            }
+
             $soins[] = [
                 'cle' => "potion:{$ligne->id}",
                 'type' => 'potion',

@@ -294,7 +294,7 @@ final class ResolveurTour
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
-                'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -3556,6 +3556,7 @@ final class ResolveurTour
      * moteur qui décide de ce qu'elle contient.
      *
      * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres  choix du joueur (cible visée)
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
@@ -3565,6 +3566,7 @@ final class ResolveurTour
         Personnage $personnage,
         EtatPersonnageQuete $etat,
         array $option,
+        array $parametres,
         array $acteur,
     ): array {
         $ligne = $personnage->inventaire()->with('objet')
@@ -3582,12 +3584,23 @@ final class ResolveurTour
             'objet' => $ligne->objet?->nom,
         ];
 
+        // ⚠ `parametres.cibles` de l'option EST la liste blanche : c'est le
+        // joueur qui envoie `cible_id`, et rien d'autre ne le contraint. Sans
+        // cette vérification on viserait n'importe quelle créature de la quête,
+        // hors de vue et hors de portée — la leçon du ciblage en deux temps.
+        $cibleId = (int) data_get($parametres, 'cible_id', 0);
+        $legales = array_column((array) data_get($option, 'parametres.cibles', []), 'id');
+
+        if ($legales !== [] && ! in_array($cibleId, array_map('intval', $legales), true)) {
+            throw ValidationException::withMessages(['parametres' => 'Cible illégale pour cet objet.']);
+        }
+
         if (! empty($effet['tue_creatures'])) {
-            $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $option, $effet, $acteur);
+            $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $cibleId, $effet);
         } elseif (! empty($effet['pose_chausse_trappes'])) {
             $payload += $this->poserChausseTrappes($quete, $personnage, $etat);
         } elseif (! empty($effet['enfume_monstre_adjacent'])) {
-            $payload += $this->enfumerMonstre($quete, $etat, $option);
+            $payload += $this->enfumerMonstre($groupe, $quete, $etat, $cibleId);
         } else {
             throw ValidationException::withMessages(['option_id' => "Cet objet ne s'utilise pas ainsi."]);
         }
@@ -3617,19 +3630,17 @@ final class ResolveurTour
      * une décision de portage, consignée en doc 16 §10.
      *
      * @param  array<string, mixed>  $effet
-     * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
     private function resoudreEauBenite(
         Groupe $groupe,
         Quete $quete,
         EtatPersonnageQuete $etat,
-        array $option,
+        int $cibleId,
         array $effet,
-        array $acteur,
     ): array {
         $instance = $quete->instancesMonstres()->with('monstre')
-            ->where('id', (int) data_get($option, 'parametres.cible_id', 0))
+            ->where('id', $cibleId)
             ->where('etat', 'actif')->where('revele', true)->first();
 
         if ($instance === null) {
@@ -3696,13 +3707,12 @@ final class ResolveurTour
      * BOMBE FUMIGÈNE — « A thick cloud of colored smoke envelops any one
      * monster adjacent to you. »
      *
-     * @param  array<string, mixed>  $option
      * @return array<string, mixed>
      */
-    private function enfumerMonstre(Quete $quete, EtatPersonnageQuete $etat, array $option): array
+    private function enfumerMonstre(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat, int $cibleId): array
     {
         $instance = $quete->instancesMonstres()->with('monstre')
-            ->where('id', (int) data_get($option, 'parametres.cible_id', 0))
+            ->where('id', $cibleId)
             ->where('etat', 'actif')->where('revele', true)->first();
 
         if ($instance === null || $instance->position_x === null
