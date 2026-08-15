@@ -6,7 +6,6 @@ namespace App\Partie;
 
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
-use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 
@@ -244,19 +243,11 @@ final class StylesElementaires
             return;
         }
 
-        $grille = FabriqueGrille::pour($quete);
-
-        $enVue = $quete->instancesMonstres()
-            ->where('etat', 'actif')
-            ->where('revele', true)
-            ->get()
-            ->contains(fn (InstanceMonstre $i) => $i->position_x !== null
-                && $grille->ligneDeVue(
-                    (int) $etat->position_x, (int) $etat->position_y,
-                    (int) $i->position_x, (int) $i->position_y,
-                ));
-
-        if (! $enVue) {
+        // Le prédicat vit dans `MoteurSorts` depuis que les potions officielles
+        // de rage guerrière et de peau de givre en ont besoin elles aussi
+        // (durée `plus_de_monstre_en_vue`). Deux implémentations de « un monstre
+        // me voit » finiraient par diverger.
+        if (! app(MoteurSorts::class)->monstreEnVue($quete, $etat)) {
             $etat->update(['styles_epuises' => []]);
         }
     }

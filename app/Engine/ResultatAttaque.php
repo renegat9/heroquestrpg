@@ -85,4 +85,41 @@ final readonly class ResultatAttaque
             cibleTombee: $apres === 0,
         );
     }
+
+    /**
+     * Le MÊME jet, dont les dégâts sont multipliés — Potion de force glaciale :
+     * « their next attack causes twice as many Body Points of damage as are
+     * rolled » (carte © 2022).
+     *
+     * Les faces lancées sont conservées telles quelles : le joueur doit voir
+     * son jet réel, et c'est le total infligé qui double, pas le nombre de
+     * crânes. `touches` et `boucliers` restent donc la vérité des dés.
+     *
+     * ⚠ Cette fabrique existe pour qu'il n'y ait qu'UN endroit où `degats`,
+     * `pvBodyApres` et `cibleTombee` se recalculent ensemble : multiplier à la
+     * main dans l'appelant laisserait les trois se contredire, et `frapper()`
+     * relit `pvBodyApres` cinq fois.
+     */
+    public function avecDegatsMultiplies(int $facteur): self
+    {
+        if ($facteur <= 1) {
+            return $this;
+        }
+
+        $degats = $this->degats * $facteur;
+        $apres = max(0, $this->pvBodyAvant - $degats);
+
+        return new self(
+            facesAttaque: $this->facesAttaque,
+            facesDefense: $this->facesDefense,
+            touches: $this->touches,
+            boucliers: $this->boucliers,
+            degats: $degats,
+            pvBodyAvant: $this->pvBodyAvant,
+            pvBodyApres: $apres,
+            cibleTombee: $apres === 0,
+            faceTouchante: $this->faceTouchante,
+            faceDefensive: $this->faceDefensive,
+        );
+    }
 }

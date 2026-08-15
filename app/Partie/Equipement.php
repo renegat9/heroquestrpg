@@ -241,12 +241,43 @@ final class Equipement
      */
     private function verifierAccesEquipement(Personnage $personnage, Objet $objet): void
     {
+        if ($this->estAccessible($personnage, $objet)) {
+            return;
+        }
+
+        $noeud = $this->noeudQuiDebloque($personnage, (string) $objet->tag_equipement);
+
+        throw ValidationException::withMessages([
+            'inventaire_id' => $noeud === null
+                ? "« {$objet->nom} » est hors de portée d'un {$personnage->classe}."
+                : "« {$objet->nom} » exige le nœud {$noeud} — à prendre dans ton arbre de compétences.",
+        ]);
+    }
+
+    /**
+     * Ce héros a-t-il le droit d'utiliser cette pièce ? La DÉCISION, séparée du
+     * refus, parce qu'elle sert désormais à trois endroits qui ne lèvent pas
+     * tous une exception.
+     *
+     * Extraite de `verifierAccesEquipement()` quand les cartes officielles ont
+     * apporté des **potions réservées à une classe** (trois au Barbare, deux à
+     * l'Elfe, doc 16 §2.1bis) : un consommable ne passe jamais par `equiper()`,
+     * donc rien ne l'aurait contrôlé. Les trois lecteurs :
+     *
+     *  - `MoteurPotions::boire()` — REFUSE, c'est l'autorité ;
+     *  - `/moi` `consommables` — pose un badge `utilisable`, sans filtrer : un
+     *    héros a le droit de PORTER la potion d'un compagnon ;
+     *  - `MoteurReactions::soinsDisponibles()` — FILTRE l'offre, car proposer un
+     *    soin que la résolution refusera est pire que ne rien proposer.
+     */
+    public function estAccessible(Personnage $personnage, Objet $objet): bool
+    {
         $tag = $objet->tag_equipement;
 
         // Pièce sans exigence de maîtrise (outil, consommable, parchemin, ou
         // objet d'un catalogue antérieur aux tags) : toujours portable.
         if ($tag === null || $tag === '') {
-            return;
+            return true;
         }
 
         $accessibles = $this->tagsAccessibles($personnage);
@@ -257,20 +288,27 @@ final class Equipement
         // compris celui de départ — une donnée de référence manquante ne doit
         // jamais rendre un personnage injouable.
         if ($accessibles === []) {
-            return;
+            return true;
         }
 
-        if (in_array($tag, $accessibles, true)) {
-            return;
-        }
+        return in_array($tag, $accessibles, true);
+    }
 
-        $noeud = $this->noeudQuiDebloque($personnage, $tag);
-
-        throw ValidationException::withMessages([
-            'inventaire_id' => $noeud === null
-                ? "« {$objet->nom} » est hors de portée d'un {$personnage->classe}."
-                : "« {$objet->nom} » exige le nœud {$noeud} — à prendre dans ton arbre de compétences.",
-        ]);
+    /**
+     * Le héros est-il « toujours considéré armé » de cette arme ? — Bandoulière
+     * du Rogue, « you are always considered to be armed with a dagger »
+     * (`compte_comme_arme`, doc 16 §2.1bis).
+     *
+     * ⚠ Balaie TOUT l'inventaire, sac compris : la bandoulière se porte, elle
+     * ne s'équipe pas dans un slot. Et elle n'ajoute AUCUN dé — le Rogue à
+     * mains nues en lance déjà un, autant que la dague. Ce qu'elle donne, ce
+     * sont les règles qui exigent une dague : l'Ambidextrie, et la fermeture
+     * des techniques mains nues.
+     */
+    public function compteCommeArme(Personnage $personnage, string $nomArme): bool
+    {
+        return $personnage->inventaire()->with('objet')->get()
+            ->contains(fn ($ligne) => ($ligne->objet?->effet['compte_comme_arme'] ?? null) === $nomArme);
     }
 
     /**

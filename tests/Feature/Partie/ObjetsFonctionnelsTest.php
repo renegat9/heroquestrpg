@@ -102,10 +102,28 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
     // sans quoi le boire est un clic pour rien.
     $utiles = ['soin_pv_body', 'soin_pv_body_de', 'soin_pv_mind', 'retire_condition',
         'bonus_des_attaque', 'bonus_des_defense', 'attaque_supplementaire',
-        'restaure_sorts'];
+        'restaure_sorts',
+        // Les sept effets apportés par les potions officielles (doc 16 §2.1bis) :
+        // aucun n'est un nombre de dés, et c'est pour eux que `MoteurPotions`
+        // pose désormais un buff dès qu'une `duree` est déclarée.
+        'restaure_jauges_depart', 'multiplicateur_degats', 'relance_des_attaque',
+        'bonus_deplacement', 'saut_fosse_automatique', 'deplacement_multiplie',
+        'revele_pieges_et_portes_en_vue'];
 
     foreach (Objet::where('categorie', 'consommable')->get() as $potion) {
         expect(array_intersect($utiles, array_keys((array) $potion->effet)))
             ->not->toBeEmpty("{$potion->nom} : aucun effet que MoteurPotions sache appliquer.");
+    }
+
+    // Le MATÉRIEL (categorie `outil`) n'était gardé par rien : les quatre
+    // cartes officielles qui n'entrent ni dans « arme » ni dans « armure » ni
+    // dans « consommable » auraient pu être semées inertes sans qu'un seul test
+    // s'en aperçoive.
+    $utilesOutils = ['permet_desamorcage', 'tue_creatures', 'pose_chausse_trappes',
+        'enfume_monstre_adjacent', 'compte_comme_arme'];
+
+    foreach (Objet::where('categorie', 'outil')->get() as $outil) {
+        expect(array_intersect($utilesOutils, array_keys((array) $outil->effet)))
+            ->not->toBeEmpty("{$outil->nom} : aucun effet que le moteur sache appliquer.");
     }
 });

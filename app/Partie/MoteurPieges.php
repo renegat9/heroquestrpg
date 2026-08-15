@@ -368,6 +368,27 @@ final class MoteurPieges
     }
 
     /**
+     * POTION DE VISION (Elfe) : « enables an Elf to see all secret doors and
+     * regular traps […] within their line of sight » (carte © 2023).
+     *
+     * Troisième entrée du même révélateur privé — ni rayon ni adjacence, mais
+     * la vue. Le filtre est le seul paramètre qui change, ce qui est exactement
+     * pourquoi `reveler()` en prend un.
+     *
+     * @return list<array{x: int, y: int, nom: string}> pièges révélés
+     */
+    public function revelerEnVue(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
+    {
+        return $this->reveler(
+            $groupe,
+            $carte,
+            $personnage,
+            fn (array $entree) => $grille->ligneDeVue($x, $y, (int) $entree['x'], (int) $entree['y']),
+            'clairvoyance',
+        );
+    }
+
+    /**
      * Pièges DÉTECTÉS orthogonalement adjacents à une position, avec leur
      * modèle de catalogue — base des options de menu Désamorcer / Franchir.
      *

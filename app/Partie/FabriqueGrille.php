@@ -69,7 +69,15 @@ final class FabriqueGrille
         }
 
         foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
-            if ($instance->id !== $exceptInstanceId && $instance->position_x !== null) {
+            // BOMBE FUMIGÈNE — « all heroes move unseen through the monster's
+            // space » : la créature noyée dans la fumée cesse d'occuper sa case.
+            // Le retrait vaut du même coup pour le MOUVEMENT et pour la LIGNE
+            // DE VUE, parce que `$occupees` est la seule et unique liste que
+            // `figuresBloquent` consulte — c'est exactement ce que dit la carte,
+            // et il n'y a rien d'autre à câbler.
+            $enfume = (bool) ($instance->habillage['conditions'][MoteurSorts::MONSTRE_ENFUME] ?? false);
+
+            if ($instance->id !== $exceptInstanceId && $instance->position_x !== null && ! $enfume) {
                 // 3.9 : une grande figurine occupe TOUTE son emprise (1×1 → une
                 // seule case, identique au comportement antérieur).
                 $e = $instance->monstre->emprise();

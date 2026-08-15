@@ -31,6 +31,12 @@ class ConditionSeeder extends Seeder
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'liberation']],
             ['nom' => 'Caché', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['inattaquable' => true, 'fin' => 'prochain_tour']],
+            // Potion de vision (Elfe) : voir les pièges et les portes secrètes
+            // en ligne de vue, « until the Elf suffers at least 1 Body Point of
+            // damage ». La fin est portée par la `duree` de la potion
+            // (`premier_degat_subi`), pas par un compteur de tours — d'où 0.
+            ['nom' => 'Clairvoyance', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['revele_pieges_et_portes_en_vue' => true, 'fin' => 'premier_degat_subi']],
             ['nom' => 'Renforcé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['bonus_des' => 'attaque_ou_defense_selon_source', 'fin' => 'un_combat_ou_duree_du_sort']],
             ['nom' => 'Tombé', 'type' => 'physique', 'duree_defaut' => 0,

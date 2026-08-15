@@ -49,13 +49,40 @@ function buffPotion(Personnage $heros, string $nomPotion): Personnage
     return $heros->fresh();
 }
 
+/**
+ * Pose un buff de durée `fin_du_combat`.
+ *
+ * ⚠ Passe par un SORT depuis le 2026-08-15 : la Potion de rage était le seul
+ * objet à porter cette durée, et elle a quitté le catalogue avec le passage au
+ * paquet officiel Hasbro — aucune des 15 potions des cartes ne dure « un
+ * combat ». *Image double* est désormais le seul porteur du mot-clé, ce qui en
+ * fait le bon témoin : si la durée cessait d'être lue, c'est lui qui casserait.
+ */
+function buffFinDeCombat(Personnage $heros): Personnage
+{
+    app(MoteurSorts::class)->appliquerBuff($heros, Sort::where('nom', 'Image double')->firstOrFail());
+
+    return $heros->fresh();
+}
+
+/** Le buff « fin du combat » tient-il encore ? */
+function tientEncore(Personnage $heros): bool
+{
+    return app(MoteurSorts::class)->aBuff($heros->fresh(), 'image_miroir');
+}
+
 function bonus(Personnage $heros, string $cle): int
 {
     return app(MoteurSorts::class)->bonusDes($heros->fresh(), $cle);
 }
 
-it('nomme exactement six mots-clés, et les distingue d\'un décompte de tours', function () {
-    expect(DureeEffet::toutes())->toHaveCount(6)
+it('nomme exactement sept mots-clés, et les distingue d\'un décompte de tours', function () {
+    // Le septième est `plus_de_monstre_en_vue`, apporté par les deux potions
+    // du Barbare des cartes officielles (« as long as there are monsters in
+    // sight »). ⚠ Il ne se confond pas avec `fin_du_combat` : celui-ci
+    // raisonne sur la quête entière, celui-là sur la LIGNE DE VUE du porteur.
+    expect(DureeEffet::toutes())->toHaveCount(7)
+        ->and(DureeEffet::estMotCle('plus_de_monstre_en_vue'))->toBeTrue()
         ->and(DureeEffet::estMotCle('prochaine_defense'))->toBeTrue()
         ->and(DureeEffet::estMotCle('un_combat'))->toBeFalse()   // ancienne orthographe
         ->and(DureeEffet::estMotCle(3))->toBeFalse()
@@ -106,18 +133,18 @@ it('retire un buff « prochaine_defense » quand le porteur se défend — il n\
 });
 
 it('garde un buff « fin_du_combat » à travers les attaques, et le retire au dernier monstre', function () {
-    $heros = herosPourDuree();
-    buffPotion($heros, 'Potion de rage');
+    $heros = buffFinDeCombat(herosPourDuree());
 
-    expect(bonus($heros, 'bonus_des_attaque'))->toBe(1);
+    expect(tientEncore($heros))->toBeTrue();
 
-    // Annoncée « un combat », la Potion de rage disparaissait dès la première
-    // attaque : elle portait la même clé d'effet que Courage.
+    // Le défaut d'origine : un effet annoncé « un combat » disparaissait dès la
+    // première attaque, parce que l'expiration était accrochée à la CLÉ d'effet
+    // et non à la durée.
     app(MoteurSorts::class)->expirerBuffs($heros, DureeEffet::PROCHAINE_ATTAQUE);
-    expect(bonus($heros, 'bonus_des_attaque'))->toBe(1);
+    expect(tientEncore($heros))->toBeTrue();
 
     app(MoteurSorts::class)->expirerBuffs($heros, DureeEffet::FIN_DU_COMBAT);
-    expect(bonus($heros, 'bonus_des_attaque'))->toBe(0);
+    expect(tientEncore($heros))->toBeFalse();
 });
 
 it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon est vidé', function () {
@@ -128,8 +155,8 @@ it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon e
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
-    buffPotion($hero, 'Potion de rage');
-    expect(bonus($hero, 'bonus_des_attaque'))->toBe(1);
+    buffFinDeCombat($hero);
+    expect(tientEncore($hero))->toBeTrue();
 
     // Un seul monstre RÉVÉLÉ, les autres dormants derrière leurs portes.
     $monstres = $quete->instancesMonstres()->get();
@@ -142,7 +169,7 @@ it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon e
 
     // Le combat continue tant que l'engagé tient : le buff reste.
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
-    expect(bonus($hero, 'bonus_des_attaque'))->toBe(1);
+    expect(tientEncore($hero))->toBeTrue();
 
     // L'engagé tombe. Il RESTE des monstres actifs dans le donjon (dormants),
     // donc `donjon_nettoye` est faux — le combat, lui, est bel et bien fini.
@@ -150,7 +177,7 @@ it('termine le combat quand les monstres ENGAGÉS tombent, pas quand le donjon e
     expect($quete->instancesMonstres()->where('etat', 'actif')->exists())->toBeTrue();
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
-    expect(bonus($hero, 'bonus_des_attaque'))->toBe(0);
+    expect(tientEncore($hero))->toBeFalse();
 });
 
 it('retire « premier_degat_subi » au sang versé, pas au simple jet de défense', function () {

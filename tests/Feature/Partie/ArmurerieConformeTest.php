@@ -112,75 +112,72 @@ it('donne aux héros l\'arme de départ des livrets', function () {
     }
 });
 
-it('ne s\'écarte du plateau que sur les objets DÉJÀ recensés', function () {
-    // Cartes du paquet d'armurerie (§2.2) que les 43 pages des deux livrets
-    // officiels ne nomment nulle part. Elles restent — c'est le paquet qu'on a
-    // choisi de porter —, mais la liste ne doit pas s'allonger sans qu'on le
-    // veuille : c'est ce que ce test garde.
-    $horsSource = ['Hachette', 'Lance', 'Hache de bataille', 'Cotte de mailles',
-        'Canne', 'Fronde', 'Fouet', 'Arc court', 'Arc long', 'Rapière', 'Hallebarde',
-        'Masse', 'Fléau', 'Espadon', 'Épée bâtarde', 'Brassards', 'Cape de protection'];
-
-    // Attestés par leur nom dans les livrets (§2).
-    $sources = ['Dague', 'Bâton', 'Épée courte', 'Épée large', 'Épée longue', 'Arbalète',
+it('ne compte plus AUCUNE pièce hors source', function () {
+    // C'était le gain principal du passage au paquet officiel (2026-08-15), et
+    // ce test l'énonce : la liste `$horsSource` était longue de 17 noms — la
+    // canne, les arcs, le fouet, l'espadon… — que le paquet FAN ajoutait
+    // librement et qu'aucun livret ni aucune carte Hasbro ne nomme. Elle est
+    // désormais VIDE, et doit le rester.
+    //
+    // Deux niveaux de source, désormais réunis : les livrets (§2.1) et les
+    // photos du matériel officiel (§2.1bis). Une pièce qui apparaîtrait ici
+    // sans figurer dans l'un des deux est une invention.
+    $sources = [
+        // Attestés par leur nom dans les livrets ET par une carte.
+        'Dague', 'Bâton', 'Épée courte', 'Épée large', 'Épée longue', 'Arbalète',
         'Bouclier', 'Casque', 'Armure de plates', 'Trousse à outils',
-        // Attestée par une CARTE DE PERSONNAGE officielle, photographiée
-        // (Warlock, Mythic Tier) : ce n'est pas un écart du plateau, c'est une
-        // troisième source — voir config/cartes.php §heros.
-        'Baguette'];
+        // Attestés par une carte officielle seulement — ce qui suffit : les
+        // livrets ne donnent ni prix ni dés, la carte donne les deux.
+        'Hachette', 'Hache de bataille', 'Cotte de mailles', 'Rapière', 'Brassards',
+        'Baguette', 'Bandoulière', 'Chausse-trappes', 'Bombe fumigène', 'Eau bénite',
+    ];
 
     $catalogue = Objet::whereIn('categorie', ['arme', 'armure', 'outil'])
         ->where('rarete', '!=', 'unique')   // les artefacts sont un autre débat (§10)
         ->pluck('nom')->all();
 
-    $inconnus = array_values(array_diff($catalogue, $sources, $horsSource));
+    $inconnus = array_values(array_diff($catalogue, $sources));
 
-    expect($inconnus)->toBe([], 'objet ni sourcé ni recensé comme écart : '.implode(', ', $inconnus));
+    expect($inconnus)->toBe([], 'pièce sans carte ni livret : '.implode(', ', $inconnus));
 
-    // Et l'inverse : un objet attesté ne doit pas disparaître du catalogue.
+    // Et l'inverse : une pièce attestée ne doit pas disparaître du catalogue.
     expect(array_values(array_diff($sources, $catalogue)))->toBe([]);
 });
 
 it('convertit les cartes équipement en prix et en dés', function () {
-    // Niveau de source « CARTE » (reference/16_armurerie.md §2.2) : ces valeurs
-    // ne viennent PAS des deux livrets — qui n'en donnent aucune —, mais du
-    // paquet d'armurerie de Ye Olde Inn, carte par carte. Elles sont figées ici
-    // pour que la conversion soit opposable au PDF : sans ça personne ne peut
-    // relire un prix, et le catalogue avait déjà dérivé (épée large à 350, soit
-    // le prix de l'arbalète ET de l'épée longue, toutes deux supérieures).
-    //
-    // La trousse à outils n'y figure pas : ce paquet n'a que des armes et des
-    // armures, elle vient du livret officiel (LR p. 19).
+    // Niveau de source « CARTE OFFICIELLE » (reference/16_armurerie.md
+    // §2.1bis) : les 20 photos du paquet Hasbro, carte par carte. Ces valeurs
+    // sont figées ici pour que la conversion soit opposable aux photos — sans
+    // ça personne ne peut relire un prix, et le catalogue avait déjà dérivé
+    // deux fois (épée large à 350, soit le prix de deux armes supérieures ;
+    // bâton à 2 dés quand sa carte en donne 1).
     //
     // [prix, dés d'attaque, dés de défense]
     $cartes = [
-        'Canne' => [125, 1, 0],
-        'Fronde' => [125, 1, 0],
-        'Dague' => [150, 1, 0],
-        'Fouet' => [175, 1, 0],
-        'Bâton' => [200, 2, 0],
-        'Arc court' => [200, 2, 0],
-        'Épée courte' => [225, 2, 0],
-        'Hachette' => [250, 2, 0],
-        'Lance' => [250, 2, 0],
-        'Rapière' => [275, 2, 0],
-        'Épée large' => [300, 3, 0],
-        'Hallebarde' => [325, 3, 0],
-        'Masse' => [350, 3, 0],
+        'Dague' => [25, 1, 0],
+        'Bâton' => [100, 1, 0],
+        'Baguette' => [125, 2, 0],
+        'Épée courte' => [150, 2, 0],
+        'Hachette' => [200, 2, 0],
+        'Rapière' => [250, 2, 0],
+        'Épée large' => [250, 3, 0],
         'Épée longue' => [350, 3, 0],
         'Arbalète' => [350, 3, 0],
-        'Fléau' => [400, 3, 0],
-        'Hache de bataille' => [475, 4, 0],
-        'Espadon' => [525, 4, 0],
-        'Arc long' => [525, 4, 0],
-        'Épée bâtarde' => [825, 5, 0],
+        'Hache de bataille' => [450, 4, 0],
         'Casque' => [125, 0, 1],
-        'Bouclier' => [125, 0, 1],
-        'Brassards' => [200, 0, 1],
-        'Cape de protection' => [350, 0, 1],
-        'Cotte de mailles' => [450, 0, 1],
+        'Bouclier' => [150, 0, 1],
+        'Cotte de mailles' => [500, 0, 1],
+        'Brassards' => [550, 0, 1],
         'Armure de plates' => [850, 0, 2],
     ];
+
+    // Le matériel n'a ni dés ni défense : on ne vérifie que son prix.
+    $materiel = ['Chausse-trappes' => 100, 'Bombe fumigène' => 100,
+        'Trousse à outils' => 250, 'Bandoulière' => 300, 'Eau bénite' => 400];
+
+    foreach ($materiel as $nom => $prix) {
+        expect((int) Objet::where('nom', $nom)->firstOrFail()->prix_base)->toBe($prix, "{$nom} : prix");
+    }
 
     foreach ($cartes as $nom => [$prix, $attaque, $defense]) {
         $piece = Objet::where('nom', $nom)->firstOrFail();
@@ -219,7 +216,16 @@ it('cumule casque + armure de corps + bouclier jusqu\'aux 6 dés du plateau', fu
         ->and($portes['arme_secondaire'] ?? null)->toBe('Bouclier');
 });
 
-it('réserve au magicien les protections que les cartes lui réservent', function () {
+it('ouvre les Brassards à TOUT LE MONDE, magicien compris', function () {
+    // Renversement du 2026-08-15, dicté par la carte officielle : « These
+    // hardened leather bracers give you 1 extra Defend die. May be combined
+    // with the helmet and/or shield. » — pas un mot sur la classe.
+    //
+    // Nous en faisions la pièce RÉSERVÉE au magicien (`armure_magicien`, repris
+    // du paquet fan) : c'était le seul équipement défensif qu'il pouvait
+    // porter, et personne d'autre n'y touchait. Les deux moitiés de cette règle
+    // étaient fausses. Le magicien les garde — rien ne l'en exclut — mais le
+    // barbare aussi.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
@@ -227,16 +233,14 @@ it('réserve au magicien les protections que les cartes lui réservent', functio
 
     $equipement = app(Equipement::class);
 
-    // « May ONLY be used by a Wizard » : le magicien, qui ne portait jusque-là
-    // aucune armure du tout, a enfin deux pièces défensives…
     $equipement->equiper($magicien, auSac($magicien->id, 'Brassards'));
     expect((int) $magicien->fresh()->des_defense)->toBe(3);
 
-    // …et elles lui sont RÉSERVÉES : le barbare ne peut pas les enfiler.
-    expect(fn () => $equipement->equiper($barbare, auSac($barbare->id, 'Cape de protection')))
-        ->toThrow(ValidationException::class);
+    $equipement->equiper($barbare, auSac($barbare->id, 'Brassards'));
+    expect((int) $barbare->fresh()->des_defense)->toBe(3);
 
-    // Symétrique : l'armure ordinaire reste fermée au magicien.
+    // La symétrie tient toujours : l'armure ORDINAIRE reste fermée au magicien,
+    // qui n'a `armure_legere` dans aucune de ses maîtrises.
     expect(fn () => $equipement->equiper($magicien, auSac($magicien->id, 'Cotte de mailles')))
         ->toThrow(ValidationException::class);
 });

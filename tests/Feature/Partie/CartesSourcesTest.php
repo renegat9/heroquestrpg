@@ -32,23 +32,19 @@ beforeEach(function () {
 function toutesLesCartes(): array
 {
     return array_merge(
-        (array) config('cartes.armurerie.cartes'),
+        (array) config('cartes.equipement.cartes'),
+        (array) config('cartes.potions.cartes'),
         (array) config('cartes.artefacts.cartes'),
-        // Troisième source (2026-08-11) : les cartes de PERSONNAGE des classes
-        // d'extension, photographiées faute de PDF Hasbro.
-        (array) config('cartes.heros.cartes'),
     );
 }
 
 it('recense exactement les trois sources, sans doublon de carte', function () {
-    $armurerie = (array) config('cartes.armurerie.cartes');
-    $artefacts = (array) config('cartes.artefacts.cartes');
-
-    $heros = (array) config('cartes.heros.cartes');
-
-    expect($armurerie)->toHaveCount(27)
-        ->and($artefacts)->toHaveCount(34)
-        ->and($heros)->toHaveCount(2);
+    // Le paquet fan Sjeng (27 cartes) a cédé la place aux photos du matériel
+    // officiel, scindées comme les deux PDF de René. Les artefacts restent une
+    // conversion Ye Olde Inn : aucune photo ne les couvre encore.
+    expect((array) config('cartes.equipement.cartes'))->toHaveCount(20)
+        ->and((array) config('cartes.potions.cartes'))->toHaveCount(15)
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(34);
 
     $noms = array_column(toutesLesCartes(), 'carte');
     expect(array_values(array_diff_assoc($noms, array_unique($noms))))
@@ -73,11 +69,11 @@ it('fait exister en base chaque carte déclarée PORTÉE', function () {
 });
 
 it('n\'admet aucune arme, armure ou artefact SANS carte source', function () {
-    // Deux exceptions assumées, hors des deux paquets et documentées comme
-    // telles (reference/16 §2.1 et doc 01 §8) :
-    //  - la trousse à outils vient du livret de règles officiel (LR p. 19) ;
-    //  - la fiole de soin est une carte du deck de TRÉSOR, pas d'armurerie.
-    $horsPaquets = ['Trousse à outils', 'Fiole de soin'];
+    // Une seule exception reste, et elle est documentée (doc 01 §8) : la fiole
+    // de soin est une carte du deck de TRÉSOR, pas d'armurerie. La trousse à
+    // outils a QUITTÉ cette liste — elle a désormais sa carte officielle
+    // (Tool Kit, 250 po), là où elle n'était attestée que par le livret.
+    $horsPaquets = ['Fiole de soin'];
 
     // Les consommables `unique` du paquet d'artefacts comptent aussi.
 
@@ -130,6 +126,7 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         fn ($c) => isset($c['objet']),
     ));
 
-    expect($portees('armurerie'))->toBe(26)
+    expect($portees('equipement'))->toBe(20)
+        ->and($portees('potions'))->toBe(15)
         ->and($portees('artefacts'))->toBe(17);
 });

@@ -106,7 +106,7 @@ class GuideController extends Controller
     {
         $paquets = [];
 
-        foreach (['armurerie', 'artefacts'] as $cle) {
+        foreach (['equipement', 'potions', 'artefacts'] as $cle) {
             $paquet = (array) config("cartes.{$cle}", []);
 
             $paquets[] = [

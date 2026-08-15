@@ -189,11 +189,17 @@ final class MotsClesEquipement
     // ------------------------------------------------------- ÉCONOMIE DE SORTS
 
     /**
-     * Rend TOUS les sorts épuisés du porteur — « restores all spells that Hero
-     * possessed at the beginning of the quest » (Parchemin de Sorts).
+     * Rend des sorts épuisés au porteur. **`true` = tous** — « restores all
+     * spells that Hero possessed at the beginning of the quest » (Parchemin de
+     * Sorts) ; un **entier = ce nombre-là**, ce qu'exigent deux cartes
+     * officielles : Potion de magie (« recover up to 3 spells you have cast
+     * during this quest ») et Potion de rappel (un seul, Elfe).
      *
-     * À distinguer du nœud *Concentration*, qui n'en récupère qu'UN.
-     * Lecteurs : `MoteurPotions` (consommable), `Partie\Equipement::equiper()`
+     * ⚠ La clé n'a pas changé de nom en changeant de type : `! empty()` reste
+     * vrai dans les trois cas, donc aucun appelant existant ne bouge.
+     *
+     * À distinguer du nœud *Concentration*, qui en récupère un en sacrifiant le
+     * tour. Lecteurs : `MoteurPotions` (consommable), `Partie\Equipement::equiper()`
      * (pièce à charge, dépensée en l'enfilant).
      */
     public const RESTAURE_SORTS = 'restaure_sorts';
@@ -245,13 +251,65 @@ final class MotsClesEquipement
     /** Idem pour le Mind (Talisman du Savoir : +2). */
     public const BONUS_PV_MIND_MAX = 'bonus_pv_mind_max';
 
-    // ------------------------------------------------------------------ OUTIL
+    // ------------------------------------------------------- OUTIL ET MATÉRIEL
 
     /**
      * Permet de désamorcer un piège — « you must possess a tool kit (or be the
      * dwarf) » (LR p. 19). Lecteur : `Partie\MoteurPieges`.
      */
     public const PERMET_DESAMORCAGE = 'permet_desamorcage';
+
+    /**
+     * Tue d'office les créatures dont le `monstres.nom_base` est listé — Eau
+     * bénite : « It kills any undead creature (skeleton, zombie, or mummy) »
+     * (carte © 2021, doc 16 §2.1bis).
+     *
+     * ⚠ La liste vit ICI, sur l'objet, et **aucun tag « mort-vivant » n'est
+     * inventé** sur `monstres` : c'est déjà ainsi que la Lame des Esprits
+     * (`des_attaque_contre`) et le Fléau des Orques (`attaque_double_contre`)
+     * nomment leurs cibles. Le test porte sur `nom_base`, JAMAIS sur le nom
+     * habillé par l'IA — sinon l'eau bénite cesserait de reconnaître un
+     * squelette à la première quête narrée.
+     *
+     * Lecteur : `ResolveurTour::resoudreUsageObjet()`.
+     */
+    public const TUE_CREATURES = 'tue_creatures';
+
+    /**
+     * Pose une tuile de chausse-trappes sur la case traversée — « If a creature
+     * moves onto a caltrops tile, they roll one combat die. If it lands on a
+     * white shield, they may continue their movement » (carte © 2023).
+     *
+     * Vit dans la couche `cartes.grille['chausse_trappes']`, au même niveau que
+     * `leviers` / `pieges` / `mobilier`, mais posée AU RUNTIME.
+     * Lecteurs : `ResolveurTour::resoudreUsageObjet()` (pose) et
+     * `ResolveurTour::tronquerSurChausseTrappes()` (effet, héros ET monstres).
+     */
+    public const POSE_CHAUSSE_TRAPPES = 'pose_chausse_trappes';
+
+    /**
+     * Enfume un monstre adjacent — « all heroes move unseen through the
+     * monster's space » jusqu'à son prochain tour (carte © 2023).
+     *
+     * Pose la condition monstre `enfume` (`instances_monstres.habillage`), lue
+     * par `FabriqueGrille::pour()` : le monstre sort de `$occupees`, donc il ne
+     * bloque plus NI le mouvement NI la ligne de vue — les deux tombent
+     * ensemble parce que c'est la seule boucle d'occupation du moteur.
+     */
+    public const ENFUME_MONSTRE_ADJACENT = 'enfume_monstre_adjacent';
+
+    /**
+     * Le porteur est « toujours considéré armé de » l'arme nommée —
+     * Bandoulière : « you are always considered to be armed with a dagger »
+     * (carte © 2022, Rogue uniquement).
+     *
+     * ⚠ Il ne gagne AUCUN dé : il gagne les règles qui exigent cette arme
+     * (l'Ambidextrie du Rogue, la fermeture des techniques mains nues). Aucune
+     * arme virtuelle n'est injectée dans `Equipement::armesEnMain()`, dont les
+     * entrées sont de vraies lignes d'inventaire qu'on supprime et qu'on
+     * équipe. Lecteur : `Equipement::compteCommeArme()`.
+     */
+    public const COMPTE_COMME_ARME = 'compte_comme_arme';
 
     // ----------------------------------------------------------- CONSOMMABLES
 
@@ -286,6 +344,94 @@ final class MotsClesEquipement
 
     /** Nom de la condition retirée (Antidote). `MoteurPotions`. */
     public const RETIRE_CONDITION = 'retire_condition';
+
+    /**
+     * Une RELANCE des dés d'attaque ratés — Potion de bataille : « It allows
+     * you 1 reroll of your Attack dice » (carte © 2021).
+     *
+     * Le calcul existait déjà pour le nœud *Coup puissant*
+     * (`Engine\Combat::relancerRatees()`, qui garde les réussites) ; la potion
+     * ne fait qu'ouvrir un second déclencheur.
+     * Lecteur : `ResolveurTour::frapper()`.
+     */
+    public const RELANCE_DES_ATTAQUE = 'relance_des_attaque';
+
+    /**
+     * Multiplie les dégâts d'UNE attaque — Potion de force glaciale : « their
+     * next attack causes twice as many Body Points of damage as are rolled »
+     * (carte © 2022, Barbare seul).
+     *
+     * ⚠ Passe par `ResultatAttaque::avecDegatsMultiplies()` et jamais par une
+     * multiplication à la main : `frapper()` relit `pvBodyApres` cinq fois
+     * (écriture, mort de la cible, regain de sort, bark, payload), et deux
+     * vérités s'y contrediraient. Lecteur : `MoteurSorts::multiplicateurDegats()`.
+     */
+    public const MULTIPLICATEUR_DEGATS = 'multiplicateur_degats';
+
+    /**
+     * Cases de déplacement EN PLUS pour ce tour — Potion de dextérité : « adds
+     * 5 movement squares to your next dice roll » (carte © 2021).
+     *
+     * ⚠ Homonyme d'une mécanique de COMPÉTENCE (`competences.effet.mecanique =
+     * bonus_deplacement`, nœuds *Pas léger* / *Charge*), qui vit dans une autre
+     * table et modifie `personnages.deplacement_base` en permanence. Ici c'est
+     * un buff temporaire. Lecteur : `ResolveurTour::pointsDeplacement()`, et
+     * son miroir obligatoire dans `MenuMoteur` — sans quoi le menu annonce une
+     * portée que le résolveur refuse.
+     */
+    public const BONUS_DEPLACEMENT = 'bonus_deplacement';
+
+    /**
+     * Le franchissement de fosse réussit d'office — l'autre moitié de la Potion
+     * de dextérité : « or guarantees one successful pit jump ».
+     *
+     * Le jet a QUAND MÊME lieu et le joueur voit ce que la potion lui a
+     * épargné, exactement comme le *Dragon bondissant* du Moine
+     * (`ResultatJet::force()`). Lecteur : `ResolveurTour::resoudreFranchissement()`.
+     */
+    public const SAUT_FOSSE_AUTOMATIQUE = 'saut_fosse_automatique';
+
+    /**
+     * Multiplie les dés de déplacement — Potion de vitesse : « roll twice as
+     * many dice as usual the next time you move » (carte © 2021).
+     *
+     * Aucun lecteur neuf : `MoteurSorts::multiplicateurDeplacement()` existe
+     * pour Vent Véloce et lit déjà les buffs de source `potion:` autant que
+     * `sort:`.
+     */
+    public const DEPLACEMENT_MULTIPLIE = 'deplacement_multiplie';
+
+    /**
+     * Révèle pièges ET portes secrètes en ligne de vue — Potion de vision :
+     * « enables an Elf to see all secret doors and regular traps […] within
+     * their line of sight » (carte © 2023, Elfe seul).
+     *
+     * S'arrête au premier sang (`duree: premier_degat_subi`, déjà câblée par
+     * `Personnage::booted()`). Lecteurs : `MoteurPieges::revelerEnVue()` et
+     * `MoteurPortes::revelerSecretesEnVue()`.
+     */
+    public const REVELE_PIEGES_ET_PORTES_EN_VUE = 'revele_pieges_et_portes_en_vue';
+
+    /**
+     * Ramène Body ET Mind au niveau du DÉBUT DE LA QUÊTE — Potion de
+     * restauration supérieure (carte © 2023).
+     *
+     * Chez nous c'est littéralement « au maximum » : `DemarreurQuete` remet les
+     * deux jauges à leur plafond à chaque quête, donc rien n'a besoin de
+     * mémoriser un état de départ. `MoteurPotions`.
+     */
+    public const RESTAURE_JAUGES_DEPART = 'restaure_jauges_depart';
+
+    /**
+     * Une seule potion de ce type par tour — Potion de dextérité : « If you
+     * purchase more than one of these potions, you may use only one potion per
+     * turn » (carte © 2021).
+     *
+     * ⚠ La garde ne porte QUE sur les potions marquées : c'est ce que dit la
+     * carte, et brider les quatorze autres inventerait une règle. Compteur
+     * réutilisé : `etat_personnage_quete.capacites_tour`. `MoteurPotions`.
+     */
+    public const UNE_PAR_TOUR = 'une_par_tour';
 
     /**
      * Quand le buff s'arrête — vocabulaire `DureeEffet`, PAS libre.
@@ -347,6 +493,10 @@ final class MotsClesEquipement
         self::SORT_NON_EPUISE,
         self::SORT_NON_EPUISE_SUR_BOUCLIER_NOIR,
         self::PERMET_DESAMORCAGE,
+        self::TUE_CREATURES,
+        self::POSE_CHAUSSE_TRAPPES,
+        self::ENFUME_MONSTRE_ADJACENT,
+        self::COMPTE_COMME_ARME,
         self::SOIN_PV_BODY,
         self::SOIN_PV_BODY_DE,
         self::SOIN_PV_MIND,
@@ -355,6 +505,14 @@ final class MotsClesEquipement
         self::ATTAQUE_SUPPLEMENTAIRE,
         self::CONDITION_APPLIQUEE,
         self::RETIRE_CONDITION,
+        self::RELANCE_DES_ATTAQUE,
+        self::MULTIPLICATEUR_DEGATS,
+        self::BONUS_DEPLACEMENT,
+        self::SAUT_FOSSE_AUTOMATIQUE,
+        self::DEPLACEMENT_MULTIPLIE,
+        self::REVELE_PIEGES_ET_PORTES_EN_VUE,
+        self::RESTAURE_JAUGES_DEPART,
+        self::UNE_PAR_TOUR,
         self::DUREE,
         self::SORT_ID,
     ];

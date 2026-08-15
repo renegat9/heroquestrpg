@@ -217,6 +217,76 @@ final class MenuMoteur
      * couloir) « vide » — aucun monstre actif révélé à l'intérieur — qui n'a pas
      * déjà été fouillée pour son trésor (une fouille par salle, doc 14 §3.2).
      */
+    /**
+     * Options des trois objets de MATÉRIEL des cartes officielles.
+     *
+     * Chacune reprend le créneau que sa carte énonce : l'eau bénite s'emploie
+     * « instead of attacking » (donc `objet`, créneau action), les deux autres
+     * « no action required » / « anytime during your movement » (donc
+     * `objet_libre`, interaction gratuite).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function objetsDeMateriel(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $px, int $py): array
+    {
+        $options = [];
+        $grille = null;
+
+        foreach ($personnage->inventaire()->with('objet')->get() as $ligne) {
+            $effet = (array) ($ligne->objet?->effet ?? []);
+
+            if (! empty($effet['pose_chausse_trappes'])) {
+                $options[] = [
+                    'id' => "poser_chausse_trappes_{$ligne->id}",
+                    'libelle' => 'Semer des chausse-trappes',
+                    'type' => 'objet_libre',
+                    'parametres' => ['inventaire_id' => $ligne->id],
+                ];
+            }
+
+            if (! empty($effet['enfume_monstre_adjacent'])) {
+                $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                    ->with('monstre')->get()
+                    ->filter(fn (InstanceMonstre $i) => self::monstreAuContact($i, $px, $py))
+                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'nom' => $i->nomAffiche()])
+                    ->values()->all();
+
+                if ($cibles !== []) {
+                    $options[] = [
+                        'id' => "fumigene_{$ligne->id}",
+                        'libelle' => 'Lancer la bombe fumigène',
+                        'type' => 'objet_libre',
+                        'parametres' => ['inventaire_id' => $ligne->id, 'cibles' => $cibles],
+                    ];
+                }
+            }
+
+            if (! empty($effet['tue_creatures'])) {
+                $noms = array_map('mb_strtolower', array_map('strval', (array) $effet['tue_creatures']));
+                $grille ??= FabriqueGrille::pour($quete);
+
+                $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                    ->with('monstre')->get()
+                    ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                        && in_array(mb_strtolower((string) $i->monstre?->nom_base), $noms, true)
+                        && $grille->ligneDeVue($px, $py, (int) $i->position_x, (int) $i->position_y))
+                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'nom' => $i->nomAffiche()])
+                    ->values()->all();
+
+                if ($cibles !== []) {
+                    $options[] = [
+                        'id' => "eau_benite_{$ligne->id}",
+                        'libelle' => "Asperger d'eau bénite",
+                        'type' => 'objet',
+                        'parametres' => ['inventaire_id' => $ligne->id, 'cibles' => $cibles],
+                    ];
+                }
+            }
+        }
+
+        return $options;
+    }
+
     private function salleFouillableTresor(Quete $quete, ?EtatPersonnageQuete $etat): bool
     {
         if ($etat === null || $etat->position_x === null || $quete->carte === null) {
@@ -393,6 +463,12 @@ final class MenuMoteur
         // styles revenir seulement après avoir agi.
         if ($etat !== null) {
             $this->styles->recupererSiHorsDeVue($quete, $etat);
+
+            // Même crochet de début de tour pour les buffs adossés à la VUE
+            // (potions de rage guerrière et de peau de givre). Le menu et le
+            // résolveur doivent y répondre pareil, sinon le menu annonce une
+            // seconde attaque que la résolution refuse.
+            $this->sorts->rythmerBuffsDeVue($quete, $etat);
         }
 
         $aJoue = (bool) ($etat?->a_joue ?? false);
@@ -416,9 +492,14 @@ final class MenuMoteur
             // Déplacement FRACTIONNÉ (E1) : si le héros a DÉJÀ entamé son
             // mouvement ce tour, la portée offerte est le RESTANT ; sinon le total
             // du tour (Vent Véloce inclus, appliqué au 1er pas côté résolveur).
+            // ⚠ Miroir exact de `ResolveurTour::pointsDeplacement()`, bonus de
+            // la Potion de dextérité compris : une portée annoncée plus courte
+            // que la portée réelle rend le bonus invisible, une portée plus
+            // longue offre une destination que le résolveur refusera.
             $porteeEffective = $etat?->deplacement_restant !== null
                 ? (int) $etat->deplacement_restant
-                : $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage);
+                : $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage)
+                    + $this->sorts->bonusDes($personnage, 'bonus_deplacement');
 
             $options[] = [
                 'id' => 'se_deplacer',
@@ -900,6 +981,15 @@ final class MenuMoteur
                         'type' => 'actionner_levier',
                         'parametres' => ['levier' => ['x' => $levier['x'], 'y' => $levier['y'], 'levier_id' => $levier['levier_id']]],
                     ];
+                }
+
+                // Objets de MATÉRIEL des cartes officielles. Sans option ici,
+                // ils seraient injouables : `ChoixController` refuse toute
+                // option absente du dernier menu — c'est exactement le défaut
+                // qu'avait la Potion d'héroïsme, acceptée par le résolveur mais
+                // jamais offerte.
+                foreach ($this->objetsDeMateriel($quete, $personnage, $etat, $px, $py) as $option) {
+                    $options[] = $option;
                 }
             }
 

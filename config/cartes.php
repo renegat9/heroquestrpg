@@ -3,16 +3,17 @@
 declare(strict_types=1);
 
 /**
- * REGISTRE DES CARTES SOURCES — armurerie et artefacts.
+ * REGISTRE DES CARTES SOURCES — équipement, potions et artefacts.
  *
- * Les armes, armures et artefacts du catalogue ne sont pas des valeurs
- * inventées : ils sont la conversion de deux paquets de cartes, carte par
- * carte (`reference/16_armurerie.md` §2.2 et §9.1) :
+ * Rien du catalogue n'est inventé : chaque arme, armure, potion et artefact est
+ * la conversion d'une carte, carte par carte (`reference/16_armurerie.md`
+ * §2.1bis et §9.1) :
  *
- *   - `sjeng-equipment.pdf`  — 27 cartes, armurerie
- *   - `sjeng-artefacts.pdf`  — 34 cartes, artefacts de 5 sources officielles
+ *   - `equipments.pdf` — 20 cartes officielles Hasbro, photographiées par René
+ *   - `potions.pdf`    — 15 cartes officielles Hasbro
+ *   - `sjeng-artefacts.pdf` — 34 cartes d'artefact de 5 sources officielles
  *
- * Ce fichier recense les **61 cartes**, portées ou non. Il sert trois usages :
+ * Ce fichier recense les **69 cartes**, portées ou non. Il sert trois usages :
  *
  *  1. `CartesSourcesTest` le confronte au catalogue DANS LES DEUX SENS — toute
  *     carte marquée portée doit exister en base, et aucun objet du catalogue ne
@@ -25,67 +26,93 @@ declare(strict_types=1);
  *     carte non portée est une dette nommée ; une carte portée à moitié serait
  *     une règle promise au joueur et jamais tenue.
  *
- * ⚠ Les deux paquets sont des RÉVISIONS de Ye Olde Inn, pas les composants
- * officiels Avalon Hill : l'auteur de l'armurerie écrit lui-même « I have
- * changed some item costs and functionality ». Les prix et les dés viennent
- * donc de lui. Ce que les livrets officiels corroborent par ailleurs est dit
- * ligne à ligne dans `reference/16_armurerie.md`.
+ * ⚠ Le paquet d'armurerie FAN de Ye Olde Inn (`sjeng-equipment.pdf`, 27 cartes)
+ * a été RETIRÉ le 2026-08-15 : son auteur écrivait lui-même « I have changed
+ * some item costs and functionality », et les photos du matériel réel l'ont
+ * rendu caduc. Douze pièces qu'il ajoutait — arcs, fouet, canne, fronde,
+ * espadon, épée bâtarde… — n'existent sur aucune carte Hasbro et ont quitté le
+ * catalogue avec lui. Les artefacts, eux, restent une conversion Ye Olde Inn :
+ * aucune photo du matériel officiel ne les couvre encore.
  *
- * Trois familles du catalogue ne viennent PAS de ces paquets, et c'est voulu :
- *  - la **Trousse à outils**, attestée par le livret de règles (LR p. 19) ;
- *  - les **potions** (soin, esprit clair, héroïsme, force, défense, rage,
- *    antidote, fiole), qui sont le deck de TRÉSOR du plateau (doc 01 §8) ;
- *  - les **parchemins**, dérivés un à un des sorts (doc 02 §6).
+ * Trois familles du catalogue ne viennent d'aucun paquet, et c'est voulu :
+ *  - les **potions du deck de TRÉSOR** (soin, héroïsme, force, défense, fiole),
+ *    qui sont des cartes de trésor du plateau et non des articles de boutique ;
+ *  - les **parchemins**, dérivés un à un des sorts (doc 02 §6) ;
+ *  - rien d'autre : la Trousse à outils, qui faisait exception, a désormais sa
+ *    carte officielle (Tool Kit, 250 po).
  */
 return [
 
     /*
     |---------------------------------------------------------------------------
-    | Armurerie — sjeng-equipment.pdf (27 cartes)
+    | Équipement — equipments.pdf (20 cartes officielles Hasbro)
     |---------------------------------------------------------------------------
     |
     | `objet` = nom dans notre catalogue quand la carte est portée.
     | `manque` = mécanique absente du moteur quand elle ne l'est pas.
+    |
+    | Les vingt sont portées : c'est ce que le passage au paquet officiel a
+    | apporté de plus net — plus une seule pièce d'armurerie sans carte, plus
+    | une seule carte d'équipement sans lecteur.
     */
-    'armurerie' => [
-        'source' => 'sjeng-equipment.pdf',
-        'url' => 'https://english.yeoldeinn.com/downloads/cards/sjeng-equipment.pdf',
-        'libelle' => 'Armurerie (Ye Olde Inn)',
+    'equipement' => [
+        'source' => 'equipments.pdf',
+        'url' => 'https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53',
+        'libelle' => 'Équipement (cartes officielles Hasbro)',
         'cartes' => [
-            ['carte' => 'Bastard Sword', 'objet' => 'Épée bâtarde'],
+            ['carte' => 'Bandolier', 'objet' => 'Bandoulière'],
             ['carte' => 'Battle Axe', 'objet' => 'Hache de bataille'],
+            ['carte' => 'Bracers', 'objet' => 'Brassards'],
             ['carte' => 'Broadsword', 'objet' => 'Épée large'],
-            ['carte' => 'Cane', 'objet' => 'Canne'],
+            ['carte' => 'Caltrops', 'objet' => 'Chausse-trappes'],
+            ['carte' => 'Chain Mail', 'objet' => 'Cotte de mailles'],
             ['carte' => 'Crossbow', 'objet' => 'Arbalète'],
             ['carte' => 'Dagger', 'objet' => 'Dague'],
-            ['carte' => 'Flail', 'objet' => 'Fléau'],
-            ['carte' => 'Greatsword', 'objet' => 'Espadon'],
-            ['carte' => 'Halberd', 'objet' => 'Hallebarde'],
-            ['carte' => 'Hand Axe', 'objet' => 'Hachette'],
-            ['carte' => 'Longbow', 'objet' => 'Arc long'],
-            ['carte' => 'Longsword', 'objet' => 'Épée longue'],
-            ['carte' => 'Mace', 'objet' => 'Masse'],
-            ['carte' => 'Rapier', 'objet' => 'Rapière'],
-            ['carte' => 'Shortbow', 'objet' => 'Arc court'],
-            ['carte' => 'Shortsword', 'objet' => 'Épée courte'],
-            ['carte' => 'Sling', 'objet' => 'Fronde'],
-            ['carte' => 'Spear', 'objet' => 'Lance'],
-            ['carte' => 'Staff', 'objet' => 'Bâton'],
-            ['carte' => 'Whip', 'objet' => 'Fouet'],
-            ['carte' => 'Bracers', 'objet' => 'Brassards'],
-            ['carte' => 'Chain Mail', 'objet' => 'Cotte de mailles'],
-            ['carte' => 'Cloak of Protection', 'objet' => 'Cape de protection'],
+            ['carte' => 'Handaxe', 'objet' => 'Hachette'],
             ['carte' => 'Helmet', 'objet' => 'Casque'],
+            ['carte' => 'Holy Water', 'objet' => 'Eau bénite'],
+            ['carte' => 'Longsword', 'objet' => 'Épée longue'],
             ['carte' => 'Plate Mail', 'objet' => 'Armure de plates'],
+            ['carte' => 'Rapier', 'objet' => 'Rapière'],
             ['carte' => 'Shield', 'objet' => 'Bouclier'],
-
-            // La seule carte d'armurerie écartée.
-            ['carte' => 'Torch', 'nom' => 'Torche',
-                'texte' => '2 dés d\'attaque, dégâts de feu, éclaire toute case que son porteur peut voir sans être gêné par les héros ou les monstres, dure une quête.',
-                'manque' => 'Aucun système d\'éclairage, et aucun type de dégât « feu » : la semer annoncerait au joueur deux règles que le moteur n\'applique pas.'],
+            ['carte' => 'Shortsword', 'objet' => 'Épée courte'],
+            ['carte' => 'Smoke Bomb', 'objet' => 'Bombe fumigène'],
+            ['carte' => 'Staff', 'objet' => 'Bâton'],
+            ['carte' => 'Tool Kit', 'objet' => 'Trousse à outils'],
+            ['carte' => 'Wand', 'objet' => 'Baguette'],
         ],
     ],
 
+    /*
+    |---------------------------------------------------------------------------
+    | Potions — potions.pdf (15 cartes officielles Hasbro)
+    |---------------------------------------------------------------------------
+    |
+    | Toutes portées. Trois sont réservées au Barbare et deux à l'Elfe : ce sont
+    | les premières restrictions de classe jamais portées par un consommable.
+    */
+    'potions' => [
+        'source' => 'potions.pdf',
+        'url' => 'https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53',
+        'libelle' => 'Potions (cartes officielles Hasbro)',
+        'cartes' => [
+            ['carte' => 'Potion of Battle', 'objet' => 'Potion de bataille'],
+            ['carte' => 'Potion of Battle Rage', 'objet' => 'Potion de rage guerrière'],
+            ['carte' => 'Potion of Dexterity', 'objet' => 'Potion de dextérité'],
+            ['carte' => 'Potion of Frost Skin', 'objet' => 'Potion de peau de givre'],
+            ['carte' => 'Potion of Healing', 'objet' => 'Potion de guérison'],
+            ['carte' => 'Potion of Icy Strength', 'objet' => 'Potion de force glaciale'],
+            ['carte' => 'Potion of Lesser Healing', 'objet' => 'Potion de soin mineur'],
+            ['carte' => 'Potion of Magic', 'objet' => 'Potion de magie'],
+            ['carte' => 'Potion of Recall', 'objet' => 'Potion de rappel'],
+            ['carte' => 'Potion of Rejuvenation', 'objet' => 'Potion de régénération'],
+            ['carte' => 'Potion of Restoration', 'objet' => 'Potion de restauration'],
+            ['carte' => 'Potion of Speed', 'objet' => 'Potion de vitesse'],
+            ['carte' => 'Potion of Superior Restoration', 'objet' => 'Potion de restauration supérieure'],
+            ['carte' => 'Potion of Vision', 'objet' => 'Potion de vision'],
+            ['carte' => 'Venom Antidote', 'objet' => 'Antidote au venin'],
+        ],
+    ],
     /*
     |---------------------------------------------------------------------------
     | Artefacts — sjeng-artefacts.pdf (34 cartes, 5 sources officielles)
@@ -176,36 +203,6 @@ return [
             ['carte' => 'Magister\'s Hood', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Capuche du Magister'],
             ['carte' => 'Dwarven Runestones', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Runes naines'],
             ['carte' => 'Wand of Galimatias', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Baguette de Galimatias'],
-        ],
-    ],
-
-    /*
-    |---------------------------------------------------------------------------
-    | Cartes de HÉROS — numérisation de René (2026-08-11)
-    |---------------------------------------------------------------------------
-    |
-    | Troisième source, distincte des deux paquets Ye Olde Inn : les cartes de
-    | personnage et d'équipement des 8 classes d'extension, photographiées à
-    | partir des boîtes. Ce sont des composants cartonnés qu'aucun PDF Hasbro ne
-    | contient — même situation que les prix d'équipement et le tableau des 8
-    | monstres de base, débloquée les trois fois par la photo.
-    |
-    | Détail complet, capacité par capacité, dans reference/01_personnages.md
-    | §4bis-4quater.
-    */
-    'heros' => [
-        'source' => 'Cartes de personnage (photos)',
-        'url' => null,
-        'libelle' => 'Cartes de héros (officielles, numérisées)',
-        'cartes' => [
-            ['carte' => 'Wand', 'paquet' => 'Mythic Tier — Warlock', 'objet' => 'Baguette'],
-            // ⚠ La RAPIÈRE du Barde n'est PAS listée ici : elle figure déjà au
-            // paquet d'armurerie Sjeng, et une carte ne doit apparaître qu'une
-            // fois dans le registre. Sa carte de héros ne fait que la lui
-            // donner au départ.
-            ['carte' => 'Bandolier', 'paquet' => 'Rogue Heir of Elethorn', 'nom' => 'Bandolier',
-                'texte' => 'Compte comme une trousse à outils pour désamorcer les pièges, et son porteur est toujours considéré comme armé d\'une dague. Réservé au Rogue.',
-                'manque' => 'La partie « toujours armé d\'une dague » suppose une arme VIRTUELLE, sans ligne d\'inventaire : notre équipement lit un objet réel par emplacement.'],
         ],
     ],
 ];

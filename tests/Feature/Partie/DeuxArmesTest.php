@@ -71,7 +71,7 @@ it('refuse une seconde arme quand la première se manie à deux mains', function
     $heros = $ctx['heros'];
     $equipement = app(Equipement::class);
 
-    $equipement->equiper($heros, auSacDe($heros, 'Espadon')); // deux mains
+    $equipement->equiper($heros, auSacDe($heros, 'Hache de bataille')); // deux mains
 
     expect(fn () => $equipement->equiper($heros, auSacDe($heros, 'Dague'), 'arme_secondaire'))
         ->toThrow(Illuminate\Validation\ValidationException::class);
@@ -88,7 +88,7 @@ it('refuse une arme à DEUX mains tant que l\'autre main est occupée', function
 
     $equipement->equiper($heros, auSacDe($heros, 'Dague'), 'arme_secondaire');
 
-    expect(fn () => $equipement->equiper($heros, auSacDe($heros, 'Espadon')))
+    expect(fn () => $equipement->equiper($heros, auSacDe($heros, 'Hache de bataille')))
         ->toThrow(Illuminate\Validation\ValidationException::class);
 });
 
@@ -96,7 +96,7 @@ it('refuse d\'envoyer une arme à deux mains dans la main gauche', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'barbare']);
     $heros = $ctx['heros'];
 
-    expect(fn () => app(Equipement::class)->equiper($heros, auSacDe($heros, 'Espadon'), 'arme_secondaire'))
+    expect(fn () => app(Equipement::class)->equiper($heros, auSacDe($heros, 'Hache de bataille'), 'arme_secondaire'))
         ->toThrow(Illuminate\Validation\ValidationException::class);
 
     // Et un bouclier ne va pas en main droite : il n'a qu'un emplacement.

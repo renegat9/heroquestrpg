@@ -87,23 +87,23 @@ it('retire la condition ciblée (antidote)', function () {
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
     $empoisonne = Condition::where('nom', 'Empoisonné')->firstOrFail();
     $heros->conditions()->attach($empoisonne->id, ['duree' => 3, 'source' => 'piege:test']);
-    $ligne = donnerConsommable($heros, 'Antidote');
+    $ligne = donnerConsommable($heros, 'Antidote au venin');
 
     $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligne->id])->assertOk();
 
     expect($heros->fresh()->conditions()->where('nom', 'Empoisonné')->exists())->toBeFalse();
 });
 
-it('applique le buff de la Potion de rage (bonus de dés d\'attaque)', function () {
+it('applique le buff de la Potion de force (bonus de dés d\'attaque)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
-    $ligne = donnerConsommable($heros, 'Potion de rage'); // bonus_des_attaque 1
+    $ligne = donnerConsommable($heros, 'Potion de force'); // bonus_des_attaque 2
 
     $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligne->id])->assertOk();
 
     // Le bonus est relu depuis l'effet de l'objet via le système de buffs.
-    expect(app(MoteurSorts::class)->bonusDes($heros->fresh(), 'bonus_des_attaque'))->toBe(1);
+    expect(app(MoteurSorts::class)->bonusDes($heros->fresh(), 'bonus_des_attaque'))->toBe(2);
 });
 
 it('refuse la potion d\'un héros qui n\'est pas à soi', function () {
@@ -169,10 +169,23 @@ it('ne relève PAS sur un soin qui ne rouvre pas le Body (antidote)', function (
     $hero->update(['pv_body' => 0]);
     $hero->conditions()->attach(Condition::where('nom', 'Empoisonné')->firstOrFail()->id, ['duree' => 2]);
 
-    $ligne = donnerConsommable($hero, 'Antidote');
+    // ⚠ Il n'existe PLUS de consommable qui retire une condition sans rendre
+    // de Body : l'Antidote sec a cédé la place à l'Antidote au venin, dont la
+    // carte officielle soigne 2 PV. On fabrique donc ici l'objet qui isole la
+    // règle — sans quoi `releverSiSoigne()` n'aurait plus aucun témoin.
+    $elixir = Objet::create([
+        'nom' => 'Élixir de test (purge seule)', 'categorie' => 'consommable',
+        'rarete' => 'commun', 'prix_base' => 10, 'emplacement' => 'consommable',
+        'effet' => ['retire_condition' => 'Empoisonné'],
+    ]);
+    $ligne = Inventaire::create([
+        'personnage_id' => $hero->id, 'objet_id' => $elixir->id,
+        'emplacement' => 'consommable', 'quantite' => 1,
+    ]);
     $this->postJson('/api/groupes/table-1/potions', ['inventaire_id' => $ligne->id])->assertOk();
 
     // Le poison part, mais un corps à zéro ne se relève pas pour autant.
     expect((int) $hero->fresh()->pv_body)->toBe(0)
-        ->and((bool) $etat->fresh()->tombe)->toBeTrue();
+        ->and((bool) $etat->fresh()->tombe)->toBeTrue()
+        ->and($hero->fresh()->conditions()->where('nom', 'Empoisonné')->exists())->toBeFalse();
 });

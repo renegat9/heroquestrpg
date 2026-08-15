@@ -225,7 +225,7 @@ it('répartit l\'or en parts égales (reste aux premiers) et réassigne l\'équi
     ])->assertStatus(422);
 
     // Équipement d'un héros hors du groupe → 422.
-    $lance = equiperHeros($heroCarol->id, 'Lance');
+    $lance = equiperHeros($heroCarol->id, 'Hachette');
     $this->putJson('/api/groupes/table-1/cloture/repartition', [
         'inventaire_id' => $lance->id,
         'personnage_id' => $heroB->id,

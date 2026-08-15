@@ -54,12 +54,24 @@ class ClasseHerosSeeder extends Seeder
             // de départ — c'est l'équipement initial qui les produit désormais,
             // au lieu d'être codé en dur dans la classe puis CUMULÉ avec l'arme
             // achetée (un barbare avec une épée large montait à 6 dés).
-            // Les quatre tags d'ARMURERIE (`arme_arc_long`, `arme_arc_court`,
-            // `arme_erudit`, `armure_magicien`) portent les restrictions que les
-            // cartes énoncent classe par classe et que les 7 tags précédents ne
-            // savaient pas dire : l'arc long est refusé au nain, l'arc court au
-            // barbare, la canne aux deux costauds, et brassards et cape sont
-            // RÉSERVÉS au magicien (reference/16 §2.2).
+            // ⚠ Trois tags ont DISPARU le 2026-08-15 avec le passage au paquet
+            // officiel : `arme_arc_long`, `arme_arc_court` et `arme_erudit`
+            // n'avaient plus un seul porteur — les arcs et la canne venaient du
+            // paquet fan et n'existent sur aucune carte Hasbro. Un tag qui
+            // n'ouvre plus rien est la version « maîtrise » de la clé
+            // décorative, exactement ce que le projet traque ailleurs.
+            //
+            // `armure_magicien` survit, mais plus pour l'armurerie : ses seuls
+            // porteurs sont désormais TROIS ARTEFACTS (Baguette de Rappel,
+            // Sceptre de Mémoire, Baguette de Galimatias). Les Brassards ont
+            // perdu ce tag — leur carte officielle ne les réserve à personne.
+            //
+            // Quatre tags NEUFS traduisent les restrictions que les cartes
+            // énoncent nommément : `arme_warlock` (« only by the warlock »),
+            // `outil_rogue` (« only by the Rogue »), et surtout
+            // `potion_barbare` / `potion_elfe` — les premières restrictions de
+            // classe jamais portées par un CONSOMMABLE, trois potions au
+            // barbare et deux à l'elfe (reference/16 §2.1bis).
             //
             // Les quatre tags de TALISMAN font de même pour les bijoux
             // d'artefact, un par classe et réservé à elle : Amulette du Nord
@@ -68,10 +80,10 @@ class ClasseHerosSeeder extends Seeder
             // écarte du tirage tout artefact qu'aucune classe active du groupe
             // ne pourrait porter, sans quoi le coffre du fond aurait pu rendre
             // des runes naines à un groupe sans nain.
-            ['nom' => 'barbare',  'race' => 'humain',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'armure_legere', 'bouclier', 'arme_deux_mains', 'talisman_barbare']],
-            ['nom' => 'nain',     'race' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'armure_legere', 'bouclier', 'armure_lourde', 'talisman_nain']],
-            ['nom' => 'elfe',     'race' => 'elfe',     'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_long', 'arme_arc_court', 'arme_erudit', 'armure_legere', 'bouclier', 'talisman_elfe']],
-            ['nom' => 'magicien', 'race' => 'humain', 'pv_body' => 4, 'pv_mind' => 6, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_magicien']],
+            ['nom' => 'barbare',  'race' => 'humain',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'arme_deux_mains', 'potion_barbare', 'talisman_barbare']],
+            ['nom' => 'nain',     'race' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'armure_lourde', 'talisman_nain']],
+            ['nom' => 'elfe',     'race' => 'elfe',     'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'potion_elfe', 'talisman_elfe']],
+            ['nom' => 'magicien', 'race' => 'humain', 'pv_body' => 4, 'pv_mind' => 6, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'armure_magicien', 'talisman_magicien']],
 
             // ----------------------------------------------------------------
             // LES 8 CLASSES D'EXTENSION (2026-08-12)
@@ -103,28 +115,28 @@ class ClasseHerosSeeder extends Seeder
             // carrying no shield you have 1 extra defend die ». C'est un BONUS
             // CONDITIONNEL, pas une interdiction : il a donc accès à tout
             // l'armement léger, et c'est à lui de renoncer au métal.
-            ['nom' => 'barde', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_erudit', 'armure_legere', 'bouclier', 'talisman_barde']],
+            ['nom' => 'barde', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'talisman_barde']],
 
             // Druide — « A Druid hero may not wear metal armor » : interdiction
             // ferme, celle-là. Il garde le bouclier (bois) et les armes
             // courantes ; l'armure lourde et légère métallique lui sont
             // fermées, ce que `armure_legere` retiré exprime.
-            ['nom' => 'druide', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_erudit', 'arme_arc_court', 'bouclier', 'talisman_druide']],
+            ['nom' => 'druide', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'bouclier', 'talisman_druide']],
 
             // Warlock — « follows the same rules for wearing armor as the
             // wizard » : on reprend donc EXACTEMENT le profil du magicien,
             // `armure_magicien` compris. Sa baguette est son arme.
-            ['nom' => 'warlock', 'race' => 'halfling', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_warlock']],
+            ['nom' => 'warlock', 'race' => 'halfling', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'armure_magicien', 'arme_warlock', 'talisman_warlock']],
 
             // Rogue — profil de lame agile. Pas d'armure lourde ni d'arme à
             // deux mains : ses trois capacités parlent toutes de dague et
             // d'épée courte, une plate le contredirait.
-            ['nom' => 'rogue', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'armure_legere', 'talisman_rogue']],
+            ['nom' => 'rogue', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'outil_rogue', 'talisman_rogue']],
 
             // Moine — 3 dés de défense SANS armure ni bouclier, ce qui est tout
             // son personnage : il esquive, il ne se protège pas. Lui donner une
             // armure le pousserait à 4-5 dés, au-dessus de n'importe quel héros.
-            ['nom' => 'moine', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 2, 'des_defense' => 3, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_erudit', 'talisman_moine']],
+            ['nom' => 'moine', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 2, 'des_defense' => 3, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'talisman_moine']],
 
             // Chevalier — le seul héros à DÉMARRER avec un bouclier, et deux de
             // ses trois capacités portent « **Requires shield** ». Profil de
@@ -139,7 +151,7 @@ class ClasseHerosSeeder extends Seeder
             // Explorateur — le seul 5/5 du jeu, tourné vers les pièges et le
             // deck de trésor. Profil polyvalent sans excès, proche du nain sans
             // sa plate.
-            ['nom' => 'explorateur', 'race' => 'nain', 'pv_body' => 5, 'pv_mind' => 5, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 2, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'arme_arc_court', 'arme_arc_long', 'armure_legere', 'bouclier', 'talisman_explorateur']],
+            ['nom' => 'explorateur', 'race' => 'nain', 'pv_body' => 5, 'pv_mind' => 5, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 2, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'talisman_explorateur']],
         ];
 
         foreach ($classes as $classe) {

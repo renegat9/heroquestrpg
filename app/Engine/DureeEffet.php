@@ -74,6 +74,25 @@ final class DureeEffet
      */
     public const FIN_DU_COMBAT = 'fin_du_combat';
 
+    /**
+     * Tant qu'un monstre est EN LIGNE DE VUE du porteur — « As soon as there
+     * are no monsters in the Barbarian's line of sight, this potion's effect
+     * wears off » (Potion de rage guerrière et Potion de peau de givre, cartes
+     * © 2022, doc 16 §2.1bis).
+     *
+     * ⚠ Ce n'est PAS `FIN_DU_COMBAT`, qui raisonne au niveau de la QUÊTE (plus
+     * aucun monstre révélé et actif nulle part). Ici c'est la vue du porteur :
+     * un ennemi vivant dans la salle d'à côté ne prolonge rien.
+     *
+     * ⚠ Évalué au DÉBUT DU TOUR du porteur (et à la génération de son menu),
+     * pas en continu — c'est le seul crochet de ce genre dans le moteur, celui
+     * qui sert déjà au Moine. Conséquence assumée : la peau de givre protège
+     * encore pendant la phase de monstres qui suit la mort du dernier ennemi.
+     *
+     * Lecteur : `MoteurSorts::rythmerBuffsDeVue()`.
+     */
+    public const PLUS_DE_MONSTRE_EN_VUE = 'plus_de_monstre_en_vue';
+
     /** @return list<string> */
     public static function toutes(): array
     {
@@ -84,6 +103,7 @@ final class DureeEffet
             self::CE_TOUR,
             self::PROCHAIN_TOUR,
             self::FIN_DU_COMBAT,
+            self::PLUS_DE_MONSTRE_EN_VUE,
         ];
     }
 

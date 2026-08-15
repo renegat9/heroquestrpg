@@ -61,11 +61,11 @@ it('ouvre la phase au hub : profil bourg par défaut, raretés et stocks du prof
 
     // Prix = prix_base × 1,0 ; stocks playtest : commun illimité, peu_commun 3.
     $epee = $inventaire->firstWhere('nom', 'Épée courte');
-    $lance = $inventaire->firstWhere('nom', 'Lance');
-    expect($epee['prix'])->toBe(225)
+    $rapiere = $inventaire->firstWhere('nom', 'Rapière');
+    expect($epee['prix'])->toBe(150)
         ->and($epee['stock'])->toBeNull()
-        ->and($lance['prix'])->toBe(250)
-        ->and($lance['stock'])->toBe(3);
+        ->and($rapiere['prix'])->toBe(250)
+        ->and($rapiere['stock'])->toBe(3);
 
     // Panier vide initialisé pour chaque joueur membre.
     $reponse->assertJsonPath('paniers.0.joueur_id', $alice->id)
@@ -85,7 +85,7 @@ it('applique le profil de lieu : village = commun seul à ×1,2', function () {
 
     $inventaire = collect($reponse->json('inventaire'));
     expect($inventaire->pluck('rarete')->unique()->all())->toBe(['commun'])
-        ->and($inventaire->firstWhere('nom', 'Dague')['prix'])->toBe(180); // 150 × 1,2
+        ->and($inventaire->firstWhere('nom', 'Dague')['prix'])->toBe(30); // 25 × 1,2
 });
 
 it('refuse d\'ouvrir le marché pendant une quête (hub uniquement)', function () {
@@ -117,7 +117,7 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
             ['objet_id' => Objet::where('nom', 'Potion de soin')->first()->id, 'quantite' => 2],
         ],
         'ventes' => [],
-    ])->assertOk()->assertJsonPath('total_projete', 1000 - 425);
+    ])->assertOk()->assertJsonPath('total_projete', 1000 - 350);
 
     // Bob revend sa dague : 50 % du prix marchand courant (M1) = 150 ÷ 2 = 75.
     $this->actingAs($bob, 'joueur');
@@ -126,7 +126,7 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
         'ventes' => [['inventaire_id' => $dague->id]],
     ])->assertOk()->json();
 
-    expect($etat['total_projete'])->toBe(1000 - 425 + 75)
+    expect($etat['total_projete'])->toBe(1000 - 350 + 12)
         ->and($etat['or_courant'])->toBe(1000);
 
     // Panier consolidé : chaque ligne est étiquetée de son joueur.
@@ -134,7 +134,7 @@ it('calcule le total projeté en direct sur l\'ensemble des paniers (achats + re
     expect($paniers[$alice->id]['achats'])->toHaveCount(2)
         ->and($paniers[$alice->id]['achats'][0]['personnage_id'])->toBe($heroAlice->id)
         ->and($paniers[$bob->id]['ventes'][0]['nom'])->toBe('Dague')
-        ->and($paniers[$bob->id]['ventes'][0]['prix_revente'])->toBe(75);
+        ->and($paniers[$bob->id]['ventes'][0]['prix_revente'])->toBe(12); // dague officielle : 25 po
 
     // Modifier son panier annule SA confirmation (et seulement la sienne).
     $this->postJson('/api/groupes/table-1/marche/confirmation')->assertOk()->assertJsonPath('applique', null);
@@ -177,9 +177,11 @@ it('refuse un achat hors profil ou au-delà du stock', function () {
         'ventes' => [],
     ])->assertStatus(422);
 
-    // Lance : peu commun, stock 3 — en demander 4 dépasse la boutique.
+    // Rapière : peu commune, stock 3 — en demander 4 dépasse la boutique.
+    // (La Hachette, peu commune tant qu'elle valait 250, est passée COMMUNE à
+    // 200 avec sa carte officielle : son stock est désormais illimité.)
     $this->putJson('/api/groupes/table-1/marche/panier', [
-        'achats' => [['objet_id' => Objet::where('nom', 'Lance')->first()->id, 'quantite' => 4]],
+        'achats' => [['objet_id' => Objet::where('nom', 'Rapière')->first()->id, 'quantite' => 4]],
         'ventes' => [],
     ])->assertStatus(422);
 });
@@ -195,7 +197,7 @@ it('refuse la finalisation si la bourse commune ne couvre pas le total (total pr
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [['objet_id' => Objet::where('nom', 'Épée courte')->first()->id]],
         'ventes' => [],
-    ])->assertOk()->assertJsonPath('total_projete', -125);
+    ])->assertOk()->assertJsonPath('total_projete', -50);
 
     // Seul membre → sa confirmation déclencherait l'application : refusée.
     $this->postJson('/api/groupes/table-1/marche/confirmation')->assertStatus(422);
@@ -253,8 +255,10 @@ it('refuse la finalisation quand les paniers cumulés dépassent le stock de la 
 
     $this->postJson('/api/groupes/table-1/marche')->assertCreated();
 
-    // 2 lances chacun : légal panier par panier (stock 3), pas en cumulé (4).
-    $lance = Objet::where('nom', 'Lance')->first();
+    // 2 rapières chacun : légal panier par panier (stock 3), pas en cumulé (4).
+    // ⚠ La Hachette ne convient plus : sa carte officielle la rend COMMUNE, et
+    // le commun est en stock illimité.
+    $lance = Objet::where('nom', 'Rapière')->first();
 
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [['objet_id' => $lance->id, 'quantite' => 2]], 'ventes' => [],
@@ -297,7 +301,9 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
         ->assertOk()->assertJsonPath('applique', null);
     expect($groupe->fresh()->or)->toBe(1000);
 
-    // Bob vend sa dague (+75) et confirme → application atomique + clôture.
+    // Bob vend sa dague et confirme → application atomique + clôture.
+    // ⚠ La revente suit le prix de la CARTE : la dague officielle vaut 25 po,
+    // pas 150 — elle ne rapporte donc plus que 12 au lieu de 75.
     $this->actingAs($bob, 'joueur');
     $this->putJson('/api/groupes/table-1/marche/panier', [
         'achats' => [],
@@ -307,8 +313,8 @@ it('finalise atomiquement quand tous les joueurs ont confirmé', function () {
     $this->postJson('/api/groupes/table-1/marche/confirmation')
         ->assertOk()->assertJsonPath('applique', true);
 
-    // Or débité/crédité sur la bourse commune : 1000 − 425 + 75.
-    expect($groupe->fresh()->or)->toBe(650);
+    // Or débité/crédité sur la bourse commune : 1000 − 350 + 12.
+    expect($groupe->fresh()->or)->toBe(662);
 
     // Achats rangés : l'épée au SAC d'Albrecht, les potions empilées hors sac.
     $sac = Inventaire::where('personnage_id', $heroAlice->id)->get();
@@ -396,7 +402,7 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
     // protections arcaniques (brassards, cape) — les seules pièces défensives
     // que les cartes lui RÉSERVENT. Aucune armure ordinaire.
     expect($perso['equipement']['maitrises'])
-        ->toBe(['arme_legere', 'arme_erudit', 'armure_magicien', 'talisman_magicien']);
+        ->toBe(['arme_legere', 'armure_magicien', 'talisman_magicien']);
 
     // Le badge se déduit des deux : l'épée est hors de portée du magicien…
     expect(in_array($etal->firstWhere('nom', 'Épée courte')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeFalse()

@@ -63,7 +63,11 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
     // carte n'énonce AUCUNE restriction de classe, qui n'ont légitimement pas de
     // tag (`verifierAccesEquipement` les laisse passer). Elles sont nommées ici
     // pour qu'un tag oublié ne se cache pas derrière la même absence.
-    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort', 'Anneau de Feu'];
+    // ⚠ Les BRASSARDS ont rejoint la liste le 2026-08-15 : leur carte
+    // officielle ne les réserve à personne (« May be combined with the helmet
+    // and/or shield », rien de plus), là où nous en faisions une pièce du
+    // magicien. Le tag a sauté avec la restriction.
+    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort', 'Anneau de Feu', 'Brassards'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
@@ -103,13 +107,15 @@ it('trie le bestiaire par palier puis coût', function () {
 it('expose la provenance des cartes, portées et non portées', function () {
     $data = $this->getJson('/api/guide')->assertOk()->json();
 
-    // Deux paquets exposés : sans eux la page /guide affichait un catalogue
-    // sans jamais dire d'où viennent ses prix et ses dés.
+    // Trois paquets exposés : sans eux la page /guide affichait un catalogue
+    // sans jamais dire d'où viennent ses prix et ses dés. Le paquet fan Sjeng a
+    // cédé la place aux photos du matériel officiel, scindées en équipement et
+    // potions comme les deux PDF de René.
     $paquets = collect($data['cartes'] ?? []);
-    expect($paquets->pluck('cle')->all())->toBe(['armurerie', 'artefacts']);
+    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts']);
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
-    expect($cartes)->toHaveCount(61);
+    expect($cartes)->toHaveCount(69);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

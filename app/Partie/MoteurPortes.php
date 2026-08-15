@@ -138,13 +138,40 @@ final class MoteurPortes
      */
     public function revelerSecretesAutour(Groupe $groupe, Carte $carte, Personnage $personnage, int $x, int $y): array
     {
+        return $this->revelerSecretes(
+            $groupe, $carte, $personnage,
+            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) <= self::RAYON_FOUILLE,
+        );
+    }
+
+    /**
+     * POTION DE VISION (Elfe) : « see all secret doors […] within their line of
+     * sight » (carte © 2023). Miroir exact de `MoteurPieges::revelerEnVue()` —
+     * les deux moitiés de la potion doivent obéir à la même géométrie.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function revelerSecretesEnVue(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
+    {
+        return $this->revelerSecretes(
+            $groupe, $carte, $personnage,
+            fn (array $porte) => $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
+        );
+    }
+
+    /**
+     * Le révélateur, dont seul le FILTRE change — factorisé quand la Potion de
+     * vision a demandé une seconde géométrie. Deux copies de « une porte
+     * secrète devient ouverte et révélée » auraient fini par diverger.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    private function revelerSecretes(Groupe $groupe, Carte $carte, Personnage $personnage, callable $filtre): array
+    {
         $reveles = [];
 
         foreach ($this->portes($carte) as $index => $porte) {
-            if (($porte['etat'] ?? null) !== self::ETAT_SECRETE || ($porte['revele'] ?? false)) {
-                continue;
-            }
-            if (abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) > self::RAYON_FOUILLE) {
+            if (($porte['etat'] ?? null) !== self::ETAT_SECRETE || ($porte['revele'] ?? false) || ! $filtre($porte)) {
                 continue;
             }
 

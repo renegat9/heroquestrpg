@@ -61,7 +61,7 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 90,
-                        'potions' => ['Potion de soin', "Potion d'esprit clair"],
+                        'potions' => ['Potion de soin', 'Potion de soin mineur'],
                     ],
                     'pieges' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 50],
@@ -97,7 +97,7 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 180,
-                        'potions' => ['Potion de soin', "Potion d'esprit clair", 'Potion de rage'],
+                        'potions' => ['Potion de soin', 'Potion de restauration', 'Potion de bataille'],
                     ],
                     'rencontre_finale' => ['tier' => 'sous_boss', 'escorte_budget' => 4],
                     'pieges' => ['min' => 2, 'max' => 3],
@@ -134,7 +134,7 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         'or' => 25,                // repli si un montant manque
                         'or_coffre' => 300,
-                        'potions' => ['Potion de soin', 'Potion de rage', 'Antidote'],
+                        'potions' => ['Potion de soin', 'Potion de bataille', 'Antidote au venin'],
                     ],
                     'rencontre_finale' => ['tier' => 'boss', 'escorte_budget' => 6],
                     'pieges' => ['min' => 2, 'max' => 4],

@@ -193,6 +193,13 @@ final class ResolveurTour
         // disponibilité.
         $this->styles->recupererSiHorsDeVue($quete, $etat);
 
+        // Même crochet de début de tour, pour les deux potions du Barbare dont
+        // la carte dit « as long as there are monsters in sight » : les buffs
+        // de durée `plus_de_monstre_en_vue` expirent quand la salle est nette,
+        // et la rage guerrière RÉARME sa seconde attaque tant qu'elle ne l'est
+        // pas. Même garde d'idempotence que le Moine, à l'intérieur.
+        $this->sorts->rythmerBuffsDeVue($quete, $etat);
+
         // Créneau visé (doc 03 §28 : un déplacement + une action par tour) :
         // on refuse de rejouer un créneau déjà consommé ce tour. Réserve
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
@@ -258,6 +265,11 @@ final class ResolveurTour
                     $groupe, $quete->carte, $personnage,
                     (int) $etat->position_x, (int) $etat->position_y,
                 );
+
+                // Potion de vision : même rythme que l'Œil du mineur — un
+                // balayage par action —, mais sur toute la ligne de vue, et
+                // pour les portes secrètes autant que pour les pièges.
+                $this->balayerClairvoyance($groupe, $quete, $personnage, $etat);
             }
 
             $resultat = match ($option['type']) {
@@ -282,6 +294,7 @@ final class ResolveurTour
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
+                'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -432,6 +445,16 @@ final class ResolveurTour
             throw ValidationException::withMessages(['parametres' => 'Destination inaccessible (mur, case occupée ou sur place).']);
         }
 
+        // BOMBE FUMIGÈNE : « move unseen THROUGH the monster's space ».
+        // Traverser n'est pas s'arrêter dessus. Le monstre enfumé étant sorti
+        // de `$occupees`, le BFS le laisserait volontiers pour destination — et
+        // deux figurines se retrouveraient empilées sur la même case.
+        if ($this->monstreEnfumeSur($quete, $x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'On traverse la fumée, on ne s\'y arrête pas : cette case est occupée.',
+            ]);
+        }
+
         $distance = count($chemin);
 
         if ($distance > $restant) {
@@ -456,7 +479,9 @@ final class ResolveurTour
         // retombe sur la destination DEMANDÉE quand aucun piège n'arrête le
         // héros. Sans réécrire $x/$y ici, le héros se téléportait à bon port en
         // ayant l'air d'avoir été stoppé.
-        $tronque = $this->tronquerSurRacines($quete, $chemin);
+        // Racines entravantes, puis chausse-trappes : deux raisons distinctes
+        // d'écourter le même trajet, qui passent par le même recalage de $x/$y.
+        $tronque = $this->tronquerSurChausseTrappes($quete, $this->tronquerSurRacines($quete, $chemin));
 
         if (count($tronque) < count($chemin)) {
             $chemin = $tronque;
@@ -557,7 +582,17 @@ final class ResolveurTour
             $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
         }
 
-        return ['restant' => $totalTour * $multiplicateur, 'multiplicateur' => $multiplicateur];
+        // Potion de dextérité : « adds 5 movement squares to your next dice
+        // roll ». Des cases EN PLUS, donc ajoutées après le multiplicateur —
+        // une potion de vitesse ne double pas le bonus de l'autre potion.
+        // ⚠ `MenuMoteur` doit annoncer le même total, sans quoi le menu offre
+        // une portée que le résolveur refusera.
+        $bonus = $this->sorts->bonusDes($personnage, 'bonus_deplacement');
+
+        return [
+            'restant' => $totalTour * $multiplicateur + $bonus,
+            'multiplicateur' => $multiplicateur,
+        ];
     }
 
     private function cheminJusqua(array $chemin, array $arrivee): array
@@ -746,9 +781,18 @@ final class ResolveurTour
     private function ambidextrie(Personnage $personnage, EtatPersonnageQuete $etat, ?Objet $arme): bool
     {
         $noeud = $this->capacites->noeud($personnage, 'attaque_supplementaire_arme');
+        $armes = (array) ($noeud?->effet['armes'] ?? []);
+
+        // BANDOULIÈRE : « you are always considered to be armed with a dagger ».
+        // C'est ici que la carte compte — la capacité du Rogue exige nommément
+        // une dague, et le porteur en a virtuellement une, même s'il tient
+        // autre chose en main.
+        $armeeParLaCarte = $arme !== null
+            && ! in_array($arme->nom, $armes, true)
+            && array_filter($armes, fn (string $nom) => $this->equipement->compteCommeArme($personnage, $nom)) !== [];
 
         if ($noeud === null || $arme === null
-            || ! in_array($arme->nom, (array) ($noeud->effet['armes'] ?? []), true)
+            || (! in_array($arme->nom, $armes, true) && ! $armeeParLaCarte)
             || ! $this->capacites->disponible($personnage, $etat, 'attaque_supplementaire_arme')) {
             return false;
         }
@@ -905,9 +949,26 @@ final class ResolveurTour
                 desDefense: $instance->defenseEffective(),
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
-                relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT),
+                // Potion de bataille : « It allows you 1 reroll of your Attack
+                // dice ». Le calcul existait pour le nœud *Coup puissant* ; la
+                // carte ne fait qu'ouvrir un second déclencheur sur le même.
+                relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT)
+                    || $this->sorts->aBuff($personnage, 'relance_des_attaque'),
                 defenseurEthere: $ethere,
             );
+
+        // Potion de force glaciale (Barbare) : « their next attack causes twice
+        // as many Body Points of damage as are rolled ».
+        //
+        // ⚠ Passe par la fabrique et jamais par une multiplication sur place :
+        // `pvBodyApres` est relu cinq fois plus bas (écriture, mort de la
+        // cible, regain de sort, bark, payload), et deux vérités s'y
+        // contrediraient.
+        $multiplicateur = $this->sorts->multiplicateurDegats($personnage);
+
+        if ($multiplicateur > 1) {
+            $resultat = $resultat->avecDegatsMultiplies($multiplicateur);
+        }
 
         // Le héros vient de frapper : les buffs déclarés `prochaine_attaque`
         // (Courage, Potion de force) sont consommés — quel que soit le résultat,
@@ -1798,6 +1859,119 @@ final class ResolveurTour
     }
 
     /**
+     * CHAUSSE-TRAPPES — « If a creature moves onto a caltrops tile, they roll
+     * one combat die. If it lands on a white shield, they may continue their
+     * movement. On any other roll result, their movement ends. »
+     *
+     * Vaut pour les héros ET les monstres : c'est bien la formule de la carte
+     * (« a creature »), et c'est même contre les monstres que l'objet se pose.
+     *
+     * ⚠ Comme pour les racines, l'appelant doit REÉCRIRE `$x`/`$y` sur la
+     * dernière case rendue : plus bas, l'arrivée retombe sur la destination
+     * DEMANDÉE quand rien ne l'arrête, et le héros se téléporterait à bon port
+     * en ayant l'air stoppé.
+     *
+     * ⚠ La case de DÉPART ne déclenche rien : on n'y « entre » pas, on y est
+     * déjà — sinon un héros qui pose sa tuile puis reprend son mouvement se
+     * piégerait lui-même.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return list<array{x: int, y: int}>
+     */
+    private function tronquerSurChausseTrappes(Quete $quete, array $chemin): array
+    {
+        $tuiles = $this->chausseTrappes($quete);
+
+        if ($tuiles === [] || count($chemin) < 2) {
+            return $chemin;
+        }
+
+        foreach ($chemin as $index => $case) {
+            if ($index === 0) {
+                continue;
+            }
+
+            $piegee = array_filter($tuiles, fn (array $t) => (int) $t['x'] === (int) $case['x']
+                && (int) $t['y'] === (int) $case['y']);
+
+            if ($piegee === [] || $this->des->deCombat() === FaceDeCombat::BouclierBlanc) {
+                continue;
+            }
+
+            return array_slice($chemin, 0, $index + 1);
+        }
+
+        return $chemin;
+    }
+
+    /**
+     * POTION DE VISION — révèle pièges ET portes secrètes en ligne de vue tant
+     * que le buff vit. Les deux moitiés partent d'ici pour qu'elles ne puissent
+     * pas se désynchroniser : la carte n'en promet pas une sans l'autre.
+     */
+    private function balayerClairvoyance(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): void
+    {
+        if ($quete->carte === null || $etat->position_x === null
+            || ! $this->sorts->aBuff($personnage, 'revele_pieges_et_portes_en_vue')) {
+            return;
+        }
+
+        $grille = $this->grille($quete);
+        $x = (int) $etat->position_x;
+        $y = (int) $etat->position_y;
+
+        $this->pieges->revelerEnVue($groupe, $quete->carte, $personnage, $grille, $x, $y);
+        $this->portes->revelerSecretesEnVue($groupe, $quete->carte->refresh(), $personnage, $grille, $x, $y);
+    }
+
+    /**
+     * Un monstre ENFUMÉ se tient-il sur cette case ? Il n'occupe plus la grille
+     * — c'est tout l'effet de la bombe —, mais il est toujours là.
+     */
+    private function monstreEnfumeSur(Quete $quete, int $x, int $y): bool
+    {
+        return $quete->instancesMonstres()->where('etat', 'actif')
+            ->where('position_x', $x)->where('position_y', $y)->get()
+            ->contains(fn (InstanceMonstre $i) => $this->sorts->monstreA($i, MoteurSorts::MONSTRE_ENFUME));
+    }
+
+    /** Tuiles de chausse-trappes posées sur cette carte. @return list<array{x: int, y: int}> */
+    private function chausseTrappes(Quete $quete): array
+    {
+        return array_values((array) data_get($quete->carte?->grille, 'chausse_trappes', []));
+    }
+
+    /**
+     * « Remove the tile from the board if a creature ends their turn on it. »
+     *
+     * Appelé à la fin du tour d'un héros et à la sortie du tour d'un monstre :
+     * la carte parle d'une créature, sans distinguer.
+     */
+    private function retirerChausseTrappeSous(Quete $quete, ?int $x, ?int $y): bool
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null || $x === null || $y === null) {
+            return false;
+        }
+
+        $restantes = array_values(array_filter(
+            $this->chausseTrappes($quete),
+            fn (array $t) => (int) $t['x'] !== $x || (int) $t['y'] !== $y,
+        ));
+
+        if (count($restantes) === count($this->chausseTrappes($quete))) {
+            return false;
+        }
+
+        $grille = (array) $carte->grille;
+        $grille['chausse_trappes'] = $restantes;
+        $carte->update(['grille' => $grille]);
+
+        return true;
+    }
+
+    /**
      * Le sort qu'on vient de lancer échappe-t-il à l'épuisement ?
      *
      * Deux artefacts, deux économies opposées :
@@ -1850,13 +2024,34 @@ final class ResolveurTour
     private function desArmeContre(?Objet $arme, InstanceMonstre $instance): int
     {
         $clause = (array) ($arme?->effet['des_attaque_contre'] ?? []);
-        $noms = array_map('mb_strtolower', array_map('strval', (array) ($clause['noms'] ?? [])));
 
-        if ($noms === [] || ! in_array(mb_strtolower((string) $instance->monstre?->nom_base), $noms, true)) {
+        if (! $this->nomBaseParmi($instance, (array) ($clause['noms'] ?? []))) {
             return 0;
         }
 
         return (int) ($clause['des'] ?? 0);
+    }
+
+    /**
+     * Cette créature figure-t-elle dans la liste de noms d'une carte ?
+     *
+     * Trois effets nomment leurs cibles ainsi — la Lame des Esprits
+     * (`des_attaque_contre`), le Fléau des Orques (`attaque_double_contre`) et
+     * l'Eau bénite (`tue_creatures`) — et ils le faisaient chacun avec sa
+     * propre copie de la comparaison.
+     *
+     * ⚠ Toujours `nom_base`, le nom de CATALOGUE, jamais `nomAffiche()` : le
+     * second est habillé par l'IA à chaque quête, et l'eau bénite cesserait de
+     * reconnaître un squelette dès la première partie narrée.
+     *
+     * @param  array<int, mixed>  $noms
+     */
+    private function nomBaseParmi(InstanceMonstre $instance, array $noms): bool
+    {
+        $noms = array_map('mb_strtolower', array_map('strval', $noms));
+
+        return $noms !== []
+            && in_array(mb_strtolower((string) $instance->monstre?->nom_base), $noms, true);
     }
 
     /**
@@ -1869,9 +2064,7 @@ final class ResolveurTour
      */
     private function accorderSecondeAttaque(?Objet $arme, InstanceMonstre $instance, EtatPersonnageQuete $etat): bool
     {
-        $noms = array_map('mb_strtolower', array_map('strval', (array) ($arme?->effet['attaque_double_contre'] ?? [])));
-
-        if ($noms === [] || ! in_array(mb_strtolower((string) $instance->monstre?->nom_base), $noms, true)) {
+        if (! $this->nomBaseParmi($instance, (array) ($arme?->effet['attaque_double_contre'] ?? []))) {
             return false;
         }
 
@@ -2123,7 +2316,12 @@ final class ResolveurTour
         $resultat = (new JetCompetence($this->des))
             ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_FRANCHISSEMENT);
 
-        if ($dragon !== null) {
+        // Potion de dextérité : « or guarantees one successful pit jump ».
+        // Même traitement que le Dragon bondissant, et pour la même raison : le
+        // jet reste visible, il cesse seulement de décider.
+        $dexterite = $this->sorts->aBuff($personnage, 'saut_fosse_automatique');
+
+        if ($dragon !== null || $dexterite) {
             $resultat = $resultat->force();
         }
 
@@ -3345,6 +3543,182 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Usage d'un objet de MATÉRIEL — les trois cartes officielles qui ne sont
+     * ni une arme, ni une armure, ni une potion : eau bénite, chausse-trappes,
+     * bombe fumigène (doc 16 §2.1bis).
+     *
+     * Toutes trois sont perdues à l'usage, comme une arme lancée : on réutilise
+     * exactement le geste de `consommerArmeLancee()`, décrément puis suppression.
+     *
+     * ⚠ L'objet est relu depuis l'INVENTAIRE du héros, jamais depuis les
+     * paramètres du menu : l'option porte l'identifiant de ligne, et c'est le
+     * moteur qui décide de ce qu'elle contient.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreUsageObjet(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $ligne = $personnage->inventaire()->with('objet')
+            ->where('id', (int) data_get($option, 'parametres.inventaire_id', 0))->first();
+        $effet = (array) ($ligne?->objet?->effet ?? []);
+
+        if ($ligne === null) {
+            throw ValidationException::withMessages(['option_id' => "Cet objet n'est pas dans votre sac."]);
+        }
+
+        $payload = [
+            'type' => 'usage_objet',
+            'option_id' => $option['id'] ?? null,
+            'libelle' => $option['libelle'] ?? null,
+            'objet' => $ligne->objet?->nom,
+        ];
+
+        if (! empty($effet['tue_creatures'])) {
+            $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $option, $effet, $acteur);
+        } elseif (! empty($effet['pose_chausse_trappes'])) {
+            $payload += $this->poserChausseTrappes($quete, $personnage, $etat);
+        } elseif (! empty($effet['enfume_monstre_adjacent'])) {
+            $payload += $this->enfumerMonstre($quete, $etat, $option);
+        } else {
+            throw ValidationException::withMessages(['option_id' => "Cet objet ne s'utilise pas ainsi."]);
+        }
+
+        // Perdu à l'usage — les trois cartes le disent chacune à sa façon
+        // (« discarded after use », « the caltrops are lost », « the smoke bomb
+        // is lost »).
+        if ((int) $ligne->quantite > 1) {
+            $ligne->decrement('quantite');
+        } else {
+            $ligne->delete();
+        }
+
+        $payload['perdu'] = true;
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * EAU BÉNITE — « You may use the holy water instead of attacking. It kills
+     * any undead creature (skeleton, zombie, or mummy). »
+     *
+     * La carte ne donne AUCUNE portée : on retient la ligne de vue, comme la
+     * Flèche de Vindication, qui est l'autre effet du jeu tuant sans jet. C'est
+     * une décision de portage, consignée en doc 16 §10.
+     *
+     * @param  array<string, mixed>  $effet
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreEauBenite(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $effet,
+        array $acteur,
+    ): array {
+        $instance = $quete->instancesMonstres()->with('monstre')
+            ->where('id', (int) data_get($option, 'parametres.cible_id', 0))
+            ->where('etat', 'actif')->where('revele', true)->first();
+
+        if ($instance === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cette créature n\'est plus là.']);
+        }
+
+        if (! $this->nomBaseParmi($instance, (array) $effet['tue_creatures'])) {
+            throw ValidationException::withMessages([
+                'option_id' => "L'eau bénite ne fait rien à {$instance->nomAffiche()}.",
+            ]);
+        }
+
+        if (! $this->grille($quete)->ligneDeVue(
+            (int) $etat->position_x, (int) $etat->position_y,
+            (int) $instance->position_x, (int) $instance->position_y,
+        )) {
+            throw ValidationException::withMessages(['option_id' => 'Cette créature n\'est pas en vue.']);
+        }
+
+        $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
+        $this->diffuserBark($groupe, $instance, 'mort');
+
+        return [
+            'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+            'tuee' => true,
+        ];
+    }
+
+    /**
+     * Pose une tuile de chausse-trappes sur la case OCCUPÉE par le héros —
+     * « Place a caltrops tile on any one square you move through », et la case
+     * où il se tient en fait partie.
+     *
+     * @return array<string, mixed>
+     */
+    private function poserChausseTrappes(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null || $etat->position_x === null) {
+            throw ValidationException::withMessages(['option_id' => 'Impossible de poser ici.']);
+        }
+
+        $x = (int) $etat->position_x;
+        $y = (int) $etat->position_y;
+
+        foreach ($this->chausseTrappes($quete) as $tuile) {
+            if ((int) $tuile['x'] === $x && (int) $tuile['y'] === $y) {
+                throw ValidationException::withMessages(['option_id' => 'Cette case en porte déjà.']);
+            }
+        }
+
+        $grille = (array) $carte->grille;
+        $grille['chausse_trappes'] = [
+            ...$this->chausseTrappes($quete),
+            ['x' => $x, 'y' => $y, 'pose_par' => (int) $personnage->id],
+        ];
+        $carte->update(['grille' => $grille]);
+
+        return ['case' => ['x' => $x, 'y' => $y]];
+    }
+
+    /**
+     * BOMBE FUMIGÈNE — « A thick cloud of colored smoke envelops any one
+     * monster adjacent to you. »
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function enfumerMonstre(Quete $quete, EtatPersonnageQuete $etat, array $option): array
+    {
+        $instance = $quete->instancesMonstres()->with('monstre')
+            ->where('id', (int) data_get($option, 'parametres.cible_id', 0))
+            ->where('etat', 'actif')->where('revele', true)->first();
+
+        if ($instance === null || $instance->position_x === null
+            || abs((int) $instance->position_x - (int) $etat->position_x)
+             + abs((int) $instance->position_y - (int) $etat->position_y) !== 1) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune créature à votre contact ici.']);
+        }
+
+        $this->sorts->poserConditionMonstre($instance, MoteurSorts::MONSTRE_ENFUME);
+
+        return [
+            'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+            'enfume' => true,
+        ];
+    }
+
     private function resoudreActionnerLevier(
         Groupe $groupe,
         Quete $quete,
@@ -4127,6 +4501,19 @@ final class ResolveurTour
             return $payload;
         }
 
+        // BOMBE FUMIGÈNE : « until that monster's next turn ». Ce tour-ci EST
+        // son prochain tour — la fumée se dissipe donc en s'y activant, comme
+        // la tempête juste au-dessus, et la créature ne fait rien pendant qu'on
+        // lui reprend sa case. Elle réoccupe le terrain dès la ligne suivante.
+        if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENFUME)) {
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENFUME);
+
+            $payload = ['type' => 'monstre_enfume', 'monstre' => $nomMonstre, 'action' => 'enfume'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         // Paralysé (Flamme hypnotique) : « unable to move, attack, or defend »
         // pendant 3 tours. ⚠ La condition n'est PAS consommée ici, contrairement
         // à la tempête : elle dure, et c'est `decrementerDurees()` qui la retire.
@@ -4222,6 +4609,21 @@ final class ResolveurTour
         $departMonstre = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
         $cheminParcouruMonstre = [];
         if ($chemin !== []) {
+            // CHAUSSE-TRAPPES : la carte dit « a creature », donc les monstres
+            // aussi — c'est même contre eux qu'on les sème.
+            //
+            // ⚠ On tronque AVANT `derniereCaseOuSArreter()`, jamais après :
+            // cette méthode garantit que la case finale est légale (ni occupée,
+            // ni dans une zone non découverte), et raccourcir son résultat
+            // déposerait la créature n'importe où.
+            //
+            // Le chemin du BFS part de la case SUIVANTE, pas de celle du
+            // monstre : on lui repique sa position en tête, puis on la retire,
+            // pour que `tronquerSurChausseTrappes()` voie bien une « entrée »
+            // sur chaque case et n'ignore pas la première.
+            $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
+            $chemin = array_slice($tronque, 1);
+
             $pas = min((int) $instance->monstre->deplacement, count($chemin));
 
             if ($instance->monstre->grandeTaille()) {
@@ -4272,6 +4674,11 @@ final class ResolveurTour
                 }
             }
         }
+
+        // « Remove the tile from the board if a creature ends their turn on
+        // it. » Le monstre ne bouge plus après ce point — attaquer ne déplace
+        // personne —, donc sa case est bien celle où il finit son tour.
+        $this->retirerChausseTrappeSous($quete, $instance->position_x, $instance->position_y);
 
         // Animation case-par-case (table) : le trajet du monstre est enregistré
         // ICI — avant la branche d'attaque — pour couvrir aussi le cas
@@ -4552,7 +4959,12 @@ final class ResolveurTour
             // this technique on your turn », pas « as an action » — et Vague
             // Montante n'aurait aucun sens si elle mangeait l'action qu'elle
             // sert justement à encadrer.
-            'ouvrir_porte', 'actionner_levier', 'sortie', 'style' => 'interaction',
+            // `objet_libre` : les deux objets de matériel dont la carte dit
+            // elle-même qu'ils ne coûtent pas l'action — chausse-trappes (« Use
+            // anytime on your turn, no action required ») et bombe fumigène
+            // (« Use this item anytime during your movement »). L'eau bénite,
+            // elle, est un `objet` tout court : « instead of attacking ».
+            'ouvrir_porte', 'actionner_levier', 'sortie', 'style', 'objet_libre' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -4596,6 +5008,13 @@ final class ResolveurTour
 
             // Fin de tour EXPLICITE (« Terminer le tour », relever, concentration).
             $etat->a_joue = true;
+
+            // « Remove the tile from the board if a creature ends their turn on
+            // it » — un héros est une créature comme une autre, y compris quand
+            // c'est lui qui a semé les chausse-trappes.
+            if ($etat->quete !== null) {
+                $this->retirerChausseTrappeSous($etat->quete, $etat->position_x, $etat->position_y);
+            }
 
             // Traverser la Pierre : « danger de rester bloqué dans la roche »
             // — le contrôle vient AVANT l'expiration du buff, sinon le héros

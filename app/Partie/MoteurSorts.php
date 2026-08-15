@@ -11,6 +11,7 @@ use App\Engine\RegainEffet;
 use App\Engine\TypeDegat;
 use App\Models\Competence;
 use App\Models\Condition;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Objet;
@@ -173,6 +174,17 @@ final class MoteurSorts
     /** Flamme hypnotique : la créature ne bouge, n'attaque ni ne défend plus. */
     public const MONSTRE_PARALYSE = 'paralyse';
 
+    /**
+     * Bombe fumigène : la créature est noyée dans la fumée, donc elle cesse
+     * d'occuper sa case — « all heroes move unseen through the monster's space »
+     * (carte © 2023). `FabriqueGrille::pour()` la retire de `$occupees`, ce qui
+     * lève d'un seul geste le blocage du mouvement ET celui de la ligne de vue.
+     *
+     * Se consomme au tour suivant du monstre, comme `MONSTRE_SAUTE_TOUR` : la
+     * carte dit « until that monster's next turn ».
+     */
+    public const MONSTRE_ENFUME = 'enfume';
+
     /** @var list<string> */
     public const CONDITIONS_MONSTRE = [
         self::MONSTRE_ENDORMI,
@@ -180,6 +192,7 @@ final class MoteurSorts
         self::MONSTRE_TERRIFIE,
         self::MONSTRE_RALENTI,
         self::MONSTRE_PARALYSE,
+        self::MONSTRE_ENFUME,
     ];
 
     /**
@@ -464,9 +477,53 @@ final class MoteurSorts
      */
     public function restaurerTousLesSorts(Personnage $personnage): int
     {
+        return $this->restaurerSorts($personnage);
+    }
+
+    /**
+     * Rend des sorts épuisés, et dit combien l'ont été.
+     *
+     * `$nombre = null` les rend TOUS (Parchemin de Sorts, Baguette de
+     * Galimatias). Un entier borne la restauration, ce qu'exigent deux cartes
+     * officielles : Potion de magie (« recover up to 3 spells you have cast
+     * during this quest ») et Potion de rappel (un seul, Elfe).
+     *
+     * `$sortIds` porte le CHOIX du joueur — la carte du rappel dit « Choose
+     * wisely which spell to recall! », et un tirage automatique lui retirerait
+     * la seule décision qu'elle contient. Les identifiants inconnus ou déjà
+     * disponibles sont ignorés ; ce qui manque est complété par les premiers
+     * sorts épuisés, parce qu'une potion qui ne ferait rien faute de paramètre
+     * serait pire qu'un choix arbitraire.
+     *
+     * @param  list<int>  $sortIds
+     */
+    public function restaurerSorts(Personnage $personnage, ?int $nombre = null, array $sortIds = []): int
+    {
+        $epuises = DB::table('personnage_sorts')
+            ->where('personnage_id', $personnage->id)
+            ->where('disponible', false);
+
+        if ($nombre === null) {
+            return $epuises->update(['disponible' => true]);
+        }
+
+        if ($nombre <= 0) {
+            return 0;
+        }
+
+        $disponibles = $epuises->orderBy('sort_id')->pluck('sort_id')->all();
+
+        // Le choix d'abord, dans l'ordre demandé, puis le remplissage.
+        $choisis = array_values(array_intersect($sortIds, $disponibles));
+        $retenus = array_slice([...$choisis, ...array_diff($disponibles, $choisis)], 0, $nombre);
+
+        if ($retenus === []) {
+            return 0;
+        }
+
         return DB::table('personnage_sorts')
             ->where('personnage_id', $personnage->id)
-            ->where('disponible', false)
+            ->whereIn('sort_id', $retenus)
             ->update(['disponible' => true]);
     }
 
@@ -807,15 +864,107 @@ final class MoteurSorts
         return false;
     }
 
-    /** Multiplicateur de déplacement (Vent Véloce) — 1 sans buff. */
+    /**
+     * Un monstre actif et révélé est-il dans la LIGNE DE VUE de ce héros ?
+     *
+     * Prédicat partagé : le Moine y lit sa récupération de styles (« If there
+     * are no monsters in your line of sight at the start of your turn »), les
+     * potions de rage guerrière et de peau de givre y lisent leur fin (« As
+     * soon as there are no monsters in the Barbarian's line of sight »).
+     *
+     * ⚠ C'est la vue du HÉROS, pas l'état du donjon : une bête vivante derrière
+     * un mur ne compte pas. À ne pas confondre avec `combatTermine()`, qui
+     * raisonne au niveau de la quête entière.
+     */
+    public function monstreEnVue(Quete $quete, EtatPersonnageQuete $etat): bool
+    {
+        if ($etat->position_x === null) {
+            return false;
+        }
+
+        $grille = FabriqueGrille::pour($quete);
+
+        return $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('revele', true)
+            ->get()
+            ->contains(fn (InstanceMonstre $i) => $i->position_x !== null
+                && $grille->ligneDeVue(
+                    (int) $etat->position_x, (int) $etat->position_y,
+                    (int) $i->position_x, (int) $i->position_y,
+                ));
+    }
+
+    /**
+     * DÉBUT DE TOUR — fait vivre et mourir les buffs adossés à la vue.
+     *
+     * Deux gestes, et il faut les deux. Plus de monstre en vue : les buffs de
+     * durée `plus_de_monstre_en_vue` expirent (la peau de givre retombe). Un
+     * monstre en vue et une rage guerrière encore vivante : on RÉARME
+     * `etat.attaque_supplementaire`, que la fin du tour précédent a consommé —
+     * sans quoi la potion ne donnerait sa seconde attaque qu'une seule fois,
+     * alors que la carte dit « 2 attacks per turn as long as there are
+     * monsters in sight ».
+     *
+     * ⚠ Même garde d'idempotence que le crochet du Moine : dès que le héros a
+     * entamé son tour, on ne touche plus à rien. Sans elle, le réarmement
+     * repasserait après chaque action et offrirait une troisième attaque.
+     */
+    public function rythmerBuffsDeVue(Quete $quete, EtatPersonnageQuete $etat): void
+    {
+        $personnage = $etat->personnage;
+
+        if ($personnage === null || $etat->a_joue || $etat->a_agi || $etat->a_deplace) {
+            return;
+        }
+
+        if (! $this->monstreEnVue($quete, $etat)) {
+            $this->expirerBuffs($personnage, DureeEffet::PLUS_DE_MONSTRE_EN_VUE);
+
+            return;
+        }
+
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+
+            if (($effet['duree'] ?? null) === DureeEffet::PLUS_DE_MONSTRE_EN_VUE
+                && ! empty($effet['attaque_supplementaire'])
+                && ! $etat->attaque_supplementaire) {
+                $etat->update(['attaque_supplementaire' => true]);
+
+                return;
+            }
+        }
+    }
+
+    /** Multiplicateur de déplacement (Vent Véloce, Potion de vitesse) — 1 sans buff. */
     public function multiplicateurDeplacement(Personnage $personnage): int
+    {
+        return $this->multiplicateurDeBuff($personnage, 'deplacement_multiplie');
+    }
+
+    /**
+     * Multiplicateur de DÉGÂTS d'une attaque — Potion de force glaciale :
+     * « their next attack causes twice as many Body Points of damage as are
+     * rolled » (carte © 2022, Barbare seul). 1 sans buff.
+     */
+    public function multiplicateurDegats(Personnage $personnage): int
+    {
+        return $this->multiplicateurDeBuff($personnage, 'multiplicateur_degats');
+    }
+
+    /**
+     * Le plus fort multiplicateur porté par les buffs vivants — jamais la
+     * somme : deux effets qui doublent ne quadruplent pas, ils doublent.
+     */
+    private function multiplicateurDeBuff(Personnage $personnage, string $cle): int
     {
         $multiplicateur = 1;
 
         foreach ($this->buffsSorts($personnage) as $condition) {
             $multiplicateur = max(
                 $multiplicateur,
-                (int) ($this->effetSortSource((string) $condition->pivot->source)['deplacement_multiplie'] ?? 1),
+                (int) ($this->effetSortSource((string) $condition->pivot->source)[$cle] ?? 1),
             );
         }
 

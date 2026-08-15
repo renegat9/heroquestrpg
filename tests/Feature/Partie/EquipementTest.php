@@ -250,13 +250,17 @@ it('laisse le magicien porter le Bâton : `deux_mains` n\'est pas une maîtrise'
     $groupe = creerGroupe();
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
 
-    // Le bâton est à deux mains (donc pas de bouclier avec) mais sa carte ne
-    // porte AUCUNE restriction de classe : tag `arme_legere`, accessible à
-    // tous. Les deux notions sont orthogonales, et c'est ce qui laisse au
-    // magicien la seule arme à 2 dés qu'il puisse manier.
+    // Le bâton interdit le bouclier (« You may not use a shield when using this
+    // weapon ») mais sa carte ne porte AUCUNE restriction de classe : tag
+    // `arme_legere`, accessible à tous. Les deux notions sont orthogonales.
+    //
+    // ⚠ Il ne rend qu'UN dé, pas deux : c'est le chiffre de la carte officielle
+    // (© 2021). Le paquet fan lui en donnait deux, ce qui en faisait la
+    // meilleure arme du magicien ; il est désormais à égalité avec sa dague, et
+    // n'apporte que la diagonale.
     (new Equipement)->equiper($magicien, sacDe($magicien, 'Bâton'));
 
-    expect($magicien->refresh()->des_attaque)->toBe(2);
+    expect($magicien->refresh()->des_attaque)->toBe(1);
 });
 
 it('ouvre au magicien l\'armure légère via le nœud « Cuir d\'apprenti »', function () {
