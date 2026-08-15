@@ -306,7 +306,13 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true]],
             ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
-            ['nom' => 'Brassards', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 550, 'emplacement' => 'armure',
+            // ⚠ `tag_equipement` est déclaré NULL EXPLICITEMENT, et pas
+            // simplement omis : `updateOrCreate` n'écrit que les colonnes qu'on
+            // lui donne, donc une base déjà semée aurait gardé l'ancien
+            // `armure_magicien` — les Brassards seraient restés réservés au
+            // magicien sur les bases existantes, et ouverts à tous sur les
+            // neuves. Constaté au re-seed du 2026-08-15.
+            ['nom' => 'Brassards', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
                 'effet' => ['des_defense' => 1]],
             // « While wearing the Plate Mail, you have a 2 square movement
             // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en
