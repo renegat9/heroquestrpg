@@ -8,6 +8,15 @@
 #   hq.sh <slot> reaction <true|false> [cle_soin]
 #   hq.sh <slot> vote <option_id>       ← déposer son bulletin (oui / non / …)
 #
+# AU HUB, entre deux quêtes (⚠ `menu` y renvoie toujours null : cette route ne
+# sert que pendant un tour de quête) :
+#   hq.sh <slot> marche                     ← ouvrir/consulter l'étal et les prix
+#   hq.sh <slot> panier <json_achats>       ← poser son panier, ex.
+#                                             '[{"objet_id":12,"quantite":1}]'
+#   hq.sh <slot> confirmer                  ← confirmer (tous confirmés = achat)
+#   hq.sh <slot> equiper <inventaire_id> [emplacement]
+#   hq.sh <slot> donner <inventaire_id> <personnage_id>
+#
 # ⚠ `vote` a manqué au harnais jusqu'au 2026-08-15, et ça a coûté une campagne :
 # « Quitter le donjon » ouvre un VOTE de groupe, le proposeur ne vote PAS
 # d'office, et le vote tient 6 heures sans s'auto-résoudre. Un joueur sans ce
@@ -31,11 +40,20 @@ case "${1:-}" in
   etat)    req GET "/groupes/$GROUPE/etat" ;;
   menu)    req GET "/groupes/$GROUPE/menu" ;;
   moi)     req GET "/moi" ;;
-  pret)    req POST "/groupes/$GROUPE/pret" '{"pret":true}' ;;
+  pret)    req POST "/groupes/$GROUPE/pret" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"pret\":true}" ;;
   votes)   req GET "/groupes/$GROUPE/votes" ;;
+  marche)  # POST ouvre la phase si elle ne l'est pas ; GET la relit ensuite.
+           req POST "/groupes/$GROUPE/marche" >/dev/null 2>&1
+           req GET "/groupes/$GROUPE/marche" ;;
+  panier)  req PUT "/groupes/$GROUPE/marche/panier" "{\"achats\":${2:-[]},\"ventes\":${3:-[]}}" ;;
+  confirmer) req POST "/groupes/$GROUPE/marche/confirmation" ;;
+  equiper) req POST "/groupes/$GROUPE/equipement" \
+             "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2${3:+,\"emplacement\":\"$3\"}}" ;;
+  donner)  req POST "/groupes/$GROUPE/dons" \
+             "{\"inventaire_id\":$2,\"beneficiaire_id\":$3}" ;;
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
   potion)  req POST "/groupes/$GROUPE/potions" "{\"inventaire_id\":$2}" ;;
   reaction) req POST "/groupes/$GROUPE/reaction" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"accepte\":$2${3:+,\"soin\":\"$3\"}}" ;;
-  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|potion|reaction|votes|vote" >&2; exit 2 ;;
+  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|potion|reaction|votes|vote|marche|panier|confirmer|equiper|donner" >&2; exit 2 ;;
 esac
