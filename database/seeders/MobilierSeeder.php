@@ -131,13 +131,20 @@ class MobilierSeeder extends Seeder
                 ]]],
         ];
 
-        // Purge puis recréation, comme TuileSeeder (même commentaire : données de
-        // référence re-semables, aucune clé étrangère ne pointe vers `mobiliers` —
-        // `cartes.grille.mobilier` est un instantané de la carte assemblée).
-        Mobilier::query()->delete();
-
+        // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.
+        //
+        // Ce seeder purgeait puis recréait, en s'appuyant sur un commentaire qui
+        // affirmait qu'« aucune clé étrangère ne pointe vers `mobiliers` ». C'est
+        // vrai au sens SQL et faux en pratique : `cartes.grille.mobilier[]`
+        // stocke un `mobilier_id`. Purger réattribue les identifiants, et une
+        // quête EN COURS se retrouve avec du mobilier qui ne référence plus rien
+        // — meubles ni fouillables, ni bloquants, sans la moindre erreur.
+        // Constaté au moment de semer les tables de butin (2026-08-17).
         foreach ($mobiliers as $mobilier) {
-            Mobilier::create([...$mobilier, 'bloque_mouvement' => true]);
+            Mobilier::updateOrCreate(
+                ['nom' => $mobilier['nom']],
+                [...$mobilier, 'bloque_mouvement' => true, 'effet' => $mobilier['effet'] ?? null],
+            );
         }
     }
 }
