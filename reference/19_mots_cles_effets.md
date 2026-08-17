@@ -39,7 +39,7 @@ jusqu'à la prochaine défense », faute de mot pour le dire.
 
 ## 2. Le vocabulaire
 
-Six mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
+**Sept** mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
 **entier** reste valide et signifie tout autre chose (§3).
 
 | mot-clé | prend fin… | exemples |
@@ -49,7 +49,23 @@ Six mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
 | `premier_degat_subi` | au premier dégât **réellement encaissé** — parer sans rien perdre ne le consomme pas | Peau de Pierre |
 | `ce_tour` | à la **fin du tour du porteur** | Vent Véloce |
 | `prochain_tour` | au **début du prochain tour du porteur** | Voile de Brume |
-| `fin_du_combat` | quand **plus aucun monstre n'est engagé** (actif ET révélé) | Potion de rage, Peau de Pierre |
+| `fin_du_combat` | quand **plus aucun monstre n'est engagé** (actif ET révélé) | Image double, Peau de Pierre |
+| `plus_de_monstre_en_vue` | quand **aucun monstre n'est en LIGNE DE VUE du porteur** | Potion de rage guerrière, Potion de peau de givre |
+
+⚠ **`plus_de_monstre_en_vue` n'est pas `fin_du_combat`** (2026-08-15). Le second
+raisonne sur la QUÊTE entière — plus aucune instance active et révélée nulle
+part ; le premier sur la **vue du porteur**, et un ennemi vivant derrière un mur
+ne prolonge rien. Les deux potions du Barbare l'exigent : « as soon as there are
+no monsters in the Barbarian's line of sight, this potion's effect wears off ».
+
+⚠ Il est évalué au **DÉBUT DU TOUR** du porteur (et à la génération de son menu),
+pas en continu — `MoteurSorts::rythmerBuffsDeVue()`, le même crochet que la
+récupération des styles du Moine, avec la même garde d'idempotence. Conséquence
+assumée : la peau de givre protège encore pendant la phase de monstres qui suit
+la mort du dernier ennemi. Ce crochet fait DEUX choses, et il faut les deux — il
+expire les buffs, et il **ré-arme** la seconde attaque de la rage guerrière, que
+la fin du tour précédent a consommée. Sans la garde d'idempotence, le
+ré-armement repasserait après chaque action et offrirait une troisième attaque.
 
 ### `ce_tour` vs `prochain_tour` — la distinction est mécanique
 
@@ -431,6 +447,65 @@ l'arme) · `condition_appliquee` · `retire_condition` · `duree`.
 ⚠ **Un bonus sans `duree` ne s'arrête jamais.** C'est le bug de §1, et c'est
 `bonus_des_attaque`/`bonus_des_defense` qui l'ont attrapé. Toute clé `bonus_*`
 s'accompagne d'un mot de §2.
+
+**Les sept effets apportés par les potions officielles** (2026-08-15, doc 16
+§2.1bis). Aucun n'est un nombre de dés — et c'est précisément pour eux que
+`MoteurPotions` pose désormais un buff dès qu'une `duree` est déclarée, là où il
+ne le faisait que pour les deux clés `bonus_des_*` :
+
+| clé | ce qu'elle fait | lecteur |
+|---|---|---|
+| `relance_des_attaque` | une relance des dés d'attaque ratés (Potion de bataille) | `ResolveurTour::frapper()`, via le paramètre qui servait déjà au nœud *Coup puissant* |
+| `multiplicateur_degats` | dégâts × N sur la prochaine attaque (Force glaciale) | `MoteurSorts::multiplicateurDegats()` + `ResultatAttaque::avecDegatsMultiplies()` |
+| `bonus_deplacement` | cases de déplacement en plus ce tour (Dextérité) | `ResolveurTour::pointsDeplacement()` — ⚠ et son **miroir** dans `MenuMoteur` |
+| `saut_fosse_automatique` | le franchissement de fosse réussit d'office | `resoudreFranchissement()`, patron du *Dragon bondissant* : le jet a lieu, il ne décide plus |
+| `deplacement_multiplie` | dés de déplacement × N (Vitesse) | `MoteurSorts::multiplicateurDeplacement()` — **aucun lecteur neuf**, il lisait déjà les potions |
+| `revele_pieges_et_portes_en_vue` | pièges ET portes secrètes en ligne de vue (Vision) | `MoteurPieges::revelerEnVue()` + `MoteurPortes::revelerSecretesEnVue()` |
+| `restaure_jauges_depart` | Body et Mind au niveau du début de quête (Restauration supérieure) | `MoteurPotions` — chez nous c'est le **maximum**, `DemarreurQuete` remettant les jauges à plein |
+| `une_par_tour` | une seule potion de ce type par tour (Dextérité) | `MoteurPotions`, compteur `etat.capacites_tour` — ⚠ ne vaut QUE pour les potions marquées |
+
+⚠ `restaure_sorts` a changé de TYPE sans changer de nom : `true` = tous
+(Parchemin de Sorts), un **entier** = ce nombre-là (Potion de magie 3, Potion de
+rappel 1). `! empty()` reste vrai dans les trois cas, donc aucun appelant
+existant n'a bougé.
+
+⚠ `bonus_deplacement` est un **homonyme** : la même chaîne nomme une mécanique de
+COMPÉTENCE (`competences.effet.mecanique`, nœuds *Pas léger* / *Charge*) qui vit
+dans une autre table et modifie `personnages.deplacement_base` en permanence.
+Ici c'est un buff temporaire.
+
+**Les quatre clés du MATÉRIEL** — les cartes officielles qui ne sont ni arme, ni
+armure, ni potion :
+
+| clé | carte | lecteur |
+|---|---|---|
+| `tue_creatures` | Eau bénite — liste de `monstres.nom_base` tués d'office | `ResolveurTour::resoudreUsageObjet()` |
+| `pose_chausse_trappes` | Chausse-trappes — couche `carte.grille['chausse_trappes']`, posée au runtime | `resoudreUsageObjet()` + `tronquerSurChausseTrappes()` |
+| `enfume_monstre_adjacent` | Bombe fumigène — le monstre quitte `$occupees` | `FabriqueGrille::pour()` |
+| `compte_comme_arme` | Bandoulière — « toujours considéré armé d'une dague » | `Equipement::compteCommeArme()` |
+
+⚠ `tue_creatures` nomme ses cibles par `nom_base`, le nom de CATALOGUE, jamais
+`nomAffiche()` : l'IA habille les monstres à chaque quête, et l'eau bénite
+cesserait de reconnaître un squelette dès la première partie narrée. Même règle
+que `des_attaque_contre` et `attaque_double_contre`, dont le comparateur est
+désormais partagé (`ResolveurTour::nomBaseParmi()`).
+
+⚠ `enfume_monstre_adjacent` lève d'un seul geste le blocage du MOUVEMENT et
+celui de la LIGNE DE VUE, parce que `$occupees` est la seule boucle d'occupation
+du moteur. Mais **traverser n'est pas s'arrêter** : finir son mouvement sur la
+case d'un monstre enfumé est refusé, sans quoi deux figurines s'empileraient.
+
+⚠ `compte_comme_arme` n'ajoute **aucun dé** — le Rogue à mains nues en lance déjà
+un, autant que la dague. Elle donne les RÈGLES qui exigent une dague :
+l'Ambidextrie, et la fermeture des techniques mains nues du Moine. Aucune arme
+virtuelle n'entre dans `armesEnMain()`, dont les entrées sont de vraies lignes
+d'inventaire qu'on supprime et qu'on équipe.
+
+**Une clé de MOBILIER**, hors de ce vocabulaire parce qu'elle vit sur
+`mobiliers.effet` et non sur `objets.effet` : `fouille` porte la table de butin
+propre à chaque meuble (doc 17 §3). Ses issues réutilisent celles du deck —
+`tresor` / `objet` / `piege` / `rien` — pour qu'`appliquerButin()` les applique
+sans rien savoir de leur provenance.
 
 ### Charges et économie de sorts
 

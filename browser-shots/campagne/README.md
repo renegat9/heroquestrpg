@@ -19,6 +19,16 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
   conditions (avec leur SOURCE), destinations atteignables, menu, et pour un
   sort ses dés/soin/durée.
 - `hq.sh <slot> etat|menu|moi|pret|choix|potion|reaction`
+- **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
+- **vote** : `hq.sh <slot> votes|vote <option_id>`
+
+⚠ Ces sept verbes ont manqué au harnais jusqu'au **2026-08-17**, et chacun a
+coûté une session : sans `vote`, le barbare ne pouvait pas conclure la quête
+qu'il venait de proposer de quitter ; sans `marche`, l'elfe est arrivée devant
+la boutique sans rien pour l'ouvrir — et `menu` renvoie toujours `null` au hub,
+cette route ne servant qu'en quête. Un agent ne dispose QUE de ce qu'on lui
+donne : un verbe manquant ne produit pas une erreur, il produit un joueur
+paralysé qui croit le serveur en panne.
 
 ## ⚠ Consigne OBLIGATOIRE à donner aux agents
 > Tu n'as que `vue.py`, `hq.sh` et `sleep`. **N'utilise AUCUN outil de

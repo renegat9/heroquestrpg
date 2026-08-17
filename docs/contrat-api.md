@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les deux paquets sources (`config/cartes.php`, 61 cartes) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...]} |
 | POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |
@@ -106,6 +106,17 @@ tour ne passe au héros suivant / aux monstres **que sur décision du joueur**
 automatique quand les deux créneaux sont pris. **Boire une potion** est une action
 gratuite jouable **à tout moment** (onglet Sac, `POST /potions`), même après avoir
 déplacé ET agi ; elle ne consomme aucun créneau et ne termine pas le tour.
+
+⚠ `POST /potions` accepte `parametres.sort_ids` — quels sorts récupérer, pour les
+potions qui en rendent un **nombre borné** (Potion de magie 3, Potion de rappel
+1) ; sans choix, les premiers épuisés. Et il **refuse en 422** une potion
+réservée à une autre classe : trois au Barbare, deux à l'Elfe sur les cartes
+officielles, la première restriction de classe jamais portée par un consommable
+(`Equipement::estAccessible()`). `/moi` la **badge** `utilisable: false` sans la
+filtrer — un héros a le droit de PORTER la potion d'un compagnon, la manette
+grise seulement le bouton — et `MoteurReactions::soinsDisponibles()` la **filtre**
+de l'offre de soin d'urgence, parce que proposer un soin que la résolution
+refusera est pire que ne rien proposer.
 
 L'option `deplacement` (id `se_deplacer`) porte dans `parametres` l'allonce du
 tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d6) :
@@ -831,7 +842,7 @@ qu'un **narrateur est actif** (remplace le démarrage manuel par la table).
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts |
+| POST | /api/groupes/{identifiant}/pret | {personnage_id, pret} | (dé)marque un perso prêt (cache `partie:pret:{groupe_id}`) ; si tous les membres actifs sont prêts ET narrateur actif → **démarre la quête** (DemarreurQuete) et réinitialise les statuts. ⚠ **422 si CE joueur a un panier de marché non vide et non confirmé** — l'application du marché est atomique, donc rien n'est débité, mais ses achats se perdraient au départ (constaté en partie réelle, 2026-08-17). On refuse à ce joueur seul, jamais au groupe : bloquer le départ pour tous referait le piège du vote de sortie, où un joueur distrait enferme les autres. Le démarrage de quête referme la phase de marché **explicitement** (`marche_ferme_par_quete` au journal + `.marche.finalise`), au lieu de la laisser expirer en silence. |
 | POST | /api/groupes/{identifiant}/quetes | — | démarrage MANUEL (bouton « Lancer la quête » de la table) — autorisation **membre OU table** (le narrateur sans compte peut lancer). Sans ça la table prenait un 401 → faux « session expirée » → redirection vers le login joueur |
 
 > Un 401 sur l'écran **narrateur/table** ne renvoie PAS au login joueur : la
