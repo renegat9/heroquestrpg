@@ -3853,11 +3853,24 @@ final class ResolveurTour
         // soin, et consommait au passage une carte que la fouille des salles
         // aurait tirée. Chaque meuble a maintenant son butin plausible, et le
         // deck reste au service des salles.
-        //
-        // ⚠ Le Sixième sens de l'Explorateur ne s'applique plus ici : il écarte
-        // une carte DU DECK, et il n'y a plus de deck sur ce chemin. Aucune
-        // table de meuble ne porte de danger, donc il n'a rien à écarter.
         $carte = $this->mobilier->tirerButin($meuble['type']);
+
+        // SIXIÈME SENS (Explorateur) — « quand tu tires une carte de piège,
+        // remets-la sous le paquet et tire-en une autre ».
+        //
+        // ⚠ Il vaut ICI AUSSI. Le tombeau et l'établi peuvent mordre depuis le
+        // 2026-08-17 ; ne pas rebrancher la capacité sur ce chemin l'aurait
+        // rabotée en silence, alors que sa formulation ne parle pas du deck mais
+        // du geste — on repioche. Sur une table pondérée, « repiocher » c'est la
+        // relancer, et c'est le port le plus fidèle qu'elle permette.
+        $ecartee = null;
+
+        if (($carte['issue'] ?? '') === 'piege'
+            && $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
+            $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
+            $ecartee = 'piege';
+            $carte = $this->mobilier->tirerButin($meuble['type']);
+        }
 
         $entete = [
             'type' => 'fouille_mobilier',
@@ -3865,6 +3878,10 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'mobilier' => $meuble['nom'],
         ];
+
+        if ($ecartee !== null) {
+            $entete['carte_ecartee'] = $ecartee;
+        }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
 
@@ -4035,7 +4052,12 @@ final class ResolveurTour
                 );
             }
         } elseif ($issue === 'piege') {
-            $piege = Piege::query()->where('nom', 'Piège de coffre')->first()
+            // Le meuble peut NOMMER son piège (aiguille du tombeau, fiole de
+            // l'établi) ; le deck, lui, n'a que le piège de coffre. Repli sur
+            // celui-ci, puis sur n'importe lequel : un catalogue incomplet ne
+            // doit pas faire échouer une fouille.
+            $piege = Piege::query()->where('nom', (string) ($carte['piege'] ?? 'Piège de coffre'))->first()
+                ?? Piege::query()->where('nom', 'Piège de coffre')->first()
                 ?? Piege::query()->orderBy('id')->first();
             // narrer: false — ChoixController dispatche déjà la narration de
             // l'action ; sans ça le coffre piégé en produisait deux.

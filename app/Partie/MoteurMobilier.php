@@ -176,6 +176,13 @@ final class MoteurMobilier
             return ['issue' => 'tresor', 'or' => random_int($min, $max)];
         }
 
+        if ($issue === 'piege') {
+            // Le NOM voyage avec la carte : `appliquerButin()` le résout en
+            // catalogue. Lire « Piège de coffre » en ouvrant un tombeau casserait
+            // la fiction, et le barème est le même de toute façon.
+            return ['issue' => 'piege', 'piege' => (string) ($entree['piege'] ?? '')];
+        }
+
         if ($issue === 'objet') {
             // ⚠ Jamais un `unique` : les artefacts n'ont qu'une seule source,
             // le coffre désigné de la quête, et ils sont uniques PAR GROUPE.

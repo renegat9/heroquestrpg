@@ -673,7 +673,7 @@ it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver
 
         // Le tirage rend toujours une carte applicable, jamais une issue inconnue.
         for ($i = 0; $i < 20; $i++) {
-            expect($mm->tirerButin($type)['issue'])->toBeIn(['tresor', 'objet', 'rien']);
+            expect($mm->tirerButin($type)['issue'])->toBeIn(['tresor', 'objet', 'piege', 'rien']);
         }
     }
 
@@ -684,6 +684,46 @@ it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver
         ->where('issue', 'objet')->pluck('categories')->flatten()->unique()->values()->all();
 
     expect($categories)->toEqualCanonicalizing(['arme', 'armure']);
+});
+
+it('fait mordre le tombeau et l\'établi, chacun par SON piège nommé', function () {
+    // Décision de René (2026-08-17) : ces deux meubles se défendent. Le nom
+    // voyage avec la carte, parce que lire « Piège de coffre » en ouvrant un
+    // tombeau casserait la fiction — le barème, lui, est identique.
+    $attendus = [
+        'Tombeau' => 'Aiguille empoisonnée',
+        'Établi d\'alchimiste' => 'Fiole de poison',
+    ];
+
+    foreach ($attendus as $meuble => $piege) {
+        $type = Mobilier::where('nom', $meuble)->firstOrFail();
+        $entree = collect($type->effet['fouille'])->firstWhere('issue', 'piege');
+
+        expect($entree)->not->toBeNull("{$meuble} : aucune issue « piege ».")
+            ->and($entree['piege'])->toBe($piege);
+
+        // Le piège nommé doit EXISTER au catalogue, sinon la fouille se rabat en
+        // silence sur le piège de coffre et le joueur lit un nom qui n'est pas
+        // celui qu'on lui a promis.
+        expect(App\Models\Piege::where('nom', $piege)->exists())->toBeTrue(
+            "{$piege} : nommé par un meuble mais absent du catalogue de pièges.");
+    }
+
+    // ⚠ L'établi empoisonne À COUP SÛR, il ne cogne pas : c'est le seul piège du
+    // catalogue sans branche `aleatoire`. Un dégât sec à la place viderait la
+    // décision de René, et le poison n'est pas plus doux — 3 tours à 1 PV.
+    $fiole = App\Models\Piege::where('nom', 'Fiole de poison')->firstOrFail();
+
+    expect($fiole->effet['condition_appliquee'] ?? null)->toBe('Empoisonné')
+        ->and($fiole->effet['aleatoire'] ?? null)->toBeNull()
+        ->and($fiole->effet['degats_pv_body'] ?? 0)->toBe(0);
+
+    // Les deux gardent leur chance de ne rien donner : le piège s'ajoute au
+    // hasard, il ne le remplace pas.
+    foreach (array_keys($attendus) as $meuble) {
+        $issues = array_column(Mobilier::where('nom', $meuble)->firstOrFail()->effet['fouille'], 'issue');
+        expect(in_array('rien', $issues, true))->toBeTrue("{$meuble} : le piège a mangé le « rien ».");
+    }
 });
 
 it('ne paie le coffre de salle qu UNE FOIS : le second fouilleur pioche normalement', function () {

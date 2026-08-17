@@ -59,6 +59,7 @@ class MobilierSeeder extends Seeder
         //   - `tresor` + `or: [min, max]`
         //   - `objet`  + `categories: [...]` (+ `rarete` facultatif) → l'objet
         //     est tiré du catalogue au moment de la fouille
+        //   - `piege`  + `piege: <nom>` → piège ÉPHÉMÈRE déclenché sur place
         //   - `rien`
         //
         // ⚠ CHAQUE table porte une issue `rien`, et un test l'exige : un meuble
@@ -92,6 +93,9 @@ class MobilierSeeder extends Seeder
             ['nom' => 'Établi d\'alchimiste', 'nom_anglais' => 'Alchemist\'s bench', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 5, 'categories' => ['consommable']],
+                    // Fouiller un établi d'alchimiste, c'est déranger des fioles :
+                    // l'une se brise (piège, décision de René 2026-08-17).
+                    ['issue' => 'piege', 'poids' => 2, 'piege' => 'Fiole de poison'],
                     ['issue' => 'rien', 'poids' => 3],
                 ]]],
 
@@ -101,6 +105,9 @@ class MobilierSeeder extends Seeder
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 3, 'or' => [30, 70]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure'], 'rarete' => ['commun', 'peu_commun']],
+                    // Un tombeau se défend (décision de René, 2026-08-17) :
+                    // l'aiguille dans la serrure du sarcophage.
+                    ['issue' => 'piege', 'poids' => 2, 'piege' => 'Aiguille empoisonnée'],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
