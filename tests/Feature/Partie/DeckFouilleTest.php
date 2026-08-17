@@ -631,7 +631,11 @@ it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
 
     test()->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.type', 'fouille_mobilier');
+        ->assertJsonPath('resultat.type', 'fouille_mobilier')
+        // ⚠ Aucun `deck_restant` : le meuble tire dans SA table, il ne touche
+        // pas au deck de la quête. L'annoncer apprenait au joueur une chose
+        // fausse — relevé par la joueuse elfe en partie réelle (2026-08-17).
+        ->assertJsonMissingPath('resultat.deck_restant');
 
     // UNE FOIS PAR HÉROS (décision de René, 2026-08-17) : le fouilleur a
     // dépensé la sienne…

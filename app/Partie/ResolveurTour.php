@@ -3883,7 +3883,7 @@ final class ResolveurTour
             $entete['carte_ecartee'] = $ecartee;
         }
 
-        $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+        $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat, duDeck: false);
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -3994,10 +3994,18 @@ final class ResolveurTour
         Quete $quete,
         Personnage $personnage,
         EtatPersonnageQuete $etat,
+        bool $duDeck = true,
     ): array {
         $issue = (string) ($carte['issue'] ?? 'rien');
         $payload['issue'] = $issue;
-        $payload['deck_restant'] = count($quete->deckFouille());
+
+        // ⚠ `deck_restant` ne se publie QUE pour une carte réellement tirée du
+        // deck. Un meuble tire dans sa propre table depuis le 2026-08-17 : lui
+        // annoncer un décompte de deck apprenait au joueur quelque chose de
+        // faux — la bibliothèque qu'il vient de fouiller n'y a pas touché.
+        if ($duDeck) {
+            $payload['deck_restant'] = count($quete->deckFouille());
+        }
 
         foreach (['coffre', 'deck_vide'] as $drapeau) {
             if (! empty($carte[$drapeau])) {
