@@ -49,8 +49,12 @@ case "${1:-}" in
   confirmer) req POST "/groupes/$GROUPE/marche/confirmation" ;;
   equiper) req POST "/groupes/$GROUPE/equipement" \
              "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2${3:+,\"emplacement\":\"$3\"}}" ;;
+  # ⚠ La route veut TROIS identifiants : le donneur, la ligne, le receveur.
+  # La première version n'en envoyait que deux, sous un mauvais nom
+  # (`beneficiaire_id`), et le don échouait en validation — signalé par la
+  # joueuse elfe, qui a dû passer par curl à la main (2026-08-17).
   donner)  req POST "/groupes/$GROUPE/dons" \
-             "{\"inventaire_id\":$2,\"beneficiaire_id\":$3}" ;;
+             "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2,\"vers_personnage_id\":$3}" ;;
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
   potion)  req POST "/groupes/$GROUPE/potions" "{\"inventaire_id\":$2}" ;;
