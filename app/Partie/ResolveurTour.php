@@ -318,11 +318,10 @@ final class ResolveurTour
             // quête : il peut rester des dormants derrière des portes closes.
             $this->verifierFinDuCombat($quete);
 
-            // Fin de quête : plus aucun monstre actif → victoire.
-            if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-                return $this->donjonNettoye($resultat, $quete);
-            }
-
+            // ⚠ Le donjon nettoyé ne court-circuite PLUS la fin de round : le
+            // round se boucle d'abord, le drapeau se pose ensuite. Voir
+            // `ouvrirNouveauTour()` — c'était un gel silencieux et définitif.
+            //
             // Tous les héros ont joué (ou sont tombés) → phase des monstres (C2).
             $enAttente = $quete->etatsPersonnages()
                 ->where('a_joue', false)
@@ -332,6 +331,12 @@ final class ResolveurTour
             if (! $enAttente) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
                 $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
+            }
+
+            // Fin de quête : plus aucun monstre actif → le donjon est nettoyé,
+            // mais la quête reste ouverte (fouille, portes, puis vote de sortie).
+            if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+                return $this->donjonNettoye($resultat, $quete);
             }
 
             return $resultat;
@@ -4271,10 +4276,19 @@ final class ResolveurTour
         // les dormants derrière les portes closes ne prolongent pas un combat.
         $this->verifierFinDuCombat($quete);
 
-        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            return $this->donjonNettoye($resultat, $quete);
-        }
-
+        // ⚠ Le donjon nettoyé ne court-circuite PLUS la fin de round.
+        //
+        // Il le faisait, et c'était un gel silencieux : le dernier héros à
+        // terminer son tour après la mort du dernier monstre repartait par ici
+        // sans que le round ne se rouvre. Tout le monde restait `a_joue = true`,
+        // `GenererMenu` ne produit rien pour un héros qui a joué, et
+        // `quitter_donjon` n'est offert que tant qu'il ne l'a pas fait : plus un
+        // seul menu, aucune erreur, et rien à faire depuis un téléphone. Trouvé
+        // en partie réelle le 2026-08-15.
+        //
+        // Le drapeau se pose donc à la FIN, une fois le round régulièrement
+        // bouclé — un donjon vide se joue encore : on fouille, on ouvre les
+        // portes qui restent, et c'est un vote qui clôt la quête.
         $enAttente = $quete->etatsPersonnages()
             ->where('a_joue', false)
             ->where('tombe', false)
@@ -4283,6 +4297,10 @@ final class ResolveurTour
         if (! $enAttente) {
             $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
             $this->verifierFinDuCombat($quete); // les alliés ont pu achever le dernier
+        }
+
+        if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            return $this->donjonNettoye($resultat, $quete);
         }
 
         return $resultat;
@@ -4334,8 +4352,42 @@ final class ResolveurTour
             }
         }
 
+        $verdict = $this->ouvrirNouveauTour($groupe, $quete);
+
+        if ($verdict === self::CHUTE_TPK) {
+            return ['actions' => $actions];
+        }
+
+        // SUSPENDU : tout le monde est à terre, mais une réaction attend encore
+        // une réponse qui peut relever quelqu'un. On ne conclut pas.
+        if ($verdict === self::CHUTE_SUSPENDUE) {
+            return ['actions' => $actions, 'tpk_suspendu' => true];
+        }
+
+        return ['actions' => $actions];
+    }
+
+    /**
+     * OUVRE LE TOUR SUIVANT : créneaux remis à zéro, buffs `prochain_tour`
+     * expirés, durées décrémentées, journal, puis snapshot.
+     *
+     * ⚠ Extraite de `phaseMonstres()` le 2026-08-15, parce qu'un DONJON
+     * NETTOYÉ n'a pas de phase de monstres — et n'ouvrait donc plus jamais de
+     * tour. Les deux chemins « plus aucun monstre actif » retournaient
+     * directement vers `donjonNettoye()`, si bien que le dernier héros à
+     * terminer son tour après la mort du dernier monstre laissait le groupe
+     * avec `a_joue = true` partout, définitivement : `GenererMenu` ne produit
+     * rien pour un héros qui a joué, et `quitter_donjon` n'est offert que tant
+     * qu'il ne l'a pas fait. Plus un seul menu, aucune erreur, aucune
+     * récupération possible depuis un téléphone — un gel silencieux, trouvé en
+     * partie réelle par la joueuse elfe.
+     *
+     * @return string verdict de chute (`debout` / `suspendu` / `tpk`)
+     */
+    private function ouvrirNouveauTour(Groupe $groupe, Quete $quete): string
+    {
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
-        // Nouveau tour : créneaux remis à zéro + on relancera le d6 de déplacement.
+        // Créneaux remis à zéro + on relancera le d6 de déplacement.
         $quete->etatsPersonnages()->update([
             'a_joue' => false, 'a_deplace' => false, 'a_agi' => false,
             'deplacement_tour' => null, 'deplacement_restant' => null,
@@ -4360,24 +4412,14 @@ final class ResolveurTour
 
         $verdict = $this->verdictDeChute($groupe, $quete);
 
-        if ($verdict === self::CHUTE_TPK) {
-            return ['actions' => $actions];
+        // ⚠ Pas de snapshot si tout le monde est au sol : un instantané « tout
+        // le monde à terre » deviendrait faux dès que le joueur boit sa potion,
+        // et c'est lui que `/reprise` rechargerait.
+        if ($verdict === self::CHUTE_DEBOUT) {
+            $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
         }
 
-        // SUSPENDU : tout le monde est à terre, mais une réaction attend encore
-        // une réponse qui peut relever quelqu'un. On ne conclut pas — et on ne
-        // snapshotte pas non plus : un instantané « tout le monde au sol » pris
-        // maintenant deviendrait faux dès que le joueur boit sa potion, et
-        // c'est lui que `/reprise` rechargerait.
-        if ($verdict === self::CHUTE_SUSPENDUE) {
-            return ['actions' => $actions, 'tpk_suspendu' => true];
-        }
-
-        // Snapshot `nouveau_tour` après la phase des monstres (contrat
-        // « Snapshots & reprise ») : seul le dernier est conservé.
-        $this->sauvegarde->snapshotter($groupe->refresh(), Sauvegarde::ETIQUETTE_NOUVEAU_TOUR);
-
-        return ['actions' => $actions];
+        return $verdict;
     }
 
     /**
@@ -5420,8 +5462,13 @@ final class ResolveurTour
             $resultat['tour_allies'] = $allies;
         }
 
-        // Les alliés ont pu nettoyer le dernier monstre → victoire avant les monstres.
+        // Plus aucun monstre : pas de phase de monstres à jouer — mais le tour
+        // suivant doit quand même S'OUVRIR, sans quoi personne ne rejoue jamais
+        // et le groupe reste enfermé dans un donjon vide (voir
+        // `ouvrirNouveauTour()`).
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+            $this->ouvrirNouveauTour($groupe, $quete);
+
             return $this->donjonNettoye($resultat, $quete);
         }
 

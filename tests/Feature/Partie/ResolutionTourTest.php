@@ -339,6 +339,48 @@ it('fait jouer les monstres scriptés (C2) quand tous les héros ont joué, puis
             ->contains(fn ($e) => ($e->payload['action'] ?? null) === 'nouveau_tour'))->toBeTrue();
 });
 
+it('ROUVRE le tour après le dernier monstre : terminer son tour ne fige pas le groupe', function () {
+    // Gel silencieux trouvé en partie réelle le 2026-08-15, par les deux
+    // joueurs indépendamment.
+    //
+    // `phaseMonstres()` est la SEULE méthode qui remet `a_joue` à false, et les
+    // deux chemins « plus aucun monstre actif » la court-circuitaient pour
+    // rentrer directement dans `donjonNettoye()`. Conséquence : le dernier héros
+    // à terminer son tour après la mort du dernier monstre laissait tout le
+    // monde en `a_joue = true`, définitivement. `GenererMenu` ne produit rien
+    // pour un héros qui a joué, et `quitter_donjon` n'est offert que tant qu'il
+    // ne l'a pas fait — plus un seul menu, aucune erreur, et rien à faire depuis
+    // un téléphone. Le groupe restait enfermé dans un donjon vide.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // Donjon déjà nettoyé : c'est l'état d'après le dernier coup.
+    $quete->instancesMonstres()->update(['etat' => 'vaincu', 'revele' => true]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    // Le héros renonce à proposer la sortie et termine simplement son tour —
+    // ce qu'un joueur fait naturellement s'il lui reste une porte à ouvrir.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $hero->id)->firstOrFail();
+
+    expect((bool) $etat->a_joue)->toBeFalse('le tour ne s\'est pas rouvert : le groupe est figé');
+
+    // Et le menu doit de nouveau proposer de rentrer, sans quoi la quête ne
+    // pourrait plus jamais se clore.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->pluck('id');
+
+    expect($ids)->toContain('quitter_donjon');
+});
+
 it('laisse le groupe fouiller après le dernier monstre, et sort par un VOTE', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

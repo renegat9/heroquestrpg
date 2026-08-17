@@ -3,6 +3,11 @@
 # tout le monde prêt. Rend le code du groupe sur la sortie standard.
 #
 #   ./preparer.sh "nom du groupe" "thème" classe1:Nom1 classe2:Nom2 …
+#
+# LONGUEUR (variable d'environnement) : tres_courte (1 quête, défaut) · courte
+# (3-5) · normale (7-10) · longue · tres_longue. Une campagne de plusieurs
+# quêtes est le SEUL moyen d'éprouver le marché : la première ouvre toujours
+# avec 0 or, et rien n'y est achetable.
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
 NOM="$1"; THEME="$2"; shift 2
@@ -24,7 +29,7 @@ for spec in "$@"; do
   echo "  slot $slot : $NH ($CL) id=$(cat "$D/perso-$slot.txt")" >&2
 done
 
-R=$(P 1 POST /groupes "{\"nom\":\"$NOM\",\"personnage_id\":$(cat "$D/perso-1.txt"),\"theme\":\"$THEME\",\"longueur\":\"tres_courte\"}")
+R=$(P 1 POST /groupes "{\"nom\":\"$NOM\",\"personnage_id\":$(cat "$D/perso-1.txt"),\"theme\":\"$THEME\",\"longueur\":\"${LONGUEUR:-tres_courte}\"}")
 CODE=$(echo "$R" | python3 -c "import json,sys; print(json.load(sys.stdin)['groupe']['identifiant'])")
 echo "$CODE" > "$D/groupe.txt"
 
