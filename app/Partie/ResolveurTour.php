@@ -3834,21 +3834,30 @@ final class ResolveurTour
         // Revalidé ici : le menu peut dater d'avant qu'un compagnon ne vide le
         // meuble, ou d'avant un déplacement qui a éloigné le héros.
         $adjacents = $this->mobilier->fouillablesAdjacents(
-            $carteQuete, (int) $etat->position_x, (int) $etat->position_y,
+            $carteQuete, (int) $etat->position_x, (int) $etat->position_y, (int) $personnage->id,
         );
         $meuble = collect($adjacents)->firstWhere('index', $index);
 
         if ($meuble === null) {
             throw ValidationException::withMessages([
-                'option_id' => 'Ce meuble n\'est plus à ta portée, ou il a déjà été fouillé.',
+                'option_id' => 'Ce meuble n\'est plus à ta portée, ou tu l\'as déjà fouillé.',
             ]);
         }
 
-        $this->mobilier->marquerFouille($carteQuete, $index);
+        $this->mobilier->marquerFouille($carteQuete, $index, (int) $personnage->id);
 
-        // Même deck, donc mêmes capacités : le Sixième sens de l'Explorateur
-        // écarte aussi la carte de danger tirée d'un meuble.
-        [$carte, $ecartee] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+        // TABLE PROPRE AU MEUBLE (`mobiliers.effet.fouille`), depuis le
+        // 2026-08-17 — et non plus une carte du deck de la quête.
+        //
+        // Le deck rendait un râtelier d'armes capable de donner une potion de
+        // soin, et consommait au passage une carte que la fouille des salles
+        // aurait tirée. Chaque meuble a maintenant son butin plausible, et le
+        // deck reste au service des salles.
+        //
+        // ⚠ Le Sixième sens de l'Explorateur ne s'applique plus ici : il écarte
+        // une carte DU DECK, et il n'y a plus de deck sur ce chemin. Aucune
+        // table de meuble ne porte de danger, donc il n'a rien à écarter.
+        $carte = $this->mobilier->tirerButin($meuble['type']);
 
         $entete = [
             'type' => 'fouille_mobilier',
@@ -3856,10 +3865,6 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'mobilier' => $meuble['nom'],
         ];
-
-        if ($ecartee !== null) {
-            $entete['carte_ecartee'] = $ecartee;
-        }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
 
@@ -4004,7 +4009,7 @@ final class ResolveurTour
             if ($bonus > 0) {
                 $payload['bonus_or_tresor'] = $bonus;
             }
-        } elseif ($issue === 'potion' || $issue === 'artefact') {
+        } elseif ($issue === 'potion' || $issue === 'artefact' || $issue === 'objet') {
             $payload = [...$payload, ...$this->remettreButin($carte, $personnage, $issue)];
         } elseif ($issue === 'errant') {
             $errant = $this->spawnErrant($quete, $etat);

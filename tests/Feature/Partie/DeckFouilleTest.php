@@ -599,7 +599,7 @@ it('donne à CHAQUE héros sa fouille dans une même salle', function () {
         ->assertStatus(422);
 });
 
-it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function () {
+it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
     [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
     $mm = app(MoteurMobilier::class);
 
@@ -620,7 +620,7 @@ it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function (
     ]);
     $quete->marquerSalleDecouverte((int) $meuble['salle']);
 
-    expect($mm->fouillablesAdjacents($quete->carte, (int) $meuble['x'] + 1, (int) $meuble['y']))
+    expect($mm->fouillablesAdjacents($quete->carte, (int) $meuble['x'] + 1, (int) $meuble['y'], (int) $hero->id))
         ->not->toBeEmpty();
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
@@ -633,10 +633,57 @@ it('rend le mobilier FOUILLABLE, une seule fois pour tout le groupe', function (
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'fouille_mobilier');
 
-    // Un meuble est un OBJET : vidé une fois, il ne se refouille pas — ni par le
-    // même héros, ni par un compagnon (contrairement à la fouille de salle).
-    expect($mm->fouillablesAdjacents($quete->carte->fresh(), (int) $meuble['x'] + 1, (int) $meuble['y']))
-        ->toBeEmpty();
+    // UNE FOIS PAR HÉROS (décision de René, 2026-08-17) : le fouilleur a
+    // dépensé la sienne…
+    $carte = $quete->carte->fresh();
+    $x = (int) $meuble['x'] + 1;
+    $y = (int) $meuble['y'];
+
+    expect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id))->toBeEmpty();
+
+    // …mais un COMPAGNON garde la sienne. C'est tout le changement : le premier
+    // arrivé n'épuise plus la pièce pour le groupe, et l'or cesse de dépendre
+    // de qui a atteint le meuble le premier.
+    expect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id + 999))->not->toBeEmpty();
+});
+
+it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver', function () {
+    // Décision de René du 2026-08-17 : un meuble ne tire plus dans le deck de la
+    // quête — un râtelier d'armes pouvait rendre une potion de soin — mais dans
+    // SA table, et chaque table doit pouvoir ne rien donner.
+    $mm = app(MoteurMobilier::class);
+
+    foreach (Mobilier::where('fouillable', true)->get() as $type) {
+        $table = (array) ($type->effet['fouille'] ?? []);
+
+        expect($table)->not->toBeEmpty("{$type->nom} : fouillable sans table de butin.");
+
+        // ⚠ `toContain()` de Pest prend une VALEUR en second argument, pas un
+        // message — piège déjà payé ailleurs dans ce dépôt.
+        $issues = array_column($table, 'issue');
+
+        expect(in_array('rien', $issues, true))->toBeTrue(
+            "{$type->nom} : aucune issue « rien » — un meuble qui donne toujours "
+            .'quelque chose fait de l\'exploration une récolte.');
+
+        foreach ($table as $entree) {
+            expect((int) ($entree['poids'] ?? 0))->toBeGreaterThan(0,
+                "{$type->nom} : une entrée sans poids ne sera jamais tirée.");
+        }
+
+        // Le tirage rend toujours une carte applicable, jamais une issue inconnue.
+        for ($i = 0; $i < 20; $i++) {
+            expect($mm->tirerButin($type)['issue'])->toBeIn(['tresor', 'objet', 'rien']);
+        }
+    }
+
+    // Le râtelier d'armes, l'exemple de René : des armes et des armures, jamais
+    // une potion — et une chance réelle de repartir les mains vides.
+    $ratelier = Mobilier::where('nom', 'Râtelier d\'armes')->firstOrFail();
+    $categories = collect($ratelier->effet['fouille'])
+        ->where('issue', 'objet')->pluck('categories')->flatten()->unique()->values()->all();
+
+    expect($categories)->toEqualCanonicalizing(['arme', 'armure']);
 });
 
 it('ne paie le coffre de salle qu UNE FOIS : le second fouilleur pioche normalement', function () {

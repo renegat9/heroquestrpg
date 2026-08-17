@@ -965,7 +965,7 @@ final class MenuMoteur
                 // tombeau, une armoire s'ouvrent — ce n'est pas du décor. Une
                 // seule fois pour le groupe : c'est un objet, pas une table de
                 // trésor. Créneau ACTION, comme la fouille de salle.
-                foreach (($actionInterdite ? [] : $this->mobilier->fouillablesAdjacents($quete->carte, $px, $py)) as $meuble) {
+                foreach (($actionInterdite ? [] : $this->mobilier->fouillablesAdjacents($quete->carte, $px, $py, (int) $personnage->id)) as $meuble) {
                     $options[] = [
                         'id' => "fouiller_mobilier_{$meuble['index']}",
                         'libelle' => "Fouiller : {$meuble['nom']}",

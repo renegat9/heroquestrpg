@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Models\Carte;
 use App\Models\Mobilier;
+use App\Models\Objet;
 
 /**
  * Fouille du MOBILIER de salle (doc 17).
@@ -33,7 +34,7 @@ final class MoteurMobilier
      *
      * @return list<array{index: int, entree: array<string, mixed>, nom: string}>
      */
-    public function fouillablesAdjacents(Carte $carte, int $x, int $y): array
+    public function fouillablesAdjacents(Carte $carte, int $x, int $y, ?int $personnageId = null): array
     {
         $entrees = (array) ($carte->grille['mobilier'] ?? []);
 
@@ -43,7 +44,7 @@ final class MoteurMobilier
 
         $catalogue = Mobilier::query()
             ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
-            ->get(['id', 'nom', 'fouillable'])
+            ->get(['id', 'nom', 'fouillable', 'effet'])
             ->keyBy('id');
 
         $trouves = [];
@@ -51,20 +52,58 @@ final class MoteurMobilier
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
 
-            if ($type === null || ! $type->fouillable || ! empty($entree['fouille'])) {
+            if ($type === null || ! $type->fouillable || self::dejaFouille($entree, $personnageId)) {
                 continue;
             }
 
             if ($this->adjacentAEmprise($entree, $x, $y)) {
-                $trouves[] = ['index' => (int) $index, 'entree' => $entree, 'nom' => (string) $type->nom];
+                $trouves[] = [
+                    'index' => (int) $index,
+                    'entree' => $entree,
+                    'nom' => (string) $type->nom,
+                    'type' => $type,
+                ];
             }
         }
 
         return $trouves;
     }
 
-    /** Marque le meuble comme fouillé — définitif, pour tout le groupe. */
-    public function marquerFouille(Carte $carte, int $index): void
+    /**
+     * Ce héros a-t-il déjà fouillé ce meuble ?
+     *
+     * UNE FOIS PAR HÉROS depuis le 2026-08-17 (décision de René), comme une
+     * salle : le premier arrivé n'épuise plus la pièce pour tout le groupe.
+     *
+     * ⚠ L'ancien drapeau booléen `fouille` est encore lu, et il vaut pour TOUT
+     * LE MONDE : une quête déjà en cours au moment du changement garde des
+     * meubles marqués ainsi, et les rouvrir d'un coup aurait rendu à ses héros
+     * une fouille qu'ils avaient déjà dépensée.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    private static function dejaFouille(array $entree, ?int $personnageId): bool
+    {
+        if (! empty($entree['fouille'])) {
+            return true; // format ancien : épuisé pour le groupe
+        }
+
+        if ($personnageId === null) {
+            return false;
+        }
+
+        return in_array($personnageId, array_map('intval', (array) ($entree['fouille_par'] ?? [])), true);
+    }
+
+    /**
+     * Marque le meuble comme fouillé PAR CE HÉROS — les autres gardent la leur.
+     *
+     * On empile les identifiants dans `fouille_par` plutôt que de poser un
+     * booléen : c'est le même mécanisme que `quetes.tresors_fouilles` pour les
+     * salles, et pour la même raison — le premier fouilleur ne doit pas fermer
+     * la pièce à ses compagnons.
+     */
+    public function marquerFouille(Carte $carte, int $index, int $personnageId): void
     {
         $grille = $carte->grille;
 
@@ -72,8 +111,88 @@ final class MoteurMobilier
             return;
         }
 
-        $grille['mobilier'][$index]['fouille'] = true;
+        $deja = array_map('intval', (array) ($grille['mobilier'][$index]['fouille_par'] ?? []));
+        $grille['mobilier'][$index]['fouille_par'] = array_values(array_unique([...$deja, $personnageId]));
+
         $carte->update(['grille' => $grille]);
+    }
+
+    /**
+     * Tire le butin d'un meuble dans SA table (`mobiliers.effet.fouille`), et
+     * rend une carte de la même forme que celles du deck de fouille — pour que
+     * `ResolveurTour::appliquerButin()` l'applique sans rien savoir d'où elle
+     * vient.
+     *
+     * Tirage PONDÉRÉ (`poids`), et non uniforme : c'est ce qui permet à un
+     * coffre de payer souvent et à un trône de décevoir la moitié du temps.
+     *
+     * Un meuble sans table déclarée rend `rien` — un catalogue incomplet ne doit
+     * pas fabriquer de butin fantôme.
+     *
+     * @return array<string, mixed>
+     */
+    public function tirerButin(Mobilier $type): array
+    {
+        $table = array_values(array_filter(
+            (array) ($type->effet['fouille'] ?? []),
+            fn ($e) => is_array($e) && (int) ($e['poids'] ?? 0) > 0,
+        ));
+
+        if ($table === []) {
+            return ['issue' => 'rien', 'sans_table' => true];
+        }
+
+        $total = array_sum(array_map(fn ($e) => (int) $e['poids'], $table));
+        $tirage = random_int(1, $total);
+        $entree = $table[0];
+
+        foreach ($table as $candidate) {
+            $tirage -= (int) $candidate['poids'];
+
+            if ($tirage <= 0) {
+                $entree = $candidate;
+                break;
+            }
+        }
+
+        return $this->carteDepuisEntree($entree);
+    }
+
+    /**
+     * Traduit une entrée de table en carte de butin.
+     *
+     * @param  array<string, mixed>  $entree
+     * @return array<string, mixed>
+     */
+    private function carteDepuisEntree(array $entree): array
+    {
+        $issue = (string) ($entree['issue'] ?? 'rien');
+
+        if ($issue === 'tresor') {
+            [$min, $max] = array_pad((array) ($entree['or'] ?? []), 2, null);
+            $min = max(0, (int) ($min ?? 0));
+            $max = max($min, (int) ($max ?? $min));
+
+            return ['issue' => 'tresor', 'or' => random_int($min, $max)];
+        }
+
+        if ($issue === 'objet') {
+            // ⚠ Jamais un `unique` : les artefacts n'ont qu'une seule source,
+            // le coffre désigné de la quête, et ils sont uniques PAR GROUPE.
+            // Un meuble qui en distribuerait viderait cette règle.
+            $objet = Objet::query()
+                ->whereIn('categorie', (array) ($entree['categories'] ?? []))
+                ->where('rarete', '!=', 'unique')
+                ->when(! empty($entree['rarete']), fn ($q) => $q->whereIn('rarete', (array) $entree['rarete']))
+                ->inRandomOrder()
+                ->first();
+
+            return $objet === null
+                ? ['issue' => 'rien', 'objet_indisponible' => true]
+                : ['issue' => 'objet', 'objet_id' => (int) $objet->id];
+        }
+
+        return ['issue' => 'rien'];
     }
 
     /**
