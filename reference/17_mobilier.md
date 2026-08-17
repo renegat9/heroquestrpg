@@ -187,6 +187,50 @@ fouille d'une salle (RB p. 14) :
    moitié sont des monstres errants ou des dangers (RB p. 14-15), remises dans le deck
    après tirage (contrairement aux cartes d'or/potion, conservées).
 
+### ⚠ Notre implémentation diverge : une table PAR MEUBLE, une fouille PAR HÉROS
+
+Décision de René, **2026-08-17**. Le livret ne connaît que la fouille de SALLE,
+et n'accroche un trésor propre à un meuble que dans les notes de quête. Nous
+avons choisi autre chose, et il faut le dire clairement : **c'est une invention
+de jeu, pas une lecture.**
+
+Chaque meuble fouillable porte sa propre table de butin (`mobiliers.effet.fouille`),
+tirée au sort de façon **pondérée**, et se fouille **une fois par héros** — comme
+une salle, et non plus une fois pour tout le groupe.
+
+| Meuble | Or | Objet | Piège | Rien |
+|---|---|---|---|---|
+| Coffre | 40 % · 25-70 po | 20 % consommable · 10 % arme/armure | — | 30 % |
+| Trône | 50 % · 35-75 po | — | — | 50 % |
+| Établi d'alchimiste | — | 50 % consommable | 20 % *Fiole de poison* | 30 % |
+| Tombeau | 27 % · 30-70 po | 18 % arme/armure | 18 % *Aiguille empoisonnée* | 36 % |
+| Bibliothèque | 12,5 % · 10-25 po | 37,5 % **parchemin** | — | 50 % |
+| Râtelier d'armes | — | 50 % arme/armure | — | 50 % |
+| Armoire | 20 % · 15-40 po | 20 % consommable · 20 % outil | — | 40 % |
+
+La **Table** reste non fouillable (§1) : aucune note de quête consultée n'y
+accroche de trésor.
+
+**Ce qui a guidé les tables**, faute de source : ce que la pièce contient
+plausiblement. Le râtelier ne rend que des armes, l'établi que des fioles, la
+bibliothèque est le **seul** meuble à donner des parchemins — ce qui en fait la
+pièce du lanceur de sorts, et une raison pour l'elfe d'aller fouiller là où le
+barbare n'a rien à gagner. Le coffre est le seul généraliste, donc le plus
+généreux.
+
+**Trois garde-fous**, chacun pour une raison :
+
+- ⚠ **Chaque table porte une issue `rien`**, et un test l'exige. Un meuble qui
+  donnerait toujours quelque chose ferait de l'exploration une récolte, et l'or
+  cesserait d'être une ressource.
+- ⚠ **Aucun objet `unique` ne peut en sortir.** Les artefacts n'ont qu'une seule
+  source — le coffre désigné de la quête — et ils sont uniques *par groupe* ;
+  un meuble qui en distribuerait viderait cette règle.
+- ⚠ **Le Sixième sens de l'Explorateur vaut ici aussi.** Sa carte parle du geste
+  (« remets-la sous le paquet et tire-en une autre »), pas du deck ; sur une
+  table pondérée, repiocher c'est la relancer. Ne pas le rebrancher l'aurait
+  raboté en silence au moment même où les meubles devenaient dangereux.
+
 ### Piège de meuble : un cas à part de la fouille
 
 Un coffre ou un meuble piégé s'inscrit dans le même ordre que n'importe quel autre
