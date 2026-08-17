@@ -13,6 +13,7 @@ use App\Models\Groupe;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Competence;
+use App\Partie\Marche\PhaseMarche;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
@@ -522,6 +523,18 @@ class GroupeController extends Controller
         if ($personnage === null) {
             throw ValidationException::withMessages([
                 'personnage_id' => 'Ce personnage n\'est pas votre héros actif dans ce groupe.',
+            ]);
+        }
+
+        // ⚠ Un panier de marché NON CONFIRMÉ se perdrait au démarrage de la
+        // quête, en silence : l'application est atomique, donc rien n'est
+        // débité — mais les achats disparaissent. On refuse à CE joueur de se
+        // déclarer prêt tant qu'il n'a pas tranché. On ne bloque pas le groupe :
+        // ce serait le piège du vote de sortie une seconde fois, un seul joueur
+        // distrait pouvant enfermer les autres.
+        if ((bool) $donnees['pret'] && app(PhaseMarche::class)->panierEnAttente($groupe, $joueur)) {
+            throw ValidationException::withMessages([
+                'pret' => 'Ton panier de marché n\'est pas confirmé : valide-le ou vide-le avant de partir.',
             ]);
         }
 

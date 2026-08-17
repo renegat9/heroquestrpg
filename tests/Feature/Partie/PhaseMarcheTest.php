@@ -5,12 +5,15 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Partie\Marche\PhaseMarche;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -414,4 +417,57 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
         'achats' => [['objet_id' => $etal->firstWhere('nom', 'Épée courte')['objet_id'], 'quantite' => 1]],
         'ventes' => [],
     ])->assertOk();
+});
+
+it('refuse de se déclarer prêt avec un panier NON CONFIRMÉ', function () {
+    // Défaut trouvé en partie réelle le 2026-08-17 : le barbare a cru qu'on lui
+    // avait pris 200 po. Vérification faite, aucun or n'avait bougé —
+    // l'application est atomique — mais ses ACHATS avaient disparu en silence,
+    // la quête ayant démarré et emporté la phase de marché avec elle.
+    //
+    // ⚠ On refuse à CE joueur, pas au groupe : bloquer le départ pour tout le
+    // monde referait le piège du vote de sortie, un seul joueur distrait pouvant
+    // enfermer les autres.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 1000]);
+
+    $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [['objet_id' => Objet::where('nom', 'Épée courte')->first()->id]],
+        'ventes' => [],
+    ])->assertOk();
+
+    // Panier posé mais NON confirmé : le départ est refusé, avec la raison.
+    $this->postJson('/api/groupes/table-1/pret', ['personnage_id' => $hero->id, 'pret' => true])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('pret');
+
+    // Confirmé, le départ passe.
+    $this->postJson('/api/groupes/table-1/marche/confirmation')->assertOk();
+    $this->postJson('/api/groupes/table-1/pret', ['personnage_id' => $hero->id, 'pret' => true])
+        ->assertOk();
+});
+
+it('referme la phase de marché quand la quête démarre, et le journalise', function () {
+    // La phase vivait dans le cache sans que personne ne la referme : elle
+    // expirait seule six heures plus tard. Un effet automatique que rien
+    // n'annonce est injouable.
+    $this->seed([MonstreSeeder::class, TuileSeeder::class,
+        GabaritQueteSeeder::class, PiegeSeeder::class, MobilierSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/marche')->assertCreated();
+    expect(Cache::has(PhaseMarche::cle($groupe->id)))->toBeTrue();
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    expect(Cache::has(PhaseMarche::cle($groupe->id)))->toBeFalse()
+        ->and($groupe->evenements()->where('type', 'systeme')->get()
+            ->contains(fn ($e) => ($e->payload['action'] ?? null) === 'marche_ferme_par_quete'))->toBeTrue();
 });

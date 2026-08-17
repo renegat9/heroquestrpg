@@ -221,6 +221,58 @@ final class PhaseMarche
         return ['applique' => true, 'marche' => null];
     }
 
+    /**
+     * Ce joueur a-t-il un panier NON VIDE et NON CONFIRMÉ ?
+     *
+     * L'application est atomique : rien n'est débité tant que tous les paniers
+     * ne sont pas confirmés (`confirmer()`). Un joueur qui se déclarait prêt en
+     * laissant son panier en plan ne perdait donc pas d'or — mais il perdait ses
+     * achats, en silence, au moment où la quête démarrait et emportait la phase
+     * de marché avec elle. Constaté en partie réelle le 2026-08-17, où le
+     * barbare a cru qu'on lui avait pris 200 po.
+     *
+     * ⚠ On ne BLOQUE PAS le démarrage de la quête pour tout le groupe : ce serait
+     * le piège du vote de sortie une deuxième fois, un seul joueur distrait
+     * pouvant enfermer les autres. On refuse seulement à CE joueur de se
+     * déclarer prêt tant qu'il a du non-confirmé — à lui de valider ou de vider.
+     */
+    public function panierEnAttente(Groupe $groupe, Joueur $joueur): bool
+    {
+        $phase = Cache::get(self::cle($groupe->id));
+
+        if (! is_array($phase)) {
+            return false;
+        }
+
+        $panier = $phase['paniers'][(string) $joueur->id] ?? null;
+
+        if (! is_array($panier) || ! empty($panier['confirme'])) {
+            return false;
+        }
+
+        return ($panier['achats'] ?? []) !== [] || ($panier['ventes'] ?? []) !== [];
+    }
+
+    /**
+     * Ferme la phase de marché quand une quête démarre — et le DIT.
+     *
+     * La phase vivait jusque-là dans le cache sans que rien ne la referme : elle
+     * expirait toute seule six heures plus tard, et les paniers non confirmés
+     * disparaissaient sans un mot. Un effet automatique que rien n'annonce est
+     * injouable, ici comme ailleurs.
+     */
+    public function fermerPourQuete(Groupe $groupe): void
+    {
+        if (! Cache::has(self::cle($groupe->id))) {
+            return;
+        }
+
+        Cache::forget(self::cle($groupe->id));
+
+        Journal::ajouter($groupe, 'systeme', ['action' => 'marche_ferme_par_quete']);
+        broadcast(new MarcheFinalise($groupe, applique: false));
+    }
+
     /** Annule la phase (DELETE marche) : rien n'est appliqué. */
     public function annuler(Groupe $groupe): void
     {

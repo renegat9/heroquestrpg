@@ -11,6 +11,7 @@ use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
 use App\Jobs\GenererNarration;
 use App\Jobs\HabillerMonstres;
+use App\Partie\Marche\PhaseMarche;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -146,6 +147,14 @@ final class DemarreurQuete
                 'groupe' => 'Aucun héros actif dans le groupe : impossible de démarrer une quête.',
             ]);
         }
+
+        // La phase de marché ne survit pas au départ, et on le DIT : elle
+        // n'était refermée par personne, elle expirait toute seule six heures
+        // plus tard, et les paniers non confirmés disparaissaient sans un mot.
+        // `/pret` refuse désormais un panier en attente, donc plus rien de
+        // confirmable ne se perd ici — mais un panier VIDE ou une phase ouverte
+        // et jamais utilisée doit tout de même être refermée proprement.
+        app(PhaseMarche::class)->fermerPourQuete($groupe);
 
         $positionArc = (int) $groupe->quetes()->count() + 1;
         $typeJalon = $this->typeJalon($groupe, $positionArc);
