@@ -71,6 +71,30 @@ Les agents ont des durées de vie différentes : quand l'un s'arrête, son héro
 joue plus et le tour du groupe se fige sur lui, sans que les autres puissent le
 savoir. Prévoir de le relancer, ou faire jouer plusieurs héros au même agent.
 
+## Le vote de sortie : deux gestes, pas un
+
+**Proposer n'est pas voter.** « Quitter le donjon » ouvre un `VoteGroupe` dont
+les bulletins partent VIDES — le proposeur doit déposer le sien comme tout le
+monde. Le vote tient **6 heures** et ne s'auto-résout pas : il n'a ni timeout
+court ni voix par défaut, contrairement au verrou « MJ réfléchit » (30 s) ou aux
+offres de réaction (`rattraperExpiration`). C'est voulu pour une vraie table,
+mais ça pardonne mal en test.
+
+⚠ `hq.sh` n'a eu de verbe de vote qu'à partir du **2026-08-15**, et son absence a
+coûté une campagne entière : le barbare avait lancé le vote et ne pouvait
+matériellement pas le conclure, le groupe a tourné vingt minutes dans un donjon
+vide. Les deux verbes :
+
+```bash
+./hq.sh 1 votes        # question, options, décompte (exprimés / attendus)
+./hq.sh 1 vote oui     # déposer son bulletin
+```
+
+⚠ Le vote n'apparaît **ni dans `/etat` ni dans `/moi`** : il a sa propre route
+(`GET /groupes/{id}/votes`). La manette réelle la rattrape au montage, donc un
+joueur qui recharge son téléphone voit bien la feuille de vote — mais un agent
+qui ne connaît que `etat` et `menu` ne saura jamais qu'on l'attend.
+
 ## Les noms de colonnes qui font perdre une heure
 
 En montant une scène à la main (tinker), trois attributs n'existent PAS et
