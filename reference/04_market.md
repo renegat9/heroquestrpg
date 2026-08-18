@@ -31,6 +31,22 @@ Chaque lieu marchand applique un profil : catégories disponibles, raretés acce
 
 ---
 
+> ⚠ **L'étal ne présente pas ce qu'AUCUN membre du groupe ne peut utiliser**
+> (décision de René, 2026-08-18 — même règle que le butin de mobilier, doc 17
+> §3). Trois potions sont réservées au Barbare, deux à l'Elfe : un groupe qui
+> n'en compte aucun ne se les voit plus proposer.
+>
+> ⚠ Cela ne referme **pas** l'achat pour autrui, et c'est délibéré : le filtre
+> porte sur l'**union** des maîtrises de tous les membres actifs
+> (`Equipement::tagsAccessiblesAux()`), donc une potion de barbare reste en rayon
+> dès qu'un barbare est dans le groupe, quel que soit le joueur qui paie. La
+> bourse est commune et le don existe. Ce qui disparaît, c'est seulement ce
+> qu'aucun héros de ce groupe ne pourra jamais boire ni porter — et le badge
+> « non maîtrisé » continue de dire à CE joueur ce que SON héros ne peut pas
+> équiper.
+>
+> Liste de maîtrises vide = aucune restriction (**fail open**).
+
 ## 4. Catalogue
 
 Stats des objets centralisées ici (référencées par les docs Combat et Sorts). Prix indicatifs à ajuster.

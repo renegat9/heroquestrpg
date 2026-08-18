@@ -13,6 +13,7 @@ use App\Models\Inventaire;
 use App\Models\Joueur;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\RangementObjet;
@@ -80,10 +81,30 @@ final class PhaseMarche
         $profil ??= ProfilMarche::DEFAUT;
         $config = ProfilMarche::PROFILS[$profil];
 
+        // MAÎTRISES DU GROUPE : l'étal ne présente pas ce que PERSONNE du
+        // groupe ne pourra jamais utiliser (décision de René, 2026-08-17, étendue
+        // au marché le 2026-08-18 — même règle que le butin de mobilier).
+        //
+        // ⚠ Cela ne referme PAS l'achat pour autrui, et c'est important : on
+        // filtre sur l'union des maîtrises de tous les membres actifs, donc une
+        // potion de barbare reste en rayon tant que le groupe a un barbare, quel
+        // que soit le joueur qui l'achète. Ce qui disparaît, c'est seulement ce
+        // qu'aucun héros de ce groupe ne pourra jamais boire ni porter.
+        //
+        // Liste vide = aucune restriction (fail open), comme partout ailleurs.
+        $maitrises = app(Equipement::class)->tagsAccessiblesAux(
+            $groupe->personnages()->wherePivot('actif', true)->get(),
+        );
+
         // Inventaire dérivé du catalogue : raretés du profil, jamais d'unique.
         $inventaire = Objet::query()
             ->whereIn('rarete', $config['raretes'])
             ->where('rarete', '!=', 'unique')
+            ->when($maitrises !== [], fn ($q) => $q->where(
+                fn ($w) => $w->whereNull('tag_equipement')
+                    ->orWhere('tag_equipement', '')
+                    ->orWhereIn('tag_equipement', $maitrises),
+            ))
             ->orderBy('id')
             ->get()
             ->map(fn (Objet $o) => [
@@ -92,10 +113,11 @@ final class PhaseMarche
                 'categorie' => $o->categorie,
                 'rarete' => $o->rarete,
                 // Maîtrise requise pour l'ÉQUIPER (doc 01 §7). L'achat reste
-                // libre — la bourse est commune et le don existe, acheter une
-                // pièce pour un autre héros est légitime —, mais la manette
-                // signale « non maîtrisé » plutôt que de laisser la surprise
-                // pour le moment d'équiper.
+                // libre ENTRE MEMBRES — la bourse est commune et le don existe,
+                // acheter une pièce pour un autre héros est légitime —, mais la
+                // manette signale « non maîtrisé » plutôt que de laisser la
+                // surprise pour le moment d'équiper. Ce que le groupe entier ne
+                // peut pas porter n'est simplement plus en rayon (voir plus haut).
                 'tag_equipement' => $o->tag_equipement,
                 'prix' => (int) round($o->prix_base * $config['multiplicateur']),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,

@@ -389,6 +389,11 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
     $groupe = creerGroupe();
     $groupe->update(['or' => 1000]);
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+    // ⚠ Un BARBARE accompagne le magicien : depuis le 2026-08-18 l'étal ne
+    // présente plus ce qu'AUCUN membre du groupe ne pourrait porter, et un
+    // magicien seul ne verrait donc ni épée courte ni casque. Le badge, lui,
+    // sert toujours — il dit à CE joueur ce que SON héros ne maîtrise pas.
+    creerHeros($alice, $groupe, 'Krogar', 2, ['classe' => 'barbare']);
 
     $etal = collect($this->postJson('/api/groupes/table-1/marche')->assertCreated()->json('inventaire'));
 
@@ -470,4 +475,35 @@ it('referme la phase de marché quand la quête démarre, et le journalise', fun
     expect(Cache::has(PhaseMarche::cle($groupe->id)))->toBeFalse()
         ->and($groupe->evenements()->where('type', 'systeme')->get()
             ->contains(fn ($e) => ($e->payload['action'] ?? null) === 'marche_ferme_par_quete'))->toBeTrue();
+});
+
+it('retire de l\'étal ce qu\'AUCUN membre du groupe ne peut utiliser', function () {
+    // Décision de René (2026-08-18) : la règle du butin de mobilier s'applique
+    // aussi à la boutique. Trois potions sont réservées au Barbare, deux à
+    // l'Elfe ; un groupe qui n'en compte aucun ne devrait pas se les voir
+    // proposer à l'achat.
+    //
+    // ⚠ Cela ne referme PAS l'achat pour autrui : on filtre sur l'UNION des
+    // maîtrises de tous les membres actifs. Une potion de barbare reste en rayon
+    // dès qu'un barbare est dans le groupe, quel que soit le joueur qui paie.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $groupe->update(['or' => 5000]);
+    creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+
+    $noms = fn () => collect($this->postJson('/api/groupes/table-1/marche')
+        ->assertCreated()->json('inventaire'))->pluck('nom');
+
+    $sansBarbare = $noms();
+
+    expect($sansBarbare)->not->toContain('Potion de rage guerrière')
+        ->and($sansBarbare)->not->toContain('Potion de peau de givre')
+        // …mais tout ce qui n'exige aucune maîtrise reste en rayon.
+        ->and($sansBarbare)->toContain('Potion de soin');
+
+    // Un barbare rejoint le groupe : sa potion revient à l'étal.
+    $this->deleteJson('/api/groupes/table-1/marche')->assertNoContent();
+    creerHeros($alice, $groupe, 'Krogar', 2, ['classe' => 'barbare']);
+
+    expect($noms())->toContain('Potion de rage guerrière');
 });
