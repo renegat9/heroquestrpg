@@ -218,6 +218,36 @@ pièce du lanceur de sorts, et une raison pour l'elfe d'aller fouiller là où l
 barbare n'a rien à gagner. Le coffre est le seul généraliste, donc le plus
 généreux.
 
+**Comment la pièce est choisie**, quand l'issue est `objet` — en **deux temps**
+(décision de René, 2026-08-17) :
+
+1. la **RARETÉ**, tirée au sort et **pondérée par le niveau MOYEN du groupe** ;
+2. la **pièce**, uniformément parmi celles de cette rareté.
+
+| niveau moyen | commun | peu commun | rare |
+|---|---|---|---|
+| 1-2 | 70 % | 28 % | 2 % |
+| 3-4 | 50 % | 40 % | 10 % |
+| 5-6 | 35 % | 45 % | 20 % |
+| 7 et + | 20 % | 45 % | 35 % |
+
+Le tirage était **uniforme sur tout le vivier** : un établi d'alchimiste rendait
+une *Potion de restauration supérieure* (800 po) aussi souvent qu'une *Potion de
+soin* (100), et un groupe de niveau 8 continuait de trouver des dagues. La
+progression ne se lisait nulle part dans le butin.
+
+⚠ Il n'y a **aucun plafond de niveau** (doc 01 §5) : la courbe SATURE à la
+dernière tranche au lieu de déborder. Et on ne pondère que les raretés
+**réellement présentes** dans le vivier — un râtelier sans arme rare rend ce
+qu'il a, il ne rend pas « rien » une fois sur trois à haut niveau.
+
+⚠ La rareté elle-même se **déduit du PRIX** (`App\Engine\RareteButin`) :
+≤ 150 po commun · ≤ 400 peu commun · au-delà rare. Elle était posée à la main et
+avait dérivé — Hachette 200 po « commune » quand Baguette 125 était « peu
+commune », Cotte de mailles 500 « rare » et Brassards 550 non. Seuls les
+**artefacts** (`unique`, un statut et non une bande de prix) et les
+**parchemins** (rareté = difficulté du sort) gardent la leur.
+
 **Trois garde-fous**, chacun pour une raison :
 
 - ⚠ **Chaque table porte une issue `rien`**, et un test l'exige. Un meuble qui

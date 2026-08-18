@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Engine\RareteButin;
 use App\Models\Objet;
 use App\Models\Sort;
 use Illuminate\Database\Seeder;
@@ -54,7 +55,7 @@ class ObjetSeeder extends Seeder
             //   « only the warlock »  → `arme_warlock`
             // `deux_mains` reste ORTHOGONAL au tag : il ne dit rien de la classe,
             // seulement qu'aucun bouclier ne l'accompagne.
-            ['nom' => 'Dague', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+            ['nom' => 'Dague', 'categorie' => 'arme', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 // « A dagger can also be thrown at any monster you can see but
                 // is lost once it is thrown. » La perte, que nous appliquions
                 // sans source, est ÉCRITE sur la carte officielle.
@@ -63,33 +64,33 @@ class ObjetSeeder extends Seeder
             // la diagonale (« Because of its length ») et interdit le bouclier
             // (« You may not use a shield when using this weapon »), ce que
             // `deux_mains` exprime chez nous. Aucune restriction de classe.
-            ['nom' => 'Bâton', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+            ['nom' => 'Bâton', 'categorie' => 'arme', 'prix_base' => 100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 'effet' => ['des_attaque' => 1, 'attaque_diagonale' => true, 'deux_mains' => true]],
             // Baguette du Warlock : « It may only be used by the warlock » —
             // d'où son tag propre, et non plus `armure_magicien`, qui l'ouvrait
             // au magicien contre le texte de la carte. ⚠ Pas
             // `inutilisable_adjacent` : rien ne l'interdit au contact,
             // contrairement à l'arbalète.
-            ['nom' => 'Baguette', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_warlock',
+            ['nom' => 'Baguette', 'categorie' => 'arme', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_warlock',
                 'effet' => ['des_attaque' => 2, 'portee' => 'distance']],
-            ['nom' => 'Épée courte', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée courte', 'categorie' => 'arme', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2]],
             // La Hachette EXISTE au matériel officiel (© 2023) : doc 16 §2.1 et
             // un commentaire de GroupeController soutenaient le contraire.
-            ['nom' => 'Hachette', 'categorie' => 'arme', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Hachette', 'categorie' => 'arme', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'jetable' => true]],
-            ['nom' => 'Rapière', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Rapière', 'categorie' => 'arme', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
             // Broadsword : 3 dés, PAS de diagonale — le diagramme des armes
             // longues du livret officiel (p. 14) lui oppose justement le bâton.
-            ['nom' => 'Épée large', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée large', 'categorie' => 'arme', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
             // Longsword : l'une des deux seules armes que le livret OFFICIEL
             // nomme comme frappant en diagonale (« like the staff and the
             // longsword », p. 14). Une main : elle se combine au bouclier.
-            ['nom' => 'Épée longue', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée longue', 'categorie' => 'arme', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
-            ['nom' => 'Arbalète', 'categorie' => 'arme', 'rarete' => 'peu_commun', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
+            ['nom' => 'Arbalète', 'categorie' => 'arme', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 // « You may fire at any monster that you can see. However, you
                 // cannot fire at a monster that is adjacent to you. » — les deux
                 // moitiés de `portee: distance` + `inutilisable_adjacent`, cette
@@ -97,7 +98,7 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
             // La hache de bataille N'EST PAS une arme longue : sa carte dit
             // seulement « You may not use a shield when using this weapon ».
-            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'rarete' => 'rare', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true]],
 
             // ----- Matériel : les 4 cartes qui ne sont ni arme ni armure -----
@@ -107,21 +108,21 @@ class ObjetSeeder extends Seeder
             // capacité de sac, et `MoteurPotions::boire()` les REFUSE déjà (sa
             // garde d'entrée teste la catégorie) — la manette ne proposera donc
             // jamais « Boire » sur une bombe fumigène.
-            ['nom' => 'Chausse-trappes', 'categorie' => 'outil', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'consommable',
+            ['nom' => 'Chausse-trappes', 'categorie' => 'outil', 'prix_base' => 100, 'emplacement' => 'consommable',
                 'effet' => ['pose_chausse_trappes' => true]],
-            ['nom' => 'Bombe fumigène', 'categorie' => 'outil', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'consommable',
+            ['nom' => 'Bombe fumigène', 'categorie' => 'outil', 'prix_base' => 100, 'emplacement' => 'consommable',
                 'effet' => ['enfume_monstre_adjacent' => true]],
             // « Counts as a Tool Kit for disarming traps and you are always
             // considered to be armed with a dagger. It can only be used by the
             // Rogue. » ⚠ Elle n'ajoute AUCUN dé — le Rogue à mains nues en
             // lance déjà un, autant que la dague : ce qu'elle donne, ce sont les
             // règles qui EXIGENT une dague (son Ambidextrie).
-            ['nom' => 'Bandoulière', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 300, 'emplacement' => 'sac', 'tag_equipement' => 'outil_rogue',
+            ['nom' => 'Bandoulière', 'categorie' => 'outil', 'prix_base' => 300, 'emplacement' => 'sac', 'tag_equipement' => 'outil_rogue',
                 'effet' => ['permet_desamorcage' => true, 'compte_comme_arme' => 'Dague']],
             // « It kills any undead creature (skeleton, zombie, or mummy). »
             // Les trois noms sont des `monstres.nom_base`, comme sur la Lame des
             // Esprits — aucun tag « mort-vivant » n'est inventé sur le bestiaire.
-            ['nom' => 'Eau bénite', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 400, 'emplacement' => 'consommable',
+            ['nom' => 'Eau bénite', 'categorie' => 'outil', 'prix_base' => 400, 'emplacement' => 'consommable',
                 'effet' => ['tue_creatures' => ['Squelette', 'Zombie', 'Momie']]],
 
             // Fiole trouvée en fouille : soin ALÉATOIRE (1d6), là où la potion
@@ -136,16 +137,16 @@ class ObjetSeeder extends Seeder
             // Deux attaques dans le même tour (et non des dés en plus) :
             // l'attaque vient de l'arme chez nous, un bonus de dés n'aurait pas
             // rendu la carte du plateau.
-            ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+            ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['attaque_supplementaire' => true]],
             // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_mots_cles_effets.md).
             // Ces deux-là portaient `duree => 0`, qui n'est pas une durée mais
             // l'absence de compteur : rien ne les retirait jamais. Force et
             // Défense sont donc des BURSTS (+2 sur un jet), là où Rage, au même
             // prix, tient tout le combat pour +1 — départ playtest.
-            ['nom' => 'Potion de force', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de force', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 150, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
                 'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé']],
 
             // ----- Artefacts UNIQUES (doc 04 §4/§6, reference/16 §9) -----
@@ -297,14 +298,14 @@ class ObjetSeeder extends Seeder
             // repris du paquet fan) — le tag saute, tout le monde peut les
             // porter, le magicien compris. La Cape de protection, elle, n'a pas
             // de carte : elle disparaît du catalogue.
-            ['nom' => 'Casque', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 125, 'emplacement' => 'casque', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Casque', 'categorie' => 'armure', 'prix_base' => 125, 'emplacement' => 'casque', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
-            ['nom' => 'Bouclier', 'categorie' => 'armure', 'rarete' => 'commun', 'prix_base' => 150, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
+            ['nom' => 'Bouclier', 'categorie' => 'armure', 'prix_base' => 150, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
                 // « May not be used with the battle axe or the staff » : chez
                 // nous c'est `incompatible_deux_mains`, et les deux armes que la
                 // carte nomme sont précisément nos deux `deux_mains` de base.
                 'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true]],
-            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
             // ⚠ `tag_equipement` est déclaré NULL EXPLICITEMENT, et pas
             // simplement omis : `updateOrCreate` n'écrit que les colonnes qu'on
@@ -312,16 +313,16 @@ class ObjetSeeder extends Seeder
             // `armure_magicien` — les Brassards seraient restés réservés au
             // magicien sur les bases existantes, et ouverts à tous sur les
             // neuves. Constaté au re-seed du 2026-08-15.
-            ['nom' => 'Brassards', 'categorie' => 'armure', 'rarete' => 'peu_commun', 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
+            ['nom' => 'Brassards', 'categorie' => 'armure', 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
                 'effet' => ['des_defense' => 1]],
             // « While wearing the Plate Mail, you have a 2 square movement
             // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en
             // moyenne). Le malus vient de la carte, pas d'une décision de table.
-            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'rarete' => 'rare', 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
+            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
                 'effet' => ['des_defense' => 2, 'malus_deplacement' => 2]],
 
             // ----- Outils -----
-            ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'rarete' => 'peu_commun', 'prix_base' => 250, 'emplacement' => 'sac',
+            ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
                 'effet' => ['permet_desamorcage' => true]],
 
             // ----- Potions du DECK DE TRÉSOR (conservées) -----
@@ -329,7 +330,7 @@ class ObjetSeeder extends Seeder
             // `DeckFouille` tire nommément, et qui existent au plateau dans le
             // deck de trésor. Elles cohabitent donc avec les potions officielles
             // ci-dessous sans faire doublon de nom.
-            ['nom' => 'Potion de soin', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de soin', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 4]],
 
             // ----- Les 15 potions officielles (`potions.pdf`, doc 16 §2.1bis) -----
@@ -338,32 +339,32 @@ class ObjetSeeder extends Seeder
             // des cartes, et c'est la première fois qu'un consommable porte une
             // restriction de classe. Elle passe par `tag_equipement`, comme
             // toutes les autres, et `MoteurPotions::boire()` la fait respecter.
-            ['nom' => 'Potion de dextérité', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 100, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de dextérité', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
                 // « adds 5 movement squares to your next dice roll OR guarantees
                 // one successful pit jump » — les deux moitiés sont posées
                 // ensemble, le joueur prend celle que sa situation lui offre.
                 'effet' => ['bonus_deplacement' => 5, 'saut_fosse_automatique' => true, 'une_par_tour' => true,
                     'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Potion de bataille', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de bataille', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['relance_des_attaque' => true, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2]],
-            ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 200, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['deplacement_multiplie' => 2, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Potion de force glaciale', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 200, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
+            ['nom' => 'Potion de force glaciale', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 'effet' => ['multiplicateur_degats' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Antidote au venin', 'categorie' => 'consommable', 'rarete' => 'commun', 'prix_base' => 300, 'emplacement' => 'consommable',
+            ['nom' => 'Antidote au venin', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable',
                 // ⚠ « caused by poison needles or poison darts only » n'est PAS
                 // portable : la source d'un dégât n'est mémorisée nulle part sur
                 // le héros. Même forme que la Plume anti-poison (doc 16 §10).
                 'effet' => ['retire_condition' => 'Empoisonné', 'soin_pv_body' => 2]],
-            ['nom' => 'Potion de peau de givre', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 300, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
+            ['nom' => 'Potion de peau de givre', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 'effet' => ['bonus_des_defense' => 2, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé']],
-            ['nom' => 'Potion de magie', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 400, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de magie', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable',
                 'effet' => ['restaure_sorts' => 3]],
-            ['nom' => 'Potion de rappel', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
+            ['nom' => 'Potion de rappel', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
                 'effet' => ['restaure_sorts' => 1]],
-            ['nom' => 'Potion de rage guerrière', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
+            ['nom' => 'Potion de rage guerrière', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 // « 2 attacks per turn as long as there are monsters in sight » :
                 // le drapeau se pose ici, et `rythmerBuffsDeVue()` le RÉARME à
                 // chaque début de tour tant qu'un ennemi est en vue.
@@ -373,15 +374,15 @@ class ObjetSeeder extends Seeder
             // cartes, l'une disant « roll 1 red die », l'autre « up to 6 lost
             // Body Points. Roll 1 red die ». On les sème quand même toutes les
             // deux, et on le dit (doc 16 §10).
-            ['nom' => 'Potion de guérison', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de guérison', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body_de' => 6]],
-            ['nom' => 'Potion de régénération', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de régénération', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body_de' => 6]],
-            ['nom' => 'Potion de restauration', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de restauration', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 1, 'soin_pv_mind' => 1]],
-            ['nom' => 'Potion de vision', 'categorie' => 'consommable', 'rarete' => 'peu_commun', 'prix_base' => 500, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
+            ['nom' => 'Potion de vision', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
                 'effet' => ['revele_pieges_et_portes_en_vue' => true, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Clairvoyance']],
-            ['nom' => 'Potion de restauration supérieure', 'categorie' => 'consommable', 'rarete' => 'rare', 'prix_base' => 800, 'emplacement' => 'consommable',
+            ['nom' => 'Potion de restauration supérieure', 'categorie' => 'consommable', 'prix_base' => 800, 'emplacement' => 'consommable',
                 // « restores any hero's Body and Mind Points to the level they
                 // were at when the hero started the Quest » = au MAXIMUM chez
                 // nous. La clause « cure a hero turned into a werewolf » n'a pas
@@ -390,6 +391,18 @@ class ObjetSeeder extends Seeder
         ];
 
         foreach ($objets as $objet) {
+            // ⚠ La RARETÉ se déduit du PRIX (`RareteButin::pourPrix()`) pour tout
+            // ce qui n'en déclare pas — armes, armures, outils, consommables.
+            // Elle était posée à la main et avait dérivé sans que rien ne le
+            // voie : Hachette 200 po « commune » quand Baguette 125 était « peu
+            // commune », Cotte de mailles 500 « rare » et Brassards 550 non.
+            //
+            // Gardent leur rareté DÉCLARÉE : les artefacts (`unique`, qui n'est
+            // pas une bande de prix mais un statut) et les parchemins, dont la
+            // rareté vient de la difficulté du sort — un meilleur signal que
+            // leur prix, qui n'en est que le reflet.
+            $objet['rarete'] ??= RareteButin::pourPrix((int) $objet['prix_base']);
+
             Objet::updateOrCreate(['nom' => $objet['nom']], $objet);
         }
 

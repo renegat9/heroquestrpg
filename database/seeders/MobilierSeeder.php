@@ -57,8 +57,12 @@ class MobilierSeeder extends Seeder
         // pour que `ResolveurTour::appliquerButin()` les applique sans rien
         // savoir de leur provenance :
         //   - `tresor` + `or: [min, max]`
-        //   - `objet`  + `categories: [...]` (+ `rarete` facultatif) → l'objet
-        //     est tiré du catalogue au moment de la fouille
+        //   - `objet`  + `categories: [...]` → la pièce est tirée du catalogue au
+        //     moment de la fouille, en DEUX TEMPS : la rareté d'abord, pondérée
+        //     par le niveau moyen du groupe (`App\Engine\RareteButin`), puis la
+        //     pièce uniformément dans cette rareté. Les tables ne filtrent donc
+        //     plus la rareté elles-mêmes — la courbe s'en charge, et c'est elle
+        //     qui fait qu'un groupe de niveau 1 trouve surtout du commun.
         //   - `piege`  + `piege: <nom>` → piège ÉPHÉMÈRE déclenché sur place
         //   - `rien`
         //
@@ -76,7 +80,7 @@ class MobilierSeeder extends Seeder
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 4, 'or' => [25, 60]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
-                    ['issue' => 'objet', 'poids' => 1, 'categories' => ['arme', 'armure'], 'rarete' => ['commun', 'peu_commun']],
+                    ['issue' => 'objet', 'poids' => 1, 'categories' => ['arme', 'armure']],
                     ['issue' => 'rien', 'poids' => 3],
                 ]]],
 
@@ -104,7 +108,7 @@ class MobilierSeeder extends Seeder
             ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 3, 'or' => [30, 70]],
-                    ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure'], 'rarete' => ['commun', 'peu_commun']],
+                    ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
                     // Un tombeau se défend (décision de René, 2026-08-17) :
                     // l'aiguille dans la serrure du sarcophage.
                     ['issue' => 'piege', 'poids' => 2, 'piege' => 'Aiguille empoisonnée'],
@@ -124,7 +128,7 @@ class MobilierSeeder extends Seeder
             // Aucune chance d'or — on n'y range pas sa bourse.
             ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => true,
                 'effet' => ['fouille' => [
-                    ['issue' => 'objet', 'poids' => 4, 'categories' => ['arme', 'armure'], 'rarete' => ['commun', 'peu_commun']],
+                    ['issue' => 'objet', 'poids' => 4, 'categories' => ['arme', 'armure']],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 

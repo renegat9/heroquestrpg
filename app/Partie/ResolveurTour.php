@@ -3853,7 +3853,17 @@ final class ResolveurTour
         // soin, et consommait au passage une carte que la fouille des salles
         // aurait tirée. Chaque meuble a maintenant son butin plausible, et le
         // deck reste au service des salles.
-        $carte = $this->mobilier->tirerButin($meuble['type']);
+        // Niveau MOYEN du groupe : c'est lui qui incline les chances de rareté
+        // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
+        // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
+        // donjon rend à ceux qui y sont.
+        $niveauMoyen = (int) round(
+            $quete->etatsPersonnages()->with('personnage')->get()
+                ->map(fn ($e) => (int) ($e->personnage?->niveau ?? 1))
+                ->avg() ?: 1
+        );
+
+        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen);
 
         // SIXIÈME SENS (Explorateur) — « quand tu tires une carte de piège,
         // remets-la sous le paquet et tire-en une autre ».
@@ -3869,7 +3879,17 @@ final class ResolveurTour
             && $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
             $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
             $ecartee = 'piege';
-            $carte = $this->mobilier->tirerButin($meuble['type']);
+            // Niveau MOYEN du groupe : c'est lui qui incline les chances de rareté
+        // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
+        // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
+        // donjon rend à ceux qui y sont.
+        $niveauMoyen = (int) round(
+            $quete->etatsPersonnages()->with('personnage')->get()
+                ->map(fn ($e) => (int) ($e->personnage?->niveau ?? 1))
+                ->avg() ?: 1
+        );
+
+        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen);
         }
 
         $entete = [
