@@ -132,7 +132,7 @@ final class MoteurMobilier
      *
      * @return array<string, mixed>
      */
-    public function tirerButin(Mobilier $type, int $niveauMoyen = 1): array
+    public function tirerButin(Mobilier $type, int $niveauMoyen = 1, array $tagsAccessibles = []): array
     {
         $table = array_values(array_filter(
             (array) ($type->effet['fouille'] ?? []),
@@ -156,7 +156,7 @@ final class MoteurMobilier
             }
         }
 
-        return $this->carteDepuisEntree($entree, $niveauMoyen);
+        return $this->carteDepuisEntree($entree, $niveauMoyen, $tagsAccessibles);
     }
 
     /**
@@ -165,7 +165,7 @@ final class MoteurMobilier
      * @param  array<string, mixed>  $entree
      * @return array<string, mixed>
      */
-    private function carteDepuisEntree(array $entree, int $niveauMoyen): array
+    private function carteDepuisEntree(array $entree, int $niveauMoyen, array $tagsAccessibles = []): array
     {
         $issue = (string) ($entree['issue'] ?? 'rien');
 
@@ -191,6 +191,22 @@ final class MoteurMobilier
             $vivier = Objet::query()
                 ->whereIn('categorie', (array) ($entree['categories'] ?? []))
                 ->where('rarete', '!=', 'unique');
+
+            // ⚠ On écarte ce que PERSONNE sur place ne peut utiliser (décision
+            // de René, 2026-08-17). Trois potions sont réservées au Barbare,
+            // deux à l'Elfe : sans cette garde, un groupe sans barbare passait
+            // sa campagne à trouver des potions de rage guerrière — un butin qui
+            // n'est ni jouable, ni revendable en quête, et qui prend une place
+            // dans le sac.
+            //
+            // Même règle que les artefacts de classe (`DeckFouille`), et elle
+            // vit désormais au même endroit qu'eux : `Equipement`. Liste vide =
+            // aucune restriction (fail open), comme partout ailleurs ici.
+            if ($tagsAccessibles !== []) {
+                $vivier->where(fn ($q) => $q->whereNull('tag_equipement')
+                    ->orWhere('tag_equipement', '')
+                    ->orWhereIn('tag_equipement', $tagsAccessibles));
+            }
 
             // TIRAGE EN DEUX TEMPS depuis le 2026-08-17 (décision de René) :
             // d'abord la RARETÉ, pondérée par le niveau moyen du groupe, puis la

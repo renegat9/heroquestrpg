@@ -295,6 +295,48 @@ final class Equipement
     }
 
     /**
+     * Union des maîtrises d'un ENSEMBLE de héros — ce que le groupe présent
+     * peut porter, toutes classes confondues.
+     *
+     * Sert à ne pas offrir en butin une pièce que personne sur place ne pourra
+     * utiliser : les artefacts de classe le faisaient déjà (`DeckFouille`), les
+     * potions réservées au Barbare et à l'Elfe le demandent depuis qu'elles
+     * existent (décision de René, 2026-08-17). Une seule règle, un seul endroit
+     * — deux implémentations de « ce que ce groupe peut porter » finiraient par
+     * diverger.
+     *
+     * ⚠ Rend un tableau VIDE si aucune classe n'est connue : les appelants
+     * traitent ce cas en « aucune restriction » (fail open), comme partout
+     * ailleurs ici — une donnée de référence manquante ne doit jamais appauvrir
+     * une partie.
+     *
+     * @param  iterable<int, Personnage>  $personnages
+     * @return list<string>
+     */
+    public function tagsAccessiblesAux(iterable $personnages): array
+    {
+        $tags = [];
+
+        foreach ($personnages as $personnage) {
+            $tags = [...$tags, ...$this->tagsAccessibles($personnage)];
+        }
+
+        return array_values(array_unique($tags));
+    }
+
+    /**
+     * Cette pièce est-elle utilisable par AU MOINS UN des héros présents ?
+     *
+     * @param  list<string>  $tagsAccessibles  union rendue par `tagsAccessiblesAux()`
+     */
+    public static function utilisableParLeGroupe(?string $tag, array $tagsAccessibles): bool
+    {
+        // Pas de maîtrise exigée, ou aucune classe connue : on n'écarte rien.
+        return $tag === null || $tag === '' || $tagsAccessibles === []
+            || in_array($tag, $tagsAccessibles, true);
+    }
+
+    /**
      * Le héros est-il « toujours considéré armé » de cette arme ? — Bandoulière
      * du Rogue, « you are always considered to be armed with a dagger »
      * (`compte_comme_arme`, doc 16 §2.1bis).

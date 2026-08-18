@@ -3857,13 +3857,16 @@ final class ResolveurTour
         // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
         // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
         // donjon rend à ceux qui y sont.
-        $niveauMoyen = (int) round(
-            $quete->etatsPersonnages()->with('personnage')->get()
-                ->map(fn ($e) => (int) ($e->personnage?->niveau ?? 1))
-                ->avg() ?: 1
-        );
+        $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
+            ->map(fn ($e) => $e->personnage)->filter();
 
-        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen);
+        $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+
+        // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
+        // personne ici ne pourra boire (décision de René, 2026-08-17).
+        $tagsAccessibles = $this->equipement->tagsAccessiblesAux($herosEngages);
+
+        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles);
 
         // SIXIÈME SENS (Explorateur) — « quand tu tires une carte de piège,
         // remets-la sous le paquet et tire-en une autre ».
@@ -3883,13 +3886,16 @@ final class ResolveurTour
         // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
         // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
         // donjon rend à ceux qui y sont.
-        $niveauMoyen = (int) round(
-            $quete->etatsPersonnages()->with('personnage')->get()
-                ->map(fn ($e) => (int) ($e->personnage?->niveau ?? 1))
-                ->avg() ?: 1
-        );
+        $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
+            ->map(fn ($e) => $e->personnage)->filter();
 
-        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen);
+        $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+
+        // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
+        // personne ici ne pourra boire (décision de René, 2026-08-17).
+        $tagsAccessibles = $this->equipement->tagsAccessiblesAux($herosEngages);
+
+        $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles);
         }
 
         $entete = [

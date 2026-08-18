@@ -6,6 +6,7 @@ use App\Engine\RareteButin;
 use App\Models\Mobilier;
 use App\Models\Objet;
 use App\Partie\MoteurMobilier;
+use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\MobilierSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\SortSeeder;
@@ -15,7 +16,13 @@ use Database\Seeders\SortSeeder;
  * pondérée par le niveau moyen du groupe.
  */
 beforeEach(function () {
-    $this->seed([SortSeeder::class, ObjetSeeder::class, MobilierSeeder::class]);
+    // ⚠ `ClasseHerosSeeder` est indispensable : c'est lui qui porte
+    // `tags_equipement`, et le contrôle d'accès est « fail open » quand aucune
+    // classe n'est connue. Sans ce seeder, le filtre de maîtrise passerait sans
+    // rien vérifier — le test aurait l'air vert en ne testant rien.
+    $this->seed([
+        SortSeeder::class, ObjetSeeder::class, MobilierSeeder::class, ClasseHerosSeeder::class,
+    ]);
 });
 
 it('déduit la rareté du PRIX, sans exception hors artefacts et parchemins', function () {
@@ -78,4 +85,57 @@ it('fait vraiment monter le rare dans le butin d\'un meuble', function () {
     // pente est branchée dans le bon sens.
     expect($rares(8))->toBeGreaterThan($rares(1),
         'le niveau du groupe n\'incline pas le butin vers le rare');
+});
+
+it('n\'offre PAS une potion de classe quand personne dans la quête ne peut la boire', function () {
+    // Décision de René (2026-08-17). Trois potions sont réservées au Barbare,
+    // deux à l'Elfe : sans cette garde, un groupe sans barbare passait sa
+    // campagne à trouver des potions de rage guerrière — un butin ni jouable,
+    // ni revendable en quête, et qui prend une place dans le sac.
+    $mm = app(MoteurMobilier::class);
+    $etabli = Mobilier::where('nom', 'Établi d\'alchimiste')->firstOrFail();
+
+    $reserveesBarbare = Objet::where('tag_equipement', 'potion_barbare')->pluck('id')->all();
+    expect($reserveesBarbare)->not->toBeEmpty();
+
+    // Un groupe de NAIN et de MAGICIEN : ni l'un ni l'autre n'a `potion_barbare`.
+    $sansBarbare = app(App\Partie\Equipement::class)->tagsAccessiblesAux(
+        collect(['nain', 'magicien'])->map(fn ($c) => new App\Models\Personnage(['classe' => $c])),
+    );
+
+    $tires = collect(range(1, 250))
+        ->map(fn () => $mm->tirerButin($etabli, 8, $sansBarbare))
+        ->where('issue', 'objet')
+        ->pluck('objet_id');
+
+    expect($tires)->not->toBeEmpty('l\'établi n\'a rien rendu du tout : le filtre a trop coupé')
+        ->and($tires->intersect($reserveesBarbare))->toBeEmpty(
+            'une potion de barbare est tombée dans un groupe qui n\'en a pas');
+
+    // ⚠ Fail open : sans tags connus, on n'écarte rien — une donnée de
+    // référence manquante ne doit jamais appauvrir une partie.
+    $sansFiltre = collect(range(1, 250))
+        ->map(fn () => $mm->tirerButin($etabli, 8))
+        ->where('issue', 'objet')
+        ->pluck('objet_id');
+
+    expect($sansFiltre->intersect($reserveesBarbare))->not->toBeEmpty(
+        'le fail open ne fonctionne pas : rien ne sort sans liste de maîtrises');
+});
+
+it('laisse tomber la potion du barbare DÈS QU\'un barbare est là', function () {
+    $mm = app(MoteurMobilier::class);
+    $etabli = Mobilier::where('nom', 'Établi d\'alchimiste')->firstOrFail();
+
+    $avecBarbare = app(App\Partie\Equipement::class)->tagsAccessiblesAux(
+        collect(['nain', 'barbare'])->map(fn ($c) => new App\Models\Personnage(['classe' => $c])),
+    );
+
+    $tires = collect(range(1, 300))
+        ->map(fn () => $mm->tirerButin($etabli, 8, $avecBarbare))
+        ->where('issue', 'objet')
+        ->pluck('objet_id');
+
+    expect($tires->intersect(Objet::where('tag_equipement', 'potion_barbare')->pluck('id')->all()))
+        ->not->toBeEmpty('le barbare est présent, sa potion devrait pouvoir tomber');
 });

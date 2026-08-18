@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie\Fouille;
 
+use App\Partie\Equipement;
 use App\Models\ClasseHeros;
 use App\Models\Competence;
 use App\Models\GabaritQuete;
@@ -429,25 +430,11 @@ final class DeckFouille
      */
     private function tagsAccessiblesAuGroupe(Groupe $groupe): array
     {
-        $classes = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->pluck('personnages.classe')
-            ->unique()
-            ->values();
-
-        if ($classes->isEmpty()) {
-            return [];
-        }
-
-        $base = ClasseHeros::whereIn('nom', $classes)
-            ->pluck('tags_equipement')
-            ->flatMap(fn ($tags) => (array) $tags);
-
-        $noeuds = Competence::whereIn('classe', $classes)
-            ->get(['effet'])
-            ->filter(fn ($c) => ($c->effet['mecanique'] ?? null) === 'acces_equipement')
-            ->flatMap(fn ($c) => (array) ($c->effet['tags'] ?? []));
-
-        return $base->merge($noeuds)->unique()->values()->all();
+        // Délègue depuis le 2026-08-17 : la même question — « que peut porter ce
+        // groupe ? » — se pose désormais aussi au butin de mobilier, et deux
+        // implémentations auraient fini par répondre différemment.
+        return app(Equipement::class)->tagsAccessiblesAux(
+            $groupe->personnages()->wherePivot('actif', true)->get(),
+        );
     }
 }

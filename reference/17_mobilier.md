@@ -253,6 +253,15 @@ commune », Cotte de mailles 500 « rare » et Brassards 550 non. Seuls les
 - ⚠ **Chaque table porte une issue `rien`**, et un test l'exige. Un meuble qui
   donnerait toujours quelque chose ferait de l'exploration une récolte, et l'or
   cesserait d'être une ressource.
+- ⚠ **Rien que personne sur place ne puisse utiliser** (René, 2026-08-17). Trois
+  potions sont réservées au Barbare, deux à l'Elfe : sans cette garde, un groupe
+  sans barbare passait sa campagne à trouver des potions de rage guerrière — un
+  butin ni jouable, ni revendable en quête, et qui prend une place dans le sac.
+  Le filtre croise `tag_equipement` avec les maîtrises des héros **engagés dans
+  la quête** (`Equipement::tagsAccessiblesAux()`), la même règle que les
+  artefacts de classe, désormais au même endroit qu'eux. Liste vide = aucune
+  restriction (**fail open**) : une donnée de référence manquante ne doit jamais
+  appauvrir une partie.
 - ⚠ **Aucun objet `unique` ne peut en sortir.** Les artefacts n'ont qu'une seule
   source — le coffre désigné de la quête — et ils sont uniques *par groupe* ;
   un meuble qui en distribuerait viderait cette règle.
