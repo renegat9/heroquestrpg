@@ -23,11 +23,16 @@ interface ClientLLM
      * @param  string  $system  prompt système (consignes du MJ)
      * @param  list<array{role: string, content: mixed}>  $messages
      * @param  array{name: string, description: string, input_schema: array<string, mixed>}  $outil
+     * @param  int|null  $maxTokens  plafond de sortie de CET appel (null = défaut du
+     *                               fournisseur). ⚠ Sous-dimensionné, il ne raccourcit
+     *                               pas la sortie : il la TRONQUE, et un tool_use tronqué
+     *                               est un JSON invalide — la génération entière est
+     *                               perdue. Voir `services.llm.max_tokens_par_skill`.
      * @return array<string, mixed> l'objet structuré conforme (en forme) au schéma
      *
      * @throws AppelLlmException
      */
-    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null): array;
+    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null, ?int $maxTokens = null): array;
 
     /**
      * Appel texte libre.

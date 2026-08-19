@@ -25,7 +25,8 @@ use Throwable;
  *    si Qdrant est injoignable, le tour continue sans la bible.
  *
  * Les jobs complètent ensuite le contexte avec leurs sections propres
- * (catalogue + budget pour DetailQuete, resultat_moteur pour Narration…).
+ * (salles_a_decrire pour RecitsQuete, monstres_a_habiller pour
+ * HabillageMonstres…).
  */
 class ContexteAssembleur
 {
@@ -45,6 +46,15 @@ class ContexteAssembleur
         $evenements = $this->evenementsRecents($groupe);
 
         $contexte = [
+            // Clé technique pour App\Agent\TraceurConsommation (via
+            // Skill::generer()) UNIQUEMENT — distincte de 'groupe' ci-dessous
+            // et d'AUCUN skill ne la liste dans son appel à contexteEnTexte()
+            // (qui ne sérialise QUE les sections explicitement demandées) :
+            // elle n'atteint donc jamais un prompt. Même précaution que pour
+            // 'identifiant', volontairement absent de 'groupe' plus bas —
+            // sauf qu'ici la valeur ne fuit nulle part, elle n'est même pas
+            // dans la section qui pourrait fuir.
+            'groupe_id' => $groupe->id,
             'groupe' => [
                 // Pas d'`identifiant` ici (§2.11) : c'est le slug d'URL de la
                 // table, avec son suffixe aléatoire anti-collision — il n'a

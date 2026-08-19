@@ -147,6 +147,17 @@ async function ecouterVoixGemini() {
 const statutIA = computed(() => parametres.value?.statut_ia ?? { etat: 'inconnu' });
 const voixOptions = computed(() => parametres.value?.narration_voix_options ?? []);
 
+/* ---- consommation IA (télémétrie) : tokens/appels cumulés depuis l'origine
+   de la table `consommation_ia` (survit à la clôture/purge d'une campagne),
+   pour VÉRIFIER le gain du lot « récits pré-générés » (~145 appels/quête → 2)
+   plutôt que de l'espérer. ---- */
+const consommationIA = computed(() => parametres.value?.consommation_ia ?? null);
+
+function formaterNombre(n) {
+    if (n === null || n === undefined) return '—';
+    return new Intl.NumberFormat('fr-FR').format(n);
+}
+
 /* ---- « il y a Xmin » pour le statut IA — pas de lib de dates dans ce
    projet, et le panneau n'est pas rafraîchi en continu (chargé au montage),
    donc on affiche l'ancienneté pour ne pas laisser croire qu'un incident
@@ -240,6 +251,41 @@ async function enregistrer() {
                 <div v-else-if="statutIA.etat === 'indisponible'" class="parametres-statut indisponible">
                     <MSym n="error" fill :size="18" />
                     <span>Aucun modèle IA disponible — le MJ narre en mode dégradé (texte/menus génériques), le jeu reste jouable. Vérifiez les clés API. Dernier essai {{ tempsRelatif(statutIA.a) }}.</span>
+                </div>
+
+                <!-- consommation IA : lot télémétrie — permet de VÉRIFIER le
+                     gain du lot « récits pré-générés » (~145 appels/quête → 2) -->
+                <div v-if="consommationIA" class="parametres-conso">
+                    <h3><MSym n="query_stats" :size="16" /> Consommation IA</h3>
+                    <div class="parametres-conso-grille">
+                        <div class="parametres-conso-tuile">
+                            <span class="parametres-conso-valeur">{{ formaterNombre(consommationIA.tokens_entree) }}</span>
+                            <span class="parametres-conso-label">Tokens entrée</span>
+                        </div>
+                        <div class="parametres-conso-tuile">
+                            <span class="parametres-conso-valeur">{{ formaterNombre(consommationIA.tokens_sortie) }}</span>
+                            <span class="parametres-conso-label">Tokens sortie</span>
+                        </div>
+                        <div class="parametres-conso-tuile">
+                            <span class="parametres-conso-valeur">{{ formaterNombre(consommationIA.appels) }}</span>
+                            <span class="parametres-conso-label">Appels IA</span>
+                        </div>
+                        <div class="parametres-conso-tuile">
+                            <span class="parametres-conso-valeur">{{ formaterNombre(consommationIA.appels_retries) }}</span>
+                            <span class="parametres-conso-label">Dont retries/repli</span>
+                        </div>
+                    </div>
+                    <p class="parametres-aide">
+                        <MSym n="info" :size="14" />
+                        <span>
+                            Moyenne par quête (sur {{ consommationIA.nb_quetes_mesurees }} quête(s) actuellement en base) :
+                            {{ consommationIA.moyenne_par_quete.appels }} appel(s),
+                            {{ formaterNombre(consommationIA.moyenne_par_quete.tokens_entree) }} tokens d'entrée,
+                            {{ formaterNombre(consommationIA.moyenne_par_quete.tokens_sortie) }} tokens de sortie.
+                            Cumul depuis {{ consommationIA.depuis ? tempsRelatif(consommationIA.depuis) : "la mise en service de cette mesure" }}
+                            — survit à la clôture d'une campagne.
+                        </span>
+                    </p>
                 </div>
 
                 <form class="parametres-form" @submit.prevent="enregistrer">
@@ -635,6 +681,21 @@ async function enregistrer() {
 .parametres-statut.nominal { background: oklch(0.70 0.140 150 / 0.10); border: 1px solid oklch(0.70 0.140 150 / 0.35); color: var(--ok); }
 .parametres-statut.repli { background: oklch(0.78 0.150 75 / 0.12); border: 1px solid oklch(0.78 0.150 75 / 0.45); color: var(--warn); }
 .parametres-statut.indisponible { background: oklch(0.60 0.200 25 / 0.12); border: 1px solid oklch(0.60 0.200 25 / 0.45); color: var(--danger); }
+
+/* ---- consommation IA (télémétrie) ---- */
+.parametres-conso { display: flex; flex-direction: column; gap: 10px; }
+.parametres-conso h3 {
+    display: flex; align-items: center; gap: 7px; margin: 0; font-family: var(--font-ui);
+    font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-300);
+}
+.parametres-conso h3 .msym { color: var(--torch); }
+.parametres-conso-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.parametres-conso-tuile {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 8px;
+    border-radius: var(--r-md); border: var(--line); background: var(--stone-850);
+}
+.parametres-conso-valeur { font-family: var(--font-display); font-size: 19px; font-weight: 800; color: var(--parch-100); }
+.parametres-conso-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); text-align: center; }
 
 /* ---- formulaire (IA / illustrations / voix / équilibrage) ---- */
 .parametres-form { display: flex; flex-direction: column; gap: 18px; }

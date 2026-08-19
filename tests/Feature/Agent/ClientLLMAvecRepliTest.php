@@ -29,7 +29,7 @@ function clientLlmFictif(bool $echoue, string $reponse = 'ok'): ClientLLM
             private readonly string $reponse,
         ) {}
 
-        public function genererStructure(string $system, array $messages, array $outil, ?string $model = null): array
+        public function genererStructure(string $system, array $messages, array $outil, ?string $model = null, ?int $maxTokens = null): array
         {
             $this->appels++;
             if ($this->echoue) {

@@ -9,7 +9,6 @@ use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
-use App\Jobs\GenererNarration;
 use App\Jobs\HabillerMonstres;
 use App\Partie\Marche\PhaseMarche;
 use App\Models\Carte;
@@ -30,8 +29,10 @@ use RuntimeException;
 
 /**
  * Démarrage de la quête suivante (POST /api/groupes/{identifiant}/quetes) —
- * entièrement MOTEUR, sans dépendre du LLM (le MJ IA habillera ensuite,
- * narration et menus arrivant par jobs avec repli garanti).
+ * entièrement MOTEUR, sans aucun appel LLM (bascule 2026-08-18) : la
+ * narration est résolue SYNCHRONEMENT (pack pré-généré de la quête, repli sur
+ * config/narration.php) et les menus, eux aussi 100 % moteur, restent en jobs
+ * pour la file `temps-reel`.
  *
  *  1. gabarit choisi selon le type de jalon (position dans l'arc, doc 06 §4 :
  *     jalon du squelette de campagne si présent, sinon boss_final à la
@@ -47,7 +48,8 @@ use RuntimeException;
  *     entre deux quêtes) — PV Body/Mind au max, sorts tous redisponibles
  *     (S5), buffs de sorts purgés, usage de Concentration réarmé (MoteurSorts) ;
  *  7. groupe passé en phase « quete », journal, broadcast `.groupe.etat`,
- *     dispatch GenererNarration + GenererMenu (un par héros actif).
+ *     narration résolue immédiatement, dispatch GenererMenu (un par héros
+ *     actif).
  */
 final class DemarreurQuete
 {
@@ -319,13 +321,35 @@ final class DemarreurQuete
             sequence: $evenementCeremonie->sequence,
         ));
 
-        // Mise en récit + menus par jobs (repli garanti : l'API ne dépend pas du LLM).
+        // Mise en récit SYNCHRONE (bascule 2026-08-18, plus d'appel LLM en
+        // cours de partie) : le texte est PIOCHÉ dans le pack pré-généré de la
+        // quête, avec repli sur les répliques scriptées de config/narration.php
+        // — exactement ce que faisait l'ancien job GenererNarration.
         broadcast(new MjReflechit($groupe, true));
-        GenererNarration::dispatch($groupe->id, [
-            'type' => 'quete_demarree',
-            'titre' => $quete->titre,
-            'type_jalon' => $typeJalon,
-        ]);
+
+        // Pas de placeholder pertinent ici : la cérémonie de lancement
+        // (ci-dessus) est déjà l'accroche nominative, ce temps fort n'est que
+        // l'ambiance d'entrée dans le donjon — un événement de GROUPE, sans
+        // héros/monstre/objet/or à nommer.
+        $recit = $this->narration->pourQuete($quete, 'quete_demarree');
+
+        if ($recit === null) {
+            // Filet du verrou B1 : rien à lire (pack ET repli scripté absents
+            // pour cette clé) → on dégèle immédiatement, même logique que le
+            // `finally` de l'ancien job sur échec.
+            broadcast(new MjReflechit($groupe, false));
+        } else {
+            $evenementRecit = Journal::ajouter($groupe, 'narration', [
+                'texte' => $recit['texte'],
+                'ambiance' => $recit['ambiance'],
+            ]);
+
+            broadcast(new NarrationDiffusee(
+                $groupe, $recit['texte'],
+                ambiance: $recit['ambiance'], queteId: $quete->id, url: $recit['url'],
+                sequence: $evenementRecit->sequence,
+            ));
+        }
 
         // Habillage IA des monstres spawnés (Q6) : renomme/redécrit les
         // instances sans toucher aux stats — best effort, sans bloquer le jeu.

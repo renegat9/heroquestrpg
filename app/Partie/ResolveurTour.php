@@ -21,7 +21,7 @@ use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Events\MouvementAnime;
-use App\Jobs\GenererNarration;
+use App\Events\NarrationDiffusee;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
@@ -36,6 +36,7 @@ use App\Models\Quete;
 use App\Models\Sort;
 use App\Partie\Audio\BanqueBarks;
 use App\Partie\Fouille\DeckFouille;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
@@ -146,6 +147,7 @@ final class ResolveurTour
         private readonly Equipement $equipement,
         private readonly DeckFouille $deck,
         private readonly MoteurCharges $charges,
+        private readonly BibliothequeNarration $narration,
     ) {}
 
     /**
@@ -5391,15 +5393,57 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle, 'monstres_reveles' => $reveles]);
 
+        // Verrou B1 : le joueur suivant attend que le narrateur ait « parlé »
+        // (la TABLE l'éteint après lecture, POST /table/lecture-terminee).
         broadcast(new MjReflechit($groupe, true));
-        GenererNarration::dispatch($groupe->id, [
-            'type' => 'salle_decouverte',
-            'salle' => $salle,
-            'theme' => data_get($quete->carte?->grille, "salles.{$salle}.theme"),
-            // Ce que le groupe DÉCOUVRE à l'instant : le MJ doit en parler.
-            'monstres_reveles' => $reveles,
-            'monstres_noms' => $nomsReveles,
+
+        // Bascule 2026-08-18 : plus d'appel LLM en cours de partie. La
+        // description propre à CETTE salle (pack pré-généré) prime — c'est
+        // elle qui rend chaque salle reconnaissable — et ne retombe sur le
+        // temps fort générique `salle_decouverte` (pack puis repli scripté)
+        // que si le pack n'a pas ENCORE cette salle (job de pré-génération pas
+        // encore rendu : cas nominal des premières secondes de la quête, pas
+        // une erreur).
+        $remplacements = $nomsReveles !== [] ? ['monstre' => implode(', ', $nomsReveles)] : [];
+        $recit = $this->narration->salle($quete, $salle, $remplacements)
+            ?? $this->narration->pourQuete($quete, 'salle_decouverte', $remplacements);
+
+        $this->diffuserRecit($groupe, $recit);
+    }
+
+    /**
+     * Diffuse un récit déjà résolu (pack de quête ou repli scripté) — reprend
+     * telle quelle la diffusion (journal + `NarrationDiffusee`) que
+     * construisait l'ancien job `GenererNarration::handle()`.
+     *
+     * ⚠ `null` : rien à lire (ni pack, ni repli scripté pour cette clé) — on
+     * dégèle IMMÉDIATEMENT « MJ réfléchit » plutôt que de laisser le verrou
+     * allumé sans narration, exactement le filet que portait le `finally` de
+     * l'ancien job.
+     *
+     * @param  array{cle: string, texte: string, ambiance: string, url: ?string}|null  $recit
+     */
+    private function diffuserRecit(Groupe $groupe, ?array $recit): void
+    {
+        if ($recit === null) {
+            broadcast(new MjReflechit($groupe, false));
+
+            return;
+        }
+
+        $evenement = Journal::ajouter($groupe, 'narration', [
+            'texte' => $recit['texte'],
+            'ambiance' => $recit['ambiance'],
         ]);
+
+        broadcast(new NarrationDiffusee(
+            $groupe,
+            $recit['texte'],
+            ambiance: $recit['ambiance'],
+            queteId: $evenement->quete_id,
+            url: $recit['url'],
+            sequence: $evenement->sequence,
+        ));
     }
 
     /**

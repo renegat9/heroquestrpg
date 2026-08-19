@@ -20,6 +20,7 @@ class Quete extends Model
         'branche_active',
         'salles_decouvertes',
         'tresors_fouilles',
+        'recits',
         'deck_fouille',
         'salle_artefact',
         'salles_coffre',
@@ -38,6 +39,9 @@ class Quete extends Model
             // zones déjà explorées → plus aucune case accessible).
             'salles_decouvertes' => 'array',
             'tresors_fouilles' => 'array',
+            // Récits pré-générés (salles + temps forts) : l'IA fabrique la
+            // quête, le moteur la joue sans elle (décision de René 2026-08-18).
+            'recits' => 'array',
             // Deck de fouille : pioche ordonnée, index 0 = sommet.
             'deck_fouille' => 'array',
             // Salles à coffre : la plus profonde (artefact) + celles situées
@@ -119,6 +123,53 @@ class Quete extends Model
         $faites = $this->fouillesFaites();
         $faites[] = "{$salle}:{$personnageId}";
         $this->update(['tresors_fouilles' => array_values($faites)]);
+    }
+
+    /**
+     * Récit pré-généré d'une SALLE, ou `null` tant que le pack n'a pas été
+     * écrit — la quête démarre avant que le job de pré-génération n'ait rendu,
+     * et le repli scripté prend alors le relais.
+     *
+     * DEUX textes, et c'est voulu (René, 2026-08-18) : `texte` est figé et sans
+     * variable, ce qui permet d'en pré-enregistrer la voix du narrateur
+     * (indexée par hash) ; `entree` nomme l'arrivant via `{heros}` et ne sert
+     * que là où cet enregistrement n'existe pas. L'arbitrage est rendu par
+     * `BibliothequeNarration::salle()`, sur un fait — le fichier audio est-il
+     * là ? — et non sur un réglage.
+     *
+     * @return array{texte: string, entree?: string, ambiance?: string}|null
+     */
+    public function recitSalle(int $salle): ?array
+    {
+        $recit = data_get($this->recits, "salles.{$salle}");
+
+        return is_array($recit) && is_string($recit['texte'] ?? null) && $recit['texte'] !== ''
+            ? $recit
+            : null;
+    }
+
+    /**
+     * Variantes pré-générées d'un TEMPS FORT (`fouille_tresor`, `piege_declenche`…).
+     * Liste vide = aucune, l'appelant retombe sur `config/narration.php`.
+     *
+     * @return list<string>
+     */
+    public function recitsTempsFort(string $cle): array
+    {
+        $variantes = data_get($this->recits, "temps_forts.{$cle}.variantes", []);
+
+        return array_values(array_filter(
+            (array) $variantes,
+            fn ($v) => is_string($v) && trim($v) !== '',
+        ));
+    }
+
+    /** Ambiance déclarée pour un temps fort pré-généré (null = celle du repli). */
+    public function ambianceTempsFort(string $cle): ?string
+    {
+        $ambiance = data_get($this->recits, "temps_forts.{$cle}.ambiance");
+
+        return is_string($ambiance) && $ambiance !== '' ? $ambiance : null;
     }
 
     /**

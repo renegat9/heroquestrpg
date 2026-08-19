@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Agent\Audio\TtsGemini;
-use App\Agent\Skills\Narration;
 use App\Events\NarrationDiffusee;
 use App\Jobs\GenererBarksBoss;
 use App\Models\Parametre;
@@ -41,14 +40,16 @@ it('fournit une réplique de repli par temps fort, null si la clé est inconnue'
         ->and($lib->repli('cle_bidon'))->toBeNull();
 });
 
-it('la narration de repli (sans LLM) renvoie une variante scriptée selon le résultat moteur', function () {
-    $sortie = app(Narration::class)->generer(['resultat_moteur' => ['type' => 'quete_demarree']]);
+it('sans pack de quête (LLM absent), pourQuete() renvoie une variante scriptée du repli', function () {
+    // Bascule 2026-08-18 : l'ancien skill IA `App\Agent\Skills\Narration`
+    // (et sa méthode `cleRepli()`) a disparu — `pourQuete()` EST maintenant
+    // le seul point d'entrée, et retombe directement sur `repli()` quand
+    // aucune quête (ou aucun pack) n'est fournie.
+    $sortie = (new BibliothequeNarration)->pourQuete(null, 'quete_demarree');
 
     expect($sortie['texte'])->toBeIn(config('narration.repli.quete_demarree.variantes'));
 
-    $combat = app(Narration::class)->generer([
-        'resultat_moteur' => ['type' => 'attaque', 'degats' => 2, 'cible_vaincue' => true],
-    ]);
+    $combat = (new BibliothequeNarration)->pourQuete(null, 'attaque_mort');
     expect($combat['texte'])->toBeIn(config('narration.repli.attaque_mort.variantes'));
 });
 

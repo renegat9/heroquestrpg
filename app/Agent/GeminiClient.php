@@ -36,6 +36,7 @@ final class GeminiClient implements ClientLLM
         private readonly ?string $model = null,
         private readonly ?string $baseUrl = null,
         private readonly ?int $timeout = null,
+        private readonly ?TraceurConsommation $traceur = null,
     ) {}
 
     public function modeleParDefaut(): string
@@ -50,11 +51,17 @@ final class GeminiClient implements ClientLLM
      *
      * @throws AppelLlmException
      */
-    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null): array
+    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null, ?int $maxTokens = null): array
     {
         $reponse = $this->appeler($model ?? $this->modeleParDefaut(), [
             'system_instruction' => ['parts' => [['text' => $system]]],
             'contents' => $this->traduireMessages($messages),
+            // Plafond de sortie de CET appel. Gemini ne recevait jusqu'ici
+            // AUCUN `generationConfig` : on héritait silencieusement du défaut
+            // du modèle, sans moyen de le relever pour un skill qui produit
+            // beaucoup (les 8-12 descriptions de salles d'un seul tenant).
+            // Omis quand nul, pour ne pas figer le défaut du fournisseur.
+            ...($maxTokens === null ? [] : ['generationConfig' => ['maxOutputTokens' => $maxTokens]]),
             'tools' => [[
                 'function_declarations' => [[
                     'name' => $outil['name'],
@@ -235,11 +242,42 @@ final class GeminiClient implements ClientLLM
             ));
         }
 
-        if ($reponse->json() === null) {
+        $jsonReponse = $reponse->json();
+        if ($jsonReponse === null) {
             throw new AppelLlmException('Réponse Gemini non-JSON.');
         }
 
+        $this->tracerUsage($modele, $jsonReponse);
+
         return $reponse;
+    }
+
+    /**
+     * Verse l'usage de CETTE réponse HTTP au traceur de consommation
+     * (best-effort, voir {@see TraceurConsommation}) — `appeler()` est le
+     * point de passage UNIQUE de toutes les requêtes (genererStructure ET
+     * genererTexte), donc de tous les retries de `Skill::generer()` et de
+     * tous les appels rejoués par `ClientLLMAvecRepli` : chaque réponse ici
+     * est une ligne facturée distincte.
+     *
+     * @param  array<string, mixed>  $jsonReponse  réponse JSON décodée de generateContent
+     */
+    private function tracerUsage(string $modele, array $jsonReponse): void
+    {
+        if ($this->traceur === null) {
+            return;
+        }
+
+        $usage = $jsonReponse['usageMetadata'] ?? null;
+        if (! is_array($usage)) {
+            return; // réponse sans usage exploitable — rien à verser
+        }
+
+        $this->traceur->enregistrer('gemini', $modele, [
+            'entree' => (int) ($usage['promptTokenCount'] ?? 0),
+            'sortie' => (int) ($usage['candidatesTokenCount'] ?? 0),
+            'cache' => isset($usage['cachedContentTokenCount']) ? (int) $usage['cachedContentTokenCount'] : null,
+        ]);
     }
 
     /**

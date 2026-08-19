@@ -31,9 +31,9 @@ final class ClientLLMAvecRepli implements ClientLLM
         private readonly ?string $secoursNom = null,
     ) {}
 
-    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null): array
+    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null, ?int $maxTokens = null): array
     {
-        return $this->avecRepli(fn (ClientLLM $c) => $c->genererStructure($system, $messages, $outil, $model));
+        return $this->avecRepli(fn (ClientLLM $c) => $c->genererStructure($system, $messages, $outil, $model, $maxTokens));
     }
 
     public function genererTexte(string $system, array $messages, ?string $model = null): string

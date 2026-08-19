@@ -21,8 +21,10 @@ class NarrationDiffusee implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    /** File prioritaire : le texte de narration s'affiche tout de suite (l'audio
-     *  TTS, lui, est généré à part par GenererNarration sur la file `default`). */
+    /** File prioritaire : le texte de narration s'affiche tout de suite. L'audio
+     *  n'est plus synthétisé au vol depuis le 2026-08-18 — il est pré-généré par
+     *  quête (`GenererVoixQuete`) et l'`url` ci-dessous n'est qu'une recherche en
+     *  cache ; absente, la table lit le texte en Web Speech. */
     public string $broadcastQueue = 'temps-reel';
 
     public function __construct(

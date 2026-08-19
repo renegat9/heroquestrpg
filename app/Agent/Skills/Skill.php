@@ -7,6 +7,7 @@ namespace App\Agent\Skills;
 use App\Agent\ClientLLM;
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\Exceptions\SortieInvalideException;
+use App\Agent\TraceurConsommation;
 use App\Agent\ValidationSortie;
 use Illuminate\Support\Facades\Log;
 
@@ -39,6 +40,7 @@ abstract class Skill
     public function __construct(
         protected readonly ClientLLM $client,
         protected readonly ValidationSortie $validation,
+        protected readonly ?TraceurConsommation $traceur = null,
     ) {}
 
     /** Nom de l'outil forcé côté API (snake_case). */
@@ -92,6 +94,19 @@ abstract class Skill
      */
     public function generer(array $contexte): array
     {
+        // Annonce du contexte au traceur de consommation AVANT tout appel
+        // LLM — le seul endroit qui voit à la fois tous les skills (donc
+        // `nomOutil()`, un nom lisible côté télémétrie) et tous les jobs
+        // (donc `groupe_id`, déposé par ContexteAssembleur::assembler() SANS
+        // jamais atteindre le prompt — voir son docblock). Couvre les
+        // retries internes à la boucle ci-dessous ET le failover croisé de
+        // ClientLLMAvecRepli (invisible d'ici : c'est TraceurConsommation,
+        // via le compteur de tentative, qui les distingue).
+        $this->traceur?->pourGroupe(
+            is_int($contexte['groupe_id'] ?? null) ? $contexte['groupe_id'] : null,
+            $this->nomOutil(),
+        );
+
         $prompt = $this->prompt($contexte);
         $outil = [
             'name' => $this->nomOutil(),
@@ -104,7 +119,10 @@ abstract class Skill
 
         for ($tentative = 0; $tentative <= self::MAX_RETRIES; $tentative++) {
             try {
-                $sortie = $this->client->genererStructure($prompt['system'], $messages, $outil);
+                $sortie = $this->client->genererStructure(
+                    $prompt['system'], $messages, $outil,
+                    maxTokens: $this->plafondSortie(),
+                );
             } catch (AppelLlmException $e) {
                 Log::warning("MJ IA [{$this->nomOutil()}] appel LLM échoué", ['erreur' => $e->getMessage()]);
 
@@ -147,6 +165,25 @@ abstract class Skill
                 "Sortie [{$this->nomOutil()}] invalide après ".(self::MAX_RETRIES + 1).' tentatives.',
                 $dernieresErreurs,
             );
+    }
+
+    /**
+     * Plafond de sortie de CE skill (`services.llm.max_tokens_par_skill`,
+     * indexé sur `nomOutil()`), ou `null` pour le défaut du fournisseur.
+     *
+     * Le besoin varie d'un ordre de grandeur : deux phrases pour habiller un
+     * monstre, 8-12 descriptions de salles d'un seul tenant pour pré-générer
+     * les récits d'une quête. ⚠ Trop bas, le plafond ne raccourcit pas la
+     * sortie — il la TRONQUE au milieu, et un tool_use tronqué est un JSON
+     * invalide : la génération entière part au repli. Trop haut, il ne coûte
+     * rien (seuls les tokens réellement produits sont facturés). D'où des
+     * valeurs larges là où la sortie est longue.
+     */
+    protected function plafondSortie(): ?int
+    {
+        $plafond = config('services.llm.max_tokens_par_skill.'.$this->nomOutil());
+
+        return is_int($plafond) && $plafond > 0 ? $plafond : null;
     }
 
     /**

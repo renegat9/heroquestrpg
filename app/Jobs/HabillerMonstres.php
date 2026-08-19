@@ -50,6 +50,11 @@ class HabillerMonstres implements ShouldQueue
             ->get();
 
         if ($blocs->isEmpty()) {
+            // Aucun monstre à habiller (budget de rencontres à 0, quête
+            // atypique) : les salles restent à décrire quand même — un
+            // donjon sans monstre a toujours des lieux et du mobilier.
+            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
+
             return;
         }
 
@@ -80,6 +85,11 @@ class HabillerMonstres implements ShouldQueue
         if ($habillages->isEmpty()) {
             GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
             GenererImagesQuete::dispatch($this->groupeId, $this->queteId); // scène + boss (noms catalogue)
+            // Récits de salles/temps forts (doc « l'IA fabrique la quête,
+            // elle ne la joue plus », 2026-08-18) : même sans habillage, les
+            // salles restent à décrire (RecitsQuete retombe alors sur les
+            // noms de catalogue des monstres qu'elle y trouve).
+            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
 
             return; // repli : rien à appliquer.
         }
@@ -106,5 +116,10 @@ class HabillerMonstres implements ShouldQueue
         // Images dynamiques : scène de quête + portraits de boss (depuis les
         // noms IA fraîchement appliqués). Best-effort, en arrière-plan.
         GenererImagesQuete::dispatch($this->groupeId, $this->queteId);
+
+        // Récits de salles/temps forts : chaîné ICI, APRÈS l'application de
+        // l'habillage ci-dessus — les descriptions de salle doivent citer
+        // les monstres par leur nom HABILLÉ, jamais celui du catalogue.
+        GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
     }
 }

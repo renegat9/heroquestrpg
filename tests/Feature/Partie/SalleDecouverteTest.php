@@ -2,21 +2,26 @@
 
 declare(strict_types=1);
 
+use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
-use App\Jobs\GenererNarration;
+use App\Models\Evenement;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Quete;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 
 /**
  * Découverte de salle : entrer dans une salle encore inexplorée (déplacement ou
  * Traverser la Pierre) déclenche la description de la salle par le MJ. La salle
  * de départ est connue d'emblée (couverte par la narration de démarrage).
+ *
+ * Bascule 2026-08-18 : la narration est résolue SYNCHRONEMENT (plus de job
+ * `GenererNarration`) — on vérifie donc le `NarrationDiffusee` diffusé plutôt
+ * qu'un job poussé en file.
  */
 beforeEach(function () {
     Http::fake();
@@ -46,10 +51,17 @@ it('décrit une salle nouvellement explorée quand un héros y agit', function (
     $quete->update(['salles_decouvertes' => [0]]);
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
-    Queue::fake();
+    Event::fake([NarrationDiffusee::class]);
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    Queue::assertPushed(GenererNarration::class, fn (GenererNarration $j) => ($j->resultatMoteur['type'] ?? null) === 'salle_decouverte' && ($j->resultatMoteur['salle'] ?? null) === 1);
+    // Salle 1 marquée découverte au journal SYSTÈME (inchangé par la bascule)…
+    $evenementSysteme = Evenement::where('groupe_id', $groupe->id)->where('type', 'systeme')->get()
+        ->first(fn ($e) => ($e->payload['action'] ?? null) === 'salle_decouverte' && ($e->payload['salle'] ?? null) === 1);
+    expect($evenementSysteme)->not->toBeNull();
+
+    // … et narrée SYNCHRONEMENT (pack de quête pré-généré, sinon repli
+    // scripté de config/narration.php — jamais d'appel LLM).
+    Event::assertDispatched(NarrationDiffusee::class);
 
     expect($quete->fresh()->sallesDecouvertes())->toContain(1);
 });
@@ -99,8 +111,8 @@ it('ne re-décrit pas la salle de départ (déjà connue)', function () {
     // Le héros reste dans la salle de départ (salle 0), déjà découverte.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
-    Queue::fake();
+    Event::fake([NarrationDiffusee::class]);
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    Queue::assertNotPushed(GenererNarration::class); // ni description de salle ni autre narration (action triviale)
+    Event::assertNotDispatched(NarrationDiffusee::class); // ni description de salle ni autre narration (action triviale)
 });

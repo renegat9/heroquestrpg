@@ -28,6 +28,7 @@ class AnthropicClient implements ClientLLM
         private readonly ?string $baseUrl = null,
         private readonly ?int $maxTokens = null,
         private readonly ?int $timeout = null,
+        private readonly ?TraceurConsommation $traceur = null,
     ) {}
 
     public function modeleParDefaut(): string
@@ -45,11 +46,11 @@ class AnthropicClient implements ClientLLM
      *
      * @throws AppelLlmException
      */
-    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null): array
+    public function genererStructure(string $system, array $messages, array $outil, ?string $model = null, ?int $maxTokens = null): array
     {
         $reponse = $this->appeler([
             'model' => $model ?? $this->modeleParDefaut(),
-            'max_tokens' => $this->maxTokens ?? (int) config('services.anthropic.max_tokens', 4096),
+            'max_tokens' => $maxTokens ?? $this->maxTokens ?? (int) config('services.anthropic.max_tokens', 4096),
             'system' => $system,
             'messages' => $messages,
             'tools' => [$outil],
@@ -144,6 +145,38 @@ class AnthropicClient implements ClientLLM
             ));
         }
 
-        return $reponse->json() ?? throw new AppelLlmException('Réponse Anthropic non-JSON.');
+        $json = $reponse->json() ?? throw new AppelLlmException('Réponse Anthropic non-JSON.');
+
+        $this->tracerUsage((string) ($corps['model'] ?? $this->modeleParDefaut()), $json);
+
+        return $json;
+    }
+
+    /**
+     * Verse l'usage de CETTE réponse HTTP au traceur de consommation
+     * (best-effort, voir {@see TraceurConsommation}) — `appeler()` est le
+     * point de passage UNIQUE de toutes les requêtes (genererStructure ET
+     * genererTexte), donc de tous les retries de `Skill::generer()` et de
+     * tous les appels rejoués par `ClientLLMAvecRepli` : chaque réponse ici
+     * est une ligne facturée distincte.
+     *
+     * @param  array<string, mixed>  $corps  réponse JSON décodée de /v1/messages
+     */
+    private function tracerUsage(string $modele, array $corps): void
+    {
+        if ($this->traceur === null) {
+            return;
+        }
+
+        $usage = $corps['usage'] ?? null;
+        if (! is_array($usage)) {
+            return; // réponse sans usage exploitable — rien à verser
+        }
+
+        $this->traceur->enregistrer('anthropic', $modele, [
+            'entree' => (int) ($usage['input_tokens'] ?? 0),
+            'sortie' => (int) ($usage['output_tokens'] ?? 0),
+            'cache' => isset($usage['cache_read_input_tokens']) ? (int) $usage['cache_read_input_tokens'] : null,
+        ]);
     }
 }

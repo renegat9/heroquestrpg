@@ -6,6 +6,7 @@ namespace App\Partie\Narration;
 
 use App\Agent\Audio\TtsGemini;
 use App\Models\Parametre;
+use App\Models\Quete;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -61,6 +62,113 @@ final class BibliothequeNarration
             'ambiance' => (string) config("narration.repli.{$cle}.ambiance", 'tension'),
             'url' => $this->urlScript($cle, $index),
         ];
+    }
+
+    /**
+     * Réplique d'un temps fort en PRIVILÉGIANT les récits pré-générés de la
+     * quête (`quetes.recits`), puis en retombant sur `config/narration.php`.
+     *
+     * C'est le point d'entrée unique du runtime depuis la bascule du
+     * 2026-08-18 : plus aucune narration n'est produite par le LLM en cours de
+     * partie, elle est PIOCHÉE dans le pack écrit au démarrage de la quête. La
+     * quête pouvant démarrer avant que le job de pré-génération n'ait rendu, le
+     * repli scripté reste indispensable — ce n'est pas une sécurité théorique,
+     * c'est le cas nominal des premières secondes.
+     *
+     * @param  array<string, string|int>  $remplacements  placeholders `{heros}`,
+     *                                                    `{monstre}`, `{objet}`, `{or}`
+     * @return array{cle: string, texte: string, ambiance: string, url: ?string}|null
+     */
+    public function pourQuete(?Quete $quete, string $cle, array $remplacements = []): ?array
+    {
+        $variantes = $quete?->recitsTempsFort($cle) ?? [];
+
+        if ($variantes === []) {
+            $repli = $this->repli($cle);
+
+            return $repli === null
+                ? null
+                : [...$repli, 'texte' => $this->substituer($repli['texte'], $remplacements)];
+        }
+
+        $texte = $this->substituer($variantes[array_rand($variantes)], $remplacements);
+
+        return [
+            'cle' => $cle,
+            'texte' => $texte,
+            'ambiance' => $quete?->ambianceTempsFort($cle)
+                ?? (string) config("narration.repli.{$cle}.ambiance", 'tension'),
+            // Un texte à placeholders n'a JAMAIS d'audio pré-généré (il n'est
+            // connu qu'ici, une fois substitué) : le hash ne tombe pas et la
+            // table lit en Web Speech. Seules les descriptions de salle, fixes,
+            // portent la vraie voix du narrateur. Aucun cas particulier à
+            // écrire : la recherche par hash fait déjà exactement ça.
+            'url' => $this->urlDynamiqueSiCache($texte),
+        ];
+    }
+
+    /**
+     * Description pré-générée d'une SALLE. `null` si le pack n'en a pas — la
+     * découverte de salle retombe alors sur le temps fort `salle_decouverte`.
+     *
+     * ⚠ LE TEXTE SUIT CE QUE LA VOIX PERMET (règle de René, 2026-08-18), et
+     * les deux formes sont produites d'avance pour ça :
+     *  - l'audio du narrateur EXISTE pour cette salle → on sert le texte
+     *    FIGÉ, celui-là même qui a été enregistré. Y glisser le nom du héros
+     *    le désynchroniserait de sa bande-son : on entendrait une phrase et
+     *    on en lirait une autre ;
+     *  - il n'existe PAS (pas de clé Gemini, TTS coupé, quota épuisé) → la
+     *    table lira de toute façon en voix de navigateur, à partir du texte.
+     *    Nommer l'arrivant ne coûte alors plus rien, et c'est ce que la
+     *    phrase `entree` est là pour faire.
+     *
+     * La décision se prend donc sur un FAIT — ce fichier audio est-il là ? —
+     * et non sur un réglage à tenir en cohérence. Rien à recâbler le jour où
+     * le quota se vide en cours de campagne : les salles déjà enregistrées
+     * gardent la vraie voix, les suivantes nomment le héros.
+     *
+     * @param  array<string, string|int>  $remplacements
+     * @return array{cle: string, texte: string, ambiance: string, url: ?string}|null
+     */
+    public function salle(?Quete $quete, int $salle, array $remplacements = []): ?array
+    {
+        $recit = $quete?->recitSalle($salle);
+
+        if ($recit === null) {
+            return null;
+        }
+
+        $fixe = (string) $recit['texte'];
+        $url = $this->urlDynamiqueSiCache($fixe);
+        $entree = $this->substituer(trim((string) ($recit['entree'] ?? '')), $remplacements);
+
+        return [
+            'cle' => "salle_{$salle}",
+            'texte' => $url !== null || $entree === '' ? $fixe : $entree.' '.$fixe,
+            'ambiance' => (string) ($recit['ambiance'] ?? 'mystere'),
+            'url' => $url,
+        ];
+    }
+
+    /**
+     * Substitue les placeholders `{cle}` — même convention que les répliques de
+     * monstres (`config/barks.php` et son `{nom}`). Un placeholder sans valeur
+     * est LAISSÉ TEL QUEL plutôt que vidé : une phrase amputée passerait
+     * inaperçue à la relecture, « {monstre} » saute aux yeux.
+     *
+     * @param  array<string, string|int>  $remplacements
+     */
+    private function substituer(string $texte, array $remplacements): string
+    {
+        if ($remplacements === []) {
+            return $texte;
+        }
+
+        return str_replace(
+            array_map(fn ($cle) => '{'.$cle.'}', array_keys($remplacements)),
+            array_map('strval', array_values($remplacements)),
+            $texte,
+        );
     }
 
     /** URL publique de l'audio scripté (cle/index) s'il existe, sinon null. */

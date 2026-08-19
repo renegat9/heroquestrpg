@@ -16,8 +16,11 @@ use Illuminate\Console\Command;
  *
  * Étape HORS-LIGNE, une fois (ou après édition du catalogue). Sans
  * GEMINI_API_KEY : ne fait rien ; l'écran de table lit alors le texte via
- * Web Speech. La narration DYNAMIQUE de l'IA, elle, est synthétisée au vol
- * et mise en cache par le job GenererNarration (pas par cette commande).
+ * Web Speech. Les descriptions de salles PRÉ-GÉNÉRÉES par quête, elles, sont
+ * synthétisées par le job `GenererVoixQuete` (pas par cette commande) — et
+ * elles seules : depuis la bascule du 2026-08-18, les répliques à
+ * placeholders ne sont jamais synthétisées, leur texte n'existant qu'une
+ * fois substitué au runtime.
  *
  *   php artisan narration:generer [--force]
  */

@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Des\LanceurDes;
-use App\Jobs\GenererNarration;
+use App\Events\MjReflechit;
+use App\Events\NarrationDiffusee;
 use App\Models\Carte;
 use App\Models\Competence;
 use App\Models\Condition;
@@ -13,6 +14,8 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Models\Piege;
+use App\Models\Quete;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 
 /**
@@ -62,6 +65,7 @@ final class MoteurPieges
         private readonly MoteurDegats $degats,
         private readonly MoteurSorts $sorts,
         private readonly CapacitesInnees $capacites,
+        private readonly BibliothequeNarration $narration,
     ) {}
 
 
@@ -212,7 +216,7 @@ final class MoteurPieges
             'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
         ]);
 
-        GenererNarration::dispatch($groupe->id, $payload);
+        $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
 
         return $payload;
     }
@@ -277,10 +281,49 @@ final class MoteurPieges
         ]);
 
         if ($narrer) {
-            GenererNarration::dispatch($groupe->id, $payload);
+            $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
         }
 
         return $payload;
+    }
+
+    /**
+     * Résolution SYNCHRONE de la narration « piège déclenché » — remplace
+     * `GenererNarration::dispatch()` depuis la bascule du 2026-08-18 (« l'IA
+     * fabrique la quête, elle ne la joue plus ») : plus d'appel LLM en cours
+     * de partie, le texte est PIOCHÉ dans le pack pré-généré de la quête, avec
+     * repli sur les répliques scriptées de config/narration.php.
+     *
+     * ⚠ Ce déclenchement n'allume JAMAIS lui-même « MJ réfléchit » (à la
+     * différence de ChoixController ou de `ResolveurTour::revelerSalle()`) :
+     * un piège en pleine course reste un tour « trivial » (déplacement) côté
+     * ChoixController, donc du pur ambiance, jamais un blocage. On dégèle
+     * quand même le verrou sur récit manquant — même filet que partout
+     * ailleurs, et harmless ici puisqu'il n'a jamais été allumé par ce chemin.
+     */
+    private function narrerPiegeDeclenche(Groupe $groupe, ?Quete $quete, Personnage $personnage): void
+    {
+        $recit = $this->narration->pourQuete($quete, 'piege_declenche', ['heros' => $personnage->nom]);
+
+        if ($recit === null) {
+            broadcast(new MjReflechit($groupe, false));
+
+            return;
+        }
+
+        $evenement = Journal::ajouter($groupe, 'narration', [
+            'texte' => $recit['texte'],
+            'ambiance' => $recit['ambiance'],
+        ]);
+
+        broadcast(new NarrationDiffusee(
+            $groupe,
+            $recit['texte'],
+            ambiance: $recit['ambiance'],
+            queteId: $evenement->quete_id,
+            url: $recit['url'],
+            sequence: $evenement->sequence,
+        ));
     }
 
     /**

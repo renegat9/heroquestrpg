@@ -25,7 +25,10 @@ class MenuPropose implements ShouldBroadcast
     public string $broadcastQueue = 'temps-reel';
 
     /**
-     * @param  array<string, mixed>  $menu  sortie validée du skill MenuChoix (situation + options)
+     * @param  array<string, mixed>  $menu  menu construit par `MenuMoteur` (situation +
+     *                                        options). Plus aucune part d'IA depuis le
+     *                                        2026-08-18 : le menu est FIXE, l'IA ne
+     *                                        l'habille plus.
      */
     public function __construct(
         public readonly int $joueurId,

@@ -900,6 +900,12 @@ serveur correspondante → 422.
   "voix_dynamique_active": true,
   "bible_semantique": "voyage",
   "statut_ia": {"etat": "nominal", "fournisseur": "anthropic", "a": "2026-07-23T10:00:00+00:00"},
+  "consommation_ia": {
+    "tokens_entree": 128430, "tokens_sortie": 41207, "tokens_cache": 0,
+    "appels": 312, "appels_retries": 18, "nb_quetes_mesurees": 6,
+    "moyenne_par_quete": {"appels": 2.1, "tokens_entree": 21405.0, "tokens_sortie": 6867.8},
+    "depuis": "2026-08-18T09:00:00+00:00"
+  },
   "images_actif": true,
   "narration_voix": null, "narration_voix_defaut": "Iapetus",
   "narration_voix_options": ["Puck", "Fenrir", "Charon", "Orus", "Iapetus"],
@@ -927,6 +933,26 @@ pas forcément ce qui a effectivement répondu au dernier appel) :
 raison?, a?}` — `inconnu` = aucun appel IA depuis le dernier redémarrage du
 cache. Alimenté par tous les jobs IA (conteneur `queue`), lu par la table/le
 narrateur (conteneur `app`) : partagé via le cache (`CACHE_STORE=database`).
+
+`consommation_ia` (lecture seule) est la TÉLÉMÉTRIE de consommation LLM
+(`App\Agent\TraceurConsommation`, table `consommation_ia`) — absente jusqu'ici,
+elle permet de VÉRIFIER dans la durée le gain du lot « récits pré-générés »
+(~145 appels/quête → 2) plutôt que de l'espérer. Une ligne en base = UNE
+réponse HTTP réellement facturée par un fournisseur (jamais un skill
+complet) : les retries (`Skill::MAX_RETRIES`, jusqu'à 3 appels facturés pour
+une seule sortie) et le failover croisé (`ClientLLMAvecRepli`, qui rejoue
+l'appel COMPLET chez l'AUTRE fournisseur) sont donc comptés — c'est
+`appels_retries` (appels dont `tentative` > 1). `tokens_cache` est la lecture
+de cache du fournisseur quand il la distingue (`cache_read_input_tokens`
+Anthropic, `cachedContentTokenCount` Gemini), 0 sinon. `moyenne_par_quete`
+divise les totaux par `nb_quetes_mesurees` (les quêtes ENCORE en base) — un
+ratio VIVANT sur les campagnes actuellement ouvertes, pas un historique exact
+toutes campagnes confondues : `consommation_ia` (la table) est volontairement
+SANS clé étrangère sur `groupe_id` (contrairement à `evenements`/`snapshots`)
+et survit donc à la clôture/purge d'une campagne, alors que ses quêtes, elles,
+sont purgées avec elle. `depuis` est la date du plus ancien enregistrement
+(`null` table vide). Un appel de test (`POST /api/parametres/test`) est
+compté avec `groupe_id` NULL, étiqueté `skill: "test_connectivite"`.
 
 Portée et persistance : **IA, illustrations, voix du narrateur et
 équilibrage des rencontres** sont persistés en BASE (table `parametres`,

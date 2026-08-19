@@ -16,8 +16,13 @@ declare(strict_types=1);
 | Le TEXTE est la source. L'audio (vraie voix de narrateur) est pré-généré
 | par `php artisan narration:generer` (voix Gemini ci-dessous) dans
 | public/audio/narration/{cle}/{i}.wav. Sans asset : lecture par le navigateur
-| (Web Speech). La narration DYNAMIQUE de l'IA est, elle, synthétisée au vol
-| et mise en cache (public/audio/narration/dyn/{hash}.wav) par GenererNarration.
+| (Web Speech). Les descriptions de salles pré-générées par quête sont, elles,
+| synthétisées par `GenererVoixQuete` dans public/audio/narration/dyn/{hash}.wav.
+|
+| ⚠ Ces répliques ne sont plus un simple filet : depuis le 2026-08-18 elles
+| jouent pendant les premières secondes de CHAQUE quête (le pack de récits est
+| écrit par un job asynchrone) et pendant TOUTE une partie menée sans clé
+| d'API. Les 24 clés doivent rester couvertes — un test l'exige.
 */
 
 return [
@@ -68,10 +73,17 @@ return [
                 'Un sifflement, et le piège jaillit de la pierre — la douleur fuse.',
             ],
         ],
-        // Découverte du coffre à artefact — le sommet d'une quête. Un SEUL
-        // nouveau beat : chaque variante coûte une requête au quota Gemini TTS
-        // (100/jour), et les issues ordinaires de fouille restent sur
-        // « progression », qui existe déjà.
+        // Découverte du coffre à artefact — le sommet d'une quête.
+        //
+        // ⚠ Le raisonnement de quota qui limitait ce bloc à UN seul beat ne
+        // tient plus depuis la bascule du 2026-08-18 : les répliques à
+        // placeholders ne sont JAMAIS synthétisées (leur texte n'existe
+        // qu'une fois substitué, son hash ne tomberait jamais dans le cache),
+        // la table les lit en Web Speech. Seules les descriptions de salle,
+        // fixes, consomment du quota Gemini TTS. Ajouter des variantes ici est
+        // donc gratuit — et souhaitable : c'est ce repli qui joue tant que le
+        // pack pré-généré de la quête n'est pas écrit, et TOUTE la partie
+        // quand aucune clé d'API n'est configurée.
         'fouille_artefact' => [
             'ambiance' => 'victoire',
             'variantes' => [
@@ -79,6 +91,101 @@ return [
                 'La serrure rompt. Ce que le coffre gardait n\'a pas d\'égal dans ce donjon — et c\'est à vous, désormais.',
             ],
         ],
+        // ── Issues de fouille et de mobilier ────────────────────────────
+        //
+        // Ces dix clés n'avaient AUCUN repli scripté : elles naissent avec les
+        // récits pré-générés (2026-08-18), et sans elles une fouille resterait
+        // muette à chaque fois que le pack de la quête manque — c'est-à-dire
+        // pendant les premières secondes de CHAQUE quête (le pack est écrit
+        // par un job asynchrone) et pendant TOUTE une partie jouée sans clé
+        // d'API. Le jeu doit rester jouable sans IA : ce n'est pas un filet,
+        // c'est un mode de jeu à part entière.
+        //
+        // Les placeholders suivent le contrat de RecitsTempsForts::
+        // PLACEHOLDERS_PAR_CLE — n'en employer aucun autre : le moteur ne
+        // fournit que ceux-là, et un « {monstre} » non substitué s'afficherait
+        // tel quel à l'écran.
+        'fouille_tresor' => [
+            'ambiance' => 'victoire',
+            'variantes' => [
+                'Sous une dalle descellée, {heros} met la main sur une bourse oubliée : {or} pièces d\'or rejoignent le butin commun.',
+                '{heros} déloge une pierre branlante — {or} pièces d\'or roulent dans la poussière.',
+                'La fouille paie : {heros} exhume {or} pièces d\'or d\'une cache que personne n\'avait vue.',
+            ],
+        ],
+        'fouille_potion' => [
+            'ambiance' => 'calme',
+            'variantes' => [
+                'Calée dans une niche, une fiole intacte : {heros} empoche {objet}.',
+                '{heros} déniche {objet}, miraculeusement préservée sous les gravats.',
+                'Le renfoncement gardait son secret : {objet}, que {heros} range précieusement.',
+            ],
+        ],
+        'fouille_errant' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Le bruit de la fouille a porté trop loin : {monstre} surgit de l\'ombre, droit sur {heros} !',
+                '{heros} n\'était pas seul : {monstre} rôdait, et vient de trouver sa proie.',
+                'Un grognement dans le noir — {monstre} répond au vacarme et fond sur {heros}.',
+            ],
+        ],
+        'fouille_piege' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Les doigts de {heros} rencontrent un fil tendu — trop tard, le mécanisme est déjà parti.',
+                'Ce n\'était pas une cachette mais un appât : {heros} déclenche le piège de plein fouet.',
+                '{heros} tire sur la mauvaise pierre, et le donjon riposte.',
+            ],
+        ],
+        'fouille_rien' => [
+            'ambiance' => 'calme',
+            'variantes' => [
+                '{heros} retourne la poussière un long moment. Rien. D\'autres sont passés avant.',
+                'Rien que de la pierre froide sous les mains de {heros}.',
+                '{heros} fouille avec méthode, et ne remonte que des gravats.',
+            ],
+        ],
+        'mobilier_objet' => [
+            'ambiance' => 'victoire',
+            'variantes' => [
+                'Le meuble rend ce qu\'il gardait : {heros} en retire {objet}.',
+                '{heros} force le bois vermoulu et met la main sur {objet}.',
+                'Sous un double fond, {objet} — {heros} ne se le fait pas dire deux fois.',
+            ],
+        ],
+        'mobilier_piege' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Le meuble était protégé : quelque chose mord la main de {heros}.',
+                'Un déclic sec dans le bois, et {heros} retire sa main trop tard.',
+                'Ce que gardait ce meuble, c\'était surtout une mauvaise surprise pour {heros}.',
+            ],
+        ],
+        'mobilier_rien' => [
+            'ambiance' => 'calme',
+            'variantes' => [
+                '{heros} ouvre, sonde, retourne — le meuble est vide depuis longtemps.',
+                'Rien dans ce meuble que de la poussière et le travail du temps.',
+                '{heros} referme sur du vide.',
+            ],
+        ],
+        'porte_ouverte' => [
+            'ambiance' => 'mystere',
+            'variantes' => [
+                'La porte cède dans un long grincement, et l\'obscurité d\'au-delà s\'offre au regard.',
+                'Le battant s\'ouvre : au-delà du seuil, l\'air est plus froid.',
+                'Un raclement de pierre, et le passage est libre.',
+            ],
+        ],
+        'levier_actionne' => [
+            'ambiance' => 'mystere',
+            'variantes' => [
+                '{heros} abaisse le levier : quelque part dans le donjon, un mécanisme lui répond.',
+                'Sous la poigne de {heros}, le levier bascule — et la pierre gronde au loin.',
+                '{heros} actionne le levier ; un déclic profond court le long des murs.',
+            ],
+        ],
+
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

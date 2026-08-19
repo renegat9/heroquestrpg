@@ -6,14 +6,16 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\JournalCombatDiffuse;
 use App\Events\MjReflechit;
+use App\Events\NarrationDiffusee;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererMenu;
-use App\Jobs\GenererNarration;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\Personnage;
+use App\Models\Quete;
 use App\Partie\JournalCombat;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -32,8 +34,12 @@ use Illuminate\Validation\ValidationException;
  *     option absente du menu → 422 ;
  *  3. le MOTEUR résout (ResolveurTour : déplacement, attaque, jet…), met à
  *     jour l'état, journalise et diffuse `.groupe.etat` ;
- *  4. dispatch des jobs IA (narration + menus suivants) — rien ne bloque ;
- *  5. réponse 202, la suite arrive par Reverb (« le MJ réfléchit… »).
+ *  4. narration SYNCHRONE (bascule 2026-08-18, plus d'appel LLM en cours de
+ *     partie : le texte est PIOCHÉ dans le pack pré-généré de la quête, repli
+ *     sur les répliques scriptées de config/narration.php) puis dispatch des
+ *     menus suivants — moteur seul, lui aussi sans LLM, désormais gratuit ;
+ *  5. réponse 202, la suite arrive par Reverb (« le MJ réfléchit… » ne dure
+ *     plus que le temps d'une LECTURE, plus celui d'une génération).
  */
 class ChoixController extends Controller
 {
@@ -168,13 +174,24 @@ class ChoixController extends Controller
         $instantane = $triviale || $enCombat;
 
         if (! $instantane) {
-            // Suite du tour en jobs : narration puis nouveaux menus (doc 11 §4).
+            // Verrou B1 (délibéré, cf. CLAUDE.md) : le joueur suivant attend que
+            // le narrateur ait « parlé » — la TABLE l'éteint une fois la lecture
+            // finie (POST /table/lecture-terminee). Depuis la bascule du
+            // 2026-08-18 ce n'est plus une génération LLM qui tourne derrière,
+            // seulement une pioche dans le pack pré-généré ou le repli scripté :
+            // le verrou ne dure donc plus que le temps d'une lecture.
             broadcast(new MjReflechit($groupe, true));
-            GenererNarration::dispatch($groupe->id, $resultat);
+            $this->narrer($groupe, $quete, $resultat, $personnage);
         }
 
         foreach ($groupe->personnages()->wherePivot('actif', true)->get() as $heros) {
-            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id, enrichir: ! $instantane);
+            // Un menu ne coûte plus d'appel LLM (§2, moteur seul) : la boucle
+            // reste volontairement sur TOUS les héros actifs (et pas seulement
+            // celui dont c'est le tour) — c'est ce qui alimente le rattrapage
+            // `GET /menu` de chacun, et restreindre pour un gain nul sur un
+            // calcul devenu gratuit serait prendre un risque de régression pour
+            // rien.
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
         }
 
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.
@@ -236,7 +253,7 @@ class ChoixController extends Controller
             // C'est l'anti-patron que le projet traque partout ailleurs : le
             // menu ne doit jamais proposer ce que le résolveur refusera.
             if (! is_array($cache)) {
-                GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id, enrichir: false);
+                GenererMenu::dispatchSync($groupe->id, (int) $joueur->id, (int) $hero->id);
                 $cache = Cache::get($cle);
             }
         }
@@ -244,6 +261,147 @@ class ChoixController extends Controller
         return is_array($cache)
             ? response()->json(['menu' => $cache['menu'], 'personnage_id' => $cache['personnage_id']])
             : response()->json(['menu' => null]);
+    }
+
+    /**
+     * Résolution SYNCHRONE de la narration d'un temps fort — remplace
+     * `GenererNarration::dispatch()` depuis la bascule du 2026-08-18 (« l'IA
+     * fabrique la quête, elle ne la joue plus ») : plus aucun appel LLM en
+     * cours de partie, le texte est PIOCHÉ dans le pack pré-généré de la
+     * quête (`BibliothequeNarration::pourQuete()`), avec repli sur les
+     * répliques scriptées de config/narration.php. Reprend telle quelle la
+     * diffusion (journal + `NarrationDiffusee`) que construisait l'ancien job.
+     *
+     * ⚠ Filet du verrou B1 : si AUCUN texte n'est trouvé (pack de quête et
+     * repli scripté absents tous les deux pour cette clé), on dégèle
+     * immédiatement « MJ réfléchit » — c'est exactement ce que faisait le
+     * `finally` de `GenererNarration::handle()` sur échec ; le job a disparu
+     * mais rien d'autre ne surveille plus le verrou, alors le filet doit
+     * rester ICI.
+     */
+    private function narrer(Groupe $groupe, ?Quete $quete, array $resultat, Personnage $personnage): void
+    {
+        $cle = $this->cleTempsFort($resultat);
+        $recit = app(BibliothequeNarration::class)
+            ->pourQuete($quete, $cle, $this->remplacementsNarration($personnage, $resultat));
+
+        if ($recit === null) {
+            broadcast(new MjReflechit($groupe, false));
+
+            return;
+        }
+
+        $evenement = Journal::ajouter($groupe, 'narration', [
+            'texte' => $recit['texte'],
+            'ambiance' => $recit['ambiance'],
+        ]);
+
+        broadcast(new NarrationDiffusee(
+            $groupe,
+            $recit['texte'],
+            ambiance: $recit['ambiance'],
+            queteId: $evenement->quete_id,
+            url: $recit['url'],
+            sequence: $evenement->sequence,
+        ));
+    }
+
+    /**
+     * Mappe un résultat moteur vers la clé de temps fort narratif — portage
+     * DIRECT de l'ancien `App\Agent\Skills\Narration::cleRepli()` : c'était le
+     * repli pour quand le LLM était indisponible, c'est désormais la SEULE
+     * route (plus de skill, plus de job IA), donc la seule autorité qui reste
+     * sur cette correspondance.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function cleTempsFort(array $resultat): string
+    {
+        return match ($resultat['type'] ?? null) {
+            'quete_demarree' => 'quete_demarree',
+            'salle_decouverte' => 'salle_decouverte',
+            'piege_declenche' => 'piege_declenche',
+            // Fouille — chaque ISSUE a son temps fort. Elles retombaient
+            // toutes sur « progression » (« une salle de plus »), héritage du
+            // temps où l'ancien repli n'avait que ce mot-là : trouver 25 pièces
+            // d'or, réveiller un errant ou ne rien trouver du tout se
+            // racontaient à l'identique. Constaté en partie réelle le
+            // 2026-08-18 — les dix clés que la pré-génération produit
+            // (`App\Partie\Narration\TempsFort`) n'étaient LUES par
+            // personne, donc payées et jamais entendues.
+            //
+            // Vocabulaire d'issue commun au deck et au mobilier (CLAUDE.md) ;
+            // une issue inconnue reste sur « progression » plutôt que
+            // d'affirmer à tort qu'on n'a rien trouvé.
+            'fouille_tresor' => match ($resultat['issue'] ?? null) {
+                'tresor' => 'fouille_tresor',
+                'potion' => 'fouille_potion',
+                'artefact' => 'fouille_artefact',
+                'errant' => 'fouille_errant',
+                'piege' => 'fouille_piege',
+                'rien' => 'fouille_rien',
+                default => 'progression',
+            },
+            'fouille_mobilier' => match ($resultat['issue'] ?? null) {
+                // Un meuble qui paie en or raconte la même chose qu'un coffre :
+                // pas de `mobilier_tresor` à inventer pour ça.
+                'tresor' => 'fouille_tresor',
+                'objet' => 'mobilier_objet',
+                'artefact' => 'fouille_artefact',
+                'piege' => 'mobilier_piege',
+                'rien' => 'mobilier_rien',
+                default => 'progression',
+            },
+            'ouvrir_porte' => 'porte_ouverte',
+            'actionner_levier' => 'levier_actionne',
+            'reprise' => 'reprise',
+            'deplacement' => 'deplacement',
+            // Inatteignable en pratique via ce contrôleur (une attaque cible
+            // toujours un monstre actif+révélé, donc $enCombat est vrai et
+            // narrer() n'est jamais appelé) — conservé pour fidélité au
+            // portage et au cas où un appelant futur réutilise cleTempsFort().
+            'attaque' => ($resultat['degats'] ?? 0) > 0
+                ? (($resultat['cible_vaincue'] ?? false) ? 'attaque_mort' : 'attaque_touche')
+                : 'attaque_pare',
+            default => ($resultat['quete']['etat'] ?? null) === 'terminee'
+                ? 'victoire_quete'
+                : match ($resultat['issue'] ?? null) {
+                    'reussite' => 'reussite',
+                    'reussite_mixte' => 'reussite_mixte',
+                    'echec' => 'echec',
+                    default => 'progression',
+                },
+        };
+    }
+
+    /**
+     * Placeholders `{heros}`/`{monstre}`/`{objet}`/`{or}` déduits du résultat
+     * moteur, au mieux — un placeholder sans valeur trouvée reste tel quel
+     * (BibliothequeNarration::substituer), donc on n'inclut une clé QUE
+     * quand le résultat la connaît vraiment plutôt que de la vider.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, string|int>
+     */
+    private function remplacementsNarration(Personnage $personnage, array $resultat): array
+    {
+        $remplacements = ['heros' => $personnage->nom];
+
+        $monstre = $resultat['cible']['nom'] ?? $resultat['monstre']['nom'] ?? null;
+        if (is_string($monstre) && $monstre !== '') {
+            $remplacements['monstre'] = $monstre;
+        }
+
+        $objet = $resultat['objet']['nom'] ?? null;
+        if (is_string($objet) && $objet !== '') {
+            $remplacements['objet'] = $objet;
+        }
+
+        if ((int) ($resultat['or'] ?? 0) > 0) {
+            $remplacements['or'] = (int) $resultat['or'];
+        }
+
+        return $remplacements;
     }
 
     /**

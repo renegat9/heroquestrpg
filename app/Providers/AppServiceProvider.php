@@ -6,6 +6,7 @@ use App\Agent\AnthropicClient;
 use App\Agent\ClientLLM;
 use App\Agent\ClientLLMAvecRepli;
 use App\Agent\GeminiClient;
+use App\Agent\TraceurConsommation;
 use App\Agent\Memoire\Embeddings;
 use App\Agent\Memoire\EmbeddingsNuls;
 use App\Agent\Memoire\EmbeddingsVoyage;
@@ -27,6 +28,14 @@ class AppServiceProvider extends ServiceProvider
         // Hasard du moteur : aléatoire en prod, remplaçable par le lanceur
         // déterministe en test (le moteur fait autorité sur toute mécanique).
         $this->app->bind(LanceurDes::class, LanceurAleatoire::class);
+
+        // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
+        // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
+        // compteur de tentative) doit survivre entre l'annonce du contexte et
+        // le(s) appel(s) HTTP qui suivent, au sein d'un même job. Un worker de
+        // queue traite ses jobs séquentiellement (voir CLAUDE.md), donc aucune
+        // concurrence sur cette instance partagée par process.
+        $this->app->singleton(TraceurConsommation::class);
 
         // Embeddings de la bible RAG (doc 11 §6) : Voyage AI dès que la clé
         // est renseignée, sinon repli lexical factice (dev sans clé).

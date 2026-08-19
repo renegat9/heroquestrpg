@@ -40,7 +40,18 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // ⚠ DOIT dépasser le plus long `$timeout` de job, sans quoi la
+            // file RÉ-RÉSERVE un job encore en cours d'exécution et le rejoue
+            // en parallèle. Constaté en conditions réelles le 2026-08-18 :
+            // à 90 s face à un worker `--timeout=120`, `GenererRecitsQuete`
+            // (2 min) a été relancé au bout de 90 s et l'appel `decrire_salles`
+            // a été FACTURÉ DEUX FOIS avant que les deux copies ne se fassent
+            // tuer — un doublon invisible, qui ne laisse qu'un « FAIL » au
+            // journal. La pré-génération des récits est le job le plus long du
+            // projet (elle produit 72 répliques d'un seul appel), d'où ce
+            // plafond très large : il ne coûte que de la latence de reprise
+            // après le crash d'un worker.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 1200),
             'after_commit' => false,
         ],
 

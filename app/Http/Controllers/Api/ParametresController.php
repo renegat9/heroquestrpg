@@ -9,7 +9,9 @@ use App\Agent\Audio\TtsGemini;
 use App\Agent\Exceptions\AppelLlmException;
 use App\Agent\GeminiClient;
 use App\Agent\StatutIA;
+use App\Agent\TraceurConsommation;
 use App\Http\Controllers\Controller;
+use App\Models\ConsommationIa;
 use App\Models\Parametre;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -140,6 +142,12 @@ class ParametresController extends Controller
             ? app()->make(GeminiClient::class, ['model' => $modele, 'timeout' => 15])
             : app()->make(AnthropicClient::class, ['model' => $modele, 'timeout' => 15]);
 
+        // Étiquette ce coup-ci pour la télémétrie (App\Agent\TraceurConsommation)
+        // — sans quoi cet appel réel, comptabilisé quand même par le client
+        // (best-effort, quel que soit l'appelant), tomberait dans le défaut
+        // 'inconnu' plutôt que de se distinguer clairement des appels de jeu.
+        app(TraceurConsommation::class)->pourGroupe(null, 'test_connectivite');
+
         $depart = microtime(true);
 
         try {
@@ -245,6 +253,12 @@ class ParametresController extends Controller
             // Fournisseur d'embeddings : lecture seule (jamais éditable, voir AppServiceProvider).
             'bible_semantique' => filled(config('services.voyage.api_key')) ? 'voyage' : 'lexical',
             'statut_ia' => StatutIA::actuel(),
+            // Télémétrie de consommation (App\Agent\TraceurConsommation) —
+            // cumul depuis l'origine (survit à la clôture/purge des
+            // campagnes, voir la migration `consommation_ia`) : permet de
+            // VÉRIFIER le gain du lot « récits pré-générés » plutôt que de
+            // l'espérer.
+            'consommation_ia' => ConsommationIa::agregat(),
 
             // --- Illustrations (serveur, globale, runtime uniquement) ---
             'images_actif' => (bool) $p->images_actif,

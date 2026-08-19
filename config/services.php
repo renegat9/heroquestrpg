@@ -114,6 +114,29 @@ return [
     */
     'llm' => [
         'provider' => env('LLM_PROVIDER', 'anthropic'),
+
+        // Plafond de sortie PAR SKILL (lot « récits pré-générés », 2026-08-18).
+        //
+        // `anthropic.max_tokens` valait 4096 pour TOUT le MJ IA : un habillage
+        // de monstre (deux phrases) et une pré-génération de récits de salles
+        // (8-12 descriptions d'un seul appel) n'ont pourtant pas le même
+        // besoin. ⚠ Le sur-dimensionner partout ne coûte rien en facturation
+        // — seuls les tokens réellement produits sont payés — mais le
+        // SOUS-dimensionner est fatal : une sortie tronquée n'est pas un texte
+        // écourté, c'est un `tool_use` au JSON invalide, donc le pack ENTIER
+        // qui bascule sur le repli scripté. D'où un plafond large là où la
+        // sortie est longue.
+        //
+        // Neutre par fournisseur à dessein : la clé est le `nomOutil()` du
+        // skill, et les deux clients la lisent (`max_tokens` chez Anthropic,
+        // `generationConfig.maxOutputTokens` chez Gemini). Un skill absent de
+        // cette table retombe sur le défaut du fournisseur.
+        'max_tokens_par_skill' => [
+            'ecrire_recits_quete' => 8192,
+            'proposer_squelette_campagne' => 4096,
+            'habiller_monstres' => 2048,
+            'proposer_resume_campagne' => 2048,
+        ],
     ],
 
 ];

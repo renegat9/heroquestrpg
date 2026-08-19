@@ -226,8 +226,9 @@ it('numérote les narrations en séquence — anti-inversion si un job lent rép
 
     Event::assertDispatched(NarrationDiffusee::class, fn (NarrationDiffusee $e) => $e->sequence !== null);
     // Le démarrage diffuse AU MOINS deux narrations (cérémonie de lancement
-    // immédiate + narration IA du job GenererNarration, exécuté en sync dans
-    // les tests) : la plus récente en séquence est celle qui doit faire foi.
+    // immédiate + temps fort « quete_demarree », résolu SYNCHRONEMENT depuis
+    // la bascule 2026-08-18 — pack de quête ou repli scripté, plus aucun job)
+    // : la plus récente en séquence est celle qui doit faire foi.
     $sequenceMax = collect(Event::dispatched(NarrationDiffusee::class))->max(fn ($args) => $args[0]->sequence);
 
     // EtatGroupe expose la DERNIÈRE narration en séquence, jamais une plus

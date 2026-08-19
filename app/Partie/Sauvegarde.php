@@ -6,8 +6,8 @@ namespace App\Partie;
 
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
+use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
-use App\Jobs\GenererNarration;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
@@ -17,6 +17,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Snapshot;
 use App\Partie\Aleatoire\PrngLineaire;
+use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -50,7 +51,10 @@ final class Sauvegarde
 
     public const ETIQUETTE_NOUVEAU_TOUR = 'nouveau_tour';
 
-    public function __construct(private readonly EtatGroupe $etatGroupe) {}
+    public function __construct(
+        private readonly EtatGroupe $etatGroupe,
+        private readonly BibliothequeNarration $narration,
+    ) {}
 
     // ------------------------------------------------------------------
     // Prise de snapshot + rétention
@@ -229,12 +233,31 @@ final class Sauvegarde
         // Toute mutation d'état → journal puis broadcast `.groupe.etat` (contrat).
         broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));
 
-        // Mise en récit + menus par jobs (repli garanti : l'API ne dépend pas du LLM).
+        // Mise en récit SYNCHRONE (bascule 2026-08-18, plus d'appel LLM en
+        // cours de partie) : le texte est PIOCHÉ dans le pack pré-généré de la
+        // quête, avec repli sur les répliques scriptées de config/narration.php
+        // — exactement ce que faisait l'ancien job GenererNarration.
         broadcast(new MjReflechit($groupe, true));
-        GenererNarration::dispatch($groupe->id, [
-            'type' => 'reprise',
-            'etiquette' => data_get($snapshot->etat, 'etiquette'),
-        ]);
+
+        $recit = $this->narration->pourQuete($groupe->queteCourante, 'reprise');
+
+        if ($recit === null) {
+            // Filet du verrou B1 : rien à lire (pack ET repli scripté absents
+            // pour cette clé) → on dégèle immédiatement, même logique que le
+            // `finally` de l'ancien job sur échec.
+            broadcast(new MjReflechit($groupe, false));
+        } else {
+            $evenementRecit = Journal::ajouter($groupe, 'narration', [
+                'texte' => $recit['texte'],
+                'ambiance' => $recit['ambiance'],
+            ]);
+
+            broadcast(new NarrationDiffusee(
+                $groupe, $recit['texte'],
+                ambiance: $recit['ambiance'], queteId: $groupe->quete_courante_id, url: $recit['url'],
+                sequence: $evenementRecit->sequence,
+            ));
+        }
 
         foreach ($this->herosActifs($groupe) as $personnage) {
             GenererMenu::dispatch($groupe->id, (int) $personnage->joueur_id, (int) $personnage->id);
@@ -303,6 +326,12 @@ final class Sauvegarde
                 'salle_artefact' => $quete->salle_artefact,
                 'salles_coffre' => $quete->sallesCoffre(),
                 'artefact_objet_id' => $quete->artefact_objet_id,
+                // Récits pré-générés : PLACEMENT, pas tirage — ils sont
+                // restaurés tels quels. Les régénérer à chaque reprise
+                // rachèterait au LLM des textes déjà payés, et un
+                // « Recommencer la quête » redécrirait un donjon que le groupe
+                // vient de parcourir.
+                'recits' => $quete->recits,
             ],
             // Grille complète, état des pièges inclus (cachés compris).
             'carte' => $quete->carte === null ? null : [
@@ -413,7 +442,7 @@ final class Sauvegarde
         $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
         $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id', 'recits'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }
@@ -427,10 +456,10 @@ final class Sauvegarde
         // sait, et lui seul : le deck cycle, aucune carte ne se perd) et on
         // rebrasse l'ORDRE.
         //
-        // Ce qui reste figé : `salle_artefact`, `salles_coffre` et
-        // `artefact_objet_id` — des PLACEMENTS liés à la carte, pas des
-        // tirages. Les re-tirer déplacerait le coffre sous les pieds du groupe,
-        // voire lui offrirait une seconde arme unique.
+        // Ce qui reste figé : `salle_artefact`, `salles_coffre`,
+        // `artefact_objet_id` et `recits` — des PLACEMENTS liés à la carte, pas
+        // des tirages. Les re-tirer déplacerait le coffre sous les pieds du
+        // groupe, voire lui offrirait une seconde arme unique.
         if (isset($champs['deck_fouille']) && is_array($champs['deck_fouille'])) {
             $champs['deck_fouille'] = (new PrngLineaire(random_int(0, 0x7FFFFFFF)))
                 ->melanger(array_values($champs['deck_fouille']));
