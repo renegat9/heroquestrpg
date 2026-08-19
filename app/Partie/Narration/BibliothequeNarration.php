@@ -140,11 +140,23 @@ final class BibliothequeNarration
 
         $fixe = (string) $recit['texte'];
         $url = $this->urlDynamiqueSiCache($fixe);
-        $entree = $this->substituer(trim((string) ($recit['entree'] ?? '')), $remplacements);
+        $entree = trim((string) ($recit['entree'] ?? ''));
+
+        // ⚠ La phrase d'entrée n'est servie QUE si l'on sait vraiment qui
+        // entre. Toutes les révélations n'ont pas de découvreur : une porte
+        // ouverte par la mort de son gardien n'en a aucun. Sans cette garde,
+        // `{heros}` ressortait tel quel à l'écran — vu en partie réelle le
+        // 2026-08-19, deux salles sur trois décrites par « {heros} pénètre
+        // dans la salle voûtée ». La substitution laisse volontairement
+        // intact ce qu'elle ne sait pas remplacer ; c'est ici qu'il faut
+        // décider de ne pas le dire du tout.
+        $arrivant = trim((string) ($remplacements['heros'] ?? ''));
 
         return [
             'cle' => "salle_{$salle}",
-            'texte' => $url !== null || $entree === '' ? $fixe : $entree.' '.$fixe,
+            'texte' => $url !== null || $entree === '' || $arrivant === ''
+                ? $fixe
+                : $this->substituer($entree, $remplacements).' '.$fixe,
             'ambiance' => (string) ($recit['ambiance'] ?? 'mystere'),
             'url' => $url,
         ];

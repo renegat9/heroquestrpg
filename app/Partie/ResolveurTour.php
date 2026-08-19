@@ -314,7 +314,7 @@ final class ResolveurTour
 
             // Entrée dans une salle encore inexplorée (déplacement classique OU
             // Traverser la Pierre) → description de la nouvelle salle par le MJ.
-            $this->decouvrirSalle($groupe, $quete, $etat);
+            $this->decouvrirSalle($groupe, $quete, $etat, $personnage);
 
             // Fin du COMBAT (plus aucun monstre engagé) — distincte de la fin de
             // quête : il peut rester des dormants derrière des portes closes.
@@ -3483,7 +3483,7 @@ final class ResolveurTour
         // révèle à l'OUVERTURE de la porte, pas en attendant qu'un héros y
         // mette les pieds (doc 06/14 — cf. decouvrirSalle pour le détail).
         foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
-            $this->revelerSalle($groupe, $quete, $salleAdjacente);
+            $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
         }
 
         $payload = [
@@ -5240,7 +5240,7 @@ final class ResolveurTour
      * révèle désormais dès l'ouverture — comme au plateau) : sans effet si la
      * salle est déjà révélée (revelerSalle est idempotent).
      */
-    private function decouvrirSalle(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat): void
+    private function decouvrirSalle(Groupe $groupe, Quete $quete, EtatPersonnageQuete $etat, ?Personnage $decouvreur = null): void
     {
         if ($etat->tombe || $etat->position_x === null) {
             return;
@@ -5252,7 +5252,7 @@ final class ResolveurTour
             return; // couloir : rien à décrire
         }
 
-        $this->revelerSalle($groupe, $quete, $salle);
+        $this->revelerSalle($groupe, $quete, $salle, $decouvreur);
     }
 
     /**
@@ -5354,7 +5354,7 @@ final class ResolveurTour
      * plateau, où ouvrir une porte révèle immédiatement le contenu de la
      * salle, avant même d'y mettre les pieds.
      */
-    private function revelerSalle(Groupe $groupe, Quete $quete, int $salle): void
+    private function revelerSalle(Groupe $groupe, Quete $quete, int $salle, ?Personnage $decouvreur = null): void
     {
         if (in_array($salle, $quete->sallesDecouvertes(), true)) {
             return; // déjà décrite
@@ -5405,6 +5405,15 @@ final class ResolveurTour
         // encore rendu : cas nominal des premières secondes de la quête, pas
         // une erreur).
         $remplacements = $nomsReveles !== [] ? ['monstre' => implode(', ', $nomsReveles)] : [];
+
+        // Qui franchit le seuil — la salle du pack porte une phrase d'entrée
+        // qui le nomme (`{heros}`). ⚠ Il n'y a pas TOUJOURS de découvreur :
+        // une porte ouverte par la mort de son gardien n'en a aucun, et
+        // `BibliothequeNarration::salle()` sait alors taire cette phrase
+        // plutôt que d'afficher un `{heros}` nu (vu en partie le 2026-08-19).
+        if ($decouvreur !== null) {
+            $remplacements['heros'] = $decouvreur->nom;
+        }
         $recit = $this->narration->salle($quete, $salle, $remplacements)
             ?? $this->narration->pourQuete($quete, 'salle_decouverte', $remplacements);
 
