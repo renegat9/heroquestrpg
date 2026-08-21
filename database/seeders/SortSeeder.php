@@ -42,12 +42,12 @@ class SortSeeder extends Seeder
                 // dans la roche fait tomber le héros.
                 // `cout` retiré : facturer le déplacement rendrait le sort
                 // inutilisable, puisque c'est le déplacement qui EST l'effet.
-                'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Intangible']],
             ['element' => 'terre', 'nom' => 'Peau de Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 // Texte officiel : « 1 dé de défense supplémentaire jusqu'au
                 // PREMIER DÉGÂT SUBI » (reference/18_extensions.md §3). On
                 // donnait 2 dés pour tout le combat — deux écarts d'un coup.
-                'effet' => ['cible' => 'heros', 'bonus_des_defense' => 1, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['cible' => 'heros', 'bonus_des_defense' => 1, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Protégé']],
 
             // Air — mobilité / puissance
             // `invocation_ephemere` RETIRÉ : clé sans lecteur, et surtout sans
@@ -115,7 +115,7 @@ class SortSeeder extends Seeder
             // qui suit (« move instantly to any unoccupied square you can
             // see ») n'est PAS portée : aucun déplacement instantané choisi.
             ['element' => 'warlock', 'nom' => 'Ailes sombres', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
-                'effet' => ['cible' => 'soi', 'condition_appliquee' => 'Renforcé',
+                'effet' => ['cible' => 'soi', 'condition_appliquee' => 'Protégé',
                     'reaction' => ['sur' => 'degats_subis', 'action' => 'annule_degats']]],
             ['element' => 'warlock', 'nom' => 'Forme démoniaque', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'soi', 'bonus_des_attaque' => 1, 'ignore_pieges_fosse' => true,
@@ -168,8 +168,10 @@ class SortSeeder extends Seeder
             // no damage. » Annulation AUTOMATIQUE, sur jet — d'où un écouteur
             // (App\Listeners\ImageMiroir) et non une réaction à choix.
             ['element' => 'elfique', 'nom' => 'Image double', 'type' => 'utilitaire', 'difficulte_parchemin' => 3,
+                // Leurre DÉFENSIF : « Protégé » et non « Renforcé ». Le héros
+                // ne frappe pas mieux, il est plus dur à toucher.
                 'effet' => ['cible' => 'heros', 'image_miroir' => true,
-                    'duree' => 'fin_du_combat', 'condition_appliquee' => 'Renforcé']],
+                    'duree' => 'fin_du_combat', 'condition_appliquee' => 'Protégé']],
 
             // « It temporarily stops time for everyone else on the gameboard,
             // enabling the hero to take another turn immediately after their

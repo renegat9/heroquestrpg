@@ -21,7 +21,7 @@ use App\Partie\Narration\TempsFort;
  * genre de silence que ce dépôt traque. On teste la propriété plutôt que de
  * la documenter.
  */
-it('offre un repli scripté pour chacun des 24 temps forts', function () {
+it('offre un repli scripté pour chacun des temps forts déclarés', function () {
     $attendues = TempsFort::cles();
     $repli = array_keys((array) config('narration.repli'));
 
@@ -33,6 +33,36 @@ it('donne au moins deux variantes à chaque temps fort', function () {
     foreach ((array) config('narration.repli') as $cle => $bloc) {
         expect(count($bloc['variantes'] ?? []))
             ->toBeGreaterThanOrEqual(2, "« {$cle} » n'a pas assez de variantes pour ne pas se répéter");
+    }
+});
+
+/**
+ * ⚠ Un plancher UNIFORME ne suffit pas, et c'est ce que la campagne a montré :
+ * les clés qui tombent à chaque jet de dés et à chaque coup porté n'en avaient
+ * que deux, quand les clés rares en avaient trois. Mesuré sur une partie
+ * réelle (2026-08-20) : 293 narrations pour 94 textes distincts, le plus
+ * fréquent lu DIX-HUIT FOIS dans la même quête.
+ *
+ * Le plancher doit donc suivre la FRÉQUENCE d'usage. Les étoffer ne coûte rien
+ * — ces répliques ne sont jamais synthétisées en audio et vivent en config.
+ */
+it('exige plus de variantes des temps forts les plus fréquents', function () {
+    $planchers = [
+        // Tombent à chaque jet et à chaque échange de coups.
+        'reussite' => 8, 'reussite_mixte' => 8, 'echec' => 8, 'progression' => 8,
+        'attaque_mort' => 8, 'attaque_touche' => 8, 'attaque_pare' => 8,
+        // Une fouille par héros et par salle : fréquent sans être continu.
+        'fouille_tresor' => 5, 'fouille_potion' => 5, 'fouille_errant' => 5,
+        'fouille_piege' => 5, 'fouille_rien' => 5,
+        'mobilier_objet' => 5, 'mobilier_piege' => 5, 'mobilier_rien' => 5,
+        // Rares mais marquants : on ne veut pas entendre deux fois la même
+        // phrase pour la chute d'un compagnon dans la même partie.
+        'heros_tombe' => 5, 'heros_releve' => 5, 'boss_vaincu' => 5,
+    ];
+
+    foreach ($planchers as $cle => $minimum) {
+        expect(count(config("narration.repli.{$cle}.variantes") ?? []))
+            ->toBeGreaterThanOrEqual($minimum, "« {$cle} » se répétera : il en faut au moins {$minimum}");
     }
 });
 

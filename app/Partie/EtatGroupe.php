@@ -123,6 +123,14 @@ final class EtatGroupe
                 'position_arc' => $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
                 'etat' => $quete->etat,
+                // Pourquoi le groupe est là. Le moteur lisait cet objectif
+                // depuis toujours pour décider de la victoire, mais ne le
+                // montrait à personne : en partie réelle, un groupe a exploré
+                // huit salles sur dix en s'éloignant du boss qu'il devait
+                // abattre. `null` quand le gabarit n'en déclare pas — la
+                // manette n'affiche alors rien plutôt qu'une consigne creuse.
+                'objectif' => $quete->objectif(),
+                'objectif_libelle' => $quete->objectifLibelle(),
                 // Illustration de scène de la quête (générée en arrière-plan).
                 'image_url' => app(BibliothequeImages::class)->urlDyn('quete', $quete->id),
             ],

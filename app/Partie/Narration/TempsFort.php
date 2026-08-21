@@ -42,7 +42,7 @@ final class TempsFort
     public const GENERES_PAR_QUETE = ['fouille_artefact', 'quete_demarree', 'victoire_quete'];
 
     /**
-     * Les 24 clés et leurs variables légales.
+     * Les clés et leurs variables légales.
      *
      * Quelques choix qui méritent leur ligne : `attaque_*` n'en porte AUCUNE
      * — l'attaquant peut être un héros comme un monstre, et nommer le mauvais
@@ -58,6 +58,16 @@ final class TempsFort
         'deplacement' => [],
         'victoire_quete' => [],
         'attaque_mort' => [],
+        // Mort d'un boss ou d'un sous-boss. Clé DISTINCTE d'`attaque_mort`, et
+        // pour une raison précise : celle-ci ne porte aucune variable, parce
+        // qu'on ne sait pas si le frappeur est un héros ou un monstre. Ici on
+        // le sait — c'est un héros qui abat une créature NOMMÉE, et la nommer
+        // est tout l'intérêt.
+        'boss_vaincu' => ['monstre'],
+        // Chute et relèvement d'un héros. Rien ne les disait : en campagne
+        // réelle une héroïne est restée à terre 22 minutes sans un mot.
+        'heros_tombe' => ['heros'],
+        'heros_releve' => ['heros'],
         'attaque_touche' => [],
         'attaque_pare' => [],
         'reussite' => [],

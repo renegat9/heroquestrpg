@@ -57,11 +57,54 @@ it('route un résultat moteur vers CHAQUE temps fort que la pré-génération pr
         $resultats[] = ['type' => 'fouille_mobilier', 'issue' => $issue];
     }
 
+
+
     $atteintes = array_unique(array_map('cleTempsFortPour', $resultats));
-    $jouables = TempsFort::cles();
+
+    // ⚠ DEUX routes, pas une. La table de correspondance de ChoixController
+    // couvre tout ce qui découle d'un CHOIX de joueur ; la chute et le
+    // relèvement d'un héros, eux, sont observés sur la colonne
+    // `etat_personnage_quete.tombe` (voir son `booted()`) parce qu'ils sont
+    // écrits depuis huit endroits différents — coup de monstre, piège, sort de
+    // Dread, jetons de rejeton… Les exclure ici n'affaiblit pas la propriété :
+    // le test suivant vérifie qu'ils ont bien, eux aussi, leur lecteur.
+    // ⚠ TROIS routes, pas une, et ce test n'en couvre qu'une.
+    //
+    // `heros_tombe`/`heros_releve` sont observés sur la colonne
+    // `etat_personnage_quete.tombe` (voir son `booted()`) : ils sont écrits
+    // depuis huit endroits — coup de monstre, piège, sort de Dread, jetons de
+    // rejeton — et les câbler un par un, c'est en oublier un au prochain ajout.
+    //
+    // `boss_vaincu` passe bien par la table de correspondance, mais exige une
+    // VRAIE instance en base : `momentFort()` résout le `tier` du CATALOGUE
+    // plutôt que de croire le nom affiché, puisque l'habillage IA renomme les
+    // créatures et que « Le Noyé de Gorrim » ne dit rien de son rang. Un
+    // payload synthétique ne peut pas le prouver — `FinDeQueteNarreeTest` le
+    // fait sur le vrai chemin, en abattant un boss.
+    $ailleurs = ['heros_tombe', 'heros_releve', 'boss_vaincu'];
+    $jouables = array_diff(TempsFort::cles(), $ailleurs);
 
     expect(array_diff($jouables, $atteintes))
         ->toBe([], 'temps forts déclarés qu’aucun résultat moteur ne joue jamais');
+});
+
+/**
+ * La seconde route : personne ne doit pouvoir supprimer l'observateur sans
+ * qu'un test tombe. C'est lui — et lui seul — qui rend audibles la chute et le
+ * relèvement d'un héros.
+ */
+it('confie la chute et le relèvement d’un héros à l’observateur de colonne', function () {
+    $observe = (new ReflectionClass(App\Models\EtatPersonnageQuete::class))->getMethod('booted');
+
+    expect($observe->getDeclaringClass()->getName())
+        ->toBe(App\Models\EtatPersonnageQuete::class, 'l’observateur de `tombe` a disparu')
+        ->and(class_exists(App\Partie\Narration\AnnonceurChute::class))
+        ->toBeTrue('le service qui diffuse la chute a disparu');
+
+    foreach (['heros_tombe', 'heros_releve'] as $cle) {
+        expect(TempsFort::cles())->toContain($cle)
+            ->and(config("narration.repli.{$cle}.variantes"))->not->toBeEmpty();
+    }
 });
 
 /**

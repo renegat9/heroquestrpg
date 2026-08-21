@@ -12,6 +12,7 @@ use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\JournalCombat;
@@ -164,14 +165,25 @@ class ChoixController extends Controller
         $triviale = in_array($resultat['type'] ?? null, ['deplacement', 'attente'], true)
             && $groupeFrais->phase === 'quete';
 
-        // Combat (monstres révélés actifs) → tour instantané lui aussi : menu
-        // moteur immédiat + barks pré-générés (texte/audio déjà faits) en guise
-        // de retour, SANS attendre le LLM. L'IA reste réservée à l'exploration.
+        // Combat → muet lui aussi : le retour passe par les barks et le journal
+        // de combat, pas par le récit.
+        //
+        // ⚠ Ce silence n'est PLUS une contrainte technique. Il a été institué
+        // pour « ne pas attendre le LLM » — or la narration est devenue une
+        // pioche dans une table depuis le 2026-08-18 : elle ne coûte rien et
+        // n'attend rien. Ce qui reste est un parti pris de RYTHME : narrer
+        // chaque coup paré rendrait le combat bavard et lèverait le verrou B1 à
+        // chaque échange.
         $quete = $groupeFrais->phase === 'quete' ? $groupeFrais->queteCourante : null;
         $enCombat = $quete !== null && $quete->instancesMonstres()
             ->where('etat', 'actif')->where('revele', true)->exists();
 
-        $instantane = $triviale || $enCombat;
+        // …mais le silence cède sur les MOMENTS FORTS. Constaté en campagne
+        // réelle (2026-08-20) : 22 minutes de combat, sept monstres tués, une
+        // héroïne à terre — et pas une ligne ; puis le BOSS FINAL est tombé,
+        // apogée de quatre quêtes, entre deux lignes de log. Un parti pris de
+        // rythme ne doit pas taire ce que toute la campagne construisait.
+        $instantane = $triviale || ($enCombat && ! $this->momentFort($resultat));
 
         if (! $instantane) {
             // Verrou B1 (délibéré, cf. CLAUDE.md) : le joueur suivant attend que
@@ -307,6 +319,39 @@ class ChoixController extends Controller
     }
 
     /**
+     * Ce résultat contient-il la mort d'un BOSS ou d'un SOUS-BOSS ?
+     *
+     * C'est la seule chose qui autorise le récit à percer le silence du combat.
+     * On teste le `tier` du CATALOGUE et non le nom affiché : l'habillage IA
+     * renomme les créatures, et « Le Noyé de Gorrim » ne dit rien de son rang.
+     *
+     * Couvre les deux formes de frappe : le coup simple (`cible` +
+     * `cible_vaincue`) et la frappe balayée, qui abat plusieurs cibles d'un
+     * geste et les liste dans `frappes[]` — oublier la seconde tairait
+     * précisément la mort la plus spectaculaire du jeu.
+     *
+     * @param  array<string, mixed>  $resultat
+     */
+    private function momentFort(array $resultat): bool
+    {
+        $abattues = [];
+
+        if (($resultat['cible_vaincue'] ?? false) && isset($resultat['cible']['instance_id'])) {
+            $abattues[] = (int) $resultat['cible']['instance_id'];
+        }
+
+        foreach ($resultat['frappes'] ?? [] as $frappe) {
+            if (($frappe['cible_vaincue'] ?? false) && isset($frappe['cible']['instance_id'])) {
+                $abattues[] = (int) $frappe['cible']['instance_id'];
+            }
+        }
+
+        return $abattues !== [] && InstanceMonstre::whereIn('id', $abattues)
+            ->whereHas('monstre', fn ($m) => $m->whereIn('tier', ['boss', 'sous_boss']))
+            ->exists();
+    }
+
+    /**
      * Mappe un résultat moteur vers la clé de temps fort narratif — portage
      * DIRECT de l'ancien `App\Agent\Skills\Narration::cleRepli()` : c'était le
      * repli pour quand le LLM était indisponible, c'est désormais la SEULE
@@ -360,9 +405,12 @@ class ChoixController extends Controller
             // toujours un monstre actif+révélé, donc $enCombat est vrai et
             // narrer() n'est jamais appelé) — conservé pour fidélité au
             // portage et au cas où un appelant futur réutilise cleTempsFort().
-            'attaque' => ($resultat['degats'] ?? 0) > 0
-                ? (($resultat['cible_vaincue'] ?? false) ? 'attaque_mort' : 'attaque_touche')
-                : 'attaque_pare',
+            // Un boss abattu passe avant tout : c'est le seul cas où le récit
+            // perce le silence du combat, et il nomme la créature.
+            'attaque' => $this->momentFort($resultat) ? 'boss_vaincu'
+                : (($resultat['degats'] ?? 0) > 0
+                    ? (($resultat['cible_vaincue'] ?? false) ? 'attaque_mort' : 'attaque_touche')
+                    : 'attaque_pare'),
             default => ($resultat['quete']['etat'] ?? null) === 'terminee'
                 ? 'victoire_quete'
                 : match ($resultat['issue'] ?? null) {

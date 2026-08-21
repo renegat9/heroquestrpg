@@ -83,13 +83,13 @@ class HabillerMonstres implements ShouldQueue
         $habillages = collect($sortie['habillages'] ?? [])->keyBy(fn ($h) => (int) $h['monstre_id']);
 
         if ($habillages->isEmpty()) {
+            // Récits EN PREMIER (voir la sortie nominale plus bas pour la
+            // raison) : même sans habillage, les salles restent à décrire —
+            // RecitsQuete retombe alors sur les noms de catalogue.
+            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
+
             GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
             GenererImagesQuete::dispatch($this->groupeId, $this->queteId); // scène + boss (noms catalogue)
-            // Récits de salles/temps forts (doc « l'IA fabrique la quête,
-            // elle ne la joue plus », 2026-08-18) : même sans habillage, les
-            // salles restent à décrire (RecitsQuete retombe alors sur les
-            // noms de catalogue des monstres qu'elle y trouve).
-            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
 
             return; // repli : rien à appliquer.
         }
@@ -110,16 +110,23 @@ class HabillerMonstres implements ShouldQueue
         // La table rafraîchit les noms affichés.
         broadcast(new EtatGroupeDiffuse($groupe, app(EtatGroupe::class)->payload($groupe->fresh())));
 
+        // Récits de salles/temps forts : chaîné ICI, APRÈS l'application de
+        // l'habillage ci-dessus — les descriptions de salle doivent citer les
+        // monstres par leur nom HABILLÉ, jamais celui du catalogue.
+        //
+        // ⚠ ET AVANT LES IMAGES. Ces jobs partagent la file `default`, donc
+        // l'ordre de dispatch EST l'ordre d'exécution : chronométré en campagne
+        // réelle (2026-08-20), le pack attendait deux générations d'images de
+        // 70 s chacune et n'arrivait qu'à t+4 min, laissant la quête se jouer
+        // quatre minutes sur le repli générique. Le texte est du contenu de
+        // jeu, l'image est de l'habillage : le texte passe devant.
+        GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
+
         // Barks nommés des boss/sous-boss (best-effort, sans clé = repli archétype).
         GenererBarksBoss::dispatch($this->queteId);
 
         // Images dynamiques : scène de quête + portraits de boss (depuis les
         // noms IA fraîchement appliqués). Best-effort, en arrière-plan.
         GenererImagesQuete::dispatch($this->groupeId, $this->queteId);
-
-        // Récits de salles/temps forts : chaîné ICI, APRÈS l'application de
-        // l'habillage ci-dessus — les descriptions de salle doivent citer
-        // les monstres par leur nom HABILLÉ, jamais celui du catalogue.
-        GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
     }
 }

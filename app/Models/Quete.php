@@ -282,6 +282,39 @@ class Quete extends Model
         };
     }
 
+    /**
+     * Objectif brut du gabarit (`vaincre_boss_final`…), ou `null` s'il n'en
+     * déclare aucun. Même source que {@see self::objectifAccompli()} — un seul
+     * lecteur de la donnée, deux usages.
+     */
+    public function objectif(): ?string
+    {
+        $objectif = data_get($this->gabarit?->structure, 'objectif');
+
+        return is_string($objectif) && $objectif !== '' ? $objectif : null;
+    }
+
+    /**
+     * L'objectif dit AUX JOUEURS, sans vocabulaire de jeu.
+     *
+     * Il était lu par le moteur depuis toujours et montré à personne : en
+     * campagne réelle (2026-08-20) le groupe a exploré huit salles sur dix en
+     * s'éloignant jusqu'à trente-huit cases du boss, sans jamais savoir qu'il
+     * fallait le chercher. Un objectif inconnu ne rend rien plutôt que
+     * d'inventer une consigne — même prudence que `objectifAccompli()`, qui
+     * tient l'inconnu pour accompli.
+     */
+    public function objectifLibelle(): ?string
+    {
+        return match ($this->objectif()) {
+            'vaincre_sous_boss' => 'Débusquer et abattre le gardien des lieux.',
+            'vaincre_boss_final' => 'Trouver le maître de ce donjon et le mettre à terre.',
+            'atteindre_et_recuperer' => 'Atteindre la salle la plus profonde et en ramener ce qu’elle garde.',
+            'quitter_donjon' => 'Ressortir vivants.',
+            default => null,
+        };
+    }
+
     /** Plus aucune instance ACTIVE de ce tier — le boss désigné est vaincu. */
     private function bossAbattu(string $tier): bool
     {

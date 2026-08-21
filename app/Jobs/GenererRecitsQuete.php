@@ -11,6 +11,9 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Quete;
+use App\Partie\Narration\BibliothequeNarration;
+use App\Events\NarrationDiffusee;
+use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -64,7 +67,7 @@ class GenererRecitsQuete implements ShouldQueue
         public readonly int $queteId,
     ) {}
 
-    public function handle(RecitsQuete $skill, ContexteAssembleur $assembleur): void
+    public function handle(RecitsQuete $skill, ContexteAssembleur $assembleur, BibliothequeNarration $narration): void
     {
         $groupe = Groupe::find($this->groupeId);
         $quete = Quete::find($this->queteId);
@@ -75,12 +78,70 @@ class GenererRecitsQuete implements ShouldQueue
 
         $quete->update(['recits' => $this->genererRecits($skill, $assembleur, $groupe, $quete)]);
 
+        $this->ouvrirLaQuete($groupe, $quete->fresh(), $narration);
+
         // Pré-génération de la vraie voix de narrateur pour les descriptions
         // de salle (les seules FIXES, sans variable — cf. RecitsQuete).
         // Chaîné plutôt que fait ici : protège le quota Gemini TTS (100/j,
         // CLAUDE.md) d'un blocage de CE job derrière une synthèse audio, et
         // laisse GenererVoixQuete gérer sa propre logique de reprise/arrêt.
         GenererVoixQuete::dispatch($quete->id);
+    }
+
+    /**
+     * Diffuse l'OUVERTURE de la quête, une fois le pack écrit.
+     *
+     * ⚠ Elle ne pouvait pas être diffusée plus tôt, et c'est tout le problème
+     * qu'on corrige ici : `DemarreurQuete` joue `quete_demarree` au démarrage,
+     * alors que ce job ne rend que des dizaines de secondes plus tard. La
+     * colonne `recits` était donc TOUJOURS vide à cet instant, et le temps fort
+     * retombait systématiquement sur la variante générique. Constaté en
+     * campagne réelle (2026-08-20) : sur deux quêtes, le texte d'ouverture
+     * écrit par l'IA — « Sous les Montagnes de Gorrim, un tombeau ancestral
+     * longtemps scellé vient de s'ouvrir… » — n'a jamais été lu, et la
+     * description de la salle de départ non plus (la salle 0 étant semée comme
+     * déjà découverte, `revelerSalle()` sort aussitôt sans rien dire).
+     *
+     * Le groupe recevait ainsi, au seul moment censé planter le donjon, un
+     * texte générique et rien d'autre.
+     *
+     * La cérémonie scriptée de `DemarreurQuete` reste inchangée et joue
+     * toujours immédiatement : c'est le lever de rideau. Ceci est la mise en
+     * place, qui arrive quand elle est prête.
+     *
+     * Silencieux si le pack est vide (échec du skill) : la cérémonie générique
+     * a déjà parlé, la répéter ne dirait rien de neuf.
+     */
+    private function ouvrirLaQuete(Groupe $groupe, Quete $quete, BibliothequeNarration $narration): void
+    {
+        if (($quete->recits['salles'] ?? []) === [] && ($quete->recits['temps_forts'] ?? []) === []) {
+            return;
+        }
+
+        foreach ([
+            $quete->recitsTempsFort('quete_demarree') === []
+                ? null
+                : $narration->pourQuete($quete, 'quete_demarree'),
+            $narration->salle($quete, 0),
+        ] as $recit) {
+            if ($recit === null) {
+                continue;
+            }
+
+            $evenement = Journal::ajouter($groupe, 'narration', [
+                'texte' => $recit['texte'],
+                'ambiance' => $recit['ambiance'],
+            ]);
+
+            broadcast(new NarrationDiffusee(
+                $groupe,
+                $recit['texte'],
+                ambiance: $recit['ambiance'],
+                queteId: $evenement->quete_id,
+                url: $recit['url'],
+                sequence: $evenement->sequence,
+            ));
+        }
     }
 
     /**

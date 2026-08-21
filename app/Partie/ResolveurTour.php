@@ -5491,6 +5491,22 @@ final class ResolveurTour
             'or_butin' => $orButin,
         ]);
 
+        // ⚠ NARRER AVANT de basculer au hub. `diffuserRecit()` journalise, et
+        // `Evenement.quete_id` se résout depuis la quête COURANTE du groupe :
+        // après le `quete_courante_id => null` ci-dessous, la victoire serait
+        // rattachée à aucune quête.
+        //
+        // C'est ici, et nulle part ailleurs, parce que `terminerQuete()` est le
+        // point de passage UNIQUE des deux chemins de fin — vote de sortie et
+        // objectif accompli. La table de correspondance de `ChoixController`
+        // prévoyait bien un `victoire_quete`, mais aucune fin de quête ne
+        // traverse ce contrôleur : la clé n'a jamais été atteinte. Constaté en
+        // campagne réelle le 2026-08-20, sur QUATRE fins consécutives — le boss
+        // final tombait et le journal enchaînait sur le vote de sortie sans un
+        // mot, alors que le pack de la quête portait un texte de victoire écrit
+        // par l'IA et payé.
+        $this->diffuserRecit($groupe, $this->narration->pourQuete($quete, 'victoire_quete'));
+
         $groupe->update([
             'phase' => 'hub',
             'quete_courante_id' => null,

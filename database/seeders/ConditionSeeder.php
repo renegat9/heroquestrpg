@@ -37,8 +37,23 @@ class ConditionSeeder extends Seeder
             // (`premier_degat_subi`), pas par un compteur de tours — d'où 0.
             ['nom' => 'Clairvoyance', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['revele_pieges_et_portes_en_vue' => true, 'fin' => 'premier_degat_subi']],
+            // ⚠ Trois conditions là où il n'y en avait qu'UNE. « Renforcé »
+            // couvrait aussi bien un bonus d'attaque qu'un bonus de défense
+            // qu'un mode de déplacement — son propre effet l'avouait :
+            // `attaque_ou_defense_selon_source`. Un joueur voyant « Renforcé »
+            // sur sa fiche ne pouvait pas savoir s'il frappait plus fort ou
+            // s'il encaissait mieux, ni quand ça expirait (les durées diffèrent
+            // : prochaine attaque vs premier dégât subi). Remonté par un joueur
+            // en campagne réelle, 2026-08-20.
             ['nom' => 'Renforcé', 'type' => 'physique', 'duree_defaut' => 0,
-                'effet' => ['bonus_des' => 'attaque_ou_defense_selon_source', 'fin' => 'un_combat_ou_duree_du_sort']],
+                'effet' => ['bonus_des' => 'attaque', 'fin' => 'duree_du_sort']],
+            ['nom' => 'Protégé', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['bonus_des' => 'defense', 'fin' => 'duree_du_sort']],
+            // Traverser la Pierre : ce n'est pas un renforcement mais un MODE
+            // DE DÉPLACEMENT (la roche et les portes closes cessent de barrer
+            // le chemin). L'appeler « Renforcé » ne décrivait rien.
+            ['nom' => 'Intangible', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['franchit_mur' => true, 'fin' => 'fin_du_tour']],
             ['nom' => 'Tombé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['hors_combat' => true, 'occupe_sa_case' => true, 'relevable' => true, 'fin' => 'releve_ou_fin_de_combat', 'mort_si_non_releve' => true]],
             // Venin (Jungles of Delthrak, p. 48) : « dégât = paralysie, jet de
