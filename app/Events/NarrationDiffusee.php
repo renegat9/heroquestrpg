@@ -39,6 +39,11 @@ class NarrationDiffusee implements ShouldBroadcast
          *  ex. la cérémonie de lancement de la quête suivante, instantanée,
          *  peut devancer la narration — lente — du coup fatal précédent). */
         public readonly ?int $sequence = null,
+        /** Ouverture de quête : l'écran de table l'affiche en GRAND, avec
+         *  l'illustration de scène, plutôt que dans le bandeau habituel
+         *  (René, 2026-08-21). C'est le texte qui plante le donjon — il
+         *  méritait mieux qu'une ligne au bas de l'écran. */
+        public readonly bool $ouverture = false,
     ) {}
 
     public function broadcastOn(): Channel
@@ -62,6 +67,7 @@ class NarrationDiffusee implements ShouldBroadcast
             'quete_id' => $this->queteId,
             'url' => $this->url,
             'sequence' => $this->sequence,
+            'ouverture' => $this->ouverture,
         ];
     }
 }

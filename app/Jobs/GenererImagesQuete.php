@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Agent\Image\ImageGemini;
+use App\Events\EtapePreparation;
 use App\Events\EtatGroupeDiffuse;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
@@ -33,9 +34,20 @@ class GenererImagesQuete implements ShouldQueue
 
     public int $tries = 1;
 
+    /**
+     * @param  string  $volet  `scene` (illustration d'ambiance) ou `boss`
+     *                         (portraits). Deux volets pour une raison de
+     *                         SÉQUENCE, pas de découpage : la scène ouvre la
+     *                         quête sur l'écran de table et doit être prête
+     *                         AVANT les récits, tandis que les portraits de
+     *                         boss sont de l'habillage pur et passent après.
+     *                         Voir `HabillerMonstres`, qui les dispatche de
+     *                         part et d'autre de `GenererRecitsQuete`.
+     */
     public function __construct(
         public readonly int $groupeId,
         public readonly int $queteId,
+        public readonly string $volet = 'tout',
     ) {}
 
     public function handle(ImageGemini $image, BibliothequeImages $biblio, EtatGroupe $etatGroupe): void
@@ -50,18 +62,22 @@ class GenererImagesQuete implements ShouldQueue
             return;
         }
 
+        if ($this->volet === 'scene') {
+            broadcast(new EtapePreparation($groupe, 'scene'));
+        }
+
         $produit = false;
 
         // Scène de quête (ambiance) — une par quête.
         $scene = $biblio->cheminDyn('quete', $quete->id);
-        if (! is_file($scene['absolu'])) {
+        if (in_array($this->volet, ['scene', 'tout'], true) && ! is_file($scene['absolu'])) {
             $intro = trim($quete->titre.($groupe->theme ? ' — '.$groupe->theme : ''));
             $produit = $this->generer($image, $biblio, $scene['rel'], $biblio->prompt('scene', ['intro' => $intro]),
                 ['quete' => $quete->id]) || $produit;
         }
 
         // Portraits de boss / sous-boss — un par instance nommée.
-        $boss = InstanceMonstre::query()
+        $boss = ! in_array($this->volet, ['boss', 'tout'], true) ? collect() : InstanceMonstre::query()
             ->where('quete_id', $quete->id)
             ->whereHas('monstre', fn ($q) => $q->whereIn('tier', ['sous_boss', 'boss']))
             ->with('monstre')

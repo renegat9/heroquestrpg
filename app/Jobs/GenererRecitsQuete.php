@@ -12,6 +12,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Quete;
 use App\Partie\Narration\BibliothequeNarration;
+use App\Events\EtapePreparation;
 use App\Events\NarrationDiffusee;
 use App\Support\Journal;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -75,6 +76,8 @@ class GenererRecitsQuete implements ShouldQueue
         if ($groupe === null || $quete === null) {
             return;
         }
+
+        broadcast(new EtapePreparation($groupe, 'recits'));
 
         $quete->update(['recits' => $this->genererRecits($skill, $assembleur, $groupe, $quete)]);
 
@@ -140,6 +143,10 @@ class GenererRecitsQuete implements ShouldQueue
                 queteId: $evenement->quete_id,
                 url: $recit['url'],
                 sequence: $evenement->sequence,
+                // L'écran de table ouvre la quête sur une carte plein cadre :
+                // illustration de scène + ce texte. C'est le seul moment où la
+                // narration prend tout l'écran.
+                ouverture: true,
             ));
         }
     }

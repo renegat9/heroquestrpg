@@ -9,6 +9,7 @@ import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
+import OuvertureQuete from '../components/table/OuvertureQuete.vue';
 import PrologueOverlay from '../components/table/PrologueOverlay.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
 import ParametresPanel from '../components/table/ParametresPanel.vue';
@@ -54,6 +55,10 @@ onMounted(async () => {
             // les positions finales.
             '.mouvement.anime': (e) => jouerMouvements(e.mouvements ?? []),
             '.groupe.etat': (e) => store.appliquerEtat(e),
+            // Étape de préparation d'une quête : l'écran montre où l'on en est
+            // plutôt que de laisser le groupe devant un donjon muet pendant les
+            // une à deux minutes de construction.
+            '.preparation.etape': (e) => store.setPreparation(e),
             '.narration.diffusee': (e) => {
                 // Narration périmée (arrivée en retard derrière une plus
                 // récente) : ni affichée, ni lue à voix haute. Sinon on lit en
@@ -64,7 +69,16 @@ onMounted(async () => {
                 // À la FIN de la lecture, signaler au serveur que le narrateur a
                 // terminé → le joueur suivant est enfin activé (B1). `narrer`
                 // appelle `apres` à la fin du TTS (ou tout de suite sans voix).
-                const done = () => api.lectureTerminee().catch(() => {});
+                // Ouverture de quête : plein cadre, avec l'illustration de
+                // scène. La carte se ferme à la FIN DE LECTURE — le même signal
+                // qui dégèle les manettes (B1), jamais un minuteur : couper au
+                // milieu d'une phrase lue à voix haute serait pire que rien.
+                if (e.ouverture) store.setOuverture(e.texte);
+
+                const done = () => {
+                    store.fermerOuverture();
+                    api.lectureTerminee().catch(() => {});
+                };
                 voix.narrer({ texte: e.texte, url: e.url, interrompre: true, apres: done });
             },
             '.bark.diffuse': (e) => voix.jouerBark(e),
@@ -256,6 +270,10 @@ const party = computed(() => (etat.value
     ? entitesVersGroupe(etat.value.entites, etat.value.initiative)
     : []));
 const narration = computed(() => store.state.narration);
+const ouverture = computed(() => store.state.ouverture);
+const preparation = computed(() => store.state.preparation);
+/* La carte plein cadre couvre les DEUX temps : préparation puis ouverture. */
+const carteOuverture = computed(() => preparation.value || ouverture.value);
 const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : false));
 // En quête : héros présents sur la carte ; au hub (entités vides) : taille du
 // groupe (statuts « prêt »), sinon le compteur affichait toujours 0 au hub.
@@ -490,6 +508,13 @@ watch(() => store.state.clotureTerminee, (t) => {
             <p>{{ erreurChargement }}</p>
         </div>
         <div v-else class="table tex-stone tex-vignette" style="position: relative">
+            <OuvertureQuete
+                v-if="carteOuverture"
+                :preparation="preparation"
+                :texte="ouverture ?? ''"
+                :image="sceneImage"
+                :titre="sousTitre"
+            />
             <!-- bandeau haut -->
             <div class="top">
                 <img v-if="enQuete && sceneImage" :src="sceneImage" alt="" class="scene-vignette" />

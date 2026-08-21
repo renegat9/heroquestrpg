@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Agent\Audio\TtsGemini;
+use App\Events\EtapePreparation;
+use App\Models\Groupe;
 use App\Models\Parametre;
 use App\Models\Quete;
 use App\Partie\Narration\BibliothequeNarration;
@@ -55,6 +57,31 @@ class GenererVoixQuete implements ShouldQueue
 
     public function handle(TtsGemini $tts, BibliothequeNarration $lib): void
     {
+        // ⚠ Ce job clôt la séquence de préparation, et c'est pour ça que
+        // l'annonce « prêt » est dans un `finally` : il sort par CINQ chemins
+        // (pas de clé TTS, bascule Réglages coupée, quête introuvable, quota
+        // épuisé en cours de route, ou fin normale). Un seul oubli et l'écran
+        // de table resterait en chargement pour toujours, à afficher une étape
+        // que plus personne ne joue.
+        try {
+            $this->synthetiser($tts, $lib);
+        } finally {
+            // Groupe purgé entre-temps (campagne arrêtée) : rien à annoncer,
+            // et surtout pas de seconde exception dans un `finally`.
+            if (($groupe = $this->groupe()) !== null) {
+                broadcast(new EtapePreparation($groupe, 'pret'));
+            }
+        }
+    }
+
+    /** Le groupe de cette quête — pour annoncer la fin de préparation. */
+    private function groupe(): ?Groupe
+    {
+        return Quete::find($this->queteId)?->groupe;
+    }
+
+    private function synthetiser(TtsGemini $tts, BibliothequeNarration $lib): void
+    {
         if (! $tts->estConfigure()) {
             return; // pas de GEMINI_API_KEY : rien à générer, repli Web Speech (comportement actuel).
         }
@@ -68,6 +95,8 @@ class GenererVoixQuete implements ShouldQueue
         if ($quete === null) {
             return;
         }
+
+        broadcast(new EtapePreparation($quete->groupe, 'voix'));
 
         foreach ((array) data_get($quete->recits, 'salles', []) as $id => $recit) {
             $texte = trim((string) ($recit['texte'] ?? ''));

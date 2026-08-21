@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Events\EtapePreparation;
 use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
 use App\Models\Condition;
@@ -143,6 +144,12 @@ final class EtatGroupe
             // une plus récente déjà affichée (jobs asynchrones, ordre non garanti).
             'narration_sequence' => $derniereNarration['sequence'] ?? null,
             'mj_reflechit' => (bool) Cache::get(self::cleMjReflechit($groupe->id), false),
+            // Étape de PRÉPARATION en cours (`null` = rien en route). Exposée
+            // ici et pas seulement diffusée : un écran de table ouvert AU
+            // MILIEU de la séquence — ou rechargé — doit retrouver où l'on en
+            // est, sinon il attend devant un donjon muet sans savoir si
+            // quelque chose se passe encore.
+            'preparation' => Cache::get(EtapePreparation::cle($groupe->id)),
             // Fil du combat REJOUÉ depuis la base : le store ne le remplissait
             // qu'en direct (`.combat.journal`), si bien qu'un rafraîchissement
             // du téléphone — ou une session reprise, ou un joueur arrivé en

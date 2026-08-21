@@ -28,6 +28,11 @@ const state = reactive({
     menuEnAttente: false,
     /** Texte de narration courant du MJ. */
     narration: '',
+    // Ouverture de quête plein cadre : le texte qui plante le donjon, et
+    // l'étape de préparation tant qu'il n'est pas prêt. `null` = rien à
+    // l'écran (cas normal en cours de partie).
+    ouverture: null,
+    preparation: null,
     /** Séquence (Evenement.sequence) de la narration courante — garde-fou
      *  anti-inversion : une narration plus ANCIENNE arrivée en retard (job
      *  lent) derrière une plus récente déjà affichée est ignorée. */
@@ -105,6 +110,9 @@ export function useGameStore() {
                 if (typeof etat.narration_sequence === 'number') state.narrationSequence = etat.narration_sequence;
             }
             if (typeof etat?.mj_reflechit === 'boolean') state.mjReflechit = etat.mj_reflechit;
+            // Étape de préparation : reprise depuis l'état, pour un écran de
+            // table ouvert AU MILIEU de la séquence (ou rechargé).
+            state.preparation = etat?.preparation ?? null;
             // prets du hub (contrat : EtatGroupe.groupe.prets au hub)
             if (Array.isArray(etat?.groupe?.prets)) state.prets = etat.groupe.prets;
             // Journal de combat : purgé au passage à une AUTRE quête (ou au hub).
@@ -173,6 +181,24 @@ export function useGameStore() {
         },
         setMjReflechit(actif) {
             state.mjReflechit = actif;
+        },
+        /** Étape de préparation (.preparation.etape). `pret` la referme. */
+        setPreparation(etape) {
+            state.preparation = !etape || etape.etape === 'pret' ? null : etape;
+        },
+        /**
+         * Ouvre la carte plein cadre sur le texte d'ouverture de quête.
+         *
+         * ⚠ Elle ne se referme JAMAIS toute seule : c'est la fin de LECTURE du
+         * narrateur qui la ferme (`fermerOuverture`), le même signal qui
+         * dégèle les manettes (verrou B1). Un minuteur ferait disparaître le
+         * texte au milieu d'une phrase lue à voix haute.
+         */
+        setOuverture(texte) {
+            state.ouverture = texte || null;
+        },
+        fermerOuverture() {
+            state.ouverture = null;
         },
         /** Journal de combat (.combat.journal) : ajoute un lot de lignes en
          *  file, plafonné aux 12 dernières. Un lot déjà vu (séquence ≤ dernière)
