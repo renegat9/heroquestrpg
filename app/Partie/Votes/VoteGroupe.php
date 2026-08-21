@@ -14,10 +14,12 @@ use App\Models\Personnage;
 use App\Partie\ClotureCampagne;
 use App\Partie\EtatGroupe;
 use App\Partie\ResolveurTour;
+use App\Partie\Sauvegarde;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -46,6 +48,16 @@ final class VoteGroupe
 
     /** Vote de fin de quête : rentrer au hub une fois le donjon nettoyé. */
     public const TYPE_SORTIE = 'sortie_donjon';
+
+    /**
+     * Battre en retraite (René, 2026-08-21). Le vote de SORTIE ne couvre que
+     * « on a fini, on rentre » : il n'est offert qu'une fois l'objectif
+     * accompli ou le donjon vidé. Un groupe en train de PERDRE ne pouvait donc
+     * ni gagner ni partir — constaté en campagne réelle : deux héros à terre,
+     * deux survivants fragiles, le boss debout, et la seule issue mécanique
+     * était de tomber entièrement. À une vraie table, on décroche.
+     */
+    public const TYPE_RETRAITE = 'retraite';
 
     public function __construct(
         private readonly EtatGroupe $etatGroupe,
@@ -89,6 +101,62 @@ final class VoteGroupe
             'type' => $vote['type'],
             'question' => $vote['question'],
             'cible_joueur_id' => $vote['cible_joueur_id'],
+            'lance_par' => $vote['lance_par'],
+        ]);
+
+        $payload = $this->payload($vote);
+        broadcast(new VoteLance($groupe, ['vote' => $payload]));
+
+        return $payload;
+    }
+
+    /**
+     * Vote de RETRAITE, lancé quand un héros propose de décrocher.
+     *
+     * Trois issues et non deux, à dessein : décrocher n'a de sens que si l'on
+     * sait pour aller où. Recommencer la quête restaure le snapshot de début —
+     * PV rendus, pièges réarmés, deck remélangé — et arrêter la campagne
+     * déclenche la clôture complète, partage de l'or compris.
+     *
+     * ⚠ Majorité RELATIVE et l'égalité fait CONTINUER : ces deux issues effacent
+     * ou terminent la partie de tout le monde, la minorité ne doit jamais
+     * pouvoir l'imposer. C'est la même prudence que le vote de sortie, où
+     * l'égalité fait rester pour ne pas couper la fouille des autres.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    public function lancerRetraite(Groupe $groupe, array $acteur): array
+    {
+        if (Cache::has(self::cle($groupe->id))) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Un vote est déjà en cours dans ce groupe.',
+            ]);
+        }
+
+        $membres = $this->membres($groupe);
+
+        $vote = [
+            'type' => self::TYPE_RETRAITE,
+            'question' => 'Battre en retraite ?',
+            'options' => [
+                ['id' => 'recommencer', 'libelle' => 'Recommencer la quête depuis le début'],
+                ['id' => 'arreter', 'libelle' => 'Arrêter la campagne ici'],
+                ['id' => 'continuer', 'libelle' => 'Non, on continue'],
+            ],
+            'cible_joueur_id' => null,
+            'votants' => $membres->pluck('id')->map(fn ($i) => (int) $i)->all(),
+            'lance_par' => (int) ($acteur['id'] ?? 0),
+            'bulletins' => [],
+        ];
+
+        Cache::put(self::cle($groupe->id), $vote, now()->addMinutes(self::TTL_MINUTES));
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'vote_lance',
+            'type' => $vote['type'],
+            'question' => $vote['question'],
+            'cible_joueur_id' => null,
             'lance_par' => $vote['lance_par'],
         ]);
 
@@ -368,6 +436,65 @@ final class VoteGroupe
                 } else {
                     broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
                 }
+            }
+
+            return $resultat;
+        }
+
+        if ($vote['type'] === self::TYPE_RETRAITE) {
+            // Majorité RELATIVE : l'option la plus votée l'emporte, mais toute
+            // ÉGALITÉ fait continuer. Recommencer efface la progression de la
+            // quête et arrêter termine la campagne de tout le monde : ces deux
+            // issues-là ne s'imposent qu'à une majorité nette.
+            $recommencer = (int) ($decompte['recommencer'] ?? 0);
+            $arreter = (int) ($decompte['arreter'] ?? 0);
+            $continuer = (int) ($decompte['continuer'] ?? 0);
+
+            $choix = 'continuer';
+            if ($recommencer > $arreter && $recommencer > $continuer) {
+                $choix = 'recommencer';
+            } elseif ($arreter > $recommencer && $arreter > $continuer) {
+                $choix = 'arreter';
+            }
+
+            $resultat = ['option_id' => $choix, 'applique' => $choix !== 'continuer'];
+
+            // ⚠ TOUT SE DIT AVANT D'AGIR, et l'ordre n'est pas cosmétique :
+            // `redemarrerQuete()` restaure un snapshot et
+            // `arreterImmediatement()` PURGE la campagne. Après l'un ou
+            // l'autre, il n'y a plus de quête courante à laquelle rattacher un
+            // récit — et, dans le second cas, plus de groupe du tout à
+            // journaliser. Narration et journal passent donc devant.
+            if ($choix !== 'continuer') {
+                app(ResolveurTour::class)->narrerRetraite($groupe, $choix);
+            }
+
+            Journal::ajouter($groupe->fresh(), 'systeme', [
+                'action' => 'vote_resultat',
+                'type' => $vote['type'],
+                'decompte' => $decompte,
+                ...$resultat,
+            ]);
+
+            broadcast(new VoteResultat($groupe, $resultat));
+
+            try {
+                if ($choix === 'recommencer') {
+                    app(Sauvegarde::class)->redemarrerQuete($groupe);
+                } elseif ($choix === 'arreter') {
+                    app(ClotureCampagne::class)->arreterImmediatement($groupe);
+                }
+            } catch (ValidationException $e) {
+                // Pas de snapshot de départ, groupe sans membre… La retraite
+                // échoue mais la partie continue : mieux vaut un vote sans
+                // effet qu'un groupe laissé dans un état à moitié défait.
+                Log::warning('Retraite votée mais inapplicable.', [
+                    'groupe_id' => $groupe->id,
+                    'choix' => $choix,
+                    'erreur' => $e->getMessage(),
+                ]);
+                $resultat['applique'] = false;
+                $resultat['echec'] = $e->getMessage();
             }
 
             return $resultat;

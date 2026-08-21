@@ -210,6 +210,29 @@ return [
             ],
         ],
 
+        // ── Retraite ────────────────────────────────────────────────────
+        // Décrocher n'est pas perdre : c'est une décision, et elle mérite
+        // d'être dite. Le groupe ne pouvait auparavant ni gagner ni partir.
+        'retraite' => [
+            'ambiance' => 'tension',
+            'variantes' => [
+                'Le groupe recule pas à pas vers l\'entrée, sans jamais tourner le dos à l\'obscurité.',
+                'Assez. Les héros décrochent et refont le chemin en sens inverse, blessés mais vivants.',
+                'On ne gagne pas ici aujourd\'hui. Le donjon se referme derrière eux.',
+                'La sagesse l\'emporte sur l\'orgueil : le groupe rompt le combat et s\'en va.',
+                'Reculer maintenant, pour revenir mieux armés. Les torches s\'éloignent dans le couloir.',
+            ],
+        ],
+        'campagne_abandonnee' => [
+            'ambiance' => 'defaite',
+            'variantes' => [
+                'Les héros remontent à la lumière pour la dernière fois. Cette histoire s\'arrête là.',
+                'Certaines menaces survivent à ceux qui les affrontent. Le groupe rentre, et ne repartira pas.',
+                'Le donjon garde ses secrets, et les gardera. L\'aventure se termine ici.',
+                'Ils déposent les armes. Ce qui dort sous la pierre continuera d\'y dormir.',
+                'Le fil de la campagne se rompt : le groupe rentre chez lui pour de bon.',
+            ],
+        ],
         'reprise' => [
             'ambiance' => 'mystere',
             'variantes' => [

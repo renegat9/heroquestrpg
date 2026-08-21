@@ -57,6 +57,11 @@ final class TempsFort
         'reprise' => [],
         'deplacement' => [],
         'victoire_quete' => [],
+        // Retraite (René, 2026-08-21) : le groupe décroche au lieu de tomber.
+        // Sans variable — on ne nomme pas un proposant, c'est une décision
+        // collective prise par vote.
+        'retraite' => [],
+        'campagne_abandonnee' => [],
         'attaque_mort' => [],
         // Mort d'un boss ou d'un sous-boss. Clé DISTINCTE d'`attaque_mort`, et
         // pour une raison précise : celle-ci ne porte aucune variable, parce

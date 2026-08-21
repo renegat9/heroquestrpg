@@ -294,6 +294,7 @@ final class ResolveurTour
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
+                'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
                 'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -5079,7 +5080,7 @@ final class ResolveurTour
             // anytime on your turn, no action required ») et bombe fumigène
             // (« Use this item anytime during your movement »). L'eau bénite,
             // elle, est un `objet` tout court : « instead of attacking ».
-            'ouvrir_porte', 'actionner_levier', 'sortie', 'style', 'objet_libre' => 'interaction',
+            'ouvrir_porte', 'actionner_levier', 'sortie', 'retraite', 'style', 'objet_libre' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -5279,6 +5280,53 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * Proposer au groupe de BATTRE EN RETRAITE (René, 2026-08-21).
+     *
+     * Le vote de sortie ne couvre que « on a fini, on rentre » : il exige
+     * l'objectif accompli ou le donjon vidé. Un groupe en train de perdre ne
+     * pouvait donc ni gagner ni partir — vécu en campagne réelle avec deux
+     * héros à terre et le boss debout, sans autre issue que de tomber
+     * entièrement. Celui-ci n'a AUCUNE condition : décrocher doit rester
+     * possible au pire moment, c'est-à-dire précisément quand on en a besoin.
+     *
+     * Le vote porte les trois issues (recommencer / arrêter / continuer) et
+     * c'est `VoteGroupe` qui les applique.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreRetraite(Groupe $groupe, array $option, array $acteur): array
+    {
+        $payload = [
+            'type' => 'retraite',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'vote' => app(VoteGroupe::class)->lancerRetraite($groupe, $acteur),
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Raconte la retraite, juste avant qu'elle ne s'applique.
+     *
+     * Public parce que c'est `VoteGroupe` qui tranche — et appelé AVANT
+     * `redemarrerQuete()`/`arreterImmediatement()` : l'un restaure un snapshot,
+     * l'autre purge la campagne, et après l'un ou l'autre il n'y a plus de
+     * quête courante à laquelle rattacher le récit.
+     */
+    public function narrerRetraite(Groupe $groupe, string $choix): void
+    {
+        $this->diffuserRecit($groupe, $this->narration->pourQuete(
+            $groupe->queteCourante,
+            $choix === 'arreter' ? 'campagne_abandonnee' : 'retraite',
+        ));
+    }
+
     private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, array $option, array $acteur): array
     {
         $vide = ! $quete->instancesMonstres()->where('etat', 'actif')->exists();

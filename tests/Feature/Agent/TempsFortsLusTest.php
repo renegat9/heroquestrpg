@@ -81,11 +81,36 @@ it('route un résultat moteur vers CHAQUE temps fort que la pré-génération pr
     // créatures et que « Le Noyé de Gorrim » ne dit rien de son rang. Un
     // payload synthétique ne peut pas le prouver — `FinDeQueteNarreeTest` le
     // fait sur le vrai chemin, en abattant un boss.
-    $ailleurs = ['heros_tombe', 'heros_releve', 'boss_vaincu'];
+    $ailleurs = [
+        // Observés sur la colonne `etat_personnage_quete.tombe`.
+        'heros_tombe', 'heros_releve',
+        // Passent bien par la table, mais exigent une VRAIE instance en base
+        // (`FinDeQueteNarreeTest` le prouve en abattant un boss).
+        'boss_vaincu',
+        // Diffusés par la RÉSOLUTION DU VOTE de retraite
+        // (`ResolveurTour::narrerRetraite`, appelé par `VoteGroupe`) : ce ne
+        // sont pas des résultats d'action mais des décisions collectives.
+        'retraite', 'campagne_abandonnee',
+    ];
     $jouables = array_diff(TempsFort::cles(), $ailleurs);
 
     expect(array_diff($jouables, $atteintes))
         ->toBe([], 'temps forts déclarés qu’aucun résultat moteur ne joue jamais');
+});
+
+/**
+ * La troisième route : la retraite est décidée par un VOTE, pas par une action.
+ * Personne ne doit pouvoir retirer `narrerRetraite()` sans qu'un test tombe.
+ */
+it('confie la retraite à la résolution du vote', function () {
+    expect(method_exists(App\Partie\ResolveurTour::class, 'narrerRetraite'))
+        ->toBeTrue('le narrateur de retraite a disparu')
+        ->and(App\Partie\Votes\VoteGroupe::TYPE_RETRAITE)->toBe('retraite');
+
+    foreach (['retraite', 'campagne_abandonnee'] as $cle) {
+        expect(TempsFort::cles())->toContain($cle)
+            ->and(config("narration.repli.{$cle}.variantes"))->not->toBeEmpty();
+    }
 });
 
 /**

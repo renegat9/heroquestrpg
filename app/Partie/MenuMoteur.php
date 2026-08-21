@@ -1064,6 +1064,24 @@ final class MenuMoteur
             ];
         }
 
+        // BATTRE EN RETRAITE — sans aucune condition, et c'est tout l'intérêt
+        // (René, 2026-08-21). `quitter_donjon` ci-dessus exige l'objectif
+        // accompli ou le donjon vidé : il dit « on a fini », pas « ça tourne
+        // mal ». Un groupe en train de perdre ne pouvait donc ni gagner ni
+        // partir — constaté en campagne réelle, deux héros à terre et le boss
+        // debout, la seule issue mécanique étant de tomber entièrement.
+        // Décrocher doit rester possible au pire moment, sinon ce n'est pas une
+        // retraite. Interaction libre comme la sortie : proposer ne coûte pas
+        // son tour, et un héros qui a déjà joué garde le droit de le proposer
+        // au prochain.
+        if (! $aJoue) {
+            $options[] = [
+                'id' => 'battre_en_retraite',
+                'libelle' => 'Battre en retraite — proposer au groupe',
+                'type' => 'retraite',
+            ];
+        }
+
         // VAGUE MONTANTE (Moine, Style de l'Eau) — « Activate this technique on
         // your turn to split your total movement roll before and after your
         // action. » Chez nous, agir après avoir ENTAMÉ son mouvement confisque

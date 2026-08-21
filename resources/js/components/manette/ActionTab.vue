@@ -54,6 +54,10 @@ const ICONE_TYPE = {
     rayon: 'bolt',
     degat_differe: 'local_fire_department',
     deplacement: 'directions_walk',
+    // Proposer de rentrer (donjon nettoyé) vs BATTRE EN RETRAITE (ça tourne
+    // mal) : deux gestes opposés, deux icônes — l'une part, l'autre recule.
+    sortie: 'logout',
+    retraite: 'u_turn_left',
     desamorcer: 'handyman',
     franchir: 'sprint',
     sort: 'auto_awesome',
@@ -123,6 +127,10 @@ function creneauConsomme(option) {
         case 'ouvrir_porte':
         case 'actionner_levier':
         case 'sortie':
+        // Proposer la retraite ne coûte pas son tour : c'est une proposition
+        // au groupe, pas une action — et elle doit rester possible au pire
+        // moment, sinon ce n'est pas une retraite.
+        case 'retraite':
         // Activer un Style Élémentaire ne coûte aucun créneau (miroir de
         // `ResolveurTour::creneauOption`).
         case 'style':
