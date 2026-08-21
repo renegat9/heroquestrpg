@@ -117,7 +117,7 @@ class MobilierSeeder extends Seeder
 
             // Une bibliothèque contient des ÉCRITS : c'est le seul meuble à
             // rendre des parchemins, ce qui en fait la pièce du lanceur de sorts.
-            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true,
+            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 3, 'categories' => ['parchemin']],
                     ['issue' => 'tresor', 'poids' => 1, 'or' => [10, 25]],
@@ -126,14 +126,14 @@ class MobilierSeeder extends Seeder
 
             // Le râtelier d'armes : armes et armures, l'exemple donné par René.
             // Aucune chance d'or — on n'y range pas sa bourse.
-            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => true,
+            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 4, 'categories' => ['arme', 'armure']],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
             // L'armoire est le meuble à tout faire : un peu de tout, souvent rien.
-            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true,
+            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['outil']],

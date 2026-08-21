@@ -31,6 +31,7 @@ class Mobilier extends Model
         'hauteur',
         'bloque_mouvement',
         'bloque_vue',
+        'adosse_au_mur',
         'fouillable',
         'effet',
     ];
@@ -39,6 +40,7 @@ class Mobilier extends Model
     {
         return [
             'bloque_mouvement' => 'boolean',
+            'adosse_au_mur' => 'boolean',
             'bloque_vue' => 'boolean',
             'fouillable' => 'boolean',
             'effet' => 'array',

@@ -554,6 +554,68 @@ it('garantit AU MOINS une porte secrète par quête', function () {
 // une salle tributaire d'une porte secrète (§2.16).
 // ---------------------------------------------------------------------------
 
+/**
+ * Un meuble HAUT est adossé, grand axe le long du mur (question de René,
+ * 2026-08-21).
+ *
+ * Le placement tirait une case au hasard et une orientation à pile ou face,
+ * sans jamais regarder les murs. Ça tombait souvent juste par accident — les
+ * salles sont petites, la plupart des cases touchent un mur — mais mesuré sur
+ * douze donjons réels : la bibliothèque suivait le mur QUATRE FOIS SUR DIX,
+ * l'armoire UNE SUR SIX. Le reste du temps elle dépassait perpendiculairement,
+ * comme une étagère plantée au milieu de la pièce.
+ *
+ * ⚠ La règle se lit dans `adosse_au_mur`, JAMAIS déduite de `bloque_vue`. La
+ * déduction se tenait pour le catalogue actuel — les trois meubles hauts sont
+ * justement les trois à adosser — mais elle est fausse en général : un PILIER
+ * bloque la vue et se dresse au MILIEU. Le déduire l'aurait collé au mur, ou
+ * pire, aurait refusé de le poser là où il a du sens.
+ *
+ * Ce test doit donc rester muet sur les meubles NON déclarés muraux : c'est ce
+ * qui laisse la place aux piliers à venir.
+ */
+it('adosse au mur les meubles DÉCLARÉS muraux, grand axe compris', function () {
+    $graines = [42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999];
+    $muraux = App\Models\Mobilier::where('adosse_au_mur', true)->pluck('nom', 'id');
+    $verifies = 0;
+
+    foreach ($graines as $graine) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritAvecBoss(), $graine);
+
+        foreach ($carte['mobilier'] as $meuble) {
+            if (! $muraux->has($meuble['mobilier_id'])) {
+                continue; // table, coffre, trône, futur PILIER… : libres au centre.
+            }
+
+            // Côtés qui longent le GRAND axe : un mur au BOUT d'une
+            // bibliothèque ne l'adosse pas, il la coince.
+            $cotes = $meuble['l'] > $meuble['h'] ? [[0, -1], [0, 1]]
+                : ($meuble['h'] > $meuble['l'] ? [[-1, 0], [1, 0]]
+                    : [[0, -1], [0, 1], [-1, 0], [1, 0]]);
+
+            $adosse = false;
+            for ($dy = 0; $dy < $meuble['h']; $dy++) {
+                for ($dx = 0; $dx < $meuble['l']; $dx++) {
+                    foreach ($cotes as [$ox, $oy]) {
+                        if (($carte['cases'][$meuble['y'] + $dy + $oy][$meuble['x'] + $dx + $ox] ?? 'm') === 'm') {
+                            $adosse = true;
+                        }
+                    }
+                }
+            }
+
+            $nom = $muraux[$meuble['mobilier_id']];
+            expect($adosse)->toBeTrue("graine {$graine} : {$nom} planté au milieu de la pièce");
+            $verifies++;
+        }
+    }
+
+    // Le garde-fou du garde-fou : si plus aucun meuble haut n'était posé, la
+    // boucle passerait à vide et ce test ne dirait plus rien. Renoncer à une
+    // pose est prévu — n'en poser AUCUNE ne l'est pas.
+    expect($verifies)->toBeGreaterThan(10, 'plus aucun meuble haut n’est posé : la contrainte est trop dure');
+});
+
 it('pose du mobilier UNIQUEMENT dans les salles (jamais en couloir, jamais en salle 0)', function () {
     $graines = [42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999];
     $totalMeubles = 0;

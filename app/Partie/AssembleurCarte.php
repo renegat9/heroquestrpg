@@ -1085,6 +1085,10 @@ final class AssembleurCarte
                 continue;
             }
 
+            if ($type->adosse_au_mur && ! $this->adosseAuMur($cases, $cellules, $l, $h)) {
+                continue; // meuble mural planté au milieu de la pièce : renoncer.
+            }
+
             $occupeesApres = $occupeesSalle;
             foreach ($cellules as $cellule) {
                 $occupeesApres["{$cellule['x']},{$cellule['y']}"] = true;
@@ -1102,6 +1106,56 @@ final class AssembleurCarte
         }
 
         return null;
+    }
+
+    /**
+     * Ce meuble est-il ADOSSÉ — dos au mur, grand axe LE LONG du mur ?
+     *
+     * Le placement tirait jusqu'ici une case au hasard et une orientation à
+     * pile ou face, sans jamais regarder les murs. Ça tombait souvent juste par
+     * accident (les salles sont petites, la plupart des cases touchent un mur),
+     * mais mesuré sur douze donjons réels : une bibliothèque suivait le mur
+     * QUATRE FOIS SUR DIX, une armoire une fois sur six. Le reste du temps elle
+     * dépassait perpendiculairement, comme une étagère plantée au milieu de la
+     * pièce, ou flottait franchement (question de René, 2026-08-21).
+     *
+     * ⚠ La règle se lit dans `adosse_au_mur`, et SURTOUT PAS dans `bloque_vue`.
+     * Les trois meubles hauts du catalogue sont justement les trois à adosser,
+     * et « c'est haut donc ça occulte ET ça s'appuie » se tient — mais c'est
+     * faux en général, et René l'a signalé avant que ça ne morde : un PILIER
+     * bloque la ligne de vue et se dresse au MILIEU d'une salle. Déduire l'un
+     * de l'autre l'aurait collé au mur, ou pire, aurait refusé de le poser là
+     * où il a du sens. Même histoire que `bloque_mouvement`/`bloque_vue`,
+     * scindés pour cette raison exacte : on ne conflate pas deux faits
+     * indépendants dans une colonne.
+     *
+     * Un meuble allongé exige un mur le long de son GRAND axe : un mur au bout
+     * d'une bibliothèque ne l'adosse pas, il la coince. Un meuble carré se
+     * contente de n'importe quel mur adjacent.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int}>  $cellules
+     */
+    private function adosseAuMur(array $cases, array $cellules, int $l, int $h): bool
+    {
+        // Côtés à tester : ceux qui longent le grand axe. Une pièce couchée
+        // (l > h) s'adosse en haut ou en bas ; debout (h > l), à gauche ou à
+        // droite ; carrée, n'importe où.
+        $cotes = match (true) {
+            $l > $h => [[0, -1], [0, 1]],
+            $h > $l => [[-1, 0], [1, 0]],
+            default => [[0, -1], [0, 1], [-1, 0], [1, 0]],
+        };
+
+        foreach ($cellules as $cellule) {
+            foreach ($cotes as [$ox, $oy]) {
+                if (($cases[$cellule['y'] + $oy][$cellule['x'] + $ox] ?? 'm') === 'm') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
