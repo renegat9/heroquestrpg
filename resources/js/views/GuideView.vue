@@ -281,10 +281,11 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <MSym n="block" :size="13" />
                         Ne porte aucune <strong>armure métallique</strong>{{ c.nom === 'rogue' ? ' ni bouclier' : '' }}
                     </p>
-                    <p v-if="c.nom === 'barde'" class="regle-carte">
-                        <MSym n="shield" :size="13" />
-                        <strong>+1 dé de défense</strong> tant qu’il ne porte ni armure métallique ni bouclier
-                    </p>
+                    <!-- Le Barde n'a PAS de ligne ici, et c'est voulu : son
+                         « +1 dé de défense sans métal » EST sa capacité de carte
+                         « Léger sur ses pieds », listée plus bas et lue depuis le
+                         catalogue. Énoncée aux deux endroits, la même règle se
+                         lisait comme deux bonus distincts. -->
                     <p v-if="c.nom === 'chevalier'" class="regle-carte">
                         <MSym n="directions_walk" :size="13" />
                         Les armures ne <strong>ralentissent pas</strong> son mouvement
