@@ -48,6 +48,20 @@ class PlaceholderController extends Controller
         // traversaient et l'ensemble se lisait comme un insecte.
         'monstre' => 'M365 365 L300 240 M535 365 L600 240 M450 330 '
             .'a120 120 0 0 1 120 120 v170 h-240 V450 a120 120 0 0 1 120 -120 Z',
+        // Un buste : tête et épaules. ⚠ Les épaules DESCENDENT jusqu'au bord du
+        // cadre : arrêtées en l'air, elles se lisaient comme un trait coupé
+        // plutôt que comme un portrait recadré.
+        'heros' => 'M450 232 a74 74 0 1 1 0 148 a74 74 0 1 1 0 -148 '
+            .'M296 675 v-96 a154 154 0 0 1 308 0 v96',
+        // Une bourse fermée par son lien — l'objet le plus neutre du sac.
+        'objet' => 'M362 405 h176 l34 175 h-244 Z M406 405 v-42 a44 44 0 0 1 88 0 v42',
+        // Trois pointes sortant du sol : un piège se voit à ce qu'il dépasse.
+        // Élargies et rehaussées — au premier jet elles se perdaient dans le bas
+        // du cadre.
+        'piege' => 'M288 590 h324 M330 590 L370 428 L410 590 M410 590 L450 392 L490 590 '
+            .'M490 590 L530 428 L570 590',
+        // Un sceau arcanique : deux triangles entrelacés, lisible même à 40 px.
+        'sort' => 'M450 282 L562 472 L338 472 Z M450 562 L338 372 L562 372 Z',
     ];
 
     /**
@@ -58,7 +72,10 @@ class PlaceholderController extends Controller
      */
     public function afficher(string $type, string $graine): Response
     {
-        $embleme = self::EMBLEMES[$type] ?? self::EMBLEMES['quete'];
+        // `classe` et `heros` partagent le même buste : une classe EST le
+        // portrait générique de ses héros, c'est d'ailleurs vers elle que
+        // retombe déjà un portrait individuel manquant.
+        $embleme = self::EMBLEMES[$type === 'classe' ? 'heros' : $type] ?? self::EMBLEMES['quete'];
 
         // Teinte dérivée de la graine : stable pour un sujet donné, différente
         // d'un sujet à l'autre. Bornée aux ambres et aux verts sourds — rester

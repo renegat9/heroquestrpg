@@ -53,7 +53,7 @@ it('lève AppelLlmException sur erreur HTTP et si pas d\'image', function () {
     expect(fn () => (new ImageGemini)->generer('x'))->toThrow(AppelLlmException::class);
 });
 
-it('résout les URLs catalogue/dyn par existence de fichier (null sinon)', function () {
+it('résout les URLs catalogue/dyn par existence de fichier', function () {
     $b = new BibliothequeImages;
 
     // Chemins relatifs déterministes (slug).
@@ -61,11 +61,46 @@ it('résout les URLs catalogue/dyn par existence de fichier (null sinon)', funct
         ->and($b->relatifCatalogue('monstres', 5, 'Gardien de Pierre'))->toBe('catalogue/monstres/5-gardien-de-pierre.png')
         ->and($b->relatifDyn('quete', 12))->toBe('dyn/quete/12.png');
 
-    // Assets INEXISTANTS (classe/ids absents) → toutes les URLs sont nulles.
-    expect($b->urlClasse('paladin'))->toBeNull()
-        ->and($b->urlMonstreCatalogue(99999, 'Créature Absente'))->toBeNull()
-        ->and($b->urlDyn('hub', 999999))->toBeNull()
-        ->and($b->urlHeros(999999, 'paladin'))->toBeNull();
+    // `urlDyn` est l'accesseur BRUT : il garde son `null`, c'est lui qui permet
+    // aux chaînes de repli d'exister (portrait → classe, boss → archétype).
+    expect($b->urlDyn('hub', 999999))->toBeNull();
+
+    // Les accesseurs PUBLICS, eux, ne rendent plus jamais de cadre vide :
+    // à défaut d'illustration, une vignette SVG (René, 2026-08-21).
+    expect($b->urlClasse('paladin'))->toBe('/api/placeholder/classe/paladin')
+        ->and($b->urlMonstreCatalogue(99999, 'Créature Absente'))->toBe('/api/placeholder/monstre/99999')
+        ->and($b->urlHeros(999999, 'paladin'))->toBe('/api/placeholder/classe/paladin');
+
+    // ⚠ Sans SUJET, il n'y a rien à montrer : un `null` reste un `null`. Une
+    // vignette voudrait dire « image manquante » là où il n'y a pas d'image
+    // à attendre.
+    expect($b->urlClasse(null))->toBeNull()
+        ->and($b->urlObjet(null, 'Truc'))->toBeNull();
+});
+
+/**
+ * ⚠ La vignette se pose en BOUT de chaîne, jamais au milieu : une vraie image,
+ * même générique, vaut mieux qu'un emblème. Un portrait de héros absent doit
+ * d'abord retomber sur l'illustration de sa CLASSE.
+ */
+it('laisse toujours gagner une vraie image sur la vignette', function () {
+    $b = new BibliothequeImages;
+    $rel = $b->relatifClasse('paladin');
+    $absolu = public_path("images/{$rel}");
+
+    if (! is_dir(dirname($absolu))) {
+        mkdir(dirname($absolu), 0775, true);
+    }
+    file_put_contents($absolu, 'PNG-témoin');
+
+    try {
+        expect($b->urlClasse('paladin'))->toBe("/images/{$rel}")
+            // Le portrait individuel n'existe pas : on descend d'un cran vers
+            // la classe, et on ne va PAS jusqu'à la vignette.
+            ->and($b->urlHeros(999999, 'paladin'))->toBe("/images/{$rel}");
+    } finally {
+        @unlink($absolu);
+    }
 });
 
 it('construit le prompt en interpolant le style et les champs', function () {

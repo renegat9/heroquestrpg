@@ -72,27 +72,38 @@ final class BibliothequeImages
 
     public function urlClasse(?string $classe): ?string
     {
-        return $classe ? $this->url($this->relatifClasse($classe)) : null;
+        return $classe
+            ? $this->url($this->relatifClasse($classe)) ?? $this->vignette('classe', self::slug($classe))
+            : null;
     }
 
     public function urlMonstreCatalogue(?int $id, ?string $nomBase): ?string
     {
-        return $id ? $this->url($this->relatifCatalogue('monstres', $id, (string) $nomBase)) : null;
+        return $id
+            ? $this->url($this->relatifCatalogue('monstres', $id, (string) $nomBase))
+                ?? $this->vignette('monstre', $id)
+            : null;
     }
 
     public function urlObjet(?int $id, ?string $nom): ?string
     {
-        return $id ? $this->url($this->relatifCatalogue('objets', $id, (string) $nom)) : null;
+        return $id
+            ? $this->url($this->relatifCatalogue('objets', $id, (string) $nom)) ?? $this->vignette('objet', $id)
+            : null;
     }
 
     public function urlPiege(?int $id, ?string $nom): ?string
     {
-        return $id ? $this->url($this->relatifCatalogue('pieges', $id, (string) $nom)) : null;
+        return $id
+            ? $this->url($this->relatifCatalogue('pieges', $id, (string) $nom)) ?? $this->vignette('piege', $id)
+            : null;
     }
 
     public function urlSort(?int $id, ?string $nom): ?string
     {
-        return $id ? $this->url($this->relatifCatalogue('sorts', $id, (string) $nom)) : null;
+        return $id
+            ? $this->url($this->relatifCatalogue('sorts', $id, (string) $nom)) ?? $this->vignette('sort', $id)
+            : null;
     }
 
     // ---- Dynamique (jobs / cache) ----------------------------------------
@@ -108,21 +119,27 @@ final class BibliothequeImages
     }
 
     /**
-     * Comme {@see self::urlDyn()}, mais ne rend JAMAIS `null` : à défaut
-     * d'illustration générée, une vignette SVG de remplacement.
+     * URL de la vignette SVG de remplacement (voir `PlaceholderController`).
      *
-     * Réservée aux endroits où un cadre vide se lit comme un bug — la carte
-     * d'ouverture de quête, le panneau de hub. Ailleurs, `urlDyn()` et son
-     * `null` gardent leur sens : un portrait de héros absent retombe sur
-     * l'illustration de classe, ce qui vaut mieux qu'un emblème générique.
+     * ⚠ Elle se pose TOUJOURS EN BOUT DE CHAÎNE, jamais au milieu : un
+     * portrait de héros absent doit d'abord retomber sur l'illustration de sa
+     * CLASSE, et un boss sans portrait sur l'image de son ARCHÉTYPE. Une vraie
+     * image, même générique, vaut mieux qu'un emblème — c'est seulement quand
+     * il n'en reste aucune que la vignette prend le relais.
      *
-     * Le jeu tourne sans clé d'IA — c'est une règle du projet, pas un mode
-     * dégradé — et les crédits peuvent s'épuiser en pleine campagne : ces
-     * cadres-là doivent tenir debout sans image.
+     * Le jeu tourne sans clé d'IA (règle du projet, pas mode dégradé) et les
+     * crédits peuvent s'épuiser en pleine campagne : aucun cadre ne doit rester
+     * vide pour autant.
      */
+    public function vignette(string $type, int|string $graine): string
+    {
+        return "/api/placeholder/{$type}/{$graine}";
+    }
+
+    /** Comme {@see self::urlDyn()}, mais ne rend jamais `null`. */
     public function urlDynOuVignette(string $sousType, int|string $id): string
     {
-        return $this->urlDyn($sousType, $id) ?? "/api/placeholder/{$sousType}/{$id}";
+        return $this->urlDyn($sousType, $id) ?? $this->vignette($sousType, $id);
     }
 
     /**
@@ -153,18 +170,22 @@ final class BibliothequeImages
      * Portrait d'un héros : portrait UNIQUE (dyn/perso) s'il existe, sinon
      * l'image de CLASSE par défaut, sinon null (→ icône côté front).
      */
-    public function urlHeros(int $personnageId, ?string $classe): ?string
+    public function urlHeros(int $personnageId, ?string $classe): string
     {
-        return $this->urlDyn('perso', $personnageId) ?? $this->urlClasse($classe);
+        return $this->urlDyn('perso', $personnageId)
+            ?? $this->urlClasse($classe)
+            ?? $this->vignette('heros', $personnageId);
     }
 
     /**
      * Image d'un monstre : portrait de BOSS dynamique (dyn/monstre par instance)
      * s'il existe, sinon l'image de CATALOGUE de l'archétype, sinon null.
      */
-    public function urlMonstre(int $instanceId, ?int $monstreId, ?string $nomBase): ?string
+    public function urlMonstre(int $instanceId, ?int $monstreId, ?string $nomBase): string
     {
-        return $this->urlDyn('monstre', $instanceId) ?? $this->urlMonstreCatalogue($monstreId, $nomBase);
+        return $this->urlDyn('monstre', $instanceId)
+            ?? $this->urlMonstreCatalogue($monstreId, $nomBase)
+            ?? $this->vignette('monstre', $instanceId);
     }
 
     // ---- Prompts (config/images.php) -------------------------------------
