@@ -38,7 +38,7 @@ it('crée la ligne de réglages par défaut au premier accès, sans changer le c
         ->and($data['modele_anthropic'])->toBeNull()
         ->and($data['modele_gemini'])->toBeNull()
         ->and($data['rag_actif'])->toBeTrue()
-        ->and($data['voix_dynamique_active'])->toBeTrue()
+        ->and($data['voix_dynamique_active'])->toBeFalse() // coupée par défaut (2026-08-22)
         ->and($data['images_actif'])->toBeTrue()
         ->and($data['narration_voix'])->toBeNull()
         ->and($data['narration_voix_defaut'])->toBe('Iapetus')

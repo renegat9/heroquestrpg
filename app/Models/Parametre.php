@@ -47,7 +47,7 @@ class Parametre extends Model
      * `['id' => 1]`) : `id` n'est pas fillable, le passer en recherche +
      * création serait silencieusement ignoré par la protection mass-assignment.
      *
-     * Les 3 booléens à défaut `true` sont explicitement listés ici plutôt que
+     * Les booléens sont explicitement listés ici plutôt que
      * de compter sur le `->default(true)` de la migration : après un
      * `create()`, Eloquent NE RELIT PAS la ligne insérée (à part son id
      * auto-incrémenté) — un attribut absent du tableau de création reste
@@ -60,7 +60,10 @@ class Parametre extends Model
     {
         return static::query()->firstOrCreate([], [
             'rag_actif' => true,
-            'voix_dynamique_active' => true,
+            // ⚠ COUPÉE par défaut depuis le 2026-08-22 : le TTS Gemini plafonne
+            // à 100 requêtes/jour même facturé, et une quête en mange ~10. Voir
+            // la migration 2026_08_22_000003 pour le raisonnement complet.
+            'voix_dynamique_active' => false,
             'images_actif' => true,
         ]);
     }

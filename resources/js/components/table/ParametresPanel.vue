@@ -42,7 +42,7 @@ const form = reactive({
     modele_anthropic: '',
     modele_gemini: '',
     rag_actif: true,
-    voix_dynamique_active: true,
+    voix_dynamique_active: false,
     images_actif: true,
     narration_voix_mode: '', // '' = suit le défaut, une des voix connues, ou '__perso__'
     narration_voix_perso: '',

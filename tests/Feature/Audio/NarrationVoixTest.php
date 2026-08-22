@@ -97,8 +97,11 @@ it('n\'appelle pas Gemini TTS quand la synthèse vocale IA dynamique est désact
 // stub qui matche). On vérifie donc l'APPEL (Http::assertSent, sur la requête
 // réellement envoyée — indépendant de la réponse retournée), pas la valeur de
 // retour qui dépendrait d'une réponse applicative réaliste.
-it('tente l\'appel Gemini TTS par défaut (bascule non désactivée)', function () {
+it('tente l\'appel Gemini TTS quand la bascule est ACTIVÉE', function () {
     config(['services.gemini.api_key' => 'cle-test']);
+    // ⚠ Explicite depuis le 2026-08-22 : la bascule est COUPÉE par défaut,
+    // ce test s'appuyait sur l'ancien défaut au lieu de déclarer son cas.
+    Parametre::actuel()->update(['voix_dynamique_active' => true]);
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
         'candidates' => [['content' => ['parts' => [['inlineData' => ['data' => base64_encode('PCMDATA')]]]]]],
     ])]);
@@ -110,7 +113,7 @@ it('tente l\'appel Gemini TTS par défaut (bascule non désactivée)', function 
 
 it('envoie la voix narrateur surchargée (Parametre::narration_voix) à Gemini TTS', function () {
     config(['services.gemini.api_key' => 'cle-test']);
-    Parametre::actuel()->update(['narration_voix' => 'Puck']);
+    Parametre::actuel()->update(['narration_voix' => 'Puck', 'voix_dynamique_active' => true]);
 
     Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
         'candidates' => [['content' => ['parts' => [['inlineData' => ['data' => base64_encode('PCMDATA')]]]]]],

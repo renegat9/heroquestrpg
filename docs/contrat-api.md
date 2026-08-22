@@ -897,7 +897,7 @@ serveur correspondante → 422.
   "modele_anthropic": null, "modele_anthropic_defaut": "claude-sonnet-4-6",
   "modele_gemini": null, "modele_gemini_defaut": "gemini-3.1-flash-lite",
   "rag_actif": true,
-  "voix_dynamique_active": true,
+  "voix_dynamique_active": false,
   "bible_semantique": "voyage",
   "statut_ia": {"etat": "nominal", "fournisseur": "anthropic", "a": "2026-07-23T10:00:00+00:00"},
   "consommation_ia": {
