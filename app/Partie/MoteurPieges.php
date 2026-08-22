@@ -483,9 +483,16 @@ final class MoteurPieges
      * Désamorçage réservé au Nain OU au porteur d'un objet à effet
      * `permet_desamorcage` (Trousse à outils, ObjetSeeder) — doc 10 §4.
      */
+    /**
+     * Classes qui désamorcent SANS OUTILS (dos des cartes, René 2026-08-22).
+     * Le Nain le pouvait déjà ; l'Explorateur porte la même mention et ne
+     * l'avait pas. Toutes deux naines, ce qui n'est pas un hasard.
+     */
+    public const SANS_OUTILS = ['nain', 'explorateur'];
+
     public function peutDesamorcer(Personnage $personnage): bool
     {
-        if ($personnage->classe === 'nain') {
+        if (in_array($personnage->classe, self::SANS_OUTILS, true)) {
             return true;
         }
 

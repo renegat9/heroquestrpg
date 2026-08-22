@@ -314,7 +314,12 @@ class GroupeController extends Controller
         'barde' => ['Dague'],
         'druide' => ['Dague'],
         'warlock' => ['Baguette'],
-        'rogue' => ['Dague'],
+        // Dos de carte : le Rogue « commence avec la bandoulière » (René,
+        // 2026-08-22). Elle porte `compte_comme_arme: Dague`, ce qui rend son
+        // Ambidextrie littérale dès le premier tour — sa seconde attaque exige
+        // une DAGUE, et c'est la bandoulière qui la lui donne sans occuper sa
+        // main gauche.
+        'rogue' => ['Dague', 'Bandoulière'],
         // Le Moine n'a PAS d'arme de départ, et ce n'est pas un oubli : sa
         // carte n'en donne aucune, ses mains nues SONT son arme (2 dés, contre
         // 1 pour tout le monde).

@@ -335,7 +335,10 @@ it('déclenche le piège sur le désamorceur quand le jet échoue', function () 
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
-    desFiges([4, 4, 4, 4]); // Body 4 dés : 0 crâne → échec sec
+    // ⚠ Le Nain « désamorce sans outils » (dos de carte) : UN dé, et seul le
+    // bouclier noir (6) fait échouer. Ce n'est plus un jet de Body — lui
+    // appliquer le jet ordinaire aurait vidé la mention de sa substance.
+    desFiges([6]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "desamorcer_{$cible['x']}_{$cible['y']}"])
         ->assertStatus(202)
@@ -359,7 +362,10 @@ it('Désamorçage (nœud) épargne le déclenchement sur un jet raté', function
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
-    desFiges([4, 4, 4, 4]); // Body 4 dés : 0 crâne → échec sec
+    // ⚠ Le Nain « désamorce sans outils » (dos de carte) : UN dé, et seul le
+    // bouclier noir (6) fait échouer. Ce n'est plus un jet de Body — lui
+    // appliquer le jet ordinaire aurait vidé la mention de sa substance.
+    desFiges([6]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "desamorcer_{$cible['x']}_{$cible['y']}"])
         ->assertStatus(202)

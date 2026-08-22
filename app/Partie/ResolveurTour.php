@@ -421,7 +421,7 @@ final class ResolveurTour
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
         $base = (int) $personnage->deplacement_base;
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'))
+            ->calculer($base, $this->equipement->malusDeplacement($personnage))
             ->total;
         $deDuTour = $totalTour > $base ? $totalTour - $base : null;
 
@@ -2226,10 +2226,33 @@ final class ResolveurTour
             ]);
         }
 
-        $resultat = (new JetCompetence($this->des))
-            ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_DESAMORCAGE);
+        // ⚠ DEUX RÉSOLUTIONS, et c'est le dos des cartes qui les sépare (René,
+        // 2026-08-22). Le Nain et l'Explorateur « désamorcent sans outils » et
+        // n'échouent QUE sur un bouclier noir : un dé, une face perdante sur
+        // six. Tout le monde d'autre passe par la trousse à outils et un jet de
+        // Body ordinaire. Leur appliquer le même jet aurait vidé la mention de
+        // sa substance — c'est précisément leur savoir-faire qui est décrit.
+        $sansOutils = in_array($personnage->classe, MoteurPieges::SANS_OUTILS, true);
 
-        if ($resultat->estReussi()) {
+        if ($sansOutils) {
+            $face = FaceDeCombat::depuisD6($this->des->d6());
+            $reussi = $face !== FaceDeCombat::BouclierNoir;
+            $detailJet = ['methode' => 'sans_outils', 'face' => $face->value];
+        } else {
+            $resultat = (new JetCompetence($this->des))
+                ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_DESAMORCAGE);
+            $reussi = $resultat->estReussi();
+            $detailJet = [
+                'methode' => 'trousse',
+                'attribut' => 'body',
+                'difficulte' => self::DIFFICULTE_DESAMORCAGE,
+                'des_lances' => (int) $personnage->attribut_body,
+                'issue' => $resultat->issue->value,
+                'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            ];
+        }
+
+        if ($reussi) {
             $this->pieges->changerEtat($quete->carte, $cible['index'], MoteurPieges::ETAT_DESARME);
         }
 
@@ -2238,20 +2261,16 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'piege' => ['nom' => $cible['piege']?->nom ?? 'Piège', 'x' => $cible['x'], 'y' => $cible['y']],
-            'attribut' => 'body',
-            'difficulte' => self::DIFFICULTE_DESAMORCAGE,
-            'des_lances' => (int) $personnage->attribut_body,
-            'succes' => $resultat->succes,
-            'issue' => $resultat->issue->value,
-            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
-            'desarme' => $resultat->estReussi(),
+            'succes' => $reussi,
+            'desarme' => $reussi,
+            ...$detailJet,
         ];
 
         // Échec (doc 10 §10 question n°3, résolue par le nœud nain Désamorçage) :
         // sans le nœud, le piège se déclenche sur le désamorceur (racial Nain /
         // Trousse à outils, tout le monde) ; AVEC le nœud, l'échec est sans
         // casse — le piège reste détecté, retentable.
-        if (! $resultat->estReussi() && ! $this->possedeCompetence($personnage, 'Désamorçage')) {
+        if (! $reussi && ! $this->possedeCompetence($personnage, 'Désamorçage')) {
             $payload['declenchement'] = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
             );

@@ -22,11 +22,14 @@ class ClasseHeros extends Model
         'deplacement_base',
         'bonus_sac',
         'tags_equipement',
+        // Liste blanche NOMINATIVE d'objets (Moine). `null` = les tags font foi.
+        'objets_autorises',
     ];
 
     protected function casts(): array
     {
         return [
+            'objets_autorises' => 'array',
             // Maîtrises d'équipement accessibles SANS nœud (doc 01 §7).
             'tags_equipement' => 'array',
         ];

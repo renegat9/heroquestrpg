@@ -358,7 +358,7 @@ final class MenuMoteur
             // aucun appelant ne le lui avait jamais dit — il n'avait donc
             // jamais joué, et l'armure la plus chère n'avait que des avantages.
             $jet = (new Deplacement($this->des))
-                ->calculer($base, $this->equipement->valeurEffetPorte($personnage, 'malus_deplacement'));
+                ->calculer($base, $this->equipement->malusDeplacement($personnage));
 
             $etat->update(['deplacement_tour' => $jet->total]);
 

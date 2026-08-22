@@ -126,17 +126,34 @@ class ClasseHerosSeeder extends Seeder
             // Warlock — « follows the same rules for wearing armor as the
             // wizard » : on reprend donc EXACTEMENT le profil du magicien,
             // `armure_magicien` compris. Sa baguette est son arme.
-            ['nom' => 'warlock', 'race' => 'halfling', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'armure_magicien', 'arme_warlock', 'talisman_warlock']],
+            ['nom' => 'warlock', 'race' => 'halfling', 'pv_body' => 4, 'pv_mind' => 5, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 0,
+                // Dos de carte : « uniquement ce qu'un magicien peut utiliser ».
+                // Mêmes tags que lui, plus sa baguette de classe et son talisman.
+                'tags_equipement' => ['arme_legere', 'armure_magicien', 'arme_warlock', 'talisman_warlock']],
 
             // Rogue — profil de lame agile. Pas d'armure lourde ni d'arme à
             // deux mains : ses trois capacités parlent toutes de dague et
             // d'épée courte, une plate le contredirait.
-            ['nom' => 'rogue', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'outil_rogue', 'talisman_rogue']],
+            ['nom' => 'rogue', 'race' => 'humain', 'pv_body' => 5, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 1,
+                // Dos de carte : ni armure MÉTALLIQUE ni bouclier. `armure_legere`
+                // ne couvrait que le poids — la matière est portée par
+                // `objets.metallique`, seul le tag est retiré ici (il n'ouvrait
+                // que sur du métal : casque et cotte de mailles).
+                'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'outil_rogue', 'talisman_rogue']],
 
             // Moine — 3 dés de défense SANS armure ni bouclier, ce qui est tout
             // son personnage : il esquive, il ne se protège pas. Lui donner une
             // armure le pousserait à 4-5 dés, au-dessus de n'importe quel héros.
-            ['nom' => 'moine', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 2, 'des_defense' => 3, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'talisman_moine']],
+            ['nom' => 'moine', 'race' => 'humain', 'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 3, 'attr_mind' => 3, 'des_attaque' => 2, 'des_defense' => 3, 'deplacement_base' => 5, 'bonus_sac' => 0,
+                // Dos de carte : ni armure ni bouclier, et cinq armes NOMMÉES.
+                // ⚠ Aucune combinaison de tags ne décrit cette liste — hachette
+                // et épée courte partagent `arme_courante` avec l'épée large,
+                // l'épée longue et la rapière, qui lui sont interdites. D'où la
+                // liste blanche, qui REMPLACE le contrôle par tags. Re-taguer
+                // les cinq armes aurait cassé dix classes pour en servir une,
+                // `tag_equipement` étant une colonne unique.
+                'tags_equipement' => ['talisman_moine'],
+                'objets_autorises' => ['Dague', 'Arbalète', 'Hachette', 'Épée courte', 'Bâton']],
 
             // Chevalier — le seul héros à DÉMARRER avec un bouclier, et deux de
             // ses trois capacités portent « **Requires shield** ». Profil de
@@ -146,7 +163,9 @@ class ClasseHerosSeeder extends Seeder
             // Berserker — 3 dés d'attaque de base et deux capacités qui exigent
             // d'être BLESSÉ : l'armure lourde irait contre son propre jeu, qui
             // consiste à encaisser pour frapper plus fort.
-            ['nom' => 'berserker', 'race' => 'humain', 'pv_body' => 7, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'arme_deux_mains', 'talisman_berserker']],
+            ['nom' => 'berserker', 'race' => 'humain', 'pv_body' => 7, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0,
+                // Dos de carte : « n'utilise pas d'arme à distance » — plus de `arme_distance`.
+                'tags_equipement' => ['arme_legere', 'arme_courante', 'armure_legere', 'arme_deux_mains', 'talisman_berserker']],
 
             // Explorateur — le seul 5/5 du jeu, tourné vers les pièges et le
             // deck de trésor. Profil polyvalent sans excès, proche du nain sans

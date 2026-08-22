@@ -23,6 +23,7 @@ class Objet extends Model
     protected function casts(): array
     {
         return [
+            'metallique' => 'boolean',
             'effet' => 'array',
         ];
     }

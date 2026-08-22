@@ -35,6 +35,15 @@ use Illuminate\Validation\ValidationException;
 final class Equipement
 {
     /**
+     * Classes qui ne portent AUCUNE armure métallique (dos des cartes) : le
+     * Druide et le Rogue par interdiction, le Barde parce que son dé de défense
+     * supplémentaire en dépend — chez lui ce n'est pas un refus mais une
+     * condition, appliquée par `CapacitesInnees`, et il garde donc le droit de
+     * l'équiper. Il n'est PAS listé ici pour cette raison.
+     */
+    private const SANS_METAL = ['druide', 'rogue'];
+
+    /**
      * Emplacements « portés » (par opposition à sac / consommable).
      *
      * `casque` est un slot À PART depuis le 2026-08-08 : au plateau les pièces
@@ -270,8 +279,60 @@ final class Equipement
      *  - `MoteurReactions::soinsDisponibles()` — FILTRE l'offre, car proposer un
      *    soin que la résolution refusera est pire que ne rien proposer.
      */
+    /**
+     * Malus de déplacement de l'équipement PORTÉ — zéro pour le Chevalier.
+     *
+     * « Les armures ne nuisent pas à son mouvement » (dos de carte, René
+     * 2026-08-22) : c'est ce qui fait de lui le seul à pouvoir enfiler la plate
+     * sans y perdre deux cases, et c'est tout l'intérêt de la classe.
+     *
+     * Encapsulé ici plutôt que testé chez les appelants : `MenuMoteur` et
+     * `ResolveurTour` lisent tous deux ce malus, et deux exemptions à tenir en
+     * cohérence finiraient par diverger — le menu proposerait des cases que le
+     * résolveur refuserait, l'anti-patron que ce projet traque partout.
+     */
+    public function malusDeplacement(Personnage $personnage): int
+    {
+        if ($personnage->classe === 'chevalier') {
+            return 0;
+        }
+
+        return (int) $this->valeurEffetPorte($personnage, 'malus_deplacement');
+    }
+
     public function estAccessible(Personnage $personnage, Objet $objet): bool
     {
+        // ⚠ `Personnage::classeHeros` n'existe PAS (piège documenté dans
+        // CLAUDE.md, il rend `null` en silence) : la classe se résout par
+        // requête sur le nom, comme partout ailleurs dans ce fichier.
+        $classe = ClasseHeros::where('nom', $personnage->classe)->first();
+
+        // ⚠ LISTE BLANCHE NOMINATIVE, quand la classe en déclare une : elle
+        // REMPLACE le contrôle par tags, elle ne s'y ajoute pas. Le Moine ne
+        // manie que dague, arbalète, hachette, épée courte et bâton — et aucune
+        // combinaison de tags ne dit cela, hachette et épée courte partageant
+        // `arme_courante` avec l'épée large, l'épée longue et la rapière qui lui
+        // sont interdites.
+        //
+        // Ne porte QUE sur les pièces qui exigent une maîtrise : une potion, un
+        // parchemin ou une trousse à outils ne sont pas des armes, et une liste
+        // d'armes n'a pas à les interdire.
+        $liste = $classe?->objets_autorises;
+
+        if (is_array($liste) && $liste !== [] && filled($objet->tag_equipement)) {
+            return in_array($objet->nom, $liste, true);
+        }
+
+        // ⚠ ARMURE MÉTALLIQUE — une matière, pas un poids. Les tags disent
+        // `armure_legere`/`armure_lourde` ; Barde, Druide et Rogue raisonnent
+        // sur le métal, d'où `objets.metallique`. Le Rogue perd aussi son tag
+        // d'armure, mais la colonne reste la seule autorité sur la MATIÈRE :
+        // le jour où une armure de cuir entre au catalogue, elle passera sans
+        // qu'on ait à y revenir.
+        if ($objet->metallique && in_array($classe?->nom, self::SANS_METAL, true)) {
+            return false;
+        }
+
         $tag = $objet->tag_equipement;
 
         // Pièce sans exigence de maîtrise (outil, consommable, parchemin, ou
@@ -542,15 +603,21 @@ final class Equipement
      */
     public function porteMetalOuBouclier(Personnage $personnage): bool
     {
+        // ⚠ Le MÉTAL se lit dans `objets.metallique`, plus dans les tags. Ceux-ci
+        // disent le POIDS (`armure_legere`/`armure_lourde`), pas la matière :
+        // la déduction tenait tant que les deux seules armures du catalogue
+        // étaient métalliques, et serait tombée en silence à la première armure
+        // de cuir — le Barde aurait perdu son dé sans que rien ne le signale.
+        //
+        // Le BOUCLIER, lui, reste désigné par son tag : les cartes le nomment
+        // séparément du métal, et le marquer métallique retirerait au passage
+        // son bouclier au Druide, à qui elles ne l'interdisent pas.
         return $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
             ->with('objet')
             ->get()
-            ->contains(fn ($ligne) => in_array(
-                $ligne->objet?->tag_equipement,
-                ['armure_legere', 'armure_lourde', 'bouclier'],
-                true,
-            ));
+            ->contains(fn ($ligne) => (bool) $ligne->objet?->metallique
+                || $ligne->objet?->tag_equipement === 'bouclier');
     }
 
     public function valeurEffetPorte(Personnage $personnage, string $cle): int

@@ -194,7 +194,7 @@ class ObjetSeeder extends Seeder
             // est acquis depuis que le casque a son slot ; ce qui reste propre à
             // l'artefact, c'est l'ABSENCE de malus de déplacement, « unlike
             // normal plate mail » (LR p. 7).
-            ['nom' => 'Armure de Borin', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Armure de Borin', 'categorie' => 'armure', 'metallique' => true, 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 2]],
 
             // Talismans : ni dés d'attaque ni dés de défense, mais des PV
@@ -298,14 +298,14 @@ class ObjetSeeder extends Seeder
             // repris du paquet fan) — le tag saute, tout le monde peut les
             // porter, le magicien compris. La Cape de protection, elle, n'a pas
             // de carte : elle disparaît du catalogue.
-            ['nom' => 'Casque', 'categorie' => 'armure', 'prix_base' => 125, 'emplacement' => 'casque', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Casque', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 125, 'emplacement' => 'casque', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
             ['nom' => 'Bouclier', 'categorie' => 'armure', 'prix_base' => 150, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
                 // « May not be used with the battle axe or the staff » : chez
                 // nous c'est `incompatible_deux_mains`, et les deux armes que la
                 // carte nomme sont précisément nos deux `deux_mains` de base.
                 'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true]],
-            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
+            ['nom' => 'Cotte de mailles', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 500, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere',
                 'effet' => ['des_defense' => 1]],
             // ⚠ `tag_equipement` est déclaré NULL EXPLICITEMENT, et pas
             // simplement omis : `updateOrCreate` n'écrit que les colonnes qu'on
@@ -318,7 +318,7 @@ class ObjetSeeder extends Seeder
             // « While wearing the Plate Mail, you have a 2 square movement
             // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en
             // moyenne). Le malus vient de la carte, pas d'une décision de table.
-            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
+            ['nom' => 'Armure de plates', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
                 'effet' => ['des_defense' => 2, 'malus_deplacement' => 2]],
 
             // ----- Outils -----
