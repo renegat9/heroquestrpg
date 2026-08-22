@@ -150,6 +150,12 @@ const objetsParCategorie = computed(() => {
    découvrait qu'un magicien ne porte pas d'armure qu'au refus, en essayant de
    l'équiper. On l'expose des deux côtés : ce que chaque classe maîtrise, et
    qui peut porter chaque pièce. */
+/* Règles imprimées au DOS DES CARTES de classe (voir ReglesDeClasseTest) :
+   elles ne se déduisent d'aucune donnée envoyée par l'API, il faut donc les
+   nommer ici pour que le joueur les lise ailleurs qu'au moment d'un refus. */
+const SANS_METAL = ['druide', 'rogue'];
+const DESAMORCE_SANS_OUTILS = ['nain', 'explorateur'];
+
 const acces = computed(() => accesEquipement(classes.value, guide.value?.competences ?? []));
 
 /** Tags de départ d'une classe + ceux que son arbre débloque. */
@@ -252,8 +258,44 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                             <MSym n="lock_open" :size="11" /> {{ TAG_EQUIPEMENT[d.tag] ?? d.tag }} — via {{ d.talent }}
                         </span>
                     </div>
-                    <p v-else class="maitrise-libre">
+                    <p v-else-if="!c.objets_autorises" class="maitrise-libre">
                         <MSym n="info" :size="13" /> Aucune restriction déclarée : cette classe peut porter tout l'équipement.
+                    </p>
+
+                    <!-- Liste NOMINATIVE (Moine) : elle remplace les maîtrises,
+                         elle ne s'y ajoute pas. Sans elle la fiche montrait un
+                         Moine réduit à son talisman, donc sans aucune arme. -->
+                    <p v-if="c.objets_autorises?.length" class="regle-carte">
+                        <MSym n="playlist_add_check" :size="13" />
+                        Ne manie que : <strong>{{ c.objets_autorises.join(', ') }}</strong>
+                    </p>
+
+                    <!-- Le Moine ne porte RIEN : sa liste nominative le refuse
+                         mécaniquement, mais elle ne l'énonce pas — un joueur ne
+                         doit pas avoir à déduire une interdiction d'une absence. -->
+                    <p v-if="c.nom === 'moine'" class="regle-carte">
+                        <MSym n="block" :size="13" />
+                        Ne porte <strong>ni armure ni bouclier</strong>
+                    </p>
+                    <p v-if="SANS_METAL.includes(c.nom)" class="regle-carte">
+                        <MSym n="block" :size="13" />
+                        Ne porte aucune <strong>armure métallique</strong>{{ c.nom === 'rogue' ? ' ni bouclier' : '' }}
+                    </p>
+                    <p v-if="c.nom === 'barde'" class="regle-carte">
+                        <MSym n="shield" :size="13" />
+                        <strong>+1 dé de défense</strong> tant qu’il ne porte ni armure métallique ni bouclier
+                    </p>
+                    <p v-if="c.nom === 'chevalier'" class="regle-carte">
+                        <MSym n="directions_walk" :size="13" />
+                        Les armures ne <strong>ralentissent pas</strong> son mouvement
+                    </p>
+                    <p v-if="DESAMORCE_SANS_OUTILS.includes(c.nom)" class="regle-carte">
+                        <MSym n="handyman" :size="13" />
+                        Désamorce les pièges <strong>sans outils</strong> — seul un bouclier noir le fait échouer
+                    </p>
+                    <p v-if="c.nom === 'berserker'" class="regle-carte">
+                        <MSym n="block" :size="13" />
+                        N’utilise <strong>aucune arme à distance</strong>
                     </p>
 
                     <template v-if="sortsDeClasse(c.nom).length">
@@ -640,6 +682,12 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
   display: inline-flex; align-items: center; gap: 4px; }
 .maitrise-libre { display: flex; align-items: center; gap: 6px; margin: 0 0 4px;
   font-size: 12px; color: var(--ink-500); font-style: italic; }
+/* Règles du dos de carte : lisibles d'un coup d'œil, sous les maîtrises.
+   Un joueur ne doit pas découvrir la règle au moment d'un refus d'équiper. */
+.regle-carte { display: flex; align-items: flex-start; gap: 6px; margin: 6px 0 0;
+  font-size: 12px; line-height: 1.45; color: var(--ink-400, #b9ab8f); }
+.regle-carte .msym { flex: none; margin-top: 1px; color: var(--gold, #c9a24a); }
+.regle-carte strong { color: var(--ink-200, #e8dcc6); font-weight: 600; }
 .porteurs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 8px 0 0;
   font-size: 11.5px; color: var(--ink-400, #b9ab8f); }
 .porteurs .msym { color: var(--ink-500); }

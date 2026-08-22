@@ -17,11 +17,6 @@ class CompetenceSeeder extends Seeder
             'barbare' => [
                 ['nom' => 'Carrure', 'type' => 'passif', 'description' => '+1 Point de Body (PV Body max).', 'effet' => ['mecanique' => 'bonus_pv_body_max', 'valeur' => 1]],
                 ['nom' => 'Coup puissant', 'type' => 'actif', 'description' => "Une fois par usage, relance les dés d'attaque ratés.", 'effet' => ['mecanique' => 'relance_des_attaque_rates', 'frequence' => 'une_fois_par_usage']],
-                // Nom CONSERVÉ volontairement : le seeder identifie un nœud par (classe, nom),
-                // le renommer en créerait un nouveau et détacherait celui des héros
-                // qui l'ont déjà acquis. Seule sa portée se réduit : le barbare manie
-                // désormais les armes à deux mains sans lui.
-                ['nom' => 'Maîtrise lourde', 'type' => 'deblocage', 'description' => 'Débloque les armures lourdes (plates).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['armure_lourde']]],
                 ['nom' => 'Intimidation', 'type' => 'passif', 'description' => 'Avantage aux jets de Mind sociaux fondés sur la peur.', 'effet' => ['mecanique' => 'avantage_jet_mind', 'contexte' => 'social_peur']],
                 ['nom' => 'Frénésie', 'type' => 'actif', 'description' => "+1 dé d'attaque tant que tes PV de Body sont sous la moitié.", 'effet' => ['mecanique' => 'bonus_des_attaque', 'valeur' => 1, 'condition' => 'pv_body_sous_moitie']],
             ],
@@ -37,10 +32,6 @@ class CompetenceSeeder extends Seeder
                 // paralyser son porteur est une promesse rompue.
                 ['nom' => 'Sang robuste', 'type' => 'passif', 'description' => 'Résistance aux conditions Empoisonné et Envenimé.', 'effet' => ['mecanique' => 'resistance_condition', 'condition_nom' => ['Empoisonné', 'Envenimé']]],
                 ['nom' => 'Solides épaules', 'type' => 'passif', 'description' => '+2 emplacements de sac à dos.', 'effet' => ['mecanique' => 'bonus_capacite_sac', 'valeur' => 2]],
-                // Le nain porte déjà l'armure lourde de naissance (ClasseHerosSeeder) ;
-                // ce nœud n'ouvre que les armes à deux mains, pour que les grosses
-                // armes restent la signature du barbare.
-                ['nom' => 'Poigne de forgeron', 'type' => 'deblocage', 'description' => 'Débloque les armes à deux mains (haches et marteaux de bataille).', 'effet' => ['mecanique' => 'acces_equipement', 'tags' => ['arme_deux_mains']]],
             ],
             'elfe' => [
                 ['nom' => 'Pas léger', 'type' => 'passif', 'description' => '+1 en déplacement.', 'effet' => ['mecanique' => 'bonus_deplacement', 'valeur' => 1]],

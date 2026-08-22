@@ -133,20 +133,17 @@ it('refuse une arme à deux mains à qui n\'y a pas droit — mais plus au barba
         ->toThrow(ValidationException::class);
 });
 
-it('refuse d\'équiper une armure lourde sans le nœud Maîtrise lourde, puis l\'autorise avec', function () {
+it('laisse le BARBARE enfiler la plate dès le niveau 1', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['des_defense' => 2]);
     $plates = sacDe($heros, 'Armure de plates');
 
-    $svc = new Equipement;
+    // ⚠ Plus de nœud « Maîtrise lourde » à payer (René, 2026-08-22) : le miroir
+    // barbare/nain — chacun sa spécialité gratuite, celle de l'autre à l'achat
+    // — est supprimé, les deux ont tout d'emblée.
+    (new Equipement)->equiper($heros, $plates);
 
-    expect(fn () => $svc->equiper($heros, $plates))
-        ->toThrow(ValidationException::class);
-
-    $heros->competences()->attach(Competence::where('classe', 'barbare')->where('nom', 'Maîtrise lourde')->value('id'));
-
-    $svc->equiper($heros, $plates->fresh());
     expect($heros->refresh()->des_defense)->toBe(4); // 2 + 2
 });
 
@@ -295,25 +292,25 @@ it('laisse barbare, nain et elfe équiper armes courantes, distance et armure l�
         expect($heros->refresh()->des_attaque)->toBe(3)
             ->and($heros->refresh()->des_defense)->toBe(3);
 
-        // Symétrie des deux costauds : chacun a sa spécialité gratuite et paie
-        // l'autre. Barbare = armes à deux mains libres, armure lourde au nœud ;
-        // nain = l'inverse ; elfe = ni l'un ni l'autre.
+        // ⚠ La SYMÉTRIE des deux costauds est supprimée (René, 2026-08-22).
+        // Chacun avait sa spécialité gratuite et payait celle de l'autre — le
+        // barbare maniait le deux-mains et achetait la plate, le nain
+        // l'inverse. Les deux ont désormais tout dès le niveau 1 ; l'elfe,
+        // toujours ni l'un ni l'autre.
         $hache = fn () => $svc->equiper($heros, sacDe($heros, 'Hache de bataille'));
         $plates = fn () => $svc->equiper($heros, sacDe($heros, 'Armure de plates'));
 
-        if ($classe === 'barbare') {
+        if ($classe === 'elfe') {
+            expect($hache)->toThrow(ValidationException::class);
+            expect($plates)->toThrow(ValidationException::class);
+        } else {
             $hache();
             expect($heros->refresh()->des_attaque)->toBe(4);
-            expect($plates)->toThrow(ValidationException::class);
-        } elseif ($classe === 'nain') {
-            expect($hache)->toThrow(ValidationException::class);
+
             $plates();
             // Les plates REMPLACENT la cotte (même emplacement, auto-swap) :
             // 2 de base + 2, et non un cumul des deux armures.
             expect($heros->refresh()->des_defense)->toBe(4);
-        } else {
-            expect($hache)->toThrow(ValidationException::class);
-            expect($plates)->toThrow(ValidationException::class);
         }
     }
 });
@@ -355,25 +352,23 @@ it('laisse le NAIN porter l\'armure lourde sans aucun nœud', function () {
     expect($nain->refresh()->des_defense)->toBe(4); // 2 + 2
 });
 
-it('exige « Poigne de forgeron » au nain pour une arme à DEUX MAINS', function () {
+it('laisse le NAIN manier une arme à deux mains dès le niveau 1', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $nain = creerHeros($alice, $groupe, 'Dorin', 1, ['classe' => 'nain']);
     $hache = sacDe($nain, 'Hache de bataille');
 
-    $svc = new Equipement;
+    // ⚠ Plus de nœud « Poigne de forgeron » (René, 2026-08-22) : les grosses
+    // armes ne sont plus la signature exclusive du barbare.
+    (new Equipement)->equiper($nain, $hache);
 
-    // Les grosses armes restent la signature du barbare : le nain les paie d'un
-    // point de compétence.
-    expect(fn () => $svc->equiper($nain, $hache))
-        ->toThrow(ValidationException::class);
-
-    $nain->competences()->attach(
-        Competence::where('classe', 'nain')->where('nom', 'Poigne de forgeron')->value('id'),
-    );
-
-    $svc->equiper($nain, $hache->fresh());
     expect($nain->refresh()->des_attaque)->toBe(4);
+});
+
+it('ne laisse subsister aucun des deux nœuds supprimés', function () {
+    // Le seeder ne PURGE pas (une purge détacherait les nœuds acquis) : sans la
+    // migration, l'arbre continuerait de proposer un nœud qui n'ouvre plus rien.
+    expect(Competence::whereIn('nom', ['Maîtrise lourde', 'Poigne de forgeron'])->count())->toBe(0);
 });
 
 it('garde l\'ELFE et le MAGICIEN hors du lourd', function () {

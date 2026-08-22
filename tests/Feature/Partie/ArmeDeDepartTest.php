@@ -63,13 +63,24 @@ it('donne à chaque classe son arme de départ et la valeur d\'attaque du platea
     ['magicien', 'Dague', 1],
 ]);
 
-it('donne au Nain sa trousse à outils, pour que le désamorçage serve dès la 1re quête', function () {
+it('ne donne PLUS de trousse à outils au Nain — il désamorce sans outils', function () {
     connecterJoueur('alice');
     $hero = creerHerosParApi('Thora', 'nain');
 
     $noms = $hero->fresh()->inventaire()->with('objet')->get()->pluck('objet.nom');
 
-    expect($noms)->toContain('Trousse à outils');
+    // Son dos de carte dit « sans outils » (René, 2026-08-22) : la trousse ne
+    // lui servait plus à rien et lui mangeait une place de sac.
+    expect($noms)->not->toContain('Trousse à outils')
+        ->and($noms)->toContain('Épée courte');
+});
+
+it('donne sa bandoulière au Rogue dès la création', function () {
+    connecterJoueur('alice');
+    $hero = creerHerosParApi('Sly', 'rogue');
+
+    expect($hero->fresh()->inventaire()->with('objet')->get()->pluck('objet.nom'))
+        ->toContain('Bandoulière');
 });
 
 it('REMPLACE l\'attaque quand on change d\'arme, au lieu de l\'additionner', function () {

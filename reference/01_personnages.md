@@ -280,10 +280,18 @@ Progression **par jalons** : aucune accumulation de points, rien ne se gagne au 
 
 Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds : **passif** (bonus permanent), **actif** (capacité déclenchable), **déblocage** (accès à équipement/sort).
 
+> **Décision (René, 2026-08-22) — la symétrie barbare/nain est supprimée.**
+> Les deux costauds étaient MIROIRS : chacun avait sa spécialité gratuite et
+> payait celle de l'autre d'un point de compétence — le barbare maniait le
+> deux-mains et achetait *Maîtrise lourde* pour la plate, le nain portait la
+> plate et achetait *Poigne de forgeron* pour le deux-mains. Les deux ont
+> désormais **tout dès le niveau 1**, et les deux nœuds sont **retirés**.
+> ⚠ Dette connue : le barbare se retrouve seul avec **4 nœuds** d'arbre là où
+> toutes les autres classes en ont 5 ou plus.
+
 ### Barbare
 - *(passif)* **Carrure** : +1 Point de Body.
 - *(actif)* **Coup puissant** : relance une fois les dés d'attaque ratés.
-- *(déblocage)* **Maîtrise lourde** : débloque les **armures lourdes** (plates). Les armes à deux mains, elles, lui sont acquises d'emblée.
 - *(passif)* **Intimidation** : avantage aux jets de Mind sociaux par la peur.
 - *(actif)* **Frénésie** : +1 dé d'attaque quand sous la moitié des PV.
 
@@ -294,7 +302,6 @@ Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds 
 - *(déblocage)* **Forge** : **améliore** un équipement de façon **permanente** (+1 dé ou une propriété).
 - *(passif)* **Sang robuste** : résistance au poison — les **deux** conditions du jeu, *Empoisonné* (pièges, doc 10) et *Envenimé* (créatures venimeuses de Jungles of Delthrak). `effet.condition_nom` accepte donc une liste.
 - *(passif)* **Solides épaules** : +2 emplacements de sac à dos.
-- *(déblocage)* **Poigne de forgeron** : débloque les **armes à deux mains**. (Le nain porte l'**armure lourde** sans nœud — c'est le robuste du groupe.)
 
 ### Elfe
 - *(passif)* **Pas léger** : +1 déplacement.
@@ -390,10 +397,10 @@ l'arc court au barbare, la canne aux deux costauds, et deux protections sont
 | `arme_distance` | Arbalète | « not… by a Wizard » | base sauf magicien |
 | `arme_arc_long` | Arc long | « not… by a Wizard or Dwarf » | base : barbare, elfe |
 | `arme_arc_court` | Arc court | « not… by a Wizard or Barbarian » | base : nain, elfe |
-| `arme_deux_mains` | Hache de bataille, Espadon, Épée bâtarde | « not… by a Wizard or Elf » | base pour le **barbare** ; *Poigne de forgeron* (nain) |
+| `arme_deux_mains` | Hache de bataille, Espadon, Épée bâtarde | « not… by a Wizard or Elf » | base pour le **barbare** ET le **nain** |
 | `armure_legere` | Casque, Cotte de mailles, **Armure de Borin** | « not… by a Wizard » | base sauf magicien → *Cuir d'apprenti* |
 | `bouclier` | Bouclier | « not… by a Wizard » | base sauf magicien |
-| `armure_lourde` | Armure de plates | « not… by a Wizard » | base pour le **nain** ; *Maîtrise lourde* (barbare) |
+| `armure_lourde` | Armure de plates | « not… by a Wizard » | base pour le **nain** ET le **barbare** |
 | `armure_magicien` | Brassards, Cape de protection | « may **only** be used by a Wizard » | base : magicien **seul** |
 | `talisman_barbare` · `talisman_nain` · `talisman_elfe` · `talisman_magicien` | Amulette du Nord, Runes naines, Brassards elfiques, Capuche du Magister | « may be worn only by a… » | base : la classe nommée, **seule** |
 
@@ -420,6 +427,47 @@ n'a lieu qu'au moment d'équiper.
 Au **marché**, une pièce que le héros ne maîtrise pas porte un badge
 « Non maîtrisé », mais reste **achetable** : la bourse est commune et le don entre
 héros existe, donc acheter pour un coéquipier est un usage normal.
+
+### 4 quinquies. Règles du DOS DES CARTES (René, 2026-08-22)
+
+Dix mentions imprimées au dos des cartes de classe. Elles ne se déduisent
+d'aucune autre donnée du jeu — ce sont des **faits de source**, au même titre
+que la ligne de stats d'un monstre. Figées une par une dans `ReglesDeClasseTest`.
+
+| Classe | Règle | Porté par |
+|---|---|---|
+| **Nain** | Désamorce les pièges **sans outils** — seul un **bouclier noir** fait échouer | `MoteurPieges::SANS_OUTILS` + résolution dédiée dans `ResolveurTour` |
+| **Explorateur** | Idem | idem |
+| **Berserker** | N'utilise **aucune arme à distance** | retrait du tag `arme_distance` |
+| **Barde** | **+1 dé de défense** tant qu'il ne porte ni armure métallique ni bouclier | `bonus_des_defense_sans_metal` (capacité innée, déjà câblée) |
+| **Chevalier** | Les armures **ne ralentissent pas** son mouvement | `Equipement::malusDeplacement()` |
+| **Druide** | Aucune **armure métallique** | `objets.metallique` + `Equipement::SANS_METAL` |
+| **Rogue** | Aucune armure métallique **ni bouclier** ; **commence avec la Bandoulière** | idem + `EQUIPEMENT_DEPART` |
+| **Moine** | Ni armure ni bouclier ; **cinq armes nommées** (dague, arbalète, hachette, épée courte, bâton) | `classes_heros.objets_autorises` |
+| **Magicien** | Ni armure ni arme large | déjà porté par ses tags |
+| **Warlock** | Uniquement ce qu'un **magicien** peut manier | tags alignés + sa baguette |
+
+**Deux colonnes ont dû naître**, et pour la même raison : un fait qu'on allait
+déduire d'un autre qui ne s'y superpose que **par hasard, aujourd'hui**.
+
+- `objets.metallique` — les tags disent le **poids** (`armure_legere` /
+  `armure_lourde`), les cartes parlent de **matière**. Le catalogue ne contient
+  que deux armures ordinaires, toutes deux métalliques : la déduction marcherait,
+  et tomberait en silence à la première armure de cuir. Marqué sur la cotte, la
+  plate, le casque **et l'Armure de Borin** (artefact).
+  ⚠ Le **bouclier n'est PAS marqué** : les cartes le nomment séparément du métal,
+  et le marquer retirerait au Druide un bouclier qu'elles ne lui interdisent pas.
+- `classes_heros.objets_autorises` — hachette et épée courte partagent
+  `arme_courante` avec l'épée large, l'épée longue et la rapière, interdites au
+  Moine. **Aucune combinaison de tags** ne décrit sa liste. La liste blanche
+  **remplace** le contrôle par tags quand elle est renseignée, et ne porte que
+  sur les pièces exigeant une maîtrise — une potion n'est pas une arme.
+
+⚠ Le désamorçage du Nain et de l'Explorateur est une **résolution différente**,
+pas un bonus : un dé, une face perdante sur six. Leur appliquer le jet de Body
+ordinaire aurait vidé la mention de sa substance — c'est leur savoir-faire qui
+est décrit. Le Nain a d'ailleurs **perdu sa trousse à outils de départ**, devenue
+inutile et coûteuse d'une place de sac.
 
 ### Sac à dos
 - **Capacité = PV de Body *max* ÷ 2** (arrondi inférieur, sur le max et non les PV courants), **+1 pour le Nain** (bonus racial) : **Barbare 4, Nain 4, Elfe 3, Magicien 2**. Le nœud *Solides épaules* du Nain l'augmente encore.

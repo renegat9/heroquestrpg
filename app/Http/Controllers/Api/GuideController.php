@@ -42,7 +42,11 @@ class GuideController extends Controller
                 // mouvement de base (doc 01 §4bis-2). Sans elle, un joueur
                 // voyait l'Explorateur marcher moins vite qu'un Rogue sans
                 // pouvoir deviner que c'est un nain.
-                ->get(['nom', 'race', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement'])
+                // `objets_autorises` exposé (2026-08-22) : sans lui la page
+                // montrait un Moine réduit à son talisman, donc sans AUCUNE
+                // arme — les cinq qu'il manie sont nommées, pas déductibles
+                // d'un tag.
+                ->get(['nom', 'race', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement', 'objets_autorises'])
                 ->values()
                 ->all(),
 
@@ -66,7 +70,10 @@ class GuideController extends Controller
             // de `classes.tags_equipement`. C'est ce couple qui rend la
             // restriction lisible des deux côtés (doc 01 §7).
             'objets' => Objet::query()
-                ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement'])
+                // `metallique` : la MATIÈRE, que le tag ne dit pas (il porte le
+                // poids). C'est elle qui ferme la cotte au Druide et au Rogue,
+                // et qui coûte au Barde son dé de défense supplémentaire.
+                ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement', 'metallique'])
                 ->sortBy(fn ($o) => sprintf('%d|%06d|%s', $rangCategorie[$o->categorie] ?? 9, $o->prix_base, $o->nom))
                 ->values()
                 ->all(),

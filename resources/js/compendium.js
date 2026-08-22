@@ -287,6 +287,25 @@ export const TAG_EQUIPEMENT = {
     armure_lourde: 'Armures lourdes',
     armure_magicien: 'Protections arcaniques',
     bouclier: 'Boucliers',
+    // Restrictions de CLASSE : le tag ne dit pas une famille d'objets mais
+    // « réservé à ». Ils s'affichaient en brut (`talisman_barbare`) sur la
+    // fiche de classe du guide, seul endroit où un joueur les rencontre.
+    arme_warlock: 'Baguette de warlock',
+    outil_rogue: 'Outils de rogue',
+    potion_barbare: 'Potions du barbare',
+    potion_elfe: 'Potions de l\u2019elfe',
+    talisman_barbare: 'Talisman du barbare',
+    talisman_barde: 'Talisman du barde',
+    talisman_berserker: 'Talisman du berserker',
+    talisman_chevalier: 'Talisman du chevalier',
+    talisman_druide: 'Talisman du druide',
+    talisman_elfe: 'Talisman de l\u2019elfe',
+    talisman_explorateur: 'Talisman de l\u2019explorateur',
+    talisman_magicien: 'Talisman du magicien',
+    talisman_moine: 'Talisman du moine',
+    talisman_nain: 'Talisman du nain',
+    talisman_rogue: 'Talisman du rogue',
+    talisman_warlock: 'Talisman du warlock',
 };
 
 /**

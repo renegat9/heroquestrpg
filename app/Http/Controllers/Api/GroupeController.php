@@ -306,7 +306,10 @@ class GroupeController extends Controller
         // en contradiction avec le tableau du docblock juste au-dessus, qui
         // annonçait déjà l'épée courte. Même attaque (2 dés), donc aucun
         // rééquilibrage.
-        'nain' => ['Épée courte', 'Trousse à outils'],
+        // ⚠ Plus de Trousse à outils depuis le 2026-08-22 : son dos de carte dit
+        // qu'il « désamorce les pièges SANS OUTILS ». La trousse ne lui servait
+        // plus à rien et lui mangeait une place de sac.
+        'nain' => ['Épée courte'],
         'elfe' => ['Épée courte'],
         'magicien' => ['Dague'],
         // Les 8 classes d'extension : arme LUE SUR LA CARTE (« Starting

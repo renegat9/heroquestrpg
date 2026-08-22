@@ -79,7 +79,7 @@ Les nœuds d'arbre (doc Personnages) s'appliquent ici :
 | **Frénésie** (Barbare) | +1 dé d'attaque sous la moitié des PV de Body. |
 | **Garde tenace** (Nain) | +1 dé de défense contre la 1ʳᵉ attaque du combat. |
 | **Tir précis** (Elfe) | Avantage en attaque à distance. |
-| **Maîtrise lourde** (Barbare) | Accès armes à deux mains / armure lourde. |
+| ~~**Maîtrise lourde** (Barbare)~~ | *Retiré le 2026-08-22 : barbare et nain ont armure lourde ET deux-mains dès le niveau 1 (doc 01).* |
 
 ---
 

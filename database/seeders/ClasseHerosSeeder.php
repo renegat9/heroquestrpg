@@ -80,8 +80,13 @@ class ClasseHerosSeeder extends Seeder
             // écarte du tirage tout artefact qu'aucune classe active du groupe
             // ne pourrait porter, sans quoi le coffre du fond aurait pu rendre
             // des runes naines à un groupe sans nain.
-            ['nom' => 'barbare',  'race' => 'humain',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'arme_deux_mains', 'potion_barbare', 'talisman_barbare']],
-            ['nom' => 'nain',     'race' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'armure_lourde', 'talisman_nain']],
+            ['nom' => 'barbare',  'race' => 'humain',  'pv_body' => 8, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 
+                // ⚠ Plus de miroir barbare/nain depuis le 2026-08-22 (René) : chacun
+                // porte le lourd ET manie le deux-mains dès le niveau 1. Les nœuds
+                // « Maîtrise lourde » et « Poigne de forgeron » qui les faisaient
+                // payer l'un pour l'autre sont supprimés.
+                'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'armure_lourde', 'bouclier', 'arme_deux_mains', 'potion_barbare', 'talisman_barbare']],
+            ['nom' => 'nain',     'race' => 'nain',     'pv_body' => 7, 'pv_mind' => 3, 'attr_body' => 3, 'attr_mind' => 2, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 3, 'bonus_sac' => 1, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'armure_lourde', 'arme_deux_mains', 'talisman_nain']],
             ['nom' => 'elfe',     'race' => 'elfe',     'pv_body' => 6, 'pv_mind' => 4, 'attr_body' => 2, 'attr_mind' => 3, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 5, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'bouclier', 'potion_elfe', 'talisman_elfe']],
             ['nom' => 'magicien', 'race' => 'humain', 'pv_body' => 4, 'pv_mind' => 6, 'attr_body' => 1, 'attr_mind' => 4, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'armure_magicien', 'talisman_magicien']],
 
