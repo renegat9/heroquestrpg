@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PlaceholderController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChoixController;
 use App\Http\Controllers\Api\ClotureController;
@@ -36,6 +37,17 @@ Route::post('/inscription', [AuthController::class, 'inscription']);
 // talents, équipements, sorts, pièges), PUBLIC : la page /guide s'ouvre depuis
 // l'accueil sans compte ni groupe.
 Route::get('/guide', [GuideController::class, 'index']);
+
+// Vignette de remplacement quand aucune illustration n'a pu être générée (pas
+// de clé, crédits épuisés, images coupées dans les Réglages). PUBLIC comme
+// /api/guide : c'est une ressource d'affichage, et l'écran de table n'a pas
+// de compte. Voir PlaceholderController pour le choix du SVG.
+// ⚠ PAS d'extension `.svg` dans l'URL : nginx sert les fichiers statiques par
+// extension (`location ~* \.(…|svg|…)$ { try_files $uri =404; }`) et ne
+// passerait jamais la main à PHP. Le `Content-Type` de la réponse suffit à ce
+// qu'un `<img src>` l'affiche.
+Route::get('/placeholder/{type}/{graine}', [PlaceholderController::class, 'afficher'])
+    ->where(['type' => '[a-z_]+', 'graine' => '[A-Za-z0-9_-]+']);
 
 // Routes table (narrateur sans compte) — publiques, hors guard auth:joueur.
 // La session Laravel (cookie) identifie la table active.

@@ -71,7 +71,7 @@ final class EtatGroupe
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
             // (null tant qu'absente → la table affiche le fond par défaut).
-            'image_url' => app(BibliothequeImages::class)->urlDyn('hub', $groupe->id),
+            'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('hub', $groupe->id),
         ];
 
         // En phase hub : expose les statuts « prêt » des personnages actifs.
@@ -133,7 +133,7 @@ final class EtatGroupe
                 'objectif' => $quete->objectif(),
                 'objectif_libelle' => $quete->objectifLibelle(),
                 // Illustration de scène de la quête (générée en arrière-plan).
-                'image_url' => app(BibliothequeImages::class)->urlDyn('quete', $quete->id),
+                'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('quete', $quete->id),
             ],
             'carte' => $this->carte($quete),
             'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->allies($groupe), ...$this->monstres($quete)],

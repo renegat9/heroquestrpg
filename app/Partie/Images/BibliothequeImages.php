@@ -108,6 +108,24 @@ final class BibliothequeImages
     }
 
     /**
+     * Comme {@see self::urlDyn()}, mais ne rend JAMAIS `null` : à défaut
+     * d'illustration générée, une vignette SVG de remplacement.
+     *
+     * Réservée aux endroits où un cadre vide se lit comme un bug — la carte
+     * d'ouverture de quête, le panneau de hub. Ailleurs, `urlDyn()` et son
+     * `null` gardent leur sens : un portrait de héros absent retombe sur
+     * l'illustration de classe, ce qui vaut mieux qu'un emblème générique.
+     *
+     * Le jeu tourne sans clé d'IA — c'est une règle du projet, pas un mode
+     * dégradé — et les crédits peuvent s'épuiser en pleine campagne : ces
+     * cadres-là doivent tenir debout sans image.
+     */
+    public function urlDynOuVignette(string $sousType, int|string $id): string
+    {
+        return $this->urlDyn($sousType, $id) ?? "/api/placeholder/{$sousType}/{$id}";
+    }
+
+    /**
      * Chemins d'un asset dynamique (pour écriture par un job).
      *
      * @return array{rel: string, absolu: string, url: string}
