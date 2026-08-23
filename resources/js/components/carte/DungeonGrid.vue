@@ -248,10 +248,28 @@ const doors = computed(() => (props.carte.portes ?? [])
 
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 
-/* ---- FLIP figurines (table, animate) : glissement d'une case ---- */
-.dg-fig-move { transition: transform 0.14s linear; }
-.dg-fig-leave-active { transition: opacity 0.28s ease, transform 0.28s ease; }
-.dg-fig-leave-to { opacity: 0; transform: scale(0.5); }
-.dg-fig-enter-active { transition: opacity 0.3s ease; }
-.dg-fig-enter-from { opacity: 0; }
+/* ---- FLIP figurines (table, animate) : glissement d'une case ----
+   ⚠ Viser `.fig` EXPLICITEMENT, et par `:deep()`. Le TransitionGroup pose ses
+   classes sur TOUS ses enfants — les 5 040 `.dg-cell` de la grille comme les
+   quelques figurines. Un simple `.dg-fig-move` dans un style SCOPÉ faisait donc
+   exactement l'inverse de son intention : il tombait sur toutes les cases (qui
+   portent le data-v du composant) et sur aucune figurine (qui arrivent par le
+   `<slot />`, sans attribut de scope — le style de TableView n'est pas scopé).
+   Coût maximal, effet nul, et une figurine qui n'a jamais glissé.
+
+   `:slotted()` ne suffit PAS : il compile en `[data-v-x-s]`, un attribut que le
+   contenu du slot ne porte pas ici (vérifié au navigateur). `:deep()` compile en
+   `[data-v-x] …`, et le conteneur `.dg` porte bien le data-v : la règle atteint
+   ses enfants — d'où la nécessité de la classe `.fig` pour exclure les cases.
+
+   Mesuré à la table le 2026-08-23 : 5 040 transitions CSS simultanées, une par
+   case, redémarrées à chaque re-rendu — donc à chaque déplacement et à chaque
+   diffusion d'état. `page.screenshot()` expirait à 90 s ; après correctif, 4
+   animations en tout et une capture en 0,5 s. C'est très probablement la
+   « table à 100 % CPU » du verdict de jeu du 2026-07-27, restée sans cause. */
+:deep(.fig.dg-fig-move) { transition: transform 0.14s linear; }
+:deep(.fig.dg-fig-leave-active) { transition: opacity 0.28s ease, transform 0.28s ease; }
+:deep(.fig.dg-fig-leave-to) { opacity: 0; transform: scale(0.5); }
+:deep(.fig.dg-fig-enter-active) { transition: opacity 0.3s ease; }
+:deep(.fig.dg-fig-enter-from) { opacity: 0; }
 </style>
