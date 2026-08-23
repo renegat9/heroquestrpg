@@ -107,7 +107,7 @@ qui ne connaît que `etat` et `menu` ne saura jamais qu'on l'attend.
 
 ## Les noms de colonnes qui font perdre une heure
 
-En montant une scène à la main (tinker), trois attributs n'existent PAS et
+En montant une scène à la main (tinker), quatre attributs n'existent PAS et
 reviennent `null` sans la moindre erreur — on croit alors avoir trouvé un bug :
 
 | on écrit | la colonne réelle est | ce qu'on croit à tort |
@@ -115,6 +115,7 @@ reviennent `null` sans la moindre erreur — on croit alors avoir trouvé un bug
 | `$inventaire->equipe` | `inventaire.emplacement` (`sac` ou le nom du slot) | « rien n'est équipé » |
 | `$quete->fouilles_effectuees` | `quetes.tresors_fouilles` (`"{salle}:{perso}"`) | « personne n'a fouillé » |
 | `$personnage->classeHeros` | `classe()` / `classe_id` | « le héros n'a pas de classe » |
+| `$quete->salles_explorees` | `quetes.salles_decouvertes` (liste d'index) | « le groupe n'explore rien » |
 
 Et deux préconditions muettes bloquent `fouiller_tresor` sans rien dire : le
 héros doit être DANS les bornes d'une salle (un couloir n'offre pas l'option) et

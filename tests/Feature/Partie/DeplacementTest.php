@@ -325,3 +325,47 @@ it('garde le déplacement ENTIER quand on agit AVANT d\'avoir bougé', function 
     expect((bool) $etat->a_agi)->toBeTrue()
         ->and((bool) $etat->a_deplace)->toBeFalse();
 });
+
+it('diffuse aussi le trajet du MONSTRE, pour qu\'il ne se téléporte pas sur la table', function () {
+    Event::fake([MouvementAnime::class]);
+
+    // ⚠ Le trajet du monstre est enregistré AVANT la branche d'attaque
+    // (ResolveurTour), pour couvrir « s'approche PUIS frappe » dans le même
+    // tour. Sans ce test, seule la moitié héros de `mouvementsAnime` était
+    // verrouillée — et c'est la moitié monstre qu'on regarde à la table.
+    ['groupe' => $groupe, 'quete' => $quete, 'instance' => $instance, 'etatHeros' => $etatHeros, 'alice' => $alice]
+        = demarrerQueteAvecMonstre('Gobelin');
+
+    // Éloigner le monstre : au contact il frappe sans bouger, et il n'y a alors
+    // aucun trajet à animer — la situation ne se teste pas toute seule.
+    $loin = null;
+    for ($d = 3; $d <= 6 && $loin === null; $d++) {
+        foreach ([[$d, 0], [0, $d], [-$d, 0], [0, -$d]] as [$dx, $dy]) {
+            $x = (int) $etatHeros->position_x + $dx;
+            $y = (int) $etatHeros->position_y + $dy;
+            if ($x >= 0 && $y >= 0 && caseQueteLibre($quete, $x, $y)) {
+                $loin = ['x' => $x, 'y' => $y];
+                break;
+            }
+        }
+    }
+
+    expect($loin)->not->toBeNull('aucune case libre à distance pour éloigner le monstre');
+    $instance->update(['position_x' => $loin['x'], 'position_y' => $loin['y']]);
+
+    // Le héros termine son tour → phase des monstres → le gobelin s'approche.
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    Event::assertDispatched(MouvementAnime::class, function ($e) use ($groupe, $instance, $loin) {
+        $mv = collect($e->mouvements)->firstWhere('type', 'monstre');
+
+        return $e->groupe->id === $groupe->id
+            && $mv !== null
+            && (int) $mv['id'] === (int) $instance->id
+            && $mv['depart'] === $loin
+            // Un chemin, pas un saut : au moins une case parcourue.
+            && is_array($mv['chemin']) && count($mv['chemin']) >= 1;
+    });
+});

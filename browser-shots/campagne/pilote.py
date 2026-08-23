@@ -38,6 +38,13 @@ def jouer(slot):
             break
 
     d = hq(slot, "menu")
+
+    # ⚠ Une session expirée rend `{"message":"Unauthenticated."}`, PAS un menu :
+    # sans ce cri, le pilote joue zéro tour en silence et on croit le moteur en
+    # panne. Payé le 2026-08-23 — 8 « tours joués » qui n'avaient rien joué.
+    if (d or {}).get("message") == "Unauthenticated.":
+        return ("⚠ SESSION EXPIRÉE — relancer POST /api/connexion", None)
+
     menu = (d or {}).get("menu")
     if not menu:
         return None

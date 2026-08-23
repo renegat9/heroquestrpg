@@ -260,16 +260,24 @@ const doors = computed(() => (props.carte.portes ?? [])
    `:slotted()` ne suffit PAS : il compile en `[data-v-x-s]`, un attribut que le
    contenu du slot ne porte pas ici (vérifié au navigateur). `:deep()` compile en
    `[data-v-x] …`, et le conteneur `.dg` porte bien le data-v : la règle atteint
-   ses enfants — d'où la nécessité de la classe `.fig` pour exclure les cases.
+   ses enfants — d'où la classe pour exclure les cases.
+
+   ⚠ Et cette classe DOIT être celle de l'ENFANT DIRECT du TransitionGroup —
+   `.ent-holder`, pas `.fig` qui est à l'intérieur. Vue SONDE l'enfant déplacé
+   (il lui applique la move-class sur un clone et lit sa transition `transform`) :
+   sans transition sur l'enfant direct, il conclut que l'animation est impossible
+   et ne pose JAMAIS la classe. Mesuré le 2026-08-23 avec un MutationObserver sur
+   6 tours joués : 0 pose de classe, 0 transition démarrée — les figurines se
+   téléportaient.
 
    Mesuré à la table le 2026-08-23 : 5 040 transitions CSS simultanées, une par
    case, redémarrées à chaque re-rendu — donc à chaque déplacement et à chaque
    diffusion d'état. `page.screenshot()` expirait à 90 s ; après correctif, 4
    animations en tout et une capture en 0,5 s. C'est très probablement la
    « table à 100 % CPU » du verdict de jeu du 2026-07-27, restée sans cause. */
-:deep(.fig.dg-fig-move) { transition: transform 0.14s linear; }
-:deep(.fig.dg-fig-leave-active) { transition: opacity 0.28s ease, transform 0.28s ease; }
-:deep(.fig.dg-fig-leave-to) { opacity: 0; transform: scale(0.5); }
-:deep(.fig.dg-fig-enter-active) { transition: opacity 0.3s ease; }
-:deep(.fig.dg-fig-enter-from) { opacity: 0; }
+:deep(.ent-holder.dg-fig-move) { transition: transform 0.14s linear; }
+:deep(.ent-holder.dg-fig-leave-active) { transition: opacity 0.28s ease, transform 0.28s ease; }
+:deep(.ent-holder.dg-fig-leave-to) { opacity: 0; transform: scale(0.5); }
+:deep(.ent-holder.dg-fig-enter-active) { transition: opacity 0.3s ease; }
+:deep(.ent-holder.dg-fig-enter-from) { opacity: 0; }
 </style>
