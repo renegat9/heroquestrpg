@@ -186,7 +186,22 @@ final class BibliothequeImages
      */
     public function supprimerDyn(string $sousType, int|string $id): bool
     {
-        $png = public_path('images/'.$this->relatifDyn($sousType, $id));
+        return $this->supprimer($this->relatifDyn($sousType, $id));
+    }
+
+    /**
+     * Efface un relatif de `public/images` — le PNG **et son jumeau .webp**.
+     *
+     * Sert le catalogue autant que le dynamique : un fichier de catalogue porte
+     * `{id}-{slug}`, donc RENOMMER une pièce en laisse un fantôme derrière elle
+     * (14 objets fantômes comptés le 2026-08-22). Ce n'est pas le même défaut
+     * que les ids recyclés — rien n'est réattribué — mais c'est le même déchet.
+     *
+     * @return bool `true` si au moins un fichier a été retiré.
+     */
+    public function supprimer(string $relatif): bool
+    {
+        $png = public_path('images/'.ltrim($relatif, '/'));
         $retire = false;
 
         foreach ([$png, preg_replace('/\.png$/i', '.webp', $png)] as $chemin) {

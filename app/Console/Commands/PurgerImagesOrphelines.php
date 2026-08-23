@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\ClasseHeros;
+use App\Models\Monstre;
+use App\Models\Objet;
+use App\Models\Piege;
+use App\Models\Sort;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +55,25 @@ final class PurgerImagesOrphelines extends Command
         'perso' => 'personnages',
     ];
 
+    /**
+     * Catalogue : type de dossier → [modèle, colonne du nom].
+     *
+     * ⚠ Le fichier s'appelle `{id}-{slug(nom)}`, donc RENOMMER une pièce laisse
+     * un fantôme : l'id vit toujours, mais sous un autre nom de fichier. On ne
+     * peut donc pas raisonner sur l'id seul comme pour `dyn/` — il faut
+     * reconstruire le nom ATTENDU, et c'est `relatifCatalogue()` qui le donne.
+     * Passer par lui plutôt que de recomposer le slug ici est ce qui empêche les
+     * deux conventions de diverger.
+     *
+     * `classes` est à part : nommées par slug seul, sans id.
+     */
+    private const CATALOGUE = [
+        'monstres' => [Monstre::class, 'nom_base'],
+        'objets' => [Objet::class, 'nom'],
+        'pieges' => [Piege::class, 'nom'],
+        'sorts' => [Sort::class, 'nom'],
+    ];
+
     public function handle(BibliothequeImages $biblio): int
     {
         // ⚠ GARDE-FOU, payé cher le 2026-08-22 : cette commande croise le
@@ -67,16 +91,11 @@ final class PurgerImagesOrphelines extends Command
         }
 
         $racine = public_path('images/dyn');
-
-        if (! is_dir($racine)) {
-            $this->info('Aucun dossier public/images/dyn — rien à faire.');
-
-            return self::SUCCESS;
-        }
-
         $applique = (bool) $this->option('supprimer');
         $totalOrphelins = 0;
         $totalOctets = 0;
+
+        $this->line('<comment>Illustrations dynamiques</comment> (sujet disparu)');
 
         foreach (self::SUJETS as $sousType => $table) {
             $dossier = "{$racine}/{$sousType}";
@@ -131,6 +150,58 @@ final class PurgerImagesOrphelines extends Command
             ));
         }
 
+        $this->line('<comment>Catalogue</comment> (pièce renommée ou retirée)');
+
+        foreach ($this->attendusCatalogue() as $type => $attendus) {
+            $dossier = public_path("images/catalogue/{$type}");
+
+            if (! is_dir($dossier)) {
+                continue;
+            }
+
+            // ⚠ Une table VIDE n'est pas une preuve, c'est une absence de
+            // preuve : sur un catalogue non seedé, TOUT paraîtrait orphelin.
+            // Même leçon que le garde-fou `testing`, en plus fin.
+            if ($attendus === []) {
+                $this->line(sprintf('  %-9s table vide — passé (rien à confronter)', $type));
+
+                continue;
+            }
+
+            $bases = collect(scandir($dossier) ?: [])
+                ->filter(fn (string $f) => (bool) preg_match('/\.(png|webp)$/i', $f))
+                ->map(fn (string $f) => preg_replace('/\.(png|webp)$/i', '', $f))
+                ->unique()->sort()->values();
+
+            $orphelins = $bases->reject(fn (string $b) => in_array($b, $attendus, true))->values();
+            $octets = 0;
+
+            foreach ($orphelins as $base) {
+                foreach (['png', 'webp'] as $ext) {
+                    $chemin = "{$dossier}/{$base}.{$ext}";
+                    $octets += is_file($chemin) ? (int) filesize($chemin) : 0;
+                }
+
+                if ($applique) {
+                    $biblio->supprimer("catalogue/{$type}/{$base}.png");
+                }
+            }
+
+            $totalOrphelins += $orphelins->count();
+            $totalOctets += $octets;
+
+            $this->line(sprintf(
+                '  %-9s %3d fichier(s) · %3d attendu(s) · %s%3d orphelin(s)  (%s)%s',
+                $type,
+                $bases->count(),
+                count($attendus),
+                $orphelins->isEmpty() ? '' : '⚠ ',
+                $orphelins->count(),
+                $this->poids($octets),
+                $orphelins->isEmpty() ? '' : '  → '.$orphelins->take(3)->implode(', ').($orphelins->count() > 3 ? '…' : ''),
+            ));
+        }
+
         if ($totalOrphelins === 0) {
             $this->info('Aucune illustration orpheline : chaque fichier a encore son sujet.');
 
@@ -146,6 +217,33 @@ final class PurgerImagesOrphelines extends Command
             ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Noms de fichiers (sans extension) que le catalogue devrait porter.
+     *
+     * ⚠ Construits par `relatifCatalogue()`/`relatifClasse()`, jamais recomposés
+     * ici : c'est la seule façon que la convention de nommage ne diverge pas
+     * entre celui qui écrit les images et celui qui les efface.
+     *
+     * @return array<string, list<string>>
+     */
+    private function attendusCatalogue(): array
+    {
+        $biblio = app(BibliothequeImages::class);
+        $sortie = [];
+
+        foreach (self::CATALOGUE as $type => [$modele, $colonne]) {
+            $sortie[$type] = $modele::all()
+                ->map(fn ($ligne) => pathinfo($biblio->relatifCatalogue($type, (int) $ligne->id, (string) $ligne->{$colonne}), PATHINFO_FILENAME))
+                ->all();
+        }
+
+        $sortie['classes'] = ClasseHeros::all()
+            ->map(fn (ClasseHeros $c) => pathinfo($biblio->relatifClasse((string) $c->nom), PATHINFO_FILENAME))
+            ->all();
+
+        return $sortie;
     }
 
     private function poids(int $octets): string

@@ -55,6 +55,20 @@ beforeEach(function () {
     $GLOBALS['images_posees'] = [];
 });
 
+/** Pose un faux fichier sous `public/images/{relatif}.png` (bac à sable). */
+function poserImage2(string $relatif): string
+{
+    $chemin = public_path("images/{$relatif}.png");
+
+    if (! is_dir(dirname($chemin))) {
+        mkdir(dirname($chemin), 0775, true);
+    }
+
+    file_put_contents($chemin, 'PIXELS');
+
+    return $chemin;
+}
+
 /**
  * Pose un faux fichier d'illustration et le retient pour le ménage. Fonction
  * plutôt que closure sur `$this` : appelée hors contexte de test, `$this` n'y
@@ -131,4 +145,36 @@ it('la commande de balayage ne supprime rien sans --supprimer, et n’emporte qu
 
     expect(is_file($orphelin))->toBeFalse()
         ->and(is_file($vivant))->toBeTrue('un sujet encore en base garde son image');
+});
+
+it('emporte une image de catalogue au VIEUX numéro, et garde celle du numéro courant', function () {
+    app()['env'] = 'local';
+
+    $objet = App\Models\Objet::query()->orderBy('id')->firstOrFail();
+    $slug = App\Partie\Images\BibliothequeImages::slug($objet->nom);
+
+    // ⚠ Le fichier porte `{id}-{slug}` : la migration du paquet Hasbro a
+    // RENUMÉROTÉ le catalogue, laissant 22 fichiers que plus rien ne sert
+    // (26,4 Mo constatés le 2026-08-22). L'id vit, le fichier est mort.
+    $courant = poserImage2("catalogue/objets/{$objet->id}-{$slug}");
+    $ancien = poserImage2("catalogue/objets/9997-{$slug}");
+    $disparu = poserImage2('catalogue/objets/9998-piece-supprimee-du-catalogue');
+
+    test()->artisan('images:purger-orphelines', ['--supprimer' => true])->assertSuccessful();
+
+    expect(is_file($ancien))->toBeFalse()
+        ->and(is_file($disparu))->toBeFalse()
+        ->and(is_file($courant))->toBeTrue();
+});
+
+it('ne touche à RIEN quand la table est vide — une absence de preuve n’est pas une preuve', function () {
+    app()['env'] = 'local';
+
+    App\Models\Piege::query()->delete();
+    $orphelinApparent = poserImage2('catalogue/pieges/9999-piege-fantome');
+
+    test()->artisan('images:purger-orphelines', ['--supprimer' => true])->assertSuccessful();
+
+    // Sans ce garde-fou, un catalogue non seedé effacerait TOUTES ses images.
+    expect(is_file($orphelinApparent))->toBeTrue();
 });
