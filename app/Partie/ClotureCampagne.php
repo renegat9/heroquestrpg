@@ -63,6 +63,7 @@ final class ClotureCampagne
     public function __construct(
         private readonly EtatGroupe $etatGroupe,
         private readonly BibleQdrant $bible,
+        private readonly BibliothequeImages $images,
     ) {}
 
     /** Clé du cache de la fenêtre de clôture d'un groupe. */
@@ -330,6 +331,13 @@ final class ClotureCampagne
         $joueurIds = $groupe->personnages()->pluck('joueur_id')->unique()->values();
         $personnageIds = $groupe->personnages()->pluck('personnages.id')->values();
 
+        // Idem pour les illustrations : une fois les lignes parties, plus rien
+        // ne dit quels fichiers leur appartenaient — un `dyn/quete/{id}.png`
+        // ne se rattache à sa campagne que par la ligne qu'on s'apprête à
+        // supprimer.
+        $queteIdsImages = $groupe->quetes()->pluck('id');
+        $instanceIdsImages = InstanceMonstre::whereIn('quete_id', $queteIdsImages)->pluck('id');
+
         DB::transaction(function () use ($groupe) {
             // Détachement : les personnages retournent au roster (doc 05 §6),
             // remis à plein — PV au max, sorts réinitialisés, conditions/buffs
@@ -375,6 +383,37 @@ final class ClotureCampagne
 
         foreach ($personnageIds as $personnageId) {
             Cache::forget(MoteurSorts::cleConcentration($groupeId, (int) $personnageId));
+        }
+
+        // Illustrations dérivées — MÊME raison que la bible Qdrant juste en
+        // dessous : un magasin annexe qui doit mourir avec la campagne, sous
+        // peine de survivre à ce qu'il illustre. Un `dyn/{sousType}/{id}` est
+        // indexé sur une clé auto-incrémentée dont InnoDB recalcule le compteur
+        // à `max(id)+1` au redémarrage : les fichiers laissés derrière étaient
+        // donc RÉATTRIBUÉS aux sujets suivants (mesuré le 2026-08-22 — deux
+        // quêtes neuves ouvertes sur la scène d'une campagne purgée).
+        //
+        // ⚠ Les PERSONNAGES sont hors de cette purge : ils sont DÉTACHÉS, pas
+        // supprimés — ils retournent au roster de leur joueur, et
+        // `dyn/perso/{id}` reste le portrait d'un héros bien vivant.
+        //
+        // Best-effort et HORS transaction, comme la bible : un disque en lecture
+        // seule ne doit pas défaire une purge relationnelle déjà acquise.
+        try {
+            $efface = (int) $this->images->supprimerDyn('hub', $groupeId);
+
+            foreach ($queteIdsImages as $queteId) {
+                $efface += (int) $this->images->supprimerDyn('quete', (int) $queteId);
+            }
+
+            foreach ($instanceIdsImages as $instanceId) {
+                $efface += (int) $this->images->supprimerDyn('monstre', (int) $instanceId);
+            }
+        } catch (Throwable $e) {
+            Log::warning('Purge des illustrations impossible — données relationnelles purgées.', [
+                'groupe_id' => $groupeId,
+                'erreur' => $e->getMessage(),
+            ]);
         }
 
         // Bible Qdrant du group_id — best-effort : si Qdrant est injoignable,

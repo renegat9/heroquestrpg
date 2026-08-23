@@ -167,6 +167,38 @@ final class BibliothequeImages
     }
 
     /**
+     * Efface l'illustration dynamique d'un sujet — le PNG **et son jumeau
+     * .webp**.
+     *
+     * ⚠ Les deux, impérativement : `url()` fait gagner le `.webp` quand il
+     * existe, donc n'effacer que le PNG laisserait le fichier servi en place et
+     * ne corrigerait rien.
+     *
+     * Existe parce qu'un `dyn/{sousType}/{id}` est indexé sur une CLÉ
+     * AUTO-INCRÉMENTÉE, et qu'InnoDB recalcule son compteur à `max(id)+1` au
+     * redémarrage : après la purge d'une campagne, les ids repartent en
+     * arrière et un sujet neuf hérite du fichier d'un sujet mort. Constaté le
+     * 2026-08-22 — `quetes` en était à 43 quand le disque portait des scènes
+     * jusqu'à 67, et le hub à 30 contre 89. Deux quêtes de test ont ouvert sur
+     * l'illustration d'une campagne purgée depuis longtemps.
+     *
+     * @return bool `true` si au moins un fichier a été retiré.
+     */
+    public function supprimerDyn(string $sousType, int|string $id): bool
+    {
+        $png = public_path('images/'.$this->relatifDyn($sousType, $id));
+        $retire = false;
+
+        foreach ([$png, preg_replace('/\.png$/i', '.webp', $png)] as $chemin) {
+            if (is_file($chemin) && @unlink($chemin)) {
+                $retire = true;
+            }
+        }
+
+        return $retire;
+    }
+
+    /**
      * Portrait d'un héros : portrait UNIQUE (dyn/perso) s'il existe, sinon
      * l'image de CLASSE par défaut, sinon null (→ icône côté front).
      */
