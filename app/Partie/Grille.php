@@ -520,6 +520,57 @@ final class Grille
     }
 
     /**
+     * Toutes les cases atteignables en AU PLUS `$pas` pas, avec leur chemin.
+     *
+     * Même parcours que {@see self::chemin()} — cases occupées exclues, portes
+     * fermées bloquantes — mais borné et SANS destination : on veut l'ensemble,
+     * pas une route. Existe pour que l'IA puisse CHOISIR sa case plutôt que de
+     * subir la plus courte : un monstre à distance repositionne pour garder sa
+     * ligne de mire, ce qu'un `chemin()` par case candidate ferait au prix d'un
+     * BFS complet par candidate (des centaines par tour).
+     *
+     * @return array<string, list<array{x: int, y: int}>> "x,y" → étapes sans le départ
+     */
+    public function casesAtteignables(int $departX, int $departY, int $pas): array
+    {
+        if ($pas < 1) {
+            return [];
+        }
+
+        $file = [[$departX, $departY, 0]];
+        $vus = ["{$departX},{$departY}" => true];
+        $chemins = [];
+
+        while ($file !== []) {
+            [$x, $y, $d] = array_shift($file);
+
+            if ($d >= $pas) {
+                continue;
+            }
+
+            foreach (self::DIRECTIONS as [$dx, $dy]) {
+                $nx = $x + $dx;
+                $ny = $y + $dy;
+                $cle = "{$nx},{$ny}";
+
+                if (isset($vus[$cle]) || ! $this->estTraversable($nx, $ny)) {
+                    continue;
+                }
+
+                if ($this->porteBloqueEntre($x, $y, $nx, $ny)) {
+                    continue;
+                }
+
+                $vus[$cle] = true;
+                $chemins[$cle] = [...($chemins["{$x},{$y}"] ?? []), ['x' => $nx, 'y' => $ny]];
+                $file[] = [$nx, $ny, $d + 1];
+            }
+        }
+
+        return $chemins;
+    }
+
+    /**
      * BFS depuis le départ ; s'arrête dès que l'arrivée est atteinte.
      *
      * @return array<string, string> clé case → clé case parente

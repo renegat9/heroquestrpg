@@ -89,6 +89,41 @@ Catalogue défini de **magie du Chaos**, pendant maléfique des sorts héros (do
 - **Scripté simple** (C2) : cible le plus proche / le plus faible ; un boss déclenche sa capacité quand elle est disponible.
 - Le **moteur décide et résout** ; le MJ IA **narre** les actions sans les choisir mécaniquement.
 
+### Monstres à DISTANCE — repli avant tir (René, 2026-08-23)
+
+⚠ **Décision de portage, pas une règle** : aucun livret ne décrit d'IA, Zargon
+joue ses monstres à vue. Ce qui la motive est en revanche dans les fiches — le
+**Gobelin archer** frappe à 1 dé au contact pour 2 à distance, l'**Archer
+squelette** 1 pour 2, l'**Archer elfe** **1 pour 4**. Cette parenthèse
+« *Attack 4 (1 if adjacent)* » n'a de sens que si la créature cherche à ne pas
+être au contact.
+
+Or le moteur l'y poussait dans les deux cas : collé, il frappait en mêlée sans
+jamais décrocher ; sans ligne de mire, il visait une case **adjacente** au héros
+comme un corps-à-corps. Il se privait lui-même de son arme.
+
+Désormais, avant de tirer :
+
+1. **Au contact** → il recule le plus loin possible **dans sa salle**, sur une
+   case qui garde une ligne de mire et ne le remet pas au contact d'un autre
+   héros, puis il tire.
+2. **Sans ligne de mire** → il gagne une position de tir, la plus éloignée
+   possible, au lieu de refermer la distance.
+3. **Encerclé, ou aucune case tirante hors contact** → il frappe sur place.
+   Refus silencieux, jamais un tour perdu.
+
+⚠ Le recul est **borné à la salle courante**, et c'est le garde-fou central :
+sans borne, « le plus loin possible » fait de l'archer un kiteur qu'un héros de
+mêlée ne rattrape jamais dans un couloir, et la quête s'enlise. En couloir (hors
+de toute salle), il ne recule donc pas.
+
+Le repli **ne consomme pas l'action** — bouger puis tirer, exactement comme un
+corps-à-corps « s'approche PUIS frappe ». Il porte sa **propre ligne de journal**
+(`repli_tireur`) et passe par `mouvementsAnime`, donc la table le voit glisser
+au lieu de se téléporter : un effet automatique que rien n'annonce est
+injouable. Et `portee` est désormais journalisé avec l'attaque, sans quoi le fil
+de combat ne distinguait pas un tir d'un coup de mêlée.
+
 ---
 
 ## 6. Habillage par l'IA (Q6)

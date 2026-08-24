@@ -4678,6 +4678,15 @@ final class ResolveurTour
         // un dé de moins). Sans cible en vue, il retombe sur l'approche standard
         // ci-dessous (pour gagner une ligne de tir au tour suivant).
         if ($instance->monstre->aDistance()) {
+            // Il se REPLACE d'abord (René, 2026-08-23) : un archer collé frappait
+            // au corps-à-corps sans jamais décrocher — 1 dé au lieu de 4 pour
+            // l'Archer elfe, dont la fiche « Attack 4 (1 if adjacent) » dit
+            // exactement l'inverse. Et sans ligne de mire, il fonçait au contact
+            // comme un corps-à-corps, se privant lui-même de son arme.
+            if ($this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre) !== null) {
+                $grille = $this->grille($quete, exceptInstanceId: $instance->id);
+            }
+
             $tir = $this->tirerSiCibleEnVue($groupe, $instance, $cibles, $grille, $acteur, $nomMonstre);
 
             if ($tir !== null) {
@@ -4882,6 +4891,7 @@ final class ResolveurTour
         int $desAttaque,
         array $acteur,
         string $nomMonstre,
+        string $portee = 'corps_a_corps',
     ): array {
         $personnage = $cible->personnage;
 
@@ -4949,6 +4959,11 @@ final class ResolveurTour
         $payload = [
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
+            // ⚠ Journalisé, pas seulement renvoyé : le `portee` était posé sur la
+            // charge utile APRÈS `Journal::ajouter`, donc le fil de combat de la
+            // table ne distinguait pas un TIR d'un coup de mêlée. C'est pourtant
+            // toute la différence pour un archer — 4 dés contre 1.
+            'portee' => $portee,
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'bonus_garde_tenace' => $bonusGardeTenace,
             'bonus_flanc' => $bonusFlanc,
@@ -5023,11 +5038,176 @@ final class ResolveurTour
     }
 
     /**
+     * Repositionnement d'un monstre à DISTANCE avant de tirer (René, 2026-08-23).
+     *
+     * ⚠ DÉCISION DE PORTAGE, pas une règle : aucun livret ne décrit d'IA, Zargon
+     * joue ses monstres à vue. Ce qui la motive est en revanche dans les fiches —
+     * l'Archer elfe attaque à **4 dés, 1 s'il est au contact**. Le moteur le
+     * poussait pourtant au contact dans les deux cas : collé, il frappait en
+     * mêlée sans décrocher ; sans ligne de mire, il visait une case ADJACENTE au
+     * héros comme un corps-à-corps. Il se privait donc lui-même de son arme.
+     *
+     * Deux mouvements, dans cet ordre :
+     *  1. **collé** → reculer le plus loin possible DANS SA SALLE, sur une case
+     *     qui garde une ligne de mire ;
+     *  2. **sans ligne de mire** → gagner une position de tir, la plus éloignée
+     *     possible, plutôt que de refermer la distance.
+     *
+     * ⚠ Le recul est borné à **la salle courante** (René) : « le plus loin
+     * possible » sans borne transforme l'archer en kiteur qu'un héros de mêlée
+     * ne rattrape jamais dans un couloir, et la quête s'enlise. Dans un couloir
+     * (hors de toute salle) il ne recule donc pas — il tire ou frappe sur place.
+     *
+     * Ne consomme PAS l'action : le monstre bouge puis tire, exactement comme un
+     * corps-à-corps « s'approche PUIS frappe ».
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return array{depart: array{x: int, y: int}, chemin: list<array{x: int, y: int}>}|null
+     */
+    private function replacerTireur(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        Collection $cibles,
+        Grille $grille,
+        array $acteur,
+        string $nomMonstre,
+    ): ?array
+    {
+        if ($cibles->isEmpty() || $instance->monstre->grandeTaille()) {
+            return null; // une grande figurine a son propre calcul d'emprise
+        }
+
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        $voit = fn (int $x, int $y, EtatPersonnageQuete $c): bool => $grille->ligneDeVue(
+            $x, $y, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
+        );
+        // ⚠ MÊME notion de contact que `heroAuContact()` — Manhattan = 1. Une
+        // définition plus large ferait reculer le monstre sur une case que le
+        // moteur considère encore au contact : il tirerait quand même en mêlée.
+        $colle = fn (int $x, int $y): bool => $cibles->contains(
+            fn (EtatPersonnageQuete $c) => abs($x - (int) $c->position_x) + abs($y - (int) $c->position_y) === 1,
+        );
+        // Distance à l'ennemi le PLUS PROCHE : c'est elle qu'on maximise, pas la
+        // somme — s'éloigner d'un héros en se collant à un autre n'est pas fuir.
+        $ecart = fn (int $x, int $y): int => (int) $cibles->min(
+            fn (EtatPersonnageQuete $c) => abs($x - (int) $c->position_x) + abs($y - (int) $c->position_y),
+        );
+
+        $auContact = $colle($ix, $iy);
+        $enVue = $cibles->contains(fn (EtatPersonnageQuete $c) => $voit($ix, $iy, $c));
+
+        if (! $auContact && $enVue) {
+            return null; // déjà bien placé : il tire d'où il est
+        }
+
+        $salle = $auContact ? $this->salleAuPoint($quete, $ix, $iy) : null;
+
+        if ($auContact && $salle === null) {
+            return null; // couloir : pas de recul, il frappe sur place
+        }
+
+        $meilleure = null; // [clé, gain, chemin]
+
+        foreach ($grille->casesAtteignables($ix, $iy, (int) $instance->monstre->deplacement) as $cle => $chemin) {
+            [$x, $y] = array_map(intval(...), explode(',', $cle));
+
+            if ($salle !== null && ! $this->dansSalle($salle, $x, $y)) {
+                continue;
+            }
+
+            if (! $cibles->contains(fn (EtatPersonnageQuete $c) => $voit($x, $y, $c))) {
+                continue; // une case sans ligne de mire ne sert à rien
+            }
+
+            if ($colle($x, $y)) {
+                continue; // reculer pour se recoller n'est pas reculer
+            }
+
+            $gain = $ecart($x, $y);
+
+            if ($meilleure === null || $gain > $meilleure[1] || ($gain === $meilleure[1] && count($chemin) < count($meilleure[2]))) {
+                $meilleure = [$cle, $gain, $chemin];
+            }
+        }
+
+        // Rien de mieux : encerclé, ou aucune case tirante hors contact. Il
+        // frappe/tire d'où il est — un refus silencieux, jamais un tour perdu.
+        // (Toute candidate retenue est déjà hors contact ET en vue : elle vaut
+        // donc mieux que rester collé, et mieux que rester aveugle.)
+        if ($meilleure === null) {
+            return null;
+        }
+
+        $depart = ['x' => $ix, 'y' => $iy];
+        [$cle, , $chemin] = $meilleure;
+        [$dx, $dy] = array_map(intval(...), explode(',', $cle));
+
+        $instance->update(['position_x' => $dx, 'position_y' => $dy]);
+
+        $parcours = array_map(fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $chemin);
+
+        // Animation case-par-case (table) : même canal que l'approche d'un
+        // corps-à-corps, sinon l'archer se téléporterait en reculant.
+        $this->mouvementsAnime[] = [
+            'type' => 'monstre',
+            'id' => (int) $instance->id,
+            'depart' => $depart,
+            'chemin' => $parcours,
+        ];
+
+        // ⚠ Sa PROPRE ligne de journal, comme `deplacement_monstre` pour une
+        // approche. Un effet automatique que rien n'annonce est injouable : sans
+        // elle, la figurine glisserait puis tirerait sans qu'aucune ligne
+        // n'explique pourquoi elle a reculé. L'attaque, elle, se journalise à
+        // part (type `combat`) — deux faits, deux entrées.
+        $payload = [
+            'type' => 'repli_tireur',
+            'id' => $instance->id,
+            'monstre' => $nomMonstre,
+            'depart' => $depart,
+            'chemin' => $parcours,
+            'vers' => ['x' => $dx, 'y' => $dy],
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Salle (rectangle du plan) contenant un point, ou null s'il est en couloir.
+     *
+     * @return array{x: int, y: int, largeur: int, hauteur: int}|null
+     */
+    private function salleAuPoint(Quete $quete, int $x, int $y): ?array
+    {
+        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $s) {
+            if ($this->dansSalle($s, $x, $y)) {
+                return $s;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param  array<string, mixed>  $salle */
+    private function dansSalle(array $salle, int $x, int $y): bool
+    {
+        return $x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
+            && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur'];
+    }
+
+    /**
      * Comportement de tir d'un monstre à distance (3.4) : s'il a une LIGNE DE VUE
      * dégagée sur au moins un héros, il vise le plus avantageux (PV de Body les
      * plus faibles, puis le plus proche) et l'attaque — au contact en corps-à-corps
      * (dés d'attaque de mêlée, moindres) sinon à distance (`attaque_distance`).
      * Retourne null si AUCUNE cible n'est visible (→ approche standard de l'appelant).
+     *
+     * Le repli éventuel est joué AVANT par {@see self::replacerTireur()}, qui
+     * pose sa propre ligne de journal — ici on ne fait plus que tirer.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @param  array<string, mixed>  $acteur
@@ -5069,10 +5249,10 @@ final class ResolveurTour
             ? $instance->attaqueEffective()
             : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective());
 
-        $payload = $this->resoudreAttaqueMonstre($groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre);
-        $payload['portee'] = $adjacent ? 'corps_a_corps' : 'distance';
-
-        return $payload;
+        return $this->resoudreAttaqueMonstre(
+            $groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
+            $adjacent ? 'corps_a_corps' : 'distance',
+        );
     }
 
     /**

@@ -118,15 +118,32 @@ it('ne tire PAS sur un héros caché derrière une figure interposée (#7)', fun
     $reponse = test()->actingAs($ctx['alice'], 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    // L'archer, sans ligne de tir dégagée, ne tire PAS à distance (il approche).
+    // ⚠ Ce que ce test protège est la RÈGLE — une figure interposée coupe la
+    // ligne de tir —, pas l'immobilité de l'archer. Depuis le 2026-08-23, sans
+    // ligne de mire il va en CHERCHER une (doc 09 §5) au lieu de refermer la
+    // distance : il peut donc tirer, mais jamais depuis la case bloquée.
     $actions = collect($reponse->json('resultat.tour_monstres.actions'));
-    expect($actions->contains(fn ($a) => ($a['type'] ?? null) === 'attaque_monstre' && ($a['portee'] ?? null) === 'distance'))
-        ->toBeFalse();
+    $tir = $actions->first(fn ($a) => ($a['type'] ?? null) === 'attaque_monstre' && ($a['portee'] ?? null) === 'distance');
+    $apres = $archer->fresh();
+
+    if ($tir !== null) {
+        expect([(int) $apres->position_x, (int) $apres->position_y])
+            ->not->toBe([$spot['x'], $spot['y']], 'il a tiré À TRAVERS la figure interposée');
+
+        return;
+    }
+
+    // Sinon il s'est rapproché, l'ancien comportement — tout aussi légitime.
+    expect($actions)->not->toBeEmpty();
 });
 
-it('frappe en corps-à-corps (et non en tir) quand le héros est adjacent', function () {
-    // demarrerQueteAvecMonstre place le monstre AU CONTACT du héros.
-    $ctx = demarrerQueteAvecMonstre('Gobelin archer');
+it('au contact, il RECULE pour tirer — et ne frappe en mêlée que s\'il ne peut pas', function () {
+    // ⚠ Réécrit le 2026-08-23 : ce test figeait l'ancien comportement (rester
+    // collé et frapper à 1 dé). La règle qu'il protège reste vraie — AU CONTACT
+    // on utilise les dés de mêlée — mais l'archer cherche désormais à ne pas y
+    // être (doc 09 §5). Les deux issues sont légitimes, la position tranche.
+    $ctx = demarrerQueteAvecMonstre('Gobelin archer'); // placé AU CONTACT
+    $depart = [(int) $ctx['instance']->position_x, (int) $ctx['instance']->position_y];
 
     desFiges(array_fill(0, 200, 4));
 
@@ -136,7 +153,9 @@ it('frappe en corps-à-corps (et non en tir) quand le héros est adjacent', func
 
     $attaque = collect($reponse->json('resultat.tour_monstres.actions'))
         ->firstWhere('type', 'attaque_monstre');
+    $apres = $ctx['instance']->fresh();
+    $aBouge = [(int) $apres->position_x, (int) $apres->position_y] !== $depart;
 
     expect($attaque)->not->toBeNull()
-        ->and($attaque['portee'])->toBe('corps_a_corps');
+        ->and($attaque['portee'])->toBe($aBouge ? 'distance' : 'corps_a_corps');
 });
