@@ -173,6 +173,44 @@ class BibleQdrant
         }
     }
 
+    /**
+     * Identifiants de groupe présents dans la collection.
+     *
+     * Sert au ménage : la bible est un magasin DÉRIVÉ, indexé sur une clé
+     * auto-incrémentée que MariaDB recalcule à `max(id)+1` au redémarrage. Une
+     * campagne dont la purge Qdrant a échoué (best-effort, Qdrant injoignable)
+     * laisse donc des points que le groupe suivant peut hériter — et la
+     * contamination est pire que pour une image : le RAG servirait à l'IA les
+     * promesses d'une campagne étrangère, sans que rien ne le signale.
+     * Constaté le 2026-08-23 : 185 points pour 46 groupes tous disparus.
+     *
+     * @return list<int>
+     */
+    public function groupesIndexes(int $limite = 10_000): array
+    {
+        $reponse = $this->http()->post('/collections/'.$this->collection().'/points/scroll', [
+            'limit' => $limite,
+            'with_payload' => ['group_id'],
+            'with_vector' => false,
+        ]);
+
+        if ($reponse->failed()) {
+            throw new RuntimeException("Qdrant : lecture des groupes indexés refusée ({$reponse->status()}).");
+        }
+
+        $ids = [];
+
+        foreach ((array) $reponse->json('result.points', []) as $point) {
+            $id = data_get($point, 'payload.group_id');
+
+            if ($id !== null) {
+                $ids[(int) $id] = true;
+            }
+        }
+
+        return array_map(intval(...), array_keys($ids));
+    }
+
     private function http(): PendingRequest
     {
         $host = $this->host ?? (string) config('services.qdrant.host', 'qdrant');
