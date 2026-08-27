@@ -49,10 +49,9 @@ it('Solides épaules (+2 capacité de sac) est dérivé sans colonne dédiée', 
     // Nain : PV Body max 7 ÷ 2 = 3, + bonus_sac racial (1) = 4 avant le nœud.
     expect(CapaciteSac::pour($hero))->toBe(4);
 
-    $this->postJson('/api/groupes/table-1/competences', [
-        'personnage_id' => $hero->id,
-        'competence_id' => idNoeudCompetence('nain', 'Solides épaules'),
-    ])->assertCreated();
+    // Rang 2 de la colonne « Forge » : la grille exige le nœud du dessus, et le
+    // sujet de ce test est l'EFFET, pas la chaîne d'acquisition.
+    donnerTalent($hero, 'Solides épaules');
 
     // +2 du nœud, dérivé à chaque calcul — aucune colonne `personnages` modifiée.
     expect(CapaciteSac::pour($hero->fresh()))->toBe(6);
@@ -97,10 +96,7 @@ it('Frénésie (+1 dé d\'attaque sous la moitié des PV de Body) s\'applique au
     // le héros APRÈS, pour simuler un combat déjà entamé.
     $ctx['heros']->update(['pv_body' => 3]); // 3*2=6 < 8 : sous la moitié
 
-    $this->postJson('/api/groupes/table-1/competences', [
-        'personnage_id' => $ctx['heros']->id,
-        'competence_id' => idNoeudCompetence('barbare', 'Frénésie'),
-    ])->assertCreated();
+    donnerTalent($ctx['heros'], 'Frénésie');
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     desFiges(array_fill(0, 20, 4)); // boucliers blancs partout : combat neutre, aucune complication
@@ -120,10 +116,7 @@ it('Frénésie ne s\'applique PAS au-dessus de la moitié des PV de Body', funct
 
     $ctx['heros']->update(['pv_body' => 4]); // 4*2=8, pas STRICTEMENT sous la moitié
 
-    $this->postJson('/api/groupes/table-1/competences', [
-        'personnage_id' => $ctx['heros']->id,
-        'competence_id' => idNoeudCompetence('barbare', 'Frénésie'),
-    ])->assertCreated();
+    donnerTalent($ctx['heros'], 'Frénésie');
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     desFiges(array_fill(0, 20, 4));

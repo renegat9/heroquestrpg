@@ -3,6 +3,7 @@
 use App\Auth\JoueurAuthentifiable;
 use App\Engine\Des\LanceurDes;
 use App\Engine\Des\LanceurDeterministe;
+use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
@@ -297,4 +298,26 @@ function acheverLaQuete(Groupe $groupe): array
     }
 
     return app(ResolveurTour::class)->terminerQuete($groupe, $quete);
+}
+
+/**
+ * Attache un nœud de la GRILLE de talents à un héros, AVEC toute sa chaîne de
+ * prérequis, sans dépenser le moindre point.
+ *
+ * Depuis la grille (2026-08-23), un nœud de rang 2 ou 3 exige celui du dessus :
+ * une quinzaine de tests d'EFFET achetaient jusque-là leur nœud par l'API et se
+ * sont mis à recevoir un 422 parfaitement légitime. Ce raccourci sépare les
+ * deux sujets — l'ACQUISITION a ses propres tests (`MonteeNiveauTest`,
+ * `GrilleTalentsTest`), ceux-ci portent sur ce que le talent FAIT une fois
+ * acquis, et n'ont aucune raison de dérouler trois montées de niveau pour ça.
+ */
+function donnerTalent(Personnage $personnage, string $nom): Competence
+{
+    $noeud = Competence::where('classe', $personnage->classe)->where('nom', $nom)->firstOrFail();
+
+    for ($courant = $noeud; $courant !== null; $courant = $courant->prerequis) {
+        $personnage->competences()->syncWithoutDetaching([$courant->id]);
+    }
+
+    return $noeud;
 }

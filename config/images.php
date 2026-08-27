@@ -25,6 +25,10 @@ return [
         'monstre' => 'Figurine de monstre de donjon : {nom} (tier {tier}), créature menaçante en pied. {style}',
         'objet' => 'Icône d\'inventaire : {nom}, un objet de catégorie « {categorie} », objet seul présenté sur fond sombre. {style}',
         'piege' => 'Piège de donjon : {nom}, mécanisme dangereux dans un couloir de pierre. {style}',
+        // ÉPREUVE (2026-08-24) : un élément de décor auquel on se MESURE, à
+        // distinguer du piège (danger subi) comme du meuble (obstacle) — d'où
+        // l'insistance sur l'énigme et l'usure plutôt que sur la menace.
+        'epreuve' => 'Élément de donjon à examiner : {nom}. {description} Détail énigmatique et usé par le temps, sculpté dans la pierre. {style}',
         'sort' => 'Illustration de sort de magie : {nom}, magie élémentaire ({element}), effet {type} spectaculaire, symbole arcanique lumineux. {style}',
 
         // Dynamiques (jobs) :

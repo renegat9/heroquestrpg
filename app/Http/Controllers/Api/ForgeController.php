@@ -9,6 +9,7 @@ use App\Models\ForgeAmelioration;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Partie\Forge;
+use App\Partie\Talents;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,7 +65,7 @@ class ForgeController extends Controller
             ]);
         }
 
-        if (! $forgeron->competences()->where('nom', 'Forge')->exists()) {
+        if (! app(Talents::class)->a($forgeron, 'forge_amelioration')) {
             throw ValidationException::withMessages([
                 'personnage_id' => 'Ce héros n\'a pas acquis le nœud Forge du Nain.',
             ]);

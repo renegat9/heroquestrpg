@@ -16,9 +16,15 @@ use Illuminate\Database\Eloquent\Model;
  * bug corrigé par cette séparation (une case occupée coupait aussi la ligne
  * de vue de toute arme à distance, cf. `FabriqueGrille`/`Grille::occulter()`).
  *
- * `fouillable` n'a AUCUN lecteur pour l'instant : la fouille du mobilier est
- * un chantier séparé (doc 17 §4, `DeckFouille` raisonne en salle, pas en
- * case). Le drapeau existe pour ne pas ré-ouvrir la migration le jour venu.
+ * `fouillable` commande la fouille depuis le 2026-08-14 (`MoteurMobilier`), et
+ * chaque pièce porte SA table de butin dans `effet.fouille`.
+ *
+ * `difficulte_destruction` (2026-08-24) ouvre le deuxième emploi de
+ * `attribut_body` : fracasser l'obstacle. ⚠ `null` veut dire INDESTRUCTIBLE et
+ * non « pas encore renseigné » — le tombeau est un sarcophage de pierre. Une
+ * pièce FOUILLABLE détruite rend une dernière fouille à son destructeur, même
+ * si tout le groupe l'avait déjà vidée : c'est le troc, on ouvre le passage et
+ * on rafle le fond, mais plus personne ne la fouillera.
  */
 class Mobilier extends Model
 {
@@ -33,6 +39,11 @@ class Mobilier extends Model
         'bloque_vue',
         'adosse_au_mur',
         'fouillable',
+        // Difficulté du jet de Body pour mettre la pièce en pièces (2026-08-24).
+        // ⚠ `null` = INDESTRUCTIBLE, pas « non renseigné » : le tombeau est un
+        // sarcophage de pierre. Et c'est la difficulté BRUTE — le plafond
+        // (`App\Partie\DifficulteBody`) s'applique à la génération du menu.
+        'difficulte_destruction',
         'effet',
     ];
 
@@ -43,6 +54,7 @@ class Mobilier extends Model
             'adosse_au_mur' => 'boolean',
             'bloque_vue' => 'boolean',
             'fouillable' => 'boolean',
+            'difficulte_destruction' => 'integer',
             'effet' => 'array',
         ];
     }

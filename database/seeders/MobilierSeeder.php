@@ -72,11 +72,11 @@ class MobilierSeeder extends Seeder
         $mobiliers = [
             // Habillage de la fouille de SALLE (RB p. 14) : aucune note de quête
             // consultée n'accroche un trésor propre à une table — fouillable = false.
-            ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => false, 'bloque_vue' => false],
+            ['nom' => 'Table', 'nom_anglais' => 'Table', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 1, 'fouillable' => false, 'bloque_vue' => false],
 
             // Le coffre est le contenant à butin par excellence : c'est celui qui
             // paie le plus souvent, et le seul à pouvoir rendre un objet rare.
-            ['nom' => 'Coffre', 'nom_anglais' => 'Chest', 'largeur' => 1, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => false,
+            ['nom' => 'Coffre', 'nom_anglais' => 'Chest', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 4, 'or' => [25, 60]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
@@ -86,7 +86,7 @@ class MobilierSeeder extends Seeder
 
             // Un trône ne se fouille pas, il se dépouille : pierreries du dossier,
             // pièces oubliées sous l'assise. De l'or, ou rien.
-            ['nom' => 'Trône', 'nom_anglais' => 'Throne', 'largeur' => 1, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => false,
+            ['nom' => 'Trône', 'nom_anglais' => 'Throne', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 3, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 4, 'or' => [35, 75]],
                     ['issue' => 'rien', 'poids' => 4],
@@ -94,7 +94,7 @@ class MobilierSeeder extends Seeder
 
             // L'établi de l'alchimiste ne rend QUE des fioles — c'est le meuble
             // le plus spécialisé du lot, et le plus généreux dans sa spécialité.
-            ['nom' => 'Établi d\'alchimiste', 'nom_anglais' => 'Alchemist\'s bench', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => false,
+            ['nom' => 'Établi d\'alchimiste', 'nom_anglais' => 'Alchemist\'s bench', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 5, 'categories' => ['consommable']],
                     // Fouiller un établi d'alchimiste, c'est déranger des fioles :
@@ -105,7 +105,7 @@ class MobilierSeeder extends Seeder
 
             // Le mobilier funéraire : de l'or déposé avec le mort, parfois une
             // arme de sa main, souvent la poussière seule.
-            ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => false,
+            ['nom' => 'Tombeau', 'nom_anglais' => 'Tomb', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => null, 'fouillable' => true, 'bloque_vue' => false,
                 'effet' => ['fouille' => [
                     ['issue' => 'tresor', 'poids' => 3, 'or' => [30, 70]],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['arme', 'armure']],
@@ -117,7 +117,7 @@ class MobilierSeeder extends Seeder
 
             // Une bibliothèque contient des ÉCRITS : c'est le seul meuble à
             // rendre des parchemins, ce qui en fait la pièce du lanceur de sorts.
-            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            ['nom' => 'Bibliothèque', 'nom_anglais' => 'Bookcase', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 3, 'categories' => ['parchemin']],
                     ['issue' => 'tresor', 'poids' => 1, 'or' => [10, 25]],
@@ -126,14 +126,14 @@ class MobilierSeeder extends Seeder
 
             // Le râtelier d'armes : armes et armures, l'exemple donné par René.
             // Aucune chance d'or — on n'y range pas sa bourse.
-            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            ['nom' => 'Râtelier d\'armes', 'nom_anglais' => 'Weapons rack', 'largeur' => 1, 'hauteur' => 2, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 4, 'categories' => ['arme', 'armure']],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
 
             // L'armoire est le meuble à tout faire : un peu de tout, souvent rien.
-            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 2, 'hauteur' => 1, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
+            ['nom' => 'Armoire', 'nom_anglais' => 'Cupboard', 'largeur' => 2, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => true, 'adosse_au_mur' => true,
                 'effet' => ['fouille' => [
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['consommable']],
                     ['issue' => 'objet', 'poids' => 2, 'categories' => ['outil']],
@@ -154,7 +154,16 @@ class MobilierSeeder extends Seeder
         foreach ($mobiliers as $mobilier) {
             Mobilier::updateOrCreate(
                 ['nom' => $mobilier['nom']],
-                [...$mobilier, 'bloque_mouvement' => true, 'effet' => $mobilier['effet'] ?? null],
+                [
+                    ...$mobilier,
+                    'bloque_mouvement' => true,
+                    'effet' => $mobilier['effet'] ?? null,
+                    // ⚠ Écrit MÊME quand la ligne l'omet : `null` veut dire
+                    // « indestructible », pas « pas renseigné ». Le laisser
+                    // tomber de la mise à jour rendrait une valeur ancienne
+                    // survivante à un re-semis qui voulait justement l'effacer.
+                    'difficulte_destruction' => $mobilier['difficulte_destruction'] ?? null,
+                ],
             );
         }
     }

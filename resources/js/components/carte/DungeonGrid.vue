@@ -22,6 +22,11 @@ const props = defineProps({
      *  drapeaux sont INDÉPENDANTS : une table bloque le passage mais on voit
      *  par-dessus, une bibliothèque bloque les deux. */
     furniture: { type: Array, default: () => [] },
+    /** Épreuves des salles découvertes : [{x, y, nom, attribut, difficulte,
+     *  tentee_par}] — les ancrages à JET D'ATTRIBUT (2026-08-24). Elles ne
+     *  bloquent rien : un marqueur suffit, et il doit se distinguer du piège
+     *  (danger) comme du meuble (obstacle) — ici une main tendue, dorée. */
+    trials: { type: Array, default: () => [] },
     /** (x, y) → classe(s) CSS supplémentaire(s) par case (accessible / depart /
      *  occupant… — surcouche manette). Null = aucune (table). */
     cellClass: { type: Function, default: null },
@@ -126,6 +131,24 @@ const doors = computed(() => (props.carte.portes ?? [])
             </div>
         </div>
 
+        <!-- épreuves : marqueur au-dessus de la case, comme les pièges, mais
+             d'une autre couleur ET d'une autre icône. Confondre les deux serait
+             coûteux : un piège se contourne, une épreuve se tente. -->
+        <div
+            v-for="(e, i) in trials"
+            :key="`e-${e.x}-${e.y}-${i}`"
+            class="dg-trial-holder"
+            :style="{ gridColumn: e.x + 1, gridRow: e.y + 1 }"
+        >
+            <div
+                class="dg-trial"
+                :class="{ tentee: (e.tentee_par ?? []).length > 0 }"
+                :title="`${e.nom} — jet de ${e.attribut === 'body' ? 'Body' : 'Mind'} (difficulté ${e.difficulte})`"
+            >
+                <MSym n="front_hand" fill />
+            </div>
+        </div>
+
         <!-- mobilier (doc 17) : bloc plein sur toute son emprise l×h — un simple
              marqueur discret serait invisible à 22px (leçon des portes, cf. plus
              bas) alors qu'un meuble bloquant le passage doit se lire au premier
@@ -184,6 +207,16 @@ const doors = computed(() => (props.carte.portes ?? [])
 
 /* ---- pièges (detecte / desarme / declenche — contrat « Pièges ») ---- */
 .dg-trap-holder { position: relative; pointer-events: none; z-index: 2; }
+/* Épreuves : même gabarit que le marqueur de piège, teinte DORÉE — le piège est
+   rouge (danger), l'épreuve est une occasion. Estompée dès qu'un héros y a
+   laissé sa tentative, pour que la table voie d'un coup d'œil qu'elle a déjà
+   servi (une tentative par héros). */
+.dg-trial-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 3; }
+.dg-trial { width: 72%; height: 72%; border-radius: 50%; display: grid; place-items: center;
+  color: var(--stone-950); background: var(--gold); box-shadow: 0 0 6px oklch(0.80 0.135 88 / 0.55); }
+.dg-trial .msym { font-size: 68%; }
+.dg-trial.tentee { background: var(--stone-700); color: var(--ink-400); box-shadow: none; }
+
 .dg-trap { position: absolute; inset: 12%; border-radius: 5px; display: grid; place-items: center; }
 .dg-trap .msym { font-size: clamp(11px, 1.3vw, 20px); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-trap.detecte { color: var(--warn, oklch(0.82 0.16 75)); background: oklch(0.78 0.15 75 / 0.13);

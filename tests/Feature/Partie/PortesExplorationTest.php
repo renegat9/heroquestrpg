@@ -228,9 +228,17 @@ it('ouvre la porte liée quand le héros actionne le LEVIER au contact', functio
     expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id'))
         ->toContain($optionId);
 
+    // ⚠ Le levier demande un JET DE BODY depuis le 2026-08-24 : on fige les dés
+    // sur des crânes pour que la herse cède. C'est aussi ce qui fait de cette
+    // action un emploi RÉEL de `attribut_body`, là où le levier s'abaissait
+    // auparavant d'une pichenette gratuite.
+    desFiges(array_fill(0, 8, 1));
+
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'actionner_levier')
+        ->assertJsonPath('resultat.force', true)
+        ->assertJsonPath('resultat.jet.attribut', 'body')
         ->assertJsonPath('resultat.portes_ouvertes.0.x', $hx + 2);
 
     expect($quete->fresh()->carte->grille['portes'][0]['etat'])->toBe('ouverte');
@@ -504,6 +512,7 @@ it('révèle la salle et ses monstres quand un LEVIER ouvre la porte', function 
     // Le levier vient d'être posé : il faut un menu à jour pour que l'option
     // soit jugée légale par le contrôleur.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    desFiges(array_fill(0, 8, 1)); // jet de Body réussi : la herse cède
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'actionner_levier_'.($hx + 1).'_'.$hy])
         ->assertStatus(202);

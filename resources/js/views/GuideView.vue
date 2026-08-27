@@ -81,6 +81,28 @@ const talentsParClasse = computed(() => {
     }
     return m;
 });
+
+/* La GRILLE de talents (2026-08-23) : 3 colonnes × 3 lignes par classe. Rendue
+   à plat, la page ne disait pas à quoi un joueur RENONCE en descendant une
+   colonne — or c'est tout le sujet de la refonte. */
+const grilleParClasse = computed(() => {
+    const m = {};
+    for (const t of guide.value?.competences ?? []) {
+        if (t.innee || t.colonne == null) continue;
+        const cols = (m[t.classe] ??= []);
+        let col = cols.find((c) => c.colonne === t.colonne);
+        if (!col) {
+            col = { colonne: t.colonne, categorie: t.categorie ?? '', icone: t.categorie_icone || 'hub', noeuds: [] };
+            cols.push(col);
+        }
+        col.noeuds.push(t);
+    }
+    for (const cols of Object.values(m)) {
+        cols.sort((a, b) => a.colonne - b.colonne);
+        for (const c of cols) c.noeuds.sort((a, b) => (a.rang ?? 0) - (b.rang ?? 0));
+    }
+    return m;
+});
 /* Le mouvement s'explique par la RACE, plus un éventuel trait d'agilité
    (doc 01 §4bis-2). L'infobulle le dit, sinon le chiffre reste opaque. */
 const SOCLE_RACE = { nain: 3, halfling: 3, humain: 4, elfe: 5 };
@@ -344,17 +366,25 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         </ul>
                     </template>
 
-                    <div class="hero-talents-t"><MSym n="hub" :size="14" /> Arbre de talents</div>
-                    <ul class="talent-ul">
-                        <li v-for="t in talentsParClasse[c.nom] ?? []" :key="t.id" class="talent-li">
-                            <div class="tl-head">
-                                <span class="tl-nom">{{ t.nom }}</span>
-                                <span class="tl-type" :class="'tt-' + t.type">{{ TYPE_TALENT[t.type] ?? t.type }}</span>
-                                <span v-if="t.prerequis_id" class="tl-prereq"><MSym n="lock" :size="11" /> prérequis</span>
-                            </div>
-                            <div v-if="t.description" class="tl-desc">{{ t.description }}</div>
-                        </li>
-                    </ul>
+                    <div class="hero-talents-t"><MSym n="grid_view" :size="14" /> Grille de talents</div>
+                    <template v-for="col in grilleParClasse[c.nom] ?? []" :key="col.colonne">
+                        <div class="tl-cat"><MSym :n="col.icone" :size="13" fill /> {{ col.categorie }}</div>
+                        <ul class="talent-ul">
+                            <li v-for="t in col.noeuds" :key="t.id" class="talent-li">
+                                <div class="tl-head">
+                                    <span class="tl-rang">{{ t.rang }}</span>
+                                    <span class="tl-nom">{{ t.nom }}</span>
+                                    <span class="tl-type" :class="'tt-' + t.type">{{ TYPE_TALENT[t.type] ?? t.type }}</span>
+                                </div>
+                                <div v-if="t.description" class="tl-desc">{{ t.description }}</div>
+                                <!-- L'avantage chiffré, dérivé de l'effet côté serveur : la
+                                     page disait ce que le talent RACONTE, jamais ce qu'il VAUT. -->
+                                <div v-if="t.avantage" class="tl-fx">
+                                    <MSym :n="t.avantage_icone || 'hub'" :size="12" fill /> {{ t.avantage }}
+                                </div>
+                            </li>
+                        </ul>
+                    </template>
                 </article>
             </section>
 
@@ -640,6 +670,14 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
 .tech-res { color: var(--ink-400, #9c8f76); }
 .tl-prereq { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: var(--ink-600); }
 .tl-desc { font-size: 12.5px; color: var(--ink-300); margin-top: 4px; line-height: 1.45; }
+/* La GRILLE : un intertitre par colonne, un numéro de ligne par nœud, et
+   l'avantage chiffré sous la phrase de jeu. */
+.tl-cat { display: flex; align-items: center; gap: 6px; margin: 12px 0 6px; font-family: var(--font-display);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); }
+.tl-rang { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 10px; font-weight: 800; color: var(--stone-950); background: var(--gold); }
+.tl-fx { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; padding: 2px 8px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 700; color: var(--gold); background: oklch(0.80 0.135 88 / 0.12); }
 
 /* ---- carte entité (monstre/objet/sort/piège) ---- */
 .ent-card { background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); border: var(--line); border-radius: var(--r-md, 11px);

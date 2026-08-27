@@ -114,6 +114,7 @@ final class MoteurDread
         private readonly LanceurDes $des,
         private readonly MoteurSorts $sorts,
         private readonly MoteurDegats $degats,
+        private readonly Talents $talents,
     ) {}
 
     // ------------------------------------------------------------------
@@ -829,11 +830,12 @@ final class MoteurDread
         ];
 
         if ($resultat->effetApplique()) {
-            // Contresort (nœud magicien, doc 01 §6) : la résistance naturelle a
-            // échoué — une SECONDE chance, jet de Mind indépendant, annule
-            // l'effet magique avant qu'il ne soit posé.
+            // `annuler_effet_magique` (Contresort du magicien et du warlock,
+            // Verbe ancien du druide) : la résistance naturelle a échoué — une
+            // SECONDE chance, jet de Mind indépendant, annule l'effet magique
+            // avant qu'il ne soit posé.
             $contresort = null;
-            if ($personnage->competences()->where('nom', 'Contresort')->exists()) {
+            if ($this->talents->a($personnage, 'annuler_effet_magique')) {
                 $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
                 $contresort = [
                     'reussi' => ! $jetContresort->effetApplique(),

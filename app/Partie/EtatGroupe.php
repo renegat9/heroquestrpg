@@ -8,6 +8,7 @@ use App\Events\EtapePreparation;
 use App\Http\Controllers\Api\TableController;
 use App\Models\Carte;
 use App\Models\Condition;
+use App\Models\Epreuve;
 use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
@@ -297,6 +298,12 @@ final class EtatGroupe
             // détection), un meuble n'a rien à découvrir — sa seule condition
             // d'affichage est le même brouillard que le reste de la salle.
             'mobilier' => $this->mobilier($carte, $decouvertes),
+            // ÉPREUVES (2026-08-24) : mêmes conditions d'affichage que le
+            // mobilier — rien à découvrir, seulement le brouillard de la salle.
+            // ⚠ On publie `tentee_par` : la table doit pouvoir montrer QUI a
+            // déjà essayé, sinon le groupe renvoie deux fois le même héros sur
+            // une épreuve qui ne lui répondra plus.
+            'epreuves' => $this->epreuves($carte, $decouvertes),
             'portes' => $portes,
         ];
     }
@@ -499,6 +506,10 @@ final class EtatGroupe
     private function mobilier(Carte $carte, array $decouvertes): array
     {
         $visibles = collect($carte->grille['mobilier'] ?? [])
+            // ⚠ Une pièce MISE EN PIÈCES disparaît de la carte de table : elle
+            // ne bloque plus rien (`FabriqueGrille`), et continuer à la dessiner
+            // ferait croire au groupe qu'un obstacle barre encore le passage.
+            ->reject(fn (array $entree) => MoteurMobilier::estDetruite($entree))
             ->filter(fn (array $entree) => in_array($entree['salle'] ?? null, $decouvertes, true));
 
         $catalogue = Mobilier::query()
@@ -521,6 +532,48 @@ final class EtatGroupe
                     // bloque les deux. Ne jamais les refusionner en un seul champ.
                     'bloque_mouvement' => $type?->bloque_mouvement ?? true,
                     'bloque_vue' => $type?->bloque_vue ?? false,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Épreuves visibles : celles des salles découvertes (doc 14, 2026-08-24).
+     *
+     * Une épreuve est un ancrage à JET D'ATTRIBUT — c'est par elle que le moteur
+     * émet enfin des jets de contexte `savoir` et `social_peur`, qui n'avaient
+     * plus aucun producteur depuis la suppression de `MenuChoix`.
+     *
+     * @param  list<int>  $decouvertes
+     * @return list<array<string, mixed>>
+     */
+    private function epreuves(Carte $carte, array $decouvertes): array
+    {
+        $visibles = collect($carte->grille['epreuves'] ?? [])
+            ->filter(fn (array $entree) => in_array($entree['salle'] ?? null, $decouvertes, true));
+
+        $catalogue = Epreuve::query()
+            ->whereIn('id', $visibles->pluck('epreuve_id')->filter()->unique())
+            ->get(['id', 'nom', 'description', 'attribut', 'difficulte'])
+            ->keyBy('id');
+
+        return $visibles
+            ->map(function (array $entree) use ($catalogue) {
+                $type = $catalogue[$entree['epreuve_id']] ?? null;
+
+                return [
+                    'x' => (int) $entree['x'],
+                    'y' => (int) $entree['y'],
+                    'nom' => $type?->nom ?? 'Épreuve',
+                    'description' => $type?->description,
+                    'attribut' => $type?->attribut,
+                    // ⚠ La difficulté BRUTE : le plafond du groupe
+                    // (`DifficulteBody`) s'applique au menu, qui est le seul
+                    // endroit où le héros qui tente est connu.
+                    'difficulte' => (int) ($type?->difficulte ?? 1),
+                    'tentee_par' => array_map('intval', (array) ($entree['tentee_par'] ?? [])),
+                    'image_url' => app(BibliothequeImages::class)->urlEpreuve($type?->id, $type?->nom),
                 ];
             })
             ->values()

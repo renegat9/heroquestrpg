@@ -58,21 +58,40 @@ class CompetenceController extends Controller
         'bonus_deplacement' => 'deplacement_base',
     ];
 
-    /** GET /api/competences — catalogue complet des arbres (contrat). */
+    /**
+     * GET /api/competences — catalogue complet des grilles (contrat).
+     *
+     * ⚠ `avantage` / `avantage_icone` sont CALCULÉS depuis `effet`
+     * (`MotsClesTalent`), et le front n'a plus de table de correspondance à
+     * tenir : la sienne (`store/game.js`, `EFFETS_PASSIFS`) était keyée sur des
+     * noms de COLONNES du personnage, si bien qu'un `effet` de compétence n'y
+     * produisait jamais la moindre puce — tous les talents s'affichaient sans un
+     * seul chiffre, et personne ne l'avait vu.
+     */
     public function catalogue(): JsonResponse
     {
         return response()->json([
             'competences' => Competence::query()
                 ->orderBy('classe')
+                ->orderBy('colonne')
+                ->orderBy('rang')
                 ->orderBy('id')
-                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id'])
+                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'innee',
+                    'categorie', 'categorie_icone', 'colonne', 'rang', 'prerequis_id'])
                 ->map(fn (Competence $c) => [
                     'id' => $c->id,
                     'classe' => $c->classe,
                     'nom' => $c->nom,
                     'description' => $c->description,
                     'type' => $c->type,
+                    'innee' => (bool) $c->innee,
+                    'categorie' => $c->categorie,
+                    'categorie_icone' => $c->categorie_icone,
+                    'colonne' => $c->colonne,
+                    'rang' => $c->rang,
                     'effet' => $c->effet,
+                    'avantage' => $c->avantage(),
+                    'avantage_icone' => $c->avantageIcone(),
                     'prerequis_id' => $c->prerequis_id,
                 ])
                 ->values()
@@ -131,7 +150,7 @@ class CompetenceController extends Controller
         if ($competence->prerequis_id !== null
             && ! $personnage->competences()->whereKey($competence->prerequis_id)->exists()) {
             throw ValidationException::withMessages([
-                'competence_id' => 'Prérequis manquant : acquérez d\'abord le nœud parent de l\'arbre.',
+                'competence_id' => 'Prérequis manquant : acquérez d\'abord le nœud du dessus dans cette colonne.',
             ]);
         }
 

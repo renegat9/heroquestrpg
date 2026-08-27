@@ -40,13 +40,80 @@ final class MenuMoteur
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
         private readonly MoteurMobilier $mobilier,
+        private readonly MoteurEpreuves $epreuves,
         private readonly MoteurSorts $sorts,
         private readonly LanceurDes $des,
         private readonly Equipement $equipement,
         private readonly MoteurCharges $charges,
         private readonly CapacitesInnees $capacites,
+        private readonly Talents $talents,
         private readonly StylesElementaires $styles,
     ) {}
+
+    /**
+     * Monstres qu'un héros peut tenter de REPOUSSER d'une case (2026-08-24).
+     *
+     * Conditions cumulées, et chacune évite une option morte :
+     *  - le monstre est RÉVÉLÉ et actif — on ne bouscule pas ce qu'on ne voit pas ;
+     *  - il est au CONTACT (orthogonal) du héros ;
+     *  - ce héros ne l'a pas déjà tenté (`habillage.repousse_par`, une tentative
+     *    par héros comme la fouille) ;
+     *  - la case de recul est libre POUR TOUTE L'EMPRISE de la figure — une
+     *    gargouille de 2×2 a besoin de quatre cases, et proposer une poussée
+     *    que le résolveur refusera est exactement ce que le projet interdit.
+     *
+     * @return list<array{instance_id: int, nom: string, difficulte: int}>
+     */
+    private function ciblesRepoussables(Quete $quete, Personnage $personnage, int $px, int $py): array
+    {
+        $cibles = [];
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->get() as $instance) {
+            if ($instance->position_x === null) {
+                continue;
+            }
+
+            $ix = (int) $instance->position_x;
+            $iy = (int) $instance->position_y;
+
+            if (abs($ix - $px) + abs($iy - $py) !== 1) {
+                continue;
+            }
+
+            $deja = array_map('intval', (array) data_get($instance->habillage, 'repousse_par', []));
+
+            if (in_array((int) $personnage->id, $deja, true)) {
+                continue;
+            }
+
+            // Recul : le prolongement de l'axe héros → monstre.
+            $vx = $ix - $px;
+            $vy = $iy - $py;
+
+            $emprise = $instance->monstre->emprise();
+            $grille = FabriqueGrille::pour($quete, exceptInstanceId: (int) $instance->id);
+
+            $libre = true;
+            foreach ($grille->cellulesEmprise($ix + $vx, $iy + $vy, (int) $emprise['l'], (int) $emprise['h']) as $cellule) {
+                if (! $grille->estTraversable((int) $cellule['x'], (int) $cellule['y'])) {
+                    $libre = false;
+                    break;
+                }
+            }
+
+            if (! $libre) {
+                continue;
+            }
+
+            $cibles[] = [
+                'instance_id' => (int) $instance->id,
+                'nom' => $instance->nomAffiche(),
+                'difficulte' => DifficulteBody::plafonnee($quete, (int) $instance->monstre->pv_body),
+            ];
+        }
+
+        return $cibles;
+    }
 
     /**
      * Déplacement du tour : lance le d6 (base + 1d6, doc 03 §3) la PREMIÈRE fois
@@ -812,6 +879,44 @@ final class MenuMoteur
                 ];
             }
 
+            // `soin_allie` (Ballade apaisante du barde, Appel au ralliement du
+            // chevalier) : 1d6 PV à un héros AU CONTACT, une fois par quête.
+            //
+            // ⚠ Une seule option qui PORTE SES CIBLES, jamais une par voisin :
+            // c'est la règle du ciblage en deux temps (`parametres.cibles` EST
+            // la liste blanche que le résolveur revalide). Le blessé le plus
+            // bas d'abord — c'est lui qu'on vient soigner.
+            if ($this->talents->disponible($personnage, $etat, 'soin_allie')) {
+                $blesses = $quete->etatsPersonnages()
+                    ->where('personnage_id', '!=', $personnage->id)
+                    ->with('personnage')
+                    ->get()
+                    ->filter(fn ($e) => $e->position_x !== null
+                        && abs((int) $e->position_x - (int) $etat->position_x) <= 1
+                        && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                        && $e->personnage !== null
+                        && (int) $e->personnage->pv_body < (int) $e->personnage->pv_body_max)
+                    ->sortBy(fn ($e) => (int) $e->personnage->pv_body)
+                    ->values();
+
+                if ($blesses->isNotEmpty()) {
+                    $options[] = [
+                        'id' => 'soigner_allie',
+                        'libelle' => 'Soigner un compagnon à ton contact (1d6 PV)',
+                        'type' => 'soin_allie',
+                        'parametres' => [
+                            'cibles' => $blesses->map(fn ($e) => [
+                                'id' => (int) $e->personnage_id,
+                                'nom' => (string) $e->personnage->nom,
+                                'pv_body' => (int) $e->personnage->pv_body,
+                                'pv_body_max' => (int) $e->personnage->pv_body_max,
+                                'tombe' => (bool) $e->tombe,
+                            ])->values()->all(),
+                        ],
+                    ];
+                }
+            }
+
             // Relever un allié TOMBÉ adjacent (doc 03 §48) : sacrifie le tour.
             $allies = $quete->etatsPersonnages()
                 ->where('tombe', true)
@@ -911,7 +1016,7 @@ final class MenuMoteur
         // injouable.
         $bonusReserveArcaniqueDisponible = $etat !== null && $aAgi
             && ! (bool) ($etat->bonus_sort_utilise ?? false)
-            && ($personnage->competences()->where('nom', 'Réserve arcanique')->exists()
+            && ($this->talents->a($personnage, 'sort_supplementaire_par_tour')
                 || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
         if ($etat !== null && ! $aAgi && ! $actionInterdite) {
@@ -974,12 +1079,104 @@ final class MenuMoteur
                     ];
                 }
 
+                // LEVIER — jet de BODY depuis le 2026-08-24 (décision de René),
+                // et non plus une interaction gratuite.
+                //
+                // ⚠ C'est le principal emploi de `attribut_body` : un levier est
+                // toujours là, quand un piège détecté au contact et une fosse
+                // sur le trajet sont des accidents. Trois nœuds de la grille
+                // (*Colosse*, *Ancré*, *Corps aguerri*) n'avaient jusqu'ici
+                // presque rien à faire tourner.
+                //
+                // ⚠ RETENTABLE sans limite, contrairement aux épreuves : c'est
+                // exactement ce qui autorise une salle à ne tenir qu'à ce levier
+                // sans jamais se sceller. Le prix est l'action dépensée, tour
+                // après tour.
                 foreach ($this->portes->leviersAdjacents($quete->carte, $px, $py) as $levier) {
+                    $difficulte = DifficulteBody::plafonnee($quete, (int) ($levier['difficulte'] ?? 2));
+
+                    // ⚠ Le TYPE d'option reste `actionner_levier` : un jet de
+                    // Body n'a ni contexte ni relance à gagner de `resoudreJet`,
+                    // et le basculer en `jet` aurait cassé la narration
+                    // (`ChoixController` mappe ce type sur le temps fort
+                    // `levier_actionne`), l'icône de la manette et les tests. Le
+                    // jet est décrit ici pour le libellé, et lancé par
+                    // `resoudreActionnerLevier()`.
                     $options[] = [
                         'id' => "actionner_levier_{$levier['x']}_{$levier['y']}",
-                        'libelle' => 'Actionner le levier',
+                        'libelle' => "Forcer le levier — jet de Body (difficulté {$difficulte})",
                         'type' => 'actionner_levier',
+                        'jet' => ['attribut' => 'body', 'difficulte' => $difficulte],
                         'parametres' => ['levier' => ['x' => $levier['x'], 'y' => $levier['y'], 'levier_id' => $levier['levier_id']]],
+                    ];
+                }
+
+                // MOBILIER DESTRUCTIBLE — l'obstacle qu'on fracasse (2026-08-24).
+                // ⚠ Une pièce FOUILLABLE détruite rend une dernière fouille à son
+                // destructeur : c'est le troc, on ouvre le passage et on rafle le
+                // fond, mais plus personne ne la fouillera.
+                foreach ($this->mobilier->destructiblesAdjacents($quete->carte, $px, $py, (int) $personnage->id) as $meuble) {
+                    $difficulte = DifficulteBody::plafonnee($quete, (int) $meuble['type']->difficulte_destruction);
+
+                    $options[] = [
+                        'id' => "detruire_mobilier_{$meuble['index']}",
+                        'libelle' => "Fracasser : {$meuble['nom']} — jet de Body (difficulté {$difficulte})",
+                        'type' => 'jet',
+                        'jet' => ['attribut' => 'body', 'difficulte' => $difficulte],
+                        'parametres' => ['mobilier' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
+                }
+
+                // REPOUSSER UN ENNEMI (2026-08-24) — troisième emploi de
+                // `attribut_body`, et le seul qui déplace une figure sans la
+                // frapper.
+                //
+                // ⚠ La difficulté est les PV de Body du CATALOGUE de la
+                // créature : 1 pour un gobelin, 10 pour un Seigneur ogre. Jamais
+                // ses PV courants — un boss blessé n'est pas plus facile à
+                // bousculer — ni son nom affiché, que l'habillage IA rebaptise.
+                // Le plafond du groupe la ramène ensuite dans le jouable : on ne
+                // promet pas « jamais un boss », on promet « il faut un colosse
+                // et de la chance ».
+                foreach ($this->ciblesRepoussables($quete, $personnage, $px, $py) as $poussee) {
+                    $options[] = [
+                        'id' => "repousser_{$poussee['instance_id']}",
+                        'libelle' => "Repousser : {$poussee['nom']} — jet de Body (difficulté {$poussee['difficulte']})",
+                        'type' => 'poussee',
+                        'jet' => ['attribut' => 'body', 'difficulte' => $poussee['difficulte']],
+                        'parametres' => ['instance_id' => $poussee['instance_id']],
+                    ];
+                }
+
+                // ÉPREUVES — les ancrages à JET D'ATTRIBUT (2026-08-24).
+                //
+                // ⚠ Elles réutilisent `type: 'jet'`, et c'est tout l'intérêt :
+                // l'avantage de contexte (`avantage_jet_mind`) et la relance
+                // (`relance_jet_mind_rate`) arrivent gratuitement. C'est par
+                // elles que le moteur émet enfin des jets `savoir` et
+                // `social_peur`, sans quoi six talents de la grille ne se
+                // déclenchent jamais.
+                foreach ($this->epreuves->adjacentes($quete->carte, $px, $py, (int) $personnage->id) as $epreuve) {
+                    $difficulte = $epreuve['attribut'] === 'body'
+                        ? DifficulteBody::plafonnee($quete, $epreuve['difficulte'])
+                        : $epreuve['difficulte'];
+
+                    $attribut = $epreuve['attribut'] === 'body' ? 'Body' : 'Mind';
+
+                    $options[] = [
+                        'id' => "epreuve_{$epreuve['index']}",
+                        'libelle' => "{$epreuve['nom']} — jet de {$attribut} (difficulté {$difficulte})",
+                        'type' => 'jet',
+                        'jet' => [
+                            'attribut' => $epreuve['attribut'],
+                            'difficulte' => $difficulte,
+                            'contexte' => $epreuve['contexte'],
+                        ],
+                        'parametres' => [
+                            'epreuve' => $epreuve['index'],
+                            'nom' => $epreuve['nom'],
+                            'description' => $epreuve['description'],
+                        ],
                     ];
                 }
 

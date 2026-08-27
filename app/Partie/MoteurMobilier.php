@@ -53,7 +53,8 @@ final class MoteurMobilier
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
 
-            if ($type === null || ! $type->fouillable || self::dejaFouille($entree, $personnageId)) {
+            if ($type === null || ! $type->fouillable || self::estDetruite($entree)
+                || self::dejaFouille($entree, $personnageId)) {
                 continue;
             }
 
@@ -243,6 +244,139 @@ final class MoteurMobilier
      *
      * @param  array<string, mixed>  $entree
      */
+    /**
+     * Meubles DESTRUCTIBLES, encore debout, que ce héros n'a pas encore tenté
+     * de mettre en pièces, orthogonalement adjacents à (x, y).
+     *
+     * Miroir exact de `fouillablesAdjacents()` — même géométrie, même forme de
+     * retour — parce que les deux options naissent au même endroit du menu et
+     * doivent se comporter pareil.
+     *
+     * ⚠ `difficulte_destruction` à `null` = INDESTRUCTIBLE : le tombeau est un
+     * sarcophage de pierre. On ne propose pas une action qu'aucun jet ne peut
+     * gagner.
+     *
+     * @return list<array{index: int, entree: array<string, mixed>, nom: string, type: Mobilier}>
+     */
+    public function destructiblesAdjacents(Carte $carte, int $x, int $y, ?int $personnageId = null): array
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Mobilier::query()
+            ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
+            ->whereNotNull('difficulte_destruction')
+            ->get(['id', 'nom', 'fouillable', 'difficulte_destruction', 'effet'])
+            ->keyBy('id');
+
+        $trouves = [];
+
+        foreach ($entrees as $index => $entree) {
+            $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
+
+            if ($type === null || self::estDetruite($entree)
+                || self::dejaTenteeDestruction($entree, $personnageId)) {
+                continue;
+            }
+
+            if ($this->adjacentAEmprise($entree, $x, $y)) {
+                $trouves[] = [
+                    'index' => (int) $index,
+                    'entree' => $entree,
+                    'nom' => (string) $type->nom,
+                    'type' => $type,
+                ];
+            }
+        }
+
+        return $trouves;
+    }
+
+    /**
+     * La pièce a-t-elle été mise en pièces ?
+     *
+     * ⚠ Une pièce détruite reste DANS la grille, marquée `detruit`, au lieu
+     * d'en être retirée. Deux raisons, et la seconde a failli mordre :
+     *  - les index de `mobilier[]` servent d'identifiant d'option dans le menu
+     *    (`detruire_mobilier_{index}`), et retirer une entrée décale tous les
+     *    suivants — un menu périmé viserait alors le mauvais meuble ;
+     *  - un tableau PHP troué se sérialise en OBJET JSON, plus en liste, et le
+     *    front qui itère `carte.mobilier` recevrait soudain autre chose.
+     *
+     * C'est le même choix que les portes, qui gardent leur entrée et changent
+     * d'`etat`.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function estDetruite(array $entree): bool
+    {
+        return (bool) ($entree['detruit'] ?? false);
+    }
+
+    /**
+     * Ce héros a-t-il déjà tenté de détruire cette pièce ?
+     *
+     * UNE TENTATIVE PAR HÉROS (décision de René, 2026-08-24) : l'échec ferme
+     * l'option à celui qui a essayé, jamais à ses compagnons. Le prix réel est
+     * le créneau d'action, et la troupe finit par y arriver — même patron que la
+     * fouille (`fouille_par`), et que `quetes.tresors_fouilles` pour les salles.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function dejaTenteeDestruction(array $entree, ?int $personnageId): bool
+    {
+        if ($personnageId === null) {
+            return false;
+        }
+
+        return in_array(
+            $personnageId,
+            array_map('intval', (array) ($entree['destruction_par'] ?? [])),
+            true,
+        );
+    }
+
+    /** Inscrit la tentative de ce héros — réussie ou non, elle est dépensée. */
+    public function marquerTentativeDestruction(Carte $carte, int $index, int $personnageId): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['mobilier'][$index])) {
+            return;
+        }
+
+        $deja = array_map('intval', (array) ($grille['mobilier'][$index]['destruction_par'] ?? []));
+        $grille['mobilier'][$index]['destruction_par'] = array_values(array_unique([...$deja, $personnageId]));
+
+        $carte->update(['grille' => $grille]);
+    }
+
+    /**
+     * Met la pièce en pièces : elle cesse de bloquer le mouvement ET la vue.
+     *
+     * Un seul drapeau suffit parce que `FabriqueGrille::pour()` tient la boucle
+     * UNIQUE du mobilier de tout le moteur — une pièce ignorée là l'est pour le
+     * déplacement, le ciblage et la ligne de vue d'un seul geste.
+     *
+     * ⚠ Aucun risque pour l'invariant de connectivité, à l'inverse d'un meuble
+     * qu'on POUSSERAIT : retirer un obstacle ne peut qu'ouvrir le donjon.
+     */
+    public function detruire(Carte $carte, int $index): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['mobilier'][$index])) {
+            return;
+        }
+
+        $grille['mobilier'][$index]['detruit'] = true;
+
+        $carte->update(['grille' => $grille]);
+    }
+
     private function adjacentAEmprise(array $entree, int $x, int $y): bool
     {
         $ox = (int) $entree['x'];

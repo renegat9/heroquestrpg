@@ -515,7 +515,7 @@ it('Se concentrer (S6) sacrifie le tour, récupère UN sort épuisé au choix, u
     [$alice, $groupe, $mage, $quete] = demarrerQueteSorts(avecSecond: true);
 
     $mage->competences()->attach(
-        Competence::where('classe', 'magicien')->where('nom', MoteurSorts::NOEUD_CONCENTRATION)->value('id'),
+        Competence::where('classe', 'magicien')->where('nom', 'Concentration')->value('id'),
     );
 
     $sortId = sortIdParNom('Boule de Feu');
@@ -550,12 +550,10 @@ it('Se concentrer (S6) sacrifie le tour, récupère UN sort épuisé au choix, u
 
 it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même tour', function () {
     [$alice, $groupe, $mage, $quete] = demarrerQueteSorts();
-    $mage->update(['niveau' => 2]); // 1 point de compétence dérivé
-
-    $this->postJson('/api/groupes/table-1/competences', [
-        'personnage_id' => $mage->id,
-        'competence_id' => Competence::where('classe', 'magicien')->where('nom', 'Réserve arcanique')->value('id'),
-    ])->assertCreated();
+    // Rang 2 de la colonne « Écoles » : le prérequis (« Écoles ») ouvrirait un
+    // élément et attacherait trois sorts de plus, ce qui n'a rien à voir avec ce
+    // qu'on mesure ici — le second sort dans le même tour.
+    donnerTalent($mage, 'Réserve arcanique');
 
     optionsMenuSorts($groupe, $alice, $mage);
 

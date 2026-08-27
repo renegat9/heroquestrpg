@@ -163,10 +163,7 @@ it('Tir précis (+1 dé) s\'applique sur un tir à distance véritable, jamais a
     equipeArbalete($ctx['heros']);
     placerMonstreADistance($ctx['quete'], $ctx['instance'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
 
-    $this->postJson('/api/groupes/table-1/competences', [
-        'personnage_id' => $ctx['heros']->id,
-        'competence_id' => Competence::where('classe', 'elfe')->where('nom', 'Tir précis')->value('id'),
-    ])->assertCreated();
+    donnerTalent($ctx['heros'], 'Tir précis');
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
     desFiges(array_fill(0, 20, 4));

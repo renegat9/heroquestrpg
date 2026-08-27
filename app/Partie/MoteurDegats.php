@@ -89,6 +89,22 @@ final class MoteurDegats
 
         $retenus = max(0, min($degats, $evenement->degats));
 
+        // `reduction_degats` (Cuir tanné du barbare, Peau de fer du moine,
+        // Rempart du chevalier) : −N par coup subi, plancher zéro.
+        //
+        // ⚠ Après l'écouteur et jamais avant : une réaction qui ANNULE le coup
+        // doit ramener à zéro, et soustraire d'abord ferait qu'un coup de 1
+        // dégât déjà réduit à 0 par le talent déclencherait quand même l'offre
+        // de réaction — le joueur se verrait proposer d'annuler un coup qui ne
+        // l'a jamais touché.
+        //
+        // ⚠ `SOURCE_SACRIFICE` est exclu : la *Furie* du Berserker fait payer
+        // un prix, et une armure qui protège de sa propre décision rendrait la
+        // capacité gratuite. Même raison qui l'exclut des réactions.
+        if ($retenus > 0 && $source !== self::SOURCE_SACRIFICE) {
+            $retenus = max(0, $retenus - app(Talents::class)->valeur($heros, 'reduction_degats'));
+        }
+
         if ($retenus === 0) {
             return 0;
         }

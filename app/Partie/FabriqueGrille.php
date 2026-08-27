@@ -113,7 +113,11 @@ final class FabriqueGrille
 
             foreach ($mobilier as $meuble) {
                 $type = $types->get($meuble['mobilier_id'] ?? null);
-                if ($type === null) {
+                // ⚠ Une pièce MISE EN PIÈCES (jet de Body, 2026-08-24) cesse de
+                // bloquer le mouvement ET la vue — et il suffit de l'écarter
+                // ICI, précisément parce que c'est la seule boucle du mobilier
+                // de tout le moteur. C'est tout l'intérêt de n'en avoir qu'une.
+                if ($type === null || MoteurMobilier::estDetruite($meuble)) {
                     continue;
                 }
 

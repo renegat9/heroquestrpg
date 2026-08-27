@@ -57,11 +57,17 @@ use Illuminate\Validation\ValidationException;
  *
  * CONDITIONS DES MONSTRES : il n'existe pas de pivot conditions pour les
  * instances de monstres (et pas de nouvelle migration) — elles vivent dans
- * le JSON `instances_monstres.habillage.conditions` (choix MVP documenté) :
+ * le JSON `instances_monstres.habillage.conditions`, valeur `true`
+ * (« sans durée ») OU un ENTIER de tours restants (2026-08-24) :
  *  - `endormi` (Sommeil)         : le monstre ne joue pas tant qu'il n'est
  *    pas attaqué — une attaque le réveille ;
- *  - `saute_tour` (Tempête) : passe entièrement son prochain tour — ni
- *    déplacement ni attaque —, consommé à cette activation-là.
+ *  - `saute_tour` (Tempête) et `enfume` (Bombe fumigène) : passent tout le
+ *    prochain tour du monstre, consommés à cette activation-là ;
+ *  - `terrifie` (Terreur), `ralenti` (Ralentissement), `paralyse` (Flamme
+ *    hypnotique) : posées avec une DURÉE (`dureeConditionMonstre()`),
+ *    décomptée par `decrementerDureesMonstres()` — jusqu'au 2026-08-24 elles
+ *    ne portaient que `true` et ne retombaient donc JAMAIS : un monstre
+ *    paralysé ne rejouait plus de toute la quête.
  */
 final class MoteurSorts
 {
@@ -133,7 +139,7 @@ final class MoteurSorts
     public const MECANIQUE_ELEMENT = 'emplacement_element';
 
     /** Nom exact du nœud magicien de récupération (CompetenceSeeder). */
-    public const NOEUD_CONCENTRATION = 'Concentration';
+    public const MECANIQUE_CONCENTRATION = 'recuperer_sort_epuise';
 
     /** Préfixe des sources de conditions posées par un sort. */
     public const PREFIXE_SOURCE = 'sort:';
@@ -456,6 +462,16 @@ final class MoteurSorts
             return false;
         }
 
+        // `resistance_degats_type` (Chair impie du warlock) : un TALENT annule
+        // la même nature de dégâts qu'un anneau, et sans charge — il est lu en
+        // premier, car un talent permanent ne doit jamais consommer une pièce
+        // qui, elle, s'use.
+        $talent = app(Talents::class)->noeud($personnage, 'resistance_degats_type');
+
+        if ($talent !== null && ($talent->effet['type_degat'] ?? null) === $typeDegat) {
+            return true;
+        }
+
         $charges = app(MoteurCharges::class);
 
         $piece = $personnage->inventaire()
@@ -536,9 +552,40 @@ final class MoteurSorts
     /** Magicien possédant le nœud Concentration, pas encore utilisé cette quête. */
     public function concentrationDisponible(Groupe $groupe, Personnage $personnage): bool
     {
-        return $personnage->classe === 'magicien'
-            && $personnage->competences()->where('nom', self::NOEUD_CONCENTRATION)->exists()
+        // ⚠ La garde `classe === 'magicien'` est tombée le 2026-08-23 : c'est la
+        // possession du nœud qui fait foi, et *Rappel* (barde) comme *Communion*
+        // (druide) portent la même mécanique depuis le 2026-08-12 sans qu'aucun
+        // des deux n'ait jamais rien récupéré.
+        return app(Talents::class)->a($personnage, self::MECANIQUE_CONCENTRATION)
             && ! (bool) Cache::get(self::cleConcentration($groupe->id, $personnage->id), false);
+    }
+
+    /**
+     * `sacrifice_pv_pour_sort` (Prix du pacte, warlock) : le héros paie 1 PV de
+     * Body et rend UN sort épuisé relançable.
+     *
+     * ⚠ Le paiement passe par `MoteurDegats::SOURCE_SACRIFICE`, la source déjà
+     * créée pour la *Furie* du Berserker et volontairement absente des sources
+     * réactives : annuler d'une réaction le prix qu'on vient de payer rendrait
+     * le talent gratuit.
+     *
+     * ⚠ Refusé à 1 PV de Body : un talent d'appoint ne doit pas pouvoir tuer
+     * son porteur. Le menu ne le propose alors pas, et le résolveur le refuse.
+     */
+    public function sacrifierPourUnSort(Personnage $personnage, Sort $sort): bool
+    {
+        if ((int) $personnage->pv_body <= 1
+            || ! app(Talents::class)->a($personnage, 'sacrifice_pv_pour_sort')) {
+            return false;
+        }
+
+        app(MoteurDegats::class)->infligerAHeros($personnage, 1, MoteurDegats::SOURCE_SACRIFICE, [
+            'talent' => 'sacrifice_pv_pour_sort',
+        ]);
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => true]);
+
+        return true;
     }
 
     public function marquerConcentrationUtilisee(Groupe $groupe, Personnage $personnage): void
@@ -633,6 +680,28 @@ final class MoteurSorts
                     'id' => 'se_concentrer',
                     'libelle' => 'Se concentrer — sacrifier le tour pour récupérer un sort épuisé',
                     'type' => 'concentration',
+                    'parametres' => [
+                        'sorts_epuises' => $epuises
+                            ->map(fn (Sort $s) => ['sort_id' => $s->id, 'nom' => $s->nom])
+                            ->values()
+                            ->all(),
+                    ],
+                ];
+            }
+        }
+
+        // `sacrifice_pv_pour_sort` (Prix du pacte, warlock) : même famille que
+        // « Se concentrer », mais le prix est du SANG plutôt qu'un tour — d'où
+        // une option distincte et non un paramètre de la première.
+        if (app(Talents::class)->a($personnage, 'sacrifice_pv_pour_sort')
+            && (int) $personnage->pv_body > 1) {
+            $epuises = $personnage->sorts()->wherePivot('disponible', false)->orderBy('sorts.id')->get();
+
+            if ($epuises->isNotEmpty()) {
+                $options[] = [
+                    'id' => 'sacrifier_pour_sort',
+                    'libelle' => 'Payer le pacte — 1 PV de Body pour récupérer un sort épuisé',
+                    'type' => 'sacrifice_sort',
                     'parametres' => [
                         'sorts_epuises' => $epuises
                             ->map(fn (Sort $s) => ['sort_id' => $s->id, 'nom' => $s->nom])
@@ -1033,8 +1102,18 @@ final class MoteurSorts
     {
         $rendus = 0;
 
+        // `regain_sort` (Chant runique de l'elfe, Appel de la forêt du druide) :
+        // le TALENT porte l'événement, là où jusqu'ici seul le SORT pouvait le
+        // déclarer. Il rend UN sort — le premier épuisé — et non tous : rendre
+        // le grimoire entier à chaque monstre abattu supprimerait l'économie de
+        // sorts au lieu de l'assouplir.
+        $talent = app(Talents::class)->noeud($personnage, 'regain_sort');
+        $parLeTalent = $talent !== null && ($talent->effet['regain'] ?? null) === $evenement;
+
         foreach ($personnage->sorts()->wherePivot('disponible', false)->get() as $sort) {
-            if (($sort->effet['regain'] ?? null) !== $evenement) {
+            $parCeSort = ($sort->effet['regain'] ?? null) === $evenement;
+
+            if (! $parCeSort && ! ($parLeTalent && $rendus === 0)) {
                 continue;
             }
 
@@ -1178,10 +1257,25 @@ final class MoteurSorts
     // Conditions des monstres (habillage.conditions — pas de pivot dédié)
     // ------------------------------------------------------------------
 
-    public function poserConditionMonstre(InstanceMonstre $instance, string $cle): void
+    /**
+     * Pose une condition de monstre, avec sa durée en TOURS.
+     *
+     * `$duree = null` (défaut) stocke `true` — « sans durée », le comportement
+     * HISTORIQUE d'avant le 2026-08-24 : Endormi (fin = attaque subie) et
+     * saute_tour/enfume (auto-consommés au tour même du monstre, dans
+     * `ResolveurTour::jouerMonstre()`) n'ont jamais eu besoin d'un compteur, et
+     * les données déjà en base restent lisibles telles quelles — TOUS les
+     * lecteurs testent `! empty(...)` ou `(bool) data_get(...)`, où `true` et
+     * un entier > 0 valent également vrai. Rien à migrer.
+     *
+     * Un entier pose au contraire un COMPTE À REBOURS, décrémenté par
+     * `decrementerDureesMonstres()` — c'est ce qui manquait à `terrifie`,
+     * `ralenti` et `paralyse` : posées vraies pour toujours, jamais retirées.
+     */
+    public function poserConditionMonstre(InstanceMonstre $instance, string $cle, ?int $duree = null): void
     {
         $habillage = $instance->habillage ?? [];
-        $habillage['conditions'][$cle] = true;
+        $habillage['conditions'][$cle] = $duree ?? true;
         $instance->update(['habillage' => $habillage]);
     }
 
@@ -1199,6 +1293,102 @@ final class MoteurSorts
         $habillage = $instance->habillage;
         unset($habillage['conditions'][$cle]);
         $instance->update(['habillage' => $habillage]);
+    }
+
+    /**
+     * Durée (en tours) à poser pour la condition qu'un SORT nomme sur un
+     * monstre, ou `null` (sans compteur) faute de source exploitable.
+     *
+     * Autorité : `conditions.duree_defaut` du catalogue, relu via le nom que
+     * le sort déclare dans `effet.condition_appliquee` — le MÊME nom que
+     * celui posé côté héros en tir ami (Ralenti, Paralysé…), pour qu'une
+     * condition dure pareil qu'elle touche un monstre ou un héros.
+     *
+     * ⚠ `duree_defaut = 0` (« pas de compteur, expiration par déclencheur »,
+     * cf. reference/19_mots_cles_effets.md) n'est PAS exploitable : on
+     * retombe alors sur `effet.duree` du SORT lui-même s'il porte un ENTIER
+     * (un mot-clé `DureeEffet` n'est pas un compte de tours), et en dernier
+     * recours sur `null`.
+     *
+     * Cas réel rencontré en écrivant cette méthode : Terreur pose
+     * `condition_appliquee: Apeuré`, dont le catalogue donne `duree_defaut: 0`
+     * (fin = `jet_mind_reussi`, un déclencheur que ni le moteur monstre NI le
+     * moteur héros ne câblent — `conditions.effet.fin` reste descriptif et
+     * non lu, cf. doc-block de `decrementerDurees()`) ; Terreur ne déclare pas
+     * non plus de `effet.duree` entier. `terrifie` reste donc SANS compteur
+     * pour un monstre — exactement comme `Apeuré` pour un héros. Ce n'est pas
+     * un trou laissé par ce correctif : c'est la même dette, côté monstre
+     * comme côté héros, faute d'un déclencheur câblé quelque part.
+     */
+    public function dureeConditionMonstre(Sort $sort): ?int
+    {
+        $nomCondition = data_get($sort->effet, 'condition_appliquee');
+
+        if (! is_string($nomCondition)) {
+            return null;
+        }
+
+        $dureeCatalogue = (int) (Condition::query()->where('nom', $nomCondition)->value('duree_defaut') ?? 0);
+
+        if ($dureeCatalogue > 0) {
+            return $dureeCatalogue;
+        }
+
+        $dureeSort = data_get($sort->effet, 'duree');
+
+        return is_int($dureeSort) ? $dureeSort : null;
+    }
+
+    /**
+     * Pendant MONSTRES de `decrementerDurees()` (héros) : décrémente les
+     * conditions à durée ENTIÈRE de `habillage.conditions`, pour toutes les
+     * instances actives de la quête, et retire celles qui tombent à zéro.
+     *
+     * Les valeurs `true` (sans durée — Endormi, saute_tour, enfume, et
+     * `terrifie` faute de source exploitable, voir `dureeConditionMonstre()`)
+     * ne sont PAS touchées : décrémenter un booléen n'a aucun sens, et leur
+     * expiration vient d'un déclencheur (attaque, tour du monstre propre) ou
+     * jamais.
+     *
+     * ⚠ Deux stockages, deux méthodes, appelées CÔTE À CÔTE dans
+     * `ResolveurTour::ouvrirNouveauTour()` : le pivot `personnage_conditions`
+     * des héros porte une colonne `duree` dédiée que `decrementerDurees()`
+     * sait interroger en SQL ; `habillage.conditions` des monstres est un
+     * JSON sans colonne, qu'il faut charger, muter et réécrire instance par
+     * instance. Un unique décompte ne pouvait pas parcourir les deux formes.
+     */
+    public function decrementerDureesMonstres(Quete $quete): void
+    {
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $instance) {
+            $conditions = (array) data_get($instance->habillage, 'conditions', []);
+
+            if ($conditions === []) {
+                continue;
+            }
+
+            $modifie = false;
+
+            foreach ($conditions as $cle => $valeur) {
+                if ($valeur === true) {
+                    continue; // sans durée : rien à décompter
+                }
+
+                $modifie = true;
+                $restant = (int) $valeur - 1;
+
+                if ($restant > 0) {
+                    $conditions[$cle] = $restant;
+                } else {
+                    unset($conditions[$cle]); // durée écoulée : la condition tombe
+                }
+            }
+
+            if ($modifie) {
+                $habillage = $instance->habillage;
+                $habillage['conditions'] = $conditions;
+                $instance->update(['habillage' => $habillage]);
+            }
+        }
     }
 
     // ------------------------------------------------------------------

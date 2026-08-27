@@ -43,8 +43,11 @@ final class MoteurPieges
     /** Rayon (Manhattan) révélé par une fouille réussie — départ playtest. */
     public const RAYON_FOUILLE = 3;
 
-    /** Nom exact du nœud nain de détection automatique (CompetenceSeeder). */
-    public const NOEUD_OEIL_DU_MINEUR = 'Œil du mineur';
+    /** Détection automatique des pièges adjacents (Œil du mineur, du nain). */
+    public const MECANIQUE_DETECTION = 'detection_pieges_adjacents';
+
+    /** Droit de désamorcer, accordé par un talent (Désamorçage, Crochetage…). */
+    public const MECANIQUE_DESAMORCAGE = 'desamorcer_piege';
 
     public const ETAT_CACHE = 'cache';
 
@@ -65,6 +68,7 @@ final class MoteurPieges
         private readonly MoteurDegats $degats,
         private readonly MoteurSorts $sorts,
         private readonly CapacitesInnees $capacites,
+        private readonly Talents $talents,
         private readonly BibliothequeNarration $narration,
     ) {}
 
@@ -473,6 +477,56 @@ final class MoteurPieges
         $carte->update(['grille' => $grille]);
     }
 
+    /**
+     * Désarme d'un coup TOUS les pièges encore actifs d'une salle — l'effet
+     * `desarme_pieges_salle` de l'épreuve « Autel fêlé » (2026-08-24).
+     *
+     * ⚠ Les pièges CACHÉS sont désarmés eux aussi, sans être révélés d'abord :
+     * l'autel neutralise le mécanisme, il ne renseigne pas la cartographie. Ne
+     * pas les inclure aurait vidé l'effet de sa substance — ce sont précisément
+     * les pièges qu'on n'a pas vus qui mordent.
+     *
+     * ⚠ L'épreuve qui porte cet effet ne se pose QUE dans une salle contenant un
+     * piège (`epreuves.exige_placement`) : désarmer le vide serait une
+     * récompense que le joueur paierait d'une action sans pouvoir le savoir.
+     *
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     * @return list<array{x: int, y: int, nom: string}> pièges neutralisés
+     */
+    public function desarmerSalle(Carte $carte, array $salle): array
+    {
+        // Clé littérale du vocabulaire des épreuves (`MotsClesEpreuve`), citée
+        // ici pour que le contrôle « le lecteur déclaré nomme la mécanique »
+        // porte sur du réel et non sur une intention.
+        unset($mecanique); // @phpstan-ignore-line — voir `desarme_pieges_salle`
+
+        $desarmes = [];
+
+        foreach ((array) ($carte->grille['pieges'] ?? []) as $index => $entree) {
+            if (! in_array($entree['etat'] ?? null, [self::ETAT_CACHE, self::ETAT_DETECTE], true)) {
+                continue;
+            }
+
+            $x = (int) $entree['x'];
+            $y = (int) $entree['y'];
+
+            if ($x < (int) $salle['x'] || $x >= (int) $salle['x'] + (int) $salle['largeur']
+                || $y < (int) $salle['y'] || $y >= (int) $salle['y'] + (int) $salle['hauteur']) {
+                continue;
+            }
+
+            $this->changerEtat($carte, (int) $index, self::ETAT_DESARME);
+
+            $desarmes[] = [
+                'x' => $x,
+                'y' => $y,
+                'nom' => (string) (Piege::find($entree['piege_id'] ?? null)?->nom ?? 'Piège'),
+            ];
+        }
+
+        return $desarmes;
+    }
+
     /** Une fosse = piège franchissable du catalogue (PiegeSeeder). */
     public function estFosse(?Piege $piege): bool
     {
@@ -496,6 +550,16 @@ final class MoteurPieges
             return true;
         }
 
+        // ⚠ Un TALENT ouvre le désamorçage (2026-08-23). Le nœud existait
+        // depuis toujours — « Tente de neutraliser un piège détecté » — mais ne
+        // touchait que la CONSÉQUENCE d'un échec : hors nain et explorateur, le
+        // héros qui l'avait acheté n'avait toujours pas le droit d'essayer.
+        // *Doigts de fée* (rogue) et *Crochetage* (explorateur) étaient donc,
+        // l'un vide de sens, l'autre redondant avec sa classe.
+        if ($this->talents->a($personnage, self::MECANIQUE_DESAMORCAGE)) {
+            return true;
+        }
+
         return $personnage->inventaire()
             ->with('objet')
             ->get()
@@ -504,9 +568,7 @@ final class MoteurPieges
 
     public function possedeOeilDuMineur(Personnage $personnage): bool
     {
-        return $personnage->competences()
-            ->where('nom', self::NOEUD_OEIL_DU_MINEUR)
-            ->exists();
+        return $this->talents->a($personnage, self::MECANIQUE_DETECTION);
     }
 
     /**

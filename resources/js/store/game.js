@@ -1074,53 +1074,80 @@ export function effetVersListe(effet) {
 }
 
 /**
- * Catalogue (GET /api/competences) + personnage (/moi enrichi) → l'arbre
- * du héros, aplati en ordre parent → enfants avec profondeur.
- * États : `acquis` / `dispo` (prérequis OK + point disponible) /
- * `verrouille` (verrou = 'prerequis' ou 'points').
+ * Catalogue (GET /api/competences) + personnage (/moi enrichi) → la GRILLE de
+ * talents du héros : 3 colonnes (ses catégories) × 3 lignes.
+ *
+ * Acquérir une ligne exige celle du dessus, DANS LA MÊME COLONNE (René,
+ * 2026-08-23). L'état de chaque case reste celui d'avant — `acquis` /
+ * `dispo` (prérequis tenu + point disponible) / `verrouille` (verrou =
+ * 'prerequis' ou 'points') —, seule la disposition change.
+ *
+ * ⚠ Le texte affiché vient ENTIÈREMENT du serveur : `description` (la phrase de
+ * jeu) et `avantage` (le chiffre, dérivé de `effet` par `MotsClesTalent`).
+ * L'ancienne table `EFFETS_PASSIFS` était keyée sur des noms de COLONNES du
+ * personnage (`pv_body_max`), alors qu'un `effet` de compétence porte une
+ * `mecanique` : elle ne produisait donc JAMAIS la moindre puce, et tous les
+ * talents s'affichaient sans un seul chiffre. Elle sert encore aux gains de
+ * `.niveau.monte`, qui eux sont bien keyés par colonne.
+ *
+ * Les capacités de CARTE (`innee`) sont rendues à part : elles ne s'achètent
+ * pas, les mettre dans la grille laisserait croire qu'elles coûtent un point.
+ *
+ * @returns {{colonnes: Array, innees: Array}}
  */
-export function competencesVersArbre(catalogue, classe, acquis = [], points = 0) {
+export function competencesVersGrille(catalogue, classe, acquis = [], points = 0) {
     const cls = (classe ?? '').toLowerCase();
     const noeuds = (catalogue ?? []).filter((c) => (c.classe ?? '').toLowerCase() === cls);
     const parId = new Map(noeuds.map((n) => [n.id, n]));
-    const enfants = new Map();
-    const racines = [];
-    for (const n of noeuds) {
-        if (n.prerequis_id != null && parId.has(n.prerequis_id)) {
-            if (!enfants.has(n.prerequis_id)) enfants.set(n.prerequis_id, []);
-            enfants.get(n.prerequis_id).push(n);
-        } else {
-            racines.push(n);
-        }
-    }
     // ids acquis : tolère une liste d'ids ou d'objets {id}.
     const acquisSet = new Set((acquis ?? []).map((c) => (typeof c === 'object' ? c.id : c)));
 
-    const liste = [];
-    const visiter = (n, profondeur) => {
-        const type = (n.type ?? 'passif').toLowerCase();
+    const habiller = (n) => {
+        const type = TYPES_COMPETENCE[(n.type ?? '').toLowerCase()] ? n.type.toLowerCase() : 'passif';
         const estAcquis = acquisSet.has(n.id);
         const prerequisOk = n.prerequis_id == null || acquisSet.has(n.prerequis_id);
-        const effets = effetVersListe(n.effet);
-        liste.push({
+
+        return {
             id: n.id,
             nom: n.nom,
             description: n.description ?? null,
-            type: TYPES_COMPETENCE[type] ? type : 'passif',
-            profondeur,
-            effets,
-            ic: (type === 'passif' && effets.find((e) => e.ic)?.ic)
-                || TYPES_COMPETENCE[type]?.ic || 'hub',
+            avantage: n.avantage ?? '',
+            // La mécanique sert au seul aiguillage du client : les nœuds qui
+            // ouvrent un domaine de magie exigent `element` dans le POST. Elle
+            // remplace la regex sur le NOM du nœud, qui ne connaissait que les
+            // trois libellés historiques.
+            mecanique: n.effet?.mecanique ?? null,
+            type,
+            rang: n.rang ?? null,
+            ic: n.avantage_icone || TYPES_COMPETENCE[type]?.ic || 'hub',
             etat: estAcquis ? 'acquis' : (prerequisOk && points > 0 ? 'dispo' : 'verrouille'),
             verrou: estAcquis || (prerequisOk && points > 0)
                 ? null
                 : (prerequisOk ? 'points' : 'prerequis'),
             prerequisNom: n.prerequis_id != null ? (parId.get(n.prerequis_id)?.nom ?? null) : null,
-        });
-        for (const e of enfants.get(n.id) ?? []) visiter(e, profondeur + 1);
+        };
     };
-    for (const r of racines) visiter(r, 0);
-    return liste;
+
+    const colonnes = [];
+
+    for (const n of noeuds) {
+        if (n.innee || n.colonne == null) continue;
+
+        let colonne = colonnes.find((c) => c.colonne === n.colonne);
+        if (!colonne) {
+            colonne = { colonne: n.colonne, categorie: n.categorie ?? '', icone: n.categorie_icone || 'hub', noeuds: [] };
+            colonnes.push(colonne);
+        }
+        colonne.noeuds.push(habiller(n));
+    }
+
+    colonnes.sort((a, b) => a.colonne - b.colonne);
+    for (const c of colonnes) c.noeuds.sort((a, b) => (a.rang ?? 0) - (b.rang ?? 0));
+
+    return {
+        colonnes,
+        innees: noeuds.filter((n) => n.innee).map(habiller),
+    };
 }
 
 /** Un gain du payload .niveau.monte → texte affichable (format serveur

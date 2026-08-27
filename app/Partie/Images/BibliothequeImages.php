@@ -99,6 +99,13 @@ final class BibliothequeImages
             : null;
     }
 
+    public function urlEpreuve(?int $id, ?string $nom): ?string
+    {
+        return $id
+            ? $this->url($this->relatifCatalogue('epreuves', $id, (string) $nom)) ?? $this->vignette('epreuve', $id)
+            : null;
+    }
+
     public function urlSort(?int $id, ?string $nom): ?string
     {
         return $id

@@ -161,7 +161,7 @@ it('acquiert un nœud d\'arbre et applique ses effets passifs chiffrés au perso
     expect(collect($catalogue)->every(fn ($n) => is_string($n['description'] ?? null) && $n['description'] !== ''))
         ->toBeTrue();
     expect(collect($catalogue)->firstWhere('nom', 'Carrure')['description'])
-        ->toBe('+1 Point de Body (PV Body max).');
+        ->toBe('+1 PV de Body maximum, définitivement acquis.');
 
     $carrure = idNoeud('barbare', 'Carrure'); // passif : bonus_pv_body_max +1
 
@@ -276,13 +276,13 @@ it('sème un arbre COMPLET pour chacune des 12 classes, capacités innées compr
     expect($parClasse->keys()->sort()->values()->all())->toHaveCount(12);
 
     foreach ($parClasse as $classe => $noeuds) {
-        // ⚠ Plancher à 4 depuis le 2026-08-22, et c'est une DETTE, pas un
-        // relâchement : la suppression de « Maîtrise lourde » laisse le barbare
-        // seul à 4 nœuds quand toutes les autres classes en ont 5 ou plus. Le
-        // seuil protège encore contre un arbre vraiment tronqué ; il faudra lui
-        // rendre un cinquième nœud, ou assumer qu'il en ait un de moins.
+        // 9 achetables + les capacités de carte. La DETTE « le barbare seul à
+        // 4 nœuds » (2026-08-22) est soldée par la grille : toutes les classes
+        // ont exactement 3 colonnes × 3 lignes, et `GrilleTalentsTest` le tient
+        // au nœud près. Ici on garde seulement le garde-fou d'origine — un
+        // arbre TRONQUÉ, quelle qu'en soit la cause.
         expect($noeuds->count())->toBeGreaterThanOrEqual(
-            4, "La classe {$classe} n'a que {$noeuds->count()} nœud(s) : arbre tronqué.",
+            9, "La classe {$classe} n'a que {$noeuds->count()} nœud(s) : arbre tronqué.",
         );
     }
 

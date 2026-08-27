@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Models\Epreuve;
 use App\Models\GabaritQuete;
 use App\Models\Mobilier;
 use App\Models\Piege;
@@ -90,7 +91,19 @@ final class AssembleurCarte
      *   aretes: list<array{a: int, b: int, porte_a: array{x: int, y: int}, porte_b: array{x: int, y: int}}>
      * }
      */
-    public function assembler(GabaritQuete $gabarit, int $graine = 0): array
+    /** Chance de base qu'une carte cache une salle derrière une porte secrète. */
+    public const CHANCE_PASSAGE_SECRET = 50;
+
+    /** Ce que chaque carte SANS passage ajoute à la chance de la suivante. */
+    public const PALIER_PASSAGE_SECRET = 10;
+
+    /**
+     * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
+     *                                    cachée derrière une porte secrète —
+     *                                    le compteur de pitié du groupe, qui
+     *                                    monte tant qu'aucune n'est tombée
+     */
+    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET): array
     {
         $structure = $gabarit->structure ?? [];
         $suivant = $this->creerPRNG($graine);
@@ -110,7 +123,8 @@ final class AssembleurCarte
         $n = count($tuiles);
 
         // --- Arbre branchu sur grille 2D --------------------------------
-        ['grille' => $positionsGrille, 'aretes' => $aretes] = $this->construireArbre($n, $suivant);
+        ['grille' => $positionsGrille, 'aretes' => $aretes, 'passage_secret' => $passageSecret]
+            = $this->construireArbre($n, $suivant, $chancePassageSecret);
 
         // --- Slots uniformes, salles centrées ---------------------------
         $maxLargeurTuile = max(array_map(fn (Tuile $t) => (int) $t->grille['largeur'], $tuiles));
@@ -217,6 +231,13 @@ final class AssembleurCarte
         $portes = $this->devoilerSecretesEnConflit($portes);
         $leviers = $this->placerLeviers($structure);
         $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $suivant);
+        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant);
+
+        // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
+        // une épreuve doit savoir quelles salles contiennent un piège (l'Autel
+        // fêlé ne se pose que là), et ne doit pas atterrir sous un meuble, où
+        // elle serait invisible et hors d'atteinte.
+        $epreuves = $this->placerEpreuves($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $suivant);
 
         return [
             'largeur' => $largeur,
@@ -228,6 +249,11 @@ final class AssembleurCarte
             // relie quelles deux salles — clé additive, ne casse aucun
             // consommateur existant de `salles`/`portes`.
             'aretes' => $aretesSortie,
+            // ⚠ Remonté jusqu'à `DemarreurQuete`, qui tient le compteur de
+            // pitié du groupe : il ne pourrait PAS le déduire des portes,
+            // puisqu'une liaison supplémentaire est `secrete` elle aussi sans
+            // rien cacher (elle n'ouvre qu'un raccourci).
+            'passage_secret' => $passageSecret,
             // Leviers d'ouverture (doc 14 §3.3) : éléments {x, y, levier_id} posés
             // au contact desquels l'action « Actionner le levier » ouvre la porte
             // liée (verrou.levier_id). Vide par défaut ; le gabarit/contenu les
@@ -240,7 +266,14 @@ final class AssembleurCarte
             // et/ou occulter (bloque_vue) les cases correspondantes — deux
             // propriétés INDÉPENDANTES du catalogue (source unique, cf.
             // FabriqueGrille::pour()).
-            'mobilier' => $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant),
+            'mobilier' => $mobilier,
+            // ÉPREUVES (2026-08-24) : quatrième couche, même patron que les
+            // trois précédentes. Ce sont les ancrages auxquels un héros tente un
+            // JET D'ATTRIBUT — la seule façon pour le moteur d'émettre des jets
+            // de contexte `savoir` et `social_peur`, qui n'avaient plus aucun
+            // producteur depuis la suppression de `MenuChoix` (2026-08-18) et
+            // laissaient six talents de la grille sans le moindre déclencheur.
+            'epreuves' => $epreuves,
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
         ];
@@ -327,9 +360,9 @@ final class AssembleurCarte
      * du boss, cf. choisirTuiles) ne peut jamais devenir parent : elle reste
      * une feuille, sans qu'aucun cas particulier ne soit nécessaire.
      *
-     * @return array{grille: list<array{0: int, 1: int}>, aretes: list<array{parent: int, enfant: int, direction: string}>}
+     * @return array{grille: list<array{0: int, 1: int}>, aretes: list<array{parent: int, enfant: int, direction: string}>, passage_secret: bool}
      */
-    private function construireArbre(int $n, \Closure $suivant): array
+    private function construireArbre(int $n, \Closure $suivant, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET): array
     {
         $directions = ['E' => [1, 0], 'W' => [-1, 0], 'S' => [0, 1], 'N' => [0, -1]];
         $positions = [0 => [0, 0]];
@@ -372,9 +405,19 @@ final class AssembleurCarte
             $aretes[] = ['parent' => $choix['parent'], 'enfant' => $i, 'direction' => $choix['direction']];
         }
 
-        $aretes = [...$aretes, ...$this->liaisonsSupplementaires($positions, $occupees, $aretes, $directions, $suivant)];
+        $supplementaires = $this->liaisonsSupplementaires($positions, $occupees, $aretes, $directions, $suivant);
+        [$aretes, $supplementaires, $passageSecret] = $this->secretiserUneAreteDArbre(
+            $aretes, $supplementaires, $suivant, $chancePassageSecret,
+        );
 
-        return ['grille' => $positions, 'aretes' => $aretes];
+        return [
+            'grille' => $positions,
+            'aretes' => [...$aretes, ...$supplementaires],
+            // Remonté jusqu'à l'appelant : c'est lui qui tient le compteur de
+            // pitié, et il ne peut pas le déduire des arêtes — une liaison
+            // SUPPLÉMENTAIRE est secrète elle aussi, sans rien cacher.
+            'passage_secret' => $passageSecret,
+        ];
     }
 
     /**
@@ -565,6 +608,115 @@ final class AssembleurCarte
         }
 
         return $meilleur ?? $candidats[0];
+    }
+
+    /**
+     * Rend UNE salle réellement tributaire d'une porte secrète (René, 2026-08-24).
+     *
+     * Jusqu'ici les portes secrètes ne vivaient que sur les liaisons
+     * SUPPLÉMENTAIRES — des boucles ajoutées par-dessus l'arbre couvrant —, si
+     * bien que toute salle restait atteignable sans en trouver aucune. Découvrir
+     * un passage n'achetait qu'un raccourci ; explorer n'était jamais un enjeu.
+     * `CouloirsTest` constatait cette propriété (« ne rend JAMAIS une salle
+     * tributaire d'une porte secrète »), et sa justification d'époque était
+     * juste : « une porte secrète bloquerait un groupe qui rate son jet ».
+     *
+     * ⚠ Deux faits l'ont périmée, et tous deux sont POSTÉRIEURS à la règle :
+     *  - « Fouiller la zone » est offerte à CHAQUE TOUR, sans limite ni par
+     *    salle ni par héros (contrairement à « Fouiller — trésor ») : un jet
+     *    raté ne fige personne, il coûte un tour ;
+     *  - `battre_en_retraite` (2026-08-21) n'a AUCUNE condition : un groupe qui
+     *    renonce peut toujours sortir.
+     *
+     * Une quête peut donc désormais se perdre faute d'avoir cherché — choix
+     * assumé de René, salle-objectif et coffre d'artefact compris.
+     *
+     * ⚠ Trois garde-fous, et chacun a sa raison :
+     *  - **une seule** arête d'arbre secrète : une chaîne de passages cachés
+     *    transformerait l'exploration en ratissage ;
+     *  - **jamais une arête sortant de la salle 0** : la partie commencerait par
+     *    une fouille, avant d'avoir rien montré ;
+     *  - **une FEUILLE de l'arbre seulement** : on cache une salle, pas une
+     *    moitié de donjon.
+     *
+     * ⚠ La méthode reçoit les liaisons supplémentaires et **retire celles qui
+     * desserviraient la salle cachée**. Sans ça, la fonctionnalité ne se
+     * déclenchait presque jamais : le placement compact crée beaucoup
+     * d'adjacences, `liaisonsSupplementaires()` en relie une bonne part, et la
+     * feuille se retrouvait desservie par une boucle — donc pas cachée du tout.
+     * Mesuré avant correction : **5 donjons sur 40**. On sacrifie donc une
+     * boucle, jamais plus d'une.
+     *
+     * ⚠ **UN DONJON SUR DEUX**, et c'est un dosage, pas un hasard subi (René,
+     * 2026-08-27). Sans tirage, une feuille éligible existant toujours, la
+     * salle cachée tombait dans **40 donjons sur 40** : « il y a toujours un
+     * passage caché » devenait une règle que les joueurs auraient apprise, et
+     * le ratissage systématique avec. Une fois sur deux, la découverte reste
+     * une surprise — et « Fouiller la zone » garde de toute façon les pièges à
+     * révéler dans l'autre moitié.
+     *
+     * ⚠ La chance n'est pas fixe : elle vient du COMPTEUR DE PITIÉ du groupe
+     * (`groupes.chance_passage_secret`), qui monte de 10 points par carte sans
+     * passage et retombe à 50 dès qu'on en pose un. Un tirage à 50 % pur peut
+     * laisser une campagne entière sans le moindre passage, et une telle série
+     * ne se lit pas comme du hasard : le groupe conclut que la fonctionnalité
+     * n'existe pas et cesse de fouiller.
+     *
+     * @param  list<array{parent: int, enfant: int, direction: string, secrete?: bool}>  $aretes  arbre couvrant
+     * @param  list<array{parent: int, enfant: int, direction: string, secrete?: bool}>  $supplementaires  boucles
+     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>, 2: bool}
+     */
+    private function secretiserUneAreteDArbre(
+        array $aretes,
+        array $supplementaires,
+        \Closure $suivant,
+        int $chance = self::CHANCE_PASSAGE_SECRET,
+    ): array {
+        // Degré dans l'ARBRE seul : une feuille est une salle en bout de branche.
+        $degre = [];
+        foreach ($aretes as $a) {
+            $degre[$a['parent']] = ($degre[$a['parent']] ?? 0) + 1;
+            $degre[$a['enfant']] = ($degre[$a['enfant']] ?? 0) + 1;
+        }
+
+        $eligibles = [];
+        foreach ($aretes as $k => $arete) {
+            if ($arete['parent'] === 0) {
+                continue;
+            }
+
+            if (($degre[$arete['enfant']] ?? 0) === 1) {
+                $eligibles[] = $k;
+            }
+        }
+
+        if ($eligibles === []) {
+            // Donjon trop linéaire : on ne force rien. ⚠ Et on rend `false`,
+            // donc le compteur de pitié MONTE — c'est bien une carte sans
+            // passage, quelle qu'en soit la raison.
+            return [$aretes, $supplementaires, false];
+        }
+
+        // ⚠ Le tirage passe AVANT le choix de l'arête, et consomme un cran du
+        // PRNG dans les deux cas : le tirer seulement quand on secrétise ferait
+        // diverger la suite des nombres selon la branche, et deux donjons de
+        // même graine cesseraient d'être identiques.
+        if ($suivant() % 100 >= max(0, min(100, $chance))) {
+            return [$aretes, $supplementaires, false];
+        }
+
+        $choisie = $eligibles[$suivant() % count($eligibles)];
+        $aretes[$choisie]['secrete'] = true;
+        $cachee = $aretes[$choisie]['enfant'];
+
+        // La salle doit rester SEULE derrière son passage : toute boucle qui la
+        // rejoindrait annulerait le secret sans que rien ne le signale.
+        $supplementaires = array_values(array_filter(
+            $supplementaires,
+            fn (array $l) => $l['parent'] !== $cachee && $l['enfant'] !== $cachee,
+        ));
+
+        return [$aretes, $supplementaires, true];
     }
 
     /**
@@ -893,6 +1045,167 @@ final class AssembleurCarte
         }
 
         return $pieges;
+    }
+
+    /**
+     * ÉPREUVES posées sur la carte (2026-08-24) — quatrième couche, au même
+     * niveau que `leviers`/`pieges`/`mobilier`, et sans toucher une seule case
+     * `m`/`s` : c'est `MoteurEpreuves` qui la lit.
+     *
+     * Une épreuve est un ancrage auquel un héros au contact tente un JET
+     * D'ATTRIBUT. Elle existe pour une raison précise : depuis la suppression de
+     * `MenuChoix` (2026-08-18), le moteur n'émettait plus qu'UN SEUL type de jet
+     * — « Fouiller la zone », Mind, contexte `perception`. Les contextes
+     * `savoir` et `social_peur` n'avaient donc aucun producteur, et six talents
+     * de la grille (*Intimidation*, *Érudition*, *Prestance*, *Beau parleur*,
+     * *Méditation*, *Cartographe*) ne se déclenchaient jamais en partie.
+     *
+     * ⚠ **Aucune coordonnée n'est déclarée par le gabarit**, seulement un
+     * comptage — c'est la leçon des leviers, dont `placerLeviers()` exige un x/y
+     * que le placement procédural ne peut pas connaître, si bien qu'aucun
+     * gabarit n'en a jamais déclaré et que l'action « Actionner le levier »
+     * n'était jamais atteinte.
+     *
+     * ⚠ `exige_placement` est une **précondition de POSE**, distincte de l'effet :
+     * l'Autel fêlé désarme les pièges de sa salle, et ne se pose donc que dans
+     * une salle qui en contient un — récompenser un joueur en désarmant le vide
+     * lui ferait dépenser son action sans qu'il puisse le savoir. Si aucune
+     * salle n'a de piège (ils tombent aussi dans les couloirs), le type est
+     * simplement écarté du vivier : on ne pose pas plutôt que de poser mal, même
+     * refus que le meuble mural qui ne trouve pas de mur.
+     *
+     * @param  array<string, mixed>  $structure
+     * @param  list<list<string>>  $cases
+     * @param  array<int, array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @return list<array{x: int, y: int, epreuve_id: int, salle: int, tentee_par: list<int>}>
+     */
+    private function placerEpreuves(
+        array $structure,
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $mobilier,
+        \Closure $suivant,
+    ): array {
+        $catalogue = Epreuve::query()->orderBy('id')->get();
+
+        if ($catalogue->isEmpty()) {
+            return [];
+        }
+
+        $min = (int) data_get($structure, 'epreuves.min', 1);
+        $max = max($min, (int) data_get($structure, 'epreuves.max', $min + 1));
+
+        if ($max <= 0) {
+            return [];
+        }
+
+        // Cases interdites : mêmes exclusions que le mobilier, plus le mobilier
+        // lui-même. Une épreuve sous une bibliothèque serait injouable.
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+        foreach ($leviers as $levier) {
+            $interdites["{$levier['x']},{$levier['y']}"] = true;
+        }
+        foreach ($pieges as $piege) {
+            $interdites["{$piege['x']},{$piege['y']}"] = true;
+        }
+        foreach ($mobilier as $meuble) {
+            for ($dx = 0; $dx < (int) ($meuble['l'] ?? 1); $dx++) {
+                for ($dy = 0; $dy < (int) ($meuble['h'] ?? 1); $dy++) {
+                    $interdites[((int) $meuble['x'] + $dx).','.((int) $meuble['y'] + $dy)] = true;
+                }
+            }
+        }
+
+        // Salles qui contiennent un piège — la précondition de l'Autel fêlé.
+        $sallesPiegees = [];
+        foreach ($pieges as $piege) {
+            $salle = $this->salleDe($salles, (int) $piege['x'], (int) $piege['y']);
+            if ($salle !== null) {
+                $sallesPiegees[$salle] = true;
+            }
+        }
+
+        // Candidates : l'intérieur de toutes les salles SAUF celle du départ —
+        // même principe que les pièges et le mobilier, une épreuve posée sous
+        // les pieds du groupe au premier tour est subie, pas jouée.
+        $candidates = [];
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+            foreach ($this->interieur($cases, $salle) as $position) {
+                if (isset($interdites["{$position['x']},{$position['y']}"])) {
+                    continue;
+                }
+                $candidates[] = [...$position, 'salle' => $i];
+            }
+        }
+
+        if ($candidates === []) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+        $candidates = $prng->melanger($candidates);
+
+        $voulues = $min + ($max > $min ? $prng->suivant() % ($max - $min + 1) : 0);
+        $epreuves = [];
+        $prises = [];
+
+        foreach ($candidates as $candidate) {
+            if (count($epreuves) >= $voulues) {
+                break;
+            }
+
+            // Une seule épreuve par salle : elles se disputeraient l'attention
+            // du groupe, et une salle en offrant trois n'est plus une salle.
+            if (isset($prises[$candidate['salle']])) {
+                continue;
+            }
+
+            $vivier = $catalogue->filter(fn (Epreuve $e) => $e->exige_placement === null
+                || ($e->exige_placement === 'piege_dans_la_salle' && isset($sallesPiegees[$candidate['salle']])))
+                ->values();
+
+            if ($vivier->isEmpty()) {
+                continue;
+            }
+
+            $type = $vivier[$prng->suivant() % $vivier->count()];
+
+            $epreuves[] = [
+                'x' => (int) $candidate['x'],
+                'y' => (int) $candidate['y'],
+                'epreuve_id' => (int) $type->id,
+                'salle' => (int) $candidate['salle'],
+                // Une tentative par héros : la liste s'empile comme `fouille_par`.
+                'tentee_par' => [],
+            ];
+            $prises[$candidate['salle']] = true;
+        }
+
+        return $epreuves;
+    }
+
+    /** Index de la salle contenant cette case, ou null (couloir). */
+    private function salleDe(array $salles, int $x, int $y): ?int
+    {
+        foreach ($salles as $i => $salle) {
+            if ($x >= $salle['x'] && $x < $salle['x'] + $salle['largeur']
+                && $y >= $salle['y'] && $y < $salle['y'] + $salle['hauteur']) {
+                return (int) $i;
+            }
+        }
+
+        return null;
     }
 
     /**

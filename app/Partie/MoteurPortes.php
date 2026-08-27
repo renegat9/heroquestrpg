@@ -145,6 +145,32 @@ final class MoteurPortes
     }
 
     /**
+     * `detection_portes_secretes` (Parler à la pierre du nain, Lecture des lieux
+     * de l'explorateur) : les portes secrètes ORTHOGONALEMENT adjacentes se
+     * révèlent d'elles-mêmes, sans jet et sans action.
+     *
+     * ⚠ Le pendant exact de l'Œil du mineur pour les pièges, et volontairement
+     * de la même portée : à rayon de fouille, le talent rendrait la fouille de
+     * zone inutile pour son porteur ; à une case, il récompense l'exploration
+     * prudente sans la remplacer.
+     *
+     * Sans le talent : aucun effet, la méthode rend une liste vide.
+     *
+     * @return list<array{x: int, y: int}> portes révélées
+     */
+    public function detecterSecretesAdjacentes(Groupe $groupe, Carte $carte, Personnage $personnage, int $x, int $y): array
+    {
+        if (! app(Talents::class)->a($personnage, 'detection_portes_secretes')) {
+            return [];
+        }
+
+        return $this->revelerSecretes(
+            $groupe, $carte, $personnage,
+            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) === 1,
+        );
+    }
+
+    /**
      * POTION DE VISION (Elfe) : « see all secret doors […] within their line of
      * sight » (carte © 2023). Miroir exact de `MoteurPieges::revelerEnVue()` —
      * les deux moitiés de la potion doivent obéir à la même géométrie.

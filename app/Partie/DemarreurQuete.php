@@ -163,7 +163,24 @@ final class DemarreurQuete
         $gabarit = $this->choisirGabarit($typeJalon);
         // Graine de carte stable par (groupe, quête) : cartes différentes d'une
         // campagne/quête à l'autre, reproductible pour une même quête.
-        $carte = $this->assembleur->assembler($gabarit, crc32($groupe->identifiant.':'.$positionArc));
+        // COMPTEUR DE PITIÉ du passage secret (René, 2026-08-27) : 50 % de base,
+        // +10 points par carte qui n'en a pas eu, retour à 50 dès qu'on en pose
+        // un. Un tirage à 50 % pur peut laisser une campagne entière sans le
+        // moindre passage — et une telle série ne se lit pas comme du hasard :
+        // le groupe conclut que la fonctionnalité n'existe pas et cesse de
+        // fouiller. Au pire cinq cartes sèches, puis la certitude.
+        $chance = (int) ($groupe->chance_passage_secret ?? AssembleurCarte::CHANCE_PASSAGE_SECRET);
+
+        $carte = $this->assembleur->assembler(
+            $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance,
+        );
+
+        // ⚠ Écrit AVANT tout le reste du démarrage : la suite peut lever (spawns
+        // insuffisants, budget…), et un compteur qui ne monterait pas sur une
+        // quête avortée rendrait la pitié muette exactement quand elle sert.
+        $groupe->update(['chance_passage_secret' => ($carte['passage_secret'] ?? false)
+            ? AssembleurCarte::CHANCE_PASSAGE_SECRET
+            : min(100, $chance + AssembleurCarte::PALIER_PASSAGE_SECRET)]);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres($gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc);
 

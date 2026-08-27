@@ -625,7 +625,13 @@ it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
-    $option = collect($menu['options'])->firstWhere('type', 'fouille_mobilier');
+
+    // ⚠ On vise l'option de CE meuble par son index, pas la première venue : le
+    // héros peut se tenir au contact de DEUX pièces fouillables selon la carte
+    // tirée, et fouiller l'autre laissait celle-ci ouverte — un échec qui ne
+    // parlait que de la graine, pas de la règle testée.
+    $option = collect($menu['options'])
+        ->firstWhere('id', "fouiller_mobilier_{$index}");
 
     expect($option)->not->toBeNull('« Fouiller : <meuble> » absent du menu');
 
@@ -643,7 +649,10 @@ it('rend le mobilier FOUILLABLE, une fois PAR HÉROS', function () {
     $x = (int) $meuble['x'] + 1;
     $y = (int) $meuble['y'];
 
-    expect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id))->toBeEmpty();
+    // Seule LA pièce fouillée se ferme pour lui — une voisine, s'il y en a une,
+    // reste offerte, et c'est correct.
+    expect(collect($mm->fouillablesAdjacents($carte, $x, $y, (int) $hero->id))->pluck('index'))
+        ->not->toContain($index);
 
     // …mais un COMPAGNON garde la sienne. C'est tout le changement : le premier
     // arrivé n'épuise plus la pièce pour le groupe, et l'or cesse de dépendre

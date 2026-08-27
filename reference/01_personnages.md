@@ -276,46 +276,66 @@ Progression **par jalons** : aucune accumulation de points, rien ne se gagne au 
 
 ---
 
-## 6. Arbres de compétences (brouillon de départ)
+## 6. Grille de talents (3 colonnes × 3 lignes)
 
-Garder **petit pour le MVP** : ~6 à 8 nœuds par héros. Trois types de nœuds : **passif** (bonus permanent), **actif** (capacité déclenchable), **déblocage** (accès à équipement/sort).
+**Décision (René, 2026-08-23) — l'arbre devient une GRILLE.** Chaque classe a
+**trois colonnes**, qui sont **ses** catégories (libellés libres, propres à la
+classe), et **trois lignes** par colonne. Acquérir la ligne *n* exige la ligne
+*n−1* **de la même colonne** ; la première ligne n'exige rien.
 
-> **Décision (René, 2026-08-22) — la symétrie barbare/nain est supprimée.**
+Trois types de nœuds, inchangés : **passif** (bonus permanent), **actif**
+(capacité déclenchable), **déblocage** (accès à équipement/sort).
+
+Ce que la grille remplace : une liste plate de 4 à 7 nœuds par classe, sans
+thème ni arbitrage — avec 5 à 8 niveaux par campagne (§5), on achetait à peu
+près tout ce qui existait. **Neuf cases pour quatre à sept points**, c'est le
+choix qui redevient un choix : on descend une colonne, on renonce à une autre.
+La dette « le barbare seul à 4 nœuds » (2026-08-22) est soldée du même coup.
+
+> **Les trois nœuds d'une colonne sont des effets DIFFÉRENTS du même domaine**,
+> et non le même chiffre qui grossit (décision de René) : la chaîne est un ordre
+> d'acquisition, pas une montée en puissance.
+
+> ⚠ **Chaque `effet.mecanique` a son lecteur déclaré** dans
+> `App\Engine\MotsClesTalent`, et trois verrous automatisés l'imposent :
+> le registre vérifié dans les deux sens, le lecteur déclaré confronté au
+> fichier qui doit nommer la clé, et un test **en jeu** par mécanique
+> (`GrilleTalentsTest`, `TalentsEnJeuTest`). Une mécanique sans preuve en partie
+> n'est pas semée.
+>
+> ⚠ **Les talents se lisent par MÉCANIQUE, jamais par nom de nœud** (2026-08-23).
+> Le moteur cherchait auparavant `'Garde tenace'`, `'Coup puissant'`,
+> `'Intimidation'`, `'Réserve arcanique'`, `'Concentration'`, `'Désamorçage'`,
+> `'Tir précis'` : une quinzaine de nœuds des classes d'extension portaient la
+> bonne mécanique sous un autre nom et **ne faisaient rien**.
+
+**Deux textes par nœud, tous deux affichés** : la `description` est la phrase de
+jeu, écrite à la main (le gain, sa condition, sa cadence) ; l'**avantage
+chiffré est DÉRIVÉ de l'effet** et jamais saisi, ce qui interdit à un talent de
+promettre autre chose que ce qu'il fait.
+
+Les **capacités de carte** des classes d'extension (§4ter) restent **hors
+grille** : gratuites avec la figurine, elles ne coûtent aucun point.
+
+| Classe | Colonne 1 | Colonne 2 | Colonne 3 |
+|---|---|---|---|
+| **Barbare** | **Furie** — Coup puissant · Frénésie · Sang qui bout | **Carrure** — Carrure · Cuir tanné · Colosse | **Terreur** — Intimidation · Regard qui glace · Fauchaison |
+| **Nain** | **Mine** — Œil du mineur · Désamorçage · Parler à la pierre | **Forge** — Forge · Solides épaules · Marchandage | **Ténacité** — Garde tenace · Sang robuste · Ancré |
+| **Elfe** | **Arcane elfique** — Première magie · Second élément · Chant runique | **Œil** — Sens aiguisés · Tir précis · Flèche perçante | **Grâce** — Pas léger · Esquive dansante · Fuite gracieuse |
+| **Magicien** | **Écoles** — Écoles · Réserve arcanique · Puissance brute | **Érudition** — Érudition · Concentration · Contresort | **Escrime de fortune** — Cuir d'apprenti · Escrime de fortune · Corps entraîné |
+| **Barde** | **Refrain** — Refrain vaillant · Rappel · Second couplet | **Verbe** — Beau parleur · Ballade apaisante · Mot qui blesse | **Marche** — Marche entraînante · Pas de danse · Havresac de ménestrel |
+| **Druide** | **Sève** — Vigueur sylvestre · Écorce · Sève tenace | **Communion** — Communion · Appel de la forêt · Verbe ancien | **Sentier** — Pas de la forêt · Ronces complices · Regard de la bête |
+| **Warlock** | **Pacte** — Pacte · Volonté noire · Prix du pacte | **Malédiction** — Contresort · Œil vitreux · Marque du damné | **Corruption** — Cuir d'initié · Réserve damnée · Chair impie |
+| **Rogue** | **Ombre** — Pas léger · Esquive · Fuite calculée | **Lame** — Coup bas · Lame vénéneuse · Coup de grâce | **Butin** — Doigts de fée · Poches profondes · Receleur |
+| **Moine** | **Discipline** — Souffle discipliné · Corps aguerri · Peau de fer | **Vent** — Course du vent · Pas suspendu · Souffle retenu | **Méditation** — Méditation · Poing de fer · Esprit clair |
+| **Chevalier** | **Serment** — Serment · Garde haute · Rempart | **Prestance** — Prestance · Bannière · Appel au ralliement | **Croisade** — Bras d'acier · Charge du destrier · Barda du croisé |
+| **Berserker** | **Rage** — Rage froide · Coup sauvage · Soif de sang | **Carcasse** — Carcasse · Cuir de guerre · Cicatrices | **Charge** — Charge · Élan · Poigne brute |
+| **Explorateur** | **Traque** — Cartographe · Crochetage · Lecture des lieux | **Butin** — Fouineur · Œil du prix · Bourse pleine | **Endurance** — Endurance · Longue marche · Barda |
+
+> **Décision (René, 2026-08-22) — la symétrie barbare/nain reste supprimée.**
 > Les deux costauds étaient MIROIRS : chacun avait sa spécialité gratuite et
-> payait celle de l'autre d'un point de compétence — le barbare maniait le
-> deux-mains et achetait *Maîtrise lourde* pour la plate, le nain portait la
-> plate et achetait *Poigne de forgeron* pour le deux-mains. Les deux ont
-> désormais **tout dès le niveau 1**, et les deux nœuds sont **retirés**.
-> ⚠ Dette connue : le barbare se retrouve seul avec **4 nœuds** d'arbre là où
-> toutes les autres classes en ont 5 ou plus.
-
-### Barbare
-- *(passif)* **Carrure** : +1 Point de Body.
-- *(actif)* **Coup puissant** : relance une fois les dés d'attaque ratés.
-- *(passif)* **Intimidation** : avantage aux jets de Mind sociaux par la peur.
-- *(actif)* **Frénésie** : +1 dé d'attaque quand sous la moitié des PV.
-
-### Nain
-- *(passif)* **Œil du mineur** : détecte automatiquement les pièges adjacents.
-- *(actif)* **Désamorçage** : tente de neutraliser un piège (jet de Body).
-- *(passif)* **Garde tenace** : +1 dé de défense contre la première attaque d'un combat.
-- *(déblocage)* **Forge** : **améliore** un équipement de façon **permanente** (+1 dé ou une propriété).
-- *(passif)* **Sang robuste** : résistance au poison — les **deux** conditions du jeu, *Empoisonné* (pièges, doc 10) et *Envenimé* (créatures venimeuses de Jungles of Delthrak). `effet.condition_nom` accepte donc une liste.
-- *(passif)* **Solides épaules** : +2 emplacements de sac à dos.
-
-### Elfe
-- *(passif)* **Pas léger** : +1 déplacement.
-- *(actif/déblocage)* **Première magie** : 1 emplacement de sort (un élément).
-- *(passif)* **Sens aiguisés** : bonus aux jets de Mind de perception.
-- *(actif)* **Tir précis** : avantage en attaque à distance.
-- *(déblocage)* **Second élément** : un domaine de sort supplémentaire.
-
-### Magicien
-- *(passif)* **Réserve arcanique** : emplacement de sort supplémentaire.
-- *(déblocage)* **Écoles** : accès à de nouveaux domaines (Feu, Eau, Terre, Air).
-- *(actif)* **Concentration** : une fois par quête, sacrifie son tour pour récupérer un sort épuisé.
-- *(actif)* **Contresort** : annule un effet magique (jet de Mind).
-- *(passif)* **Érudition** : avantage aux jets de Mind de savoir.
+> payait celle de l'autre d'un point de compétence. Les deux ont **tout dès le
+> niveau 1**, et *Maîtrise lourde* / *Poigne de forgeron* sont **retirés**.
 
 > Détail des sorts → document séparé (`Sorts`), référencé par les nœuds de déblocage.
 >

@@ -17,6 +17,7 @@ use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\RangementObjet;
+use App\Partie\Talents;
 use App\Support\Journal;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -92,9 +93,20 @@ final class PhaseMarche
         // qu'aucun héros de ce groupe ne pourra jamais boire ni porter.
         //
         // Liste vide = aucune restriction (fail open), comme partout ailleurs.
-        $maitrises = app(Equipement::class)->tagsAccessiblesAux(
-            $groupe->personnages()->wherePivot('actif', true)->get(),
-        );
+        $actifs = $groupe->personnages()->wherePivot('actif', true)->get();
+
+        $maitrises = app(Equipement::class)->tagsAccessiblesAux($actifs);
+
+        // `remise_marche` (Marchandage du nain, Receleur du rogue, Bourse pleine
+        // de l'explorateur) : la MEILLEURE remise du groupe, pas leur somme.
+        //
+        // ⚠ Elle porte sur l'étal entier et profite à tout le monde, parce que
+        // la bourse est commune (M3) : c'est la compagnie qui marchande, pas un
+        // portefeuille. Cumuler deux négociateurs ferait descendre les prix à
+        // rien, alors qu'avoir le bon héros dans le groupe est déjà le gain.
+        $remise = (int) $actifs
+            ->map(fn ($p) => app(Talents::class)->valeur($p, 'remise_marche'))
+            ->max();
 
         // Inventaire dérivé du catalogue : raretés du profil, jamais d'unique.
         $inventaire = Objet::query()
@@ -119,7 +131,7 @@ final class PhaseMarche
                 // surprise pour le moment d'équiper. Ce que le groupe entier ne
                 // peut pas porter n'est simplement plus en rayon (voir plus haut).
                 'tag_equipement' => $o->tag_equipement,
-                'prix' => (int) round($o->prix_base * $config['multiplicateur']),
+                'prix' => self::prixPour($o, (float) $config['multiplicateur'], $remise),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,
                 'image_url' => app(BibliothequeImages::class)->urlObjet($o->id, $o->nom),
             ])
@@ -372,6 +384,25 @@ final class PhaseMarche
         }
 
         return $lignes;
+    }
+
+    /**
+     * Prix affiché d'une pièce : prix de catalogue × multiplicateur du profil,
+     * moins la `remise_marche` du groupe.
+     *
+     * ⚠ Plancher à 1 pièce d'or : une remise ne rend jamais rien gratuit, et un
+     * prix nul casserait la revente à 50 % comme le contrôle de bourse.
+     *
+     * ⚠ Le prix est figé DANS la phase : la revente (M1) et l'application du
+     * panier relisent `inventaire[].prix`, donc la remise vaut aussi pour eux
+     * sans second calcul — deux endroits qui arrondiraient chacun de leur côté
+     * finiraient par se contredire d'une pièce.
+     */
+    public static function prixPour(Objet $objet, float $multiplicateur, int $remise = 0): int
+    {
+        $prix = (int) round((float) $objet->prix_base * $multiplicateur);
+
+        return max(1, (int) round($prix * (100 - max(0, min(90, $remise))) / 100));
     }
 
     /**

@@ -62,6 +62,12 @@ class PlaceholderController extends Controller
             .'M490 590 L530 428 L570 590',
         // Un sceau arcanique : deux triangles entrelacés, lisible même à 40 px.
         'sort' => 'M450 282 L562 472 L338 472 Z M450 562 L338 372 L562 372 Z',
+        // Une dalle gravée et la main qui s'y pose : on se MESURE à une
+        // épreuve, on ne la subit pas. ⚠ Le trait ne reprend NI les pointes du
+        // piège NI la bourse de l'objet : les confondre à 40 px coûterait une
+        // action au joueur qui croit désamorcer ce qu'il faut tenter.
+        'epreuve' => 'M330 288 h240 v264 h-240 Z M378 348 h144 M378 408 h144 M378 468 h96 '
+            .'M450 600 v72 M408 672 h84',
     ];
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Partie\Talents;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -77,12 +78,43 @@ class Quete extends Model
         )));
     }
 
-    /** Ce héros a-t-il déjà fouillé cette salle ? */
+    /**
+     * Ce héros a-t-il épuisé ses fouilles dans cette salle ?
+     *
+     * Une par héros et par salle — sauf `fouille_supplementaire` (Fouineur, de
+     * l'explorateur), qui en accorde davantage. Les fouilles au-delà de la
+     * première portent un suffixe `#n` : les entrées sont dédoublonnées, et
+     * deux passages ne pouvaient donc pas s'inscrire sous la même clé.
+     */
     public function aFouille(int $salle, int $personnageId): bool
     {
-        $faites = $this->fouillesFaites();
+        $faites = $this->fouillesDe($salle, $personnageId);
 
-        return in_array("{$salle}:{$personnageId}", $faites, true);
+        if ($faites === 0) {
+            return false;
+        }
+
+        // Le talent n'est lu que si une fouille a DÉJÀ eu lieu : le chemin
+        // ordinaire (première fouille) ne paie aucune requête supplémentaire,
+        // et `MenuMoteur` appelle cette méthode pour chaque salle du donjon.
+        $personnage = Personnage::find($personnageId);
+
+        $autorisees = 1 + ($personnage === null
+            ? 0
+            : app(Talents::class)->valeur($personnage, 'fouille_supplementaire'));
+
+        return $faites >= $autorisees;
+    }
+
+    /** Nombre de fouilles déjà inscrites pour ce couple salle/héros. */
+    private function fouillesDe(int $salle, int $personnageId): int
+    {
+        $base = "{$salle}:{$personnageId}";
+
+        return count(array_filter(
+            $this->fouillesFaites(),
+            fn (string $e) => $e === $base || str_starts_with($e, $base.'#'),
+        ));
     }
 
     /**
@@ -120,8 +152,9 @@ class Quete extends Model
             return;
         }
 
+        $deja = $this->fouillesDe($salle, $personnageId);
         $faites = $this->fouillesFaites();
-        $faites[] = "{$salle}:{$personnageId}";
+        $faites[] = $deja === 0 ? "{$salle}:{$personnageId}" : "{$salle}:{$personnageId}#".($deja + 1);
         $this->update(['tresors_fouilles' => array_values($faites)]);
     }
 

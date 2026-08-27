@@ -20,6 +20,9 @@ class Groupe extends Model
         'plan_campagne',
         'ton',
         'or',
+        // Compteur de pitié du passage secret (2026-08-27) : 50 % de base,
+        // +10 par carte sans passage, retour à 50 dès qu'on en pose un.
+        'chance_passage_secret',
         'etat',
         'phase',
         'quete_courante_id',

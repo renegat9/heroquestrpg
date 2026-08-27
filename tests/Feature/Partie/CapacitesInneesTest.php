@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Engine\MotsClesTalent;
 use App\Models\Competence;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -49,7 +50,7 @@ it('n\'annonce aucune capacité de carte que rien n\'applique — et réciproque
         // ⚠ `toHaveKey()` de Pest prend une VALEUR en second argument, pas un
         // message : on passe par `array_key_exists` + `toBeTrue()`.
         expect($mecanique)->toBeString("{$carte->nom} : capacité innée sans mécanique.")
-            ->and(array_key_exists((string) $mecanique, CapacitesInnees::MECANIQUES))
+            ->and(array_key_exists((string) $mecanique, MotsClesTalent::MECANIQUES))
             ->toBeTrue("{$carte->nom} : mécanique « {$mecanique} » sans lecteur déclaré.");
 
         $portees[$mecanique] = true;
@@ -59,17 +60,18 @@ it('n\'annonce aucune capacité de carte que rien n\'applique — et réciproque
         foreach ((array) ($carte->effet['techniques'] ?? []) as $technique) {
             $interne = $technique['effet']['mecanique'] ?? null;
 
-            expect(array_key_exists((string) $interne, CapacitesInnees::MECANIQUES))
+            expect(array_key_exists((string) $interne, MotsClesTalent::MECANIQUES))
                 ->toBeTrue("{$technique['nom']} : technique sans lecteur déclaré.");
 
             $portees[$interne] = true;
         }
     }
 
-    foreach (array_keys(CapacitesInnees::MECANIQUES) as $declaree) {
-        expect(array_key_exists($declaree, $portees))
-            ->toBeTrue("« {$declaree} » est déclarée lue, mais aucune carte ne la porte.");
-    }
+    // ⚠ Le sens inverse — « aucune mécanique déclarée que rien ne porte » — a
+    // déménagé dans `GrilleTalentsTest` avec le registre lui-même : depuis le
+    // 2026-08-23 `MotsClesTalent` couvre AUSSI les nœuds de la grille, et
+    // l'exiger ici rejetterait toute mécanique portée par un talent acheté.
+    expect($portees)->not->toBeEmpty();
 });
 
 it('attache les capacités de carte à la création, sans coûter de point', function () {

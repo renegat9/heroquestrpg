@@ -321,7 +321,7 @@ final class Sauvegarde
                 // toutes les salles à la fouille (farm d'or, et duplication
                 // d'artefact depuis qu'un coffre en contient un).
                 'salles_decouvertes' => $quete->sallesDecouvertes(),
-                'tresors_fouilles' => $quete->tresorsFouilles(),
+                'tresors_fouilles' => $quete->fouillesFaites(),
                 'deck_fouille' => $quete->deckFouille(),
                 'salle_artefact' => $quete->salle_artefact,
                 'salles_coffre' => $quete->sallesCoffre(),

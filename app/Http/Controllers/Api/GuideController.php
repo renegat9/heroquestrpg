@@ -55,8 +55,21 @@ class GuideController extends Controller
             // ce drapeau, la page /guide affichait les deux dans la même liste —
             // un joueur lisant « Furie » dans l'arbre du Berserker croyait
             // devoir l'acheter.
-            'competences' => Competence::query()->orderBy('classe')->orderBy('id')
-                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id', 'innee'])
+            // `categorie`/`colonne`/`rang` : la GRILLE de talents (2026-08-23).
+            // Sans eux la page /guide reste une liste plate et ne dit pas à quoi
+            // un joueur renonce en descendant une colonne. `avantage` est dérivé
+            // de `effet` par `MotsClesTalent` — un seul endroit met les chiffres
+            // en forme, ici comme sur la manette.
+            'competences' => Competence::query()
+                ->orderBy('classe')->orderBy('colonne')->orderBy('rang')->orderBy('id')
+                ->get(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id', 'innee',
+                    'categorie', 'categorie_icone', 'colonne', 'rang'])
+                ->map(fn (Competence $c) => [
+                    ...$c->only(['id', 'classe', 'nom', 'description', 'type', 'effet', 'prerequis_id',
+                        'innee', 'categorie', 'categorie_icone', 'colonne', 'rang']),
+                    'avantage' => $c->avantage(),
+                    'avantage_icone' => $c->avantageIcone(),
+                ])
                 ->values()
                 ->all(),
 

@@ -409,12 +409,20 @@ it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 for
     expect(Tuile::count())->toBe($avant);
 });
 
-it('ne rend JAMAIS une salle tributaire d\'une porte secrète', function () {
-    // Les liaisons supplémentaires ouvrent des BOUCLES : ce sont des raccourcis,
-    // jamais l'unique accès. Une salle qu'on ne pourrait atteindre qu'en trouvant
-    // une porte secrète bloquerait un groupe qui rate son jet de fouille — la
-    // classe de bug qui figeait déjà le groupe au §2.16.
-    foreach ([42, 7717, 31337, 104729, 555] as $graine) {
+it('cache AU PLUS UNE salle derrière une porte secrète, et jamais la première', function () {
+    // ⚠ CE TEST A REMPLACÉ SON CONTRAIRE le 2026-08-24 (décision de René).
+    //
+    // Il exigeait auparavant qu'AUCUNE salle ne soit tributaire d'une porte
+    // secrète, au motif qu'« une porte secrète bloquerait un groupe qui rate son
+    // jet de fouille ». Ce motif était juste à l'époque, et deux faits POSTÉRIEURS
+    // l'ont périmé : « Fouiller la zone » est offerte à chaque tour sans aucune
+    // limite (un jet raté coûte un tour, il ne fige personne), et
+    // `battre_en_retraite` (2026-08-21) n'a aucune condition (un groupe qui
+    // renonce sort toujours). Une quête peut donc se perdre faute d'avoir
+    // cherché — c'est le choix assumé, salle-objectif comprise.
+    //
+    // Ce qui reste vérifié est le DOSAGE, seul garde-fou encore utile.
+    foreach ([42, 7717, 31337, 104729, 555, 97, 2024, 12345] as $graine) {
         $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
 
         // Grille où seules les portes NON secrètes sont ouvertes.
@@ -428,12 +436,25 @@ it('ne rend JAMAIS une salle tributaire d\'une porte secrète', function () {
         $grille->definirPortes($portes);
 
         $depart = $carte['spawn_heros'][0];
+        $cachees = [];
 
         foreach ($carte['salles'] as $i => $salle) {
             $cible = ['x' => $salle['mediane_x'], 'y' => $salle['mediane_y']];
-            expect($grille->chemin($depart['x'], $depart['y'], $cible['x'], $cible['y']))
-                ->not->toBeNull("graine {$graine} : salle {$i} inatteignable sans porte secrète");
+
+            if ($grille->chemin($depart['x'], $depart['y'], $cible['x'], $cible['y']) === null) {
+                $cachees[] = (int) $i;
+            }
         }
+
+        // Une SEULE salle au plus : une chaîne de passages cachés transformerait
+        // l'exploration en ratissage.
+        expect(count($cachees))->toBeLessThanOrEqual(
+            1, "graine {$graine} : ".count($cachees).' salles derrière une porte secrète',
+        );
+
+        // Et jamais la salle de départ ni une salle voisine immédiate de celle-ci :
+        // la partie commencerait par une fouille, avant d'avoir rien montré.
+        expect($cachees)->not->toContain(0);
     }
 });
 

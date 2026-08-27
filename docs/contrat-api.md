@@ -428,6 +428,68 @@ Invariant garanti à l'assemblage : aucun meuble ne peut isoler une case par
 ailleurs atteignable (placement abandonné plutôt que posé si la connexité de
 la salle romprait) — verrouillé par `tests/Feature/Partie/CouloirsTest.php`.
 
+⚠ **Une salle PEUT désormais n'avoir qu'un seul accès, secret** (René, 2026-08-24) :
+`AssembleurCarte` rend une arête de l'arbre couvrant `secrete` — **au plus une**, une
+feuille, jamais celle qui sort de la salle de départ, et **un donjon sur deux**
+pour que la découverte reste une surprise plutôt qu'une routine. ⚠ Le taux est
+tenu par un **compteur de pitié** sur le groupe (`groupes.chance_passage_secret`) :
+50 % de base, **+10 points** par carte sèche, retour à 50 dès qu'un passage tombe —
+un tirage pur peut sécher toute une campagne, et cette série-là ne se lit pas comme
+du hasard. Jamais plus de cinq cartes sèches d'affilée. L'invariant « jamais tributaire
+d'une porte secrète » est retiré : sa justification (« un jet raté figerait le groupe »)
+est périmée depuis que « Fouiller la zone » est offerte à chaque tour sans limite et que
+`battre_en_retraite` n'a aucune condition. Conséquence assumée, salle-objectif comprise :
+une quête peut se perdre faute d'avoir cherché.
+
+### Épreuves — les ancrages à JET D'ATTRIBUT (2026-08-24)
+
+**EtatGroupe.carte** gagne `epreuves: [{x, y, nom, description, attribut,
+difficulte, tentee_par: [ids]}]`, quatrième couche de `cartes.grille` au même
+niveau que `leviers`/`pieges`/`mobilier`, soumise au **même brouillard** que le
+mobilier (une salle non découverte n'expose rien).
+
+Une épreuve est un ancrage auquel un héros **au contact** tente un jet d'attribut.
+⚠ **C'est par elles que le moteur émet enfin des jets de contexte `savoir` et
+`social_peur`** : depuis la suppression de `MenuChoix` (2026-08-18) il n'en
+produisait plus qu'un seul, « Fouiller la zone » (Mind, `perception`), si bien
+que six talents de la grille — *Intimidation*, *Érudition*, *Prestance*, *Beau
+parleur*, *Méditation*, *Cartographe* — ne se déclenchaient **jamais** en partie.
+
+- Option `epreuve_{index}`, de **type `jet`** — c'est délibéré : `resoudreJet()`
+  applique alors gratuitement l'avantage de contexte (`avantage_jet_mind`) et la
+  relance (`relance_jet_mind_rate`).
+- **Une tentative par héros**, réussie ou non (`tentee_par`) : le prix réel est le
+  créneau d'ACTION, et les compagnons gardent la leur.
+- Six effets, vocabulaire fermé `App\Engine\MotsClesEpreuve` (registre vérifié
+  dans les deux sens, lecteur déclaré confronté à son fichier) : `or`, `objet`,
+  `parchemin`, `soin_groupe`, `retire_condition`, `desarme_pieges_salle`.
+- `epreuves.exige_placement` est une **précondition de POSE**, distincte de
+  l'effet : l'*Autel fêlé* ne se pose que dans une salle contenant un piège.
+
+### Jets de Body — trois emplois neufs, et un plafond
+
+⚠ **Aucune difficulté de Body ne dépasse jamais le meilleur `attribut_body` des
+héros engagés** (`App\Partie\DifficulteBody`, René 2026-08-24) : un jet que la
+compagnie ne peut mathématiquement pas gagner n'est pas un obstacle, c'est une
+impasse déguisée en choix. ⚠ La valeur **brute** est stockée (catalogue, levier),
+le plafond s'applique à la **génération du menu** — il monte quand un héros
+achète *Colosse*, il descend quand le costaud s'en va.
+
+- **Repousser** — option `repousser_{instance_id}`, type `poussee`. Difficulté =
+  les **PV de Body du CATALOGUE** de la créature (jamais ses PV courants : un boss
+  blessé n'est pas plus facile à bousculer). Réussite : la figure recule d'une
+  case sur l'axe héros → monstre. ⚠ **Aucun piège n'est déclenché** sous elle.
+  Une tentative par héros et par monstre.
+- **Fracasser un meuble** — option `detruire_mobilier_{index}`, type `jet` Body,
+  difficulté `mobiliers.difficulte_destruction` (⚠ `null` = **indestructible**).
+  La pièce cesse de bloquer mouvement ET vue ; si elle était **fouillable**, elle
+  rend **une dernière fouille** à son destructeur, même déjà vidée par le groupe.
+- **Forcer un levier** — l'option `actionner_levier` demande désormais un **jet de
+  Body** (difficulté du levier, 1-3) et **coûte le créneau d'ACTION** : ce n'est
+  plus une interaction gratuite. ⚠ **Retentable sans limite**, contrairement aux
+  épreuves — c'est ce qui autorise une salle à ne tenir qu'à ce levier sans jamais
+  se sceller.
+
 - **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloque_mouvement,
   bloque_vue}]` — l'ancre `(x, y)` est le coin haut-gauche de l'emprise (l×h),
   même convention que `cellulesEmprise()`. Contrairement aux pièges, un
@@ -476,7 +538,10 @@ tracé, non servies dans le payload).
   - `monstres_vaincus` : ouverture **automatique** quand les instances désignées sont
     vaincues (hook post-combat) — aucune action joueur ;
   - `levier` : option `actionner_levier` (id `actionner_levier_{x}_{y}`) au contact d'un
-    levier (`cartes.grille.leviers`) → ouvre la/les porte(s) liée(s) par `verrou.levier_id`.
+    levier (`cartes.grille.leviers`) → **jet de Body** (difficulté du levier, plafonnée) ;
+    réussi, il ouvre la/les porte(s) liée(s) par `verrou.levier_id` et révèle ce qu'il y
+    a derrière. ⚠ Coûte le créneau d'**action** depuis le 2026-08-24 (c'était une
+    interaction gratuite), et se **retente** sans limite.
 - **Fouiller — trésor** (option `fouiller_tresor`, type `fouille_tresor`) : action
   SÉPARÉE, offerte dans une **salle « vide »** (rencontres nettoyées) **non encore
   fouillée**. On **pioche une carte de fouille**, à la HeroQuest : le deck est bâti
@@ -528,9 +593,37 @@ nb de nœuds acquis` (dérivé, toujours juste).
 
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
-| POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert un nœud d'arbre (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
+| POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert une case de la grille (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
 | GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [ids acquis]` |
-| GET | /api/competences | — | catalogue des arbres : `[{id, classe, nom, type, effet, prerequis_id}]` |
+| GET | /api/competences | — | catalogue des grilles : `[{id, classe, nom, description, type, innee, categorie, categorie_icone, colonne, rang, effet, avantage, avantage_icone, prerequis_id}]` |
+
+**La GRILLE de talents** (René, 2026-08-23) — chaque classe a **3 colonnes ×
+3 lignes**. La colonne est une **catégorie propre à la classe** (`categorie`,
+libellé libre : « Furie » chez le barbare, « Traque » chez l'explorateur), et
+acquérir la ligne *n* exige la ligne *n−1* **de la même colonne**. `prerequis_id`
+porte toujours cette règle et ne change pas de sens : le seeder le **calcule**
+depuis `(classe, colonne, rang − 1)` au lieu de le nommer, ce qui rend
+impossible une chaîne traversant deux colonnes. Neuf cases pour 4 à 7 points de
+campagne : on descend une colonne, on renonce à une autre.
+
+Les **capacités de carte** (`innee: true`) sont **hors grille** — `categorie`,
+`colonne`, `rang` et `prerequis_id` à `null` : elles viennent avec la figurine
+et ne coûtent aucun point.
+
+⚠ **Deux textes par nœud, et les deux sont affichés.** `description` est la
+phrase de jeu, écrite à la main (le gain, sa condition, sa cadence) ;
+**`avantage` est DÉRIVÉ de `effet`** par `App\Engine\MotsClesTalent` et n'est
+jamais saisi — c'est ce qui garantit qu'un talent ne promette pas autre chose
+que ce qu'il fait. `avantage_icone` est son icône Material Symbols. Le front
+n'a donc plus de table de correspondance à tenir : la sienne était keyée sur des
+noms de *colonnes* du personnage et ne produisait **jamais** la moindre puce
+d'effet pour une compétence.
+
+⚠ **Les talents se lisent par MÉCANIQUE, jamais par nom de nœud.**
+`effet.mecanique` appartient au vocabulaire fermé `MotsClesTalent::MECANIQUES`,
+où chaque entrée déclare son lecteur moteur. Le câblage par nom laissait une
+quinzaine de nœuds des classes d'extension parfaitement muets (*Esquive*,
+*Garde haute*, *Prestance*, *Coup sauvage*, *Second couplet*, *Communion*…).
 
 **Création d'un personnage** (`POST /api/personnages`) — `{nom, classe,
 elements?, sorts_elfiques?}`. `elements` vaut pour les lanceurs à écoles

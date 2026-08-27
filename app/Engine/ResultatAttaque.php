@@ -122,4 +122,39 @@ final readonly class ResultatAttaque
             faceDefensive: $this->faceDefensive,
         );
     }
+
+    /**
+     * Le MÊME jet, dont les dégâts reçoivent un bonus PLAT — le talent
+     * `bonus_degats_sort` (Puissance brute du magicien, Marque du damné du
+     * warlock).
+     *
+     * ⚠ Un jet qui n'a rien passé ne reçoit rien : un sort entièrement paré
+     * n'inflige pas le bonus. Sans cette garde, le talent transformerait chaque
+     * échec en dégât garanti, ce qui vaut bien plus que « +1 dégât ».
+     *
+     * Même fabrique et même raison que `avecDegatsMultiplies()` : `degats`,
+     * `pvBodyApres` et `cibleTombee` se recalculent en un seul endroit.
+     */
+    public function avecDegatsAjoutes(int $bonus): self
+    {
+        if ($bonus <= 0 || $this->degats <= 0) {
+            return $this;
+        }
+
+        $degats = $this->degats + $bonus;
+        $apres = max(0, $this->pvBodyAvant - $degats);
+
+        return new self(
+            facesAttaque: $this->facesAttaque,
+            facesDefense: $this->facesDefense,
+            touches: $this->touches,
+            boucliers: $this->boucliers,
+            degats: $degats,
+            pvBodyAvant: $this->pvBodyAvant,
+            pvBodyApres: $apres,
+            cibleTombee: $apres === 0,
+            faceTouchante: $this->faceTouchante,
+            faceDefensive: $this->faceDefensive,
+        );
+    }
 }

@@ -64,6 +64,10 @@ class GabaritQueteSeeder extends Seeder
                         'potions' => ['Potion de soin', 'Potion de soin mineur'],
                     ],
                     'pieges' => ['min' => 1, 'max' => 2],
+                    // ÉPREUVES (2026-08-24) : les ancrages à jet d'attribut. Sans
+                    // elles, le moteur n'émet qu'un seul jet — la fouille de zone —
+                    // et les contextes `savoir`/`social_peur` n'ont aucun producteur.
+                    'epreuves' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 50],
                 ],
             ],
@@ -101,6 +105,7 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'rencontre_finale' => ['tier' => 'sous_boss', 'escorte_budget' => 4],
                     'pieges' => ['min' => 2, 'max' => 3],
+                    'epreuves' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 120],
                 ],
             ],
@@ -138,6 +143,7 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'rencontre_finale' => ['tier' => 'boss', 'escorte_budget' => 6],
                     'pieges' => ['min' => 2, 'max' => 4],
+                    'epreuves' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 300],
                 ],
             ],

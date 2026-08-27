@@ -23,11 +23,13 @@ use App\Events\MjReflechit;
 use App\Events\MouvementAnime;
 use App\Events\NarrationDiffusee;
 use App\Models\Condition;
+use App\Models\Epreuve;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
+use App\Models\Mobilier;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -108,25 +110,15 @@ final class ResolveurTour
     /** Tout le monde est à terre et plus rien ne peut l'empêcher : quête échouée. */
     public const CHUTE_TPK = 'tpk';
 
-    /** Nœud barbare (CompetenceSeeder) : +1 dé d'attaque sous la moitié des PV de Body. */
-    public const NOEUD_FRENESIE = 'Frénésie';
-
-    /** Nœud barbare (CompetenceSeeder) : relance une fois les dés d'attaque ratés. */
-    public const NOEUD_COUP_PUISSANT = 'Coup puissant';
-
-    /** Nœud nain (CompetenceSeeder) : +1 dé de défense à la première attaque subie de la quête. */
-    public const NOEUD_GARDE_TENACE = 'Garde tenace';
-
-    /**
-     * Avantage aux jets de Mind (`avantage_jet_mind`, CompetenceSeeder) : nœud
-     * exact requis par `contexte` d'option de jet (MenuChoix / MenuMoteur).
-     * +1 dé de Mind si le héros possède le nœud du contexte proposé.
+    /*
+     * ⚠ Les quatre constantes de NOM qui vivaient ici (NOEUD_FRENESIE,
+     * NOEUD_COUP_PUISSANT, NOEUD_GARDE_TENACE, NOEUDS_AVANTAGE_MIND) sont
+     * supprimées depuis le 2026-08-23 : les talents se lisent par MÉCANIQUE,
+     * via `Talents`. Câblés sur le nom, ces lecteurs ne reconnaissaient que le
+     * nœud de la classe historique — *Esquive* (rogue), *Garde haute*
+     * (chevalier), *Coup sauvage* (berserker), *Prestance*, *Méditation*…
+     * portaient la bonne mécanique et ne faisaient rien du tout.
      */
-    public const NOEUDS_AVANTAGE_MIND = [
-        'social_peur' => 'Intimidation',
-        'perception' => 'Sens aiguisés',
-        'savoir' => 'Érudition',
-    ];
 
     public function __construct(
         private readonly LanceurDes $des,
@@ -134,11 +126,13 @@ final class ResolveurTour
         private readonly MoteurPieges $pieges,
         private readonly MoteurPortes $portes,
         private readonly MoteurMobilier $mobilier,
+        private readonly MoteurEpreuves $epreuves,
         private readonly MoteurSorts $sorts,
         private readonly MoteurDread $dread,
         private readonly MoteurDegats $degats,
         private readonly MoteurReactions $reactions,
         private readonly CapacitesInnees $capacites,
+        private readonly Talents $talents,
         private readonly StylesElementaires $styles,
         private readonly MonteeNiveau $monteeNiveau,
         private readonly ClotureCampagne $cloture,
@@ -214,7 +208,7 @@ final class ResolveurTour
         $bonusReserveArcanique = $creneau === 'action' && $etat->a_agi
             && ($option['type'] ?? null) === 'sort'
             && ! $etat->bonus_sort_utilise
-            && ($this->possedeCompetence($personnage, 'Réserve arcanique')
+            && ($this->talents->a($personnage, 'sort_supplementaire_par_tour')
                 || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
 
         if ($creneau === 'mouvement' && $etat->a_deplace) {
@@ -287,10 +281,13 @@ final class ResolveurTour
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
+                'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
+                'soin_allie' => $this->resoudreSoinAllie($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
+                'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
@@ -489,7 +486,15 @@ final class ResolveurTour
         // ayant l'air d'avoir été stoppé.
         // Racines entravantes, puis chausse-trappes : deux raisons distinctes
         // d'écourter le même trajet, qui passent par le même recalage de $x/$y.
-        $tronque = $this->tronquerSurChausseTrappes($quete, $this->tronquerSurRacines($quete, $chemin));
+        //
+        // `ignore_terrain_entravant` (Ronces complices, druide) : le porteur
+        // traverse les deux sans ralentir. Le talent est passé aux DEUX
+        // tronqueurs plutôt que testé ici : les monstres empruntent le même
+        // code pour les chausse-trappes, et un `if` en amont aurait dispensé
+        // les créatures aussi.
+        $tronque = $this->tronquerSurChausseTrappes(
+            $quete, $this->tronquerSurRacines($quete, $chemin, $personnage), $personnage,
+        );
 
         if (count($tronque) < count($chemin)) {
             $chemin = $tronque;
@@ -862,13 +867,23 @@ final class ResolveurTour
         // Frayeur (Dread) : condition Apeuré → −1 dé d'attaque (min 0), 2 tours.
         $malusFrayeur = $this->dread->malusDesAttaqueFrayeur($personnage);
 
-        // Frénésie (nœud barbare) : +1 dé d'attaque tant que les PV de Body
-        // sont SOUS la moitié du max (comparaison en entiers, sans arrondi).
-        $bonusFrenesie = $this->possedeCompetence($personnage, self::NOEUD_FRENESIE)
-            && (int) $personnage->pv_body * 2 < (int) $personnage->pv_body_max ? 1 : 0;
+        // `bonus_des_attaque` CONDITIONNÉ aux PV bas (Frénésie du barbare, Rage
+        // froide du berserker, Coup bas du rogue, Poing de fer du moine) : le
+        // bonus vaut tant que les PV de Body sont SOUS la moitié du max
+        // (comparaison en entiers, sans arrondi).
+        //
+        // ⚠ On lit la VALEUR et non la possession : la grille autorise la même
+        // mécanique dans deux colonnes, et deux nœuds « +1 dé » font +2. Le
+        // critère `condition` est indispensable — sans lui on ramasserait aussi
+        // le `bonus_des_attaque` PERMANENT, déjà versé dans `des_attaque`, et
+        // on le compterait deux fois.
+        $bonusFrenesie = (int) $personnage->pv_body * 2 < (int) $personnage->pv_body_max
+            ? $this->talents->valeur($personnage, 'bonus_des_attaque', ['condition' => 'pv_body_sous_moitie'])
+            : 0;
 
-        // Tir précis (nœud elfe) : +1 dé d'attaque sur un tir à distance véritable.
-        $bonusTirPrecis = $tirADistance && $this->possedeCompetence($personnage, 'Tir précis') ? 1 : 0;
+        // `bonus_des_attaque_distance` (Tir précis de l'elfe) : sur un tir à
+        // distance véritable seulement.
+        $bonusTirPrecis = $tirADistance ? $this->talents->valeur($personnage, 'bonus_des_attaque_distance') : 0;
 
         // FRAPPE OPPORTUNISTE (Rogue) : « ONCE PER TURN, you may throw 1 extra
         // combat die when attacking a monster next to another hero ». Le pendant
@@ -885,6 +900,38 @@ final class ResolveurTour
         if ($bonusFlanc > 0) {
             $this->capacites->consommer($personnage, $etat, 'bonus_des_attaque_flanc');
         }
+
+        // ---- Talents de la GRILLE, lus par mécanique ------------------------
+        //
+        // `bonus_des_attaque_contre_tier` (Charge du destrier, chevalier) : le
+        // rang se lit dans le CATALOGUE (`monstres.tier`), jamais sur le nom
+        // affiché — l'habillage IA rebaptise les créatures, et « Le Noyé de
+        // Gorrim » ne dit rien de son rang.
+        $noeudTier = $this->talents->noeud($personnage, 'bonus_des_attaque_contre_tier');
+        $bonusTier = $noeudTier !== null
+            && in_array($instance->monstre?->tier, (array) ($noeudTier->effet['tier'] ?? []), true)
+            ? (int) ($noeudTier->effet['valeur'] ?? 0)
+            : 0;
+
+        // `bonus_des_attaque_apres_deplacement` (Élan, berserker) : il faut
+        // avoir COURU, pas seulement bougé — le seuil est dans l'effet.
+        // ⚠ `a_deplace` est la garde qui compte : `deplacement_tour` est fixé
+        // dès la GÉNÉRATION du menu (le d6 du tour est lancé là), et
+        // `deplacement_restant` vaut alors zéro — un héros parfaitement immobile
+        // paraissait donc avoir couru toute son allonge.
+        $noeudElan = $this->talents->noeud($personnage, 'bonus_des_attaque_apres_deplacement');
+        $casesParcourues = (bool) $etat->a_deplace
+            ? max(0, (int) $etat->deplacement_tour - (int) $etat->deplacement_restant)
+            : 0;
+        $bonusElan = $noeudElan !== null && $casesParcourues >= (int) ($noeudElan->effet['cases'] ?? 3)
+            ? (int) ($noeudElan->effet['valeur'] ?? 0)
+            : 0;
+
+        // `ignore_defense_monstre` (Flèche perçante, elfe) : le DÉFENSEUR lance
+        // moins de dés. Retranché de sa défense plutôt qu'ajouté à l'attaque —
+        // un dé d'attaque en plus et un dé de défense en moins n'ont pas la
+        // même valeur, et c'est bien la seconde que la carte décrit.
+        $desDefenseIgnores = $this->talents->valeur($personnage, 'ignore_defense_monstre');
 
         // Lame des Esprits : « three combat dice in attack OR four dice against
         // undead creatures such as Skeletons, Zombies and Mummies ». Le bonus
@@ -908,7 +955,8 @@ final class ResolveurTour
         }
 
         $desAttaqueEffectifs = max(0, max($desArme, $desArmeContre)
-            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc + $desBonus);
+            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
+            + $bonusTier + $bonusElan + $desBonus);
 
         // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
         // damage. » Aucun jet, aucune défense — le seul cas du jeu où l'attaque
@@ -954,13 +1002,13 @@ final class ResolveurTour
             ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
             : (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $desAttaqueEffectifs,
-                desDefense: $instance->defenseEffective(),
+                desDefense: max(0, $instance->defenseEffective() - $desDefenseIgnores),
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
                 // Potion de bataille : « It allows you 1 reroll of your Attack
                 // dice ». Le calcul existait pour le nœud *Coup puissant* ; la
                 // carte ne fait qu'ouvrir un second déclencheur sur le même.
-                relanceDesAttaqueRatee: $this->possedeCompetence($personnage, self::NOEUD_COUP_PUISSANT)
+                relanceDesAttaqueRatee: $this->talents->a($personnage, 'relance_des_attaque_rates')
                     || $this->sorts->aBuff($personnage, 'relance_des_attaque'),
                 defenseurEthere: $ethere,
             );
@@ -1000,6 +1048,9 @@ final class ResolveurTour
             'bonus_frenesie' => $bonusFrenesie,
             'bonus_tir_precis' => $bonusTirPrecis,
             'bonus_flanc' => $bonusFlanc,
+            'bonus_tier' => $bonusTier,
+            'bonus_elan' => $bonusElan,
+            'defense_ignoree' => $desDefenseIgnores,
             'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
             'cible_etheree' => $ethere,
             'des_attaque_effectifs' => $desAttaqueEffectifs,
@@ -1024,8 +1075,40 @@ final class ResolveurTour
             $this->sorts->regagnerSorts($personnage, RegainEffet::MONSTRE_VAINCU);
         }
 
+        // `inflige_condition_sur_touche` (Lame vénéneuse, rogue) : seulement si
+        // le coup a réellement ENTAMÉ la cible — un coup paré n'empoisonne rien.
+        $noeudCondition = $this->talents->noeud($personnage, 'inflige_condition_sur_touche');
+
+        if ($noeudCondition !== null && $resultat->degats > 0) {
+            $cle = (string) ($noeudCondition->effet['condition_monstre'] ?? '');
+
+            if (in_array($cle, MoteurSorts::CONDITIONS_MONSTRE, true)) {
+                // ⚠ Le talent porte SA durée (`effet.duree`) : sans elle, un
+                // venin de rang 2 poserait un plafond d'attaque DÉFINITIF sur la
+                // créature — la classe de bug que les conditions de monstre
+                // viennent justement de solder (2026-08-24).
+                $duree = $noeudCondition->effet['duree'] ?? null;
+
+                $this->sorts->poserConditionMonstre($instance, $cle, is_int($duree) ? $duree : null);
+                $payload['condition_infligee'] = $cle;
+                $payload['condition_duree'] = $duree;
+            }
+        }
+
         // Fléau des Orques : une seconde attaque ce tour si la cible en était un.
         if ($this->accorderSecondeAttaque($armePrincipale, $instance, $etat)) {
+            $payload['attaque_supplementaire'] = true;
+        }
+
+        // `attaque_supplementaire_apres_kill` (Soif de sang, berserker ; Coup de
+        // grâce, rogue) : abattre la cible rouvre le créneau d'action. Une fois
+        // par tour — sans le compteur, une chaîne de mises à mort donnerait un
+        // tour infini, exactement le trou qu'avait `bonus_des_attaque_flanc`.
+        if ($resultat->pvBodyApres === 0
+            && ! (bool) $etat->fresh()->attaque_supplementaire
+            && $this->talents->disponible($personnage, $etat, 'attaque_supplementaire_apres_kill')) {
+            $this->talents->consommer($personnage, $etat, 'attaque_supplementaire_apres_kill');
+            $etat->update(['attaque_supplementaire' => true]);
             $payload['attaque_supplementaire'] = true;
         }
 
@@ -1841,8 +1924,12 @@ final class ResolveurTour
      * @param  list<array{x: int, y: int}>  $chemin
      * @return list<array{x: int, y: int}>
      */
-    private function tronquerSurRacines(Quete $quete, array $chemin): array
+    private function tronquerSurRacines(Quete $quete, array $chemin, ?Personnage $personnage = null): array
     {
+        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
+            return $chemin;
+        }
+
         $gardiens = $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
@@ -1886,8 +1973,12 @@ final class ResolveurTour
      * @param  list<array{x: int, y: int}>  $chemin
      * @return list<array{x: int, y: int}>
      */
-    private function tronquerSurChausseTrappes(Quete $quete, array $chemin): array
+    private function tronquerSurChausseTrappes(Quete $quete, array $chemin, ?Personnage $personnage = null): array
     {
+        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
+            return $chemin;
+        }
+
         $tuiles = $this->chausseTrappes($quete);
 
         if ($tuiles === [] || count($chemin) < 2) {
@@ -2129,12 +2220,16 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Option de jet invalide (attribut body|mind, difficulté 1-4).']);
         }
 
-        // Avantage de Mind (Intimidation/Sens aiguisés/Érudition, CompetenceSeeder) :
-        // +1 dé si le contexte proposé correspond à un nœud acquis du héros.
+        // `avantage_jet_mind` : +1 dé si le CONTEXTE proposé correspond à celui
+        // d'un nœud acquis. La correspondance se fait sur `effet.contexte`, plus
+        // sur le nom du nœud — une table `contexte => nom` ne connaissait que
+        // les trois nœuds historiques, si bien que *Beau parleur* (barde),
+        // *Prestance* (chevalier), *Méditation* (moine) et *Cartographe*
+        // (explorateur) ne donnaient aucun dé.
         $contexte = $option['jet']['contexte'] ?? null;
-        $noeudAvantage = self::NOEUDS_AVANTAGE_MIND[$contexte] ?? null;
-        $bonusAvantage = $attribut === 'mind' && $noeudAvantage !== null
-            && $this->possedeCompetence($personnage, $noeudAvantage) ? 1 : 0;
+        $bonusAvantage = $attribut === 'mind' && $contexte !== null
+            ? $this->talents->valeur($personnage, 'avantage_jet_mind', ['contexte' => $contexte])
+            : 0;
 
         $nbDes = ($attribut === 'body' ? (int) $personnage->attribut_body : (int) $personnage->attribut_mind) + $bonusAvantage;
         $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
@@ -2157,8 +2252,23 @@ final class ResolveurTour
             $resultat = $resultat->force();
         }
 
+        // `relance_jet_mind_rate` (Esprit clair, moine) : une seule fois par
+        // quête, un jet de Mind manqué est REJOUÉ intégralement. On ne relance
+        // que sur un échec — dépenser la ressource sur une réussite serait la
+        // perdre — et le premier jet reste publié dans le payload : le joueur
+        // doit voir ce qui a été sauvé, sinon la capacité passe inaperçue.
+        $relance = null;
+
+        if ($attribut === 'mind' && ! $resultat->estReussi()
+            && $this->talents->disponible($personnage, $etat, 'relance_jet_mind_rate')) {
+            $this->talents->consommer($personnage, $etat, 'relance_jet_mind_rate');
+            $relance = ['faces' => array_map(fn ($face) => $face->value, $resultat->faces)];
+            $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
+        }
+
         $payload = [
             ...($pierre !== null ? ['style' => $pierre] : []),
+            ...($relance !== null ? ['jet_relance' => $relance] : []),
             'type' => 'jet',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
@@ -2184,6 +2294,37 @@ final class ResolveurTour
                 $groupe, $quete->carte, $personnage,
                 (int) $etat->position_x, (int) $etat->position_y,
             );
+        }
+
+        // ÉPREUVE (2026-08-24) : la tentative est dépensée QUOI QU'IL ARRIVE —
+        // une par héros —, et l'effet ne s'applique qu'à la réussite. C'est le
+        // créneau d'action qui fait le prix, pas un nombre d'essais.
+        if (isset($option['parametres']['epreuve']) && $quete->carte !== null) {
+            $index = (int) $option['parametres']['epreuve'];
+            $this->epreuves->marquerTentee($quete->carte, $index, (int) $personnage->id);
+
+            $payload['epreuve'] = $option['parametres']['nom'] ?? null;
+
+            if ($resultat->estReussi()) {
+                $payload = [...$payload, ...$this->resoudreEpreuve(
+                    $groupe, $quete->fresh()->load('carte'), $personnage, $etat, $index,
+                )];
+            }
+        }
+
+        // MOBILIER FRACASSÉ : même règle de tentative, et la pièce cesse de
+        // bloquer le mouvement ET la vue d'un seul geste (`FabriqueGrille`).
+        if (isset($option['parametres']['mobilier']) && $quete->carte !== null) {
+            $index = (int) $option['parametres']['mobilier'];
+            $this->mobilier->marquerTentativeDestruction($quete->carte, $index, (int) $personnage->id);
+
+            $payload['mobilier'] = $option['parametres']['nom'] ?? null;
+
+            if ($resultat->estReussi()) {
+                $payload = [...$payload, ...$this->fracasserMobilier(
+                    $groupe, $quete->fresh()->load('carte'), $personnage, $etat, $index,
+                )];
+            }
         }
 
         // §2.5 — un jet RÉUSSI peut ne RIEN trouver : le narrateur ne voyait que
@@ -2239,13 +2380,17 @@ final class ResolveurTour
             $reussi = $face !== FaceDeCombat::BouclierNoir;
             $detailJet = ['methode' => 'sans_outils', 'face' => $face->value];
         } else {
+            // Plafond de Body (2026-08-24) : un seul endroit décide, même pour
+            // les deux jets historiques — une règle, une implémentation.
+            $difficulte = DifficulteBody::plafonnee($quete, self::DIFFICULTE_DESAMORCAGE);
+
             $resultat = (new JetCompetence($this->des))
-                ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_DESAMORCAGE);
+                ->resoudre((int) $personnage->attribut_body, $difficulte);
             $reussi = $resultat->estReussi();
             $detailJet = [
                 'methode' => 'trousse',
                 'attribut' => 'body',
-                'difficulte' => self::DIFFICULTE_DESAMORCAGE,
+                'difficulte' => $difficulte,
                 'des_lances' => (int) $personnage->attribut_body,
                 'issue' => $resultat->issue->value,
                 'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
@@ -2270,7 +2415,7 @@ final class ResolveurTour
         // sans le nœud, le piège se déclenche sur le désamorceur (racial Nain /
         // Trousse à outils, tout le monde) ; AVEC le nœud, l'échec est sans
         // casse — le piège reste détecté, retentable.
-        if (! $reussi && ! $this->possedeCompetence($personnage, 'Désamorçage')) {
+        if (! $reussi && ! $this->talents->a($personnage, 'desamorcer_piege')) {
             $payload['declenchement'] = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
             );
@@ -2340,8 +2485,10 @@ final class ResolveurTour
             ? $this->activerTechnique($personnage, $etat, 'saut_piege_automatique')
             : null;
 
+        $difficulteSaut = DifficulteBody::plafonnee($quete, self::DIFFICULTE_FRANCHISSEMENT);
+
         $resultat = (new JetCompetence($this->des))
-            ->resoudre((int) $personnage->attribut_body, self::DIFFICULTE_FRANCHISSEMENT);
+            ->resoudre((int) $personnage->attribut_body, $difficulteSaut);
 
         // Potion de dextérité : « or guarantees one successful pit jump ».
         // Même traitement que le Dragon bondissant, et pour la même raison : le
@@ -2359,7 +2506,7 @@ final class ResolveurTour
             'libelle' => $option['libelle'] ?? null,
             'piege' => ['nom' => $cible['piege']?->nom ?? 'Fosse', 'x' => $cible['x'], 'y' => $cible['y']],
             'attribut' => 'body',
-            'difficulte' => self::DIFFICULTE_FRANCHISSEMENT,
+            'difficulte' => $difficulteSaut,
             'des_lances' => (int) $personnage->attribut_body,
             'succes' => $resultat->succes,
             'issue' => $resultat->issue->value,
@@ -2381,6 +2528,9 @@ final class ResolveurTour
 
             // Œil du mineur : détection automatique autour de la réception.
             $this->pieges->detecterAdjacents($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
+            // Même rythme pour les portes secrètes : le talent qui les détecte
+            // se lit à l'arrivée, comme l'Œil du mineur.
+            $this->portes->detecterSecretesAdjacentes($groupe, $quete->carte, $personnage, $arrivee['x'], $arrivee['y']);
 
             $payload['vers'] = $arrivee;
             $payload['deplacement_restant'] = $restantApres;
@@ -2581,6 +2731,130 @@ final class ResolveurTour
     }
 
     /**
+     * `sacrifice_pv_pour_sort` (Prix du pacte, warlock) : 1 PV de Body contre un
+     * sort épuisé rendu relançable.
+     *
+     * Coûte le créneau d'ACTION, pas le tour entier — c'est ce qui le distingue
+     * de « Se concentrer », qui sacrifie le tour : l'un paie en temps, l'autre
+     * en sang, et payer les deux ne laisserait personne le choisir.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSacrificePourSort(
+        Groupe $groupe,
+        Personnage $personnage,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $sort = $personnage->sorts()->whereKey((int) ($parametres['sort_id'] ?? 0))->first();
+
+        if ($sort === null || $sort->pivot->disponible) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer : parametres.sort_id.',
+            ]);
+        }
+
+        if (! $this->sorts->sacrifierPourUnSort($personnage, $sort)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Pacte impossible : talent requis, et il faut plus d\'1 PV de Body à dépenser.',
+            ]);
+        }
+
+        $personnage->refresh();
+
+        $payload = [
+            'type' => 'sacrifice_sort',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'sort_recupere' => ['id' => $sort->id, 'nom' => $sort->nom],
+            'pv_body_paye' => 1,
+            'pv_body_apres' => (int) $personnage->pv_body,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * `soin_allie` (Ballade apaisante du barde, Appel au ralliement du
+     * chevalier) : rend 1d6 PV de Body à un héros AU CONTACT, une fois par
+     * quête.
+     *
+     * ⚠ Sur un héros TOMBÉ, le soin le remet debout — c'est le seul intérêt de
+     * courir jusqu'à lui, et un soin qui laisserait le compagnon à terre à 3 PV
+     * ne serait jamais joué.
+     *
+     * ⚠ `parametres.cible_id` est validé contre la liste publiée par le menu
+     * (`option.parametres.cibles`) et non contre la quête entière : l'option ne
+     * porte plus la légalité de sa cible depuis le ciblage en deux temps, et
+     * sans ce contrôle un client soignerait à travers tout le donjon.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreSoinAllie(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        if (! $this->talents->disponible($personnage, $etat, 'soin_allie')) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Soin indisponible : talent requis, une seule fois par quête.',
+            ]);
+        }
+
+        $cibleId = (int) ($parametres['cible_id'] ?? 0);
+        $legales = array_map('intval', array_column((array) ($option['parametres']['cibles'] ?? []), 'id'));
+
+        if (! in_array($cibleId, $legales, true)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible hors de portée : choisissez un héros à votre contact.',
+            ]);
+        }
+
+        $cible = $quete->etatsPersonnages()->where('personnage_id', $cibleId)->with('personnage')->firstOrFail();
+        $soigne = $cible->personnage;
+
+        $avant = (int) $soigne->pv_body;
+        $de = $this->des->d6();
+        $soigne->update(['pv_body' => min((int) $soigne->pv_body_max, $avant + $de)]);
+        $rendus = (int) $soigne->pv_body - $avant;
+
+        // Un héros à terre se relève dès qu'il repasse au-dessus de zéro.
+        if ($cible->tombe && (int) $soigne->pv_body > 0) {
+            $cible->update(['tombe' => false]);
+        }
+
+        $this->talents->consommer($personnage, $etat, 'soin_allie');
+
+        $payload = [
+            'type' => 'soin_allie',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'de' => $de,
+            'soin_pv_body' => $rendus,
+            'cible' => ['personnage_id' => $soigne->id, 'nom' => $soigne->nom],
+            'pv_body_apres' => (int) $soigne->pv_body,
+            'releve' => (int) $soigne->pv_body > 0 && $rendus > 0,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * Résolution de l'EFFET d'un sort (commune au sort connu et au
      * parchemin) — par type de catalogue.
      *
@@ -2615,7 +2889,7 @@ final class ResolveurTour
         }
 
         return match ($sort->type) {
-            'degats' => $this->sortDegats($quete, $sort, $option, $parametres),
+            'degats' => $this->sortDegats($quete, $sort, $option, $parametres, $lanceur),
             'mental' => $this->sortMental($quete, $sort, $option, $parametres, $lanceur),
             default => $this->sortUtilitaire($quete, $lanceur, $etat, $sort, $option, $parametres),
         };
@@ -2665,10 +2939,18 @@ final class ResolveurTour
      * @param  array<string, mixed>  $parametres
      * @return array<string, mixed>
      */
-    private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres): array
+    private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres, ?Personnage $lanceur = null): array
     {
         $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
         $cible = $this->cibleSort($quete, $option, $parametres);
+
+        // `bonus_degats_sort` (Puissance brute du magicien, Marque du damné du
+        // warlock) : un bonus PLAT sur les dégâts d'un sort offensif.
+        //
+        // ⚠ Il porte aussi sur le tir ami, et c'est voulu : le sort ne sait pas
+        // qui il touche, et un magicien qui frappe plus fort frappe plus fort
+        // ses compagnons aussi (doc 02 §5, S3).
+        $bonusDegatsSort = $lanceur === null ? 0 : $this->talents->valeur($lanceur, 'bonus_degats_sort');
 
         if ($cible['type'] === 'monstre') {
             /** @var InstanceMonstre $instance */
@@ -2698,7 +2980,7 @@ final class ResolveurTour
                 desDefense: $defense,
                 typeDefenseur: TypeFigurine::Monstre,
                 pvBodyDefenseur: (int) $instance->pv_body,
-            );
+            )->avecDegatsAjoutes($bonusDegatsSort);
 
             $instance->update([
                 'pv_body' => $resultat->pvBodyApres,
@@ -2710,6 +2992,7 @@ final class ResolveurTour
 
             return [
                 'des_degats' => $des,
+                'bonus_degats_sort' => $bonusDegatsSort,
                 'bonus_resistance_magique' => $bonusResistance,
                 'cible' => [
                     'type' => 'monstre',
@@ -2755,7 +3038,7 @@ final class ResolveurTour
                 : 0,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $heros->pv_body,
-        );
+        )->avecDegatsAjoutes($bonusDegatsSort);
 
         $subis = $this->degats->infligerAHeros(
             $heros, $resultat->degats, MoteurDegats::SOURCE_TIR_AMI, ['sort' => $sort->nom],
@@ -2958,7 +3241,14 @@ final class ResolveurTour
             $de = $this->des->d6();
 
             if ($de > $mind) {
-                $this->sorts->poserConditionMonstre($instance, (string) $sort->effet['condition_monstre']);
+                // Flamme hypnotique (zone) pose `paralyse` AVEC une durée
+                // (catalogue « Paralysé » = 3 tours) — sans quoi la créature
+                // restait paralysée pour le reste de la quête (voir MoteurSorts).
+                $this->sorts->poserConditionMonstre(
+                    $instance,
+                    (string) $sort->effet['condition_monstre'],
+                    $this->sorts->dureeConditionMonstre($sort),
+                );
                 $touches[] = ['type' => 'monstre', 'nom' => $instance->nomAffiche(), 'de' => $de];
             }
         }
@@ -3036,7 +3326,17 @@ final class ResolveurTour
                     ]);
                 }
 
-                $this->sorts->poserConditionMonstre($cible['monstre'], $conditionMonstre);
+                // Durée relue sur le catalogue (Ralenti/Paralysé = 3 tours) via
+                // le nom que LE SORT déclare (`condition_appliquee`) — jamais
+                // câblée en dur ici, sinon une correction du catalogue
+                // n'atteindrait pas les conditions déjà posées en jeu. `terrifie`
+                // (Terreur → Apeuré, duree_defaut 0) reste sans compteur, faute
+                // de source exploitable — voir `MoteurSorts::dureeConditionMonstre()`.
+                $this->sorts->poserConditionMonstre(
+                    $cible['monstre'],
+                    $conditionMonstre,
+                    $this->sorts->dureeConditionMonstre($sort),
+                );
                 $conditionNom ??= ucfirst($conditionMonstre);
             }
         } else {
@@ -3775,6 +4075,52 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Aucun levier adjacent à cette position.']);
         }
 
+        // JET DE BODY depuis le 2026-08-24 (décision de René) : un levier ne
+        // s'abaisse plus d'une pichenette. C'est le principal emploi de
+        // `attribut_body` — un levier est toujours là, quand un piège détecté au
+        // contact et une fosse sur le trajet sont des accidents.
+        //
+        // ⚠ RETENTABLE sans limite, contrairement aux épreuves : c'est ce qui
+        // autorise une salle à ne tenir qu'à ce levier sans jamais se sceller.
+        // Le prix est le créneau d'ACTION, dépensé tour après tour — et c'est
+        // aussi pour ça que l'option a quitté les interactions gratuites.
+        //
+        // ⚠ La difficulté est PLAFONNÉE au meilleur Body du groupe : un levier
+        // que la compagnie ne peut pas gagner n'est pas un obstacle, c'est une
+        // impasse déguisée en choix.
+        // Le héros vient de son ÉTAT : `resoudreActionnerLevier()` ne l'a jamais
+        // reçu en paramètre, l'action étant gratuite et anonyme jusqu'ici.
+        $forceur = $etat->personnage;
+        $desBody = (int) ($forceur?->attribut_body ?? 0);
+
+        $difficulte = DifficulteBody::plafonnee($quete, (int) ($levier['difficulte'] ?? 2));
+        $resultat = (new JetCompetence($this->des))->resoudre($desBody, $difficulte);
+
+        $jet = [
+            'attribut' => 'body',
+            'difficulte' => $difficulte,
+            'des_lances' => $desBody,
+            'succes' => $resultat->succes,
+            'issue' => $resultat->issue->value,
+            'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+        ];
+
+        if (! $resultat->estReussi()) {
+            $payload = [
+                'type' => 'actionner_levier',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'levier' => ['x' => $lx, 'y' => $ly, 'levier_id' => $levier['levier_id']],
+                'jet' => $jet,
+                'force' => false,
+                'portes_ouvertes' => [],
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         $ouvertes = [];
         $portesOuvertes = [];
         foreach ($this->portes->portes($quete->carte) as $index => $porte) {
@@ -3798,6 +4144,8 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'levier' => ['x' => $lx, 'y' => $ly, 'levier_id' => $levier['levier_id']],
+            'jet' => $jet,
+            'force' => true,
             'portes_ouvertes' => $ouvertes,
         ];
 
@@ -3884,6 +4232,15 @@ final class ResolveurTour
 
         $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
 
+        // `rarete_butin_amelioree` (Œil du prix, explorateur) : le FOUILLEUR
+        // décale la table d'un cran. Exprimé en niveaux plutôt qu'en poids —
+        // `RareteButin` n'a qu'une seule courbe et il vaut mieux avancer dessus
+        // que lui en inventer une seconde, qui divergerait au prochain
+        // rééquilibrage. ⚠ La courbe SATURE à la dernière tranche (doc 01 §5 :
+        // pas de plafond de niveau), donc le talent finit par ne plus rien
+        // ajouter à très haut niveau — c'est cohérent, pas un oubli.
+        $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
+
         // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
         // personne ici ne pourra boire (décision de René, 2026-08-17).
         $tagsAccessibles = $this->equipement->tagsAccessiblesAux($herosEngages);
@@ -3912,6 +4269,15 @@ final class ResolveurTour
             ->map(fn ($e) => $e->personnage)->filter();
 
         $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+
+        // `rarete_butin_amelioree` (Œil du prix, explorateur) : le FOUILLEUR
+        // décale la table d'un cran. Exprimé en niveaux plutôt qu'en poids —
+        // `RareteButin` n'a qu'une seule courbe et il vaut mieux avancer dessus
+        // que lui en inventer une seconde, qui divergerait au prochain
+        // rééquilibrage. ⚠ La courbe SATURE à la dernière tranche (doc 01 §5 :
+        // pas de plafond de niveau), donc le talent finit par ne plus rien
+        // ajouter à très haut niveau — c'est cohérent, pas un oubli.
+        $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
 
         // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
         // personne ici ne pourra boire (décision de René, 2026-08-17).
@@ -4121,6 +4487,310 @@ final class ResolveurTour
                 $groupe, $personnage, $etat, $piege, 'fouille_tresor', narrer: false,
             );
         }
+
+        return $payload;
+    }
+
+    /**
+     * REPOUSSER un ennemi d'une case, sur un jet de Body (René, 2026-08-24).
+     *
+     * ⚠ La difficulté est les PV de Body du CATALOGUE — jamais les PV courants
+     * (un boss blessé n'est pas plus facile à bousculer), jamais `pvBodyMax()`
+     * (les boss sont adaptés à la taille du groupe), jamais le nom affiché (que
+     * l'habillage IA rebaptise). Elle est ensuite plafonnée au meilleur Body du
+     * groupe : bousculer un Seigneur ogre devient improbable, plus impossible.
+     *
+     * ⚠ La poussée ne DÉCLENCHE AUCUN PIÈGE sous la créature :
+     * `MoteurPieges::declencher()` prend un `Personnage`, et « une créature sur
+     * un piège est une embuscade, pas un bug ». Pousser un monstre sur une fosse
+     * ne le fait donc pas tomber — ce serait une règle neuve, pas un effet de
+     * bord à récolter.
+     *
+     * ⚠ Une tentative par héros et par monstre (`habillage.repousse_par`) : on
+     * ne pousse pas la même bête en boucle jusqu'à ce que les dés cèdent.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudrePoussee(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $instance = $quete->instancesMonstres()
+            ->whereKey((int) ($option['parametres']['instance_id'] ?? 0))
+            ->where('etat', 'actif')->where('revele', true)
+            ->with('monstre')
+            ->first();
+
+        if ($instance === null || $instance->position_x === null) {
+            throw ValidationException::withMessages(['option_id' => 'Cette créature n\'est plus là.']);
+        }
+
+        $px = (int) $etat->position_x;
+        $py = (int) $etat->position_y;
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        if (abs($ix - $px) + abs($iy - $py) !== 1) {
+            throw ValidationException::withMessages(['option_id' => 'La créature n\'est plus à votre contact.']);
+        }
+
+        $deja = array_map('intval', (array) data_get($instance->habillage, 'repousse_par', []));
+
+        if (in_array((int) $personnage->id, $deja, true)) {
+            throw ValidationException::withMessages(['option_id' => 'Vous avez déjà tenté de repousser cette créature.']);
+        }
+
+        // La tentative est dépensée quoi qu'il arrive.
+        $habillage = $instance->habillage ?? [];
+        $habillage['repousse_par'] = array_values(array_unique([...$deja, (int) $personnage->id]));
+        $instance->update(['habillage' => $habillage]);
+
+        $difficulte = DifficulteBody::plafonnee($quete, (int) $instance->monstre->pv_body);
+        $resultat = (new JetCompetence($this->des))->resoudre((int) $personnage->attribut_body, $difficulte);
+
+        $payload = [
+            'type' => 'poussee',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'cible' => ['instance_id' => (int) $instance->id, 'nom' => $instance->nomAffiche()],
+            'jet' => [
+                'attribut' => 'body',
+                'difficulte' => $difficulte,
+                'des_lances' => (int) $personnage->attribut_body,
+                'succes' => $resultat->succes,
+                'issue' => $resultat->issue->value,
+                'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            ],
+            'repoussee' => false,
+        ];
+
+        if ($resultat->estReussi()) {
+            $vers = ['x' => $ix + ($ix - $px), 'y' => $iy + ($iy - $py)];
+            $instance->update(['position_x' => $vers['x'], 'position_y' => $vers['y']]);
+
+            $this->mouvementsAnime[] = [
+                'type' => 'monstre',
+                'id' => (int) $instance->id,
+                'depart' => ['x' => $ix, 'y' => $iy],
+                'chemin' => [$vers],
+            ];
+
+            $payload['repoussee'] = true;
+            $payload['vers'] = $vers;
+        }
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Applique l'effet d'une ÉPREUVE réussie (2026-08-24).
+     *
+     * Les six mécaniques sont déclarées dans `App\Engine\MotsClesEpreuve`, qui
+     * en nomme le lecteur — celui-ci pour cinq d'entre elles, `MoteurPieges`
+     * pour la sixième. Un test vérifie le registre dans les deux sens ET que le
+     * lecteur déclaré nomme bien la clé : une épreuve dont l'effet ne serait
+     * appliqué nulle part est exactement la décoration que le projet retire.
+     *
+     * ⚠ L'or NE PASSE PAS par `appliquerButin()`, bien que le geste soit le
+     * même : le *Chasseur de trésor* de l'Explorateur ajoute 25 pièces « chaque
+     * fois qu'une CARTE DE FOUILLE t'en rapporte », et une épreuve n'est pas une
+     * carte. Le faire transiter par là lui aurait accordé un bonus que sa carte
+     * ne promet pas.
+     *
+     * @return array<string, mixed> clés fusionnées dans le payload du jet
+     */
+    private function resoudreEpreuve(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        int $index,
+    ): array {
+        $entree = ($quete->carte->grille['epreuves'] ?? [])[$index] ?? null;
+
+        if ($entree === null) {
+            return [];
+        }
+
+        $type = Epreuve::find((int) ($entree['epreuve_id'] ?? 0));
+
+        if ($type === null) {
+            return [];
+        }
+
+        $effet = (array) $type->effet;
+        $valeur = (int) ($effet['valeur'] ?? 0);
+
+        return match ((string) ($effet['mecanique'] ?? '')) {
+            'or' => $this->epreuveOr($groupe, $valeur),
+            'objet' => $this->epreuveObjet($personnage, ['consommable']),
+            'parchemin' => $this->epreuveObjet($personnage, ['parchemin']),
+            'soin_groupe' => $this->epreuveSoinGroupe($quete, $valeur),
+            'retire_condition' => $this->epreuveRetireCondition($personnage),
+            'desarme_pieges_salle' => $this->epreuveDesarmeSalle($quete, (int) ($entree['salle'] ?? -1)),
+            default => [],
+        };
+    }
+
+    /** Or versé à la bourse COMMUNE, comme tout l'or du jeu (M3). */
+    private function epreuveOr(Groupe $groupe, int $valeur): array
+    {
+        $or = max(0, $valeur);
+        $groupe->update(['or' => (int) $groupe->or + $or]);
+
+        return ['or' => $or];
+    }
+
+    /**
+     * Une pièce du catalogue, remise au héros qui a réussi.
+     *
+     * ⚠ Sac plein : on remet QUAND MÊME, en dépassement (`sac_deborde`) — même
+     * règle que le coffre d'artefact. Refuser la trouvaille la perdrait pour de
+     * bon, et le héros régularise en équipant ou en donnant.
+     *
+     * @param  list<string>  $categories
+     */
+    private function epreuveObjet(Personnage $personnage, array $categories): array
+    {
+        $objet = Objet::query()
+            ->whereIn('categorie', $categories)
+            ->where('rarete', '!=', 'unique')
+            ->inRandomOrder()
+            ->first();
+
+        if ($objet === null) {
+            return ['objet_indisponible' => true];
+        }
+
+        return $this->remettreButin(['objet_id' => $objet->id], $personnage, 'objet');
+    }
+
+    /**
+     * Des PV de Body rendus à TOUT LE GROUPE — c'est ce qui distingue une
+     * épreuve d'une potion, personnelle par construction.
+     *
+     * ⚠ Un héros TOMBÉ se relève si le soin le repasse au-dessus de zéro : un
+     * soin qui laisserait le compagnon à terre à 3 PV n'aurait aucun sens.
+     */
+    private function epreuveSoinGroupe(Quete $quete, int $valeur): array
+    {
+        $valeur = max(0, $valeur);
+        $soignes = [];
+
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $cible) {
+            $heros = $cible->personnage;
+
+            if ($heros === null) {
+                continue;
+            }
+
+            $avant = (int) $heros->pv_body;
+            $heros->update(['pv_body' => min((int) $heros->pv_body_max, $avant + $valeur)]);
+            $rendus = (int) $heros->pv_body - $avant;
+
+            if ($cible->tombe && (int) $heros->pv_body > 0) {
+                $cible->update(['tombe' => false]);
+            }
+
+            if ($rendus > 0) {
+                $soignes[] = ['personnage_id' => $heros->id, 'nom' => $heros->nom, 'soin_pv_body' => $rendus];
+            }
+        }
+
+        return ['soin_groupe' => $soignes];
+    }
+
+    /** Libère le héros de ses conditions actives (celles qui ont un compteur). */
+    private function epreuveRetireCondition(Personnage $personnage): array
+    {
+        $noms = DB::table('personnage_conditions')
+            ->join('conditions', 'conditions.id', '=', 'personnage_conditions.condition_id')
+            ->where('personnage_conditions.personnage_id', $personnage->id)
+            ->where('personnage_conditions.duree', '>', 0)
+            ->pluck('conditions.nom')
+            ->all();
+
+        DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('duree', '>', 0)
+            ->delete();
+
+        return ['retire_condition' => array_values(array_unique($noms))];
+    }
+
+    /** Désarme les pièges encore actifs de la salle qui porte l'épreuve. */
+    private function epreuveDesarmeSalle(Quete $quete, int $salle): array
+    {
+        $description = ($quete->carte->grille['salles'] ?? [])[$salle] ?? null;
+
+        if ($description === null) {
+            return [];
+        }
+
+        return ['desarme_pieges_salle' => $this->pieges->desarmerSalle($quete->carte, $description)];
+    }
+
+    /**
+     * Met une pièce de mobilier en pièces (2026-08-24).
+     *
+     * ⚠ Une pièce FOUILLABLE rend UNE dernière fouille à son destructeur, même
+     * si tout le groupe l'avait déjà vidée : c'est le troc — on ouvre le passage
+     * et on rafle le fond, mais plus personne ne la fouillera. Le butin passe par
+     * `appliquerButin()`, donc l'objet va au fouilleur et l'or à la bourse
+     * commune, comme partout ailleurs.
+     *
+     * @return array<string, mixed>
+     */
+    private function fracasserMobilier(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        int $index,
+    ): array {
+        $entree = ($quete->carte->grille['mobilier'] ?? [])[$index] ?? null;
+        $type = $entree === null ? null : Mobilier::find((int) ($entree['mobilier_id'] ?? 0));
+
+        if ($type === null) {
+            return [];
+        }
+
+        $this->mobilier->detruire($quete->carte, $index);
+
+        $payload = ['detruit' => true];
+
+        if (! $type->fouillable) {
+            return $payload;
+        }
+
+        $herosEngages = $quete->etatsPersonnages()->with('personnage')->get()
+            ->map(fn ($e) => $e->personnage)->filter();
+
+        $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
+        $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
+
+        $carte = $this->mobilier->tirerButin(
+            $type, $niveauMoyen, $this->equipement->tagsAccessiblesAux($herosEngages),
+        );
+
+        // ⚠ Le butin est NICHÉ sous `butin`, jamais fusionné à plat : le payload
+        // d'un jet porte déjà `issue` (le résultat du DÉ — réussite, réussite
+        // mixte, échec) et `appliquerButin()` porte le sien (le résultat du
+        // TIRAGE — tresor, objet, rien). Fusionnés, le second écrasait le
+        // premier : le client lisait « objet » là où il attendait « reussite »,
+        // et le fil de combat perdait le jet qui venait d'être lancé.
+        $payload['fouille_finale'] = true;
+        $payload['butin'] = $this->appliquerButin($carte, [], $groupe, $quete, $personnage, $etat, duDeck: false);
 
         return $payload;
     }
@@ -4491,6 +5161,16 @@ final class ResolveurTour
         // Puis le décompte des durées EXPRIMÉES EN TOURS (Empoisonné 3 tours…).
         $this->sorts->decrementerDurees($quete);
 
+        // Même décompte, côté MONSTRES — stockage différent (JSON `habillage`
+        // plutôt qu'un pivot avec colonne `duree`), donc une méthode à part,
+        // mais appelée ICI et pour la MÊME raison : fin de round, après la
+        // phase des monstres, avant que le tour suivant ne commence. Sans ça,
+        // `terrifie`/`ralenti`/`paralyse` restaient posées à vie — trouvé en
+        // relisant `jouerMonstre()`, dont le commentaire affirmait à tort que
+        // `decrementerDurees()` s'en chargeait déjà (elle ne touche que
+        // `personnage_conditions`, jamais `instances_monstres`).
+        $this->sorts->decrementerDureesMonstres($quete);
+
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
         $verdict = $this->verdictDeChute($groupe, $quete);
@@ -4590,12 +5270,6 @@ final class ResolveurTour
         return false;
     }
 
-    /** Le héros a-t-il acquis le nœud d'arbre exactement nommé `$nom` (CompetenceSeeder) ? */
-    private function possedeCompetence(Personnage $personnage, string $nom): bool
-    {
-        return $personnage->competences()->where('nom', $nom)->exists();
-    }
-
     /**
      * Script C2 d'un monstre : pour les boss/sous-boss, MoteurDread gère la
      * régénération, les sorts de Dread et la Charge en priorité. Pour les
@@ -4651,7 +5325,13 @@ final class ResolveurTour
 
         // Paralysé (Flamme hypnotique) : « unable to move, attack, or defend »
         // pendant 3 tours. ⚠ La condition n'est PAS consommée ici, contrairement
-        // à la tempête : elle dure, et c'est `decrementerDurees()` qui la retire.
+        // à la tempête : elle dure, et c'est `MoteurSorts::decrementerDureesMonstres()`
+        // qui la retire (fin de round, `ouvrirNouveauTour()`) — PAS
+        // `decrementerDurees()`, qui ne touche que `personnage_conditions`
+        // (héros) et ignore tout ce qui vit dans `instances_monstres.habillage`.
+        // Ce commentaire disait le contraire jusqu'au 2026-08-24 : la condition
+        // n'était donc en réalité JAMAIS retirée, un monstre paralysé restait
+        // paralysé pour le reste de la quête.
         if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_PARALYSE)) {
             $payload = ['type' => 'monstre_paralyse', 'monstre' => $nomMonstre, 'action' => 'paralyse'];
             Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -4895,13 +5575,20 @@ final class ResolveurTour
     ): array {
         $personnage = $cible->personnage;
 
-        // Garde tenace (nœud nain) : +1 dé de défense à la PREMIÈRE attaque
-        // subie de la quête (faute de notion de « combat » distincte, départ
-        // playtest — voir migration ajouter_garde_tenace_utilisee).
+        // `bonus_des_defense` CONDITIONNÉ à la première attaque (Garde tenace du
+        // nain, Écorce du druide, Esquive du rogue, Garde haute du chevalier,
+        // Refrain vaillant du barde) : la PREMIÈRE attaque subie de la quête,
+        // faute de notion de « combat » distincte (départ playtest — voir
+        // migration ajouter_garde_tenace_utilisee).
         $bonusGardeTenace = 0;
-        if (! $cible->garde_tenace_utilisee && $this->possedeCompetence($personnage, self::NOEUD_GARDE_TENACE)) {
-            $bonusGardeTenace = 1;
-            $cible->update(['garde_tenace_utilisee' => true]);
+        if (! $cible->garde_tenace_utilisee) {
+            $bonusGardeTenace = $this->talents->valeur(
+                $personnage, 'bonus_des_defense', ['condition' => 'premiere_attaque_du_combat'],
+            );
+
+            if ($bonusGardeTenace > 0) {
+                $cible->update(['garde_tenace_utilisee' => true]);
+            }
         }
 
         // Tacticien (Jungles of Delthrak) : +1 dé contre une cible FLANQUÉE,
@@ -4909,9 +5596,39 @@ final class ResolveurTour
         // compte pas comme son propre flanc.
         $bonusFlanc = $this->dread->cibleFlanquee($instance->quete, $instance, $cible) ? 1 : 0;
 
+        // ---- Talents de la GRILLE, côté défense -----------------------------
+        //
+        // `bonus_des_defense_contre_distance` (Esquive dansante de l'elfe, Pas
+        // de danse du barde) : contre un TIR seulement.
+        $bonusContreTir = $portee === 'distance'
+            ? $this->talents->valeur($personnage, 'bonus_des_defense_contre_distance')
+            : 0;
+
+        // `bonus_des_defense_allie_adjacent` (Bannière du chevalier) : le
+        // porteur protège ses VOISINS, jamais lui-même — la carte parle de ceux
+        // qui se tiennent à son contact, et se l'accorder ferait du chevalier
+        // un tank passif de plus alors que c'est un talent de soutien.
+        //
+        // `malus_des_monstre_adjacent` (Regard qui glace du barbare, Œil vitreux
+        // du warlock, Mot qui blesse du barde) : le monstre attaque avec moins
+        // de dés dès qu'un porteur se tient à SON contact — le porteur peut
+        // être la cible elle-même, la peur n'a pas à choisir sa victime.
+        $bonusBanniere = 0;
+        $malusRegard = 0;
+
+        if ($instance->quete !== null) {
+            $bonusBanniere = $this->sommeChezLesVoisins(
+                $instance->quete, $cible, 'bonus_des_defense_allie_adjacent',
+            );
+
+            $malusRegard = $this->talents->valeur($personnage, 'malus_des_monstre_adjacent')
+                + $this->sommeChezLesVoisins($instance->quete, $cible, 'malus_des_monstre_adjacent');
+        }
+
         $resultat = (new Combat($this->des))->resoudreAttaque(
-            desAttaque: max(0, $desAttaque + $bonusFlanc),
-            desDefense: $this->sorts->desDefenseHeros($personnage) + $bonusGardeTenace,
+            desAttaque: max(0, $desAttaque + $bonusFlanc - $malusRegard),
+            desDefense: $this->sorts->desDefenseHeros($personnage)
+                + $bonusGardeTenace + $bonusContreTir + $bonusBanniere,
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
@@ -5279,7 +5996,12 @@ final class ResolveurTour
             // anytime on your turn, no action required ») et bombe fumigène
             // (« Use this item anytime during your movement »). L'eau bénite,
             // elle, est un `objet` tout court : « instead of attacking ».
-            'ouvrir_porte', 'actionner_levier', 'sortie', 'retraite', 'style', 'objet_libre' => 'interaction',
+            // ⚠ `actionner_levier` a QUITTÉ cette liste le 2026-08-24 : il
+            // demande désormais un jet de Body, et un jet retentable qui ne
+            // coûterait rien se relancerait à l'infini dans le même tour. Il
+            // retombe donc sur le créneau d'ACTION par défaut — on ne force plus
+            // une herse en passant.
+            'ouvrir_porte', 'sortie', 'retraite', 'style', 'objet_libre' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };
@@ -5796,6 +6518,31 @@ final class ResolveurTour
      * tout corps-à-corps donnerait le dé. Un héros tombé ne flanque pas non
      * plus : il est à terre, il ne menace personne.
      */
+    /**
+     * Somme d'une mécanique chez les héros DEBOUT au contact de `$cible`, le
+     * défenseur exclu — les talents qui rayonnent sur les voisins (Bannière du
+     * chevalier, Regard qui glace du barbare).
+     *
+     * ⚠ Le défenseur est exclu volontairement : un talent « aux héros à ton
+     * contact » qui se compterait lui-même serait un bonus de défense
+     * ordinaire, et le joueur ne verrait jamais la différence entre les deux.
+     */
+    private function sommeChezLesVoisins(Quete $quete, EtatPersonnageQuete $cible, string $mecanique): int
+    {
+        return (int) $quete->etatsPersonnages()
+            ->where('personnage_id', '!=', $cible->personnage_id)
+            ->where('tombe', false)
+            ->whereNotNull('position_x')
+            ->with('personnage')
+            ->get()
+            ->filter(fn (EtatPersonnageQuete $voisin) => abs((int) $voisin->position_x - (int) $cible->position_x)
+                    <= 1
+                && abs((int) $voisin->position_y - (int) $cible->position_y) <= 1)
+            ->sum(fn (EtatPersonnageQuete $voisin) => $voisin->personnage === null
+                ? 0
+                : $this->talents->valeur($voisin->personnage, $mecanique));
+    }
+
     private function cibleFlanqueeParUnHeros(Quete $quete, InstanceMonstre $instance, Personnage $attaquant): bool
     {
         $emprise = $instance->monstre->emprise();

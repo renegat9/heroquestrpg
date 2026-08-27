@@ -310,6 +310,42 @@ the room once » (RB p. 14) — exactement la règle déjà implémentée côté
 Aucun ajustement nécessaire de ce côté : le modèle de fouille du moteur correspond
 déjà à la règle du plateau, y compris dans son grain (la salle, pas l'objet).
 
+### ⚠ Notre implémentation ajoute : un meuble se DÉTRUIT (jet de Body)
+
+Décision de René, 2026-08-24. **Aucun livret ne dit qu'on peut fracasser un meuble** —
+ils ne disent déjà pas qu'un meuble bloque le passage (§3). C'est donc un ajout de
+portage, au même titre que `bloque_mouvement`, et il faut le dire.
+
+Il vient répondre à un problème de notre grille de talents, pas à une règle du plateau :
+`attribut_body` ne servait qu'à deux situations rares — un piège détecté qu'on a le droit
+de désamorcer, une fosse sur le trajet —, si bien que trois nœuds d'arbre (*Colosse*,
+*Ancré*, *Corps aguerri*) étaient achetables et quasi sans effet.
+
+- `mobiliers.difficulte_destruction` (1-3) porte la difficulté du jet. ⚠ **`null` veut dire
+  INDESTRUCTIBLE**, et non « pas encore renseigné » : le **tombeau** est un sarcophage de
+  pierre, on ne le met pas en pièces à mains nues.
+- **Une tentative par héros** (`mobilier[i].destruction_par`, patron de `fouille_par`) :
+  l'échec ferme l'option à celui qui a essayé, jamais à ses compagnons. Le prix réel est le
+  créneau d'action.
+- Une pièce détruite reste **dans la grille**, marquée `detruit`, plutôt que d'en être
+  retirée : les index servent d'identifiant d'option (un menu périmé viserait le mauvais
+  meuble si tout se décalait), et un tableau PHP troué se sérialise en objet JSON au lieu
+  d'une liste. Même choix que les portes, qui gardent leur entrée et changent d'`etat`.
+- Elle cesse alors de bloquer **le mouvement ET la vue** d'un seul geste, parce que
+  `FabriqueGrille::pour()` tient la boucle unique du mobilier de tout le moteur.
+- ⚠ **Une pièce FOUILLABLE détruite rend UNE dernière fouille** à son destructeur, même si
+  tout le groupe l'avait déjà vidée. C'est le troc : on ouvre le passage et on rafle le
+  fond, mais plus personne ne la fouillera.
+- ⚠ Aucun risque pour l'invariant de connectivité, à l'inverse d'un meuble qu'on
+  POUSSERAIT : retirer un obstacle ne peut qu'ouvrir le donjon.
+
+Valeurs retenues : Table 1 · Coffre, Armoire, Bibliothèque, Râtelier d'armes, Établi
+d'alchimiste 2 · Trône 3 · Tombeau indestructible.
+
+⚠ La valeur est la difficulté **brute**. Le plafond (`App\Partie\DifficulteBody`) s'applique
+à la génération du menu : aucune difficulté de Body ne dépasse jamais le meilleur
+`attribut_body` du groupe, et ce plafond bouge avec la compagnie.
+
 ## 4. Ce que notre moteur ne sait pas faire
 
 Lecture de `app/Partie/Grille.php`, `app/Partie/FabriqueGrille.php`,

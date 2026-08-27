@@ -175,8 +175,8 @@ Une porte non `ouverte` est infranchissable + opaque (overlay `App\Partie\Grille
 ### `classes_heros`
 | id · nom · pv_body · pv_mind · attr_body · attr_mind · des_attaque · des_defense · deplacement_base · bonus_sac | valeurs de départ des 4 héros (Nain bonus_sac = 1) |
 
-### `competences` (arbres)
-| id · classe · nom · type ENUM(passif,actif,deblocage) · effet JSON · prerequis_id FK self | structure d'arbre |
+### `competences` (grille de talents)
+| id · classe · nom · description TEXT · type ENUM(passif,actif,deblocage) · innee BOOL · effet JSON · categorie · categorie_icone · colonne TINYINT · rang TINYINT · prerequis_id FK self | **grille 3 colonnes × 3 lignes par classe** (2026-08-23). `categorie` est le libellé de la colonne, **propre à la classe** — pas de vocabulaire commun. `prerequis_id` ne change pas de sens et est **calculé** par le seeder depuis `(classe, colonne, rang − 1)`. UNIQUE(classe, colonne, rang). ⚠ `colonne`/`rang`/`categorie`/`prerequis_id` sont **NULL pour un nœud `innee`** : une capacité de carte ne s'achète pas. `effet.mecanique` appartient au vocabulaire fermé `App\Engine\MotsClesTalent`, qui déclare le lecteur moteur de chacune |
 
 ### `objets`
 | id · nom · categorie ENUM(arme,armure,outil,consommable,parchemin) · rarete ENUM(commun,peu_commun,rare,unique) · prix_base INT · emplacement · effet JSON | catalogue Market |
@@ -192,6 +192,17 @@ Une porte non `ouverte` est infranchissable + opaque (overlay `App\Partie\Grille
 
 ### `pieges`
 | id · nom · detectable BOOL · desarmable ENUM(oui,non,partiel) · usage ENUM(unique,persistant) · effet JSON | catalogue pièges |
+
+> ⚠ `groupes.chance_passage_secret` (TINYINT, défaut 50) — **compteur de pitié** du
+> passage secret (2026-08-27) : +10 par carte sans salle cachée, retour à 50 dès
+> qu'on en pose une. Écrit par `DemarreurQuete` à chaque démarrage de quête. En
+> COLONNE et non en cache : c'est un état de campagne durable.
+
+### `epreuves`
+| id · nom · description · attribut ENUM(body,mind) · difficulte TINYINT(1-4) · contexte NULL · exige_placement NULL · effet JSON | catalogue des ANCRAGES À JET D'ATTRIBUT (2026-08-24). `contexte` alimente `avantage_jet_mind` des talents — c'est par là que `savoir` et `social_peur` retrouvent un producteur, après la suppression de `MenuChoix`. ⚠ `exige_placement` est une **précondition de POSE** (`piege_dans_la_salle`), distincte de `effet` qui dit la conséquence. `effet.mecanique` appartient au vocabulaire fermé `App\Engine\MotsClesEpreuve`. La couche `cartes.grille.epreuves[]` stocke un `epreuve_id` et un `tentee_par[]` (une tentative par héros), d'où un seeder qui ne purge jamais |
+
+### `mobiliers`
+| id · nom · nom_anglais · largeur · hauteur · bloque_mouvement BOOL · bloque_vue BOOL · adosse_au_mur BOOL · fouillable BOOL · difficulte_destruction TINYINT NULL · effet JSON | catalogue du mobilier de salle (doc 17). ⚠ `bloque_mouvement` et `bloque_vue` sont INDÉPENDANTS — on voit par-dessus une table, pas à travers une bibliothèque. `effet.fouille` porte la table de butin PROPRE à la pièce. ⚠ `difficulte_destruction` à `null` = **indestructible**, pas « non renseigné » (2026-08-24) ; c'est la difficulté BRUTE, plafonnée à la lecture par `App\Partie\DifficulteBody`. La couche de carte `cartes.grille.mobilier[]` stocke un `mobilier_id`, d'où un seeder qui ne purge jamais |
 
 ### `conditions`
 | id · nom · type ENUM(physique,mental) · effet JSON · duree_defaut INT | catalogue d'états (les `mental` → immunité Mind 0) |

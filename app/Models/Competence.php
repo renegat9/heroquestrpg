@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Engine\MotsClesTalent;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -21,6 +22,14 @@ class Competence extends Model
         // Un nœud `innee` est attaché à la création et ne coûte aucun point.
         'innee',
         'effet',
+        // Position dans la GRILLE de talents (3 colonnes × 3 lignes, 2026-08-23).
+        // `categorie` est le libellé de la colonne, PROPRE À LA CLASSE — il n'y
+        // a pas de vocabulaire commun : le berserker a « Rage », l'explorateur
+        // « Traque ». Nul pour un nœud `innee`, qui n'est pas dans la grille.
+        'categorie',
+        'categorie_icone',
+        'colonne',
+        'rang',
         'prerequis_id',
     ];
 
@@ -29,6 +38,8 @@ class Competence extends Model
         return [
             'effet' => 'array',
             'innee' => 'boolean',
+            'colonne' => 'integer',
+            'rang' => 'integer',
         ];
     }
 
@@ -52,6 +63,26 @@ class Competence extends Model
         return $this->type === 'passif'
             && ! isset($this->effet['condition'])
             && (int) ($this->effet['valeur'] ?? 0) !== 0;
+    }
+
+    /**
+     * L'AVANTAGE chiffré du nœud, dérivé de `effet` — « +1 dé de défense, contre
+     * la première attaque du combat ».
+     *
+     * Jamais saisi à la main, à la différence de `description` : c'est ce qui
+     * garantit qu'un talent ne promette pas autre chose que ce qu'il fait. Les
+     * deux textes sont publiés côte à côte (`/api/competences`, `/api/guide`) et
+     * affichés ensemble sur la feuille de talent.
+     */
+    public function avantage(): string
+    {
+        return MotsClesTalent::avantage((array) $this->effet);
+    }
+
+    /** Icône Material Symbols de la mécanique portée par ce nœud. */
+    public function avantageIcone(): string
+    {
+        return MotsClesTalent::icone((array) $this->effet);
     }
 
     /** Nœud parent dans l'arbre. */
