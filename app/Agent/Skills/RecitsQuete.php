@@ -132,7 +132,11 @@ class RecitsQuete extends Skill
 
         A. UNE DESCRIPTION PAR SALLE, en deux morceaux complémentaires :
            - `texte` : le LIEU — architecture, atmosphère, mobilier présent,
-             créatures qui s'y trouvent (par leur nom habillé). JAMAIS ce que
+             créatures qui s'y trouvent (par leur nom habillé), et les
+             ÉPREUVES qui s'y trouvent, NOMMÉES et situées. Une épreuve n'est
+             pas du décor : c'est une chose que les héros peuvent tenter, et
+             elle porte un marqueur sur la carte. Ne pas la décrire laisse le
+             joueur devant un symbole dont le récit ne dit rien. JAMAIS ce que
              les héros y font, jamais de deuxième personne : l'ordre
              d'exploration n'est pas connu d'avance, et n'importe lequel des
              héros peut ouvrir cette porte. AUCUNE variable : ce texte doit
@@ -146,6 +150,8 @@ class RecitsQuete extends Skill
            systématisme. Une salle marquée « coffre » peut laisser DEVINER un
            trésor sans le révéler : il reste à chercher. Une salle sans
            mobilier ni monstre est un lieu à part entière, pas un vide.
+           La `description` de catalogue d'une épreuve dit ce qu'on en FAIT :
+           reprends-en le geste, pas la formule.
 
         B. LES TROIS TEMPS FORTS DE CETTE QUÊTE, 3 variantes chacun :
            - fouille_artefact : l'instant où l'arme unique du donjon est mise
@@ -161,7 +167,7 @@ class RecitsQuete extends Skill
         TXT;
 
         $user = $this->contexteEnTexte($contexte, ['groupe', 'squelette', 'bible'])
-            ."\n\n## SALLES À DÉCRIRE (id, thème, profondeur dans l'arbre, mobilier, monstres, coffre)\n"
+            ."\n\n## SALLES À DÉCRIRE (id, thème, profondeur dans l'arbre, mobilier, ÉPREUVES, monstres, coffre)\n"
             .json_encode($contexte['salles_a_decrire'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
             ."\n\nAppelle l'outil avec une description par salle ci-dessus, et les trois temps forts.";
 

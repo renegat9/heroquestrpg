@@ -100,6 +100,13 @@ function metaOption(o) {
     }
     if (o.type === 'parchemin') return 'Parchemin — consommé dans tous les cas';
     if (o.type === 'concentration') return 'Sacrifie le tour — récupère un sort épuisé';
+    // ÉPREUVE : sa DESCRIPTION de catalogue, la phrase qui dit ce qu'on voit et
+    // ce qu'on tente. Elle était publiée dans l'option et affichée nulle part —
+    // le joueur lisait « Fresque en langue morte — jet de Mind (difficulté 2) »
+    // sans savoir de quoi il s'agit. ⚠ C'est aussi le SEUL endroit qui la donne
+    // quand aucune clé d'API n'écrit le récit de la salle, et une partie sans
+    // clé est un mode supporté.
+    if (o.parametres?.description) return o.parametres.description;
     return '';
 }
 

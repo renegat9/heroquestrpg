@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Agent\Memoire\ContexteAssembleur;
 use App\Agent\Skills\RecitsQuete;
 use App\Models\Carte;
+use App\Models\Epreuve;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
@@ -276,6 +277,7 @@ class GenererRecitsQuete implements ShouldQueue
     {
         $profondeurs = $this->profondeurs($carte, count($salles));
         $mobilierParSalle = $this->mobilierParSalle($carte);
+        $epreuvesParSalle = $this->epreuvesParSalle($carte);
         $monstresParSalle = $this->monstresParSalle($quete, $salles);
 
         $sortie = [];
@@ -286,6 +288,12 @@ class GenererRecitsQuete implements ShouldQueue
                 'profondeur' => $profondeurs[(int) $id] ?? 0,
                 'coffre' => $quete->estSalleCoffre((int) $id),
                 'mobilier' => $mobilierParSalle[(int) $id] ?? [],
+                // ⚠ Les ÉPREUVES manquaient à ce contexte (2026-08-27) : le
+                // récit d'une salle décrivait donc son mobilier et ses
+                // créatures, et passait sous silence la fresque ou le
+                // mécanisme qui s'y trouve — le joueur voyait un marqueur sur
+                // la carte dont le texte de la salle ne disait pas un mot.
+                'epreuves' => $epreuvesParSalle[(int) $id] ?? [],
                 'monstres' => $monstresParSalle[(int) $id] ?? [],
             ];
         }
@@ -343,6 +351,43 @@ class GenererRecitsQuete implements ShouldQueue
      *
      * @return array<int, list<string>>
      */
+    /**
+     * Épreuves par salle : leur NOM et leur DESCRIPTION de catalogue.
+     *
+     * ⚠ On donne les deux, là où le mobilier ne donne qu'un nom : « Fresque en
+     * langue morte » ne dit pas ce qu'on en fait, et l'IA écrirait une murale
+     * décorative. La description dit qu'on la DÉCHIFFRE — c'est elle qui fait
+     * la différence entre un décor et une chose à tenter.
+     *
+     * @return array<int, list<array{nom: string, description: string}>>
+     */
+    private function epreuvesParSalle(Carte $carte): array
+    {
+        $entrees = (array) data_get($carte->grille, 'epreuves', []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Epreuve::query()->get(['id', 'nom', 'description'])->keyBy('id');
+
+        $parSalle = [];
+        foreach ($entrees as $entree) {
+            $type = $catalogue->get((int) ($entree['epreuve_id'] ?? 0));
+
+            if ($type === null || ! isset($entree['salle'])) {
+                continue;
+            }
+
+            $parSalle[(int) $entree['salle']][] = [
+                'nom' => (string) $type->nom,
+                'description' => (string) $type->description,
+            ];
+        }
+
+        return $parSalle;
+    }
+
     private function mobilierParSalle(Carte $carte): array
     {
         $entrees = (array) data_get($carte->grille, 'mobilier', []);
