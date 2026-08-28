@@ -13,6 +13,10 @@
    ========================================================================= */
 
 import { reactive, readonly } from 'vue';
+// ⚠ La table des icônes de meuble a déménagé dans components/carte/symboles.js :
+// le RENDU (DungeonGrid) et la LÉGENDE (LegendeCarte) doivent lire la même,
+// sinon la légende se périme au premier symbole ajouté.
+import { MOBILIER_ICONES, MOBILIER_ICONE_DEFAUT, icone } from '../components/carte/symboles.js';
 
 const state = reactive({
     /** Identifiant du groupe courant (param de route). */
@@ -545,19 +549,6 @@ export function piegesVersMarqueurs(carte) {
         }));
 }
 
-// Icône Material Symbols par nom de meuble (doc 17) — repli générique pour un
-// type non listé ici plutôt que de planter sur un catalogue étendu plus tard.
-const MOBILIER_ICONES = {
-    Table: 'table_restaurant',
-    Coffre: 'inventory_2',
-    Trône: 'chair',
-    "Établi d'alchimiste": 'science',
-    Tombeau: 'monument',
-    Bibliothèque: 'menu_book',
-    "Râtelier d'armes": 'swords',
-    Armoire: 'door_sliding',
-};
-
 /** carte.mobilier (contrat « Mobilier ») → décor [{x, y, l, h, nom,
  *  bloque_mouvement, bloque_vue, ic, titre}] pour la couche mobilier de
  *  DungeonGrid. Contrairement aux pièges, aucun état à filtrer : un meuble
@@ -578,7 +569,7 @@ export function mobilierVersDecor(carte) {
         nom: m.nom ?? 'Meuble',
         bloque_mouvement: m.bloque_mouvement !== false,
         bloque_vue: m.bloque_vue === true,
-        ic: MOBILIER_ICONES[m.nom] ?? 'category',
+        ic: icone(MOBILIER_ICONES, m.nom, MOBILIER_ICONE_DEFAUT),
         titre: m.nom ?? 'Meuble',
     }));
 }

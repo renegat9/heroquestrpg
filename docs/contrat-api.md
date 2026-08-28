@@ -466,6 +466,57 @@ parleur*, *Méditation*, *Cartographe* — ne se déclenchaient **jamais** en pa
 - `epreuves.exige_placement` est une **précondition de POSE**, distincte de
   l'effet : l'*Autel fêlé* ne se pose que dans une salle contenant un piège.
 
+### Symboles de la carte et légende (2026-08-27)
+
+**EtatGroupe.carte** gagne `leviers: [{x, y, levier_id, difficulte}]`.
+
+⚠ Cette couche n'était publiée **nulle part** : aucun levier n'était donc dessiné
+sur aucune des deux cartes. Sans conséquence tant qu'aucun n'était posé, mais
+depuis qu'en forcer un demande un jet de Body et qu'une salle peut ne tenir qu'à
+cette porte, c'était un mécanisme **invisible** qui verrouille le donjon —
+l'option n'apparaît qu'au contact, et rien ne disait où aller le chercher.
+
+- **Brouillard** : une entrée de levier ne porte pas sa salle (`{x, y, levier_id}`,
+  format d'origine), elle est **déduite des coordonnées**. Un levier de **couloir**
+  est toujours montré — un couloir n'a pas d'index de salle et n'est jamais
+  « découvert », le cacher rendrait le mécanisme introuvable.
+- ⚠ `difficulte` est la difficulté **effective**, passée par
+  `DifficulteBody::plafonnee()` exactement comme dans `MenuMoteur`. Publier la
+  valeur brute ferait annoncer « difficulté 3 » sur la carte à un groupe à qui le
+  menu proposera « difficulté 2 ».
+
+**Illustrations.** Pièges et épreuves publient une `image_url` depuis toujours ;
+elle n'était **affichée nulle part**. Le **mobilier** n'en avait aucune — ni
+gabarit de prompt, ni génération, ni champ — alors qu'une pièce se fouille et se
+fracasse comme un piège se désamorce : `config/images.php` gagne le gabarit
+`mobilier`, `BibliothequeImages::urlMobilier()` l'accesseur,
+`images:generer --type=mobiliers` l'itération, `EtatGroupe.carte.mobilier[]` le
+champ, et `PlaceholderController` son emblème (un plateau sur deux pieds — un
+coffre ou un trône auraient nommé UNE pièce là où l'emblème les remplace toutes).
+
+⚠ Les illustrations vont dans la **légende**, pas sur la carte : à 22 px sur la
+manette une illustration devient une bouillie, et elle effacerait la silhouette,
+qui est ce que le joueur lit d'un coup d'œil. **La forme dit la famille, l'image
+dit le contenu.** Un levier n'en a pas — il n'a pas de table de catalogue.
+
+**Une silhouette par famille**, parce que les marqueurs se côtoient dans une même
+salle : figurine **ronde**, piège **carré**, épreuve **losange** doré, levier
+**octogone** bleu, meuble **bloc plein** sur son emprise. Le premier marqueur
+d'épreuve était un disque doré de la taille d'un jeton — sur la table il se lisait
+comme une quatrième figurine entre deux héros.
+
+Les icônes vivent dans `resources/js/components/carte/symboles.js`, lu à la fois
+par le **rendu** (`DungeonGrid`) et par la **légende** (`LegendeCarte`) — une
+légende tenue à part se périme au premier symbole ajouté, et ment alors avec
+l'autorité d'une légende. `SymbolesCarteTest` confronte la table au catalogue dans
+les **deux sens** (pièges, épreuves, mobilier) et vérifie que les deux composants
+importent bien le même fichier.
+
+**Le bouton « i »** ouvre la légende sur les deux écrans (coin de la carte à la
+table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce
+qui est **sur cette carte** : une légende qui décrit sept pièges quand la salle en
+contient un se lit comme une documentation, et on cesse de l'ouvrir.
+
 ### Jets de Body — trois emplois neufs, et un plafond
 
 ⚠ **Aucune difficulté de Body ne dépasse jamais le meilleur `attribut_body` des

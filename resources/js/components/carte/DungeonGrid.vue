@@ -11,6 +11,10 @@
 // 22px manette). C'était LA source de divergence (deux CSS de portes séparées).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
+import {
+    EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
+    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, icone,
+} from './symboles.js';
 
 const props = defineProps({
     /** Carte du contrat : { largeur, hauteur, cases: [[..]], portes: [{x,y,cote,etat,verrou?}] }. */
@@ -33,12 +37,26 @@ const props = defineProps({
     /** Style de la grille (le parent décide la taille : caméra 1fr côté table,
      *  22px + gap côté manette). Fusionné au `display:grid` du socle. */
     gridStyle: { type: Object, default: () => ({}) },
+    /** Leviers des salles découvertes : [{x, y, levier_id, difficulte}]. Ils
+     *  n'étaient dessinés NULLE PART (2026-08-27) alors qu'un levier commande
+     *  parfois l'unique porte d'une salle : un mécanisme invisible qui verrouille
+     *  le donjon. */
+    levers: { type: Array, default: () => [] },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
 });
 const emit = defineEmits(['cell']);
 
 const TUILES = { m: 'wall', s: 'floor', b: 'fog' };
+
+// ⚠ Les icônes se résolvent ICI, pas chez les appelants : la table passe des
+// marqueurs convertis (`mobilierVersDecor`), la manette passe le payload brut.
+// Résoudre chez l'appelant obligerait à convertir des deux côtés, et l'un des
+// deux finirait par ne pas suivre — c'est déjà ce qui rendait le mobilier
+// illustré à la table et générique sur la manette.
+const iconePiege = (t) => t.ic ?? icone(PIEGE_ICONES, t.nom, PIEGE_ICONE_DEFAUT);
+const iconeEpreuve = (e) => e.ic ?? icone(EPREUVE_ICONES, e.nom, EPREUVE_ICONE_DEFAUT);
+const iconeMeuble = (f) => f.ic ?? icone(MOBILIER_ICONES, f.nom, MOBILIER_ICONE_DEFAUT);
 
 const cells = computed(() => {
     const out = [];
@@ -127,7 +145,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
         >
             <div class="dg-trap" :class="t.etat" :title="t.titre ?? t.nom">
-                <MSym v-if="t.etat !== 'declenche'" n="warning" fill />
+                <MSym v-if="t.etat !== 'declenche'" :n="iconePiege(t)" fill />
             </div>
         </div>
 
@@ -145,7 +163,7 @@ const doors = computed(() => (props.carte.portes ?? [])
                 :class="{ tentee: (e.tentee_par ?? []).length > 0 }"
                 :title="`${e.nom} — jet de ${e.attribut === 'body' ? 'Body' : 'Mind'} (difficulté ${e.difficulte})`"
             >
-                <MSym n="front_hand" fill />
+                <MSym :n="iconeEpreuve(e)" fill />
             </div>
         </div>
 
@@ -162,7 +180,25 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: `${f.x + 1} / span ${f.l}`, gridRow: `${f.y + 1} / span ${f.h}` }"
         >
             <div class="dg-furn" :class="{ 'non-bloquant': !f.bloque_mouvement }" :title="f.titre ?? f.nom">
-                <MSym :n="f.ic ?? 'category'" :size="14" fill />
+                <MSym :n="iconeMeuble(f)" fill />
+            </div>
+        </div>
+
+        <!-- leviers : mécanisme d'ouverture, au sol. Rendu en OCTOGONE bleu —
+             ni un disque (réservé aux figurines), ni le losange doré de
+             l'épreuve : les trois se côtoient dans une même salle et un joueur
+             doit pouvoir dire de loin lequel il vise. -->
+        <div
+            v-for="(l, i) in levers"
+            :key="`l-${l.x}-${l.y}-${i}`"
+            class="dg-lever-holder"
+            :style="{ gridColumn: l.x + 1, gridRow: l.y + 1 }"
+        >
+            <div
+                class="dg-lever"
+                :title="`Levier — jet de Body${l.difficulte ? ` (difficulté ${l.difficulte})` : ''}`"
+            >
+                <MSym :n="LEVIER_ICONE" fill />
             </div>
         </div>
 
@@ -188,6 +224,17 @@ const doors = computed(() => (props.carte.portes ?? [])
 <style scoped>
 .dg { display: grid; }
 
+/* ⚠ TAILLE DES GLYPHES — `--dg-icone`, posée par le PARENT avec la taille de
+   case (`gridStyle`). Les marqueurs étaient dimensionnés de trois façons qui ne
+   suivaient AUCUNE d'elles la case : `62%`/`64%` se calculent sur la police
+   héritée (~16 px), donc ~10 px quelle que soit la case ; le meuble était figé
+   à 14 px ; le piège sur `1.3vw`, c'est-à-dire sur la largeur de l'ÉCRAN. Rien
+   ne se voyait tant que la manette était à 22 px — mais au premier zoom on
+   obtenait de grandes cases avec de minuscules symboles au milieu.
+   Le repli reprend exactement les valeurs d'avant, pour la table qui dimensionne
+   ses cases en `1fr` et ne peut donc pas annoncer de pixels. */
+.dg { --dg-icone: clamp(11px, 1.3vw, 20px); }
+
 /* ---- cases (mêmes teintes table & manette) ---- */
 .dg-cell { position: relative; border-radius: 3px; }
 .dg-cell.void { background: transparent; }
@@ -207,18 +254,25 @@ const doors = computed(() => (props.carte.portes ?? [])
 
 /* ---- pièges (detecte / desarme / declenche — contrat « Pièges ») ---- */
 .dg-trap-holder { position: relative; pointer-events: none; z-index: 2; }
-/* Épreuves : même gabarit que le marqueur de piège, teinte DORÉE — le piège est
-   rouge (danger), l'épreuve est une occasion. Estompée dès qu'un héros y a
-   laissé sa tentative, pour que la table voie d'un coup d'œil qu'elle a déjà
-   servi (une tentative par héros). */
-.dg-trial-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 3; }
-.dg-trial { width: 72%; height: 72%; border-radius: 50%; display: grid; place-items: center;
-  color: var(--stone-950); background: var(--gold); box-shadow: 0 0 6px oklch(0.80 0.135 88 / 0.55); }
-.dg-trial .msym { font-size: 68%; }
-.dg-trial.tentee { background: var(--stone-700); color: var(--ink-400); box-shadow: none; }
+/* Épreuves : un LOSANGE doré, et surtout PAS un disque.
+   ⚠ Au premier jet c'était un disque plein de 72 %, exactement la silhouette
+   d'un jeton de figurine : sur la table, un disque doré entre deux héros se
+   lisait comme une quatrième figurine (constaté en capture, 2026-08-27). Les
+   figures sont RONDES ; ce qui n'est pas une figure ne doit donc pas l'être.
+   Le losange est plus petit, laisse voir le sol autour, et se distingue aussi
+   du piège (carré rouge, danger) — l'épreuve est une occasion, pas une menace.
+   Estompé dès qu'un héros y a laissé sa tentative : la table voit d'un coup
+   d'œil qu'elle a déjà servi (une tentative par héros). */
+.dg-trial-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 2; }
+.dg-trial { width: 54%; height: 54%; display: grid; place-items: center; transform: rotate(45deg);
+  border-radius: 12%; color: var(--stone-950); background: var(--gold);
+  box-shadow: 0 0 5px oklch(0.80 0.135 88 / 0.5); }
+/* Le glyphe se redresse : seul le cadre tourne, sinon la main penche. */
+.dg-trial .msym { transform: rotate(-45deg); font-size: var(--dg-icone); }
+.dg-trial.tentee { background: var(--stone-700); color: var(--ink-400); box-shadow: none; opacity: 0.75; }
 
 .dg-trap { position: absolute; inset: 12%; border-radius: 5px; display: grid; place-items: center; }
-.dg-trap .msym { font-size: clamp(11px, 1.3vw, 20px); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+.dg-trap .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-trap.detecte { color: var(--warn, oklch(0.82 0.16 75)); background: oklch(0.78 0.15 75 / 0.13);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); animation: dg-trappulse 2.2s ease-in-out infinite; }
 @keyframes dg-trappulse { 50% { box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.95); } }
@@ -230,6 +284,17 @@ const doors = computed(() => (props.carte.portes ?? [])
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
   box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
 
+/* ---- leviers : octogone bleu, une troisième silhouette. Les figurines sont
+   RONDES, l'épreuve est un LOSANGE doré ; le levier ne doit donc être ni l'un
+   ni l'autre. Il ne s'estompe jamais : contrairement à l'épreuve, le forcer est
+   retentable sans limite, donc un levier déjà tenté reste une action valable. */
+.dg-lever-holder { position: relative; display: grid; place-items: center; pointer-events: none; z-index: 2; }
+.dg-lever { width: 56%; height: 56%; display: grid; place-items: center;
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+  color: var(--stone-950); background: oklch(0.72 0.13 235);
+  box-shadow: 0 0 5px oklch(0.72 0.13 235 / 0.5); }
+.dg-lever .msym { font-size: var(--dg-icone); }
+
 /* ---- mobilier (doc 17) : bloc PLEIN sur toute l'emprise, pas un marqueur —
    la leçon des portes (test de jeu 2026-07-31, cf. plus bas) est qu'un
    habillage discret disparaît sur les 22px de la manette. Un meuble bloquant
@@ -239,7 +304,7 @@ const doors = computed(() => (props.carte.portes ?? [])
   background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);
   color: oklch(0.85 0.05 70); }
-.dg-furn .msym { filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+.dg-furn .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-furn.non-bloquant { opacity: 0.6; box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.3); }
 
 /* ---- portes : battant en % de la case, sur l'arête est/sud ----

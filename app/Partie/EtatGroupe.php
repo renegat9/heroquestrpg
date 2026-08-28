@@ -304,6 +304,12 @@ final class EtatGroupe
             // déjà essayé, sinon le groupe renvoie deux fois le même héros sur
             // une épreuve qui ne lui répondra plus.
             'epreuves' => $this->epreuves($carte, $decouvertes),
+            // ⚠ Les LEVIERS n'étaient publiés NULLE PART (corrigé 2026-08-27) :
+            // aucun n'était donc dessiné. C'était sans conséquence tant qu'aucun
+            // gabarit n'en posait ; ça ne l'est plus depuis qu'un levier demande
+            // un jet de Body et peut commander l'unique porte d'une salle — un
+            // mécanisme invisible qui verrouille le donjon.
+            'leviers' => $this->leviers($carte, $decouvertes),
             'portes' => $portes,
         ];
     }
@@ -532,8 +538,63 @@ final class EtatGroupe
                     // bloque les deux. Ne jamais les refusionner en un seul champ.
                     'bloque_mouvement' => $type?->bloque_mouvement ?? true,
                     'bloque_vue' => $type?->bloque_vue ?? false,
+                    // Le mobilier était la seule couche de la carte sans
+                    // illustration publiée (2026-08-27), alors qu'une pièce se
+                    // fouille et se fracasse comme un piège se désamorce.
+                    'image_url' => app(BibliothequeImages::class)->urlMobilier($type?->id, $type?->nom),
                 ];
             })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Leviers visibles : ceux des salles découvertes.
+     *
+     * ⚠ Une entrée de levier ne porte PAS sa salle (`{x, y, levier_id}`, format
+     * d'origine) : on la déduit des coordonnées. Publier sans filtrer ferait
+     * apparaître un marqueur par-dessus le brouillard, et révélerait
+     * l'emplacement d'un mécanisme que le groupe n'a pas encore atteint.
+     *
+     * ⚠ La difficulté publiée est la difficulté EFFECTIVE, plafonnée au meilleur
+     * Body du groupe exactement comme `MenuMoteur` le fait. Publier la valeur
+     * brute ferait annoncer « difficulté 3 » sur la carte à un groupe à qui le
+     * menu proposera « difficulté 2 » — deux chiffres pour un même levier, et le
+     * joueur n'a aucun moyen de savoir lequel s'applique.
+     *
+     * @param  list<int>  $decouvertes
+     * @return list<array{x: int, y: int, levier_id: string, difficulte: int}>
+     */
+    private function leviers(Carte $carte, array $decouvertes): array
+    {
+        $salles = (array) ($carte->grille['salles'] ?? []);
+        // Une seule interrogation de la compagnie pour toute la couche : le
+        // plafond est le même pour tous les leviers de la carte.
+        $quete = $carte->quete;
+
+        return collect($carte->grille['leviers'] ?? [])
+            ->filter(function (array $levier) use ($salles, $decouvertes) {
+                foreach ($salles as $i => $salle) {
+                    if ((int) $levier['x'] >= (int) $salle['x']
+                        && (int) $levier['x'] < (int) $salle['x'] + (int) $salle['largeur']
+                        && (int) $levier['y'] >= (int) $salle['y']
+                        && (int) $levier['y'] < (int) $salle['y'] + (int) $salle['hauteur']) {
+                        return in_array((int) $i, $decouvertes, true);
+                    }
+                }
+
+                // Levier de COULOIR : les couloirs n'ont pas d'index de salle et
+                // ne sont jamais « découverts ». On le montre — un couloir
+                // traversé est de toute façon visible, et le cacher rendrait le
+                // mécanisme introuvable.
+                return true;
+            })
+            ->map(fn (array $l) => [
+                'x' => (int) $l['x'],
+                'y' => (int) $l['y'],
+                'levier_id' => (string) ($l['levier_id'] ?? ''),
+                'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
+            ])
             ->values()
             ->all();
     }

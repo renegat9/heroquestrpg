@@ -4,8 +4,9 @@
 // portes / pièges) est rendu par le socle PARTAGÉ DungeonGrid — le MÊME que
 // l'écran table — pour un rendu identique ; cette feuille n'ajoute que la
 // surbrillance des cases accessibles (BFS) et le tap de destination.
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import DungeonGrid from '../carte/DungeonGrid.vue';
+import LegendeCarte from '../carte/LegendeCarte.vue';
 import MSym from '../ui/MSym.vue';
 
 const props = defineProps({
@@ -141,17 +142,70 @@ function toucher(x, y) {
     if (accessibles.value.has(cle(x, y))) emit('deplacer', { x, y });
 }
 
+// ZOOM (René, 2026-08-28). Les cases étaient à 22 px : sous la cible tactile
+// recommandée, on visait la voisine — et les marqueurs (piège, épreuve, meuble)
+// s'y réduisaient à une tache. 38 px rend le tap fiable ET les symboles lisibles,
+// au prix d'une carte qui ne tient plus à l'écran : d'où la croix de direction
+// ci-dessous, qui est la contrepartie du zoom et non un ajout séparé.
+const CASE = 38;
+const ECART = 2;
+// Un appui = trois cases. Une seule serait fastidieuse sur un donjon de 40 de
+// large ; un écran entier ferait perdre le fil du chemin qu'on suit des yeux.
+const PAS = 3 * (CASE + ECART);
+
 const gridStyle = computed(() => ({
-    gap: '2px',
+    gap: `${ECART}px`,
     width: 'max-content',
-    gridTemplateColumns: `repeat(${props.carte.largeur}, 22px)`,
-    gridTemplateRows: `repeat(${props.carte.hauteur}, 22px)`,
+    gridTemplateColumns: `repeat(${props.carte.largeur}, ${CASE}px)`,
+    gridTemplateRows: `repeat(${props.carte.hauteur}, ${CASE}px)`,
+    // Les glyphes des marqueurs se dimensionnent là-dessus : sans cette
+    // variable, agrandir la case laissait les symboles à ~10 px (voir
+    // DungeonGrid.vue).
+    '--dg-icone': `${Math.round(CASE * 0.46)}px`,
 }));
 
-onMounted(() => {
-    // Centre la vue sur le héros.
+// Bornes de défilement, relues à chaque scroll : une flèche qui ne peut plus
+// rien faire est GRISÉE plutôt que morte au toucher — sinon le joueur appuie
+// trois fois en croyant que la carte est figée.
+const bornes = ref({ gauche: false, droite: false, haut: false, bas: false });
+
+function mesurer() {
+    const el = grilleRef.value;
+    if (! el) { return; }
+
+    // Marge d'un pixel : les navigateurs rendent parfois un scrollLeft
+    // fractionnaire, et une comparaison stricte laissait une flèche active à
+    // l'arrivée en butée.
+    bornes.value = {
+        gauche: el.scrollLeft > 1,
+        droite: el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
+        haut: el.scrollTop > 1,
+        bas: el.scrollTop < el.scrollHeight - el.clientHeight - 1,
+    };
+}
+
+// Rien à faire défiler = pas de croix. Sur une petite carte entièrement visible,
+// quatre flèches grisées ne seraient que du décor recouvrant des cases jouables ;
+// et le bouton de recentrage n'a rien à recentrer.
+const padUtile = computed(() => Object.values(bornes.value).some(Boolean));
+
+function deplacerVue(dx, dy) {
+    grilleRef.value?.scrollBy({ left: dx * PAS, top: dy * PAS, behavior: 'smooth' });
+}
+
+function centrerSurHeros() {
+    // ⚠ `scrollIntoView` sur la case de départ, et non un calcul de coordonnées :
+    // c'est le DOM qui connaît la taille réelle du cadre, laquelle dépend du
+    // clavier, de la barre d'adresse et de l'orientation.
+    grilleRef.value?.querySelector('.dg-cell.depart')
+        ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+}
+
+onMounted(async () => {
     grilleRef.value?.querySelector('.dg-cell.depart')
         ?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    await nextTick();
+    mesurer();
 });
 </script>
 
@@ -165,19 +219,41 @@ onMounted(() => {
                     <span class="dep-portee-lbl">cases</span>
                 </div>
                 <div class="dep-detail" v-if="de != null">{{ base }} <span>+ dé {{ de }}</span></div>
+                <LegendeCarte class="dep-legende" :carte="carte" />
                 <button class="dep-close" type="button" @click="$emit('close')"><MSym n="close" /></button>
             </header>
 
             <p v-if="accessibles.size" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour t'y déplacer</p>
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
-            <div ref="grilleRef" class="dep-scroll">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
+            <div class="dep-carte">
+                <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
                     <template #cell="{ x, y }">
                         <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
                         <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />
                     </template>
-                </DungeonGrid>
+                    </DungeonGrid>
+                </div>
+
+                <!-- Croix de direction : le pendant du zoom. Le doigt sert à
+                     CHOISIR une case ; le faire aussi servir à faire glisser la
+                     carte rend les deux gestes ambigus (un glissement un peu
+                     court se lit comme un tap, et on part se déplacer où on ne
+                     voulait pas). Le défilement natif reste possible, ces
+                     boutons ne font que le rendre explicite.
+                     Posée en surimpression d'un COIN : hors de `.dep-scroll`,
+                     qui défile — dedans, elle s'en irait avec le donjon. -->
+                <div v-if="padUtile" class="dep-pad">
+                    <button type="button" class="pad-h" :disabled="! bornes.haut" aria-label="Vers le haut" @click="deplacerVue(0, -1)"><MSym n="keyboard_arrow_up" /></button>
+                    <button type="button" class="pad-g" :disabled="! bornes.gauche" aria-label="Vers la gauche" @click="deplacerVue(-1, 0)"><MSym n="keyboard_arrow_left" /></button>
+                    <!-- Au centre : revenir à son héros. C'est le seul repère
+                         qui ne se perd jamais, donc la sortie de secours quand
+                         on s'est égaré à l'autre bout du donjon. -->
+                    <button type="button" class="pad-c" aria-label="Centrer sur mon héros" @click="centrerSurHeros"><MSym n="my_location" fill /></button>
+                    <button type="button" class="pad-d" :disabled="! bornes.droite" aria-label="Vers la droite" @click="deplacerVue(1, 0)"><MSym n="keyboard_arrow_right" /></button>
+                    <button type="button" class="pad-b" :disabled="! bornes.bas" aria-label="Vers le bas" @click="deplacerVue(0, 1)"><MSym n="keyboard_arrow_down" /></button>
+                </div>
             </div>
 
             <!-- Fermeture toujours atteignable au bas de la feuille. -->
@@ -189,7 +265,22 @@ onMounted(() => {
 </template>
 
 <style>
+/* La légende vit dans l'EN-TÊTE, pas en surimpression de la grille : celle-ci
+   défile (`.dep-scroll`), un bouton flottant posé dessus s'en irait avec elle.
+   `flex: none` pour la même raison que la croix, juste à côté — l'en-tête se
+   compresse sur un écran étroit et éjecterait le bouton hors du viewport. */
+.dep-legende { flex: none; margin-left: auto; }
+
+/* ⚠ `minmax(0, 1fr)` : sans lui la piste de grille se dimensionne sur le
+   CONTENU de la feuille, et celle-ci atteignait son `max-width` de 520 px sur un
+   écran de 412 — mesuré. La carte étant large de plusieurs milliers de pixels,
+   tout ce qui suit sortait de l'écran : la croix de fermeture de l'en-tête et la
+   moitié droite de la croix de direction, donc inatteignables au doigt (c'est le
+   défaut de la §2.2, ressorti par une autre porte). Le `overflow: auto` de
+   `.dep-scroll` le masquait tant qu'il était l'enfant DIRECT de la feuille : un
+   conteneur de défilement a une taille minimale nulle, pas un `div` ordinaire. */
 .dep-ov { position: fixed; inset: 0; z-index: 70; display: grid; place-items: end center;
+  grid-template-columns: minmax(0, 1fr);
   background: oklch(0.12 0.02 60 / 0.6); backdrop-filter: blur(3px); }
 .dep-sheet { width: 100%; max-width: 520px; max-height: 82vh; display: flex; flex-direction: column;
   background: var(--stone-900); border-top-left-radius: 18px; border-top-right-radius: 18px;
@@ -218,9 +309,34 @@ onMounted(() => {
   background: var(--stone-850); color: var(--ink-200, #e7dcc6); font-weight: 700; font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px; }
 
+/* Cadre de la carte : c'est LUI qui porte la croix de direction, pas la zone
+   défilante — un bouton posé dans `.dep-scroll` s'en irait avec le donjon. */
+.dep-carte { position: relative; flex: 1; min-height: 0; min-width: 0; display: flex; }
+
+/* Croix de direction, en bas à droite. Compacte et translucide : elle recouvre
+   quelques cases, et c'est le compromis assumé — la carte peut toujours être
+   décalée pour dégager la case visée, alors que la placer SOUS la carte
+   coûterait de la hauteur sur un écran déjà à 82 vh. */
+.dep-pad { position: absolute; right: 10px; bottom: 10px; z-index: 5;
+  display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px);
+  gap: 2px; padding: 4px; border-radius: 14px;
+  background: oklch(0.16 0.012 255 / 0.82); border: var(--line); backdrop-filter: blur(6px);
+  box-shadow: var(--sh-2); }
+.dep-pad button { display: grid; place-items: center; border-radius: 9px; cursor: pointer;
+  border: none; background: var(--stone-800); color: var(--ink-200, #e7dcc6);
+  -webkit-tap-highlight-color: transparent; }
+.dep-pad button:active { transform: scale(0.94); }
+.dep-pad button:disabled { opacity: 0.28; pointer-events: none; }
+.dep-pad .msym { font-size: 21px; }
+.dep-pad .pad-h { grid-area: 1 / 2; }
+.dep-pad .pad-g { grid-area: 2 / 1; }
+.dep-pad .pad-c { grid-area: 2 / 2; background: var(--stone-850); color: var(--torch); }
+.dep-pad .pad-d { grid-area: 2 / 3; }
+.dep-pad .pad-b { grid-area: 3 / 2; }
+
 /* `safe center` : la grille est CENTRÉE quand elle tient dans la vue, mais
    revient au bord quand elle DÉPASSE (scroll jusqu'à la salle la plus à droite). */
-.dep-scroll { overflow: auto; flex: 1; border-radius: var(--r-md); background: var(--stone-950); padding: 8px;
+.dep-scroll { overflow: auto; flex: 1; min-width: 0; border-radius: var(--r-md); background: var(--stone-950); padding: 8px;
   display: flex; justify-content: safe center; align-items: safe center; }
 /* Départ/occupants : centrer l'icône dans la case (DungeonGrid gère le reste). */
 .dep-scroll .dg-cell { display: grid; place-items: center; }

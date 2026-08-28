@@ -5,6 +5,7 @@
 // FIGURINES animées (glissement case-par-case, fondu à la mort).
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import DungeonGrid from '../carte/DungeonGrid.vue';
+import LegendeCarte from '../carte/LegendeCarte.vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 
@@ -79,7 +80,7 @@ function centrer(dimVue, dimCarte, cible) {
 
 <template>
     <div ref="viewportEl" class="map">
-        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :grid-style="gridStyle" animate>
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :grid-style="gridStyle" animate>
             <!-- Figurines (héros / monstres / alliés) — enfants directs de la
                  grille : FLIP de glissement case-par-case, fondu à la mort. -->
             <div
@@ -106,5 +107,15 @@ function centrer(dimVue, dimCarte, cible) {
                 </div>
             </div>
         </DungeonGrid>
+
+        <!-- Légende : en surimpression d'un COIN DE LA FENÊTRE, hors de la
+             grille — celle-ci se déplace sous la caméra à chaque tour, un
+             bouton posé dedans glisserait avec le donjon.
+             `.table-screen .map` est déjà `position: relative`. -->
+        <LegendeCarte class="map-legende" :carte="carte" />
     </div>
 </template>
+
+<style scoped>
+.map-legende { position: absolute; top: 10px; right: 10px; z-index: 20; }
+</style>

@@ -99,6 +99,13 @@ final class BibliothequeImages
             : null;
     }
 
+    public function urlMobilier(?int $id, ?string $nom): ?string
+    {
+        return $id
+            ? $this->url($this->relatifCatalogue('mobiliers', $id, (string) $nom)) ?? $this->vignette('mobilier', $id)
+            : null;
+    }
+
     public function urlEpreuve(?int $id, ?string $nom): ?string
     {
         return $id

@@ -10,6 +10,7 @@ use App\Models\ClasseHeros;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Epreuve;
+use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Sort;
 use App\Partie\Images\BibliothequeImages;
@@ -30,7 +31,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|objets|pieges|epreuves|sorts|tous}
+        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|sorts|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -134,6 +135,19 @@ final class GenererImages extends Command
                 'type' => 'epreuves',
                 'rel' => $biblio->relatifCatalogue('epreuves', $e->id, $e->nom),
                 'prompt' => $biblio->prompt('epreuve', ['nom' => $e->nom, 'description' => (string) $e->description]),
+            ];
+        }
+
+        foreach (Mobilier::all() as $m) {
+            $cibles[] = [
+                'type' => 'mobiliers',
+                'rel' => $biblio->relatifCatalogue('mobiliers', $m->id, $m->nom),
+                'prompt' => $biblio->prompt('mobilier', [
+                    'nom' => $m->nom,
+                    'description' => (string) $m->description,
+                    'largeur' => (string) $m->largeur,
+                    'hauteur' => (string) $m->hauteur,
+                ]),
             ];
         }
 

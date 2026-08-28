@@ -29,6 +29,13 @@ return [
         // distinguer du piège (danger subi) comme du meuble (obstacle) — d'où
         // l'insistance sur l'énigme et l'usure plutôt que sur la menace.
         'epreuve' => 'Élément de donjon à examiner : {nom}. {description} Détail énigmatique et usé par le temps, sculpté dans la pierre. {style}',
+        // MOBILIER (2026-08-27) : les huit pièces n'avaient AUCUNE illustration
+        // — ni gabarit, ni génération, ni `image_url` —, alors que pièges et
+        // épreuves en ont depuis leur arrivée. Une pièce se FOUILLE et se
+        // FRACASSE : c'est un élément de jeu, pas un décor. Le prompt insiste
+        // sur la vue de dessus et l'emprise, parce qu'un meuble se lit sur la
+        // carte à plat, contrairement à un piège cadré en couloir.
+        'mobilier' => 'Meuble de donjon vu de dessus : {nom}. {description} Pièce isolée sur fond sombre, occupant {largeur} sur {hauteur} cases. {style}',
         'sort' => 'Illustration de sort de magie : {nom}, magie élémentaire ({element}), effet {type} spectaculaire, symbole arcanique lumineux. {style}',
 
         // Dynamiques (jobs) :

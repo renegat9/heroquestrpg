@@ -66,6 +66,12 @@ class PlaceholderController extends Controller
         // épreuve, on ne la subit pas. ⚠ Le trait ne reprend NI les pointes du
         // piège NI la bourse de l'objet : les confondre à 40 px coûterait une
         // action au joueur qui croit désamorcer ce qu'il faut tenter.
+        // Un meuble : plateau posé sur deux pieds, plus un tiroir suggéré. La
+        // silhouette la plus neutre des huit pièces — un coffre ou un trône
+        // dessinés ici auraient nommé UNE pièce là où l'emblème les remplace
+        // toutes.
+        'mobilier' => 'M282 330 h336 v52 h-336 Z M318 382 v192 M582 382 v192 '
+            .'M348 432 h204 M348 484 h204',
         'epreuve' => 'M330 288 h240 v264 h-240 Z M378 348 h144 M378 408 h144 M378 468 h96 '
             .'M450 600 v72 M408 672 h84',
     ];
