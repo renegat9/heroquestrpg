@@ -71,6 +71,19 @@ final class VoteGroupe
     }
 
     /**
+     * Un vote est-il déjà ouvert dans ce groupe ?
+     *
+     * ⚠ STATIQUE à dessein : `MenuMoteur` doit poser la question, et injecter
+     * `VoteGroupe` chez lui créerait un cycle (MenuMoteur → VoteGroupe →
+     * ResolveurTour → MenuMoteur). Un lecteur statique sur la même clé de cache
+     * évite le cycle sans dupliquer la clé.
+     */
+    public static function enCours(int $groupeId): bool
+    {
+        return is_array(Cache::get(self::cle($groupeId)));
+    }
+
+    /**
      * Lance un vote (POST votes). 422 si un vote est déjà actif.
      *
      * @param  array<string, mixed>  $donnees  {type, question?, options?, cible_joueur_id?}

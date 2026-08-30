@@ -13,6 +13,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Votes\VoteGroupe;
 
 /**
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
@@ -1253,7 +1254,17 @@ final class MenuMoteur
             // qu'être enfermé à vie.
             || ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
 
-        if (! $aJoue && $peutSortir) {
+        // ⚠ Ni l'une ni l'autre tant qu'un VOTE est ouvert : les deux en
+        // ouvrent un, et le résolveur refuse le second par un 422 « Un vote est
+        // déjà en cours ». Constaté en partie réelle le 2026-08-30 — le menu
+        // reproposait « Quitter le donjon » à chaque tour pendant que le vote
+        // qu'il venait d'ouvrir attendait des bulletins, et le joueur se
+        // heurtait au refus dix-sept fois de suite. C'est l'anti-patron que le
+        // projet traque partout : le menu ne doit jamais offrir ce que le
+        // résolveur refusera.
+        $voteOuvert = VoteGroupe::enCours($quete->groupe_id);
+
+        if (! $aJoue && $peutSortir && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',
@@ -1271,7 +1282,7 @@ final class MenuMoteur
         // retraite. Interaction libre comme la sortie : proposer ne coûte pas
         // son tour, et un héros qui a déjà joué garde le droit de le proposer
         // au prochain.
-        if (! $aJoue) {
+        if (! $aJoue && ! $voteOuvert) {
             $options[] = [
                 'id' => 'battre_en_retraite',
                 'libelle' => 'Battre en retraite — proposer au groupe',

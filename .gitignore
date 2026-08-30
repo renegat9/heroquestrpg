@@ -27,6 +27,10 @@ Homestead.yaml
 Thumbs.db
 
 # captures Playwright (locales)
+# ⚠ Le `**` est nécessaire : `browser-shots/*.png` ne couvre que les enfants
+# DIRECTS, et les captures d'un sous-dossier (browser-shots/aaz/…) partaient
+# dans le dépôt sans qu'on le voie.
+browser-shots/**/*.png
 browser-shots/*.png
 
 # audio généré/déposé (régénérable / fourni — hors dépôt)
