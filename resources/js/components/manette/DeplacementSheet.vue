@@ -271,6 +271,15 @@ onMounted(async () => {
    compresse sur un écran étroit et éjecterait le bouton hors du viewport. */
 .dep-legende { flex: none; margin-left: auto; }
 
+/* ⚠ ANCRAGE DU PANNEAU DE LÉGENDE. Il se positionne sur son bouton (`right: 0`
+   de `.lg-wrap`), or ce bouton n'est PAS au bord : la croix de fermeture le
+   suit. Sur 360 px, le panneau débordait donc de 44 px à GAUCHE de l'écran,
+   texte coupé. En rendant l'en-tête positionné et le bouton statique, le
+   panneau s'aligne sur le bord de l'EN-TÊTE — c'est-à-dire sur le bord de la
+   feuille, qui est le seul repère juste. */
+.dep-head { position: relative; }
+.dep-head .dep-legende { position: static; }
+
 /* ⚠ `minmax(0, 1fr)` : sans lui la piste de grille se dimensionne sur le
    CONTENU de la feuille, et celle-ci atteignait son `max-width` de 520 px sur un
    écran de 412 — mesuré. La carte étant large de plusieurs milliers de pixels,

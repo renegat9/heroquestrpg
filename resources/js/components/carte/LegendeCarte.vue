@@ -90,8 +90,13 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
 
 <template>
     <div class="lg-wrap">
-        <button class="lg-btn" type="button" :aria-expanded="ouvert" title="Légende de la carte" @click="ouvert = !ouvert">
-            <MSym :n="ouvert ? 'close' : 'info'" fill />
+        <!-- ⚠ L'icône reste « i », ouverte comme fermée : passer à une croix
+             plaçait DEUX croix côte à côte dans l'en-tête de la manette (l'une
+             ferme la légende, l'autre la feuille de déplacement), sans rien pour
+             dire laquelle fait quoi. L'état se dit par la couleur. -->
+        <button class="lg-btn" :class="{ on: ouvert }" type="button" :aria-expanded="ouvert"
+                title="Légende de la carte" @click="ouvert = !ouvert">
+            <MSym n="info" fill />
         </button>
 
         <div v-if="ouvert" class="lg-panneau">
@@ -168,10 +173,14 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
 .lg-btn { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
   background: oklch(0.16 0.012 255 / 0.9); border: var(--line); color: var(--ink-300);
   cursor: pointer; backdrop-filter: blur(6px); }
-.lg-btn:hover { color: var(--torch); border-color: var(--torch); }
+.lg-btn:hover, .lg-btn.on { color: var(--torch); border-color: var(--torch); }
+.lg-btn.on { background: oklch(0.76 0.155 65 / 0.16); }
 .lg-btn .msym { font-size: 19px; }
 
-.lg-panneau { position: absolute; right: 0; top: 42px; z-index: 40; width: 300px; max-height: 60vh;
+/* ⚠ `min(300px, …)` : sur un téléphone de 360 px le panneau fixe à 300 px
+   dépassait du bord — mesuré à -44 px, donc une colonne de texte coupée. */
+.lg-panneau { position: absolute; right: 0; top: 42px; z-index: 40;
+  width: min(300px, calc(100vw - 28px)); max-height: 60vh;
   overflow-y: auto; padding: 14px 16px 16px; border-radius: var(--r-md);
   background: oklch(0.16 0.012 255 / 0.97); border: var(--line-strong); box-shadow: var(--sh-3);
   backdrop-filter: blur(8px); }
