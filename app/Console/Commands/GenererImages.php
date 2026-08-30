@@ -31,7 +31,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|sorts|tous}
+        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|leviers|portes|sorts|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -103,6 +103,24 @@ final class GenererImages extends Command
                 'type' => 'classes',
                 'rel' => $biblio->relatifClasse($c->nom),
                 'prompt' => $biblio->prompt('classe', ['detail' => $biblio->detailClasse($c->nom)]),
+            ];
+        }
+
+        // ⚠ Pas de `::all()` ici : ni le levier ni la porte n'ont de table.
+        // Le levier est unique ; les états de porte viennent de la CONFIG, qui
+        // les keye sur `MoteurPortes::ETAT_*` — inventer un libellé ici
+        // produirait une image que rien n'irait jamais chercher.
+        $cibles[] = [
+            'type' => 'leviers',
+            'rel' => $biblio->relatifLevier(),
+            'prompt' => $biblio->prompt('levier', []),
+        ];
+
+        foreach (array_keys((array) config('images.portes', [])) as $etat) {
+            $cibles[] = [
+                'type' => 'portes',
+                'rel' => $biblio->relatifPorte((string) $etat),
+                'prompt' => $biblio->prompt('porte', ['detail' => (string) config("images.portes.{$etat}")]),
             ];
         }
 

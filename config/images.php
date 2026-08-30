@@ -36,6 +36,16 @@ return [
         // sur la vue de dessus et l'emprise, parce qu'un meuble se lit sur la
         // carte à plat, contrairement à un piège cadré en couloir.
         'mobilier' => 'Meuble de donjon vu de dessus : {nom}. {description} Pièce isolée sur fond sombre, occupant {largeur} sur {hauteur} cases. {style}',
+        // LEVIER et PORTE (2026-08-29) : les deux seuls éléments d'une salle
+        // sans table de catalogue — un levier n'est qu'un id dans la grille, une
+        // porte une arête. Ils sont donc nommés comme les CLASSES, par un
+        // libellé fixe et non par `{id}-{slug}` : il n'y a pas de ligne à
+        // numéroter. Un état de porte = une illustration, parce que c'est
+        // l'état qui porte l'information (close, verrouillée, dérobée) et
+        // qu'une image unique les rendrait indiscernables.
+        'levier' => 'Mécanisme de donjon : un levier de fer scellé dans un mur de pierre, '
+            .'longue poignée usée par les mains, engrenages apparents. {style}',
+        'porte' => 'Porte de donjon en bois cerclé de fer, vue de face dans un mur de pierre : {detail}. {style}',
         'sort' => 'Illustration de sort de magie : {nom}, magie élémentaire ({element}), effet {type} spectaculaire, symbole arcanique lumineux. {style}',
 
         // Dynamiques (jobs) :
@@ -43,6 +53,16 @@ return [
         'scene' => 'Illustration d\'ambiance, scène d\'ouverture d\'une quête de donjon fantasy : {intro} {style}',
         'hub' => 'Lieu de repos des aventuriers entre deux quêtes (campement / salle commune chaleureuse), ambiance de répit. {premisse} {style}',
         'portrait' => 'Portrait héroïque en buste de « {nom} », un {detail}, personnage unique de jeu de rôle fantasy. {style}',
+    ],
+
+    // Détail d'apparence par ÉTAT DE PORTE (enrichit {detail} pour `porte`).
+    // ⚠ Les clés sont celles de `MoteurPortes::ETAT_*` — le contrat publie cet
+    // état tel quel, et un libellé inventé ici ne trouverait jamais son image.
+    'portes' => [
+        'fermee' => 'battant clos et massif, lourds gonds de fer, aucune ouverture',
+        'ouverte' => 'battant grand ouvert sur les ténèbres de la salle au-delà',
+        'verrouillee' => 'battant clos barré de chaînes et d\'un gros cadenas de fer rouillé',
+        'secrete' => 'passage dérobé entrouvert dans la maçonnerie, pierre pivotante révélée',
     ],
 
     // Détail d'apparence par classe (enrichit {detail} pour classe/portrait).

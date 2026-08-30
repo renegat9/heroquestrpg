@@ -492,7 +492,10 @@ export function acteurCourant(initiative) {
     return (initiative ?? []).find((o) => !o.a_joue && !o.tombe) ?? null;
 }
 
-function estCourant(entite, initiative) {
+// Exporté depuis 2026-08-29 : l'aperçu de salle doit désigner le MÊME héros que
+// le bandeau d'initiative et que le liseré doré de la figurine. Une seconde
+// lecture de l'initiative, écrite ailleurs, aurait fini par désigner un autre.
+export function estCourant(entite, initiative) {
     const cur = acteurCourant(initiative);
     if (!cur) return false;
     const type = entite.type === 'heros' ? 'heros' : 'monstre';

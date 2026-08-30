@@ -77,6 +77,38 @@ it('donne une icône à chaque MEUBLE du catalogue, et pas une de plus', functio
         ->and(array_diff($declarees, $catalogue))->toBe([], 'icônes orphelines');
 });
 
+it('couvre chaque ÉTAT DE PORTE par une illustration, et pas un de plus', function () {
+    // ⚠ Les états viennent de `MoteurPortes::ETAT_*` et le contrat les publie
+    // tels quels. Un état ajouté au moteur sans entrée de config retomberait en
+    // silence sur l'emblème SVG ; une entrée que plus aucun état ne porte ferait
+    // générer une image que rien n'irait jamais chercher.
+    $reflet = new ReflectionClass(App\Partie\MoteurPortes::class);
+    $etats = array_values(array_filter(
+        $reflet->getConstants(),
+        fn ($v, $c) => str_starts_with($c, 'ETAT_'),
+        ARRAY_FILTER_USE_BOTH,
+    ));
+
+    $declares = array_keys((array) config('images.portes'));
+
+    expect(array_diff($etats, $declares))->toBe([], 'états de porte sans illustration')
+        ->and(array_diff($declares, $etats))->toBe([], 'illustrations orphelines');
+});
+
+it('publie une illustration pour le levier et pour chaque porte', function () {
+    $biblio = app(App\Partie\Images\BibliothequeImages::class);
+
+    // ⚠ Ces deux-là n'ont PAS de table de catalogue : leur accesseur ne prend
+    // aucun id, et c'est pour ça qu'il est facile d'oublier de le brancher.
+    // Ils sont TOTAUX — jamais `null`, l'emblème SVG prend le relais.
+    expect($biblio->urlLevier())->not->toBeNull()
+        ->and($biblio->urlPorte('verrouillee'))->not->toBeNull()
+        // Un état inconnu ne doit pas rendre `null` : la porte existe quand même.
+        ->and($biblio->urlPorte(null))->not->toBeNull()
+        // ⚠ Deux états, deux images : une seule les rendrait indiscernables.
+        ->and($biblio->urlPorte('fermee'))->not->toBe($biblio->urlPorte('secrete'));
+});
+
 it('fait lire la MÊME table au rendu et à la légende', function () {
     // ⚠ C'est l'invariant qui rend la légende fiable : si l'un des deux fichiers
     // se remettait à déclarer ses icônes en propre, la légende décrirait des

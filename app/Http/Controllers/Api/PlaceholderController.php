@@ -72,6 +72,10 @@ class PlaceholderController extends Controller
         // toutes.
         'mobilier' => 'M282 330 h336 v52 h-336 Z M318 382 v192 M582 382 v192 '
             .'M348 432 h204 M348 484 h204',
+        // Un levier : platine murale, bras oblique, poignée.
+        'levier' => 'M366 300 h168 v300 h-168 Z M450 450 L570 366 M570 366 m-26 0 a26 26 0 1 0 52 0 a26 26 0 1 0 -52 0',
+        // Une porte : chambranle cintré, battant, poignée.
+        'porte' => 'M318 620 V392 a132 132 0 0 1 264 0 V620 Z M522 506 m-16 0 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0',
         'epreuve' => 'M330 288 h240 v264 h-240 Z M378 348 h144 M378 408 h144 M378 468 h96 '
             .'M450 600 v72 M408 672 h84',
     ];

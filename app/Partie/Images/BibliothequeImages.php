@@ -77,6 +77,39 @@ final class BibliothequeImages
             : null;
     }
 
+    /**
+     * Levier et porte n'ont PAS de table de catalogue — un levier n'est qu'un id
+     * dans la grille, une porte une arête. Ils sont donc nommés comme les
+     * classes, par un libellé fixe : il n'y a aucune ligne à numéroter.
+     */
+    public function relatifLevier(): string
+    {
+        return 'catalogue/leviers/levier.'.self::FORMAT;
+    }
+
+    public function urlLevier(): ?string
+    {
+        return $this->url($this->relatifLevier()) ?? $this->vignette('levier', 'levier');
+    }
+
+    public function relatifPorte(string $etat): string
+    {
+        return 'catalogue/portes/'.self::slug($etat).'.'.self::FORMAT;
+    }
+
+    /**
+     * ⚠ Une image PAR ÉTAT : c'est l'état qui porte l'information (close,
+     * verrouillée, dérobée), une image unique les rendrait indiscernables.
+     * La graine du repli est l'état lui-même, donc deux états gardent deux
+     * teintes différentes même sans illustration.
+     */
+    public function urlPorte(?string $etat): ?string
+    {
+        $etat = $etat ?: 'fermee';
+
+        return $this->url($this->relatifPorte($etat)) ?? $this->vignette('porte', self::slug($etat));
+    }
+
     public function urlMonstreCatalogue(?int $id, ?string $nomBase): ?string
     {
         return $id

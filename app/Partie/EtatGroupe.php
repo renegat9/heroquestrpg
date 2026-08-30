@@ -303,6 +303,21 @@ final class EtatGroupe
             // ⚠ On publie `tentee_par` : la table doit pouvoir montrer QUI a
             // déjà essayé, sinon le groupe renvoie deux fois le même héros sur
             // une épreuve qui ne lui répondra plus.
+            // Rectangles des salles DÉCOUVERTES (2026-08-29), pour que la table
+            // sache dire « ce qui est dans cette salle-ci ».
+            // ⚠ Découvertes SEULEMENT : publier tous les rectangles révélerait
+            // le nombre, la taille et la position des salles que le groupe n'a
+            // pas ouvertes — `cases` est masqué par le brouillard, ceci le
+            // contournerait par la porte de derrière.
+            'salles' => collect($carte->grille['salles'] ?? [])
+                ->filter(fn ($s, $i) => in_array((int) $i, $decouvertes, true))
+                ->map(fn (array $s, $i) => [
+                    'index' => (int) $i,
+                    'x' => (int) $s['x'], 'y' => (int) $s['y'],
+                    'largeur' => (int) $s['largeur'], 'hauteur' => (int) $s['hauteur'],
+                ])
+                ->values()
+                ->all(),
             'epreuves' => $this->epreuves($carte, $decouvertes),
             // ⚠ Les LEVIERS n'étaient publiés NULLE PART (corrigé 2026-08-27) :
             // aucun n'était donc dessiné. C'était sans conséquence tant qu'aucun
@@ -348,15 +363,7 @@ final class EtatGroupe
         }
         $porteFermeeEntre = fn (int $x1, int $y1, int $x2, int $y2): bool => (($porteArete[Grille::cleArete($x1, $y1, $x2, $y2)] ?? 'ouverte') !== 'ouverte');
 
-        $salleDe = function (int $x, int $y) use ($salles): ?int {
-            foreach ($salles as $i => $s) {
-                if ($x >= $s['x'] && $x < $s['x'] + $s['largeur'] && $y >= $s['y'] && $y < $s['y'] + $s['hauteur']) {
-                    return (int) $i;
-                }
-            }
-
-            return null;
-        };
+        $salleDe = fn (int $x, int $y): ?int => Salles::indexDe($salles, $x, $y);
 
         // Flood-fill des cases visibles depuis les salles découvertes, franchissant
         // les ARÊTES ouvertes (une porte fermée arrête la propagation).
@@ -461,6 +468,11 @@ final class EtatGroupe
                     'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
                     'etat' => (string) ($p['etat'] ?? 'ouverte'),
                 ];
+                // ⚠ Une illustration PAR ÉTAT : c'est l'état qui porte
+                // l'information, une image unique rendrait une porte close et
+                // une porte dérobée indiscernables dans l'aperçu de salle.
+                $porte['image_url'] = app(BibliothequeImages::class)->urlPorte($porte['etat']);
+
                 if (isset($p['verrou']['type'])) {
                     $porte['verrou'] = (string) $p['verrou']['type'];
                 }
@@ -574,26 +586,20 @@ final class EtatGroupe
 
         return collect($carte->grille['leviers'] ?? [])
             ->filter(function (array $levier) use ($salles, $decouvertes) {
-                foreach ($salles as $i => $salle) {
-                    if ((int) $levier['x'] >= (int) $salle['x']
-                        && (int) $levier['x'] < (int) $salle['x'] + (int) $salle['largeur']
-                        && (int) $levier['y'] >= (int) $salle['y']
-                        && (int) $levier['y'] < (int) $salle['y'] + (int) $salle['hauteur']) {
-                        return in_array((int) $i, $decouvertes, true);
-                    }
-                }
+                $index = Salles::indexDe($salles, (int) $levier['x'], (int) $levier['y']);
 
-                // Levier de COULOIR : les couloirs n'ont pas d'index de salle et
-                // ne sont jamais « découverts ». On le montre — un couloir
-                // traversé est de toute façon visible, et le cacher rendrait le
-                // mécanisme introuvable.
-                return true;
+                // Levier de COULOIR (`null`) : les couloirs n'ont pas d'index de
+                // salle et ne sont jamais « découverts ». On le montre — un
+                // couloir traversé est de toute façon visible, et le cacher
+                // rendrait le mécanisme introuvable.
+                return $index === null || in_array($index, $decouvertes, true);
             })
             ->map(fn (array $l) => [
                 'x' => (int) $l['x'],
                 'y' => (int) $l['y'],
                 'levier_id' => (string) ($l['levier_id'] ?? ''),
                 'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
+                'image_url' => app(BibliothequeImages::class)->urlLevier(),
             ])
             ->values()
             ->all();

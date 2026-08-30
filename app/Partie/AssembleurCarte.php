@@ -1127,7 +1127,7 @@ final class AssembleurCarte
         // Salles qui contiennent un piège — la précondition de l'Autel fêlé.
         $sallesPiegees = [];
         foreach ($pieges as $piege) {
-            $salle = $this->salleDe($salles, (int) $piege['x'], (int) $piege['y']);
+            $salle = Salles::indexDe($salles, (int) $piege['x'], (int) $piege['y']);
             if ($salle !== null) {
                 $sallesPiegees[$salle] = true;
             }
@@ -1196,18 +1196,6 @@ final class AssembleurCarte
     }
 
     /** Index de la salle contenant cette case, ou null (couloir). */
-    private function salleDe(array $salles, int $x, int $y): ?int
-    {
-        foreach ($salles as $i => $salle) {
-            if ($x >= $salle['x'] && $x < $salle['x'] + $salle['largeur']
-                && $y >= $salle['y'] && $y < $salle['y'] + $salle['hauteur']) {
-                return (int) $i;
-            }
-        }
-
-        return null;
-    }
-
     /**
      * Mobilier de salle (doc 17) : table, coffre, trône, établi d'alchimiste,
      * tombeau, bibliothèque, râtelier d'armes, armoire — les 8 types dont

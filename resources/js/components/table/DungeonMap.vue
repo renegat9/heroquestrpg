@@ -5,7 +5,6 @@
 // FIGURINES animées (glissement case-par-case, fondu à la mort).
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import DungeonGrid from '../carte/DungeonGrid.vue';
-import LegendeCarte from '../carte/LegendeCarte.vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 
@@ -111,11 +110,6 @@ function centrer(dimVue, dimCarte, cible) {
         <!-- Légende : en surimpression d'un COIN DE LA FENÊTRE, hors de la
              grille — celle-ci se déplace sous la caméra à chaque tour, un
              bouton posé dedans glisserait avec le donjon.
-             `.table-screen .map` est déjà `position: relative`. -->
-        <LegendeCarte class="map-legende" :carte="carte" />
-    </div>
+             `.table-screen .map` est déjà `position: relative`. -->    </div>
 </template>
 
-<style scoped>
-.map-legende { position: absolute; top: 10px; right: 10px; z-index: 20; }
-</style>

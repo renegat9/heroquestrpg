@@ -499,6 +499,22 @@ manette une illustration devient une bouillie, et elle effacerait la silhouette,
 qui est ce que le joueur lit d'un coup d'œil. **La forme dit la famille, l'image
 dit le contenu.** Un levier n'en a pas — il n'a pas de table de catalogue.
 
+**Levier et porte sont illustrés aussi** (2026-08-29). Ce sont les deux seuls
+éléments d'une salle **sans table de catalogue** — un levier n'est qu'un id dans
+la grille, une porte une arête —, donc ils sont nommés comme les **classes**, par
+un libellé fixe (`catalogue/leviers/levier.png`, `catalogue/portes/{etat}.png`)
+et non par `{id}-{slug}` : il n'y a aucune ligne à numéroter.
+
+⚠ **Une image PAR ÉTAT de porte** (close, ouverte, verrouillée, dérobée) : c'est
+l'état qui porte l'information, une image unique les rendrait indiscernables. Les
+clés de `config('images.portes')` sont celles de `MoteurPortes::ETAT_*`, et un
+test les confronte **dans les deux sens** — un état ajouté au moteur sans
+illustration retomberait en silence sur l'emblème SVG, une entrée orpheline ferait
+générer une image que rien n'irait chercher.
+
+`EtatGroupe.carte.leviers[]` et `carte.portes[]` gagnent `image_url`.
+`images:generer --type=leviers|portes` les produit.
+
 **Une silhouette par famille**, parce que les marqueurs se côtoient dans une même
 salle : figurine **ronde**, piège **carré**, épreuve **losange** doré, levier
 **octogone** bleu, meuble **bloc plein** sur son emprise. Le premier marqueur
@@ -516,6 +532,33 @@ importent bien le même fichier.
 table, en-tête de la feuille de déplacement sur la manette). Elle ne liste que ce
 qui est **sur cette carte** : une légende qui décrit sept pièges quand la salle en
 contient un se lit comme une documentation, et on cesse de l'ouvrir.
+
+### Aperçu de salle (table, 2026-08-29)
+
+**EtatGroupe.carte** gagne `salles: [{index, x, y, largeur, hauteur}]`.
+
+⚠ **Les salles DÉCOUVERTES seulement.** `cases` est déjà masqué par le
+brouillard ; publier tous les rectangles donnerait le nombre, la taille et la
+position des salles jamais ouvertes — le brouillard contourné par la porte de
+derrière.
+
+La table gagne un second bouton à côté de la légende : la légende explique les
+**symboles**, l'aperçu énumère le **contenu** de la salle où se tient le héros
+actif — figurines (avec le `nom_base` de catalogue sous le nom habillé par
+l'IA), mobilier, épreuves, pièges connus, leviers et issues, chacun avec son
+illustration. Il suit le tour de jeu tout seul ; le narrateur ne sélectionne
+rien.
+
+⚠ Il **retient** le dernier héros actif : pendant la phase des monstres aucun
+héros n'a la main, et le panneau clignoterait à chaque fin de tour, précisément
+quand la table regarde ce qui se passe dans la salle.
+
+⚠ `App\Partie\Salles::indexDe()` est le **point de passage unique** de « quelle
+salle contient cette case ? ». La question était posée à **six** endroits, chacun
+avec sa boucle (deux dans `ResolveurTour`, une dans `DemarreurQuete`, une dans
+`AssembleurCarte`, la closure du brouillard et le filtre des leviers dans
+`EtatGroupe`). Toutes disaient la même chose, ce qui est le risque : la règle est
+trop simple pour qu'on remarque qu'une copie a dérivé.
 
 ### Jets de Body — trois emplois neufs, et un plafond
 

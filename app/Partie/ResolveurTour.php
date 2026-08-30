@@ -1902,14 +1902,10 @@ final class ResolveurTour
      */
     private function salleDecouverte(Quete $quete, array $decouvertes, int $x, int $y): bool
     {
-        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $index => $salle) {
-            if ($x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
-                && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur']) {
-                return in_array((int) $index, $decouvertes, true);
-            }
-        }
+        $index = Salles::indexDe((array) data_get($quete->carte?->grille, 'salles', []), $x, $y);
 
-        return true; // couloir : jamais « non découvert »
+        // Couloir (`null`) : jamais « non découvert ».
+        return $index === null || in_array($index, $decouvertes, true);
     }
 
     /**
@@ -3263,14 +3259,7 @@ final class ResolveurTour
      */
     private function salleDeCase(Quete $quete, int $x, int $y): ?int
     {
-        foreach ((array) data_get($quete->carte?->grille, 'salles', []) as $i => $salle) {
-            if ($x >= (int) $salle['x'] && $x < (int) $salle['x'] + (int) $salle['largeur']
-                && $y >= (int) $salle['y'] && $y < (int) $salle['y'] + (int) $salle['hauteur']) {
-                return (int) $i;
-            }
-        }
-
-        return null;
+        return Salles::indexDe((array) data_get($quete->carte?->grille, 'salles', []), $x, $y);
     }
 
     /**

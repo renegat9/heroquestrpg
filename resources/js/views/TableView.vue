@@ -7,6 +7,8 @@ import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
+import ApercuSalle from '../components/carte/ApercuSalle.vue';
+import LegendeCarte from '../components/carte/LegendeCarte.vue';
 import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import OuvertureQuete from '../components/table/OuvertureQuete.vue';
@@ -582,6 +584,25 @@ watch(() => store.state.clotureTerminee, (t) => {
                         :active-x="heroActif?.x ?? null"
                         :active-y="heroActif?.y ?? null"
                     />
+
+                    <!-- ⚠ Les deux outils vivent dans `.map-wrap`, PAS dans la
+                         carte : `.map` porte `overflow: hidden` ET
+                         `contain: layout paint style`, qui la rendent bloc
+                         conteneur même pour un `position: fixed`. Un panneau
+                         posé dedans se faisait rogner au bas de la carte, et
+                         la bande coupée devenait INATTEIGNABLE — son propre
+                         défilement ne s'enclenchait qu'au-delà de sa
+                         `max-height`, jamais au bord du clip.
+                         La légende explique les SYMBOLES, l'aperçu énumère le
+                         CONTENU de la salle du héros actif. -->
+                    <div v-if="enQuete && etat.carte" class="map-outils">
+                        <ApercuSalle
+                            :carte="etat.carte"
+                            :entites="etat.entites ?? []"
+                            :initiative="etat.initiative ?? []"
+                        />
+                        <LegendeCarte :carte="etat.carte" />
+                    </div>
                     <!-- fil des événements mécaniques (dés, dégâts, morts…) : C1/C2 -->
                     <div v-if="enQuete && journalTable.length" class="evt-log">
                         <div class="evt-ttl"><MSym n="receipt_long" :size="14" /> Fil des événements</div>
@@ -848,6 +869,18 @@ watch(() => store.state.clotureTerminee, (t) => {
 /* ---- zone principale : carte + panneau de groupe ---- */
 .table-screen .main { display: grid; grid-template-columns: 1fr 320px; gap: 18px; min-height: 0; z-index: 2; }
 .table-screen .map-wrap { position: relative; display: grid; place-items: center; min-height: 0; }
+/* ⚠ Le conteneur est ÉTIRÉ sur toute la hauteur de la zone de carte (`bottom`),
+   pour que les panneaux puissent se borner à `calc(100% - 42px)` : sans ça, leur
+   `max-height` en `vh` les faisait descendre sous la carte et passer DERRIÈRE le
+   bandeau de narration — le bas du contenu restait invisible alors même que leur
+   propre défilement se croyait au bout.
+   ⚠ `pointer-events: none` sur le conteneur, `auto` sur ses enfants : étiré, il
+   couvrirait sinon toute la carte et avalerait les clics sur les figurines. */
+.table-screen .map-outils { position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 20;
+  display: flex; gap: 8px; align-items: stretch; pointer-events: none; }
+.table-screen .map-outils > * { pointer-events: auto; }
+.table-screen .map-outils .ap-panneau,
+.table-screen .map-outils .lg-panneau { max-height: calc(100% - 42px); }
 /* Fenêtre fixe (mêmes proportions/zoom qu'avant, 14×9 cases visibles) —
    `overflow: hidden` recadre .map-grid, plus grand si la vraie carte
    dépasse cette densité (ex. 22×6), pendant que .map-grid se recentre
