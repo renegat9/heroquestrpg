@@ -46,14 +46,20 @@ def defaut(msg):
 
 
 PRIORITE = [
-    'attaquer', 'lancer', 'repousser_',                   # combattre au contact
-    'sort_',                                              # magie (si une cible MONSTRE existe)
-    'ouvrir_porte', 'actionner_levier',                   # ouvrir le chemin
-    'fouiller_tresor', 'fouille_mobilier', 'epreuve_',    # ramasser
-    'fouiller',                                           # chercher pièges/portes
-    'se_deplacer',                                        # avancer
+    'attaquer', 'lancer', 'repousser_',
+    'sort_',
+    'ouvrir_porte', 'actionner_levier',
+    'fouiller_tresor', 'fouille_mobilier', 'epreuve_', 'fracasser',
+    'fouiller',
+    'se_deplacer',
     'quitter_donjon', 'attendre',
 ]
+
+# ⚠ Jamais tenté par le pilote : la retraite ouvre un vote qui peut RECOMMENCER
+# la quête ou ARRÊTER la campagne. On ne la déclenche pas au hasard — mais on
+# vérifie qu'elle DISPARAÎT du menu quand un vote est déjà ouvert (c'est le
+# correctif du 2026-08-30).
+JAMAIS = ('battre_en_retraite',)
 
 
 def rang(oid):
@@ -64,36 +70,34 @@ def rang(oid):
 
 
 def cible_monstre(opt):
-    """Première cible MONSTRE des cibles légales, ou None."""
     for c in (opt.get('parametres') or {}).get('cibles') or []:
         if c.get('type') == 'monstre':
             return c
     return None
 
 
-def jouable(opt, etat):
-    """Écarte ce qui n'a pas de sens : un sort offensif sur soi-même, une
-    retraite, un déséquipement. ⚠ Le menu OFFRE bien le sort sur son propre
-    lanceur — le tir ami est délibéré (doc 02 §5) — donc c'est au pilote de ne
-    pas se brûler tout seul, pas au moteur de l'interdire."""
+def jouable(opt):
     oid = opt.get('id', '')
-    if oid.startswith(('desequiper', 'equiper', 'battre_en_retraite', 'donner')):
+    if oid.startswith(JAMAIS):
         return False
-    if oid.startswith('sort_') and (opt.get('parametres') or {}).get('cibles') is not None:
+    # Un sort qui n'a que son lanceur pour cible : le tir ami est délibéré
+    # (doc 02 §5), c'est au pilote de ne pas se brûler tout seul.
+    if oid.startswith(('sort_', 'attaquer', 'lancer')) and (opt.get('parametres') or {}).get('cibles') is not None:
         return cible_monstre(opt) is not None
     return True
 
 
-def parametres_pour(opt, etat, cases_libres):
-    """Paramètres attendus par le résolveur (contrat §Ciblage en deux temps)."""
+def parametres_pour(opt, cap_suivant):
+    """Les CINQ seules clés que `ChoixController` valide : x, y, cible_id,
+    cible_type, sort_id. Tout le reste (index d'épreuve, de meuble, de levier)
+    voyage dans l'option elle-même, que le serveur relit de son CACHE — donc un
+    422 après ça est une NON-CONFORMITÉ du menu, pas une erreur du client."""
     p = opt.get('parametres') or {}
-    if opt.get('type') == 'deplacement' and 'cibles' not in p:
-        return {'x': cases_libres[0], 'y': cases_libres[1]} if cases_libres else None
+    if opt.get('type') == 'deplacement':
+        return {'x': cap_suivant[0], 'y': cap_suivant[1]} if cap_suivant else None
     if p.get('cibles'):
         c = cible_monstre(opt) or p['cibles'][0]
         return {'cible_id': c['id'], 'cible_type': c['type']}
-    if opt.get('id') == 'se_deplacer':
-        return {'x': cases_libres[0], 'y': cases_libres[1]} if cases_libres else None
     return None
 
 
@@ -175,6 +179,12 @@ def cap(etat, heros_id):
 slots = {1: int((D / 'perso-1.txt').read_text()), 2: int((D / 'perso-2.txt').read_text())}
 vus = set()
 refuses = set()
+essayees = set()
+offertes = set()
+familles = {}
+refuses_types = {}
+sans_destination = [0]
+course = [0]
 tours = 0
 
 for boucle in range(400):
@@ -195,6 +205,19 @@ for boucle in range(400):
     code, v = req(1, 'GET', f'/groupes/{CODE}/votes')
     vote = (v or {}).get('vote')
     if vote:
+        # ⚠ LE contrôle du correctif du 2026-08-30, et il doit se faire ICI :
+        # une fois les bulletins déposés le vote disparaît, et la boucle ne
+        # relit jamais de menu tant qu'il est ouvert. Placé ailleurs, le test
+        # ne s'exécutait tout simplement pas.
+        for slot in slots:
+            c, m = req(slot, 'GET', f'/groupes/{CODE}/menu')
+            ids = [o['id'] for o in ((m.get('menu') or m or {}).get('options') or [])]
+            interdites = [i for i in ids if i in ('quitter_donjon', 'battre_en_retraite')]
+            if interdites:
+                defaut(f'menu du slot {slot} : {interdites} offertes alors qu\'un vote est OUVERT')
+            else:
+                note(f'  ✓ vote ouvert : aucune option de vote dans le menu du slot {slot}')
+
         choix = 'oui' if any(o['id'] == 'oui' for o in vote.get('options') or []) else 'continuer'
         for slot in slots:
             c, r = req(slot, 'POST', f'/groupes/{CODE}/votes/bulletin', {'option_id': choix})
@@ -230,22 +253,54 @@ for boucle in range(400):
         time.sleep(1.5)
         continue
 
-    options = [o for o in options if jouable(o, etat) and o.get('id') not in refuses]
-    options.sort(key=lambda o: rang(o.get('id', '')))
+    offertes.update(o.get('type', '?') for o in options)
+    for o in options:
+        familles[o.get('id', '').split('_')[0]] = o.get('type', '?')
+
+    options = [o for o in options if jouable(o) and o.get('id') not in refuses]
+    # Couverture d'abord : une option jamais essayée passe devant.
+    options.sort(key=lambda o: (o.get('id') in essayees, rang(o.get('id', ''))))
     if not options:
         req(slot, 'POST', f'/groupes/{CODE}/choix', {'option_id': 'attendre'})
         refuses.clear()
         continue
 
     opt = options[0]
-    params = parametres_pour(opt, etat, cap(etat, courant['id']))
+    essayees.add(opt['id'])
+    params = parametres_pour(opt, cap(etat, courant['id']))
 
     code, res = req(slot, 'POST', f'/groupes/{CODE}/choix',
                     {'option_id': opt['id'], **({'parametres': params} if params else {})})
     tours += 1
     etiquette = f"slot {slot} · {opt.get('libelle', opt['id'])[:52]}"
     if code >= 400:
-        defaut(f"{etiquette} → HTTP {code} : {json.dumps(res, ensure_ascii=False)[:150]}")
+        msg = json.dumps(res, ensure_ascii=False)
+        # ⚠ « Choisis d'abord une case » n'est PAS une non-conformité : le menu
+        # offre légitimement « Se déplacer » même quand rien n'est accessible —
+        # la manette ouvre alors sa feuille avec « tu es bloqué ». C'est le
+        # pilote qui n'a pas de destination à envoyer, pas le moteur qui ment.
+        # ⚠ « Destination inaccessible » : avant d'accuser le menu, on RELIT
+        # l'état. Le pilote calcule sa destination sur un instantané, puis la
+        # phase des monstres se joue dans la requête d'un AUTRE joueur — une
+        # créature peut s'être posée sur la case entre-temps. Si la case est
+        # occupée maintenant, c'est une course du pilote, pas un menu qui ment.
+        if 'Destination inaccessible' in msg and params:
+            _, frais = req(slot, 'GET', f'/groupes/{CODE}/etat')
+            prise = any(e.get('x') == params.get('x') and e.get('y') == params.get('y')
+                        for e in frais.get('entites') or [])
+            if prise:
+                note(f"  (course du pilote : ({params['x']},{params['y']}) occupée depuis) {etiquette}")
+                course[0] += 1
+                refuses.add(opt['id'])
+                time.sleep(0.35)
+                continue
+
+        if "case de destination" in msg:
+            note(f"  (pilote sans destination) {etiquette}")
+            sans_destination[0] += 1
+        else:
+            defaut(f"NON CONFORME · {etiquette} → HTTP {code} : {msg[:140]}")
+            refuses_types[opt.get('type', '?')] = refuses_types.get(opt.get('type', '?'), 0) + 1
         # ⚠ On BLACKLISTE l'option pour ce tour au lieu de terminer : sinon un
         # seul refus masquerait tout le reste du menu, et le test ne verrait
         # jamais les options suivantes.
@@ -257,7 +312,13 @@ for boucle in range(400):
 
     time.sleep(0.35)
 
-note(f'\n--- {tours} actions jouées · familles d\'options vues : {sorted(vus)} ---')
+note('\n=== CONFORMITÉ DU MENU ===')
+note(f'  {tours} actions jouées · {len(essayees)} options distinctes exercées')
+note(f'  types d\'option rencontrés : {sorted(offertes)}')
+note(f'  familles : {json.dumps(familles, ensure_ascii=False, sort_keys=True)}')
+note(f'  refus par type : {refuses_types or "aucun"}')
+note(f'  déplacements sans destination (limite du pilote) : {sans_destination[0]}')
+note(f'  destinations prises entre-temps (course du pilote) : {course[0]}')
 note(f'DÉFAUTS={len(defauts)}')
 for d in defauts:
     note('  ' + d)
