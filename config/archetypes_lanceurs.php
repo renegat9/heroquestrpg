@@ -13,6 +13,13 @@
  * exister dans le catalogue SortDread (SortDreadSeeder).
  *
  * `label` = nom neutre de repli (sans IA) ; `voix` = profil de barks (config/barks.php).
+ *
+ * ⚠ Le répertoire est FILTRÉ PAR PALIER à l'exécution (`sorts_dread.palier`,
+ * un tier MINIMUM — doc 09 §4). Un archétype se déclare donc complet, et c'est
+ * le TIER de la créature qui le porte qui décide de ce qu'elle en tire : le
+ * Chamane Gobelin (sous-boss) hérite de Frayeur, Sommeil et Trait de Chaos,
+ * mais pas de Commandement, réservé au palier boss. Un chaman de rang boss
+ * ajouté demain commandera, sans qu'on touche à cette table.
  */
 return [
 

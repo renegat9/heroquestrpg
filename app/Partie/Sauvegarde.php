@@ -351,6 +351,16 @@ final class Sauvegarde
                     'etat' => $i->etat,
                     'elite' => (bool) $i->elite,
                     'revele' => (bool) $i->revele,
+                    // État de combat propre à l'instance : brûlure (le troll ne
+                    // régénère plus), braise différée du Toucher du Brasier, et
+                    // les compteurs de Dread. Ils manquaient tous : une reprise
+                    // éteignait la brûlure et RENDAIT au boss les sorts qu'il
+                    // avait déjà dépensés.
+                    'brule' => (bool) $i->brule,
+                    'degat_differe' => (int) $i->degat_differe,
+                    'usages_dread' => (int) $i->usages_dread,
+                    'invocation_dread_utilisee' => (bool) $i->invocation_dread_utilisee,
+                    'fuite_dread_utilisee' => (bool) $i->fuite_dread_utilisee,
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
@@ -501,6 +511,13 @@ final class Sauvegarde
                 'etat' => $instance['etat'],
                 'elite' => $instance['elite'] ?? false,
                 'revele' => $instance['revele'] ?? true,
+                // `??` : un snapshot pris AVANT l'ajout de ces colonnes se
+                // restaure encore, sur les valeurs par défaut du catalogue.
+                'brule' => $instance['brule'] ?? false,
+                'degat_differe' => $instance['degat_differe'] ?? 0,
+                'usages_dread' => $instance['usages_dread'] ?? 0,
+                'invocation_dread_utilisee' => $instance['invocation_dread_utilisee'] ?? false,
+                'fuite_dread_utilisee' => $instance['fuite_dread_utilisee'] ?? false,
                 'habillage' => $instance['habillage'],
             ])->save();
         }

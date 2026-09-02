@@ -19,7 +19,6 @@ use App\Models\Quete;
 use App\Models\SortDread;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,8 +29,28 @@ use Illuminate\Support\Facades\DB;
  * d'usages par rencontre — départ playtest :
  *   - sous_boss : USAGES_SOUS_BOSS = 2
  *   - boss      : USAGES_BOSS      = 3
- * Les usages vivent en cache (clé par instance+quête), réarmés à chaque
- * démarrage de quête par DemarreurQuete::reinitialiserUsagesDread().
+ * Ils vivent en COLONNE (`instances_monstres.usages_dread`, et les deux
+ * verrous `invocation_dread_utilisee`/`fuite_dread_utilisee`), réarmés à
+ * chaque démarrage de quête par DemarreurQuete. ⚠ Ils tenaient auparavant en
+ * cache (`Cache::forever`) : la règle consolidée du projet l'interdit, et le
+ * symptôme aurait été indétectable — un compteur perdu retombe à 0, donc le
+ * boss cesse silencieusement de lancer ses sorts pour le reste de la quête.
+ * Étant en colonne, ils entrent AUSSI dans le snapshot : une reprise ne rend
+ * plus au boss des sorts qu'il avait déjà dépensés.
+ *
+ * PALIER : `sorts_dread.palier` est un tier MINIMUM (doc 09 §4 — « les
+ * sous-boss lancent déjà les sorts mineurs, le boss final ajoute les sorts
+ * vilains »). Un sous-boss ne lance donc jamais Invocation, Commandement ni
+ * Fuite, même si son répertoire les liste : c'est ce qui fait qu'un même
+ * archétype nommé (config/archetypes_lanceurs.php) monte en puissance avec le
+ * tier de la créature qui le porte, au lieu de donner tout, tout de suite.
+ *
+ * LIGNE DE VUE : un sort de Dread exige la vue sur sa cible, exactement comme
+ * un sort de héros (« nécessaire pour lancer un sort ou observer une cible »,
+ * LR p. 14). Le filtre est le MÊME des deux côtés — figures interposées
+ * bloquantes —, sans quoi le MJ jouerait une autre règle que les joueurs : le
+ * boss foudroyait un héros à l'autre bout du donjon, dans une salle jamais
+ * ouverte, à travers les murs.
  *
  * SORTS DE DREAD — résolution identique aux sorts héros (doc 02 §5, S2) :
  *   - dégâts (Trait de Chaos, Tempête de feu) : Engine\Combat, défense
@@ -44,7 +63,10 @@ use Illuminate\Support\Facades\DB;
  *     1×/rencontre.
  *
  * CAPACITÉS (monstres.capacites JSON) :
- *   - invocation     : même mécanique que le sort, sbires de base ;
+ *   - invocation     : même mécanique que le sort, sbires de base — elle
+ *     PARTAGE le verrou 1×/rencontre du sort, pour qu'un Seigneur qui porte
+ *     les deux n'invoque pas deux fois ; elle ne coûte en revanche aucun
+ *     usage de Dread, c'est une capacité, pas un sort ;
  *   - frappe_de_zone : attaque touche TOUS les héros adjacents (un jet/cible) ;
  *   - regeneration   : +1 PV Body au début de son tour (plafonné au max du catalogue) ;
  *   - resistance_magique : +2 dés de défense quand un héros lui lance un sort de
@@ -65,13 +87,21 @@ use Illuminate\Support\Facades\DB;
  *     monstre voit son mouvement stoppé net » — appliqué côté héros, dans
  *     ResolveurTour, là où les pièges tronquent déjà le chemin.
  *
- * DÉCISION DE SORT (jouerMonstreDread) — priorités :
- *   1. Tempête de feu / Trait de Chaos si héros à portée de vue (score ≥ 2 héros
- *      touchés ou héros visible) ;
- *   2. Sommeil / Frayeur / Commandement sur le héros au Mind le plus FAIBLE non
- *      déjà sous cette condition ;
- *   3. Invocation si ≤ 1 autre monstre actif ;
- *   4. Fuite si pv_body < 25 % du max.
+ * DÉCISION DE SORT (choisirSort) — priorités, premier match gagne, sur les
+ * seuls héros EN VUE :
+ *   1. Tempête de feu si ≥ 2 héros DANS SA ZONE (case du lanceur + 4
+ *      orthogonales) — le compte se fait sur la zone réelle, pas sur le nombre
+ *      de héros debout dans la quête : la priorité 1 était sinon accordée à un
+ *      sort qui ne touchait personne, et l'usage était brûlé pour rien ;
+ *   2. Trait de Chaos sur un héros en vue ;
+ *   3. Tempête de feu même pour un seul héros dans la zone ;
+ *   4. Sommeil / Frayeur / Commandement sur le héros au Mind le plus FAIBLE
+ *      **que ce sort peut encore affecter** — la cible est choisie par
+ *      `cibleControle()`, le MÊME point de passage que la résolution, sinon
+ *      le moteur renonce au sort en regardant un héros et le lance sur un
+ *      autre ;
+ *   5. Invocation si ≤ 1 autre monstre actif (verrou 1×/rencontre) ;
+ *   6. Fuite si pv_body < 25 % du max (verrou 1×/rencontre).
  */
 final class MoteurDread
 {
@@ -92,23 +122,13 @@ final class MoteurDread
     /** Seuil de PV (fraction du max) déclenchant la Fuite. */
     public const SEUIL_FUITE = 0.25;
 
-    /** Clé de cache d'un usage d'invocation unique par instance+quête. */
-    public static function cleInvocation(int $instanceId, int $queteId): string
-    {
-        return "dread:invocation:{$instanceId}:{$queteId}";
-    }
-
-    /** Clé de cache d'un usage de Fuite unique par instance+quête. */
-    public static function cleFuite(int $instanceId, int $queteId): string
-    {
-        return "dread:fuite:{$instanceId}:{$queteId}";
-    }
-
-    /** Clé des usages restants par instance+quête. */
-    public static function cleUsages(int $instanceId, int $queteId): string
-    {
-        return "dread:usages:{$instanceId}:{$queteId}";
-    }
+    /**
+     * Ordre des paliers de `sorts_dread.palier` : un palier est un tier
+     * MINIMUM. Un palier inconnu vaut 0 — fail open, comme partout ailleurs
+     * dans le moteur : une donnée de référence manquante ne doit jamais
+     * durcir le jeu en silence.
+     */
+    private const RANG_PALIER = ['sous_boss' => 1, 'boss' => 2];
 
     public function __construct(
         private readonly LanceurDes $des,
@@ -144,23 +164,23 @@ final class MoteurDread
             return;
         }
 
-        $max = $tier === 'boss' ? self::USAGES_BOSS : self::USAGES_SOUS_BOSS;
-        Cache::forever(self::cleUsages($instance->id, $quete->id), $max);
-        Cache::forget(self::cleInvocation($instance->id, $quete->id));
-        Cache::forget(self::cleFuite($instance->id, $quete->id));
+        $instance->update([
+            'usages_dread' => $tier === 'boss' ? self::USAGES_BOSS : self::USAGES_SOUS_BOSS,
+            'invocation_dread_utilisee' => false,
+            'fuite_dread_utilisee' => false,
+        ]);
     }
 
-    /** Usages restants pour cette instance (0 si jamais initialisé). */
+    /** Usages restants pour cette instance (0 si jamais réarmée). */
     public function usagesRestants(InstanceMonstre $instance, Quete $quete): int
     {
-        return (int) Cache::get(self::cleUsages($instance->id, $quete->id), 0);
+        return (int) $instance->usages_dread;
     }
 
     /** Consomme un usage (ne descend pas en dessous de 0). */
     private function consommerUsage(InstanceMonstre $instance, Quete $quete): void
     {
-        $restants = max(0, $this->usagesRestants($instance, $quete) - 1);
-        Cache::forever(self::cleUsages($instance->id, $quete->id), $restants);
+        $instance->update(['usages_dread' => max(0, (int) $instance->usages_dread - 1)]);
     }
 
     // ------------------------------------------------------------------
@@ -205,18 +225,44 @@ final class MoteurDread
         // 2. Sort de Dread si usages restants et répertoire non vide (archétype
         //    nommé inclus — 3.8 : le répertoire peut venir de l'archétype même si
         //    le champ brut sorts_dread est vide).
+        //
+        //    ⚠ LES CIBLES DE SORT SONT CELLES QU'IL VOIT, pas tous les héros
+        //    debout de la quête. `$cibles` reste la liste complète : elle sert
+        //    encore à la Fuite (on ne se sauve pas d'un ennemi au prétexte
+        //    qu'un mur le masque) et à la Charge (qui a besoin d'un chemin, pas
+        //    d'une ligne de vue).
         if ($this->repertoireSorts($instance->monstre) !== [] && $this->usagesRestants($instance, $quete) > 0) {
-            $sortChoisi = $this->choisirSort($groupe, $quete, $instance, $cibles);
+            $enVue = $this->ciblesEnVue($quete, $instance, $cibles);
+            $sortChoisi = $this->choisirSort($groupe, $quete, $instance, $cibles, $enVue);
 
             if ($sortChoisi !== null) {
                 $this->consommerUsage($instance, $quete);
-                $actions[] = $this->lancerSortDread($groupe, $quete, $instance, $sortChoisi, $cibles, $acteur);
+                $actions[] = $this->lancerSortDread($groupe, $quete, $instance, $sortChoisi, $cibles, $enVue, $acteur);
 
                 return $this->fusionnerActions($actions);
             }
         }
 
-        // 3. Capacité Charge si hors contact mais joignable.
+        // 3. Capacité Invocation (monstres.capacites) : même mécanique que le
+        //    sort, sbires de base, MAIS sans coûter d'usage de Dread — c'est
+        //    une capacité. Elle partage le verrou 1×/rencontre du sort, sans
+        //    quoi un Seigneur qui porte les deux invoquerait deux fois. Elle
+        //    n'avait AUCUN lecteur jusqu'ici : deux monstres du catalogue la
+        //    déclaraient et seul le sort invoquait vraiment.
+        //    ⚠ Jamais AU CONTACT : un boss encerclé qui passe son tour à
+        //    appeler des renforts au lieu de frapper les deux héros collés à
+        //    lui est un cadeau, pas une menace. Même arbitrage que `pondre()`
+        //    pour le Spawn — on engendre quand on n'a personne sous la main.
+        if ($this->aCapacite($instance, 'invocation')
+            && ! $instance->invocation_dread_utilisee
+            && ! $this->auContact($instance, $cibles)
+            && $this->assezSeulPourInvoquer($quete, $instance)) {
+            $actions[] = $this->invocationCapacite($groupe, $quete, $instance, $acteur);
+
+            return $this->fusionnerActions($actions);
+        }
+
+        // 4. Capacité Charge si hors contact mais joignable.
         if ($this->aCapacite($instance, 'charge') && $cibles->isNotEmpty()) {
             $charge = $this->tentativeCharge($groupe, $quete, $instance, $cibles, $acteur);
 
@@ -397,9 +443,19 @@ final class MoteurDread
     // Capacités
     // ------------------------------------------------------------------
 
+    /**
+     * `monstres.capacites` se déclare en LISTE (`['charge']`) ou en MAP quand
+     * la capacité porte des paramètres (`['spawn' => ['creature' => …]]`).
+     * Les deux formes coexistent dans le catalogue : ne lire que les valeurs,
+     * comme avant, rendait toute capacité paramétrée invisible à ce test —
+     * c'est le piège dans lequel `spawn` était déjà tombé, et `pondre()` le
+     * contournait avec un `data_get()` de son côté.
+     */
     public function aCapacite(InstanceMonstre $instance, string $capacite): bool
     {
-        return in_array($capacite, (array) ($instance->monstre->capacites ?? []), true);
+        $capacites = (array) ($instance->monstre->capacites ?? []);
+
+        return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites);
     }
 
     /**
@@ -479,15 +535,17 @@ final class MoteurDread
 
     /**
      * Choisit le sort de Dread le plus pertinent à lancer selon les priorités
-     * documentées.
+     * documentées en tête de classe.
      *
-     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles  tous les héros debout
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue  ceux qu'il VOIT
      */
     private function choisirSort(
         Groupe $groupe,
         Quete $quete,
         InstanceMonstre $instance,
         Collection $cibles,
+        Collection $enVue,
     ): ?SortDread {
         $sortsDisponibles = $this->sortsDisponibles($instance, $quete);
 
@@ -495,69 +553,59 @@ final class MoteurDread
             return null;
         }
 
-        // Priorité 1 : Tempête de feu si plusieurs héros visibles, Trait de Chaos sinon.
+        // Priorité 1 et 3 : Tempête de feu. Le compte se fait sur la ZONE
+        // RÉELLE — `ciblesDansZone()` est le même point de passage que la
+        // résolution. Compter les héros debout de la quête (l'ancienne règle)
+        // accordait la priorité 1 à un sort qui n'atteignait personne : l'usage
+        // partait, le journal annonçait une tempête, et aucun héros n'était
+        // touché.
         $tempete = $sortsDisponibles->firstWhere('nom', 'Tempête de feu');
+        $dansZone = $tempete === null ? 0 : $this->ciblesDansZone($instance, $enVue)->count();
 
-        if ($tempete !== null && $cibles->count() >= 2) {
+        if ($tempete !== null && $dansZone >= 2) {
             return $tempete;
         }
 
+        // Priorité 2 : Trait de Chaos sur un héros en vue.
         $trait = $sortsDisponibles->firstWhere('nom', 'Trait de Chaos');
 
-        if ($trait !== null && $cibles->isNotEmpty()) {
+        if ($trait !== null && $enVue->isNotEmpty()) {
             return $trait;
         }
 
-        // Priorité 1b : Tempête de feu même sur 1 héros.
-        if ($tempete !== null && $cibles->isNotEmpty()) {
+        // Priorité 3 : Tempête de feu même sur un seul héros de la zone.
+        if ($tempete !== null && $dansZone >= 1) {
             return $tempete;
         }
 
-        // Priorité 2 : Sommeil / Frayeur / Commandement sur le héros au Mind le plus faible.
-        $cibleMindFaible = $cibles
-            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->attribut_mind)
-            ->first();
+        // Priorité 4 : Sommeil / Frayeur / Commandement. ⚠ La cible se cherche
+        // POUR CHAQUE SORT — l'ancienne version ne regardait que le héros au
+        // Mind le plus faible du groupe : s'il portait déjà les trois
+        // conditions, le boss renonçait au contrôle alors qu'un autre héros
+        // était parfaitement endormissable.
+        foreach (['Sommeil', 'Frayeur', 'Commandement'] as $nomSort) {
+            $sort = $sortsDisponibles->firstWhere('nom', $nomSort);
 
-        if ($cibleMindFaible !== null) {
-            foreach (['Sommeil', 'Frayeur', 'Commandement'] as $nomSort) {
-                $sort = $sortsDisponibles->firstWhere('nom', $nomSort);
-
-                if ($sort === null) {
-                    continue;
-                }
-
-                $conditionNom = data_get($sort->effet, 'condition_appliquee');
-
-                // Ne pas relancer le sort si le héros est déjà sous cette condition.
-                if ($conditionNom !== null && $this->herosSousCondition($cibleMindFaible->personnage, $conditionNom)) {
-                    continue;
-                }
-
+            if ($sort !== null && $this->cibleControle($sort, $enVue) !== null) {
                 return $sort;
             }
         }
 
-        // Priorité 3 : Invocation si ≤ 1 autre monstre actif.
+        // Priorité 5 : Invocation si ≤ 1 autre monstre actif.
         $invocation = $sortsDisponibles->firstWhere('nom', 'Invocation de morts-vivants');
 
-        if ($invocation !== null) {
-            $autresMonstres = $quete->instancesMonstres()
-                ->where('etat', 'actif')
-                ->whereKeyNot($instance->id)
-                ->count();
-
-            if ($autresMonstres <= 1
-                && ! Cache::has(self::cleInvocation($instance->id, $quete->id))) {
-                return $invocation;
-            }
+        if ($invocation !== null
+            && ! $instance->invocation_dread_utilisee
+            && $this->assezSeulPourInvoquer($quete, $instance)) {
+            return $invocation;
         }
 
-        // Priorité 4 : Fuite si PV < 25 % du max.
+        // Priorité 6 : Fuite si PV < 25 % du max.
         $fuite = $sortsDisponibles->firstWhere('nom', 'Fuite');
 
         if ($fuite !== null
             && (int) $instance->pv_body < max(1, (int) ($instance->pvBodyMax() * self::SEUIL_FUITE))
-            && ! Cache::has(self::cleFuite($instance->id, $quete->id))) {
+            && ! $instance->fuite_dread_utilisee) {
             return $fuite;
         }
 
@@ -565,8 +613,120 @@ final class MoteurDread
     }
 
     /**
-     * Sorts de Dread disponibles pour cette instance : ceux listés dans
-     * monstres.sorts_dread matchés dans le catalogue SortDread.
+     * Héros que le lanceur VOIT — même règle et même filtre que les sorts des
+     * héros (`MoteurSorts::filtrerLigneDeVue()`) : figures interposées
+     * bloquantes, mobilier opaque bloquant, murs et portes closes bloquants.
+     * Le lanceur ne se bloque pas lui-même (`exceptInstanceId`).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return Collection<int, EtatPersonnageQuete>
+     */
+    private function ciblesEnVue(Quete $quete, InstanceMonstre $instance, Collection $cibles): Collection
+    {
+        if ($instance->position_x === null) {
+            return $cibles;
+        }
+
+        $grille = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        return $cibles->filter(fn (EtatPersonnageQuete $c) => $c->position_x !== null
+            && $grille->ligneDeVue(
+                $ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true,
+            ))->values();
+    }
+
+    /**
+     * Cases balayées par la Tempête de feu : celle du lanceur + les 4
+     * orthogonales. SEUL point de passage — le choix du sort et sa résolution
+     * lisent la même zone, sans quoi le moteur peut choisir un sort qui ne
+     * touchera personne.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    private function casesZone(InstanceMonstre $instance): array
+    {
+        $cx = (int) $instance->position_x;
+        $cy = (int) $instance->position_y;
+
+        return [
+            ['x' => $cx, 'y' => $cy],
+            ['x' => $cx + 1, 'y' => $cy],
+            ['x' => $cx - 1, 'y' => $cy],
+            ['x' => $cx, 'y' => $cy + 1],
+            ['x' => $cx, 'y' => $cy - 1],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return Collection<int, EtatPersonnageQuete>
+     */
+    private function ciblesDansZone(InstanceMonstre $instance, Collection $cibles): Collection
+    {
+        $zone = $this->casesZone($instance);
+
+        return $cibles->filter(function (EtatPersonnageQuete $c) use ($zone) {
+            foreach ($zone as $case) {
+                if ($case['x'] === (int) $c->position_x && $case['y'] === (int) $c->position_y) {
+                    return true;
+                }
+            }
+
+            return false;
+        })->values();
+    }
+
+    /**
+     * Cible d'un sort de contrôle : le héros au Mind le plus FAIBLE qui ne
+     * porte pas déjà la condition posée par ce sort. SEUL point de passage —
+     * `choisirSort()` et `sortDreadControle()` doivent répondre la même chose,
+     * sinon le moteur écarte un sort en regardant un héros et le résout sur un
+     * autre.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     */
+    private function cibleControle(SortDread $sort, Collection $cibles): ?EtatPersonnageQuete
+    {
+        $condition = (string) data_get($sort->effet, 'condition_appliquee', 'Étourdi');
+
+        return $cibles
+            ->filter(fn (EtatPersonnageQuete $e) => ! $this->herosSousCondition($e->personnage, $condition))
+            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->attribut_mind)
+            ->first();
+    }
+
+    /**
+     * Un héros est-il au contact ? MÊME notion qu'ailleurs dans le moteur —
+     * Manhattan = 1, orthogonal strict.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     */
+    private function auContact(InstanceMonstre $instance, Collection $cibles): bool
+    {
+        return $cibles->contains(fn (EtatPersonnageQuete $c) => abs((int) $instance->position_x - (int) $c->position_x)
+            + abs((int) $instance->position_y - (int) $c->position_y) === 1);
+    }
+
+    /** L'invocation ne se déclenche que si le lanceur est presque seul (≤ 1 autre monstre actif). */
+    private function assezSeulPourInvoquer(Quete $quete, InstanceMonstre $instance): bool
+    {
+        return $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->whereKeyNot($instance->id)
+            ->count() <= 1;
+    }
+
+    /**
+     * Sorts de Dread disponibles pour cette instance : ceux du répertoire,
+     * matchés dans le catalogue SortDread, PUIS filtrés sur le palier.
+     *
+     * `palier` est un tier MINIMUM (doc 09 §4) et n'avait jusqu'ici aucun
+     * lecteur : un sous-boss pouvait lancer les sorts vilains réservés au boss
+     * final. Le filtre est aussi ce qui fait vivre les archétypes nommés — le
+     * Chamane Gobelin (sous-boss) et un chaman de rang boss partagent le
+     * répertoire `chaman_orque`, seul le second commande les héros.
      *
      * @return \Illuminate\Support\Collection<int, SortDread>
      */
@@ -578,7 +738,11 @@ final class MoteurDread
             return collect();
         }
 
-        return SortDread::whereIn('nom', $noms)->get()->keyBy('nom')->values();
+        $rangLanceur = self::RANG_PALIER[$instance->monstre->tier ?? 'base'] ?? 0;
+
+        return SortDread::whereIn('nom', $noms)->get()
+            ->filter(fn (SortDread $s) => (self::RANG_PALIER[$s->palier] ?? 0) <= $rangLanceur)
+            ->keyBy('nom')->values();
     }
 
     /**
@@ -617,11 +781,15 @@ final class MoteurDread
         InstanceMonstre $instance,
         SortDread $sort,
         Collection $cibles,
+        Collection $enVue,
         array $acteur,
     ): array {
+        // ⚠ Dégâts et contrôle visent `$enVue`, la Fuite raisonne sur `$cibles` :
+        // se téléporter loin des seuls héros VISIBLES reviendrait à sauter dans
+        // les bras de celui qu'un mur masquait.
         return match ($sort->type) {
-            'degats' => $this->sortDreadDegats($groupe, $quete, $instance, $sort, $cibles, $acteur),
-            'controle' => $this->sortDreadControle($groupe, $instance, $sort, $cibles, $acteur),
+            'degats' => $this->sortDreadDegats($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            'controle' => $this->sortDreadControle($groupe, $instance, $sort, $enVue, $acteur),
             'invocation' => $this->sortDreadInvocation($groupe, $quete, $instance, $sort, $acteur),
             'fuite' => $this->sortDreadFuite($groupe, $quete, $instance, $sort, $cibles, $acteur),
             default => $this->sortDreadGenericJournal($groupe, $sort, $acteur),
@@ -650,8 +818,17 @@ final class MoteurDread
             return $this->tempeteDeFeu($groupe, $quete, $instance, $sort, $cibles, $acteur, $desDegats);
         }
 
-        // Trait de Chaos : 1 héros ciblé (le plus proche / le plus faible — on prend le premier de la liste).
-        $cible = $cibles->first();
+        // Trait de Chaos : 1 héros en vue — le PLUS PROCHE, départage par les PV
+        // les plus bas. Le commentaire annonçait déjà « le plus proche / le plus
+        // faible » et le code prenait `first()`, c'est-à-dire l'ordre des id en
+        // base : le boss visait le fondateur du groupe toute la campagne.
+        $cible = $cibles
+            ->sortBy([
+                fn (EtatPersonnageQuete $e) => abs((int) $instance->position_x - (int) $e->position_x)
+                    + abs((int) $instance->position_y - (int) $e->position_y),
+                fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_body,
+            ])
+            ->first();
 
         if ($cible === null) {
             return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
@@ -717,35 +894,13 @@ final class MoteurDread
         array $acteur,
         int $desDegats,
     ): array {
-        // Cases affectées : la case du lanceur + 4 orthogonales.
-        $cx = (int) $instance->position_x;
-        $cy = (int) $instance->position_y;
-        $casesAffectees = [
-            ['x' => $cx, 'y' => $cy],
-            ['x' => $cx + 1, 'y' => $cy],
-            ['x' => $cx - 1, 'y' => $cy],
-            ['x' => $cx, 'y' => $cy + 1],
-            ['x' => $cx, 'y' => $cy - 1],
-        ];
+        // Cases affectées : la case du lanceur + 4 orthogonales — MÊME calcul
+        // que celui qui a fait choisir le sort (`casesZone()`).
+        $casesAffectees = $this->casesZone($instance);
 
         $resultats = [];
 
-        foreach ($cibles as $cible) {
-            $cx2 = (int) $cible->position_x;
-            $cy2 = (int) $cible->position_y;
-
-            $touche = false;
-            foreach ($casesAffectees as $case) {
-                if ($case['x'] === $cx2 && $case['y'] === $cy2) {
-                    $touche = true;
-                    break;
-                }
-            }
-
-            if (! $touche) {
-                continue;
-            }
-
+        foreach ($this->ciblesDansZone($instance, $cibles) as $cible) {
             $personnage = $cible->personnage;
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $desDegats,
@@ -804,11 +959,8 @@ final class MoteurDread
     ): array {
         $conditionNom = (string) data_get($sort->effet, 'condition_appliquee', 'Étourdi');
 
-        // Ciblage : héros au Mind le plus faible non déjà sous cette condition.
-        $cible = $cibles
-            ->filter(fn (EtatPersonnageQuete $e) => ! $this->herosSousCondition($e->personnage, $conditionNom))
-            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->attribut_mind)
-            ->first();
+        // Ciblage : `cibleControle()`, le point de passage partagé avec le choix.
+        $cible = $this->cibleControle($sort, $cibles);
 
         if ($cible === null) {
             return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
@@ -870,14 +1022,46 @@ final class MoteurDread
         SortDread $sort,
         array $acteur,
     ): array {
-        // Marqueur 1×/rencontre.
-        Cache::forever(self::cleInvocation($instance->id, $quete->id), true);
-
-        $invoques = $this->invoquerSbires($groupe, $quete, $instance, $sort);
+        $invoques = $this->invoquerSbires(
+            $quete,
+            $instance,
+            (array) data_get($sort->effet, 'invoque', ['Squelette']),
+            (int) data_get($sort->effet, 'nombre', self::NB_SBIRES_INVOQUES),
+        );
 
         $payload = [
             'type' => 'sort_dread',
             'sort' => $sort->nom,
+            'invoques' => $invoques,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Capacité `invocation` (`monstres.capacites`) — même geste que le sort,
+     * mais sans usage de Dread. Elle peut nommer ses sbires comme `spawn` le
+     * fait (`['invocation' => ['creature' => 'Zombie']]`) ; sans précision, ce
+     * sont les morts-vivants de base.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function invocationCapacite(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        array $acteur,
+    ): array {
+        $creature = data_get($instance->monstre?->capacites, 'invocation.creature');
+        $noms = $creature === null ? ['Squelette', 'Zombie'] : [(string) $creature];
+
+        $invoques = $this->invoquerSbires($quete, $instance, $noms, self::NB_SBIRES_INVOQUES);
+
+        $payload = [
+            'type' => 'capacite_dread',
+            'capacite' => 'invocation',
             'invoques' => $invoques,
         ];
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -1075,7 +1259,7 @@ final class MoteurDread
         Collection $cibles,
         array $acteur,
     ): array {
-        Cache::forever(self::cleFuite($instance->id, $quete->id), true);
+        $instance->update(['fuite_dread_utilisee' => true]);
 
         $caseCible = $this->caseLaPlusEloignee($quete, $instance, $cibles);
 
@@ -1204,18 +1388,20 @@ final class MoteurDread
     // ------------------------------------------------------------------
 
     /**
-     * Invoque des sbires sur les cases libres adjacentes au lanceur.
+     * Fait apparaître des sbires sur les cases libres adjacentes au lanceur.
+     * Le verrou 1×/rencontre est posé ICI, quel que soit l'appelant (sort ou
+     * capacité) : un Seigneur qui porte les deux invoque une fois, pas deux.
      *
-     * @return list<array{monstre: string, x: int, y: int}>
+     * @param  list<string>  $nomsInvocables
+     * @return list<array<string, mixed>>
      */
     private function invoquerSbires(
-        Groupe $groupe,
         Quete $quete,
         InstanceMonstre $lanceur,
-        SortDread $sort,
+        array $nomsInvocables,
+        int $nombre,
     ): array {
-        $nomsInvocables = (array) data_get($sort->effet, 'invoque', ['Squelette']);
-        $nombre = (int) data_get($sort->effet, 'nombre', self::NB_SBIRES_INVOQUES);
+        $lanceur->update(['invocation_dread_utilisee' => true]);
 
         // Récupère le premier monstre de base dont le nom est dans la liste.
         /** @var Monstre|null $catalogueSbire */
@@ -1396,29 +1582,24 @@ final class MoteurDread
     }
 
     /**
-     * Cases libres (sol/porte, inoccupées) orthogonalement adjacentes au lanceur.
+     * Cases libres orthogonalement adjacentes au lanceur, pour y poser des
+     * sbires. Passe par la grille — donc par le mobilier, les figures et les
+     * portes — au lieu de relire `carte.grille['cases']` à la main : la boucle
+     * maison faisait apparaître un squelette sur une table, et sur un héros à
+     * terre.
      *
      * @return list<array{x: int, y: int}>
      */
     private function casesLibresAdjacentes(Quete $quete, InstanceMonstre $lanceur): array
     {
-        $cases = $quete->carte?->grille['cases'] ?? [];
-        $occupees = [];
-
-        foreach ($quete->etatsPersonnages()->get() as $etat) {
-            $occupees["{$etat->position_x},{$etat->position_y}"] = true;
-        }
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {
-            $occupees["{$m->position_x},{$m->position_y}"] = true;
-        }
-
+        $grille = $this->grilleQuete($quete, exceptInstanceId: $lanceur->id);
         $libres = [];
+
         foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
             $x = (int) $lanceur->position_x + $dx;
             $y = (int) $lanceur->position_y + $dy;
-            $type = $cases[$y][$x] ?? 'm';
 
-            if (($type === 's' || $type === 'p') && ! isset($occupees["{$x},{$y}"])) {
+            if ($grille->estTraversable($x, $y)) {
                 $libres[] = ['x' => $x, 'y' => $y];
             }
         }
@@ -1483,37 +1664,19 @@ final class MoteurDread
     }
 
     /**
-     * Grille de la quête avec les figurines occupées (utile pour pathfinding).
+     * Grille tactique de la quête. Simple délégation à `FabriqueGrille::pour()`,
+     * la source de vérité UNIQUE de l'occupation et de l'opacité. Ce moteur
+     * tenait sa propre boucle : elle ignorait le MOBILIER (doc 17) — un boss
+     * chargeait à travers une bibliothèque et la Fuite le téléportait dans une
+     * table — et comptait les héros TOMBÉS comme des obstacles, alors qu'on
+     * les enjambe (C4).
      */
     private function grilleQuete(
         Quete $quete,
         ?int $exceptPersonnageId = null,
         ?int $exceptInstanceId = null,
     ): Grille {
-        $carte = $quete->carte;
-
-        if ($carte === null) {
-            throw new \RuntimeException('Quête sans carte — impossible de calculer le pathfinding.');
-        }
-
-        $grille = Grille::depuisCarte($carte);
-        $occupees = [];
-
-        foreach ($quete->etatsPersonnages()->get() as $etatP) {
-            if ($etatP->personnage_id !== $exceptPersonnageId && $etatP->position_x !== null) {
-                $occupees[] = ['x' => (int) $etatP->position_x, 'y' => (int) $etatP->position_y];
-            }
-        }
-
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {
-            if ($m->id !== $exceptInstanceId && $m->position_x !== null) {
-                $occupees[] = ['x' => (int) $m->position_x, 'y' => (int) $m->position_y];
-            }
-        }
-
-        $grille->occuper($occupees);
-
-        return $grille;
+        return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId);
     }
 
     /**

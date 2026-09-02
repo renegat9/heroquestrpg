@@ -209,7 +209,7 @@ it('Trait de Chaos inflige 2 dés de dégâts à un héros (défense applicable)
 
     // L'usage a été consommé.
     $dread = app(MoteurDread::class);
-    expect($dread->usagesRestants($boss, $quete))->toBe(1); // 2 - 1 = 1
+    expect($dread->usagesRestants($boss->fresh(), $quete))->toBe(1); // 2 - 1 = 1
 });
 
 it('Sommeil endort un héros (Mind faible échoue) : il saute son tour, réveillé par une attaque', function () {
@@ -494,7 +494,7 @@ it('Invocation : 2 squelettes apparaissent et l\'usage ne se reproduit pas (1×/
     $sortInvocation = SortDread::where('nom', 'Invocation de morts-vivants')->firstOrFail();
 
     // Pas encore d'invocation pour cette instance.
-    expect(Cache::has(MoteurDread::cleInvocation($boss->id, $quete->id)))->toBeFalse();
+    expect($boss->fresh()->invocation_dread_utilisee)->toBeFalse();
 
     // Déclenche la phase monstres en jouant le héros.
     // Usages du boss : 3. Priorité : Tempête de feu si héros visibles, puis Invocation si ≤ 1 autre monstre.
@@ -514,7 +514,7 @@ it('Invocation : 2 squelettes apparaissent et l\'usage ne se reproduit pas (1×/
         expect(count($invocAction['invoques'] ?? []))->toBeGreaterThanOrEqual(1);
 
         // Le marqueur 1×/rencontre est posé.
-        expect(Cache::has(MoteurDread::cleInvocation($boss->id, $quete->id)))->toBeTrue();
+        expect($boss->fresh()->invocation_dread_utilisee)->toBeTrue();
 
         // Un nouvel usage ne peut plus invoquer.
         // Prochain tour — boss ne peut plus invoquer.
@@ -540,7 +540,7 @@ it('usages de Dread épuisés → le boss attaque normalement', function () {
     $dread = app(MoteurDread::class);
 
     // Épuise tous les usages.
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
     expect($dread->usagesRestants($boss, $quete))->toBe(0);
 
     // Dés : héros attendre, puis attaque du boss (crânes sur le héros).
@@ -580,7 +580,7 @@ it('Régénération : +1 PV Body au début du tour, plafonné au max du catalogu
     $boss->update(['pv_body' => $maxPv - 2]);
 
     // Épuise les usages Dread pour que le boss attaque normalement (pas de sort).
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
 
     desFiges(array_fill(0, 100, 4)); // aucun crâne
 
@@ -611,7 +611,7 @@ it('Régénération ne dépasse pas le maximum du catalogue', function () {
     $maxPv = (int) $boss->monstre->pv_body;
     $boss->update(['pv_body' => $maxPv]);
 
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
 
     desFiges(array_fill(0, 100, 4));
 
@@ -639,7 +639,7 @@ it('Frappe de zone touche 2 héros adjacents au boss', function () {
     $etatHeros2->update(['position_x' => $contact2['x'], 'position_y' => $contact2['y']]);
 
     // Épuise les usages Dread pour que le boss attaque (pas de sort).
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
 
     // Dés : 2 attaques × 5 dés chacune (attaque Seigneur = 5) + défense héros.
     desFiges([
@@ -757,7 +757,7 @@ it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {
     $boss->update(['position_x' => (int) $etatHeros->position_x, 'position_y' => (int) $etatHeros->position_y + 2]);
 
     // Épuise les usages Dread pour tester la Charge seule.
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
 
     // Dés pour la charge : attaque Champion = 4 + 1 = 5 dés.
     desFiges([
@@ -846,7 +846,7 @@ it('usages Dread réinitialisés au démarrage d\'une nouvelle quête', function
     expect($dread->usagesRestants($boss, $quete))->toBe(MoteurDread::USAGES_SOUS_BOSS);
 
     // Consomme tous les usages.
-    Cache::forever(MoteurDread::cleUsages($boss->id, $quete->id), 0);
+    $boss->update(['usages_dread' => 0]);
     expect($dread->usagesRestants($boss, $quete))->toBe(0);
 
     // Termine la quête (tous monstres vaincus) + démarre la suivante.
@@ -957,4 +957,213 @@ it('sans le nœud Contresort, aucune seconde chance : Sommeil s\'applique direct
 
     expect($sortAction)->not->toHaveKey('contresort')
         ->and($sortAction['condition'])->toBe('Endormi');
+});
+
+// ------------------------------------------------------------------
+// Écarts corrigés le 2026-09-01 : ligne de vue, zone réelle, cible de
+// contrôle partagée, palier, capacité Invocation, usages en colonne.
+// ------------------------------------------------------------------
+
+/**
+ * Première case du plateau que le boss NE VOIT PAS (mur, porte close ou
+ * mobilier opaque entre les deux). On la cherche plutôt que de la coder en
+ * dur : la carte est générée à chaque quête.
+ *
+ * @return array{x: int, y: int}|null
+ */
+function caseHorsDeVue(Quete $quete, InstanceMonstre $boss): ?array
+{
+    $grille = App\Partie\FabriqueGrille::pour($quete, exceptInstanceId: $boss->id);
+    $cases = $quete->carte->grille['cases'];
+
+    foreach ($cases as $y => $ligne) {
+        foreach ($ligne as $x => $type) {
+            if (! in_array($type, ['s', 'p'], true) || ! caseQueteLibre($quete, (int) $x, (int) $y)) {
+                continue;
+            }
+
+            if (! $grille->ligneDeVue(
+                (int) $boss->position_x, (int) $boss->position_y, (int) $x, (int) $y, figuresBloquent: true,
+            )) {
+                return ['x' => (int) $x, 'y' => (int) $y];
+            }
+        }
+    }
+
+    return null;
+}
+
+it('ne lance AUCUN sort de Dread sur un héros hors ligne de vue', function () {
+    $ctx = demarrerQueteBoss('Champion');
+    ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
+
+    // Répertoire réduit au Trait de Chaos : sans le filtre de vue, il partait à
+    // coup sûr — `$cibles` contenait tous les héros debout de la quête.
+    $boss->monstre->update(['sorts_dread' => ['Trait de Chaos'], 'archetype_lanceur' => null]);
+
+    $cachette = caseHorsDeVue($quete, $boss);
+    expect($cachette)->not->toBeNull('la carte générée doit offrir une case masquée');
+
+    $etatHeros->update(['position_x' => $cachette['x'], 'position_y' => $cachette['y']]);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $actions = collect($reponse->json('resultat.tour_monstres.actions'));
+
+    expect($actions->firstWhere('type', 'sort_dread'))->toBeNull()
+        // …et l'usage n'a pas été dépensé pour rien.
+        ->and((int) $boss->fresh()->usages_dread)->toBe(MoteurDread::USAGES_SOUS_BOSS);
+});
+
+it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', function () {
+    $ctx = demarrerQueteBoss('Champion');
+    ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
+
+    // Répertoire réduit à la Tempête : le héros reste EN VUE mais hors zone.
+    $boss->monstre->update(['sorts_dread' => ['Tempête de feu'], 'archetype_lanceur' => null]);
+
+    $grille = App\Partie\FabriqueGrille::pour($quete, exceptInstanceId: $boss->id);
+    $vueLoin = null;
+
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $type) {
+            $distance = abs((int) $x - (int) $boss->position_x) + abs((int) $y - (int) $boss->position_y);
+
+            if ($distance >= 2 && in_array($type, ['s', 'p'], true)
+                && caseQueteLibre($quete, (int) $x, (int) $y)
+                && $grille->ligneDeVue((int) $boss->position_x, (int) $boss->position_y, (int) $x, (int) $y, figuresBloquent: true)) {
+                $vueLoin = ['x' => (int) $x, 'y' => (int) $y];
+                break 2;
+            }
+        }
+    }
+
+    expect($vueLoin)->not->toBeNull();
+    $etatHeros->update(['position_x' => $vueLoin['x'], 'position_y' => $vueLoin['y']]);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    expect(collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Tempête de feu'))
+        ->toBeNull()
+        ->and((int) $boss->fresh()->usages_dread)->toBe(MoteurDread::USAGES_SOUS_BOSS);
+});
+
+it('cible un AUTRE héros quand le Mind le plus faible porte déjà la condition', function () {
+    // alice (Mind 1) est la cible naturelle de Sommeil ; on l'endort d'avance.
+    // L'ancienne sélection ne regardait qu'elle et renonçait au sort — bob,
+    // parfaitement endormissable, n'était jamais envisagé.
+    $ctx = demarrerQueteBoss('Champion', mindHeros: 1, avecSecondHeros: true, mindHeros2: 2);
+    ['alice' => $alice, 'bob' => $bob, 'quete' => $quete, 'boss' => $boss] = $ctx;
+    ['heros' => $heros, 'heros2' => $heros2, 'etatHeros2' => $etatHeros2] = $ctx;
+
+    $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
+
+    // bob se place au contact du boss (donc en vue).
+    $contact2 = caseAdjacenteLibre($quete, (int) $boss->position_x, (int) $boss->position_y);
+    $etatHeros2->update(['position_x' => $contact2['x'], 'position_y' => $contact2['y']]);
+
+    $endormi = Condition::where('nom', 'Endormi')->firstOrFail();
+    $heros->conditions()->attach($endormi->id, ['duree' => 5, 'source' => 'test']);
+
+    desFiges(array_fill(0, 200, 4)); // résistance naturelle ratée
+
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $reponse = test()->actingAs($bob, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
+
+    expect($sort)->not->toBeNull()
+        ->and($sort['cible']['personnage_id'])->toBe($heros2->id);
+});
+
+it('un SOUS-BOSS ne lance pas les sorts de palier boss', function () {
+    $ctx = demarrerQueteBoss('Champion'); // tier sous_boss
+    ['alice' => $alice, 'boss' => $boss] = $ctx;
+
+    // Fuite et Commandement sont de palier boss : le répertoire les liste, le
+    // palier les refuse. Reste : aucun sort lançable.
+    $boss->monstre->update(['sorts_dread' => ['Fuite', 'Commandement'], 'archetype_lanceur' => null]);
+    $boss->update(['pv_body' => 1]); // sous le seuil de Fuite
+
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    expect(collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'sort_dread'))
+        ->toBeNull();
+
+    // Le même répertoire sur un BOSS, lui, part.
+    $boss->monstre->update(['tier' => 'boss']);
+    $boss->load('monstre');
+    app(MoteurDread::class)->reinitialiserUsagesInstance($boss, $ctx['quete']);
+
+    $ctx['quete']->etatsPersonnages()->update(['a_joue' => false]);
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse2 = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    expect(collect($reponse2->json('resultat.tour_monstres.actions'))->firstWhere('type', 'sort_dread'))
+        ->not->toBeNull();
+});
+
+it('la CAPACITÉ Invocation fait apparaître des sbires sans dépenser d\'usage', function () {
+    $ctx = demarrerQueteBoss('Seigneur');
+    ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
+
+    // Capacité seule, aucun sort : jusqu'ici `invocation` n'avait aucun lecteur
+    // et ce boss n'invoquait jamais.
+    $boss->monstre->update(['capacites' => ['invocation'], 'sorts_dread' => [], 'archetype_lanceur' => null]);
+    $boss->load('monstre');
+    $boss->update(['usages_dread' => 0]);
+
+    // Hors contact : au contact, il frappe (même arbitrage que le Spawn).
+    $loin = caseHorsDeVue($quete, $boss) ?? ['x' => (int) $etatHeros->position_x, 'y' => (int) $etatHeros->position_y];
+    $etatHeros->update(['position_x' => $loin['x'], 'position_y' => $loin['y']]);
+
+    $avant = $quete->instancesMonstres()->where('etat', 'actif')->count();
+    desFiges(array_fill(0, 200, 4));
+
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $invocation = collect($reponse->json('resultat.tour_monstres.actions'))
+        ->firstWhere('capacite', 'invocation');
+
+    expect($invocation)->not->toBeNull()
+        ->and(count($invocation['invoques']))->toBeGreaterThanOrEqual(1)
+        ->and($quete->instancesMonstres()->where('etat', 'actif')->count())->toBeGreaterThan($avant)
+        // Aucun usage de Dread consommé : c'est une capacité, pas un sort.
+        ->and((int) $boss->fresh()->usages_dread)->toBe(0)
+        // …et le verrou 1×/rencontre est posé, partagé avec le sort.
+        ->and($boss->fresh()->invocation_dread_utilisee)->toBeTrue();
+});
+
+it('les usages de Dread vivent en COLONNE et survivent au vidage du cache', function () {
+    $ctx = demarrerQueteBoss('Champion');
+    ['boss' => $boss, 'quete' => $quete] = $ctx;
+
+    expect((int) $boss->fresh()->usages_dread)->toBe(MoteurDread::USAGES_SOUS_BOSS);
+
+    // Le motif que la règle consolidée interdit : un cache vidé ne doit plus
+    // rendre le boss muet pour le reste de la quête.
+    Cache::flush();
+
+    expect((int) $boss->fresh()->usages_dread)->toBe(MoteurDread::USAGES_SOUS_BOSS)
+        ->and(app(MoteurDread::class)->usagesRestants($boss->fresh(), $quete))
+        ->toBe(MoteurDread::USAGES_SOUS_BOSS);
 });

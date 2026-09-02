@@ -1011,10 +1011,24 @@ au milieu d'une quête saine, pas seulement après un échec. C'est le bouton
 
 Aucun nouvel endpoint : le **comportement scripté (C2)** des sous-boss/boss
 s'enrichit. Priorité d'un lanceur à son tour : sort de Dread s'il reste des
-**usages** (cache par instance et par rencontre — départ playtest : sous-boss
-2, boss 3) et qu'une cible vaut le coup, sinon capacité, sinon
-déplacement+attaque normal. Le moteur décide et résout ; l'IA ne fait que
-narrer (les payloads de narration portent le détail).
+**usages** (colonnes `instances_monstres.usages_dread` /
+`invocation_dread_utilisee` / `fuite_dread_utilisee`, réarmées au démarrage de
+quête — départ playtest : sous-boss 2, boss 3) et qu'une cible vaut le coup,
+sinon capacité, sinon déplacement+attaque normal. Le moteur décide et résout ;
+l'IA ne fait que narrer (les payloads de narration portent le détail).
+
+Trois règles cadrent le choix, et elles sont symétriques de celles des héros :
+
+- **Ligne de vue obligatoire** pour tout sort de Dread, figures interposées
+  bloquantes — même filtre que les sorts de héros (LR p. 14). Un héros dans
+  une salle jamais ouverte n'est pas une cible. La Fuite fait exception : elle
+  s'éloigne de TOUS les héros debout, visibles ou non.
+- **`sorts_dread.palier` est un tier MINIMUM** : un sous-boss ne lance jamais
+  Invocation, Commandement ni Fuite, même si son répertoire les liste. C'est
+  ce qui fait monter un archétype nommé avec le rang de la créature.
+- **La Tempête de feu se choisit sur sa zone réelle** (case du lanceur + 4
+  orthogonales), pas sur le nombre de héros debout : elle n'est plus lancée
+  dans le vide.
 
 **Sorts de Dread** (résolution identique aux sorts héros — le **jet de Mind du
 héros** utilise son `attribut_mind`, S2 binaire) :
@@ -1029,7 +1043,9 @@ l'allié adjacent sinon avance vers le plus proche allié) ; Fuite (le lanceur s
 téléporte sur la case libre la plus éloignée des héros).
 
 **Capacités** (`monstres.capacites` JSON) : Invocation (comme le sort, sbires
-de base) ; Frappe de zone (l'attaque touche TOUS les héros adjacents, un jet
+de base — payload `{type: "capacite_dread", capacite: "invocation", invoques}` ;
+elle ne coûte **aucun** usage de Dread, partage le verrou 1×/rencontre du sort
+et ne se déclenche pas au contact d'un héros) ; Frappe de zone (l'attaque touche TOUS les héros adjacents, un jet
 par cible) ; Régénération (+1 PV Body au début de son tour, plafonné) ;
 Résistance magique (+2 dés de défense contre les sorts de dégâts des héros) ;
 Charge (si hors contact et joignable : déplacement + attaque à +1 dé).

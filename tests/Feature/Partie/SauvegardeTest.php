@@ -426,3 +426,40 @@ it('liste les snapshots du groupe (GET) au format du contrat', function () {
     $this->actingAs($intrus, 'joueur');
     $this->getJson('/api/groupes/table-1/snapshots')->assertStatus(422);
 });
+
+it('la reprise conserve l\'état de combat des instances (brûlure, braise, usages de Dread)', function () {
+    [$alice, $groupe, $mage, $quete] = demarrerQueteSauvegarde();
+
+    // On marque une instance : brûlée, une braise en attente, et un budget de
+    // Dread déjà entamé. Aucune de ces colonnes n'entrait dans le snapshot —
+    // une reprise éteignait la brûlure du troll et RENDAIT au boss les sorts
+    // qu'il avait déjà lancés.
+    $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $instance->update([
+        'brule' => true,
+        'degat_differe' => 2,
+        'usages_dread' => 1,
+        'invocation_dread_utilisee' => true,
+        'fuite_dread_utilisee' => true,
+    ]);
+
+    // Le snapshot `debut_quete` est pris au démarrage : on en prend un frais.
+    app(App\Partie\Sauvegarde::class)->snapshotter($groupe->fresh(), 'nouveau_tour');
+
+    // On efface l'état, puis on restaure.
+    $instance->update([
+        'brule' => false, 'degat_differe' => 0, 'usages_dread' => 3,
+        'invocation_dread_utilisee' => false, 'fuite_dread_utilisee' => false,
+    ]);
+
+    $snapshot = Snapshot::where('groupe_id', $groupe->id)->orderByDesc('id')->firstOrFail();
+    app(App\Partie\Sauvegarde::class)->restaurer($groupe->fresh(), $snapshot);
+
+    $restaure = App\Models\InstanceMonstre::findOrFail($instance->id);
+
+    expect((bool) $restaure->brule)->toBeTrue()
+        ->and((int) $restaure->degat_differe)->toBe(2)
+        ->and((int) $restaure->usages_dread)->toBe(1)
+        ->and((bool) $restaure->invocation_dread_utilisee)->toBeTrue()
+        ->and((bool) $restaure->fuite_dread_utilisee)->toBeTrue();
+});

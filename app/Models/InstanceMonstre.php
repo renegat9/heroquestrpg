@@ -23,6 +23,12 @@ class InstanceMonstre extends Model
         // Brûlée : la régénération s'arrête définitivement (carte du troll,
         // « damage done by fire is permanent »).
         'brule',
+        // Usages de sorts de Dread restants pour la rencontre, et les deux
+        // verrous 1×/rencontre (Invocation, Fuite). EN COLONNE, jamais en
+        // cache : perdre le compteur rendait le boss muet en silence.
+        'usages_dread',
+        'invocation_dread_utilisee',
+        'fuite_dread_utilisee',
         // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
         // fin du PROCHAIN tour de la créature, puis s'éteignent.
         'degat_differe',
@@ -36,6 +42,9 @@ class InstanceMonstre extends Model
             'revele' => 'boolean',
             'elite' => 'boolean',
             'brule' => 'boolean',
+            'usages_dread' => 'integer',
+            'invocation_dread_utilisee' => 'boolean',
+            'fuite_dread_utilisee' => 'boolean',
             'degat_differe' => 'integer',
         ];
     }

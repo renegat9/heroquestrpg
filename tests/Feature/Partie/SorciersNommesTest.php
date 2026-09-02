@@ -150,3 +150,29 @@ it('garantit que chaque sort d\'archétype existe dans le catalogue SortDread', 
         }
     }
 });
+
+it('filtre le répertoire de l\'archétype par PALIER : le sous-boss n\'a pas les sorts vilains', function () {
+    // Le Chamane Gobelin (sous_boss) porte l'archétype `chaman_orque`, dont le
+    // répertoire liste Commandement — un sort de palier boss. `palier` n'avait
+    // aucun lecteur : le sous-boss commandait les héros dès la première quête.
+    $sorts = repertoireDe('Chamane Gobelin');
+
+    expect(config('archetypes_lanceurs.chaman_orque.sorts'))->toContain('Commandement')
+        ->and($sorts)
+        ->toContain('Frayeur')
+        ->toContain('Sommeil')
+        ->toContain('Trait de Chaos')
+        ->not->toContain('Commandement');
+});
+
+it('connaît le palier de CHAQUE sort du catalogue (aucun rang muet)', function () {
+    // Le filtre lit `MoteurDread::RANG_PALIER` et retombe sur 0 pour un palier
+    // inconnu — fail open, comme partout ailleurs. Encore faut-il qu'aucun sort
+    // semé ne prenne ce chemin : un palier absent de la table rendrait le sort
+    // lançable par n'importe quel tier, en silence.
+    $connus = array_keys((new ReflectionClass(MoteurDread::class))->getConstant('RANG_PALIER'));
+
+    foreach (SortDread::all() as $sort) {
+        expect($connus)->toContain($sort->palier);
+    }
+});
