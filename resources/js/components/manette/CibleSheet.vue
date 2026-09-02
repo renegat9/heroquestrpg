@@ -9,14 +9,13 @@
 import { computed, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
-import { elementInfo, TYPES_SORT } from '../../store/game';
 
 const props = defineProps({
     /** { option, mode: 'cible'|'concentration', cibles?: [...], sorts?: [...] } */
     feuille: { type: Object, required: true },
 });
 
-const emit = defineEmits(['cible', 'sort', 'close']);
+const emit = defineEmits(['cible', 'close']);
 
 // Ennemis d'abord, alliés (tir ami) à part : évite de viser un héros par erreur
 // dans la même liste indifférenciée (le garde-fou de confirmation reste en place).
@@ -46,15 +45,6 @@ function choisir(cible) {
     emit('cible', cible);
 }
 
-function carteSort(s) {
-    const el = elementInfo(s.element);
-    return {
-        ic: el?.ic ?? 'auto_awesome',
-        elClass: el ? `el-${el.cle}` : '',
-        badge: TYPES_SORT[(s.type ?? '').toLowerCase()]?.l ?? '',
-    };
-}
-
 function onOverlayClick(e) {
     if (e.target.classList.contains('overlay')) emit('close');
 }
@@ -65,26 +55,14 @@ function onOverlayClick(e) {
         <div class="sheet">
             <div class="grip" />
 
-            <!-- concentration : récupérer UN sort épuisé -->
-            <template v-if="feuille.mode === 'concentration'">
-                <h3>{{ feuille.option.libelle || 'Se concentrer' }}</h3>
-                <p class="sh-sub">Sacrifie le tour — choisis le sort à récupérer</p>
-                <div class="choices">
-                    <ChoiceCard
-                        v-for="s in feuille.sorts"
-                        :key="s.sort_id"
-                        :icon="carteSort(s).ic"
-                        :el-class="carteSort(s).elClass"
-                        :title="s.nom ?? `Sort n°${s.sort_id}`"
-                        :badge="carteSort(s).badge"
-                        meta="Épuisé — redevient lançable"
-                        @click="emit('sort', s)"
-                    />
-                </div>
-            </template>
+            <!-- ⚠ La branche « concentration » a quitté ce fichier le
+                 2026-09-01 : toutes les listes de sous-choix passent désormais
+                 par ChoixListeSheet, qui les groupe, les grise et porte un
+                 bouton de retour — celle-ci n'en avait aucun, on n'en sortait
+                 qu'en tapant le fond, ce que rien n'indiquait. -->
 
             <!-- confirmation tir ami (S3 : les héros sont des cibles légales) -->
-            <template v-else-if="allieAConfirmer">
+            <template v-if="allieAConfirmer">
                 <h3><MSym n="warning" fill :size="20" style="color: var(--danger); vertical-align: -3px" /> Tir ami</h3>
                 <p class="sh-sub">{{ feuille.option.libelle }} — la cible choisie est un héros du groupe.</p>
                 <div class="ami-warn">
@@ -141,7 +119,7 @@ function onOverlayClick(e) {
                      sans jouer. Taper l'overlay le faisait déjà, mais rien ne le
                      disait — on ne devine pas une zone tappable invisible. -->
                 <button class="btn btn-ghost btn-block cible-retour" @click="emit('close')">
-                    <MSym n="arrow_back" :size="18" /> Retour aux actions
+                    <MSym n="arrow_back" :size="18" /> {{ feuille.retour ?? 'Retour aux actions' }}
                 </button>
             </template>
         </div>

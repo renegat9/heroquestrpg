@@ -19,6 +19,7 @@ import JetDes from '../components/manette/JetDes.vue';
 import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
+import ChoixListeSheet from '../components/manette/ChoixListeSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
@@ -403,10 +404,29 @@ const initCur = computed(() => {
     return cur ? labelCourt(cur.nom) : null;
 });
 
-/* Feuille de ciblage / concentration (CibleSheet) ouverte par une option :
-   { option, mode: 'cible'|'concentration', cibles?|sorts? }. Un nouveau
-   menu (.menu.propose) la referme — l'option ne serait plus légale. */
-const feuilleOption = ref(null);
+/* PILE de feuilles (René, 2026-09-01). Une option à sous-choix ouvre un menu
+   à trois niveaux — action → liste → cibles — et il faut pouvoir remonter d'un
+   cran : un « Retour » qui ramènerait au menu d'action depuis le ciblage
+   ferait recommencer le choix du sort, ce qui, sur les neuf sorts d'un
+   magicien, est la différence entre corriger une erreur et tout refaire.
+
+   Une frame = { option, mode: 'deplacement'|'liste'|'cible', … , retour }
+   où `retour` NOMME sa destination : « Retour aux sorts » se lit, « Fermer »
+   oblige à essayer pour savoir où il mène.
+
+   ⚠ Un nouveau menu (.menu.propose) vide la pile ENTIÈRE : l'option ne serait
+   plus légale au `ChoixController`. */
+const feuilles = ref([]);
+const feuilleOption = computed(() => feuilles.value[feuilles.value.length - 1] ?? null);
+
+function empiler(frame) {
+    feuilles.value = [...feuilles.value, frame];
+}
+
+/** Dépile d'un cran ; la dernière frame retirée rend la main au menu d'action. */
+function retourFeuille() {
+    feuilles.value = feuilles.value.slice(0, -1);
+}
 
 /* ---- Réaction HORS TOUR (Dark Wings, Twisting Torrent) ----
    Deux entrées, et il en faut deux : le broadcast privé `.reaction.proposee`
@@ -462,58 +482,112 @@ async function repondreReaction(accepte, soin = null) {
         rafraichirMoi();
     }
 }
-watch(() => store.state.menu, () => { feuilleOption.value = null; });
+watch(() => store.state.menu, () => { feuilles.value = []; });
 
-function choisirOption(option) {
+/* Les trois options à SOUS-CHOIX et la liste qu'elles portent. Le libellé du
+   retour NOMME la liste : c'est lui qu'affiche le niveau des cibles. */
+const LISTES = {
+    lancer_sort: { cle: 'sorts', titre: 'Quel sort lancer ?', retour: 'Retour aux sorts', grouper: true },
+    lire_parchemin: { cle: 'parchemins', titre: 'Quel parchemin lire ?', retour: 'Retour aux parchemins' },
+    utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
+    se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
+    sacrifier_pour_sort: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
+};
+
+function choisirOption(choix) {
     if (boutonsGeles.value) return;
 
-    // Option ciblée (sort / parchemin / attaque) : le moteur fournit les
-    // cibles légales dans parametres.cibles (les héros y figurent — tir
-    // ami S3) → choix de cible avant l'envoi.
+    // ⚠ L'onglet Sorts remonte une PAIRE {option, entree} : le sort est déjà
+    // choisi, on saute donc le niveau de la liste. C'est un raccourci, pas un
+    // second chemin — la suite est exactement la même.
+    if (choix?.entree) {
+        empiler({ option: choix.option, mode: 'liste', entrees: [choix.entree], retour: 'Retour aux actions' });
+        choisirEntree(choix.entree);
+
+        return;
+    }
+
+    const option = choix;
+
     // Déplacement : ouvre la mini-carte tappable (l'allonce du tour, dé déjà
     // lancé côté serveur, est dans l'option) → le joueur choisit sa case.
     if (option.type === 'deplacement' && monEntite.value) {
-        feuilleOption.value = { option, mode: 'deplacement' };
+        empiler({ option, mode: 'deplacement', retour: 'Retour aux actions' });
         return;
     }
 
+    // ⚠ AVANT le test des cibles : une option à liste n'en porte pas au premier
+    // niveau (le sort n'est pas encore choisi), mais ses ENTRÉES en portent.
+    const liste = LISTES[option.id];
+    const entrees = liste ? option.parametres?.[liste.cle] : null;
+
+    if (Array.isArray(entrees) && entrees.length) {
+        empiler({
+            option,
+            mode: 'liste',
+            titre: liste.titre,
+            grouper: liste.grouper === true,
+            entrees,
+            retour: 'Retour aux actions',
+        });
+        return;
+    }
+
+    // Option ciblée sans liste (attaque, lancer) : le moteur fournit les cibles
+    // légales dans parametres.cibles (les héros y figurent — tir ami S3).
     const cibles = option.parametres?.cibles;
     if (Array.isArray(cibles) && cibles.length) {
-        // Un sort n'est « offensif » que s'il inflige des dégâts ou agit sur le
-        // Mind : c'est la seule situation où viser un allié est un vrai tir ami.
-        // Sans cette distinction, un SOIN affichait « la cible subira l'effet
-        // comme un ennemi » et imposait deux clics de confirmation, en pleine
-        // urgence (verdict §2.11).
-        const typeSort = (mesSorts.value ?? [])
-            .find((s) => String(s.sort_id) === String(option.parametres?.sort_id))?.type;
-        const offensif = option.type === 'attaque'
-            || ['degats', 'mental'].includes(String(typeSort ?? '').toLowerCase());
-
-        feuilleOption.value = {
-            option,
-            mode: 'cible',
-            offensif,
-            cibles: ciblesVersListe(cibles, store.state.etat?.entites),
-        };
+        empiler(frameCible(option, option.parametres, 'Retour aux actions'));
         return;
-    }
-
-    // Concentration (nœud Magicien) : récupère UN sort épuisé au choix
-    // (parametres: {sort_id}) — liste fournie par l'option ou déduite de /moi.
-    if (option.type === 'concentration' && option.parametres?.sort_id == null) {
-        const fournis = option.parametres?.sorts;
-        const epuises = Array.isArray(fournis) && fournis.length
-            ? fournis.map((s) => (typeof s === 'object' ? s : (
-                (mesSorts.value ?? []).find((m) => String(m.sort_id) === String(s)) ?? { sort_id: s }
-            )))
-            : sortsEpuises(mesSorts.value);
-        if (epuises.length) {
-            feuilleOption.value = { option, mode: 'concentration', sorts: epuises };
-            return;
-        }
     }
 
     envoyerOption(option, option.parametres);
+}
+
+/**
+ * Frame de ciblage — le TROISIÈME niveau. `source` porte les cibles (l'entrée
+ * choisie, ou les paramètres de l'option quand il n'y a pas de liste) et
+ * `retour` nomme la destination du bouton, qui n'est pas la même selon qu'on
+ * vient du menu d'action ou d'une liste.
+ */
+function frameCible(option, source, retour) {
+    // Un sort n'est « offensif » que s'il inflige des dégâts ou agit sur le
+    // Mind : c'est la seule situation où viser un allié est un vrai tir ami.
+    // Sans cette distinction, un SOIN affichait « la cible subira l'effet
+    // comme un ennemi » et imposait deux clics de confirmation, en pleine
+    // urgence (verdict §2.11).
+    const typeSort = String(source?.sort_type ?? (mesSorts.value ?? [])
+        .find((s) => String(s.sort_id) === String(source?.sort_id))?.type ?? '').toLowerCase();
+    const offensif = option.type === 'attaque' || ['degats', 'mental'].includes(typeSort);
+
+    return {
+        option,
+        mode: 'cible',
+        offensif,
+        // Le sous-choix voyage jusqu'à l'envoi : c'est lui, et non l'option,
+        // qui dit au serveur QUOI lancer.
+        cle: source?.cle ?? null,
+        cibles: ciblesVersListe(source.cibles, store.state.etat?.entites),
+        retour,
+    };
+}
+
+/**
+ * Entrée choisie dans une liste. Si elle porte des cibles, on EMPILE le
+ * ciblage ; sinon on envoie. ⚠ La profondeur suit la DONNÉE : un sort sur soi
+ * (`cibles` absent) part du niveau 2, sans clic imposé pour une liste à une
+ * seule entrée.
+ */
+function choisirEntree(entree) {
+    const { option, retour } = feuilleOption.value;
+    const liste = LISTES[option.id];
+
+    if (Array.isArray(entree.cibles) && entree.cibles.length) {
+        empiler(frameCible(option, entree, liste?.retour ?? 'Retour'));
+        return;
+    }
+
+    envoyerOption(option, { cle: entree.cle });
 }
 
 /** Case choisie sur la mini-carte → POST {option_id, parametres: {x, y}}. */
@@ -522,25 +596,20 @@ function deplacerVers(dest) {
     envoyerOption(option, { x: dest.x, y: dest.y });
 }
 
-/** Cible choisie dans la feuille → POST {option_id, parametres: {…,
- *  cible_id, cible_type}} À PLAT — seul format lu par le moteur (contrat) :
- *  l'objet `cible` imbriqué était ignoré → 422 « Cible requise » sur tous
- *  les sorts/parchemins ciblés depuis l'UI. */
+/** Cible choisie → POST {option_id, parametres: {cle?, cible_id, cible_type}}
+ *  À PLAT — seul format lu par le moteur (contrat) : l'objet `cible` imbriqué
+ *  était ignoré → 422 « Cible requise » sur tous les sorts ciblés depuis l'UI.
+ *  ⚠ `cle` accompagne la cible quand on vient d'une liste : c'est elle qui dit
+ *  au serveur QUEL sort, sans quoi il ne saurait pas lequel des neuf. */
 function ciblerOption(cible) {
-    const { option } = feuilleOption.value;
-    const { cibles, ...reste } = option.parametres ?? {};
-    envoyerOption(option, { ...reste, cible_id: cible.id, cible_type: cible.type });
-}
+    const { option, cle } = feuilleOption.value;
+    const parametres = { cible_id: cible.id, cible_type: cible.type };
 
-/** Sort à récupérer choisi (concentration) → parametres: {sort_id}. */
-function concentrerSort(sort) {
-    const { option } = feuilleOption.value;
-    const { sorts, ...reste } = option.parametres ?? {};
-    envoyerOption(option, { ...reste, sort_id: sort.sort_id });
+    envoyerOption(option, cle ? { ...parametres, cle } : parametres);
 }
 
 async function envoyerOption(option, parametres) {
-    feuilleOption.value = null;
+    feuilles.value = [];
     store.choixEnvoye(); // optimiste : gelés jusqu'à mon prochain menu / fin de tour
     try {
         const rep = await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
@@ -586,19 +655,6 @@ function revelerDesResultat(r) {
 /* ---- Potions : action GRATUITE jouable À TOUT MOMENT (canon), même hors de
    son tour / pendant le tour d'un monstre. Ne passe pas par le menu. ---- */
 const consommablesActifs = computed(() => monPerso.value?.consommables ?? []);
-const potionEnCours = ref(false);
-async function boirePotion(inventaireId) {
-    if (potionEnCours.value) return;
-    potionEnCours.value = true;
-    try {
-        await api.boirePotion(props.groupe, inventaireId);
-        rafraichirMoi(); // PV + inventaire rafraîchis
-    } catch (e) {
-        store.setNarration(e.message);
-    } finally {
-        potionEnCours.value = false;
-    }
-}
 
 /* ---- Équipement (doc 01 §7) : au hub uniquement, monter/démonter une pièce
    du sac. Le serveur applique les deltas de combat aux colonnes du héros ; on
@@ -1070,11 +1126,9 @@ const navItems = computed(() => (scene.value === 'marche'
                             v-else-if="tab === 'sac'"
                             :equipement="monPerso?.equipement ?? { armes: [], armure: null, sac: [] }"
                             :potions="consommablesActifs"
-                            :potion-en-cours="potionEnCours"
                             :au-hub="auHub"
                             :equip-en-cours="equipEnCours"
                             :compagnons="compagnonsDeDon"
-                            @boire="boirePotion"
                             @equiper="equiper"
                             @desequiper="desequiper"
                             @donner="donner"
@@ -1132,14 +1186,22 @@ const navItems = computed(() => (scene.value === 'marche'
                         :de="feuilleOption.option.parametres?.de ?? null"
                         :base="feuilleOption.option.parametres?.base ?? 0"
                         @deplacer="deplacerVers"
-                        @close="feuilleOption = null"
+                        @close="retourFeuille"
+                    />
+                    <!-- ⚠ AVANT CibleSheet : elle est le fourre-tout de tous les
+                         modes (son `v-else-if` n'a aucune condition de mode), et
+                         une feuille montée après ne s'afficherait jamais. -->
+                    <ChoixListeSheet
+                        v-else-if="feuilleOption && feuilleOption.mode === 'liste'"
+                        :feuille="feuilleOption"
+                        @choisir="choisirEntree"
+                        @retour="retourFeuille"
                     />
                     <CibleSheet
                         v-else-if="feuilleOption"
                         :feuille="feuilleOption"
                         @cible="ciblerOption"
-                        @sort="concentrerSort"
-                        @close="feuilleOption = null"
+                        @close="retourFeuille"
                     />
                     <VoteSheet v-if="voteAffiche" :vote="voteAffiche" @cast="castVote" @close="fermerVote" />
 

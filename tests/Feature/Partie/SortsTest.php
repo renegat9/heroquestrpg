@@ -195,6 +195,31 @@ it("attache les 3 sorts de l'élément choisi à l'acquisition de Première magi
         ->and($elfe->sorts()->pluck('element')->unique()->sort()->values()->all())->toBe(['air', 'eau']);
 });
 
+/**
+ * Entrées de la liste d'une option à sous-choix (`lancer_sort`,
+ * `lire_parchemin`, `utiliser_objet`, `se_concentrer`).
+ *
+ * ⚠ Depuis le 2026-09-01, le menu ne porte plus UNE OPTION PAR SORT : il porte
+ * une option qui porte la LISTE des sorts. Les tests interrogent donc la liste,
+ * exactement comme le fait la feuille de la manette.
+ *
+ * @return Illuminate\Support\Collection<int, array<string, mixed>>
+ */
+function entreesDe($options, string $optionId, string $liste)
+{
+    $option = collect($options)->firstWhere('id', $optionId);
+
+    return collect($option['parametres'][$liste] ?? []);
+}
+
+/** Une entrée de sort par son nom de catalogue. */
+function entreeSort($options, string $nom): ?array
+{
+    return entreesDe($options, 'lancer_sort', 'sorts')
+        ->firstWhere('cle', 'sort:'.sortIdParNom($nom));
+}
+
+
 it('propose au menu une option par sort disponible, avec les cibles légales (monstres ET héros — tir ami S3)', function () {
     [$alice, $groupe, $mage, $quete] = demarrerQueteSorts();
 
@@ -210,25 +235,33 @@ it('propose au menu une option par sort disponible, avec les cibles légales (mo
     $options = optionsMenuSorts($groupe, $alice, $mage);
     $ids = $options->pluck('id');
 
+    // ⚠ UNE option pour les neuf sorts, pas neuf options. C'est la raison
+    // d'être du lot : le doc 13 §3.1 fixe « 2 à 5 options claires », et le menu
+    // d'un magicien en portait quatorze, dont neuf sorts.
+    expect($ids)->toContain('lancer_sort');
+
+    $entrees = entreesDe($options, 'lancer_sort', 'sorts');
+
     foreach ($mage->sorts()->get() as $sort) {
-        expect($ids)->toContain("sort_{$sort->id}");
+        expect($entrees->pluck('cle'))->toContain("sort:{$sort->id}");
     }
 
     // Sort de dégâts : monstres actifs ET héros dans les cibles légales (tir ami
     // S3) — ici la proie visible et le mage lui-même (une figure voit sa case).
-    $bouleDeFeu = $options->firstWhere('id', 'sort_'.sortIdParNom('Boule de Feu'));
-    $cibles = collect($bouleDeFeu['parametres']['cibles']);
-    expect($bouleDeFeu['type'])->toBe('sort')
-        ->and($bouleDeFeu['parametres']['sort_id'])->toBe(sortIdParNom('Boule de Feu'))
+    $bouleDeFeu = entreeSort($options, 'Boule de Feu');
+    $cibles = collect($bouleDeFeu['cibles']);
+    expect($bouleDeFeu['sort_id'])->toBe(sortIdParNom('Boule de Feu'))
+        ->and($bouleDeFeu['disponible'])->toBeTrue()
         ->and($cibles->where('type', 'monstre')->pluck('id'))->toContain($proie->id)
         ->and($cibles->where('type', 'heros')->pluck('id'))->toContain($mage->id);
 
-    // Utilitaire ciblé : héros seulement.
-    $soin = $options->firstWhere('id', 'sort_'.sortIdParNom('Eau de Guérison'));
-    expect(collect($soin['parametres']['cibles'])->pluck('type')->unique()->all())->toBe(['heros']);
+    // ⚠ Les cibles restent PAR ENTRÉE : un utilitaire ciblé ne vise que des
+    // héros. Une liste unique au niveau de l'option serait fausse ici.
+    $soin = entreeSort($options, 'Eau de Guérison');
+    expect(collect($soin['cibles'])->pluck('type')->unique()->all())->toBe(['heros']);
 
     // Ni parchemin (sac vide), ni concentration (nœud absent, rien d'épuisé).
-    expect($ids->contains(fn ($id) => str_starts_with($id, 'parchemin_')))->toBeFalse()
+    expect($ids)->not->toContain('lire_parchemin')
         ->and($ids)->not->toContain('se_concentrer');
 });
 
@@ -251,8 +284,8 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
     desFiges([1, 1, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$sortId}",
-        'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
     ])->assertStatus(202);
 
     $reponse->assertJsonPath('resultat.type', 'sort')
@@ -280,8 +313,8 @@ it('permet le tir ami (S3) : un héros ciblé par un sort de dégâts se défend
     desFiges([1, 6, 6]);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Trait de Feu'),
-        'parametres' => ['cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Trait de Feu'), 'cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.tir_ami', true)
         ->assertJsonPath('resultat.cible.personnage_id', $brunhilde->id)
@@ -311,8 +344,8 @@ it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'atta
     desFiges(array_fill(0, 30, 4));
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Sommeil'),
-        'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Sommeil'), 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.effet_applique', true)
         ->assertJsonPath('resultat.condition', 'Endormi')
@@ -351,8 +384,8 @@ it('soigne +4 PV Body plafonnés au maximum (Eau de Guérison)', function () {
     optionsMenuSorts($groupe, $alice, $mage);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Eau de Guérison'),
-        'parametres' => ['cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Eau de Guérison'), 'cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.soin', 2)
         ->assertJsonPath('resultat.pv_body_apres', 8);
@@ -378,8 +411,8 @@ it('Courage donne +2 dés à la PROCHAINE attaque du héros ciblé, puis la cond
 
     // Le mage lance Courage sur Brunhilde (aucun dé).
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Courage'),
-        'parametres' => ['cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Courage'), 'cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.condition', 'Renforcé')
         ->assertJsonPath('resultat.source', 'sort:Courage');
@@ -411,25 +444,33 @@ it('retire un sort épuisé du menu, et le forcer hors menu est un 422 (le moteu
         ->where('personnage_id', $mage->id)->where('sort_id', $sortId)
         ->update(['disponible' => false]);
 
-    $ids = optionsMenuSorts($groupe, $alice, $mage)->pluck('id');
-    expect($ids)->not->toContain("sort_{$sortId}")
-        ->and($ids)->toContain('sort_'.sortIdParNom('Trait de Feu')); // les autres restent
+    // ⚠ Un sort épuisé reste DANS LA LISTE, marqué `disponible: false`, pour
+    // être grisé à l'écran (René, 2026-09-01) : le faire disparaître laissait
+    // croire au joueur qu'il avait perdu le sort. Il n'entre évidemment pas
+    // dans la liste blanche que le résolveur accepte.
+    $entrees = entreesDe(optionsMenuSorts($groupe, $alice, $mage), 'lancer_sort', 'sorts');
+    expect($entrees->firstWhere('cle', "sort:{$sortId}")['disponible'])->toBeFalse()
+        ->and($entrees->firstWhere('cle', 'sort:'.sortIdParNom('Trait de Feu'))['disponible'])->toBeTrue();
 
     // Menu truqué en cache : l'option épuisée forcée → 422, rien ne bouge.
     $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
     Cache::put(GenererMenu::cleMenu($groupe->id, (int) $alice->id), [
         'personnage_id' => $mage->id,
         'menu' => ['options' => [[
-            'id' => "sort_{$sortId}", 'libelle' => 'Lancer Boule de Feu', 'type' => 'sort',
-            'parametres' => ['sort_id' => $sortId, 'cibles' => [['type' => 'monstre', 'id' => $proie->id, 'nom' => 'X']]],
+            'id' => 'lancer_sort', 'libelle' => 'Lancer un sort', 'type' => 'sort',
+            'parametres' => ['sorts' => [[
+                'cle' => "sort:{$sortId}", 'sort_id' => $sortId, 'nom' => 'Boule de Feu',
+                'disponible' => false, // c'est CE drapeau que le résolveur doit refuser
+                'cibles' => [['type' => 'monstre', 'id' => $proie->id, 'nom' => 'X']],
+            ]]],
         ]]],
     ], now()->addMinutes(10));
 
     $pvAvant = (int) $proie->pv_body;
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$sortId}",
-        'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
     ])->assertStatus(422);
 
     expect((int) $proie->fresh()->pv_body)->toBe($pvAvant);
@@ -484,20 +525,26 @@ it('consomme le parchemin du non-lanceur même quand le jet de Mind échoue : ga
     $pvAvant = (int) $proie->pv_body;
 
     $options = optionsMenuSorts($groupe, $alice, $barbare);
-    $option = $options->firstWhere('id', "parchemin_{$ligne->id}");
+    // ⚠ Action SÉPARÉE des sorts : un parchemin est DÉTRUIT à l'usage et
+    // demande un jet de Mind à un non-lanceur — deux économies contraires ne
+    // cohabitent pas dans une même liste (René, 2026-09-01).
+    $option = $options->firstWhere('id', 'lire_parchemin');
+    $entree = entreesDe($options, 'lire_parchemin', 'parchemins')
+        ->firstWhere('cle', "parchemin:{$ligne->id}");
+
     expect($option)->not->toBeNull()
         ->and($option['type'])->toBe('parchemin')
-        ->and($option['libelle'])->toContain('Utiliser un parchemin')
-        ->and($option['parametres']['inventaire_id'])->toBe($ligne->id)
-        ->and($option['parametres']['sort_id'])->toBe(sortIdParNom('Boule de Feu'));
+        ->and($entree)->not->toBeNull()
+        ->and($entree['inventaire_id'])->toBe($ligne->id)
+        ->and($entree['sort_id'])->toBe(sortIdParNom('Boule de Feu'));
 
     // Jet de Mind 2 dés sans crâne (difficulté 3, Boule de Feu) → échec ;
     // réserve de boucliers pour la phase des monstres qui suit.
     desFiges(array_fill(0, 40, 4));
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "parchemin_{$ligne->id}",
-        'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
+        'option_id' => 'lire_parchemin',
+        'parametres' => ['cle' => "parchemin:{$ligne->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.type', 'parchemin')
         ->assertJsonPath('resultat.lanceur_de_sorts', false)
@@ -523,14 +570,20 @@ it('Se concentrer (S6) sacrifie le tour, récupère UN sort épuisé au choix, u
         ->where('personnage_id', $mage->id)->where('sort_id', $sortId)
         ->update(['disponible' => false]);
 
-    $option = optionsMenuSorts($groupe, $alice, $mage)->firstWhere('id', 'se_concentrer');
+    $options = optionsMenuSorts($groupe, $alice, $mage);
+    $option = $options->firstWhere('id', 'se_concentrer');
+
+    // ⚠ La clé est `sorts`, comme les trois autres listes : le moteur publiait
+    // `sorts_epuises` alors que la feuille lisait `sorts`, si bien que la liste
+    // du serveur n'était JAMAIS consommée (elle ne marchait que par son repli
+    // sur `/moi`). Un seul nom, et la liste redevient la liste blanche.
     expect($option)->not->toBeNull()
         ->and($option['type'])->toBe('concentration')
-        ->and($option['parametres']['sorts_epuises'])->toBe([['sort_id' => $sortId, 'nom' => 'Boule de Feu']]);
+        ->and(entreesDe($options, 'se_concentrer', 'sorts')->pluck('cle')->all())->toBe(["sort:{$sortId}"]);
 
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'se_concentrer',
-        'parametres' => ['sort_id' => $sortId],
+        'parametres' => ['cle' => "sort:{$sortId}"],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.type', 'concentration')
         ->assertJsonPath('resultat.sort_recupere.nom', 'Boule de Feu')
@@ -559,8 +612,8 @@ it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même
 
     // 1er sort : Courage sur soi-même — consomme le créneau action normal.
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Courage'),
-        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Courage'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.bonus_reserve_arcanique', null);
 
@@ -570,14 +623,14 @@ it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même
 
     // Le menu propose ENCORE un sort (le bonus), malgré a_agi déjà pris.
     $options = optionsMenuSorts($groupe, $alice, $mage);
-    expect($options->firstWhere('id', 'sort_'.sortIdParNom('Eau de Guérison')))->not->toBeNull()
+    expect(entreeSort($options, 'Eau de Guérison'))->not->toBeNull()
         // Mais plus d'attaque/désamorçage/équipement (pas concernés par le bonus).
         ->and($options->contains(fn ($o) => ($o['type'] ?? null) === 'equiper'))->toBeFalse();
 
     // 2e sort : Eau de Guérison — via le bonus de Réserve arcanique.
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Eau de Guérison'),
-        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Eau de Guérison'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)
         ->assertJsonPath('resultat.bonus_reserve_arcanique', true)
         ->assertJsonPath('resultat.type', 'sort');
@@ -588,8 +641,8 @@ it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même
 
     // Le bonus est consommé : un 3e sort ce tour est refusé.
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Trait de Feu'),
-        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Trait de Feu'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
     ])->assertStatus(422);
 });
 
@@ -598,8 +651,8 @@ it('sans Réserve arcanique, un second sort le même tour est refusé (comportem
     optionsMenuSorts($groupe, $alice, $mage);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Courage'),
-        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Courage'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
     ])->assertStatus(202);
 
     // Le menu ne propose plus AUCUN sort (créneau action déjà pris, pas de bonus).
@@ -607,7 +660,7 @@ it('sans Réserve arcanique, un second sort le même tour est refusé (comportem
     expect($options->contains(fn ($o) => ($o['type'] ?? null) === 'sort'))->toBeFalse();
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'sort_'.sortIdParNom('Eau de Guérison'),
-        'parametres' => ['cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Eau de Guérison'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
     ])->assertStatus(422);
 });

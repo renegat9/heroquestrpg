@@ -105,13 +105,17 @@ function premierSortCiblable(array $ctx, Personnage $mage): array
 {
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $mage->id);
 
+    // ⚠ Depuis le 2026-09-01 le menu porte UNE option « Lancer un sort » qui
+    // porte la liste : on cherche donc une ENTRÉE ciblable, pas une option.
     $option = collect(Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu']['options'])
-        ->where('type', 'sort')
-        ->first(fn ($o) => ! empty($o['parametres']['cibles']));
+        ->firstWhere('id', 'lancer_sort');
 
-    expect($option)->not->toBeNull('Aucun sort ciblable au menu.');
+    $entree = collect($option['parametres']['sorts'] ?? [])
+        ->first(fn ($e) => ($e['disponible'] ?? false) && ! empty($e['cibles']));
 
-    return [(int) $option['parametres']['sort_id'], $option['parametres']['cibles'][0]];
+    expect($entree)->not->toBeNull('Aucun sort ciblable au menu.');
+
+    return [(int) $entree['sort_id'], $entree['cibles'][0]];
 }
 
 /**
@@ -283,9 +287,13 @@ it('le Parchemin de Sorts rend TOUS les sorts épuisés', function () {
 
     // Le nœud Concentration n'en récupère qu'UN, au prix du tour : la
     // différence d'échelle est toute la valeur de cette carte.
-    $this->postJson('/api/groupes/table-1/potions', [
-        'personnage_id' => $magicien->id, 'inventaire_id' => $parchemin->id,
-    ])->assertOk();
+    // ⚠ Par le MENU depuis le 2026-09-01 — `POST /potions` n'existe plus.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$parchemin->id}"],
+    ])->assertAccepted();
 
     $indisponibles = $magicien->sorts()->wherePivot('disponible', false)->count();
 
@@ -350,8 +358,8 @@ it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
     [$sortId, $cible] = premierSortCiblable($ctx, $magicien);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$sortId}",
-        'parametres' => ['cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
     ])->assertStatus(202)->assertJsonPath('resultat.sort_preserve', 'anneau_de_sort');
 
     $sort = $magicien->sorts()->wherePivot('sorts.id', $sortId)->firstOrFail();
@@ -373,8 +381,8 @@ it('le Sceptre de Mémoire épargne le sort sur un bouclier noir, pas autrement'
     [$sortId, $cible] = premierSortCiblable($ctx, $magicien);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$sortId}",
-        'parametres' => ['cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
     ])->assertStatus(202)->assertJsonPath('resultat.jet_memoire', 'bouclier_blanc');
 
     // Le sceptre est illimité — c'est le dé qui limite, pas une charge.
@@ -405,8 +413,8 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
         desFiges(array_fill(0, 30, 1)); // que des crânes : sans l'anneau, ça fait mal
 
         test()->postJson('/api/groupes/table-1/choix', [
-            'option_id' => "sort_{$boule->id}",
-            'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros'],
+            'option_id' => 'lancer_sort',
+            'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros'],
         ])->assertStatus(202)
             ->assertJsonPath('resultat.immunite_degat', 'feu')
             ->assertJsonPath('resultat.degats', 0);
@@ -423,8 +431,8 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
     desFiges(array_fill(0, 30, 1));
 
     test()->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$boule->id}",
-        'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros'],
     ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
 
     expect((int) $magicien->fresh()->pv_body)->toBeLessThan($pvAvant);
@@ -446,8 +454,8 @@ it('ne protège que du FEU : un sort d\'une autre nature passe', function () {
     desFiges(array_fill(0, 30, 1));
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$genie->id}",
-        'parametres' => ['cible_id' => $magicien->id, 'cible_type' => 'heros', 'mode' => 'degats'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$genie->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros', 'mode' => 'degats'],
     ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
 
     // La charge est intacte : un anneau de feu ne se dépense pas sur autre chose.
@@ -467,8 +475,8 @@ it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function 
     desFiges(array_fill(0, 30, 4)); // boucliers : le troll survit, mais il a pris le feu
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "sort_{$boule->id}",
-        'parametres' => ['cible_id' => $ctx['instance']->id, 'cible_type' => 'monstre'],
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $ctx['instance']->id, 'cible_type' => 'monstre'],
     ])->assertStatus(202);
 
     // « Damage done by fire is permanent and cannot be regenerated. »

@@ -99,6 +99,12 @@ class ChoixController extends Controller
             // partagent le même id, et sort à récupérer (Concentration).
             'parametres.cible_type' => ['sometimes', Rule::in(['monstre', 'heros'])],
             'parametres.sort_id' => ['sometimes', 'integer', 'min:1'],
+            // Sous-choix d'une option à liste (sort, parchemin, objet) : la
+            // `cle` de l'entrée retenue. ⚠ Une seule clé pour les trois listes
+            // plutôt qu'un paramètre par famille — `sort_id` ne suffirait pas,
+            // le mode « ouvre une porte » du Génie produisant plusieurs entrées
+            // pour le MÊME sort. Patron des `soins` réactifs (`potion:{id}`).
+            'parametres.cle' => ['sometimes', 'string', 'max:64'],
         ]);
 
         // Le moteur fait autorité : seule une option du dernier menu proposé

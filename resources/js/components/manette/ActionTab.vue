@@ -62,6 +62,14 @@ const ICONE_TYPE = {
     franchir: 'sprint',
     sort: 'auto_awesome',
     parchemin: 'description',
+    // Ajoutés le 2026-09-01 : sans entrée ici, ils tombaient sur `touch_app`.
+    objet: 'backpack',
+    objet_libre: 'backpack',
+    sacrifice_sort: 'bloodtype',
+    relever: 'accessibility_new',
+    attente: 'hourglass_bottom',
+    franchissement: 'moving',
+    fouiller: 'search',
     concentration: 'self_improvement',
     ouvrir_porte: 'door_open',
     actionner_levier: 'toggle_on',
@@ -130,10 +138,20 @@ function creneauConsomme(option) {
         case 'deplacement':
         case 'franchissement':
             return !!moi.a_deplace;
-        // Ouvrir une porte / actionner un levier = interaction LIBRE (E2).
+        // Ouvrir une porte = interaction LIBRE (E2).
+        // ⚠ `actionner_levier` N'EST PLUS ICI (corrigé 2026-09-01) : le serveur
+        // lui fait coûter l'action depuis le 2026-08-24, quand forcer un levier
+        // est devenu un jet de Body. Ce miroir croyait encore qu'il était
+        // gratuit, et gardait donc l'option cliquable après avoir agi — pour un
+        // 422. Un miroir se vérifie, il ne se déclare pas.
         case 'ouvrir_porte':
-        case 'actionner_levier':
         case 'sortie':
+        // ⚠ `objet_libre` MANQUAIT : il tombait au `default` et l'option
+        // « Utiliser un objet » se grisait dès que le héros avait agi, alors
+        // qu'une potion se boit justement après avoir frappé. Le coût d'un
+        // objet dépend de l'OBJET, pas du type : la liste, elle, ne contient
+        // que du gratuit quand l'action est dépensée.
+        case 'objet_libre':
         // Proposer la retraite ne coûte pas son tour : c'est une proposition
         // au groupe, pas une action — et elle doit rester possible au pire
         // moment, sinon ce n'est pas une retraite.

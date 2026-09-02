@@ -72,7 +72,11 @@ const article = computed(() => (/^[aeiouyéèêh]/i.test(props.hero?.cls ?? '') 
 function carteDe(sort) {
     const type = TYPES_SORT[(sort.type ?? '').toLowerCase()] ?? null;
     const epuise = sort.disponible === false;
-    const option = epuise ? null : optionPourSort(props.menu, sort.sort_id);
+    // ⚠ `optionPourSort` rend désormais une PAIRE {option, entree} : le menu
+    // ne porte plus une option par sort, mais une liste. L'onglet Sorts reste
+    // un raccourci — choisir ici évite au joueur de rouvrir la liste.
+    const choix = epuise ? null : optionPourSort(props.menu, sort.sort_id);
+    const option = choix;
     let meta;
     if (epuise) meta = 'Épuisé — redevient disponible à la prochaine quête';
     else if (option) meta = 'Prêt à lancer — touche pour voir';
@@ -100,9 +104,11 @@ function ouvrirInfo(sort) {
 watch(() => props.menu, () => { sortOuvert.value = null; });
 
 function lancerConfirme() {
-    const option = infoOuverte.value?.option;
+    const choix = infoOuverte.value?.option;
     sortOuvert.value = null;
-    if (option) emit('choose', option);
+    // On remonte la PAIRE : ManetteView saute alors le niveau de liste et
+    // passe directement au ciblage, puisque le sort est déjà désigné.
+    if (choix) emit('choose', choix);
 }
 </script>
 

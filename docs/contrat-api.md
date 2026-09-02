@@ -125,6 +125,51 @@ manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
 
+### Une action, puis un sous-choix (2026-09-01)
+
+Le menu ne porte plus **une option par sort** : il porte **une option qui porte
+la liste des sorts**. Mesuré en partie réelle, le menu d'un magicien niveau 1
+comptait **14 options dont 9 sorts**, là où le doc de conception fixe « 2 à 5
+options claires » (doc 13 §3.1). C'est la leçon du ciblage, un cran plus haut :
+*l'option ne doit pas ÊTRE le sort, elle doit PORTER la liste des sorts.*
+
+| option | liste | entrée |
+|---|---|---|
+| `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, cibles?, mode?, porte?}` |
+| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` |
+| `utiliser_objet` (`type: objet_libre`) | `parametres.objets[]` | `{cle, inventaire_id, nom, detail, cout: gratuit\|action, quantite, cibles?}` |
+| `se_concentrer` · `sacrifier_pour_sort` | `parametres.sorts[]` | `{cle, sort_id, nom, …}` |
+
+Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_id?, cible_type?}}`.
+
+- ⚠ **La liste EST la liste blanche.** `entreeChoisie()` vérifie l'appartenance
+  de `cle` et répond 422 sinon. Sans cela, un client lancerait un sort de son
+  répertoire **avec les cibles d'un autre** — hors ligne de vue et hors du
+  typage de cible que `ciblesLegales()` avait calculé pour ce sort-là.
+- ⚠ **`cibles` reste PAR ENTRÉE.** Un sort de dégâts vise monstres et héros, un
+  soin les héros seuls, un sort sur soi personne : une liste unique au niveau
+  de l'option serait fausse pour cinq des neuf sorts d'un magicien.
+- ⚠ **La profondeur suit la donnée** : le troisième niveau (ciblage) ne s'ouvre
+  que si l'entrée porte des `cibles`. *Traverser la Pierre* et une potion de
+  soin partent du deuxième.
+- ⚠ **Un sort épuisé reste dans la liste**, `disponible: false`, pour être
+  **grisé** — le faire disparaître laissait croire au joueur qu'il l'avait
+  perdu. Le résolveur le refuse.
+- ⚠ **Le coût d'un objet dépend de l'OBJET**, pas du type d'option : la liste
+  mêle le gratuit (potion, chausse-trappes, fumigène) et le payant (eau bénite,
+  « instead of attacking »). L'option est `objet_libre` et `resoudreUsageObjet()`
+  dépense l'action lui-même. La liste ne contient que du gratuit quand le héros
+  a déjà agi.
+- ⚠ **La navigation est une PILE** côté manette, et chaque retour **nomme sa
+  destination** (« Retour aux sorts », « Retour aux actions »). Un retour qui
+  ramènerait au menu d'action depuis le ciblage ferait recommencer le choix du
+  sort. Un tap sur le fond dépile d'un cran ; un nouveau menu vide la pile.
+
+⚠ **`POST /potions` est RETIRÉE.** Boire passe par `utiliser_objet`, comme tout
+le reste — une voie, une validation, un journal. Conséquence assumée : on ne
+boit plus hors de son tour, ni au hub. Le cas d'urgence reste couvert par
+`MoteurReactions`, qui propose les potions du sac quand un héros tombe.
+
 **Ciblage en deux temps.** Une option qui vise (`attaque`, `sort`, parchemin)
 n'en désigne **pas** la cible : elle joint les cibles légales dans
 `parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,

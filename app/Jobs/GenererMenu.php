@@ -155,30 +155,59 @@ class GenererMenu implements ShouldQueue
      */
     private function avecImmuniteMentale(array $menu): array
     {
+        // ⚠ L'annotation descend d'un NIVEAU (2026-09-01) : depuis que les
+        // sorts et les parchemins tiennent dans une option unique, `sort_id` et
+        // `cibles` ne cohabitent plus sur l'option mais sur chaque ENTRÉE de sa
+        // liste. Laissée où elle était, cette décoration ne trouvait plus rien
+        // à annoter et l'information « Mind 0 = immunisé » disparaissait en
+        // silence.
         $menu['options'] = array_map(function (array $option) {
-            $parametres = $option['parametres'] ?? null;
+            $liste = match ($option['type'] ?? null) {
+                'sort' => 'sorts',
+                'parchemin' => 'parchemins',
+                default => null,
+            };
 
-            if (! in_array($option['type'] ?? null, ['sort', 'parchemin'], true)
-                || ! is_array($parametres)
-                || ! isset($parametres['cibles']) || ! is_array($parametres['cibles'])
-                || ! isset($parametres['sort_id'])) {
+            if ($liste === null || ! is_array($option['parametres'][$liste] ?? null)) {
                 return $option;
             }
 
-            $sort = Sort::find($parametres['sort_id']);
-            if ($sort === null || $sort->type !== 'mental') {
-                return $option;
-            }
-
-            $option['parametres']['cibles'] = array_map(
-                fn (array $cible) => $cible + ['immunise' => $this->mindNul($cible)],
-                $parametres['cibles'],
+            $option['parametres'][$liste] = array_map(
+                fn (array $entree) => $this->entreeAnnotee($entree),
+                $option['parametres'][$liste],
             );
 
             return $option;
         }, $menu['options'] ?? []);
 
         return $menu;
+    }
+
+    /**
+     * Une entrée de liste dont les cibles portent `immunise` si le sort est
+     * mental. Rendue telle quelle sinon.
+     *
+     * @param  array<string, mixed>  $entree
+     * @return array<string, mixed>
+     */
+    private function entreeAnnotee(array $entree): array
+    {
+        if (! is_array($entree['cibles'] ?? null) || ! isset($entree['sort_id'])) {
+            return $entree;
+        }
+
+        $sort = Sort::find($entree['sort_id']);
+
+        if ($sort === null || $sort->type !== 'mental') {
+            return $entree;
+        }
+
+        $entree['cibles'] = array_map(
+            fn (array $cible) => $cible + ['immunise' => $this->mindNul($cible)],
+            $entree['cibles'],
+        );
+
+        return $entree;
     }
 
     /**

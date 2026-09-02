@@ -73,10 +73,18 @@ it('sème des chausse-trappes sur sa case, sans dépenser son action', function 
     ['heros' => $heros, 'quete' => $quete, 'etatHeros' => $etat] = $ctx;
     $ligne = materielAuSac($heros->id, 'Chausse-trappes');
 
-    expect(collect(menuPour($ctx))->pluck('id'))->toContain("poser_chausse_trappes_{$ligne->id}");
+    // ⚠ UNE option « Utiliser un objet » qui porte la liste, potions comprises
+    // (René, 2026-09-01) — chaque ligne dit son coût, parce qu'il dépend de
+    // l'OBJET et non du type d'option.
+    $objets = collect(collect(menuPour($ctx))->firstWhere('id', 'utiliser_objet')['parametres']['objets'] ?? []);
+    $entree = $objets->firstWhere('cle', "objet:{$ligne->id}");
+
+    expect($entree)->not->toBeNull()
+        ->and($entree['cout'])->toBe('gratuit');
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "poser_chausse_trappes_{$ligne->id}",
+        'option_id' => 'utiliser_objet',
+    'parametres' => ['cle' => "objet:{$ligne->id}"],
     ])->assertAccepted();
 
     $tuiles = (array) data_get($quete->fresh()->carte->grille, 'chausse_trappes', []);
@@ -98,8 +106,8 @@ it('enfume un monstre au contact : il cesse d\'occuper sa case, et perd son tour
     menuPour($ctx);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "fumigene_{$ligne->id}",
-        'parametres' => ['cible_id' => $instance->id],
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $instance->id],
     ])->assertAccepted();
 
     expect(app(MoteurSorts::class)->monstreA($instance->fresh(), MoteurSorts::MONSTRE_ENFUME))->toBeTrue();
@@ -133,8 +141,8 @@ it('tue un mort-vivant à l\'eau bénite, et ne fait rien à un orque', function
     menuPour($ctx);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "eau_benite_{$ligne->id}",
-        'parametres' => ['cible_id' => $instance->id],
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $instance->id],
     ])->assertAccepted();
 
     expect($instance->fresh()->etat)->toBe('vaincu')
@@ -154,8 +162,8 @@ it('refuse l\'eau bénite sur une créature qui n\'est pas morte-vivante', funct
     menuPour($ctx);
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => "eau_benite_{$ligne->id}",
-        'parametres' => ['cible_id' => $instance->id],
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $instance->id],
     ])->assertStatus(422);
 
     expect($instance->fresh()->etat)->toBe('actif');

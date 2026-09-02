@@ -719,8 +719,9 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id));
-    $option = collect($menu['menu']['options'])->firstWhere('id', "sort_{$sortId}");
-    expect($option)->not->toBeNull();
+    $option = collect($menu['menu']['options'])->firstWhere('id', 'lancer_sort');
+    expect($option)->not->toBeNull()
+        ->and(collect($option['parametres']['sorts'])->pluck('cle'))->toContain("sort:{$sortId}");
 
     // Fige les dés : 2 dés d'attaque (crânes) + défense du boss (4 + 2 = 6 dés, boucliers noirs).
     desFiges([
@@ -732,8 +733,8 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
 
     $reponse = test()->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', [
-            'option_id' => "sort_{$sortId}",
-            'parametres' => ['cible_id' => $premiereInstance->id, 'cible_type' => 'monstre'],
+            'option_id' => 'lancer_sort',
+            'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $premiereInstance->id, 'cible_type' => 'monstre'],
         ])
         ->assertStatus(202);
 

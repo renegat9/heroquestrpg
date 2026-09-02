@@ -10,7 +10,6 @@ const props = defineProps({
     equipement: { type: Object, default: () => ({ armes: [], armure: null, sac: [] }) },
     // Potions réelles du héros (/moi.consommables).
     potions: { type: Array, default: () => [] },
-    potionEnCours: { type: Boolean, default: false },
     // Gérer l'équipement n'est possible qu'au hub (entre deux quêtes).
     auHub: { type: Boolean, default: false },
     // Un appel équiper/déséquiper est en cours (gèle les boutons).
@@ -18,7 +17,7 @@ const props = defineProps({
     // Autres héros actifs du groupe : destinataires possibles d'un don.
     compagnons: { type: Array, default: () => [] },
 });
-const emit = defineEmits(['boire', 'equiper', 'desequiper', 'donner']);
+const emit = defineEmits(['equiper', 'desequiper', 'donner']);
 
 /* ---- Don d'un objet à un compagnon (hub, doc 01 §7). Le sélecteur s'ouvre
    sous la ligne concernée plutôt que dans une modale : le sac est déjà un
@@ -104,7 +103,7 @@ const deborde = computed(() => {
         <template v-if="potions.length">
             <div class="sect-title"><MSym n="science" :size="16" /> Potions</div>
             <p style="font-size: 12px; color: var(--ink-500); margin: 0 0 10px">
-                Buvable à tout moment — même hors de ton tour.
+                Se boit depuis « Utiliser un objet », dans tes actions.
             </p>
             <template v-for="p in potions" :key="p.inventaire_id">
                 <div class="item">
@@ -124,12 +123,13 @@ const deborde = computed(() => {
                         — le héros a le droit de la porter pour un compagnon, et
                         cacher l'objet ferait croire qu'il a disparu du sac.
                     -->
-                    <button
-                        class="sac-btn gold"
-                        :disabled="potionEnCours || p.utilisable === false"
-                        :title="p.utilisable === false ? 'Réservée à une autre classe' : null"
-                        @click="emit('boire', p.inventaire_id)"
-                    >Boire</button>
+                    <!-- ⚠ Plus de bouton « Boire » ici (René, 2026-09-01) : boire passe par
+                         l'option « Utiliser un objet » du menu d'action, une
+                         seule voie et une seule validation. Le Sac garde ce
+                         qu'il fait de mieux — le DÉTAIL de l'objet. -->
+                    <span v-if="p.utilisable === false" class="sac-note" title="Réservée à une autre classe">
+                        <MSym n="block" :size="14" /> Réservée à une autre classe
+                    </span>
                 </div>
                 <div v-if="donEnCours === p.inventaire_id" class="don-cible">
                     <span class="don-lbl">Donner 1 × {{ p.nom }} à</span>
@@ -244,4 +244,6 @@ const deborde = computed(() => {
     font-size: 12px;
     color: oklch(0.78 0.14 30);
 }
+.sac-note { display: inline-flex; align-items: center; gap: 5px;
+  color: var(--ink-500); font-size: 11.5px; font-weight: 600; }
 </style>

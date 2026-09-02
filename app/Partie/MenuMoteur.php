@@ -21,8 +21,10 @@ use App\Partie\Votes\VoteGroupe;
  *
  * En quête : Se déplacer / Attaquer (UN bouton, cibles légales jointes) /
  * Désamorcer / Franchir (un bouton par piège DÉTECTÉ adjacent, doc 10 §4) /
- * Lancer {sort} (un bouton par sort DISPONIBLE, cibles légales jointes) /
- * Utiliser un parchemin (un bouton par parchemin au sac) / Se concentrer
+ * Lancer un sort / Lire un parchemin / Utiliser un objet — TROIS options qui
+ * portent chacune la LISTE de leurs sous-choix, cibles légales jointes par
+ * entrée (2026-09-01 : un bouton par sort faisait un menu de quatorze options
+ * là où le doc 13 §3.1 en veut deux à cinq) / Se concentrer
  * (magicien, nœud Concentration — doc 02, MoteurSorts) / Fouiller (jet de
  * Mind 1) / Attendre. Au hub : options d'attente neutres.
  * Toutes les options sont exécutables telles quelles par ResolveurTour.
@@ -286,29 +288,56 @@ final class MenuMoteur
      * déjà été fouillée pour son trésor (une fouille par salle, doc 14 §3.2).
      */
     /**
-     * Options des trois objets de MATÉRIEL des cartes officielles.
+     * L'option UNIQUE « Utiliser un objet » et la liste de ses consommables
+     * (René, 2026-09-01) : potions et matériel dans la même entrée de menu.
      *
-     * Chacune reprend le créneau que sa carte énonce : l'eau bénite s'emploie
-     * « instead of attacking » (donc `objet`, créneau action), les deux autres
-     * « no action required » / « anytime during your movement » (donc
-     * `objet_libre`, interaction gratuite).
+     * ⚠ Le CRÉNEAU dépend de l'objet, pas du type d'option. L'eau bénite
+     * s'emploie « instead of attacking » (donc elle coûte l'action), les
+     * chausse-trappes « no action required » et une potion se boit sans rien
+     * dépenser. `creneauOption()` tranche sur le TYPE : il ne peut donc plus
+     * décider seul pour une liste mixte. L'option porte `objet_libre`, et
+     * `resoudreUsageObjet()` dépense l'action lui-même quand l'objet choisi
+     * l'exige. Chaque ligne affiche son coût.
+     *
+     * ⚠ La liste se construit d'après les créneaux RESTANTS : un héros qui a
+     * agi n'y trouve plus que le gratuit. La liste est la liste blanche, elle
+     * ne doit jamais contenir ce que le résolveur refusera.
+     *
+     * ⚠ On FILTRE les potions d'une autre classe, on ne les badge pas — patron
+     * de `MoteurReactions::soinsDisponibles()` : proposer ce que la résolution
+     * refusera est pire que ne rien proposer. (`/moi` continue de badger, lui :
+     * un héros a le droit de PORTER la potion d'un compagnon.)
      *
      * @return list<array<string, mixed>>
      */
-    private function objetsDeMateriel(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $px, int $py): array
-    {
-        $options = [];
+    private function objetsDeMateriel(
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        int $px,
+        int $py,
+        bool $aAgi,
+    ): array {
+        $entrees = [];
         $grille = null;
+        $equipement = $this->equipement;
 
-        foreach ($personnage->inventaire()->with('objet')->get() as $ligne) {
-            $effet = (array) ($ligne->objet?->effet ?? []);
+        foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
+            $objet = $ligne->objet;
+            $effet = (array) ($objet?->effet ?? []);
+
+            if ($objet === null) {
+                continue;
+            }
 
             if (! empty($effet['pose_chausse_trappes'])) {
-                $options[] = [
-                    'id' => "poser_chausse_trappes_{$ligne->id}",
-                    'libelle' => 'Semer des chausse-trappes',
-                    'type' => 'objet_libre',
-                    'parametres' => ['inventaire_id' => $ligne->id],
+                $entrees[] = [
+                    'cle' => "objet:{$ligne->id}",
+                    'inventaire_id' => $ligne->id,
+                    'nom' => $objet->nom,
+                    'detail' => 'Semer des chausse-trappes',
+                    'cout' => 'gratuit',
+                    'quantite' => (int) $ligne->quantite,
                 ];
             }
 
@@ -316,20 +345,25 @@ final class MenuMoteur
                 $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
                     ->with('monstre')->get()
                     ->filter(fn (InstanceMonstre $i) => self::monstreAuContact($i, $px, $py))
-                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'nom' => $i->nomAffiche()])
+                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'type' => 'monstre', 'nom' => $i->nomAffiche()])
                     ->values()->all();
 
                 if ($cibles !== []) {
-                    $options[] = [
-                        'id' => "fumigene_{$ligne->id}",
-                        'libelle' => 'Lancer la bombe fumigène',
-                        'type' => 'objet_libre',
-                        'parametres' => ['inventaire_id' => $ligne->id, 'cibles' => $cibles],
+                    $entrees[] = [
+                        'cle' => "objet:{$ligne->id}",
+                        'inventaire_id' => $ligne->id,
+                        'nom' => $objet->nom,
+                        'detail' => 'Enfume un monstre au contact',
+                        'cout' => 'gratuit',
+                        'quantite' => (int) $ligne->quantite,
+                        'cibles' => $cibles,
                     ];
                 }
             }
 
-            if (! empty($effet['tue_creatures'])) {
+            // « Instead of attacking » : l'eau bénite coûte l'action, donc elle
+            // quitte la liste dès que le héros a agi.
+            if (! empty($effet['tue_creatures']) && ! $aAgi) {
                 $noms = array_map('mb_strtolower', array_map('strval', (array) $effet['tue_creatures']));
                 $grille ??= FabriqueGrille::pour($quete);
 
@@ -338,21 +372,46 @@ final class MenuMoteur
                     ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                         && in_array(mb_strtolower((string) $i->monstre?->nom_base), $noms, true)
                         && $grille->ligneDeVue($px, $py, (int) $i->position_x, (int) $i->position_y))
-                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'nom' => $i->nomAffiche()])
+                    ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'type' => 'monstre', 'nom' => $i->nomAffiche()])
                     ->values()->all();
 
                 if ($cibles !== []) {
-                    $options[] = [
-                        'id' => "eau_benite_{$ligne->id}",
-                        'libelle' => "Asperger d'eau bénite",
-                        'type' => 'objet',
-                        'parametres' => ['inventaire_id' => $ligne->id, 'cibles' => $cibles],
+                    $entrees[] = [
+                        'cle' => "objet:{$ligne->id}",
+                        'inventaire_id' => $ligne->id,
+                        'nom' => $objet->nom,
+                        'detail' => "Asperger d'eau bénite — au lieu d'attaquer",
+                        'cout' => 'action',
+                        'quantite' => (int) $ligne->quantite,
+                        'cibles' => $cibles,
                     ];
                 }
             }
+
+            // POTIONS — `MoteurPotions` n'accepte que la catégorie
+            // `consommable`, c'est le même filtre que `/moi.consommables`.
+            if ($objet->categorie === 'consommable' && $equipement->estAccessible($personnage, $objet)) {
+                $entrees[] = [
+                    'cle' => "objet:{$ligne->id}",
+                    'inventaire_id' => $ligne->id,
+                    'nom' => $objet->nom,
+                    'detail' => 'Boire',
+                    'cout' => 'gratuit',
+                    'quantite' => (int) $ligne->quantite,
+                ];
+            }
         }
 
-        return $options;
+        if ($entrees === []) {
+            return [];
+        }
+
+        return [[
+            'id' => 'utiliser_objet',
+            'libelle' => 'Utiliser un objet',
+            'type' => 'objet_libre',
+            'parametres' => ['objets' => $entrees],
+        ]];
     }
 
     private function salleFouillableTresor(Quete $quete, ?EtatPersonnageQuete $etat): bool
@@ -1034,6 +1093,21 @@ final class MenuMoteur
             }
         }
 
+        // OBJETS — option UNIQUE « Utiliser un objet », HORS du bloc `! $aAgi`
+        // ci-dessus (corrigé 2026-09-01). Les consommables gratuits en
+        // héritaient et disparaissaient dès que le héros avait agi, ce qui
+        // contredisait leur gratuité même : une potion se boit après avoir
+        // frappé. La liste, elle, sait se restreindre au gratuit dans ce cas.
+        if ($etat !== null && ! $actionInterdite
+            && $etat->position_x !== null && $quete->carte !== null) {
+            foreach ($this->objetsDeMateriel(
+                $quete, $personnage, $etat,
+                (int) $etat->position_x, (int) $etat->position_y, $aAgi,
+            ) as $option) {
+                $options[] = $option;
+            }
+        }
+
         // ⚠ PAS de garde `action_interdite` sur ce bloc entier : ouvrir une
         // porte et actionner un levier restent permis à l'ÉVANESCENT — « il ne
         // peut que bouger et ouvrir des portes », c'est le texte de la carte et
@@ -1181,14 +1255,6 @@ final class MenuMoteur
                     ];
                 }
 
-                // Objets de MATÉRIEL des cartes officielles. Sans option ici,
-                // ils seraient injouables : `ChoixController` refuse toute
-                // option absente du dernier menu — c'est exactement le défaut
-                // qu'avait la Potion d'héroïsme, acceptée par le résolveur mais
-                // jamais offerte.
-                foreach ($this->objetsDeMateriel($quete, $personnage, $etat, $px, $py) as $option) {
-                    $options[] = $option;
-                }
             }
 
             if ($actionInterdite) {

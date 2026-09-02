@@ -598,9 +598,25 @@ final class MoteurSorts
     // ------------------------------------------------------------------
 
     /**
-     * Options de sorts d'un héros en quête : une option par sort DISPONIBLE
-     * (cibles légales jointes), « Utiliser un parchemin » par parchemin au
-     * sac, « Se concentrer » si le nœud le permet et qu'un sort est épuisé.
+     * Options de sorts d'un héros en quête — TROIS options au plus, chacune
+     * portant la liste de ses sous-choix (René, 2026-09-01).
+     *
+     * ⚠ Avant, une option PAR SORT : le menu d'un magicien niveau 1 en portait
+     * neuf, sur quatorze au total, là où le doc de conception fixe « 2 à 5
+     * options claires » (doc 13 §3.1). C'est la même leçon que le ciblage, un
+     * cran plus haut : l'option ne doit pas ÊTRE le sort, elle doit PORTER la
+     * liste des sorts. Le second pas se fait dans une feuille.
+     *
+     * ⚠ Les `cibles` restent PAR ENTRÉE, jamais au niveau de l'option :
+     * `ciblesLegales()` rend trois listes différentes selon le sort — monstres
+     * et héros pour `degats`/`mental`, héros seuls pour un soin, `null` pour un
+     * sort sur soi — et la ligne de vue se filtre par sort. Une liste unique
+     * serait fausse pour cinq des neuf sorts d'un magicien.
+     *
+     * ⚠ Chaque entrée porte une `cle` composite, et c'est elle que le client
+     * renvoie : `sort_id` ne suffit pas à désigner une entrée, puisque le mode
+     * « ouvre une porte » du Génie en produit une par porte. Même patron que les
+     * `soins` des réactions (`MoteurReactions::soinsDisponibles()`).
      *
      * @return list<array<string, mixed>>
      */
@@ -619,37 +635,57 @@ final class MoteurSorts
             ? ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y]
             : null;
 
-        foreach ($personnage->sorts()->wherePivot('disponible', true)->orderBy('sorts.id')->get() as $sort) {
+        // ⚠ TOUT le répertoire, pas seulement le disponible : un sort épuisé
+        // reste dans la liste, marqué `disponible: false`, pour que la feuille
+        // le GRISE au lieu de le faire disparaître (René, 2026-09-01). Un sort
+        // absent laisse croire qu'on l'a perdu ; un sort grisé dit ce qu'il en
+        // est. Il n'entre évidemment pas dans la liste blanche du résolveur.
+        $entrees = [];
+
+        foreach ($personnage->sorts()->orderBy('sorts.id')->get() as $sort) {
+            $disponible = (bool) $sort->pivot->disponible;
+
             // Le libellé DIT la zone : sans cible à choisir, c'est la seule
             // chose qui prévienne le joueur qu'il va toucher ses alliés.
-            $libelle = data_get($sort->effet, 'zone') !== null
-                ? "Lancer {$sort->nom} — toute la salle, alliés compris"
-                : "Lancer {$sort->nom}";
-
-            $options[] = $this->optionSort(
-                "sort_{$sort->id}",
-                $libelle,
-                'sort',
-                ['sort_id' => $sort->id],
+            $entrees[] = $this->entreeSort(
+                "sort:{$sort->id}",
+                data_get($sort->effet, 'zone') !== null
+                    ? "{$sort->nom} — toute la salle, alliés compris"
+                    : $sort->nom,
                 $sort,
-                $ciblesMonstres,
-                $ciblesHeros,
+                $disponible,
+                $disponible ? $ciblesMonstres : [],
+                $disponible ? $ciblesHeros : [],
                 $lanceur,
                 $grille,
             );
 
             // Sorts à DEUX modes (Génie : « ouvre une porte au choix OU attaque
-            // avec 5 dés » — Kellar's Keep p. 15). Le second mode devient une
-            // option distincte par porte connue plutôt qu'un paramètre : il
-            // réutilise ainsi tout le rendu des options `ouvrir_porte`, sans
-            // nouvelle feuille de sélection côté manette.
-            foreach ($this->optionsPorteAuChoix($quete, $sort, $lanceur) as $option) {
-                $options[] = $option;
+            // avec 5 dés » — Kellar's Keep p. 15). Une entrée par porte connue :
+            // c'est ce second mode qui gonflait le plus le menu.
+            if ($disponible) {
+                foreach ($this->entreesPorteAuChoix($quete, $sort, $lanceur) as $entree) {
+                    $entrees[] = $entree;
+                }
             }
+        }
+
+        if ($entrees !== []) {
+            $options[] = [
+                'id' => 'lancer_sort',
+                'libelle' => 'Lancer un sort',
+                'type' => 'sort',
+                'parametres' => ['sorts' => $entrees],
+            ];
         }
 
         // Parchemins au sac (ObjetSeeder : effet.sort_id pointe le sort) —
         // utilisables par TOUS, jet de Mind pour les non-lanceurs (S1).
+        // ⚠ Action SÉPARÉE des sorts (René, 2026-09-01) : les mélanger ferait
+        // cohabiter deux économies contraires dans une même liste — un sort
+        // s'épuise et revient à la quête suivante, un parchemin est DÉTRUIT.
+        $parchemins = [];
+
         foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
             $sort = Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
 
@@ -657,35 +693,39 @@ final class MoteurSorts
                 continue;
             }
 
-            $options[] = $this->optionSort(
-                "parchemin_{$ligne->id}",
-                "Utiliser un parchemin : {$sort->nom}",
-                'parchemin',
-                ['inventaire_id' => $ligne->id, 'sort_id' => $sort->id],
+            $parchemins[] = $this->entreeSort(
+                "parchemin:{$ligne->id}",
+                $sort->nom,
                 $sort,
+                true,
                 $ciblesMonstres,
                 $ciblesHeros,
                 $lanceur,
                 $grille,
+                ['inventaire_id' => $ligne->id],
             );
+        }
+
+        if ($parchemins !== []) {
+            $options[] = [
+                'id' => 'lire_parchemin',
+                'libelle' => 'Lire un parchemin',
+                'type' => 'parchemin',
+                'parametres' => ['parchemins' => $parchemins],
+            ];
         }
 
         // « Se concentrer » (S6) : magicien + nœud + ≥1 sort épuisé + pas
         // encore utilisée cette quête.
         if ($this->concentrationDisponible($groupe, $personnage)) {
-            $epuises = $personnage->sorts()->wherePivot('disponible', false)->orderBy('sorts.id')->get();
+            $epuises = $this->entreesEpuisees($personnage);
 
-            if ($epuises->isNotEmpty()) {
+            if ($epuises !== []) {
                 $options[] = [
                     'id' => 'se_concentrer',
                     'libelle' => 'Se concentrer — sacrifier le tour pour récupérer un sort épuisé',
                     'type' => 'concentration',
-                    'parametres' => [
-                        'sorts_epuises' => $epuises
-                            ->map(fn (Sort $s) => ['sort_id' => $s->id, 'nom' => $s->nom])
-                            ->values()
-                            ->all(),
-                    ],
+                    'parametres' => ['sorts' => $epuises],
                 ];
             }
         }
@@ -695,24 +735,47 @@ final class MoteurSorts
         // une option distincte et non un paramètre de la première.
         if (app(Talents::class)->a($personnage, 'sacrifice_pv_pour_sort')
             && (int) $personnage->pv_body > 1) {
-            $epuises = $personnage->sorts()->wherePivot('disponible', false)->orderBy('sorts.id')->get();
+            $epuises = $this->entreesEpuisees($personnage);
 
-            if ($epuises->isNotEmpty()) {
+            if ($epuises !== []) {
                 $options[] = [
                     'id' => 'sacrifier_pour_sort',
                     'libelle' => 'Payer le pacte — 1 PV de Body pour récupérer un sort épuisé',
                     'type' => 'sacrifice_sort',
-                    'parametres' => [
-                        'sorts_epuises' => $epuises
-                            ->map(fn (Sort $s) => ['sort_id' => $s->id, 'nom' => $s->nom])
-                            ->values()
-                            ->all(),
-                    ],
+                    'parametres' => ['sorts' => $epuises],
                 ];
             }
         }
 
         return $options;
+    }
+
+    /**
+     * Sorts épuisés, au format d'entrée de liste.
+     *
+     * ⚠ La clé est `sorts`, pas `sorts_epuises` : le front lisait déjà
+     * `parametres.sorts` alors que le moteur publiait `sorts_epuises`, si bien
+     * que la liste du serveur n'était JAMAIS consommée — la feuille ne marchait
+     * que par son repli sur `/moi`. Un seul nom pour les quatre listes.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function entreesEpuisees(Personnage $personnage): array
+    {
+        return $personnage->sorts()
+            ->wherePivot('disponible', false)
+            ->orderBy('sorts.id')
+            ->get()
+            ->map(fn (Sort $s) => [
+                'cle' => "sort:{$s->id}",
+                'sort_id' => $s->id,
+                'nom' => $s->nom,
+                'element' => $s->element,
+                'sort_type' => $s->type,
+                'disponible' => true, // choisissable : c'est CE sort qu'on récupère
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -1402,9 +1465,9 @@ final class MoteurSorts
      * @return array<string, mixed>
      */
     /**
-     * Second mode d'un sort à deux options : « ouvre une porte AU CHOIX ».
+     * Second mode d'un sort : « ouvre une porte AU CHOIX ».
      *
-     * Une option par porte encore fermée d'une salle DÉCOUVERTE — le magicien
+     * Une ENTRÉE par porte encore fermée d'une salle DÉCOUVERTE — le magicien
      * ne choisit pas une porte qu'il n'a jamais vue, et on évite d'inonder le
      * menu avec tout le donjon. Contrairement à `ouvrir_porte` du MenuMoteur,
      * aucune adjacence n'est requise : c'est tout l'intérêt du sort, ouvrir à
@@ -1412,7 +1475,7 @@ final class MoteurSorts
      *
      * @return list<array<string, mixed>>
      */
-    private function optionsPorteAuChoix(Quete $quete, Sort $sort, ?array $lanceur = null): array
+    private function entreesPorteAuChoix(Quete $quete, Sort $sort, ?array $lanceur = null): array
     {
         if (! (bool) data_get($sort->effet, 'ouvre_porte', false) || $quete->carte === null) {
             return [];
@@ -1437,18 +1500,18 @@ final class MoteurSorts
 
             $cote = (string) ($porte['cote'] ?? 'e');
             $options[] = [
-                'id' => "sort_{$sort->id}_porte_{$porte['x']}_{$porte['y']}_{$cote}",
+                'cle' => "sort:{$sort->id}:porte:{$porte['x']}:{$porte['y']}:{$cote}",
+                'sort_id' => $sort->id,
                 // Repère DIRECTIONNEL depuis le lanceur : six libellés
                 // rigoureusement identiques ne se distinguaient que par leur
                 // index, ce qui revenait à choisir au hasard (constaté en partie
                 // réelle, 2026-08-06).
-                'libelle' => "Lancer {$sort->nom} — ouvrir la porte {$this->reperePorte($lanceur, $porte)}",
-                'type' => 'sort',
-                'parametres' => [
-                    'sort_id' => $sort->id,
-                    'mode' => 'ouvre_porte',
-                    'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y'], 'cote' => $cote],
-                ],
+                'nom' => "{$sort->nom} — ouvrir la porte {$this->reperePorte($lanceur, $porte)}",
+                'element' => $sort->element,
+                'sort_type' => $sort->type,
+                'disponible' => true,
+                'mode' => 'ouvre_porte',
+                'porte' => ['x' => (int) $porte['x'], 'y' => (int) $porte['y'], 'cote' => $cote],
             ];
         }
 
@@ -1488,24 +1551,48 @@ final class MoteurSorts
         return "au {$direction}, à {$distance} cases";
     }
 
-    private function optionSort(
-        string $id,
-        string $libelle,
-        string $type,
-        array $parametres,
+    /**
+     * Une entrée de la liste d'une option — sort connu ou parchemin.
+     *
+     * ⚠ `cibles` n'est joint QUE si le sort en a : son absence est le signal
+     * qui dit à la manette de ne pas ouvrir de troisième niveau. Un sort sur soi
+     * (`cible: 'soi'`) part donc directement, sans clic imposé pour une liste à
+     * une seule entrée — c'est déjà la règle de `ciblesLegales()`, qui rend
+     * `null` dans ce cas.
+     *
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function entreeSort(
+        string $cle,
+        string $nom,
         Sort $sort,
+        bool $disponible,
         array $ciblesMonstres,
         array $ciblesHeros,
         ?array $lanceur = null,
         ?Grille $grille = null,
+        array $extra = [],
     ): array {
-        $cibles = $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros, $lanceur, $grille);
+        $entree = [
+            'cle' => $cle,
+            'sort_id' => $sort->id,
+            'nom' => $nom,
+            'element' => $sort->element,
+            'sort_type' => $sort->type,
+            'disponible' => $disponible,
+            ...$extra,
+        ];
+
+        $cibles = $disponible
+            ? $this->ciblesLegales($sort, $ciblesMonstres, $ciblesHeros, $lanceur, $grille)
+            : null;
 
         if ($cibles !== null) {
-            $parametres['cibles'] = $cibles;
+            $entree['cibles'] = $cibles;
         }
 
-        return ['id' => $id, 'libelle' => $libelle, 'type' => $type, 'parametres' => $parametres];
+        return $entree;
     }
 
     /**

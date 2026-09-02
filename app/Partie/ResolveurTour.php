@@ -2573,6 +2573,10 @@ final class ResolveurTour
         array $parametres,
         array $acteur,
     ): array {
+        // La sous-option choisie DEVIENT l'option : même forme de `parametres`,
+        // donc ciblage, ligne de vue et mode porte inchangés en aval.
+        $option['parametres'] = $this->entreeChoisie($option, $parametres, 'sorts');
+
         $sort = $this->sortDeLOption($option);
 
         $connu = $personnage->sorts()->whereKey($sort->id)->first();
@@ -2626,6 +2630,10 @@ final class ResolveurTour
         array $parametres,
         array $acteur,
     ): array {
+        // Même substitution que pour les sorts : l'entrée choisie devient
+        // l'option, et `inventaire_id` retrouve la place qu'il avait.
+        $option['parametres'] = $this->entreeChoisie($option, $parametres, 'parchemins');
+
         $ligne = $personnage->inventaire()
             ->with('objet')
             ->whereKey((int) data_get($option, 'parametres.inventaire_id', 0))
@@ -2702,11 +2710,16 @@ final class ResolveurTour
             ]);
         }
 
-        $sort = $personnage->sorts()->whereKey((int) ($parametres['sort_id'] ?? 0))->first();
+        // ⚠ Liste blanche PORTÉE PAR L'OPTION, comme partout ailleurs. Ce
+        // chemin validait contre la base : sûr par accident (le répertoire est
+        // un sur-ensemble légitime), mais ce n'était pas le patron, et il
+        // divergeait de la feuille qui, elle, envoie une `cle`.
+        $entree = $this->entreeChoisie($option, $parametres, 'sorts');
+        $sort = $personnage->sorts()->whereKey((int) ($entree['sort_id'] ?? 0))->first();
 
         if ($sort === null || $sort->pivot->disponible) {
             throw ValidationException::withMessages([
-                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer : parametres.sort_id.',
+                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer.',
             ]);
         }
 
@@ -2746,11 +2759,16 @@ final class ResolveurTour
         array $parametres,
         array $acteur,
     ): array {
-        $sort = $personnage->sorts()->whereKey((int) ($parametres['sort_id'] ?? 0))->first();
+        // ⚠ Liste blanche PORTÉE PAR L'OPTION, comme partout ailleurs. Ce
+        // chemin validait contre la base : sûr par accident (le répertoire est
+        // un sur-ensemble légitime), mais ce n'était pas le patron, et il
+        // divergeait de la feuille qui, elle, envoie une `cle`.
+        $entree = $this->entreeChoisie($option, $parametres, 'sorts');
+        $sort = $personnage->sorts()->whereKey((int) ($entree['sort_id'] ?? 0))->first();
 
         if ($sort === null || $sort->pivot->disponible) {
             throw ValidationException::withMessages([
-                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer : parametres.sort_id.',
+                'parametres' => 'Choisissez un sort ÉPUISÉ à récupérer.',
             ]);
         }
 
@@ -3554,6 +3572,55 @@ final class ResolveurTour
         return ['type' => 'heros', 'personnage' => $etatCible->personnage, 'etat' => $etatCible];
     }
 
+    /**
+     * L'ENTRÉE choisie dans la liste d'une option, et la liste blanche qui va
+     * avec (René, 2026-09-01).
+     *
+     * Une option de menu ne porte plus un sort, un parchemin ou un objet : elle
+     * porte la LISTE de ceux qui sont jouables, et le client renvoie la `cle`
+     * de celui qu'il a choisi. C'est le patron des `cibles`, un cran plus haut —
+     * et il vaut par la même raison : l'identifiant d'option ne porte plus la
+     * légalité du sous-choix, donc valider l'option contre le menu ne le valide
+     * plus. Sans cette vérification, un client lancerait un sort de son
+     * répertoire AVEC LES CIBLES D'UN AUTRE — hors ligne de vue, et hors du
+     * typage de cible que `ciblesLegales()` avait calculé.
+     *
+     * ⚠ `disponible: false` (sort épuisé) est dans la liste pour être GRISÉ à
+     * l'écran, jamais pour être choisi : le résolveur le refuse.
+     *
+     * L'entrée retenue REMPLACE ensuite `parametres` : elle en a exactement la
+     * forme (`sort_id`, `cibles`, `mode`, `porte`, `inventaire_id`), si bien que
+     * tout l'aval — ciblage, ligne de vue, mode porte — continue de lire ce
+     * qu'il a toujours lu.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function entreeChoisie(array $option, array $parametres, string $liste): array
+    {
+        $entrees = (array) data_get($option, "parametres.{$liste}", []);
+        $cle = (string) ($parametres['cle'] ?? '');
+
+        foreach ($entrees as $entree) {
+            if ((string) ($entree['cle'] ?? '') !== $cle || $cle === '') {
+                continue;
+            }
+
+            if (($entree['disponible'] ?? true) !== true) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Ce choix est épuisé : il est affiché pour information, pas pour être joué.',
+                ]);
+            }
+
+            return $entree;
+        }
+
+        throw ValidationException::withMessages([
+            'parametres' => 'Choix requis : parametres.cle doit désigner une entrée de la liste proposée.',
+        ]);
+    }
+
     /** Sort du catalogue pointé par l'option (parametres.sort_id du menu). */
     private function sortDeLOption(array $option): Sort
     {
@@ -3885,6 +3952,9 @@ final class ResolveurTour
         array $parametres,
         array $acteur,
     ): array {
+        // L'entrée choisie devient l'option (`inventaire_id`, `cibles`, `cout`).
+        $option['parametres'] = $this->entreeChoisie($option, $parametres, 'objets');
+
         $ligne = $personnage->inventaire()->with('objet')
             ->where('id', (int) data_get($option, 'parametres.inventaire_id', 0))->first();
         $effet = (array) ($ligne?->objet?->effet ?? []);
@@ -3911,12 +3981,29 @@ final class ResolveurTour
             throw ValidationException::withMessages(['parametres' => 'Cible illégale pour cet objet.']);
         }
 
+        // ⚠ LE CRÉNEAU DÉPEND DE L'OBJET, pas du type d'option. La liste mêle
+        // du gratuit (potion, chausse-trappes, fumigène) et du payant (l'eau
+        // bénite, « instead of attacking ») : `creneauOption()` tranche sur le
+        // TYPE et ne peut donc pas décider ici. L'option est `objet_libre`, et
+        // c'est cette branche qui dépense l'action quand l'objet l'exige.
+        if ((string) data_get($option, 'parametres.cout') === 'action') {
+            $etat->update(['a_agi' => true]);
+        }
+
         if (! empty($effet['tue_creatures'])) {
             $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $cibleId, $effet);
         } elseif (! empty($effet['pose_chausse_trappes'])) {
             $payload += $this->poserChausseTrappes($quete, $personnage, $etat);
         } elseif (! empty($effet['enfume_monstre_adjacent'])) {
             $payload += $this->enfumerMonstre($groupe, $quete, $etat, $cibleId);
+        } elseif ($ligne->objet?->categorie === 'consommable') {
+            // ⚠ `MoteurPotions` reste L'AUTORITÉ — restrictions de classe,
+            // `une_par_tour`, relève sur soin, décrément de la pile. On lui
+            // délègue au lieu de réimplémenter : c'est aussi lui que la feuille
+            // de réaction appelle quand un héros tombe.
+            $payload += ['potion' => app(MoteurPotions::class)->boire($personnage, $ligne)];
+
+            return $this->journaliserUsageObjet($groupe, $payload, $acteur);
         } else {
             throw ValidationException::withMessages(['option_id' => "Cet objet ne s'utilise pas ainsi."]);
         }
@@ -3932,6 +4019,19 @@ final class ResolveurTour
 
         $payload['perdu'] = true;
 
+        return $this->journaliserUsageObjet($groupe, $payload, $acteur);
+    }
+
+    /**
+     * Journal d'un usage d'objet — un seul endroit, parce que la branche
+     * potion sort plus tôt (`MoteurPotions` gère lui-même la pile).
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function journaliserUsageObjet(Groupe $groupe, array $payload, array $acteur): array
+    {
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;

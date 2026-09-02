@@ -47,9 +47,9 @@ def defaut(msg):
 
 PRIORITE = [
     'attaquer', 'lancer', 'repousser_',
-    'sort_',
+    'lancer_sort', 'lire_parchemin',
     'ouvrir_porte', 'actionner_levier',
-    'fouiller_tresor', 'fouille_mobilier', 'epreuve_', 'fracasser',
+    'fouiller_tresor', 'fouille_mobilier', 'epreuve_', 'fracasser', 'utiliser_objet',
     'fouiller',
     'se_deplacer',
     'quitter_donjon', 'attendre',
@@ -69,8 +69,25 @@ def rang(oid):
     return len(PRIORITE)
 
 
-def cible_monstre(opt):
-    for c in (opt.get('parametres') or {}).get('cibles') or []:
+# ⚠ Depuis le 2026-09-01, une option peut porter une LISTE de sous-choix au
+# lieu d'être elle-même le sort/parchemin/objet. Le pilote doit donc descendre
+# d'un niveau : choisir une entrée, puis sa cible.
+LISTES = {'lancer_sort': 'sorts', 'lire_parchemin': 'parchemins',
+          'utiliser_objet': 'objets', 'se_concentrer': 'sorts',
+          'sacrifier_pour_sort': 'sorts'}
+
+
+def entrees_de(opt):
+    """Entrées jouables d'une option à liste ([] si ce n'en est pas une)."""
+    cle = LISTES.get(opt.get('id', ''))
+    if cle is None:
+        return []
+    return [e for e in (opt.get('parametres') or {}).get(cle) or []
+            if e.get('disponible', True)]
+
+
+def cible_monstre(source):
+    for c in (source or {}).get('cibles') or []:
         if c.get('type') == 'monstre':
             return c
     return None
@@ -80,10 +97,16 @@ def jouable(opt):
     oid = opt.get('id', '')
     if oid.startswith(JAMAIS):
         return False
-    # Un sort qui n'a que son lanceur pour cible : le tir ami est délibéré
-    # (doc 02 §5), c'est au pilote de ne pas se brûler tout seul.
-    if oid.startswith(('sort_', 'attaquer', 'lancer')) and (opt.get('parametres') or {}).get('cibles') is not None:
-        return cible_monstre(opt) is not None
+
+    # Option à LISTE : jouable s'il existe une entrée sans cible (elle part
+    # telle quelle) ou une entrée visant un monstre. Le tir ami est délibéré
+    # (doc 02 §5) — c'est au pilote de ne pas se brûler tout seul.
+    if oid in LISTES:
+        return any(not e.get('cibles') or cible_monstre(e) for e in entrees_de(opt))
+
+    if oid.startswith(('attaquer', 'lancer')) and (opt.get('parametres') or {}).get('cibles') is not None:
+        return cible_monstre(opt.get('parametres')) is not None
+
     return True
 
 
@@ -95,8 +118,23 @@ def parametres_pour(opt, cap_suivant):
     p = opt.get('parametres') or {}
     if opt.get('type') == 'deplacement':
         return {'x': cap_suivant[0], 'y': cap_suivant[1]} if cap_suivant else None
+
+    # Option à liste : on choisit une entrée, puis sa cible. La `cle` est ce
+    # que le serveur revalide contre la liste blanche.
+    if opt.get('id') in LISTES:
+        entrees = entrees_de(opt)
+        entree = next((e for e in entrees if e.get('cibles') and cible_monstre(e)), None) \
+            or next((e for e in entrees if not e.get('cibles')), None)
+        if entree is None:
+            return None
+        params = {'cle': entree['cle']}
+        c = cible_monstre(entree)
+        if c:
+            params |= {'cible_id': c['id'], 'cible_type': c['type']}
+        return params
+
     if p.get('cibles'):
-        c = cible_monstre(opt) or p['cibles'][0]
+        c = cible_monstre(p) or p['cibles'][0]
         return {'cible_id': c['id'], 'cible_type': c['type']}
     return None
 

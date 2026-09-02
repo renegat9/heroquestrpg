@@ -261,8 +261,9 @@ it('exige une ligne de vue pour TOUT sort, et laisse toujours le lanceur se cibl
     $etatC->update(['position_x' => $roche['x'], 'position_y' => $roche['y']]);
 
     $soin = Sort::where('nom', 'Soin du Corps')->firstOrFail();
-    $cibles = collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete->fresh(), $lanceur->fresh()))
-        ->firstWhere('id', "sort_{$soin->id}")['parametres']['cibles'] ?? [];
+    $cibles = collect(collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete->fresh(), $lanceur->fresh()))
+        ->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? [])
+        ->firstWhere('cle', "sort:{$soin->id}")['cibles'] ?? [];
     $ids = collect($cibles)->pluck('id')->all();
 
     // Le lanceur se voit toujours lui-même — « may be cast on any one hero,
@@ -289,28 +290,32 @@ it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance'
     $options = app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh());
     $genie = Sort::where('nom', 'Génie')->firstOrFail();
 
-    $attaque = collect($options)->firstWhere('id', "sort_{$genie->id}");
-    $portes = collect($options)->filter(
-        fn (array $o) => str_starts_with((string) $o['id'], "sort_{$genie->id}_porte_")
+    // ⚠ Les deux modes sont désormais deux ENTRÉES de la même liste, et c'est
+    // le mode porte qui gonflait le plus le menu : une option par porte fermée.
+    $entrees = collect(collect($options)->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? []);
+
+    $attaque = $entrees->firstWhere('cle', "sort:{$genie->id}");
+    $portes = $entrees->filter(
+        fn (array $e) => str_starts_with((string) $e['cle'], "sort:{$genie->id}:porte:")
     );
 
     // Mode 1 : l'attaque, avec ses cibles légales.
     expect($attaque)->not->toBeNull()
-        ->and($attaque['parametres'])->toHaveKey('sort_id');
+        ->and($attaque)->toHaveKey('sort_id');
 
     // Mode 2 : une option par porte fermée d'une salle découverte. Le texte
     // officiel dit « ouvre une porte AU CHOIX » : aucune adjacence requise,
     // c'est ce qui permet de dégager un passage bloqué par des figures.
     expect($portes)->not->toBeEmpty();
-    foreach ($portes as $option) {
-        expect($option['parametres']['mode'])->toBe('ouvre_porte')
-            ->and($option['parametres'])->toHaveKey('porte')
-            ->and($option['parametres']['sort_id'])->toBe($genie->id);
+    foreach ($portes as $entree) {
+        expect($entree['mode'])->toBe('ouvre_porte')
+            ->and($entree)->toHaveKey('porte')
+            ->and($entree['sort_id'])->toBe($genie->id);
     }
 
     // Les libellés doivent être DISTINCTS : six « ouvrir une porte à distance »
     // identiques revenaient à choisir au hasard (constaté en partie réelle).
-    $libelles = $portes->pluck('libelle');
+    $libelles = $portes->pluck('nom');
     expect($libelles->unique()->count())->toBe($libelles->count());
 });
 
@@ -324,20 +329,24 @@ it('résout le mode « ouvrir une porte » sans exiger de cible-figurine', funct
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $genie = Sort::where('nom', 'Génie')->firstOrFail();
 
-    $option = collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh()))
-        ->first(fn (array $o) => str_starts_with((string) $o['id'], "sort_{$genie->id}_porte_"));
-    expect($option)->not->toBeNull();
+    $entree = collect(collect(app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh()))
+        ->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? [])
+        ->first(fn (array $e) => str_starts_with((string) $e['cle'], "sort:{$genie->id}:porte:"));
+    expect($entree)->not->toBeNull();
 
     // Le mode porte ne porte AUCUN `cible_id` : le garde-fou de ligne de vue,
     // qui s'exécutait avant l'aiguillage, le rejetait donc systématiquement par
     // « Cible requise : parametres.cible_id » — chaque ouverture à distance
     // échouait (constaté en partie réelle, 2026-08-06).
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $option['id']])
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => $entree['cle']],
+    ])
         ->assertAccepted()
         ->assertJsonPath('resultat.mode', 'ouvre_porte');
 
     // …et la porte visée est bien ouverte sur la carte.
-    $p = $option['parametres']['porte'];
+    $p = $entree['porte'];
     $ouverte = collect($quete->fresh()->carte->grille['portes'])
         ->first(fn (array $x) => (int) $x['x'] === $p['x'] && (int) $x['y'] === $p['y']
             && (string) ($x['cote'] ?? 'e') === $p['cote']);

@@ -745,8 +745,17 @@ export function sortsParElement(sorts) {
 /** L'option de menu type "sort" qui lance ce sort_id, ou null (pas son
  *  tour / sort non proposé) — c'est elle que la manette envoie au moteur. */
 export function optionPourSort(menu, sortId) {
-    return (menu?.options ?? []).find((o) => o.type === 'sort'
-        && String(o.parametres?.sort_id ?? o.sort_id ?? '') === String(sortId)) ?? null;
+    // ⚠ Depuis le 2026-09-01, le menu ne porte plus une option PAR sort mais
+    // UNE option « Lancer un sort » qui porte la liste. On rend donc l'option
+    // ET l'entrée : l'onglet Sorts a besoin de savoir si CE sort est lançable
+    // ce tour, et l'envoi a besoin de la clé.
+    const option = (menu?.options ?? []).find((o) => o.id === 'lancer_sort');
+    if (! option) { return null; }
+
+    const entree = (option.parametres?.sorts ?? [])
+        .find((e) => String(e.sort_id) === String(sortId) && e.disponible !== false);
+
+    return entree ? { option, entree } : null;
 }
 
 /** Sorts épuisés (disponible === false) — candidats à la Concentration. */

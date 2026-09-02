@@ -52,6 +52,26 @@ que de crier au loup :
   l'état avant d'accuser : si la case est prise entre-temps, c'est sa course à
   lui. Mesuré : 3 occurrences sur une quête, 0 sur les deux suivantes.
 
+## `navigation.mjs` — les trois niveaux et leurs retours
+
+Depuis le 2026-09-01 le menu est à trois niveaux (action → liste → cibles), et
+c'est la seule partie que les tests Pest ne peuvent pas prouver : elle vit dans
+la pile de feuilles de la manette. `navigation.mjs` la descend et la remonte —
+une liste de sorts groupée par élément, un ciblage, puis les retours, en
+vérifiant que **chaque bouton nomme sa destination** et qu'un tap sur le fond
+ne dépile que d'**un cran**.
+
+```bash
+docker run --rm --network host -v "$PWD:/work" -w /work \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+  -e ID="<identifiant du joueur>" mcr.microsoft.com/playwright:v1.48.0-jammy \
+  bash -c 'npm i playwright@1.48.0 --no-save --no-audit --no-fund --silent && node browser-shots/aaz/navigation.mjs'
+```
+
+⚠ Le menu est mis en CACHE : un objet donné au héros après la génération du
+menu n'y figure pas. Regénérer (`GenererMenu::dispatchSync`) avant de vérifier
+une liste qu'on vient de garnir, sinon on croit à un défaut qui n'existe pas.
+
 ## Deux choses à savoir avant de s'en servir
 
 ⚠ **Un lanceur de sorts ne se crée pas sans ses éléments.** Le bouton « Créer
