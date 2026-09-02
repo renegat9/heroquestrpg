@@ -1167,3 +1167,51 @@ it('les usages de Dread vivent en COLONNE et survivent au vidage du cache', func
         ->and(app(MoteurDread::class)->usagesRestants($boss->fresh(), $quete))
         ->toBe(MoteurDread::USAGES_SOUS_BOSS);
 });
+
+it('Trait de Chaos vise le héros le PLUS PROCHE, pas le premier de la liste', function () {
+    $ctx = demarrerQueteBoss('Champion', avecSecondHeros: true);
+    ['alice' => $alice, 'bob' => $bob, 'quete' => $quete, 'boss' => $boss] = $ctx;
+    ['heros' => $heros, 'etatHeros' => $etatHeros, 'etatHeros2' => $etatHeros2] = $ctx;
+
+    $boss->monstre->update(['sorts_dread' => ['Trait de Chaos'], 'archetype_lanceur' => null]);
+
+    // ⚠ C'est alice — la PREMIÈRE de la collection — qui doit être la plus
+    // proche : avec un tri faussé, le boss garde l'ordre des id et frappe le
+    // second. Le montage inverse (proche en second) passait aussi sur la
+    // version boguée, et ne prouvait donc rien.
+    $etatHeros->update([
+        'position_x' => (int) $boss->position_x, 'position_y' => (int) $boss->position_y + 1,
+    ]);
+    $boss->update(['position_x' => (int) $boss->position_x, 'position_y' => (int) $boss->position_y]);
+
+    $grille = App\Partie\FabriqueGrille::pour($quete, exceptInstanceId: $boss->id);
+    $loinEnVue = null;
+
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $type) {
+            $d = abs((int) $x - (int) $boss->position_x) + abs((int) $y - (int) $boss->position_y);
+
+            if ($d >= 3 && in_array($type, ['s', 'p'], true)
+                && caseQueteLibre($quete, (int) $x, (int) $y)
+                && $grille->ligneDeVue((int) $boss->position_x, (int) $boss->position_y, (int) $x, (int) $y, figuresBloquent: true)) {
+                $loinEnVue = ['x' => (int) $x, 'y' => (int) $y];
+                break 2;
+            }
+        }
+    }
+
+    expect($loinEnVue)->not->toBeNull();
+    $etatHeros2->update(['position_x' => $loinEnVue['x'], 'position_y' => $loinEnVue['y']]);
+
+    desFiges(array_fill(0, 200, 4));
+
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $reponse = test()->actingAs($bob, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Trait de Chaos');
+
+    expect($sort)->not->toBeNull()
+        ->and($sort['cible']['personnage_id'])->toBe($heros->id);
+});

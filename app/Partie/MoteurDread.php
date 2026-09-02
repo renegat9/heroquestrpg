@@ -705,8 +705,14 @@ final class MoteurDread
      */
     private function auContact(InstanceMonstre $instance, Collection $cibles): bool
     {
-        return $cibles->contains(fn (EtatPersonnageQuete $c) => abs((int) $instance->position_x - (int) $c->position_x)
-            + abs((int) $instance->position_y - (int) $c->position_y) === 1);
+        return $cibles->contains(fn (EtatPersonnageQuete $c) => $this->distance($instance, $c) === 1);
+    }
+
+    /** Distance de Manhattan entre une créature et un héros. */
+    private function distance(InstanceMonstre $instance, EtatPersonnageQuete $cible): int
+    {
+        return abs((int) $instance->position_x - (int) $cible->position_x)
+            + abs((int) $instance->position_y - (int) $cible->position_y);
     }
 
     /** L'invocation ne se déclenche que si le lanceur est presque seul (≤ 1 autre monstre actif). */
@@ -822,11 +828,16 @@ final class MoteurDread
         // les plus bas. Le commentaire annonçait déjà « le plus proche / le plus
         // faible » et le code prenait `first()`, c'est-à-dire l'ordre des id en
         // base : le boss visait le fondateur du groupe toute la campagne.
+        // ⚠ UNE seule closure, qui rend un couple. `sortBy([$f, $g])` prend chaque
+        // callable pour un COMPARATEUR appelé `$f($a, $b)`, pas pour un
+        // extracteur de clé : une closure à un paramètre y rend alors la
+        // distance de `$a` comme résultat de comparaison, et l'ordre part en
+        // vrille sans la moindre erreur. Constaté en partie réelle le
+        // 2026-09-02 — le boss visait le héros le PLUS LOIN.
         $cible = $cibles
-            ->sortBy([
-                fn (EtatPersonnageQuete $e) => abs((int) $instance->position_x - (int) $e->position_x)
-                    + abs((int) $instance->position_y - (int) $e->position_y),
-                fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_body,
+            ->sortBy(fn (EtatPersonnageQuete $e) => [
+                $this->distance($instance, $e),
+                (int) $e->personnage->pv_body,
             ])
             ->first();
 
