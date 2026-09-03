@@ -6042,9 +6042,17 @@ final class ResolveurTour
 
         // Cible la plus avantageuse : PV de Body les plus faibles (achever), puis
         // la plus proche (chemin le plus court ; inaccessible = très loin).
-        $cible = $visibles->sortBy([
-            fn (EtatPersonnageQuete $c) => (int) $c->personnage->pv_body,
-            fn (EtatPersonnageQuete $c) => $grille->distance($ix, $iy, (int) $c->position_x, (int) $c->position_y) ?? PHP_INT_MAX,
+        //
+        // ⚠ UNE seule closure, qui rend un couple. `sortBy([$f, $g])` n'est pas un
+        // tri multi-critères par extraction de clé : dans la forme tableau, Laravel
+        // appelle chaque callable comme un COMPARATEUR, `$f($a, $b)`. Une closure à
+        // un seul paramètre y rendait donc les PV de `$a` en guise de résultat de
+        // comparaison — toujours positifs, donc un ordre arbitraire, sans la moindre
+        // erreur. Même défaut que celui corrigé dans `MoteurDread` le 2026-09-02 :
+        // l'archer visait le héros ROBUSTE en ignorant celui à 1 PV.
+        $cible = $visibles->sortBy(fn (EtatPersonnageQuete $c) => [
+            (int) $c->personnage->pv_body,
+            $grille->distance($ix, $iy, (int) $c->position_x, (int) $c->position_y) ?? PHP_INT_MAX,
         ])->first();
 
         $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y);

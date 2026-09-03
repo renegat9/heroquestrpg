@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
+use App\Models\EtatPersonnageQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Monstre;
+use App\Models\Quete;
+use App\Partie\FabriqueGrille;
 use App\Partie\Grille;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -158,4 +162,89 @@ it('au contact, il RECULE pour tirer — et ne frappe en mêlée que s\'il ne pe
 
     expect($attaque)->not->toBeNull()
         ->and($attaque['portee'])->toBe($aBouge ? 'distance' : 'corps_a_corps');
+});
+
+it('vise le héros le PLUS FAIBLE, pas un ordre arbitraire', function () {
+    // ⚠ Même défaut que celui corrigé dans `MoteurDread` le 2026-09-02 :
+    // `sortBy([$f, $g])` traite chaque callable comme un COMPARATEUR `$f($a, $b)`,
+    // pas comme une extraction de clé — une closure à un paramètre y rendait les
+    // PV de `$a` en résultat de comparaison, toujours positifs. Sur DEUX cibles,
+    // la version boguée rend la SECONDE, quelle qu'elle soit.
+    //
+    // ⚠ Le montage n'est concluant que si le héros à ACHEVER est le PREMIER de la
+    // collection (`etatsPersonnages()`, ordre des id) : monté dans l'autre sens il
+    // passe aussi sur le code bogué, et ne prouve donc rien. Vérifié dans les deux
+    // états du code, et l'ordre est asserté plus bas pour qu'il ne dérive pas.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $faible = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $robuste = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
+
+    // Un seul monstre en scène : l'archer.
+    $archer = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($archer->id)->update(['etat' => 'vaincu']);
+    $catalogue = Monstre::where('nom_base', 'Gobelin archer')->firstOrFail();
+    $archer->update([
+        'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body, 'pv_body_max' => $catalogue->pv_body,
+        'pv_mind' => $catalogue->pv_mind, 'etat' => 'actif', 'elite' => false,
+    ]);
+    $archer->refresh()->load('monstre');
+
+    $etatFaible = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $faible->id)->firstOrFail();
+    $etatRobuste = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $robuste->id)->firstOrFail();
+
+    expect($etatFaible->id)->toBeLessThan($etatRobuste->id, 'le héros à achever doit être le PREMIER de la collection');
+
+    $faible->update(['pv_body' => 1]);
+    $robuste->update(['pv_body' => 8]);
+
+    // Case de tir : à distance (>1) des DEUX héros, avec ligne de vue sur les
+    // deux — sans contact ni angle mort, `replacerTireur()` rend null et l'archer
+    // tire d'où il est, donc c'est bien le TRI qui tranche.
+    $grille = FabriqueGrille::pour($quete, exceptInstanceId: $archer->id);
+    $loin = fn (EtatPersonnageQuete $e, int $x, int $y): bool => abs($x - (int) $e->position_x) + abs($y - (int) $e->position_y) > 1;
+    $voit = fn (EtatPersonnageQuete $e, int $x, int $y): bool => $grille->ligneDeVue($x, $y, (int) $e->position_x, (int) $e->position_y, figuresBloquent: true);
+
+    $spot = null;
+    foreach ($quete->carte->grille['cases'] as $y => $ligne) {
+        foreach ($ligne as $x => $type) {
+            $x = (int) $x;
+            $y = (int) $y;
+
+            if (! $grille->estTraversable($x, $y) || ! caseQueteLibre($quete, $x, $y)) {
+                continue;
+            }
+            if ($loin($etatFaible, $x, $y) && $loin($etatRobuste, $x, $y)
+                && $voit($etatFaible, $x, $y) && $voit($etatRobuste, $x, $y)) {
+                $spot = ['x' => $x, 'y' => $y];
+                break 2;
+            }
+        }
+    }
+
+    expect($spot)->not->toBeNull('Aucune case voyant les DEUX héros à distance sur cette carte.');
+    $archer->update(['position_x' => $spot['x'], 'position_y' => $spot['y']]);
+
+    desFiges(array_fill(0, 200, 4)); // que des boucliers blancs : on teste la CIBLE, pas les dégâts
+
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $reponse = test()->actingAs($bob, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    $attaque = collect($reponse->json('resultat.tour_monstres.actions'))
+        ->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque)->not->toBeNull()
+        ->and($attaque['cible']['personnage_id'])->toBe($faible->id);
 });
