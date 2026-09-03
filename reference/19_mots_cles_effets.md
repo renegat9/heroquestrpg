@@ -101,6 +101,26 @@ après la phase des alliés, et à la victoire. Le nettoyage complet du donjon y
 délègue plutôt que de dupliquer le test : **une seule définition de la fin du
 combat**.
 
+## 2bis. Une `duree` à PLUSIEURS déclencheurs (2026-09-02)
+
+`duree` peut porter une **liste** de mots-clés : le premier déclencheur qui
+survient retire le buff. Un seul effet en a besoin aujourd'hui, et c'est sa
+carte qui l'impose — *Courage* (doc 16 §3bis) : « The next time that hero
+attacks, they may roll 2 extra combat dice. **The spell is broken the moment a
+monster is no longer in the hero's line of sight.** » Deux conditions de fin,
+pas une, et nous n'en portions qu'une : le buff survivait au combat et attendait
+la bagarre suivante.
+
+⚠ La comparaison a **un point de passage unique**, `DureeEffet::correspond()`.
+Elle se faisait par `===` sur deux sites (`expirerBuffs()`,
+`rythmerBuffsDeVue()`), et une durée composée y aurait été silencieusement
+ignorée — le buff n'expirant alors **jamais**, exactement ce que ce document
+reproche à un mot-clé sans déclencheur.
+
+⚠ Le vocabulaire ne change pas : une liste n'est légale que si **chacun** de ses
+termes l'est (`DureeEffet::estMotCle()` est récursive), et un test parcourt tout
+le catalogue.
+
 ## 3. Une `duree` ENTIÈRE : le décompte en tours
 
 `duree` peut aussi valoir un entier — c'est un **décompte de tours**, sans
@@ -249,7 +269,7 @@ mots-clés déclarés, et désormais **lus** :
 
 | mot-clé | sens |
 |---|---|
-| `soi` | le lanceur ; aucune liste de cibles n'est proposée (Traverser la Pierre) |
+| `soi` | le lanceur ; aucune liste de cibles n'est proposée (*Métamorphose*, *Ailes sombres*, *Forme démoniaque*) |
 | `heros` | un héros de la quête, **lanceur compris** |
 | `monstre` | un monstre |
 | `monstres_zone` | plusieurs monstres — ⚠ **non implémenté**, voir §7 |
@@ -289,6 +309,23 @@ le jour où un sort en a besoin.
 | mot-clé | sens |
 |---|---|
 | `jet_mind` | jet binaire de Mind (`Engine\SortMental`) ; un Mind 0 est immunisé |
+| `aucune` | **pas de jet du tout** : l'effet s'applique (Tempête, carte officielle doc 16 §3bis) |
+| `des_rouges` | la cible lance `des_resistance` **d6 bruts** ; chaque **5 ou 6** annule 1 dégât (les deux sorts de feu) |
+| `rupture_6_par_mind` | le sort prend toujours, puis la cible tente de rompre — **1 d6 par point de Mind, un 6 réussit** — sur-le-champ puis à chacun de ses tours (Sommeil) |
+
+⚠ Les deux derniers ne se ressemblent qu'en apparence : `des_rouges` décide des
+DÉGÂTS au moment du lancer, `rupture_6_par_mind` décide de la DURÉE d'un effet
+déjà posé. Le second est donc lu à deux moments — à l'application, puis au début
+de chaque tour du monstre — et c'est ce qui le distingue de `jet_mind`, qui
+tranche une fois pour toutes au lancer. Le seuil se lit sur le **d6 brut** dans
+les deux cas : nos faces de combat regroupent 4-5 en bouclier blanc et
+écraseraient la moitié de la règle.
+
+`jet_mind` est le défaut, et c'est précisément pourquoi `aucune` a dû être écrit
+plutôt que sous-entendu : l'ABSENCE de la clé retombe sur `jet_mind`, elle ne
+peut donc pas dire « pas de jet ». Nous imposions à *Tempête* une résistance que
+sa carte ne demande pas, ce qui affaiblissait le sort exactement là où il sert —
+sur une créature à fort Mind.
 
 C'est le défaut. La clé décrivait jusqu'ici ce que `type = mental` imposait de
 toute façon ; la lire permet d'ajouter d'autres résistances sans toucher au

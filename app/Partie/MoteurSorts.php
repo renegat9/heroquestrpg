@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Des\FaceDeCombat;
+use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\MotsClesSort;
 use App\Engine\RegainEffet;
@@ -1069,7 +1070,7 @@ final class MoteurSorts
         foreach ($this->buffsSorts($personnage) as $condition) {
             $effet = $this->effetSortSource((string) $condition->pivot->source);
 
-            if (($effet['duree'] ?? null) === DureeEffet::PLUS_DE_MONSTRE_EN_VUE
+            if (DureeEffet::correspond($effet['duree'] ?? null, DureeEffet::PLUS_DE_MONSTRE_EN_VUE)
                 && ! empty($effet['attaque_supplementaire'])
                 && ! $etat->attaque_supplementaire) {
                 $etat->update(['attaque_supplementaire' => true]);
@@ -1148,7 +1149,7 @@ final class MoteurSorts
         foreach ($this->buffsSorts($personnage) as $condition) {
             $source = (string) $condition->pivot->source;
 
-            if (($this->effetSortSource($source)['duree'] ?? null) === $declencheur) {
+            if (DureeEffet::correspond($this->effetSortSource($source)['duree'] ?? null, $declencheur)) {
                 $this->retirerBuff($personnage, (int) $condition->id, $source);
             }
         }
@@ -1287,7 +1288,75 @@ final class MoteurSorts
         return false;
     }
 
-    /** Héros inattaquable (condition « Caché » du catalogue — Voile de Brume). */
+    /**
+     * SOMMEIL — le monstre tente de rompre : **1 d6 brut par point de Mind**,
+     * un seul **6** le réveille (carte officielle doc 16 §3bis, arbitrage de
+     * René 2026-09-02 : « sur-le-champ, ou à chaque fois que son tour revient »).
+     *
+     * ⚠ Ce n'est PAS une résistance au lancer — le sort prend toujours. C'est sa
+     * POURSUITE qui est contestée, et à deux moments : immédiatement après le
+     * lancer, puis à chacun des tours du monstre.
+     *
+     * ⚠ Le d6 BRUT, pas une face de combat : le 6 est le bouclier noir, mais
+     * dire « bouclier noir » ici mélangerait deux échelles pour rien — la carte
+     * parle de dés rouges et d'un 6.
+     *
+     * ⚠ Mind 0 → aucun dé, donc aucune rupture possible. Le cas est
+     * inatteignable (un Mind 0 est immunisé aux sorts mentaux, il ne peut pas
+     * être endormi), mais il ne doit pas devenir une boucle infinie si la donnée
+     * change : rendre `false` sans lancer est le comportement sûr.
+     *
+     * @return array{rompu: bool, faces: list<int>}
+     */
+    public function tenterRuptureSommeil(InstanceMonstre $instance): array
+    {
+        $faces = [];
+        $rompu = false;
+
+        // ⚠ Résolu au conteneur À L'APPEL, comme les autres services de ce
+        // fichier : c'est ce qui laisse `desFiges()` remplacer le lanceur dans
+        // les tests. Une instance capturée à la construction ignorerait le
+        // re-binding et rendrait la mécanique intestable.
+        $lanceur = app(LanceurDes::class);
+
+        for ($i = 0, $mind = (int) $instance->pv_mind; $i < $mind; $i++) {
+            $face = $lanceur->d6();
+            $faces[] = $face;
+
+            if ($face === 6) {
+                $rompu = true;
+            }
+        }
+
+        if ($rompu) {
+            $this->retirerConditionMonstre($instance, self::MONSTRE_ENDORMI);
+        }
+
+        return ['rompu' => $rompu, 'faces' => $faces];
+    }
+
+    /**
+     * Le héros traverse-t-il les FIGURES ce tour-ci (Voile de Brume) ?
+     *
+     * Jumeau exact de {@see self::traverseRoche()} : relu sur l'effet du sort
+     * SOURCE, jamais recopié sur le pivot. La carte dit « On the hero's next
+     * move, they may move unseen through spaces that are occupied by monsters »
+     * — c'est un MODE DE DÉPLACEMENT, la même famille que Traverser la Pierre,
+     * et la même phrase que la *Mobilité de combat* du Rogue, dont le talent
+     * porte déjà la mécanique `franchit_figures`.
+     */
+    public function franchitFigures(Personnage $personnage): bool
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            if (! empty($this->effetSortSource((string) $condition->pivot->source)['franchit_figures'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Héros inattaquable (condition « Évanescent » du catalogue). */
     public function estInattaquable(Personnage $personnage): bool
     {
         return $personnage->conditions()->get()

@@ -712,9 +712,7 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
     $premiereInstance->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
 
-    $defenseCatalogue = (int) $premiereInstance->monstre->defense; // 4
-
-    // Boule de Feu : 2 dés d'attaque.
+    // Boule de Feu.
     $sortId = (int) Sort::where('nom', 'Boule de Feu')->value('id');
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $mage->id);
@@ -723,11 +721,15 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     expect($option)->not->toBeNull()
         ->and(collect($option['parametres']['sorts'])->pluck('cle'))->toContain("sort:{$sortId}");
 
-    // Fige les dés : 2 dés d'attaque (crânes) + défense du boss (4 + 2 = 6 dés, boucliers noirs).
+    // ⚠ Depuis le 2026-09-02, Boule de Feu ne lance plus de dés d'attaque et la
+    // cible ne PARE plus : elle lance des d6 BRUTS, chaque 5-6 annulant 1 dégât
+    // (carte, doc 16 §3bis). La Résistance magique du boss n'a donc plus de jet
+    // de défense où s'appliquer — elle devient autant de dés rouges de PLUS,
+    // faute de quoi la capacité se serait éteinte en silence contre les deux
+    // sorts de feu. C'est ce que ce test verrouille désormais.
     desFiges([
-        1, 1,          // 2 crânes d'attaque
-        4, 4, 4, 4,   // 4 dés de défense catalogue (boucliers blancs → 0 pour monstre)
-        4, 4,          // 2 dés bonus résistance magique (boucliers blancs → 0 pour monstre)
+        2, 3,          // 2 dés rouges du sort — aucun 5/6, rien d'annulé
+        2, 3,          // 2 dés rouges de la Résistance magique
         ...array_fill(0, 100, 4),
     ]);
 
@@ -741,8 +743,13 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     // Vérifie que le bonus résistance magique apparaît dans le résultat.
     expect($reponse->json('resultat.bonus_resistance_magique'))->toBe(MoteurDread::BONUS_RESISTANCE_MAGIQUE);
 
-    // La défense effective est 4 + 2 = 6 dés (visible dans faces_defense).
-    expect(count($reponse->json('resultat.faces_defense')))->toBe($defenseCatalogue + MoteurDread::BONUS_RESISTANCE_MAGIQUE);
+    // Le boss lance les 2 dés rouges du sort PLUS ses 2 dés de résistance.
+    $desSort = (int) data_get(Sort::where('nom', 'Boule de Feu')->value('effet'), 'des_resistance', 2);
+
+    expect($reponse->json('resultat.des_resistance'))
+        ->toHaveCount($desSort + MoteurDread::BONUS_RESISTANCE_MAGIQUE)
+        // Aucun 5/6 figé : les 2 dégâts fixes passent entiers.
+        ->and($reponse->json('resultat.degats'))->toBe(2);
 });
 
 it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {

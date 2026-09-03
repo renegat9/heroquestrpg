@@ -279,9 +279,11 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
     $sortId = sortIdParNom('Boule de Feu');
     optionsMenuSorts($groupe, $alice, $mage);
 
-    // 2 dés de dégâts (effet JSON du catalogue) : 2 crânes ; défense du
-    // monstre en boucliers blancs (seuls les NOIRS comptent pour lui) → tué.
-    desFiges([1, 1, ...array_fill(0, (int) $proie->monstre->defense, 4)]);
+    // ⚠ Modèle de la CARTE depuis le 2026-09-02 (doc 16 §3bis) : 2 dégâts
+    // FIXES, puis le monstre lance 2 d6 BRUTS et chaque 5-6 en annule 1. Des dés
+    // à 1 : aucune réduction → 2 dégâts → la proie à 1 PV tombe. Plus aucun dé
+    // d'attaque ni de défense sur ce chemin.
+    desFiges([1, 1]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
@@ -290,7 +292,9 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
 
     $reponse->assertJsonPath('resultat.type', 'sort')
         ->assertJsonPath('resultat.sort.nom', 'Boule de Feu')
-        ->assertJsonPath('resultat.des_degats', 2)
+        ->assertJsonPath('resultat.degats_fixes', 2)
+        ->assertJsonPath('resultat.degats_annules', 0)
+        ->assertJsonPath('resultat.degats', 2)
         ->assertJsonPath('resultat.cible.type', 'monstre')
         ->assertJsonPath('resultat.cible_vaincue', true)
         ->assertJsonPath('resultat.donjon_nettoye', true); // dernier monstre → victoire
@@ -502,17 +506,17 @@ it('réinitialise sorts, buffs et Concentration au démarrage de la quête suiva
     // Quête suivante : tout redevient disponible, buffs purgés, S6 réarmée.
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
-    expect($mage->sorts()->wherePivot('disponible', true)->count())->toBe(6)
-        ->and($mage->conditions()->count())->toBe(0)
-        ->and(app(MoteurSorts::class)->concentrationDisponible($mage->fresh(), $etatNeuf))->toBeFalse()
-        ->and((array) $etatNeuf->capacites_utilisees)->toBe([]);
-});
     // ⚠ La S6 est réarmée par la NAISSANCE du nouvel `etat_personnage_quete`,
     // plus par une purge de cache : le compteur vit dans l'état de la quête
     // (2026-09-02), donc la quête suivante part vierge sans rien à effacer.
     $etatNeuf = EtatPersonnageQuete::where('quete_id', $groupe->fresh()->quete_courante_id)
         ->where('personnage_id', $mage->id)->firstOrFail();
 
+    expect($mage->sorts()->wherePivot('disponible', true)->count())->toBe(6)
+        ->and($mage->conditions()->count())->toBe(0)
+        ->and(app(MoteurSorts::class)->concentrationDisponible($mage->fresh(), $etatNeuf))->toBeFalse()
+        ->and((array) $etatNeuf->capacites_utilisees)->toBe([]);
+});
 
 it('consomme le parchemin du non-lanceur même quand le jet de Mind échoue : gaspillé, sans effet (S1)', function () {
     $alice = connecterJoueur('alice');

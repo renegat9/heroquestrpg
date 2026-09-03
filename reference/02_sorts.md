@@ -78,22 +78,22 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 ### Feu — offensif
 | Sort | Effet |
 |---|---|
-| **Boule de Feu** | Attaque à distance, **2 dés** de dégâts (défense applicable). |
-| **Courage** | **+2 dés d'attaque** à un héros pour sa prochaine attaque. |
-| **Trait de Feu** | Attaque à distance, **1 dé** de dégâts. |
+| **Boule de Feu** | **2 dégâts FIXES**, sans dés d'attaque : la cible lance **2 d6 bruts** et chaque **5 ou 6** en annule 1 (carte officielle, doc 16 §3bis — aligné le 2026-09-02 ; nous lancions des dés de combat avec parade normale). La Résistance magique d'un boss ajoute ses 2 dés à ce jet, faute de parade où s'appliquer. |
+| **Courage** | **+2 dés d'attaque** à un héros (le lanceur compris) pour sa prochaine attaque — **et le sort se rompt dès qu'aucun monstre n'est plus en ligne de vue**, ce qui l'empêche d'être mis en réserve entre deux combats. Les deux déclencheurs viennent de la carte officielle (doc 16 §3bis) ; le second manquait jusqu'au 2026-09-02. |
+| **Trait de Feu** | **1 dégât FIXE**, annulé net si la cible sort un **5 ou 6** sur **1 d6 brut** (même mécanique que Boule de Feu, à l'échelle 1). |
 
 ### Eau — contrôle / soin
 | Sort | Effet |
 |---|---|
-| **Sommeil** | Un monstre tente un jet de Mind ; échec → hors combat (endormi) jusqu'à être réveillé/attaqué. |
-| **Voile de Brume** | Un héros devient **indétectable** : ne peut être attaqué jusqu'à son prochain tour. |
+| **Sommeil** | Le sort **prend toujours** — aucun jet au lancer. Le monstre tente de rompre **sur-le-champ**, puis **à chacun de ses tours**, en lançant **1 d6 par point de Mind** : un seul **6** le réveille, et il joue alors son tour normalement. Aligné le 2026-09-02 sur la carte (doc 16 §3bis) ; nous exigions un jet de Mind au lancer, et un dormeur ne se réveillait ensuite plus jamais seul. Le dormeur **ne se défend plus** (zéro dé) tant qu'il dort — « it cannot move, attack, or defend itself ». Les Mind 0 (momie, zombie, squelette) restent hors d'atteinte, comme pour tout sort mental. |
+| **Voile de Brume** | Un héros (le lanceur compris) **traverse les cases occupées par les monstres** lors de son prochain déplacement — il passe au travers, il ne s'y arrête pas. ⚠ Ce n'est **pas** de l'invisibilité : jusqu'au 2026-09-02 nous en faisions un héros inattaquable pendant un round entier, ce qui était un autre sort. La carte officielle (doc 16 §3bis) porte mot pour mot la phrase de la *Mobilité de combat* du Rogue, et « unseen » y est la couleur du passage. |
 | **Eau de Guérison** | Rend jusqu'à **4 Points de Body** à un héros. |
 
 ### Terre — défense / soin
 | Sort | Effet |
 |---|---|
 | **Soin du Corps** | Rend jusqu'à **4 Points de Body** (lançable sur soi). |
-| **Traverser la Pierre** | Le héros **traverse la roche et les portes closes pendant TOUT son déplacement** du tour — plusieurs murs, et des cases normalement inaccessibles. **Terminer son mouvement dans la roche le fait tomber** (0 PV) : atteindre quelqu'un pris dans un mur exige le même sort, l'issue est donc de fait fatale (notre moteur n'a pas de mort instantanée — décision de René, 2026-08-06). Entrer ainsi dans une salle inexplorée la **révèle**, monstres compris, **sans ouvrir la porte** : c'est le principal usage tactique, avec le contournement d'une porte tenue par des figures. Réécrit le 2026-08-06 sur le texte officiel (« traverse les murs sur tout le déplacement du jet, danger de rester bloqué dans la roche massive », reference/18_extensions.md §3) ; c'était auparavant un **saut de 2 cases** par-dessus un seul mur, sans risque, et qui exigeait une case de sortie libre. |
+| **Traverser la Pierre** | Se lance sur **le lanceur OU un autre héros en ligne de vue** (carte officielle, doc 16 §3bis : « any one hero in your line of sight, including yourself » — nous portions `cible: soi` faute de source, corrigé le 2026-09-02 ; le buff expire au tour de son PORTEUR, pas du lanceur). La cible **traverse la roche et les portes closes pendant TOUT son déplacement** du tour — plusieurs murs, et des cases normalement inaccessibles. **Terminer son mouvement dans la roche le fait tomber** (0 PV) : atteindre quelqu'un pris dans un mur exige le même sort, l'issue est donc de fait fatale (notre moteur n'a pas de mort instantanée — décision de René, 2026-08-06). Entrer ainsi dans une salle inexplorée la **révèle**, monstres compris, **sans ouvrir la porte** : c'est le principal usage tactique, avec le contournement d'une porte tenue par des figures. Réécrit le 2026-08-06 sur le texte officiel (« traverse les murs sur tout le déplacement du jet, danger de rester bloqué dans la roche massive », reference/18_extensions.md §3) ; c'était auparavant un **saut de 2 cases** par-dessus un seul mur, sans risque, et qui exigeait une case de sortie libre. |
 | **Peau de Pierre** | **+1 dé de défense** à un héros, **jusqu'au premier dégât subi** — se défendre sans rien encaisser ne le consomme pas. Aligné le 2026-08-06 sur le texte officiel (« 1 dé de défense supplémentaire jusqu'au premier dégât subi », reference/18_extensions.md §3) : on donnait auparavant **2 dés pour tout le combat**. |
 
 ### Air — mobilité / puissance
@@ -101,7 +101,7 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 |---|---|
 | **Génie** | **DEUX modes au choix** (texte officiel, Kellar's Keep p. 15) : une **attaque à 5 dés** à distance, **ou** **ouvrir une porte au choix** — sans adjacence ni clé, ce qui dégage un passage bloqué par des figures. Le menu propose une option par porte fermée d'une salle découverte. Aucune invocation persistante n'est attestée : `invocation_ephemere` retiré (2026-08-06). |
 | **Vent Véloce** | **Double le déplacement** d'un héros ce tour (total base + 1d6, ×2). |
-| **Tempête** | **UN monstre choisi** tente un jet de Mind ; échec → il **passe son prochain tour** (ni déplacement ni attaque). Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
+| **Tempête** | **UN monstre choisi passe son prochain tour** (ni déplacement ni attaque), **sans aucun jet de résistance** — la carte officielle (doc 16 §3bis) n'en prévoit pas, et le `jet_mind` que nous exigions était de notre invention : il rendait le sort d'autant plus faible que la cible était coriace, alors qu'un boss est précisément ce qu'on veut ralentir. Retiré le 2026-09-02. Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
 
 ---
 

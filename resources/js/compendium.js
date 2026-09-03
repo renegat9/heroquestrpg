@@ -21,7 +21,11 @@ const EFFETS_BONUS = {
 const EFFETS_QTE = {
     degats_pv_body: 'dégât(s) de Body',
     // Dague de jet magique : « always inflicts one Body Point of damage ».
-    degats_fixes: 'dégât(s) garanti(s), sans jet ni défense',
+    // ⚠ Le libellé ne dit plus « garanti » : depuis le 2026-09-02 les deux sorts
+    // de feu portent la même clé et leur montant, lui, se réduit — la cible
+    // lance des dés rouges. C'est `des_resistance` qui le dit juste à côté.
+    degats_fixes: 'dégât(s) fixe(s), sans dés d\'attaque',
+    des_resistance: 'dé(s) rouge(s) de résistance (chaque 5 ou 6 annule 1 dégât)',
 };
 
 /** Soins exprimés en DÉS (`soin_pv_body_de: 6` = 1d6) — la Fiole de soin du
@@ -86,7 +90,12 @@ const VALEURS = {
         prochain_tour: "jusqu'au prochain tour",
         fin_du_combat: "jusqu'à la fin du combat",
     },
-    resistance: { jet_mind: 'jet de Mind' },
+    resistance: {
+        jet_mind: 'jet de Mind',
+        aucune: 'aucune — l\'effet s\'applique',
+        des_rouges: 'dés rouges (chaque 5 ou 6 annule 1 dégât)',
+        rupture_6_par_mind: 'rupture : 1 dé par point de Mind, un 6 réveille — sur-le-champ puis à chaque tour',
+    },
     cible: {
         soi: 'soi-même',
         heros: 'un héros (soi compris)',

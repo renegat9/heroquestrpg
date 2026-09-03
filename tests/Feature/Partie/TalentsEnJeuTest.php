@@ -348,23 +348,31 @@ it('bonus_degats_sort — la Puissance brute ajoute un dégât, mais jamais à u
     // garde le lanceur aléatoire — le test devient alors muet, ou pire, flottant.
     $methode = new ReflectionMethod(ResolveurTour::class, 'sortDegats');
 
-    $des = (int) data_get($boule->effet, 'des_degats', 2);
-    $defense = (int) $instance->monstre->defense;
+    // ⚠ Réécrit le 2026-09-02 : Boule de Feu suit sa carte (doc 16 §3bis) —
+    // dégâts FIXES, réduits par des d6 bruts, sans dés d'attaque ni parade.
+    $fixes = (int) data_get($boule->effet, 'degats_fixes', 2);
+    $desResistance = (int) data_get($boule->effet, 'des_resistance', 2);
 
-    // Tous les dés du sort font mouche, la cible ne pare rien : dégâts + 1.
+    // Aucun 5/6 : le montant passe entier, bonus compris.
     $instance->update(['pv_body' => 40]);
-    desFiges([...array_fill(0, $des, 1), ...array_fill(0, $defense + 2, 4)]);
+    desFiges(array_fill(0, $desResistance, 2));
     $touche = $methode->invoke(app(ResolveurTour::class), $ctx['quete'], $boule, $option, $parametres, $heros->fresh());
 
     expect($touche['bonus_degats_sort'])->toBe(1)
-        ->and($touche['degats'])->toBe($des + 1);
+        ->and($touche['degats'])->toBe($fixes + 1);
 
-    // Sort entièrement PARÉ : le bonus ne transforme pas un échec en dégât.
+    // ⚠ RÉSISTANCE MAXIMALE, et c'est une conséquence assumée du modèle de la
+    // carte : le bonus s'ajoute AVANT la réduction, donc les dés peuvent le
+    // manger — mais ils sont en nombre fixe. Deux dés annulent au plus 2 points
+    // sur 3, et le talent GARANTIT donc le dernier. Il n'y a plus de « sort
+    // entièrement paré » dès qu'un bonus est en jeu ; l'ancienne version du test
+    // exigeait 0, ce que la règle officielle ne permet plus.
     $instance->refresh();
-    desFiges([...array_fill(0, $des, 4), ...array_fill(0, $defense + 2, 6)]);
-    $rate = $methode->invoke(app(ResolveurTour::class), $ctx['quete'], $boule, $option, $parametres, $heros->fresh());
+    desFiges(array_fill(0, $desResistance, 6));
+    $reduit = $methode->invoke(app(ResolveurTour::class), $ctx['quete'], $boule, $option, $parametres, $heros->fresh());
 
-    expect($rate['degats'])->toBe(0);
+    expect($reduit['degats_annules'])->toBe($desResistance)
+        ->and($reduit['degats'])->toBe(max(0, $fixes + 1 - $desResistance));
 });
 
 it('regain_sort — le Chant runique rend UN sort à chaque monstre abattu', function () {

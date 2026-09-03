@@ -66,6 +66,9 @@ const CLES_SORT_ACTIVES = [
     'seuil_mind_max',          // ResolveurTour::sortMental() — s'applique SANS jet sous le seuil
     'image_miroir',            // App\Listeners\ImageMiroir — écouteur de HerosVaSubirDegats
     'tour_supplementaire',     // ResolveurTour::marquerCreneau() — le tour recommence
+    'franchit_figures',        // MoteurSorts::franchitFigures() — Voile de Brume, mode de déplacement
+    'degats_fixes',            // ResolveurTour::sortDegats() — montant FIXE, sans dés d'attaque (sorts de feu)
+    'des_resistance',          // ResolveurTour::reduireParDesRouges() — d6 bruts, chaque 5-6 annule 1 dégât
 ];
 
 /**
@@ -101,7 +104,10 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'condition_monstre',
         // Un tour de plus (Arrêt du temps) et une annulation automatique
         // (Image double) agissent, sans être ni dégât ni buff de dés.
-        'tour_supplementaire', 'image_miroir'];
+        'tour_supplementaire', 'image_miroir',
+        // Les sorts de feu n'ont plus de `des_degats` depuis le 2026-09-02 :
+        // leur montant est FIXE et c'est la cible qui lance (doc 16 §3bis).
+        'degats_fixes'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -405,4 +411,325 @@ it('ne nomme aucune condition qui n\'existe pas au catalogue', function () {
         expect(in_array($nom, MoteurSorts::CONDITIONS_MONSTRE, true))
             ->toBeTrue("{$sort->nom} : condition de monstre « {$nom} » hors vocabulaire.");
     }
+});
+
+it('Traverser la Pierre se lance sur le LANCEUR ou un autre héros en vue', function () {
+    // Texte de la carte (fourni par René, 2026-09-02) : « This spell may be cast
+    // on any one hero in your line of sight, INCLUDING YOURSELF. The target may
+    // move through walls during their next movement. »
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $lanceur = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'elfe']);
+
+    // ⚠ DEUX joueurs, et ce n'est pas cosmétique : le menu est mis en cache par
+    // JOUEUR (`GenererMenu::cleMenu($groupe, $joueur)`), donc deux héros du même
+    // compte se partagent un seul emplacement et s'écrasent l'un l'autre.
+    $bob = App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    app(MoteurSorts::class)->attacherElement($lanceur, 'terre');
+
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    desFiges(array_fill(0, 200, 4));
+
+    $sort = Sort::where('nom', 'Traverser la Pierre')->firstOrFail();
+    $sorts = app(MoteurSorts::class);
+
+    $entree = collect(collect($sorts->options($groupe->fresh(), $quete->fresh(), $lanceur->fresh()))
+        ->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? [])
+        ->firstWhere('cle', "sort:{$sort->id}");
+
+    // Le sort PORTE désormais une liste : tant qu'il était `cible: soi`, il
+    // partait du deuxième niveau du menu, sans rien à viser.
+    $ids = collect($entree['cibles'] ?? [])->pluck('id')->all();
+
+    expect($ids)->toContain($lanceur->id)
+        ->and($ids)->toContain($compagnon->id);
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $lanceur->id);
+
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sort->id}", 'cible_id' => $compagnon->id, 'cible_type' => 'heros'],
+    ])->assertAccepted();
+
+    // C'est le COMPAGNON qui traverse, pas le lanceur.
+    expect($sorts->traverseRoche($compagnon->fresh()))->toBeTrue()
+        ->and($sorts->traverseRoche($lanceur->fresh()))->toBeFalse();
+
+    // ⚠ Ce qui rend le sort jouable sur un allié : `ce_tour` expire au tour de
+    // son PORTEUR, pas de son lanceur — `expirerBuffs()` reçoit le héros dont le
+    // tour s'achève. Sans cela le sort serait un cadeau vide, éteint avant que
+    // le bénéficiaire ait pu faire un pas.
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    expect($sorts->traverseRoche($compagnon->fresh()))->toBeTrue();
+
+    // …et il le perd bien à la fin du SIEN.
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $bob->id, (int) $compagnon->id);
+    test()->actingAs($bob, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    expect($sorts->traverseRoche($compagnon->fresh()))->toBeFalse();
+});
+
+/*
+ * ------------------------------------------------------------------
+ * Alignement sur les CARTES OFFICIELLES de sort (photos de René,
+ * 2026-09-02 — transcrites doc 16 §3bis). Trois écarts, chacun vérifié
+ * en jeu et non dans le catalogue.
+ * ------------------------------------------------------------------
+ */
+
+it('Courage tombe aussi quand plus aucun monstre n\'est en vue, pas seulement à l\'attaque', function () {
+    // « The spell is broken the moment a monster is no longer in the hero's
+    // line of sight. » Cette moitié de la carte n'était pas portée : le buff
+    // survivait au combat et attendait la bagarre suivante.
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
+    ['heros' => $heros, 'quete' => $quete, 'instance' => $gobelin] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($heros, 'feu');
+    app(MoteurSorts::class)->appliquerBuff($heros, Sort::where('nom', 'Courage')->firstOrFail());
+
+    $sorts = app(MoteurSorts::class);
+    expect($sorts->aBuff($heros->fresh(), 'bonus_des_attaque'))->toBeTrue();
+
+    // Le monstre tombe : plus rien en vue → le buff doit partir de lui-même.
+    $gobelin->update(['etat' => 'vaincu']);
+    desFiges(array_fill(0, 200, 4));
+
+    test()->actingAs($ctx['alice'], 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    expect($sorts->aBuff($heros->fresh(), 'bonus_des_attaque'))->toBeFalse();
+});
+
+it('Tempête fait sauter le tour du monstre SANS jet de résistance', function () {
+    // « That monster then misses its next turn. » Aucun jet sur la carte ;
+    // nous imposions un `jet_mind`, ce qui rendait le sort d'autant plus
+    // inutile que la cible était coriace.
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    ['heros' => $heros, 'instance' => $gobelin, 'quete' => $quete] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($heros, 'air');
+
+    // Mind élevé : sous l'ancienne règle, la résistance passait souvent.
+    $gobelin->update(['pv_mind' => 6]);
+
+    $tempete = Sort::where('nom', 'Tempête')->firstOrFail();
+
+    App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    desFiges(array_fill(0, 200, 6)); // les pires dés possibles : sans jet, ils ne servent pas
+
+    $reponse = test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$tempete->id}", 'cible_id' => $gobelin->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted();
+
+    expect($reponse->json('resultat.sans_jet'))->toBeTrue()
+        ->and($reponse->json('resultat.effet_applique'))->toBeTrue()
+        ->and($gobelin->fresh()->habillage['conditions'] ?? [])->toHaveKey('saute_tour');
+});
+
+it('Voile de Brume fait TRAVERSER les monstres, et n\'autorise pas à s\'arrêter dessus', function () {
+    // « On the hero's next move, they may move unseen through spaces that are
+    // occupied by monsters. » Nous posions `inattaquable` — un tout autre sort.
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
+    ['heros' => $heros, 'quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($heros, 'eau');
+
+    $sorts = app(MoteurSorts::class);
+    expect($sorts->franchitFigures($heros->fresh()))->toBeFalse();
+
+    $sorts->appliquerBuff($heros, Sort::where('nom', 'Voile de Brume')->firstOrFail());
+    expect($sorts->franchitFigures($heros->fresh()))->toBeTrue()
+        // ⚠ Ce n'est PAS de l'invisibilité : le héros reste ciblable.
+        ->and($sorts->estInattaquable($heros->fresh()))->toBeFalse();
+
+    desFiges(array_fill(0, 200, 4));
+    App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+
+    // Le gobelin est au contact (helper) : sa case est traversable, pas habitable.
+    // ⚠ Le message est asserté, pas seulement le 422 : sans le buff la même
+    // requête échoue AUSSI, mais pour « destination inaccessible » — le test
+    // ne prouverait alors rien du garde-fou qu'il vise.
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => ['x' => (int) $gobelin->position_x, 'y' => (int) $gobelin->position_y],
+    ])->assertStatus(422)->assertJsonPath(
+        'errors.parametres.0',
+        'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
+    );
+});
+
+/*
+ * ------------------------------------------------------------------
+ * Pouvoirs ORIGINAUX des cartes (arbitrage de René, 2026-09-02) : les
+ * sorts de feu infligent un montant FIXE que la cible réduit à coups
+ * de d6 bruts, et Sommeil se rompt sur un 6 — sur-le-champ puis à
+ * chaque tour du monstre.
+ * ------------------------------------------------------------------
+ */
+
+it('Boule de Feu inflige 2 dégâts fixes, dont chaque 5 ou 6 des dés rouges en annule 1', function () {
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['heros' => $mage, 'instance' => $proie, 'groupe' => $groupe] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($mage, 'feu');
+    $proie->update(['pv_body' => 5, 'pv_body_max' => 5]);
+
+    $sort = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+
+    // UN seul 5 sur les deux dés rouges → 1 dégât annulé sur 2.
+    desFiges([5, 2]);
+
+    $reponse = test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sort->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted();
+
+    $reponse->assertJsonPath('resultat.degats_fixes', 2)
+        ->assertJsonPath('resultat.des_resistance', [5, 2])
+        ->assertJsonPath('resultat.degats_annules', 1)
+        ->assertJsonPath('resultat.degats', 1);
+
+    expect((int) $proie->fresh()->pv_body)->toBe(4);
+});
+
+it('Trait de Feu est entièrement annulé par un seul 5 ou 6', function () {
+    // « It inflicts 1 Body Point of damage, UNLESS the monster can immediately
+    // roll a 5 or 6 using 1 red die. » Un dé, un point : tout ou rien.
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['heros' => $mage, 'instance' => $proie, 'groupe' => $groupe] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($mage, 'feu');
+    $proie->update(['pv_body' => 5, 'pv_body_max' => 5]);
+
+    $sort = Sort::where('nom', 'Trait de Feu')->firstOrFail();
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+
+    desFiges([6]); // le monstre encaisse zéro
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sort->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()
+        ->assertJsonPath('resultat.degats_annules', 1)
+        ->assertJsonPath('resultat.degats', 0);
+
+    expect((int) $proie->fresh()->pv_body)->toBe(5);
+});
+
+it('Sommeil prend TOUJOURS, et le monstre tente de rompre sur-le-champ', function () {
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['heros' => $mage, 'instance' => $proie, 'groupe' => $groupe] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($mage, 'eau');
+    $proie->update(['pv_mind' => 2]); // 2 dés de rupture
+
+    $sort = Sort::where('nom', 'Sommeil')->firstOrFail();
+    $sorts = app(MoteurSorts::class);
+
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    desFiges([3, 4]); // aucun 6 : il reste endormi
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sort->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()
+        // ⚠ Aucun jet de résistance AU LANCER : le sort prend, point.
+        ->assertJsonPath('resultat.sans_jet', true)
+        ->assertJsonPath('resultat.effet_applique', true)
+        ->assertJsonPath('resultat.rupture_immediate', false)
+        ->assertJsonPath('resultat.des_rupture', [3, 4]);
+
+    expect($sorts->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeTrue();
+});
+
+it('Sommeil est rompu sur-le-champ dès qu\'un 6 sort', function () {
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['heros' => $mage, 'instance' => $proie, 'groupe' => $groupe] = $ctx;
+
+    app(MoteurSorts::class)->attacherElement($mage, 'eau');
+    $proie->update(['pv_mind' => 2]);
+
+    $sort = Sort::where('nom', 'Sommeil')->firstOrFail();
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    desFiges([2, 6]); // le second dé le réveille aussitôt
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$sort->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()->assertJsonPath('resultat.rupture_immediate', true);
+
+    expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeFalse();
+});
+
+it('un monstre endormi retente la rupture à CHACUN de ses tours', function () {
+    // La moitié qui manquait complètement : une fois endormi, le monstre ne se
+    // réveillait plus jamais autrement qu'en étant attaqué.
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['instance' => $proie, 'groupe' => $groupe, 'alice' => $alice] = $ctx;
+
+    $sorts = app(MoteurSorts::class);
+    $proie->update(['pv_mind' => 1]); // 1 dé par tentative
+    $sorts->poserConditionMonstre($proie, MoteurSorts::MONSTRE_ENDORMI);
+
+    // Tour 1 : pas de 6 → il dort encore, et le journal porte le jet.
+    desFiges([2, ...array_fill(0, 60, 4)]);
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    $actions = collect($reponse->json('resultat.tour_monstres.actions'));
+    expect($actions->firstWhere('type', 'monstre_endormi'))->not->toBeNull()
+        ->and($actions->firstWhere('type', 'monstre_endormi')['des_rupture'])->toBe([2])
+        ->and($sorts->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeTrue();
+
+    // Tour 2 : un 6 → il se réveille ET joue son tour dans la foulée.
+    desFiges([6, ...array_fill(0, 60, 4)]);
+    $reponse = test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+
+    $actions = collect($reponse->json('resultat.tour_monstres.actions'));
+
+    expect($sorts->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeFalse()
+        ->and($actions->firstWhere('type', 'monstre_endormi'))->toBeNull();
+});
+
+it('un monstre ENDORMI ne se défend plus : « it cannot move, attack, or defend itself »', function () {
+    // René, 2026-09-02 : « après tout, il dort ». Dernier écart de la carte de
+    // Sommeil, et il vaut pour les TROIS chemins de frappe puisqu'ils passent
+    // tous par `defenseEffective()`.
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    ['instance' => $proie, 'groupe' => $groupe, 'alice' => $alice, 'heros' => $heros] = $ctx;
+
+    $sorts = app(MoteurSorts::class);
+    $defenseCatalogue = (int) $proie->monstre->defense;
+
+    expect($defenseCatalogue)->toBeGreaterThan(0)
+        ->and($proie->defenseEffective())->toBe($defenseCatalogue);
+
+    $sorts->poserConditionMonstre($proie, MoteurSorts::MONSTRE_ENDORMI);
+
+    expect($proie->fresh()->defenseEffective())->toBe(0);
+
+    // …et en jeu : le héros frappe, la volée de défense est VIDE, puis le coup
+    // le réveille — dans cet ordre.
+    $proie->update(['pv_body' => 9, 'pv_body_max' => 9]);
+    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    desFiges(array_fill(0, 60, 1)); // que des crânes : rien à parer de toute façon
+
+    $reponse = test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer',
+        'parametres' => ['cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted();
+
+    expect($reponse->json('resultat.faces_defense'))->toBe([])
+        ->and($sorts->monstreA($proie->fresh(), MoteurSorts::MONSTRE_ENDORMI))->toBeFalse();
 });

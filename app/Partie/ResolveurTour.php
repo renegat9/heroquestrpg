@@ -441,13 +441,35 @@ final class ResolveurTour
         // occupied by monsters. » Exactement `agile` côté héros — le mobilier
         // et les figures cessent de barrer, **les murs non** : la carte parle
         // des cases occupées, pas de la pierre.
-        if ($this->capacites->a($personnage, 'franchit_figures')) {
+        //
+        // ⚠ VOILE DE BRUME emprunte ce chemin depuis le 2026-09-02 : sa carte
+        // porte MOT POUR MOT la même phrase que celle du Rogue. Le talent et le
+        // buff mènent donc au même mode de déplacement, pas à deux copies.
+        $franchitFigures = $this->capacites->a($personnage, 'franchit_figures')
+            || $this->sorts->franchitFigures($personnage);
+
+        if ($franchitFigures) {
             $grille->autoriserFranchissement();
         }
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
         if ($chemin === null || $chemin === []) {
             throw ValidationException::withMessages(['parametres' => 'Destination inaccessible (mur, case occupée ou sur place).']);
+        }
+
+        // ⚠ TRAVERSER N'EST PAS S'ARRÊTER — le même interdit que la bombe
+        // fumigène juste en dessous, et il MANQUAIT à ce chemin-ci : avec les
+        // figures effacées de la grille, le BFS acceptait volontiers une case
+        // occupée pour destination, et deux figurines finissaient empilées.
+        // Défaut préexistant du talent du Rogue, trouvé en portant Voile de
+        // Brume dessus. On rejuge sur la grille RÉELLE, celle qui sait encore
+        // ce qui est occupé.
+        if ($franchitFigures
+            && ! $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche)
+                ->estTraversable($x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
+            ]);
         }
 
         // BOMBE FUMIGÈNE : « move unseen THROUGH the monster's space ».
@@ -2955,10 +2977,43 @@ final class ResolveurTour
      * @param  array<string, mixed>  $parametres
      * @return array<string, mixed>
      */
+    /**
+     * RÉSISTANCE AUX DÉS ROUGES (sorts de feu, René 2026-09-02) : la cible lance
+     * `$des` d6 BRUTS et chaque **5 ou 6** annule 1 point de dégât.
+     *
+     * ⚠ Le d6 brut, jamais une face de combat : nos faces regroupent 4-5 en
+     * bouclier blanc, ce qui avalerait la moitié de la règle (même précaution
+     * que le venin). Le plancher est 0 — on n'inflige pas de dégât négatif.
+     *
+     * @return array{degats: int, faces: list<int>, annules: int}
+     */
+    private function reduireParDesRouges(int $degats, int $des): array
+    {
+        $faces = [];
+        $annules = 0;
+
+        for ($i = 0; $i < $des; $i++) {
+            $face = $this->des->d6();
+            $faces[] = $face;
+
+            if ($face >= 5) {
+                $annules++;
+            }
+        }
+
+        return ['degats' => max(0, $degats - $annules), 'faces' => $faces, 'annules' => $annules];
+    }
+
     private function sortDegats(Quete $quete, Sort $sort, array $option, array $parametres, ?Personnage $lanceur = null): array
     {
         $des = (int) data_get($sort->effet, 'des_degats', MoteurSorts::DES_DEGATS_DEFAUT[$sort->nom] ?? 1);
         $cible = $this->cibleSort($quete, $option, $parametres);
+
+        // Les deux sorts de FEU ne lancent pas de dés d'attaque : ils infligent
+        // un montant FIXE que la cible réduit à coups de d6 bruts (cartes
+        // officielles, doc 16 §3bis). Le chemin est donc entièrement distinct de
+        // `Engine\Combat` — comme `degats_fixes` l'est déjà pour les artefacts.
+        $desRouges = data_get($sort->effet, 'resistance') === MotsClesSort::RESISTANCE_DES_ROUGES;
 
         // `bonus_degats_sort` (Puissance brute du magicien, Marque du damné du
         // warlock) : un bonus PLAT sur les dégâts d'un sort offensif.
@@ -2990,6 +3045,35 @@ final class ResolveurTour
             $defense = ($sort->effet['defense_applicable'] ?? true)
                 ? $instance->defenseEffective() + $bonusResistance
                 : 0;
+
+            if ($desRouges) {
+                // ⚠ La Résistance magique du boss (+2 dés de défense contre les
+                // sorts) n'a plus de jet de défense où s'appliquer : elle devient
+                // autant de dés rouges SUPPLÉMENTAIRES. Ne rien faire l'aurait
+                // silencieusement éteinte contre les deux sorts de feu, ce qui
+                // est exactement le genre de capacité qui cesse de marcher sans
+                // que personne ne le voie.
+                $reduction = $this->reduireParDesRouges(
+                    (int) data_get($sort->effet, 'degats_fixes', 0) + $bonusDegatsSort,
+                    (int) data_get($sort->effet, 'des_resistance', 0) + $bonusResistance,
+                );
+
+                $pvApres = max(0, (int) $instance->pv_body - $reduction['degats']);
+                $instance->update(['pv_body' => $pvApres, 'etat' => $pvApres === 0 ? 'vaincu' : 'actif']);
+                $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
+
+                return [
+                    'degats_fixes' => (int) data_get($sort->effet, 'degats_fixes', 0),
+                    'bonus_degats_sort' => $bonusDegatsSort,
+                    'bonus_resistance_magique' => $bonusResistance,
+                    'cible' => ['type' => 'monstre', 'instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+                    'des_resistance' => $reduction['faces'],
+                    'degats_annules' => $reduction['annules'],
+                    'degats' => $reduction['degats'],
+                    'pv_body_apres' => $pvApres,
+                    'cible_vaincue' => $pvApres === 0,
+                ];
+            }
 
             $resultat = (new Combat($this->des))->resoudreAttaque(
                 desAttaque: $des,
@@ -3042,6 +3126,37 @@ final class ResolveurTour
                 'pv_body_apres' => (int) $heros->pv_body,
                 'faces_attaque' => [],
                 'faces_defense' => [],
+            ];
+        }
+
+        if ($desRouges) {
+            // Tir ami : le héros résiste EXACTEMENT comme un monstre (S3) — la
+            // symétrie est la règle du projet, et le sort ne sait pas qui il
+            // touche.
+            $reduction = $this->reduireParDesRouges(
+                (int) data_get($sort->effet, 'degats_fixes', 0) + $bonusDegatsSort,
+                (int) data_get($sort->effet, 'des_resistance', 0),
+            );
+
+            $subis = $this->degats->infligerAHeros(
+                $heros, $reduction['degats'], MoteurDegats::SOURCE_TIR_AMI, ['sort' => $sort->nom],
+            );
+            $this->sorts->reveillerHeros($heros);
+
+            if ((int) $heros->fresh()->pv_body === 0 && $subis > 0) {
+                $cible['etat']->update(['tombe' => true]); // C4
+            }
+
+            return [
+                'degats_fixes' => (int) data_get($sort->effet, 'degats_fixes', 0),
+                'tir_ami' => true,
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'des_resistance' => $reduction['faces'],
+                'degats_annules' => $reduction['annules'],
+                // ⚠ Relu APRÈS application, jamais repris du calcul : un
+                // écouteur de `HerosVaSubirDegats` a pu réduire le coup.
+                'degats' => $subis,
+                'pv_body_apres' => (int) $heros->fresh()->pv_body,
             ];
         }
 
@@ -3119,10 +3234,24 @@ final class ResolveurTour
         // sans toucher au routage par type.
         $resistance = (string) ($sort->effet['resistance'] ?? MotsClesSort::RESISTANCE_JET_MIND);
 
-        if ($resistance !== MotsClesSort::RESISTANCE_JET_MIND) {
+        if (! in_array($resistance, MotsClesSort::RESISTANCES, true)) {
             throw ValidationException::withMessages([
                 'option_id' => "Résistance inconnue pour {$sort->nom} : {$resistance}.",
             ]);
+        }
+
+        // AUCUNE résistance au LANCER : l'effet s'applique sans jet. Deux sorts
+        // y passent, pour deux raisons différentes — Tempête n'a aucun jet du
+        // tout, Sommeil en a un mais APRÈS (la rupture, posée par
+        // `appliquerEffetMental()` puis rejouée à chaque tour du monstre). Dans
+        // les deux cas le sort PREND. Même forme de charge utile que le seuil de
+        // Mind juste en dessous : `succes` et `faces` restent absents, il n'y a
+        // pas eu de jet de résistance à raconter ici.
+        if ($resistance === MotsClesSort::RESISTANCE_AUCUNE
+            || $resistance === MotsClesSort::RESISTANCE_RUPTURE_PAR_MIND) {
+            return $this->appliquerEffetMental(
+                $sort, $cible, $this->payloadSortMental($cible, $mind, true),
+            );
         }
 
         // SEUIL DE MIND : « may be cast on any monster […] IF THE MONSTER HAS
@@ -3316,6 +3445,17 @@ final class ResolveurTour
         if ($cible['type'] === 'monstre') {
             if ($conditionNom === 'Endormi') {
                 $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_ENDORMI);
+
+                // « The spell can be broken AT ONCE or on a future turn » : la
+                // première tentative a lieu tout de suite, avant même que le
+                // monstre ait rejoué (carte doc 16 §3bis). Le sort a bien pris —
+                // il est simplement rompu dans la foulée si un 6 sort.
+                if (data_get($sort->effet, 'resistance') === MotsClesSort::RESISTANCE_RUPTURE_PAR_MIND) {
+                    $rupture = $this->sorts->tenterRuptureSommeil($cible['monstre']);
+
+                    $payload['rupture_immediate'] = $rupture['rompu'];
+                    $payload['des_rupture'] = $rupture['faces'];
+                }
             }
             if ((bool) data_get($sort->effet, 'saute_tour', false)) {
                 $this->sorts->poserConditionMonstre($cible['monstre'], MoteurSorts::MONSTRE_SAUTE_TOUR);
@@ -5380,10 +5520,27 @@ final class ResolveurTour
         // n'est pas attaqué — une attaque le réveille (resoudreAttaque /
         // sortDegats retirent la condition).
         if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENDORMI)) {
-            $payload = ['type' => 'monstre_endormi', 'monstre' => $nomMonstre, 'action' => 'endormi'];
-            Journal::ajouter($groupe, 'action', $payload, $acteur);
+            // « or on a future turn by a monster rolling 1 red die for each of
+            // its Mind Points. If a 6 is rolled, the spell is broken. » La
+            // tentative a lieu AU DÉBUT de son tour : s'il se réveille, il joue
+            // ce tour-ci — le dormeur qui se réveille n'a pas à perdre en plus
+            // le tour qu'il vient de regagner.
+            $rupture = $this->sorts->tenterRuptureSommeil($instance);
 
-            return $payload;
+            if (! $rupture['rompu']) {
+                $payload = [
+                    'type' => 'monstre_endormi', 'monstre' => $nomMonstre, 'action' => 'endormi',
+                    'des_rupture' => $rupture['faces'],
+                ];
+                Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+                return $payload;
+            }
+
+            Journal::ajouter($groupe, 'action', [
+                'type' => 'monstre_reveille', 'monstre' => $nomMonstre,
+                'des_rupture' => $rupture['faces'],
+            ], $acteur);
         }
 
         // Tempête : « un monstre choisi PASSE SON PROCHAIN TOUR » (Kellar's Keep

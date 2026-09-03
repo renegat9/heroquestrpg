@@ -76,7 +76,56 @@ final class MotsClesSort
     /** La cible résiste par son Mind (Engine\SortMental, binaire — Mind 0 immunisé). */
     public const RESISTANCE_JET_MIND = 'jet_mind';
 
-    public const RESISTANCES = [self::RESISTANCE_JET_MIND];
+    /**
+     * AUCUNE résistance : l'effet s'applique, point. La carte *Tempest*
+     * (photo de René, doc 16 §3bis) ne laisse au monstre aucun jet — « That
+     * monster then misses its next turn » —, alors que nous lui imposions un
+     * `jet_mind` de notre invention.
+     *
+     * ⚠ Le mot existe pour que la donnée le DISE, plutôt que de laisser
+     * `resistance` absente : l'absence retombe sur le défaut `jet_mind`, donc
+     * elle ne peut pas exprimer « pas de jet ». Lecteur :
+     * `ResolveurTour::sortMental()`.
+     */
+    public const RESISTANCE_AUCUNE = 'aucune';
+
+    /**
+     * DÉS ROUGES : la cible lance `des_resistance` d6 BRUTS, et **chaque 5 ou 6
+     * annule 1 point de dégât** (René, 2026-09-02). C'est la règle des deux
+     * sorts de feu, mot pour mot sur leurs cartes (doc 16 §3bis) — « It inflicts
+     * 2 Body Points of damage. The monster then rolls 2 red dice. For each 5 or
+     * 6 rolled, the damage is reduced by 1 point. »
+     *
+     * ⚠ Le seuil se lit sur le d6 BRUT, jamais sur une face de combat : nos
+     * faces regroupent 4-5 en bouclier blanc, ce qui écraserait la moitié de la
+     * règle — même précaution que le venin des Jungles of Delthrak.
+     *
+     * ⚠ Elle REMPLACE le jet de défense, elle ne s'y ajoute pas : les sorts qui
+     * la portent posent `defense_applicable: false`. Lecteur :
+     * `ResolveurTour::sortDegats()`.
+     */
+    public const RESISTANCE_DES_ROUGES = 'des_rouges';
+
+    /**
+     * SOMMEIL : le monstre tente de rompre **sur-le-champ**, puis **à chacun de
+     * ses tours**, en lançant 1 d6 par point de Mind — un seul 6 le réveille
+     * (carte officielle, doc 16 §3bis ; arbitrage de René, 2026-09-02).
+     *
+     * ⚠ Ce n'est PAS une résistance au lancer : le sort prend toujours, et
+     * c'est sa POURSUITE qui est contestée. D'où un mot distinct de `jet_mind`,
+     * qui lui décide au moment du lancer. Lecteurs :
+     * `MoteurSorts::tenterRuptureSommeil()`, appelé par
+     * `ResolveurTour::appliquerEffetMental()` (sur-le-champ) et
+     * `ResolveurTour::jouerMonstre()` (à chaque tour).
+     */
+    public const RESISTANCE_RUPTURE_PAR_MIND = 'rupture_6_par_mind';
+
+    public const RESISTANCES = [
+        self::RESISTANCE_JET_MIND,
+        self::RESISTANCE_AUCUNE,
+        self::RESISTANCE_DES_ROUGES,
+        self::RESISTANCE_RUPTURE_PAR_MIND,
+    ];
 
     // ------------------------------------------------------------------ ---
 

@@ -29,8 +29,19 @@ class ConditionSeeder extends Seeder
                 'effet' => ['malus_deplacement' => 2]],
             ['nom' => 'Immobilisé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'liberation']],
+            // ⚠ « Caché » n'a plus de producteur depuis le 2026-09-02 : la carte
+            // de *Voile de Brume* décrit un mode de DÉPLACEMENT (traverser les
+            // cases occupées), pas une invisibilité. La ligne reste au catalogue
+            // — `inattaquable` garde son lecteur et son autre porteur
+            // (« Évanescent ») — mais aucun sort ne la pose plus.
             ['nom' => 'Caché', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['inattaquable' => true, 'fin' => 'prochain_tour']],
+            // Voile de Brume : comme « Intangible » pour Traverser la Pierre,
+            // c'est un MODE DE DÉPLACEMENT, et il faut que le joueur le lise
+            // comme tel — « tu passes à travers les monstres », pas « on ne te
+            // voit plus ».
+            ['nom' => 'Vaporeux', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['franchit_figures' => true, 'fin' => 'fin_du_tour']],
             // Potion de vision (Elfe) : voir les pièges et les portes secrètes
             // en ligne de vue, « until the Elf suffers at least 1 Body Point of
             // damage ». La fin est portée par la `duree` de la potion

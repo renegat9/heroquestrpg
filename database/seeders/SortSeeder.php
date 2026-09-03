@@ -15,18 +15,75 @@ class SortSeeder extends Seeder
     {
         $sorts = [
             // Feu — offensif
+            // ⚠ Les deux sorts de FEU suivent leur carte depuis le 2026-09-02
+            // (arbitrage de René) : dégâts FIXES, que la cible réduit en lançant
+            // des d6 BRUTS — chaque 5 ou 6 annule 1 point. « It inflicts 2 Body
+            // Points of damage. The monster then rolls 2 red dice. For each 5 or
+            // 6 rolled, the damage is reduced by 1 point. » (doc 16 §3bis)
+            //
+            // Nous lancions jusque-là des dés de COMBAT avec défense normale :
+            // même fourchette (0-2), probabilités différentes, et surtout un
+            // hasard placé du mauvais côté — c'est la cible qui résiste, pas le
+            // lanceur qui vise. `defense_applicable: false` parce que les dés
+            // rouges REMPLACENT la parade, ils ne s'y ajoutent pas.
             ['element' => 'feu', 'nom' => 'Boule de Feu', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'des_degats' => 2, 'defense_applicable' => true, 'type_degat' => 'feu']],
+                'effet' => ['portee' => 'distance', 'degats_fixes' => 2, 'resistance' => 'des_rouges',
+                    'des_resistance' => 2, 'defense_applicable' => false, 'type_degat' => 'feu']],
             ['element' => 'feu', 'nom' => 'Courage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros', 'bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
+                // Carte officielle (doc 16 §3bis) : « The next time that hero
+                // attacks, they may roll 2 extra combat dice. The spell is
+                // broken the moment a monster is no longer in the hero's line
+                // of sight. » ⚠ DEUX déclencheurs, pas un — la seconde moitié
+                // manquait, alors que son mot-clé et son lecteur existaient
+                // déjà (`plus_de_monstre_en_vue`, posé pour les potions du
+                // barbare). Le buff survivait donc à la fin du combat et
+                // attendait tranquillement la prochaine bagarre.
+                'effet' => ['cible' => 'heros', 'bonus_des_attaque' => 2,
+                    'duree' => ['prochaine_attaque', 'plus_de_monstre_en_vue'],
+                    'condition_appliquee' => 'Renforcé']],
+            // « It inflicts 1 Body Point of damage, unless the monster can
+            // immediately roll a 5 or 6 using 1 red die. » Même mécanique que la
+            // Boule de Feu, à l'échelle 1 : 1 point, 1 dé.
             ['element' => 'feu', 'nom' => 'Trait de Feu', 'type' => 'degats', 'difficulte_parchemin' => 1,
-                'effet' => ['portee' => 'distance', 'des_degats' => 1, 'defense_applicable' => true, 'type_degat' => 'feu']],
+                'effet' => ['portee' => 'distance', 'degats_fixes' => 1, 'resistance' => 'des_rouges',
+                    'des_resistance' => 1, 'defense_applicable' => false, 'type_degat' => 'feu']],
 
             // Eau — contrôle / soin
+            // ⚠ Le sort PREND TOUJOURS, et c'est sa POURSUITE qui est contestée
+            // (carte doc 16 §3bis, arbitrage de René 2026-09-02) : le monstre
+            // tente de rompre sur-le-champ, puis à chacun de ses tours, en
+            // lançant 1 d6 par point de Mind — un seul 6 le réveille.
+            //
+            // Nous faisions l'inverse : un `jet_mind` unique AU LANCER pouvait
+            // faire échouer le sort d'emblée, et une fois endormi le monstre ne
+            // se réveillait plus jamais autrement qu'en étant attaqué. Les deux
+            // moitiés étaient fausses.
+            //
+            // L'exclusion « may not be used against mummies, zombies, or
+            // skeletons » reste obtenue par le Mind 0 de ces trois-là, comme
+            // pour tout sort mental — inchangé.
             ['element' => 'eau', 'nom' => 'Sommeil', 'type' => 'mental', 'difficulte_parchemin' => 3,
-                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
+                'effet' => ['cible' => 'monstre', 'resistance' => 'rupture_6_par_mind',
+                    'condition_appliquee' => 'Endormi', 'fin' => 'reveil_ou_attaque']],
             ['element' => 'eau', 'nom' => 'Voile de Brume', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
-                'effet' => ['cible' => 'heros', 'condition_appliquee' => 'Caché', 'duree' => 'prochain_tour']],
+                // Carte officielle (doc 16 §3bis) : « On the hero's next move,
+                // they may move unseen through spaces that are occupied by
+                // monsters. »
+                //
+                // ⚠ Ce n'était pas une nuance mais UN AUTRE SORT : nous posions
+                // `inattaquable` (condition « Caché »), c'est-à-dire un héros
+                // que les monstres ne pouvaient plus cibler d'un round entier.
+                // La carte ne parle pas d'être introuvable, elle parle de
+                // PASSER — et sa phrase est mot pour mot celle de la *Mobilité
+                // de combat* du Rogue, dont la mécanique `franchit_figures`
+                // existait déjà avec son lecteur. « Unseen » est la couleur du
+                // passage, comme sur la carte du Rogue, pas une immunité.
+                //
+                // `ce_tour` comme Traverser la Pierre, et pour la même raison :
+                // la durée expire au tour DU PORTEUR, donc « son prochain
+                // déplacement » est couvert qu'il ait déjà joué ou non.
+                'effet' => ['cible' => 'heros', 'franchit_figures' => true,
+                    'duree' => 'ce_tour', 'condition_appliquee' => 'Vaporeux']],
             ['element' => 'eau', 'nom' => 'Eau de Guérison', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'soin_pv_body' => 4]],
 
@@ -42,7 +99,39 @@ class SortSeeder extends Seeder
                 // dans la roche fait tomber le héros.
                 // `cout` retiré : facturer le déplacement rendrait le sort
                 // inutilisable, puisque c'est le déplacement qui EST l'effet.
-                'effet' => ['cible' => 'soi', 'franchit_mur' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Intangible']],
+                //
+                // ⚠ `cible` passe de `soi` à `heros` le 2026-09-02, sur la CARTE
+                // que René a fournie (transcrite doc 16 §3bis) : « This spell may
+                // be cast on any one hero in your line of sight, INCLUDING
+                // YOURSELF. » `soi` était notre choix de portage, pris quand doc
+                // 16 §3 portait encore « ⚠ non trouvé » pour ce sort — et il
+                // était incohérent avec son voisin de la MÊME liste de
+                // parchemins, *Peau de Pierre*, `heros` depuis toujours.
+                //
+                // ⚠ « once per quest » : la carte confirme notre règle S5, elle
+                // ne la contraint pas — TOUT sort est lançable une fois par quête
+                // (`personnage_sorts.disponible`, réarmé par `reinitialiserQuete`).
+                // Rien à ajouter, et surtout pas une seconde grammaire pour dire
+                // ce que le pivot dit déjà.
+                //
+                // ⚠ Divergence assumée sur la DURÉE : la carte dit « during their
+                // NEXT MOVEMENT », nous portons `ce_tour`. Les deux coïncident
+                // dans les trois cas réels — le lanceur sur lui-même (agir sans
+                // avoir bougé laisse l'allonce entière), l'allié qui n'a pas
+                // encore joué, l'allié déjà joué (son buff traverse le round et
+                // couvre son prochain tour). Le seul écart : un porteur qui
+                // termine son tour SANS bouger perd le sort, là où la carte le
+                // lui garderait. Le combler demanderait un septième mot-clé de
+                // durée (`prochain_deplacement`) et son déclencheur — à faire
+                // seulement s'il gêne en jeu, pas par principe.
+                //
+                // ⚠ Rien d'autre à câbler, et c'est ce qui rend le changement
+                // sûr : `traverseRoche()` lit le buff SUR SON PORTEUR, et
+                // `ce_tour` expire au tour DE CE PORTEUR (ResolveurTour, fin de
+                // tour explicite) — pas à celui du lanceur. Un allié bénéficiaire
+                // garde donc son mode de déplacement jusqu'à la fin de SON tour,
+                // et c'est bien lui que `verifierRocheMortelle()` juge.
+                'effet' => ['cible' => 'heros', 'franchit_mur' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Intangible']],
             ['element' => 'terre', 'nom' => 'Peau de Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 // Texte officiel : « 1 dé de défense supplémentaire jusqu'au
                 // PREMIER DÉGÂT SUBI » (reference/18_extensions.md §3). On
@@ -66,7 +155,14 @@ class SortSeeder extends Seeder
                 // jamais été un sort de zone —, et le tour saute ENTIÈREMENT.
                 // On lisait auparavant `monstres_zone` (ciblage inexistant) et
                 // `empeche_attaque` (le monstre avançait quand même).
-                'effet' => ['cible' => 'monstre', 'resistance' => 'jet_mind', 'saute_tour' => true, 'duree' => 'prochain_tour']],
+                //
+                // ⚠ `resistance: aucune` depuis le 2026-09-02. La CARTE (doc 16
+                // §3bis) ne laisse au monstre aucun jet : « This spell creates a
+                // small whirlwind that envelops one monster of your choice. That
+                // monster then misses its next turn. » Le `jet_mind` que nous lui
+                // imposions était de notre invention, et il rendait le sort
+                // inutile là où il sert le plus — un boss a beaucoup de Mind.
+                'effet' => ['cible' => 'monstre', 'resistance' => 'aucune', 'saute_tour' => true, 'duree' => 'prochain_tour']],
 
             // ================================================================
             // RÉPERTOIRES DE CLASSE (2026-08-12) — Barde, Druide, Warlock.

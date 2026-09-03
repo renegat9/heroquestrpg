@@ -72,6 +72,11 @@ class InstanceMonstre extends Model
      *
      * ⚠ Un plancher à 1 dans les deux cas : le texte des deux cartes l'exige,
      * et un monstre à 0 dé d'attaque ne pourrait plus jamais toucher.
+     *
+     * Deux conditions échappent au plancher parce que leurs cartes le disent
+     * mot pour mot — « unable to move, attack, or defend » (Paralysé) et « so it
+     * cannot move, attack, or defend itself » (Sommeil, doc 16 §3bis) : elles
+     * rendent ZÉRO. C'est la même phrase, donc la même ligne.
      */
     private function apresConditions(int $des, string $volee): int
     {
@@ -85,9 +90,20 @@ class InstanceMonstre extends Model
             $des -= 1;
         }
 
-        // Paralysé : « unable to move, attack, or defend ». Zéro dé, pas un
-        // malus — c'est le seul cas où le plancher à 1 ne s'applique pas.
-        if (! empty($conditions['paralyse'])) {
+        // Paralysé et ENDORMI : « unable to move, attack, or defend ». Zéro dé,
+        // pas un malus — les deux seuls cas où le plancher à 1 ne s'applique
+        // pas.
+        //
+        // ⚠ Le dormeur ne parait plus depuis le 2026-09-02 (René : « après tout,
+        // il dort »). C'était le dernier écart de la carte de Sommeil, et le
+        // corriger ICI plutôt qu'aux trois sites d'appel est ce qui garantit
+        // qu'il vaut partout — coup de héros, sort, et attaque d'allié passent
+        // tous par `defenseEffective()`.
+        //
+        // ⚠ L'ORDRE tient tout seul, et il compte : le réveil par l'attaque est
+        // posé APRÈS la résolution dans les deux chemins de frappe. Le coup
+        // porte donc bien sur un dormeur sans défense, puis le réveille.
+        if (! empty($conditions['paralyse']) || ! empty($conditions['endormi'])) {
             return 0;
         }
 

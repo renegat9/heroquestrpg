@@ -110,10 +110,38 @@ final class DureeEffet
     /**
      * La valeur est-elle un mot-clé connu ? Un ENTIER n'en est pas un : c'est
      * un décompte de tours, traité par un autre chemin.
+     *
+     * ⚠ Une LISTE en est un si chacun de ses termes en est un : depuis la carte
+     * *Courage* (2026-09-02), un effet peut déclarer PLUSIEURS déclencheurs
+     * d'expiration — « the next time that hero attacks » ET « broken the moment
+     * a monster is no longer in the hero's line of sight ». Le premier des deux
+     * qui survient retire le buff.
      */
     public static function estMotCle(mixed $duree): bool
     {
+        if (is_array($duree)) {
+            return $duree !== [] && array_reduce(
+                $duree, fn (bool $ok, mixed $d) => $ok && self::estMotCle($d), true,
+            );
+        }
+
         return is_string($duree) && in_array($duree, self::toutes(), true);
+    }
+
+    /**
+     * Ce déclencheur retire-t-il un buff portant cette `duree` ?
+     *
+     * Point de passage UNIQUE de la comparaison : elle se faisait par `===` sur
+     * deux sites (`expirerBuffs`, `rythmerBuffsDeVue`), et une durée à plusieurs
+     * termes y aurait été silencieusement ignorée — le buff n'expirant alors
+     * JAMAIS, exactement ce que le projet reproche à un mot-clé sans
+     * déclencheur.
+     */
+    public static function correspond(mixed $duree, string $declencheur): bool
+    {
+        return is_array($duree)
+            ? in_array($declencheur, $duree, true)
+            : $duree === $declencheur;
     }
 
     /**

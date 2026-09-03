@@ -99,8 +99,12 @@ it('n\'emploie que des durées connues dans TOUT le catalogue', function () {
         ->values();
 
     foreach ($valeurs as $valeur) {
+        // ⚠ `json_encode` et pas une interpolation : une durée peut être une
+        // LISTE de déclencheurs depuis la carte *Courage* (2026-09-02), et le
+        // message d'échec plantait alors en « Array to string conversion » —
+        // le test tombait sur sa propre phrase au lieu d'accuser la donnée.
         expect(DureeEffet::estMotCle($valeur) || DureeEffet::tours($valeur) > 0)
-            ->toBeTrue("Durée inconnue dans le catalogue : « {$valeur} ».");
+            ->toBeTrue('Durée inconnue dans le catalogue : '.json_encode($valeur, JSON_UNESCAPED_UNICODE).'.');
     }
 });
 
