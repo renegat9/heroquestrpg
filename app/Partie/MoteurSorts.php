@@ -19,7 +19,6 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -37,7 +36,16 @@ use Illuminate\Validation\ValidationException;
  * Récupération « une fois par quête » (S5) : DemarreurQuete remet tout
  * disponible via reinitialiserQuete ; « Concentration » (S6, nœud Magicien)
  * récupère UN sort épuisé en sacrifiant le tour, une fois par quête — l'usage
- * est marqué en cache (clé groupe+personnage), purgé au démarrage suivant.
+ * est compté dans `etat_personnage_quete.capacites_utilisees`, par
+ * {@see \App\Partie\Talents}, comme toute capacité « une fois par quête ».
+ *
+ * ⚠ Il vivait en `Cache::forever` jusqu'au 2026-09-02, ce que la règle
+ * consolidée du projet interdit : un cache vidé rendait le nœud au magicien en
+ * pleine quête, et le marqueur ÉTANT HORS DE L'ÉTAT DE QUÊTE, une `/reprise`
+ * comme un « Recommencer la quête » rendaient une Concentration déjà dépensée.
+ * Même défaut que les compteurs de Dread, corrigés le même jour. Aucune
+ * colonne nouvelle : la fréquence `une_fois_par_quete` du nœud a déjà son
+ * compteur, il n'était simplement pas utilisé ici.
  *
  * BUFFS DES SORTS UTILITAIRES : ils vivent en `personnage_conditions`
  * (condition du catalogue + pivot source `sort:{Nom}`). Les valeurs chiffrées
@@ -329,9 +337,12 @@ final class MoteurSorts
     // ------------------------------------------------------------------
 
     /**
-     * Démarrage de quête : tous les sorts redeviennent disponibles, les
+     * Démarrage de quête : tous les sorts redeviennent disponibles et les
      * buffs de sorts encore portés sont purgés (Peau de Pierre « fin de
-     * quête » incluse) et l'usage de Concentration est réarmé.
+     * quête » incluse).
+     *
+     * L'usage de Concentration, lui, n'a plus rien à réarmer : il est compté
+     * dans l'`etat_personnage_quete` de la quête, qui naît vide avec elle.
      */
     public function reinitialiserQuete(Groupe $groupe, Personnage $personnage): void
     {
@@ -343,8 +354,6 @@ final class MoteurSorts
             ->where('personnage_id', $personnage->id)
             ->where('source', 'like', self::PREFIXE_SOURCE.'%')
             ->delete();
-
-        Cache::forget(self::cleConcentration($groupe->id, $personnage->id));
     }
 
     /**
@@ -543,21 +552,22 @@ final class MoteurSorts
             ->update(['disponible' => true]);
     }
 
-    /** Clé du marqueur « Concentration déjà utilisée cette quête ». */
-    public static function cleConcentration(int $groupeId, int $personnageId): string
+    /**
+     * Héros possédant un nœud « Concentration », pas encore utilisé cette quête.
+     *
+     * ⚠ La garde `classe === 'magicien'` est tombée le 2026-08-23 : c'est la
+     * possession du nœud qui fait foi, et *Rappel* (barde) comme *Communion*
+     * (druide) portent la même mécanique depuis le 2026-08-12 sans qu'aucun
+     * des deux n'ait jamais rien récupéré.
+     *
+     * ⚠ Le compteur est celui de `Talents` — les trois nœuds déclarent
+     * `frequence: une_fois_par_quete`, donc la fenêtre est tenue par la même
+     * mécanique que toutes les autres capacités par quête, dans une COLONNE.
+     * Sans `$etat` (héros hors quête), il n'y a pas de fenêtre à ouvrir.
+     */
+    public function concentrationDisponible(Personnage $personnage, ?EtatPersonnageQuete $etat): bool
     {
-        return "partie:sorts:concentration:{$groupeId}:{$personnageId}";
-    }
-
-    /** Magicien possédant le nœud Concentration, pas encore utilisé cette quête. */
-    public function concentrationDisponible(Groupe $groupe, Personnage $personnage): bool
-    {
-        // ⚠ La garde `classe === 'magicien'` est tombée le 2026-08-23 : c'est la
-        // possession du nœud qui fait foi, et *Rappel* (barde) comme *Communion*
-        // (druide) portent la même mécanique depuis le 2026-08-12 sans qu'aucun
-        // des deux n'ait jamais rien récupéré.
-        return app(Talents::class)->a($personnage, self::MECANIQUE_CONCENTRATION)
-            && ! (bool) Cache::get(self::cleConcentration($groupe->id, $personnage->id), false);
+        return app(Talents::class)->disponible($personnage, $etat, self::MECANIQUE_CONCENTRATION);
     }
 
     /**
@@ -588,9 +598,9 @@ final class MoteurSorts
         return true;
     }
 
-    public function marquerConcentrationUtilisee(Groupe $groupe, Personnage $personnage): void
+    public function marquerConcentrationUtilisee(Personnage $personnage, EtatPersonnageQuete $etat): void
     {
-        Cache::forever(self::cleConcentration($groupe->id, $personnage->id), true);
+        app(Talents::class)->consommer($personnage, $etat, self::MECANIQUE_CONCENTRATION);
     }
 
     // ------------------------------------------------------------------
@@ -717,7 +727,7 @@ final class MoteurSorts
 
         // « Se concentrer » (S6) : magicien + nœud + ≥1 sort épuisé + pas
         // encore utilisée cette quête.
-        if ($this->concentrationDisponible($groupe, $personnage)) {
+        if ($this->concentrationDisponible($personnage, $etat)) {
             $epuises = $this->entreesEpuisees($personnage);
 
             if ($epuises !== []) {

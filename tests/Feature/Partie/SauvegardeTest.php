@@ -12,6 +12,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Snapshot;
 use App\Partie\MoteurSorts;
+use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -462,4 +463,46 @@ it('la reprise conserve l\'état de combat des instances (brûlure, braise, usag
         ->and((int) $restaure->usages_dread)->toBe(1)
         ->and((bool) $restaure->invocation_dread_utilisee)->toBeTrue()
         ->and((bool) $restaure->fuite_dread_utilisee)->toBeTrue();
+});
+
+it('la reprise conserve les compteurs PAR QUÊTE du héros (Concentration, jetons de Rejeton)', function () {
+    // Le pendant HÉROS du test ci-dessus. Le snapshot ne portait que position,
+    // créneaux et chute : une reprise rendait GRATUITEMENT toute capacité « une
+    // fois par quête » déjà dépensée, effaçait les jetons de Rejeton accrochés
+    // au héros et lui rendait son dé de première attaque subie. La Concentration
+    // était pire encore — son marqueur vivait en `Cache::forever`, donc hors de
+    // l'état de quête et hors de portée du snapshot par construction.
+    $this->seed(CompetenceSeeder::class);
+
+    [$alice, $groupe, $mage, $quete] = demarrerQueteSauvegarde();
+
+    donnerTalent($mage, 'Concentration');
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $mage->id)->firstOrFail();
+    $sorts = app(MoteurSorts::class);
+
+    expect($sorts->concentrationDisponible($mage, $etat))->toBeTrue();
+
+    $sorts->marquerConcentrationUtilisee($mage, $etat);
+    $etat->update(['jetons_rejeton' => 2, 'garde_tenace_utilisee' => true]);
+
+    expect($sorts->concentrationDisponible($mage, $etat->fresh()))->toBeFalse();
+
+    app(App\Partie\Sauvegarde::class)->snapshotter($groupe->fresh(), 'nouveau_tour');
+
+    // On efface l'ardoise, puis on restaure.
+    $etat->update(['capacites_utilisees' => [], 'jetons_rejeton' => 0, 'garde_tenace_utilisee' => false]);
+
+    $snapshot = Snapshot::where('groupe_id', $groupe->id)->orderByDesc('id')->firstOrFail();
+    app(App\Partie\Sauvegarde::class)->restaurer($groupe->fresh(), $snapshot);
+
+    // ⚠ `restaurer()` SUPPRIME puis recrée les lignes : l'objet d'avant est mort.
+    $restaure = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $mage->id)->firstOrFail();
+
+    expect((array) $restaure->capacites_utilisees)->toContain('Concentration')
+        ->and((int) $restaure->jetons_rejeton)->toBe(2)
+        ->and((bool) $restaure->garde_tenace_utilisee)->toBeTrue()
+        ->and($sorts->concentrationDisponible($mage->fresh(), $restaure))->toBeFalse();
 });

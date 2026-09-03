@@ -485,7 +485,8 @@ it('réinitialise sorts, buffs et Concentration au démarrage de la quête suiva
         Condition::where('nom', 'Renforcé')->value('id'),
         ['duree' => 0, 'source' => 'sort:Peau de Pierre'],
     );
-    Cache::forever(MoteurSorts::cleConcentration($groupe->id, $mage->id), true);
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)
+        ->update(['capacites_utilisees' => json_encode(['Concentration'])]);
 
     // Victoire éclair : plus de monstre actif, la quête se clôt sur l'action.
     $quete->instancesMonstres()->update(['etat' => 'vaincu']);
@@ -503,8 +504,15 @@ it('réinitialise sorts, buffs et Concentration au démarrage de la quête suiva
 
     expect($mage->sorts()->wherePivot('disponible', true)->count())->toBe(6)
         ->and($mage->conditions()->count())->toBe(0)
-        ->and((bool) Cache::get(MoteurSorts::cleConcentration($groupe->id, $mage->id), false))->toBeFalse();
+        ->and(app(MoteurSorts::class)->concentrationDisponible($mage->fresh(), $etatNeuf))->toBeFalse()
+        ->and((array) $etatNeuf->capacites_utilisees)->toBe([]);
 });
+    // ⚠ La S6 est réarmée par la NAISSANCE du nouvel `etat_personnage_quete`,
+    // plus par une purge de cache : le compteur vit dans l'état de la quête
+    // (2026-09-02), donc la quête suivante part vierge sans rien à effacer.
+    $etatNeuf = EtatPersonnageQuete::where('quete_id', $groupe->fresh()->quete_courante_id)
+        ->where('personnage_id', $mage->id)->firstOrFail();
+
 
 it('consomme le parchemin du non-lanceur même quand le jet de Mind échoue : gaspillé, sans effet (S1)', function () {
     $alice = connecterJoueur('alice');

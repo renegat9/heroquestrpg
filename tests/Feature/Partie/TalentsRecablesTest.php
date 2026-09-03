@@ -194,11 +194,11 @@ it('récupère un sort épuisé comme « Concentration » — la garde de classe
     $sort = Sort::orderBy('id')->firstOrFail();
     $heros->sorts()->syncWithoutDetaching([$sort->id => ['disponible' => false]]);
 
-    expect($sorts->concentrationDisponible($ctx['groupe'], $heros))->toBeFalse();
+    expect($sorts->concentrationDisponible($heros, $ctx['etatHeros']))->toBeFalse();
 
     donnerTalent($heros, $noeud);
 
-    expect($sorts->concentrationDisponible($ctx['groupe'], $heros->fresh()))->toBeTrue();
+    expect($sorts->concentrationDisponible($heros->fresh(), $ctx['etatHeros']))->toBeTrue();
 
     // Et l'option arrive bien au menu du JOUEUR, pas seulement au moteur : le
     // contrôleur refuse toute option absente du dernier menu.

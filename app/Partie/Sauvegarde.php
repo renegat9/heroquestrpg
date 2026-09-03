@@ -372,6 +372,23 @@ final class Sauvegarde
                     'a_deplace' => (bool) $e->a_deplace,
                     'a_agi' => (bool) $e->a_agi,
                     'tombe' => (bool) $e->tombe,
+                    // ⚠ Compteurs PAR QUÊTE (2026-09-02) : ils manquaient au
+                    // snapshot exactement comme les usages de Dread du boss
+                    // juste au-dessus, et pour le même prix — une `/reprise` ou
+                    // un « Recommencer la quête » rendait GRATUITEMENT toute
+                    // capacité « une fois par quête » déjà dépensée (dont la
+                    // Concentration), effaçait les jetons de Rejeton accrochés
+                    // au héros et lui rendait son dé de première attaque subie.
+                    // Les compteurs par TOUR n'y sont pas, volontairement : le
+                    // snapshot est pris à l'ouverture d'un round, là où ils
+                    // viennent d'être remis à zéro. `reaction_en_attente` non
+                    // plus — un round suspendu ne prend pas de snapshot, et
+                    // ressusciter une offre périmée reposerait une question à
+                    // laquelle le joueur a déjà répondu.
+                    'capacites_utilisees' => (array) ($e->capacites_utilisees ?? []),
+                    'styles_epuises' => (array) ($e->styles_epuises ?? []),
+                    'garde_tenace_utilisee' => (bool) $e->garde_tenace_utilisee,
+                    'jetons_rejeton' => (int) $e->jetons_rejeton,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -564,6 +581,13 @@ final class Sauvegarde
                 'a_deplace' => $etat['a_deplace'] ?? false,
                 'a_agi' => $etat['a_agi'] ?? false,
                 'tombe' => $etat['tombe'],
+                // Les `??` ne sont pas décoratifs : un snapshot pris AVANT le
+                // 2026-09-02 ne porte aucune de ces quatre clés, et une
+                // campagne en vol doit pouvoir se reprendre sans elles.
+                'capacites_utilisees' => $etat['capacites_utilisees'] ?? [],
+                'styles_epuises' => $etat['styles_epuises'] ?? [],
+                'garde_tenace_utilisee' => $etat['garde_tenace_utilisee'] ?? false,
+                'jetons_rejeton' => $etat['jetons_rejeton'] ?? 0,
             ]);
         }
     }

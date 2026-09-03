@@ -327,9 +327,8 @@ final class ClotureCampagne
     {
         $groupeId = (int) $groupe->id;
 
-        // Relevés AVANT détachement, pour vider les caches par joueur/héros.
+        // Relevé AVANT détachement, pour vider les menus en cache par joueur.
         $joueurIds = $groupe->personnages()->pluck('joueur_id')->unique()->values();
-        $personnageIds = $groupe->personnages()->pluck('personnages.id')->values();
 
         // Idem pour les illustrations : une fois les lignes parties, plus rien
         // ne dit quels fichiers leur appartenaient — un `dyn/quete/{id}.png`
@@ -379,10 +378,6 @@ final class ClotureCampagne
 
         foreach ($joueurIds as $joueurId) {
             Cache::forget(GenererMenu::cleMenu($groupeId, (int) $joueurId));
-        }
-
-        foreach ($personnageIds as $personnageId) {
-            Cache::forget(MoteurSorts::cleConcentration($groupeId, (int) $personnageId));
         }
 
         // Illustrations dérivées — MÊME raison que la bible Qdrant juste en

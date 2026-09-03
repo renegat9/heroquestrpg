@@ -280,7 +280,7 @@ final class ResolveurTour
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
-                'concentration' => $this->resoudreConcentration($groupe, $personnage, $option, $parametres, $acteur),
+                'concentration' => $this->resoudreConcentration($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
                 'soin_allie' => $this->resoudreSoinAllie($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
@@ -2689,8 +2689,9 @@ final class ResolveurTour
     /**
      * « Se concentrer » (S6, nœud magicien) : sacrifie le tour (a_joue est
      * marqué par l'appelant) pour rendre disponible UN sort épuisé au choix
-     * (parametres.sort_id) — une seule fois par quête (marqueur en cache,
-     * réarmé par DemarreurQuete).
+     * (parametres.sort_id) — une seule fois par quête, comptée dans
+     * `etat_personnage_quete.capacites_utilisees` comme toute capacité de
+     * cette fréquence (elle vivait en cache jusqu'au 2026-09-02).
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $parametres
@@ -2700,11 +2701,12 @@ final class ResolveurTour
     private function resoudreConcentration(
         Groupe $groupe,
         Personnage $personnage,
+        EtatPersonnageQuete $etat,
         array $option,
         array $parametres,
         array $acteur,
     ): array {
-        if (! $this->sorts->concentrationDisponible($groupe, $personnage)) {
+        if (! $this->sorts->concentrationDisponible($personnage, $etat)) {
             throw ValidationException::withMessages([
                 'option_id' => 'Concentration indisponible : nœud magicien requis, une seule fois par quête (S6).',
             ]);
@@ -2724,7 +2726,7 @@ final class ResolveurTour
         }
 
         $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => true]);
-        $this->sorts->marquerConcentrationUtilisee($groupe, $personnage);
+        $this->sorts->marquerConcentrationUtilisee($personnage, $etat);
 
         $payload = [
             'type' => 'concentration',
