@@ -91,7 +91,12 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Artefacts d'économie de sorts : ils ne donnent ni dé ni PV, mais
         // changent bel et bien ce que le porteur peut faire de son tour.
         'restaure_sorts', 'second_sort_par_tour', 'sort_non_epuise',
-        'sort_non_epuise_sur_bouclier_noir', 'immunite_degat'];
+        'sort_non_epuise_sur_bouclier_noir', 'immunite_degat',
+        // ⚠ Un artefact ACTIVABLE ne modifie aucune statistique : il ouvre une
+        // action. C'est tout autant « changer ce que le porteur peut faire de
+        // son tour » — la Cape des Ombres et le Sceptre de Télékinésie ne
+        // servent qu'à ça (cartes officielles, doc 16 §9.2).
+        'activable'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
@@ -108,7 +113,14 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // pose désormais un buff dès qu'une `duree` est déclarée.
         'restaure_jauges_depart', 'multiplicateur_degats', 'relance_des_attaque',
         'bonus_deplacement', 'saut_fosse_automatique', 'deplacement_multiplie',
-        'revele_pieges_et_portes_en_vue'];
+        'revele_pieges_et_portes_en_vue',
+        // ⚠ `activable` n'est PAS un effet de potion : un consommable qui le
+        // porte (la Poudre d'Invisibilité) est routé avant la branche des
+        // potions par `ResolveurTour::resoudreUsageObjet()`, et `MoteurPotions`
+        // ne le voit jamais. Il est listé ici parce que ce test demande « cet
+        // objet fait-il quelque chose », et la réponse est oui — simplement par
+        // un autre chemin.
+        'activable'];
 
     foreach (Objet::where('categorie', 'consommable')->get() as $potion) {
         expect(array_intersect($utiles, array_keys((array) $potion->effet)))

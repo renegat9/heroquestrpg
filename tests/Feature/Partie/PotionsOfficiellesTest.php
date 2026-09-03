@@ -171,11 +171,12 @@ it('rend un NOMBRE BORNÉ de sorts : trois pour la Magie, un pour le Rappel', fu
     boirePotion($magicien, 'Potion de magie');
     expect($restants())->toBe($total - 3);
 
-    // Le Parchemin de Sorts, lui, les rend TOUS : `restaure_sorts: true`. C'est
-    // la différence d'échelle qui fait la valeur de chaque carte.
-    $epuiser();
-    boirePotion($magicien, 'Parchemin de Sorts');
-    expect($restants())->toBe(0);
+    // ⚠ Plus AUCUNE pièce ne rend le grimoire entier depuis le 2026-09-03 : le
+    // *Parchemin de Sorts* portait seul `restaure_sorts: true` et n'avait aucune
+    // carte officielle — il a quitté le catalogue avec les quatre autres
+    // inventions du paquet fan. Ne restent que les formes CHIFFRÉES (3 pour la
+    // Potion de magie, 1 pour la Potion de rappel), et c'est plus sain : rendre
+    // tout d'un coup annulait l'économie de sorts au lieu de la desserrer.
 });
 
 it('laisse le joueur CHOISIR quel sort la Potion de rappel lui rend', function () {

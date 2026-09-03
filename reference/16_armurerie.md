@@ -732,6 +732,13 @@ Plus l'exemple générique donné dans le livret de règles lui-même : **Borin'
 
 ### 9.1 Le paquet d'artefacts, converti
 
+> ⚠ **SOURCE REMPLACÉE le 2026-09-03 — voir §9.2.** René a fourni les cartes
+> officielles (`artifacts_part1.pdf` / `artifacts_part2.pdf`, © 2021-2023
+> Hasbro) : **59 cartes, 34 artefacts distincts et 19 sorts de parchemin**. Ce
+> §9.1 devient un **annexe historique**, comme le §2.2 l'est devenu pour
+> l'armurerie le 2026-08-15. Ce qui suit décrit le paquet FAN et n'est plus
+> opposable.
+
 **Source : `sjeng-artefacts.pdf`, Ye Olde Inn** — 34 cartes distinctes,
 [english.yeoldeinn.com/downloads/cards/sjeng-artefacts.pdf](https://english.yeoldeinn.com/downloads/cards/sjeng-artefacts.pdf).
 Choisi par René le 2026-08-09, comme le paquet d'armurerie du §2.2. Il rassemble
@@ -847,6 +854,100 @@ un test codé en dur sur le seul barbare, et couvre désormais les quatre
 talismans de classe d'un coup.
 
 ---
+
+
+### 9.2 Les cartes officielles d'artefact (photos de René, 2026-09-03)
+
+Même statut que §2.1bis pour l'armurerie et §3bis pour les sorts : ce qui est
+transcrit ici est **opposable**, et remplace le paquet fan du §9.1.
+
+**59 cartes** : **34 artefacts distincts** et **19 sorts de parchemin**. Le
+détail carte par carte, avec pour chacune l'objet porté ou la mécanique qui lui
+manque, vit dans **`config/cartes.php`** — c'est lui que `CartesSourcesTest`
+confronte au catalogue dans les deux sens, et que `/api/guide` expose au joueur.
+
+#### Ce que la confrontation a donné
+
+**Quatorze cartes sont portées.** Douze l'étaient déjà et se confirment ; deux
+entrent au catalogue sans qu'aucun lecteur nouveau soit nécessaire — la **Cape
+du Magicien** (*Wizard's Cloak*, +1 dé de défense, `armure_magicien` étant le tag
+que le magicien est seul à porter) et l'**Anneau de Vigueur** (*Ring of
+Fortitude*, +1 PV de Body, sans restriction).
+
+**Une correction de valeur** : le *Talisman of Lore* donne **+1** point de Mind,
+nous en donnions 2.
+
+⚠ **CINQ de nos artefacts n'avaient AUCUNE carte** et ont quitté le catalogue —
+Capuche du Magister, Runes naines, Sceptre de Mémoire, Baguette de Galimatias,
+Parchemin de Sorts. Même ménage que les douze pièces d'armurerie inventées par le
+paquet fan. La suppression passe par une **migration** : `ObjetSeeder` écrit en
+`updateOrCreate` et ne purge jamais, retirer les lignes du seeder les aurait
+laissées en base, toujours tirées par les coffres. Les lignes d'inventaire
+partent avec — un artefact hors catalogue laissé dans un sac n'est ni équipable,
+ni revendable, ni affichable, et ne le dit pas.
+
+⚠ **Une règle a survécu à son objet.** Le *Sceptre de Mémoire* portait seul
+`sort_non_epuise_sur_bouclier_noir` : le supprimer laissait un lecteur sans
+donnée. Arbitrage de René — la règle est **reversée sur les talents
+`regain_sort`** (*Chant runique*, *Appel de la forêt*), où elle corrige autre
+chose : rendre un sort à **chaque** monstre abattu supprimait l'économie de
+sorts au lieu de l'assouplir. Le regain exige désormais un **bouclier noir**.
+Deux conséquences : `restaure_sorts` ne survit que sous sa forme **chiffrée**
+(Potion de magie 3, Potion de rappel 1), la forme « tous » n'ayant plus de carte ;
+et le mot-clé quitte `MotsClesEquipement`, qui ne décrit que des objets.
+
+⚠ **La boîte GLACE est recensée et délibérément écartée** (arbitrage de René) :
+*Ring of Warmth*, *Armband of Ice*, *Snowshoes of Speed*, et cinq parchemins
+(Chill, Warmth, Ice Storm, Ice Bridge, Skate). Leurs règles nomment des sorts de
+froid, des coffres de glace et des rivières gelées qui n'existent nulle part
+chez nous : ce n'est pas un lecteur qui leur manque, c'est **ce à quoi
+résister**. *Warmth* est le cas limite honnête — un simple soin de 3 PV,
+portable tel quel, écarté seulement parce qu'il appartient à ce jeu.
+
+**Trois artefacts de plus sont portés depuis le 2026-09-03**, et ils n'ont
+demandé **aucune mécanique neuve** — seulement de réunir sur un **objet** ce qui
+existait déjà sur des **sorts** :
+
+| Carte | Chez nous | Ce qui a servi |
+|---|---|---|
+| *Dust of Disappearance* | **Poudre d'Invisibilité** | `franchit_figures` (Voile de Brume), posé sur **n'importe quel héros en vue** |
+| *The Cloak of Shadows* | **Cape des Ombres** | `franchit_mur` **et** `franchit_figures` d'un coup, une charge par quête |
+| *Rod of Telekinesis* | **Sceptre de Télékinésie** | `saute_tour` (Tempête) + la rupture par points de Mind (Sommeil) |
+
+Ce qui a rendu le portage possible tenait à un détail déjà en place :
+`traverseRoche()` et `franchitFigures()` relisent l'effet de la **source**, et
+acceptent depuis toujours une source `potion:` autant qu'une source `sort:` — un
+buff d'objet leur parle donc sans qu'on touche à un lecteur.
+
+⚠ `MoteurSorts::tenterRupture()` est désormais **générique sur la condition** ;
+`tenterRuptureSommeil()` n'est plus qu'un nom pour l'usage historique. Deux
+écritures de « 1 dé rouge par point de Mind, un 6 résiste » auraient dérivé au
+premier ajustement.
+
+⚠ Trois mots-clés d'objet ouvrent le chemin, et rien de plus : `activable` fait
+entrer une pièce **non consommable** dans la liste « Utiliser un objet » — la
+cape et le sceptre se portent —, `cible` donne ses cibles à l'entrée (la
+profondeur suit donc la donnée, comme pour les sorts : le sceptre ouvre un
+troisième niveau, la cape part du deuxième), et `cout` dit si l'usage prend
+l'action. ⚠ La **charge** est le garde-fou du « once per quest », et le menu
+filtre sur `disponible()` : une option laissée après la charge dépensée serait un
+bouton qui répond toujours non. ⚠ Un artefact à charges **n'est pas consommé** —
+il devient inerte et reste au sac.
+
+**Quinze artefacts attendent encore une mécanique**, chacun avec la sienne
+nommée dans `config/cartes.php`.
+
+#### Les parchemins
+
+Un parchemin n'est pas un objet : il **dérive** d'un sort (doc 02 §6). Onze des
+19 cartes désignent un sort que nous avons — elles tournent déjà. Trois désignent
+un sort absent du catalogue sans rapport avec la glace : **Lightning Bolt** (le
+chemin `rayon` existe déjà, c'est la plus proche d'être portable), **Treasure
+Without Doom**, **Psychic Recovery**. Les cinq dernières sont de la boîte glace.
+
+⚠ « Any hero may use this scroll » figure sur plusieurs cartes : c'est exactement
+notre règle — un non-lanceur tente un jet de Mind. Rien à changer.
+
 
 ## 10. Écarts avec notre implémentation
 

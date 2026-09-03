@@ -40,11 +40,16 @@ function toutesLesCartes(): array
 
 it('recense exactement les trois sources, sans doublon de carte', function () {
     // Le paquet fan Sjeng (27 cartes) a cédé la place aux photos du matériel
-    // officiel, scindées comme les deux PDF de René. Les artefacts restent une
-    // conversion Ye Olde Inn : aucune photo ne les couvre encore.
+    // officiel. ⚠ Les ARTEFACTS ont suivi le 2026-09-03 : les 59 cartes de René
+    // remplacent la conversion Ye Olde Inn — 34 artefacts distincts, plus
+    // l'Anneau de Feu que Kellar's Keep source ailleurs (doc 18 §3) et qui reste
+    // recensé ici, d'où 35.
     expect((array) config('cartes.equipement.cartes'))->toHaveCount(20)
         ->and((array) config('cartes.potions.cartes'))->toHaveCount(15)
-        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(34);
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(35)
+        // Les parchemins DÉRIVENT d'un sort et n'ont pas de ligne `objets` :
+        // ils vivent dans leur propre section, hors des contrôles qui suivent.
+        ->and((array) config('cartes.parchemins.cartes'))->toHaveCount(19);
 
     $noms = array_column(toutesLesCartes(), 'carte');
     expect(array_values(array_diff_assoc($noms, array_unique($noms))))
@@ -128,5 +133,11 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
 
     expect($portees('equipement'))->toBe(20)
         ->and($portees('potions'))->toBe(15)
+        // 17 artefacts portés sur 35 : les 18 autres nomment chacun la
+        // mécanique qui leur manque, dont 3 cartes de la boîte GLACE écartées
+        // en bloc. ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape
+        // des Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE
+        // mécanique neuve, seulement de réunir sur un OBJET ce qui existait
+        // déjà sur des sorts.
         ->and($portees('artefacts'))->toBe(17);
 });

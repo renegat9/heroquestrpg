@@ -386,11 +386,45 @@ it('regain_sort — le Chant runique rend UN sort à chaque monstre abattu', fun
     donnerTalent($heros, 'Chant runique');
     $ctx['instance']->update(['pv_body' => 1]);
 
-    frapperLeMonstre($ctx, [1, 4, 4, ...array_fill(0, 8, 4)]);
+    // ⚠ BRIDÉ AU BOUCLIER NOIR depuis le 2026-09-03 (arbitrage de René) : le
+    // regain n'a lieu que sur un 6, et le test l'exerce dans les DEUX sens —
+    // sans quoi il ne prouverait rien du bridage.
+    //
+    // ⚠ Le monstre est ENDORMI, et ce n'est pas un détail de mise en scène :
+    // un dormeur ne lance aucun dé de défense (règle de sa carte, 2026-09-02),
+    // donc la file de dés se lit exactement [3 d'attaque, JET DE REGAIN]. Sans
+    // ça, la position du jet dépend du nombre de dés de défense du gobelin, et
+    // le test se met à mesurer le catalogue au lieu du talent.
+    app(MoteurSorts::class)->poserConditionMonstre($ctx['instance'], MoteurSorts::MONSTRE_ENDORMI);
+
+    frapperLeMonstre($ctx, [1, 4, 4, 6, ...array_fill(0, 8, 4)]);
 
     // ⚠ UN seul sort rendu, et pas le grimoire entier : tout rendre à chaque
     // mise à mort supprimerait l'économie de sorts au lieu de l'assouplir.
     expect($heros->sorts()->wherePivot('disponible', true)->count())->toBe(1);
+});
+
+it('regain_sort — sans bouclier noir, le Chant runique ne rend RIEN', function () {
+    // Le pendant du test précédent : c'est lui qui donne sa valeur au bridage.
+    // Sans jet, le talent rendait un sort à CHAQUE monstre abattu — un lanceur
+    // qui tue deux fois par quête ne s'épuisait jamais.
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe', 'des_attaque' => 3]);
+    $heros = $ctx['heros'];
+
+    foreach (Sort::orderBy('id')->take(2)->get() as $sort) {
+        $heros->sorts()->syncWithoutDetaching([$sort->id => ['disponible' => false]]);
+    }
+
+    donnerTalent($heros, 'Chant runique');
+    $ctx['instance']->update(['pv_body' => 1]);
+
+    // Même montage, au dé de regain près : bouclier BLANC, donc rien.
+    app(MoteurSorts::class)->poserConditionMonstre($ctx['instance'], MoteurSorts::MONSTRE_ENDORMI);
+
+    frapperLeMonstre($ctx, [1, 4, 4, 4, ...array_fill(0, 8, 4)]);
+
+    expect($ctx['instance']->fresh()->etat)->toBe('vaincu')
+        ->and($heros->sorts()->wherePivot('disponible', true)->count())->toBe(0);
 });
 
 it('sacrifice_pv_pour_sort — le Prix du pacte paie 1 PV, et se refuse à 1 PV', function () {

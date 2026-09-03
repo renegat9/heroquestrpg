@@ -2107,17 +2107,14 @@ final class ResolveurTour
      */
     private function preserverSort(Personnage $personnage, array &$payload): bool
     {
-        if ($this->charges->pieceActive($personnage, 'sort_non_epuise_sur_bouclier_noir') !== null) {
-            $face = FaceDeCombat::depuisD6($this->des->d6());
-            $payload['jet_memoire'] = $face->value;
-
-            if ($face === FaceDeCombat::BouclierNoir) {
-                $payload['sort_preserve'] = 'sceptre_de_memoire';
-
-                return true;
-            }
-        }
-
+        // ⚠ Le *Sceptre de Mémoire* tenait ici la première place : il tirait un
+        // dé après chaque incantation et épargnait le sort sur un bouclier noir.
+        // L'artefact était une invention du paquet fan Ye Olde Inn et a quitté
+        // le catalogue le 2026-09-03 avec les quatre autres. Sa RÈGLE, elle,
+        // survit — René l'a reversée sur les talents `regain_sort`, où elle
+        // bride le regain à chaque monstre abattu (`MoteurSorts::regagnerSorts`).
+        // On retire donc la branche plutôt que de la laisser interroger un objet
+        // que plus rien ne sème.
         $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise');
 
         if ($anneau !== null && $this->charges->consommer($anneau)) {
@@ -4085,6 +4082,85 @@ final class ResolveurTour
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
+    /**
+     * ARTEFACT ACTIVABLE — Poudre d'Invisibilité, Cape des Ombres, Sceptre de
+     * Télékinésie (cartes officielles, doc 16 §9.2).
+     *
+     * Ces trois cartes n'ont demandé AUCUNE mécanique neuve : elles réunissent
+     * ce qui existait déjà sur des SORTS. La poudre et la cape posent un buff de
+     * déplacement que `MoteurSorts::traverseRoche()` / `franchitFigures()`
+     * relisent sur l'objet source — ces lecteurs acceptent les buffs de
+     * provenance `potion:` depuis toujours, c'est ce qui rendait le portage
+     * possible. Le sceptre, lui, réunit `saute_tour` (Tempête) et la rupture par
+     * points de Mind (Sommeil).
+     *
+     * ⚠ La CIBLE a déjà été validée contre la liste blanche de l'entrée par
+     * l'appelant : on la résout ici, on ne la re-choisit pas.
+     *
+     * @param  array<string, mixed>  $effet
+     * @return array<string, mixed>
+     */
+    private function resoudreArtefactActivable(
+        Quete $quete,
+        Personnage $personnage,
+        Inventaire $ligne,
+        array $effet,
+        int $cibleId,
+    ): array {
+        $objet = $ligne->objet;
+
+        // ---- Sceptre de Télékinésie : le monstre saute son tour, sauf s'il résiste
+        if (! empty($effet['saute_tour'])) {
+            $instance = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                ->whereKey($cibleId)->with('monstre')->first();
+
+            if ($instance === null) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Cible introuvable ou déjà vaincue pour cet artefact.',
+                ]);
+            }
+
+            $this->sorts->poserConditionMonstre($instance, MoteurSorts::MONSTRE_SAUTE_TOUR);
+
+            // « The spell can be resisted IMMEDIATELY by the monster rolling 1
+            // red die for each of their Mind Points. If a 6 is rolled, it
+            // resists. » — mot pour mot la rupture de Sommeil, d'où le même
+            // lecteur plutôt qu'une seconde écriture de la même règle.
+            $rupture = $this->sorts->tenterRupture($instance, MoteurSorts::MONSTRE_SAUTE_TOUR);
+
+            return [
+                'cible' => ['type' => 'monstre', 'instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
+                'des_rupture' => $rupture['faces'],
+                'resiste' => $rupture['rompu'],
+                'saute_tour' => ! $rupture['rompu'],
+            ];
+        }
+
+        // ---- Poudre / Cape : un MODE DE DÉPLACEMENT posé sur un héros
+        $beneficiaire = $personnage;
+
+        if ((string) ($effet['cible'] ?? 'soi') !== MotsClesSort::CIBLE_SOI && $cibleId > 0) {
+            $etatCible = $quete->etatsPersonnages()->where('personnage_id', $cibleId)
+                ->where('tombe', false)->with('personnage')->first();
+
+            if ($etatCible?->personnage === null) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Ce héros ne peut pas recevoir cet artefact.',
+                ]);
+            }
+
+            $beneficiaire = $etatCible->personnage;
+        }
+
+        $condition = $this->sorts->appliquerBuffPotion($beneficiaire, $objet);
+
+        return [
+            'cible' => ['type' => 'heros', 'personnage_id' => $beneficiaire->id, 'nom' => $beneficiaire->nom],
+            'condition' => $condition->nom,
+            'source' => MoteurSorts::PREFIXE_SOURCE_POTION.$objet->nom,
+        ];
+    }
+
     private function resoudreUsageObjet(
         Groupe $groupe,
         Quete $quete,
@@ -4132,7 +4208,25 @@ final class ResolveurTour
             $etat->update(['a_agi' => true]);
         }
 
-        if (! empty($effet['tue_creatures'])) {
+        // ARTEFACTS ACTIVABLES (2026-09-03) — testés AVANT les autres branches
+        // parce que `activable` est ce qui les distingue : la Poudre est un
+        // consommable et retomberait sinon dans la branche des potions, où
+        // `MoteurPotions` ne saurait ni la cibler ni lire son mode de
+        // déplacement.
+        if (! empty($effet['activable'])) {
+            $payload += $this->resoudreArtefactActivable($quete, $personnage, $ligne, $effet, $cibleId);
+
+            // ⚠ Un artefact à CHARGES n'est pas perdu : il devient inerte à zéro
+            // et reste au sac. Il ne doit donc pas traverser la queue de méthode
+            // qui décrémente la pile et supprime la ligne — celle-là est écrite
+            // pour les trois consommables de matériel.
+            if (isset($effet['charges'])) {
+                $this->charges->consommer($ligne);
+                $payload['charges_restantes'] = $this->charges->restantes($ligne->fresh());
+
+                return $this->journaliserUsageObjet($groupe, $payload, $acteur);
+            }
+        } elseif (! empty($effet['tue_creatures'])) {
             $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $cibleId, $effet);
         } elseif (! empty($effet['pose_chausse_trappes'])) {
             $payload += $this->poserChausseTrappes($quete, $personnage, $etat);

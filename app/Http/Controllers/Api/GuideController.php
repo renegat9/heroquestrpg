@@ -126,7 +126,11 @@ class GuideController extends Controller
     {
         $paquets = [];
 
-        foreach (['equipement', 'potions', 'artefacts'] as $cle) {
+        // ⚠ QUATRIÈME paquet depuis le 2026-09-03 : les parchemins. Ils ont
+        // leur section parce qu'ils DÉRIVENT d'un sort et n'ont pas de ligne
+        // d'objet — mais ils ont autant leur place sur /guide, c'est la seule
+        // page qui dise au joueur ce qui existe au plateau sans tourner ici.
+        foreach (['equipement', 'potions', 'artefacts', 'parchemins'] as $cle) {
             $paquet = (array) config("cartes.{$cle}", []);
 
             $paquets[] = [
@@ -138,7 +142,12 @@ class GuideController extends Controller
                     'carte' => $c['carte'],
                     'nom' => $c['objet'] ?? $c['nom'] ?? $c['carte'],
                     'paquet' => $c['paquet'] ?? null,
-                    'porte' => isset($c['objet']),
+                    // ⚠ Un PARCHEMIN est porté par un `sort`, pas par un
+                    // `objet` : il dérive d'une ligne de `sorts` et n'a pas
+                    // d'entrée au catalogue d'objets. Ne regarder que `objet`
+                    // le faisait passer pour non porté, et le guide réclamait
+                    // alors un texte de plateau à une carte qui tourne déjà.
+                    'porte' => isset($c['objet']) || isset($c['sort']),
                     'texte' => $c['texte'] ?? null,
                     'manque' => $c['manque'] ?? null,
                 ], (array) ($paquet['cartes'] ?? [])),

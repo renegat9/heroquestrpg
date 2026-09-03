@@ -1184,6 +1184,23 @@ final class MoteurSorts
         $talent = app(Talents::class)->noeud($personnage, 'regain_sort');
         $parLeTalent = $talent !== null && ($talent->effet['regain'] ?? null) === $evenement;
 
+        // ⚠ BRIDAGE AU BOUCLIER NOIR (René, 2026-09-03) : rendre un sort à
+        // CHAQUE monstre abattu supprimait l'économie de sorts au lieu de
+        // l'assouplir. Le nœud qui le déclare tire 1 dé de combat, et seul un
+        // bouclier noir — une face sur six — rend le sort.
+        //
+        // ⚠ Le jet a lieu ICI, avant la boucle, et une seule fois : le déplacer
+        // à l'intérieur le relancerait par sort épuisé, ce qui rendrait le
+        // bridage d'autant plus faible que le grimoire est vide — l'inverse de
+        // l'effet voulu.
+        //
+        // Le mot-clé est celui du *Sceptre de Mémoire*, artefact fan retiré du
+        // catalogue le même jour : la règle ne change pas, son porteur si.
+        if ($parLeTalent && ! empty($talent->effet['sort_non_epuise_sur_bouclier_noir'])
+            && FaceDeCombat::depuisD6(app(LanceurDes::class)->d6()) !== FaceDeCombat::BouclierNoir) {
+            $parLeTalent = false;
+        }
+
         foreach ($personnage->sorts()->wherePivot('disponible', false)->get() as $sort) {
             $parCeSort = ($sort->effet['regain'] ?? null) === $evenement;
 
@@ -1310,6 +1327,23 @@ final class MoteurSorts
      */
     public function tenterRuptureSommeil(InstanceMonstre $instance): array
     {
+        return $this->tenterRupture($instance, self::MONSTRE_ENDORMI);
+    }
+
+    /**
+     * La MÊME rupture, pour n'importe quelle condition de monstre.
+     *
+     * Généralisée le 2026-09-03 pour le *Sceptre de Télékinésie*, dont la carte
+     * reprend la phrase de Sommeil mot pour mot — « resisted immediately by the
+     * monster rolling 1 red die for each of their Mind Points. If a 6 is rolled,
+     * it resists ». Deux écritures de la même règle auraient dérivé au premier
+     * ajustement ; `tenterRuptureSommeil()` n'est plus qu'un nom pour l'usage
+     * historique.
+     *
+     * @return array{rompu: bool, faces: list<int>}
+     */
+    public function tenterRupture(InstanceMonstre $instance, string $condition): array
+    {
         $faces = [];
         $rompu = false;
 
@@ -1329,7 +1363,7 @@ final class MoteurSorts
         }
 
         if ($rompu) {
-            $this->retirerConditionMonstre($instance, self::MONSTRE_ENDORMI);
+            $this->retirerConditionMonstre($instance, $condition);
         }
 
         return ['rompu' => $rompu, 'faces' => $faces];

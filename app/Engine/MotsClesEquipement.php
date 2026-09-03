@@ -227,14 +227,6 @@ final class MotsClesEquipement
      */
     public const SORT_NON_EPUISE = 'sort_non_epuise';
 
-    /**
-     * Après chaque sort, un dé de combat : sur un **bouclier noir** le sort n'est
-     * pas épuisé — « You may roll one combat die per turn. On a black shield, the
-     * chosen spell may be cast again » (Sceptre de Mémoire). Illimité, sans
-     * charge : c'est le dé qui limite.
-     * Lecteur : `ResolveurTour::lancerSort()`.
-     */
-    public const SORT_NON_EPUISE_SUR_BOUCLIER_NOIR = 'sort_non_epuise_sur_bouclier_noir';
 
     // --------------------------------------------------------------- JAUGES
 
@@ -440,6 +432,34 @@ final class MotsClesEquipement
      */
     public const DUREE = 'duree';
 
+    // ------------------------------------------------- ARTEFACTS ACTIVABLES
+    //
+    // Trois cartes officielles (doc 16 §9.2) réunissent sur un OBJET ce qui
+    // existait déjà sur des SORTS. Aucune mécanique neuve : ces mots-clés
+    // n'ouvrent que le chemin — la liste « Utiliser un objet », le ciblage, et
+    // la résolution qui délègue aux lecteurs de sorts.
+
+    /** L'objet entre dans la liste « Utiliser un objet » sans être un consommable. */
+    public const ACTIVABLE = 'activable';
+
+    /** Qui l'objet vise : `soi` · `heros` · `monstre` (vocabulaire de MotsClesSort). */
+    public const CIBLE = 'cible';
+
+    /** Créneau dépensé par l'usage : `action` ou `gratuit`. */
+    public const COUT = 'cout';
+
+    /** Le porteur traverse la ROCHE (Cape des Ombres) — lecteur MoteurSorts::traverseRoche(). */
+    public const FRANCHIT_MUR = 'franchit_mur';
+
+    /** Le porteur traverse les FIGURES (Poudre, Cape) — MoteurSorts::franchitFigures(). */
+    public const FRANCHIT_FIGURES = 'franchit_figures';
+
+    /** La cible saute son prochain tour (Sceptre de Télékinésie). */
+    public const SAUTE_TOUR = 'saute_tour';
+
+    /** Comment la cible résiste — `rupture_6_par_mind` (MoteurSorts::tenterRupture()). */
+    public const RESISTANCE = 'resistance';
+
     // -------------------------------------------------------------- PARCHEMIN
 
     /** Sort lancé par le parchemin — autorité. `ResolveurTour::resoudreParchemin()`. */
@@ -481,6 +501,13 @@ final class MotsClesEquipement
         self::INCOMPATIBLE_DEUX_MAINS,
         self::MALUS_DEPLACEMENT,
         self::DEGATS_FIXES,
+        self::ACTIVABLE,
+        self::CIBLE,
+        self::COUT,
+        self::FRANCHIT_MUR,
+        self::FRANCHIT_FIGURES,
+        self::SAUTE_TOUR,
+        self::RESISTANCE,
         self::DES_ATTAQUE_CONTRE,
         self::ATTAQUE_DOUBLE_CONTRE,
         self::BONUS_PV_BODY_MAX,
@@ -491,7 +518,6 @@ final class MotsClesEquipement
         self::RESTAURE_SORTS,
         self::SECOND_SORT_PAR_TOUR,
         self::SORT_NON_EPUISE,
-        self::SORT_NON_EPUISE_SUR_BOUCLIER_NOIR,
         self::PERMET_DESAMORCAGE,
         self::TUE_CREATURES,
         self::POSE_CHAUSSE_TRAPPES,

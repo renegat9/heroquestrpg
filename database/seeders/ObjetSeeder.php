@@ -151,12 +151,28 @@ class ObjetSeeder extends Seeder
 
             // ----- Artefacts UNIQUES (doc 04 §4/§6, reference/16 §9) -----
             //
-            // Conversion du paquet `sjeng-artefacts.pdf` (Ye Olde Inn), qui
-            // rassemble les cartes artefact des cinq sources officielles —
-            // boîte de base, Kellar's Keep / Return of the Witch Lord, Frozen
-            // Horror, Mage of the Mirror, White Dwarf. On ne porte que celles
-            // dont le moteur sait appliquer l'effet : les 25 autres sont
-            // recensées, avec ce qui leur manque, en `reference/16` §9.
+            // ⚠ SOURCE REMPLACÉE le 2026-09-03 : les 59 CARTES OFFICIELLES
+            // (`artifacts_part1.pdf` / `artifacts_part2.pdf`, © 2021-2023
+            // Hasbro, photos de René) succèdent au paquet fan
+            // `sjeng-artefacts.pdf` de Ye Olde Inn — même bascule que
+            // l'armurerie le 2026-08-15 et les sorts le 2026-09-02. Elles
+            // donnent 34 artefacts distincts et 19 sorts de parchemin.
+            //
+            // CINQ de nos artefacts n'avaient AUCUNE carte et sont supprimés
+            // (migration `retirer_artefacts_hors_source`) : Capuche du
+            // Magister, Runes naines, Sceptre de Mémoire, Baguette de
+            // Galimatias, Parchemin de Sorts. Même ménage que les douze pièces
+            // d'armurerie inventées par le paquet fan.
+            //
+            // ⚠ La RÈGLE du Sceptre de Mémoire, elle, n'est pas perdue : René
+            // l'a reversée sur les talents `regain_sort` (Chant runique, Appel
+            // de la forêt), où le bouclier noir bride enfin un regain qui se
+            // déclenchait à chaque monstre abattu.
+            //
+            // On ne porte que les cartes dont le moteur sait DÉJÀ appliquer
+            // l'effet ; les autres sont recensées avec ce qui leur manque dans
+            // `config/cartes.php` — une carte portée à moitié est une règle
+            // promise et jamais tenue.
             //
             // Elles REMPLACENT 7 artefacts inventés (Lame d'Aube, Kriss du
             // Fossoyeur…) qui n'étaient que des armes à dés croissants — 4, 5,
@@ -205,16 +221,66 @@ class ObjetSeeder extends Seeder
             // héros : Amulet of the North, Elven Bracers, Magister's Hood,
             // Dwarven Runestones.
             ['nom' => 'Talisman du Savoir', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'talisman',
-                'effet' => ['bonus_pv_mind_max' => 2]],
+                'effet' => ['bonus_pv_mind_max' => 1]],
+            // « This magical cloak […] can be worn only by the wizard, giving
+            // them 1 extra Defend die. » Première ARMURE du magicien qui vienne
+            // d'une carte : `armure_magicien` est le tag qu'il est seul à
+            // porter, la restriction tient donc sans règle nouvelle.
+            // ---- Trois artefacts ACTIVABLES (2026-09-03) ----
+            //
+            // Ils partagent une même nouveauté : `activable` les fait entrer
+            // dans la liste « Utiliser un objet » du menu alors qu'ils ne sont
+            // pas des consommables, et `cible` leur donne une victime. Tout le
+            // reste — buff relu sur l'objet source, ciblage validé contre la
+            // liste blanche, charge dépensée — existait déjà.
+
+            // « Sprinkle this dust on any one hero. On their next movement,
+            // they may move unseen through spaces that are occupied by
+            // monsters. May only be used once. » MÊME mécanique que Voile de
+            // Brume, et le lecteur `franchitFigures()` lit déjà les buffs
+            // d'objet (source `potion:`) autant que ceux de sort.
+            ['nom' => "Poudre d'Invisibilité", 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 500, 'emplacement' => 'consommable',
+                'effet' => ['activable' => true, 'cible' => 'heros', 'cout' => 'action',
+                    'franchit_figures' => true, 'duree' => 'ce_tour', 'condition_appliquee' => 'Vaporeux']],
+
+            // « As an action, you may use the power of this cloak to become
+            // insubstantial. On your next movement, you move as though the
+            // spells Pass Through Rock and Veil of Mist have been cast. This
+            // artifact may only be used once per quest. »
+            //
+            // ⚠ UNE condition affichée pour DEUX mécaniques : les lecteurs
+            // relisent l'effet de l'OBJET source, pas celui de la condition —
+            // `franchit_mur` et `franchit_figures` valent donc tous les deux
+            // sous le seul libellé « Intangible », qui est celui que le joueur
+            // comprend. En poser deux ne dirait rien de plus et doublerait les
+            // lignes de la fiche.
+            ['nom' => 'Cape des Ombres', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'armure',
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'charges' => 1,
+                    'franchit_mur' => true, 'franchit_figures' => true,
+                    'duree' => 'ce_tour', 'condition_appliquee' => 'Intangible']],
+
+            // « Once per quest, you may use this rod to trap a monster within
+            // magical force. A trapped monster misses its next turn. The spell
+            // can be resisted immediately by the monster rolling 1 red die for
+            // each of their Mind Points. If a 6 is rolled, it resists. »
+            //
+            // Les deux moitiés existaient déjà, mais sur des SORTS : `saute_tour`
+            // (Tempête) et la rupture par Mind (Sommeil). L'objet les réunit.
+            ['nom' => 'Sceptre de Télékinésie', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'talisman',
+                'effet' => ['activable' => true, 'cible' => 'monstre', 'cout' => 'action', 'charges' => 1,
+                    'saute_tour' => true, 'resistance' => 'rupture_6_par_mind']],
+
+            ['nom' => 'Cape du Magicien', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'armure', 'tag_equipement' => 'armure_magicien',
+                'effet' => ['des_defense' => 1]],
+            // « This magical ring raises a hero's Body Points by 1. » Le pendant
+            // exact du Talisman du Savoir côté Body, et sans restriction.
+            ['nom' => 'Anneau de Vigueur', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'talisman',
+                'effet' => ['bonus_pv_body_max' => 1]],
             ['nom' => 'Amulette du Nord', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_barbare',
                 'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
             ['nom' => 'Brassards elfiques', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_elfe',
                 'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
-            ['nom' => 'Capuche du Magister', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_magicien',
-                'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
-            ['nom' => 'Runes naines', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_nain',
-                'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
-
+                        
             // Artefacts à CHARGES et d'ÉCONOMIE DE SORTS (2026-08-09). Les deux
             // mécaniques manquaient et bloquaient à elles seules six cartes ;
             // elles ont été écrites ensemble parce que trois de ces cartes ont
@@ -238,9 +304,7 @@ class ObjetSeeder extends Seeder
             // mais un parchemin s'achète… non : `unique` le tient hors de
             // l'étal. Il arrive par le coffre, qui accepte désormais un
             // consommable en REPLI quand tout le portable est déjà détenu.
-            ['nom' => 'Parchemin de Sorts', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 600, 'emplacement' => 'consommable',
-                'effet' => ['restaure_sorts' => true]],
-
+            
             // « This ring prevents the wearer from being affected by the next
             // two Fire or Chaos Fire spells they encounter. The ring turns to
             // ash after protecting the wearer from the second spell. » — deux
@@ -274,17 +338,13 @@ class ObjetSeeder extends Seeder
             // often as you wish during the quest. You may roll one combat die
             // per turn. On a black shield, the chosen spell may be cast again.
             // May only be used by a Wizard. » — illimité, mais 1 chance sur 6.
-            ['nom' => 'Sceptre de Mémoire', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
-                'effet' => ['sort_non_epuise_sur_bouclier_noir' => true]],
-
+            
             // « Immediately upon acquiring this item, the adventurer will
             // recover all spells he has used so far during this quest. It also
             // grants the wielder 2 extra Mind points. » — la restauration se
             // déclenche en L'ÉQUIPANT (une charge), le +2 Mind tient tant qu'on
             // le porte.
-            ['nom' => 'Baguette de Galimatias', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman', 'tag_equipement' => 'armure_magicien',
-                'effet' => ['bonus_pv_mind_max' => 2, 'restaure_sorts' => true, 'charges' => 1]],
-
+            
             // ----- Armures (6 cartes) -----
             //
             // Elles se CUMULENT, comme au plateau : casque (slot propre depuis

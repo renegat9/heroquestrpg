@@ -67,7 +67,16 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
     // officielle ne les réserve à personne (« May be combined with the helmet
     // and/or shield », rien de plus), là où nous en faisions une pièce du
     // magicien. Le tag a sauté avec la restriction.
-    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort', 'Anneau de Feu', 'Brassards'];
+    // ⚠ « Anneau de Vigueur » rejoint la liste le 2026-09-03 : sa carte
+    // (*Ring of Fortitude*) ne pose AUCUNE restriction — « raises a hero's Body
+    // Points by 1 », rien de plus. Un talisman sans maîtrise, comme les autres
+    // anneaux de cette liste.
+    $sansMaitrise = ['Talisman du Savoir', 'Anneau de Sort', 'Anneau de Feu', 'Brassards',
+        'Anneau de Vigueur',
+        // ⚠ Cape des Ombres et Sceptre de Télékinésie : leurs cartes ne posent
+        // AUCUNE restriction de classe — ni « may not be used by the wizard »,
+        // ni réservation à un héros. Leur inventer un tag serait une invention.
+        'Cape des Ombres', 'Sceptre de Télékinésie'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
@@ -112,10 +121,12 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // cédé la place aux photos du matériel officiel, scindées en équipement et
     // potions comme les deux PDF de René.
     $paquets = collect($data['cartes'] ?? []);
-    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts']);
+    // ⚠ Un QUATRIÈME paquet depuis le 2026-09-03 : les parchemins ont leur
+    // section, parce qu'ils dérivent d'un SORT et n'ont pas de ligne d'objet.
+    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins']);
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
-    expect($cartes)->toHaveCount(69);
+    expect($cartes)->toHaveCount(89); // 20 + 15 + 35 + 19
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.
@@ -130,7 +141,14 @@ it('expose la provenance des cartes, portées et non portées', function () {
 
     // …et une carte portée pointe bien un objet réel du catalogue.
     $noms = collect($data['objets'])->pluck('nom')->all();
-    foreach ($cartes->where('porte', true) as $carte) {
+    // ⚠ Le paquet des PARCHEMINS est exclu de ce contrôle : une carte de
+    // parchemin portée pointe un SORT, pas un objet — elle n'a aucune ligne à
+    // retrouver au catalogue d'objets. Le contrôle vaut pour les trois paquets
+    // qui, eux, désignent des pièces.
+    $cartesObjet = $paquets->reject(fn ($p) => $p['cle'] === 'parchemins')
+        ->flatMap(fn ($p) => $p['cartes']);
+
+    foreach ($cartesObjet->where('porte', true) as $carte) {
         expect(in_array($carte['nom'], $noms, true))
             ->toBeTrue("{$carte['carte']} → « {$carte['nom']} » absent du catalogue exposé.");
     }

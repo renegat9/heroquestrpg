@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
+use App\Engine\MotsClesSort;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
@@ -310,6 +311,59 @@ final class MenuMoteur
      *
      * @return list<array<string, mixed>>
      */
+    /**
+     * Cibles légales d'un objet ACTIVABLE, selon son `effet.cible`.
+     *
+     * Rend `['cibles' => …]` à fusionner dans l'entrée, ou `[]` pour un objet
+     * qui ne vise personne — c'est ce qui fait qu'une Cape des Ombres part du
+     * deuxième niveau du menu quand le Sceptre en ouvre un troisième
+     * (« la profondeur suit la donnée », doc 13 §3.1).
+     *
+     * ⚠ LIGNE DE VUE exigée dans les deux cas, comme pour les sorts : « nécessaire
+     * pour lancer un sort ou observer une cible » (LR p. 14). Saupoudrer de la
+     * poudre sur un compagnon à travers un mur n'aurait pas plus de sens que de
+     * le soigner.
+     *
+     * @return array<string, mixed>
+     */
+    private function ciblesObjet(Quete $quete, Personnage $personnage, string $cible): array
+    {
+        if ($cible === MotsClesSort::CIBLE_SOI) {
+            return [];
+        }
+
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null || $etat->position_x === null) {
+            return [];
+        }
+
+        $grille = FabriqueGrille::pour($quete);
+        $vue = fn (?int $x, ?int $y): bool => $x !== null && $grille->ligneDeVue(
+            (int) $etat->position_x, (int) $etat->position_y, (int) $x, (int) $y, figuresBloquent: true,
+        );
+
+        if ($cible === MotsClesSort::CIBLE_MONSTRE) {
+            $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+                ->with('monstre')->get()
+                ->filter(fn (InstanceMonstre $i) => $vue($i->position_x, $i->position_y))
+                ->map(fn (InstanceMonstre $i) => ['id' => $i->id, 'type' => 'monstre', 'nom' => $i->nomAffiche()])
+                ->values()->all();
+
+            return $cibles === [] ? [] : ['cibles' => $cibles];
+        }
+
+        // `heros` — le lanceur COMPRIS : il se voit toujours lui-même.
+        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null
+                && ($e->personnage_id === $personnage->id || $vue($e->position_x, $e->position_y)))
+            ->map(fn (EtatPersonnageQuete $e) => [
+                'id' => $e->personnage_id, 'type' => 'heros', 'nom' => $e->personnage->nom,
+            ])->values()->all();
+
+        return $cibles === [] ? [] : ['cibles' => $cibles];
+    }
+
     private function objetsDeMateriel(
         Quete $quete,
         Personnage $personnage,
@@ -321,6 +375,7 @@ final class MenuMoteur
         $entrees = [];
         $grille = null;
         $equipement = $this->equipement;
+        $charges = $this->charges;
 
         foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
             $objet = $ligne->objet;
@@ -386,6 +441,37 @@ final class MenuMoteur
                         'cibles' => $cibles,
                     ];
                 }
+            }
+
+            // ARTEFACTS ACTIVABLES (2026-09-03) — Poudre d'Invisibilité, Cape
+            // des Ombres, Sceptre de Télékinésie. Ils entrent dans la MÊME
+            // liste que les potions, parce que c'est la même question pour le
+            // joueur : « qu'est-ce que j'utilise ? ». Ce qui les distingue est
+            // qu'ils ne sont pas des consommables — la Cape se porte, le
+            // Sceptre aussi — et qu'ils VISENT.
+            //
+            // ⚠ La CHARGE est le garde-fou : « once per quest » est rendu par
+            // `charges: 1`, remis à neuf entre deux quêtes. Sans le filtre sur
+            // `disponible()`, l'option resterait offerte une fois la charge
+            // épuisée et le résolveur répondrait non — l'anti-patron que le
+            // projet traque partout.
+            if (! empty($objet->effet['activable']) && $charges->disponible($ligne)
+                && $equipement->estAccessible($personnage, $objet)) {
+                $entrees[] = [
+                    'cle' => "objet:{$ligne->id}",
+                    'inventaire_id' => $ligne->id,
+                    'nom' => $objet->nom,
+                    'detail' => 'Activer',
+                    'cout' => (string) ($objet->effet['cout'] ?? 'action'),
+                    'quantite' => (int) $ligne->quantite,
+                    // ⚠ `cibles` PAR ENTRÉE, comme pour les sorts : la Poudre
+                    // vise un héros, le Sceptre un monstre, la Cape personne.
+                    // Une liste au niveau de l'option serait fausse pour deux
+                    // des trois.
+                    ...$this->ciblesObjet($quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi')),
+                ];
+
+                continue;
             }
 
             // POTIONS — `MoteurPotions` n'accepte que la catégorie

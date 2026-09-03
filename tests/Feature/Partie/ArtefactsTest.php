@@ -6,6 +6,7 @@ use App\Jobs\GenererMenu;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
+use App\Partie\MoteurSorts;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\Equipement;
@@ -236,7 +237,7 @@ it('réserve chaque talisman à sa classe', function () {
 
     // La capuche est la sienne…
     $mindMax = (int) $magicien->pv_mind_max;
-    $equipement->equiper($magicien, $ligne('Capuche du Magister'));
+    $equipement->equiper($magicien, $ligne('Talisman du Savoir'));
     expect((int) $magicien->fresh()->pv_mind_max)->toBe($mindMax + 1);
 
     // …l'amulette du barbare, non.
@@ -251,7 +252,7 @@ it('n\'empêche pas le talisman de cohabiter avec l\'armure et le casque', funct
 
     $equipement = app(Equipement::class);
 
-    foreach (['Casque', 'Armure de plates', 'Bouclier', 'Runes naines'] as $nom) {
+    foreach (['Casque', 'Armure de plates', 'Bouclier', 'Anneau de Vigueur'] as $nom) {
         $equipement->equiper($nain, Inventaire::create([
             'personnage_id' => $nain->id,
             'objet_id' => Objet::where('nom', $nom)->firstOrFail()->id,
@@ -266,7 +267,7 @@ it('n\'empêche pas le talisman de cohabiter avec l\'armure et le casque', funct
     expect($portes['casque'] ?? null)->toBe('Casque')
         ->and($portes['armure'] ?? null)->toBe('Armure de plates')
         ->and($portes['arme_secondaire'] ?? null)->toBe('Bouclier')
-        ->and($portes['talisman'] ?? null)->toBe('Runes naines')
+        ->and($portes['talisman'] ?? null)->toBe('Anneau de Vigueur')
         ->and((int) $nain->fresh()->des_defense)->toBe(6);
 });
 
@@ -304,4 +305,152 @@ it('expose le talisman sur la fiche du héros (/moi)', function () {
         ->firstWhere('id', $elfe->id);
 
     expect($perso['equipement']['talisman']['nom'] ?? null)->toBe('Brassards elfiques');
+});
+
+/*
+ * ------------------------------------------------------------------
+ * Les trois artefacts ACTIVABLES (cartes officielles, doc 16 §9.2).
+ * Ils n'ont demandé aucune mécanique neuve : ils réunissent sur un
+ * OBJET ce qui existait sur des sorts. Éprouvés en jeu, par le menu et
+ * le résolveur, jamais en appelant le moteur en direct.
+ * ------------------------------------------------------------------
+ */
+
+/** Pose un objet du catalogue dans le sac du héros et rend sa ligne. */
+function poserArtefact(App\Models\Personnage $heros, string $nom, string $emplacement = 'sac'): App\Models\Inventaire
+{
+    return App\Models\Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => App\Models\Objet::where('nom', $nom)->firstOrFail()->id,
+        'emplacement' => $emplacement,
+        'quantite' => 1,
+    ]);
+}
+
+/** L'entrée « utiliser_objet » correspondant à cette ligne d'inventaire. */
+function entreeObjet(array $ctx, App\Models\Inventaire $ligne): ?array
+{
+    App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    $menu = Illuminate\Support\Facades\Cache::get(
+        App\Jobs\GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id)
+    );
+    $option = collect($menu['menu']['options'] ?? [])->firstWhere('id', 'utiliser_objet');
+
+    return collect($option['parametres']['objets'] ?? [])->firstWhere('cle', "objet:{$ligne->id}");
+}
+
+it("la Poudre d'Invisibilité fait traverser les monstres à un COMPAGNON", function () {
+    // « Sprinkle this dust on ANY ONE HERO. On their next movement, they may
+    // move unseen through spaces that are occupied by monsters. »
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $bob = App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['revele' => true]);
+
+    $ctx = ['groupe' => $groupe, 'alice' => $alice, 'heros' => $heros];
+    $ligne = poserArtefact($heros, "Poudre d'Invisibilité");
+
+    $entree = entreeObjet($ctx, $ligne);
+
+    // L'entrée PORTE ses cibles : le lanceur et son compagnon en vue.
+    expect($entree)->not->toBeNull()
+        ->and(collect($entree['cibles'] ?? [])->pluck('id')->all())->toContain($compagnon->id);
+
+    desFiges(array_fill(0, 60, 4));
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $compagnon->id, 'cible_type' => 'heros'],
+    ])->assertAccepted()->assertJsonPath('resultat.cible.personnage_id', $compagnon->id);
+
+    $sorts = app(MoteurSorts::class);
+
+    // C'est le COMPAGNON qui traverse, pas celui qui a versé la poudre.
+    expect($sorts->franchitFigures($compagnon->fresh()))->toBeTrue()
+        ->and($sorts->franchitFigures($heros->fresh()))->toBeFalse()
+        // Usage unique : la ligne d'inventaire part.
+        ->and(App\Models\Inventaire::find($ligne->id))->toBeNull();
+});
+
+it('la Cape des Ombres donne les DEUX modes de déplacement, une fois par quête', function () {
+    // « You move as though the spells Pass Through Rock AND Veil of Mist have
+    // been cast. This artifact may only be used once per quest. »
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    $ligne = poserArtefact($heros, 'Cape des Ombres');
+    $sorts = app(MoteurSorts::class);
+
+    expect(entreeObjet($ctx, $ligne))->not->toBeNull();
+
+    desFiges(array_fill(0, 60, 4));
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}"],
+    ])->assertAccepted()->assertJsonPath('resultat.charges_restantes', 0);
+
+    // ⚠ LES DEUX, sous une seule condition affichée : les lecteurs relisent
+    // l'effet de l'OBJET source, pas celui de la condition.
+    expect($sorts->traverseRoche($heros->fresh()))->toBeTrue()
+        ->and($sorts->franchitFigures($heros->fresh()))->toBeTrue()
+        // La cape RESTE au sac — elle devient inerte, elle n'est pas perdue.
+        ->and(App\Models\Inventaire::find($ligne->id))->not->toBeNull();
+
+    // Charge épuisée : le menu ne la propose plus. Une option qui répondrait
+    // toujours non n'est pas une option, c'est un piège.
+    expect(entreeObjet($ctx, $ligne))->toBeNull();
+});
+
+it('le Sceptre de Télékinésie fait sauter le tour du monstre, sauf sur un 6', function () {
+    // « A trapped monster misses its next turn. The spell can be resisted
+    // immediately by the monster rolling 1 red die for each of their Mind
+    // Points. If a 6 is rolled, it resists. »
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'instance' => $proie] = $ctx;
+
+    $proie->update(['pv_mind' => 2]);
+    $ligne = poserArtefact($heros, 'Sceptre de Télékinésie');
+
+    $entree = entreeObjet($ctx, $ligne);
+
+    expect($entree)->not->toBeNull()
+        ->and(collect($entree['cibles'] ?? [])->pluck('id')->all())->toContain($proie->id);
+
+    desFiges([3, 4, ...array_fill(0, 40, 4)]); // aucun 6 : il ne résiste pas
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()
+        ->assertJsonPath('resultat.des_rupture', [3, 4])
+        ->assertJsonPath('resultat.resiste', false)
+        ->assertJsonPath('resultat.saute_tour', true);
+
+    expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeTrue();
+});
+
+it('le Sceptre échoue quand le monstre sort un 6 : la charge est dépensée pour rien', function () {
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'instance' => $proie] = $ctx;
+
+    $proie->update(['pv_mind' => 2]);
+    $ligne = poserArtefact($heros, 'Sceptre de Télékinésie');
+    entreeObjet($ctx, $ligne);
+
+    desFiges([3, 6, ...array_fill(0, 40, 4)]); // le second dé le sauve
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()
+        ->assertJsonPath('resultat.resiste', true)
+        ->assertJsonPath('resultat.saute_tour', false)
+        ->assertJsonPath('resultat.charges_restantes', 0);
+
+    expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeFalse();
 });

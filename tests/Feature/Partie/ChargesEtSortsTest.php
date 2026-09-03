@@ -277,52 +277,7 @@ it('redevient une arme ordinaire une fois le carquois vide', function () {
 // Économie de sorts
 // ---------------------------------------------------------------------------
 
-it('le Parchemin de Sorts rend TOUS les sorts épuisés', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
-    $magicien = $ctx['heros'];
-    armerDeSorts($magicien);
-    epuiserSorts($magicien);
 
-    $parchemin = poser($magicien, 'Parchemin de Sorts', 'consommable');
-
-    // Le nœud Concentration n'en récupère qu'UN, au prix du tour : la
-    // différence d'échelle est toute la valeur de cette carte.
-    // ⚠ Par le MENU depuis le 2026-09-01 — `POST /potions` n'existe plus.
-    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
-
-    $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'utiliser_objet',
-        'parametres' => ['cle' => "objet:{$parchemin->id}"],
-    ])->assertAccepted();
-
-    $indisponibles = $magicien->sorts()->wherePivot('disponible', false)->count();
-
-    expect($indisponibles)->toBe(0)
-        ->and(Inventaire::find($parchemin->id))->toBeNull(); // consommé
-});
-
-it('la Baguette de Galimatias rend les sorts EN L\'ENFILANT, une seule fois', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
-    $magicien = $ctx['heros'];
-    armerDeSorts($magicien);
-    epuiserSorts($magicien);
-
-    $equipement = app(Equipement::class);
-    $ligne = poser($magicien, 'Baguette de Galimatias', 'sac');
-
-    $equipement->equiper($magicien, $ligne);
-    expect($magicien->sorts()->wherePivot('disponible', false)->count())->toBe(0);
-
-    // La charge est dépensée : déséquiper puis rééquiper ne redonne rien.
-    // Sans elle, la baguette serait une fontaine à sorts.
-    epuiserSorts($magicien);
-    $equipement->desequiper($magicien->refresh(), $ligne->fresh());
-    $equipement->equiper($magicien->refresh(), $ligne->fresh());
-
-    expect($magicien->sorts()->wherePivot('disponible', false)->count())->toBeGreaterThan(0)
-        // …et le +2 Mind, lui, est un PASSIF : il revient avec la pièce.
-        ->and((int) $magicien->fresh()->pv_mind_max)->toBeGreaterThan((int) $ctx['heros']->pv_mind_max - 2);
-});
 
 it('la Baguette de Rappel accorde un SECOND sort par tour, comme le nœud', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
@@ -369,25 +324,6 @@ it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
         ->and((int) $anneau->fresh()->charges)->toBe(0);
 });
 
-it('le Sceptre de Mémoire épargne le sort sur un bouclier noir, pas autrement', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
-    $magicien = $ctx['heros'];
-    armerDeSorts($magicien);
-    poser($magicien, 'Sceptre de Mémoire', 'talisman');
-
-    // Le jet du sceptre est consommé APRÈS la résolution du sort : la file est
-    // neutre, on ne teste ici que le fait qu'il roule et n'use aucune charge.
-    desFiges(array_fill(0, 30, 4));
-    [$sortId, $cible] = premierSortCiblable($ctx, $magicien);
-
-    $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'lancer_sort',
-        'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
-    ])->assertStatus(202)->assertJsonPath('resultat.jet_memoire', 'bouclier_blanc');
-
-    // Le sceptre est illimité — c'est le dé qui limite, pas une charge.
-    expect($magicien->fresh()->inventaire()->where('emplacement', 'talisman')->first()->charges)->toBeNull();
-});
 
 // ---------------------------------------------------------------------------
 // Types de dégâts — le feu (App\Engine\TypeDegat)
@@ -494,3 +430,19 @@ it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function 
 
     expect((int) $instance->fresh()->pv_body)->toBe(1); // aucun PV regagné
 });
+
+/*
+ * ⚠ TROIS TESTS RETIRÉS le 2026-09-03, avec les artefacts qu'ils exerçaient.
+ *
+ * *Parchemin de Sorts*, *Baguette de Galimatias* et *Sceptre de Mémoire*
+ * venaient du paquet fan Ye Olde Inn ; aucune carte officielle ne les couvre et
+ * ils ont quitté le catalogue (migration `retirer_artefacts_hors_source`).
+ *
+ * Ce que deviennent leurs règles, pour qu'aucune ne se perde en silence :
+ *  - `restaure_sorts` survit sous sa forme CHIFFRÉE, portée par deux potions
+ *    officielles (Potion de magie 3, Potion de rappel 1) — voir
+ *    `PotionsOfficiellesTest`. Seule la forme « tous » disparaît, faute de carte.
+ *  - `sort_non_epuise_sur_bouclier_noir` est REVERSÉ sur les talents
+ *    `regain_sort` (arbitrage de René) : il y bride un regain qui se
+ *    déclenchait à chaque monstre abattu. Éprouvé par `TalentsEnJeuTest`.
+ */

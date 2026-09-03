@@ -115,94 +115,175 @@ return [
     ],
     /*
     |---------------------------------------------------------------------------
-    | Artefacts — sjeng-artefacts.pdf (34 cartes, 5 sources officielles)
+    | Artefacts — CARTES OFFICIELLES (artifacts_part1/2.pdf, © 2021-2023 Hasbro)
     |---------------------------------------------------------------------------
+    |
+    | ⚠ SOURCE REMPLACÉE le 2026-09-03. Le paquet fan `sjeng-artefacts.pdf` de
+    | Ye Olde Inn cède la place aux photos de René — 59 cartes, dont 34 artefacts
+    | distincts et 19 sorts de parchemin. Même bascule que l'armurerie le
+    | 2026-08-15 et les sorts le 2026-09-02 : quand la carte réelle arrive, elle
+    | fait foi.
+    |
+    | ⚠ CINQ de nos artefacts n'avaient AUCUNE carte et ont quitté le catalogue
+    | (migration `retirer_artefacts_hors_source`). Ils ne figurent plus ici : une
+    | carte inventée n'est pas une dette, c'est une erreur.
+    |
+    | ⚠ Les cartes de la boîte GLACE (Frozen Horror) sont recensées mais
+    | DÉLIBÉRÉMENT non portées (arbitrage de René) : leurs règles parlent de
+    | sorts de froid, de coffres de glace et de rivières gelées qui n'existent
+    | nulle part chez nous. Ce n'est pas un lecteur qui leur manque, c'est ce à
+    | quoi résister.
     */
     'artefacts' => [
-        'source' => 'sjeng-artefacts.pdf',
-        'url' => 'https://english.yeoldeinn.com/downloads/cards/sjeng-artefacts.pdf',
-        'libelle' => 'Artefacts (Ye Olde Inn)',
+        'source' => 'artifacts_part1.pdf + artifacts_part2.pdf',
+        'url' => 'https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53',
+        'libelle' => 'Artefacts (cartes officielles Hasbro)',
         'cartes' => [
 
-            // ---- Boîte de base (9) ----
-            ['carte' => 'Borin\'s Armour', 'paquet' => 'Boîte de base', 'objet' => 'Armure de Borin'],
-            ['carte' => 'Orcs Bane', 'paquet' => 'Boîte de base', 'objet' => 'Fléau des Orques'],
-            ['carte' => 'Spirit Blade', 'paquet' => 'Boîte de base', 'objet' => 'Lame des Esprits'],
-            ['carte' => 'Talisman of Lore', 'paquet' => 'Boîte de base', 'objet' => 'Talisman du Savoir'],
-            ['carte' => 'Elixir of Life', 'paquet' => 'Boîte de base', 'nom' => 'Élixir de Vie',
-                'texte' => 'Restaure entièrement les points de Body et de Mind du buveur. Peut aussi ressusciter un héros mort si le porteur est adjacent à la case où il est tombé. Défaussé après usage.',
-                'manque' => 'Ni restauration totale ni résurrection : notre « relever » ramène à 1 PV et ne peut pas cibler une case.'],
-            ['carte' => 'Ring of Return', 'paquet' => 'Boîte de base', 'nom' => 'Anneau du Retour',
-                'texte' => 'Ramène le porteur et tous les héros de la même salle ou du même couloir au point de départ de la quête. Usage unique.',
+            // ---- Portés : le moteur applique déjà l'effet ----
+            ['carte' => "Borin's Armor", 'objet' => 'Armure de Borin'],
+            ['carte' => "Orc's Bane", 'objet' => 'Fléau des Orques'],
+            ['carte' => 'Spirit Blade', 'objet' => 'Lame des Esprits'],
+            ['carte' => 'Talisman of Lore', 'objet' => 'Talisman du Savoir'],
+            ['carte' => 'Amulet of the North', 'objet' => 'Amulette du Nord'],
+            ['carte' => 'Elven Bracers', 'objet' => 'Brassards elfiques'],
+            ['carte' => 'Elven Bow of Vindication', 'objet' => 'Arc elfique de Vindication'],
+            ['carte' => 'Magical Throwing Dagger', 'objet' => 'Dague de jet magique'],
+            ['carte' => 'Anti-Poison Quill', 'objet' => 'Plume anti-poison'],
+            ['carte' => 'Wand of Magic', 'objet' => 'Baguette de Rappel'],
+            ['carte' => 'Spell Ring', 'objet' => 'Anneau de Sort'],
+            ['carte' => "Wizard's Cloak", 'objet' => 'Cape du Magicien'],
+            ['carte' => 'Ring of Fortitude', 'objet' => 'Anneau de Vigueur'],
+            ['carte' => 'Fire Ring', 'paquet' => "Kellar's Keep", 'objet' => 'Anneau de Feu'],
+
+            // ⚠ Ces trois-là ont rejoint les portés le 2026-09-03 : elles
+            // n'ont demandé AUCUNE mécanique neuve, seulement de réunir sur un
+            // OBJET ce qui existait déjà sur des sorts.
+            ['carte' => 'Dust of Disappearance', 'objet' => "Poudre d'Invisibilité"],
+            ['carte' => 'The Cloak of Shadows', 'objet' => 'Cape des Ombres'],
+            ['carte' => 'Rod of Telekinesis', 'objet' => 'Sceptre de Télékinésie'],
+
+            // ---- Non portés : chacun nomme la mécanique qui manque ----
+            ['carte' => 'Phoenix Ash', 'nom' => 'Cendres du Phénix',
+                'texte' => "Une fois par quête, un héros réduit à 0 PV passe à 1 à la place. Lance 1 dé rouge : sur 5-6 l'artefact est perdu.",
+                'manque' => "Le plancher de PV existe comme RÉACTION de talent (`plancher_pv`) ; un objet ne peut pas encore ouvrir de réaction hors tour."],
+            ['carte' => "Fortune's Longsword", 'nom' => 'Longue épée de Fortune',
+                'texte' => "3 dés d'attaque, attaque en diagonale, et une relance d'un dé d'attaque par quête. Interdite au magicien.",
+                'manque' => "La relance de dé une fois par quête : elle existe en talent, pas en effet d'objet."],
+            ['carte' => "Raven's Talon", 'nom' => 'Serre du Corbeau',
+                'texte' => "Dague à 2 dés d'attaque ; relance tout dé d'attaque tombé sur un bouclier noir.",
+                'manque' => 'Relance conditionnée à la FACE obtenue — aucun lecteur ne relit les faces après coup.'],
+            ['carte' => 'Phantom Blade', 'nom' => 'Lame Fantôme',
+                'texte' => 'Dague à 1 dé ; une fois par quête, la cible ne peut pas se défendre.',
+                'manque' => "`ignore_defense_monstre` existe en talent, pas en effet d'objet, et sans compteur par quête côté objet."],
+            ['carte' => 'Dawnshield', 'nom' => "Bouclier de l'Aube",
+                'texte' => "+1 dé de défense ; une fois par quête, force le monstre attaquant à relancer tous ses dés d'attaque.",
+                'manque' => "Forcer une relance de l'ATTAQUANT : aucun chemin, la volée adverse est résolue d'un bloc."],
+            ['carte' => 'The Scales of Elethorn', 'nom' => "Écailles d'Elethorn",
+                'texte' => '+1 dé de défense, et +1 dé pour résister aux sorts de Dread.',
+                'manque' => "Le dé supplémentaire CONTRE UN SORT DE DREAD : la résistance mentale ne lit aucun bonus d'équipement."],
+            ['carte' => "Wizard's Staff", 'nom' => 'Bâton du Magicien',
+                'texte' => "Réservé au magicien : 2 dés d'attaque et attaque en diagonale.",
+                'manque' => "Aucun tag d'ARME réservé au magicien (`armure_magicien` est une armure) — il faudrait un tag de plus dans `classes_heros`."],
+            ['carte' => 'Arm Band of Healing', 'nom' => 'Bracelet de Guérison',
+                'texte' => 'Rend 2 PV de Body une fois par quête ; utilisable aussitôt si le porteur tombe à 0.',
+                'manque' => "Un objet PORTÉ qui soigne une fois par quête : nos soins passent par la consommation d'un consommable."],
+            ['carte' => 'Elixir of Life', 'nom' => 'Élixir de Vie',
+                'texte' => 'Ramène un héros mort à la vie en restaurant tous ses PV de Body et de Mind. Usage unique.',
+                'manque' => "Notre moteur n'a pas de mort — seulement `tombe` — et « relever » ramène à 1 PV."],
+            ['carte' => 'Ring of Return', 'nom' => 'Anneau du Retour',
+                'texte' => 'Ramène tous les héros que le porteur voit au point de départ de la quête. Usage unique.',
                 'manque' => 'Aucune téléportation, ni individuelle ni de groupe.'],
-            ['carte' => 'Spell Ring', 'paquet' => 'Boîte de base', 'objet' => 'Anneau de Sort'],
-            ['carte' => 'Wand of Recall', 'paquet' => 'Boîte de base', 'objet' => 'Baguette de Rappel'],
-            ['carte' => 'Rod of Memory', 'paquet' => 'Boîte de base', 'objet' => 'Sceptre de Mémoire'],
+            ['carte' => 'Rabbit Boots', 'nom' => 'Bottes de Lièvre',
+                'texte' => 'Une fois par tour, saute par-dessus un piège découvert : 1 dé de combat, tout sauf un bouclier noir réussit.',
+                'manque' => 'Franchir un piège par un SAUT : notre franchissement est un jet de Body, sans notion de saut par tour.'],
+            ['carte' => 'Ancient Staff', 'nom' => 'Bâton Ancien',
+                'texte' => "L'elfe renvoie le sort d'un monstre à son lanceur ; lui et ses compagnons y sont immunisés. 5 usages.",
+                'manque' => 'Renvoi de sort : rien ne sait rediriger un sort de Dread vers son lanceur.'],
+            ['carte' => 'Bone Wand', 'nom' => "Baguette d'Os",
+                'texte' => "Une fois par quête, prend le contrôle de tous les squelettes d'une salle pendant un tour.",
+                'manque' => "Contrôle de monstres PAR UN HÉROS : l'inverse du Commandement de Dread, et sans chemin."],
+            ['carte' => 'Elven Boots', 'nom' => 'Bottes elfiques',
+                'texte' => "Un dé rouge de déplacement en plus pour l'elfe, avant ou après son action. S'usent sur un triple.",
+                'manque' => "Le déplacement scindé existe (Moine) ; l'usure sur un triple, non — et notre déplacement n'est pas un jet de dés rouges."],
+            ['carte' => 'Sky Orb', 'nom' => 'Orbe Céleste',
+                'texte' => 'Absorbe 4 points de dégâts de Mind, un jeton à la fois.',
+                'manque' => "Absorber des dégâts de MIND : `MoteurDegats` n'intercepte que le Body."],
 
-            // ---- Kellar's Keep & Return of the Witch Lord (5) ----
-            ['carte' => 'Magical Throwing Dagger', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Dague de jet magique'],
-            ['carte' => 'Fire Ring', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Anneau de Feu'],
-            ['carte' => 'Anti-Poison Quill', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'objet' => 'Plume anti-poison'],
-            ['carte' => 'Armband of Healing', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'nom' => 'Bracelet de Guérison',
-                'texte' => 'Rend 2 points de Body au porteur, une fois par quête. Si le porteur tombe à 0 et que le bracelet n\'a pas servi, il le relève aussitôt avec 2 points de Body.',
-                'manque' => 'Les charges existent (2026-08-09) mais pas leur RECHARGE par quête, ni le déclenchement automatique quand le porteur tombe à 0 PV — neuf endroits posent `tombe`, il faudrait un point d\'ancrage unique.'],
-            ['carte' => 'Dust of Disappearance', 'paquet' => 'Kellar\'s Keep / Witch Lord', 'nom' => 'Poudre d\'Invisibilité',
-                'texte' => 'Jetée sur un héros, elle lui permet de passer à travers tous les monstres rencontrés à son prochain tour. Défaussée après usage.',
-                'manque' => 'Traverser les FIGURES (le sort Traverser la Pierre traverse la roche, pas les créatures).'],
+            // ---- Boîte GLACE (Frozen Horror) : règles absentes du jeu ----
+            ['carte' => 'Ring of Warmth', 'paquet' => 'Frozen Horror', 'nom' => 'Anneau de Chaleur',
+                'texte' => 'Immunise contre le sort Chill, les coffres de glace et les rivières gelées.',
+                'manque' => "GLACE — ni sort de froid, ni terrain gelé dans le jeu. Rien à quoi résister (arbitrage de René)."],
+            ['carte' => 'Armband of Ice', 'paquet' => 'Frozen Horror', 'nom' => 'Brassard de Glace',
+                'texte' => "Immunise contre Mind Freeze et Chill, contre les coffres de glace et les rivières gelées, et réduit d'1 point les dégâts d'Ice Storm.",
+                'manque' => "GLACE — mêmes absences, et trois sorts de froid qui n'existent pas au catalogue."],
+            ['carte' => 'Snowshoes of Speed', 'paquet' => 'Frozen Horror', 'nom' => 'Raquettes de Vitesse',
+                'texte' => '+2 cases de déplacement et annule la glace glissante. Utilisables seulement dans les quêtes glacées.',
+                'manque' => "GLACE — le bonus serait portable, mais la carte le réserve aux régions gelées, qui n'existent pas."],
+        ],
+    ],
 
-            // ---- The Frozen Horror (5) ----
-            ['carte' => 'Amulet of the North', 'paquet' => 'The Frozen Horror', 'objet' => 'Amulette du Nord'],
-            ['carte' => 'Rabbit Boots', 'paquet' => 'The Frozen Horror', 'nom' => 'Bottes du Lièvre',
-                'texte' => 'Permettent de sauter par-dessus une fosse par tour en obtenant autre chose qu\'un bouclier noir sur un dé de combat. Inutiles si le porteur déclenche la fosse par accident.',
-                'manque' => 'Franchir un piège par un saut : notre franchissement est un jet de Body, sans notion de saut par tour.'],
-            ['carte' => 'Armband of Ice', 'paquet' => 'The Frozen Horror', 'nom' => 'Bracelet de Glace',
-                'texte' => 'Immunise contre Gel de l\'Esprit et réduit d\'un point les dégâts de froid de tout sort ou effet, pour le seul porteur.',
-                'manque' => 'Le mécanisme de types de dégât existe depuis le 2026-08-09 (App\\Engine\\TypeDegat) — mais AUCUNE SOURCE de froid : les 6 sorts de The Frozen Horror sont nommés par le livret sans que leurs effets figurent nulle part. Il n\'y a donc rien contre quoi résister.'],
-            ['carte' => 'Ring of Warmth', 'paquet' => 'The Frozen Horror', 'nom' => 'Anneau de Chaleur',
-                'texte' => 'Confère une résistance au froid : réduit d\'un point les dégâts de froid de tout sort ou effet.',
-                'manque' => 'Idem le Bracelet de Glace : le mécanisme existe, la source de froid non.'],
-            ['carte' => 'Snowshoes of Speed', 'paquet' => 'The Frozen Horror', 'nom' => 'Raquettes de Vitesse',
-                'texte' => 'Ajoutent 2 cases au déplacement et annulent la glace glissante, tant qu\'elles sont portées. Ne fonctionnent que dans les régions froides et glacées.',
-                'manque' => 'Régions de terrain : nos donjons n\'ont ni glace ni climat, la carte perdrait sa condition et deviendrait un bonus permanent.'],
+    /*
+    |---------------------------------------------------------------------------
+    | Parchemins — les 19 cartes « Spell Scroll »
+    |---------------------------------------------------------------------------
+    |
+    | Un parchemin n'est pas un objet à part chez nous : il DÉRIVE d'un sort
+    | (doc 02 §6) via `sorts.difficulte_parchemin`. Cette table dit donc quel
+    | sort chaque carte désigne — et lesquelles n'en désignent aucun que nous
+    | ayons.
+    |
+    | ⚠ Elle vit dans sa propre section, et pas parmi les artefacts, parce que
+    | les contrôles de `CartesSourcesTest` cherchent une ligne `objets` : un
+    | parchemin n'en a pas.
+    |
+    | ⚠ « Any hero may use this scroll » figure sur plusieurs cartes : c'est
+    | exactement notre règle (un non-lanceur tente un jet de Mind).
+    */
+    'parchemins' => [
+        'source' => 'artifacts_part2.pdf',
+        'libelle' => 'Parchemins de sort (cartes officielles Hasbro)',
+        'cartes' => [
+            // ---- Le sort existe : le parchemin existe donc déjà ----
+            ['carte' => 'Spell Scroll — Ball of Flame', 'sort' => 'Boule de Feu'],
+            ['carte' => 'Spell Scroll — Fire of Wrath', 'sort' => 'Trait de Feu'],
+            ['carte' => 'Spell Scroll — Courage', 'sort' => 'Courage'],
+            ['carte' => 'Spell Scroll — Sleep', 'sort' => 'Sommeil'],
+            ['carte' => 'Spell Scroll — Water of Healing', 'sort' => 'Eau de Guérison'],
+            ['carte' => 'Spell Scroll — Heal Body', 'sort' => 'Soin du Corps'],
+            ['carte' => 'Spell Scroll — Rock Skin', 'sort' => 'Peau de Pierre'],
+            ['carte' => 'Spell Scroll — Pass Through Rock', 'sort' => 'Traverser la Pierre'],
+            ['carte' => 'Spell Scroll — Genie', 'sort' => 'Génie'],
+            ['carte' => 'Spell Scroll — Tempest', 'sort' => 'Tempête'],
+            ['carte' => 'Spell Scroll — Swift Wind', 'sort' => 'Vent Véloce'],
 
-            // ---- The Mage of the Mirror (6) ----
-            ['carte' => 'Elven Bracers', 'paquet' => 'The Mage of the Mirror', 'objet' => 'Brassards elfiques'],
-            ['carte' => 'Ancient Staff', 'paquet' => 'The Mage of the Mirror', 'nom' => 'Bâton Ancien',
-                'texte' => 'Contre n\'importe quel sort lancé sur son porteur. Lancez un dé de combat : crâne, rien ne se passe ; bouclier blanc, le sort est annulé ; bouclier noir, le bâton est détruit.',
-                'manque' => 'Contre-sort : rien ne peut interrompre un sort de Dread en cours de résolution.'],
-            ['carte' => 'Bone Wand', 'paquet' => 'The Mage of the Mirror', 'nom' => 'Baguette d\'Os',
-                'texte' => 'Permet à n\'importe quel héros de contrôler tous les squelettes d\'une salle pendant un tour. Une fois par quête.',
-                'manque' => 'Contrôle de monstre : un monstre est joué par le moteur, jamais par un héros. (Le « une fois par quête » de la carte, lui, est couvert par les charges depuis le 2026-08-09.)'],
-            ['carte' => 'Elven Boots', 'paquet' => 'The Mage of the Mirror', 'nom' => 'Bottes elfiques',
-                'texte' => 'Un elfe qui les porte peut lancer un dé rouge de plus pour son déplacement. Si trois dés donnent le même chiffre, les bottes sont détruites.',
-                'manque' => 'Notre déplacement est base + 1d6, pas des dés rouges cumulables — et rien ne détruit un objet porté sur un jet.'],
-            ['carte' => 'Elven Bow of Vindication', 'paquet' => 'The Mage of the Mirror', 'objet' => 'Arc elfique de Vindication'],
-            ['carte' => 'Sky Orb', 'paquet' => 'The Mage of the Mirror', 'nom' => 'Orbe Céleste',
-                'texte' => 'Absorbe en tout 4 points de dégât de Mind : chaque point perdu retire un jeton au lieu d\'entamer le Mind. L\'orbe se brise quand les 4 jetons sont retirés.',
-                'manque' => 'Interception des dégâts avant application — et surtout : AUCUN chemin ne réduit les PV de Mind d\'un héros aujourd\'hui, il n\'y a donc rien à absorber (`ResolveurTour`, note ligne ~1705). Les charges, elles, existent depuis le 2026-08-09.'],
+            // ---- Sorts que nous n'avons pas ----
+            ['carte' => 'Spell Scroll — Lightning Bolt', 'nom' => 'Éclair',
+                'texte' => "Part en ligne droite (horizontale, verticale ou diagonale) jusqu'à un mur ou une porte close, et inflige 2 PV à tout héros ou monstre sur son passage.",
+                'manque' => "Le sort n'existe pas au catalogue. Le CHEMIN existe pourtant (`rayon`) : c'est le plus proche d'être portable."],
+            ['carte' => 'Spell Scroll — Treasure Without Doom', 'nom' => 'Trésor sans Péril',
+                'texte' => "Pioche dans le deck de trésor en ignorant monstres errants et pièges jusqu'à un or/potion/gemme ; ou ouvre un coffre sans dommage.",
+                'manque' => "Le sort n'existe pas. `DeckFouille` sait déjà distinguer les issues — il manque le sort qui les filtre."],
+            ['carte' => 'Spell Scroll — Psychic Recovery', 'nom' => 'Récupération Psychique',
+                'texte' => "Restaure tous les points de Mind perdus du lanceur ou d'un héros de son choix.",
+                'manque' => "Le sort n'existe pas ; `soin_pv_mind` existe, mais aucun sort ne le porte."],
 
-            // ---- White Dwarf Magazine (6) ----
-            ['carte' => 'Scroll of Spells', 'paquet' => 'White Dwarf', 'objet' => 'Parchemin de Sorts'],
-            ['carte' => 'Ring of Brilliance', 'paquet' => 'White Dwarf', 'nom' => 'Anneau de Brillance',
-                'texte' => 'Accorde un bonus permanent au choix : +1 dé d\'attaque, +1 dé de défense, +1 point de Body ou +1 point de Mind. Choix unique et définitif ; perdu à jamais si le héros meurt.',
-                'manque' => 'Choix du joueur au moment d\'acquérir un objet : nos butins s\'appliquent tels quels.'],
-            ['carte' => 'Sognirstane', 'paquet' => 'White Dwarf', 'nom' => 'Sognirstane',
-                'texte' => 'Marteau à 2 dés d\'attaque, lançable. Si la cible meurt, le marteau reste sur sa case et il faut y consacrer une attaque pour le reprendre ; sinon il revient en main automatiquement. Les sorts élémentaires n\'ont aucun effet sur son porteur.',
-                'manque' => 'Retour automatique d\'une arme lancée, arme au sol à ramasser, et immunité aux sorts élémentaires.'],
-            ['carte' => 'Thor\'s Hammer', 'paquet' => 'White Dwarf', 'nom' => 'Marteau de Thor',
-                'texte' => '3 dés d\'attaque. Utilisable seulement par un héros portant les Gants du Dieu du Tonnerre. Tue tous les orques de la salle quand on le ramasse.',
-                'manque' => 'Un objet qui en EXIGE un autre pour fonctionner.'],
-            ['carte' => 'Thunder God\'s Gloves', 'paquet' => 'White Dwarf', 'nom' => 'Gants du Dieu du Tonnerre',
-                'texte' => 'Permettent de manier le Marteau de Thor.',
-                'manque' => 'Sans le marteau, la carte n\'a aucun effet propre : la porter seule serait une pièce d\'équipement qui ne fait rien.'],
-            ['carte' => 'Thunder God\'s Belt', 'paquet' => 'White Dwarf', 'nom' => 'Ceinture du Dieu du Tonnerre',
-                'texte' => 'Permet de lancer un dé de défense supplémentaire.',
-                'manque' => 'Aucune mécanique — il manque un emplacement de CEINTURE. La ranger dans le slot talisman la ferait concurrencer les bijoux de classe, pour un effet d\'une autre nature.'],
-
-            // ---- Cartes « custom » de l'auteur (3) ----
-            ['carte' => 'Magister\'s Hood', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Capuche du Magister'],
-            ['carte' => 'Dwarven Runestones', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Runes naines'],
-            ['carte' => 'Wand of Galimatias', 'paquet' => 'Custom (contrepartie)', 'objet' => 'Baguette de Galimatias'],
+            // ---- Boîte GLACE : non prises en compte ----
+            ['carte' => 'Spell Scroll — Chill', 'paquet' => 'Frozen Horror', 'nom' => 'Morsure du Froid',
+                'texte' => '1 PV à tout monstre orthogonalement adjacent au lanceur ; la victime ne peut pas se défendre.',
+                'manque' => 'GLACE — sort de froid absent du catalogue (arbitrage de René).'],
+            ['carte' => 'Spell Scroll — Warmth', 'paquet' => 'Frozen Horror', 'nom' => 'Chaleur',
+                'texte' => "Rend jusqu'à 3 PV de Body au lanceur ou à un héros de son choix.",
+                'manque' => 'GLACE — la règle serait portable telle quelle, mais le sort appartient au jeu de froid, écarté en bloc.'],
+            ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'nom' => 'Tempête de Glace',
+                'texte' => 'Zone de 2×2 ; chaque figure y est attaquée séparément à 3 dés, sans défense possible. Interdit en couloir.',
+                'manque' => "GLACE — et une zone rectangulaire, que notre vocabulaire de zone ne sait pas décrire."],
+            ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
+                'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
+                'manque' => "GLACE — et poser du TERRAIN en cours de quête, ce qu'aucune mécanique ne fait."],
+            ['carte' => 'Spell Scroll — Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
+                'texte' => '+6 au jet de déplacement et traversée des monstres et héros, pour un tour.',
+                'manque' => 'GLACE — cavernes gelées inexistantes.'],
         ],
     ],
 ];
