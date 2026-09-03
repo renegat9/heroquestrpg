@@ -4,7 +4,6 @@
 #
 #   hq.sh <slot> etat|menu|moi|pret|votes
 #   hq.sh <slot> choix <option_id> [json_parametres]
-#   hq.sh <slot> potion <inventaire_id>
 #   hq.sh <slot> reaction <true|false> [cle_soin]
 #   hq.sh <slot> vote <option_id>       ← déposer son bulletin (oui / non / …)
 #
@@ -16,6 +15,17 @@
 #   hq.sh <slot> confirmer                  ← confirmer (tous confirmés = achat)
 #   hq.sh <slot> equiper <inventaire_id> [emplacement]
 #   hq.sh <slot> donner <inventaire_id> <personnage_id>
+#
+# ⚠ Le verbe `potion` a été RETIRÉ le 2026-09-02, parce que la route qu'il
+# appelait n'existe plus : `POST /potions` est supprimée depuis le 2026-09-01,
+# on boit par `/choix` comme tout le reste. Il rendait donc un 404 muet, et le
+# README du harnais dit exactement ce que ça produit — pas une erreur, un
+# joueur paralysé qui croit le serveur en panne. La forme est :
+#
+#   hq.sh <slot> choix utiliser_objet '{"cle":"objet:<inventaire_id>"}'
+#
+# la `cle` étant celle que l'entrée porte dans `parametres.objets[]` du menu —
+# c'est elle la liste blanche, le serveur refuse tout ce qui n'y est pas.
 #
 # ⚠ `vote` a manqué au harnais jusqu'au 2026-08-15, et ça a coûté une campagne :
 # « Quitter le donjon » ouvre un VOTE de groupe, le proposeur ne vote PAS
@@ -57,7 +67,6 @@ case "${1:-}" in
              "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2,\"vers_personnage_id\":$3}" ;;
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
-  potion)  req POST "/groupes/$GROUPE/potions" "{\"inventaire_id\":$2}" ;;
   reaction) req POST "/groupes/$GROUPE/reaction" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"accepte\":$2${3:+,\"soin\":\"$3\"}}" ;;
-  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|potion|reaction|votes|vote|marche|panier|confirmer|equiper|donner" >&2; exit 2 ;;
+  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|donner" >&2; exit 2 ;;
 esac

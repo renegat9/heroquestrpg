@@ -16,11 +16,27 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 
 ## Outils donnés aux agents
 - `vue.py <slot>` — situation du héros : PV, alliés, monstres visibles,
-  conditions (avec leur SOURCE), destinations atteignables, menu, et pour un
-  sort ses dés/soin/durée.
-- `hq.sh <slot> etat|menu|moi|pret|choix|potion|reaction`
+  conditions (avec leur SOURCE), destinations atteignables, menu **avec ses
+  sous-choix dépliés**, et pour un sort ses dés/soin/durée.
+- `hq.sh <slot> etat|menu|moi|pret|choix|reaction`
 - **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
 - **vote** : `hq.sh <slot> votes|vote <option_id>`
+
+⚠ **Une option peut PORTER une liste** depuis le 2026-09-01 (doc 13 §3.1, « 2
+à 5 options claires ») : `lancer_sort`, `lire_parchemin` et `utiliser_objet`
+remplacent une option par sort, par parchemin et par potion — un magicien de
+niveau 1 avait quatorze options, dont neuf sorts. On répond alors **à plat** :
+`choix lancer_sort '{"cle":"sort:12","cible_id":7,"cible_type":"monstre"}'`, la
+`cle` étant celle de l'entrée dans `parametres.sorts[]`. **C'est elle la liste
+blanche** : le serveur 422 tout ce qui n'y est pas. `vue.py` déplie les listes
+et `pilote.py` sait y descendre depuis le **2026-09-02** — avant ça, tous deux
+ne lisaient que `parametres.cibles`, donc voyaient un menu SANS AUCUN SORT et
+faisaient jouer un lanceur muet, sans la moindre erreur.
+
+⚠ **`POST /potions` n'existe plus** (2026-09-01) : on boit par `/choix`, via
+`utiliser_objet`. Le verbe `hq.sh potion` a donc été retiré le 2026-09-02 — il
+appelait une route disparue et rendait un 404 muet, exactement le « joueur
+paralysé qui croit le serveur en panne » décrit plus bas.
 
 ⚠ Ces sept verbes ont manqué au harnais jusqu'au **2026-08-17**, et chacun a
 coûté une session : sans `vote`, le barbare ne pouvait pas conclure la quête

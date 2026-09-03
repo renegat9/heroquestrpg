@@ -124,21 +124,48 @@ if moi.get("conditions"):
         + (f" [{c['duree']} tours]" if c.get("duree") else "")
         for c in moi["conditions"]))
 
+# ⚠ Depuis le 2026-09-01 une option PORTE une liste de sous-choix au lieu
+# d'être elle-même le sort / le parchemin / l'objet (doc 13 §3.1 : « 2 à 5
+# options claires »). Ne montrer que la ligne de l'option, c'est cacher à
+# l'agent l'intégralité de son répertoire — il joue alors un lanceur muet.
+LISTES = {"lancer_sort": "sorts", "lire_parchemin": "parchemins",
+          "utiliser_objet": "objets", "se_concentrer": "sorts",
+          "sacrifier_pour_sort": "sorts"}
+
+
+def detail_sort(sort_id):
+    """Dés / soin / durée d'un sort, lus sur la fiche du héros."""
+    fiche = moi_sorts.get(sort_id)
+    if not fiche:
+        return ""
+    eff = fiche.get("effet") or {}
+    det = [fiche.get("type") or ""]
+    if eff.get("des_degats"): det.append(f"{eff['des_degats']} dés")
+    if eff.get("soin_pv_body"): det.append(f"soin {eff['soin_pv_body']}")
+    if eff.get("duree"): det.append(f"durée {eff['duree']}")
+    return "  {" + ", ".join(x for x in det if x) + "}"
+
+
+def ligne_cibles(source):
+    c = (source or {}).get("cibles")
+    return (" → cibles: " + ", ".join(f"{x['nom']}#{x['id']}" for x in c)) if c else ""
+
+
 print("MENU :")
 for o in opts:
     p = o.get("parametres") or {}
-    cibles = p.get("cibles")
-    extra = ""
-    if cibles:
-        extra = " → cibles: " + ", ".join(f"{c['nom']}#{c['id']}" for c in cibles)
-    fiche = moi_sorts.get(p.get("sort_id"))
-    if fiche:
-        eff = fiche.get("effet") or {}
-        det = [fiche.get("type") or ""]
-        if eff.get("des_degats"): det.append(f"{eff['des_degats']} dés")
-        if eff.get("soin_pv_body"): det.append(f"soin {eff['soin_pv_body']}")
-        if eff.get("duree"): det.append(f"durée {eff['duree']}")
-        extra += "  {" + ", ".join(x for x in det if x) + "}"
+    extra = ligne_cibles(p) + detail_sort(p.get("sort_id"))
     print(f"  [{o['id']}] {o.get('libelle')} ({o.get('type')}){extra}")
+
+    # Sous-choix : on répond `{"cle": …}` (+ la cible si l'entrée en porte).
+    # Une entrée `disponible: false` est GRISÉE, pas absente — le résolveur la
+    # refuse, et la cacher ferait croire à l'agent qu'il a perdu son sort.
+    liste = (p.get(LISTES[o["id"]]) or []) if o.get("id") in LISTES else []
+    for e in liste:
+        etat_e = "" if e.get("disponible", True) else "  ⌀ ÉPUISÉ"
+        detail = f" — {e['detail']}" if e.get("detail") else ""
+        print(f"      cle={e.get('cle')}  {e.get('nom')}{detail}"
+              f"{ligne_cibles(e)}{detail_sort(e.get('sort_id'))}{etat_e}")
+
 if not opts:
     print("  (pas ton tour — attends)")

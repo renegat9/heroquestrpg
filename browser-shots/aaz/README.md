@@ -32,10 +32,10 @@ options distinctes exercées, et refus du résolveur par type. L'invariant qu'il
 éprouve est celui que le projet tient partout — *le menu ne doit jamais offrir
 ce que le résolveur refusera*.
 
-⚠ Le client n'envoie que **cinq clés** (`x`, `y`, `cible_id`, `cible_type`,
-`sort_id`, cf. `ChoixController`) ; tout le reste — index d'épreuve, de meuble,
+⚠ Le client n'envoie que **six clés** (`x`, `y`, `cible_id`, `cible_type`,
+`sort_id`, `cle` — la dernière arrivée avec les sous-choix, cf. `ChoixController`) ; tout le reste — index d'épreuve, de meuble,
 de levier — voyage dans l'option elle-même, que le serveur relit de son cache.
-C'est ce qui rend le test concluant : une fois ces cinq clés correctes, **tout
+C'est ce qui rend le test concluant : une fois ces six clés correctes, **tout
 422 restant accuse le menu**, pas le client.
 
 ⚠ Le contrôle « un vote ouvert retire les options de vote » se fait **dans la

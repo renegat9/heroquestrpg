@@ -111,8 +111,8 @@ def jouable(opt):
 
 
 def parametres_pour(opt, cap_suivant):
-    """Les CINQ seules clés que `ChoixController` valide : x, y, cible_id,
-    cible_type, sort_id. Tout le reste (index d'épreuve, de meuble, de levier)
+    """Les SIX seules clés que `ChoixController` valide : x, y, cible_id,
+    cible_type, sort_id, cle (cette dernière arrivée avec les sous-choix). Tout le reste (index d'épreuve, de meuble, de levier)
     voyage dans l'option elle-même, que le serveur relit de son CACHE — donc un
     422 après ça est une NON-CONFORMITÉ du menu, pas une erreur du client."""
     p = opt.get('parametres') or {}

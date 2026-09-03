@@ -2,8 +2,18 @@
 """Pilote automatique : joue le héros dont c'est le tour, un tour par appel.
 
 Stratégie volontairement simple mais qui exerce TOUTE la boucle : frapper si
-une cible est légale, sinon ouvrir une porte (c'est ce qui révèle les salles),
-sinon fouiller, sinon avancer le plus loin possible, sinon passer.
+une cible est légale, sinon lancer un sort, sinon ouvrir une porte (c'est ce
+qui révèle les salles), sinon fouiller, sinon avancer le plus loin possible,
+sinon passer.
+
+⚠ Depuis le 2026-09-01, une option peut PORTER une liste de sous-choix au lieu
+d'être elle-même le sort, le parchemin ou l'objet : `lancer_sort` remplace les
+neuf options de sort d'un magicien de niveau 1. Un pilote qui ne lit que
+`parametres.cibles` ne voit donc plus AUCUN sort — il ne plante pas, il joue un
+lanceur muet, et c'est exactement ce que le harnais est censé détecter. Le
+protocole est le même que celui du pilote A-à-Z (`browser-shots/aaz/jouer.py`),
+volontairement : deux harnais qui divergent sur la forme des menus finissent
+par accuser le moteur chacun leur tour.
 """
 import json, subprocess, sys, re, random
 
@@ -23,6 +33,57 @@ def choix(slot, oid, params=None):
         return json.loads(r.stdout)
     except Exception:
         return {"brut": r.stdout[:200]}
+
+# Options qui portent une LISTE d'entrées, et la clé où elle se trouve.
+LISTES = {"lancer_sort": "sorts", "lire_parchemin": "parchemins",
+          "utiliser_objet": "objets", "se_concentrer": "sorts",
+          "sacrifier_pour_sort": "sorts"}
+
+
+def entrees_de(opt):
+    """Entrées JOUABLES d'une option à liste ([] si ce n'en est pas une).
+
+    ⚠ Une entrée épuisée reste dans la liste, `disponible: false`, pour être
+    grisée par la manette — le résolveur la refuse. La filtrer ici, c'est jouer
+    ce qu'un joueur voit jouable.
+    """
+    cle = LISTES.get(opt.get("id", ""))
+    if cle is None:
+        return []
+    return [e for e in (opt.get("parametres") or {}).get(cle) or []
+            if e.get("disponible", True)]
+
+
+def cible_monstre(source):
+    for c in (source or {}).get("cibles") or []:
+        if c.get("type") == "monstre":
+            return c
+    return None
+
+
+def jouer_liste(slot, oid, opt):
+    """Choisit une entrée de la liste, puis sa cible. Rend (libellé, réponse).
+
+    On préfère une entrée qui vise un MONSTRE ; à défaut une entrée sans cible
+    (soin sur soi, potion, Traverser la Pierre) qui part telle quelle. Le tir
+    ami est légal (doc 02 §5) — c'est au pilote de ne pas se brûler tout seul.
+    """
+    entrees = entrees_de(opt)
+    entree = next((e for e in entrees if cible_monstre(e)), None) \
+        or next((e for e in entrees if not e.get("cibles")), None)
+
+    if entree is None:
+        return None
+
+    # ⚠ `cle` est la SIXIÈME clé acceptée par ChoixController, ajoutée avec les
+    # sous-choix : c'est elle que le serveur revalide contre la liste blanche.
+    params = {"cle": entree["cle"]}
+    c = cible_monstre(entree)
+    if c:
+        params.update({"cible_id": c["id"], "cible_type": c["type"]})
+
+    return (f"{oid.upper()} {entree.get('nom', '?')}", choix(slot, oid, params))
+
 
 def destinations(slot):
     r = subprocess.run(["python3", f"{D}/vue.py", str(slot)], capture_output=True, text=True, timeout=60)
@@ -51,11 +112,22 @@ def jouer(slot):
     opts = {o["id"]: o for o in menu.get("options", [])}
 
     for oid, o in opts.items():
+        # `lancer_sort` commence par « lancer » : on écarte d'abord les options à
+        # liste, dont le ciblage est d'un niveau plus bas.
+        if oid in LISTES:
+            continue
         if oid.startswith("attaquer") or oid.startswith("lancer"):
             cibles = (o.get("parametres") or {}).get("cibles") or []
             if cibles:
                 c = cibles[0]
                 return ("ATTAQUE " + str(c.get("nom", "?")), choix(slot, oid, {"cible_id": c.get("id"), "cible_type": c.get("type", "monstre")}))
+
+    # Sorts et parchemins : une option, une liste, puis une cible.
+    for oid in ("lancer_sort", "lire_parchemin"):
+        if oid in opts:
+            joue = jouer_liste(slot, oid, opts[oid])
+            if joue:
+                return joue
 
     for oid in opts:
         if oid.startswith("ouvrir_porte"):
