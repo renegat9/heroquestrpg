@@ -326,8 +326,12 @@ final class MenuMoteur
      *
      * @return array<string, mixed>
      */
-    private function ciblesObjet(Quete $quete, Personnage $personnage, string $cible): array
-    {
+    private function ciblesObjet(
+        Quete $quete,
+        Personnage $personnage,
+        string $cible,
+        bool $tombeAdmis = false,
+    ): array {
         if ($cible === MotsClesSort::CIBLE_SOI) {
             return [];
         }
@@ -354,7 +358,18 @@ final class MenuMoteur
         }
 
         // `heros` — le lanceur COMPRIS : il se voit toujours lui-même.
-        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+        //
+        // ⚠ `$tombeAdmis` existe pour l'Élixir de Vie, seul artefact dont la
+        // cible EST un héros à terre (« brings a dead hero back to life »).
+        // Partout ailleurs un héros tombé n'est pas une cible légale, et
+        // l'offrir serait proposer un soin que le résolveur refuserait.
+        $requete = $quete->etatsPersonnages()->with('personnage');
+
+        if (! $tombeAdmis) {
+            $requete->where('tombe', false);
+        }
+
+        $cibles = $requete->get()
             ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null
                 && ($e->personnage_id === $personnage->id || $vue($e->position_x, $e->position_y)))
             ->map(fn (EtatPersonnageQuete $e) => [
@@ -468,7 +483,10 @@ final class MenuMoteur
                     // vise un héros, le Sceptre un monstre, la Cape personne.
                     // Une liste au niveau de l'option serait fausse pour deux
                     // des trois.
-                    ...$this->ciblesObjet($quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi')),
+                    ...$this->ciblesObjet(
+                        $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
+                        tombeAdmis: ! empty($objet->effet['releve']),
+                    ),
                 ];
 
                 continue;

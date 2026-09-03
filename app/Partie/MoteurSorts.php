@@ -996,6 +996,36 @@ final class MoteurSorts
      * (Forme démoniaque du Warlock : « the warlock ignores pit traps »), là où
      * `bonusDes()` additionne des dés.
      */
+    /**
+     * VALEUR chiffrée d'une clé portée par un buff (0 si aucun buff ne la
+     * porte). Le pendant chiffré de {@see self::aBuff()}, pour les clés qui
+     * disent « combien » et pas seulement « oui » — `ignore_defense_monstre`
+     * de la Lame Fantôme en est la première.
+     *
+     * ⚠ Un `max` et non une somme : deux sources ne se cumulent pas ici, la
+     * plus forte l'emporte. Additionner des dés de défense ignorés donnerait
+     * vite une défense négative.
+     */
+    public function valeurBuff(Personnage $personnage, string $cle): int
+    {
+        $valeur = 0;
+
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+            $brut = $effet[$cle] ?? null;
+
+            if ($brut === null) {
+                continue;
+            }
+
+            // `true` vaut 1 : une carte qui dit « ne peut pas se défendre » sans
+            // chiffre retire un dé, comme le nœud d'arbre chiffré à 1.
+            $valeur = max($valeur, $brut === true ? 1 : (int) $brut);
+        }
+
+        return $valeur;
+    }
+
     public function aBuff(Personnage $personnage, string $cle): bool
     {
         foreach ($this->buffsSorts($personnage) as $condition) {

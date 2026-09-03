@@ -934,8 +934,36 @@ filtre sur `disponible()` : une option laissée après la charge dépensée sera
 bouton qui répond toujours non. ⚠ Un artefact à charges **n'est pas consommé** —
 il devient inerte et reste au sac.
 
-**Quinze artefacts attendent encore une mécanique**, chacun avec la sienne
-nommée dans `config/cartes.php`.
+**Cinq de plus le même jour**, et toujours sans mécanique neuve : la couture
+`activable` posée pour les trois premiers les portait déjà.
+
+| Carte | Chez nous | Ce qui a servi |
+|---|---|---|
+| *Fortune's Longsword* | **Longue épée de Fortune** | 3 dés + `attaque_diagonale`, et la relance pose le MÊME buff que la Potion de bataille |
+| *Phantom Blade* | **Lame Fantôme** | `ignore_defense_monstre`, jusque-là lisible en talent seulement |
+| *Wizard's Staff* | **Bâton du Magicien** | un tag `arme_magicien` — seule donnée neuve de tout le lot |
+| *Elixir of Life* | **Élixir de Vie** | `restaure_jauges_depart` + relever le héros à terre |
+| *Arm Band of Healing* | **Bracelet de Guérison** | la réaction de SOIN D'URGENCE, ouverte aux pièces portées à charges |
+
+⚠ `MoteurSorts::valeurBuff()` est le pendant CHIFFRÉ de `aBuff()`, pour les clés
+qui disent « combien » : lu avec un `max` et jamais une somme, deux sources qui
+s'additionneraient donnant une défense négative.
+
+⚠ Le **Bâton du Magicien** est le seul à avoir demandé une donnée hors de
+l'objet. Le magicien ne portait que `arme_legere`, que trois autres classes ont
+aussi : lui donner le bâton par ce tag l'aurait ouvert à tout le monde, quand la
+carte dit « only by the wizard ».
+
+⚠ L'**Élixir de Vie** est le seul artefact dont la cible légale est un héros À
+TERRE. Le drapeau traverse donc le menu (`ciblesObjet`) et le résolveur : partout
+ailleurs un héros tombé n'est pas ciblable, et l'offrir reviendrait à proposer ce
+que le résolveur refuserait.
+
+**Treize artefacts attendent encore une mécanique**, chacun avec la sienne
+nommée dans `config/cartes.php` — et ce qui reste demande du vrai neuf : forcer
+la relance de l'ATTAQUANT, un dé contre les sorts de Dread, intercepter les
+dégâts de MIND, une relance conditionnée à la FACE obtenue, la téléportation, le
+saut de piège, le renvoi de sort et le contrôle de monstres.
 
 #### Les parchemins
 

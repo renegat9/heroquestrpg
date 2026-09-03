@@ -410,7 +410,11 @@ it('expose le tag de maîtrise de chaque pièce de l\'étal, et les maîtrises d
     // protections arcaniques (brassards, cape) — les seules pièces défensives
     // que les cartes lui RÉSERVENT. Aucune armure ordinaire.
     expect($perso['equipement']['maitrises'])
-        ->toBe(['arme_legere', 'armure_magicien', 'talisman_magicien']);
+        // ⚠ `arme_magicien` s'ajoute le 2026-09-03 : le *Bâton du Magicien*
+        // (carte officielle) est « used only by the wizard », et le magicien ne
+        // portait que `arme_legere` — que trois autres classes ont aussi. Lui
+        // donner le bâton par ce tag-là l'aurait ouvert à tout le monde.
+        ->toBe(['arme_legere', 'armure_magicien', 'arme_magicien', 'talisman_magicien']);
 
     // Le badge se déduit des deux : l'épée est hors de portée du magicien…
     expect(in_array($etal->firstWhere('nom', 'Épée courte')['tag_equipement'], $perso['equipement']['maitrises'], true))->toBeFalse()

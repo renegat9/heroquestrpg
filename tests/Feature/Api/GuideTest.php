@@ -76,7 +76,10 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // ⚠ Cape des Ombres et Sceptre de Télékinésie : leurs cartes ne posent
         // AUCUNE restriction de classe — ni « may not be used by the wizard »,
         // ni réservation à un héros. Leur inventer un tag serait une invention.
-        'Cape des Ombres', 'Sceptre de Télékinésie'];
+        'Cape des Ombres', 'Sceptre de Télékinésie',
+        // Élixir de Vie et Bracelet de Guérison : leurs cartes ne posent aucune
+        // restriction de classe non plus.
+        'Élixir de Vie', 'Bracelet de Guérison'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])

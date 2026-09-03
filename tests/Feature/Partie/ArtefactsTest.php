@@ -454,3 +454,123 @@ it('le Sceptre échoue quand le monstre sort un 6 : la charge est dépensée pou
 
     expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeFalse();
 });
+
+/*
+ * ------------------------------------------------------------------
+ * Cinq artefacts de plus (2026-09-03), aucun n'ayant demandé de
+ * mécanique neuve : ils réutilisent des lecteurs existants par le
+ * chemin des buffs, des charges ou de la réaction hors tour.
+ * ------------------------------------------------------------------
+ */
+
+it("la Longue épée de Fortune donne 3 dés et une relance par quête", function () {
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+
+    $ligne = poserArtefact($heros, 'Longue épée de Fortune', 'arme_principale');
+
+    // La relance est une ENTRÉE activable, gratuite, à une charge.
+    $entree = entreeObjet($ctx, $ligne);
+
+    expect($entree)->not->toBeNull()
+        ->and($entree['cout'])->toBe('gratuit');
+
+    desFiges(array_fill(0, 40, 4));
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}"],
+    ])->assertAccepted()->assertJsonPath('resultat.charges_restantes', 0);
+
+    // Le buff est posé, et c'est LUI que `Engine\Combat` lira — même chemin
+    // que la Potion de bataille.
+    expect(app(MoteurSorts::class)->aBuff($heros->fresh(), 'relance_des_attaque'))->toBeTrue()
+        // Charge épuisée : l'entrée disparaît du menu.
+        ->and(entreeObjet($ctx, $ligne))->toBeNull();
+});
+
+it('la Lame Fantôme retire toute la défense de sa cible, une fois par quête', function () {
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+
+    $ligne = poserArtefact($heros, 'Lame Fantôme', 'arme_principale');
+    $sorts = app(MoteurSorts::class);
+
+    desFiges(array_fill(0, 40, 4));
+    entreeObjet($ctx, $ligne);
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}"],
+    ])->assertAccepted();
+
+    // ⚠ Le lecteur existait en TALENT (Flèche perçante) ; il lit désormais
+    // aussi un buff, ce qui est tout ce qu'il fallait pour porter la carte.
+    expect($sorts->valeurBuff($heros->fresh(), 'ignore_defense_monstre'))->toBeGreaterThan(0);
+});
+
+it("l'Élixir de Vie remet un compagnon TOMBÉ debout, jauges pleines", function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $bob = App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // Le compagnon est à terre, vidé.
+    $compagnon->update(['pv_body' => 0, 'pv_mind' => 0]);
+    $quete->etatsPersonnages()->where('personnage_id', $compagnon->id)->update(['tombe' => true]);
+
+    $ctx = ['groupe' => $groupe, 'alice' => $alice, 'heros' => $heros];
+    $ligne = poserArtefact($heros, 'Élixir de Vie');
+
+    // ⚠ Seul artefact dont la cible légale est un héros À TERRE.
+    $entree = entreeObjet($ctx, $ligne);
+    expect(collect($entree['cibles'] ?? [])->pluck('id')->all())->toContain($compagnon->id);
+
+    desFiges(array_fill(0, 40, 4));
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $compagnon->id, 'cible_type' => 'heros'],
+    ])->assertAccepted()->assertJsonPath('resultat.releve', true);
+
+    $compagnon->refresh();
+
+    expect((int) $compagnon->pv_body)->toBe((int) $compagnon->pv_body_max)
+        ->and((int) $compagnon->pv_mind)->toBe((int) $compagnon->pv_mind_max)
+        ->and((bool) $quete->etatsPersonnages()->where('personnage_id', $compagnon->id)->first()->tombe)->toBeFalse();
+});
+
+it('le Bracelet de Guérison est proposé en réaction quand son porteur tombe', function () {
+    // « If the wearer's Body Points are reduced to 0, use immediately. » —
+    // c'est mot pour mot le soin d'urgence, qui ne connaissait que les potions.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+
+    poserArtefact($heros, 'Bracelet de Guérison', 'talisman');
+    $heros->update(['pv_body' => 0]);
+
+    $soins = app(App\Partie\MoteurReactions::class)->soinsDisponibles($heros->fresh());
+    $entree = collect($soins)->firstWhere('type', 'artefact');
+
+    expect($entree)->not->toBeNull()
+        ->and($entree['nom'])->toBe('Bracelet de Guérison')
+        ->and($entree['soin'])->toBe('2');
+});
+
+it('le Bâton du Magicien est réservé au magicien', function () {
+    $baton = Objet::where('nom', 'Bâton du Magicien')->firstOrFail();
+    $equipement = app(Equipement::class);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+    $barbare = creerHeros($alice, $groupe, 'Hurgan', 2, ['classe' => 'barbare']);
+
+    // ⚠ `arme_magicien` est un tag que LUI SEUL porte : `arme_legere` aurait
+    // ouvert le bâton à trois autres classes.
+    expect($equipement->estAccessible($magicien, $baton))->toBeTrue()
+        ->and($equipement->estAccessible($barbare, $baton))->toBeFalse();
+});

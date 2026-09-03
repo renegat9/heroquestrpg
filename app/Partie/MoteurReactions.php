@@ -268,6 +268,30 @@ final class MoteurReactions
             ];
         }
 
+        // ⚠ ARTEFACTS PORTÉS À CHARGES (2026-09-03) — le *Bracelet de Guérison*
+        // dit précisément ce que cette réaction fait : « Restores 2 lost Body
+        // Points once per quest. IF THE WEARER'S BODY POINTS ARE REDUCED TO 0,
+        // USE IMMEDIATELY. » Il n'est pas un consommable — il se porte —, d'où
+        // une famille à part et une `cle` distincte : la liste blanche doit
+        // rester sans ambiguïté.
+        foreach ($heros->inventaire()->with('objet')->get() as $ligne) {
+            $effet = (array) ($ligne->objet?->effet ?? []);
+
+            if ($ligne->objet?->categorie === 'consommable'
+                || ! isset($effet['soin_pv_body'], $effet['charges'])
+                || ! app(MoteurCharges::class)->disponible($ligne)
+                || ! app(Equipement::class)->estAccessible($heros, $ligne->objet)) {
+                continue;
+            }
+
+            $soins[] = [
+                'cle' => "artefact:{$ligne->id}",
+                'type' => 'artefact',
+                'nom' => $ligne->objet->nom,
+                'soin' => (string) (int) $effet['soin_pv_body'],
+            ];
+        }
+
         foreach ($heros->sorts()->wherePivot('disponible', true)->get() as $sort) {
             $soin = (int) (($sort->effet['soin_pv_body'] ?? 0));
 
@@ -756,6 +780,23 @@ final class MoteurReactions
             // Le moteur des potions fait foi : c'est lui qui connaît les soins
             // fixes, le 1d6 de la fiole et la consommation de l'exemplaire.
             app(MoteurPotions::class)->boire($heros, $ligne);
+        } elseif ($type === 'artefact') {
+            // Artefact PORTÉ : on soigne et on dépense une CHARGE — la pièce
+            // reste au sac et devient inerte, elle n'est jamais consommée.
+            $ligne = $heros->inventaire()->with('objet')->whereKey((int) $id)->first();
+            $charges = app(MoteurCharges::class);
+
+            if ($ligne === null || ! $charges->disponible($ligne)) {
+                throw ValidationException::withMessages([
+                    'reaction' => "Cet artefact n'est plus utilisable.",
+                ]);
+            }
+
+            $heros->update(['pv_body' => min(
+                (int) $heros->pv_body_max,
+                $avant + (int) (($ligne->objet->effet['soin_pv_body'] ?? 0)),
+            )]);
+            $charges->consommer($ligne);
         } else {
             $sort = $heros->sorts()->wherePivot('disponible', true)->find((int) $id);
 

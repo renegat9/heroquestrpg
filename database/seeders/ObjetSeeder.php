@@ -226,6 +226,69 @@ class ObjetSeeder extends Seeder
             // them 1 extra Defend die. » Première ARMURE du magicien qui vienne
             // d'une carte : `armure_magicien` est le tag qu'il est seul à
             // porter, la restriction tient donc sans règle nouvelle.
+            // « Restores 2 lost Body Points once per quest. If the wearer's
+            // Body Points are reduced to 0, use immediately. »
+            //
+            // ⚠ La seconde phrase EST la réaction de soin d'urgence, écrite
+            // pour les potions le 2026-08-13. Le bracelet se PORTE — il n'est
+            // pas un consommable —, d'où l'ouverture de `soinsDisponibles()`
+            // aux pièces portées à charges : une famille de plus dans la même
+            // liste blanche, avec sa propre `cle`.
+            ['nom' => 'Bracelet de Guérison', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'charges' => 1,
+                    'soin_pv_body' => 2]],
+
+            // « Weapon — This ornate dagger gives you 1 Attack die. ONCE PER
+            // QUEST, when you attack with the dagger your target may not defend
+            // themselves as the weapon passes through their armor. »
+            //
+            // ⚠ `ignore_defense_monstre` existait en TALENT (Flèche perçante) ;
+            // il se lit désormais aussi sur un buff, donc l'artefact l'atteint
+            // par le même chemin que la Longue épée de Fortune sa relance.
+            // La valeur 99 dit « toute la défense » : le résolveur retranche, et
+            // `max(0, …)` plafonne — la carte ne laisse aucun dé à la cible.
+            ['nom' => 'Lame Fantôme', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 1,
+                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'charges' => 1,
+                    'ignore_defense_monstre' => 99, 'duree' => 'prochaine_attaque',
+                    'condition_appliquee' => 'Renforcé']],
+
+            // « Weapon — This long blade enables you to attack diagonally and
+            // gives you 3 Attack dice. ONCE PER QUEST, the hero may use its
+            // power to reroll 1 Attack die. May not be used by the wizard. »
+            //
+            // ⚠ Aucun lecteur nouveau : les 3 dés et la diagonale sont des
+            // propriétés d'arme déjà lues, et la relance passe par le MÊME
+            // chemin que la Potion de bataille — `relance_des_attaque` est lu
+            // sur un BUFF, qu'un artefact activable sait poser aussi bien
+            // qu'une potion. La cadence « une fois par quête » est la charge.
+            ['nom' => 'Longue épée de Fortune', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+                'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true,
+                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'charges' => 1,
+                    'relance_des_attaque' => true, 'duree' => 'prochaine_attaque',
+                    'condition_appliquee' => 'Renforcé']],
+
+            // « This long ancient staff […] can be used only by the wizard,
+            // giving them 2 Attack dice and the ability to strike diagonally. »
+            //
+            // ⚠ `arme_magicien` est un tag NEUF, et il fallait bien qu'il le
+            // soit : le magicien ne portait que `arme_legere`, que trois autres
+            // classes ont aussi — lui donner le bâton par là l'aurait ouvert à
+            // tout le monde, et la carte dit « only by the wizard ».
+            ['nom' => 'Bâton du Magicien', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_magicien',
+                'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
+
+            // « This small bottle of pearly liquid brings a dead hero back to
+            // life, restoring all of their Body and Mind Points. »
+            //
+            // ⚠ Notre moteur n'a pas de mort, seulement `tombe` : « ramener à la
+            // vie » se rend par relever le héros ET remettre ses deux jauges au
+            // départ — `restaure_jauges_depart`, que la Potion de restauration
+            // supérieure porte déjà. L'écart est nommé plutôt que gommé.
+            ['nom' => 'Élixir de Vie', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 1500, 'emplacement' => 'consommable',
+                'effet' => ['activable' => true, 'cible' => 'heros', 'cout' => 'action',
+                    'restaure_jauges_depart' => true, 'releve' => true]],
+
             // ---- Trois artefacts ACTIVABLES (2026-09-03) ----
             //
             // Ils partagent une même nouveauté : `activable` les fait entrer

@@ -953,7 +953,15 @@ final class ResolveurTour
         // moins de dés. Retranché de sa défense plutôt qu'ajouté à l'attaque —
         // un dé d'attaque en plus et un dé de défense en moins n'ont pas la
         // même valeur, et c'est bien la seconde que la carte décrit.
-        $desDefenseIgnores = $this->talents->valeur($personnage, 'ignore_defense_monstre');
+        // ⚠ Lu sur le TALENT *et* sur un BUFF depuis le 2026-09-03 : la Lame
+        // Fantôme (« once per quest, your target may not defend themselves as
+        // the weapon passes through their armor ») porte la même mécanique par
+        // un autre chemin. Un `max` et non une somme — deux sources qui
+        // s'additionneraient donneraient un dé de défense négatif.
+        $desDefenseIgnores = max(
+            $this->talents->valeur($personnage, 'ignore_defense_monstre'),
+            $this->sorts->valeurBuff($personnage, 'ignore_defense_monstre'),
+        );
 
         // Lame des Esprits : « three combat dice in attack OR four dice against
         // undead creatures such as Skeletons, Zombies and Mummies ». Le bonus
@@ -4100,6 +4108,44 @@ final class ResolveurTour
      * @param  array<string, mixed>  $effet
      * @return array<string, mixed>
      */
+    /**
+     * Le héros visé par un artefact, ou le porteur pour un objet `cible: soi`.
+     *
+     * ⚠ `$tombeAdmis` existe pour l'Élixir de Vie, seul artefact qui vise
+     * précisément un héros À TERRE — partout ailleurs un héros tombé n'est pas
+     * une cible légale.
+     *
+     * @param  array<string, mixed>  $effet
+     * @return array{personnage: Personnage, etat: EtatPersonnageQuete}
+     */
+    private function cibleHerosArtefact(
+        Quete $quete,
+        Personnage $personnage,
+        array $effet,
+        int $cibleId,
+        bool $tombeAdmis = false,
+    ): array {
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ((string) ($effet['cible'] ?? 'soi') !== MotsClesSort::CIBLE_SOI && $cibleId > 0) {
+            $requete = $quete->etatsPersonnages()->where('personnage_id', $cibleId)->with('personnage');
+
+            if (! $tombeAdmis) {
+                $requete->where('tombe', false);
+            }
+
+            $etat = $requete->first();
+        }
+
+        if ($etat?->personnage === null) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Ce héros ne peut pas recevoir cet artefact.',
+            ]);
+        }
+
+        return ['personnage' => $etat->personnage, 'etat' => $etat];
+    }
+
     private function resoudreArtefactActivable(
         Quete $quete,
         Personnage $personnage,
@@ -4133,6 +4179,30 @@ final class ResolveurTour
                 'des_rupture' => $rupture['faces'],
                 'resiste' => $rupture['rompu'],
                 'saute_tour' => ! $rupture['rompu'],
+            ];
+        }
+
+        // ---- Élixir de Vie : les deux jauges au départ, et le héros se relève
+        //
+        // ⚠ « Brings a DEAD hero back to life » — notre moteur n'a pas de mort,
+        // seulement `tombe`. On rend donc les deux jauges ET on remet le héros
+        // debout, ce qui est la traduction la plus proche ; l'écart est nommé
+        // dans le seeder plutôt que gommé.
+        if (! empty($effet['restaure_jauges_depart'])) {
+            $cible = $this->cibleHerosArtefact($quete, $personnage, $effet, $cibleId, tombeAdmis: true);
+            $heros = $cible['personnage'];
+
+            $heros->update(['pv_body' => $heros->pv_body_max, 'pv_mind' => $heros->pv_mind_max]);
+
+            if (! empty($effet['releve']) && $cible['etat']->tombe) {
+                $cible['etat']->update(['tombe' => false]);
+            }
+
+            return [
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'pv_body_apres' => (int) $heros->fresh()->pv_body,
+                'pv_mind_apres' => (int) $heros->fresh()->pv_mind,
+                'releve' => ! empty($effet['releve']),
             ];
         }
 

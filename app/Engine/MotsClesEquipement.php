@@ -460,6 +460,12 @@ final class MotsClesEquipement
     /** Comment la cible résiste — `rupture_6_par_mind` (MoteurSorts::tenterRupture()). */
     public const RESISTANCE = 'resistance';
 
+    /** Dés de défense retirés à la cible (Lame Fantôme) — ResolveurTour::frapper(). */
+    public const IGNORE_DEFENSE_MONSTRE = 'ignore_defense_monstre';
+
+    /** Remet debout un héros tombé (Élixir de Vie) — resoudreArtefactActivable(). */
+    public const RELEVE = 'releve';
+
     // -------------------------------------------------------------- PARCHEMIN
 
     /** Sort lancé par le parchemin — autorité. `ResolveurTour::resoudreParchemin()`. */
@@ -508,6 +514,8 @@ final class MotsClesEquipement
         self::FRANCHIT_FIGURES,
         self::SAUTE_TOUR,
         self::RESISTANCE,
+        self::IGNORE_DEFENSE_MONSTRE,
+        self::RELEVE,
         self::DES_ATTAQUE_CONTRE,
         self::ATTAQUE_DOUBLE_CONTRE,
         self::BONUS_PV_BODY_MAX,
