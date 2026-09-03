@@ -109,6 +109,23 @@ class HabillerMonstres implements ShouldQueue
                 continue;
             }
 
+            // ⚠ RELECTURE OBLIGATOIRE avant d'écrire (2026-09-03). `$blocs` a été
+            // chargé AVANT l'appel au LLM, qui dure de quelques secondes à
+            // plusieurs minutes ; `$instance->habillage` porte donc l'état du
+            // donjon tel qu'il était au DÉMARRAGE de la quête. Le réécrire tel
+            // quel efface tout ce que la partie a posé entre-temps — et
+            // `habillage` ne contient pas que l'habillage : il porte les
+            // CONDITIONS des monstres (endormi, saute_tour, terrifié, paralysé,
+            // ralenti, enfumé), la brûlure du troll, les dégâts différés, les
+            // usages de Dread et `repousse_par`.
+            //
+            // Mesuré en jeu : un Sceptre de Télékinésie utilisé dans la première
+            // minute d'une quête posait bien `saute_tour`, et la condition
+            // disparaissait sans une ligne de journal quand le job d'habillage
+            // se terminait. Invisible en test — aucun worker n'y tourne en
+            // parallèle —, invisible au joueur, et impossible à imputer.
+            $instance->refresh();
+
             $habillage = $instance->habillage ?? [];
             $habillage['nom'] = $h['nom'];
             $habillage['description'] = $h['description'];
