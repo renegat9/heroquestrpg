@@ -235,9 +235,7 @@ return [
             ['carte' => 'Spell Scroll — Swift Wind', 'sort' => 'Vent Véloce'],
 
             // ---- Sorts que nous n'avons pas ----
-            ['carte' => 'Spell Scroll — Lightning Bolt', 'nom' => 'Éclair',
-                'texte' => "Part en ligne droite (horizontale, verticale ou diagonale) jusqu'à un mur ou une porte close, et inflige 2 PV à tout héros ou monstre sur son passage.",
-                'manque' => "Le sort n'existe pas au catalogue, et le chemin est plus loin qu'annoncé : `ResolveurTour::resoudreRayon()` existe bien, mais il est câblé sur une SOURCE DE STYLE (`StylesElementaires::sourceActivable(…, 'rayon')`, l'Œil du Cyclone du Moine) — un sort ne peut pas l'emprunter sans qu'on l'en découple d'abord, comme `attaque_balayee` l'a été pour ses deux porteurs. S'y ajoutent les DIAGONALES, que `DIRECTIONS_RAYON` ne connaît pas, et des dégâts fixes de 2 sur tout ce qui se trouve sur la ligne — héros compris."],
+            ['carte' => 'Spell Scroll — Lightning Bolt', 'sort' => 'Éclair'],
             ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 

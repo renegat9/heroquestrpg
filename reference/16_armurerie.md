@@ -1078,9 +1078,10 @@ nommée dans `config/cartes.php` : intercepter les dégâts de **Mind** (*Sky Or
 
 #### Les parchemins
 
-Un parchemin n'est pas un objet : il **dérive** d'un sort (doc 02 §6). **Douze
+Un parchemin n'est pas un objet : il **dérive** d'un sort (doc 02 §6). **Quatorze
 des 19 cartes** tournent : onze désignaient un sort que nous avions déjà, et
-**Trésor sans Péril** a été écrit le 2026-09-04.
+trois ont été écrits le 2026-09-04 — **Trésor sans Péril**, **Récupération
+Psychique**, **Éclair**. Les cinq dernières sont de la boîte glace.
 
 ⚠ **Un élément `parchemin`, qui n'est pas une école.** *Trésor sans Péril* est le
 premier sort à n'exister **qu'en parchemin** — sa carte dit « This SPELL SCROLL
@@ -1121,13 +1122,42 @@ la SOURCE manque, exactement comme la branche Mind de `resoudreRelever()` et la
 moitié Mind de la *Restauration supérieure*, toutes deux dans cet état depuis
 qu'elles existent. Il sera juste le jour où elle arrivera.
 
-Une seule carte hors glace reste : **Lightning Bolt**. ⚠ Pour elle, le diagnostic
-« le chemin `rayon` existe » était **optimiste** : `ResolveurTour::resoudreRayon()`
-est câblé sur une **source de style** (l'Œil du Cyclone du Moine), et un sort ne
-peut pas l'emprunter sans qu'on l'en découple d'abord — comme `attaque_balayee`
-l'a été pour ses deux porteurs. S'y ajoutent les **diagonales**, que
-`DIRECTIONS_RAYON` ne connaît pas, et des dégâts fixes de 2 sur tout ce qui se
-trouve sur la ligne, **héros compris**. Les cinq dernières sont de la boîte glace.
+**L'Éclair est porté aussi**, et il ne reste plus hors glace que les cinq cartes
+de la boîte gelée. ⚠ Mon diagnostic de la veille se trompait **deux fois** :
+`DIRECTIONS_RAYON` connaissait **déjà** les huit directions — la carte de l'*Esprit
+Ardent* du Moine dit « straight or diagonal », comme l'Éclair —, et le vrai
+blocage n'était que le câblage sur la **source de style**.
+
+La parenté est frappante : « This beam may be straight or diagonal and continues
+until it meets a **wall or closed door**. Each enemy in the beam takes **2 Body
+Points** of damage » (Moine) contre « will travel in a straight line until it
+strikes a **wall or closed door** […] **2 Body Points** of damage on all heroes or
+monsters that stand in its path » (Éclair). ⚠ **Une seule différence, et c'est la
+cible** : le Moine ne touche que « each ENEMY », l'Éclair « all HEROES or
+monsters ». D'où un `touchesLesHeros` qui sépare les deux, et rien d'autre.
+
+⚠ **La ligne était écrite DEUX fois** — `ResolveurTour::casesDuRayon()` et
+`MenuMoteur::directionsDeRayon()` la marchaient chacune de son côté, avec « le
+résolveur recalcule » pour toute garantie. Un troisième lecteur en aurait fait
+une divergence assurée : le menu annonce des ennemis touchés, et c'est le
+résolveur qui frappe. `App\Partie\Rayon` porte désormais la géométrie et le
+cadran de visée ; les deux anciens délèguent.
+
+⚠ **Il ne vise pas une figure mais une DIRECTION**, donc il court-circuite le
+garde-fou de ligne de vue exactement comme le second mode du *Génie* — lequel
+échouait sur « Cible requise » tant qu'il passait après. Une **entrée de menu par
+direction**, la même forme que le rayon du Moine un cran plus bas ; aucune
+grammaire neuve, le `cle` reste la liste blanche que `entreeChoisie()` revérifie.
+
+⚠ **Seules les directions qui touchent au moins un monstre sont offertes** : un
+parchemin est DÉTRUIT à l'usage, et le foudroyer dans un couloir vide serait un
+bouton pour perdre une carte. Même arbitrage que le rayon du Moine, dont le Style
+du Feu ne s'ouvre qu'une fois par combat. ⚠ Et les **compagnons sur la ligne sont
+NOMMÉS dans le libellé** : le joueur doit voir qui il va griller avant de choisir,
+sans quoi le tir ami serait un effet automatique que rien n'annonce. Les dégâts
+aux héros passent par `MoteurDegats::infligerAHeros()`, point de passage unique —
+un compagnon foudroyé se voit donc proposer sa potion comme pour n'importe quel
+coup.
 
 ⚠ « Any hero may use this scroll » figure sur plusieurs cartes : c'est exactement
 notre règle — un non-lanceur tente un jet de Mind. Rien à changer.

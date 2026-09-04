@@ -64,6 +64,7 @@ const CLES_SORT_ACTIVES = [
     // ---- Sort qui n'existe QU'EN PARCHEMIN (2026-09-04) ----
     'pioche_sans_peril',       // ResolveurTour::piocherSansPeril() — Trésor sans Péril
     'restaure_pv_mind',        // ResolveurTour::sortUtilitaire() — Récupération Psychique
+    'rayon',                   // ResolveurTour::rayonDeSort() — Éclair (une DIRECTION, pas une cible)
     'condition_bonus_attaque', // MoteurSorts::bonusDes() — dé conditionnel (au contact)
     'regain',                  // MoteurSorts::regagnerSorts() — App\Engine\RegainEffet
     'reaction',                // MoteurReactions::sortReactifDisponible() — hors tour
@@ -120,7 +121,9 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         // ⚠ `restaure_pv_mind` agit — il écrit `pv_mind` — même si rien ne
         // réduit cette jauge aujourd'hui. Le lecteur est correct, c'est sa
         // source qui manque ; même statut que la branche Mind de `relever`.
-        'restaure_pv_mind'];
+        'restaure_pv_mind',
+        // Un rayon agit : il traverse la ligne et frappe tout ce qui s'y tient.
+        'rayon'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -138,10 +141,10 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
     $attendus = collect(Sort::all())->groupBy('element')->map->count();
 
     expect($attendus[MoteurSorts::REPERTOIRE_ELFIQUE] ?? 0)->toBe(6)
-        // ⚠ 29 depuis le 2026-09-04 : *Trésor sans Péril* et *Récupération
-        // Psychique*, les deux premiers sorts à n'exister qu'en parchemin
+        // ⚠ 30 depuis le 2026-09-04 : *Trésor sans Péril*, *Récupération
+        // Psychique* et *Éclair*, les trois sorts à n'exister qu'en parchemin
         // (élément `parchemin`, aucune école).
-        ->and(Sort::count())->toBe(29);
+        ->and(Sort::count())->toBe(30);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

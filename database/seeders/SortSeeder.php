@@ -343,6 +343,24 @@ class SortSeeder extends Seeder
             // l'esprit. Le lecteur est juste, c'est sa SOURCE qui manque.
             ['element' => 'parchemin', 'nom' => 'Récupération Psychique', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'restaure_pv_mind' => true]],
+
+            // « This spell may be cast in a horizontal, vertical, or diagonal
+            // direction. The bolt will travel in a straight line until it
+            // strikes a wall or closed door. It inflicts 2 Body Points of damage
+            // on all heroes or monsters that stand in its path. » (carte © 2023)
+            //
+            // ⚠ Mot pour mot la ligne de l'*Esprit Ardent* du Moine — « straight
+            // or diagonal », « until it meets a wall or closed door », 2 points.
+            // La seule différence est la cible : le Moine ne touche que « each
+            // ENEMY », l'Éclair « all HEROES or monsters ». D'où `cible: soi`
+            // (il ne vise personne, il vise une direction) et un TIR AMI assumé,
+            // que l'entrée de menu annonce en nommant les compagnons sur la
+            // ligne.
+            //
+            // ⚠ `degats_fixes` et non `des_degats` : la carte donne un nombre,
+            // pas des dés, et rien ne les réduit — ni défense, ni dés rouges.
+            ['element' => 'parchemin', 'nom' => 'Éclair', 'type' => 'degats', 'difficulte_parchemin' => 3,
+                'effet' => ['cible' => 'soi', 'rayon' => true, 'degats_fixes' => 2]],
         ];
 
         foreach ($sorts as $sort) {

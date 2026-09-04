@@ -22,6 +22,7 @@ use App\Partie\MoteurDegats;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurReactions;
 use App\Partie\MoteurSorts;
+use App\Partie\Rayon;
 use App\Partie\Salles;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -822,6 +823,86 @@ it('rend TOUS les points de Mind perdus, au lanceur ou au héros de son choix', 
         ->and(Inventaire::find($parchemin->id))->toBeNull();
 });
 
+it('foudroie toute la ligne — monstres ET compagnons —, et l\'annonce avant de tirer', function () {
+    // ⚠ Un MAGICIEN : l'Éclair est un parchemin de difficulté 3, et un
+    // non-lanceur le raterait presque toujours — on éprouve le rayon, pas le
+    // jet de Mind, qui a ses propres tests.
+    $ctx = demarrerQueteAvecMonstre('Orque', ['classe' => 'magicien']);
+    $heros = $ctx['heros'];
+    $quete = $ctx['quete'];
+    $etat = $ctx['etatHeros'];
+
+    // On aligne trois figures dans une direction libre : un compagnon, puis l'orque.
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    $ligne = null;
+    foreach (Rayon::DIRECTIONS as $code => [$dx, $dy]) {
+        if (caseQueteLibre($quete, $hx + $dx, $hy + $dy)
+            && caseQueteLibre($quete, $hx + 2 * $dx, $hy + 2 * $dy)) {
+            $ligne = ['code' => $code, 'dx' => $dx, 'dy' => $dy];
+            break;
+        }
+    }
+    expect($ligne)->not->toBeNull();
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $ctx['groupe'], 'Brunhilde', 2);
+    $etatCompagnon = $quete->etatsPersonnages()->create([
+        'personnage_id' => $compagnon->id,
+        'position_x' => $hx + $ligne['dx'], 'position_y' => $hy + $ligne['dy'],
+    ]);
+
+    $orque = $ctx['instance'];
+    $orque->update([
+        'pv_body' => 6, 'pv_body_max' => 6,
+        'position_x' => $hx + 2 * $ligne['dx'], 'position_y' => $hy + 2 * $ligne['dy'],
+    ]);
+
+    Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Parchemin : Éclair')->firstOrFail()->id,
+        'emplacement' => 'sac', 'quantite' => 1,
+    ]);
+
+    $options = optionsMenu($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    $entrees = collect(collect($options)->firstWhere('id', 'lire_parchemin')['parametres']['parchemins'] ?? []);
+    $tir = $entrees->firstWhere('direction', $ligne['code']);
+
+    // ⚠ Une entrée PAR DIRECTION, et elle NOMME le compagnon sur la ligne :
+    // « all heroes or monsters that stand in its path » doit se voir avant de
+    // tirer, pas après.
+    expect($tir)->not->toBeNull()
+        ->and($tir['cle'])->toContain(":{$ligne['code']}")
+        ->and($tir['detail'])->toContain('Brunhilde')
+        ->and($tir['tir_ami'])->toBe(['Brunhilde'])
+        // Aucune direction ne part vers un couloir vide : le parchemin est
+        // détruit à l'usage, l'offrir dans le vide serait un bouton pour perdre
+        // une carte.
+        ->and($entrees->every(fn ($e) => str_contains((string) $e['detail'], 'ennemi')))->toBeTrue();
+
+    $pvCompagnon = (int) $compagnon->fresh()->pv_body;
+
+    desFiges(array_fill(0, 20, 4)); // aucun jet à faire : le rayon ne roule pas
+
+    $resultat = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lire_parchemin', 'parametres' => ['cle' => $tir['cle']],
+    ])->assertStatus(202)->json('resultat');
+
+    expect($resultat['rayon'])->toBeTrue()
+        ->and($resultat['direction'])->toBe($ligne['code'])
+        ->and($resultat['degats'])->toBe(2)
+        // 2 points fixes de chaque côté, sans défense ni dés rouges.
+        ->and((int) $orque->fresh()->pv_body)->toBe(4)
+        ->and((int) $compagnon->fresh()->pv_body)->toBe($pvCompagnon - 2)
+        ->and(collect($resultat['touches'])->pluck('type')->all())->toBe(['heros', 'monstre']);
+
+    // Le lanceur, lui, est INTACT : la ligne commence au premier pas.
+    expect((int) $heros->fresh()->pv_body)->toBe((int) $heros->pv_body_max);
+
+    unset($etatCompagnon);
+});
+
 it('n\'entre dans le grimoire de personne : le sort n\'existe qu\'en parchemin', function () {
     // ⚠ `element: parchemin` n'est pas une école. Un magicien qui prend les
     // trois siennes ne doit jamais le connaître — lui donner une école
@@ -837,6 +918,7 @@ it('n\'entre dans le grimoire de personne : le sort n\'existe qu\'en parchemin',
     expect($magicien->sorts()->pluck('nom')->all())
         ->not->toContain('Trésor sans Péril')
         ->not->toContain('Récupération Psychique')
+        ->not->toContain('Éclair')
         ->and(MoteurSorts::ELEMENTS)->not->toContain('parchemin');
 });
 

@@ -38,7 +38,7 @@ use Illuminate\Validation\ValidationException;
  * disponible via reinitialiserQuete ; « Concentration » (S6, nœud Magicien)
  * récupère UN sort épuisé en sacrifiant le tour, une fois par quête — l'usage
  * est compté dans `etat_personnage_quete.capacites_utilisees`, par
- * {@see \App\Partie\Talents}, comme toute capacité « une fois par quête ».
+ * {@see Talents}, comme toute capacité « une fois par quête ».
  *
  * ⚠ Il vivait en `Cache::forever` jusqu'au 2026-09-02, ce que la règle
  * consolidée du projet interdit : un cache vidé rendait le nœud au magicien en
@@ -704,6 +704,18 @@ final class MoteurSorts
                 continue;
             }
 
+            // ÉCLAIR : il ne vise pas une figure mais une DIRECTION, donc UNE
+            // ENTRÉE PAR DIRECTION — la même forme que le rayon du Moine, un
+            // cran plus bas dans le menu. Aucune grammaire neuve : le `cle`
+            // reste la liste blanche que `entreeChoisie()` revérifie.
+            if (! empty($sort->effet['rayon']) && $lanceur !== null) {
+                foreach ($this->entreesDeRayon($quete, $ligne->id, $sort, $lanceur) as $entree) {
+                    $parchemins[] = $entree;
+                }
+
+                continue;
+            }
+
             $parchemins[] = $this->entreeSort(
                 "parchemin:{$ligne->id}",
                 $sort->nom,
@@ -1274,7 +1286,7 @@ final class MoteurSorts
      * Ne touche QUE les sorts épuisés : un sort disponible n'a rien à regagner,
      * et l'événement ne doit pas être consommé pour rien.
      *
-     * @return int  nombre de sorts rendus (0 = l'événement n'intéressait personne)
+     * @return int nombre de sorts rendus (0 = l'événement n'intéressait personne)
      */
     public function regagnerSorts(Personnage $personnage, string $evenement): int
     {
@@ -1780,6 +1792,55 @@ final class MoteurSorts
      * @param  array<string, mixed>  $extra
      * @return array<string, mixed>
      */
+    /**
+     * Une entrée par direction utile, pour un sort-rayon (*Éclair*).
+     *
+     * ⚠ Seules les directions qui touchent AU MOINS UN MONSTRE sont offertes :
+     * un parchemin est DÉTRUIT à l'usage, et le foudroyer dans un couloir vide
+     * serait un bouton pour perdre une carte. Même arbitrage que le rayon du
+     * Moine, dont le Style du Feu ne s'ouvre qu'une fois par combat.
+     *
+     * ⚠ Les compagnons sur la ligne sont NOMMÉS dans le libellé. La carte dit
+     * « all heroes or monsters that stand in its path » : le joueur doit voir
+     * qui il va griller avant de choisir, sans quoi le tir ami serait un effet
+     * automatique que rien n'annonce.
+     *
+     * @param  array{x: int, y: int}  $lanceur
+     * @return list<array<string, mixed>>
+     */
+    private function entreesDeRayon(Quete $quete, int $inventaireId, Sort $sort, array $lanceur): array
+    {
+        $entrees = [];
+
+        foreach (Rayon::cadran($quete, $lanceur['x'], $lanceur['y']) as $code => $vise) {
+            if ($vise['monstres'] === 0) {
+                continue;
+            }
+
+            [, , $libelle] = Rayon::DIRECTIONS[$code];
+            $detail = "{$vise['monstres']} ennemi".($vise['monstres'] > 1 ? 's' : '');
+
+            if ($vise['heros'] !== []) {
+                $detail .= ' — touche aussi '.implode(', ', $vise['heros']);
+            }
+
+            $entrees[] = [
+                'cle' => "parchemin:{$inventaireId}:{$code}",
+                'sort_id' => $sort->id,
+                'nom' => "{$sort->nom} {$libelle}",
+                'element' => $sort->element,
+                'sort_type' => $sort->type,
+                'disponible' => true,
+                'detail' => $detail,
+                'inventaire_id' => $inventaireId,
+                'direction' => $code,
+                'tir_ami' => $vise['heros'],
+            ];
+        }
+
+        return $entrees;
+    }
+
     private function entreeSort(
         string $cle,
         string $nom,

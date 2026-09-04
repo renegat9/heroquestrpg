@@ -119,6 +119,9 @@ final class ResolveurTour
     /** Clé d'effet de la *Récupération Psychique* : tous les Mind perdus. */
     private const EFFET_RESTAURE_PV_MIND = 'restaure_pv_mind';
 
+    /** Clé d'effet de l'*Éclair* : un rayon, donc une direction et non une cible. */
+    private const EFFET_RAYON = 'rayon';
+
     /** Au moins un héros tient encore debout : la quête continue. */
     public const CHUTE_DEBOUT = 'debout';
 
@@ -1310,17 +1313,15 @@ final class ResolveurTour
     }
 
     /**
-     * Les huit directions d'un rayon (*Esprit Ardent*) : « This beam may be
-     * STRAIGHT OR DIAGONAL ».
+     * Les huit directions d'un rayon : « This beam may be STRAIGHT OR DIAGONAL ».
+     *
+     * ⚠ Alias de `Rayon::DIRECTIONS` depuis le 2026-09-04, gardé parce que le
+     * menu et les tests le nomment ainsi. L'autorité est dans `Rayon`, avec la
+     * géométrie qui va avec.
      *
      * @var array<string, array{0: int, 1: int, 2: string}>
      */
-    public const DIRECTIONS_RAYON = [
-        'n' => [0, -1, 'au nord'], 's' => [0, 1, 'au sud'],
-        'e' => [1, 0, "à l'est"], 'o' => [-1, 0, "à l'ouest"],
-        'ne' => [1, -1, 'au nord-est'], 'no' => [-1, -1, 'au nord-ouest'],
-        'se' => [1, 1, 'au sud-est'], 'so' => [-1, 1, 'au sud-ouest'],
-    ];
+    public const DIRECTIONS_RAYON = Rayon::DIRECTIONS;
 
     /**
      * ESPRIT ARDENT (Moine, Style du Feu) — « As an action, expel a beam of
@@ -1361,26 +1362,14 @@ final class ResolveurTour
         }
 
         $degats = (int) ($source['effet']['degats'] ?? 2);
-        $touches = [];
 
-        foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
-            foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
-                $restants = max(0, (int) $instance->pv_body - $degats);
-                $instance->update([
-                    'pv_body' => $restants,
-                    'etat' => $restants === 0 ? 'vaincu' : 'actif',
-                ]);
-
-                $touches[] = [
-                    'instance_id' => $instance->id,
-                    'nom' => $instance->nomAffiche(),
-                    'degats' => $degats,
-                    'vaincu' => $restants === 0,
-                ];
-
-                $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
-            }
-        }
+        // ⚠ `touchesLesHeros: false` — la carte du Moine dit « each ENEMY in the
+        // beam ». Celle de l'Éclair dit « all heroes OR monsters », et c'est la
+        // seule différence entre les deux rayons.
+        $touches = $this->projeterRayon(
+            $groupe, $quete, $etat, $personnage, $direction, $degats,
+            touchesLesHeros: false, source: $source['nom'],
+        );
 
         $this->styles->depenser($personnage, $etat, $source);
 
@@ -1400,32 +1389,141 @@ final class ResolveurTour
     }
 
     /**
-     * Les cases parcourues par un rayon, du premier pas jusqu'au mur ou à la
-     * porte close — la case du lanceur exclue.
+     * ÉCLAIR (parchemin) — « This spell may be cast in a horizontal, vertical,
+     * or diagonal direction. The bolt will travel in a straight line until it
+     * strikes a wall or closed door. It inflicts 2 Body Points of damage on all
+     * heroes or monsters that stand in its path. »
+     *
+     * ⚠ Traité comme le second mode du Génie, et pour la même raison : il ne
+     * vise pas une FIGURE mais une DIRECTION. Le passer par le garde-fou de
+     * ligne de vue exigerait un `cible_id` qu'il ne porte pas.
+     *
+     * ⚠ TIR AMI assumé et écrit sur la carte : le rayon frappe les compagnons
+     * qui se tiennent sur la ligne. C'est l'entrée de menu qui doit prévenir —
+     * elle les nomme.
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function rayonDeSort(
+        Quete $quete,
+        Personnage $lanceur,
+        EtatPersonnageQuete $etat,
+        Sort $sort,
+        array $option,
+    ): array {
+        $direction = (string) data_get($option, 'parametres.direction', '');
+
+        if (! isset(Rayon::DIRECTIONS[$direction])) {
+            throw ValidationException::withMessages(['parametres' => 'Direction de rayon inconnue.']);
+        }
+
+        $degats = max(0, (int) data_get($sort->effet, 'degats_fixes', 2));
+
+        $touches = $this->projeterRayon(
+            $quete->groupe, $quete, $etat, $lanceur, $direction, $degats,
+            touchesLesHeros: true, source: $sort->nom,
+        );
+
+        return [
+            'rayon' => true,
+            'direction' => $direction,
+            'degats' => $degats,
+            'touches' => $touches,
+        ];
+    }
+
+    /**
+     * Projette le rayon et applique ses dégâts, figure par figure.
+     *
+     * ⚠ Les dégâts aux HÉROS passent par `MoteurDegats::infligerAHeros()` — le
+     * point de passage unique, qui applique les réductions de talent et ouvre
+     * les réactions. Écrire `pv_body` ici aurait court-circuité les deux, et un
+     * compagnon foudroyé serait tombé sans qu'on lui propose sa potion.
+     *
+     * ⚠ Source `tir_ami` : c'est bien un sort de héros qui blesse un héros, la
+     * même source que la boule de feu mal placée.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function projeterRayon(
+        Groupe $groupe,
+        Quete $quete,
+        EtatPersonnageQuete $etat,
+        Personnage $lanceur,
+        string $direction,
+        int $degats,
+        bool $touchesLesHeros,
+        string $source,
+    ): array {
+        $touches = [];
+
+        foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
+            foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
+                $restants = max(0, (int) $instance->pv_body - $degats);
+                $instance->update([
+                    'pv_body' => $restants,
+                    'etat' => $restants === 0 ? 'vaincu' : 'actif',
+                ]);
+
+                $touches[] = [
+                    'type' => 'monstre',
+                    'instance_id' => $instance->id,
+                    'nom' => $instance->nomAffiche(),
+                    'degats' => $degats,
+                    'vaincu' => $restants === 0,
+                ];
+
+                $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+            }
+
+            if (! $touchesLesHeros) {
+                continue;
+            }
+
+            foreach ($quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get() as $cible) {
+                $heros = $cible->personnage;
+
+                if ($heros === null
+                    || (int) $cible->position_x !== $case['x']
+                    || (int) $cible->position_y !== $case['y']) {
+                    continue;
+                }
+
+                $subis = $this->degats->infligerAHeros(
+                    $heros, $degats, MoteurDegats::SOURCE_TIR_AMI, ['sort' => $source],
+                );
+                $this->sorts->reveillerHeros($heros);
+
+                if ((int) $heros->fresh()->pv_body === 0 && $subis > 0) {
+                    $cible->update(['tombe' => true]); // C4
+                }
+
+                $touches[] = [
+                    'type' => 'heros',
+                    'personnage_id' => (int) $heros->id,
+                    'nom' => $heros->nom,
+                    'tir_ami' => true,
+                    // ⚠ Relu APRÈS application : un écouteur de
+                    // `HerosVaSubirDegats` a pu réduire le coup.
+                    'degats' => $subis,
+                    'pv_body_apres' => (int) $heros->fresh()->pv_body,
+                ];
+            }
+        }
+
+        return $touches;
+    }
+
+    /**
+     * Les cases parcourues par un rayon — délègue à `Rayon`, seule autorité
+     * depuis que trois lecteurs marchent cette ligne.
      *
      * @return list<array{x: int, y: int}>
      */
     private function casesDuRayon(Quete $quete, int $x, int $y, string $direction): array
     {
-        [$dx, $dy] = self::DIRECTIONS_RAYON[$direction];
-        $grille = $this->grille($quete);
-        $cases = [];
-
-        while (true) {
-            $suivantX = $x + $dx;
-            $suivantY = $y + $dy;
-
-            if ($grille->estRoche($suivantX, $suivantY)
-                || $grille->porteBloqueEntre($x, $y, $suivantX, $suivantY)) {
-                break;
-            }
-
-            $cases[] = ['x' => $suivantX, 'y' => $suivantY];
-            $x = $suivantX;
-            $y = $suivantY;
-        }
-
-        return $cases;
+        return Rayon::cases($this->grille($quete), $x, $y, $direction);
     }
 
     /**
@@ -3138,6 +3236,13 @@ final class ResolveurTour
         // (constaté en partie réelle, 2026-08-06).
         if (data_get($option, 'parametres.mode') === 'ouvre_porte') {
             return $this->sortOuvrePorte($quete, $sort, $option);
+        }
+
+        // ÉCLAIR : même raison, un cran plus loin — il ne vise pas une figure
+        // mais une DIRECTION, et le garde-fou ci-dessous réclamerait un
+        // `cible_id` qu'il ne porte pas.
+        if (! empty(($sort->effet ?? [])[self::EFFET_RAYON])) {
+            return $this->rayonDeSort($quete, $lanceur, $etat, $sort, $option);
         }
 
         // Garde-fou de ligne de vue (doc 03 §36) : un sort offensif (degats /

@@ -243,48 +243,20 @@ final class MenuMoteur
      * *Esprit Ardent*. Un rayon lancé dans le vide serait un Style du Feu
      * dépensé pour rien, et le Feu ne s'ouvre qu'une fois par combat.
      *
-     * ⚠ Le résolveur recalcule la ligne : ceci n'est qu'un cadran de visée.
+     * ⚠ La ligne est calculée par `Rayon`, comme chez le résolveur : ce cadran
+     * de visée la marchait pour son compte, et il annonçait donc des ennemis
+     * que le résolveur pouvait ne pas frapper au premier ajustement.
      *
      * @return array<string, int>
      */
     private function directionsDeRayon(Quete $quete, EtatPersonnageQuete $etat): array
     {
-        $grille = FabriqueGrille::pour($quete);
-        $monstres = $quete->instancesMonstres()
-            ->where('etat', 'actif')->where('revele', true)->with('monstre')->get();
-        $trouvees = [];
+        $cadran = Rayon::cadran($quete, (int) $etat->position_x, (int) $etat->position_y);
 
-        foreach (ResolveurTour::DIRECTIONS_RAYON as $code => [$dx, $dy]) {
-            $x = (int) $etat->position_x;
-            $y = (int) $etat->position_y;
-            $ennemis = 0;
-
-            while (true) {
-                $sx = $x + $dx;
-                $sy = $y + $dy;
-
-                if ($grille->estRoche($sx, $sy) || $grille->porteBloqueEntre($x, $y, $sx, $sy)) {
-                    break;
-                }
-
-                $ennemis += $monstres->filter(function (InstanceMonstre $i) use ($sx, $sy) {
-                    $e = $i->monstre->emprise();
-
-                    return $i->position_x !== null
-                        && $sx >= (int) $i->position_x && $sx < (int) $i->position_x + $e['l']
-                        && $sy >= (int) $i->position_y && $sy < (int) $i->position_y + $e['h'];
-                })->count();
-
-                $x = $sx;
-                $y = $sy;
-            }
-
-            if ($ennemis > 0) {
-                $trouvees[$code] = $ennemis;
-            }
-        }
-
-        return $trouvees;
+        return array_map(
+            static fn (array $vise) => $vise['monstres'],
+            array_filter($cadran, static fn (array $vise) => $vise['monstres'] > 0),
+        );
     }
 
     /**
