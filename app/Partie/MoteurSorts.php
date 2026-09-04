@@ -945,7 +945,7 @@ final class MoteurSorts
      * chiffré (ex. bonus_des_attaque) est relu sur l'effet de l'objet. Consommé
      * comme un buff de sort (consommerBuffs, à la prochaine attaque).
      */
-    public function appliquerBuffPotion(Personnage $cible, Objet $objet): Condition
+    public function appliquerBuffPotion(Personnage $cible, Objet $objet, ?int $inventaireId = null): Condition
     {
         $condition = $this->condition((string) data_get($objet->effet, 'condition_appliquee', self::CONDITION_BUFF_DEFAUT));
 
@@ -953,9 +953,15 @@ final class MoteurSorts
         // tours, un MOT-CLÉ laisse le pivot à 0 et confie l'expiration au
         // déclencheur correspondant. On lisait auparavant `duree_tours`, clé
         // qu'aucun objet ne porte — d'où des buffs de potion éternels.
+        // ⚠ L'EXEMPLAIRE est collé à la source (`potion:{Nom}#{inventaire_id}`)
+        // depuis le 2026-09-03. Certaines cartes ne valent qu'avec l'arme qui a
+        // produit le buff — « when you attack WITH THE DAGGER » —, et un buff
+        // posé sur le héros ne saurait pas le dire. Le suffixe est optionnel :
+        // toutes les potions continuent de poser une source sans lui.
         $cible->conditions()->attach($condition->id, [
             'duree' => DureeEffet::tours(data_get($objet->effet, 'duree')),
-            'source' => self::PREFIXE_SOURCE_POTION.$objet->nom,
+            'source' => self::PREFIXE_SOURCE_POTION.$objet->nom
+                .($inventaireId === null ? '' : '#'.$inventaireId),
         ]);
 
         return $condition;
@@ -1006,7 +1012,71 @@ final class MoteurSorts
      * plus forte l'emporte. Additionner des dés de défense ignorés donnerait
      * vite une défense négative.
      */
-    public function valeurBuff(Personnage $personnage, string $cle): int
+    /** Nom de l'objet porté par une source `potion:{Nom}` ou `potion:{Nom}#{id}`. */
+    private static function nomDeSourceObjet(string $source): string
+    {
+        $reste = substr($source, strlen(self::PREFIXE_SOURCE_POTION));
+
+        return explode('#', $reste, 2)[0];
+    }
+
+    /** Exemplaire d'inventaire collé à une source, ou `null` si elle n'en porte pas. */
+    private static function exemplaireDeSource(string $source): ?int
+    {
+        $morceaux = explode('#', $source, 2);
+
+        return isset($morceaux[1]) && ctype_digit($morceaux[1]) ? (int) $morceaux[1] : null;
+    }
+
+    /**
+     * Comme {@see self::valeurBuff()}, mais un buff COLLÉ À UN EXEMPLAIRE ne
+     * compte que si c'est bien cette arme qui frappe.
+     *
+     * La carte de la *Lame Fantôme* dit « when you attack WITH THE DAGGER » :
+     * sans ce filtre, l'activer puis tirer à l'arc annulait quand même la
+     * défense de la cible. Un buff SANS exemplaire (potion, sort) reste valable
+     * quelle que soit l'arme — c'est le cas de tous les autres.
+     */
+    /**
+     * Dés de RÉSISTANCE MENTALE d'un héros : son Mind, plus ce que l'équipement
+     * porté y ajoute (`bonus_des_resistance_mentale`).
+     *
+     * ⚠ Point de passage unique, miroir de {@see self::desDefenseHeros()} pour
+     * le corps. `MoteurDread` passait `attribut_mind` BRUT en deux endroits — le
+     * jet de résistance et le contresort — et aucun équipement ne pouvait s'y
+     * ajouter. Les *Écailles d'Elethorn* disent « when you attempt to resist a
+     * Dread spell, roll an additional die » ; deux additions locales auraient
+     * dérivé à la première divergence entre les deux jets.
+     */
+    public function desResistanceMentale(Personnage $personnage): int
+    {
+        return max(0, (int) $personnage->attribut_mind
+            + app(Equipement::class)->valeurEffetPorte($personnage, 'bonus_des_resistance_mentale'));
+    }
+
+    public function valeurBuffDeLArme(Personnage $personnage, string $cle, ?int $ligneArmeId, int $vraiVaut = 1): int
+    {
+        $valeur = 0;
+
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $source = (string) $condition->pivot->source;
+            $exemplaire = self::exemplaireDeSource($source);
+
+            if ($exemplaire !== null && $exemplaire !== $ligneArmeId) {
+                continue; // ce buff appartient à une autre arme
+            }
+
+            $brut = $this->effetSortSource($source)[$cle] ?? null;
+
+            if ($brut !== null) {
+                $valeur = max($valeur, $brut === true ? $vraiVaut : (int) $brut);
+            }
+        }
+
+        return $valeur;
+    }
+
+    public function valeurBuff(Personnage $personnage, string $cle, int $vraiVaut = 1): int
     {
         $valeur = 0;
 
@@ -1018,9 +1088,13 @@ final class MoteurSorts
                 continue;
             }
 
-            // `true` vaut 1 : une carte qui dit « ne peut pas se défendre » sans
-            // chiffre retire un dé, comme le nœud d'arbre chiffré à 1.
-            $valeur = max($valeur, $brut === true ? 1 : (int) $brut);
+            // ⚠ `$vraiVaut` dit ce que signifie un `true` pour CETTE clé, et ce
+            // n'est pas la même chose partout : « ne peut pas se défendre » sans
+            // chiffre retire un dé (défaut 1), tandis que la Potion de bataille
+            // — « 1 reroll of your Attack dice » — relance TOUTE la volée. Sans
+            // ce paramètre, la potion serait tombée à un seul dé le jour où la
+            // Longue épée de Fortune a eu besoin d'un nombre.
+            $valeur = max($valeur, $brut === true ? $vraiVaut : (int) $brut);
         }
 
         return $valeur;
@@ -1812,7 +1886,9 @@ final class MoteurSorts
     {
         // Buff de POTION : l'effet chiffré est relu sur l'objet consommable.
         if (str_starts_with($source, self::PREFIXE_SOURCE_POTION)) {
-            $nom = substr($source, strlen(self::PREFIXE_SOURCE_POTION));
+            // ⚠ Le suffixe `#{inventaire_id}` est retiré avant la recherche : il
+            // dit QUEL exemplaire a posé le buff, il ne fait pas partie du nom.
+            $nom = self::nomDeSourceObjet($source);
 
             return Objet::query()->where('nom', $nom)->first()?->effet ?? [];
         }

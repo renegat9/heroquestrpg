@@ -42,6 +42,16 @@ class ConditionSeeder extends Seeder
             // voit plus ».
             ['nom' => 'Vaporeux', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['franchit_figures' => true, 'fin' => 'fin_du_tour']],
+            // ⚠ Deux conditions de plus le 2026-09-03, pour la même raison qui a
+            // fait scinder « Renforcé » en trois : la Lame Fantôme et la Longue
+            // épée de Fortune posaient toutes deux « Renforcé », dont l'effet
+            // catalogue est `bonus_des: attaque`. Le joueur lisait donc « +dés
+            // d'attaque » alors qu'il avait reçu une annulation de défense ou une
+            // relance. Une condition doit dire ce qu'elle fait.
+            ['nom' => 'Perce-armure', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['ignore_defense' => true, 'fin' => 'prochaine_attaque']],
+            ['nom' => 'Main sûre', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['relance_attaque' => true, 'fin' => 'prochaine_attaque']],
             // Potion de vision (Elfe) : voir les pièges et les portes secrètes
             // en ligne de vue, « until the Elf suffers at least 1 Body Point of
             // damage ». La fin est portée par la `duree` de la potion

@@ -133,11 +133,11 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
 
     expect($portees('equipement'))->toBe(20)
         ->and($portees('potions'))->toBe(15)
-        // 22 artefacts portés sur 35 : les 13 autres nomment chacun la
+        // 24 artefacts portés sur 35 : les 11 autres nomment chacun la
         // mécanique qui leur manque, dont 3 cartes de la boîte GLACE écartées
         // en bloc. ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape
         // des Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE
         // mécanique neuve, seulement de réunir sur un OBJET ce qui existait
         // déjà sur des sorts.
-        ->and($portees('artefacts'))->toBe(22);
+        ->and($portees('artefacts'))->toBe(24);
 });

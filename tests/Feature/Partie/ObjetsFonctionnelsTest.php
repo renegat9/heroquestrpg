@@ -96,7 +96,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // action. C'est tout autant « changer ce que le porteur peut faire de
         // son tour » — la Cape des Ombres et le Sceptre de Télékinésie ne
         // servent qu'à ça (cartes officielles, doc 16 §9.2).
-        'activable'];
+        'activable',
+        // Les Cendres du Phénix ne modifient aucune statistique : elles ouvrent
+        // une RÉACTION hors tour. C'est tout autant changer ce que le porteur
+        // peut faire — c'est même la seule chose qu'elles font.
+        'plancher_pv'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
@@ -120,7 +124,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // ne le voit jamais. Il est listé ici parce que ce test demande « cet
         // objet fait-il quelque chose », et la réponse est oui — simplement par
         // un autre chemin.
-        'activable'];
+        'activable',
+        // Les Cendres du Phénix ne modifient aucune statistique : elles ouvrent
+        // une RÉACTION hors tour. C'est tout autant changer ce que le porteur
+        // peut faire — c'est même la seule chose qu'elles font.
+        'plancher_pv'];
 
     foreach (Objet::where('categorie', 'consommable')->get() as $potion) {
         expect(array_intersect($utiles, array_keys((array) $potion->effet)))

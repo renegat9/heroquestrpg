@@ -235,7 +235,7 @@ class ObjetSeeder extends Seeder
             // aux pièces portées à charges : une famille de plus dans la même
             // liste blanche, avec sa propre `cle`.
             ['nom' => 'Bracelet de Guérison', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
-                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'charges' => 1,
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'frequence' => 'une_fois_par_quete',
                     'soin_pv_body' => 2]],
 
             // « Weapon — This ornate dagger gives you 1 Attack die. ONCE PER
@@ -249,9 +249,9 @@ class ObjetSeeder extends Seeder
             // `max(0, …)` plafonne — la carte ne laisse aucun dé à la cible.
             ['nom' => 'Lame Fantôme', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 'effet' => ['des_attaque' => 1,
-                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'charges' => 1,
+                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'frequence' => 'une_fois_par_quete',
                     'ignore_defense_monstre' => 99, 'duree' => 'prochaine_attaque',
-                    'condition_appliquee' => 'Renforcé']],
+                    'condition_appliquee' => 'Perce-armure']],
 
             // « Weapon — This long blade enables you to attack diagonally and
             // gives you 3 Attack dice. ONCE PER QUEST, the hero may use its
@@ -264,9 +264,9 @@ class ObjetSeeder extends Seeder
             // qu'une potion. La cadence « une fois par quête » est la charge.
             ['nom' => 'Longue épée de Fortune', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1100, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true,
-                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'charges' => 1,
-                    'relance_des_attaque' => true, 'duree' => 'prochaine_attaque',
-                    'condition_appliquee' => 'Renforcé']],
+                    'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'frequence' => 'une_fois_par_quete',
+                    'relance_des_attaque' => 1, 'duree' => 'prochaine_attaque',
+                    'condition_appliquee' => 'Main sûre']],
 
             // « This long ancient staff […] can be used only by the wizard,
             // giving them 2 Attack dice and the ability to strike diagonally. »
@@ -318,7 +318,7 @@ class ObjetSeeder extends Seeder
             // comprend. En poser deux ne dirait rien de plus et doublerait les
             // lignes de la fiche.
             ['nom' => 'Cape des Ombres', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'armure',
-                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'charges' => 1,
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action', 'frequence' => 'une_fois_par_quete',
                     'franchit_mur' => true, 'franchit_figures' => true,
                     'duree' => 'ce_tour', 'condition_appliquee' => 'Intangible']],
 
@@ -330,8 +330,29 @@ class ObjetSeeder extends Seeder
             // Les deux moitiés existaient déjà, mais sur des SORTS : `saute_tour`
             // (Tempête) et la rupture par Mind (Sommeil). L'objet les réunit.
             ['nom' => 'Sceptre de Télékinésie', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'talisman',
-                'effet' => ['activable' => true, 'cible' => 'monstre', 'cout' => 'action', 'charges' => 1,
+                'effet' => ['activable' => true, 'cible' => 'monstre', 'cout' => 'action', 'frequence' => 'une_fois_par_quete',
                     'saute_tour' => true, 'resistance' => 'rupture_6_par_mind']],
+
+            // « Armor — This enchanted armor grants you 1 additional Defend die.
+            // When you attempt to resist the effects of a Dread spell while
+            // wearing this armor, roll an additional die. »
+            //
+            // ⚠ La seconde moitié n'avait nulle part où s'appliquer : `MoteurDread`
+            // passait l'`attribut_mind` BRUT au jet de résistance. Elle a demandé
+            // un agrégateur de défense mentale, miroir de celui qui existe pour le
+            // corps — et c'est lui que lisent le jet ET le contresort.
+            // « You may use this artifact once per quest when any one hero is
+            // reduced to 0 Body Points to instead reduce them to 1. Immediately
+            // roll 1 red die ; on a 5 or 6, this artifact is lost. »
+            //
+            // ⚠ Le seul objet du catalogue qui se DÉTRUIT sur un jet — pas
+            // épuisé, perdu. Et la première carte à ouvrir une réaction hors
+            // tour : jusqu'ici seul un nœud d'arbre le pouvait.
+            ['nom' => 'Cendres du Phénix', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1600, 'emplacement' => 'talisman',
+                'effet' => ['plancher_pv' => true, 'frequence' => 'une_fois_par_quete']],
+
+            ['nom' => "Écailles d'Elethorn", 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'armure', 'tag_equipement' => 'armure_legere', 'metallique' => true,
+                'effet' => ['des_defense' => 1, 'bonus_des_resistance_mentale' => 1]],
 
             ['nom' => 'Cape du Magicien', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'armure', 'tag_equipement' => 'armure_magicien',
                 'effet' => ['des_defense' => 1]],
@@ -381,7 +402,7 @@ class ObjetSeeder extends Seeder
             // nouvelle. Elle n'attendait qu'un CANAL : depuis que le coffre
             // accepte un consommable en repli, elle en a un.
             ['nom' => 'Plume anti-poison', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 300, 'emplacement' => 'consommable',
-                'effet' => ['retire_condition' => 'Empoisonné', 'soin_pv_body' => 2]],
+                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison']],
 
             // « The Wand of Recall allows you to cast two spells instead of one
             // during your turn. » — le pouvoir du nœud Réserve arcanique, mais
@@ -395,7 +416,7 @@ class ObjetSeeder extends Seeder
             // twice in the same Quest. » — une charge, dépensée sur le prochain
             // sort lancé, qui ne s'épuise alors pas.
             ['nom' => 'Anneau de Sort', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
-                'effet' => ['sort_non_epuise' => true, 'charges' => 1]],
+                'effet' => ['sort_non_epuise' => true, 'frequence' => 'une_fois_par_quete']],
 
             // « The Rod of Memory allows you to attempt to cast this spell as
             // often as you wish during the quest. You may roll one combat die
@@ -480,7 +501,7 @@ class ObjetSeeder extends Seeder
                 // ⚠ « caused by poison needles or poison darts only » n'est PAS
                 // portable : la source d'un dégât n'est mémorisée nulle part sur
                 // le héros. Même forme que la Plume anti-poison (doc 16 §10).
-                'effet' => ['retire_condition' => 'Empoisonné', 'soin_pv_body' => 2]],
+                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison']],
             ['nom' => 'Potion de peau de givre', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 'effet' => ['bonus_des_defense' => 2, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé']],
             ['nom' => 'Potion de magie', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable',

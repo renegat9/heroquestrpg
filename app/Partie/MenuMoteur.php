@@ -470,7 +470,11 @@ final class MenuMoteur
             // `disponible()`, l'option resterait offerte une fois la charge
             // épuisée et le résolveur répondrait non — l'anti-patron que le
             // projet traque partout.
-            if (! empty($objet->effet['activable']) && $charges->disponible($ligne)
+            // ⚠ `utilisable()` et non `disponible()` : il pose LES DEUX questions,
+            // les charges ET la fenêtre « une fois par quête ». Interroger la
+            // seule charge laissait l'option debout après usage — un bouton qui
+            // répond toujours non, l'anti-patron que le projet traque.
+            if (! empty($objet->effet['activable']) && $charges->utilisable($ligne, $etat)
                 && $equipement->estAccessible($personnage, $objet)) {
                 $entrees[] = [
                     'cle' => "objet:{$ligne->id}",

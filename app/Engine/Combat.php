@@ -30,8 +30,13 @@ final class Combat
      * @param  int  $desDefense  dés de combat du défenseur (Défense + armure, modificateurs inclus)
      * @param  TypeFigurine  $typeDefenseur  camp du DÉFENSEUR (détermine la face de bouclier qui compte)
      * @param  int  $pvBodyDefenseur  PV de Body courants du défenseur avant l'attaque
-     * @param  bool  $relanceDesAttaqueRatee  Coup puissant (nœud barbare) : relance UNE FOIS chaque dé
-     *                                        d'attaque raté (non-crâne), en gardant les crânes déjà obtenus
+     * @param  int  $relanceDesAttaqueRatee  NOMBRE de dés d'attaque ratés relancés une fois, en gardant
+     *                                        les touches déjà obtenues. `PHP_INT_MAX` = toute la volée
+     *                                        (Coup puissant, nœud barbare ; Potion de bataille), un
+     *                                        entier = ce nombre de dés seulement. ⚠ La *Longue épée de
+     *                                        Fortune* dit « reroll **1** Attack die » : relancer toute
+     *                                        la volée en aurait fait une tout autre arme, et c'est
+     *                                        exactement ce que faisait le booléen d'avant (2026-09-03).
      * @param  bool  $defenseurEthere  Monstre ÉTHÉRÉ (Rise of the Dread Moon) : « une attaque de héros ne
      *                                 les touche que sur un **bouclier noir** (au lieu d'un crâne) ». Une
      *                                 face sur six au lieu de trois — c'est la seule règle du jeu qui
@@ -44,7 +49,7 @@ final class Combat
         int $desDefense,
         TypeFigurine $typeDefenseur,
         int $pvBodyDefenseur,
-        bool $relanceDesAttaqueRatee = false,
+        int $relanceDesAttaqueRatee = 0,
         bool $defenseurEthere = false,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
@@ -64,8 +69,8 @@ final class Combat
 
         $facesAttaque = $this->des->desCombat($desAttaque);
 
-        if ($relanceDesAttaqueRatee) {
-            $facesAttaque = $this->relancerRatees($facesAttaque, $touchante);
+        if ($relanceDesAttaqueRatee > 0) {
+            $facesAttaque = $this->relancerRatees($facesAttaque, $touchante, $relanceDesAttaqueRatee);
         }
 
         $facesDefense = $this->des->desCombat($desDefense);
@@ -96,17 +101,26 @@ final class Combat
      * @param  list<FaceDeCombat>  $faces
      * @return list<FaceDeCombat>
      */
-    private function relancerRatees(array $faces, FaceDeCombat $touchante = FaceDeCombat::Crane): array
-    {
+    private function relancerRatees(
+        array $faces,
+        FaceDeCombat $touchante = FaceDeCombat::Crane,
+        int $maximum = PHP_INT_MAX,
+    ): array {
         // ⚠ « Raté » se juge sur la face QUI TOUCHE, pas sur le crâne.
         // L'ancienne version relançait tout ce qui n'était pas un crâne : contre
         // un éthéré — où c'est le bouclier noir qui touche — elle gardait les
         // ratés et relançait les réussites, faisant tomber la chance de toucher
         // de 1/6 à 1/12. Coup puissant rendait le barbare DEUX FOIS PIRE contre
         // un spectre (audit des talents, 2026-08-10).
-        $nbRatees = count(array_filter($faces, fn ($face) => $face !== $touchante));
+        // ⚠ Plafonné par `$maximum` : une carte peut n'offrir qu'UNE relance.
+        // Les dés relancés sont les premiers ratés rencontrés — l'ordre n'a
+        // aucune importance, toutes les faces ratées se valent.
+        $nbRatees = min(
+            $maximum,
+            count(array_filter($faces, fn ($face) => $face !== $touchante)),
+        );
 
-        if ($nbRatees === 0) {
+        if ($nbRatees <= 0) {
             return $faces;
         }
 
@@ -114,7 +128,9 @@ final class Combat
         $indexRelance = 0;
 
         return array_map(
-            fn ($face) => $face === $touchante ? $face : $relances[$indexRelance++],
+            fn ($face) => $face === $touchante || $indexRelance >= $nbRatees
+                ? $face
+                : $relances[$indexRelance++],
             $faces,
         );
     }

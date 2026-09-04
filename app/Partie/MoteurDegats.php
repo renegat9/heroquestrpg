@@ -56,6 +56,16 @@ final class MoteurDegats
     public const SOURCE_SACRIFICE = 'sacrifice';
 
     /**
+     * POISON — le saignement d'une condition (`degats_pv_body_par_tour`), infligé
+     * en fin de tour par `ResolveurTour::saignerParConditions()`.
+     *
+     * ⚠ Hors de `SOURCES_REACTIVES`, et pour la même raison que les jetons de
+     * Rejeton : on n'annule pas un poison d'un coup d'aile sombre, on le subit.
+     * Les cartes réactives parlent d'un COUP reçu ; ceci est une hémorragie.
+     */
+    public const SOURCE_POISON = 'poison';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et
@@ -114,6 +124,18 @@ final class MoteurDegats
 
         $subis = $avant - (int) $heros->pv_body;
 
+        // ⚠ MÉMOIRE DES DÉGÂTS (René, 2026-09-03) : on retient la SOURCE et le
+        // MONTANT du dernier coup, et le cumul par source pour la quête en
+        // cours. Sans cela, une carte comme la Plume anti-poison — « restores
+        // ANY of the owner's Body Points lost by poisoning » — ne peut pas
+        // savoir combien rendre, et se rabat sur un forfait qui n'est pas ce
+        // que la carte dit.
+        //
+        // Le dernier coup sert de GARDE (« may be consumed immediately after
+        // being poisoned »), le cumul sert de MONTANT. Deux questions
+        // différentes, deux réponses distinctes.
+        $this->memoriser($heros, $source, $subis);
+
         // Réaction HORS TOUR : le coup a porté, on propose au joueur de
         // l'annuler (Dark Wings, Twisting Torrent). La proposition part sur son
         // canal privé et attend — la phase des monstres, elle, continue : rien
@@ -124,4 +146,34 @@ final class MoteurDegats
         return $subis;
     }
 
+    /**
+     * Retient sur l'état de quête ce que le héros vient d'encaisser.
+     *
+     * ⚠ Sur l'ÉTAT DE QUÊTE et non sur le personnage : la mémoire meurt avec la
+     * quête, comme les jetons de Rejeton et les compteurs de capacités. Un cumul
+     * de poison qui traverserait le hub ferait rendre à la Plume des PV perdus
+     * dans un donjon précédent.
+     */
+    private function memoriser(Personnage $heros, string $source, int $subis): void
+    {
+        $quete = $heros->groupeActif?->queteCourante;
+
+        if ($subis <= 0 || $quete === null) {
+            return;
+        }
+
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
+
+        if ($etat === null) {
+            return;
+        }
+
+        $cumul = (array) ($etat->degats_subis ?? []);
+        $cumul[$source] = (int) ($cumul[$source] ?? 0) + $subis;
+
+        $etat->update([
+            'degats_subis' => $cumul,
+            'dernier_degat' => ['source' => $source, 'montant' => $subis],
+        ]);
+    }
 }

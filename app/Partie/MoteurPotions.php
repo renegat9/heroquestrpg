@@ -154,6 +154,21 @@ class MoteurPotions
             }
         }
 
+        // ⚠ `soin_source` (2026-09-03) : rendre EXACTEMENT ce qu'une source a
+        // coûté, et non un forfait. La *Plume anti-poison* dit « restores ANY of
+        // the owner's Body Points lost by poisoning » ; nous rendions 2, faute
+        // de savoir combien le poison avait pris. `MoteurDegats` mémorise
+        // désormais le cumul par source sur l'état de quête, ce qui rend la
+        // carte littérale — et l'Antidote au venin avec elle.
+        //
+        // ⚠ Le cumul est REMIS À ZÉRO après usage : sans ça, une seconde plume
+        // rendrait une seconde fois des PV déjà rendus.
+        if (isset($effet['soin_source'])) {
+            $applique['soin_source'] = $this->soignerParSource(
+                $personnage, (string) $effet['soin_source'],
+            );
+        }
+
         // Buff — pour TOUTE potion qui porte une `duree`.
         //
         // La condition testait auparavant les deux clés de bonus chiffré, si
@@ -237,4 +252,35 @@ class MoteurPotions
             ->where('tombe', true)
             ->update(['tombe' => false]);
     }
+    /**
+     * Rend au héros tout ce qu'une SOURCE de dégâts lui a coûté dans la quête,
+     * puis remet ce cumul à zéro.
+     *
+     * @return array{source: string, rendus: int}
+     */
+    private function soignerParSource(Personnage $personnage, string $source): array
+    {
+        $quete = $personnage->groupeActif?->queteCourante;
+        $etat = $quete?->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null) {
+            return ['source' => $source, 'rendus' => 0];
+        }
+
+        $cumul = (array) ($etat->degats_subis ?? []);
+        $perdus = (int) ($cumul[$source] ?? 0);
+
+        if ($perdus <= 0) {
+            return ['source' => $source, 'rendus' => 0];
+        }
+
+        $avant = (int) $personnage->pv_body;
+        $personnage->update(['pv_body' => min((int) $personnage->pv_body_max, $avant + $perdus)]);
+
+        unset($cumul[$source]);
+        $etat->update(['degats_subis' => $cumul]);
+
+        return ['source' => $source, 'rendus' => (int) $personnage->fresh()->pv_body - $avant];
+    }
+
 }

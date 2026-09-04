@@ -978,7 +978,12 @@ final class MoteurDread
         }
 
         $personnage = $cible->personnage;
-        $mindHeros = (int) $personnage->attribut_mind;
+        // ⚠ Passe par l'agrégateur depuis le 2026-09-03 : l'`attribut_mind` brut
+        // ignorait tout équipement, si bien que les *Écailles d'Elethorn* — « roll
+        // an additional die when you resist a Dread spell » — n'avaient nulle part
+        // où s'appliquer. Le contresort plus bas lit la MÊME valeur : deux
+        // additions locales auraient dérivé.
+        $mindHeros = $this->sorts->desResistanceMentale($personnage);
         $resultat = (new SortMental($this->des))->resoudre($mindHeros);
 
         $payload = [

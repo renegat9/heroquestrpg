@@ -389,6 +389,11 @@ final class Sauvegarde
                     'styles_epuises' => (array) ($e->styles_epuises ?? []),
                     'garde_tenace_utilisee' => (bool) $e->garde_tenace_utilisee,
                     'jetons_rejeton' => (int) $e->jetons_rejeton,
+                    // Mémoire des dégâts (2026-09-03) : même raison que les
+                    // compteurs au-dessus — une /reprise qui l'oublierait
+                    // rendrait à la Plume anti-poison un cumul déjà encaissé.
+                    'degats_subis' => (array) ($e->degats_subis ?? []),
+                    'dernier_degat' => $e->dernier_degat,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -588,6 +593,8 @@ final class Sauvegarde
                 'styles_epuises' => $etat['styles_epuises'] ?? [],
                 'garde_tenace_utilisee' => $etat['garde_tenace_utilisee'] ?? false,
                 'jetons_rejeton' => $etat['jetons_rejeton'] ?? 0,
+                'degats_subis' => $etat['degats_subis'] ?? [],
+                'dernier_degat' => $etat['dernier_degat'] ?? null,
             ]);
         }
     }

@@ -834,7 +834,12 @@ final class EtatGroupe
                 // sans pouvoir dire laquelle faisait quoi (constaté en partie
                 // réelle le 2026-08-14). La source était en base depuis
                 // toujours, elle n'était simplement pas remontée.
-                'source' => $c->pivot->source,
+                // ⚠ Le suffixe `#{inventaire_id}` est retiré à la PUBLICATION :
+                // il dit au moteur quel exemplaire a posé le buff (Lame Fantôme,
+                // Longue épée de Fortune), et n'a aucun sens pour un joueur, qui
+                // lisait « Cape des Ombres#221 » sur sa fiche. La sauvegarde, elle,
+                // garde la source ENTIÈRE — c'est elle qui doit pouvoir restaurer.
+                'source' => explode('#', (string) $c->pivot->source, 2)[0],
             ])
             ->values()
             ->all();

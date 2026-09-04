@@ -958,9 +958,18 @@ final class ResolveurTour
         // the weapon passes through their armor ») porte la même mécanique par
         // un autre chemin. Un `max` et non une somme — deux sources qui
         // s'additionneraient donneraient un dé de défense négatif.
+        //
+        // ⚠ Le buff est LIÉ À SON ARME (2026-09-03). La carte dit « when you
+        // attack WITH THE DAGGER » : sans ce filtre, activer la Lame Fantôme
+        // puis frapper à l'arc annulait quand même la défense de la cible.
+        // `frapper()` reçoit déjà la ligne d'inventaire employée — c'est ce qui
+        // fait marcher la main gauche et l'arme lancée —, il suffit de la
+        // confronter à celle que le buff a mémorisée. ⚠ Comparer l'EXEMPLAIRE
+        // et non la catégorie : un héros peut porter deux dagues, et la carte
+        // parle de celle-ci.
         $desDefenseIgnores = max(
             $this->talents->valeur($personnage, 'ignore_defense_monstre'),
-            $this->sorts->valeurBuff($personnage, 'ignore_defense_monstre'),
+            $this->sorts->valeurBuffDeLArme($personnage, 'ignore_defense_monstre', $ligneArme?->id),
         );
 
         // Lame des Esprits : « three combat dice in attack OR four dice against
@@ -1038,8 +1047,14 @@ final class ResolveurTour
                 // Potion de bataille : « It allows you 1 reroll of your Attack
                 // dice ». Le calcul existait pour le nœud *Coup puissant* ; la
                 // carte ne fait qu'ouvrir un second déclencheur sur le même.
+                // ⚠ Un NOMBRE depuis le 2026-09-03, plus un booléen. Le talent et
+                // la potion relancent toute la volée — leurs textes le disent
+                // (« relance chaque dé raté », « 1 reroll of your Attack dice »)
+                // — quand la Longue épée de Fortune n'en offre QU'UN. Le booléen
+                // les confondait, et l'épée relançait jusqu'à trois dés.
                 relanceDesAttaqueRatee: $this->talents->a($personnage, 'relance_des_attaque_rates')
-                    || $this->sorts->aBuff($personnage, 'relance_des_attaque'),
+                    ? PHP_INT_MAX
+                    : $this->sorts->valeurBuffDeLArme($personnage, 'relance_des_attaque', $ligneArme?->id, PHP_INT_MAX),
                 defenseurEthere: $ethere,
             );
 
@@ -1816,6 +1831,54 @@ final class ResolveurTour
      * Aucun jet, ni d'attaque ni de défense : c'est le seul dégât du jeu qui ne
      * passe par aucun dé. Un héros qui tombe ainsi tombe comme d'un coup reçu.
      */
+    /**
+     * Le POISON mord en fin de tour : `conditions.effet.degats_pv_body_par_tour`.
+     *
+     * ⚠ Cette clé est déclarée sur *Empoisonné* depuis la création de la table
+     * et n'avait AUCUN lecteur (corrigé le 2026-09-03) : deux pièges — l'Aiguille
+     * empoisonnée et la Fiole de poison, tirées aussi par le tombeau et l'établi
+     * d'alchimiste — annonçaient au joueur qu'il était empoisonné, et il ne se
+     * passait rien. C'était une règle promise et jamais tenue, sur trois
+     * producteurs.
+     *
+     * Même rythme et même endroit que les jetons de Rejeton : c'est le seul
+     * saignement que le moteur connaisse, et il est déjà journalisé et affiché.
+     *
+     * ⚠ On passe par `MoteurDegats::infligerAHeros()` et jamais par une écriture
+     * directe : c'est lui qui émet `HerosVaSubirDegats`, applique les réductions
+     * de talent, mémorise la source et ouvre les réactions. Un héros qui tombe
+     * empoisonné doit se voir offrir son soin d'urgence comme pour toute chute.
+     *
+     * ⚠ La DURÉE, elle, n'est pas décrémentée ici : `decrementerDurees()` s'en
+     * charge en fin de round. Les deux cadences coïncident tant qu'un héros joue
+     * une fois par round ; les mêler ferait fondre le poison deux fois trop vite.
+     */
+    private function saignerParConditions(EtatPersonnageQuete $etat): void
+    {
+        $personnage = $etat->personnage;
+
+        if ($personnage === null || $etat->tombe) {
+            return;
+        }
+
+        foreach ($personnage->conditions()->get() as $condition) {
+            $parTour = (int) data_get($condition->effet, 'degats_pv_body_par_tour', 0);
+
+            if ($parTour <= 0) {
+                continue;
+            }
+
+            $this->degats->infligerAHeros(
+                $personnage, $parTour, MoteurDegats::SOURCE_POISON,
+                ['condition' => $condition->nom],
+            );
+
+            if ((int) $personnage->fresh()->pv_body === 0) {
+                $etat->update(['tombe' => true]); // C4 : à terre, relevable
+            }
+        }
+    }
+
     private function rongerParRejetons(EtatPersonnageQuete $etat): void
     {
         $jetons = (int) $etat->jetons_rejeton;
@@ -2113,7 +2176,7 @@ final class ResolveurTour
      *
      * @param  array<string, mixed>  $payload
      */
-    private function preserverSort(Personnage $personnage, array &$payload): bool
+    private function preserverSort(Personnage $personnage, EtatPersonnageQuete $etat, array &$payload): bool
     {
         // ⚠ Le *Sceptre de Mémoire* tenait ici la première place : il tirait un
         // dé après chaque incantation et épargnait le sort sur un bouclier noir.
@@ -2123,9 +2186,9 @@ final class ResolveurTour
         // bride le regain à chaque monstre abattu (`MoteurSorts::regagnerSorts`).
         // On retire donc la branche plutôt que de la laisser interroger un objet
         // que plus rien ne sème.
-        $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise');
+        $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise', $etat);
 
-        if ($anneau !== null && $this->charges->consommer($anneau)) {
+        if ($anneau !== null && $this->charges->consommerUsage($anneau, $etat)) {
             $payload['sort_preserve'] = 'anneau_de_sort';
             $payload['charges_restantes'] = $this->charges->restantes($anneau->fresh());
 
@@ -2625,7 +2688,7 @@ final class ResolveurTour
         // Économie de sorts : deux artefacts peuvent épargner le sort qu'on
         // vient de lancer. On ne les cumule pas — l'anneau dépense une charge,
         // il ne doit pas la gaspiller derrière un sceptre qui a déjà réussi.
-        $preserve = $this->preserverSort($personnage, $payload);
+        $preserve = $this->preserverSort($personnage, $etat, $payload);
 
         if (! $preserve) {
             $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
@@ -4222,7 +4285,9 @@ final class ResolveurTour
             $beneficiaire = $etatCible->personnage;
         }
 
-        $condition = $this->sorts->appliquerBuffPotion($beneficiaire, $objet);
+        // ⚠ L'exemplaire est mémorisé sur le buff pour les effets qui ne valent
+        // qu'avec CETTE arme (Lame Fantôme, Longue épée de Fortune).
+        $condition = $this->sorts->appliquerBuffPotion($beneficiaire, $objet, $ligne->id);
 
         return [
             'cible' => ['type' => 'heros', 'personnage_id' => $beneficiaire->id, 'nom' => $beneficiaire->nom],
@@ -4290,9 +4355,20 @@ final class ResolveurTour
             // et reste au sac. Il ne doit donc pas traverser la queue de méthode
             // qui décrémente la pile et supprime la ligne — celle-là est écrite
             // pour les trois consommables de matériel.
-            if (isset($effet['charges'])) {
-                $this->charges->consommer($ligne);
+            // ⚠ `consommerUsage()` dépense CE QUI LIMITE l'objet : la fenêtre
+            // « une fois par quête » si sa carte en déclare une, la charge s'il
+            // porte un total fini. Les deux notions coexistent — l'Arc de
+            // Vindication a bien 4 flèches, pas une cadence.
+            if (isset($effet['charges']) || isset($effet['frequence'])) {
+                $this->charges->consommerUsage($ligne, $etat);
+
+                // ⚠ Deux comptes distincts, et la charge utile les distingue :
+                // `charges_restantes` n'a de sens que pour une pièce à total
+                // fini (l'arc et ses flèches) ; une pièce à cadence rend
+                // `usage_restant: false`, parce qu'il n'y a rien à décompter —
+                // sa fenêtre est simplement fermée jusqu'à la quête suivante.
                 $payload['charges_restantes'] = $this->charges->restantes($ligne->fresh());
+                $payload['usage_restant'] = $this->charges->utilisable($ligne->fresh(), $etat);
 
                 return $this->journaliserUsageObjet($groupe, $payload, $acteur);
             }
@@ -6489,6 +6565,7 @@ final class ResolveurTour
             // chaque fin de tour, cumulable ». Aucun jet, ni d'attaque ni de
             // défense — c'est le seul dégât du jeu qui ne passe par aucun dé.
             $this->rongerParRejetons($etat);
+            $this->saignerParConditions($etat);
         } elseif ($creneau === 'action') {
             if ($bonusReserveArcanique) {
                 // Réserve arcanique (nœud magicien) : ce sort consomme le

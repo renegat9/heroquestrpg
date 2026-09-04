@@ -79,7 +79,7 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         'Cape des Ombres', 'Sceptre de Télékinésie',
         // Élixir de Vie et Bracelet de Guérison : leurs cartes ne posent aucune
         // restriction de classe non plus.
-        'Élixir de Vie', 'Bracelet de Guérison'];
+        'Élixir de Vie', 'Bracelet de Guérison', 'Cendres du Phénix'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])

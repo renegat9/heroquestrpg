@@ -392,7 +392,7 @@ it('la Cape des Ombres donne les DEUX modes de déplacement, une fois par quête
     test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'utiliser_objet',
         'parametres' => ['cle' => "objet:{$ligne->id}"],
-    ])->assertAccepted()->assertJsonPath('resultat.charges_restantes', 0);
+    ])->assertAccepted()->assertJsonPath('resultat.usage_restant', false);
 
     // ⚠ LES DEUX, sous une seule condition affichée : les lecteurs relisent
     // l'effet de l'OBJET source, pas celui de la condition.
@@ -450,7 +450,7 @@ it('le Sceptre échoue quand le monstre sort un 6 : la charge est dépensée pou
     ])->assertAccepted()
         ->assertJsonPath('resultat.resiste', true)
         ->assertJsonPath('resultat.saute_tour', false)
-        ->assertJsonPath('resultat.charges_restantes', 0);
+        ->assertJsonPath('resultat.usage_restant', false);
 
     expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeFalse();
 });
@@ -479,7 +479,7 @@ it("la Longue épée de Fortune donne 3 dés et une relance par quête", functio
     test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'utiliser_objet',
         'parametres' => ['cle' => "objet:{$ligne->id}"],
-    ])->assertAccepted()->assertJsonPath('resultat.charges_restantes', 0);
+    ])->assertAccepted()->assertJsonPath('resultat.usage_restant', false);
 
     // Le buff est posé, et c'est LUI que `Engine\Combat` lira — même chemin
     // que la Potion de bataille.
@@ -552,7 +552,11 @@ it('le Bracelet de Guérison est proposé en réaction quand son porteur tombe',
     poserArtefact($heros, 'Bracelet de Guérison', 'talisman');
     $heros->update(['pv_body' => 0]);
 
-    $soins = app(App\Partie\MoteurReactions::class)->soinsDisponibles($heros->fresh());
+    // ⚠ L'état de quête est indispensable : le bracelet porte une fenêtre « une
+    // fois par quête », et sans état il n'y a pas de fenêtre à interroger — le
+    // service répond alors « fermée », ce qui est le comportement sûr au hub.
+    $etat = $ctx['quete']->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+    $soins = app(App\Partie\MoteurReactions::class)->soinsDisponibles($heros->fresh(), $etat);
     $entree = collect($soins)->firstWhere('type', 'artefact');
 
     expect($entree)->not->toBeNull()
@@ -573,4 +577,188 @@ it('le Bâton du Magicien est réservé au magicien', function () {
     // ouvert le bâton à trois autres classes.
     expect($equipement->estAccessible($magicien, $baton))->toBeTrue()
         ->and($equipement->estAccessible($barbare, $baton))->toBeFalse();
+});
+
+it('rend son usage à la quête SUIVANTE : « once per quest », pas par campagne', function () {
+    // ⚠ LE test de la vague : c'est sa seconde moitié qui prouve quelque chose.
+    // Jusqu'au 2026-09-03, « une fois par quête » était exprimé avec
+    // `inventaire.charges` — un TOTAL qui n'est jamais réarmé, ni par
+    // `MoteurCharges` ni par `DemarreurQuete`. Six artefacts étaient donc « une
+    // fois par CAMPAGNE », et aucun test ne pouvait le voir : il aurait fallu
+    // enchaîner deux quêtes, ce qu'aucun d'eux ne faisait.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'groupe' => $groupe, 'alice' => $alice] = $ctx;
+
+    $ligne = poserArtefact($heros, 'Cape des Ombres');
+
+    expect(entreeObjet($ctx, $ligne))->not->toBeNull();
+
+    desFiges(array_fill(0, 60, 4));
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}"],
+    ])->assertAccepted()->assertJsonPath('resultat.usage_restant', false);
+
+    // Fenêtre fermée : l'option disparaît du menu de CETTE quête.
+    expect(entreeObjet($ctx, $ligne))->toBeNull();
+
+    // …et la quête suivante la rouvre.
+    $ctx['quete']->instancesMonstres()->update(['etat' => 'vaincu']);
+    test()->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+    acheverLaQuete($groupe);
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $ctx['quete'] = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // ⚠ La ligne d'inventaire est la MÊME (l'artefact n'a pas bougé du sac) :
+    // c'est bien la fenêtre qui s'est rouverte, pas l'objet qui a été recréé.
+    expect(Inventaire::find($ligne->id))->not->toBeNull()
+        ->and(entreeObjet($ctx, $ligne))->not->toBeNull();
+});
+
+it('la Lame Fantôme ne vaut QUE pour sa dague, pas pour une autre arme', function () {
+    // « When you attack WITH THE DAGGER your target may not defend themselves. »
+    // Le buff était posé sur le héros et lu sans regarder l'arme : l'activer
+    // puis frapper avec autre chose annulait quand même la défense.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+
+    $lame = poserArtefact($heros, 'Lame Fantôme', 'arme_principale');
+    $autre = poserArtefact($heros, 'Épée large', 'arme_secondaire');
+    $sorts = app(MoteurSorts::class);
+
+    desFiges(array_fill(0, 40, 4));
+    entreeObjet($ctx, $lame);
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$lame->id}"],
+    ])->assertAccepted();
+
+    expect($sorts->valeurBuffDeLArme($heros->fresh(), 'ignore_defense_monstre', $lame->id))
+        ->toBeGreaterThan(0)
+        // …et RIEN pour l'autre arme, ni pour un coup qui n'en désigne aucune.
+        ->and($sorts->valeurBuffDeLArme($heros->fresh(), 'ignore_defense_monstre', $autre->id))->toBe(0)
+        ->and($sorts->valeurBuffDeLArme($heros->fresh(), 'ignore_defense_monstre', null))->toBe(0);
+});
+
+it("l'Arc de Vindication est portable par l'elfe, et par lui seul", function () {
+    // ⚠ Son tag `arme_arc_long` n'était porté par AUCUNE classe : l'arc était
+    // inéquipable, et `DeckFouille::choisirArtefact()` filtrant sur les tags du
+    // groupe, il n'était même jamais tiré. Une donnée morte depuis son ajout.
+    $arc = Objet::where('nom', 'Arc elfique de Vindication')->firstOrFail();
+    $equipement = app(Equipement::class);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $elfe = creerHeros($alice, $groupe, 'Sylwen', 1, ['classe' => 'elfe']);
+    $barbare = creerHeros($alice, $groupe, 'Hurgan', 2, ['classe' => 'barbare']);
+
+    expect($equipement->estAccessible($elfe, $arc))->toBeTrue()
+        ->and($equipement->estAccessible($barbare, $arc))->toBeFalse();
+});
+
+it('ne laisse AUCUN tag de maîtrise orphelin au catalogue', function () {
+    // Le garde-fou qui aurait signalé l'arc tout seul : un tag porté par un
+    // objet et par aucune classe rend la pièce inéquipable ET intirable, sans
+    // la moindre erreur. Le test le dit à voix haute.
+    $tagsClasses = App\Models\ClasseHeros::all()
+        ->flatMap(fn ($c) => (array) $c->tags_equipement)->unique();
+
+    $orphelins = Objet::whereNotNull('tag_equipement')->pluck('tag_equipement')
+        ->unique()->diff($tagsClasses)->values()->all();
+
+    expect($orphelins)->toBe([], 'tag(s) qu\'aucune classe ne porte : '.implode(', ', $orphelins)
+        .' — les objets qui les portent sont inéquipables et ne seront jamais tirés.');
+});
+
+it('le poison mord enfin, et la Plume rend EXACTEMENT ce qu\'il a coûté', function () {
+    // ⚠ Deux défauts d'un coup, tous deux muets jusqu'au 2026-09-03.
+    //
+    // 1. `conditions.effet.degats_pv_body_par_tour` est déclaré sur « Empoisonné »
+    //    depuis la création de la table et n'avait AUCUN lecteur : deux pièges et
+    //    deux meubles annonçaient au joueur qu'il était empoisonné, et il ne se
+    //    passait rien.
+    // 2. La Plume anti-poison dit « restores ANY of the owner's Body Points lost
+    //    by poisoning » ; nous rendions un forfait de 2, faute de savoir combien
+    //    le poison avait pris.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'quete' => $quete, 'alice' => $alice] = $ctx;
+
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+    $heros->update(['pv_body' => 8, 'pv_body_max' => 8]);
+
+    $poison = App\Models\Condition::where('nom', 'Empoisonné')->firstOrFail();
+    $heros->conditions()->syncWithoutDetaching([$poison->id => ['duree' => 3, 'source' => 'piege:Fiole de poison']]);
+
+    poserArtefact($heros, 'Plume anti-poison');
+    desFiges(array_fill(0, 60, 4));
+
+    // Deux fins de tour = deux morsures.
+    foreach ([0, 1] as $ignore) {
+        test()->actingAs($alice, 'joueur')
+            ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
+    }
+
+    $heros->refresh();
+
+    expect((int) $heros->pv_body)->toBeLessThan(8)
+        // La mémoire sait de QUOI il a souffert, et combien.
+        ->and((int) ($etat->fresh()->degats_subis['poison'] ?? 0))->toBe(8 - (int) $heros->pv_body);
+
+    $perdus = 8 - (int) $heros->pv_body;
+
+    // …et la Plume rend exactement ce compte, pas un forfait.
+    $ligne = $heros->inventaire()->with('objet')->get()
+        ->first(fn ($l) => $l->objet?->nom === 'Plume anti-poison');
+
+    app(App\Partie\MoteurPotions::class)->boire($heros->fresh(), $ligne);
+
+    expect((int) $heros->fresh()->pv_body)->toBe(8)
+        ->and($perdus)->toBeGreaterThan(0) // sinon le test ne prouverait rien
+        // Le cumul est purgé : une seconde plume ne rendrait pas deux fois.
+        ->and($etat->fresh()->degats_subis['poison'] ?? 0)->toBe(0);
+});
+
+it("les Écailles d'Elethorn ajoutent un dé pour résister à un sort de Dread", function () {
+    // « When you attempt to resist the effects of a Dread spell while wearing
+    // this armor, roll an additional die. » ⚠ `MoteurDread` passait
+    // l'`attribut_mind` BRUT : aucun équipement ne pouvait s'y ajouter.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+    $sorts = app(MoteurSorts::class);
+
+    $nu = $sorts->desResistanceMentale($heros->fresh());
+
+    poserArtefact($heros, "Écailles d'Elethorn", 'armure');
+
+    expect($sorts->desResistanceMentale($heros->fresh()))->toBe($nu + 1)
+        // Et la moitié défense de la carte tient toute seule, par `des_defense`.
+        ->and((int) Objet::where('nom', "Écailles d'Elethorn")->value('effet')['des_defense'])->toBe(1);
+});
+
+it('les Cendres du Phénix sont proposées quand un héros tombe, et se consument parfois', function () {
+    // « Once per quest, when any one hero is reduced to 0 Body Points, use this
+    // to instead reduce them to 1. » ⚠ La réaction du plancher n'interrogeait
+    // que des nœuds d'arbre : aucun objet ne pouvait l'ouvrir.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'quete' => $quete] = $ctx;
+
+    $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
+    $ligne = poserArtefact($heros, 'Cendres du Phénix', 'talisman');
+
+    $heros->update(['pv_body' => 1]);
+    desFiges([6, ...array_fill(0, 40, 4)]); // le 5-6 consumera l'artefact
+
+    // Le coup fatal passe par le point de passage unique des dégâts.
+    app(App\Partie\MoteurDegats::class)->infligerAHeros(
+        $heros->fresh(), 3, App\Partie\MoteurDegats::SOURCE_ATTAQUE_MONSTRE, [],
+    );
+
+    $offre = $etat->fresh()->reaction_en_attente;
+
+    expect($offre)->not->toBeNull()
+        ->and($offre['action'])->toBe(App\Engine\ReactionEffet::PLANCHER_PV)
+        ->and($offre['artefact'])->toBe($ligne->id);
 });

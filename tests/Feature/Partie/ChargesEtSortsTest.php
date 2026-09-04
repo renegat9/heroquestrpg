@@ -182,10 +182,18 @@ it('décompte jusqu\'à zéro, puis refuse', function () {
     $groupe = creerGroupe();
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
 
-    $ligne = poser($magicien, 'Anneau de Sort', 'talisman')->load('objet');
+    // ⚠ L'Anneau de Sort a quitté ce test le 2026-09-03 : sa carte dit « cast
+    // one spell twice in the same QUEST », donc il porte désormais une FENÊTRE
+    // et non des charges. L'Anneau de Feu, lui, énonce un total fini — « the
+    // next two Dread fire spells » — et reste l'exemple juste pour ce test-ci,
+    // qui parle des charges.
+    $ligne = poser($magicien, 'Anneau de Feu', 'talisman')->load('objet');
     $charges = app(MoteurCharges::class);
 
     expect($charges->consommer($ligne))->toBeTrue()
+        ->and($charges->restantes($ligne->fresh()))->toBe(1)
+        ->and($charges->disponible($ligne->fresh()))->toBeTrue()
+        ->and($charges->consommer($ligne->fresh()))->toBeTrue()
         ->and($charges->restantes($ligne->fresh()))->toBe(0)
         ->and($charges->disponible($ligne->fresh()))->toBeFalse()
         // Épuisé : l'objet RESTE en inventaire, il ne fait simplement plus rien.

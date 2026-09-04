@@ -466,6 +466,52 @@ final class MotsClesEquipement
     /** Remet debout un héros tombé (Élixir de Vie) — resoudreArtefactActivable(). */
     public const RELEVE = 'releve';
 
+    /**
+     * CADENCE d'usage : `une_fois_par_quete` ou `une_fois_par_tour`.
+     *
+     * ⚠ À ne pas confondre avec {@see self::CHARGES}, et la confusion a coûté
+     * six artefacts (2026-09-03). Une charge est un TOTAL qui ne se réarme
+     * jamais — « there are only 4 arrows with this bow » ; une fréquence est une
+     * cadence qui repart à chaque quête — « once per quest ». Dire la seconde
+     * avec la première donnait « une fois par CAMPAGNE ».
+     *
+     * Lecteur : `MoteurCharges::fenetreOuverte()` / `consommerUsage()`, qui
+     * range la fenêtre dans le compteur des compétences
+     * (`etat_personnage_quete.capacites_utilisees`) — il naît vide avec la
+     * quête et voyage déjà dans le snapshot.
+     */
+    public const FREQUENCE = 'frequence';
+
+    /**
+     * Rend tout ce qu'une SOURCE de dégâts a coûté au porteur pendant la quête,
+     * au lieu d'un montant forfaitaire.
+     *
+     * ⚠ Écrit pour la *Plume anti-poison* — « restores ANY of the owner's Body
+     * Points lost by poisoning » — que nous rendions par un forfait de 2 PV,
+     * faute de savoir combien le poison avait pris. `MoteurDegats` mémorise
+     * désormais le cumul par source sur l'état de quête.
+     *
+     * Lecteur : `MoteurPotions::soignerParSource()`.
+     */
+    public const SOIN_SOURCE = 'soin_source';
+
+    /**
+     * Dés ajoutés au jet de RÉSISTANCE MENTALE contre un sort de Dread
+     * (*Écailles d'Elethorn*). Lecteur : `MoteurSorts::desResistanceMentale()`,
+     * point de passage unique du jet de résistance et du contresort.
+     */
+    public const BONUS_DES_RESISTANCE_MENTALE = 'bonus_des_resistance_mentale';
+
+    /**
+     * L'objet propose la RÉACTION de plancher de PV (*Cendres du Phénix*) :
+     * « when a hero is reduced to 0 Body Points, instead reduce them to 1 ».
+     *
+     * ⚠ La mécanique existait comme réaction de TALENT (le Chevalier) ; la
+     * réaction n'interrogeait que des nœuds d'arbre, jamais le sac. Lecteur :
+     * `MoteurReactions::artefactPlancherPv()`.
+     */
+    public const PLANCHER_PV = 'plancher_pv';
+
     // -------------------------------------------------------------- PARCHEMIN
 
     /** Sort lancé par le parchemin — autorité. `ResolveurTour::resoudreParchemin()`. */
@@ -516,6 +562,10 @@ final class MotsClesEquipement
         self::RESISTANCE,
         self::IGNORE_DEFENSE_MONSTRE,
         self::RELEVE,
+        self::FREQUENCE,
+        self::SOIN_SOURCE,
+        self::BONUS_DES_RESISTANCE_MENTALE,
+        self::PLANCHER_PV,
         self::DES_ATTAQUE_CONTRE,
         self::ATTAQUE_DOUBLE_CONTRE,
         self::BONUS_PV_BODY_MAX,

@@ -195,7 +195,7 @@ describe('Combat — Coup puissant (relance des dés d\'attaque ratés)', functi
             desDefense: 0,
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: 5,
-            relanceDesAttaqueRatee: true,
+            relanceDesAttaqueRatee: PHP_INT_MAX,
         );
 
         expect($resultat->touches)->toBe(2) // les 2 dés finissent en crâne
@@ -210,7 +210,7 @@ describe('Combat — Coup puissant (relance des dés d\'attaque ratés)', functi
             desDefense: 0,
             typeDefenseur: TypeFigurine::Monstre,
             pvBodyDefenseur: 5,
-            relanceDesAttaqueRatee: true,
+            relanceDesAttaqueRatee: PHP_INT_MAX,
         );
 
         expect($resultat->touches)->toBe(2);
@@ -240,7 +240,7 @@ it('Coup puissant relance ce qui RATE, pas ce qui touche (défenseur éthéré)'
         desDefense: 0,
         typeDefenseur: TypeFigurine::Monstre,
         pvBodyDefenseur: 5,
-        relanceDesAttaqueRatee: true,
+        relanceDesAttaqueRatee: PHP_INT_MAX,
         defenseurEthere: true,
     );
 
@@ -256,7 +256,7 @@ it('garde le crâne comme face touchante quand la cible n\'est pas éthérée', 
         desDefense: 0,
         typeDefenseur: TypeFigurine::Monstre,
         pvBodyDefenseur: 5,
-        relanceDesAttaqueRatee: true,
+        relanceDesAttaqueRatee: PHP_INT_MAX,
     );
 
     expect($resultat->touches)->toBe(3);

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\LanceurDes;
 use App\Engine\ReactionEffet;
 use App\Events\ReactionProposee;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Personnage;
 use App\Models\Sort;
 use App\Support\Journal;
@@ -134,6 +136,29 @@ final class MoteurReactions
             }
         }
 
+        // ⚠ MÊME PLANCHER, PORTÉ PAR UN OBJET (2026-09-03) — *Cendres du Phénix* :
+        // « Once per quest, when any one hero is reduced to 0 Body Points, use
+        // this to instead reduce them to 1. Immediately roll 1 red die ; on a 5
+        // or 6, this artifact is lost. »
+        //
+        // Le bloc au-dessus n'interrogeait que des nœuds de COMPÉTENCE ; c'est
+        // le seul endroit du fichier où il fallait apprendre à regarder le sac,
+        // exactement comme `soinsDisponibles()` l'a fait pour le Bracelet.
+        if ((int) $heros->pv_body === 0) {
+            $cendres = $this->artefactPlancherPv($heros, $etat);
+
+            if ($cendres !== null) {
+                $this->deposer($etat, $heros, $heros, [
+                    'action' => ReactionEffet::PLANCHER_PV,
+                    'artefact' => $cendres->id,
+                    'nom' => $cendres->objet?->nom,
+                    'description' => "Tu tombes. L'artefact peut te laisser un point de vie — au risque de se consumer.",
+                ], $degats, $source, $contexte);
+
+                return;
+            }
+        }
+
         // *Représailles* (Berserker) : « you may use this skill when you take
         // damage from an adjacent monster. Immediately make an attack against
         // that monster. »
@@ -211,7 +236,10 @@ final class MoteurReactions
             return;
         }
 
-        $soins = $this->soinsDisponibles($heros);
+        // ⚠ L'état de quête est passé : sans lui, un artefact à fenêtre « une
+        // fois par quête » ne saurait pas si la sienne est déjà fermée, et
+        // serait offert une seconde fois pour être refusé ensuite.
+        $soins = $this->soinsDisponibles($heros, $etat);
 
         if ($soins === []) {
             return;
@@ -235,7 +263,45 @@ final class MoteurReactions
      *
      * @return list<array<string, mixed>>
      */
-    public function soinsDisponibles(Personnage $heros): array
+    /**
+     * Artefact PORTÉ capable de poser un plancher de PV, encore utilisable.
+     *
+     * Même famille que `soinsDisponibles()` : la réaction ne connaissait que les
+     * nœuds d'arbre, et une carte qui promet la même chose n'avait aucun chemin.
+     */
+    /**
+     * Dépense l'artefact de plancher, et le DÉTRUIT sur un 5-6.
+     *
+     * @return array<string, mixed>  trace pour la charge utile
+     */
+    private function consumerArtefactPlancher(Personnage $heros, EtatPersonnageQuete $etat, int $inventaireId): array
+    {
+        $ligne = $heros->inventaire()->with('objet')->whereKey($inventaireId)->first();
+
+        if ($ligne === null) {
+            return [];
+        }
+
+        app(MoteurCharges::class)->consommerUsage($ligne, $etat);
+
+        $de = app(LanceurDes::class)->d6();
+        $perdu = $de >= 5;
+
+        if ($perdu) {
+            $ligne->delete();
+        }
+
+        return ['artefact' => $ligne->objet?->nom, 'de_artefact' => $de, 'artefact_perdu' => $perdu];
+    }
+
+    private function artefactPlancherPv(Personnage $heros, ?EtatPersonnageQuete $etat): ?Inventaire
+    {
+        return $heros->inventaire()->with('objet')->get()
+            ->first(fn (Inventaire $l) => ! empty(($l->objet?->effet ?? [])['plancher_pv'])
+                && app(MoteurCharges::class)->utilisable($l, $etat));
+    }
+
+    public function soinsDisponibles(Personnage $heros, ?EtatPersonnageQuete $etat = null): array
     {
         $soins = [];
 
@@ -278,8 +344,9 @@ final class MoteurReactions
             $effet = (array) ($ligne->objet?->effet ?? []);
 
             if ($ligne->objet?->categorie === 'consommable'
-                || ! isset($effet['soin_pv_body'], $effet['charges'])
-                || ! app(MoteurCharges::class)->disponible($ligne)
+                || ! isset($effet['soin_pv_body'])
+                || ! (isset($effet['charges']) || isset($effet['frequence']))
+                || ! app(MoteurCharges::class)->utilisable($ligne, $etat)
                 || ! app(Equipement::class)->estAccessible($heros, $ligne->objet)) {
                 continue;
             }
@@ -613,6 +680,14 @@ final class MoteurReactions
             // coup, on pose un plancher. Un seul PV, jamais davantage.
             $rendus = max(0, 1 - (int) $victime->pv_body);
             $victime->update(['pv_body' => max(1, (int) $victime->pv_body)]);
+
+            // ⚠ *Cendres du Phénix* : « Immediately roll 1 red die ; on a 5 or 6,
+            // this artifact is LOST. » Perdu, pas épuisé — c'est le seul objet du
+            // catalogue qui se détruit sur un jet, et il fallait le dire ici
+            // plutôt que de le rendre inerte comme une charge à zéro.
+            if (isset($attente['artefact'])) {
+                $payload += $this->consumerArtefactPlancher($heros, $etat, (int) $attente['artefact']);
+            }
         } else {
             $rendus = min($degats, (int) $victime->pv_body_max - (int) $victime->pv_body);
             $victime->update(['pv_body' => (int) $victime->pv_body + $rendus]);

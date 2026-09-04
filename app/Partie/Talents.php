@@ -154,6 +154,36 @@ class Talents
     }
 
     /**
+     * La COLONNE qui compte cette fréquence, ou `null` si le mot est inconnu.
+     *
+     * ⚠ Ouvert au public le 2026-09-03 pour que les OBJETS puissent réutiliser
+     * la même fenêtre que les compétences. `inventaire.charges` dit « cet
+     * exemplaire a N usages au TOTAL » et ne se réarme jamais ; une carte qui
+     * dit « once per quest » demande une fenêtre qui meurt avec la quête, et
+     * c'est exactement ce que porte `capacites_utilisees`. Sans ce partage, six
+     * artefacts étaient « une fois par CAMPAGNE ».
+     */
+    public static function compteurPour(?string $frequence): ?string
+    {
+        return static::COMPTEURS[$frequence ?? ''] ?? null;
+    }
+
+    /**
+     * Marque une entrée comme dépensée dans une fenêtre, par son NOM.
+     *
+     * Le pendant écrivain de {@see self::dejaUtilisee()}, et volontairement
+     * aussi générique que lui : il ne sait rien des compétences, ce qui permet
+     * aux objets d'y ranger leur propre clé (`objet:{inventaire_id}`).
+     */
+    public function marquerUtilisee(EtatPersonnageQuete $etat, string $nom, string $compteur = 'capacites_utilisees'): void
+    {
+        $utilisees = (array) ($etat->{$compteur} ?? []);
+        $utilisees[] = $nom;
+
+        $etat->update([$compteur => array_values(array_unique($utilisees))]);
+    }
+
+    /**
      * Marque la capacité comme dépensée dans sa fenêtre. Sans effet si elle
      * n'en déclare aucune — les passifs permanents ne se consomment pas.
      *
@@ -162,15 +192,12 @@ class Talents
     public function consommer(Personnage $personnage, EtatPersonnageQuete $etat, string $mecanique, array $criteres = []): void
     {
         $noeud = $this->noeud($personnage, $mecanique, $criteres);
-        $compteur = $noeud === null ? null : (static::COMPTEURS[$noeud->effet['frequence'] ?? ''] ?? null);
+        $compteur = $noeud === null ? null : self::compteurPour($noeud->effet['frequence'] ?? null);
 
         if ($compteur === null) {
             return;
         }
 
-        $utilisees = (array) ($etat->{$compteur} ?? []);
-        $utilisees[] = $noeud->nom;
-
-        $etat->update([$compteur => array_values(array_unique($utilisees))]);
+        $this->marquerUtilisee($etat, $noeud->nom, $compteur);
     }
 }
