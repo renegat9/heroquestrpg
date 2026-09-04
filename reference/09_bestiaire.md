@@ -447,6 +447,67 @@ délibérément : il reste le seul porteur en production du repli de
 `repertoireSorts()`. Le singulier `archetype` reste lu, pour toute donnée de
 gabarit antérieure.
 
+### 4bis.3bis — Qui peut apparaître, et sous quel thème
+
+⚠ **Le pool ne se déclarait qu'en ARCHÉTYPES, et seuls les lanceurs en ont un.**
+Sur les 13 sous-boss du bestiaire, **deux** pouvaient apparaître — et les onze
+exclus étaient les plus caractéristiques : la régénération du Troll, la double
+attaque de l'Ours polaire, le venin et la ponte des créatures de Delthrak. La
+rotation avait troqué « toujours le même » contre « deux, et on perd les onze
+autres ». `rencontre_finale.creatures` nomme désormais les brutes directement, et
+un test exige qu'**aucune créature d'un palier ne soit inatteignable** : l'écarter
+doit être un choix écrit, pas un effet de bord de la sélection.
+
+| Palier | Au catalogue | Atteignables (avant → après) |
+|---|---|---|
+| sous-boss | 13 | 2 → **13** |
+| boss | 8 | 6 → **8** |
+
+⚠ **Il n'existait AUCUNE notion de thème** : la génération ne connaissait que
+`tier` et `cout`, si bien qu'une quête glacée et une quête de jungle puisaient
+dans le même sac. Le thème ne venait que de l'habillage IA — lequel RENOMME ce
+qui est déjà là et ne choisit jamais quelle créature apparaît. La donnée
+existait pourtant, en **commentaire** : `MonstreSeeder` groupe ses créatures par
+boîte depuis le portage de la doc 18. Elle devient la colonne `monstres.boite`.
+
+`DemarreurQuete::themeBestiaire()` fait tourner une boîte **par groupe**, pour
+toute la campagne — rotation sur l'id, comme le boss : on ne passe pas de la
+banquise à la jungle entre deux portes. ⚠ `null` n'est pas un trou, il vaut
+« aucune boîte » : nos propres blocs de stats (Troll, Champion, Seigneur, les
+trois sorciers nommés) conviennent à tout thème, ce qui garantit qu'aucun pool
+ne se vide.
+
+⚠ **Le thème porte sur la rencontre finale et sur les quelques FORTS, jamais sur
+la masse de faibles** — et c'est ainsi que les boîtes officielles sont bâties :
+elles ajoutent quelques créatures signature au bestiaire commun, elles ne le
+remplacent pas. Filtrer les faibles aurait donné un donjon de Gremlins (la boîte
+des glaces n'a qu'une créature de tier `base`) ; ne rien filtrer ne montrait
+jamais la signature. Mesuré :
+
+| Thème | Sous-boss tirés |
+|---|---|
+| `mage_du_miroir` | Ogre, Loup géant |
+| `horde_ogre` | Ogre guerrier, Ogre champion |
+| `jungles_delthrak` | Singe géant, Rampant putride, Serpent géant |
+| `dread_moon` | Garde-mage |
+
+⚠ **`horreur_des_glaces` est DÉSACTIVÉE** (René, 2026-09-04 : « il manque des
+règles »). Trois des six sorts de son boss ne sont pas portés — *Ice Wall*,
+*Mind Freeze*, *Skate*, qui demandent respectivement du terrain destructible,
+des dégâts de Mind et un mode de déplacement pour monstre —, l'étreinte du Yéti
+et le vol du Gremlin non plus, et l'équipement de glace était déjà écarté. Le
+**thème** et le **boss** sont retirés ; les créatures RESTENT au catalogue comme
+blocs de stats, ce que le projet fait déjà pour les traits non portés de
+Delthrak. La désactivation est DÉCLARÉE dans
+`DemarreurQuete::BOITES_INCOMPLETES`, avec sa raison, et un test exige qu'une
+boîte désactivée ne soit jamais proposée comme thème : sans cette entrée, le
+contrôle de couverture aurait signalé l'Horreur des Glaces comme une régression.
+Écarter du contenu est un choix écrit, pas un oubli.
+
+⚠ Le levier d'intensité est `jeu.rencontres.forts_par_quete` (déjà réglable au
+panneau) : c'est lui qui décide combien de créatures signature accompagnent le
+fond commun.
+
 ### 4bis.4 — Le `cout` d'un boss, mesuré
 
 `cout` n'a **qu'un seul lecteur** : `DemarreurQuete`, où le prix du boss est

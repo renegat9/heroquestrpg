@@ -19,6 +19,9 @@ class Monstre extends Model
         'pv_body',
         'pv_mind',
         'tier',
+        // Boîte d'origine (doc 18) : `null` = aucune, donc compatible avec TOUS
+        // les thèmes — c'est le cas de nos propres blocs de stats.
+        'boite',
         'cout',
         'grande_taille',
         'capacites',

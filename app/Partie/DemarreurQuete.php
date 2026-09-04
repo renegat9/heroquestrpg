@@ -455,6 +455,64 @@ final class DemarreurQuete
     public const RATIO_COUT_ETHERE = 2.0;
 
     /**
+     * Les boîtes d'extension entre lesquelles tourne le THÈME d'une campagne
+     * (René, 2026-09-04 : « une bonne diversité selon le thème »).
+     *
+     * ⚠ Il n'existait AUCUNE notion de thème dans la génération : elle ne
+     * connaissait que `tier` et `cout`, si bien qu'une quête glacée et une quête
+     * de jungle puisaient dans le même sac. Le thème ne venait que de
+     * l'habillage IA — lequel RENOMME ce qui est déjà là et ne choisit jamais
+     * quelle créature apparaît.
+     *
+     * Le jeu de base (`base`) n'y figure pas : ses huit cartes sont le fond
+     * commun de toutes les quêtes, pas un thème parmi d'autres.
+     */
+    public const BOITES_THEMATIQUES = [
+        'dread_moon',
+        'mage_du_miroir',
+        'horde_ogre',
+        'jungles_delthrak',
+    ];
+
+    /**
+     * Boîtes DÉSACTIVÉES parce que leurs règles sont incomplètes (René,
+     * 2026-09-04 : « je désactiverais pour le moment horreur des glaces vu qu'il
+     * manque des règles »).
+     *
+     * ⚠ Elles sont déclarées ICI plutôt que simplement absentes de la liste du
+     * dessus : sans cette entrée, le test qui exige qu'aucune créature d'un
+     * palier ne soit inatteignable verrait l'Horreur des Glaces disparaître du
+     * pool et le signalerait comme une régression. Écarter du contenu doit être
+     * un choix ÉCRIT, avec sa raison — c'est la même discipline que les cartes
+     * non portées de `config/cartes.php`, chacune nommant la mécanique qui lui
+     * manque.
+     *
+     * @var array<string, string>
+     */
+    public const BOITES_INCOMPLETES = [
+        'horreur_des_glaces' => 'Trois des six sorts de son boss ne sont pas portés '
+            .'(Ice Wall, Mind Freeze, Skate — ils demandent du terrain destructible, '
+            .'des dégâts de Mind et un mode de déplacement pour monstre), l\'étreinte '
+            .'du Yéti et le vol du Gremlin non plus, et l\'équipement de glace était '
+            .'déjà écarté. Les créatures RESTENT au catalogue comme blocs de stats '
+            .'— c\'est le THÈME et le BOSS qui sont retirés, pas le bestiaire.',
+    ];
+
+    /**
+     * Thème du bestiaire d'un groupe — une boîte, pour toute la campagne.
+     *
+     * ⚠ Une ROTATION sur l'id du groupe, comme le boss final : deux groupes ne
+     * descendent pas dans le même bestiaire, et le thème d'une campagne ne
+     * change jamais en cours de route. C'est un PLACEMENT, au même titre que
+     * `salle_artefact` — le tirer à chaque quête ferait passer le groupe de la
+     * banquise à la jungle entre deux portes.
+     */
+    public function themeBestiaire(int $graineGroupe): string
+    {
+        return self::BOITES_THEMATIQUES[$graineGroupe % count(self::BOITES_THEMATIQUES)];
+    }
+
+    /**
      * COÛT EFFECTIF d'une créature dans le budget de rencontre — le seul calcul
      * qui fasse foi.
      *
@@ -565,11 +623,24 @@ final class DemarreurQuete
                 ? $pool
                 : array_filter([data_get($structure, 'rencontre_finale.archetype')], 'is_string');
 
+            // ⚠ …ET une liste de CRÉATURES nommées, ajoutée le 2026-09-04 pour
+            // réparer une régression que la rotation venait de créer. Le pool ne
+            // se déclarait qu'en archétypes, or **seuls les lanceurs en ont un** :
+            // sur les 13 sous-boss du bestiaire, DEUX pouvaient apparaître, et
+            // les onze exclus étaient précisément les plus caractéristiques —
+            // ceux qui pondent, empoisonnent, régénèrent. La rotation avait
+            // troqué « toujours le même » contre « deux, et on perd les onze
+            // autres ». Une brute n'a pas de répertoire ; elle doit pouvoir être
+            // nommée telle quelle.
+            $creatures = (array) data_get($structure, 'rencontre_finale.creatures', []);
+
             $final = null;
-            if ($pool !== []) {
+            if ($pool !== [] || $creatures !== []) {
                 $candidats = Monstre::query()
                     ->where('tier', $tierFinal)
-                    ->whereIn('archetype_lanceur', $pool)
+                    ->where(function ($q) use ($pool, $creatures) {
+                        $q->whereIn('archetype_lanceur', $pool)->orWhereIn('nom_base', $creatures);
+                    })
                     ->orderBy('id')->get();
 
                 // ⚠ ROTATION, pas tirage — et la distinction est celle que le
@@ -586,6 +657,15 @@ final class DemarreurQuete
                 // jalon à l'autre) et l'ID DU GROUPE (deux groupes ne suivent
                 // pas la même succession), ce qui donne de la variété sans
                 // hasard. `orderBy('id')` fige l'ordre des candidats.
+                // ⚠ Le THÈME resserre le pool avant la rotation, et ne le vide
+                // jamais : s'il ne contient aucune créature de la boîte, on garde
+                // le pool entier. Une préférence, pas un filtre — c'est ce qui
+                // permet à une boîte pauvre en boss (la Horde ogre n'a que des
+                // brutes) de rester jouable.
+                $theme = $this->themeBestiaire($graineGroupe);
+                $duTheme = $candidats->where('boite', $theme)->values();
+                $candidats = $duTheme->isNotEmpty() ? $duTheme : $candidats;
+
                 $final = $candidats->isEmpty()
                     ? null
                     : $candidats[($graineGroupe + $positionArc) % $candidats->count()];
@@ -611,7 +691,17 @@ final class DemarreurQuete
         $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
             ->orderBy('cout')->orderBy('id')->get();
         $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
-        $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)->sortByDesc('cout')->values();
+
+        // ⚠ Les QUELQUES forts viennent du thème quand il en propose, la MASSE
+        // de faibles non — et c'est exactement ainsi que les boîtes officielles
+        // sont bâties : elles ajoutent quelques créatures signature au bestiaire
+        // commun, elles ne le remplacent pas. Filtrer les faibles aurait donné
+        // un donjon de Gremlins (la boîte des glaces n'a qu'une créature de tier
+        // base) ; ne rien filtrer du tout ne montrait jamais la signature.
+        $themeBoite = $this->themeBestiaire($graineGroupe);
+        $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)
+            ->sortByDesc(fn (Monstre $m) => [$m->boite === $themeBoite ? 1 : 0, (int) $m->cout])
+            ->values();
 
         // Aucun « faible » défini (seuil mal réglé / bestiaire atypique) : tout le
         // tier base sert de masse, pour ne jamais bloquer la génération.

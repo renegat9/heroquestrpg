@@ -111,8 +111,38 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
     foreach ($avecFinale as $gabarit) {
         $tier = (string) data_get($gabarit->structure, 'rencontre_finale.tier');
         $pool = (array) data_get($gabarit->structure, 'rencontre_finale.archetypes', []);
+        $creatures = (array) data_get($gabarit->structure, 'rencontre_finale.creatures', []);
 
         expect($pool)->not->toBeEmpty("{$gabarit->nom} : aucun archétype de rencontre finale.");
+
+        // ⚠ L'INVARIANT qui aurait attrapé la régression du 2026-09-04 : le pool
+        // ne se déclarait qu'en archétypes, or seuls les lanceurs en ont un —
+        // sur 13 sous-boss, DEUX pouvaient apparaître, et les onze exclus
+        // étaient les plus caractéristiques du bestiaire. Une créature d'un
+        // palier qui ne peut jamais être tirée est une donnée morte ; l'écarter
+        // doit être un choix ÉCRIT, pas un effet de bord de la mécanique de
+        // sélection.
+        $atteignables = Monstre::where('tier', $tier)
+            ->where(fn ($q) => $q->whereIn('archetype_lanceur', $pool)->orWhereIn('nom_base', $creatures))
+            ->pluck('nom_base')->all();
+
+        // ⚠ Une créature d'une boîte DÉSACTIVÉE a le droit d'être inatteignable :
+        // c'est un choix écrit (`BOITES_INCOMPLETES`), pas un effet de bord.
+        $desactivees = Monstre::whereIn('boite', array_keys(DemarreurQuete::BOITES_INCOMPLETES))
+            ->pluck('nom_base')->all();
+
+        $orphelins = Monstre::where('tier', $tier)->pluck('nom_base')
+            ->reject(fn ($n) => in_array($n, $atteignables, true) || in_array($n, $desactivees, true))
+            ->values()->all();
+
+        expect($orphelins)->toBe([],
+            "{$gabarit->nom} : créatures de palier {$tier} qu'aucune quête ne peut faire apparaître — "
+            .implode(', ', $orphelins));
+
+        foreach ($creatures as $nom) {
+            expect(Monstre::where('nom_base', $nom)->where('tier', $tier)->exists())
+                ->toBeTrue("{$gabarit->nom} : « {$nom} » n'existe pas au palier {$tier}.");
+        }
 
         foreach ($pool as $cle) {
             // L'archétype existe…
@@ -126,6 +156,95 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
                 ->toBeTrue("{$gabarit->nom} : « {$cle} » n'est porté par aucun monstre de palier {$tier}.");
         }
     }
+});
+
+it('donne une BOÎTE à chaque créature, et aucune de fantaisie', function () {
+    // ⚠ La donnée existait déjà, mais seulement en COMMENTAIRE : `MonstreSeeder`
+    // groupe ses créatures par boîte depuis le portage de la doc 18, et personne
+    // ne pouvait la lire. `null` n'est pas un trou — il vaut « aucune boîte »,
+    // le cas de nos propres blocs de stats, qui conviennent à tout thème.
+    // ⚠ Les boîtes DÉSACTIVÉES restent des boîtes connues : leurs créatures sont
+    // toujours au catalogue comme blocs de stats, c'est le THÈME qui est retiré.
+    $connues = array_merge(
+        DemarreurQuete::BOITES_THEMATIQUES,
+        array_keys(DemarreurQuete::BOITES_INCOMPLETES),
+        ['base'],
+    );
+
+    foreach (Monstre::all() as $m) {
+        if ($m->boite !== null) {
+            expect(in_array($m->boite, $connues, true))
+                ->toBeTrue("{$m->nom_base} : boîte « {$m->boite} » inconnue.");
+        }
+    }
+
+    // Chaque boîte thématique a au moins une créature, sinon le thème qu'elle
+    // nomme ne changerait jamais rien.
+    foreach (DemarreurQuete::BOITES_THEMATIQUES as $boite) {
+        expect(Monstre::where('boite', $boite)->exists())
+            ->toBeTrue("La boîte « {$boite} » ne contient aucune créature.");
+    }
+
+    // ⚠ Une boîte désactivée ne doit PAS être proposée comme thème, et sa
+    // désactivation doit porter une raison écrite. Les deux listes ne se
+    // recoupent jamais : c'est ce qui empêche de « réactiver » une boîte par
+    // inadvertance en la remettant dans la rotation.
+    foreach (DemarreurQuete::BOITES_INCOMPLETES as $boite => $raison) {
+        expect(in_array($boite, DemarreurQuete::BOITES_THEMATIQUES, true))
+            ->toBeFalse("La boîte « {$boite} » est déclarée incomplète ET proposée comme thème.");
+        expect($raison)->not->toBeEmpty("La boîte « {$boite} » est désactivée sans raison écrite.");
+        expect(Monstre::where('boite', $boite)->exists())
+            ->toBeTrue("La boîte « {$boite} » est désactivée mais n'existe pas.");
+    }
+
+    // …et nos propres blocs de stats n'appartiennent à aucune : ce sont eux qui
+    // garantissent qu'un pool ne se vide jamais, quel que soit le thème.
+    expect(Monstre::whereNull('boite')->pluck('nom_base')->all())->toContain('Champion', 'Seigneur');
+});
+
+it('fait tourner le THÈME par groupe, et le tient toute la campagne', function () {
+    $demarreur = app(DemarreurQuete::class);
+
+    // Deux groupes voisins ne descendent pas dans le même bestiaire…
+    $themes = [];
+    for ($id = 1; $id <= count(DemarreurQuete::BOITES_THEMATIQUES); $id++) {
+        $themes[] = $demarreur->themeBestiaire($id);
+    }
+    expect(array_unique($themes))->toHaveCount(count(DemarreurQuete::BOITES_THEMATIQUES));
+
+    // …et le thème d'un groupe ne bouge pas : c'est un placement, pas une
+    // pioche. Passer de la banquise à la jungle entre deux portes n'aurait
+    // aucun sens.
+    expect($demarreur->themeBestiaire(3))->toBe($demarreur->themeBestiaire(3));
+});
+
+it('fait venir du THÈME les quelques FORTS, sans toucher à la masse de faibles', function () {
+    $demarreur = app(DemarreurQuete::class);
+    $methode = new ReflectionMethod($demarreur, 'acheterMonstres');
+    $methode->setAccessible(true);
+
+    // On cherche le groupe dont le thème est la jungle, la boîte la mieux
+    // pourvue en créatures de tier `base`.
+    $graine = null;
+    for ($id = 1; $id <= 10; $id++) {
+        if ($demarreur->themeBestiaire($id) === 'jungles_delthrak') {
+            $graine = $id;
+            break;
+        }
+    }
+    expect($graine)->not->toBeNull();
+
+    $achats = $methode->invoke($demarreur, [], 40, 12, 1, $graine);
+    $boites = collect($achats)->pluck('boite');
+
+    // La signature de la boîte est présente…
+    expect($boites->contains('jungles_delthrak'))->toBeTrue();
+
+    // …et le fond commun aussi : le thème est une PRÉFÉRENCE sur les forts, pas
+    // un filtre sur toute la rencontre. Un donjon entièrement thématique serait
+    // impossible pour les boîtes pauvres en créatures de base — celle des
+    // glaces n'en a qu'une.
+    expect($boites->contains('base'))->toBeTrue();
 });
 
 it('facture PLUS CHER une créature éthérée, à tous les paliers', function () {
@@ -154,43 +273,49 @@ it('facture PLUS CHER une créature éthérée, à tous les paliers', function (
     expect($demarreur->coutEffectif($spectre))->toBeGreaterThan((int) $spectre->cout);
 });
 
-it('fait TOURNER la rencontre finale dans le pool, sans hasard', function () {
+it('fait TOURNER la rencontre finale, sans hasard, et selon le THÈME', function () {
     $demarreur = app(DemarreurQuete::class);
     $methode = new ReflectionMethod($demarreur, 'acheterMonstres');
     $methode->setAccessible(true);
 
-    $pool = ['necromancien', 'maitre_tempetes', 'spectre_effroi', 'horreur_glacee', 'archimage_elfe'];
-    $structure = ['rencontre_finale' => ['tier' => 'boss', 'archetypes' => $pool]];
-    $attendus = Monstre::whereIn('archetype_lanceur', $pool)->pluck('nom_base')->all();
+    $gabarit = App\Models\GabaritQuete::where('type_jalon', 'boss_final')->firstOrFail();
+    $structure = $gabarit->structure;
+
+    // ⚠ Depuis que le THÈME resserre le pool (2026-09-04), le boss ne varie plus
+    // d'un jalon à l'autre DANS une campagne — il varie d'une CAMPAGNE à
+    // l'autre, ce qui est le sens même d'un thème : on ne passe pas de la
+    // banquise à la jungle entre deux portes.
+    $parGroupe = [];
+    for ($groupe = 1; $groupe <= 5; $groupe++) {
+        $parGroupe[$groupe] = $methode->invoke($demarreur, $structure, 30, 5, 1, $groupe)[0]->nom_base;
+    }
+
+    expect(count(array_unique($parGroupe)))->toBeGreaterThan(1);
+
+    // …et il est STABLE : rejouer la même quête doit rendre le même boss. C'est
+    // un PLACEMENT, pas une pioche — même raison que `salle_artefact`, qu'une
+    // reprise ne re-tire jamais. Sans cela, « Recommencer la quête » deviendrait
+    // un bouton pour changer d'adversaire jusqu'au plus commode.
+    expect($methode->invoke($demarreur, $structure, 30, 5, 1, 3)[0]->nom_base)->toBe($parGroupe[3]);
+
+    // ⚠ Et quand le thème ne propose AUCUN boss, le pool entier reprend la main
+    // et la rotation joue à plein sur la position d'arc — sans quoi une boîte
+    // sans boss (la jungle n'en a pas) fermerait toutes ses quêtes sur le même
+    // adversaire par accident plutôt que par choix.
+    $sansBoss = null;
+    for ($id = 1; $id <= 10; $id++) {
+        if ($demarreur->themeBestiaire($id) === 'jungles_delthrak') {
+            $sansBoss = $id;
+            break;
+        }
+    }
+    expect($sansBoss)->not->toBeNull();
 
     $parPosition = [];
     for ($position = 1; $position <= 6; $position++) {
-        $parPosition[$position] = $methode->invoke($demarreur, $structure, 30, 5, $position, 0)[0]->nom_base;
+        $parPosition[] = $methode->invoke($demarreur, $structure, 30, 5, $position, $sansBoss)[0]->nom_base;
     }
-
-    // Chaque adversaire sort DU pool…
-    foreach ($parPosition as $nom) {
-        expect(in_array($nom, $attendus, true))->toBeTrue("« {$nom} » ne fait pas partie du pool.");
-    }
-
-    // …et l'adversaire CHANGE d'un jalon à l'autre : c'est ce qui distingue une
-    // rotation d'un `first()` déguisé, et c'est tout l'objet du correctif.
     expect(count(array_unique($parPosition)))->toBeGreaterThan(1);
-
-    // ⚠ Et il est STABLE : rejouer la même quête doit rendre le même boss. Le
-    // boss final est un PLACEMENT, pas une pioche — même raison que
-    // `salle_artefact`, qu'une reprise ne re-tire jamais. Sans cela,
-    // « Recommencer la quête » deviendrait un bouton pour changer d'adversaire
-    // jusqu'à tomber sur le plus commode.
-    expect($methode->invoke($demarreur, $structure, 30, 5, 3, 0)[0]->nom_base)
-        ->toBe($parPosition[3]);
-
-    // …et deux GROUPES ne suivent pas la même succession.
-    $autreGroupe = [];
-    for ($position = 1; $position <= 6; $position++) {
-        $autreGroupe[$position] = $methode->invoke($demarreur, $structure, 30, 5, $position, 2)[0]->nom_base;
-    }
-    expect($autreGroupe)->not->toBe($parPosition);
 });
 
 it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit)', function () {

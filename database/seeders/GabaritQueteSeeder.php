@@ -119,6 +119,16 @@ class GabaritQueteSeeder extends Seeder
                         'tier' => 'sous_boss',
                         'escorte_budget' => 4,
                         'archetypes' => ['chaman_orque', 'garde_magus'],
+                        // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
+                        // répertoire et ne pouvaient donc pas être nommées.
+                        // C'est là que vit la diversité du sous-boss : la
+                        // régénération du Troll, la double attaque de l'Ours, le
+                        // venin et la ponte des créatures de Delthrak.
+                        'creatures' => [
+                            'Troll', 'Champion', 'Ours polaire de guerre', 'Yéti', 'Ogre',
+                            'Ogre guerrier', 'Ogre champion', 'Loup géant',
+                            'Rampant putride', 'Serpent géant', 'Singe géant',
+                        ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
                     'epreuves' => ['min' => 1, 'max' => 2],
@@ -174,10 +184,19 @@ class GabaritQueteSeeder extends Seeder
                     'rencontre_finale' => [
                         'tier' => 'boss',
                         'escorte_budget' => 6,
+                        // ⚠ `horreur_glacee` est RETIRÉ (René, 2026-09-04) : trois
+                        // des six sorts de sa carte ne sont pas portés, et un boss
+                        // final à moitié écrit n'a rien à faire en tête d'affiche.
+                        // La raison vit dans `DemarreurQuete::BOITES_INCOMPLETES`,
+                        // que le test de couverture consulte — sans quoi il
+                        // signalerait l'Horreur des Glaces comme une régression.
                         'archetypes' => [
                             'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
-                            'spectre_effroi', 'horreur_glacee', 'archimage_elfe',
+                            'spectre_effroi', 'archimage_elfe',
                         ],
+                        // Les deux bosses sans répertoire : ils frappent, c'est
+                        // tout, et c'est une lecture du combat final aussi.
+                        'creatures' => ['Ogre commandant', 'Seigneur ogre'],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'epreuves' => ['min' => 1, 'max' => 2],

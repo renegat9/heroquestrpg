@@ -36,21 +36,21 @@ class MonstreSeeder extends Seeder
             // lisibles. Les `cout` sont réajustés en conséquence : ils ne
             // dépendaient plus des vraies stats.
             ['nom_base' => 'Gobelin', 'deplacement' => 10, 'attaque' => 2, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
-                'tier' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Squelette', 'deplacement' => 6, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Zombie', 'deplacement' => 4, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Orque', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Fimir', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
-                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
 
             // Troll (carte « Cave Troll ») : la seule créature du paquet dont
             // le texte NOMME le feu — « Trolls may choose to regenerate 1 Body
@@ -73,12 +73,12 @@ class MonstreSeeder extends Seeder
             // rend 1,40 PV par attaque — soit un magicien mort en 3 coups. TPK
             // dès la première salle avec un ennemi.
             ['nom_base' => 'Troll', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => ['regeneration'], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => null, 'cout' => 9, 'capacites' => ['regeneration'], 'sorts_dread' => []],
 
             // ----- Gabarits élites (doc 09 §4 — exemples proposés, à équilibrer) -----
             // capacites = bibliothèque assignable (l'IA choisit l'habillage, le moteur résout)
             ['nom_base' => 'Champion', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'cout' => 10,
+                'tier' => 'sous_boss', 'boite' => null, 'cout' => 10,
                 'capacites' => ['charge'],
                 // ⚠ Le *Trait de Chaos* a quitté ce répertoire le 2026-09-04 :
                 // c'était notre seul sort de Dread sans carte. L'*Éclair de
@@ -91,7 +91,7 @@ class MonstreSeeder extends Seeder
             // sa liste brute — il reste le seul porteur en production du repli
             // de `repertoireSorts()`.
             ['nom_base' => 'Seigneur', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 10, 'pv_mind' => 5,
-                'tier' => 'boss', 'cout' => 20,
+                'tier' => 'boss', 'boite' => null, 'cout' => 20,
                 'capacites' => ['invocation', 'frappe_de_zone'],
                 'sorts_dread' => [], 'archetype_lanceur' => 'seigneur_du_chaos'],
 
@@ -100,13 +100,13 @@ class MonstreSeeder extends Seeder
             // `cout` sous les leaders de tier (Champion 10 / Seigneur 20) pour ne pas changer
             // la rencontre finale auto-sélectionnée des quêtes.
             ['nom_base' => 'Chamane Gobelin', 'deplacement' => 8, 'attaque' => 2, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'cout' => 9,
+                'tier' => 'sous_boss', 'boite' => null, 'cout' => 9,
                 'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'chaman_orque'],
             ['nom_base' => 'Liche', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 6,
-                'tier' => 'boss', 'cout' => 18,
+                'tier' => 'boss', 'boite' => null, 'cout' => 18,
                 'capacites' => ['invocation'], 'sorts_dread' => [], 'archetype_lanceur' => 'necromancien'],
             ['nom_base' => 'Sorcier des Tempêtes', 'deplacement' => 7, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'cout' => 17,
+                'tier' => 'boss', 'boite' => null, 'cout' => 17,
                 'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'maitre_tempetes'],
 
             // ----- Monstre à choix tactique (3.7) -----
@@ -114,7 +114,7 @@ class MonstreSeeder extends Seeder
             // (dés +massive_des_bonus) ; cible affaiblie → double_nombre attaques.
             // Décision 100 % moteur (ResolveurTour). `cout` sous le leader sous_boss.
             ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'cout' => 9,
+                'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9,
                 'capacites' => ['choix_attaque' => ['seuil' => 2, 'massive_des_bonus' => 2, 'double_nombre' => 2]],
                 'sorts_dread' => []],
 
@@ -124,7 +124,7 @@ class MonstreSeeder extends Seeder
             // Aligné sur la fiche officielle de *Jungles of Delthrak* (doc 18) :
             // « Attack 2 (1 adj.) » — 2 dés en tir, 1 seul au contact.
             ['nom_base' => 'Gobelin archer', 'deplacement' => 10, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
-                'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
                 'capacites' => [], 'sorts_dread' => []],
 
             // ----- Grande figurine multi-cases (3.9) -----
@@ -132,7 +132,7 @@ class MonstreSeeder extends Seeder
             // déplacement raisonnent sur l'emprise (moteur Grille).
             // Aligné sur la fiche officielle de *The Mage of the Mirror* (doc 18).
             ['nom_base' => 'Ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
 
             // ================= CRÉATURES DES EXTENSIONS OFFICIELLES =================
@@ -169,19 +169,19 @@ class MonstreSeeder extends Seeder
             // (doc 18). Premier monstre de tier BASE à lancer des sorts : c'est
             // lui qui a fait naître le palier `base` de `sorts_dread`.
             ['nom_base' => 'Cultiste du Dread', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 2, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'culte_effroi'],
             // « mort-vivant et éthéré, lance *Channel Dread* à volonté » (doc 18).
             // Le « à volonté » reste borné par notre budget d'usages — un par
             // rencontre pour une créature de base.
             ['nom_base' => 'Spectre', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 5, 'capacites' => ['ethere'], 'sorts_dread' => [],
+                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 5, 'capacites' => ['ethere'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_hurlant'],
             ['nom_base' => 'Assassin', 'deplacement' => 10, 'attaque' => 5, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
             // « connaît *Ball of Flame* et *Tempest*, chacun 1 fois par quête ».
             ['nom_base' => 'Garde-mage', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'sous_boss', 'boite' => 'dread_moon', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'garde_magus'],
             // « éthéré, connaît *Dreadlights, Channel Dread, Fear, Summon
             // Specters*, chacun 1 fois par quête » : le seul répertoire officiel
@@ -198,19 +198,19 @@ class MonstreSeeder extends Seeder
             // plutôt que dissimulée : c'est le seul écart de stat que nous nous
             // accordions sur une créature sourcée.
             ['nom_base' => 'Ombre du Dread', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 5,
-                'tier' => 'boss', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => [],
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_effroi'],
 
             // ---- The Mage of the Mirror (doc 18) ----
             // L'archer elfe est la seconde créature à distance du bestiaire :
             // « Attack 4 (1 si adjacent) ».
             ['nom_base' => 'Archer elfe', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 5, 'portee' => 'distance', 'attaque_distance' => 4,
+                'tier' => 'base', 'boite' => 'mage_du_miroir', 'cout' => 5, 'portee' => 'distance', 'attaque_distance' => 4,
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Guerrier elfe', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'mage_du_miroir', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Loup géant', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 1,
-                'tier' => 'sous_boss', 'cout' => 11, 'capacites' => ['charge'], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 11, 'capacites' => ['charge'], 'sorts_dread' => []],
             // ⚠ Le lanceur de l'*Invocation de loups* (René, 2026-09-04 : « on
             // devrait créer un boss elfique qui utiliserait Invocation de
             // loups »). Il n'a pas fallu l'inventer : c'est **Sinestra,
@@ -225,36 +225,36 @@ class MonstreSeeder extends Seeder
             // bosses lanceurs (Liche 18, Sorcier des Tempêtes 17), sous le
             // Seigneur (20) pour ne pas déplacer la rencontre finale par défaut.
             ['nom_base' => 'Archimage elfe', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 9,
-                'tier' => 'boss', 'cout' => 17, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'boss', 'boite' => 'mage_du_miroir', 'cout' => 17, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'archimage_elfe'],
 
             // ---- The Frozen Horror (doc 18) ----
             ['nom_base' => 'Gremlin des glaces', 'deplacement' => 10, 'attaque' => 2, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'horreur_des_glaces', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Yéti', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
             // Boss de sa boîte. Grande figurine, comme l'ogre.
             // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind
             // Freeze, Skate, Soothe*) + 6 au choix du MJ » (Frozen Horror
             // p. 37). Trois des six ne sont pas portés — voir l'archétype.
             ['nom_base' => 'Horreur des Glaces', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 4,
-                'tier' => 'boss', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'boss', 'boite' => 'horreur_des_glaces', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['resistance_magique'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'horreur_glacee'],
 
             // ---- Against the Ogre Horde (doc 18) ----
             ['nom_base' => 'Ogre guerrier', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 1,
-                'tier' => 'sous_boss', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Ogre champion', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 6, 'pv_mind' => 1,
-                'tier' => 'sous_boss', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Ogre commandant', 'deplacement' => 4, 'attaque' => 6, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 2,
-                'tier' => 'boss', 'cout' => 15, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 15, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['charge'], 'sorts_dread' => []],
             // 10 points de Body : la créature la plus résistante du catalogue.
             ['nom_base' => 'Seigneur ogre', 'deplacement' => 4, 'attaque' => 6, 'defense' => 6, 'pv_body' => 10, 'pv_mind' => 5,
-                'tier' => 'boss', 'cout' => 22, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 22, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['frappe_de_zone', 'resistance_magique'], 'sorts_dread' => []],
 
             // ---- Jungles of Delthrak (doc 18) ----
@@ -265,30 +265,30 @@ class MonstreSeeder extends Seeder
             // un seul crâne suffit à en détacher un (règle de retrait précisée
             // par René le 2026-08-10).
             ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 0, 'defense' => 0, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 2, 'capacites' => ['agile', 's_accroche'], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'capacites' => ['agile', 's_accroche'], 'sorts_dread' => []],
             ['nom_base' => 'Archer squelette', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
                 'capacites' => [], 'sorts_dread' => []],
             // Monster Chart des Jungles of Delthrak p. 47 : « Sorts *Channel
             // Dread*, *Creeping Grasp* ». Il ne frappe presque pas (2 dés,
             // 1 PV) — il entrave, et laisse les autres faire le travail.
             ['nom_base' => 'Tisseur putride', 'deplacement' => 7, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
-                'tier' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => [],
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 3, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'tisseur_fleau'],
             ['nom_base' => 'Crâne putride', 'deplacement' => 6, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 0,
-                'tier' => 'base', 'cout' => 5, 'capacites' => ['racines_entravantes'], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 5, 'capacites' => ['racines_entravantes'], 'sorts_dread' => []],
             ['nom_base' => 'Raptor', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 3,
-                'tier' => 'base', 'cout' => 5, 'capacites' => ['tacticien'], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 5, 'capacites' => ['tacticien'], 'sorts_dread' => []],
             ['nom_base' => 'Rampant putride', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
-                'tier' => 'sous_boss', 'cout' => 11,
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 11,
                 'capacites' => ['agile', 'venimeux', 'spawn' => ['creature' => 'Rejeton putride']],
                 'sorts_dread' => []],
             ['nom_base' => 'Serpent géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 3,
-                'tier' => 'sous_boss', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['venimeux', 'spawn' => ['creature' => 'Rejeton putride']],
                 'sorts_dread' => []],
             ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
-                'tier' => 'sous_boss', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile'], 'sorts_dread' => []],
         ];
 
