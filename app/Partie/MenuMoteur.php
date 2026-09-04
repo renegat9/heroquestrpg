@@ -1356,34 +1356,53 @@ final class MenuMoteur
         // porte et actionner un levier restent permis à l'ÉVANESCENT — « il ne
         // peut que bouger et ouvrir des portes », c'est le texte de la carte et
         // tout l'intérêt du sort. Seules les FOUILLES sont gardées, plus bas.
+        if ($etat !== null && $etat->position_x !== null && $quete->carte !== null) {
+            $px = (int) $etat->position_x;
+            $py = (int) $etat->position_y;
+
+            // ⚠ OUVRIR UNE PORTE EST HORS DU VERROU `! $aAgi`, et ce n'est pas
+            // un détail : c'est une INTERACTION LIBRE (E2) qui ne consomme aucun
+            // créneau — `ResolveurTour::creneauOption()` la range dans
+            // `interaction`, et son propre commentaire promettait déjà « on peut
+            // reprendre son déplacement juste après ».
+            //
+            // ⚠ Elle était pourtant enfermée dans le même `if (! $aAgi)` que les
+            // fouilles et les jets, si bien qu'un héros qui ATTAQUAIT D'ABORD ne
+            // voyait plus la porte devant lui — le moteur l'aurait acceptée, le
+            // menu ne la proposait plus, et la manette refuse ce qui n'est pas
+            // dans le dernier menu. Signalé en partie réelle le 2026-09-04.
+            // C'est exactement le défaut de la Potion d'héroïsme, dont le second
+            // coup dormait derrière le même verrou : un bloc entier gardé sur un
+            // créneau que la moitié de son contenu ne consomme pas.
+            //
+            // Porte close adjacente : simplement fermée → ouverture libre (E2) ;
+            // verrouillée à clé → seulement avec la clé.
+            $porte = $this->portes->porteFermeeAdjacente($quete->carte, $px, $py);
+
+            if ($porte !== null) {
+                $p = $porte['porte'];
+                $avecCle = ($p['verrou']['type'] ?? null) === 'cle'
+                    && $this->portes->possedeCle($personnage, $p['verrou']);
+
+                if ($this->portes->ouvrableAMain($p) || $avecCle) {
+                    $cote = (string) ($p['cote'] ?? 'e');
+                    $options[] = [
+                        'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
+                        'type' => 'ouvrir_porte',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
+                }
+            }
+        }
+
+        // Tout ce qui suit COÛTE l'action — fouilles, leviers (depuis le
+        // 2026-08-24), destruction de mobilier, poussée, épreuves — et reste
+        // donc bien derrière `! $aAgi`.
         if (! $aAgi && $etat !== null) {
-            // Ouvrir une porte verrouillée par CLÉ au contact (héros porteur).
-            // Actionner un levier au contact (ouvre la porte liée).
             if ($etat->position_x !== null && $quete->carte !== null) {
                 $px = (int) $etat->position_x;
                 $py = (int) $etat->position_y;
-
-                // Porte close adjacente : simplement fermée → ouverture libre
-                // (E2) ; verrouillée à clé → seulement avec la clé. Ouvrir est
-                // une INTERACTION : elle ne consomme aucun créneau, on peut
-                // reprendre son déplacement juste après.
-                $porte = $this->portes->porteFermeeAdjacente($quete->carte, $px, $py);
-
-                if ($porte !== null) {
-                    $p = $porte['porte'];
-                    $avecCle = ($p['verrou']['type'] ?? null) === 'cle'
-                        && $this->portes->possedeCle($personnage, $p['verrou']);
-
-                    if ($this->portes->ouvrableAMain($p) || $avecCle) {
-                        $cote = (string) ($p['cote'] ?? 'e');
-                        $options[] = [
-                            'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
-                            'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
-                            'type' => 'ouvrir_porte',
-                            'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
-                        ];
-                    }
-                }
 
                 // Mobilier fouillable au contact (doc 17) : un coffre, un
                 // tombeau, une armoire s'ouvrent — ce n'est pas du décor. Une

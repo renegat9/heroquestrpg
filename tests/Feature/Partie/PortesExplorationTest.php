@@ -121,6 +121,46 @@ it('révèle par « Fouiller la zone » une porte secrète ET un piège, et n\'i
         ->and($quete->fresh()->instancesMonstres()->count())->toBe($avantMonstres);
 });
 
+it('propose ENCORE d\'ouvrir la porte après avoir agi (interaction libre)', function () {
+    // ⚠ Régression signalée en partie réelle le 2026-09-04 : « on ne semble pas
+    // pouvoir faire l\'action d\'ouvrir une porte quand on commence avec une
+    // action ». Ouvrir est une INTERACTION LIBRE (E2) — `creneauOption()` la
+    // range dans `interaction`, elle ne consomme aucun créneau — mais le menu
+    // l\'enfermait dans le même `if (! $aAgi)` que les fouilles et les jets. Le
+    // héros qui attaquait d\'abord ne voyait plus la porte devant lui : le
+    // résolveur l\'aurait acceptée, le menu ne la proposait plus, et la manette
+    // refuse ce qui n\'est pas dans le dernier menu.
+    //
+    // C\'est le défaut de la Potion d\'héroïsme, à l\'identique : un bloc entier
+    // gardé sur un créneau que la moitié de son contenu ne consomme pas.
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerExplo();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    poserPortes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'fermee']]);
+
+    $optionId = "ouvrir_porte_{$hx}_{$hy}_e";
+
+    // Le héros a AGI, sans avoir bougé — le cas exact du rapport.
+    $etat->update(['a_agi' => true, 'a_deplace' => false, 'a_joue' => false]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $options = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options']);
+
+    expect($options->firstWhere('id', $optionId))->not->toBeNull()
+        // …et le déplacement reste offert : agir sans avoir bougé ne confisque
+        // pas l\'allonce (« on se déplace PUIS on agit, ou on agit PUIS on se
+        // déplace »).
+        ->and($options->contains(fn ($o) => $o['type'] === 'deplacement'))->toBeTrue()
+        // En revanche, ce qui COÛTE l\'action reste bien fermé.
+        ->and($options->contains(fn ($o) => $o['type'] === 'attaque'))->toBeFalse();
+
+    // Et elle s\'ouvre vraiment : le résolveur l\'accepte après une action.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'ouvrir_porte');
+});
+
 it('bloque le pathfinding et la ligne de vue derrière une porte verrouillée (état partagé)', function () {
     [, , , $quete, $etat] = demarrerExplo();
 
