@@ -139,5 +139,8 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // des Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE
         // mécanique neuve, seulement de réunir sur un OBJET ce qui existait
         // déjà sur des sorts.
-        ->and($portees('artefacts'))->toBe(24);
+        // ⚠ Sept de plus le 2026-09-04 — Serre du Corbeau, Bottes de Lièvre,
+        // Bottes elfiques, Anneau du Retour, Bouclier de l'Aube, Bâton Ancien,
+        // Baguette d'Os : chacune attendait une mécanique, aucune un arbitrage.
+        ->and($portees('artefacts'))->toBe(31);
 });

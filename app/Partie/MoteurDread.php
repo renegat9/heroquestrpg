@@ -198,6 +198,22 @@ final class MoteurDread
      * @param  Collection<int, EtatPersonnageQuete>  $cibles  héros debout non cachés
      * @return array<string, mixed>|null
      */
+    /**
+     * Correspondance des conditions de HÉROS que posent les sorts de contrôle
+     * de Dread vers les conditions de MONSTRE, pour le *Bâton Ancien*.
+     *
+     * ⚠ `Commandé` n'y figure pas, et pas par oubli : aucune condition de
+     * monstre ne dit « attaque les tiens », et en inventer une aurait produit
+     * la clé décorative que le projet traque. Le reflet du Commandement est donc
+     * JOUÉ sur-le-champ par `ResolveurTour::subirRefletDeSort()`.
+     *
+     * @var array<string, string>
+     */
+    public const REFLET_CONDITIONS = [
+        'Apeuré' => MoteurSorts::MONSTRE_TERRIFIE,
+        'Endormi' => MoteurSorts::MONSTRE_ENDORMI,
+    ];
+
     public function jouerTourDread(
         Groupe $groupe,
         Quete $quete,
@@ -348,7 +364,7 @@ final class MoteurDread
         if (! $adjacent) {
             // Avancer vers l'allié le plus proche (déplacement de base, 1 pas).
             $grille = $this->grilleQuete($quete, exceptPersonnageId: $personnage->id);
-            $chemin = $this->cheminVersHeros(
+            $chemin = $this->cheminVersCaseAdjacente(
                 $grille,
                 (int) $etat->position_x, (int) $etat->position_y,
                 (int) $cibleEtat->position_x, (int) $cibleEtat->position_y,
@@ -863,7 +879,10 @@ final class MoteurDread
 
         $subis = $this->degats->infligerAHeros(
             $personnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
-            ['sort' => $sort['nom'] ?? null],
+            // `lanceur_id` et `des_degats` : le *Bâton Ancien* renvoie CE
+            // sort-là à CE lanceur-là. Sans les deux, la réaction ne saurait ni
+            // qui viser ni avec quelle force.
+            ['sort' => $sort['nom'] ?? null, 'lanceur_id' => (int) $instance->id, 'des_degats' => $desDegats],
         );
         $this->sorts->reveillerHeros($personnage);
 
@@ -922,7 +941,7 @@ final class MoteurDread
 
             $subis = $this->degats->infligerAHeros(
                 $personnage, $resultat->degats, MoteurDegats::SOURCE_SORT_DREAD,
-                ['sort' => 'Tempête de feu'],
+                ['sort' => 'Tempête de feu', 'lanceur_id' => (int) $instance->id, 'des_degats' => $desDegats],
             );
             $this->sorts->reveillerHeros($personnage);
 
@@ -1016,6 +1035,18 @@ final class MoteurDread
                 $duree = (int) data_get($sort->effet, 'duree_tours', 0);
                 $this->poserConditionHeros($personnage, $conditionNom, $duree, 'sort_dread:'.$sort->nom);
                 $payload['condition'] = $conditionNom;
+
+                // *Bâton Ancien* : un sort de contrôle ne blesse personne, donc
+                // n'atteint jamais `MoteurDegats` — et c'est là que toutes les
+                // autres réactions naissent. Celle-ci s'ouvre ICI, comme le
+                // *Défi du chevalier* le fait pour un errant qui surgit.
+                $reflet = app(MoteurReactions::class)->proposerRefletControle($personnage, [
+                    'sort' => $sort->nom,
+                    'lanceur_id' => (int) $instance->id,
+                    'condition' => $conditionNom,
+                ]);
+
+                $payload['reflet_propose'] = $reflet;
             }
         }
 
@@ -1487,7 +1518,7 @@ final class MoteurDread
     }
 
     /** Retire toutes les lignes d'une condition par son nom. */
-    private function retirerConditionHeros(Personnage $personnage, string $nomCondition): void
+    public function retirerConditionHeros(Personnage $personnage, string $nomCondition): void
     {
         $ids = Condition::where('nom', $nomCondition)->pluck('id');
 
@@ -1624,11 +1655,17 @@ final class MoteurDread
     }
 
     /**
-     * Chemin (BFS) entre deux positions de héros sur la grille de la quête.
+     * Chemin (BFS) d'une case vers une case ADJACENTE à une autre — de quoi
+     * venir au contact sans occuper la case visée.
+     *
+     * ⚠ Publique et nommée sur ce qu'elle fait depuis le 2026-09-04 : la
+     * *Baguette d'Os* fait marcher des squelettes vers un autre monstre, ce que
+     * `cheminVersHeros` prétendait ne pas savoir faire alors que le calcul est
+     * le même. Une seconde copie aurait dérivé.
      *
      * @return list<array{x: int, y: int}>|null
      */
-    private function cheminVersHeros(Grille $grille, int $dx, int $dy, int $ax, int $ay): ?array
+    public function cheminVersCaseAdjacente(Grille $grille, int $dx, int $dy, int $ax, int $ay): ?array
     {
         // On cherche le chemin vers une case adjacente à la cible.
         foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$ddx, $ddy]) {

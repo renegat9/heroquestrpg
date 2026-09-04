@@ -959,11 +959,76 @@ TERRE. Le drapeau traverse donc le menu (`ciblesObjet`) et le résolveur : parto
 ailleurs un héros tombé n'est pas ciblable, et l'offrir reviendrait à proposer ce
 que le résolveur refuserait.
 
-**Treize artefacts attendent encore une mécanique**, chacun avec la sienne
-nommée dans `config/cartes.php` — et ce qui reste demande du vrai neuf : forcer
-la relance de l'ATTAQUANT, un dé contre les sorts de Dread, intercepter les
-dégâts de MIND, une relance conditionnée à la FACE obtenue, la téléportation, le
-saut de piège, le renvoi de sort et le contrôle de monstres.
+**Sept de plus le 2026-09-04**, et cette fois chacune a demandé sa mécanique.
+C'est le lot qui restait après la passe de fidélité : rien à arbitrer, tout à
+écrire.
+
+| Carte | Chez nous | Mécanique neuve |
+|---|---|---|
+| *Raven's Talon* | **Serre du Corbeau** | `Engine\Combat::relancerFace()` — relance conditionnée à la FACE, et non à l'échec |
+| *Rabbit Boots* | **Bottes de Lièvre** | franchissement au **dé de combat**, élargi à tout piège découvert, pour le seul porteur |
+| *Elven Boots* | **Bottes elfiques** | `Deplacement::calculer()` accepte des dés supplémentaires, et l'usure les relit |
+| *Ring of Return* | **Anneau du Retour** | premier déplacement instantané de héros du moteur |
+| *Dawnshield* | **Bouclier de l'Aube** | `ReactionEffet::RELANCE_ATTAQUE` — le défenseur impose une relance à l'attaquant |
+| *Ancient Staff* | **Bâton Ancien** | `ReactionEffet::REFLET_SORT` — un sort de Dread retourné sur sa salle |
+| *Bone Wand* | **Baguette d'Os** | un monstre frappe un monstre, sur ordre d'un héros |
+
+⚠ **Un slot `bottes`** naît avec les deux paires. `armure` et `casque` les
+auraient mises en concurrence avec une vraie protection, `talisman` avec les
+joyaux de classe — et les deux paires se seraient exclues l'une l'autre, ce
+qu'aucune des deux cartes ne dit. Même raisonnement, mot pour mot, que le slot
+`talisman` du 2026-08-09.
+
+⚠ **L'usure des Bottes elfiques tombe sur un DOUBLE, pas un triple** (arbitrage
+de René). Le plateau lance 2 dés rouges et les bottes en donnent un troisième ;
+notre déplacement est **socle + 1d6**, donc elles en donnent un **deuxième** —
+et exiger un triple sur deux dés aurait produit des bottes éternelles. La règle
+est la même (elles meurent d'un jet trop régulier), sa cadence suit le nombre de
+dés que nous lançons : une chance sur six au lieu d'une sur trente-six.
+
+⚠ **Le « avant ou après son action » des Bottes elfiques est DÉJÀ notre règle**
+pour tout le monde (déplacement fractionné, E1). La carte promet ici ce que le
+moteur donne — même situation que *Parler à la Pierre*, dont la fouille
+automatique était notre défaut.
+
+⚠ **Deux réactions de plus, et les deux sortent de la victime.** Le *Bouclier de
+l'Aube* dit « before **any one hero**'s Defend dice are rolled » et le *Bâton
+Ancien* protège « the Elf **and their companions** » : l'offre est déposée chez
+le PORTEUR, pour un coup qu'un autre a pris — et sans condition d'adjacence,
+contrairement à la *Parade au bouclier* du chevalier. ⚠ Notre ordre reste celui
+de toutes les réactions : le coup est appliqué, PUIS la question posée. Pour le
+bouclier, « défaire » veut dire rendre les PV et rejouer la volée avec des dés
+neufs — ce qui, du point de vue de la carte, est exactement « relancer tous les
+dés d'attaque, puis lancer la défense ».
+
+⚠ **Le Bâton Ancien est la seule réaction qu'un sort SANS DÉGÂTS puisse ouvrir.**
+Frayeur, Sommeil et Commandement ne blessent personne et n'atteignent donc jamais
+`MoteurDegats`, d'où toutes les autres naissent : `sortDreadControle()` ouvre la
+fenêtre lui-même, comme `proposerDefi()` le fait pour un errant. Le renvoi couvre
+les trois natures — les dés de dégâts par `Engine\Combat`, Frayeur et Sommeil par
+les conditions de monstre, et le Commandement en faisant frapper chaque envoûté
+sur son plus proche congénère, ce que la *Baguette d'Os* venait de rendre
+possible. ⚠ *Commandé* n'a **pas** de condition de monstre et n'en reçoit pas :
+en inventer une aurait été la clé décorative que le projet traque.
+
+⚠ **ÉCART ASSUMÉ, Baguette d'Os** : la carte laisse le joueur piloter chaque
+squelette séparément (« They can move them and make them attack »). Notre
+grammaire de menu ne sait pas décrire N figures indépendantes en une action —
+tous marchent donc sur LA MÊME cible désignée. Ce que la carte permet et que nous
+perdons : disperser les squelettes sur plusieurs adversaires.
+
+⚠ **Deux restrictions étaient GRATUITES.** Le *Dawnshield* « may not be used with
+the Battle Axe or Staff. May not be used by the Wizard » : `bouclier` est un tag
+que le magicien n'a pas, et `incompatible_deux_mains` désigne exactement ces deux
+armes. Rien à écrire.
+
+⚠ **Le Bâton Ancien se porte au `talisman`, pas en arme principale** : sa carte
+ne donne AUCUN dé d'attaque, et lui en inventer pour le loger en arme aurait été
+la valeur non sourcée que ce document interdit.
+
+**Quatre artefacts attendent encore une mécanique**, chacun avec la sienne
+nommée dans `config/cartes.php` : intercepter les dégâts de **Mind** (*Sky Orb*,
+écartée par arbitrage — rien n'en inflige) et les trois cartes de la boîte glace.
 
 #### Les parchemins
 

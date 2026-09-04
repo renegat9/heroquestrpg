@@ -364,7 +364,7 @@ class ObjetSeeder extends Seeder
                 'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
             ['nom' => 'Brassards elfiques', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_elfe',
                 'effet' => ['bonus_pv_body_max' => 2, 'bonus_pv_mind_max' => 1]],
-                        
+
             // Artefacts à CHARGES et d'ÉCONOMIE DE SORTS (2026-08-09). Les deux
             // mécaniques manquaient et bloquaient à elles seules six cartes ;
             // elles ont été écrites ensemble parce que trois de ces cartes ont
@@ -388,7 +388,7 @@ class ObjetSeeder extends Seeder
             // mais un parchemin s'achète… non : `unique` le tient hors de
             // l'étal. Il arrive par le coffre, qui accepte désormais un
             // consommable en REPLI quand tout le portable est déjà détenu.
-            
+
             // « This ring prevents the wearer from being affected by the next
             // two Fire or Chaos Fire spells they encounter. The ring turns to
             // ash after protecting the wearer from the second spell. » — deux
@@ -422,13 +422,104 @@ class ObjetSeeder extends Seeder
             // often as you wish during the quest. You may roll one combat die
             // per turn. On a black shield, the chosen spell may be cast again.
             // May only be used by a Wizard. » — illimité, mais 1 chance sur 6.
-            
+
             // « Immediately upon acquiring this item, the adventurer will
             // recover all spells he has used so far during this quest. It also
             // grants the wielder 2 extra Mind points. » — la restauration se
             // déclenche en L'ÉQUIPANT (une charge), le +2 Mind tient tant qu'on
             // le porte.
-            
+
+            // ---- Sept cartes de plus (2026-09-04) ----
+            //
+            // Elles attendaient toutes une mécanique, jamais un arbitrage : la
+            // relance par FACE, le saut au dé de combat, un dé de déplacement en
+            // plus, la téléportation, une relance imposée à l'attaquant, le
+            // renvoi d'un sort de Dread et le contrôle de monstres par un héros.
+
+            // « When using this dagger, roll 2 Attack dice. On your turn, you
+            // may reroll any 1 Attack die that lands on a black shield. »
+            //
+            // ⚠ UN dé, et seulement le bouclier noir : `relance_des_attaque`
+            // (Coup puissant, Potion de bataille) relance les ratés sans les
+            // regarder, ce qui aurait donné trois relances au lieu d'une.
+            // ⚠ PAS `jetable`, bien qu'elle soit une dague : sa carte ne dit rien
+            // d'un lancer, et chez nous une arme lancée est DÉTRUITE. L'offrir
+            // aurait mis un bouton « perdre définitivement cet artefact » dans
+            // le menu, sur la foi d'une ressemblance de catégorie.
+            ['nom' => 'Serre du Corbeau', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+                'effet' => ['des_attaque' => 2,
+                    'relance_des_attaque_sur_face' => ['face' => 'bouclier_noir', 'nombre' => 1]]],
+
+            // « To jump over one discovered trap per turn, roll anything but a
+            // black shield on 1 combat die. »
+            //
+            // ⚠ Aucune restriction de classe sur la carte, et le slot `bottes`
+            // naît ici : `armure` ou `talisman` les auraient mises en
+            // concurrence avec une protection ou un joyau de classe, ce que rien
+            // sur la carte ne demande.
+            ['nom' => 'Bottes de Lièvre', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'bottes',
+                'effet' => ['saut_piege_de_combat' => true, 'frequence' => 'une_fois_par_tour']],
+
+            // « These boots grant the Elf an extra red die for movement. The Elf
+            // can roll 3 dice for movement either before or after taking an
+            // action. The boots wear out if the Elf rolls identical numbers on
+            // any 3 dice. »
+            //
+            // ⚠ « avant ou après son action » est DÉJÀ notre règle pour tout le
+            // monde (déplacement fractionné, E1) : la carte promet ici ce que le
+            // moteur donne, comme *Parler à la Pierre* avant elle. Reste le dé.
+            // ⚠ Et l'usure tombe sur un DOUBLE, pas un triple (arbitrage de
+            // René) : notre jet est socle + 1d6, les bottes le portent à 2d6, et
+            // un triple sur deux dés n'arrive jamais.
+            ['nom' => 'Bottes elfiques', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'bottes', 'tag_equipement' => 'bottes_elfe',
+                'effet' => ['de_deplacement_supplementaire' => 1, 'usure_sur_des_identiques' => true]],
+
+            // « When invoked, this magical ring returns all heroes that the ring
+            // wearer can see to the starting point of the quest. It can only be
+            // used once. »
+            //
+            // ⚠ `charges: 1` et non une fréquence : « only once » est un TOTAL,
+            // pas une cadence — l'anneau ne revient pas à la quête suivante.
+            ['nom' => 'Anneau du Retour', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1300, 'emplacement' => 'talisman',
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action',
+                    'ramene_heros_au_depart' => true, 'charges' => 1]],
+
+            // « This shield grants you 1 additional Defend die. Once per quest,
+            // before any one hero's Defend dice are rolled, you may use this
+            // shield's power to force the attacking monster to reroll all Attack
+            // dice. This artifact may not be used with the Battle Axe or Staff.
+            // May not be used by the Wizard. »
+            //
+            // ⚠ Les deux restrictions sont GRATUITES chez nous : `bouclier` est
+            // un tag que le magicien n'a pas, et `incompatible_deux_mains`
+            // désigne exactement la hache de bataille et le bâton.
+            ['nom' => "Bouclier de l'Aube", 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1200, 'emplacement' => 'arme_secondaire', 'tag_equipement' => 'bouclier',
+                'effet' => ['des_defense' => 1, 'incompatible_deux_mains' => true,
+                    'relance_attaque_monstre' => true, 'frequence' => 'une_fois_par_quete']],
+
+            // « This magical staff enables the Elf to reflect any monster's
+            // spell back at the spellcaster. The spellcaster and all other
+            // monsters in the same room suffer the full effects of the spell,
+            // while the Elf and their companions are immune. The staff works
+            // only 5 times, then it becomes useless. »
+            //
+            // ⚠ Slot `talisman` : la carte ne donne AUCUN dé d'attaque, et lui
+            // en inventer pour la loger en arme principale aurait été exactement
+            // la valeur non sourcée que doc 16 interdit. Le bâton se porte, il
+            // ne frappe pas.
+            ['nom' => 'Bâton Ancien', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1500, 'emplacement' => 'talisman', 'tag_equipement' => 'talisman_elfe',
+                'effet' => ['reflet_sort_dread' => true, 'charges' => 5]],
+
+            // « This artifact enables any hero to control all skeletons in one
+            // room for one turn. They can move them and make them attack during
+            // this turn. The hero can make the skeletons attack each other or any
+            // other monsters in the room. The Bone Wand works only once per
+            // quest. »
+            ['nom' => "Baguette d'Os", 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'talisman',
+                'effet' => ['activable' => true, 'cible' => 'monstre', 'cout' => 'action',
+                    'controle_monstres' => ['nom_base' => 'Squelette'],
+                    'frequence' => 'une_fois_par_quete']],
+
             // ----- Armures (6 cartes) -----
             //
             // Elles se CUMULENT, comme au plateau : casque (slot propre depuis

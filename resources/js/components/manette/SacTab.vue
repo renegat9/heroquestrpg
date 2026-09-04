@@ -88,7 +88,13 @@ const deborde = computed(() => {
             <div><div class="nm">{{ equipement.talisman.nom }}</div><div class="rar">Talisman équipé</div></div>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.talisman.inventaire_id)">Déséquiper</button>
         </div>
-        <div v-if="!equipement.armes.length && !equipement.armure && !equipement.casque && !equipement.talisman" class="slots">
+        <!-- Bottes : sixième emplacement (2026-09-04), cumulatif lui aussi. -->
+        <div v-if="equipement.bottes" class="item">
+            <span class="ic"><MSym n="footprint" /></span>
+            <div><div class="nm">{{ equipement.bottes.nom }}</div><div class="rar">Bottes équipées</div></div>
+            <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.bottes.inventaire_id)">Déséquiper</button>
+        </div>
+        <div v-if="!equipement.armes.length && !equipement.armure && !equipement.casque && !equipement.talisman && !equipement.bottes" class="slots">
             <div class="slot">
                 <span class="ic"><MSym n="swords" /></span>
                 <div><div class="sn">Arme</div><div class="iv">Aucune</div></div>

@@ -79,7 +79,13 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         'Cape des Ombres', 'Sceptre de Télékinésie',
         // Élixir de Vie et Bracelet de Guérison : leurs cartes ne posent aucune
         // restriction de classe non plus.
-        'Élixir de Vie', 'Bracelet de Guérison', 'Cendres du Phénix'];
+        'Élixir de Vie', 'Bracelet de Guérison', 'Cendres du Phénix',
+        // ⚠ 2026-09-04. Les *Rabbit Boots* se chaussent par n'importe qui, la
+        // *Bone Wand* « enables ANY hero », l'*Anneau du Retour* ne nomme
+        // personne. Leur inventer un tag serait exactement l'invention que
+        // §2.1bis interdit — et pour les bottes, ce serait pire : leur seule
+        // vraie limite est « une fois par tour », qui vit ailleurs.
+        'Bottes de Lièvre', "Baguette d'Os", 'Anneau du Retour'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])

@@ -227,7 +227,6 @@ final class MotsClesEquipement
      */
     public const SORT_NON_EPUISE = 'sort_non_epuise';
 
-
     // --------------------------------------------------------------- JAUGES
 
     /**
@@ -523,6 +522,105 @@ final class MotsClesEquipement
     /** Copie d'affichage de `sorts.difficulte_parchemin`, qui reste l'autorité. */
     public const DIFFICULTE_NON_LANCEUR = 'difficulte_non_lanceur';
 
+    /**
+     * Relance conditionnée à la FACE obtenue — *Serre du Corbeau* : « When using
+     * this dagger, roll 2 Attack dice. On your turn, you may reroll any 1 Attack
+     * die that lands on a black shield » (carte © 2023).
+     *
+     * ⚠ À ne pas confondre avec `relance_des_attaque`, qui relance des RATÉS
+     * sans les regarder. Un bouclier noir est un raté parmi trois : servir la
+     * Serre avec l'autre clé lui aurait donné trois fois sa portée.
+     *
+     * Forme : `'bouclier_noir'`, ou `['face' => 'bouclier_noir', 'nombre' => 1]`.
+     * Lecteurs : `ResolveurTour::relanceParFace()` → `Engine\Combat::relancerFace()`.
+     */
+    public const RELANCE_DES_ATTAQUE_SUR_FACE = 'relance_des_attaque_sur_face';
+
+    /**
+     * Saut de piège au DÉ DE COMBAT — *Bottes de Lièvre* : « To jump over one
+     * discovered trap per turn, roll anything but a black shield on 1 combat
+     * die » (carte © 2022).
+     *
+     * Deux écarts avec notre franchissement ordinaire, et la clé porte les deux :
+     * la cible passe de « une fosse » à TOUT piège découvert, et le jet cesse
+     * d'être un JetCompetence de Body à difficulté. ⚠ L'élargissement ne vaut
+     * que pour le PORTEUR — la règle des autres héros ne bouge pas.
+     * Lecteurs : `MenuMoteur::objetsDeMateriel()` (l'offre) et
+     * `ResolveurTour::resoudreFranchissement()` (la résolution).
+     */
+    public const SAUT_PIEGE_DE_COMBAT = 'saut_piege_de_combat';
+
+    /**
+     * Dés de déplacement EN PLUS — *Bottes elfiques* : « These boots grant the
+     * Elf an extra red die for movement » (carte © 2023).
+     *
+     * ⚠ Un DÉ, pas des cases : `bonus_deplacement` (Potion de dextérité) ajoute
+     * un nombre fixe, ici c'est le hasard qu'on élargit. Le plateau lance 2 dés
+     * rouges et les bottes en donnent un troisième ; nous lançons socle + 1d6,
+     * donc elles en donnent un DEUXIÈME.
+     * Lecteur : `MenuMoteur::deplacementDuTour()` → `Engine\Deplacement::calculer()`.
+     */
+    public const DE_DEPLACEMENT_SUPPLEMENTAIRE = 'de_deplacement_supplementaire';
+
+    /**
+     * L'objet s'use quand tous les dés de déplacement tombent sur le MÊME
+     * chiffre — *Bottes elfiques* : « The boots wear out if the Elf rolls
+     * identical numbers on any 3 dice. »
+     *
+     * ⚠ Trois dés au plateau, DEUX chez nous (arbitrage de René, 2026-09-03) :
+     * notre jet est socle + 1d6, les bottes le portent à 2d6, et exiger un
+     * triple sur deux dés aurait rendu des bottes qui ne s'usent jamais. La
+     * cadence d'usure change (1/6 au lieu de 1/36), la règle est la même :
+     * elles meurent d'un jet trop régulier.
+     * Lecteur : `MenuMoteur::deplacementDuTour()`.
+     */
+    public const USURE_SUR_DES_IDENTIQUES = 'usure_sur_des_identiques';
+
+    /**
+     * Ramène au point de départ de la quête tous les héros que le porteur VOIT
+     * — *Anneau du Retour* : « this magical ring returns all heroes that the
+     * ring wearer can see to the starting point of the quest » (carte © 2021).
+     *
+     * ⚠ Le porteur se voit lui-même (LR p. 8, la règle de ciblage des sorts),
+     * il part donc avec les autres. Lecteur :
+     * `ResolveurTour::resoudreArtefactActivable()`.
+     */
+    public const RAMENE_HEROS_AU_DEPART = 'ramene_heros_au_depart';
+
+    /**
+     * Le héros prend le contrôle de monstres d'une famille dans SA salle, pour
+     * un tour — *Baguette d'Os* : « enables any hero to control all skeletons in
+     * one room for one turn » (carte © 2023).
+     *
+     * Forme : `['nom_base' => 'Squelette']` — le nom de CATALOGUE, jamais celui
+     * que l'IA a donné à la créature, sous peine que la baguette cesse de
+     * reconnaître un squelette dès qu'une quête est narrée.
+     * Lecteur : `ResolveurTour::resoudreArtefactActivable()`.
+     */
+    public const CONTROLE_MONSTRES = 'controle_monstres';
+
+    /**
+     * Force le monstre attaquant à relancer TOUTE sa volée — *Bouclier de
+     * l'Aube* : « Once per quest, before any one hero's Defend dice are rolled,
+     * you may use this shield's power to force the attacking monster to reroll
+     * all Attack dice » (carte © 2023).
+     *
+     * ⚠ « any one hero » : le pouvoir protège N'IMPORTE QUEL héros, pas le seul
+     * porteur — c'est une réaction offerte au voisin, comme la Parade au
+     * bouclier. Lecteur : `MoteurReactions` (`ReactionEffet::RELANCE_ATTAQUE`).
+     */
+    public const RELANCE_ATTAQUE_MONSTRE = 'relance_attaque_monstre';
+
+    /**
+     * Renvoie au lanceur le sort d'un monstre — *Bâton Ancien* : « enables the
+     * Elf to reflect any monster's spell back at the spellcaster. The
+     * spellcaster and all other monsters in the same room suffer the full
+     * effects of the spell, while the Elf and their companions are immune. »
+     *
+     * Lecteur : `MoteurReactions` (`ReactionEffet::REFLET_SORT`).
+     */
+    public const REFLET_SORT_DREAD = 'reflet_sort_dread';
+
     // ------------------------------------------------------------------- ---
 
     /**
@@ -599,6 +697,14 @@ final class MotsClesEquipement
         self::UNE_PAR_TOUR,
         self::DUREE,
         self::SORT_ID,
+        self::RELANCE_DES_ATTAQUE_SUR_FACE,
+        self::SAUT_PIEGE_DE_COMBAT,
+        self::DE_DEPLACEMENT_SUPPLEMENTAIRE,
+        self::USURE_SUR_DES_IDENTIQUES,
+        self::RAMENE_HEROS_AU_DEPART,
+        self::CONTROLE_MONSTRES,
+        self::RELANCE_ATTAQUE_MONSTRE,
+        self::REFLET_SORT_DREAD,
     ];
 
     /**

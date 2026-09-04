@@ -6,15 +6,19 @@ namespace App\Partie;
 
 use App\Engine\Deplacement;
 use App\Engine\Des\LanceurDes;
+use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
+use App\Engine\ResultatDeplacement;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\Votes\VoteGroupe;
+use App\Support\Journal;
 
 /**
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
@@ -326,6 +330,44 @@ final class MenuMoteur
      *
      * @return array<string, mixed>
      */
+    /**
+     * Les monstres de la salle où se tient le héros, moins ceux que l'artefact
+     * commande — *Baguette d'Os* : « attack each other or any other monsters in
+     * the room ».
+     *
+     * ⚠ « each other » est inclus, et c'est voulu : un squelette est une cible
+     * légale pour les autres squelettes. Le retirer aurait rendu la baguette
+     * inutile dans la salle qu'elle est faite pour retourner — celle qui ne
+     * contient QUE des squelettes.
+     *
+     * @return array{cibles?: list<array<string, mixed>>}
+     */
+    private function ciblesDansLaSalle(Quete $quete, Objet $objet, int $px, int $py): array
+    {
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $salle = Salles::indexDe($salles, $px, $py);
+
+        if ($salle === null) {
+            return [];
+        }
+
+        $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->with('monstre')->get()
+            ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
+                && Salles::indexDe($salles, (int) $i->position_x, (int) $i->position_y) === $salle)
+            ->map(fn (InstanceMonstre $i) => [
+                'id' => $i->id,
+                'type' => 'monstre',
+                'nom' => $i->nomAffiche(),
+                'nom_base' => $i->monstre?->nom_base,
+            ])
+            ->values()->all();
+
+        // Une seule créature dans la salle : elle serait sa propre cible et
+        // personne ne resterait pour la frapper. L'option ne s'affiche pas.
+        return count($cibles) < 2 ? [] : ['cibles' => $cibles];
+    }
+
     private function ciblesObjet(
         Quete $quete,
         Personnage $personnage,
@@ -487,10 +529,16 @@ final class MenuMoteur
                     // vise un héros, le Sceptre un monstre, la Cape personne.
                     // Une liste au niveau de l'option serait fausse pour deux
                     // des trois.
-                    ...$this->ciblesObjet(
-                        $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
-                        tombeAdmis: ! empty($objet->effet['releve']),
-                    ),
+                    // ⚠ La *Baguette d'Os* ne vise pas « en ligne de vue » mais
+                    // « dans la salle » — c'est le texte de sa carte, et la
+                    // différence est réelle : un couloir voit loin. Elle a donc
+                    // sa propre liste, comme l'Eau bénite et le Fumigène.
+                    ...(! empty($objet->effet[MotsClesEquipement::CONTROLE_MONSTRES])
+                        ? $this->ciblesDansLaSalle($quete, $objet, $px, $py)
+                        : $this->ciblesObjet(
+                            $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
+                            tombeAdmis: ! empty($objet->effet['releve']),
+                        )),
                 ];
 
                 continue;
@@ -592,10 +640,23 @@ final class MenuMoteur
             // `Deplacement` savait appliquer un malus depuis toujours, mais
             // aucun appelant ne le lui avait jamais dit — il n'avait donc
             // jamais joué, et l'armure la plus chère n'avait que des avantages.
-            $jet = (new Deplacement($this->des))
-                ->calculer($base, $this->equipement->malusDeplacement($personnage));
+            // BOTTES ELFIQUES : « an extra red die for movement ». Le dé
+            // supplémentaire est lancé ICI, avec les autres, parce que c'est
+            // ICI que le jet du tour est fixé et mémorisé — le joueur le voit
+            // avant de choisir sa case, et le résolveur ne relance jamais.
+            $bottes = $this->charges->pieceActive(
+                $personnage, MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE, $etat,
+            );
+
+            $jet = (new Deplacement($this->des))->calculer(
+                $base,
+                $this->equipement->malusDeplacement($personnage),
+                (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
+            );
 
             $etat->update(['deplacement_tour' => $jet->total]);
+
+            $this->userSurDesIdentiques($personnage, $etat, $bottes, $jet);
 
             // ÉVANESCENCE : « The hero moves unseen if they roll an 8 or lower
             // on their red movement dice. If a 9, 10, 11, or 12 is rolled, the
@@ -614,6 +675,48 @@ final class MenuMoteur
         $total = $etat->deplacement_tour ?? $base;
 
         return ['base' => $base, 'de' => $total > $base ? $total - $base : null, 'total' => $total];
+    }
+
+    /**
+     * *Bottes elfiques* : « The boots wear out if the Elf rolls identical
+     * numbers on any 3 dice. »
+     *
+     * ⚠ DEUX dés chez nous, pas trois (arbitrage de René, 2026-09-03) : notre
+     * jet est socle + 1d6 et les bottes le portent à 2d6 ; exiger un triple sur
+     * deux dés aurait donné des bottes éternelles. L'usure tombe donc une fois
+     * sur six au lieu d'une sur trente-six — la règle est la même, sa cadence
+     * suit le nombre de dés que nous lançons.
+     *
+     * ⚠ Elle est JOURNALISÉE : une pièce qui disparaît du sac sans un mot est
+     * exactement l'effet automatique inannoncé que le projet refuse ailleurs.
+     */
+    private function userSurDesIdentiques(
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        ?Inventaire $ligne,
+        ResultatDeplacement $jet,
+    ): void {
+        $effet = (array) ($ligne?->objet?->effet ?? []);
+
+        if ($ligne === null
+            || empty($effet[MotsClesEquipement::USURE_SUR_DES_IDENTIQUES])
+            || count($jet->des) < 2
+            || count(array_unique($jet->des)) !== 1) {
+            return;
+        }
+
+        $groupe = $etat->quete?->groupe;
+        $nom = $ligne->objet?->nom;
+
+        $ligne->delete();
+
+        if ($groupe !== null) {
+            Journal::ajouter($groupe, 'systeme', [
+                'type' => 'objet_use',
+                'objet' => $nom,
+                'des' => $jet->des,
+            ], ['nom' => $personnage->nom]);
+        }
     }
 
     /**
@@ -758,9 +861,36 @@ final class MenuMoteur
         // Sauter par-dessus une fosse fait partie du MOUVEMENT (E3) : l'option
         // n'apparaît que s'il reste assez de points pour payer le saut.
         if (! $aDeplace && $this->pointsRestants($personnage, $etat) >= ResolveurTour::COUT_FRANCHISSEMENT) {
+            // BOTTES DE LIÈVRE : « To jump over one discovered trap per turn,
+            // roll anything but a black shield on 1 combat die. »
+            //
+            // ⚠ Elles n'écrasent pas le saut ordinaire, elles s'y AJOUTENT —
+            // deux boutons, comme le *Dragon bondissant*. Le saut de Body reste
+            // offert sur les fosses : la fenêtre des bottes est d'un saut par
+            // tour, et un héros qui l'a dépensée doit pouvoir sauter quand même.
+            // ⚠ Et elles n'élargissent la cible QUE pour leur porteur : la
+            // règle des autres héros ne bouge pas d'un pouce.
+            $bottes = $etat !== null
+                ? $this->charges->pieceActive($personnage, MotsClesEquipement::SAUT_PIEGE_DE_COMBAT, $etat)
+                : null;
+
             foreach ($detectes as $adjacent) {
+                $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
+
+                if ($bottes !== null) {
+                    $options[] = [
+                        'id' => "franchir_bottes_{$adjacent['x']}_{$adjacent['y']}",
+                        'libelle' => "{$bottes->objet?->nom} — bondir par-dessus {$nomPiege}",
+                        'type' => 'franchissement',
+                        'parametres' => [
+                            'piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']],
+                            'cout' => ResolveurTour::COUT_FRANCHISSEMENT,
+                            'bottes' => $bottes->id,
+                        ],
+                    ];
+                }
+
                 if ($this->pieges->estFosse($adjacent['piege'])) {
-                    $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
                     $options[] = [
                         'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
                         'libelle' => "Sauter par-dessus {$nomPiege} — jet de Body",

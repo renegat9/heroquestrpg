@@ -31,18 +31,24 @@ final class Combat
      * @param  TypeFigurine  $typeDefenseur  camp du DÉFENSEUR (détermine la face de bouclier qui compte)
      * @param  int  $pvBodyDefenseur  PV de Body courants du défenseur avant l'attaque
      * @param  int  $relanceDesAttaqueRatee  NOMBRE de dés d'attaque ratés relancés une fois, en gardant
-     *                                        les touches déjà obtenues. `PHP_INT_MAX` = toute la volée
-     *                                        (Coup puissant, nœud barbare ; Potion de bataille), un
-     *                                        entier = ce nombre de dés seulement. ⚠ La *Longue épée de
-     *                                        Fortune* dit « reroll **1** Attack die » : relancer toute
-     *                                        la volée en aurait fait une tout autre arme, et c'est
-     *                                        exactement ce que faisait le booléen d'avant (2026-09-03).
+     *                                       les touches déjà obtenues. `PHP_INT_MAX` = toute la volée
+     *                                       (Coup puissant, nœud barbare ; Potion de bataille), un
+     *                                       entier = ce nombre de dés seulement. ⚠ La *Longue épée de
+     *                                       Fortune* dit « reroll **1** Attack die » : relancer toute
+     *                                       la volée en aurait fait une tout autre arme, et c'est
+     *                                       exactement ce que faisait le booléen d'avant (2026-09-03).
      * @param  bool  $defenseurEthere  Monstre ÉTHÉRÉ (Rise of the Dread Moon) : « une attaque de héros ne
      *                                 les touche que sur un **bouclier noir** (au lieu d'un crâne) ». Une
      *                                 face sur six au lieu de trois — c'est la seule règle du jeu qui
      *                                 change la CONDITION DE SUCCÈS d'un dé d'attaque, et elle ne vaut que
      *                                 pour une arme : le livret excepte « sort ou artefact », que
      *                                 l'appelant filtre.
+     * @param  ?FaceDeCombat  $relanceFaceAttaque  Relance conditionnée à la FACE obtenue, et non à
+     *                                             l'échec — *Serre du Corbeau* : « you may reroll any 1 Attack
+     *                                             die that lands on a black shield » (carte © 2023). Un bouclier
+     *                                             noir est un raté parmi trois : relancer « les ratés » aurait
+     *                                             donné une arme deux fois plus forte que sa carte.
+     * @param  int  $relanceFaceMaximum  Combien de dés de cette face au plus. La Serre en offre UN.
      */
     public function resoudreAttaque(
         int $desAttaque,
@@ -51,6 +57,8 @@ final class Combat
         int $pvBodyDefenseur,
         int $relanceDesAttaqueRatee = 0,
         bool $defenseurEthere = false,
+        ?FaceDeCombat $relanceFaceAttaque = null,
+        int $relanceFaceMaximum = 1,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
             throw new \InvalidArgumentException("Dés d'attaque invalides : {$desAttaque}.");
@@ -71,6 +79,20 @@ final class Combat
 
         if ($relanceDesAttaqueRatee > 0) {
             $facesAttaque = $this->relancerRatees($facesAttaque, $touchante, $relanceDesAttaqueRatee);
+        }
+
+        // ⚠ Deux passes INDÉPENDANTES, dans cet ordre. La première relance des
+        // ratés sans regarder lesquels (Coup puissant, Potion de bataille), la
+        // seconde ne relance qu'une FACE nommée (Serre du Corbeau). Ce sont deux
+        // pouvoirs distincts : les fondre en un seul rendrait le talent
+        // aveugle-mais-large aussi étroit que l'arme, ou l'inverse.
+        //
+        // ⚠ Et jamais la face QUI TOUCHE : contre un éthéré c'est le bouclier
+        // noir qui blesse, et la Serre relancerait ses propres réussites.
+        if ($relanceFaceAttaque !== null
+            && $relanceFaceMaximum > 0
+            && $relanceFaceAttaque !== $touchante) {
+            $facesAttaque = $this->relancerFace($facesAttaque, $relanceFaceAttaque, $relanceFaceMaximum);
         }
 
         $facesDefense = $this->des->desCombat($desDefense);
@@ -95,6 +117,37 @@ final class Combat
             faceTouchante: $touchante,
             faceDefensive: $faceDefensive,
         );
+    }
+
+    /**
+     * Relance jusqu'à `$maximum` dés montrant EXACTEMENT `$face`.
+     *
+     * Le résultat de la relance est gardé tel quel, quel qu'il soit — la carte
+     * dit « reroll », pas « reroll and keep the better ». Un joueur peut donc
+     * relancer un bouclier noir et retomber dessus.
+     *
+     * @param  list<FaceDeCombat>  $faces
+     * @return list<FaceDeCombat>
+     */
+    private function relancerFace(array $faces, FaceDeCombat $face, int $maximum): array
+    {
+        $aRelancer = min($maximum, count(array_filter($faces, fn ($f) => $f === $face)));
+
+        if ($aRelancer <= 0) {
+            return $faces;
+        }
+
+        $neuves = $this->des->desCombat($aRelancer);
+        $i = 0;
+
+        foreach ($faces as $rang => $f) {
+            if ($f === $face && $i < $aRelancer) {
+                $faces[$rang] = $neuves[$i];
+                $i++;
+            }
+        }
+
+        return array_values($faces);
     }
 
     /**

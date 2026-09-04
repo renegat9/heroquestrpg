@@ -190,6 +190,14 @@ class AuthController extends Controller
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
                             ),
+                            // Bottes : sixième slot (2026-09-04). Sans cette clé
+                            // la manette chausserait le héros sans jamais le
+                            // montrer ni permettre de le déchausser — exactement
+                            // ce qui était arrivé au casque.
+                            'bottes' => with(
+                                $p->inventaire->first(fn ($l) => $l->emplacement === 'bottes' && $l->objet !== null),
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                            ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
                                 ->map(fn ($l) => [

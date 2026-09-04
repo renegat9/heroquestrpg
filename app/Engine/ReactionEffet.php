@@ -113,11 +113,46 @@ final class ReactionEffet
      *
      * @var list<string>
      */
+    /**
+     * *Bouclier de l'Aube* : « Once per quest, before any one hero's Defend
+     * dice are rolled, you may use this shield's power to force the attacking
+     * monster to reroll all Attack dice » (carte © 2023).
+     *
+     * ⚠ « any one HERO » : le porteur protège n'importe qui, pas seulement
+     * lui-même — et sans condition d'adjacence, contrairement à la *Parade au
+     * bouclier* du chevalier. C'est la magie du bouclier, pas son bras.
+     *
+     * ⚠ NOTRE ORDRE reste celui de toutes les réactions : le coup est appliqué,
+     * PUIS la question posée, et accepter le défait. Ici « défaire » veut dire
+     * rendre les PV et rejouer l'attaque avec des dés neufs — ce qui, du point
+     * de vue de la carte, est exactement « relancer tous les dés d'attaque puis
+     * lancer la défense ».
+     */
+    public const RELANCE_ATTAQUE = 'relance_attaque';
+
+    /**
+     * *Bâton Ancien* : « enables the Elf to reflect any monster's spell back at
+     * the spellcaster. The spellcaster and all other monsters in the same room
+     * suffer the full effects of the spell, while the Elf and their companions
+     * are immune » (carte © 2023).
+     *
+     * ⚠ Seule réaction que peut ouvrir un sort SANS DÉGÂTS : Frayeur, Sommeil
+     * et Commandement ne blessent personne, et le bâton les renvoie tout autant.
+     * `MoteurDread::sortDreadControle()` la propose donc lui-même, comme
+     * `proposerDefi()` le fait pour un errant.
+     */
+    public const REFLET_SORT = 'reflet_sort';
+
     public const ACTIONS_RELEVANTES = [
         self::ANNULE_DEGATS,
         self::PLANCHER_PV,
         self::ANNULE_DEGATS_VOISIN,
         self::SOIN_URGENCE,
+        // Les deux nouvelles RAMÈNENT un héros à terre : la relance peut faire
+        // zéro dégât, le reflet rend tout. Les omettre aurait prononcé un TPK
+        // pendant qu'une offre pouvait encore l'annuler.
+        self::RELANCE_ATTAQUE,
+        self::REFLET_SORT,
     ];
 
     /** @return list<string> */

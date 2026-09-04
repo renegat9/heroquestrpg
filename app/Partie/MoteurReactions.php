@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Combat;
 use App\Engine\Des\LanceurDes;
+use App\Engine\MotsClesEquipement;
 use App\Engine\ReactionEffet;
+use App\Engine\TypeFigurine;
 use App\Events\ReactionProposee;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
@@ -113,6 +116,24 @@ final class MoteurReactions
                 'description' => $technique['style']?->description,
             ], $degats, $source, $contexte);
 
+            return;
+        }
+
+        // *Bâton Ancien* : le reflet est proposé AVANT les planchers parce
+        // qu'il est strictement meilleur — il rend tous les PV au lieu d'en
+        // laisser un, et il retourne le sort contre la salle. Après les
+        // réactions GRATUITES de la victime, en revanche : une charge finie ne
+        // doit pas préempter un pouvoir qui ne coûte rien.
+        if ($source === MoteurDegats::SOURCE_SORT_DREAD
+            && $this->deposerReflet($etat, $heros, $degats, $source, $contexte)) {
+            return;
+        }
+
+        // *Bouclier de l'Aube* : forcer le monstre à tout relancer. Après le
+        // reflet (qui annule) et avant les planchers (qui laissent 1 PV) : la
+        // relance peut ramener le coup à zéro, mais elle peut aussi le refaire.
+        if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
+            && $this->deposerRelanceAttaque($etat, $heros, $degats, $source, $contexte)) {
             return;
         }
 
@@ -272,8 +293,130 @@ final class MoteurReactions
     /**
      * Dépense l'artefact de plancher, et le DÉTRUIT sur un 5-6.
      *
-     * @return array<string, mixed>  trace pour la charge utile
+     * @return array<string, mixed> trace pour la charge utile
      */
+    /**
+     * Cherche, chez TOUS les héros de la quête, une pièce portant `$cle` et
+     * encore utilisable ; dépose l'offre sur l'état de son porteur.
+     *
+     * ⚠ Le porteur peut être un autre héros que la victime — les deux cartes le
+     * disent (« any one hero », « the Elf and their companions »). C'est la
+     * deuxième réaction du jeu à sortir de la victime, après la *Parade au
+     * bouclier*, et la seule à ne demander AUCUNE adjacence.
+     *
+     * @param  array<string, mixed>  $quoi  ce que la proposition ajoute
+     * @param  array<string, mixed>  $contexte
+     */
+    private function deposerChezLePorteur(
+        EtatPersonnageQuete $etatVictime,
+        Personnage $victime,
+        string $cle,
+        array $quoi,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): bool {
+        $quete = $etatVictime->quete;
+
+        if ($quete === null) {
+            return false;
+        }
+
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            $porteur = $etat->personnage;
+
+            if ($porteur === null || $etat->tombe || $etat->reaction_en_attente !== null) {
+                continue;
+            }
+
+            $ligne = app(MoteurCharges::class)->pieceActive($porteur, $cle, $etat);
+
+            if ($ligne === null) {
+                continue;
+            }
+
+            $this->deposer($etat, $porteur, $victime, [
+                ...$quoi,
+                'artefact' => $ligne->id,
+                'nom' => $ligne->objet?->nom,
+            ], $degats, $source, $contexte);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexte
+     */
+    private function deposerRelanceAttaque(
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): bool {
+        // Sans le monstre ni sa volée, il n'y a rien à relancer : mieux vaut ne
+        // rien proposer qu'offrir un bouton dont la résolution échouerait.
+        if (empty($contexte['instance_id']) || ! isset($contexte['des_attaque'])) {
+            return false;
+        }
+
+        return $this->deposerChezLePorteur(
+            $etat, $victime, MotsClesEquipement::RELANCE_ATTAQUE_MONSTRE,
+            [
+                'action' => ReactionEffet::RELANCE_ATTAQUE,
+                'description' => "Force le monstre à relancer TOUS ses dés d'attaque. Le nouveau jet remplace l'ancien, en mieux comme en pire.",
+            ],
+            $degats, $source, $contexte,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexte
+     */
+    private function deposerReflet(
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): bool {
+        if (empty($contexte['lanceur_id'])) {
+            return false;
+        }
+
+        return $this->deposerChezLePorteur(
+            $etat, $victime, MotsClesEquipement::REFLET_SORT_DREAD,
+            [
+                'action' => ReactionEffet::REFLET_SORT,
+                'description' => 'Renvoie le sort à son lanceur. Lui et tous les monstres de sa salle en subissent les effets ; toi et tes compagnons y êtes insensibles.',
+            ],
+            $degats, $source, $contexte,
+        );
+    }
+
+    /**
+     * Ouvre la fenêtre du *Bâton Ancien* sur un sort de contrôle, qui ne blesse
+     * personne et n'atteint donc jamais `proposer()`.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    public function proposerRefletControle(Personnage $victime, array $contexte): bool
+    {
+        $etat = EtatPersonnageQuete::query()
+            ->where('personnage_id', $victime->id)
+            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
+            ->first();
+
+        if ($etat === null) {
+            return false;
+        }
+
+        return $this->deposerReflet($etat, $victime, 0, MoteurDegats::SOURCE_SORT_DREAD, $contexte);
+    }
+
     private function consumerArtefactPlancher(Personnage $heros, EtatPersonnageQuete $etat, int $inventaireId): array
     {
         $ligne = $heros->inventaire()->with('objet')->whereKey($inventaireId)->first();
@@ -607,7 +750,7 @@ final class MoteurReactions
      * Réponse du joueur. `true` = j'active (les dégâts sont rendus et le sort
      * dépensé), `false` = je laisse passer.
      *
-     * @return array<string, mixed>  compte rendu, journalisable
+     * @return array<string, mixed> compte rendu, journalisable
      */
     public function resoudre(Groupe $groupe, Personnage $heros, bool $accepte, ?string $soin = null): array
     {
@@ -675,6 +818,24 @@ final class MoteurReactions
             return $this->soigner($groupe, $heros, $etat, $attente, $soin);
         }
 
+        // *Bouclier de l'Aube* et *Bâton Ancien* : les deux rendent les PV puis
+        // font autre chose du coup — rejouer l'attaque, ou la retourner. Le
+        // tronc commun plus bas ne sait que rendre, d'où leur propre sortie.
+        if ($action === ReactionEffet::RELANCE_ATTAQUE) {
+            return $this->relancerLaVolee($groupe, $heros, $etat, $victime, $etatVictime, $attente);
+        }
+
+        if ($action === ReactionEffet::REFLET_SORT) {
+            return $this->refleterLeSort($groupe, $heros, $etat, $victime, $etatVictime, $attente);
+        }
+
+        // ⚠ Le compte rendu du jet de destruction est mis DE CÔTÉ et fusionné
+        // plus bas, une fois `$payload` construit. Il était fusionné ici, sur
+        // une variable pas encore définie : `null + array` est un TypeError, et
+        // les Cendres du Phénix plantaient net au moment exact où elles
+        // sauvaient un héros. Aucun test ne passait par cette branche.
+        $consomme = [];
+
         if ($action === ReactionEffet::PLANCHER_PV) {
             // « reduced to 0 → instead reduce them to 1 » : on ne rend pas le
             // coup, on pose un plancher. Un seul PV, jamais davantage.
@@ -686,7 +847,7 @@ final class MoteurReactions
             // catalogue qui se détruit sur un jet, et il fallait le dire ici
             // plutôt que de le rendre inerte comme une charge à zéro.
             if (isset($attente['artefact'])) {
-                $payload += $this->consumerArtefactPlancher($heros, $etat, (int) $attente['artefact']);
+                $consomme = $this->consumerArtefactPlancher($heros, $etat, (int) $attente['artefact']);
             }
         } else {
             $rendus = min($degats, (int) $victime->pv_body_max - (int) $victime->pv_body);
@@ -731,12 +892,174 @@ final class MoteurReactions
             'active' => true,
             'degats_annules' => $rendus,
             'source' => $attente['source'] ?? null,
+            ...$consomme,
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
         $this->reprendreVerdictDeChute($groupe);
 
         return $payload;
+    }
+
+    /**
+     * Rend les PV du coup à la victime et la remet debout si elle était tombée.
+     * Renvoie ce qui a réellement été rendu.
+     */
+    private function defaireLeCoup(
+        Personnage $victime,
+        ?EtatPersonnageQuete $etatVictime,
+        int $degats,
+    ): int {
+        $rendus = min($degats, (int) $victime->pv_body_max - (int) $victime->pv_body);
+
+        if ($rendus > 0) {
+            $victime->update(['pv_body' => (int) $victime->pv_body + $rendus]);
+        }
+
+        if ((int) $victime->pv_body > 0 && $etatVictime?->tombe) {
+            $etatVictime->update(['tombe' => false]);
+        }
+
+        return $rendus;
+    }
+
+    /**
+     * *Bouclier de l'Aube* : le coup est défait, puis le monstre le rejoue avec
+     * des dés neufs — attaque ET défense, puisque du point de vue de la carte
+     * la défense n'avait pas encore été lancée.
+     *
+     * ⚠ Les dégâts repassent par `MoteurDegats::infligerAHeros()` : c'est le
+     * point de passage unique, il applique les réductions de talent et rouvre
+     * les réactions. Le bouclier, lui, a dépensé sa fenêtre — il ne peut pas
+     * se proposer en boucle.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function relancerLaVolee(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        ?EtatPersonnageQuete $etatVictime,
+        array $attente,
+    ): array {
+        $contexte = (array) ($attente['contexte'] ?? []);
+        $rendus = $this->defaireLeCoup($victime, $etatVictime, (int) ($attente['degats'] ?? 0));
+
+        $this->consommerArtefact($heros, $etat, $attente);
+
+        $resultat = (new Combat(app(LanceurDes::class)))->resoudreAttaque(
+            desAttaque: max(0, (int) ($contexte['des_attaque'] ?? 0)),
+            desDefense: max(0, (int) ($contexte['des_defense'] ?? 0)),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $victime->fresh()->pv_body,
+        );
+
+        $subis = app(MoteurDegats::class)->infligerAHeros(
+            $victime, $resultat->degats, (string) ($attente['source'] ?? MoteurDegats::SOURCE_ATTAQUE_MONSTRE),
+            [...$contexte, 'relance' => true],
+        );
+
+        if ((int) $victime->fresh()->pv_body === 0 && $subis > 0) {
+            $etatVictime?->update(['tombe' => true]);
+        }
+
+        $payload = [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $victime->nom,
+            'nom' => $attente['nom'] ?? null,
+            'action' => ReactionEffet::RELANCE_ATTAQUE,
+            'active' => true,
+            'degats_annules' => $rendus,
+            'degats_relance' => $subis,
+            'pv_body_apres' => (int) $victime->fresh()->pv_body,
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+        $this->reprendreVerdictDeChute($groupe);
+
+        return $payload;
+    }
+
+    /**
+     * *Bâton Ancien* : le sort quitte la victime et retombe sur la salle du
+     * lanceur.
+     *
+     * ⚠ Une charge est dépensée MÊME si le lanceur est déjà tombé entre-temps :
+     * le bâton a agi, c'est ce que le joueur a choisi. Rendre la charge parce
+     * que la cible a disparu serait un remboursement que la carte ne prévoit
+     * pas.
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function refleterLeSort(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        ?EtatPersonnageQuete $etatVictime,
+        array $attente,
+    ): array {
+        $contexte = (array) ($attente['contexte'] ?? []);
+        $rendus = $this->defaireLeCoup($victime, $etatVictime, (int) ($attente['degats'] ?? 0));
+
+        // Un sort de contrôle ne blessait pas : ce qu'il faut défaire, c'est la
+        // condition qu'il vient de poser.
+        $condition = (string) ($contexte['condition'] ?? '');
+
+        if ($condition !== '') {
+            app(MoteurDread::class)->retirerConditionHeros($victime, $condition);
+        }
+
+        $this->consommerArtefact($heros, $etat, $attente);
+
+        $quete = $etat->quete;
+        $lanceur = $quete?->instancesMonstres()
+            ->whereKey((int) ($contexte['lanceur_id'] ?? 0))->with('monstre')->first();
+
+        $retour = ($quete !== null && $lanceur !== null)
+            ? app(ResolveurTour::class)->subirRefletDeSort($quete, $lanceur, $contexte)
+            : ['effets' => []];
+
+        $payload = [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $victime->nom,
+            'nom' => $attente['nom'] ?? null,
+            'sort' => $contexte['sort'] ?? null,
+            'action' => ReactionEffet::REFLET_SORT,
+            'active' => true,
+            'degats_annules' => $rendus,
+            'condition_annulee' => $condition !== '' ? $condition : null,
+            'reflet' => $retour,
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+        $this->reprendreVerdictDeChute($groupe);
+
+        return $payload;
+    }
+
+    /**
+     * Dépense la fenêtre ou la charge de la pièce qui a servi.
+     *
+     * @param  array<string, mixed>  $attente
+     */
+    private function consommerArtefact(Personnage $heros, EtatPersonnageQuete $etat, array $attente): void
+    {
+        if (! isset($attente['artefact'])) {
+            return;
+        }
+
+        $ligne = $heros->inventaire()->with('objet')->whereKey((int) $attente['artefact'])->first();
+
+        if ($ligne !== null) {
+            app(MoteurCharges::class)->consommerUsage($ligne, $etat);
+        }
     }
 
     /**

@@ -52,7 +52,7 @@ final class Equipement
      * n'était qu'un achat de dépannage qu'on jetait dès la première vraie
      * armure, et la défense plafonnait à 5 au lieu de 6.
      */
-    public const SLOTS = ['arme_principale', 'arme_secondaire', 'casque', 'armure', 'talisman'];
+    public const SLOTS = ['arme_principale', 'arme_secondaire', 'casque', 'armure', 'talisman', 'bottes'];
 
     /**
      * Clés d'`effet` d'objet qui AUGMENTENT une jauge maximale du héros.

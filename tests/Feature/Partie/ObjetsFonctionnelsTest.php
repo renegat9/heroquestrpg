@@ -100,7 +100,16 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Les Cendres du Phénix ne modifient aucune statistique : elles ouvrent
         // une RÉACTION hors tour. C'est tout autant changer ce que le porteur
         // peut faire — c'est même la seule chose qu'elles font.
-        'plancher_pv'];
+        'plancher_pv',
+        // ⚠ 2026-09-04. Quatre clés de plus, et la même raison à chaque fois :
+        // la pièce ne touche aucune statistique, elle ouvre une possibilité.
+        // Le *Bouclier de l'Aube* et le *Bâton Ancien* ouvrent une réaction
+        // hors tour, les *Bottes de Lièvre* un saut que personne d'autre ne
+        // peut faire, les *Bottes elfiques* un dé de déplacement.
+        'relance_attaque_monstre', 'reflet_sort_dread',
+        'saut_piege_de_combat', 'de_deplacement_supplementaire',
+        // Et la relance par face : c'est bien l'ARME qui la porte.
+        'relance_des_attaque_sur_face'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
