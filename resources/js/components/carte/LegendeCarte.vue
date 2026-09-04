@@ -106,7 +106,7 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
                 <div class="lg-sous">Figurines</div>
                 <div class="lg-ligne"><span class="lg-chip lg-fig heros" /><span>Héros — cerclé d'or quand c'est son tour</span></div>
                 <div class="lg-ligne"><span class="lg-chip lg-fig monstre" /><span>Monstre révélé</span></div>
-                <div class="lg-ligne"><span class="lg-chip lg-fig allie" /><span>Allié (mercenaire, invocation)</span></div>
+                <div class="lg-ligne"><span class="lg-chip lg-fig allie" /><span>Allié (mercenaire, créature enrôlée)</span></div>
             </section>
 
             <section v-if="portes.length" class="lg-sect">

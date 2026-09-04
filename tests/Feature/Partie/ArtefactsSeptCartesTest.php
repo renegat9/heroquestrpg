@@ -553,21 +553,25 @@ it('renvoie aussi un sort de CONTRÔLE, qui ne blesse personne et n\'atteint don
 // 7. Baguette d'Os — « control all skeletons in one room for one turn »
 // ---------------------------------------------------------------------------
 
-it('retourne les squelettes de la salle contre la cible désignée', function () {
+it('enrôle les squelettes de la salle, qui jouent à la suite du tour de leur maître', function () {
     $ctx = demarrerQueteAvecMonstre('Orque');
     $heros = $ctx['heros'];
-    $cible = $ctx['instance'];
+    $ennemi = $ctx['instance'];
+
+    // ⚠ Un orque de catalogue a 1 PV : le premier squelette le tuerait et le
+    // second n'aurait plus rien à frapper. On l'épaissit pour que les DEUX
+    // jouent — c'est le nombre d'actions qu'on mesure.
+    $ennemi->update(['pv_body' => 6, 'pv_body_max' => 6]);
 
     $squelette = Monstre::where('nom_base', 'Squelette')->firstOrFail();
     $salles = (array) data_get($ctx['quete']->carte->grille, 'salles', []);
-    $salle = Salles::indexDe($salles, (int) $heros->fresh()->id > 0
-        ? (int) $ctx['etatHeros']->position_x : 0, (int) $ctx['etatHeros']->position_y);
+    $salle = Salles::indexDe($salles, (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
 
-    // Deux squelettes au contact de l'orque, dans la même salle que le héros.
+    // Deux squelettes au contact de l'orque, dans la salle du héros.
     $places = [];
     foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-        $x = (int) $cible->position_x + $dx;
-        $y = (int) $cible->position_y + $dy;
+        $x = (int) $ennemi->position_x + $dx;
+        $y = (int) $ennemi->position_y + $dy;
         if (count($places) < 2
             && caseQueteLibre($ctx['quete'], $x, $y)
             && Salles::indexDe($salles, $x, $y) === $salle) {
@@ -576,13 +580,11 @@ it('retourne les squelettes de la salle contre la cible désignée', function ()
     }
     expect(count($places))->toBe(2);
 
-    foreach ($places as $place) {
-        $ctx['quete']->instancesMonstres()->create([
-            'monstre_id' => $squelette->id, 'pv_body' => 1, 'pv_mind' => 0,
-            'etat' => 'actif', 'revele' => true,
-            'position_x' => $place['x'], 'position_y' => $place['y'],
-        ]);
-    }
+    $sbires = collect($places)->map(fn ($place) => $ctx['quete']->instancesMonstres()->create([
+        'monstre_id' => $squelette->id, 'pv_body' => 1, 'pv_mind' => 0,
+        'etat' => 'actif', 'revele' => true,
+        'position_x' => $place['x'], 'position_y' => $place['y'],
+    ]));
 
     $baguette = porterArtefact($heros, "Baguette d'Os");
 
@@ -590,23 +592,47 @@ it('retourne les squelettes de la salle contre la cible désignée', function ()
     $entree = collect(collect($options)->firstWhere('id', 'utiliser_objet')['parametres']['objets'] ?? [])
         ->firstWhere('inventaire_id', $baguette->id);
 
+    // ⚠ La baguette ne VISE personne : elle fait changer de camp, elle ne
+    // désigne pas une victime.
     expect($entree)->not->toBeNull()
-        // ⚠ La liste EST la salle, pas la ligne de vue : l'orque et les deux
-        // squelettes, personne d'autre.
-        ->and(collect($entree['cibles'])->pluck('id')->all())->toContain($cible->id);
+        ->and($entree)->not->toHaveKey('cibles');
 
-    $pvAvant = (int) $cible->fresh()->pv_body;
+    $pvAvant = (int) $ennemi->fresh()->pv_body;
 
-    desFiges(array_fill(0, 60, 1)); // que des crânes : les squelettes touchent
+    desFiges(array_fill(0, 80, 1)); // que des crânes : les squelettes touchent
 
     $resultat = $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'utiliser_objet',
-        'parametres' => ['cle' => $entree['cle'], 'cible_id' => $cible->id],
+        'option_id' => 'utiliser_objet', 'parametres' => ['cle' => $entree['cle']],
     ])->assertStatus(202)->json('resultat');
 
-    expect($resultat['commandes'])->toBe(2)
-        ->and(collect($resultat['frappes'])->contains(fn ($f) => ($f['attaque'] ?? false) === true))->toBeTrue()
-        ->and((int) $cible->fresh()->pv_body)->toBeLessThan($pvAvant);
+    expect(collect($resultat['controles'])->pluck('instance_id')->sort()->values()->all())
+        ->toBe($sbires->pluck('id')->sort()->values()->all());
+
+    // ⚠ Ils n'ont PAS encore joué : le héros garde son déplacement (E1), et la
+    // carte dit « à la suite du tour ». Les faire frapper à l'incantation les
+    // enverrait devant un maître qui n'a pas bougé.
+    expect($resultat)->not->toHaveKey('tour_sbires')
+        ->and((int) $ennemi->fresh()->pv_body)->toBe($pvAvant);
+
+    foreach ($sbires as $s) {
+        expect((int) $s->fresh()->controle_par)->toBe($heros->id)
+            ->and((bool) $s->fresh()->controle_agi)->toBeFalse();
+    }
+
+    // Le héros termine son tour : SES sbires jouent, un à un.
+    $suite = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat');
+
+    $actions = $suite['tour_sbires']['actions'] ?? [];
+
+    expect($actions)->toHaveCount(2)
+        // Ordre d'initiative des monstres, celui de la phase de Zargon.
+        ->and(collect($actions)->pluck('instance_id')->all())
+        ->toBe($sbires->pluck('id')->values()->all())
+        ->and(collect($actions)->every(fn ($a) => ($a['attaque'] ?? false) === true))->toBeTrue()
+        // Ils ont frappé l'orque, pas leur voisin de camp.
+        ->and(collect($actions)->every(fn ($a) => $a['cible']['instance_id'] === $ennemi->id))->toBeTrue()
+        ->and((int) $ennemi->fresh()->pv_body)->toBeLessThan($pvAvant);
 
     // « works only once per quest » : la fenêtre est fermée.
     $options = optionsMenu($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
@@ -614,6 +640,56 @@ it('retourne les squelettes de la salle contre la cible désignée', function ()
         ->firstWhere('inventaire_id', $baguette->id);
 
     expect($apres)->toBeNull();
+
+    // ⚠ « for ONE turn » : le round rouvert, ils redeviennent des monstres —
+    // et c'est l'ouverture du tour qui les libère, rien d'autre.
+    foreach ($sbires as $s) {
+        expect($s->fresh()->controle_par)->toBeNull();
+    }
+});
+
+it('ne fait jouer un sbire QU\'UNE fois par round : enrôlé, il ne rejoue pas côté Zargon', function () {
+    // Sans le filtre `whereNull('controle_par')` dans `phaseMonstres()`, le
+    // squelette agirait deux fois dans le même round — dont une contre ceux
+    // qu'il vient d'aider.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    $heros = $ctx['heros'];
+
+    $squelette = Monstre::where('nom_base', 'Squelette')->firstOrFail();
+    $place = caseAdjacenteLibre($ctx['quete'], (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
+
+    $sbire = $ctx['quete']->instancesMonstres()->create([
+        'monstre_id' => $squelette->id, 'pv_body' => 1, 'pv_mind' => 0,
+        'etat' => 'actif', 'revele' => true,
+        'position_x' => $place['x'], 'position_y' => $place['y'],
+    ]);
+
+    porterArtefact($heros, "Baguette d'Os");
+    $sbire->update(['controle_par' => $heros->id, 'controle_agi' => true]);
+
+    $pvHeros = (int) $heros->fresh()->pv_body;
+
+    desFiges(array_fill(0, 120, 1)); // que des crânes : tout coup porterait
+    $suite = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat');
+
+    // Le squelette enrôlé n'apparaît pas dans la phase des monstres.
+    //
+    // ⚠ On lit `monstre` (le nom affiché) et NON `instance_id` : les actions de
+    // la phase de Zargon ne portent pas d'id, et une première version de ce
+    // test cherchait donc une clé absente — elle passait avec ET sans le
+    // filtre, ce qui est exactement la garantie vide que le dépôt refuse.
+    $acteurs = collect($suite['tour_monstres']['actions'] ?? [])->pluck('monstre')->filter()->all();
+
+    expect($acteurs)->not->toBeEmpty('la phase des monstres n\'a rien joué : le test ne prouverait rien')
+        ->and($acteurs)->not->toContain($sbire->nomAffiche());
+
+    // …et il est libéré à l'ouverture du round suivant.
+    expect($sbire->fresh()->controle_par)->toBeNull()
+        ->and((bool) $sbire->fresh()->controle_agi)->toBeFalse();
+
+    // L'orque, lui, a bien frappé : la phase des monstres a joué.
+    expect((int) $heros->fresh()->pv_body)->toBeLessThan($pvHeros);
 });
 
 // ---------------------------------------------------------------------------

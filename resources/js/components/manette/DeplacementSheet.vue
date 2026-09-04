@@ -133,7 +133,9 @@ function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
     if (occupees.value.has(cle(x, y))) {
         const ent = props.entites.find((e) => e.x === x && e.y === y);
-        return ent?.type === 'monstre' ? 'monstre' : 'allie';
+        // Une créature enrôlée par la Baguette d'Os n'est plus un ennemi ce
+        // tour-ci : elle se peint comme un allié, ici comme sur la table.
+        return (ent?.type === 'monstre' && !ent?.controle_par) ? 'monstre' : 'allie';
     }
     return accessibles.value.has(cle(x, y)) ? 'accessible' : null;
 }

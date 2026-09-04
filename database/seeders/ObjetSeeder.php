@@ -515,8 +515,14 @@ class ObjetSeeder extends Seeder
             // this turn. The hero can make the skeletons attack each other or any
             // other monsters in the room. The Bone Wand works only once per
             // quest. »
+            // ⚠ `cible: soi` — la baguette ne VISE personne. Elle fait passer de
+            // camp les squelettes de la salle, qui jouent ensuite pour leur
+            // compte, un à un, à la fin du tour de leur nouveau maître et dans
+            // l'ordre d'initiative des monstres (arbitrage de René, 2026-09-04).
+            // La version d'avant les envoyait tous sur UNE cible désignée, ce
+            // que la carte ne dit pas.
             ['nom' => "Baguette d'Os", 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'talisman',
-                'effet' => ['activable' => true, 'cible' => 'monstre', 'cout' => 'action',
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action',
                     'controle_monstres' => ['nom_base' => 'Squelette'],
                     'frequence' => 'une_fois_par_quete']],
 

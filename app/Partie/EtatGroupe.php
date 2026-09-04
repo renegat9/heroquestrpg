@@ -808,6 +808,11 @@ final class EtatGroupe
                 'pv_mind' => (int) $i->pv_mind,
                 'etat' => $i->etat,
                 'elite' => (bool) $i->elite,
+                // *Baguette d'Os* : cette créature combat POUR les héros ce
+                // tour-ci. Publié parce qu'un effet automatique que rien
+                // n'annonce est injouable — la table doit pouvoir la distinguer
+                // d'un ennemi avant de lui taper dessus.
+                'controle_par' => $i->controle_par === null ? null : (int) $i->controle_par,
                 'conditions' => $this->conditionsMonstre($i),
             ])
             ->values()

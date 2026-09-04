@@ -32,6 +32,13 @@ class InstanceMonstre extends Model
         // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
         // fin du PROCHAIN tour de la créature, puis s'éteignent.
         'degat_differe',
+        // *Baguette d'Os* : la créature est passée du côté des héros pour un
+        // tour. `controle_par` dit CHEZ QUI (la phase des sbires se joue à la
+        // fin du tour de ce héros-là), `controle_agi` si elle a déjà joué —
+        // sans quoi `phaseMonstres()` la ferait rejouer côté Zargon dans le
+        // même round.
+        'controle_par',
+        'controle_agi',
         'habillage',
     ];
 
@@ -46,6 +53,8 @@ class InstanceMonstre extends Model
             'invocation_dread_utilisee' => 'boolean',
             'fuite_dread_utilisee' => 'boolean',
             'degat_differe' => 'integer',
+            'controle_par' => 'integer',
+            'controle_agi' => 'boolean',
         ];
     }
 

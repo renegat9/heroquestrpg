@@ -971,7 +971,7 @@ C'est le lot qui restait après la passe de fidélité : rien à arbitrer, tout 
 | *Ring of Return* | **Anneau du Retour** | premier déplacement instantané de héros du moteur |
 | *Dawnshield* | **Bouclier de l'Aube** | `ReactionEffet::RELANCE_ATTAQUE` — le défenseur impose une relance à l'attaquant |
 | *Ancient Staff* | **Bâton Ancien** | `ReactionEffet::REFLET_SORT` — un sort de Dread retourné sur sa salle |
-| *Bone Wand* | **Baguette d'Os** | un monstre frappe un monstre, sur ordre d'un héros |
+| *Bone Wand* | **Baguette d'Os** | une créature CHANGE DE CAMP pour un tour, et joue à la phase alliée |
 
 ⚠ **Un slot `bottes`** naît avec les deux paires. `armure` et `casque` les
 auraient mises en concurrence avec une vraie protection, `talisman` avec les
@@ -1011,11 +1011,42 @@ sur son plus proche congénère, ce que la *Baguette d'Os* venait de rendre
 possible. ⚠ *Commandé* n'a **pas** de condition de monstre et n'en reçoit pas :
 en inventer une aurait été la clé décorative que le projet traque.
 
-⚠ **ÉCART ASSUMÉ, Baguette d'Os** : la carte laisse le joueur piloter chaque
-squelette séparément (« They can move them and make them attack »). Notre
-grammaire de menu ne sait pas décrire N figures indépendantes en une action —
-tous marchent donc sur LA MÊME cible désignée. Ce que la carte permet et que nous
-perdons : disperser les squelettes sur plusieurs adversaires.
+⚠ **La Baguette d'Os ENRÔLE, elle ne commande pas une salve** (arbitrage de
+René, 2026-09-04). Première version : tous les squelettes frappaient une cible
+que le héros désignait — ce que la carte ne dit pas, et qui les empêchait de se
+disperser. Ils passent maintenant **du côté des héros pour un tour** et jouent
+**un à un à la suite du tour de leur nouveau maître**, chacun rejoignant l'ennemi
+le plus proche, dans l'**ordre d'initiative des monstres** (le même
+`orderBy('id')` que la phase de Zargon, pour qu'un squelette enrôlé garde la
+place qu'il aurait eue). L'option ne porte donc **aucune liste de cibles** : elle
+fait changer de camp, elle ne désigne pas une victime.
+
+⚠ **Deux colonnes, pas une entrée dans `habillage`.** `controle_par` dit CHEZ
+QUI — la phase se joue à la fin du tour de ce héros-là, pas de n'importe lequel —
+et `controle_agi` distingue « il lui reste son action » de « il a joué ce
+round ». `HabillerMonstres` relit et réécrit `habillage` pendant la première
+minute d'une quête, et cette course a déjà effacé des conditions en silence
+(2026-09-03) : une donnée que le jeu écrit en cours de tour n'a rien à y faire.
+
+⚠ **Le déclencheur est `a_joue`, pas « il a agi ».** La baguette coûte l'action,
+mais son porteur garde son déplacement (E1) : faire jouer les squelettes à
+l'instant de l'incantation les enverrait devant un héros qui n'a pas encore
+bougé. Un maître **endormi ou commandé** ne les suspend pas non plus — ils sont
+enrôlés, pas téléguidés.
+
+⚠ **`phaseMonstres()` saute les enrôlés** (`whereNull('controle_par')`), sans quoi
+la créature jouerait DEUX fois dans le même round, dont une contre ceux qu'elle
+vient d'aider. Le « for one turn » se termine à l'**ouverture du round**, et
+nulle part ailleurs : c'est le seul endroit qui les libère, l'oublier les
+sortirait du jeu pour de bon. Rien à ajouter au snapshot — il est pris *après*
+cette libération, donc toujours sur un plateau sans enrôlé.
+
+⚠ **Un sbire n'attaque jamais un autre sbire**, et les monstres continuent de ne
+viser que les héros : le ciblage des alliés par Zargon est hors périmètre depuis
+la v1, et les squelettes enrôlés héritent de cette règle au lieu d'en inventer
+une. Ils se peignent en **allié** sur la table comme sur la manette — un ennemi
+rouge frappant ses propres congénères, sans rien pour l'expliquer, serait l'effet
+automatique inannoncé que le projet refuse.
 
 ⚠ **Deux restrictions étaient GRATUITES.** Le *Dawnshield* « may not be used with
 the Battle Axe or Staff. May not be used by the Wizard » : `bouclier` est un tag

@@ -514,11 +514,16 @@ export function entitesVersFigurines(entites, initiative) {
             type: e.type,
             x: e.x,
             y: e.y,
-            k: e.type === 'heros' ? 'hero' : (e.type === 'allie' ? 'ally' : 'foe'),
+            // Un monstre ENRÔLÉ (Baguette d'Os) se lit comme un allié tant que
+            // dure son tour : sans ça la table verrait un ennemi rouge frapper
+            // ses propres congénères, sans rien pour l'expliquer.
+            k: e.type === 'heros' ? 'hero' : ((e.type === 'allie' || e.controle_par) ? 'ally' : 'foe'),
             l: labelCourt(e.nom),
             ic: e.type === 'heros'
                 ? classeDe(e)?.ic
-                : (e.type === 'allie' ? (e.animal ? 'pets' : 'handshake') : 'sentiment_very_dissatisfied'),
+                : ((e.type === 'allie' || e.controle_par)
+                    ? (e.animal ? 'pets' : 'handshake')
+                    : 'sentiment_very_dissatisfied'),
             img: e.image_url ?? null,
             hp: (e.type === 'monstre' || e.type === 'allie') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),

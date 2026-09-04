@@ -234,6 +234,14 @@ final class ResolveurTour
                 Journal::ajouter($groupe, 'action', $payload, $acteur);
                 $etat->update(['a_joue' => true]);
 
+                // ⚠ Un maître endormi ne suspend pas ses sbires : ils sont
+                // enrôlés, pas téléguidés. Son tour finit, ils jouent.
+                $sbires = $this->sbiresApresLeTour($groupe, $quete, $personnage, $etat);
+
+                if ($sbires !== null) {
+                    $payload['tour_sbires'] = $sbires;
+                }
+
                 return $this->apresActionHeros($payload, $groupe, $quete);
             }
 
@@ -251,6 +259,12 @@ final class ResolveurTour
                 ) ?? ['type' => 'commandement_sans_effet', 'personnage' => $personnage->nom];
 
                 $etat->update(['a_joue' => true]);
+
+                $sbires = $this->sbiresApresLeTour($groupe, $quete, $personnage, $etat);
+
+                if ($sbires !== null) {
+                    $payload['tour_sbires'] = $sbires;
+                }
 
                 return $this->apresActionHeros($payload, $groupe, $quete);
             }
@@ -306,6 +320,15 @@ final class ResolveurTour
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
             $this->marquerCreneau($etat, $creneau, $bonusReserveArcanique, $bonusHeroisme);
+
+            // *Baguette d'Os* : « à la suite du tour du joueur » (René,
+            // 2026-09-04). Le tour vient peut-être de se terminer — c'est là,
+            // et seulement là, que les sbires enrôlés jouent.
+            $sbires = $this->sbiresApresLeTour($groupe, $quete, $personnage, $etat);
+
+            if ($sbires !== null) {
+                $resultat['tour_sbires'] = $sbires;
+            }
 
             // Hook post-combat : portes à verrou « monstres_vaincus » qui
             // s'ouvrent quand leur(s) gardien(s) tombe(nt) (doc 14 §3.3).
@@ -4400,7 +4423,7 @@ final class ResolveurTour
         // for one turn. […] The hero can make the skeletons attack each other or
         // any other monsters in the room. »
         if (! empty($effet[MotsClesEquipement::CONTROLE_MONSTRES])) {
-            return $this->commanderLesMonstres($quete, $personnage, $effet, $cibleId);
+            return $this->commanderLesMonstres($quete, $personnage, $effet);
         }
 
         // ---- Poudre / Cape : un MODE DE DÉPLACEMENT posé sur un héros
@@ -4515,32 +4538,29 @@ final class ResolveurTour
 
     /**
      * *Baguette d'Os* : les créatures d'une famille présentes dans la salle du
-     * héros se retournent contre une cible qu'il désigne, le temps d'un tour.
+     * héros passent DE SON CÔTÉ, le temps d'un tour.
      *
-     * ⚠ La famille se lit sur `monstres.nom_base`, le nom de CATALOGUE — jamais
-     * celui que l'IA a donné à la créature. Une baguette qui cesse de
-     * reconnaître un squelette parce que la quête a été narrée serait le défaut
-     * que l'Eau bénite et la Lame des Esprits ont déjà coûté.
+     * « This artifact enables any hero to control all skeletons in one room for
+     * one turn. They can move them and make them attack during this turn. »
      *
-     * ⚠ ÉCART ASSUMÉ : la carte laisse le joueur piloter chaque squelette
-     * séparément (« They can move them and make them attack »). Notre grammaire
-     * de menu ne sait pas décrire N figures indépendantes en une action, alors
-     * tous marchent sur LA MÊME cible désignée. Ce que la carte permet et que
-     * nous perdons : disperser les squelettes sur plusieurs adversaires.
+     * ⚠ Elles deviennent des ALLIÉS, pas une salve : la baguette ne désigne
+     * aucune cible. Elles jouent une à une à la fin du tour de leur nouveau
+     * maître (`phaseSbiresControles()`), dans l'ordre d'initiative des monstres
+     * — le même `orderBy('id')` que la phase de Zargon, pour qu'un squelette
+     * enrôlé garde la place qu'il aurait eue. C'est l'arbitrage de René
+     * (2026-09-04), et il vaut mieux que la version précédente : elle envoyait
+     * tout le monde sur UNE cible désignée, ce que la carte ne dit pas.
+     *
+     * ⚠ Aucun déplacement, aucune frappe ICI. Le héros a encore son tour à
+     * finir — il peut bouger après avoir agi (E1), et ses nouveaux alliés
+     * doivent le suivre, pas le précéder.
      *
      * @param  array<string, mixed>  $effet
      * @return array<string, mixed>
      */
-    private function commanderLesMonstres(
-        Quete $quete,
-        Personnage $personnage,
-        array $effet,
-        int $cibleId,
-    ): array {
+    private function commanderLesMonstres(Quete $quete, Personnage $personnage, array $effet): array
+    {
         $nomBase = (string) data_get($effet, MotsClesEquipement::CONTROLE_MONSTRES.'.nom_base', '');
-
-        $cible = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
-            ->whereKey($cibleId)->with('monstre')->first();
 
         $porteur = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
         $salles = (array) data_get($quete->carte?->grille, 'salles', []);
@@ -4548,32 +4568,134 @@ final class ResolveurTour
             ? null
             : Salles::indexDe($salles, (int) $porteur->position_x, (int) $porteur->position_y);
 
-        if ($cible === null || $salle === null) {
+        $troupe = $salle === null
+            ? collect()
+            : $this->monstresDeLaSalle($quete, $salles, $salle)
+                ->filter(fn (InstanceMonstre $i) => mb_strtolower((string) $i->monstre?->nom_base) === mb_strtolower($nomBase));
+
+        if ($troupe->isEmpty()) {
             throw ValidationException::withMessages([
-                'parametres' => 'Cette baguette ne trouve personne à commander ici.',
+                'option_id' => 'Aucune créature à commander dans cette salle.',
             ]);
         }
 
-        $troupe = $this->monstresDeLaSalle($quete, $salles, $salle)
-            ->filter(fn (InstanceMonstre $i) => (int) $i->id !== (int) $cible->id
-                && mb_strtolower((string) $i->monstre?->nom_base) === mb_strtolower($nomBase));
-
-        $frappes = [];
-
         foreach ($troupe as $sbire) {
-            $frappes[] = $this->frapperEntreMonstres($quete, $sbire, $cible);
-
-            if ((int) $cible->fresh()->pv_body <= 0) {
-                break;
-            }
+            $sbire->update(['controle_par' => (int) $personnage->id, 'controle_agi' => false]);
         }
 
         return [
-            'cible' => ['type' => 'monstre', 'instance_id' => $cible->id, 'nom' => $cible->nomAffiche()],
-            'commandes' => $troupe->count(),
-            'frappes' => $frappes,
-            'cible_vaincue' => (int) $cible->fresh()->pv_body <= 0,
+            'controles' => $troupe->map(fn (InstanceMonstre $i) => [
+                'instance_id' => (int) $i->id,
+                'nom' => $i->nomAffiche(),
+                'nom_base' => $i->monstre?->nom_base,
+            ])->values()->all(),
         ];
+    }
+
+    /**
+     * Le tour de ce héros vient-il de se terminer ? Alors ses sbires jouent.
+     *
+     * ⚠ La condition est `a_joue`, et non « il a agi » : la *Baguette d'Os*
+     * coûte l'action, mais son porteur garde son déplacement (E1). Faire jouer
+     * les squelettes à l'instant de l'incantation les enverrait devant un héros
+     * qui n'a pas encore bougé — la carte dit « à la suite du tour ».
+     *
+     * @return array{actions: list<array<string, mixed>>}|null
+     */
+    private function sbiresApresLeTour(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+    ): ?array {
+        if (! $etat->fresh()?->a_joue) {
+            return null;
+        }
+
+        $sbires = $this->phaseSbiresControles($groupe, $quete, $personnage);
+
+        return $sbires['actions'] === [] ? null : $sbires;
+    }
+
+    /**
+     * Les sbires enrôlés par ce héros jouent, un à un, à la suite de son tour.
+     *
+     * Chacun rejoint le monstre ennemi le plus proche et le frappe — le script
+     * des mercenaires, en plus court : un squelette est une figure 1×1 de mêlée,
+     * sans portée ni capacité tactique. La marche et le coup passent par
+     * `frapperEntreMonstres()`, écrit pour la baguette et déjà éprouvé.
+     *
+     * ⚠ Un sbire n'attaque JAMAIS un autre sbire : ils sont du même camp ce
+     * tour-ci. Les monstres, eux, continuent de ne viser que les héros — le
+     * ciblage des alliés par Zargon est hors périmètre depuis la v1, et les
+     * squelettes enrôlés héritent de cette règle plutôt que d'en inventer une.
+     *
+     * ⚠ `controle_agi` est posé même quand le sbire n'a rien pu faire : la
+     * marque dit « ce round est joué », pas « ce coup a porté ».
+     *
+     * @return array{actions: list<array<string, mixed>>}
+     */
+    private function phaseSbiresControles(Groupe $groupe, Quete $quete, Personnage $personnage): array
+    {
+        $actions = [];
+
+        $sbires = $quete->instancesMonstres()
+            ->where('etat', 'actif')
+            ->where('controle_par', $personnage->id)
+            ->where('controle_agi', false)
+            ->whereNotNull('position_x')
+            ->with('monstre')
+            ->orderBy('id')   // l'initiative des monstres, celle de `phaseMonstres()`
+            ->get();
+
+        foreach ($sbires as $sbire) {
+            $sbire->update(['controle_agi' => true]);
+
+            $ennemis = $quete->instancesMonstres()
+                ->where('etat', 'actif')->where('revele', true)
+                ->whereNull('controle_par')
+                ->whereNotNull('position_x')
+                ->with('monstre')
+                ->get();
+
+            if ($ennemis->isEmpty()) {
+                break; // plus personne à combattre
+            }
+
+            $cible = $ennemis
+                ->sortBy(fn (InstanceMonstre $e) => abs((int) $e->position_x - (int) $sbire->position_x)
+                    + abs((int) $e->position_y - (int) $sbire->position_y))
+                ->first();
+
+            $action = [
+                'type' => 'sbire_controle',
+                'maitre' => $personnage->nom,
+                ...$this->frapperEntreMonstres($quete, $sbire, $cible),
+                'cible' => ['instance_id' => (int) $cible->id, 'nom' => $cible->nomAffiche()],
+            ];
+
+            Journal::ajouter($groupe, 'combat', $action, [
+                'type' => 'allie', 'id' => (int) $sbire->id, 'nom' => $sbire->nomAffiche(),
+            ]);
+
+            $actions[] = $action;
+        }
+
+        return ['actions' => $actions];
+    }
+
+    /**
+     * Rend leur liberté aux sbires enrôlés — appelé à l'ouverture du round.
+     *
+     * ⚠ C'est ICI que le « for one turn » de la carte se termine, et nulle part
+     * ailleurs : tant que `controle_par` tient, `phaseMonstres()` saute la
+     * créature. L'oublier la sortirait du jeu pour de bon.
+     */
+    private function libererSbiresControles(Quete $quete): void
+    {
+        $quete->instancesMonstres()
+            ->whereNotNull('controle_par')
+            ->update(['controle_par' => null, 'controle_agi' => false]);
     }
 
     /**
@@ -6000,7 +6122,11 @@ final class ResolveurTour
     {
         $actions = [];
 
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->orderBy('id')->get() as $instance) {
+        // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
+        // a déjà joué, du côté des héros. Sans ce filtre il jouerait DEUX fois
+        // dans le même round, dont une contre ceux qu'il vient d'aider.
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $instance) {
             $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
                 // Voile de Brume : un héros caché (condition « inattaquable »)
                 // est ignoré du ciblage jusqu'à son prochain tour.
@@ -6086,6 +6212,11 @@ final class ResolveurTour
         // donc ici — ils ont couvert la phase des monstres, ce qui est tout leur
         // intérêt.
         $this->sorts->expirerBuffsQuete($quete, DureeEffet::PROCHAIN_TOUR);
+
+        // *Baguette d'Os* : « for one turn ». Le round se rouvre, les sbires
+        // enrôlés redeviennent des monstres — et c'est le SEUL endroit qui les
+        // libère : tant que `controle_par` tient, `phaseMonstres()` les saute.
+        $this->libererSbiresControles($quete);
 
         // Puis le décompte des durées EXPRIMÉES EN TOURS (Empoisonné 3 tours…).
         $this->sorts->decrementerDurees($quete);

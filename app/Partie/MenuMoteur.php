@@ -331,41 +331,36 @@ final class MenuMoteur
      * @return array<string, mixed>
      */
     /**
-     * Les monstres de la salle où se tient le héros, moins ceux que l'artefact
-     * commande — *Baguette d'Os* : « attack each other or any other monsters in
-     * the room ».
+     * Y a-t-il, dans la salle du héros, une créature que cet artefact peut
+     * enrôler ? — *Baguette d'Os* : « all skeletons in one room ».
      *
-     * ⚠ « each other » est inclus, et c'est voulu : un squelette est une cible
-     * légale pour les autres squelettes. Le retirer aurait rendu la baguette
-     * inutile dans la salle qu'elle est faite pour retourner — celle qui ne
-     * contient QUE des squelettes.
+     * ⚠ La salle, et non la ligne de vue : c'est le texte de la carte, et la
+     * différence est réelle — un couloir voit loin.
      *
-     * @return array{cibles?: list<array<string, mixed>>}
+     * ⚠ La famille se lit sur `monstres.nom_base`, le nom de CATALOGUE, jamais
+     * celui que l'IA a donné à la créature : une baguette qui cesse de
+     * reconnaître un squelette parce que la quête a été narrée serait le défaut
+     * que l'Eau bénite et la Lame des Esprits ont déjà coûté.
      */
-    private function ciblesDansLaSalle(Quete $quete, Objet $objet, int $px, int $py): array
+    private function sbiresCommandables(Quete $quete, Objet $objet, int $px, int $py): bool
     {
+        $nomBase = mb_strtolower((string) data_get(
+            $objet->effet, MotsClesEquipement::CONTROLE_MONSTRES.'.nom_base', '',
+        ));
+
         $salles = (array) data_get($quete->carte?->grille, 'salles', []);
         $salle = Salles::indexDe($salles, $px, $py);
 
-        if ($salle === null) {
-            return [];
+        if ($salle === null || $nomBase === '') {
+            return false;
         }
 
-        $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')
             ->with('monstre')->get()
-            ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
-                && Salles::indexDe($salles, (int) $i->position_x, (int) $i->position_y) === $salle)
-            ->map(fn (InstanceMonstre $i) => [
-                'id' => $i->id,
-                'type' => 'monstre',
-                'nom' => $i->nomAffiche(),
-                'nom_base' => $i->monstre?->nom_base,
-            ])
-            ->values()->all();
-
-        // Une seule créature dans la salle : elle serait sa propre cible et
-        // personne ne resterait pour la frapper. L'option ne s'affiche pas.
-        return count($cibles) < 2 ? [] : ['cibles' => $cibles];
+            ->contains(fn (InstanceMonstre $i) => $i->position_x !== null
+                && mb_strtolower((string) $i->monstre?->nom_base) === $nomBase
+                && Salles::indexDe($salles, (int) $i->position_x, (int) $i->position_y) === $salle);
     }
 
     private function ciblesObjet(
@@ -518,6 +513,16 @@ final class MenuMoteur
             // répond toujours non, l'anti-patron que le projet traque.
             if (! empty($objet->effet['activable']) && $charges->utilisable($ligne, $etat)
                 && $equipement->estAccessible($personnage, $objet)) {
+                // ⚠ La *Baguette d'Os* n'a rien à enrôler dans une salle sans
+                // squelette : l'option disparaît plutôt que de rester un bouton
+                // qui répond non. Elle ne VISE personne — elle fait passer de
+                // camp les créatures présentes —, d'où une simple présence à
+                // vérifier et aucune liste de cibles.
+                if (! empty($objet->effet[MotsClesEquipement::CONTROLE_MONSTRES])
+                    && ! $this->sbiresCommandables($quete, $objet, $px, $py)) {
+                    continue;
+                }
+
                 $entrees[] = [
                     'cle' => "objet:{$ligne->id}",
                     'inventaire_id' => $ligne->id,
@@ -529,16 +534,10 @@ final class MenuMoteur
                     // vise un héros, le Sceptre un monstre, la Cape personne.
                     // Une liste au niveau de l'option serait fausse pour deux
                     // des trois.
-                    // ⚠ La *Baguette d'Os* ne vise pas « en ligne de vue » mais
-                    // « dans la salle » — c'est le texte de sa carte, et la
-                    // différence est réelle : un couloir voit loin. Elle a donc
-                    // sa propre liste, comme l'Eau bénite et le Fumigène.
-                    ...(! empty($objet->effet[MotsClesEquipement::CONTROLE_MONSTRES])
-                        ? $this->ciblesDansLaSalle($quete, $objet, $px, $py)
-                        : $this->ciblesObjet(
-                            $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
-                            tombeAdmis: ! empty($objet->effet['releve']),
-                        )),
+                    ...$this->ciblesObjet(
+                        $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
+                        tombeAdmis: ! empty($objet->effet['releve']),
+                    ),
                 ];
 
                 continue;
