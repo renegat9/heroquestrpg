@@ -331,6 +331,18 @@ class SortSeeder extends Seeder
             // que la clause « lycanthrope » de la Restauration supérieure.
             ['element' => 'parchemin', 'nom' => 'Trésor sans Péril', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'soi', 'pioche_sans_peril' => true]],
+
+            // « This spell restores all lost Mind Points to the spellcaster or
+            // any one hero the spellcaster chooses. » (carte © 2022)
+            //
+            // ⚠ TOUS les points perdus, donc le maximum — `restaure_pv_mind` et
+            // non `soin_pv_mind`, qui est chiffré (Potion de restauration
+            // supérieure). ⚠ Et il est CORRECT MAIS DORMANT, comme la branche
+            // Mind de `resoudreRelever()` : rien ne réduit `pv_mind` chez nous,
+            // le parchemin rendra donc 0 tant qu'aucun effet ne saura entamer
+            // l'esprit. Le lecteur est juste, c'est sa SOURCE qui manque.
+            ['element' => 'parchemin', 'nom' => 'Récupération Psychique', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'restaure_pv_mind' => true]],
         ];
 
         foreach ($sorts as $sort) {

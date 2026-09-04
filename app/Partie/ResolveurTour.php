@@ -116,6 +116,9 @@ final class ResolveurTour
     /** Clé d'effet de sort du *Trésor sans Péril* (parchemin, doc 16 §9.2). */
     private const EFFET_PIOCHE_SANS_PERIL = 'pioche_sans_peril';
 
+    /** Clé d'effet de la *Récupération Psychique* : tous les Mind perdus. */
+    private const EFFET_RESTAURE_PV_MIND = 'restaure_pv_mind';
+
     /** Au moins un héros tient encore debout : la quête continue. */
     public const CHUTE_DEBOUT = 'debout';
 
@@ -3797,6 +3800,35 @@ final class ResolveurTour
         // maximum de chacun.
         if (isset($effet['soin_pv_body'], $effet['zone'])) {
             return $this->soinDeZone($quete, $lanceur, $etat, (int) $effet['soin_pv_body']);
+        }
+
+        // RÉCUPÉRATION PSYCHIQUE : « This spell restores all lost Mind Points to
+        // the spellcaster or any one hero the spellcaster chooses. »
+        //
+        // ⚠ TOUS les points perdus, donc le maximum — pas un montant, d'où une
+        // clé distincte de `soin_pv_mind`, qui lui est chiffré (Potion de
+        // restauration supérieure).
+        //
+        // ⚠ CORRECTE MAIS DORMANTE, et c'est dit : aucun chemin ne réduit
+        // `pv_mind` aujourd'hui. Le parchemin rendra donc 0 tant que rien ne
+        // saura entamer l'esprit — exactement l'état de la branche Mind de
+        // `resoudreRelever()`, et de la moitié Mind de la Restauration
+        // supérieure. Ce n'est pas une règle promise et jamais tenue : c'est le
+        // lecteur d'une règle dont la SOURCE manque, et il sera juste le jour
+        // où elle arrivera.
+        if (! empty($effet[self::EFFET_RESTAURE_PV_MIND])) {
+            $cible = $this->cibleSort($quete, $option, $parametres);
+            /** @var Personnage $heros */
+            $heros = $cible['personnage'];
+
+            $avant = (int) $heros->pv_mind;
+            $heros->update(['pv_mind' => (int) $heros->pv_mind_max]);
+
+            return [
+                'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
+                'soin_pv_mind' => (int) $heros->pv_mind_max - $avant,
+                'pv_mind_apres' => (int) $heros->pv_mind_max,
+            ];
         }
 
         // Soin du Corps / Eau de Guérison : +4 PV Body, PLAFONNÉ au maximum.

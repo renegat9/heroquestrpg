@@ -63,6 +63,7 @@ const CLES_SORT_ACTIVES = [
     'zone',                    // ResolveurTour::soinDeZone() — soin à tous les héros vus
     // ---- Sort qui n'existe QU'EN PARCHEMIN (2026-09-04) ----
     'pioche_sans_peril',       // ResolveurTour::piocherSansPeril() — Trésor sans Péril
+    'restaure_pv_mind',        // ResolveurTour::sortUtilitaire() — Récupération Psychique
     'condition_bonus_attaque', // MoteurSorts::bonusDes() — dé conditionnel (au contact)
     'regain',                  // MoteurSorts::regagnerSorts() — App\Engine\RegainEffet
     'reaction',                // MoteurReactions::sortReactifDisponible() — hors tour
@@ -115,7 +116,11 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'degats_fixes',
         // Piocher dans le deck de fouille agit : le *Trésor sans Péril* ne
         // touche aucune statistique, il remplit la bourse.
-        'pioche_sans_peril'];
+        'pioche_sans_peril',
+        // ⚠ `restaure_pv_mind` agit — il écrit `pv_mind` — même si rien ne
+        // réduit cette jauge aujourd'hui. Le lecteur est correct, c'est sa
+        // source qui manque ; même statut que la branche Mind de `relever`.
+        'restaure_pv_mind'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -133,9 +138,10 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
     $attendus = collect(Sort::all())->groupBy('element')->map->count();
 
     expect($attendus[MoteurSorts::REPERTOIRE_ELFIQUE] ?? 0)->toBe(6)
-        // ⚠ 28 depuis le 2026-09-04 : *Trésor sans Péril*, premier sort à
-        // n'exister qu'en parchemin (élément `parchemin`, aucune école).
-        ->and(Sort::count())->toBe(28);
+        // ⚠ 29 depuis le 2026-09-04 : *Trésor sans Péril* et *Récupération
+        // Psychique*, les deux premiers sorts à n'exister qu'en parchemin
+        // (élément `parchemin`, aucune école).
+        ->and(Sort::count())->toBe(29);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

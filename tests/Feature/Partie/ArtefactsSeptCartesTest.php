@@ -784,6 +784,44 @@ it('ne consomme PAS la fouille de la salle : le parchemin pioche le deck, il ne 
     expect($ctx['quete']->fresh()->aFouille(0, $heros->id))->toBeFalse();
 });
 
+it('rend TOUS les points de Mind perdus, au lanceur ou au héros de son choix', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    // ⚠ Il faut CREUSER la jauge à la main : rien dans le moteur ne réduit
+    // `pv_mind` aujourd'hui. C'est tout le sujet de ce parchemin — son lecteur
+    // est juste, c'est sa source qui manque. Le test le prouve quand même, et
+    // il sera vrai le jour où un effet saura entamer l'esprit.
+    $heros->update(['pv_mind' => 1]);
+
+    $parchemin = Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Parchemin : Récupération Psychique')->firstOrFail()->id,
+        'emplacement' => 'sac',
+        'quantite' => 1,
+    ]);
+
+    $options = optionsMenu($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    $entree = collect(collect($options)->firstWhere('id', 'lire_parchemin')['parametres']['parchemins'] ?? [])
+        ->firstWhere('inventaire_id', $parchemin->id);
+
+    // « to the spellcaster OR any one hero » : la cible est un héros, et le
+    // lanceur se voit toujours lui-même.
+    expect($entree)->not->toBeNull()
+        ->and(collect($entree['cibles'] ?? [])->pluck('id')->all())->toContain($heros->id);
+
+    desFiges([1, 1, 1, ...array_fill(0, 10, 4)]); // jet de Mind du non-lanceur
+
+    $resultat = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lire_parchemin',
+        'parametres' => ['cle' => $entree['cle'], 'cible_id' => $heros->id],
+    ])->assertStatus(202)->json('resultat');
+
+    expect($resultat['soin_pv_mind'])->toBe((int) $heros->pv_mind_max - 1)
+        ->and((int) $heros->fresh()->pv_mind)->toBe((int) $heros->pv_mind_max)
+        ->and(Inventaire::find($parchemin->id))->toBeNull();
+});
+
 it('n\'entre dans le grimoire de personne : le sort n\'existe qu\'en parchemin', function () {
     // ⚠ `element: parchemin` n'est pas une école. Un magicien qui prend les
     // trois siennes ne doit jamais le connaître — lui donner une école
@@ -796,7 +834,9 @@ it('n\'entre dans le grimoire de personne : le sort n\'existe qu\'en parchemin',
         app(MoteurSorts::class)->attacherElement($magicien, $element);
     }
 
-    expect($magicien->sorts()->pluck('nom')->all())->not->toContain('Trésor sans Péril')
+    expect($magicien->sorts()->pluck('nom')->all())
+        ->not->toContain('Trésor sans Péril')
+        ->not->toContain('Récupération Psychique')
         ->and(MoteurSorts::ELEMENTS)->not->toContain('parchemin');
 });
 

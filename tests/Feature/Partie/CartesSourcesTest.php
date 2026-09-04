@@ -152,8 +152,8 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // Bottes elfiques, Anneau du Retour, Bouclier de l'Aube, Bâton Ancien,
         // Baguette d'Os : chacune attendait une mécanique, aucune un arbitrage.
         ->and($portees('artefacts'))->toBe(31)
-        // 12 parchemins sur 19 : 11 désignent un sort que nous avions déjà,
-        // et *Trésor sans Péril* a été écrit le 2026-09-04. Restent 2 sorts
-        // hors glace (Éclair, Récupération Psychique) et 5 de la boîte glace.
-        ->and($portesSort('parchemins'))->toBe(12);
+        // 13 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
+        // *Trésor sans Péril* et *Récupération Psychique* ont été écrits le
+        // 2026-09-04. Restent l'Éclair et les 5 cartes de la boîte glace.
+        ->and($portesSort('parchemins'))->toBe(13);
 });

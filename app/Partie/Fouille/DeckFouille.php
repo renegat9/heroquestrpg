@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\Partie\Fouille;
 
-use App\Partie\Equipement;
-use App\Models\ClasseHeros;
-use App\Models\Competence;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
+use App\Partie\Equipement;
 use App\Partie\MoteurPortes;
 
 /**
@@ -368,36 +366,38 @@ final class DeckFouille
 
         $possedes = Inventaire::query()->whereIn('personnage_id', $idsHeros)->pluck('objet_id');
 
-        // Maîtrises que le groupe pourra atteindre : celles des classes ACTIVES,
-        // plus celles que leurs arbres de compétences ouvrent. On teste la
-        // classe, pas les nœuds acquis — un barbare de niveau 1 n'a pas encore
-        // Maîtrise lourde, mais il pourra la prendre.
+        // Un artefact que personne ici ne pourra porter est du BUTIN MORT : un
+        // groupe sans elfe perdait son unique artefact de quête sur des
+        // Brassards elfiques que personne n'aurait jamais enfilés. Cette règle
+        // remplace un test codé en dur sur le seul barbare, et couvre d'un coup
+        // tous les artefacts verrouillés — les talismans de classe, le Bâton
+        // Ancien, les Bottes elfiques, l'Arc de Vindication.
         //
-        // Cette règle remplace un test codé en dur sur le seul barbare. Elle
-        // couvre désormais tous les artefacts verrouillés d'un coup : les quatre
-        // talismans de classe (Amulette du Nord, Brassards elfiques, Capuche du
-        // Magister, Runes naines) seraient sinon du BUTIN MORT — un groupe sans
-        // elfe pouvait perdre son unique artefact de quête sur des brassards
-        // que personne ne porterait jamais.
-        $accessibles = $this->tagsAccessiblesAuGroupe($groupe);
-
-        // Aucune maîtrise déclarée (catalogue de classes non semé) : on
-        // n'applique AUCUN filtre — même repli « fail open » que
-        // `Equipement::verifierAccesEquipement()`. Une donnée de référence
-        // manquante ne doit pas transformer tous les artefacts en butin mort.
-        $filtrer = $accessibles !== [];
+        // ⚠ On pose la question COMPLÈTE — « au moins un héros actif peut-il
+        // équiper cette pièce ? » — au lieu de croiser les tags à la main comme
+        // ici jusqu'au 2026-09-04. Le tag n'est qu'un axe sur trois :
+        // `objets_autorises` (liste blanche nominative du Moine) REMPLACE le
+        // contrôle par tags, et `metallique` est une matière que les tags de
+        // poids ne disent pas. Les deux réponses coïncident aujourd'hui par
+        // accident de données ; une armure de cuir au catalogue, ou un tag
+        // d'armure donné au Druide, et le raccourci se remettait à mentir.
+        //
+        // ⚠ Le repli « fail open » est porté par `estAccessible()` lui-même :
+        // une classe sans maîtrises déclarées porte tout. Une donnée de
+        // référence manquante ne doit pas transformer les artefacts en butin
+        // mort.
+        $actifs = $groupe->personnages()->wherePivot('actif', true)->get();
+        $equipement = app(Equipement::class);
 
         $eligibles = fn (array $categories) => Objet::query()
             ->where('rarete', 'unique')
             ->whereIn('categorie', $categories)
             ->whereNotIn('id', $possedes)
             ->orderBy('id')
-            ->get(['id', 'tag_equipement'])
-            ->reject(fn (Objet $o) => $filtrer
-                && $o->tag_equipement !== null
-                && $o->tag_equipement !== ''
-                && ! in_array($o->tag_equipement, $accessibles, true))
+            ->get()
+            ->filter(fn (Objet $o) => $equipement->utilisableParUnDeCesHeros($o, $actifs))
             ->pluck('id')
+            ->values()
             ->all();
 
         $candidats = $eligibles(['arme', 'armure']);
@@ -419,22 +419,5 @@ final class DeckFouille
         }
 
         return (int) $candidats[$prng->suivant() % count($candidats)];
-    }
-
-    /**
-     * Tags de maîtrise qu'au moins un héros ACTIF du groupe peut atteindre :
-     * ceux de sa classe, plus ceux qu'ouvrent les nœuds `acces_equipement` de
-     * son arbre.
-     *
-     * @return list<string>
-     */
-    private function tagsAccessiblesAuGroupe(Groupe $groupe): array
-    {
-        // Délègue depuis le 2026-08-17 : la même question — « que peut porter ce
-        // groupe ? » — se pose désormais aussi au butin de mobilier, et deux
-        // implémentations auraient fini par répondre différemment.
-        return app(Equipement::class)->tagsAccessiblesAux(
-            $groupe->personnages()->wherePivot('actif', true)->get(),
-        );
     }
 }

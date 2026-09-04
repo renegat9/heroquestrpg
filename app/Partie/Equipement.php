@@ -386,7 +386,50 @@ final class Equipement
     }
 
     /**
+     * Cet OBJET est-il portable par au moins un de ces héros ?
+     *
+     * ⚠ Pose la vraie question, celle d'`estAccessible()`, et non le raccourci
+     * par tags. Trois axes décident de l'accès à une pièce, et le tag n'en est
+     * qu'un : la **liste blanche nominative** d'une classe le REMPLACE quand
+     * elle existe (le Moine ne manie que cinq armes, qu'aucune combinaison de
+     * tags ne décrit), et le **métal** est une matière que les tags de POIDS ne
+     * disent pas — Druide et Rogue le refusent.
+     *
+     * Croiser les seuls tags donne aujourd'hui la même réponse, par accident de
+     * données : le Moine n'a qu'un tag de talisman, et ni le Druide ni le Rogue
+     * n'ont de tag d'armure, si bien que le filtre par tag les arrête avant que
+     * les deux autres axes n'aient à trancher. Ajoutez une armure de CUIR au
+     * catalogue, ou un tag d'armure au Druide, et le raccourci se met à mentir
+     * en silence — un coffre de fin de donjon versant une pièce que personne ne
+     * pourra jamais enfiler.
+     *
+     * ⚠ Fail open sans personne à qui demander : une référence manquante ne doit
+     * jamais appauvrir une partie, ici comme partout ailleurs dans ce fichier.
+     *
+     * @param  iterable<int, Personnage>  $personnages
+     */
+    public function utilisableParUnDeCesHeros(Objet $objet, iterable $personnages): bool
+    {
+        $vu = false;
+
+        foreach ($personnages as $personnage) {
+            $vu = true;
+
+            if ($this->estAccessible($personnage, $objet)) {
+                return true;
+            }
+        }
+
+        return ! $vu;
+    }
+
+    /**
      * Cette pièce est-elle utilisable par AU MOINS UN des héros présents ?
+     *
+     * ⚠ Raccourci PAR TAG, à ne pas confondre avec `utilisableParUnDeCesHeros()`
+     * qui pose la question complète. Il reste employé là où l'appelant ne
+     * dispose que d'une union de tags (l'étal, le butin de mobilier) et où
+     * aucune pièce `unique` ne circule.
      *
      * @param  list<string>  $tagsAccessibles  union rendue par `tagsAccessiblesAux()`
      */

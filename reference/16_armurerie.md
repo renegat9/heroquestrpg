@@ -1053,6 +1053,21 @@ the Battle Axe or Staff. May not be used by the Wizard » : `bouclier` est un ta
 que le magicien n'a pas, et `incompatible_deux_mains` désigne exactement ces deux
 armes. Rien à écrire.
 
+⚠ **Un artefact réservé à une classe absente ne sort JAMAIS du coffre**, et le
+coffre est la seule source d'artefacts du jeu (mobilier et étal écartent
+explicitement `unique`). `DeckFouille::choisirArtefact()` posait la question par
+un raccourci — croiser `tag_equipement` avec l'union des tags du groupe — qui
+ignore **deux axes sur trois** : `objets_autorises` (la liste blanche nominative
+du Moine) REMPLACE le contrôle par tags, et `metallique` est une matière que les
+tags de poids ne disent pas. Les deux réponses coïncident aujourd'hui par
+accident de données ; une armure de cuir au catalogue, ou un tag d'armure donné
+au Druide, et le raccourci se remettait à mentir — un coffre de fin de donjon
+versant une pièce que personne ne pourrait jamais enfiler. Il appelle désormais
+`Equipement::utilisableParUnDeCesHeros()`, qui délègue à `estAccessible()`, la
+même autorité que l'équipement au hub. Verrouillé par un test qui tire quarante
+quêtes (un seul tirage ne prouverait rien : l'artefact interdit pourrait
+simplement n'être pas sorti).
+
 ⚠ **Le Bâton Ancien se porte au `talisman`, pas en arme principale** : sa carte
 ne donne AUCUN dé d'attaque, et lui en inventer pour le loger en arme aurait été
 la valeur non sourcée que ce document interdit.
@@ -1095,9 +1110,18 @@ fouille de la salle : sa carte parle du deck, pas de la pièce. ⚠ Et le *Chass
 de trésor* de l'Explorateur s'y applique (« whenever you draw a card from the
 TREASURE DECK that rewards you with gold ») : le parchemin y pioche vraiment.
 
-Deux cartes hors glace restent : **Psychic Recovery** (`soin_pv_mind` a un
-lecteur côté potion, la branche utilitaire des sorts ne connaît que
-`soin_pv_body`) et **Lightning Bolt**. ⚠ Pour celle-ci, le diagnostic
+**Récupération Psychique** est portée elle aussi : « restores all lost Mind
+Points to the spellcaster or any one hero the spellcaster chooses ». TOUS les
+points perdus, donc le maximum — d'où `restaure_pv_mind` et non `soin_pv_mind`,
+qui lui est chiffré (Potion de restauration supérieure). ⚠ Elle est **correcte
+mais DORMANTE**, et il faut le dire : aucun chemin ne réduit `pv_mind` chez nous,
+le parchemin rendra donc 0 tant qu'aucun effet ne saura entamer l'esprit. Ce
+n'est pas une règle promise et jamais tenue — c'est le lecteur d'une règle dont
+la SOURCE manque, exactement comme la branche Mind de `resoudreRelever()` et la
+moitié Mind de la *Restauration supérieure*, toutes deux dans cet état depuis
+qu'elles existent. Il sera juste le jour où elle arrivera.
+
+Une seule carte hors glace reste : **Lightning Bolt**. ⚠ Pour elle, le diagnostic
 « le chemin `rayon` existe » était **optimiste** : `ResolveurTour::resoudreRayon()`
 est câblé sur une **source de style** (l'Œil du Cyclone du Moine), et un sort ne
 peut pas l'emprunter sans qu'on l'en découple d'abord — comme `attaque_balayee`

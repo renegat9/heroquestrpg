@@ -10,6 +10,7 @@ use App\Models\Inventaire;
 use App\Models\Mobilier;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\Fouille\DeckFouille;
 use App\Partie\MoteurMobilier;
@@ -358,6 +359,47 @@ it('remet l\'artefact MÊME sac plein, en dépassement signalé', function () {
     expect($resultat['issue'])->toBe('artefact')
         ->and($resultat['sac_deborde'])->toBeTrue()
         ->and(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $arme->id)->exists())->toBeTrue();
+});
+
+it('ne place JAMAIS dans le coffre un artefact réservé à une classe absente', function () {
+    // ⚠ Un artefact que personne ici ne pourra porter est du BUTIN MORT : le
+    // coffre d'une quête n'en verse qu'un, et le perdre sur des Brassards
+    // elfiques dans un groupe sans elfe, c'est perdre la récompense de tout un
+    // donjon.
+    //
+    // On tire QUARANTE quêtes pour couvrir la loterie du PRNG : un seul tirage
+    // ne prouverait rien, l'artefact interdit pouvant simplement n'être pas
+    // sorti.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe('table-1', 60);
+    creerHeros($alice, $groupe, 'Krogar', 1, ['classe' => 'barbare']);
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Borin', 2, ['classe' => 'nain']);
+
+    // Ni elfe, ni magicien : tout ce qui leur est réservé doit rester dehors.
+    $interdits = Objet::where('rarete', 'unique')
+        ->whereIn('tag_equipement', ['talisman_elfe', 'bottes_elfe', 'arme_arc_long',
+            'talisman_magicien', 'armure_magicien', 'arme_magicien'])
+        ->pluck('nom', 'id');
+
+    expect($interdits)->not->toBeEmpty('aucun artefact réservé : le test ne prouverait rien');
+
+    $vus = [];
+
+    for ($i = 0; $i < 40; $i++) {
+        test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+        $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+        if ($quete->artefact_objet_id !== null) {
+            $vus[] = (int) $quete->artefact_objet_id;
+        }
+
+        acheverLaQuete($groupe);
+    }
+
+    expect($vus)->not->toBeEmpty('aucun coffre n\'a désigné d\'artefact : le test ne prouverait rien')
+        ->and(array_intersect($vus, $interdits->keys()->all()))->toBe([]);
 });
 
 it('ne remet PAS deux fois l\'artefact quand un second héros fouille la même salle', function () {
@@ -718,14 +760,14 @@ it('fait mordre le tombeau et l\'établi, chacun par SON piège nommé', functio
         // Le piège nommé doit EXISTER au catalogue, sinon la fouille se rabat en
         // silence sur le piège de coffre et le joueur lit un nom qui n'est pas
         // celui qu'on lui a promis.
-        expect(App\Models\Piege::where('nom', $piege)->exists())->toBeTrue(
+        expect(Piege::where('nom', $piege)->exists())->toBeTrue(
             "{$piege} : nommé par un meuble mais absent du catalogue de pièges.");
     }
 
     // ⚠ L'établi empoisonne À COUP SÛR, il ne cogne pas : c'est le seul piège du
     // catalogue sans branche `aleatoire`. Un dégât sec à la place viderait la
     // décision de René, et le poison n'est pas plus doux — 3 tours à 1 PV.
-    $fiole = App\Models\Piege::where('nom', 'Fiole de poison')->firstOrFail();
+    $fiole = Piege::where('nom', 'Fiole de poison')->firstOrFail();
 
     expect($fiole->effet['condition_appliquee'] ?? null)->toBe('Empoisonné')
         ->and($fiole->effet['aleatoire'] ?? null)->toBeNull()
