@@ -89,9 +89,16 @@ it('démarre une quête jouable : carte assemblée, monstres au budget, initiati
     // Monstres spawnés AU BUDGET (coût du bestiaire × score de puissance) :
     // le budget est entièrement dépensé (le moins cher coûte 1) et chaque
     // instance est positionnée sur la carte.
+    //
+    // ⚠ La somme se fait sur le coût EFFECTIF depuis le 2026-09-04 : une
+    // créature ÉTHÉRÉE est facturée le double (`DemarreurQuete::coutEffectif()`),
+    // donc additionner les `cout` bruts rendrait moins que le budget dès qu'un
+    // Spectre est acheté — et le test serait tombé un jour, sur une composition
+    // qui n'a rien d'anormal.
     $instances = $quete->instancesMonstres()->with('monstre')->get();
+    $demarreur = app(App\Partie\DemarreurQuete::class);
     expect($instances)->not->toBeEmpty()
-        ->and($instances->sum(fn ($i) => (int) $i->monstre->cout))->toBe($budgetAttendu)
+        ->and($instances->sum(fn ($i) => $demarreur->coutEffectif($i->monstre)))->toBe($budgetAttendu)
         ->and($instances->every(fn ($i) => $i->position_x !== null && $i->position_y !== null))->toBeTrue()
         ->and($instances->every(fn ($i) => $i->pv_body === $i->monstre->pv_body))->toBeTrue();
 

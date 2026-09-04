@@ -74,15 +74,38 @@ it('applique les restrictions d’équipement du dos des cartes', function (stri
         ->toBe($autorise);
 })->with('accès équipement');
 
-it('marque comme métallique toute protection de métal, artefact compris', function () {
+it('marque comme métallique toute pièce de métal — protections ET armes', function () {
     $metal = Objet::where('metallique', true)->pluck('nom')->all();
 
-    expect($metal)->toContain('Cotte de mailles', 'Armure de plates', 'Casque')
+    expect($metal)->toContain('Cotte de mailles', 'Armure de plates', 'Casque', 'Brassards')
         // ⚠ L'artefact aussi : l'Armure de Borin est de la plate (rappel de René).
         ->toContain('Armure de Borin')
+        // ⚠ Les ARMES depuis le 2026-09-04 : la carte de Dread *Rust* a besoin
+        // de savoir qu'une épée est en métal. La règle de marquage est « on
+        // marque quand un lecteur peut agir sur ce fait ».
+        ->toContain('Épée longue', 'Épée large', 'Épée courte', 'Rapière', 'Dague', 'Hache de bataille')
         // ⚠ Le BOUCLIER n'en est pas : les cartes le nomment séparément, et le
         // marquer retirerait au Druide un bouclier qu'elles lui laissent.
-        ->not->toContain('Bouclier');
+        ->not->toContain('Bouclier')
+        // Le bois ne rouille pas — et c'est ce qui immunise ces trois pièces à
+        // la Rouille sans qu'aucune exception ne soit écrite pour elles.
+        ->not->toContain('Bâton', 'Baguette', 'Arbalète');
+});
+
+it('ne fait PAS payer aux classes sans métal une arme de métal', function () {
+    // ⚠ Non-régression du 2026-09-04. `metallique` marque désormais les épées :
+    // sans borner les deux lecteurs à la catégorie `armure`, le Druide et le
+    // Rogue auraient perdu toute arme de métal (une interdiction qu'aucune
+    // carte ne prononce) et le Barde son dé de défense en dégainant.
+    $equipement = app(Equipement::class);
+    $epee = Objet::where('nom', 'Épée courte')->firstOrFail();
+
+    expect($equipement->estAccessible(heros('rogue'), $epee))->toBeTrue()
+        ->and($equipement->estAccessible(heros('druide'), $epee))->toBeTrue();
+
+    // …et l'armure de métal reste refusée, elle.
+    expect($equipement->estAccessible(heros('druide'), Objet::where('nom', 'Cotte de mailles')->firstOrFail()))
+        ->toBeFalse();
 });
 
 it('laisse le Nain et l’Explorateur désamorcer sans outils, eux seuls', function () {

@@ -103,7 +103,23 @@ class GabaritQueteSeeder extends Seeder
                         'or_coffre' => 180,
                         'potions' => ['Potion de soin', 'Potion de restauration', 'Potion de bataille'],
                     ],
-                    'rencontre_finale' => ['tier' => 'sous_boss', 'escorte_budget' => 4],
+                    // ⚠ POOL de sorciers nommés, tiré au sort à chaque quête
+                    // (René, 2026-09-04). Le champ existait depuis la 3.8 et
+                    // n'avait JAMAIS été rempli : le repli prenait le leader de
+                    // coût du palier, si bien qu'aucun lanceur nommé n'était
+                    // jamais apparu en partie. Une liste plutôt qu'une valeur
+                    // unique, sinon toutes les campagnes finiraient sur le même
+                    // adversaire — le défaut du pool de salles, un cran plus
+                    // haut.
+                    //
+                    // Les deux sous-boss lanceurs du bestiaire : le Chamane
+                    // Gobelin (répertoire orque — commande, terrifie, endort) et
+                    // le Garde-mage (Boule de Flammes, Tourmente).
+                    'rencontre_finale' => [
+                        'tier' => 'sous_boss',
+                        'escorte_budget' => 4,
+                        'archetypes' => ['chaman_orque', 'garde_magus'],
+                    ],
                     'pieges' => ['min' => 2, 'max' => 3],
                     'epreuves' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 120],
@@ -141,7 +157,28 @@ class GabaritQueteSeeder extends Seeder
                         'or_coffre' => 300,
                         'potions' => ['Potion de soin', 'Potion de bataille', 'Antidote au venin'],
                     ],
-                    'rencontre_finale' => ['tier' => 'boss', 'escorte_budget' => 6],
+                    // ⚠ Les CINQ bosses lanceurs, tirés au sort (même raison
+                    // qu'au jalon sous-boss). Chacun impose une lecture
+                    // différente du combat final : la Liche relève les morts, le
+                    // Sorcier des Tempêtes embrase et se dérobe, l'Ombre du
+                    // Dread marque et appelle des spectres, l'Horreur des Glaces
+                    // gèle et se soigne, l'Archimage elfe lâche ses loups.
+                    //
+                    // ⚠ Le **Seigneur** est dans la rotation (René, 2026-09-04)
+                    // et n'en est plus le titulaire perpétuel : il fermait
+                    // TOUTES les quêtes tant qu'aucun gabarit ne nommait
+                    // personne. Il reste le plus cher des six (20), donc la
+                    // quête qui tombe sur lui achète un peu MOINS de sbires —
+                    // c'est ce que `cout` sert à dire, et c'est la seule chose
+                    // qu'il pilote (budget de rencontre, `DemarreurQuete`).
+                    'rencontre_finale' => [
+                        'tier' => 'boss',
+                        'escorte_budget' => 6,
+                        'archetypes' => [
+                            'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
+                            'spectre_effroi', 'horreur_glacee', 'archimage_elfe',
+                        ],
+                    ],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'epreuves' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 300],

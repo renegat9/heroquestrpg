@@ -130,7 +130,11 @@ class GuideController extends Controller
         // leur section parce qu'ils DÉRIVENT d'un sort et n'ont pas de ligne
         // d'objet — mais ils ont autant leur place sur /guide, c'est la seule
         // page qui dise au joueur ce qui existe au plateau sans tourner ici.
-        foreach (['equipement', 'potions', 'artefacts', 'parchemins'] as $cle) {
+        // ⚠ CINQUIÈME paquet depuis le 2026-09-04 : les sorts de Dread. Ils
+        // n'appartiennent à aucun héros et ne s'achètent nulle part — mais ce
+        // sont eux que la table subit, et /guide est la seule page qui dise
+        // d'où vient ce qui vous tombe dessus.
+        foreach (['equipement', 'potions', 'artefacts', 'parchemins', 'dread'] as $cle) {
             $paquet = (array) config("cartes.{$cle}", []);
 
             $paquets[] = [
@@ -140,14 +144,20 @@ class GuideController extends Controller
                 'url' => $paquet['url'] ?? null,
                 'cartes' => array_map(static fn (array $c) => [
                     'carte' => $c['carte'],
-                    'nom' => $c['objet'] ?? $c['nom'] ?? $c['carte'],
+                    'nom' => $c['objet'] ?? $c['sort_dread'] ?? $c['nom'] ?? $c['carte'],
                     'paquet' => $c['paquet'] ?? null,
                     // ⚠ Un PARCHEMIN est porté par un `sort`, pas par un
                     // `objet` : il dérive d'une ligne de `sorts` et n'a pas
                     // d'entrée au catalogue d'objets. Ne regarder que `objet`
                     // le faisait passer pour non porté, et le guide réclamait
                     // alors un texte de plateau à une carte qui tourne déjà.
-                    'porte' => isset($c['objet']) || isset($c['sort']),
+                    // ⚠ Trois clés de portage, trois familles : un `objet` au
+                    // catalogue d'objets, un `sort` de héros dont le parchemin
+                    // dérive, un `sort_dread` du catalogue de la magie du MJ.
+                    // N'en regarder qu'une faisait passer les autres pour non
+                    // portées, et le guide réclamait alors un texte de plateau
+                    // à des cartes qui tournent déjà.
+                    'porte' => isset($c['objet']) || isset($c['sort']) || isset($c['sort_dread']),
                     'texte' => $c['texte'] ?? null,
                     'manque' => $c['manque'] ?? null,
                 ], (array) ($paquet['cartes'] ?? [])),

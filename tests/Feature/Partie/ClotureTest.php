@@ -70,6 +70,17 @@ function gagnerQueteCourante(JoueurAuthentifiable $joueur, Groupe $groupe, Perso
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
 
+    // ⚠ Le bloc du boss est FIGÉ depuis le 2026-09-04, où la rencontre finale
+    // est devenue une rotation dans un pool d'archétypes
+    // (`rencontre_finale.archetypes`). Sans cela l'aide tombait sur l'**Ombre du
+    // Dread**, qui est ÉTHÉRÉE : contre elle un crâne ne fait rien, il faut un
+    // bouclier noir (`defenseurEthere` — la seule règle du jeu qui change la
+    // condition de succès d'un dé). Les dés figés plus bas supposent un
+    // défenseur ordinaire, et ces tests portent sur la CLÔTURE de campagne, pas
+    // sur la nature du boss : on leur donne un adversaire connu.
+    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $proie->refresh()->load('monstre');
+
     $etat = $quete->etatsPersonnages()->where('personnage_id', $hero->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
     $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'pv_body' => 1, 'revele' => true]);

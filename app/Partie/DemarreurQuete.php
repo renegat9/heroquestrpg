@@ -10,7 +10,6 @@ use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Jobs\GenererMenu;
 use App\Jobs\HabillerMonstres;
-use App\Partie\Marche\PhaseMarche;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\Groupe;
@@ -20,6 +19,7 @@ use App\Models\Monstre;
 use App\Models\Parametre;
 use App\Models\Quete;
 use App\Partie\Fouille\DeckFouille;
+use App\Partie\Marche\PhaseMarche;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 use Illuminate\Database\Eloquent\Collection;
@@ -182,7 +182,9 @@ final class DemarreurQuete
             ? AssembleurCarte::CHANCE_PASSAGE_SECRET
             : min(100, $chance + AssembleurCarte::PALIER_PASSAGE_SECRET)]);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
-        $monstres = $this->acheterMonstres($gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc);
+        $monstres = $this->acheterMonstres(
+            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id,
+        );
 
         if (count($carte['spawn_heros']) < $heros->count()) {
             throw new RuntimeException('Carte assemblée trop petite pour les héros du groupe.');
@@ -434,6 +436,51 @@ final class DemarreurQuete
     }
 
     /**
+     * Multiplicateur de `cout` pour une créature ÉTHÉRÉE (René, 2026-09-04).
+     *
+     * ⚠ Une éthérée ne se blesse à l'arme que sur un **bouclier noir** (1/6) au
+     * lieu d'un crâne (3/6), pendant qu'elle pare toujours sur 1/6 : les dégâts
+     * nets valent (attaque − défense)/6 au lieu de (3·attaque − défense)/6.
+     * Mesuré sur l'Ombre du Dread à 5 dés d'attaque, cela la rend **6 fois** plus
+     * longue à abattre qu'un bloc de stats identique non éthéré.
+     *
+     * ⚠ On ne facture pourtant PAS ×6, et c'est délibéré : le livret excepte
+     * « sort ou artefact », que le moteur applique — un groupe qui a de la magie
+     * la traverse comme n'importe quel monstre. ×6 lui donnerait le prix d'une
+     * rencontre entière et la laisserait seule sur la carte, sans escorte. ×2
+     * dit « elle vaut deux monstres de son bloc » : c'est une valeur de départ de
+     * playtest, comme tous les `cout` du bestiaire, qui n'existent sur aucun
+     * livret.
+     */
+    public const RATIO_COUT_ETHERE = 2.0;
+
+    /**
+     * COÛT EFFECTIF d'une créature dans le budget de rencontre — le seul calcul
+     * qui fasse foi.
+     *
+     * ⚠ SEUL point de passage pour ce qu'on PAIE. Ne majorer que l'achat du boss
+     * aurait laissé le **Spectre** — éthéré, tier base, acheté comme sbire
+     * ordinaire — à son prix d'avant : le même défaut, un palier plus bas.
+     *
+     * ⚠ Mais il ne touche PAS au CLASSEMENT, et la distinction a été trouvée en
+     * mesurant : les « forts » s'achètent du plus cher au moins cher, et le
+     * leader de coût ferme la rencontre. Majorer le rang aurait donc **promu**
+     * les éthérées au lieu de les rationner — le Spectre serait passé devant
+     * tous les autres forts et se serait invité dans presque chaque quête,
+     * exactement l'inverse du but. On trie sur `cout` brut (ce que la créature
+     * VAUT) et on débite `coutEffectif()` (ce qu'elle COÛTE).
+     */
+    public function coutEffectif(Monstre $monstre): int
+    {
+        $capacites = (array) ($monstre->capacites ?? []);
+        $ethere = in_array('ethere', $capacites, true) || array_key_exists('ethere', $capacites);
+
+        return $ethere
+            ? (int) ceil((int) $monstre->cout * self::RATIO_COUT_ETHERE)
+            : (int) $monstre->cout;
+    }
+
+    /**
      * Budget de rencontres en points de `cout` du bestiaire (doc 06 §2) :
      * score de puissance × escalade d'arc (+15 %/quête) × facteur de jalon.
      */
@@ -489,31 +536,70 @@ final class DemarreurQuete
      * @param  array<string, mixed>  $structure
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0): array
     {
         $achats = [];
         $restant = $budget;
 
         $tierFinal = data_get($structure, 'rencontre_finale.tier');
         if (is_string($tierFinal)) {
-            // Indice optionnel (3.8) : un sorcier nommé désigné pour la rencontre
-            // finale. Absent → comportement d'origine (leader de coût du tier).
-            $archetypeFinal = data_get($structure, 'rencontre_finale.archetype');
+            // POOL de sorciers nommés éligibles à la rencontre finale, TIRÉ AU
+            // SORT (René, 2026-09-04 : « assigne un archétype à chaque gabarit
+            // pour que les lanceurs nommés apparaissent »).
+            //
+            // ⚠ C'est une LISTE et pas une valeur unique, et c'est tout l'objet
+            // du correctif. Le champ `archetype` existait au singulier depuis la
+            // 3.8, fonctionnait, et **aucun gabarit ne l'avait jamais rempli** :
+            // le repli prenait donc toujours le leader de coût du palier, si
+            // bien que le Seigneur fermait TOUTES les quêtes et qu'aucun lanceur
+            // nommé — Liche, Sorcier des Tempêtes, Ombre du Dread, Horreur des
+            // Glaces, Archimage elfe — n'avait jamais été tiré en partie. C'est
+            // la leçon des leviers, qui exigeaient des coordonnées qu'aucun
+            // gabarit ne déclarait : un champ qui marche mais que personne ne
+            // remplit est aussi muet qu'un champ sans lecteur.
+            //
+            // ⚠ Le singulier reste lu : une donnée de gabarit antérieure, ou un
+            // test qui désigne UN adversaire précis, doivent continuer à valoir.
+            $pool = data_get($structure, 'rencontre_finale.archetypes');
+            $pool = is_array($pool) && $pool !== []
+                ? $pool
+                : array_filter([data_get($structure, 'rencontre_finale.archetype')], 'is_string');
 
             $final = null;
-            if (is_string($archetypeFinal) && $archetypeFinal !== '') {
-                $final = Monstre::query()
+            if ($pool !== []) {
+                $candidats = Monstre::query()
                     ->where('tier', $tierFinal)
-                    ->where('archetype_lanceur', $archetypeFinal)
-                    ->orderByDesc('cout')->orderBy('id')->first();
+                    ->whereIn('archetype_lanceur', $pool)
+                    ->orderBy('id')->get();
+
+                // ⚠ ROTATION, pas tirage — et la distinction est celle que le
+                // projet fait déjà entre `salle_artefact` et le deck de fouille.
+                // Le boss final est un **placement** : il doit rester le MÊME si
+                // le groupe recommence la quête ou reprend un snapshot, sans
+                // quoi « Recommencer » deviendrait un bouton pour changer
+                // d'adversaire jusqu'à tomber sur le plus commode. Un
+                // `random_int` le re-tirerait à chaque appel — et il rendait de
+                // surcroît la suite de tests intermittente, ce qui est pire
+                // qu'un test rouge.
+                //
+                // L'index combine la POSITION D'ARC (l'adversaire change d'un
+                // jalon à l'autre) et l'ID DU GROUPE (deux groupes ne suivent
+                // pas la même succession), ce qui donne de la variété sans
+                // hasard. `orderBy('id')` fige l'ordre des candidats.
+                $final = $candidats->isEmpty()
+                    ? null
+                    : $candidats[($graineGroupe + $positionArc) % $candidats->count()];
             }
 
-            // Repli : archétype non demandé ou introuvable → leader de coût du tier.
+            // Repli : pool vide, ou aucun de ses archétypes porté par une
+            // créature de ce palier → leader de coût du tier, le comportement
+            // d'origine. Une donnée de référence absente ne doit jamais empêcher
+            // une quête de démarrer.
             $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->first();
 
             if ($final !== null) {
                 $achats[] = $final;
-                $restant = max(0, $restant - (int) $final->cout);
+                $restant = max(0, $restant - $this->coutEffectif($final));
             }
         }
 
@@ -533,7 +619,9 @@ final class DemarreurQuete
             $faibles = $base->sortBy('cout')->values();
             $forts = collect();
         }
-        $coutFaibleMin = (int) ($faibles->min('cout') ?? 1);
+        // ⚠ Le plancher de réserve se lit sur le coût EFFECTIF : c'est ce qu'il
+        // faudra vraiment payer pour garder un faible en fin de liste.
+        $coutFaibleMin = (int) ($faibles->map(fn (Monstre $m) => $this->coutEffectif($m))->min() ?? 1);
 
         // 1) QUELQUES forts (haut de gamme), en gardant assez de budget ET
         //    d'emplacements pour la masse de faibles (on réserve ≥ 1 slot faible).
@@ -546,12 +634,12 @@ final class DemarreurQuete
         }
         for ($i = 0; $i < $fortsSouhaites && count($achats) < $maxSpawns - 1; $i++) {
             // le plus fort abordable qui laisse encore de quoi payer un faible
-            $fort = $forts->first(fn (Monstre $m) => (int) $m->cout <= $restant - $coutFaibleMin);
+            $fort = $forts->first(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
             if ($fort === null) {
                 break;
             }
             $achats[] = $fort;
-            $restant -= (int) $fort->cout;
+            $restant -= $this->coutEffectif($fort);
         }
 
         // 2) La MASSE de faibles : round-robin sur les faibles (un peu de variété)
@@ -563,9 +651,9 @@ final class DemarreurQuete
             $achete = false;
             for ($k = 0; $k < $n; $k++) {
                 $m = $faibles[($curseur + $k) % $n];
-                if ((int) $m->cout <= $restant) {
+                if ($this->coutEffectif($m) <= $restant) {
                     $achats[] = $m;
-                    $restant -= (int) $m->cout;
+                    $restant -= $this->coutEffectif($m);
                     $curseur = ($curseur + $k + 1) % $n;
                     $achete = true;
                     break;

@@ -173,22 +173,21 @@ function jouerHerosEtObtenirTourMonstres(array $ctx): array
 // Tests
 // ------------------------------------------------------------------
 
-it('Trait de Chaos inflige 2 dés de dégâts à un héros (défense applicable)', function () {
-    $ctx = demarrerQueteBoss('Champion'); // sorts_dread = [Trait de Chaos, Frayeur, Sommeil, Tempête de feu]
+it('Boule de Flammes inflige 2 PV FIXES que la cible réduit aux dés rouges', function () {
+    // Carte officielle (*Ball of Flame*, doc 09 §4bis) : « It inflicts 2 Body
+    // Points of damage. The hero then rolls 2 red dice. For each 5 or 6 rolled,
+    // the damage is reduced by 1 point. »
+    // ⚠ Ce test remplace celui du *Trait de Chaos*, sort de NOTRE invention
+    // supprimé le 2026-09-04 faute de carte. Il lançait des dés d'attaque contre
+    // une défense : même fourchette, tout autres probabilités, et le hasard du
+    // mauvais côté — c'est la cible qui résiste, pas le lanceur qui vise.
+    $ctx = demarrerQueteBoss('Champion');
     ['heros' => $heros, 'boss' => $boss, 'quete' => $quete, 'groupe' => $groupe] = $ctx;
 
-    // Assure que le Champion a des usages Dread et commence par Trait de Chaos.
-    // Trait de Chaos : 2 dés d'attaque (crânes), défense héros (2 dés, boucliers noirs).
-    // Un héros compte les BOUCLIERS BLANCS (faces 4-5). Face 6 = bouclier noir → ne compte pas.
-    // 2 crânes – 0 boucliers blancs = 2 dégâts.
-    desFiges([
-        // Trait de Chaos : 2 dés de dégâts (crânes)
-        1, 1,
-        // défense héros (2 dés, boucliers noirs = face 6 → 0 bouclier pour héros)
-        6, 6,
-        // réserve pour la suite
-        ...array_fill(0, 50, 4),
-    ]);
+    $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
+
+    // Deux dés rouges à 1 : aucun 5-6, donc aucune réduction. 2 PV encaissés.
+    desFiges([1, 1, ...array_fill(0, 50, 1)]);
 
     $pvAvant = (int) $heros->pv_body;
 
@@ -198,13 +197,13 @@ it('Trait de Chaos inflige 2 dés de dégâts à un héros (défense applicable)
 
     $heros->refresh();
 
-    // Le boss a lancé Trait de Chaos : le héros a perdu des PV.
     $actions = collect($reponse->json('resultat.tour_monstres.actions'));
-    $traitAction = $actions->firstWhere('sort', 'Trait de Chaos');
+    $sort = $actions->firstWhere('sort', 'Boule de Flammes');
 
-    expect($traitAction)->not->toBeNull()
-        ->and($traitAction['type'])->toBe('sort_dread')
-        ->and($traitAction['des_degats'])->toBe(2)
+    expect($sort)->not->toBeNull()
+        ->and($sort['type'])->toBe('sort_dread')
+        ->and($sort['resultats'][0]['degats_bruts'])->toBe(2)
+        ->and($sort['resultats'][0]['des_rouges'])->toBe([1, 1])
         ->and((int) $heros->pv_body)->toBe($pvAvant - 2);
 
     // L'usage a été consommé.
@@ -212,20 +211,44 @@ it('Trait de Chaos inflige 2 dés de dégâts à un héros (défense applicable)
     expect($dread->usagesRestants($boss->fresh(), $quete))->toBe(1); // 2 - 1 = 1
 });
 
+it('Boule de Flammes : chaque 5-6 des dés rouges annule 1 point', function () {
+    $ctx = demarrerQueteBoss('Champion');
+    ['heros' => $heros, 'boss' => $boss] = $ctx;
+
+    $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
+
+    // Un 5 et un 6 : les DEUX points sont annulés, le sort ne fait rien.
+    // ⚠ Le seuil se lit sur le d6 BRUT, jamais sur une face de combat : les
+    // nôtres fusionnent 4-5 en bouclier blanc et écraseraient la moitié de la
+    // règle. Un 4 ne protège donc de rien — c'est ce que ce test verrouille.
+    desFiges([5, 6, ...array_fill(0, 50, 4)]);
+
+    $pvAvant = (int) $heros->pv_body;
+
+    $reponse = test()->actingAs($ctx['alice'], 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Boule de Flammes');
+
+    expect($sort['resultats'][0]['degats'])->toBe(0)
+        ->and((int) $heros->fresh()->pv_body)->toBe($pvAvant);
+});
+
 it('Sommeil endort un héros (Mind faible échoue) : il saute son tour, réveillé par une attaque', function () {
     // Héros avec Mind 1 → très peu de chances de résister.
     $ctx = demarrerQueteBoss('Champion', mindHeros: 1, avecSecondHeros: true, mindHeros2: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
-    // On force le Champion à utiliser Sommeil (pas de Trait de Chaos pour le moment).
-    // Pour cela : on épuise l'usage Trait de Chaos en amont... ou on fige les dés
+    // On force le Champion à utiliser Sommeil (pas de sort de dégâts pour le moment).
+    // Pour cela : on épuise l'usage du sort de dégâts en amont... ou on fige les dés
     // pour que le bot choisisse Sommeil selon la priorité (Mind le plus faible avec Sommeil disponible).
     // La priorité 1 (Tempête/Trait) précède Sommeil.
     // On consomme manuellement les usages déjà en cache pour simplifier.
     // SIMPLIFICATION : on joue 1 tour "attendre" avec des dés figés pour laisser le boss
-    // utiliser Trait de Chaos, puis un 2e tour pour Sommeil.
+    // utiliser un sort de dégâts, puis un 2e tour pour Sommeil.
 
-    // Tour 1 — Trait de Chaos (boss), dés figés sans effet.
+    // Tour 1 — sort de dégâts (boss), dés figés sans effet.
     desFiges(array_fill(0, 100, 4)); // aucun crâne → pas de dégâts, pas de résistance
 
     test()->actingAs($alice, 'joueur')
@@ -276,7 +299,7 @@ it('Sommeil endort un héros (Mind faible échoue) : il saute son tour, réveill
             expect((bool) $etat->a_joue)->toBeTrue();
         }
     } else {
-        // Aucun sort de contrôle lancé (priorité = Trait de Chaos encore, ou usages épuisés).
+        // Aucun sort de contrôle lancé (priorité = un sort de dégâts encore, ou usages épuisés).
         // Test non bloquant : on vérifie juste que le système ne crash pas.
         expect(true)->toBeTrue();
     }
@@ -321,20 +344,25 @@ it('Sommeil direct : le héros saute son tour, puis une attaque le réveille', f
     expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeFalse();
 });
 
-it('Frayeur : −1 dé d\'attaque vérifié sur le nombre de faces lancées (condition Apeuré)', function () {
+it('Frayeur PLAFONNE l\'attaque à 1 dé (condition Apeuré)', function () {
     $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
     ['alice' => $alice, 'groupe' => $groupe, 'heros' => $heros, 'quete' => $quete, 'boss' => $boss] = $ctx;
 
-    // Pose manuellement la condition Apeuré (2 tours, malus_des_attaque = 1).
+    // Pose manuellement la condition Apeuré (des_attaque_max = 1).
+    // ⚠ La carte officielle dit « may ONLY USE 1 Attack die » : un PLAFOND, pas
+    // un malus. Notre `malus_des_attaque: 1` ne coûtait qu'un dé au barbare qui
+    // en lance cinq, là où la carte le ramène au dé unique de tout le monde —
+    // et la règle était déjà écrite ainsi côté monstres (`terrifie` fait
+    // `min($des, 1)` dans `InstanceMonstre::apresConditions()`).
     $condApeure = Condition::where('nom', 'Apeuré')->firstOrFail();
     $heros->conditions()->attach($condApeure->id, ['duree' => 2, 'source' => 'sort_dread:Frayeur']);
 
-    // Le héros a normalement 3 dés d'attaque → avec Apeuré : 2 dés.
+    // Le héros a normalement 3 dés d'attaque → avec Apeuré : 1 seul.
     expect((int) $heros->des_attaque)->toBe(3);
 
-    // Fige 2 crânes pour les 2 dés d'attaque + dés de défense du monstre.
+    // Fige un crâne pour l'unique dé d'attaque + dés de défense du monstre.
     desFiges([
-        1, 1, // 2 dés d'attaque (après malus Frayeur)
+        1, // 1 SEUL dé d'attaque (plafond Frayeur)
         ...array_fill(0, (int) $boss->monstre->defense, 4), // défense du boss (boucliers blancs → 0 pour monstre)
         ...array_fill(0, 100, 4),
     ]);
@@ -354,11 +382,10 @@ it('Frayeur : −1 dé d\'attaque vérifié sur le nombre de faces lancées (con
         ])
         ->assertStatus(202);
 
-    // Vérifie que malus_frayeur = 1 et des_attaque_effectifs = 2 dans le résultat.
-    $reponse->assertJsonPath('resultat.malus_frayeur', 1)
-        ->assertJsonPath('resultat.des_attaque_effectifs', 2);
+    $reponse->assertJsonPath('resultat.plafond_attaque', 1)
+        ->assertJsonPath('resultat.des_attaque_effectifs', 1);
 
-    expect(count($reponse->json('resultat.faces_attaque')))->toBe(2);
+    expect(count($reponse->json('resultat.faces_attaque')))->toBe(1);
 });
 
 it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', function () {
@@ -372,7 +399,7 @@ it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', functio
 
     // Épuise les usages sauf 1 et configure le boss pour lancer Tempête de feu.
     // Avec 2 héros visibles, la priorité 1 favorise Tempête.
-    // On épuise Trait de Chaos en passant le Champion à Tempête de feu directement
+    // On épuise les dégâts en passant le Champion à Tempête de feu directement
     // par manipulation de cache. On laisse 1 usage.
     $dread = app(MoteurDread::class);
 
@@ -406,7 +433,7 @@ it('Tempête de feu touche 2 héros sur les cases orthogonales du boss', functio
         // Vérifie que plusieurs héros sont touchés.
         expect(count($tempeteAction['resultats'] ?? []))->toBeGreaterThanOrEqual(1);
     } else {
-        // Priorité : peut-être Trait de Chaos d'abord. Test non bloquant.
+        // Priorité : peut-être un sort de dégâts d'abord. Test non bloquant.
         expect(true)->toBeTrue();
     }
 });
@@ -891,7 +918,7 @@ it('Contresort annule Sommeil quand la résistance naturelle échoue mais le con
     $ctx = demarrerQueteBoss('Champion', mindHeros: 1);
     ['alice' => $alice, 'heros' => $heros, 'boss' => $boss] = $ctx;
 
-    // Force le boss à ne disposer que de Sommeil (sinon Trait de Chaos/Tempête priment).
+    // Force le boss à ne disposer que de Sommeil (sinon les sorts de dégâts priment).
     $boss->monstre->update(['sorts_dread' => ['Sommeil'], 'archetype_lanceur' => null]);
 
     $heros->update(['classe' => 'magicien']);
@@ -899,8 +926,12 @@ it('Contresort annule Sommeil quand la résistance naturelle échoue mais le con
         Competence::where('classe', 'magicien')->where('nom', 'Contresort')->value('id'),
     );
 
+    // ⚠ Plus de jet de résistance NATURELLE depuis le passage aux cartes
+    // officielles : *Sleep* prend toujours, et c'est sa POURSUITE qui est
+    // contestée (`rupture_6_par_mind`, un d6 par point de Mind, un 6 libère).
+    // Le premier dé de la file est donc celui du Contresort, pas celui de la
+    // résistance — c'est exactement ce que ce test verrouille désormais.
     desFiges([
-        4, // résistance naturelle (1 dé Mind) : bouclier blanc → 0 crâne → subit l'effet
         1, // Contresort (1 dé Mind) : crâne → réussit → annule l'effet
         ...array_fill(0, 20, 4),
     ]);
@@ -911,10 +942,13 @@ it('Contresort annule Sommeil quand la résistance naturelle échoue mais le con
 
     $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
 
+    // ⚠ Le payload est désormais une LISTE de résultats, même à une seule
+    // victime : un sort de contrôle peut prendre toute une salle (*Nuée
+    // d'Effroi*), et deux formes de payload pour la même famille finissent par
+    // diverger. La ligne du contresort vit donc dans `resultats[0]`.
     expect($sortAction)->not->toBeNull()
-        ->and($sortAction['effet_applique'])->toBeTrue()
-        ->and($sortAction['contresort']['reussi'])->toBeTrue()
-        ->and($sortAction)->not->toHaveKey('condition');
+        ->and($sortAction['resultats'][0]['effet_applique'])->toBeFalse()
+        ->and($sortAction['resultats'][0]['contresort']['reussi'])->toBeTrue();
 
     expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeFalse();
 });
@@ -942,7 +976,7 @@ it('Contresort raté : Sommeil s\'applique quand même', function () {
 
     $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
 
-    expect($sortAction['contresort']['reussi'])->toBeFalse()
+    expect($sortAction['resultats'][0]['contresort']['reussi'])->toBeFalse()
         ->and($sortAction['condition'])->toBe('Endormi');
 
     expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeTrue();
@@ -962,7 +996,7 @@ it('sans le nœud Contresort, aucune seconde chance : Sommeil s\'applique direct
 
     $sortAction = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
 
-    expect($sortAction)->not->toHaveKey('contresort')
+    expect($sortAction['resultats'][0])->not->toHaveKey('contresort')
         ->and($sortAction['condition'])->toBe('Endormi');
 });
 
@@ -1004,9 +1038,9 @@ it('ne lance AUCUN sort de Dread sur un héros hors ligne de vue', function () {
     $ctx = demarrerQueteBoss('Champion');
     ['alice' => $alice, 'quete' => $quete, 'boss' => $boss, 'etatHeros' => $etatHeros] = $ctx;
 
-    // Répertoire réduit au Trait de Chaos : sans le filtre de vue, il partait à
+    // Répertoire réduit à la Boule de Flammes : sans le filtre de vue, elle partait à
     // coup sûr — `$cibles` contenait tous les héros debout de la quête.
-    $boss->monstre->update(['sorts_dread' => ['Trait de Chaos'], 'archetype_lanceur' => null]);
+    $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
 
     $cachette = caseHorsDeVue($quete, $boss);
     expect($cachette)->not->toBeNull('la carte générée doit offrir une case masquée');
@@ -1090,7 +1124,7 @@ it('cible un AUTRE héros quand le Mind le plus faible porte déjà la condition
     $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Sommeil');
 
     expect($sort)->not->toBeNull()
-        ->and($sort['cible']['personnage_id'])->toBe($heros2->id);
+        ->and($sort['resultats'][0]['cible']['personnage_id'])->toBe($heros2->id);
 });
 
 it('un SOUS-BOSS ne lance pas les sorts de palier boss', function () {
@@ -1175,12 +1209,15 @@ it('les usages de Dread vivent en COLONNE et survivent au vidage du cache', func
         ->toBe(MoteurDread::USAGES_SOUS_BOSS);
 });
 
-it('Trait de Chaos vise le héros le PLUS PROCHE, pas le premier de la liste', function () {
+it('un sort de dégâts vise le héros le PLUS PROCHE, pas le premier de la liste', function () {
     $ctx = demarrerQueteBoss('Champion', avecSecondHeros: true);
     ['alice' => $alice, 'bob' => $bob, 'quete' => $quete, 'boss' => $boss] = $ctx;
     ['heros' => $heros, 'etatHeros' => $etatHeros, 'etatHeros2' => $etatHeros2] = $ctx;
 
-    $boss->monstre->update(['sorts_dread' => ['Trait de Chaos'], 'archetype_lanceur' => null]);
+    // *Boule de Flammes* est le sort de dégâts à CIBLE UNIQUE du paquet : c'est
+    // lui qui exerce le tri, là où l'Éclair choisit une direction et la Tempête
+    // une salle.
+    $boss->monstre->update(['sorts_dread' => ['Boule de Flammes'], 'archetype_lanceur' => null]);
 
     // ⚠ C'est alice — la PREMIÈRE de la collection — qui doit être la plus
     // proche : avec un tri faussé, le boss garde l'ordre des id et frappe le
@@ -1217,8 +1254,8 @@ it('Trait de Chaos vise le héros le PLUS PROCHE, pas le premier de la liste', f
     $reponse = test()->actingAs($bob, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Trait de Chaos');
+    $sort = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('sort', 'Boule de Flammes');
 
     expect($sort)->not->toBeNull()
-        ->and($sort['cible']['personnage_id'])->toBe($heros->id);
+        ->and($sort['resultats'][0]['cible']['personnage_id'])->toBe($heros->id);
 });

@@ -321,6 +321,7 @@ final class ResolveurTour
                 'concentration' => $this->resoudreConcentration($groupe, $personnage, $etat, $option, $parametres, $acteur),
                 'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
                 'soin_allie' => $this->resoudreSoinAllie($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                'liberer_entraves' => $this->resoudreLiberationEntraves($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -933,8 +934,12 @@ final class ResolveurTour
             $personnage, 'bonus_des_attaque', $tirADistance ? 'a_distance' : 'au_contact',
         );
 
-        // Frayeur (Dread) : condition Apeuré → −1 dé d'attaque (min 0), 2 tours.
-        $malusFrayeur = $this->dread->malusDesAttaqueFrayeur($personnage);
+        // Frayeur (Dread) : la condition *Apeuré* PLAFONNE l'attaque à 1 dé —
+        // « may ONLY USE 1 Attack die » (carte *Fear*). Le plafond s'applique
+        // tout en bas, après l'addition des bonus : c'est ce qui le distingue
+        // d'un malus, qu'un bonus pouvait annuler. *Esprit brisé* (Choc Mental)
+        // plafonne à 0 — « This hero cannot move or attack ».
+        $plafondAttaque = $this->dread->plafondDesAttaque($personnage);
 
         // `bonus_des_attaque` CONDITIONNÉ aux PV bas (Frénésie du barbare, Rage
         // froide du berserker, Coup bas du rogue, Poing de fer du moine) : le
@@ -1041,8 +1046,16 @@ final class ResolveurTour
         }
 
         $desAttaqueEffectifs = max(0, max($desArme, $desArmeContre)
-            + $bonusAttaque - $malusFrayeur + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
+            + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
             + $bonusTier + $bonusElan + $desBonus);
+
+        // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
+        // à la somme et pouvait être compensé par un bonus ; un plafond, non —
+        // c'est toute la différence entre « −1 dé » et « au plus 1 dé », et
+        // c'est ce que la carte de *Fear* écrit.
+        if ($plafondAttaque !== null) {
+            $desAttaqueEffectifs = min($desAttaqueEffectifs, $plafondAttaque);
+        }
 
         // Dague de jet magique : « This weapon ALWAYS inflicts one Body Point of
         // damage. » Aucun jet, aucune défense — le seul cas du jeu où l'attaque
@@ -1149,7 +1162,7 @@ final class ResolveurTour
         $payload = [
             'type' => 'attaque',
             'bonus_des_attaque' => $bonusAttaque,
-            'malus_frayeur' => $malusFrayeur,
+            'plafond_attaque' => $plafondAttaque,
             'bonus_frenesie' => $bonusFrenesie,
             'bonus_tir_precis' => $bonusTirPrecis,
             'bonus_flanc' => $bonusFlanc,
@@ -3130,6 +3143,69 @@ final class ResolveurTour
             'sort_recupere' => ['id' => $sort->id, 'nom' => $sort->nom],
             'pv_body_paye' => 1,
             'pv_body_apres' => (int) $personnage->pv_body,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * DÉTRUIRE LES ENTRAVES — *Étreinte des Ronces* (carte *Creeping Grasp*) :
+     * « The targeted hero or another adjacent hero can spend AN ACTION to
+     * destroy the vines, freeing the ensnared hero. »
+     *
+     * ⚠ C'est le premier — et le seul — lecteur du `fin: liberation` que la
+     * condition *Immobilisé* porte au catalogue depuis la création de la table.
+     * Sans lui, la carte poserait une entrave que rien au monde ne lèverait :
+     * la condition n'a pas de compteur (`duree_defaut: 0`), et c'était bien
+     * l'intention — l'action EST la sortie.
+     *
+     * ⚠ `parametres.cible_id` est validé contre la liste publiée par le menu.
+     * Sans ce contrôle, un client libérerait un compagnon à l'autre bout du
+     * donjon — la règle de la liste blanche, la même qu'ailleurs.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreLiberationEntraves(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $cibleId = (int) ($parametres['cible_id'] ?? $personnage->id);
+        $legales = array_map('intval', array_column((array) ($option['parametres']['cibles'] ?? []), 'id'));
+
+        if (! in_array($cibleId, $legales, true)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible hors de portée : choisissez un héros entravé à votre contact.',
+            ]);
+        }
+
+        $cible = $quete->etatsPersonnages()->where('personnage_id', $cibleId)->with('personnage')->firstOrFail();
+        $libere = $cible->personnage;
+
+        // Toutes les conditions qui interdisent le déplacement tombent, pas
+        // seulement « Immobilisé » : c'est la MÉCANIQUE qui est visée, comme
+        // partout ailleurs dans ce moteur depuis le recâblage des talents. Une
+        // seconde carte d'entrave n'aura rien à recâbler.
+        foreach ($libere->conditions()->get() as $condition) {
+            if ((bool) data_get($condition->effet, 'deplacement_interdit', false)) {
+                $this->dread->retirerConditionHeros($libere, (string) $condition->nom);
+            }
+        }
+
+        $payload = [
+            'type' => 'liberer_entraves',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'cible' => ['personnage_id' => $libere->id, 'nom' => $libere->nom],
+            'sur_soi' => $libere->id === $personnage->id,
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -6378,7 +6454,7 @@ final class ResolveurTour
             }
         }
 
-        $verdict = $this->ouvrirNouveauTour($groupe, $quete);
+        $verdict = $this->ouvrirNouveauTour($groupe, $quete, $actions);
 
         if ($verdict === self::CHUTE_TPK) {
             return ['actions' => $actions];
@@ -6410,7 +6486,82 @@ final class ResolveurTour
      *
      * @return string verdict de chute (`debout` / `suspendu` / `tpk`)
      */
-    private function ouvrirNouveauTour(Groupe $groupe, Quete $quete): string
+    /**
+     * Ce qui se joue AU DÉBUT DU TOUR de chaque héros — deux règles, toutes
+     * deux venues des cartes de Dread (doc 09 §4bis).
+     *
+     * 1. **Les ruptures.** Cinq cartes portent la même phrase : « The spell can
+     *    be broken immediately or ON A FUTURE TURN by the hero rolling 1 red
+     *    die for each of their Mind Points. If a 6 is rolled, the spell is
+     *    broken. » Sans ce jet, *Sommeil*, *Commandement*, *Frayeur*, la *Nuée
+     *    d'Effroi* et le *Choc Mental* seraient définitifs — c'est exactement le
+     *    défaut que le Sommeil des monstres portait avant le 2026-09-02, et il
+     *    est bien pire côté héros : un dormeur qui ne se réveille jamais est un
+     *    joueur qui repose son téléphone.
+     *
+     * 2. **Le tour perdu.** *Tourmente* (carte *Tempest*) : « That hero then
+     *    misses their next turn. » `perd_prochain_tour` vivait au catalogue sans
+     *    lecteur depuis la création de la table.
+     *
+     * ⚠ Tout est JOURNALISÉ. Un jet de dés que personne ne voit est un jet qui
+     * n'a pas eu lieu pour la table — même exigence que pour les jetons de
+     * Rejeton et l'avertissement de piège de l'Explorateur : un effet
+     * automatique que rien n'annonce est injouable.
+     *
+     * ⚠ Un héros À TERRE ne tente rien : il ne joue pas de tour, donc aucun tour
+     * ne commence pour lui. Le laisser rouler lui offrirait une libération
+     * gratuite pendant qu'il attend d'être relevé.
+     */
+    private function ouvrirTourDesHeros(Groupe $groupe, Quete $quete): array
+    {
+        $payloads = [];
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            $personnage = $etat->personnage;
+
+            if ($personnage === null || $etat->tombe) {
+                continue;
+            }
+
+            foreach ($this->sorts->conditionsARompre($personnage) as $nomCondition) {
+                $jet = $this->sorts->tenterRuptureHeros($personnage, $nomCondition);
+
+                $payload = [
+                    'type' => 'rupture_sort_dread',
+                    'personnage_id' => $personnage->id,
+                    'nom' => $personnage->nom,
+                    'condition' => $nomCondition,
+                    'rompu' => $jet['rompu'],
+                    'faces' => $jet['faces'],
+                    'seuil' => $jet['seuil'],
+                ];
+
+                Journal::ajouter($groupe, 'action', $payload);
+                $payloads[] = $payload;
+            }
+
+            if ($this->sorts->consommerTourPerdu($personnage)) {
+                // Le créneau est marqué consommé plutôt qu'interdit : le menu
+                // ne s'ouvre pas pour un héros qui a joué, et la phase des
+                // monstres n'attend pas après lui. C'est la même écriture que
+                // `saute_tour` côté monstre, un tour perdu et non un état.
+                $etat->update(['a_joue' => true, 'a_deplace' => true, 'a_agi' => true]);
+
+                $payload = [
+                    'type' => 'tour_perdu',
+                    'personnage_id' => $personnage->id,
+                    'nom' => $personnage->nom,
+                    'cause' => 'Étourdi',
+                ];
+
+                Journal::ajouter($groupe, 'action', $payload);
+                $payloads[] = $payload;
+            }
+        }
+
+        return $payloads;
+    }
+
+    private function ouvrirNouveauTour(Groupe $groupe, Quete $quete, array &$actions = []): string
     {
         // Nouveau tour : les héros debout rejouent (l'initiative reste figée, C1).
         // Créneaux remis à zéro + on relancera le d6 de déplacement.
@@ -6448,6 +6599,18 @@ final class ResolveurTour
         // `decrementerDurees()` s'en chargeait déjà (elle ne touche que
         // `personnage_conditions`, jamais `instances_monstres`).
         $this->sorts->decrementerDureesMonstres($quete);
+
+        // DÉBUT DU TOUR DES HÉROS — le seul qu'un moteur par rounds possède.
+        // Deux règles des cartes de Dread s'y jouent, et nulle part ailleurs.
+        //
+        // ⚠ Les payloads REMONTENT dans `$actions` (par référence) : journalisés
+        // en base, ils resteraient invisibles au fil du combat de la manette,
+        // qui ne lit que le résultat de la requête. Un jet de dés que personne
+        // ne voit n'a pas eu lieu pour la table — et c'est le jet qui décide si
+        // le dormeur se réveille.
+        foreach ($this->ouvrirTourDesHeros($groupe, $quete) as $ouverture) {
+            $actions[] = $ouverture;
+        }
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'nouveau_tour', 'quete_id' => $quete->id]);
 
@@ -6924,7 +7087,13 @@ final class ResolveurTour
         // *Bouclier de l'Aube* rejoue exactement ce jet-ci, et recomposer les
         // sept bonus à la résolution de la réaction aurait été une seconde
         // vérité, donc une dérive garantie.
-        $volee = max(0, $desAttaque + $bonusFlanc - $malusRegard);
+        // *Feux de l'Effroi* (carte *Dreadlights*) : « All monsters roll one
+        // ADDITIONAL Attack die when attacking the affected hero. » La seule
+        // condition du catalogue dont l'effet profite à l'adversaire de son
+        // porteur, d'où une lecture ici, du côté de l'assaillant.
+        $bonusDesignation = $this->dread->bonusAttaqueContre($personnage);
+
+        $volee = max(0, $desAttaque + $bonusFlanc + $bonusDesignation - $malusRegard);
         $garde = $this->sorts->desDefenseHeros($personnage)
             + $bonusGardeTenace + $bonusContreTir + $bonusBanniere;
 

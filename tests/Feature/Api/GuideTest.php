@@ -132,10 +132,14 @@ it('expose la provenance des cartes, portées et non portées', function () {
     $paquets = collect($data['cartes'] ?? []);
     // ⚠ Un QUATRIÈME paquet depuis le 2026-09-03 : les parchemins ont leur
     // section, parce qu'ils dérivent d'un SORT et n'ont pas de ligne d'objet.
-    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins']);
+    // ⚠ Un CINQUIÈME depuis le 2026-09-04 : les sorts de Dread. Ils
+    // n'appartiennent à aucun héros et ne s'achètent nulle part, mais ce sont
+    // eux que la table subit — et /guide est la seule page qui dise d'où vient
+    // ce qui vous tombe dessus.
+    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins', 'dread']);
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
-    expect($cartes)->toHaveCount(89); // 20 + 15 + 35 + 19
+    expect($cartes)->toHaveCount(118); // 20 + 15 + 35 + 19 + 29
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.
@@ -154,7 +158,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // parchemin portée pointe un SORT, pas un objet — elle n'a aucune ligne à
     // retrouver au catalogue d'objets. Le contrôle vaut pour les trois paquets
     // qui, eux, désignent des pièces.
-    $cartesObjet = $paquets->reject(fn ($p) => $p['cle'] === 'parchemins')
+    // ⚠ Le paquet des SORTS DE DREAD est exclu pour la même raison : une carte
+    // de Dread portée pointe une ligne de `sorts_dread`, pas un objet.
+    $cartesObjet = $paquets->reject(fn ($p) => in_array($p['cle'], ['parchemins', 'dread'], true))
         ->flatMap(fn ($p) => $p['cartes']);
 
     foreach ($cartesObjet->where('porte', true) as $carte) {

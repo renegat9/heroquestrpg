@@ -8,6 +8,7 @@ use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
 use App\Engine\MotsClesSort;
+use App\Engine\MotsClesSortDread;
 use App\Engine\RegainEffet;
 use App\Engine\TypeDegat;
 use App\Models\Competence;
@@ -19,6 +20,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Models\SortDread;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -436,7 +438,42 @@ final class MoteurSorts
             $des += (int) ($leger->effet['valeur'] ?? 1);
         }
 
+        // 4. PLAFOND d'une condition (`des_defense_max`) — *Choc Mental*
+        //    (carte *Mind Blast*) : « The hero defends with 1 combat die. »
+        //    ⚠ Un plafond, et non une mise à zéro : c'est le seul mot qui
+        //    sépare cette carte de *Cloud of Dread*, qui, elle, supprime la
+        //    défense. Appliqué EN DERNIER, sinon un bonus posté après lui
+        //    relèverait la valeur que la carte vient de brider.
+        $plafond = $this->plafondDefense($personnage);
+
+        if ($plafond !== null) {
+            $des = min($des, $plafond);
+        }
+
         return max(0, $des);
+    }
+
+    /**
+     * Le plus BAS des plafonds de défense posés par les conditions du héros,
+     * ou `null` si aucune n'en pose.
+     *
+     * Jumeau de `MoteurDread::plafondDesAttaque()` : deux plafonds qui disent
+     * « au plus 1 » ne disent pas « zéro », donc c'est le minimum qui gagne,
+     * jamais la somme.
+     */
+    private function plafondDefense(Personnage $personnage): ?int
+    {
+        $plafond = null;
+
+        foreach ($personnage->conditions()->get() as $condition) {
+            $max = data_get($condition->effet, 'des_defense_max');
+
+            if ($max !== null) {
+                $plafond = $plafond === null ? (int) $max : min($plafond, (int) $max);
+            }
+        }
+
+        return $plafond;
     }
 
     /**
@@ -1483,6 +1520,144 @@ final class MoteurSorts
         }
 
         return ['rompu' => $rompu, 'faces' => $faces];
+    }
+
+    /**
+     * RUPTURE D'UN SORT DE DREAD, côté HÉROS — le pendant exact de
+     * {@see self::tenterRupture()}, qui ne parlait qu'aux monstres.
+     *
+     * Cinq cartes de Dread portent la même phrase, mot pour mot : « The spell
+     * can be broken immediately or on a future turn by the hero rolling 1 red
+     * die for each of their Mind Points. If a 6 is rolled, the spell is
+     * broken. » (*Sleep*, *Command*, *Fear*, *Cloud of Dread*, *Mind Blast*).
+     * Une sixième, *Dreadlights*, change les deux nombres — UN dé, seuil 5-6 —
+     * et c'est pour cela que la règle du jet se relit sur le SORT plutôt que
+     * d'être câblée ici : confondre les deux inverserait le sort, en libérant
+     * vite un magicien (Mind 4) là où la carte ne parle pas du Mind du tout.
+     *
+     * ⚠ La règle est relue depuis la SOURCE de la condition
+     * (`personnage_conditions.source` = `sort_dread:{Nom}`), jamais recopiée sur
+     * le pivot — même principe que `expirerBuffs()`, qui relit la durée sur le
+     * sort d'origine : corriger une valeur du catalogue doit atteindre les
+     * conditions DÉJÀ posées en jeu.
+     *
+     * ⚠ Une condition posée par autre chose qu'un sort de Dread n'est pas
+     * concernée : `Empoisonné` a un compteur, `Tombé` une relève. Rendre
+     * `rompu: false` sans lancer un dé est le comportement sûr.
+     *
+     * @return array{rompu: bool, faces: list<int>, seuil: int}
+     */
+    public function tenterRuptureHeros(Personnage $personnage, string $nomCondition): array
+    {
+        $condition = Condition::where('nom', $nomCondition)->first();
+
+        $ligne = $condition === null ? null : DB::table('personnage_conditions')
+            ->where('personnage_id', $personnage->id)
+            ->where('condition_id', $condition->id)
+            ->orderByDesc('id')
+            ->first();
+
+        $sort = $ligne === null || ! str_starts_with((string) $ligne->source, 'sort_dread:')
+            ? null
+            : SortDread::where('nom', substr((string) $ligne->source, strlen('sort_dread:')))->first();
+
+        $resistance = $sort === null ? null : data_get($sort->effet, 'resistance');
+
+        if (! in_array($resistance, MotsClesSortDread::RESISTANCES_RUPTURE, true)) {
+            return ['rompu' => false, 'faces' => [], 'seuil' => 0];
+        }
+
+        // *Dreadlights* : un seul dé, 5 ou 6. Les quatre autres : un dé par
+        // point de Mind, et seul le 6 libère.
+        $unDe = $resistance === MotsClesSortDread::RESISTANCE_RUPTURE_5_6;
+        $nb = $unDe ? 1 : max(0, (int) $personnage->attribut_mind);
+        $seuil = $unDe ? 5 : 6;
+
+        $lanceur = app(LanceurDes::class);
+        $faces = [];
+        $rompu = false;
+
+        for ($i = 0; $i < $nb; $i++) {
+            $face = $lanceur->d6();
+            $faces[] = $face;
+
+            if ($face >= $seuil) {
+                $rompu = true;
+            }
+        }
+
+        if ($rompu) {
+            DB::table('personnage_conditions')->where('id', $ligne->id)->delete();
+        }
+
+        return ['rompu' => $rompu, 'faces' => $faces, 'seuil' => $seuil];
+    }
+
+    /**
+     * Toutes les conditions du héros posées par un sort de Dread À RUPTURE, dans
+     * l'ordre où elles ont été subies.
+     *
+     * Lue à l'ouverture du tour (`ResolveurTour::ouvrirNouveauTour()`), le seul
+     * « début du tour » qu'un moteur par rounds possède.
+     *
+     * @return list<string>
+     */
+    public function conditionsARompre(Personnage $personnage): array
+    {
+        $noms = [];
+
+        foreach ($personnage->conditions()->get() as $condition) {
+            $source = (string) ($condition->pivot->source ?? '');
+
+            if (! str_starts_with($source, 'sort_dread:')) {
+                continue;
+            }
+
+            $sort = SortDread::where('nom', substr($source, strlen('sort_dread:')))->first();
+
+            if ($sort !== null
+                && in_array(data_get($sort->effet, 'resistance'), MotsClesSortDread::RESISTANCES_RUPTURE, true)) {
+                $noms[] = (string) $condition->nom;
+            }
+        }
+
+        return array_values(array_unique($noms));
+    }
+
+    /**
+     * `perd_prochain_tour` (*Étourdi*) : le héros saute son tour.
+     *
+     * ⚠ La clé vivait au catalogue **sans le moindre lecteur** depuis la
+     * création de la table — un héros étourdi jouait normalement. Elle n'avait
+     * aucun producteur non plus jusqu'à la carte *Tempest* du paquet de Dread
+     * (« That hero then misses their next turn »), qui la réveille des deux
+     * bouts à la fois.
+     *
+     * Consommée à l'ouverture du round, comme `saute_tour` l'est au tour du
+     * monstre : c'est un tour perdu, pas un état durable.
+     */
+    public function consommerTourPerdu(Personnage $personnage): bool
+    {
+        $perdu = false;
+
+        foreach ($personnage->conditions()->get() as $condition) {
+            if (! (bool) data_get($condition->effet, 'perd_prochain_tour', false)) {
+                continue;
+            }
+
+            $perdu = true;
+
+            // ⚠ On supprime par (héros, condition) et NON par `pivot->id` : la
+            // relation ne déclare que `duree` et `source` dans son `withPivot`,
+            // si bien que `pivot->id` est toujours nul — le DELETE ne touchait
+            // rien, et l'Étourdi restait posé à vie tout en sautant chaque tour.
+            DB::table('personnage_conditions')
+                ->where('personnage_id', $personnage->id)
+                ->where('condition_id', $condition->id)
+                ->delete();
+        }
+
+        return $perdu;
     }
 
     /**

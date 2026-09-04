@@ -329,7 +329,15 @@ final class Equipement
         // d'armure, mais la colonne reste la seule autorité sur la MATIÈRE :
         // le jour où une armure de cuir entre au catalogue, elle passera sans
         // qu'on ait à y revenir.
-        if ($objet->metallique && in_array($classe?->nom, self::SANS_METAL, true)) {
+        // ⚠ Le refus porte sur l'ARMURE de métal, pas sur le métal tout court.
+        // Les trois cartes disent « may not wear metal armor » : depuis que
+        // `metallique` marque aussi les épées (pour la Rouille du MJ, 2026-09-04),
+        // ne pas borner ce test aurait retiré au Druide et au Rogue toute arme
+        // de métal — une interdiction qu'aucune carte ne prononce, née d'une
+        // colonne qui a changé de portée.
+        if ($objet->metallique
+            && $objet->categorie === 'armure'
+            && in_array($classe?->nom, self::SANS_METAL, true)) {
             return false;
         }
 
@@ -655,11 +663,17 @@ final class Equipement
         // Le BOUCLIER, lui, reste désigné par son tag : les cartes le nomment
         // séparément du métal, et le marquer métallique retirerait au passage
         // son bouclier au Druide, à qui elles ne l'interdisent pas.
+        // ⚠ Et il s'agit d'ARMURE de métal : « when you are wearing no METAL
+        // ARMOR and carrying no shield ». Une épée à la ceinture n'a jamais
+        // alourdi le Barde, et `metallique` marque les épées depuis que la
+        // Rouille du MJ existe (2026-09-04). Sans ce filtre par catégorie, il
+        // aurait perdu son dé en dégainant.
         return $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
             ->with('objet')
             ->get()
-            ->contains(fn ($ligne) => (bool) $ligne->objet?->metallique
+            ->contains(fn ($ligne) => ((bool) $ligne->objet?->metallique
+                    && $ligne->objet?->categorie === 'armure')
                 || $ligne->objet?->tag_equipement === 'bouclier');
     }
 

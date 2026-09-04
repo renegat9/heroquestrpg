@@ -55,7 +55,26 @@ class ObjetSeeder extends Seeder
             //   « only the warlock »  → `arme_warlock`
             // `deux_mains` reste ORTHOGONAL au tag : il ne dit rien de la classe,
             // seulement qu'aucun bouclier ne l'accompagne.
-            ['nom' => 'Dague', 'categorie' => 'arme', 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
+            // ⚠ `metallique` est la MATIÈRE de la pièce, et depuis le 2026-09-04
+            // elle ne décrit plus seulement les armures : la carte de Dread
+            // *Rust* (« any one metal sword or helmet ») a besoin de savoir
+            // qu'une épée est en métal. La règle de marquage est simple et
+            // vérifiable : on marque une pièce quand un LECTEUR peut agir sur ce
+            // fait. Armures → les trois lecteurs de classe (Barde, Druide,
+            // Rogue) ; armes → la Rouille, et elle seule.
+            //
+            // Restent donc NON marqués, chacun pour sa raison :
+            //  - le **Bouclier**, décision documentée : les cartes le nomment
+            //    séparément du métal, et le marquer retirerait au Druide un
+            //    bouclier qu'elles lui laissent ;
+            //  - le **Bâton**, la **Baguette** et l'**Arbalète**, qui sont de
+            //    bois — c'est aussi ce qui les rend immunisés à la Rouille sans
+            //    qu'on ait à l'écrire nulle part ;
+            //  - les **artefacts en métal**, parce que la Rouille est « not
+            //    effective against artifacts » et qu'aucun autre lecteur ne
+            //    regarde la matière d'une ARME : ce serait un fait que rien ne
+            //    pourrait jamais lire.
+            ['nom' => 'Dague', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 25, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
                 // « A dagger can also be thrown at any monster you can see but
                 // is lost once it is thrown. » La perte, que nous appliquions
                 // sans source, est ÉCRITE sur la carte officielle.
@@ -73,22 +92,22 @@ class ObjetSeeder extends Seeder
             // contrairement à l'arbalète.
             ['nom' => 'Baguette', 'categorie' => 'arme', 'prix_base' => 125, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_warlock',
                 'effet' => ['des_attaque' => 2, 'portee' => 'distance']],
-            ['nom' => 'Épée courte', 'categorie' => 'arme', 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée courte', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 150, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2]],
             // La Hachette EXISTE au matériel officiel (© 2023) : doc 16 §2.1 et
             // un commentaire de GroupeController soutenaient le contraire.
-            ['nom' => 'Hachette', 'categorie' => 'arme', 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Hachette', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 200, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'jetable' => true]],
-            ['nom' => 'Rapière', 'categorie' => 'arme', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Rapière', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 2, 'attaque_diagonale' => true]],
             // Broadsword : 3 dés, PAS de diagonale — le diagramme des armes
             // longues du livret officiel (p. 14) lui oppose justement le bâton.
-            ['nom' => 'Épée large', 'categorie' => 'arme', 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée large', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 250, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => false]],
             // Longsword : l'une des deux seules armes que le livret OFFICIEL
             // nomme comme frappant en diagonale (« like the staff and the
             // longsword », p. 14). Une main : elle se combine au bouclier.
-            ['nom' => 'Épée longue', 'categorie' => 'arme', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            ['nom' => 'Épée longue', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
                 'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 // « You may fire at any monster that you can see. However, you
@@ -98,7 +117,7 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
             // La hache de bataille N'EST PAS une arme longue : sa carte dit
             // seulement « You may not use a shield when using this weapon ».
-            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
                 'effet' => ['des_attaque' => 4, 'deux_mains' => true]],
 
             // ----- Matériel : les 4 cartes qui ne sont ni arme ni armure -----
@@ -554,7 +573,7 @@ class ObjetSeeder extends Seeder
             // `armure_magicien` — les Brassards seraient restés réservés au
             // magicien sur les bases existantes, et ouverts à tous sur les
             // neuves. Constaté au re-seed du 2026-08-15.
-            ['nom' => 'Brassards', 'categorie' => 'armure', 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
+            ['nom' => 'Brassards', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
                 'effet' => ['des_defense' => 1]],
             // « While wearing the Plate Mail, you have a 2 square movement
             // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en

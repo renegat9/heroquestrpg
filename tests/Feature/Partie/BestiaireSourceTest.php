@@ -81,10 +81,14 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         'Assassin' => [10, 5, 3, 2, 3],
         'Garde-mage' => [8, 4, 4, 3, 3],
         'Spectre' => [8, 3, 3, 1, 0],
-        'Ombre du Dread' => [9, 6, 4, 5, 5],
+        // ⚠ Defend **3** et non 4 : voir la divergence DÉCLARÉE plus bas.
+        'Ombre du Dread' => [9, 6, 3, 5, 5],
         // The Mage of the Mirror
         'Guerrier elfe' => [6, 4, 3, 3, 2],
         'Loup géant' => [9, 6, 3, 5, 1],
+        // Sinestra, l'archemage (boss final, quête 9 — p. 30). ⚠ Mind 9 : la
+        // plus haute valeur du bestiaire, et c'est la fiche qui le dit.
+        'Archimage elfe' => [8, 4, 4, 4, 9],
         'Ogre' => [4, 6, 4, 5, 2],
         // The Frozen Horror
         'Gremlin des glaces' => [10, 2, 3, 3, 3],
@@ -107,6 +111,32 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
 
     foreach ($livrets as $nom => $attendu) {
         expect(statsDe($nom))->toBe($attendu, "{$nom} : bloc de stats");
+    }
+});
+
+it('déclare ses DIVERGENCES de stat, une par une, avec leur raison', function () {
+    // ⚠ Ce projet ne seede pas une valeur que les livrets ne sourcent pas. Quand
+    // il s'en écarte quand même, l'écart doit être NOMMÉ ici — sans quoi le
+    // tableau du dessus se contenterait d'enregistrer la dérive au lieu de la
+    // signaler. Une divergence déclarée est un arbitrage ; une divergence
+    // silencieuse est un bug qui a l'air d'une donnée.
+    $divergences = [
+        'Ombre du Dread' => [
+            'livret' => [9, 6, 4, 5, 5],   // Dread Wraith, Rise of the Dread Moon
+            'chez_nous' => [9, 6, 3, 5, 5],
+            'raison' => 'Éthérée : une arme ne la blesse que sur un bouclier noir (1/6) '
+                .'contre autant de dés qui parent sur 1/6, donc les dégâts nets valent '
+                .'(attaque − défense)/6. À 4 de défense elle était mathématiquement '
+                .'invulnérable aux armes en dessous de 5 dés, et encore 30 tours à 5. '
+                .'À 3 elle retombe dans la fourchette du Seigneur (15 tours à 5 dés). '
+                .'Arbitrage de René, 2026-09-04.',
+        ],
+    ];
+
+    foreach ($divergences as $nom => $ecart) {
+        expect(statsDe($nom))->toBe($ecart['chez_nous'], "{$nom} : la divergence déclarée n'est plus celle du catalogue");
+        expect($ecart['chez_nous'])->not->toBe($ecart['livret'], "{$nom} : plus aucune divergence — retirer l'entrée");
+        expect($ecart['raison'])->not->toBeEmpty("{$nom} : divergence sans raison écrite");
     }
 });
 

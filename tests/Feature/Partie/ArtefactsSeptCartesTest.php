@@ -487,7 +487,7 @@ it('renvoie le sort au lanceur ET à tous les monstres de sa salle', function ()
 
     $victime = $ctx['heros'];
     app(MoteurDegats::class)->infligerAHeros($victime, 2, MoteurDegats::SOURCE_SORT_DREAD, [
-        'sort' => 'Trait de Chaos', 'lanceur_id' => (int) $lanceur->id, 'des_degats' => 3,
+        'sort' => 'Boule de Flammes', 'lanceur_id' => (int) $lanceur->id, 'des_degats' => 3,
     ]);
 
     $etatElfe = EtatPersonnageQuete::where('quete_id', $ctx['quete']->id)

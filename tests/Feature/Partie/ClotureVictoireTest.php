@@ -45,7 +45,17 @@ it('le coup fatal au boss final ouvre AUTOMATIQUEMENT une clôture victoire (flu
     expect($quete->type_jalon)->toBe('boss_final');
 
     // Dernier monstre, affaibli, au contact du héros.
+    //
+    // ⚠ Le bloc du boss est FIGÉ ici depuis le 2026-09-04. La rencontre finale
+    // est désormais tirée dans un pool d'archétypes
+    // (`rencontre_finale.archetypes`), donc son bloc — taille de figurine,
+    // défense, répertoire de sorts — change d'une exécution à l'autre. Ce test
+    // porte sur la CLÔTURE de campagne, pas sur l'identité du boss : le laisser
+    // dépendre du tirage en faisait un test intermittent, ce qui est pire qu'un
+    // test rouge. On lui donne donc un adversaire connu, d'une seule case.
     $proie = $quete->instancesMonstres()->with('monstre')->orderBy('id')->firstOrFail();
+    $proie->update(['monstre_id' => App\Models\Monstre::where('nom_base', 'Seigneur')->value('id')]);
+    $proie->refresh()->load('monstre');
     $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heroA->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);

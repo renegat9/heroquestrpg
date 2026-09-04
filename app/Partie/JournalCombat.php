@@ -199,8 +199,149 @@ final class JournalCombat
             'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],
             'heros_endormi' => [$this->info(($a['personnage'] ?? $acteurNom).' est endormi — tour sauté')],
+            // ⚠ LA MAGIE DU MJ ÉTAIT MUETTE. `sort_dread` n'avait aucun cas
+            // ici et tombait au `default` : le boss lançait, un héros perdait
+            // ses PV, et le fil du combat n'en disait pas un mot. C'est le même
+            // défaut que le piège marché de 2026-08-05, et la même règle qu'il
+            // enfreint — un effet automatique que rien n'annonce est injouable.
+            'sort_dread' => $this->sortDread($a, $acteurNom),
+            'sort_dread_annule' => [$this->info("{$acteurNom} amorce ".($a['sort'] ?? 'un sort').' — sans effet')],
+            'rupture_sort_dread' => $this->ruptureSortDread($a),
+            'tour_perdu' => [$this->info(($a['nom'] ?? 'Le héros').' est encore étourdi — il passe son tour')],
+            'liberer_entraves' => [$this->info(
+                ! empty($a['sur_soi'])
+                    ? "{$acteurNom} s'arrache aux ronces"
+                    : "{$acteurNom} taille les ronces qui retiennent ".($a['cible']['nom'] ?? 'son compagnon'),
+            )],
             default => [],
         };
+    }
+
+    /**
+     * Un sort de Dread — la seule famille d'actions qui puisse frapper cinq
+     * héros, n'en frapper aucun, soigner, invoquer ou faire disparaître son
+     * lanceur. Une ligne d'annonce, puis une ligne par victime.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function sortDread(array $a, string $acteurNom): array
+    {
+        $nom = $a['sort'] ?? 'un sort';
+        $lignes = [];
+
+        // Soin, invocation, réanimation, fuite : une seule ligne suffit, et
+        // elle doit dire ce qui vient de changer sur le plateau.
+        if (isset($a['soin'])) {
+            $cible = ! empty($a['sur_soi']) ? 'lui-même' : ($a['cible']['nom'] ?? 'un des siens');
+
+            return [$this->info("{$acteurNom} — {$nom} : soigne {$cible} (+{$a['soin']} PV)")];
+        }
+
+        if (isset($a['invoques'])) {
+            $compte = count((array) $a['invoques']);
+
+            return [[
+                'texte' => $compte === 0
+                    ? "{$acteurNom} — {$nom} : l'appel reste sans réponse"
+                    : "{$acteurNom} — {$nom} : {$compte} créature".($compte > 1 ? 's' : '').' surgi'.($compte > 1 ? 'ssent' : 't'),
+                'ton' => $compte === 0 ? 'echec' : 'degats',
+            ]];
+        }
+
+        if (isset($a['releves'])) {
+            $compte = count((array) $a['releves']);
+
+            return [[
+                'texte' => $compte === 0
+                    ? "{$acteurNom} — {$nom} : aucun mort ne se relève"
+                    : "{$acteurNom} — {$nom} : {$compte} mort".($compte > 1 ? 's' : '').' se relève'.($compte > 1 ? 'nt' : '').' !',
+                'ton' => $compte === 0 ? 'echec' : 'mort',
+            ]];
+        }
+
+        if (isset($a['vers'])) {
+            return [$this->info("{$acteurNom} — {$nom} : il se dérobe et disparaît")];
+        }
+
+        $resultats = (array) ($a['resultats'] ?? []);
+
+        // *Rouille* : la seule ligne du fil qui annonce une perte DÉFINITIVE.
+        // Elle doit se lire comme telle — un joueur qui verrait « −1 dé » sans
+        // savoir pourquoi chercherait la panne pendant trois tours.
+        if (isset($resultats[0]['objet_detruit'])) {
+            return [[
+                'texte' => "{$nom} ronge ".($resultats[0]['cible']['nom'] ?? 'un héros')
+                    .' : '.$resultats[0]['objet_detruit'].' tombe en poussière — définitivement',
+                'ton' => 'mort',
+            ]];
+        }
+
+        // ⚠ La ligne d'annonce n'apparaît qu'à partir de DEUX victimes : sur une
+        // seule, elle doublerait la ligne suivante sans rien ajouter.
+        if (count($resultats) > 1) {
+            $lignes[] = $this->info("{$acteurNom} — {$nom} : ".count($resultats).' héros pris dans le sort');
+        }
+
+        foreach ($resultats as $r) {
+            $cible = $r['cible']['nom'] ?? 'un héros';
+
+            if (! empty($r['absorbe'])) {
+                $lignes[] = ['texte' => "{$cible} absorbe {$nom}", 'ton' => 'pare'];
+
+                continue;
+            }
+
+            // Sort de CONTRÔLE : il pose une condition, il ne blesse pas.
+            if (array_key_exists('effet_applique', $r) && ! isset($r['degats'])) {
+                $lignes[] = empty($r['effet_applique'])
+                    ? ['texte' => "{$cible} résiste à {$nom}", 'ton' => 'pare']
+                    : ['texte' => "{$cible} subit {$nom} — ".($a['condition'] ?? 'affecté'), 'ton' => 'subit'];
+
+                continue;
+            }
+
+            $degats = (int) ($r['degats'] ?? 0);
+
+            if (! empty($r['cible_tombee'])) {
+                $lignes[] = ['texte' => "{$nom} terrasse {$cible} !", 'ton' => 'chute'];
+            } elseif ($degats > 0) {
+                $lignes[] = ['texte' => "{$nom} frappe {$cible} (−{$degats} PV)", 'ton' => 'subit'];
+            } else {
+                $lignes[] = ['texte' => "{$cible} encaisse {$nom} sans dommage", 'ton' => 'pare'];
+            }
+        }
+
+        foreach ((array) ($a['monstres_touches'] ?? []) as $m) {
+            $lignes[] = [
+                'texte' => ($m['monstre'] ?? 'Une créature').' est prise dans '.$nom.' (−'.($m['degats'] ?? 0).' PV)'
+                    .(! empty($m['vaincu']) ? ' — elle tombe !' : ''),
+                'ton' => ! empty($m['vaincu']) ? 'mort' : 'degats',
+            ];
+        }
+
+        return $lignes === [] ? [$this->info("{$acteurNom} lance {$nom}")] : $lignes;
+    }
+
+    /**
+     * La tentative de rupture jouée au début du tour d'un héros.
+     *
+     * ⚠ Elle se dit même quand elle ÉCHOUE, et c'est tout l'intérêt : sans
+     * cette ligne, un héros endormi verrait passer trois rounds sans savoir
+     * qu'on lance des dés pour lui à chaque fois.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function ruptureSortDread(array $a): array
+    {
+        $nom = $a['nom'] ?? 'Le héros';
+        $condition = $a['condition'] ?? 'le sort';
+        $des = empty($a['faces']) ? '' : ' · '.implode(', ', (array) $a['faces']);
+
+        return [empty($a['rompu'])
+            ? ['texte' => "{$nom} ne parvient pas à briser {$condition}{$des}", 'ton' => 'echec']
+            : ['texte' => "{$nom} brise {$condition} !{$des}", 'ton' => 'succes']];
     }
 
     /**

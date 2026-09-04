@@ -75,6 +75,15 @@ const ICONE_TYPE = {
     actionner_levier: 'toggle_on',
     equiper: 'swords',
     desequiper: 'backpack',
+    // Ajouté le 2026-09-04 avec l'*Étreinte des Ronces* (carte de Dread
+    // *Creeping Grasp*) : « spend an action to DESTROY THE VINES ». On coupe,
+    // d'où le sécateur plutôt qu'une main tendue.
+    liberer_entraves: 'content_cut',
+    // ⚠ Ces deux-là MANQUAIENT et tombaient sur `touch_app` depuis leur
+    // création — même défaut que celui noté plus haut le 2026-09-01, repéré en
+    // ajoutant le voisin du dessus.
+    soin_allie: 'healing',
+    detacher_rejetons: 'pest_control',
 };
 
 /** Élément d'une option type "sort" : porté par l'option ou retrouvé

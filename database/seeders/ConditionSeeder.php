@@ -17,18 +17,61 @@ class ConditionSeeder extends Seeder
         $conditions = [
             ['nom' => 'Empoisonné', 'type' => 'physique', 'duree_defaut' => 3,
                 'effet' => ['degats_pv_body_par_tour' => 1, 'resistance_possible' => 'Sang robuste']],
-            ['nom' => 'Étourdi', 'type' => 'physique', 'duree_defaut' => 1,
+            // ⚠ `duree_defaut` passe de 1 à 0 le 2026-09-04, quand
+            // `perd_prochain_tour` a enfin reçu son lecteur. Un compteur d'un
+            // tour et un effet consommé au tour suivant sont deux sorties pour
+            // la même condition, et elles se COURAIENT APRÈS :
+            // `decrementerDurees()` retirait l'Étourdi à la fin du round, juste
+            // avant que l'ouverture du tour ne vienne le lire. Le tour n'était
+            // jamais perdu. 0 = « pas de compteur, la sortie est un
+            // déclencheur » — ici, la consommation du tour.
+            ['nom' => 'Étourdi', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['perd_prochain_tour' => true]],
+            // ⚠ « may ONLY USE 1 Attack die » (carte *Fear*, doc 09 §4bis) :
+            // c'est un PLAFOND, pas un malus. `malus_des_attaque: 1` ne coûtait
+            // qu'un dé au barbare qui en lance cinq, là où la carte le ramène au
+            // même dé unique que tout le monde. La règle est en outre déjà
+            // écrite ainsi côté MONSTRES depuis toujours — `terrifie` y fait
+            // `min($des, 1)` dans `InstanceMonstre::apresConditions()`. Les deux
+            // bords de la table disent enfin la même chose.
             ['nom' => 'Apeuré', 'type' => 'mental', 'duree_defaut' => 0,
-                'effet' => ['malus_des_attaque' => 1, 'interdit_avancer_vers_menace' => true, 'fin' => 'jet_mind_reussi']],
+                'effet' => ['des_attaque_max' => 1, 'interdit_avancer_vers_menace' => true, 'fin' => 'rupture_du_sort']],
             ['nom' => 'Endormi', 'type' => 'mental', 'duree_defaut' => 0,
                 'effet' => ['hors_combat' => true, 'fin' => 'reveil_ou_attaque']],
-            ['nom' => 'Commandé', 'type' => 'mental', 'duree_defaut' => 1,
-                'effet' => ['controle_par_ennemi' => true]],
+            // ⚠ `duree_defaut` passe de 1 à 0 le 2026-09-04 : la carte *Command*
+            // ne donne AUCUNE durée, elle donne une condition de rupture (1 d6
+            // par point de Mind, un 6 libère). Un compteur d'un tour rendait le
+            // sort le plus cruel du paquet strictement inoffensif.
+            ['nom' => 'Commandé', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['controle_par_ennemi' => true, 'fin' => 'rupture_du_sort']],
             ['nom' => 'Ralenti', 'type' => 'physique', 'duree_defaut' => 3,
                 'effet' => ['malus_deplacement' => 2]],
+            // *Étreinte des Ronces* (carte *Creeping Grasp*) lui donne enfin son
+            // premier PRODUCTEUR, et à son `fin: liberation` son premier
+            // lecteur : « the targeted hero or another adjacent hero can spend
+            // an action to destroy the vines ». La condition dormait au
+            // catalogue depuis la création de la table, posée par personne.
             ['nom' => 'Immobilisé', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'liberation']],
+            // ---- Deux conditions nées des cartes de Dread (2026-09-04) ----
+            //
+            // *Choc Mental* (carte *Mind Blast*) : « This hero cannot move or
+            // attack. THE HERO DEFENDS WITH 1 COMBAT DIE. »
+            // ⚠ Ce n'est PAS *Paralysé*, et toute la différence tient en un mot :
+            // le paralysé ne défend pas du tout (`defense_nulle`), celui-ci
+            // défend à un dé. D'où `des_attaque_max: 0` (il ne frappe plus) et
+            // `des_defense_max: 1`, tous deux lus par le seul calcul de défense
+            // et d'attaque qui fasse foi.
+            ['nom' => 'Esprit brisé', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['deplacement_interdit' => true, 'des_attaque_max' => 0,
+                    'des_defense_max' => 1, 'fin' => 'rupture_du_sort']],
+            // *Feux de l'Effroi* (carte *Dreadlights*) : « All monsters roll one
+            // additional Attack die when attacking the affected hero. »
+            // Le héros n'est ni entravé ni affaibli — il est DÉSIGNÉ, et c'est
+            // l'adversaire qui gagne le dé. La seule condition du catalogue dont
+            // l'effet s'applique à quelqu'un d'autre que son porteur.
+            ['nom' => 'Désigné', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['bonus_des_attaque_ennemie' => 1, 'fin' => 'rupture_du_sort']],
             // ⚠ « Caché » n'a plus de producteur depuis le 2026-09-02 : la carte
             // de *Voile de Brume* décrit un mode de DÉPLACEMENT (traverser les
             // cases occupées), pas une invisibilité. La ligne reste au catalogue

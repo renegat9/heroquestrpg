@@ -62,7 +62,11 @@ it('résout le répertoire complet de l\'archétype pour un lanceur nommé', fun
 
     expect($sorts)
         ->toContain('Tempête de feu')
-        ->toContain('Trait de Chaos')
+        // ⚠ L'*Éclair de Chaos* (carte *Lightning Bolt*) a remplacé le *Trait de
+        // Chaos* le 2026-09-04 : ce dernier était notre seule invention du
+        // catalogue de Dread, et il portait à lui seul la frappe à distance du
+        // répertoire du Maître des tempêtes.
+        ->toContain('Éclair de Chaos')
         ->toContain('Fuite')
         // L'invocation appartient au Nécromancien, pas au Maître des tempêtes.
         ->not->toContain('Invocation de morts-vivants');
@@ -78,12 +82,115 @@ it('donne au Nécromancien son propre répertoire (invocation + contrôle)', fun
 });
 
 it('retombe sur la liste sorts_dread propre quand aucun archétype n\'est défini', function () {
-    // Seigneur (catalogue de base) n'a pas d'archétype : il garde sa liste propre.
-    $sorts = repertoireDe('Seigneur');
+    // ⚠ Le CHAMPION depuis le 2026-09-04, plus le Seigneur : celui-ci a reçu un
+    // archétype pour entrer dans le pool de rencontre finale. Le Champion reste
+    // donc le seul porteur EN PRODUCTION du repli de `repertoireSorts()`, et
+    // c'est délibéré — une branche que plus aucune donnée n'emprunte est une
+    // branche dont on ne sait plus si elle marche.
+    $sorts = repertoireDe('Champion');
 
     expect($sorts)
-        ->toContain('Invocation de morts-vivants')
-        ->toContain('Fuite');
+        ->toContain('Sommeil')
+        ->toContain('Tempête de feu');
+});
+
+it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', function () {
+    // ⚠ LE VERROU ANTI-RÉGRESSION du 2026-09-04. `rencontre_finale.archetype`
+    // existait depuis la 3.8, fonctionnait, et **aucun gabarit ne l'avait jamais
+    // rempli** : le repli prenait donc toujours le leader de coût du palier, le
+    // Seigneur fermait TOUTES les quêtes, et pas un seul lanceur nommé n'avait
+    // jamais été tiré en partie. C'est la leçon des leviers — un champ qui
+    // marche mais que personne ne remplit est aussi muet qu'un champ sans
+    // lecteur, et rien ne le signale.
+    $gabarits = App\Models\GabaritQuete::all();
+    expect($gabarits)->not->toBeEmpty();
+
+    $avecFinale = $gabarits->filter(fn ($g) => data_get($g->structure, 'rencontre_finale.tier') !== null);
+    expect($avecFinale)->not->toBeEmpty();
+
+    foreach ($avecFinale as $gabarit) {
+        $tier = (string) data_get($gabarit->structure, 'rencontre_finale.tier');
+        $pool = (array) data_get($gabarit->structure, 'rencontre_finale.archetypes', []);
+
+        expect($pool)->not->toBeEmpty("{$gabarit->nom} : aucun archétype de rencontre finale.");
+
+        foreach ($pool as $cle) {
+            // L'archétype existe…
+            expect(config("archetypes_lanceurs.{$cle}"))
+                ->not->toBeNull("{$gabarit->nom} : archétype « {$cle} » inconnu.");
+
+            // …et il est porté par une créature DU BON PALIER, sans quoi le
+            // tirage ne le trouverait jamais et retomberait en silence sur le
+            // leader de coût.
+            expect(Monstre::where('archetype_lanceur', $cle)->where('tier', $tier)->exists())
+                ->toBeTrue("{$gabarit->nom} : « {$cle} » n'est porté par aucun monstre de palier {$tier}.");
+        }
+    }
+});
+
+it('facture PLUS CHER une créature éthérée, à tous les paliers', function () {
+    // ⚠ Une éthérée ne se blesse à l'arme que sur un bouclier noir (1/6) au lieu
+    // d'un crâne (3/6) : mesurée sur l'Ombre du Dread à 5 dés d'attaque, elle
+    // tient SIX fois plus longtemps qu'un bloc identique non éthéré. Son prix
+    // doit le dire (René, 2026-09-04), sans quoi le budget de rencontre la paie
+    // au tarif d'un monstre ordinaire et lui adjoint une escorte complète.
+    $demarreur = app(DemarreurQuete::class);
+
+    $ombre = Monstre::where('nom_base', 'Ombre du Dread')->firstOrFail();
+    $liche = Monstre::where('nom_base', 'Liche')->firstOrFail();
+
+    expect($demarreur->coutEffectif($ombre))
+        ->toBe((int) ceil((int) $ombre->cout * DemarreurQuete::RATIO_COUT_ETHERE))
+        ->toBeGreaterThan((int) $ombre->cout);
+
+    // …et une créature ordinaire paie son prix affiché.
+    expect($demarreur->coutEffectif($liche))->toBe((int) $liche->cout);
+
+    // ⚠ Le SPECTRE aussi : il est éthéré, de tier `base`, et acheté comme sbire
+    // ordinaire. Ne majorer que le boss aurait laissé le même défaut un palier
+    // plus bas — c'est pour cela que `coutEffectif()` est un point de passage et
+    // pas une ligne dans l'achat de la rencontre finale.
+    $spectre = Monstre::where('nom_base', 'Spectre')->firstOrFail();
+    expect($demarreur->coutEffectif($spectre))->toBeGreaterThan((int) $spectre->cout);
+});
+
+it('fait TOURNER la rencontre finale dans le pool, sans hasard', function () {
+    $demarreur = app(DemarreurQuete::class);
+    $methode = new ReflectionMethod($demarreur, 'acheterMonstres');
+    $methode->setAccessible(true);
+
+    $pool = ['necromancien', 'maitre_tempetes', 'spectre_effroi', 'horreur_glacee', 'archimage_elfe'];
+    $structure = ['rencontre_finale' => ['tier' => 'boss', 'archetypes' => $pool]];
+    $attendus = Monstre::whereIn('archetype_lanceur', $pool)->pluck('nom_base')->all();
+
+    $parPosition = [];
+    for ($position = 1; $position <= 6; $position++) {
+        $parPosition[$position] = $methode->invoke($demarreur, $structure, 30, 5, $position, 0)[0]->nom_base;
+    }
+
+    // Chaque adversaire sort DU pool…
+    foreach ($parPosition as $nom) {
+        expect(in_array($nom, $attendus, true))->toBeTrue("« {$nom} » ne fait pas partie du pool.");
+    }
+
+    // …et l'adversaire CHANGE d'un jalon à l'autre : c'est ce qui distingue une
+    // rotation d'un `first()` déguisé, et c'est tout l'objet du correctif.
+    expect(count(array_unique($parPosition)))->toBeGreaterThan(1);
+
+    // ⚠ Et il est STABLE : rejouer la même quête doit rendre le même boss. Le
+    // boss final est un PLACEMENT, pas une pioche — même raison que
+    // `salle_artefact`, qu'une reprise ne re-tire jamais. Sans cela,
+    // « Recommencer la quête » deviendrait un bouton pour changer d'adversaire
+    // jusqu'à tomber sur le plus commode.
+    expect($methode->invoke($demarreur, $structure, 30, 5, 3, 0)[0]->nom_base)
+        ->toBe($parPosition[3]);
+
+    // …et deux GROUPES ne suivent pas la même succession.
+    $autreGroupe = [];
+    for ($position = 1; $position <= 6; $position++) {
+        $autreGroupe[$position] = $methode->invoke($demarreur, $structure, 30, 5, $position, 2)[0]->nom_base;
+    }
+    expect($autreGroupe)->not->toBe($parPosition);
 });
 
 it('assigne le lanceur nommé demandé comme rencontre finale (indice de gabarit)', function () {
@@ -161,8 +268,11 @@ it('filtre le répertoire de l\'archétype par PALIER : le sous-boss n\'a pas le
         ->and($sorts)
         ->toContain('Frayeur')
         ->toContain('Sommeil')
-        ->toContain('Trait de Chaos')
-        ->not->toContain('Commandement');
+        // Palier `base` : un sous-boss y a droit, c'est le sens du minimum.
+        ->toContain("Canaliser l'Effroi")
+        // Palier `boss` : refusés au Chamane Gobelin, sous-boss.
+        ->not->toContain('Commandement')
+        ->not->toContain("Invocation d'orques");
 });
 
 it('connaît le palier de CHAQUE sort du catalogue (aucun rang muet)', function () {

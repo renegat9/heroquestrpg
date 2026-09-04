@@ -1017,30 +1017,90 @@ quête — départ playtest : sous-boss 2, boss 3) et qu'une cible vaut le coup,
 sinon capacité, sinon déplacement+attaque normal. Le moteur décide et résout ;
 l'IA ne fait que narrer (les payloads de narration portent le détail).
 
-Trois règles cadrent le choix, et elles sont symétriques de celles des héros :
+Quatre règles cadrent le choix, et elles sont symétriques de celles des héros :
 
-- **Ligne de vue obligatoire** pour tout sort de Dread, figures interposées
-  bloquantes — même filtre que les sorts de héros (LR p. 14). Un héros dans
-  une salle jamais ouverte n'est pas une cible. La Fuite fait exception : elle
-  s'éloigne de TOUS les héros debout, visibles ou non.
-- **`sorts_dread.palier` est un tier MINIMUM** : un sous-boss ne lance jamais
-  Invocation, Commandement ni Fuite, même si son répertoire les liste. C'est
-  ce qui fait monter un archétype nommé avec le rang de la créature.
-- **La Tempête de feu se choisit sur sa zone réelle** (case du lanceur + 4
-  orthogonales), pas sur le nombre de héros debout : elle n'est plus lancée
-  dans le vide.
+- **Ligne de vue obligatoire** pour tout sort à cible unique, figures
+  interposées bloquantes — même filtre que les sorts de héros (LR p. 14). Un
+  héros dans une salle jamais ouverte n'est pas une cible. ⚠ Un sort de **zone**
+  ne la demande pas : « all heroes in the same room » n'épargne pas celui qui se
+  tient derrière une armoire. La Fuite fait aussi exception — elle s'éloigne de
+  TOUS les héros debout, visibles ou non.
+- **Le boss final tourne dans un pool** : `gabarits_quete.structure.rencontre_finale.archetypes`
+  est une **liste** de clés d'archétype, parcourue par ROTATION sur
+  `(id du groupe + position d'arc)` — pas un tirage : un boss est un placement,
+  il doit rester le même après un « Recommencer la quête » ou une reprise. Le
+  singulier `archetype` reste lu. Sans pool exploitable, repli historique sur le
+  leader de coût du palier. ⚠ Le champ existait depuis la 3.8 et n'avait jamais
+  été rempli : le Seigneur fermait toutes les quêtes et aucun lanceur nommé
+  n'apparaissait jamais.
+- **`sorts_dread.palier` est un tier MINIMUM**, et il en existe **trois** :
+  `base` · `sous_boss` · `boss`. Le palier `base` est né des extensions, qui
+  donnent la magie à des créatures ordinaires (Cultiste du Dread, Spectre,
+  Tisseur putride — doc 18). Un monstre de tier `base` qui porte un répertoire
+  reçoit **1 usage** par rencontre.
+- **Le choix se fait par MÉCANIQUE, jamais par nom de sort.** `sortUtilisable()`
+  filtre (zone vide, couloir interdit, personne à soigner, verrou consommé) puis
+  `scoreSort()` note par famille — une zone qui prend plusieurs héros passe
+  devant tout, puis les dégâts, le contrôle, les renforts, le soin, et la fuite
+  en dernier. À égalité, l'ORDRE DU RÉPERTOIRE tranche.
+- **Une zone se choisit sur sa zone réelle**, jamais sur le nombre de héros
+  debout : `casesDeZone()` est le seul point de passage du choix ET de la
+  résolution.
 
-**Sorts de Dread** (résolution identique aux sorts héros — le **jet de Mind du
-héros** utilise son `attribut_mind`, S2 binaire) :
-Trait de Chaos (2 dés à distance, défense applicable) ; Frayeur (résiste sinon
-condition `frayeur` : −1 dé d'attaque 2 tours) ; Sommeil (résiste sinon
-`endormi` : ne joue pas, une attaque subie le réveille) ; Tempête de feu (zone :
-la case ciblée + adjacentes orthogonales, 2 dés chacun, défense applicable —
-peut toucher plusieurs héros) ; Invocation de morts-vivants (2 squelettes sur
-cases libres adjacentes au lanceur, 1×/rencontre) ; Commandement (résiste sinon
-`commande` : à son prochain tour le héros est joué par le moteur — il attaque
-l'allié adjacent sinon avance vers le plus proche allié) ; Fuite (le lanceur se
-téléporte sur la case libre la plus éloignée des héros).
+**Sorts de Dread — 22 sorts, un par CARTE OFFICIELLE** (`dread_spells.pdf`,
+29 cartes, doc 09 §4bis). ⚠ Le *Trait de Chaos* a été **supprimé** le
+2026-09-04 : il n'existait sur aucune carte. Les sept cartes non portées sont
+recensées dans `config/cartes.php` (section `dread`) et exposées par
+`GET /api/guide`, chacune avec la mécanique qui lui manque.
+
+| Type | Sorts | Résolution |
+|---|---|---|
+| `degats` | Boule de Flammes, Tempête de feu, Éclair de Chaos, Morsure de Froid, Canaliser l'Effroi, Tempête de Glace | montant **fixe** réduit par des d6 bruts (`des_rouges`), paliers sur un d6, ou dés de combat |
+| `controle` | Sommeil, Frayeur, Tourmente, Commandement, Nuée d'Effroi, Choc Mental, Feux de l'Effroi, Étreinte des Ronces | pose une condition ; sortie par **rupture**, pas par compteur |
+| `invocation` | Invocation de morts-vivants / d'orques / de loups / de spectres, Réanimation | composition tirée sur un **d6** (`table_d6`) |
+| `soin` | Apaisement, Restauration de l'Effroi | rend au plus ce qui a été **perdu** |
+| `fuite` | Fuite | case libre la plus éloignée |
+| `destruction` | Rouille | **détruit** une pièce de métal portée, définitivement |
+
+⚠ **La résistance a changé de nature.** Aucune carte du paquet n'accorde un jet
+de Mind **au lancer** : le sort prend, et c'est sa **poursuite** qui est
+contestée. Cinq cartes donnent « 1 d6 par point de Mind, un 6 libère »
+(`rupture_6_par_mind`), une sixième « 1 d6, 5 ou 6 » (`rupture_5_6_un_de`,
+*Dreadlights* — elle ne parle pas du Mind du tout). La rupture est tentée
+**immédiatement**, puis **à l'ouverture de chaque tour**.
+
+⚠ **Payload unifié.** Un sort de Dread rend toujours
+`{type: "sort_dread", sort, resultats: [...]}` — une entrée par victime, même
+quand il n'y en a qu'une. Les clés par victime (`cible`, `degats`,
+`pv_body_apres`, `cible_tombee`, `effet_applique`, `contresort`,
+`rupture_immediate`, `absorbe`) vivent **dans `resultats[]`**, plus au niveau
+racine : un sort de contrôle peut désormais prendre toute une salle, et deux
+formes de payload pour la même famille finissent par diverger. S'y ajoutent
+`cases_affectees` (zones uniquement), `monstres_touches` (tir ami du MJ),
+`invoques`+`de`, `releves`, `soin`+`sur_soi`, `vers` selon la famille.
+
+⚠ **Deux nouveaux payloads d'ouverture de tour**, remontés dans
+`resultat.tour_monstres.actions` et journalisés :
+`{type: "rupture_sort_dread", personnage_id, nom, condition, rompu, faces, seuil}`
+et `{type: "tour_perdu", personnage_id, nom, cause}`. Un jet de dés que
+personne ne voit n'a pas eu lieu pour la table.
+
+⚠ **La Rouille est le seul sort dont l'effet SURVIT À LA QUÊTE.** « Not
+effective against artifacts » : `effet.detruit` déclare la matière
+(`objets.metallique`), les emplacements visés (mains + casque) et l'exemption
+des artefacts. La pièce quitte l'inventaire et `Equipement::recalculerCombat()`
+remet `des_attaque`/`des_defense` à jour — ce sont des **colonnes**, pas un
+calcul à la volée. Payload : `resultats[0]` porte `objet_detruit`,
+`emplacement`, `des_attaque_apres`, `des_defense_apres`.
+⚠ `objets.metallique` a changé de portée avec elle : la colonne marque
+désormais **toute pièce dont un lecteur peut lire la matière** (épées, haches,
+brassards compris), et les deux lecteurs de classe sont **bornés à la catégorie
+`armure`** — sans quoi le Druide et le Rogue auraient perdu toute arme de métal.
+
+⚠ **Nouveau type d'option de menu** : `liberer_entraves` (*Étreinte des
+Ronces*) — coûte l'**action**, porte `parametres.cibles` (soi + voisins
+entravés) comme `soin_allie`, et le résolveur revalide contre cette liste
+blanche. Payload : `{type: "liberer_entraves", cible, sur_soi}`.
 
 **Capacités** (`monstres.capacites` JSON) : Invocation (comme le sort, sbires
 de base — payload `{type: "capacite_dread", capacite: "invocation", invoques}` ;
@@ -1053,6 +1113,11 @@ Charge (si hors contact et joignable : déplacement + attaque à +1 dé).
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états ;
 un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
+⚠ Quatre conditions de plus depuis les cartes officielles : *Esprit brisé*
+(Choc Mental — ne bouge ni ne frappe, défend à **1 dé**), *Désigné* (Feux de
+l'Effroi — **les monstres** gagnent 1 dé contre lui), *Immobilisé* (Étreinte des
+Ronces — se libère par une action), et *Apeuré*, qui **plafonne** désormais
+l'attaque à 1 dé au lieu de la diminuer de 1.
 
 ## Modèle de session : Narrateur (table) vs Joueur (compte)
 

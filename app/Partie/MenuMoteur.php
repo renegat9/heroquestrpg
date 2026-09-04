@@ -1148,6 +1148,41 @@ final class MenuMoteur
                 ];
             }
 
+            // LIBÉRER DES ENTRAVES — *Étreinte des Ronces* (carte *Creeping
+            // Grasp*) : « The targeted hero OR ANOTHER ADJACENT HERO can spend
+            // an action to destroy the vines, freeing the ensnared hero. »
+            //
+            // ⚠ Soi-même OU un voisin, et c'est ce qui rend la carte jouable :
+            // un héros entravé seul n'est pas condamné, il paie son action ;
+            // entouré, un compagnon le tire de là sans que lui perde la sienne.
+            // Même forme que `soin_allie` — UNE option qui porte ses cibles,
+            // jamais une par voisin (`parametres.cibles` EST la liste blanche).
+            $entraves = $quete->etatsPersonnages()
+                ->with('personnage')
+                ->get()
+                ->filter(fn ($e) => $e->personnage !== null
+                    && ! $e->tombe
+                    && $e->position_x !== null
+                    && abs((int) $e->position_x - (int) $etat->position_x) <= 1
+                    && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                    && $this->sorts->deplacementInterdit($e->personnage))
+                ->values();
+
+            if ($entraves->isNotEmpty()) {
+                $options[] = [
+                    'id' => 'liberer_entraves',
+                    'libelle' => 'Détruire les entraves',
+                    'type' => 'liberer_entraves',
+                    'parametres' => [
+                        'cibles' => $entraves->map(fn ($e) => [
+                            'id' => (int) $e->personnage_id,
+                            'nom' => (string) $e->personnage->nom,
+                            'soi' => (int) $e->personnage_id === (int) $personnage->id,
+                        ])->values()->all(),
+                    ],
+                ];
+            }
+
             // `soin_allie` (Ballade apaisante du barde, Appel au ralliement du
             // chevalier) : 1d6 PV à un héros AU CONTACT, une fois par quête.
             //

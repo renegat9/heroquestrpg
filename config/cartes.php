@@ -257,4 +257,84 @@ return [
                 'manque' => 'GLACE — cavernes gelées inexistantes.'],
         ],
     ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | Sorts de Dread — dread_spells.pdf (29 cartes officielles Hasbro)
+    |---------------------------------------------------------------------------
+    |
+    | La magie du MJ, transcrite carte par carte en doc 09 §4bis. Photos de René
+    | du 2026-09-04 : 30 clichés, dont deux tirages de *Channel Dread* (2023 et
+    | 2024, texte identique).
+    |
+    | `sort_dread` = nom au catalogue quand la carte est portée (22 sur 29).
+    | `manque`     = la mécanique absente du moteur quand elle ne l'est pas.
+    |
+    | ⚠ Ce paquet a coûté un sort au catalogue plutôt que d'en ajouter un : le
+    | **Trait de Chaos** n'existe sur aucune carte, c'était notre invention, et
+    | il est parti par migration — comme les cinq artefacts sans carte du
+    | 2026-09-03. « Les cartes sont la source » n'est une propriété que si elle
+    | retire autant qu'elle ajoute.
+    |
+    | ⚠ Les sept écartées le sont ENTIÈREMENT. Deux d'entre elles — *Dispel* et
+    | *Mirror Magic* — manquent la même chose, et c'est pour cela qu'elles sont
+    | voisines ici : un monstre qui AGIT HORS DE LA PHASE DES MONSTRES.
+    */
+    'dread' => [
+        'source' => 'dread_spells.pdf',
+        'url' => 'https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53',
+        'libelle' => 'Sorts de Dread (cartes officielles Hasbro)',
+        'cartes' => [
+            // ---- Dégâts ----
+            ['carte' => 'Ball of Flame', 'paquet' => 'Base', 'sort_dread' => 'Boule de Flammes'],
+            ['carte' => 'Firestorm', 'paquet' => 'Base', 'sort_dread' => 'Tempête de feu'],
+            ['carte' => 'Lightning Bolt', 'paquet' => 'Base', 'sort_dread' => 'Éclair de Chaos'],
+            ['carte' => 'Chill', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Morsure de Froid'],
+            ['carte' => 'Channel Dread', 'paquet' => 'Dread Moon / Delthrak', 'sort_dread' => "Canaliser l'Effroi"],
+            ['carte' => 'Ice Storm', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Tempête de Glace'],
+
+            // ---- Contrôle ----
+            ['carte' => 'Sleep', 'paquet' => 'Base', 'sort_dread' => 'Sommeil'],
+            ['carte' => 'Fear', 'paquet' => 'Base', 'sort_dread' => 'Frayeur'],
+            ['carte' => 'Tempest', 'paquet' => 'Base', 'sort_dread' => 'Tourmente'],
+            ['carte' => 'Command', 'paquet' => 'Base', 'sort_dread' => 'Commandement'],
+            ['carte' => 'Cloud of Dread', 'paquet' => 'Base', 'sort_dread' => "Nuée d'Effroi"],
+            ['carte' => 'Mind Blast', 'paquet' => 'Dread Moon', 'sort_dread' => 'Choc Mental'],
+            ['carte' => 'Dreadlights', 'paquet' => 'Dread Moon', 'sort_dread' => "Feux de l'Effroi"],
+            ['carte' => 'Creeping Grasp', 'paquet' => 'Delthrak', 'sort_dread' => 'Étreinte des Ronces'],
+
+            // ---- Invocation ----
+            ['carte' => 'Summon Undead', 'paquet' => 'Base', 'sort_dread' => 'Invocation de morts-vivants'],
+            ['carte' => 'Summon Orcs', 'paquet' => 'Base', 'sort_dread' => "Invocation d'orques"],
+            ['carte' => 'Summon Wolves', 'paquet' => 'Mage of the Mirror', 'sort_dread' => 'Invocation de loups'],
+            ['carte' => 'Summon Specters', 'paquet' => 'Dread Moon', 'sort_dread' => 'Invocation de spectres'],
+            ['carte' => 'Reanimation', 'paquet' => 'Dread Moon', 'sort_dread' => 'Réanimation'],
+
+            // ---- Soin / évasion ----
+            ['carte' => 'Soothe', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Apaisement'],
+            ['carte' => 'Restore Dread', 'paquet' => 'Dread Moon', 'sort_dread' => "Restauration de l'Effroi"],
+            ['carte' => 'Escape', 'paquet' => 'Base', 'sort_dread' => 'Fuite'],
+
+            // ---- Non portées : chacune avec la mécanique qui lui manque ----
+            ['carte' => 'Mind Freeze', 'paquet' => 'Frozen Horror', 'nom' => "Gel de l'Esprit",
+                'texte' => 'Le héros lance 1 dé de combat par point de Mind possédé avant l\'attaque. Au moins un bouclier blanc : il lui reste 1 Mind. Aucun : Mind à zéro, le héros entre en « état de choc ».',
+                'manque' => "DÉGÂTS DE MIND — `MoteurDegats` ne voit que le Body (même dette que l'Orbe du Ciel), et « l'état de choc » est une règle du livret Frozen Horror que nous n'avons pas."],
+            ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'nom' => 'Malédiction du loup-garou',
+                'texte' => 'Le héros lance un dé rouge : sur un 6 le sort est sans effet, sinon il contracte la malédiction du loup-garou.',
+                'manque' => 'TRANSFORMATION D\'UN HÉROS EN MONSTRE — la carte délègue toute sa règle à la section « Turning Heroes into Werewolves » d\'un livret que nous n\'avons pas.'],
+            ['carte' => 'Rust', 'paquet' => 'Base', 'sort_dread' => 'Rouille'],
+            ['carte' => 'Ice Wall', 'paquet' => 'Frozen Horror', 'nom' => 'Mur de Glace',
+                'texte' => "Jusqu'à 4 cases de glace pleine qui bloquent le déplacement mais pas la vue ; chacune dure tant que le lanceur la voit, ou jusqu'à 5 crânes cumulés d'attaques.",
+                'manque' => 'TERRAIN DESTRUCTIBLE À COMPTEUR — la couche `chausse_trappes` en est le plus proche parent, mais elle n\'a ni points de vie ni entretien lié à la vue du lanceur.'],
+            ['carte' => 'Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
+                'texte' => 'Le lanceur patine sur 12 cases et traverse héros et monstres. Dure un tour.',
+                'manque' => "MODE DE DÉPLACEMENT POUR UN MONSTRE — `franchit_figures` n'existe que sur le héros, et le déplacement des monstres est piloté par le moteur, sans buff qui le module."],
+            ['carte' => 'Dispel', 'paquet' => 'Dread Moon', 'nom' => 'Dissipation',
+                'texte' => "Pendant le tour d'un héros, pour annuler un sort qu'il vient de lancer : le lanceur Dread ajoute 1 dé rouge à ses points de Mind, le héros fait de même ; le plus haut total l'emporte.",
+                'manque' => "RÉACTION DU MJ PENDANT LE TOUR D'UN HÉROS — `MoteurReactions` ne parle qu'aux héros (offre sur canal privé, réponse d'un téléphone). Ici c'est le MJ qui réagit, sans joueur à consulter : la résolution serait synchrone, mais le point d'entrée n'existe pas."],
+            ['carte' => 'Mirror Magic', 'paquet' => 'Dread Moon', 'nom' => 'Magie Miroir',
+                'texte' => "Pendant le tour d'un héros, renvoie sur lui le sort qu'il vient de lancer sur le lanceur Dread. Le héros subit l'effet destiné au lanceur.",
+                'manque' => 'RÉACTION DU MJ (même manque que Dissipation) + RÉFLEXION DE SORT, déjà nommée comme dette par la doc 16 §9.1 (Bouclier de l\'Aube, Serre du Corbeau).'],
+        ],
+    ],
 ];
