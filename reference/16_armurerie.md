@@ -1063,11 +1063,47 @@ nommée dans `config/cartes.php` : intercepter les dégâts de **Mind** (*Sky Or
 
 #### Les parchemins
 
-Un parchemin n'est pas un objet : il **dérive** d'un sort (doc 02 §6). Onze des
-19 cartes désignent un sort que nous avons — elles tournent déjà. Trois désignent
-un sort absent du catalogue sans rapport avec la glace : **Lightning Bolt** (le
-chemin `rayon` existe déjà, c'est la plus proche d'être portable), **Treasure
-Without Doom**, **Psychic Recovery**. Les cinq dernières sont de la boîte glace.
+Un parchemin n'est pas un objet : il **dérive** d'un sort (doc 02 §6). **Douze
+des 19 cartes** tournent : onze désignaient un sort que nous avions déjà, et
+**Trésor sans Péril** a été écrit le 2026-09-04.
+
+⚠ **Un élément `parchemin`, qui n'est pas une école.** *Trésor sans Péril* est le
+premier sort à n'exister **qu'en parchemin** — sa carte dit « This SPELL SCROLL
+enables a hero to… », jamais « This spell may be cast on… ». Il n'entre dans
+aucun répertoire, `MoteurSorts::ELEMENTS` ne le contient pas et les routes de
+création le refusent déjà par `Rule::in(ELEMENTS)` : aucun héros ne l'apprend.
+Lui donner une école existante l'aurait ajouté au grimoire du magicien, un sort
+de plus au départ et gratuitement.
+
+⚠ **La seconde moitié de la carte est sans objet chez nous.** « Alternatively, it
+can be used to open one chest without harm, disarming any trap on the chest » :
+un coffre n'est **jamais piégé** ici (`salles_coffre` verse or, potion ou l'arme
+unique, sans jet ni carte). Lui inventer un piège pour que le parchemin ait
+quelque chose à désamorcer serait ajouter une règle au jeu pour servir une carte
+— l'inverse du travail. Même traitement que la clause « lycanthrope » de la
+*Restauration supérieure*.
+
+⚠ **La première moitié, elle, est exacte** : le deck officiel ne contient que
+quatre issues — trésor (8), potion (6), piège (4), errant (6) —, donc « ignoring
+all wandering monster and hazard cards, until they pick a card showing gold, a
+potion, gems, or jewels » se traduit sans reste, et la boucle termine toujours.
+Elle est bornée par la taille du paquet quand même : un gabarit pourrait n'offrir
+que du `rien`, et un « until » sans garde est une boucle infinie qui attend son
+jour. ⚠ Les cartes écartées repartent **sous** le paquet — le deck cycle, et un
+errant ignoré n'est pas un errant détruit. ⚠ Le parchemin ne consomme **pas** la
+fouille de la salle : sa carte parle du deck, pas de la pièce. ⚠ Et le *Chasseur
+de trésor* de l'Explorateur s'y applique (« whenever you draw a card from the
+TREASURE DECK that rewards you with gold ») : le parchemin y pioche vraiment.
+
+Deux cartes hors glace restent : **Psychic Recovery** (`soin_pv_mind` a un
+lecteur côté potion, la branche utilitaire des sorts ne connaît que
+`soin_pv_body`) et **Lightning Bolt**. ⚠ Pour celle-ci, le diagnostic
+« le chemin `rayon` existe » était **optimiste** : `ResolveurTour::resoudreRayon()`
+est câblé sur une **source de style** (l'Œil du Cyclone du Moine), et un sort ne
+peut pas l'emprunter sans qu'on l'en découple d'abord — comme `attaque_balayee`
+l'a été pour ses deux porteurs. S'y ajoutent les **diagonales**, que
+`DIRECTIONS_RAYON` ne connaît pas, et des dégâts fixes de 2 sur tout ce qui se
+trouve sur la ligne, **héros compris**. Les cinq dernières sont de la boîte glace.
 
 ⚠ « Any hero may use this scroll » figure sur plusieurs cartes : c'est exactement
 notre règle — un non-lanceur tente un jet de Mind. Rien à changer.

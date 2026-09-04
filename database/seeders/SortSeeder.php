@@ -307,6 +307,30 @@ class SortSeeder extends Seeder
             //  - *Twist Wood* : « any wooden weapon, such as a staff, bow, or
             //    crossbow » — nos monstres n'ont AUCUN objet d'arme, le sort
             //    n'a donc littéralement pas de cible.
+
+            // ---- Sorts qui n'existent QU'EN PARCHEMIN ----
+            //
+            // ⚠ L'élément `parchemin` n'est pas une école : il n'est dans
+            // aucun répertoire, `MoteurSorts::ELEMENTS` ne le contient pas et
+            // les routes de création le refusent. Aucun héros ne l'apprend
+            // donc — le sort n'arrive que par sa carte, ce qui est exactement
+            // ce que dit celle-ci (« This SPELL SCROLL enables a hero to… »).
+            // Lui donner une école l'aurait ajouté au grimoire du magicien.
+            //
+            // « This spell scroll enables a hero to pick cards from the
+            // treasure deck, ignoring all wandering monster and hazard cards,
+            // until they pick a card showing gold, a potion, gems, or jewels.
+            // Alternatively, it can be used to open one chest without harm,
+            // disarming any trap on the chest. » (carte © 2023)
+            //
+            // ⚠ La SECONDE moitié est sans objet chez nous : un coffre n'est
+            // jamais piégé (`salles_coffre` verse or, potion ou l'arme unique,
+            // sans jet ni carte). Lui inventer un piège pour que le parchemin
+            // ait quelque chose à désamorcer serait ajouter une règle au jeu
+            // pour servir une carte — l'inverse du travail. Même traitement
+            // que la clause « lycanthrope » de la Restauration supérieure.
+            ['element' => 'parchemin', 'nom' => 'Trésor sans Péril', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'soi', 'pioche_sans_peril' => true]],
         ];
 
         foreach ($sorts as $sort) {

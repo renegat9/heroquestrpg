@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
 use App\Engine\MotsClesSort;
+use App\Jobs\GenererMenu;
+use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Objet;
 use App\Models\Quete;
@@ -58,6 +61,8 @@ const CLES_SORT_ACTIVES = [
     // ---- Répertoires de classe (2026-08-12) ----
     'exclut_soi',              // MoteurSorts::ciblesLegales() — « excluding yourself »
     'zone',                    // ResolveurTour::soinDeZone() — soin à tous les héros vus
+    // ---- Sort qui n'existe QU'EN PARCHEMIN (2026-09-04) ----
+    'pioche_sans_peril',       // ResolveurTour::piocherSansPeril() — Trésor sans Péril
     'condition_bonus_attaque', // MoteurSorts::bonusDes() — dé conditionnel (au contact)
     'regain',                  // MoteurSorts::regagnerSorts() — App\Engine\RegainEffet
     'reaction',                // MoteurReactions::sortReactifDisponible() — hors tour
@@ -107,7 +112,10 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         'tour_supplementaire', 'image_miroir',
         // Les sorts de feu n'ont plus de `des_degats` depuis le 2026-09-02 :
         // leur montant est FIXE et c'est la cible qui lance (doc 16 §3bis).
-        'degats_fixes'];
+        'degats_fixes',
+        // Piocher dans le deck de fouille agit : le *Trésor sans Péril* ne
+        // touche aucune statistique, il remplit la bourse.
+        'pioche_sans_peril'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -125,7 +133,9 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
     $attendus = collect(Sort::all())->groupBy('element')->map->count();
 
     expect($attendus[MoteurSorts::REPERTOIRE_ELFIQUE] ?? 0)->toBe(6)
-        ->and(Sort::count())->toBe(27);
+        // ⚠ 28 depuis le 2026-09-04 : *Trésor sans Péril*, premier sort à
+        // n'exister qu'en parchemin (élément `parchemin`, aucune école).
+        ->and(Sort::count())->toBe(28);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
@@ -386,7 +396,7 @@ it('ne nomme aucune condition qui n\'existe pas au catalogue', function () {
     // et ne paraissait fonctionner que lorsqu'il échouait — le pire des
     // masques. Les tests vérifiaient que chaque CLÉ d'effet a un lecteur ;
     // aucun ne vérifiait que la VALEUR désigne quelque chose de réel.
-    $catalogue = App\Models\Condition::pluck('nom')->all();
+    $catalogue = Condition::pluck('nom')->all();
 
     foreach (Sort::all() as $sort) {
         $nom = $sort->effet['condition_appliquee'] ?? null;
@@ -424,7 +434,7 @@ it('Traverser la Pierre se lance sur le LANCEUR ou un autre héros en vue', func
     // ⚠ DEUX joueurs, et ce n'est pas cosmétique : le menu est mis en cache par
     // JOUEUR (`GenererMenu::cleMenu($groupe, $joueur)`), donc deux héros du même
     // compte se partagent un seul emplacement et s'écrasent l'un l'autre.
-    $bob = App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
     $compagnon = creerHeros($bob, $groupe, 'Brunhilde', 2);
 
     app(MoteurSorts::class)->attacherElement($lanceur, 'terre');
@@ -448,7 +458,7 @@ it('Traverser la Pierre se lance sur le LANCEUR ou un autre héros en vue', func
     expect($ids)->toContain($lanceur->id)
         ->and($ids)->toContain($compagnon->id);
 
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $lanceur->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $lanceur->id);
 
     test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
@@ -469,7 +479,7 @@ it('Traverser la Pierre se lance sur le LANCEUR ou un autre héros en vue', func
     expect($sorts->traverseRoche($compagnon->fresh()))->toBeTrue();
 
     // …et il le perd bien à la fin du SIEN.
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $bob->id, (int) $compagnon->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $bob->id, (int) $compagnon->id);
     test()->actingAs($bob, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertAccepted();
 
@@ -521,7 +531,7 @@ it('Tempête fait sauter le tour du monstre SANS jet de résistance', function (
 
     $tempete = Sort::where('nom', 'Tempête')->firstOrFail();
 
-    App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
     desFiges(array_fill(0, 200, 6)); // les pires dés possibles : sans jet, ils ne servent pas
 
     $reponse = test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
@@ -551,7 +561,7 @@ it('Voile de Brume fait TRAVERSER les monstres, et n\'autorise pas à s\'arrête
         ->and($sorts->estInattaquable($heros->fresh()))->toBeFalse();
 
     desFiges(array_fill(0, 200, 4));
-    App\Jobs\GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
 
     // Le gobelin est au contact (helper) : sa case est traversable, pas habitable.
     // ⚠ Le message est asserté, pas seulement le 422 : sans le buff la même
@@ -583,7 +593,7 @@ it('Boule de Feu inflige 2 dégâts fixes, dont chaque 5 ou 6 des dés rouges en
     $proie->update(['pv_body' => 5, 'pv_body_max' => 5]);
 
     $sort = Sort::where('nom', 'Boule de Feu')->firstOrFail();
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
 
     // UN seul 5 sur les deux dés rouges → 1 dégât annulé sur 2.
     desFiges([5, 2]);
@@ -611,7 +621,7 @@ it('Trait de Feu est entièrement annulé par un seul 5 ou 6', function () {
     $proie->update(['pv_body' => 5, 'pv_body_max' => 5]);
 
     $sort = Sort::where('nom', 'Trait de Feu')->firstOrFail();
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
 
     desFiges([6]); // le monstre encaisse zéro
 
@@ -635,7 +645,7 @@ it('Sommeil prend TOUJOURS, et le monstre tente de rompre sur-le-champ', functio
     $sort = Sort::where('nom', 'Sommeil')->firstOrFail();
     $sorts = app(MoteurSorts::class);
 
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
     desFiges([3, 4]); // aucun 6 : il reste endormi
 
     test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
@@ -659,7 +669,7 @@ it('Sommeil est rompu sur-le-champ dès qu\'un 6 sort', function () {
     $proie->update(['pv_mind' => 2]);
 
     $sort = Sort::where('nom', 'Sommeil')->firstOrFail();
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $ctx['alice']->id, (int) $mage->id);
     desFiges([2, 6]); // le second dé le réveille aussitôt
 
     test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
@@ -721,7 +731,7 @@ it('un monstre ENDORMI ne se défend plus : « it cannot move, attack, or defend
     // …et en jeu : le héros frappe, la volée de défense est VIDE, puis le coup
     // le réveille — dans cet ordre.
     $proie->update(['pv_body' => 9, 'pv_body_max' => 9]);
-    App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
 
     desFiges(array_fill(0, 60, 1)); // que des crânes : rien à parer de toute façon
 

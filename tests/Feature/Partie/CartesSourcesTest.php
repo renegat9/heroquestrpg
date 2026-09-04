@@ -131,16 +131,29 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         fn ($c) => isset($c['objet']),
     ));
 
+    // ⚠ Un parchemin ne porte pas d'`objet` : il DÉRIVE d'un sort, donc son
+    // marqueur est `sort`. Le compteur ci-dessus le manquait entièrement —
+    // porter un parchemin ne faisait bouger aucun chiffre, et rien n'aurait
+    // signalé qu'on en retire un.
+    $portesSort = fn (string $paquet) => count(array_filter(
+        (array) config("cartes.{$paquet}.cartes"),
+        fn ($c) => isset($c['sort']),
+    ));
+
     expect($portees('equipement'))->toBe(20)
         ->and($portees('potions'))->toBe(15)
-        // 24 artefacts portés sur 35 : les 11 autres nomment chacun la
-        // mécanique qui leur manque, dont 3 cartes de la boîte GLACE écartées
-        // en bloc. ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape
-        // des Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE
-        // mécanique neuve, seulement de réunir sur un OBJET ce qui existait
-        // déjà sur des sorts.
+        // 31 artefacts portés sur 35 : les 4 restants sont l'Orbe Céleste
+        // (dégâts de Mind, que RIEN n'inflige) et les 3 cartes de la boîte
+        // GLACE, écartées en bloc.
+        // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des
+        // Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE mécanique
+        // neuve, seulement de réunir sur un OBJET ce qui existait sur des sorts.
         // ⚠ Sept de plus le 2026-09-04 — Serre du Corbeau, Bottes de Lièvre,
         // Bottes elfiques, Anneau du Retour, Bouclier de l'Aube, Bâton Ancien,
         // Baguette d'Os : chacune attendait une mécanique, aucune un arbitrage.
-        ->and($portees('artefacts'))->toBe(31);
+        ->and($portees('artefacts'))->toBe(31)
+        // 12 parchemins sur 19 : 11 désignent un sort que nous avions déjà,
+        // et *Trésor sans Péril* a été écrit le 2026-09-04. Restent 2 sorts
+        // hors glace (Éclair, Récupération Psychique) et 5 de la boîte glace.
+        ->and($portesSort('parchemins'))->toBe(12);
 });

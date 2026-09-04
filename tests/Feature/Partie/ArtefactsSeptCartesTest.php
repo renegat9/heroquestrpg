@@ -21,6 +21,7 @@ use App\Partie\Equipement;
 use App\Partie\MoteurDegats;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurReactions;
+use App\Partie\MoteurSorts;
 use App\Partie\Salles;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
@@ -690,6 +691,113 @@ it('ne fait jouer un sbire QU\'UNE fois par round : enrôlé, il ne rejoue pas c
 
     // L'orque, lui, a bien frappé : la phase des monstres a joué.
     expect((int) $heros->fresh()->pv_body)->toBeLessThan($pvHeros);
+});
+
+// ---------------------------------------------------------------------------
+// Parchemin — Trésor sans Péril
+// ---------------------------------------------------------------------------
+
+it('pioche en ignorant errants et pièges, et s\'arrête au premier gain', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    $quete = $ctx['quete'];
+
+    // Un deck fabriqué : deux errants, un piège, PUIS l'or. Sans le tri, la
+    // première carte piochée serait un errant et le parchemin aurait échoué.
+    $quete->update(['deck_fouille' => [
+        ['issue' => 'errant'],
+        ['issue' => 'piege', 'variante' => 'trou'],
+        ['issue' => 'errant'],
+        ['issue' => 'tresor', 'or' => 35, 'carte' => 'gemme'],
+        ['issue' => 'tresor', 'or' => 25, 'carte' => 'or_25'],
+    ]]);
+
+    $parchemin = Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Parchemin : Trésor sans Péril')->firstOrFail()->id,
+        'emplacement' => 'sac',
+        'quantite' => 1,
+    ]);
+
+    $orAvant = (int) $ctx['groupe']->fresh()->or;
+
+    $options = optionsMenu($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    $lire = collect($options)->firstWhere('id', 'lire_parchemin');
+    $entree = collect($lire['parametres']['parchemins'] ?? [])
+        ->firstWhere('inventaire_id', $parchemin->id);
+
+    expect($entree)->not->toBeNull()
+        // `cible: soi` : le parchemin ne vise personne, donc pas de 3e niveau.
+        ->and($entree)->not->toHaveKey('cibles');
+
+    // Albrecht n'est pas lanceur : jet de Mind, difficulté 2. Deux crânes.
+    desFiges([1, 1, 1, ...array_fill(0, 10, 4)]);
+
+    $resultat = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lire_parchemin', 'parametres' => ['cle' => $entree['cle']],
+    ])->assertStatus(202)->json('resultat');
+
+    expect($resultat['sans_peril'])->toBeTrue()
+        // Les trois premières cartes sont passées à la trappe…
+        ->and($resultat['cartes_ignorees'])->toBe(['errant', 'piege', 'errant'])
+        // …et c'est la gemme qui paie.
+        ->and($resultat['issue'])->toBe('tresor')
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe($orAvant + 35);
+
+    // ⚠ Aucun errant n'a été posé sur le plateau : les cartes ignorées ne se
+    // résolvent pas, elles passent.
+    expect($quete->instancesMonstres()->where('etat', 'actif')->count())->toBe(1);
+
+    // ⚠ Les cartes ignorées repartent SOUS le paquet — le deck cycle, un
+    // errant écarté n'est pas un errant détruit.
+    expect(count($quete->fresh()->deckFouille()))->toBe(5);
+
+    // Le parchemin est détruit, comme tous les parchemins (S1).
+    expect(Inventaire::find($parchemin->id))->toBeNull();
+});
+
+it('ne consomme PAS la fouille de la salle : le parchemin pioche le deck, il ne fouille rien', function () {
+    // Sa carte parle du DECK, pas de la pièce. Le héros doit pouvoir lire son
+    // parchemin ET fouiller la salle où il se tient.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+
+    $ctx['quete']->update(['deck_fouille' => [['issue' => 'tresor', 'or' => 15, 'carte' => 'or_15']]]);
+
+    Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Parchemin : Trésor sans Péril')->firstOrFail()->id,
+        'emplacement' => 'sac',
+        'quantite' => 1,
+    ]);
+
+    $options = optionsMenu($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    $entree = collect(collect($options)->firstWhere('id', 'lire_parchemin')['parametres']['parchemins'] ?? [])
+        ->first();
+
+    desFiges([1, 1, 1, ...array_fill(0, 10, 4)]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lire_parchemin', 'parametres' => ['cle' => $entree['cle']],
+    ])->assertStatus(202);
+
+    expect($ctx['quete']->fresh()->aFouille(0, $heros->id))->toBeFalse();
+});
+
+it('n\'entre dans le grimoire de personne : le sort n\'existe qu\'en parchemin', function () {
+    // ⚠ `element: parchemin` n'est pas une école. Un magicien qui prend les
+    // trois siennes ne doit jamais le connaître — lui donner une école
+    // existante lui aurait offert un sort de plus, gratuitement.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
+
+    foreach (MoteurSorts::ELEMENTS as $element) {
+        app(MoteurSorts::class)->attacherElement($magicien, $element);
+    }
+
+    expect($magicien->sorts()->pluck('nom')->all())->not->toContain('Trésor sans Péril')
+        ->and(MoteurSorts::ELEMENTS)->not->toContain('parchemin');
 });
 
 // ---------------------------------------------------------------------------

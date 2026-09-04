@@ -99,6 +99,23 @@ final class ResolveurTour
      */
     private const OPTIONS_FOUILLE_ZONE = ['fouiller', 'fouiller_pierre'];
 
+    /**
+     * Issues du deck de fouille, nommées ici parce que *Trésor sans Péril* est
+     * le premier lecteur à devoir les TRIER : sa carte laisse passer les
+     * errants et les pièges, et s'arrête au premier gain. Les autres chemins se
+     * contentaient de les appliquer une à une.
+     */
+    private const ISSUE_TRESOR = 'tresor';
+
+    private const ISSUE_POTION = 'potion';
+
+    private const ISSUE_PIEGE = 'piege';
+
+    private const ISSUE_ERRANT = 'errant';
+
+    /** Clé d'effet de sort du *Trésor sans Péril* (parchemin, doc 16 §9.2). */
+    private const EFFET_PIOCHE_SANS_PERIL = 'pioche_sans_peril';
+
     /** Au moins un héros tient encore debout : la quête continue. */
     public const CHUTE_DEBOUT = 'debout';
 
@@ -3767,6 +3784,13 @@ final class ResolveurTour
     ): array {
         $effet = $sort->effet ?? [];
 
+        // TRÉSOR SANS PÉRIL : « enables a hero to pick cards from the treasure
+        // deck, ignoring all wandering monster and hazard cards, until they
+        // pick a card showing gold, a potion, gems, or jewels. »
+        if (! empty($effet[self::EFFET_PIOCHE_SANS_PERIL])) {
+            return $this->piocherSansPeril($quete, $lanceur, $etat);
+        }
+
         // Soin de ZONE : « You and all the heroes that you see restore up to 2
         // lost Body Points each » (Chant de guérison du Barde). Le lanceur
         // COMPRIS — il se voit toujours lui-même —, et sans jamais dépasser le
@@ -5452,6 +5476,63 @@ final class ResolveurTour
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
+    /**
+     * *Trésor sans Péril* : le héros pioche dans le deck de fouille en laissant
+     * passer les errants et les pièges, et s'arrête au premier gain.
+     *
+     * ⚠ Ce n'est PAS une fouille de salle : le parchemin ne consomme ni
+     * `quetes.tresors_fouilles` ni la fouille du héros dans cette pièce. Sa
+     * carte parle du DECK, pas de la salle — et l'entrée du menu est « Lire un
+     * parchemin », pas « Fouiller ».
+     *
+     * ⚠ Les cartes ignorées repartent quand même SOUS le paquet : `piocherCarte()`
+     * fait cycler le deck, et court-circuiter ce cycle ici en aurait fait deux
+     * vérités. Un errant écarté n'est pas un errant détruit.
+     *
+     * ⚠ `duDeck: true` — le *Chasseur de trésor* de l'Explorateur ajoute 25 po
+     * « whenever you draw a card from the TREASURE DECK that rewards you with
+     * gold ». Le parchemin y pioche vraiment : lui refuser le bonus aurait été
+     * un écart silencieux à sa carte à lui.
+     *
+     * ⚠ La boucle est BORNÉE par la taille du paquet. Le deck officiel ne
+     * contient que quatre issues — trésor, potion, piège, errant — donc elle
+     * s'arrête toujours ; mais un gabarit pourrait n'offrir que du `rien`, et
+     * un « until » sans garde est une boucle infinie qui attend son jour.
+     *
+     * @return array<string, mixed>
+     */
+    private function piocherSansPeril(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        $groupe = $quete->groupe;
+        $ignorees = [];
+        $tirages = max(1, count($quete->deckFouille()));
+
+        for ($i = 0; $i < $tirages; $i++) {
+            $carte = $this->deck->piocher($quete->fresh());
+            $issue = (string) ($carte['issue'] ?? 'rien');
+
+            if (in_array($issue, [self::ISSUE_ERRANT, self::ISSUE_PIEGE], true)) {
+                $ignorees[] = $issue;
+
+                continue;
+            }
+
+            if (! in_array($issue, [self::ISSUE_TRESOR, self::ISSUE_POTION], true)) {
+                continue; // « until they pick a card showing gold, a potion, gems, or jewels »
+            }
+
+            return $this->appliquerButin(
+                $carte,
+                ['sans_peril' => true, 'cartes_ignorees' => $ignorees],
+                $groupe, $quete->fresh(), $personnage, $etat,
+            );
+        }
+
+        // Aucun gain dans tout le paquet : le parchemin est brûlé pour rien, et
+        // il vaut mieux le dire que de rendre un compte rendu vide.
+        return ['sans_peril' => true, 'cartes_ignorees' => $ignorees, 'issue' => 'rien'];
+    }
+
     private function appliquerButin(
         array $carte,
         array $payload,
