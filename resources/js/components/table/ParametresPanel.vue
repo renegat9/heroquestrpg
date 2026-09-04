@@ -632,8 +632,13 @@ async function enregistrer() {
 </template>
 
 <style scoped>
+/* ⚠ `safe center` depuis le 2026-09-04 : `overflow-y: auto` était déjà là,
+   mais un élément CENTRÉ qui déborde sort aussi par le HAUT, et le navigateur
+   ne défile pas vers un offset négatif — le haut du panneau restait
+   inatteignable sur un petit écran. `safe` retombe sur `start` dès que ça
+   déborde. C'est la moitié discrète du même bug que le prologue. */
 .parametres-ov {
-    position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+    position: fixed; inset: 0; z-index: 90; display: grid; place-items: safe center;
     padding: 24px; background: oklch(0.12 0.02 60 / 0.82); backdrop-filter: blur(6px);
     animation: parametres-fade .25s ease;
 }

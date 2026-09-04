@@ -82,8 +82,14 @@ const etape = ref('menu'); // 'menu' | 'confirmer-redemarrage' | 'confirmer-arre
 </template>
 
 <style scoped>
+/* ⚠ Même défaut que le prologue, corrigé le 2026-09-04 — et plus grave ici :
+   c'est le panneau d'URGENCE. Un panneau qu'on ne peut pas fermer parce que son
+   contenu dépasse l'écran, c'est une table bloquée au pire moment. `safe center`
+   parce qu'un élément centré qui déborde sort aussi par le haut, où aucun
+   défilement ne va. */
 .urgence-ov {
-    position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+    position: fixed; inset: 0; z-index: 90; display: grid; place-items: safe center;
+    overflow-y: auto; overscroll-behavior: contain;
     padding: 24px; background: oklch(0.12 0.02 60 / 0.82); backdrop-filter: blur(6px);
     animation: urgence-fade .25s ease;
 }

@@ -22,13 +22,18 @@ defineEmits(['commencer', 'rejouer']);
                 <span v-if="parle" class="prologue-eq"><i /><i /><i /></span>
             </div>
 
-            <h2 v-if="prologue.menace?.nom" class="prologue-menace">{{ prologue.menace.nom }}</h2>
+            <!-- ⚠ Le CORPS défile, les actions non : c'est ce qui garantit que
+                 « Commencer l'aventure » reste atteignable quel que soit la
+                 longueur du prologue. L'IA en écrit la longueur qu'elle veut. -->
+            <div class="prologue-corps">
+                <h2 v-if="prologue.menace?.nom" class="prologue-menace">{{ prologue.menace.nom }}</h2>
 
-            <p class="prologue-texte">{{ prologue.texte }}</p>
+                <p class="prologue-texte">{{ prologue.texte }}</p>
 
-            <p v-if="prologue.menace?.description" class="prologue-menace-desc">
-                {{ prologue.menace.description }}
-            </p>
+                <p v-if="prologue.menace?.description" class="prologue-menace-desc">
+                    {{ prologue.menace.description }}
+                </p>
+            </div>
 
             <div class="prologue-actions">
                 <button class="btn ghost" type="button" @click="$emit('rejouer')">
@@ -43,16 +48,41 @@ defineEmits(['commencer', 'rejouer']);
 </template>
 
 <style>
-.prologue-ov { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+/* ⚠ TROIS propriétés, et il faut les trois — signalé en partie réelle le
+   2026-09-04 : « le texte est trop long et je ne peux scroller pour fermer le
+   popup ». L'overlay était `fixed` SANS overflow, donc une carte plus haute que
+   l'écran débordait sans qu'on puisse l'atteindre, et le bouton « Commencer »
+   restait hors de portée. Le prologue est écrit par l'IA : sa longueur n'est
+   bornée par rien.
+
+   ⚠ `safe center` et non `center` : un élément centré qui DÉBORDE sort aussi
+   par le HAUT, et l'alignement centré rend cette partie inatteignable même avec
+   `overflow: auto` — le navigateur ne défile pas vers des offsets négatifs.
+   `safe` retombe sur `start` dès que ça déborde. C'est le même piège que le
+   `minmax(0, 1fr)` de la feuille de déplacement, sur l'autre axe. */
+.prologue-ov { position: fixed; inset: 0; z-index: 80; display: grid; place-items: safe center;
+  overflow-y: auto; overscroll-behavior: contain;
   padding: 32px; background: oklch(0.12 0.02 60 / 0.82); backdrop-filter: blur(6px);
   animation: prologue-fade .35s ease; }
 @keyframes prologue-fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* La carte ne dépasse jamais l'écran : au-delà, c'est son CORPS qui défile,
+   pas la page — les boutons restent ainsi collés en bas de la carte. `dvh`
+   plutôt que `vh` : sur mobile la barre d'adresse mange la différence. */
 .prologue-carte { position: relative; width: 100%; max-width: 720px; text-align: center;
+  max-height: calc(100dvh - 64px);
   padding: 44px 40px 32px; border-radius: var(--r-xl, 18px); border: var(--line);
   background: linear-gradient(180deg, var(--stone-850), var(--stone-900));
   box-shadow: 0 0 60px oklch(0.76 0.155 65 / 0.18), var(--sh-3);
   display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+/* ⚠ `min-height: 0` est INDISPENSABLE : un enfant de flex a pour taille
+   minimale son contenu, donc sans cette ligne le corps refuse de rétrécir, la
+   carte repousse son propre plafond et rien ne défile. C'est la leçon du
+   `minmax(0, 1fr)` de `.dep-ov`, exactement, un axe plus loin. */
+.prologue-corps { display: flex; flex-direction: column; align-items: center; gap: 16px;
+  width: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding-right: 4px; }
 
 .prologue-orn { width: 76px; height: 76px; border-radius: 20px; display: grid; place-items: center;
   background: linear-gradient(150deg, var(--ember), var(--ember-deep));
@@ -76,6 +106,9 @@ defineEmits(['commencer', 'rejouer']);
 
 .prologue-menace-desc { font-size: 13.5px; line-height: 1.55; color: var(--ink-400); margin: 0; max-width: 58ch; }
 
-.prologue-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+/* `flex-shrink: 0` : les actions ne se laissent jamais compresser par un corps
+   trop long — c'est la contrepartie du `min-height: 0` ci-dessus. */
+.prologue-actions { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;
+  justify-content: center; flex-shrink: 0; }
 .prologue-actions .btn { padding: 11px 20px; font-size: 14px; }
 </style>
