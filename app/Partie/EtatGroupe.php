@@ -257,6 +257,23 @@ final class EtatGroupe
             return null;
         }
 
+        // ⚠ DEUX listes de portes, et il faut les deux — signalé en partie
+        // réelle le 2026-09-04 : « on voit le couloir alors que le passage
+        // secret n'est pas trouvé ».
+        //
+        //  - `$portes` est ce qu'on PUBLIE : `portes()` en retire les portes
+        //    secrètes non révélées, puisqu'un joueur ne doit pas les voir ;
+        //  - `$aretes` est ce qui BLOQUE LA VUE, et doit contenir la carte
+        //    ENTIÈRE. Une porte secrète non trouvée est la chose la plus opaque
+        //    du donjon : c'est un mur, tant qu'on ne l'a pas percée.
+        //
+        // Les deux ne faisaient qu'une, et le brouillard recevait donc la liste
+        // AMPUTÉE : l'arête ne portait plus de porte, le défaut
+        // `?? 'ouverte'` la déclarait ouverte, et le flood-fill traversait le
+        // passage secret comme un couloir ordinaire. Mesuré sur cinq donjons :
+        // 12 à 16 cases inatteignables devenaient visibles — le couloir d'en
+        // face, et la salle au bout.
+        $aretes = (array) ($carte->grille['portes'] ?? []);
         $portes = $this->portes($carte);
         // Une porte vit désormais sur une ARÊTE : aucune case 'p' à poser — les
         // cases restent sol/mur, la porte est rendue sur la cloison (x,y,cote).
@@ -278,7 +295,7 @@ final class EtatGroupe
             ->get(['position_x', 'position_y'])
             ->map(fn ($e) => ['x' => (int) $e->position_x, 'y' => (int) $e->position_y])
             ->all();
-        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $portes, $positionsHeros);
+        $cases = $this->appliquerBrouillard($cases, $salles, $decouvertes, $aretes, $positionsHeros);
 
         // Ne pas trahir par-dessus le brouillard une porte totalement masquée :
         // on ne garde que celles dont AU MOINS une des deux cases reste visible
@@ -324,7 +341,7 @@ final class EtatGroupe
             // gabarit n'en posait ; ça ne l'est plus depuis qu'un levier demande
             // un jet de Body et peut commander l'unique porte d'une salle — un
             // mécanisme invisible qui verrouille le donjon.
-            'leviers' => $this->leviers($carte, $decouvertes),
+            'leviers' => $this->leviers($carte, $cases),
             'portes' => $portes,
         ];
     }
@@ -561,12 +578,15 @@ final class EtatGroupe
     }
 
     /**
-     * Leviers visibles : ceux des salles découvertes.
+     * Leviers visibles : ceux dont la CASE n'est pas dans le brouillard.
      *
      * ⚠ Une entrée de levier ne porte PAS sa salle (`{x, y, levier_id}`, format
-     * d'origine) : on la déduit des coordonnées. Publier sans filtrer ferait
-     * apparaître un marqueur par-dessus le brouillard, et révélerait
-     * l'emplacement d'un mécanisme que le groupe n'a pas encore atteint.
+     * d'origine). On en déduisait la salle par les coordonnées — et un levier de
+     * COULOIR, qui n'a pas d'index de salle, était donc toujours montré. Le
+     * brouillard, lui, répond directement à la question (« cette case est-elle
+     * vue ? ») sans rien redériver. Publier sans filtrer ferait apparaître un
+     * marqueur par-dessus le brouillard, et révélerait l'emplacement d'un
+     * mécanisme que le groupe n'a pas encore atteint.
      *
      * ⚠ La difficulté publiée est la difficulté EFFECTIVE, plafonnée au meilleur
      * Body du groupe exactement comme `MenuMoteur` le fait. Publier la valeur
@@ -574,25 +594,29 @@ final class EtatGroupe
      * menu proposera « difficulté 2 » — deux chiffres pour un même levier, et le
      * joueur n'a aucun moyen de savoir lequel s'applique.
      *
-     * @param  list<int>  $decouvertes
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
      * @return list<array{x: int, y: int, levier_id: string, difficulte: int}>
      */
-    private function leviers(Carte $carte, array $decouvertes): array
+    private function leviers(Carte $carte, array $cases): array
     {
-        $salles = (array) ($carte->grille['salles'] ?? []);
         // Une seule interrogation de la compagnie pour toute la couche : le
         // plafond est le même pour tous les leviers de la carte.
         $quete = $carte->quete;
 
         return collect($carte->grille['leviers'] ?? [])
-            ->filter(function (array $levier) use ($salles, $decouvertes) {
-                $index = Salles::indexDe($salles, (int) $levier['x'], (int) $levier['y']);
-
-                // Levier de COULOIR (`null`) : les couloirs n'ont pas d'index de
-                // salle et ne sont jamais « découverts ». On le montre — un
-                // couloir traversé est de toute façon visible, et le cacher
-                // rendrait le mécanisme introuvable.
-                return $index === null || in_array($index, $decouvertes, true);
+            ->filter(function (array $levier) use ($cases) {
+                // ⚠ On lit LE BROUILLARD, plus l'index de salle. L'ancienne
+                // règle montrait TOUJOURS un levier de couloir, au motif qu'« un
+                // couloir traversé est de toute façon visible » — vrai en
+                // général, faux précisément là où ça compte : derrière un
+                // passage secret non trouvé, le couloir n'est pas visible et le
+                // marqueur trahissait son existence.
+                //
+                // Le brouillard répond déjà exactement à la question posée
+                // (« cette case est-elle vue ? »), salle ou couloir, sans avoir
+                // à la redériver — et il reste vrai le jour où une salle sera
+                // découverte autrement qu'en ouvrant sa porte.
+                return ($cases[(int) $levier['y']][(int) $levier['x']] ?? 'b') !== 'b';
             })
             ->map(fn (array $l) => [
                 'x' => (int) $l['x'],

@@ -92,41 +92,51 @@ it('TAIT les leviers d\'une salle non découverte', function () {
     expect($carte['leviers'])->toBe([]);
 });
 
-it('montre un levier de COULOIR, qui n\'appartient à aucune salle', function () {
+it('montre un levier de COULOIR seulement si sa case est VUE', function () {
+    // ⚠ Cette règle a changé le 2026-09-04, et l'ancienne était le bug. Un levier
+    // de couloir était montré TOUJOURS, au motif qu'« un couloir traversé est de
+    // toute façon sous les yeux du groupe » — vrai en général, faux précisément
+    // là où ça compte : derrière un passage secret non trouvé, le couloir n'est
+    // pas visible, et le marqueur trahissait son existence.
+    //
+    // Le filtre lit désormais LE BROUILLARD, qui répond déjà exactement à la
+    // question posée, salle ou couloir, sans avoir à redériver quoi que ce soit.
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $quete = $ctx['quete'];
+    $groupe = $ctx['groupe'];
 
-    // Une case hors de toute salle : un couloir n'a pas d'index et n'est jamais
-    // « découvert ». Le cacher rendrait le mécanisme introuvable, alors qu'un
-    // couloir traversé est de toute façon sous les yeux du groupe.
     $salles = $quete->carte->grille['salles'];
-    $dansUneSalle = function (int $x, int $y) use ($salles): bool {
-        foreach ($salles as $s) {
-            if ($x >= $s['x'] && $x < $s['x'] + $s['largeur']
-                && $y >= $s['y'] && $y < $s['y'] + $s['hauteur']) {
-                return true;
-            }
-        }
+    $cases = app(EtatGroupe::class)->payload($groupe->fresh())['carte']['cases'];
 
-        return false;
-    };
+    // Deux cases de COULOIR : une que le groupe voit, une qui reste masquée.
+    $vue = null;
+    $masquee = null;
 
-    $couloir = null;
     foreach ($quete->carte->grille['cases'] as $y => $ligne) {
         foreach ($ligne as $x => $type) {
-            if ($type === 's' && ! $dansUneSalle((int) $x, (int) $y)) {
-                $couloir = ['x' => (int) $x, 'y' => (int) $y];
-                break 2;
+            if ($type !== 's' || App\Partie\Salles::indexDe($salles, (int) $x, (int) $y) !== null) {
+                continue;
+            }
+            if (($cases[$y][$x] ?? 'b') !== 'b') {
+                $vue ??= ['x' => (int) $x, 'y' => (int) $y];
+            } else {
+                $masquee ??= ['x' => (int) $x, 'y' => (int) $y];
             }
         }
     }
 
-    expect($couloir)->not->toBeNull('aucune case de couloir sur cette carte');
+    expect($masquee)->not->toBeNull('aucune case de couloir masquée sur cette carte');
 
-    poserLeviers($quete, [[...$couloir, 'levier_id' => 'herse_couloir']]);
+    // Un levier sur une case MASQUÉE ne doit pas être publié.
+    poserLeviers($quete, [[...$masquee, 'levier_id' => 'herse_cachee']]);
+    expect(app(EtatGroupe::class)->payload($groupe->fresh())['carte']['leviers'])->toBe([]);
 
-    $carte = app(EtatGroupe::class)->payload($ctx['groupe']->fresh())['carte'];
+    // …et le même levier, sur une case VUE, l'est.
+    if ($vue !== null) {
+        poserLeviers($quete->fresh(), [[...$vue, 'levier_id' => 'herse_vue']]);
+        $leviers = app(EtatGroupe::class)->payload($groupe->fresh())['carte']['leviers'];
 
-    expect($carte['leviers'])->toHaveCount(1)
-        ->and($carte['leviers'][0]['levier_id'])->toBe('herse_couloir');
+        expect($leviers)->toHaveCount(1)
+            ->and($leviers[0]['levier_id'])->toBe('herse_vue');
+    }
 });
