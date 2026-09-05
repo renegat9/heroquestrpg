@@ -7,6 +7,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Events\NiveauMonte;
 use App\Jobs\GenererMenu;
 use App\Models\Competence;
+use App\Models\Evenement;
 use App\Models\Quete;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
@@ -111,7 +112,13 @@ it('monte chaque héros de +1 niveau à la victoire d\'une quête sous_boss (+1 
         ->assertJsonPath('joueur.personnages.0.competences', []);
 });
 
-it('ne monte pas de niveau à la victoire d\'une quête normale', function () {
+it('ne monte pas de niveau quand le donjon est nettoyé SANS accomplir l\'objectif', function () {
+    // ⚠ Intitulé resserré le 2026-09-04 : depuis le portage du troisième
+    // déclencheur, une quête ordinaire PEUT faire monter — mais seulement si
+    // son objectif majeur est accompli. Ici le groupe vide le donjon sans
+    // jamais fouiller le coffre du fond, et c'est bien le cas qui ne donne
+    // rien. Le dire dans le titre évite qu'un lecteur pressé en déduise que
+    // les quêtes ordinaires ne montent jamais.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -357,4 +364,81 @@ it('continue de décompter les nœuds ACHETÉS, eux', function () {
     $heros->competences()->attach($noeud->id);
 
     expect($heros->fresh()->pointsCompetence())->toBe(1);
+});
+
+// =====================================================================
+// LE TROISIÈME DÉCLENCHEUR — doc 01 §5 : « chaque sous-boss vaincu, le boss
+// final, certains OBJECTIFS DE QUÊTE MAJEURS marqués par le gabarit ». Le
+// troisième n'avait aucun lecteur : `JALONS` ne listait que les deux premiers,
+// et une campagne courte plafonnait à DEUX niveaux quand la même section en
+// vise cinq à huit (René, 2026-09-04 : « pourquoi on a dû attendre 3 quêtes
+// avant de passer de niveau »).
+// =====================================================================
+
+it('fait monter d\'un niveau une quête ORDINAIRE dont l\'objectif majeur est accompli', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // La quête 1 d'une campagne est ordinaire, et le gabarit « Exploration
+    // simple » porte `objectif_majeur` : c'est la moitié « marquée par le
+    // gabarit ». La cadence a retenu cette position — sinon le drapeau de la
+    // quête serait faux, et le test ne prouverait rien.
+    expect($quete->type_jalon)->toBe('normale')
+        ->and($quete->objectif_majeur)->toBeTrue();
+
+    // Objectif « atteindre_et_recuperer » : le coffre du fond a été fouillé.
+    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+
+    $resultat = acheverLaQuete($groupe);
+
+    expect($resultat['niveaux'])->not->toBeNull()
+        ->and((int) $heros->fresh()->niveau)->toBe(2)
+        ->and($heros->fresh()->pointsCompetence())->toBe(1);
+});
+
+it('ne donne RIEN si le groupe repart sans avoir accompli l\'objectif', function () {
+    // ⚠ Terminer n'est pas réussir : `quitter_donjon` s'ouvre aussi sur un
+    // donjon entièrement nettoyé — filet anti-blocage qui laisse repartir un
+    // groupe sans rien avoir rapporté du fond. Un niveau donné là
+    // récompenserait le fait d'être sorti.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    expect($quete->objectif_majeur)->toBeTrue()
+        ->and($quete->objectifAccompli())->toBeFalse();
+
+    $resultat = acheverLaQuete($groupe);
+
+    expect($resultat['niveaux'])->toBeNull()
+        ->and((int) $heros->fresh()->niveau)->toBe(1);
+});
+
+it('journalise LEQUEL des trois déclencheurs a joué', function () {
+    // Sans ça, une montée sur objectif majeur serait indiscernable d'une
+    // montée de jalon à la relecture — et c'est justement la nouveauté.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+
+    acheverLaQuete($groupe);
+
+    $ligne = Evenement::where('groupe_id', $groupe->id)
+        ->where('type', 'systeme')
+        ->get()
+        ->first(fn ($e) => ($e->payload['action'] ?? null) === 'niveau_monte');
+
+    expect($ligne)->not->toBeNull()
+        ->and($ligne->payload['declencheur'])->toBe('objectif_majeur');
 });

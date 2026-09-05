@@ -18,6 +18,7 @@ class Quete extends Model
         'titre',
         'position_arc',
         'type_jalon',
+        'objectif_majeur',
         'branche_active',
         'salles_decouvertes',
         'tresors_fouilles',
@@ -33,6 +34,7 @@ class Quete extends Model
     protected function casts(): array
     {
         return [
+            'objectif_majeur' => 'boolean',
             'branche_active' => 'array',
             // Avancement d'exploration — état de partie DURABLE (§2.16) : a
             // longtemps vécu en cache avec un TTL, ce qui figeait tout le

@@ -66,6 +66,7 @@ final class DemarreurQuete
         private readonly BibliothequeNarration $narration,
         private readonly LanceurDes $des,
         private readonly DeckFouille $deck,
+        private readonly CadenceNiveaux $cadence,
     ) {}
 
     /**
@@ -203,6 +204,14 @@ final class DemarreurQuete
                 'titre' => $this->titreQuete($groupe, $positionArc),
                 'position_arc' => $positionArc,
                 'type_jalon' => $typeJalon,
+                // Troisième déclencheur de montée de niveau (doc 01 §5) : la
+                // MARQUE vient du gabarit, la CADENCE de l'arc. Figé ici, au
+                // démarrage, exactement comme `type_jalon` — le plan de
+                // campagne est écrit par un job asynchrone, et relire la
+                // cadence en fin de quête exposerait une quête commencée avant
+                // son arrivée à voir la réponse changer sous elle.
+                'objectif_majeur' => (bool) data_get($gabarit->structure, 'objectif_majeur', false)
+                    && $this->cadence->estMajeure($groupe, $positionArc),
                 'etat' => 'en_cours',
                 'or_initial' => $groupe->or,
                 // La salle de départ est déjà « connue » : elle est couverte par

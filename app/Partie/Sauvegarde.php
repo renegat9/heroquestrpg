@@ -313,6 +313,7 @@ final class Sauvegarde
                 'titre' => $quete->titre,
                 'position_arc' => (int) $quete->position_arc,
                 'type_jalon' => $quete->type_jalon,
+                'objectif_majeur' => (bool) $quete->objectif_majeur,
                 'branche_active' => $quete->branche_active,
                 'etat' => $quete->etat,
                 'or_initial' => $quete->or_initial,
@@ -460,6 +461,10 @@ final class Sauvegarde
             'titre' => $quete['titre'],
             'position_arc' => $quete['position_arc'],
             'type_jalon' => $quete['type_jalon'],
+            // ⚠ `??` non décoratif : un instantané pris avant le 2026-09-04 ne
+            // porte pas la clé, et une campagne en vol doit tout de même
+            // reprendre. Faux par défaut — on ne s'invente pas un niveau.
+            'objectif_majeur' => (bool) ($quete['objectif_majeur'] ?? false),
             'branche_active' => $quete['branche_active'],
             'etat' => 'en_cours', // la quête repasse en cours (doc 05 §6)
             'or_initial' => $quete['or_initial'],

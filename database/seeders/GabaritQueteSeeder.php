@@ -21,6 +21,16 @@ class GabaritQueteSeeder extends Seeder
                 'type_jalon' => 'normale',
                 'structure' => [
                     'objectif' => 'atteindre_et_recuperer', // objet/PNJ au fond du donjon
+                    // ⚠ « certains objectifs de quête majeurs MARQUÉS PAR LE
+                    // GABARIT » — le troisième déclencheur de montée de niveau
+                    // (doc 01 §5), resté sans lecteur jusqu'au 2026-09-04.
+                    // C'est la moitié « éligibilité » : ce drapeau dit que
+                    // ramener l'objet du fond VAUT un niveau. L'autre moitié
+                    // est la cadence (`CadenceNiveaux`), qui décide lesquelles
+                    // de ces quêtes comptent — sans elle une campagne très
+                    // longue distribuerait vingt niveaux là où la doc en vise
+                    // huit.
+                    'objectif_majeur' => true,
                     // Plancher à 5 salles : en dessous, l'arbre ne peut pas se
                     // replier assez pour offrir une paire de salles voisines mais
                     // non reliées — donc AUCUNE boucle, donc aucune porte secrète
