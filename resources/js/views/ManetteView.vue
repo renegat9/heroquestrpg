@@ -362,7 +362,29 @@ watch(thinking, (v) => {
     }, 30000);
 }, { immediate: true });
 const conn = computed(() => store.state.connexion); // 'ok' | 'warn'
-const narration = computed(() => store.state.narration);
+/**
+ * L'objectif de la quête et son verdict — `null` s'il n'y a rien à dire.
+ *
+ * ⚠ `accompli` vient du SERVEUR, jamais recalculé ici : c'est le verdict qui
+ * ouvre « Quitter le donjon » et déclenche la montée de niveau. Deux juges
+ * pour une seule question dérivent.
+ *
+ * Il REMPLACE le bandeau de narration (2026-09-05). Le récit est lu à voix
+ * haute et reste affiché sur l'écran de table ; il faisait doublon sur le
+ * téléphone, où la place manque. Conséquence assumée : une partie jouée SANS
+ * écran de table n'a plus le texte du MJ sur les manettes.
+ */
+const objectif = computed(() => {
+    const quete = store.state.etat?.quete;
+
+    if (auHub.value || !quete?.objectif_libelle) return null;
+
+    return {
+        libelle: quete.objectif_libelle,
+        accompli: quete.objectif_accompli === true,
+        majeur: quete.objectif_majeur === true,
+    };
+});
 /* Journal de combat mécanique (.combat.journal) — les plus récentes en bas. */
 const journalCombat = computed(() => store.state.journalCombat);
 
@@ -969,13 +991,22 @@ const navItems = computed(() => (scene.value === 'marche'
                         </div>
                     </div>
 
-                    <!-- narration compacte -->
-                    <div class="narr-peek">
-                        <div class="hd">
-                            <span class="who">LE MAÎTRE DE JEU</span>
-                            <span class="bars"><i /><i /><i /></span>
+                    <!-- OBJECTIF de la quête, à la place du texte du MJ (René,
+                         2026-09-05 : « on n'a pas vraiment d'espace sur la
+                         manette »). Le récit est lu à voix haute et s'affiche
+                         déjà sur l'écran de table ; l'objectif, lui, n'était
+                         visible NULLE PART et c'est ce sur quoi le joueur
+                         décide de son déplacement à chaque tour. -->
+                    <div v-if="objectif" class="obj-peek" :class="{ fait: objectif.accompli }">
+                        <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="16" />
+                        <div class="obj-corps">
+                            <div class="obj-hd">
+                                <span class="who">OBJECTIF</span>
+                                <span v-if="objectif.accompli" class="obj-tag">Atteint</span>
+                                <span v-else-if="objectif.majeur" class="obj-tag obj-tag-niv">Niveau en jeu</span>
+                            </div>
+                            <p>{{ objectif.libelle }}</p>
                         </div>
-                        <p>{{ narration }}</p>
                     </div>
 
                     <!-- zone principale -->

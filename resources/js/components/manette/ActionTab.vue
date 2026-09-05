@@ -3,6 +3,7 @@
 // Le menu contextuel reçu par .menu.propose ({contexte, options: [{id,
 // libelle, type, parametres}]}) — chaque tap émet 'choose' avec l'option ;
 // `pending` gèle les boutons jusqu'au prochain .groupe.etat.
+import { nextTick, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
@@ -179,6 +180,23 @@ function creneauConsomme(option) {
     }
 }
 
+/**
+ * Le fil du combat défile MAINTENANT dans son propre cadre (René, 2026-09-05 :
+ * « séparer la section des actions et des logs pour avoir 2 scrolls
+ * indépendants »). Il faut donc le ramener sur la dernière ligne à chaque
+ * ajout : un journal qui ne suit pas son entrée la plus récente est pire que
+ * pas de journal du tout — avant la séparation, la page entière défilait et la
+ * nouveauté arrivait naturellement en bas.
+ */
+const filDuCombat = ref(null);
+
+watch(() => props.journal.length, async () => {
+    await nextTick();
+    const el = filDuCombat.value;
+
+    if (el) el.scrollTop = el.scrollHeight;
+});
+
 /** Icône du journal de combat par `ton` (voir App\Partie\JournalCombat). */
 const ICONE_JOURNAL = {
     degats: 'swords',
@@ -194,6 +212,13 @@ const ICONE_JOURNAL = {
 </script>
 
 <template>
+    <!-- ⚠ DEUX VOLETS À DÉFILEMENT SÉPARÉ. Les actions et le fil partageaient
+         le défilement de la page : lire le fil poussait les boutons hors de
+         l'écran, et jouer masquait ce qui venait de se passer. Le cadre ne
+         prend de la hauteur que s'il y a un fil — sans lui, les actions
+         occupent tout. -->
+    <div class="act-volets">
+    <div class="act-scroll">
     <!-- le menu vient du MJ (.menu.propose) -->
     <div v-if="menu">
         <div v-if="pending" class="turn-banner wait">
@@ -224,12 +249,14 @@ const ICONE_JOURNAL = {
         <div class="empty-note">La partie se poursuit — tu reprendras la main dans un instant.</div>
     </div>
 
+    </div>
+
     <!-- journal de combat mécanique (.combat.journal) : ce que le moteur vient
          de résoudre (attaques, dégâts, tour des monstres) — visible même hors
          de mon tour, sinon on ne verrait que ses PV bouger. -->
     <div v-if="journal.length" class="cbt-log">
         <div class="sect-title"><MSym n="history" :size="16" /> Fil du combat</div>
-        <div class="cbt-lines">
+        <div ref="filDuCombat" class="cbt-lines">
             <div v-for="l in journal" :key="l.id" class="cbt-entree">
                 <div class="cbt-line" :class="`t-${l.ton}`">
                     <MSym :n="ICONE_JOURNAL[l.ton] || 'chevron_right'" :size="15" fill />
@@ -242,11 +269,26 @@ const ICONE_JOURNAL = {
             </div>
         </div>
     </div>
+    </div>
 </template>
 
 <style scoped>
-.cbt-log { margin-top: 16px; }
-.cbt-lines { display: flex; flex-direction: column; gap: 4px; }
+/* Les deux volets remplissent la hauteur offerte par `.body`, qui cesse alors
+   de défiler lui-même (son contenu tient exactement). `min-height: 0` est
+   indispensable : sans lui un enfant de flex refuse de rétrécir, les deux
+   volets poussent leur propre plafond et plus rien ne défile. */
+.act-volets { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 12px; }
+.act-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.act-scroll::-webkit-scrollbar { width: 0; }
+
+/* ⚠ Le fil prend ce dont il a besoin, sans jamais dépasser 40 % : les actions
+   sont ce pour quoi on ouvre la manette, et un fil bavard ne doit pas les
+   chasser de l'écran. */
+.cbt-log { flex: 0 0 auto; max-height: 40%; display: flex; flex-direction: column; min-height: 0;
+  border-top: var(--line); padding-top: 10px; }
+.cbt-lines { display: flex; flex-direction: column; gap: 4px;
+  min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.cbt-lines::-webkit-scrollbar { width: 0; }
 .cbt-entree { display: flex; flex-direction: column; gap: 3px; }
 .cbt-entree :deep(.jet-des) { padding: 2px 9px 5px; }
 .cbt-line {

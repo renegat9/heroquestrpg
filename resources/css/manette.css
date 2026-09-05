@@ -64,16 +64,29 @@
 .mini-pv .pip.b { background: linear-gradient(180deg, var(--body-bright), var(--body)); }
 .mini-pv .pip.m { background: linear-gradient(180deg, var(--mind-bright), var(--mind)); }
 
-/* ---- Narration peek ---- */
-.narr-peek { flex: none; padding: 11px 16px; background: linear-gradient(180deg, oklch(0.20 0.013 255), var(--stone-900));
+/* ---- Objectif de quête (remplace le bandeau de narration, 2026-09-05) ----
+   Le récit est lu à voix haute et reste sur l'écran de table ; l'objectif,
+   lui, n'était visible nulle part et c'est ce qui oriente chaque déplacement. */
+.obj-peek { flex: none; display: flex; align-items: flex-start; gap: 9px; padding: 9px 16px;
+  background: linear-gradient(180deg, oklch(0.20 0.013 255), var(--stone-900));
   border-bottom: var(--line); border-left: 3px solid var(--torch); }
-.narr-peek .hd { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
-.narr-peek .who { font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; color: var(--torch); font-weight: 700; }
-.narr-peek .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 11px; margin-left: auto; }
-.narr-peek .bars i { width: 2.5px; background: var(--torch); border-radius: 2px; animation: eq 0.9s ease-in-out infinite; }
-.narr-peek .bars i:nth-child(2){animation-delay:.15s} .narr-peek .bars i:nth-child(3){animation-delay:.3s}
-@keyframes eq { 0%,100%{height:3px} 50%{height:11px} }
-.narr-peek p { font-family: var(--font-narr); font-size: 14px; line-height: 1.45; margin: 0; color: var(--ink-100); }
+.obj-peek > .msym { color: var(--torch); flex: none; margin-top: 1px; }
+.obj-peek .obj-corps { min-width: 0; }
+.obj-peek .obj-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.obj-peek .who { font-family: var(--font-display); font-size: 10px; letter-spacing: 0.1em; color: var(--torch); font-weight: 700; }
+.obj-peek .obj-tag { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; border: 1px solid var(--torch); color: var(--torch); }
+.obj-peek .obj-tag-niv { border-color: var(--gold); color: var(--gold); }
+/* ⚠ Deux lignes au plus : au-delà, le rappel mange la place qu'on vient de
+   libérer. Il passe à la ligne plutôt que d'être coupé — un objectif tronqué
+   ne dit plus où aller, et c'est tout ce qu'on lui demande. */
+.obj-peek p { font-family: var(--font-narr); font-size: 13.5px; line-height: 1.4; margin: 0; color: var(--ink-100);
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.obj-peek.fait { border-left-color: var(--ok); }
+.obj-peek.fait > .msym, .obj-peek.fait .who { color: var(--ok); }
+.obj-peek.fait p { color: var(--ok); font-weight: 600; }
+.obj-peek.fait .obj-tag { border-color: var(--ok); color: var(--ok);
+  background: color-mix(in oklch, var(--ok) 16%, transparent); }
 
 /* ---- Zone principale ---- */
 .body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
