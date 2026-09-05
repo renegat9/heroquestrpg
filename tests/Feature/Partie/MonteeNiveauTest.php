@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\Http;
  * Montée de niveau par jalons (doc 01 §5, contrat docs/contrat-api.md) :
  * victoire d'une quête sous_boss/boss_final → +1 niveau par héros actif
  * (+1 PV max au niveau PAIR), broadcast `.niveau.monte` ; les points de
- * compétence sont DÉRIVÉS ((niveau − 1) − nœuds acquis) et se dépensent via
+ * compétence sont DÉRIVÉS ((niveau − 1) − nœuds ACHETÉS — les capacités de
+ * carte `innee` ne coûtent rien) et se dépensent via
  * POST /groupes/{identifiant}/competences (classe, prérequis, points).
  */
 
@@ -295,4 +296,65 @@ it('sème un arbre COMPLET pour chacune des 12 classes, capacités innées compr
     foreach (['barbare', 'nain', 'elfe', 'magicien'] as $historique) {
         expect(Competence::where('classe', $historique)->where('innee', true)->count())->toBe(0);
     }
+});
+
+// =====================================================================
+// LES CAPACITÉS INNÉES NE COÛTENT PAS DE POINT — René, 2026-09-04, au terme
+// de la 3e quête : « on a passé de niveau mais il n'y a que le druid qui a 1
+// point de talent à dépenser, pourquoi ? ».
+//
+// Parce que `pointsCompetence()` retranchait TOUS les nœuds du pivot, et que
+// `CapacitesInnees::attribuer()` y range aussi les capacités de carte —
+// offertes avec la figurine, et laissées hors de la grille de talents
+// (`colonne`/`rang` à NULL) précisément parce qu'elles ne s'achètent pas.
+// Le berserker (3 innées) et le moine (4) avaient donc `max(0, 1 − 3)` et
+// `max(0, 1 − 4)` au niveau 2 ; le druide, l'une des deux seules classes SANS
+// capacité innée, recevait le sien normalement. Le berserker aurait attendu le
+// niveau 4 et le moine le niveau 5, sans qu'un seul écran dise pourquoi.
+// =====================================================================
+
+it('donne son point de niveau au berserker et au moine comme au druide, malgré leurs capacités de carte', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+
+    $berserker = creerHeros($alice, $groupe, 'Ragnar', 1, ['classe' => 'berserker']);
+    $moine = creerHeros($alice, $groupe, 'Shen', 1, ['classe' => 'moine']);
+    $druide = creerHeros($alice, $groupe, 'Sylve', 1, ['classe' => 'druide']);
+
+    // Les innées sont attachées à la création : c'est le pivot que la formule
+    // lisait, et c'est ce qui rend le test probant.
+    expect($berserker->competences()->where('innee', true)->count())->toBeGreaterThan(0)
+        ->and($moine->competences()->where('innee', true)->count())->toBeGreaterThan(0)
+        ->and($druide->competences()->where('innee', true)->count())->toBe(0);
+
+    foreach ([$berserker, $moine, $druide] as $heros) {
+        expect($heros->pointsCompetence())->toBe(0, "{$heros->nom} au niveau 1");
+        $heros->update(['niveau' => 2]);
+        expect($heros->fresh()->pointsCompetence())->toBe(1, "{$heros->nom} au niveau 2");
+    }
+
+    // ⚠ Et /moi doit dire la MÊME chose : la ligne y portait sa propre copie de
+    // la formule, avec le même défaut.
+    $publies = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
+        ->pluck('points_competence', 'nom');
+
+    expect($publies['Ragnar'])->toBe(1)
+        ->and($publies['Shen'])->toBe(1)
+        ->and($publies['Sylve'])->toBe(1);
+});
+
+it('continue de décompter les nœuds ACHETÉS, eux', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Ragnar', 1, ['classe' => 'berserker']);
+
+    $heros->update(['niveau' => 3]);
+    expect($heros->fresh()->pointsCompetence())->toBe(2);
+
+    // Un nœud d'arbre (innee = false) coûte bien son point.
+    $noeud = Competence::where('classe', 'berserker')->where('innee', false)
+        ->whereNotNull('colonne')->where('rang', 1)->firstOrFail();
+    $heros->competences()->attach($noeud->id);
+
+    expect($heros->fresh()->pointsCompetence())->toBe(1);
 });

@@ -144,7 +144,12 @@ class AuthController extends Controller
                         // invisible jusqu'ici (ni roster ni fiche n'avaient `or`).
                         'or' => (int) $p->or,
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
-                        'points_competence' => max(0, ((int) $p->niveau - 1) - $p->competences->count()),
+                        // ⚠ Point de passage UNIQUE. Cette ligne portait sa
+                        // propre copie de la formule, et la copie ignorait
+                        // comme l'autre que les capacités `innee` ne coûtent
+                        // rien — deux exemplaires d'une règle assez simple pour
+                        // que personne ne remarque l'une dériver.
+                        'points_competence' => $p->pointsCompetence(),
                         'competences' => $p->competences->pluck('id')->values()->all(),
                         // Équipement réel (fiche/sac) : arme(s) + armure nommées,
                         // sac général à part — doc 01 §7 (emplacements). Chaque

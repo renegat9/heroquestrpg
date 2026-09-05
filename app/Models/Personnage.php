@@ -107,11 +107,25 @@ class Personnage extends Model
 
     /**
      * Points de compétence disponibles — JAMAIS stockés, toujours dérivés
-     * (contrat) : 1 point par niveau gagné, moins les nœuds déjà acquis.
+     * (contrat) : 1 point par niveau gagné, moins les nœuds ACHETÉS.
+     *
+     * ⚠ « achetés », pas « acquis » : les capacités de carte `innee` vivent
+     * dans le MÊME pivot (`CapacitesInnees::attribuer()` les y attache à la
+     * création), mais elles viennent avec la figurine et ne coûtent aucun
+     * point — c'est la règle posée avec la grille de talents, qui les laisse
+     * justement HORS de la grille (`colonne`/`rang`/`categorie` à NULL).
+     *
+     * Les compter revenait à faire payer au héros des capacités qu'on lui avait
+     * données : au niveau 2, le berserker (3 innées) et le moine (4) avaient
+     * `max(0, 1 − 3)` et `max(0, 1 − 4)`, soit ZÉRO point, quand le druide —
+     * l'une des deux seules classes sans capacité innée — recevait le sien
+     * normalement (constaté par René au terme de la 3e quête, 2026-09-04). Le
+     * berserker aurait attendu le niveau 4 et le moine le niveau 5 pour ouvrir
+     * leur premier nœud, sans qu'aucun écran ne dise pourquoi.
      */
     public function pointsCompetence(): int
     {
-        return max(0, ((int) $this->niveau - 1) - $this->competences()->count());
+        return max(0, ((int) $this->niveau - 1) - $this->competences()->where('innee', false)->count());
     }
 
     /** Lignes d'inventaire (équipé + sac + consommables). */
