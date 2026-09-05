@@ -28,6 +28,140 @@ beforeEach(function () {
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
 });
 
+it('DÉPASSE un compagnon sans pouvoir s\'arrêter sur sa case', function () {
+    // ⚠ La règle était SOURCÉE et jamais implémentée : « on peut traverser la
+    // case d\'un autre héros (pas s\'y arrêter), on ne peut jamais partager une
+    // case » — LR p. 12, transcrite en doc 16 §5 au portage des livrets. Deux
+    // héros dans un couloir se bloquaient mutuellement (René, 2026-09-04).
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+    $etatAmi = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $compagnon->id)->firstOrFail();
+
+    // On cherche trois cases ALIGNÉES et libres : le héros, le compagnon planté
+    // au milieu, et la case au-delà.
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $axe = null;
+
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        if (caseQueteLibre($quete, $hx + $dx, $hy + $dy) && caseQueteLibre($quete, $hx + 2 * $dx, $hy + 2 * $dy)) {
+            $axe = [$dx, $dy];
+            break;
+        }
+    }
+
+    expect($axe)->not->toBeNull('pas trois cases alignées libres autour du héros');
+    [$dx, $dy] = $axe;
+
+    $etatAmi->update(['position_x' => $hx + $dx, 'position_y' => $hy + $dy]);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false, 'a_joue' => false]);
+
+    // S\'ARRÊTER sur le compagnon : refusé — « on ne peut jamais partager une case ».
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => ['x' => $hx + $dx, 'y' => $hy + $dy],
+    ])->assertStatus(422)->assertJsonPath(
+        'errors.parametres.0',
+        'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
+    );
+
+    // …mais le DÉPASSER pour la case au-delà : accepté.
+    test()->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => ['x' => $hx + 2 * $dx, 'y' => $hy + 2 * $dy],
+    ])->assertStatus(202);
+
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])
+        ->toBe([$hx + 2 * $dx, $hy + 2 * $dy]);
+});
+
+it('ne franchit PAS un monstre : le franchissement ne vaut qu\'entre ALLIÉS', function () {
+    // ⚠ « You cannot pass over monsters » (LR p. 12) — c\'est justement ce que le
+    // Voile de Brume et la Poudre d\'Invisibilité existent pour lever.
+    //
+    // L\'assertion se joue sur la GRILLE et non sur un déplacement de bout en
+    // bout : sur une carte ouverte, le pathfinding contourne le gobelin et un
+    // 202 ne prouverait rien du tout. Ici, la question est posée directement.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    ['quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat, 'heros' => $heros] = $ctx;
+
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    $compagnon = creerHeros($bob, $ctx['groupe'], 'Brunhilde', 2);
+    $etatAmi = EtatPersonnageQuete::create([
+        'quete_id' => $quete->id, 'personnage_id' => $compagnon->id,
+        'position_x' => (int) $etat->position_x, 'position_y' => (int) $etat->position_y,
+    ]);
+
+    // Compagnon et gobelin sur deux cases libres distinctes autour du héros.
+    $libres = [];
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $c = ['x' => (int) $etat->position_x + $dx, 'y' => (int) $etat->position_y + $dy];
+        if (caseQueteLibre($quete, $c['x'], $c['y'])) {
+            $libres[] = $c;
+        }
+    }
+
+    expect(count($libres))->toBeGreaterThanOrEqual(2);
+    $etatAmi->update(['position_x' => $libres[0]['x'], 'position_y' => $libres[0]['y']]);
+    $gobelin->update(['position_x' => $libres[1]['x'], 'position_y' => $libres[1]['y'], 'revele' => true]);
+
+    $grille = App\Partie\FabriqueGrille::pour(
+        $quete->fresh(), exceptPersonnageId: (int) $heros->id, franchitAllies: true,
+    );
+
+    // Le COMPAGNON se traverse…
+    expect($grille->estTraversable($libres[0]['x'], $libres[0]['y']))->toBeTrue()
+        // …mais sa case reste interdite à l\'arrêt,
+        ->and($grille->estOccupeeParFigure($libres[0]['x'], $libres[0]['y']))->toBeTrue()
+        // …et il coupe toujours la LIGNE DE VUE, comme toute figure interposée —
+        // c\'est le cas que l\'attaque en diagonale existe pour compenser.
+        ->and($grille->estOccupeeParFigure($libres[1]['x'], $libres[1]['y']))->toBeTrue();
+
+    // Le MONSTRE, lui, barre le passage.
+    expect($grille->estTraversable($libres[1]['x'], $libres[1]['y']))->toBeFalse();
+});
+
+it('laisse un MONSTRE franchir un autre monstre, sans s\'arrêter dessus', function () {
+    // ⚠ Décision de NOUS (René, 2026-09-04) : aucun livret ne dit qu\'un monstre
+    // franchit un autre monstre. Retenue par symétrie avec les héros et pour une
+    // raison pratique — sans elle, une file de créatures dans un couloir se
+    // paralyse elle-même.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    ['quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat] = $ctx;
+
+    $voisine = caseAdjacenteLibre($quete, (int) $gobelin->position_x, (int) $gobelin->position_y);
+    $autre = App\Models\InstanceMonstre::create([
+        'quete_id' => $quete->id, 'monstre_id' => $gobelin->monstre_id,
+        'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 1,
+        'position_x' => $voisine['x'], 'position_y' => $voisine['y'],
+        'etat' => 'actif', 'revele' => true,
+    ]);
+
+    $grille = App\Partie\FabriqueGrille::pour(
+        $quete->fresh(), exceptInstanceId: (int) $gobelin->id, franchitAllies: true,
+    );
+
+    expect($grille->estTraversable($voisine['x'], $voisine['y']))->toBeTrue()
+        ->and($grille->estOccupeeParFigure($voisine['x'], $voisine['y']))->toBeTrue();
+
+    // …et le HÉROS, lui, ne franchit ni l\'un ni l\'autre.
+    $vueHeros = App\Partie\FabriqueGrille::pour(
+        $quete->fresh(), exceptPersonnageId: (int) $ctx['heros']->id, franchitAllies: true,
+    );
+    expect($vueHeros->estTraversable($voisine['x'], $voisine['y']))->toBeFalse();
+
+    expect($autre->fresh())->not->toBeNull();
+});
+
 it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();

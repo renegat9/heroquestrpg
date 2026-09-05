@@ -39,6 +39,7 @@ final class FabriqueGrille
         ?int $exceptInstanceId = null,
         ?int $exceptMercenaireId = null,
         bool $traverseRoche = false,
+        bool $franchitAllies = false,
     ): Grille {
         $carte = $quete->carte;
 
@@ -56,15 +57,47 @@ final class FabriqueGrille
         }
 
         $occupees = [];
+        $alliees = [];
         $obstacles = [];
         $opaques = [];
+
+        // ⚠ QUI BOUGE décide de qui est un allié — et c'est le paramètre
+        // `except*` qui le dit déjà : un héros retire SA figure, un monstre
+        // retire la SIENNE. Sans mouvement identifié (grille générique de
+        // ciblage), tout le monde reste dans `$occupees` : le comportement des
+        // appelants qui demandent seulement « qui est où » ne change pas.
+        //
+        // « On peut traverser la case d'un autre héros (pas s'y arrêter) »
+        // (LR p. 12, doc 16 §5) : la règle était ÉCRITE dans la doc depuis le
+        // portage des livrets, et le moteur ne l'appliquait pas — deux héros
+        // dans un couloir se bloquaient mutuellement.
+        //
+        // ⚠ La réciproque côté monstres est de NOUS : aucun livret ne dit qu'un
+        // monstre franchit un autre monstre. Elle est retenue par symétrie et
+        // pour une raison pratique — sans elle, une file de créatures dans un
+        // couloir se paralyse elle-même, le premier bloquant tous les autres.
+        // ⚠ OPT-IN, et c'est délibéré. `estTraversable()` répondait jusqu'ici à
+        // DEUX questions à la fois — « puis-je passer ici ? » et « puis-je m'y
+        // tenir ? » — parce qu'elles avaient la même réponse. Elles divergent
+        // désormais, et une grille qui franchit les alliés par défaut aurait
+        // changé en silence le sens de huit sites d'appel qui parlent de
+        // PLACEMENT (invocation, poussée, téléportation, atterrissage). Seuls
+        // les chemins de DÉPLACEMENT le demandent, et ils le disent.
+        $moteurHeros = $franchitAllies && ($exceptPersonnageId !== null || $exceptMercenaireId !== null);
+        $moteurMonstre = $franchitAllies && $exceptInstanceId !== null;
 
         foreach ($quete->etatsPersonnages()->get() as $etat) {
             // Un héros TOMBÉ (à terre) ne bloque ni le passage ni la ligne de vue :
             // il gît au sol, on l'enjambe. Il reste secourable (resoudreRelever) tant
             // qu'aucune AUTRE figure ne se tient sur sa case.
             if ($etat->personnage_id !== $exceptPersonnageId && $etat->position_x !== null && ! $etat->tombe) {
-                $occupees[] = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+                $case = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
+                if ($moteurHeros) {
+                    $alliees[] = $case;
+                } else {
+                    $occupees[] = $case;
+                }
             }
         }
 
@@ -81,16 +114,31 @@ final class FabriqueGrille
                 // 3.9 : une grande figurine occupe TOUTE son emprise (1×1 → une
                 // seule case, identique au comportement antérieur).
                 $e = $instance->monstre->emprise();
-                $occupees = array_merge($occupees, $grille->cellulesEmprise(
+                $emprise = $grille->cellulesEmprise(
                     (int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h'],
-                ));
+                );
+
+                if ($moteurMonstre) {
+                    $alliees = array_merge($alliees, $emprise);
+                } else {
+                    $occupees = array_merge($occupees, $emprise);
+                }
             }
         }
 
         // Alliés (3.5) : figures sur le plateau → cases infranchissables.
         foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
             if ($allie->id !== $exceptMercenaireId && $allie->position_x !== null) {
-                $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
+                $case = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
+
+                // Un mercenaire combat AVEC les héros : il est du même camp
+                // qu'eux, donc traversable par un héros — et un obstacle pour un
+                // monstre, comme n'importe quel ennemi.
+                if ($moteurHeros || $exceptMercenaireId !== null) {
+                    $alliees[] = $case;
+                } else {
+                    $occupees[] = $case;
+                }
             }
         }
 
@@ -135,6 +183,7 @@ final class FabriqueGrille
         }
 
         $grille->occuper($occupees);
+        $grille->occuperAllie($alliees);
         $grille->obstruer($obstacles);
         $grille->occulter($opaques);
 

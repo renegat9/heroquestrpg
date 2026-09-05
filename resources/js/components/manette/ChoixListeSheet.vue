@@ -57,8 +57,15 @@ function meta(entree) {
     // et le payant : c'est la seule liste où il change d'une ligne à l'autre.
     if (entree.cout) {
         const cout = entree.cout === 'action' ? "coûte l'action" : 'gratuit';
+        const base = entree.detail ? `${entree.detail} · ${cout}` : cout;
 
-        return entree.detail ? `${entree.detail} · ${cout}` : cout;
+        // ⚠ CE QUE LA PIÈCE FAIT, à l'endroit où on en a le plus besoin : cette
+        // liste se consulte EN PLEIN TOUR. On n'y met que la première phrase —
+        // un artefact en porte jusqu'à huit, et une carte de choix qui déborde
+        // n'aide plus personne ; le sac reste l'endroit où tout lire.
+        const quoi = (entree.avantages ?? [])[0];
+
+        return quoi ? `${base} · ${quoi}` : base;
     }
 
     return entree.detail ?? TYPES_SORT[entree.sort_type]?.l ?? '';

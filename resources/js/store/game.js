@@ -853,6 +853,10 @@ export function marcheVersEchoppe(marche) {
         icon: CATEGORIE_ICONES[(it.categorie ?? '').toLowerCase()] ?? 'category',
         img: it.image_url ?? null,
         price: it.prix ?? 0,
+        // Ce que la pièce fait, traduit CÔTÉ SERVEUR (MotsClesEquipement) : on
+        // n'achète pas à l'aveugle. Le tableau reste tel quel — aucune
+        // interprétation ici, c'est tout l'intérêt.
+        avantages: it.avantages ?? [],
         // Contrat (EtatMarche) : stock null = ILLIMITÉ (rareté commun) — le
         // coercer à 0 affichait « épuisé » et gelait tout achat commun.
         stock: it.stock ?? null,

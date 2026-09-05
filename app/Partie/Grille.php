@@ -40,6 +40,20 @@ final class Grille
     private array $occupees = [];
 
     /**
+     * Figures du MÊME CAMP que celui qui bouge — un compagnon pour un héros, un
+     * autre monstre pour un monstre.
+     *
+     * ⚠ Trois propriétés, et il faut les trois séparément : elles ne bloquent
+     * PAS le passage (« on peut traverser la case d'un autre héros », LR p. 12),
+     * elles bloquent la VUE comme n'importe quelle figure interposée, et elles
+     * interdisent l'ARRÊT (« on ne peut jamais partager une case », même page).
+     * Les fondre dans `$occupees` interdisait le passage ; les fondre dans rien
+     * du tout aurait laissé tirer à travers ses propres compagnons — et c'est
+     * précisément ce que l'attaque en diagonale existe pour compenser.
+     */
+    private array $alliees = [];
+
+    /**
      * Cases rendues INFRANCHISSABLES par un meuble (`bloque_mouvement`, doc
      * 17) — distinct de `$occupees` : un meuble n'est PAS une figure, il ne
      * doit jamais participer au test `figuresBloquent` de `ligneDeVue()`
@@ -170,6 +184,31 @@ final class Grille
     }
 
     /**
+     * Marque les cases de figures ALLIÉES à celle qui bouge : traversables,
+     * mais opaques et interdites à l'arrêt (LR p. 12, doc 16 §5).
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function occuperAllie(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->alliees["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /**
+     * Une FIGURE se tient-elle ici — amie ou ennemie ?
+     *
+     * ⚠ La question que doit poser quiconque cherche une case où S'ARRÊTER :
+     * `estTraversable()` répond désormais « oui » sur un allié, ce qui est le
+     * but, et n'est donc plus le bon test pour une destination.
+     */
+    public function estOccupeeParFigure(int $x, int $y): bool
+    {
+        return isset($this->occupees["{$x},{$y}"]) || isset($this->alliees["{$x},{$y}"]);
+    }
+
+    /**
      * Marque des cases INFRANCHISSABLES par un meuble (`bloque_mouvement`,
      * doc 17) — même patron qu'`occuper()`, mais un jeu de cases distinct :
      * contrairement à une figure, un meuble ne bloque JAMAIS la ligne de vue
@@ -222,6 +261,7 @@ final class Grille
     {
         $this->obstacles = [];
         $this->occupees = [];
+        $this->alliees = [];
     }
 
     /**
@@ -463,7 +503,10 @@ final class Grille
 
             // Figure interposée (tir / sort) : une case occupée sur le trajet
             // coupe la vue — pas de sort à travers un allié ou un ennemi.
-            if ($figuresBloquent && isset($this->occupees["{$x},{$y}"])) {
+            // ⚠ Les alliés bloquent la VUE (mais pas le passage) : un compagnon
+            // interposé coupe la ligne de tir, et c'est exactement le cas que
+            // l'attaque en diagonale existe pour compenser (LR p. 14).
+            if ($figuresBloquent && $this->estOccupeeParFigure($x, $y)) {
                 return false;
             }
         }
@@ -562,8 +605,18 @@ final class Grille
                 }
 
                 $vus[$cle] = true;
-                $chemins[$cle] = [...($chemins["{$x},{$y}"] ?? []), ['x' => $nx, 'y' => $ny]];
                 $file[] = [$nx, $ny, $d + 1];
+
+                // ⚠ On TRAVERSE un allié, on ne s'y ARRÊTE pas : sa case reste
+                // dans le parcours (elle sert de passage) mais ne figure pas
+                // parmi les destinations proposées. Un seul point de passage
+                // pour la règle — le menu, le déplacement et le tour des
+                // monstres lisent tous cette liste.
+                if ($this->estOccupeeParFigure($nx, $ny)) {
+                    continue;
+                }
+
+                $chemins[$cle] = [...($chemins["{$x},{$y}"] ?? []), ['x' => $nx, 'y' => $ny]];
             }
         }
 

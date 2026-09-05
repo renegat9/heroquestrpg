@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie\Marche;
 
+use App\Engine\MotsClesEquipement;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MarcheFinalise;
 use App\Events\MarcheMaj;
@@ -131,6 +132,9 @@ final class PhaseMarche
                 // surprise pour le moment d'équiper. Ce que le groupe entier ne
                 // peut pas porter n'est simplement plus en rayon (voir plus haut).
                 'tag_equipement' => $o->tag_equipement,
+                // ⚠ Ce que la pièce FAIT, en clair : on n'achète pas à l'aveugle.
+                // Traduit de l'`effet` côté serveur, comme dans le sac.
+                'avantages' => MotsClesEquipement::avantages((array) $o->effet),
                 'prix' => self::prixPour($o, (float) $config['multiplicateur'], $remise),
                 'stock' => ProfilMarche::STOCKS[$o->rarete] ?? null,
                 'image_url' => app(BibliothequeImages::class)->urlObjet($o->id, $o->nom),

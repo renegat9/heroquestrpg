@@ -3,7 +3,8 @@
 // `live` (EtatMarche mappé, doc 04 §5 — saisie individuelle sur le
 // téléphone : panier d'achats/ventes personnel, total projeté du groupe,
 // confirmation).
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import InfoSheet from './InfoSheet.vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import { PROFILS_MARCHE } from '../../store/game';
@@ -22,6 +23,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['qty', 'vendre', 'confirmer']);
+
+/* Détail d'un article : on n'achète pas à l'aveugle (René, 2026-09-04). Les
+   phrases viennent du serveur — `MotsClesEquipement::avantages()` traduit
+   l'`effet`, la manette ne l'interprète pas. */
+const detail = ref(null);
 
 const profilLabel = computed(() => {
     const p = props.live?.profil;
@@ -84,6 +90,8 @@ function nonMaitrise(it) {
                 </div>
             </div>
             <span class="price"><MSym n="paid" :size="15" />{{ it.price }}</span>
+            <button class="btn btn-sm btn-ghost mk-det" title="Voir le détail"
+                @click="detail = it"><MSym n="info" :size="16" /></button>
             <!-- Gabarit STABLE : les trois éléments existent toujours, seuls
                  « − » et la quantité s'effacent à 0. Avec un `v-if`, ils
                  s'inséraient AVANT le « + » au premier tap, qui reculait de
@@ -165,7 +173,16 @@ function nonMaitrise(it) {
             </div>
         </div>
     </div>
-</template>
+
+        <InfoSheet
+            v-if="detail"
+            :titre="detail.name"
+            :sous-titre="detail.rarLabel"
+            :icone="detail.icon"
+            :avantages="detail.avantages"
+            @close="detail = null"
+        />
+    </template>
 
 <style>
 /* compléments marché (mode connecté) — mêmes tokens que manette.css */
@@ -191,4 +208,7 @@ function nonMaitrise(it) {
     color: oklch(0.72 0.11 60);
 }
 .mk-err { font-size: 12px; color: var(--danger, #c33); margin: 8px 0 0; }
+/* Le ⓘ informe, il n'achète pas : discret, à côté du prix. */
+.mk-det { margin-left: 8px; opacity: 0.7; padding: 5px 7px; }
+.mk-det:hover { opacity: 1; }
 </style>

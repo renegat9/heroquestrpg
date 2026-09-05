@@ -483,7 +483,13 @@ final class ResolveurTour
 
         $traverseRoche = $this->sorts->traverseRoche($personnage);
 
-        $grille = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
+        // ⚠ `franchitAllies` : « on peut traverser la case d'un autre héros (pas
+        // s'y arrêter) » — LR p. 12, doc 16 §5. La règle était ÉCRITE dans la
+        // doc depuis le portage des livrets et le moteur ne l'appliquait pas :
+        // deux héros dans un couloir se bloquaient mutuellement.
+        $grille = $this->grille(
+            $quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche, franchitAllies: true,
+        );
 
         // MOBILITÉ DE COMBAT (Rogue) : « You may move UNSEEN through spaces
         // occupied by monsters. » Exactement `agile` côté héros — le mobilier
@@ -512,9 +518,15 @@ final class ResolveurTour
         // Défaut préexistant du talent du Rogue, trouvé en portant Voile de
         // Brume dessus. On rejuge sur la grille RÉELLE, celle qui sait encore
         // ce qui est occupé.
-        if ($franchitFigures
-            && ! $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche)
-                ->estTraversable($x, $y)) {
+        //
+        // ⚠ Depuis le 2026-09-04 l'interdit vaut AUSSI sans le moindre pouvoir :
+        // un héros traverse désormais la case d'un compagnon par la règle
+        // ordinaire (« on peut traverser la case d'un autre héros, pas s'y
+        // arrêter » — LR p. 12, doc 16 §5). La question à poser n'est donc plus
+        // « la case est-elle traversable ? » — elle l'est — mais « une figure
+        // s'y tient-elle ? ».
+        if ($this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche)
+            ->estOccupeeParFigure($x, $y)) {
             throw ValidationException::withMessages([
                 'parametres' => 'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
             ]);
@@ -2132,10 +2144,12 @@ final class ResolveurTour
         $traversant = $this->dread->aCapacite($instance, 'ethere')
             || $this->dread->aCapacite($instance, 'agile');
 
-        if (! $traversant) {
-            return $chemin[$pas - 1];
-        }
-
+        // ⚠ Le recul vaut désormais pour TOUT LE MONDE, et plus seulement pour
+        // les traversants : depuis que les monstres se franchissent entre eux
+        // (2026-09-04), une créature ordinaire peut elle aussi terminer son
+        // chemin sur la case d'une autre. Rendre `$chemin[$pas - 1]` sans le
+        // vérifier empilait deux figurines.
+        //
         // Grille NORMALE : elle dit ce qui est réellement occupé/infranchissable.
         $reelle = $this->grille($quete, exceptInstanceId: $instance->id);
         $decouvertes = $quete->sallesDecouvertes();
@@ -2143,8 +2157,12 @@ final class ResolveurTour
         for ($i = $pas - 1; $i >= 0; $i--) {
             $case = $chemin[$i];
 
+            // ⚠ La salle DÉCOUVERTE ne concerne que les traversants : un monstre
+            // ordinaire vit dans les salles que le groupe n'a pas ouvertes, et
+            // l'y interdire le clouerait sur place. Ce qui vaut pour tous, c'est
+            // de ne pas s'arrêter sur une figure.
             if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])
-                && $this->salleDecouverte($quete, $decouvertes, (int) $case['x'], (int) $case['y'])) {
+                && (! $traversant || $this->salleDecouverte($quete, $decouvertes, (int) $case['x'], (int) $case['y']))) {
                 return $case;
             }
         }
@@ -6809,7 +6827,13 @@ final class ResolveurTour
             }
         }
 
-        $grille = $this->grille($quete, exceptInstanceId: $instance->id);
+        // ⚠ `franchitAllies` : un monstre franchit un AUTRE MONSTRE. Décision de
+        // NOUS — aucun livret ne l'écrit (René, 2026-09-04) —, retenue par
+        // symétrie avec les héros et pour une raison pratique : sans elle, une
+        // file de créatures dans un couloir se paralyse elle-même, celle de tête
+        // bloquant toutes les suivantes. Traverser n'est pas s'arrêter :
+        // `derniereCaseOuSArreter()` recule jusqu'à une case réellement libre.
+        $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
 
         // Monstre à distance (3.4) : s'il a une ligne de vue sur un héros, il TIRE
         // plutôt que de foncer au contact (au contact, il frappe en corps-à-corps,
@@ -6822,7 +6846,7 @@ final class ResolveurTour
             // exactement l'inverse. Et sans ligne de mire, il fonçait au contact
             // comme un corps-à-corps, se privant lui-même de son arme.
             if ($this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre) !== null) {
-                $grille = $this->grille($quete, exceptInstanceId: $instance->id);
+                $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
             }
 
             $tir = $this->tirerSiCibleEnVue($groupe, $instance, $cibles, $grille, $acteur, $nomMonstre);
@@ -8051,8 +8075,11 @@ final class ResolveurTour
         ?int $exceptInstanceId = null,
         ?int $exceptMercenaireId = null,
         bool $traverseRoche = false,
+        bool $franchitAllies = false,
     ): Grille {
-        return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId, $exceptMercenaireId, $traverseRoche);
+        return FabriqueGrille::pour(
+            $quete, $exceptPersonnageId, $exceptInstanceId, $exceptMercenaireId, $traverseRoche, $franchitAllies,
+        );
     }
 
     /**

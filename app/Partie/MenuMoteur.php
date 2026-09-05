@@ -502,6 +502,10 @@ final class MenuMoteur
                     'detail' => 'Activer',
                     'cout' => (string) ($objet->effet['cout'] ?? 'action'),
                     'quantite' => (int) $ligne->quantite,
+                    // ⚠ Ce que la pièce fait, en clair : la liste de choix se
+                    // consulte EN PLEIN TOUR, c'est-à-dire au moment où on a le
+                    // plus besoin de savoir. Traduit côté serveur, comme partout.
+                    'avantages' => MotsClesEquipement::avantages((array) $objet->effet),
                     // ⚠ `cibles` PAR ENTRÉE, comme pour les sorts : la Poudre
                     // vise un héros, le Sceptre un monstre, la Cape personne.
                     // Une liste au niveau de l'option serait fausse pour deux
@@ -525,6 +529,7 @@ final class MenuMoteur
                     'detail' => 'Boire',
                     'cout' => 'gratuit',
                     'quantite' => (int) $ligne->quantite,
+                    'avantages' => MotsClesEquipement::avantages((array) $objet->effet),
                 ];
             }
         }
