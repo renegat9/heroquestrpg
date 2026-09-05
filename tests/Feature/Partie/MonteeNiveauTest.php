@@ -9,6 +9,7 @@ use App\Jobs\GenererMenu;
 use App\Models\Competence;
 use App\Models\Evenement;
 use App\Models\Quete;
+use App\Partie\EtatGroupe;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
@@ -441,4 +442,33 @@ it('journalise LEQUEL des trois déclencheurs a joué', function () {
 
     expect($ligne)->not->toBeNull()
         ->and($ligne->payload['declencheur'])->toBe('objectif_majeur');
+});
+
+it('PUBLIE l\'objectif et son verdict dans l\'état du groupe, pour l\'écran du narrateur', function () {
+    // ⚠ Le libellé était publié depuis le 2026-08-20 et rendu sur AUCUN écran ;
+    // le VERDICT, lui, n'était même pas publié. Dire où aller sans jamais dire
+    // si on y est, c'est laisser un groupe repartir sans savoir s'il a réussi —
+    // et depuis le troisième déclencheur, sans savoir s'il a son niveau.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    $avant = app(EtatGroupe::class)->payload($groupe->fresh())['quete'];
+
+    expect($avant['objectif'])->toBe('atteindre_et_recuperer')
+        ->and($avant['objectif_libelle'])->not->toBeEmpty()
+        ->and($avant['objectif_accompli'])->toBeFalse()
+        ->and($avant['objectif_majeur'])->toBeTrue();
+
+    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+
+    $apres = app(EtatGroupe::class)->payload($groupe->fresh())['quete'];
+
+    // ⚠ Le MÊME verdict que celui qui déclenche la montée : deux réponses à la
+    // même question dériveraient, et l'écran mentirait avec autorité.
+    expect($apres['objectif_accompli'])->toBeTrue()
+        ->and($quete->fresh()->objectifAccompli())->toBeTrue();
 });

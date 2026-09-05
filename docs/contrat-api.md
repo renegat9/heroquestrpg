@@ -36,7 +36,12 @@ Routes protégées par middleware `auth` sauf connexion.
                               "animal": false, "pv_body": 1, "pv_body_max": 1}],
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
-  "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours"} ,
+  "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours",
+            "objectif": "atteindre_et_recuperer|vaincre_sous_boss|vaincre_boss_final|quitter_donjon|null",
+            "objectif_libelle": "phrase sans vocabulaire de jeu | null",
+            "objectif_accompli": true,
+            "objectif_majeur": false,
+            "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
@@ -51,6 +56,15 @@ Routes protégées par middleware `auth` sauf connexion.
   "mj_reflechit": false
 }
 ```
+
+**Objectif de quête.** `objectif_libelle` dit *où aller* sans vocabulaire de
+jeu ; `objectif_accompli` dit *si on y est* — c'est le **verdict du moteur**,
+celui-là même qui ouvre `quitter_donjon` et déclenche la montée de niveau, et un
+client ne doit jamais le recalculer. `null` (les deux) quand le gabarit ne
+déclare aucun objectif : on n'annonce pas « accompli » là où rien n'était
+demandé. `objectif_majeur` marque une quête **ordinaire** qui fait monter d'un
+niveau si son objectif est accompli (doc 01 §5, troisième déclencheur) — un
+jalon, lui, s'annonce déjà par son boss.
 
 `groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
 (statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).

@@ -310,6 +310,30 @@ const hubImage = computed(() => etat.value?.groupe?.image_url ?? null);
 const sceneImage = computed(() => etat.value?.quete?.image_url ?? null);
 const sousTitre = computed(() => etat.value?.groupe?.nom ?? '');
 
+/**
+ * L'objectif de la quête et son verdict — ou `null` s'il n'y a rien à dire.
+ *
+ * ⚠ `accompli` vient du SERVEUR, jamais d'une déduction locale : c'est le même
+ * verdict qui ouvre « Quitter le donjon » et qui déclenche la montée de niveau.
+ * Le recalculer ici donnerait un second juge, et un écran qui se trompe se
+ * trompe avec autorité.
+ *
+ * ⚠ Un objectif non déclaré par le gabarit ne rend RIEN — le moteur le tient
+ * pour accompli (il ne faut jamais enfermer un groupe dans son donjon), mais
+ * afficher « atteint » là où rien n'était demandé serait une consigne creuse.
+ */
+const objectif = computed(() => {
+    const quete = etat.value?.quete;
+
+    if (auHub.value || !quete?.objectif_libelle) return null;
+
+    return {
+        libelle: quete.objectif_libelle,
+        accompli: quete.objectif_accompli === true,
+        majeur: quete.objectif_majeur === true,
+    };
+});
+
 /* ---- prologue de campagne (écran d'histoire au lancement) ---- */
 const prologue = computed(() => (etat.value ? etat.value.groupe?.prologue ?? null : null));
 const prologueOuvert = ref(false);
@@ -526,6 +550,18 @@ watch(() => store.state.clotureTerminee, (t) => {
                     </RouterLink>
                     <span class="ep">{{ sousTitre }}</span>
                     <h1>{{ titreQuete }}</h1>
+                    <!-- ⚠ EN TOUT TEMPS, jamais derrière un bouton (René,
+                         2026-09-05). L'objectif était publié par l'API depuis
+                         le 2026-08-20 et rendu sur AUCUN écran : le moteur
+                         savait pourquoi le groupe était là, personne d'autre.
+                         Et depuis que l'objectif majeur donne un niveau, c'est
+                         aussi ce qui dit si ce niveau est acquis. -->
+                    <div v-if="objectif" class="obj" :class="{ fait: objectif.accompli }">
+                        <MSym :n="objectif.accompli ? 'task_alt' : 'my_location'" fill :size="15" />
+                        <span class="obj-txt">{{ objectif.libelle }}</span>
+                        <span v-if="objectif.accompli" class="obj-tag">Atteint</span>
+                        <span v-else-if="objectif.majeur" class="obj-tag obj-tag-niv">Un niveau à la clé</span>
+                    </div>
                 </div>
                 <InitiativeBar :order="initOrder" @inspecter="inspecter" />
                 <div class="status-top">
@@ -809,6 +845,25 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .quest .ep { font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ember); font-weight: 700; }
 .table-screen .quest h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 2vw, 30px); margin: 2px 0 0;
   color: var(--parch-100); letter-spacing: 0.03em; }
+
+/* Objectif : discret tant qu'il reste à faire, franc une fois atteint — c'est
+   le passage de l'un à l'autre que la table doit voir sans le chercher. */
+.table-screen .quest .obj { display: flex; align-items: flex-start; gap: 6px; margin-top: 5px;
+  font-size: 13px; line-height: 1.35; color: var(--ink-300); max-width: 54ch; }
+.table-screen .quest .obj .msym { color: var(--torch); flex-shrink: 0; margin-top: 1px; }
+/* ⚠ Le libellé PASSE À LA LIGNE plutôt que d'être coupé : « Atteindre la salle
+   la plus profonde et en ram… » ne dit plus où aller, et c'est tout ce qu'on
+   lui demande. Deux lignes au plus — au-delà ce n'est plus un rappel. */
+.table-screen .quest .obj-txt { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.table-screen .quest .obj-tag { flex-shrink: 0; margin-top: 1px; font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid var(--torch); color: var(--torch); }
+.table-screen .quest .obj-tag-niv { border-color: var(--gold); color: var(--gold); }
+.table-screen .quest .obj.fait { color: var(--ok); font-weight: 600; }
+.table-screen .quest .obj.fait .msym { color: var(--ok); }
+.table-screen .quest .obj.fait .obj-tag { border-color: var(--ok); color: var(--ok);
+  background: color-mix(in oklch, var(--ok) 16%, transparent); }
 .table-screen .init { display: flex; align-items: center; gap: 10px; margin: 0 auto; }
 .table-screen .init .ttl { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; margin-right: 4px; }
 .table-screen .tok { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px;

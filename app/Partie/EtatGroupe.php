@@ -133,6 +133,24 @@ final class EtatGroupe
                 // manette n'affiche alors rien plutôt qu'une consigne creuse.
                 'objectif' => $quete->objectif(),
                 'objectif_libelle' => $quete->objectifLibelle(),
+                // ⚠ ATTEINT ou non, et c'est la moitié qui manquait (René,
+                // 2026-09-05 : « quand l'objectif est atteint, de
+                // l'identifier »). Le libellé seul dit où aller, jamais si on
+                // y est : le groupe repartait sans savoir s'il avait réussi —
+                // et depuis que l'objectif majeur donne un niveau, c'est aussi
+                // la seule chose qui dit si ce niveau est acquis.
+                //
+                // On publie le verdict du MOTEUR, celui-là même qui ouvre
+                // `quitter_donjon` et déclenche la montée : deux réponses à la
+                // même question dériveraient, et l'écran mentirait avec
+                // l'autorité d'un écran. `null` sans objectif déclaré — on
+                // n'annonce pas « accompli » là où rien n'était demandé.
+                'objectif_accompli' => $quete->objectif() === null ? null : $quete->objectifAccompli(),
+                // Cette quête-ci fait-elle monter d'un niveau ? Le troisième
+                // déclencheur (doc 01 §5) porte sur les quêtes ORDINAIRES, où
+                // rien ne le laissait deviner — un jalon, lui, s'annonce par
+                // son boss.
+                'objectif_majeur' => (bool) $quete->objectif_majeur,
                 // Illustration de scène de la quête (générée en arrière-plan).
                 'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('quete', $quete->id),
             ],
