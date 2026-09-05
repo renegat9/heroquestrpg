@@ -18,6 +18,25 @@ const props = defineProps({
     // Autres héros actifs du groupe : destinataires possibles d'un don.
     compagnons: { type: Array, default: () => [] },
 });
+/**
+ * Les emplacements où équiper cette pièce change VRAIMENT quelque chose.
+ *
+ * ⚠ La décision vient du serveur (`slots_utiles`), jamais d'une comparaison
+ * refaite ici : elle porte sur l'objet ET ses améliorations de Forge, et une
+ * table d'affichage qui rejuge la donnée qu'elle décrit finit par en diverger.
+ * `slots` reste le repli pour une réponse antérieure au champ.
+ */
+function slotsUtiles(it) {
+    return it.slots_utiles ?? it.slots ?? [];
+}
+
+/** Dit ce que l'échange va renvoyer au sac — `equiper()` le fait tout seul. */
+function titreEquiper(it, slot) {
+    const remplace = it.remplace?.[slot];
+
+    return remplace ? `Remplace ${remplace}, qui retourne au sac` : `Équiper ${it.nom}`;
+}
+
 const emit = defineEmits(['equiper', 'desequiper', 'donner']);
 
 /* ---- Don d'un objet à un compagnon (hub, doc 01 §7). Le sélecteur s'ouvre
@@ -200,14 +219,22 @@ const deborde = computed(() => {
                 <!-- Une arme à UNE main se porte à droite OU à gauche
                      (dual-wielding) : deux boutons, sinon le second slot
                      n'existerait que pour l'API. `slots` peut manquer sur une
-                     réponse antérieure — on retombe alors sur le bouton unique. -->
-                <template v-if="it.equipable && auHub">
-                    <template v-if="(it.slots?.length ?? 1) > 1">
+                     réponse antérieure — on retombe alors sur le bouton unique.
+
+                     ⚠ On itère `slots_utiles` : le SERVEUR retire les
+                     emplacements où monter la pièce ne changerait rien (un
+                     second casque identique de celui déjà porté). Sans ça le
+                     sac affichait « Équiper Casque » juste sous « Déséquiper
+                     Casque » — il se contredisait lui-même (René, 2026-09-04).
+                     Repli sur `slots` pour une réponse antérieure au champ. -->
+                <template v-if="it.equipable && auHub && slotsUtiles(it).length">
+                    <template v-if="slotsUtiles(it).length > 1">
                         <button
-                            v-for="slot in it.slots"
+                            v-for="slot in slotsUtiles(it)"
                             :key="slot"
                             class="sac-btn gold"
                             :disabled="equipEnCours"
+                            :title="titreEquiper(it, slot)"
                             @click="emit('equiper', it.inventaire_id, slot)"
                         >{{ slot === 'arme_principale' ? 'Main droite' : 'Main gauche' }}</button>
                     </template>
@@ -215,8 +242,9 @@ const deborde = computed(() => {
                         v-else
                         class="sac-btn gold"
                         :disabled="equipEnCours"
-                        @click="emit('equiper', it.inventaire_id)"
-                    >Équiper</button>
+                        :title="titreEquiper(it, slotsUtiles(it)[0])"
+                        @click="emit('equiper', it.inventaire_id, slotsUtiles(it)[0])"
+                    >{{ it.remplace?.[slotsUtiles(it)[0]] ? 'Remplacer' : 'Équiper' }}</button>
                 </template>
                 <span v-else-if="!peutDonner" class="qty" style="margin-left: auto; font-weight: 700; color: var(--ink-300)">×{{ it.quantite }}</span>
             </div>

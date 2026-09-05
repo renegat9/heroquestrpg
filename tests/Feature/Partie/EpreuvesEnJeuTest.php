@@ -13,6 +13,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\JournalCombat;
 use App\Partie\Marche\CapaciteSac;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -501,6 +502,16 @@ it('LA PREUVE DU CHANTIER — Prestance (chevalier) ajoute un dé de Mind sur un
     $etatBrunhilde = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $brunhilde->id)->firstOrFail();
 
     // « Inscription menaçante » : Mind, difficulté 2, contexte SOCIAL_PEUR.
+    //
+    // ⚠ Les deux héros doivent PORTER une condition à durée : depuis le
+    // 2026-09-04 le menu ne propose plus une épreuve dont il sait qu'elle ne
+    // peut rien rendre (`MoteurEpreuves::offre()`). *Ralenti* est choisie pour
+    // son inertie ici — elle ne coûte que du déplacement, qu'aucun de ces deux
+    // jets n'utilise.
+    $ralenti = Condition::where('nom', 'Ralenti')->firstOrFail();
+    $albrecht->conditions()->attach($ralenti->id, ['duree' => 3, 'source' => 'test']);
+    $brunhilde->conditions()->attach($ralenti->id, ['duree' => 3, 'source' => 'test']);
+
     $inscription = Epreuve::where('nom', 'Inscription menaçante')->firstOrFail();
     poserEpreuve($quete, [[
         'x' => (int) $etatAlbrecht->position_x, 'y' => (int) $etatAlbrecht->position_y,
@@ -536,4 +547,122 @@ it('LA PREUVE DU CHANTIER — Prestance (chevalier) ajoute un dé de Mind sur un
 
     expect($avecTalent['bonus_avantage_mind'])->toBe(1)
         ->and($avecTalent['des_lances'])->toBe(3); // attribut_mind (2) + 1.
+});
+
+// =====================================================================
+// CE QUE L'ÉPREUVE A DONNÉ — René, 2026-09-04 : « on a eu une inscription sur
+// la carte et quand on a fait l'action de mind réussi, ça n'a rien donné ».
+//
+// Le journal de la partie réelle donnait raison DEUX FOIS : l'« Inscription
+// menaçante » n'avait effectivement rien à dissiper (`retire_condition: []`),
+// et deux « Dalle descellée » réussies avaient versé 100 pièces CHACUNE sans
+// qu'une seule ligne le dise. Deux défauts distincts, deux verrous.
+// =====================================================================
+
+it('ANNONCE au fil de combat ce que l\'épreuve a rendu — l\'or ne tombe plus en silence', function () {
+    $ctx = demarrerAvecEpreuve('Dalle descellée', ['attribut_body' => 4]); // Body, 100 pièces
+    $orAvant = (int) $ctx['groupe']->fresh()->or;
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    desFiges([1, 1, 1, 4]);
+
+    $resultat = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
+        ->assertStatus(202)->json('resultat');
+
+    expect((int) $ctx['groupe']->fresh()->or)->toBe($orAvant + 100);
+
+    // ⚠ C'est le FIL qui est testé, pas le payload : la somme arrivait déjà
+    // sur le compte, `JournalCombat::jet()` se contentait de « réussi » et
+    // n'en rendait rien. Un gain que rien n'annonce est indiscernable d'une
+    // panne — c'est mot pour mot le défaut corrigé le même jour sur les sorts
+    // de Dread. On passe donc le payload RÉEL de la route au rendu réel, le
+    // même geste que `ChoixController` avant sa diffusion.
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($resultat, $ctx['hero']->nom))
+        ->pluck('texte')->implode(' | ');
+
+    expect($lignes)->toContain('Dalle descellée')
+        ->and($lignes)->toContain('100');
+});
+
+it('dit « rien ne vient » plutôt que de se taire quand la réussite tombe dans le vide', function () {
+    // Le cas du MENU PÉRIMÉ : `MoteurEpreuves::offre()` ne propose plus une
+    // dissipation à un héros sain, mais l'état peut changer entre l'affichage
+    // et le clic. Le résolveur ne refuse pas (un menu périmé doit décevoir,
+    // jamais casser) — il doit donc le DIRE.
+    $ctx = demarrerAvecEpreuve('Inscription menaçante');
+
+    $ralenti = Condition::where('nom', 'Ralenti')->firstOrFail();
+    $ctx['hero']->conditions()->attach($ralenti->id, ['duree' => 3, 'source' => 'test']);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+
+    // La condition disparaît APRÈS la génération du menu : l'option reste
+    // affichée, l'effet n'a plus rien à dissiper.
+    $ctx['hero']->conditions()->detach($ralenti->id);
+
+    desFiges([1, 1]);
+
+    $resultat = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
+        ->assertStatus(202)->json('resultat');
+
+    expect($resultat['issue'])->toBe('reussite')
+        ->and($resultat['retire_condition'])->toBe([]);
+
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($resultat, $ctx['hero']->nom))
+        ->pluck('texte')->implode(' | ');
+
+    expect($lignes)->toContain('rien ne vient');
+});
+
+it('ne PROPOSE PAS une dissipation à un héros sain, et la propose dès qu\'il porte une condition', function () {
+    // La tentative coûte le créneau d'action ET se consomme pour de bon
+    // (`tentee_par` : un échec compte autant qu'une réussite). Proposer un
+    // bouton dont on sait qu'il ne peut rien rendre, c'est faire payer deux
+    // fois pour rien — et c'est exactement ce que René a vécu.
+    $ctx = demarrerAvecEpreuve('Inscription menaçante');
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    $sain = collect(test()->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))
+        ->pluck('id');
+
+    expect($sain)->not->toContain('epreuve_0');
+
+    $ralenti = Condition::where('nom', 'Ralenti')->firstOrFail();
+    $ctx['hero']->conditions()->attach($ralenti->id, ['duree' => 3, 'source' => 'test']);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    $afflige = collect(test()->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))
+        ->pluck('id');
+
+    expect($afflige)->toContain('epreuve_0');
+});
+
+it('ne propose plus l\'Autel fêlé quand la salle n\'a plus un seul piège armé', function () {
+    // `exige_placement` garantit un piège à la POSE, pas pendant la partie.
+    $ctx = demarrerAvecEpreuve('Autel fêlé');
+    $quete = $ctx['quete'];
+
+    $salleIndex = (int) $quete->fresh()->carte->grille['epreuves'][0]['salle'];
+    $salle = $quete->carte->grille['salles'][$salleIndex];
+
+    // Un piège DÉJÀ désarmé dans la salle : la couche existe, mais il n'y a
+    // plus rien à neutraliser.
+    poserPiegesPourEpreuve($quete, [
+        ['x' => (int) $salle['x'], 'y' => (int) $salle['y'], 'nom' => 'Fosse', 'etat' => 'desarme'],
+    ]);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    $options = collect(test()->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))->pluck('id');
+
+    expect($options)->not->toContain('epreuve_0');
+
+    // Le même ancrage redevient proposable dès qu'un piège est armé.
+    poserPiegesPourEpreuve($quete, [
+        ['x' => (int) $salle['x'], 'y' => (int) $salle['y'], 'nom' => 'Fosse', 'etat' => 'cache'],
+    ]);
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['hero']->id);
+    $options = collect(test()->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))->pluck('id');
+
+    expect($options)->toContain('epreuve_0');
 });

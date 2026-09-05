@@ -1276,7 +1276,16 @@ final class MenuMoteur
             // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
             // du tour. Réutilise l'inventaire réel : « Équiper » les pièces
             // d'équipement du sac, « Ranger » celles portées.
-            foreach ($personnage->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
+            $lignesInventaire = $personnage->inventaire()->with('objet')->orderBy('id')->get();
+
+            // Ce qui occupe chaque emplacement en ce moment : `equiper()` fait
+            // un ÉCHANGE automatique (l'occupant retourne au sac), et le
+            // libellé doit le dire.
+            $portees = $lignesInventaire
+                ->filter(fn ($l) => in_array($l->emplacement, Equipement::SLOTS, true))
+                ->keyBy('emplacement');
+
+            foreach ($lignesInventaire as $ligne) {
                 $objet = $ligne->objet;
                 if ($objet === null || ! in_array($objet->emplacement, Equipement::SLOTS, true)) {
                     continue;
@@ -1289,16 +1298,31 @@ final class MenuMoteur
                     $slots = $this->equipement->slotsPossibles($objet);
 
                     foreach ($slots as $slot) {
+                        $occupant = $portees[$slot] ?? null;
+
+                        // ⚠ Échanger deux exemplaires IDENTIQUES ne change rien
+                        // et coûte l'action du tour. La règle vit dans
+                        // `Equipement` : le sac du hub pose exactement la même
+                        // question, et deux copies dériveraient.
+                        if (! $this->equipement->echangeUtile($occupant, $ligne)) {
+                            continue;
+                        }
+
                         $main = count($slots) > 1
                             ? ($slot === 'arme_principale' ? ' (main droite)' : ' (main gauche)')
                             : '';
+
+                        // Sans cette mention, deux pièces de même nom donnaient
+                        // « Équiper Casque » et « Ranger Casque » côte à côte :
+                        // le menu se contredisait lui-même.
+                        $remplace = $occupant?->objet !== null ? " — remplace {$occupant->objet->nom}" : '';
 
                         // La main droite garde l'identifiant historique
                         // `equiper_{id}` : c'est le geste ordinaire, et tout ce
                         // qui l'appelait déjà continue de marcher.
                         $options[] = [
                             'id' => $slot === 'arme_secondaire' ? "equiper_{$ligne->id}_gauche" : "equiper_{$ligne->id}",
-                            'libelle' => "Équiper {$objet->nom}{$main}",
+                            'libelle' => "Équiper {$objet->nom}{$main}{$remplace}",
                             'type' => 'equiper',
                             'parametres' => ['inventaire_id' => (int) $ligne->id, 'emplacement' => $slot],
                         ];
@@ -1500,6 +1524,15 @@ final class MenuMoteur
                 // `social_peur`, sans quoi six talents de la grille ne se
                 // déclenchent jamais.
                 foreach ($this->epreuves->adjacentes($quete->carte, $px, $py, (int) $personnage->id) as $epreuve) {
+                    // ⚠ On ne propose pas une épreuve dont on SAIT qu'elle ne
+                    // peut rien rendre à ce héros : la tentative coûte le
+                    // créneau d'action ET se consomme pour de bon. Voir
+                    // `MoteurEpreuves::offre()` pour les trois mécaniques
+                    // concernées et pourquoi le résolveur, lui, ne refuse pas.
+                    if (! $this->epreuves->offre($epreuve, $quete, $personnage)) {
+                        continue;
+                    }
+
                     $difficulte = $epreuve['attribut'] === 'body'
                         ? DifficulteBody::plafonnee($quete, $epreuve['difficulte'])
                         : $epreuve['difficulte'];

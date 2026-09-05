@@ -123,7 +123,7 @@ final class JournalCombat
      * laquelle appartenait à qui.
      *
      * @param  array<string, mixed>  $a
-     * @return array<string, mixed>|null  null si aucun dé n'a été lancé
+     * @return array<string, mixed>|null null si aucun dé n'a été lancé
      */
     private function desDuJet(array $a, string $acteurNom): ?array
     {
@@ -534,12 +534,82 @@ final class JournalCombat
             ]];
         }
 
+        // Épreuve : le jet ne disait que « réussi ». Ce qu'elle avait DONNÉ
+        // vivait dans le payload et n'était rendu nulle part — deux « Dalle
+        // descellée » réussies ont versé 100 pièces chacune en silence, et une
+        // « Inscription menaçante » n'avait rien à dissiper sans le dire
+        // (partie du 2026-09-04). Même classe de défaut que les sorts de Dread.
+        if (isset($a['epreuve'])) {
+            return $this->epreuve($a, $acteurNom);
+        }
+
         $libelle = $a['libelle'] ?? 'un jet';
 
         return [[
             'texte' => "{$acteurNom} — {$libelle} : ".(! empty($a['succes']) ? 'réussi' : 'échoué'),
             'ton' => ! empty($a['succes']) ? 'succes' : 'echec',
         ]];
+    }
+
+    /**
+     * Une épreuve : le jet, puis CE QU'ELLE A RENDU.
+     *
+     * ⚠ Une réussite dit toujours quelque chose, « rien ne vient » compris.
+     * Trois des six mécaniques peuvent aboutir dans le vide (dissiper chez un
+     * héros sain, soigner un groupe intact, désamorcer une salle déjà purgée) ;
+     * `MoteurEpreuves::offre()` cesse désormais de les proposer, mais un menu
+     * périmé peut encore les atteindre — et un effet muet est indiscernable
+     * d'une panne.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function epreuve(array $a, string $acteurNom): array
+    {
+        $nom = (string) $a['epreuve'];
+        $reussi = ! empty($a['succes']);
+
+        $lignes = [[
+            'texte' => "{$acteurNom} — {$nom} : ".($reussi ? 'réussi' : 'échoué'),
+            'ton' => $reussi ? 'succes' : 'echec',
+        ]];
+
+        if (! $reussi) {
+            return $lignes;
+        }
+
+        $gains = [];
+
+        if ((int) ($a['or'] ?? 0) > 0) {
+            $gains[] = $a['or'].' pièces d\'or pour la bourse';
+        }
+
+        if (isset($a['objet']['nom'])) {
+            $gains[] = $a['objet']['nom'].(empty($a['sac_deborde']) ? '' : ' (sac plein — en dépassement)');
+        }
+
+        $soignes = (array) ($a['soin_groupe'] ?? []);
+        if ($soignes !== []) {
+            $total = array_sum(array_map(fn ($s) => (int) ($s['soin_pv_body'] ?? 0), $soignes));
+            $gains[] = "{$total} PV de Body rendus au groupe";
+        }
+
+        $conditions = array_filter((array) ($a['retire_condition'] ?? []));
+        if ($conditions !== []) {
+            $gains[] = 'dissipe '.implode(', ', $conditions);
+        }
+
+        $desarmes = count((array) ($a['desarme_pieges_salle'] ?? []));
+        if ($desarmes > 0) {
+            $gains[] = $desarmes.' piège'.($desarmes > 1 ? 's' : '')
+                .' désamorcé'.($desarmes > 1 ? 's' : '').' dans la salle';
+        }
+
+        $lignes[] = $gains === []
+            ? ['texte' => "{$nom} : rien ne vient.", 'ton' => 'info']
+            : ['texte' => "{$nom} — ".implode(' · ', $gains), 'ton' => 'tresor'];
+
+        return $lignes;
     }
 
     /**

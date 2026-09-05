@@ -6,6 +6,8 @@ namespace App\Partie;
 
 use App\Models\Carte;
 use App\Models\Epreuve;
+use App\Models\Personnage;
+use App\Models\Quete;
 
 /**
  * Lecteur de la couche de carte `cartes.grille['epreuves']` — les ancrages
@@ -35,6 +37,8 @@ use App\Models\Epreuve;
  */
 final class MoteurEpreuves
 {
+    public function __construct(private readonly MoteurPieges $pieges) {}
+
     /**
      * Les entrées brutes de la couche `epreuves` de la carte, telles
      * qu'écrites par l'assembleur — aucun enrichissement catalogue ici,
@@ -101,6 +105,71 @@ final class MoteurEpreuves
         }
 
         return $trouvees;
+    }
+
+    /**
+     * Cette épreuve a-t-elle encore quelque chose À DONNER à ce héros,
+     * maintenant ? (René, 2026-09-04 : « on a eu une inscription sur la carte
+     * et quand on a fait l'action de mind réussi, ça n'a rien donné ».)
+     *
+     * Trois des six mécaniques peuvent réussir dans le vide : dissiper les
+     * conditions d'un héros qui n'en porte aucune, soigner un groupe intact,
+     * désamorcer une salle dont les pièges ont déjà sauté. Le journal le DIT
+     * désormais, mais le dire ne suffit pas — la tentative coûte le créneau
+     * d'action **et se consomme pour de bon** (`tentee_par`, un échec compte
+     * autant qu'une réussite). Proposer un bouton dont on sait qu'il ne peut
+     * rien rendre, c'est faire payer deux fois pour rien.
+     *
+     * ⚠ C'est une PRÉFÉRENCE du menu, pas un refus du résolveur : si l'état
+     * change entre l'affichage et le clic (la dernière condition expire, un
+     * compagnon se soigne), l'épreuve se résout normalement et le fil annonce
+     * « rien ne vient » plutôt que de renvoyer un 422. Un menu périmé doit
+     * décevoir, jamais casser.
+     *
+     * ⚠ Les trois autres mécaniques (`or`, `objet`, `parchemin`) paient
+     * toujours : rien à vérifier, et rien à masquer.
+     *
+     * @param  array<string, mixed>  $epreuve  entrée enrichie rendue par `adjacentes()`
+     */
+    public function offre(array $epreuve, Quete $quete, Personnage $personnage): bool
+    {
+        $effet = (array) ($epreuve['effet'] ?? []);
+
+        return match ((string) ($effet['mecanique'] ?? '')) {
+            'retire_condition' => $personnage->conditionsActives()->isNotEmpty(),
+            'soin_groupe' => $this->groupeBlesse($quete),
+            'desarme_pieges_salle' => $this->salleGardeUnPiege($quete, (int) ($epreuve['entree']['salle'] ?? -1)),
+            default => true,
+        };
+    }
+
+    /** Au moins un héros engagé sous son maximum de PV de Body. */
+    private function groupeBlesse(Quete $quete): bool
+    {
+        foreach ($quete->etatsPersonnages()->with('personnage')->get() as $etat) {
+            $heros = $etat->personnage;
+
+            if ($heros !== null && (int) $heros->pv_body < (int) $heros->pv_body_max) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * La salle qui porte l'épreuve garde-t-elle un piège à désamorcer ?
+     *
+     * ⚠ `exige_placement` garantit un piège au moment de la POSE, pas pendant
+     * la partie : l'Autel fêlé devient inerte dès que le groupe a marché sur
+     * tout ce que la salle cachait.
+     */
+    private function salleGardeUnPiege(Quete $quete, int $salle): bool
+    {
+        $carte = $quete->carte;
+        $description = $carte === null ? null : ($carte->grille['salles'] ?? [])[$salle] ?? null;
+
+        return $description !== null && $this->pieges->salleGardeUnPiege($carte, $description);
     }
 
     /**

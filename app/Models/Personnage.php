@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Engine\DureeEffet;
 use App\Engine\RegainEffet;
 use App\Partie\MoteurSorts;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -131,6 +132,26 @@ class Personnage extends Model
     {
         return $this->belongsToMany(Condition::class, 'personnage_conditions', 'personnage_id', 'condition_id')
             ->withPivot(['duree', 'source']);
+    }
+
+    /**
+     * Les conditions encore ACTIVES, c'est-à-dire celles qui portent un
+     * COMPTEUR non épuisé.
+     *
+     * ⚠ `duree = 0` ne veut pas dire « absente » mais « sans compteur » : son
+     * expiration vient d'un déclencheur, pas d'un décompte (doc 19, `duree_defaut`).
+     * Une *Apeuré* permanente n'est donc pas rendue ici — c'est voulu, et c'est
+     * la raison d'être de ce point de passage unique : le filtre `duree > 0`
+     * existait en DEUX exemplaires (l'épreuve « Inscription menaçante » qui les
+     * dissipe, et le menu qui décide de la proposer). Deux copies d'une règle
+     * assez simple pour que personne ne remarque l'une dériver — la leçon que
+     * `Salles::indexDe()` a déjà coûtée.
+     *
+     * @return Collection<int, Condition>
+     */
+    public function conditionsActives()
+    {
+        return $this->conditions()->wherePivot('duree', '>', 0)->get();
     }
 
     /** Résumés des campagnes terminées (survit au nettoyage du groupe). */

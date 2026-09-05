@@ -6073,22 +6073,24 @@ final class ResolveurTour
         return ['soin_groupe' => $soignes];
     }
 
-    /** Libère le héros de ses conditions actives (celles qui ont un compteur). */
+    /**
+     * Libère le héros de ses conditions actives (celles qui ont un compteur).
+     *
+     * ⚠ La liste vient de `Personnage::conditionsActives()`, le MÊME lecteur que
+     * consulte `MoteurEpreuves::offre()` pour décider de proposer l'épreuve : le
+     * filtre `duree > 0` n'a pas le droit d'exister en deux exemplaires, ou le
+     * menu proposerait ce que l'effet ne dissipe pas.
+     */
     private function epreuveRetireCondition(Personnage $personnage): array
     {
-        $noms = DB::table('personnage_conditions')
-            ->join('conditions', 'conditions.id', '=', 'personnage_conditions.condition_id')
-            ->where('personnage_conditions.personnage_id', $personnage->id)
-            ->where('personnage_conditions.duree', '>', 0)
-            ->pluck('conditions.nom')
-            ->all();
+        $actives = $personnage->conditionsActives();
 
         DB::table('personnage_conditions')
             ->where('personnage_id', $personnage->id)
-            ->where('duree', '>', 0)
+            ->whereIn('condition_id', $actives->pluck('id')->all())
             ->delete();
 
-        return ['retire_condition' => array_values(array_unique($noms))];
+        return ['retire_condition' => $actives->pluck('nom')->unique()->values()->all()];
     }
 
     /** Désarme les pièges encore actifs de la salle qui porte l'épreuve. */

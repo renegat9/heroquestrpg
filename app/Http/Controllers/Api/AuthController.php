@@ -206,31 +206,58 @@ class AuthController extends Controller
                             ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
-                                ->map(fn ($l) => [
-                                    'inventaire_id' => $l->id,
-                                    'nom' => $l->objet->nom,
-                                    'categorie' => $l->objet->categorie,
-                                    'rarete' => $l->objet->rarete,
-                                    // ⚠ Ce que la pièce FAIT, en clair (René,
-                                    // 2026-09-04 : « pouvoir voir le détail des
-                                    // items »). Un objet n'a pas de description
-                                    // écrite — son `effet` est la seule source de
-                                    // vérité, et `MotsClesEquipement::avantages()`
-                                    // la traduit plutôt que de la paraphraser.
-                                    // Le vocabulaire d'affichage vit côté SERVEUR :
-                                    // une table côté client dérive de la donnée
-                                    // qu'elle décrit, et les talents l'ont déjà payé.
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
-                                    'quantite' => (int) $l->quantite,
-                                    'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
-                                    // Emplacements POSSIBLES : deux pour une arme
-                                    // à une main (main droite ou main gauche —
-                                    // dual-wielding), un seul pour tout le reste.
-                                    // Sans cette clé la manette ne pourrait pas
-                                    // proposer le choix, et le second slot
-                                    // n'existerait que pour l'API.
-                                    'slots' => app(Equipement::class)->slotsPossibles($l->objet),
-                                ])
+                                ->map(function ($l) use ($p) {
+                                    $equipement = app(Equipement::class);
+                                    $portees = $equipement->occupants($p);
+
+                                    return [
+                                        'inventaire_id' => $l->id,
+                                        'nom' => $l->objet->nom,
+                                        'categorie' => $l->objet->categorie,
+                                        'rarete' => $l->objet->rarete,
+                                        // ⚠ Ce que la pièce FAIT, en clair (René,
+                                        // 2026-09-04 : « pouvoir voir le détail des
+                                        // items »). Un objet n'a pas de description
+                                        // écrite — son `effet` est la seule source de
+                                        // vérité, et `MotsClesEquipement::avantages()`
+                                        // la traduit plutôt que de la paraphraser.
+                                        // Le vocabulaire d'affichage vit côté SERVEUR :
+                                        // une table côté client dérive de la donnée
+                                        // qu'elle décrit, et les talents l'ont déjà payé.
+                                        'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
+                                        'quantite' => (int) $l->quantite,
+                                        'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
+                                        // Emplacements POSSIBLES : deux pour une arme
+                                        // à une main (main droite ou main gauche —
+                                        // dual-wielding), un seul pour tout le reste.
+                                        // Sans cette clé la manette ne pourrait pas
+                                        // proposer le choix, et le second slot
+                                        // n'existerait que pour l'API.
+                                        'slots' => app(Equipement::class)->slotsPossibles($l->objet),
+                                        // ⚠ Les emplacements où monter la pièce
+                                        // change VRAIMENT quelque chose, et ce que
+                                        // chacun porte déjà (René, 2026-09-04 : le
+                                        // sac affichait « Équiper Casque » à côté
+                                        // de « Déséquiper Casque » sur un héros qui
+                                        // en avait deux — le second échange ne
+                                        // modifie rien, `equiper()` se contentant
+                                        // de renvoyer l'occupant au sac).
+                                        //
+                                        // La décision est prise ICI, pas dans la
+                                        // manette : le vocabulaire d'affichage vit
+                                        // côté serveur, faute de quoi il dérive de
+                                        // la règle qu'il décrit.
+                                        'slots_utiles' => array_values(array_filter(
+                                            $equipement->slotsPossibles($l->objet),
+                                            fn (string $slot) => $equipement->echangeUtile($portees[$slot] ?? null, $l),
+                                        )),
+                                        'remplace' => collect($equipement->slotsPossibles($l->objet))
+                                            ->mapWithKeys(fn (string $slot) => [
+                                                $slot => ($portees[$slot] ?? null)?->objet?->nom,
+                                            ])
+                                            ->filter()->all(),
+                                    ];
+                                })
                                 ->values()
                                 ->all(),
                             // Charge du sac : la manette n'avait aucun moyen de

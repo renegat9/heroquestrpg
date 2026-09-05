@@ -72,7 +72,6 @@ final class MoteurPieges
         private readonly BibliothequeNarration $narration,
     ) {}
 
-
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
      * arrivée incluse) : un piège CACHÉ sur le chemin se déclenche. Une fosse
@@ -502,6 +501,50 @@ final class MoteurPieges
 
         $desarmes = [];
 
+        foreach (self::piegesArmesDeLaSalle($carte, $salle) as $index => $entree) {
+            $this->changerEtat($carte, $index, self::ETAT_DESARME);
+
+            $desarmes[] = [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'nom' => (string) (Piege::find($entree['piege_id'] ?? null)?->nom ?? 'Piège'),
+            ];
+        }
+
+        return $desarmes;
+    }
+
+    /**
+     * Reste-t-il un piège ARMÉ dans cette salle ?
+     *
+     * Le pendant en lecture seule de `desarmerSalle()`, et il partage son
+     * balayage : `exige_placement` garantit un piège au moment de la POSE, pas
+     * pendant la partie — l'Autel fêlé devient inerte dès que le groupe a
+     * marché sur tout ce que la salle cachait, et le menu doit cesser de le
+     * proposer plutôt que de faire payer une action pour rien.
+     *
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     */
+    public function salleGardeUnPiege(Carte $carte, array $salle): bool
+    {
+        return self::piegesArmesDeLaSalle($carte, $salle) !== [];
+    }
+
+    /**
+     * Les entrées de pièges encore armées dont la case tombe dans le rectangle
+     * de la salle, indexées comme dans la grille.
+     *
+     * ⚠ Un seul balayage pour les deux lecteurs : le test de rectangle vivait
+     * dans `desarmerSalle()` et le prédicat en aurait fait une seconde copie —
+     * une règle trop simple pour qu'on remarque l'une des deux dériver.
+     *
+     * @param  array{x: int, y: int, largeur: int, hauteur: int}  $salle
+     * @return array<int, array<string, mixed>>
+     */
+    private static function piegesArmesDeLaSalle(Carte $carte, array $salle): array
+    {
+        $armes = [];
+
         foreach ((array) ($carte->grille['pieges'] ?? []) as $index => $entree) {
             if (! in_array($entree['etat'] ?? null, [self::ETAT_CACHE, self::ETAT_DETECTE], true)) {
                 continue;
@@ -515,16 +558,10 @@ final class MoteurPieges
                 continue;
             }
 
-            $this->changerEtat($carte, (int) $index, self::ETAT_DESARME);
-
-            $desarmes[] = [
-                'x' => $x,
-                'y' => $y,
-                'nom' => (string) (Piege::find($entree['piege_id'] ?? null)?->nom ?? 'Piège'),
-            ];
+            $armes[(int) $index] = $entree;
         }
 
-        return $desarmes;
+        return $armes;
     }
 
     /** Une fosse = piège franchissable du catalogue (PiegeSeeder). */

@@ -404,3 +404,122 @@ it('n\'annonce pas un BOUCLIER comme une arme', function () {
         ->and($portees['Bouclier']['bouclier'])->toBeTrue()
         ->and($portees['Bouclier']['emplacement'])->toBe('arme_secondaire');
 });
+
+// =====================================================================
+// DEUX EXEMPLAIRES DE LA MÊME PIÈCE — René, 2026-09-04 : « le berserker a un
+// casque d'équipé mais il voit les 2 actions d'équiper et de déséquiper son
+// casque ». Il en portait bien deux (lignes d'inventaire 238 dans le sac et
+// 246 sur la tête, campagne grp-cx9g) : le menu n'était pas faux, il était
+// ILLISIBLE — deux libellés identiques, et l'échange de deux casques
+// identiques coûte l'action du tour pour ne rien changer.
+// =====================================================================
+
+it('ne propose PAS d\'échanger deux exemplaires identiques du même emplacement', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    $casque = Objet::where('nom', 'Casque')->firstOrFail();
+    $porte = Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $casque->id,
+        'quantite' => 1, 'emplacement' => 'casque']);
+    $dansLeSac = Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $casque->id,
+        'quantite' => 1, 'emplacement' => 'sac']);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail()
+        ->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $options = collect($this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'));
+
+    // « Ranger » reste : c'est le seul geste qui change quelque chose.
+    expect($options->pluck('id'))->toContain("desequiper_{$porte->id}")
+        ->and($options->pluck('id'))->not->toContain("equiper_{$dansLeSac->id}");
+});
+
+it('DIT quelle pièce l\'échange va remplacer, plutôt que d\'afficher deux libellés identiques', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    // Deux pièces DIFFÉRENTES du même emplacement : l'échange a un sens, et
+    // c'est le libellé qui doit le dire — `Equipement::equiper()` renvoie
+    // l'occupant au sac tout seul, le joueur ne l'apprenait qu'après coup.
+    $casque = Objet::where('nom', 'Casque')->firstOrFail();
+    $heaume = Objet::where('categorie', 'armure')->where('emplacement', 'casque')
+        ->where('id', '!=', $casque->id)->first() ?? $casque;
+
+    Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $casque->id,
+        'quantite' => 1, 'emplacement' => 'casque']);
+    $sac = Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $heaume->id,
+        'quantite' => 1, 'emplacement' => 'sac']);
+
+    // Améliorations de Forge différentes : même si le catalogue ne fournit
+    // qu'un seul modèle de casque, deux exemplaires cessent d'être
+    // interchangeables dès que l'un est amélioré.
+    $sac->update(['ameliorations' => ['des_attaque' => 1]]);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail()
+        ->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $option = collect($this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))
+        ->firstWhere('id', "equiper_{$sac->id}");
+
+    expect($option)->not->toBeNull()
+        ->and($option['libelle'])->toContain('remplace');
+});
+
+it('publie dans /moi les emplacements UTILES et ce que chacun remplace', function () {
+    // Le hub équipe hors quête, sans créneau d'action : l'échange n'y coûte
+    // rien, mais le sac affichait quand même « Équiper Casque » sous
+    // « Déséquiper Casque ». Le serveur tranche, la manette n'a plus qu'à lire
+    // — même règle que les `avantages` : le vocabulaire d'affichage ne
+    // redérive jamais la donnée qu'il décrit.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+
+    $casque = Objet::where('nom', 'Casque')->firstOrFail();
+    Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $casque->id,
+        'quantite' => 1, 'emplacement' => 'casque']);
+    $jumeau = Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $casque->id,
+        'quantite' => 1, 'emplacement' => 'sac']);
+
+    $epee = Objet::where('nom', 'Épée large')->firstOrFail();
+    $arme = Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $epee->id,
+        'quantite' => 1, 'emplacement' => 'sac']);
+
+    $sac = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
+        ->firstWhere('id', $heros->id)['equipement']['sac'];
+
+    // Le casque jumeau : possible partout où le premier l'est, utile nulle part.
+    $ligneCasque = collect($sac)->firstWhere('inventaire_id', $jumeau->id);
+    expect($ligneCasque['slots'])->toBe(['casque'])
+        ->and($ligneCasque['slots_utiles'])->toBe([])
+        ->and($ligneCasque['remplace'])->toBe(['casque' => 'Casque']);
+
+    // L'épée : les DEUX mains sont libres, donc les deux restent utiles.
+    $ligneEpee = collect($sac)->firstWhere('inventaire_id', $arme->id);
+    expect($ligneEpee['slots_utiles'])->toBe(['arme_principale', 'arme_secondaire'])
+        ->and($ligneEpee['remplace'])->toBe([]);
+});

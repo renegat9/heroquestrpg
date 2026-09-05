@@ -105,6 +105,53 @@ final class Equipement
     }
 
     /**
+     * Ce qui occupe chaque emplacement porté, indexé par emplacement.
+     *
+     * Construit depuis la relation DÉJÀ chargée quand elle l'est : `/moi`
+     * publie tout le sac d'un coup, et une requête par ligne y coûterait un
+     * N+1 pour une question que l'inventaire en mémoire répond seul.
+     *
+     * @return array<string, Inventaire>
+     */
+    public function occupants(Personnage $personnage): array
+    {
+        $lignes = $personnage->relationLoaded('inventaire')
+            ? $personnage->inventaire
+            : $personnage->inventaire()->with('objet')->get();
+
+        return $lignes
+            ->filter(fn (Inventaire $l) => in_array($l->emplacement, self::SLOTS, true))
+            ->keyBy('emplacement')
+            ->all();
+    }
+
+    /**
+     * Monter cette ligne à cet emplacement changerait-il quelque chose ?
+     *
+     * ⚠ NON quand l'emplacement porte déjà un exemplaire STRICTEMENT
+     * équivalent : `equiper()` fait un échange automatique, si bien qu'un
+     * second casque identique dans le sac produisait « Équiper Casque » à côté
+     * de « Ranger Casque » — un menu qui se contredit lui-même, et un geste qui
+     * coûte l'action du tour en pleine quête pour ne rien modifier (René,
+     * 2026-09-04 : « le berserker a un casque d'équipé mais il voit les 2
+     * actions »).
+     *
+     * ⚠ L'équivalence porte sur l'objet ET ses améliorations de Forge : deux
+     * « Épée large » cessent d'être interchangeables dès que l'une est
+     * améliorée, et masquer l'échange priverait le joueur de la meilleure.
+     *
+     * Point de passage UNIQUE : le menu de quête et le sac du hub posent la
+     * même question, et deux copies d'une règle aussi simple dérivent sans que
+     * personne ne le remarque.
+     */
+    public function echangeUtile(?Inventaire $occupant, Inventaire $ligne): bool
+    {
+        return $occupant === null
+            || (int) $occupant->objet_id !== (int) $ligne->objet_id
+            || (array) $occupant->ameliorations !== (array) $ligne->ameliorations;
+    }
+
+    /**
      * Équipe une ligne d'inventaire du SAC. Sans `$slot`, l'emplacement naturel
      * de l'objet (objet.emplacement) ; une arme à une main accepte aussi
      * `arme_secondaire` — la main gauche. L'occupant actuel du slot repart au
