@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Auth\JoueurAuthentifiable;
+use App\Engine\MotsClesEquipement;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Partie\Equipement;
@@ -160,6 +161,7 @@ class AuthController extends Controller
                                 ->map(fn ($l) => [
                                     'inventaire_id' => $l->id,
                                     'nom' => $l->objet->nom,
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
                                     'emplacement' => $l->emplacement,
                                     'bouclier' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false),
                                     'deux_mains' => (bool) ($l->objet->effet['deux_mains'] ?? false),
@@ -175,7 +177,8 @@ class AuthController extends Controller
                                 ->all(),
                             'armure' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
-                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
                             ),
                             // Slot propre depuis le 2026-08-08 : le casque se
                             // CUMULE avec l'armure de corps, comme au plateau.
@@ -183,12 +186,14 @@ class AuthController extends Controller
                             // tête nue et ne proposait pas de le déséquiper.
                             'casque' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
-                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
                             ),
                             // Talisman (artefact de classe) : cinquième slot.
                             'talisman' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
-                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
                             ),
                             // Bottes : sixième slot (2026-09-04). Sans cette clé
                             // la manette chausserait le héros sans jamais le
@@ -196,7 +201,8 @@ class AuthController extends Controller
                             // ce qui était arrivé au casque.
                             'bottes' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'bottes' && $l->objet !== null),
-                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom],
+                                fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
                             ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
@@ -205,6 +211,16 @@ class AuthController extends Controller
                                     'nom' => $l->objet->nom,
                                     'categorie' => $l->objet->categorie,
                                     'rarete' => $l->objet->rarete,
+                                    // ⚠ Ce que la pièce FAIT, en clair (René,
+                                    // 2026-09-04 : « pouvoir voir le détail des
+                                    // items »). Un objet n'a pas de description
+                                    // écrite — son `effet` est la seule source de
+                                    // vérité, et `MotsClesEquipement::avantages()`
+                                    // la traduit plutôt que de la paraphraser.
+                                    // Le vocabulaire d'affichage vit côté SERVEUR :
+                                    // une table côté client dérive de la donnée
+                                    // qu'elle décrit, et les talents l'ont déjà payé.
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
                                     'quantite' => (int) $l->quantite,
                                     'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
                                     // Emplacements POSSIBLES : deux pour une arme
@@ -239,6 +255,11 @@ class AuthController extends Controller
                                 'nom' => $l->objet->nom,
                                 'quantite' => (int) $l->quantite,
                                 'effet' => $l->objet->effet,
+                                // ⚠ `effet` était déjà publié, mais BRUT : la
+                                // manette n'avait aucun moyen d'en tirer une
+                                // phrase, et une table de traduction côté client
+                                // dérive de la donnée qu'elle décrit.
+                                'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
                                 // Trois potions officielles sont réservées au
                                 // Barbare, deux à l'Elfe. On BADGE, on ne filtre
                                 // pas : un héros a le droit de PORTER la potion

@@ -2,6 +2,7 @@
 // Onglet Sac (équipement, inventaire) — port de SacTab (manette-app.jsx).
 import { computed, ref } from 'vue';
 import MSym from '../ui/MSym.vue';
+import InfoSheet from './InfoSheet.vue';
 import { RARETE_LABELS, rareteVersCle } from '../../store/game';
 
 const props = defineProps({
@@ -24,6 +25,23 @@ const emit = defineEmits(['equiper', 'desequiper', 'donner']);
    panneau, en empiler un second sur un écran de téléphone ferait perdre le
    contexte de l'objet qu'on donne. ---- */
 const donEnCours = ref(null); // inventaire_id dont le sélecteur est ouvert
+
+/* ---- DÉTAIL d'une pièce (René, 2026-09-04 : « pouvoir voir le détail des
+   items »). Un bouton ⓘ par ligne plutôt qu'un clic sur la ligne entière :
+   chaque ligne porte déjà « Équiper », « Déséquiper » ou « Donner », et un
+   clic ambigu sur un écran de téléphone finit toujours par déclencher le
+   mauvais. Les phrases viennent du SERVEUR (`avantages`), jamais d'une table
+   locale. ---- */
+const detail = ref(null);
+
+function ouvrirDetail(objet, sousTitre, icone = 'inventory_2') {
+    detail.value = {
+        titre: objet?.nom ?? 'Pièce inconnue',
+        sousTitre,
+        icone,
+        avantages: objet?.avantages ?? [],
+    };
+}
 
 function basculerDon(inventaireId) {
     donEnCours.value = donEnCours.value === inventaireId ? null : inventaireId;
@@ -67,11 +85,13 @@ const deborde = computed(() => {
                 <div class="nm">{{ a.nom }}</div>
                 <div class="rar">{{ libelleMain(a) }}</div>
             </div>
+            <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(a, 'Arme équipée', 'swords')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', a.inventaire_id)">Déséquiper</button>
         </div>
         <div v-if="equipement.armure" class="item">
             <span class="ic"><MSym n="shield" /></span>
             <div><div class="nm">{{ equipement.armure.nom }}</div><div class="rar">Armure équipée</div></div>
+            <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.armure, 'Armure équipée', 'shield')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.armure.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Le casque a son propre slot : il se CUMULE avec l'armure de corps.
@@ -80,18 +100,21 @@ const deborde = computed(() => {
         <div v-if="equipement.casque" class="item">
             <span class="ic"><MSym n="sports_martial_arts" /></span>
             <div><div class="nm">{{ equipement.casque.nom }}</div><div class="rar">Casque équipé</div></div>
+            <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.casque, 'Casque équipé', 'sports_martial_arts')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.casque.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Talisman (artefact de classe) : cinquième emplacement, cumulatif. -->
         <div v-if="equipement.talisman" class="item">
             <span class="ic"><MSym n="diamond" /></span>
             <div><div class="nm">{{ equipement.talisman.nom }}</div><div class="rar">Talisman équipé</div></div>
+            <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.talisman, 'Talisman équipé', 'diamond')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.talisman.inventaire_id)">Déséquiper</button>
         </div>
         <!-- Bottes : sixième emplacement (2026-09-04), cumulatif lui aussi. -->
         <div v-if="equipement.bottes" class="item">
             <span class="ic"><MSym n="footprint" /></span>
             <div><div class="nm">{{ equipement.bottes.nom }}</div><div class="rar">Bottes équipées</div></div>
+            <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.bottes, 'Bottes équipées', 'footprint')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.bottes.inventaire_id)">Déséquiper</button>
         </div>
         <div v-if="!equipement.armes.length && !equipement.armure && !equipement.casque && !equipement.talisman && !equipement.bottes" class="slots">
@@ -115,6 +138,8 @@ const deborde = computed(() => {
                 <div class="item">
                     <span class="ic"><MSym n="science" /></span>
                     <div><div class="nm">{{ p.nom }}</div><div class="rar">×{{ p.quantite }}</div></div>
+                    <button class="sac-btn ghost det-ic" title="Voir le détail"
+                        @click="ouvrirDetail(p, 'Potion', 'science')"><MSym n="info" :size="18" /></button>
                     <button
                         v-if="peutDonner"
                         class="sac-btn ghost don-ic"
@@ -163,6 +188,8 @@ const deborde = computed(() => {
             <div class="item">
                 <span class="ic"><MSym n="inventory_2" /></span>
                 <div><div class="nm">{{ it.nom }}</div><div class="rar" :class="'rar-' + rareteVersCle(it.rarete)">{{ RARETE_LABELS[rareteVersCle(it.rarete)] }}</div></div>
+                <button class="sac-btn ghost det-ic" title="Voir le détail"
+                    @click="ouvrirDetail(it, RARETE_LABELS[rareteVersCle(it.rarete)] ?? '', 'inventory_2')"><MSym n="info" :size="18" /></button>
                 <button
                     v-if="peutDonner"
                     class="sac-btn ghost don-ic"
@@ -206,7 +233,16 @@ const deborde = computed(() => {
         </template>
         <p v-if="!equipement.sac.length" class="empty-note">Le sac est vide.</p>
     </div>
-</template>
+
+        <InfoSheet
+            v-if="detail"
+            :titre="detail.titre"
+            :sous-titre="detail.sousTitre"
+            :icone="detail.icone"
+            :avantages="detail.avantages"
+            @close="detail = null"
+        />
+    </template>
 
 <style scoped>
 .sac-btn {
@@ -229,6 +265,11 @@ const deborde = computed(() => {
 /* Don : le bouton icône reste collé à droite, l'éventuel « Équiper » le suit. */
 .don-ic { padding: 7px 10px; display: inline-flex; align-items: center; }
 .don-ic + .sac-btn { margin-left: 8px; }
+/* Le ⓘ est DISCRET : il informe, il n'agit pas. Lui donner l'allure d'un
+   bouton d'action l'aurait mis au même rang qu'« Équiper » ou « Donner ». */
+.det-ic { padding: 7px 9px; display: inline-flex; align-items: center; opacity: 0.72; }
+.det-ic:hover { opacity: 1; }
+.det-ic + .sac-btn { margin-left: 8px; }
 .don-cible {
     display: flex;
     flex-wrap: wrap;

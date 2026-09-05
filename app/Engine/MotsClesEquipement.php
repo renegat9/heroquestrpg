@@ -731,4 +731,222 @@ final class MotsClesEquipement
     {
         return self::estActive($cle) || array_key_exists($cle, self::INERTES);
     }
+
+    // ------------------------------------------------------------------
+    // AFFICHAGE — ce que le joueur lit d'une pièce (René, 2026-09-04)
+    // ------------------------------------------------------------------
+
+    /**
+     * Libellé lisible de chaque mot-clé, `%s` recevant la valeur portée.
+     *
+     * ⚠ Le vocabulaire d'affichage vit CÔTÉ SERVEUR, et c'est une leçon déjà
+     * payée : `store/game.js` tenait sa propre table pour les talents, keyée sur
+     * des noms de colonne, si bien qu'un `effet` de compétence ne produisait
+     * AUCUNE puce — tous les talents s'affichaient sans un chiffre et personne
+     * ne l'avait remarqué. Une table côté client dérive de la donnée qu'elle
+     * décrit ; celle-ci est confrontée au catalogue par un test.
+     *
+     * ⚠ Un objet n'a PAS de description écrite à la main — son `effet` est la
+     * seule source de vérité sur ce qu'il fait. Ces libellés ne le paraphrasent
+     * donc pas : ils le TRADUISENT, exactement comme `MotsClesTalent::avantage()`
+     * dérive l'avantage d'un nœud au lieu de le laisser saisir.
+     *
+     * @var array<string, string>
+     */
+    public const LIBELLES = [
+        // --- Combat
+        self::DES_ATTAQUE => '%s dé(s) d\'attaque',
+        self::DES_DEFENSE => '%s dé(s) de défense',
+        'bonus_des_attaque' => '+%s dé(s) d\'attaque',
+        'bonus_des_defense' => '+%s dé(s) de défense',
+        'bonus_des_resistance_mentale' => '+%s dé(s) de résistance mentale',
+        self::ATTAQUE_DIAGONALE => 'Frappe en diagonale',
+        self::DEGATS_FIXES => 'Inflige toujours %s PV',
+        self::DES_ATTAQUE_CONTRE => 'Dés d\'attaque accrus contre certaines créatures',
+        self::ATTAQUE_DOUBLE_CONTRE => 'Frappe deux fois contre : %s',
+        'attaque_supplementaire' => 'Une attaque supplémentaire',
+        'multiplicateur_degats' => 'Dégâts ×%s',
+        'ignore_defense_monstre' => 'La cible ne peut pas parer',
+        'relance_des_attaque' => 'Relance %s dé(s) d\'attaque raté(s)',
+        'relance_des_attaque_sur_face' => 'Relance un dé selon la face obtenue',
+        'relance_attaque_monstre' => 'Force l\'assaillant à relancer son attaque',
+        self::TUE_SAUF_BOUCLIER_NOIR => 'Tue net, sauf bouclier noir de la cible',
+        'tue_creatures' => 'Tue instantanément : %s',
+        'controle_monstres' => 'Enrôle une créature',
+
+        // --- Mains et port
+        self::DEUX_MAINS => 'Se tient à deux mains',
+        self::INCOMPATIBLE_DEUX_MAINS => 'Incompatible avec une arme à deux mains',
+        self::JETABLE => 'Peut être lancée — et se perd',
+        self::PORTEE => 'Portée : %s',
+        self::INUTILISABLE_ADJACENT => 'Inutilisable au contact',
+        self::MALUS_DEPLACEMENT => '−%s de déplacement',
+        'compte_comme_arme' => 'Compte comme : %s',
+
+        // --- Déplacement
+        'bonus_deplacement' => '+%s de déplacement',
+        'de_deplacement_supplementaire' => '+%s dé de déplacement',
+        'deplacement_multiplie' => 'Déplacement ×%s',
+        'franchit_figures' => 'Traverse les figurines',
+        'franchit_mur' => 'Traverse les murs',
+        'saut_fosse_automatique' => 'Franchit les fosses sans jet',
+        'saut_piege_de_combat' => 'Franchit un piège sans jet',
+        'ramene_heros_au_depart' => 'Ramène le héros à son point de départ',
+
+        // --- Soins et jauges
+        'soin_pv_body' => 'Rend %s PV de Body',
+        'soin_pv_body_de' => 'Rend 1d%s PV de Body',
+        'soin_pv_mind' => 'Rend %s PV de Mind',
+        'restaure_jauges_depart' => 'Rend toutes les jauges au maximum',
+        self::BONUS_PV_BODY_MAX => '+%s PV de Body maximum',
+        self::BONUS_PV_MIND_MAX => '+%s PV de Mind maximum',
+        'plancher_pv' => 'Empêche de tomber à 0 PV',
+        'releve' => 'Remet un héros debout',
+        'retire_condition' => 'Retire : %s',
+
+        // --- Magie
+        self::RESTAURE_SORTS => 'Rend %s sort(s) épuisé(s)',
+        self::SECOND_SORT_PAR_TOUR => 'Un second sort par tour',
+        self::SORT_NON_EPUISE => 'Le sort lancé n\'est pas épuisé',
+        self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
+        'reflet_sort_dread' => 'Renvoie un sort du maître du donjon',
+        self::SORT_ID => 'Lance un sort',
+
+        // --- Terrain et utilitaires
+        'pose_chausse_trappes' => 'Sème des chausse-trappes',
+        'enfume_monstre_adjacent' => 'Enfume une créature au contact',
+        'permet_desamorcage' => 'Permet de désamorcer un piège',
+        'revele_pieges_et_portes_en_vue' => 'Révèle pièges et portes secrètes en vue',
+        'saute_tour' => 'La cible passe son tour',
+        'condition_appliquee' => 'Applique : %s',
+
+        // --- Économie d'usage
+        self::CHARGES => '%s utilisation(s)',
+        'frequence' => 'Cadence : %s',
+        'cout' => 'Coût : %s',
+        'une_par_tour' => 'Une seule fois par tour',
+        'activable' => 'S\'active à volonté',
+        'usure_sur_des_identiques' => 'S\'use sur un jet trop régulier',
+        'cible' => 'Cible : %s',
+        'duree' => 'Durée : %s',
+        'resistance' => 'Résistance : %s',
+    ];
+
+    /**
+     * Clés volontairement MUETTES à l'affichage : de la plomberie, pas une
+     * règle que le joueur doive lire.
+     *
+     * ⚠ Elles sont listées plutôt qu'ignorées en silence — un test exige que
+     * CHAQUE clé portée par un objet du catalogue soit soit traduite, soit
+     * déclarée muette ici. Sans cela, la première clé ajoutée disparaîtrait de
+     * la fiche sans que personne ne s'en aperçoive : c'est exactement ce qui est
+     * arrivé aux talents.
+     *
+     * @var array<string, string>
+     */
+    public const MUETTES = [
+        self::SORT_NOM => 'Le nom du sort est déjà celui du parchemin.',
+        self::DIFFICULTE_NON_LANCEUR => 'Détail de résolution ; la fiche dit déjà « lance un sort ».',
+        'soin_source' => 'Sert au calcul (soin du poison), pas à la lecture.',
+    ];
+
+    /**
+     * Traduit l'`effet` d'une pièce en phrases lisibles, dans l'ordre du
+     * catalogue.
+     *
+     * Rend une liste vide quand rien n'est traduisible — l'appelant affiche
+     * alors la pièce sans puce plutôt qu'une ligne vide.
+     *
+     * @param  array<string, mixed>  $effet
+     * @return list<string>
+     */
+    public static function avantages(array $effet): array
+    {
+        $lignes = [];
+
+        foreach ($effet as $cle => $valeur) {
+            $gabarit = self::LIBELLES[$cle] ?? null;
+
+            if ($gabarit === null) {
+                continue; // clé muette, ou inconnue : le test s'en charge
+            }
+
+            $lignes[] = self::accorder(
+                str_contains($gabarit, '%s') ? sprintf($gabarit, self::lisible($valeur)) : $gabarit,
+                $valeur,
+            );
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Accorde les pluriels marqués `(s)` sur la valeur portée.
+     *
+     * « 3 dé(s) d'attaque » se lit mal à la table. Un gabarit unique par
+     * mot-clé reste préférable à deux (singulier/pluriel) qui finiraient par
+     * diverger : c'est la marque `(s)` qui porte l'accord, résolue ici.
+     */
+    private static function accorder(string $texte, mixed $valeur): string
+    {
+        $pluriel = is_numeric($valeur) ? abs((float) $valeur) > 1 : is_array($valeur) && count($valeur) > 1;
+
+        return str_replace('(s)', $pluriel ? 's' : '', $texte);
+    }
+
+    /**
+     * Valeurs d'énumération rendues en français.
+     *
+     * ⚠ Sans cette table, `str_replace('_', ' ')` produisait « une fois par
+     * quete » — un slug déguisé en phrase, accents perdus compris. Une valeur
+     * absente d'ici retombe sur le remplacement générique, qui reste lisible.
+     *
+     * @var array<string, string>
+     */
+    private const VALEURS = [
+        'une_fois_par_quete' => 'une fois par quête',
+        'une_fois_par_tour' => 'une fois par tour',
+        'prochaine_attaque' => 'prochaine attaque',
+        'prochaine_defense' => 'prochaine défense',
+        'premier_degat_subi' => 'premier dégât subi',
+        'plus_de_monstre_en_vue' => 'plus aucun monstre en vue',
+        'fin_du_combat' => 'fin du combat',
+        'prochain_tour' => 'prochain tour',
+        'ce_tour' => 'ce tour',
+        'rupture_6_par_mind' => 'jet de rupture (un 6 libère)',
+        'gratuit' => 'gratuit',
+        'action' => "l'action du tour",
+        'soi' => 'soi-même',
+        'heros' => 'un héros',
+        'monstre' => 'un monstre',
+        'contact' => 'au contact',
+        'distance' => 'à distance',
+        'feu' => 'feu',
+        'froid' => 'froid',
+        'poison' => 'poison',
+    ];
+
+    /**
+     * Une valeur d'effet en texte : un tableau se lit comme une énumération,
+     * un booléen n'apporte rien (le libellé porte déjà le sens), un mot à
+     * souligné redevient une phrase.
+     */
+    private static function lisible(mixed $valeur): string
+    {
+        if (is_bool($valeur)) {
+            return '';
+        }
+
+        if (is_array($valeur)) {
+            $plat = array_filter($valeur, static fn ($v) => is_scalar($v));
+
+            return $plat === []
+                ? 'certaines créatures'
+                : implode(', ', array_map(static fn ($v) => (string) $v, $plat));
+        }
+
+        $texte = (string) $valeur;
+
+        return self::VALEURS[$texte] ?? str_replace('_', ' ', $texte);
+    }
 }
