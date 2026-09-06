@@ -2,138 +2,141 @@
 name: ajouter-element-de-jeu
 description: >-
   Utiliser quand on AJOUTE (ou importe depuis une extension) un élément de jeu :
-  personnage/classe, monstre, objet, piège, sort, tuile, élément de carte de
-  quête, gabarit de quête, compétence, condition. Checklist des dépendances
-  transverses à NE PAS oublier — donnée catalogue, support moteur de l'effet,
-  IMAGE, SON, rendu front, tests, docs — pour ce projet HeroQuest (Laravel +
-  Vue). Déclencheurs : « ajoute un monstre/objet/sort/classe… », « intègre
-  l'extension X », « nouvel ennemi/item/piège/héros ».
+  personnage/classe, monstre, objet, piège, sort, tuile, mobilier, épreuve,
+  gabarit de quête, compétence, condition, mercenaire. Checklist des dépendances
+  transverses à NE PAS oublier — carte source, donnée catalogue, support moteur
+  de l'effet, IMAGE (+ jumeau webp), SON, payload, rendu front, tests, docs.
+  Déclencheurs : « ajoute un monstre/objet/sort/classe… », « intègre
+  l'extension X », « nouvel ennemi/item/piège/héros/meuble/épreuve ».
 ---
 
 # Ajouter un élément de jeu — checklist transverse
 
-But : ajouter du contenu sans rien oublier (surtout **images** et **sons**) et
-**sans violer le principe fondateur**.
+But : ajouter du contenu sans rien oublier (surtout **images**, **sons** et
+**payload**) et **sans violer le principe fondateur**.
 
 ## ⚠ Garde-fou n°1 — le moteur fait foi, l'IA ne fait que rhabiller
 
 Les catalogues sont des **données de référence seedées**. Le moteur n'interprète
-qu'un **vocabulaire d'effets FIXE et codé en dur**. Donc :
+qu'un **vocabulaire d'effets FERMÉ** :
 
 - Un élément qui **réutilise un effet existant** = pure donnée (seeder). ✅
-- Un élément avec un **effet/capacité inédit** = **ajouter d'abord la branche
-  moteur + un test**, *puis* la donnée. ❌ Jamais d'effet inventé en donnée seule
-  (le moteur ne saurait pas le résoudre).
+- Un élément avec un **effet inédit** = **mécanique d'abord** (vocabulaire →
+  lecteur → test en jeu), *puis* la donnée. ❌ Jamais d'effet inventé en donnée
+  seule : le moteur ne saurait pas le résoudre, et le joueur lirait une promesse
+  jamais tenue. → skill **`ajouter-mecanique-moteur`**
 
-Vocabulaire d'effets actuel (vérifier/étendre ici) :
-- **Capacités de monstre** (`monstres.capacites`, JSON) → `app/Partie/MoteurDread.php`
-  (`aCapacite()` : `regeneration`, `charge`, …).
-- **Effets d'objet/sort** (`objets.effet`, `sorts.effet`, JSON) → `app/Partie/ResolveurTour.php`
-  & `app/Partie/MoteurSorts.php` & `app/Partie/Marche/CapaciteSac.php`
-  (`soin_pv_body`, `franchit_mur`, `bonus_des_attaque`, `bonus_des_defense`,
-  `deplacement_multiplie`, `bonus_capacite_sac`, …).
-- **Effets de piège** (`pieges.effet`, JSON) → `app/Partie/MoteurPieges.php`
-  (`franchissable`, …).
+Vocabulaires fermés (`app/Engine/`) : `MotsClesEquipement` · `MotsClesSort` ·
+`MotsClesSortDread` · `MotsClesTalent` · `MotsClesEpreuve` · `DureeEffet` ·
+`RegainEffet` · `TypeDegat` · `ReactionEffet`.
 
-Si l'effet voulu n'y est pas → coder la branche dans `app/Engine`/`app/Partie`
-+ test Pest (`tests/Unit/Engine` ou `tests/Feature/Partie`) **avant** de seeder.
+## ⚠ Garde-fou n°2 — rien n'est inventé, tout est sourcé
+
+Une arme, une armure, une potion, un artefact, un sort ou un bloc de stats de
+monstre vient d'une **carte** ou d'un **livret**, et s'inscrit au registre
+`config/cartes.php` (testé **dans les deux sens**).
+→ skill **`porter-une-carte-officielle`**
 
 ## 1. Donnée catalogue (toujours)
 
-Éditer le bon seeder dans `database/seeders/` :
-
 | Élément | Seeder | Champs clés |
 |---|---|---|
-| Classe / héros | `ClasseHerosSeeder` | `nom` (enum), PV, attributs, dés, déplacement, bonus_sac |
-| Monstre | `MonstreSeeder` | `nom_base`, `tier` (base/sous_boss/boss), stats, `cout`, `capacites` |
-| Objet | `ObjetSeeder` | `nom`, `categorie`, `rarete`, `prix_base`, `emplacement`, `effet` |
+| Classe / héros | `ClasseHerosSeeder` | `nom`, `race`, PV, attributs, dés, déplacement, `tags_equipement`, `objets_autorises` |
+| Monstre | `MonstreSeeder` | `nom_base`, `tier`, `boite`, stats, `cout`, `capacites` |
+| Objet | `ObjetSeeder` | `nom`, `categorie`, `prix_base` (⚠ la **rareté se déduit du prix**), `emplacement`, `tag_equipement`, `metallique`, `effet` |
 | Piège | `PiegeSeeder` | `nom`, `detectable`, `desarmable`, `usage`, `effet` |
-| Sort | `SortSeeder` | `element`, `nom`, `type`, `difficulte_parchemin`, `effet` |
-| Tuile (carte) | `TuileSeeder` | `type`, `theme`, `grille` (cases) |
-| Gabarit de quête | `GabaritQueteSeeder` | structure, budget, butin |
-| Compétence / condition / Dread / forge | `Competence`/`Condition`/`SortDread`/`ForgeAmelioration` Seeder | — |
+| Sort | `SortSeeder` | `element`, `nom`, `type`, `difficulte_parchemin`, `cible`, `resistance`, `effet` |
+| Sort de Dread | `SortDreadSeeder` | `nom`, `palier`, `effet` |
+| Mobilier | `MobilierSeeder` | emprise, `bloque_mouvement`, `bloque_vue`, `adosse_au_mur`, `difficulte_destruction`, `effet.fouille` |
+| Épreuve | `EpreuveSeeder` | attribut, difficulté, `effet`, `exige_placement` |
+| Tuile | `TuileSeeder` | `type`, `theme`, `grille` |
+| Gabarit de quête | `GabaritQueteSeeder` | `structure` (`objectif`, `objectif_majeur`, `deck_fouille`, `rencontre_finale`), budget |
+| Compétence | `CompetenceSeeder` | `categorie`/`colonne`/`rang` (grille 3×3) ou `innee`, `effet.mecanique`, `description` |
+| Condition / Forge / Mercenaire | `Condition`/`ForgeAmelioration`/`Mercenaire` Seeder | — |
 
-> Un nouvel **objet = parchemin** d'un sort doit rester cohérent avec `SortSeeder`
-> (un parchemin par sort). Un **monstre** porte un `tier` qui décide boss vs base.
+⚠ **Les seeders écrivent en `updateOrCreate` et ne purgent pas** (une purge
+détacherait ce que les héros possèdent déjà). Donc **retirer une ligne du seeder
+ne supprime rien en base** : il faut une **migration** — et elle doit emporter
+les lignes d'inventaire, sinon l'objet reste dans un sac, ni équipable, ni
+vendable, ni affichable. ⚠ `MobilierSeeder` **clé sur `nom`** exprès : la grille
+stocke un `mobilier_id`, re-seeder en purgeant orphelinerait chaque meuble d'une
+quête en cours, ni fouillable ni bloquant, **sans une seule erreur**.
 
-Re-seed après édition (dev) :
+⚠ **Le butin filtre ce que personne ne peut utiliser** : `RareteButin` pondère
+par le niveau du groupe, et le pool retire ce qu'aucun héros **engagé** ne
+pourrait porter (`Equipement::tagsAccessiblesAux()`). Un `tag_equipement`
+qu'aucune classe ne possède rend la pièce **inatteignable** — un test le refuse.
+
 ```bash
-docker compose exec app php artisan migrate:fresh --seed   # ⚠ efface les parties
-# ou cibler : docker compose exec app php artisan db:seed --class=MonstreSeeder
+docker compose exec app php artisan db:seed --class=MonstreSeeder
 ```
 
 ## 2. 🖼 IMAGE (presque toujours)
 
-- Le gabarit de prompt existe déjà par type dans **`config/images.php`**
-  (`classe`, `monstre`, `objet`, `piege`, `sort` + dynamiques `boss/scene/hub/portrait`).
-  La commande **itère le catalogue** → un nouveau row est couvert automatiquement.
-- Générer : `docker compose exec app php artisan images:generer` (résumable ;
-  `--type=monstres|objets|pieges|sorts|classes|tous`, `--force`). Asset →
-  `public/images/catalogue/{type}/{id}-{slug}.png` (gitignored, régénérable).
-- **Si c'est un TYPE d'élément inédit** (pas couvert par les types ci-dessus) :
-  - ajouter un gabarit dans `config/images.php` ;
-  - ajouter `relatif*`/`url*` dans `app/Partie/Images/BibliothequeImages.php`
-    et l'itération dans `app/Console/Commands/GenererImages.php` ;
-  - exposer `image_url` dans le bon payload (voir §4) ;
-  - afficher via le composant `resources/js/components/ui/Vignette.vue`.
+- Gabarits dans **`config/images.php`** : `classe` · `monstre` · `objet` ·
+  `piege` · `epreuve` · `mobilier` · `levier` · `porte` · `sort` (+ dynamiques
+  `boss`/`scene`/`hub`/`portrait`). La commande **itère le catalogue** → une
+  ligne neuve est couverte toute seule.
+- ⚠ **TYPE inédit** : gabarit + accesseur `BibliothequeImages::url*()` +
+  itération dans `GenererImages` + champ dans le payload + rendu `Vignette`.
+- ⚠ Un élément **sans table catalogue** (levier, porte) se nomme par un libellé
+  fixe, pas par `{id}-{slug}`.
+
+```bash
+docker compose exec app php artisan images:generer --type=monstres
+./image-tools/webp.sh      # ⚠ OBLIGATOIRE : sans jumeau, l'écran est 30× plus lourd
+```
+→ skill **`medias-images-et-sons`**
 
 ## 3. 🔊 SON (selon le type)
 
-- **Monstre** → voix : dans **`config/barks.php`**, mapper l'archétype au profil
-  de voix, et fournir `lignes` (attaque/touché/raté/mort) ; si **boss/sous-boss**,
-  `lignes_boss` (placeholder `{nom}`). Puis :
-  `docker compose exec app php artisan barks:generer`. Résolveur :
-  `app/Partie/Audio/BanqueBarks.php`. Sans clé/asset → Web Speech lit le texte.
-- **Nouvelle narration** (beat de quête) → `config/narration.php` (`repli`/`lancement`)
-  puis `php artisan narration:generer`. Résolveur : `BibliothequeNarration`.
-- **Ambiance** → scènes dans `audio-tools/lyria-ambiance.mjs` (voir `audio-tools/README.md`).
+- **Monstre** → `config/barks.php` (profil de voix, `lignes`, `lignes_boss` avec
+  `{nom}`) puis `barks:generer`. Résolveur `BanqueBarks`.
+- **Temps fort de narration** → `config/narration.php` (`repli`) puis
+  `narration:generer`. ⚠ Le vocabulaire est **fermé** :
+  `App\Partie\Narration\TempsFort` — une clé produite mais routée nulle part est
+  du texte payé et jamais lu.
 
-## 4. Payload serveur (`image_url` / `portrait_url`)
+## 4. Payload serveur
 
-L'élément doit porter son URL d'image dans le payload que le front consomme —
-via `app(\App\Partie\Images\BibliothequeImages::class)` (déjà branché pour les
-types existants) :
+L'élément doit porter son `image_url` là où le front le consomme, via
+`BibliothequeImages` : `app/Partie/EtatGroupe.php` (héros, monstres, pièges,
+mobilier, épreuves, scène, hub) · `AuthController` (`/moi`) ·
+`Marche/PhaseMarche.php` · `ClotureCampagne.php`.
+⚠ **Le contrat d'abord** : `docs/contrat-api.md`.
 
-- `app/Partie/EtatGroupe.php` — héros (`urlHeros`), monstres (`urlMonstre`),
-  pièges (`urlPiege`), scène (`dyn quete`), hub (`dyn hub`).
-- `app/Http/Controllers/Api/AuthController.php` (`/moi`) — `portrait_url` + sorts (`urlSort`).
-- `app/Partie/Marche/PhaseMarche.php` — objets (`urlObjet`).
-- `app/Partie/ClotureCampagne.php` — butin (`urlObjet`).
+## 5. Front
 
-## 5. Front (rendu)
-
-- Le rendu image-ou-icône passe par **`Vignette`** (repli sur l'icône Material
-  Symbols si pas d'image). Vérifier l'onglet/écran concerné :
-  manette (bandeau, `FicheTab`, `SacTab`, `SpellsTab`), table (`GroupPanel`,
-  `DungeonMap`), `MarketTab`, `ClotureCampagneView`, `JoueurView` (roster).
-- Icône de repli : maps dans `resources/js/store/game.js` (`CLASSES`,
-  `CATEGORIE_ICONES`, `ELEMENTS`). Ajouter l'icône si nouveau type.
-- Rebuild front : `docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app node:20-alpine sh -c "npm run build"`.
+- Rendu image-ou-icône par **`Vignette`** (repli Material Symbols).
+- Icône de repli à déclarer dans `resources/js/store/game.js` (`CLASSES`,
+  `CATEGORIE_ICONES`, `ELEMENTS`, `CONDITIONS`…).
+- Élément posé sur la carte → **silhouette** dans
+  `resources/js/components/carte/symboles.js` (lu par le rendu **et** la légende).
+  → skills **`front-manette-et-table`**, **`travailler-la-carte`**
 
 ## 6. Tests
 
-- Effet moteur inédit → test dans `tests/Unit/Engine` (pur) ou `tests/Feature/Partie`.
-- Les assertions de payload en `toBe(...)` doivent **ignorer `image_url`**
-  (sinon elles cassent dès qu'un asset existe) — cf. le pattern dans
-  `tests/Feature/Partie/PiegesTest.php` (`->map(fn ($p) => collect($p)->except('image_url')->all())`).
-- Lancer la suite :
-```bash
-docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
-  -e DB_CONNECTION=sqlite -e DB_DATABASE=/app/database/database.sqlite \
-  composer:2 ./vendor/bin/pest
-```
+- Effet inédit → test **en jeu** (`tests/Feature/Partie/`), pas seulement catalogue.
+- Registres deux sens : `CartesSourcesTest` · `BestiaireSourceTest` ·
+  `SortsDreadSourcesTest` · `GrilleTalentsTest` · `SymbolesCarteTest` ·
+  `EpreuvesCatalogueTest`.
+- ⚠ Une assertion `toBe(...)` sur un payload doit **ignorer `image_url`**
+  (`collect($p)->except('image_url')`), sinon elle casse dès qu'un asset existe.
+→ skill **`outillage-dev-et-tests`** pour la commande
 
 ## 7. Docs
 
 - `docs/contrat-api.md` si la forme d'un payload change (**source de vérité**).
 - `reference/12_schema_donnees.md` si le schéma BD change.
+- `reference/16_armurerie.md` / `18_extensions.md` si la source est une carte.
 
 ## Récap « definition of done »
-- [ ] Donnée seedée (effet dans le vocabulaire moteur, sinon branche moteur + test)
-- [ ] Image générée (`images:generer`) **ou** type câblé (gabarit + résolveur + payload + Vignette)
-- [ ] Son si monstre (barks) / narration (selon le cas)
-- [ ] Payload expose `image_url`/`portrait_url`
-- [ ] Front affiche l'élément (Vignette + icône de repli)
-- [ ] Tests verts (payload `toBe` sans `image_url`)
-- [ ] Docs à jour si schéma/contrat change
-- [ ] Jouable **sans clé** (repli icône/texte/menu moteur) préservé
+- [ ] Source citée (carte/livret) et inscrite à `config/cartes.php` si applicable
+- [ ] Donnée seedée avec un effet du vocabulaire fermé (sinon mécanique **d'abord**)
+- [ ] Migration si un élément **sort** du catalogue (inventaires compris)
+- [ ] Image générée **+ jumeau webp**, ou type câblé de bout en bout
+- [ ] Son si monstre (barks) / temps fort déclaré dans `TempsFort`
+- [ ] Payload expose `image_url`, contrat d'API à jour
+- [ ] Front affiche l'élément (Vignette + icône, silhouette si sur la carte)
+- [ ] Tests verts, registres deux sens compris
+- [ ] Jouable **sans clé API** (repli icône / texte / menu moteur) préservé
