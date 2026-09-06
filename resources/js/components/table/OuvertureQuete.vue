@@ -2,23 +2,23 @@
 /**
  * Ouverture de quête plein cadre, sur l'écran de table.
  *
- * Deux temps dans un seul panneau, parce que c'est un seul moment pour le
- * groupe attablé :
+ * L'illustration de scène en grand, avec le texte qui plante le donjon —
+ * l'image existait déjà mais n'apparaissait que dans une vignette de 56 px au
+ * coin du bandeau.
  *
- *  1. PRÉPARATION — construire une quête prend une à deux minutes (habillage
- *     des monstres, illustration de scène, récits, voix). L'écran ne disait
- *     rien pendant ce temps : les joueurs attendaient devant un donjon muet
- *     sans savoir si ça avançait ou si tout était figé (René, 2026-08-21).
- *  2. OUVERTURE — l'illustration de scène en grand, avec le texte qui plante
- *     le donjon. Cette image existait déjà, mais n'apparaissait que dans une
- *     vignette de 56 px au coin du bandeau.
+ * ⚠ Ce panneau portait AUSSI la préparation (habillage, scène, récits, voix),
+ * et c'est parti le 2026-09-05. La quête est jouable dès sa création : la
+ * cérémonie scriptée est lue en quelques secondes, les manettes dégèlent, et
+ * les joueurs agissent — pendant que ce voile plein écran couvrait encore le
+ * donjon une à deux minutes durant (René : « on est capable de jouer alors
+ * qu'il y a un popup »). Il datait d'avant la bascule « zéro appel LLM en
+ * quête » du 2026-08-18, quand le groupe attendait pour de bon. L'avancement
+ * vit désormais dans un bandeau du haut, qui ne masque rien.
  *
- * Se ferme quand le narrateur a fini de lire (le parent le pilote via
- * `visible`), jamais toute seule : c'est la table qui donne le tempo.
+ * Se ferme quand le narrateur a fini de lire, jamais toute seule : c'est la
+ * table qui donne le tempo.
  */
 defineProps({
-    /** Étape en cours `{etape, libelle, index, total}`, ou null si rien ne tourne. */
-    preparation: { type: Object, default: null },
     /** Texte d'ouverture, une fois les récits écrits. */
     texte: { type: String, default: '' },
     /** Illustration de scène (`quete.image_url`), si elle a été générée. */
@@ -37,20 +37,7 @@ defineProps({
             <div class="ouv-corps">
                 <p v-if="titre" class="ouv-titre">{{ titre }}</p>
 
-                <!-- 1) Préparation : on montre l'étape, pas un sablier muet. -->
-                <template v-if="preparation">
-                    <p class="ouv-etape">{{ preparation.libelle }}</p>
-                    <div class="ouv-jauge" :aria-label="`Étape ${preparation.index} sur ${preparation.total}`">
-                        <i
-                            v-for="n in preparation.total"
-                            :key="n"
-                            :class="{ fait: n <= preparation.index }"
-                        />
-                    </div>
-                </template>
-
-                <!-- 2) Ouverture : le texte qui plante le donjon. -->
-                <p v-else class="ouv-texte">{{ texte }}</p>
+                <p class="ouv-texte">{{ texte }}</p>
             </div>
         </div>
     </div>
@@ -111,29 +98,5 @@ defineProps({
     font-size: 21px;
     line-height: 1.5;
     color: var(--parch-100, #e8dcc6);
-}
-.ouv-etape {
-    margin: 0;
-    font-family: var(--font-narr);
-    font-style: italic;
-    font-size: 19px;
-    color: var(--parch-100, #e8dcc6);
-}
-/* Jauge d'étapes : des segments, pas un pourcentage — la durée de chaque
-   étape varie trop (une image ~70 s, la voix parfois zéro) pour qu'un
-   pourcentage veuille dire quoi que ce soit. */
-.ouv-jauge {
-    display: flex;
-    gap: 6px;
-}
-.ouv-jauge i {
-    height: 4px;
-    flex: 1;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.14);
-    transition: background 0.4s ease;
-}
-.ouv-jauge i.fait {
-    background: var(--gold, #c9a24a);
 }
 </style>

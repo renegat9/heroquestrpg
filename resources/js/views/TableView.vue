@@ -274,8 +274,16 @@ const party = computed(() => (etat.value
 const narration = computed(() => store.state.narration);
 const ouverture = computed(() => store.state.ouverture);
 const preparation = computed(() => store.state.preparation);
-/* La carte plein cadre couvre les DEUX temps : préparation puis ouverture. */
-const carteOuverture = computed(() => preparation.value || ouverture.value);
+/*
+ * ⚠ La carte plein cadre ne couvre PLUS la préparation (2026-09-05). La quête
+ * est jouable dès sa création — carte, monstres et menus existent, la cérémonie
+ * scriptée est lue en quelques secondes et les manettes dégèlent —, si bien que
+ * ce voile s'ouvrait APRÈS le début du jeu et masquait le donjon une à deux
+ * minutes durant, pendant qu'on y jouait (René : « on est capable de jouer
+ * alors qu'il y a un popup »). Il n'y reste que l'OUVERTURE, qui est un vrai
+ * moment lu à voix haute ; l'avancement passe dans le bandeau du haut.
+ */
+const carteOuverture = computed(() => ouverture.value);
 const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : false));
 // En quête : héros présents sur la carte ; au hub (entités vides) : taille du
 // groupe (statuts « prêt »), sinon le compteur affichait toujours 0 au hub.
@@ -536,7 +544,6 @@ watch(() => store.state.clotureTerminee, (t) => {
         <div v-else class="table tex-stone tex-vignette" style="position: relative">
             <OuvertureQuete
                 v-if="carteOuverture"
-                :preparation="preparation"
                 :texte="ouverture ?? ''"
                 :image="sceneImage"
                 :titre="sousTitre"
@@ -565,6 +572,24 @@ watch(() => store.state.clotureTerminee, (t) => {
                 </div>
                 <InitiativeBar :order="initOrder" @inspecter="inspecter" />
                 <div class="status-top">
+                    <!-- Avancement de la PRÉPARATION, en bandeau et non en
+                         voile : la partie est déjà jouable, la table doit voir
+                         son donjon. Il répond à la seule question qui se pose
+                         pendant ces une à deux minutes — « ça avance, ou c'est
+                         figé ? ». -->
+                    <div v-if="preparation" class="prep" :aria-label="`Étape ${preparation.index} sur ${preparation.total}`">
+                        <div class="prep-hd">
+                            <span class="prep-num">{{ preparation.index }}/{{ preparation.total }}</span>
+                            <span class="prep-nom">{{ preparation.libelle }}</span>
+                        </div>
+                        <div class="prep-jauge">
+                            <i
+                                v-for="n in preparation.total"
+                                :key="n"
+                                :class="{ fait: n < preparation.index, encours: n === preparation.index }"
+                            />
+                        </div>
+                    </div>
                     <div v-if="mjReflechit" class="think">
                         <span class="dots"><i /><i /><i /></span> Le MJ réfléchit…
                     </div>
@@ -908,6 +933,22 @@ watch(() => store.state.clotureTerminee, (t) => {
    — il doit sauter aux yeux du narrateur, pas se fondre dans les conditions. */
 .table-screen .stat-rejetons { background: oklch(0.32 0.11 30 / 0.55); border-color: oklch(0.55 0.16 30 / 0.7); color: oklch(0.92 0.06 40); font-weight: 700; }
 .table-screen .status-top { display: flex; align-items: center; gap: 14px; }
+
+/* Préparation : discret, mais lisible depuis l'autre bout de la table. */
+.table-screen .prep { display: flex; flex-direction: column; gap: 4px; min-width: 168px; }
+.table-screen .prep-hd { display: flex; align-items: baseline; gap: 7px; }
+.table-screen .prep-num { font-size: 11px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+.table-screen .prep-nom { font-size: 12.5px; color: var(--ink-300); white-space: nowrap; }
+/* Des segments, pas un pourcentage : la durée de chaque étape varie trop (une
+   image ~70 s, la voix parfois zéro) pour qu'un pourcentage veuille dire quoi
+   que ce soit. Le cran EN COURS pulse — sans lui, une étape lente est
+   indiscernable d'un écran figé, ce que cette jauge existe pour dire. */
+.table-screen .prep-jauge { display: flex; gap: 4px; }
+.table-screen .prep-jauge i { height: 4px; width: 26px; border-radius: 2px;
+  background: oklch(1 0 0 / 0.14); transition: background .4s ease; }
+.table-screen .prep-jauge i.fait { background: var(--gold); }
+.table-screen .prep-jauge i.encours { background: var(--torch); animation: prep-pulse 1.1s ease-in-out infinite; }
+@keyframes prep-pulse { 0%, 100% { opacity: 0.35 } 50% { opacity: 1 } }
 .table-screen .status-top .status-params { width: 34px; height: 34px; border-radius: 999px; flex: none;
   display: grid; place-items: center; border: var(--line); background: var(--stone-850); color: var(--ink-300);
   cursor: pointer; transition: color .15s, border-color .15s; }

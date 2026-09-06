@@ -16,6 +16,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 
@@ -89,4 +90,50 @@ it('n’explose pas quand le groupe a été purgé entre-temps (campagne arrêt�
     (new GenererVoixQuete(999_999))->failed(new RuntimeException('timeout simulé'));
 
     Event::assertNotDispatched(EtapePreparation::class);
+});
+
+// =====================================================================
+// L'AVANCEMENT DE LA PRÉPARATION, lisible — René, 2026-09-05 : « les étapes ne
+// sont pas claires ».
+// =====================================================================
+
+it('numérote l\'étape EN COURS, pas celles qui sont finies', function () {
+    // ⚠ `index` valait `array_search(...)` : 0 pour la première étape, 3 pour
+    // la quatrième et dernière. La jauge affichait donc une étape de retard sur
+    // la phrase et n'atteignait JAMAIS son dernier cran — pendant « La voix du
+    // narrateur », quatrième sur quatre, elle en montrait trois.
+    $groupe = creerGroupe();
+
+    $attendu = ['habillage' => 1, 'scene' => 2, 'recits' => 3, 'voix' => 4];
+
+    foreach ($attendu as $etape => $rang) {
+        $charge = (new EtapePreparation($groupe, $etape))->broadcastWith();
+
+        expect($charge['index'])->toBe($rang, "étape {$etape}")
+            ->and($charge['total'])->toBe(4)
+            ->and($charge['libelle'])->toBe(EtapePreparation::ETAPES[$etape]);
+    }
+
+    // La dernière étape remplit la jauge : c'est ce que « 4 sur 4 » veut dire.
+    expect(count($attendu))->toBe(4);
+});
+
+it('nomme CE QUI SE FABRIQUE, sans phrase vague', function () {
+    // Trois libellés sur cinq commençaient par « Il » et ne disaient pas ce qui
+    // était en train d'être produit. Une attente d'une à deux minutes se lit
+    // depuis l'autre bout de la table ou ne se lit pas.
+    foreach (EtapePreparation::ETAPES as $etape => $libelle) {
+        expect($libelle)->not->toStartWith('Il ', "étape {$etape}")
+            ->and(mb_strlen($libelle))->toBeLessThanOrEqual(30, "étape {$etape} tient dans le bandeau");
+    }
+});
+
+it('efface l\'avancement quand tout est prêt — le bandeau doit disparaître', function () {
+    $groupe = creerGroupe();
+
+    new EtapePreparation($groupe, 'recits');
+    expect(Cache::get(EtapePreparation::cle($groupe->id)))->not->toBeNull();
+
+    new EtapePreparation($groupe, 'pret');
+    expect(Cache::get(EtapePreparation::cle($groupe->id)))->toBeNull();
 });

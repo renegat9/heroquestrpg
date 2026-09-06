@@ -30,6 +30,20 @@ use Illuminate\Support\Facades\Cache;
  * milieu de la séquence. TTL court — une préparation qui dépasse cinq minutes
  * a échoué, et mieux vaut ne plus rien afficher que mentir sur l'avancement.
  *
+ * ⚠ Les libellés NOMMENT CE QUI SE FABRIQUE. Ils étaient poétiques et vagues
+ * — « Il en dessine les lieux… », « Il accorde sa voix… » —, trois d'entre eux
+ * commençant par « Il » : on ne pouvait ni savoir ce qui se passait, ni où l'on
+ * en était. Une attente d'une à deux minutes doit se lire d'un coup d'œil
+ * depuis l'autre bout de la table.
+ *
+ * ⚠ Et ce n'est PLUS un panneau plein écran (2026-09-05). La partie est
+ * jouable dès la création de la quête — carte, monstres et menus existent, la
+ * cérémonie scriptée est lue en quelques secondes et les manettes dégèlent —,
+ * si bien que ce voile arrivait APRÈS le début du jeu et masquait le donjon
+ * pendant qu'on y jouait. Il était né quand le groupe attendait vraiment
+ * (avant la bascule « zéro appel LLM en quête » du 2026-08-18) ; ce qu'il
+ * reste à dire tient dans un bandeau.
+ *
  * Écouté côté Vue (TableView) sous `.preparation.etape`.
  */
 class EtapePreparation implements ShouldBroadcastNow
@@ -42,11 +56,11 @@ class EtapePreparation implements ShouldBroadcastNow
      * dispatch EST l'ordre d'exécution puisqu'ils partagent la file `default`.
      */
     public const ETAPES = [
-        'habillage' => 'Le maître du jeu peuple le donjon…',
-        'scene' => 'Il en dessine les lieux…',
-        'recits' => 'Il en écrit l’histoire…',
-        'voix' => 'Il accorde sa voix…',
-        'pret' => 'Tout est prêt.',
+        'habillage' => 'Les créatures prennent forme',
+        'scene' => 'L’illustration du lieu',
+        'recits' => 'Le récit des salles',
+        'voix' => 'La voix du narrateur',
+        'pret' => 'Tout est prêt',
     ];
 
     public static function cle(int $groupeId): string
@@ -58,10 +72,19 @@ class EtapePreparation implements ShouldBroadcastNow
         public readonly Groupe $groupe,
         public readonly string $etape,
     ) {
+        // ⚠ `index` est le RANG DE L'ÉTAPE EN COURS, 1 à 4 — pas le nombre
+        // d'étapes finies (René, 2026-09-05 : « les étapes ne sont pas
+        // claires »). Il valait `array_search(...)`, soit 0 pour la première :
+        // la jauge affichait donc toujours une étape de retard sur la phrase,
+        // et n'atteignait jamais son dernier cran — pendant « La voix du
+        // narrateur », quatrième et dernière, elle en montrait trois. Le cran
+        // du rang courant se rend « en cours », ceux d'avant « faits ».
+        $rang = array_search($etape, array_keys(self::ETAPES), true);
+
         $charge = $etape === 'pret' ? null : [
             'etape' => $etape,
             'libelle' => self::ETAPES[$etape] ?? $etape,
-            'index' => array_search($etape, array_keys(self::ETAPES), true) ?: 0,
+            'index' => $rang === false ? 0 : $rang + 1,
             'total' => count(self::ETAPES) - 1, // « pret » clôt, il ne compte pas
         ];
 
