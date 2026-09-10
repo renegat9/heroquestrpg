@@ -2093,6 +2093,13 @@ final class MoteurDread
      * `MoteurDegats::infligerMindAHeros()` porte déjà depuis la phase 1 du
      * plan (arbitrage de René, 2026-09-06).
      *
+     * ⚠ ORBE CÉLESTE (Sky Orb) : `MoteurSorts::absorbePartielDegatMind()`
+     * grignote la PERTE avant qu'elle n'atteigne `infligerMindAHeros()` — un
+     * jeton par point, jusqu'à épuisement. Placé APRÈS le calcul de `$perte`
+     * (la cible à 1 ou 0 reste celle du jet, l'Orbe ne change pas ce que la
+     * carte du boss décide) mais AVANT le producteur, comme `absorbeDegat()`
+     * l'est pour la branche Body.
+     *
      * @param  Collection<int, EtatPersonnageQuete>  $enVue
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
@@ -2124,8 +2131,11 @@ final class MoteurDread
         $cible = $succes ? 1 : 0;
         $perte = max(0, $avant - $cible);
 
+        $apresOrbe = $this->sorts->absorbePartielDegatMind($personnage, $perte);
+        $absorbe = $perte - $apresOrbe;
+
         $subis = $this->degats->infligerMindAHeros(
-            $personnage, $perte, MoteurDegats::SOURCE_SORT_DREAD_MIND,
+            $personnage, $apresOrbe, MoteurDegats::SOURCE_SORT_DREAD_MIND,
             ['sort' => $sort->nom, 'lanceur_id' => (int) $instance->id],
         );
 
@@ -2139,6 +2149,10 @@ final class MoteurDread
                 'pv_mind_avant' => $avant,
                 'pv_mind_apres' => (int) $personnage->pv_mind,
                 'degats_mind' => $subis,
+                // Orbe Céleste : un effet automatique que rien n'annonce est
+                // injouable — le joueur doit voir POURQUOI il a perdu moins que
+                // le jet ne le disait.
+                'mind_absorbe' => $absorbe,
                 'cible_tombee' => (int) $personnage->pv_mind === 0 && $subis > 0,
             ]],
         ];

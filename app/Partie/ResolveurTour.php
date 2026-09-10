@@ -511,7 +511,10 @@ final class ResolveurTour
 
         // Allonce du tour : le d6 a été lancé à la génération du menu et MÉMORISÉ
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
-        $base = (int) $personnage->deplacement_base;
+        // Raquettes de Vitesse : symétrique de `malusDeplacement()`, même
+        // point de passage que `MenuMoteur::deplacementDuTour()` — sous peine
+        // que ce repli recalcule un total que le menu n'a pas annoncé.
+        $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
             ->calculer($base, $this->equipement->malusDeplacement($personnage))
             ->total;
@@ -767,7 +770,7 @@ final class ResolveurTour
         // chemin RÉELLEMENT foulé (pièges/racines/tunnel déjà résolus) —
         // jamais sur `$chemin` brut, pour ne jamais faire saigner une case
         // que le héros n'a en fait pas atteinte.
-        $degatsRiviere = $this->saignerSurRiviere($quete, $cheminParcouru);
+        $degatsRiviere = $this->saignerSurRiviere($quete, $cheminParcouru, $personnage);
 
         if ($degatsRiviere > 0) {
             $retenus = $this->degats->infligerAHeros(
@@ -2583,6 +2586,16 @@ final class ResolveurTour
                 continue; // Chambre forte de glace : hors périmètre, saignerParTerrain() s'en charge
             }
 
+            // RAQUETTES DE VITESSE — « annule la glace glissante » : NOMME la
+            // tuile « Glace glissante », pas la Glissière (tuile distincte,
+            // non citée par la carte). Aucun dé n'est même lancé : un porteur
+            // équipé ne risque rien à cette case, exactement comme un talent
+            // `ignore_terrain_entravant` plus haut.
+            if ($entree['nom'] === 'Glace glissante'
+                && $personnage !== null && $this->equipement->annuleGlaceGlissante($personnage)) {
+                continue;
+            }
+
             $effet = $entree['effet'];
             $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
             $finTourInconditionnel = (bool) ($effet['fin_tour'] ?? false);
@@ -2682,6 +2695,17 @@ final class ResolveurTour
         }
 
         $effet = $entree['effet'];
+
+        // ANNEAU DE CHALEUR — le dégât de terrain porte désormais une NATURE
+        // (`effet.type_degat`, Chambre forte de glace = froid) : un porteur
+        // immunisé au froid ne saigne pas ici, exactement comme il ne
+        // brûlerait pas d'un sort de feu. Vérifié AVANT tout jet, comme
+        // `tronquerSurGlace()` le fait pour les Raquettes de Vitesse — un
+        // porteur protégé ne roule même pas le dé de la chambre.
+        if ($this->sorts->absorbeDegat($personnage, $effet['type_degat'] ?? null)) {
+            return;
+        }
+
         $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
 
         if ($nbDes < 1) {
@@ -2736,9 +2760,15 @@ final class ResolveurTour
      * sur AU MOINS une face (déjà lues par `tronquerSurGlace()`) — sans quoi
      * Glace glissante et Glissière saigneraient DEUX FOIS pour le même pas.
      *
+     * ⚠ ANNEAU DE CHALEUR (2026-09-10) : `absorbeDegat()` est consulté PAR
+     * CASE, avant même de lancer son dé — une case dont la nature est couverte
+     * ne coûte ni jet ni charge. Vérifié À CHAQUE case plutôt qu'une fois pour
+     * le trajet entier : rien n'empêche qu'un futur terrain porte une AUTRE
+     * nature sur le même chemin, et l'immunité ne doit couvrir que la sienne.
+     *
      * @param  list<array{x: int, y: int}>  $cheminParcouru
      */
-    private function saignerSurRiviere(Quete $quete, array $cheminParcouru): int
+    private function saignerSurRiviere(Quete $quete, array $cheminParcouru, ?Personnage $personnage = null): int
     {
         $total = 0;
 
@@ -2768,6 +2798,10 @@ final class ResolveurTour
 
             if ($bloque) {
                 continue; // Glace glissante : déjà couverte par tronquerSurGlace()
+            }
+
+            if ($personnage !== null && $this->sorts->absorbeDegat($personnage, $effet['type_degat'] ?? null)) {
+                continue; // Anneau de Chaleur : cette case-là ne blesse pas
             }
 
             $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
@@ -4567,15 +4601,12 @@ final class ResolveurTour
         // clé distincte de `soin_pv_mind`, qui lui est chiffré (Potion de
         // restauration supérieure).
         //
-        // ⚠ CORRECTE, ET RÉVEILLÉE EN PARTIE (2026-09-06) : le PRODUCTEUR existe
-        // désormais — `MoteurDegats::infligerMindAHeros()` — mais AUCUN chemin
-        // de jeu réel ne l'appelle encore : Gel de l'Esprit (Mind Freeze), son
-        // premier déclencheur, est une phase à part (plan glace, phase 2). Le
-        // parchemin rend donc encore 0 tant que ce chemin n'existe pas — mais
-        // ce n'est plus « une règle dont la source manque » comme au 2026-09-05 :
-        // c'est un lecteur prêt qui attend son premier appelant, exactement
-        // comme la branche Mind de `resoudreRelever()` et la moitié Mind de la
-        // Restauration supérieure.
+        // ⚠ RÉVEILLÉE (2026-09-06, confirmée 2026-09-10) : le PRODUCTEUR
+        // (`MoteurDegats::infligerMindAHeros()`) a désormais un appelant réel —
+        // Gel de l'Esprit (`MoteurDread::sortDreadMind()`) — donc ce parchemin
+        // rend bien autre chose que 0 dès qu'un héros a subi une perte de Mind
+        // en quête, exactement comme la branche Mind de `resoudreRelever()` et
+        // la moitié Mind de la Restauration supérieure.
         if (! empty($effet[self::EFFET_RESTAURE_PV_MIND])) {
             $cible = $this->cibleSort($quete, $option, $parametres);
             /** @var Personnage $heros */

@@ -498,10 +498,19 @@ final class MoteurSorts
      * spells… the ring turns to ash after the second » (Anneau de Feu) : c'est
      * une immunité, pas une réduction, et elle s'épuise.
      *
-     * UN SEUL lecteur pour les deux chemins qui blessent un héros — le tir ami
-     * d'un sort de héros et le sort d'un Dread. Deux implémentations auraient
-     * fini par diverger, et un anneau qui protège d'un feu mais pas de l'autre
-     * serait pire que pas d'anneau du tout.
+     * UN SEUL lecteur pour les TROIS chemins qui blessent un héros — le tir ami
+     * d'un sort de héros, le sort d'un Dread, et le dégât de TERRAIN typé
+     * (`ResolveurTour::saignerParTerrain()` / `saignerSurRiviere()`, Chambre
+     * forte de glace et Rivière gelée). Deux implémentations auraient fini par
+     * diverger, et un anneau qui protège d'un feu mais pas de l'autre serait
+     * pire que pas d'anneau du tout.
+     *
+     * ⚠ N'EXIGE PAS de charges : `Anneau de Feu` en porte 2, mais `Anneau de
+     * Chaleur` (Ring of Warmth) n'en porte AUCUNE sur sa carte — l'absence de
+     * `charges` fait de son immunité une protection permanente tant qu'elle est
+     * portée, le comportement par défaut de tout objet sans compteur
+     * (`MoteurCharges::disponible()`/`consommer()` rendent alors `true` sans
+     * rien décrémenter), pas un cas particulier codé ici.
      */
     public function absorbeDegat(Personnage $personnage, ?string $typeDegat): bool
     {
@@ -529,6 +538,56 @@ final class MoteurSorts
                 && $charges->disponible($ligne));
 
         return $piece !== null && $charges->consommer($piece);
+    }
+
+    /**
+     * Absorbe un dégât de MIND un POINT à la fois, sur un compteur de charges
+     * — « Orbe Céleste / Sky Orb : absorbe 4 points de dégâts de Mind, un
+     * jeton à la fois, puis se brise » (Mage of the Mirror).
+     *
+     * ⚠ PAS `absorbeDegat()` : celui-ci bloque une NATURE de dégât en entier
+     * pour une charge, quel que soit le montant du coup ; l'Orbe Céleste
+     * grignote un MONTANT, un jeton par point encaissé, et laisse passer le
+     * reste dès que ses jetons sont épuisés — « 4 points, un jeton à la fois »
+     * n'est ni une immunité totale ni un montant fixe. *Gel de l'Esprit* n'a de
+     * toute façon aucun `type_degat` (la carte ne parle ni de feu ni de froid),
+     * `absorbeDegat()` ne pourrait donc pas l'intercepter.
+     *
+     * Rend le montant à appliquer APRÈS absorption — l'appelant se contente
+     * ensuite d'appeler `MoteurDegats::infligerMindAHeros()` avec ce reste,
+     * jamais avec `$degats` d'origine.
+     */
+    public function absorbePartielDegatMind(Personnage $personnage, int $degats): int
+    {
+        if ($degats <= 0) {
+            return max(0, $degats);
+        }
+
+        $charges = app(MoteurCharges::class);
+
+        $piece = $personnage->inventaire()
+            ->whereIn('emplacement', Equipement::SLOTS)
+            ->with('objet')
+            ->get()
+            ->first(fn ($ligne) => (bool) ($ligne->objet?->effet['absorbe_degats_mind'] ?? false)
+                && $charges->disponible($ligne));
+
+        if ($piece === null) {
+            return $degats;
+        }
+
+        $restantes = $charges->restantes($piece);
+        // Toujours un entier ici : `ABSORBE_DEGATS_MIND` est TOUJOURS posée
+        // avec `charges` (docblock du mot-clé) — un objet illimité n'a pas de
+        // sens pour un jeton qui « se brise ». `?? $degats` ne sert donc que de
+        // garde-fou si cette invariante venait à être rompue au catalogue.
+        $absorbe = min($degats, $restantes ?? $degats);
+
+        for ($i = 0; $i < $absorbe; $i++) {
+            $charges->consommer($piece);
+        }
+
+        return $degats - $absorbe;
     }
 
     /**

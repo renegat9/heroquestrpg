@@ -182,65 +182,90 @@ return [
             ['carte' => 'Bone Wand', 'objet' => "Baguette d'Os"],
             ['carte' => 'Elven Boots', 'objet' => 'Bottes elfiques'],
 
-            // ---- Non portés : chacun nomme la mécanique qui manque ----
-            // ⚠ 2026-09-06 : le PRODUCTEUR existe désormais
-            // (`MoteurDegats::infligerMindAHeros()`, plan glace phase 1) —
-            // « MoteurDegats n'intercepte que le Body » n'est plus vrai. Ce
-            // qui manque a changé de nature : plus un point d'interception,
-            // mais l'ABSORPTION elle-même (un lecteur d'objet à jetons sur
-            // cette méthode, façon Anneau de Feu côté Body) — et rien ne
-            // l'appelle encore en jeu, Mind Freeze étant une phase à part.
-            ['carte' => 'Sky Orb', 'nom' => 'Orbe Céleste',
-                'texte' => 'Absorbe 4 points de dégâts de Mind, un jeton à la fois.',
-                'manque' => "Le producteur existe (`MoteurDegats::infligerMindAHeros()`) mais rien ne "
-                    ."l'appelle encore en jeu ; il manque l'ABSORPTION à jetons elle-même, un lecteur "
-                    .'objet sur cette méthode.'],
+            // ---- Trois cartes de plus (2026-09-10) : audit du plan glace —
+            // quatre dettes écrites le 2026-09-06 décrivaient un monde qui
+            // n'existait déjà plus (Gel de l'Esprit porté, ResolveurTour
+            // blessant déjà par le terrain). Une dette dont la raison a changé
+            // doit être réécrite : une dette périmée ment aussi sûrement qu'une
+            // clé décorative (`docs/regles/artefacts.md`). Trois se sont
+            // révélées portables une fois relues contre le code réel ; la
+            // quatrième (Brassard de Glace, ci-dessous) ne l'est toujours pas
+            // — pour une raison différente de celle qu'on lui prêtait.
 
-            // ---- Boîte GLACE (Frozen Horror) : 3 artefacts, examinés carte
-            // par carte le 2026-09-06 (phase 5 du plan). Aucun n'a pu être
-            // porté — chacun pour une raison PRÉCISE, pas « la boîte est
-            // écartée en bloc » comme avant cette relecture.
-            //
-            // ⚠ Le froid a une SOURCE et un LECTEUR depuis le 2026-09-04
-            // (`Morsure de Froid`, `Tempête de Glace` côté Dread — leur jumeau
-            // héros *Chaleur* aussi, cf. `parchemins` ci-dessous) et la couche
-            // TERRAIN (`cartes.grille['terrain']`, phase 4a) existe depuis le
-            // 2026-09-06 avec les DEUX terrains que ces cartes nomment
-            // (Rivière gelée, Chambre forte de glace). Ce n'est donc plus « rien
-            // à quoi résister » pour ces trois-là — et pourtant aucune n'est
-            // portable : voir chaque `manque` pour la raison exacte, qui n'est
-            // plus la même qu'avant.
-            ['carte' => 'Ring of Warmth', 'paquet' => 'Frozen Horror', 'nom' => 'Anneau de Chaleur',
-                'texte' => 'Immunise contre le sort Chill, les coffres de glace et les rivières gelées.',
-                'manque' => "GLACE — le sort Chill a un lecteur (resistance_degats_type/absorbeDegat), "
-                    ."mais l'immunité aux coffres/rivières est la MOITIÉ dominante de cette carte, et rien "
-                    ."ne peut encore la tenir : la couche terrain (Chambre forte de glace, Rivière gelée) "
-                    ."ne blesse encore PERSONNE — aucun lecteur n'applique `terrains.effet` en jeu (posé au "
-                    ."tour/déplacement, ce qui vit dans ResolveurTour, hors périmètre de cette phase). Et le "
-                    ."dégât de terrain lui-même ne porte aucun `type_degat` : même une fois ce lecteur écrit, "
-                    ."`resistance_degats_type: froid` ne l'intercepterait pas sans qu'on tague aussi l'effet "
-                    ."du terrain — deux pièces manquantes, pas une. Porter la seule immunité au sort Chill "
-                    ."aurait vendu un anneau « anti-froid » qui laisse geler dans une chambre forte de glace : "
-                    ."exactement la carte à moitié tenue que ce registre existe pour ne jamais afficher."],
+            // « Orbe Céleste » / Sky Orb : sa moitié « le producteur existe
+            // mais Mind Freeze est une phase à part » était fausse — *Gel de
+            // l'Esprit* est porté (SortDreadSeeder, MoteurDread::sortDreadMind())
+            // et appelle bien `MoteurDegats::infligerMindAHeros()`. Restait
+            // vrai : l'ABSORPTION à jetons elle-même n'avait pas de lecteur —
+            // `MoteurSorts::absorbePartielDegatMind()` en est un, couturé sur
+            // le même patron à charges qu'`absorbeDegat()` (Anneau de Feu),
+            // mais grignotant un MONTANT plutôt que bloquant une NATURE
+            // entière, puisque *Gel de l'Esprit* ne porte aucun `type_degat`.
+            ['carte' => 'Sky Orb', 'objet' => 'Orbe Céleste'],
+
+            // « Anneau de Chaleur » / Ring of Warmth : sa dette du 2026-09-06
+            // disait « aucun lecteur n'applique terrains.effet en jeu » — déjà
+            // faux CE JOUR-LÀ : `ResolveurTour::saignerParTerrain()` /
+            // `saignerSurRiviere()` existaient et blessaient déjà (Chambre
+            // forte de glace, Rivière gelée). Ce qui restait réellement
+            // manquant, une fois le code relu : le dégât de terrain ne portait
+            // aucun `type_degat`, donc `absorbeDegat()` ne pouvait pas
+            // l'intercepter. Les deux terrains nommés par la carte portent
+            // désormais `effet.type_degat: froid` (`TerrainSeeder`), lu par
+            // `absorbeDegat()` aux DEUX call sites AVANT `infligerAHeros()` —
+            // la même couture qui couvre déjà tout sort de type froid (Chill
+            // compris, s'il touchait un jour le porteur). Sans charge sur sa
+            // carte : immunité PERMANENTE tant qu'elle est portée, comme tout
+            // objet sans compteur.
+            ['carte' => 'Ring of Warmth', 'paquet' => 'Frozen Horror', 'objet' => 'Anneau de Chaleur'],
+
+            // « Brassard de Glace » / Armband of Ice : NON porté, mais plus
+            // pour la raison écrite le 2026-09-06. Cette carte partage la
+            // MOITIÉ terrain de l'Anneau de Chaleur — désormais portable, et
+            // portée sur ce bracelet-ci aussi (`immunite_degat: froid` couvrirait
+            // les mêmes coffres/rivières). Ce qui reste RÉELLEMENT manquant,
+            // deux clauses sur quatre : (1) l'immunité à *Gel de l'Esprit*
+            // SPÉCIFIQUEMENT — la carte protège du SORT, pas d'un `type_degat`
+            // (Mind Freeze n'en porte aucun), et rien n'exclut un porteur de
+            // `MoteurDread::cibleMindFreeze()` ; (2) la réduction d'1 point sur
+            // *Ice Storm* côté héros — non portée, `Ice Storm` visant plusieurs
+            // monstres à la fois (`MotsClesSort::CIBLE_MONSTRES_ZONE`,
+            // explicitement `NON_IMPLEMENTES`). Porter ce bracelet sur sa seule
+            // moitié terrain laisserait un héros « immunisé au gel » se faire
+            // geler par Gel de l'Esprit sans la moindre résistance : exactement
+            // la carte à moitié tenue que ce registre existe pour ne jamais
+            // afficher.
             ['carte' => 'Armband of Ice', 'paquet' => 'Frozen Horror', 'nom' => 'Brassard de Glace',
                 'texte' => "Immunise contre Mind Freeze et Chill, contre les coffres de glace et les rivières gelées, et réduit d'1 point les dégâts d'Ice Storm.",
-                'manque' => "GLACE — même moitié manquante que l'Anneau de Chaleur (immunité de terrain sans "
-                    ."lecteur de dégât de terrain), EN PLUS de Mind Freeze, non porté (dégâts de Mind "
-                    ."désormais lisibles via MoteurDegats::infligerMindAHeros(), mais rien ne joue encore ce "
-                    ."sort côté Dread) et de la réduction d'1 point sur Ice Storm, lui-même non porté côté "
-                    ."héros (voir parchemins ci-dessous). Trois pièces manquantes sur quatre clauses : porter "
-                    ."ce bracelet reviendrait à ne tenir qu'un quart de sa carte."],
-            ['carte' => 'Snowshoes of Speed', 'paquet' => 'Frozen Horror', 'nom' => 'Raquettes de Vitesse',
-                'texte' => '+2 cases de déplacement et annule la glace glissante. Utilisables seulement dans les quêtes glacées.',
-                'manque' => "GLACE — le bonus de déplacement a un précédent SYMÉTRIQUE exact "
-                    ."(malus_deplacement/Equipement::malusDeplacement(), lu par Deplacement::calculer()), "
-                    ."mais ses DEUX seuls appelants sont MenuMoteur et ResolveurTour, hors périmètre de "
-                    ."cette phase : un lecteur qu'on écrirait ici (bonus_deplacement) ne serait jamais "
-                    ."invoqué, exactement la clé décorative que ce projet interdit. « Annule la glace "
-                    ."glissante » demande en plus la résolution du terrain Glace glissante elle-même "
-                    ."(non écrite). Et la carte est de toute façon bornée aux « quêtes glacées », un thème que "
-                    ."DemarreurQuete::BOITES_THEMATIQUES n'offre pas tant que la boîte reste désactivée : "
-                    ."un objet qui ne ferait jamais rien en jeu réel, même une fois câblé."],
+                'manque' => "GLACE — la moitié TERRAIN (coffres de glace, rivières gelées) est désormais "
+                    ."portable (même mécanisme que l'Anneau de Chaleur, `immunite_degat: froid`), mais DEUX "
+                    ."clauses sur quatre manquent encore un lecteur propre : l'immunité à *Gel de l'Esprit* "
+                    ."elle-même (le sort ne porte aucun `type_degat` que resterait à intercepter — il "
+                    ."faudrait exclure le porteur de `MoteurDread::cibleMindFreeze()`, rien ne le fait) et la "
+                    ."réduction d'1 point sur *Ice Storm* côté héros (le sort vise plusieurs monstres à la "
+                    ."fois, `MotsClesSort::CIBLE_MONSTRES_ZONE` reste `NON_IMPLEMENTES`). Porter ce bracelet "
+                    ."sur sa seule moitié terrain vendrait une immunité au gel qui laisse geler par Gel de "
+                    ."l'Esprit : exactement la carte à moitié tenue que ce registre existe pour ne jamais "
+                    .'afficher.'],
+
+            // « Raquettes de Vitesse » / Snowshoes of Speed : sa dette disait
+            // les deux appelants de `malusDeplacement()` (MenuMoteur,
+            // ResolveurTour) « hors périmètre de cette phase » — un découpage
+            // de travail, jamais un blocage technique, et les deux fichiers ont
+            // bougé depuis. `Equipement::bonusDeplacementActif()` est le
+            // symétrique de `malusDeplacement()`, lu aux DEUX mêmes points de
+            // passage. « Annule la glace glissante » cible nommément la tuile
+            // Glace glissante (`ResolveurTour::tronquerSurGlace()`), pas la
+            // Glissière (tuile distincte, non nommée par la carte). « Région
+            // gelée » n'est sourcée nulle part au-delà du nom : arbitrage
+            // écrit — le thème de boîte FIGÉ du groupe
+            // (`groupes.theme_bestiaire === horreur_des_glaces`) est la plus
+            // proche notion de « région » que le moteur connaisse, une case de
+            // terrain ne suffisant pas (Glace glissante elle-même n'est jamais
+            // posée hors de ce thème). La boîte est active depuis le
+            // 2026-09-06 (`DemarreurQuete::BOITES_THEMATIQUES`) : l'objet joue
+            // réellement en jeu, pas seulement au catalogue.
+            ['carte' => 'Snowshoes of Speed', 'paquet' => 'Frozen Horror', 'objet' => 'Raquettes de Vitesse'],
         ],
     ],
 

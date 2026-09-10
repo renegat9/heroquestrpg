@@ -791,7 +791,14 @@ dit noir sur blanc « **the dagger is lost once thrown** ». La destruction de
 l'arme lancée, qu'on appliquait sans source, en a donc une — au moins pour cette
 dague-là.
 
-#### Non portées (18 cartes) — carte par carte, et ce qui manque
+#### Non portées — carte par carte, et ce qui manque
+
+⚠ **Compte et contenu DATÉS** : trois cartes de cette table (Orbe Céleste,
+Anneau de Chaleur, Raquettes de Vitesse) ont rejoint les portées le
+2026-09-10 et n'y figurent plus ; d'autres lignes ci-dessous (Bâton Ancien,
+Baguette d'Os, Bottes elfiques…) l'étaient déjà avant cette passe sans que le
+tableau ait suivi. `config/cartes.php` reste la source vivante — ce tableau
+n'est qu'un instantané.
 
 Aucune n'est semée : une carte dont le moteur n'applique pas l'effet central
 serait une règle annoncée au joueur et jamais tenue. Chacune est **nommée** ici
@@ -807,13 +814,10 @@ joueurs.
 | **Bracelet de Guérison** / Armband of Healing | KK / Witch Lord | Rend 2 PV, une fois par quête ; relève automatiquement le porteur tombé à 0 s'il n'a pas servi. | Charges par quête sur un objet porté, et déclenchement automatique à 0 PV. |
 | **Poudre d'Invisibilité** / Dust of Disappearance | KK / Witch Lord | Jetée sur un héros : il traverse tous les monstres à son prochain tour. | Traverser les **figures** (Traverser la Pierre traverse la roche, pas les créatures). |
 | **Bottes du Lièvre** / Rabbit Boots | Frozen Horror | Sauter une fosse par tour en évitant le bouclier noir sur 1 dé. | Franchir un piège par un **saut** : notre franchissement est un jet de Body. |
-| **Bracelet de Glace** / Armband of Ice | Frozen Horror | Immunise Chill/Mind Freeze, coffres et rivières gelées ; −1 dégâts d'Ice Storm (texte complet : `config/cartes.php`). | 2026-09-06 : plus « aucun type de dégât » — le froid EN A un. Manque encore *Mind Freeze* (non porté) et un lecteur qui applique `terrains.effet` en jeu (`ResolveurTour`, hors périmètre du 2026-09-06). |
-| **Anneau de Chaleur** / Ring of Warmth | Frozen Horror | Immunise Chill, coffres et rivières gelées (texte complet : `config/cartes.php`). | 2026-09-06 : le froid a un type et *Chill* un lecteur ; il manque l'application des dégâts de TERRAIN (`ResolveurTour`, hors périmètre) et leur `type_degat`. |
-| **Raquettes de Vitesse** / Snowshoes of Speed | Frozen Horror | +2 cases de déplacement et annulent la glace — **uniquement en région froide**. | 2026-09-06 : la couche `terrains` existe (phase 4a) et un précédent symétrique aussi (`malus_deplacement`), mais ses appelants (`MenuMoteur`, `ResolveurTour`) sont hors périmètre — et le thème « glace » reste désactivé de toute façon. |
+| **Bracelet de Glace** / Armband of Ice | Frozen Horror | Immunise Mind Freeze et Chill, coffres et rivières gelées ; −1 dégâts d'Ice Storm (texte complet : `config/cartes.php`). | 2026-09-10 : la moitié TERRAIN est désormais portable (même mécanisme que l'Anneau de Chaleur, ported) — restent l'immunité à *Mind Freeze* lui-même (le sort ne porte aucun `type_degat` à intercepter) et la réduction d'1 point sur *Ice Storm* (non porté côté héros, ciblage de zone `NON_IMPLEMENTES`). |
 | **Bâton Ancien** / Ancient Staff | Mage of the Mirror | Contre un sort lancé sur son porteur (1 dé : rien / annulé / bâton détruit). | Contre-sort : rien n'interrompt un sort de Dread en cours de résolution. |
 | **Baguette d'Os** / Bone Wand | Mage of the Mirror | Contrôle tous les squelettes d'une salle pendant un tour, une fois par quête. | Contrôle de monstre : un monstre est joué par le moteur, jamais par un héros. |
 | **Bottes elfiques** / Elven Boots | Mage of the Mirror | Un dé rouge de plus au déplacement pour l'elfe ; détruites si trois dés donnent le même chiffre. | Notre déplacement est base + 1d6, pas des dés rouges cumulables — et rien ne détruit un objet porté sur un jet. |
-| **Orbe Céleste** / Sky Orb | Mage of the Mirror | Absorbe 4 points de dégât de Mind, un jeton à la fois, puis se brise. | Charges, et interception des dégâts avant application. |
 | **Anneau de Brillance** / Ring of Brilliance | White Dwarf | Un bonus permanent **au choix** : +1 attaque, +1 défense, +1 Body ou +1 Mind. | Choix du joueur au moment d'acquérir un objet : nos butins s'appliquent tels quels. |
 | **Sognirstane** | White Dwarf | Marteau 2 dés, lançable ; revient en main si la cible survit, reste au sol sinon. Immunise aux sorts élémentaires. | Retour automatique d'une arme lancée, arme au sol à ramasser, immunité élémentaire. |
 | **Marteau de Thor** / Thor's Hammer | White Dwarf | 3 dés. Utilisable seulement avec les Gants du Dieu du Tonnerre ; tue les orques de la salle au ramassage. | Un objet qui en **exige** un autre. |
@@ -904,32 +908,38 @@ Deux conséquences : `restaure_sorts` ne survit que sous sa forme **chiffrée**
 (Potion de magie 3, Potion de rappel 1), la forme « tous » n'ayant plus de carte ;
 et le mot-clé quitte `MotsClesEquipement`, qui ne décrit que des objets.
 
-⚠ **La boîte GLACE a été examinée carte par carte le 2026-09-06** (phase 5 du
-plan glace, `config/cartes.php`), plutôt qu'écartée en bloc comme jusque-là.
-Le froid a désormais une source et un lecteur (`Morsure de Froid`, `Tempête de
-Glace` côté Dread depuis le 2026-09-04) et la couche `terrains` existe depuis
-la phase 4a (2026-09-06) — ce qui a changé la RAISON de chaque dette, sans
-rendre les cartes portables pour autant :
+⚠ **La boîte GLACE a été examinée carte par carte le 2026-09-06, puis réauditée
+le 2026-09-10** (`config/cartes.php`) : la première passe avait écrit des
+dettes déjà périmées le jour même — *Gel de l'Esprit* était en réalité porté,
+et `ResolveurTour::saignerParTerrain()`/`saignerSurRiviere()` blessaient déjà
+par le terrain. Une dette dont la raison a changé doit être réécrite : une
+dette périmée ment aussi sûrement qu'une clé décorative.
 
 - ***Warmth*** est portée — un soin fixe de 3 PV, sans zone ni résistance ni
   terrain, exactement le cas limite honnête déjà annoncé. Son sort, *Chaleur*,
   vit dans `SortSeeder` (`element: parchemin`, comme *Trésor sans Péril* et
   *Récupération Psychique*).
-- ***Ring of Warmth* / *Armband of Ice*** restent non portées : leur promesse
-  dominante est une immunité de TERRAIN (coffres de glace, rivières gelées),
-  et rien n'applique encore `terrains.effet` en jeu — ce lecteur vit dans
-  `ResolveurTour`, hors périmètre. Même une fois écrit, le dégât de terrain ne
-  porte aucun `type_degat` : `resistance_degats_type: froid` ne l'intercepterait
-  pas sans un second changement. Le Brassard ajoute *Mind Freeze*, non porté.
+- ***Ring of Warmth*** est portée depuis le 2026-09-10 : le dégât de terrain
+  porte désormais son `type_degat` (`TerrainSeeder`, Chambre forte de glace et
+  Rivière gelée) et `MoteurSorts::absorbeDegat()` l'intercepte aux deux points
+  de passage (`ResolveurTour::saignerParTerrain()`/`saignerSurRiviere()`),
+  sans charge — immunité permanente tant que l'anneau est porté.
+- ***Armband of Ice*** reste non portée, mais plus pour la raison du
+  2026-09-06 : sa moitié TERRAIN est désormais atteignable (même mécanisme que
+  l'Anneau de Chaleur), il manque toujours l'immunité à *Mind Freeze*
+  spécifiquement (le sort ne porte aucun `type_degat`) et la réduction d'1
+  point sur *Ice Storm* côté héros.
 - ***Chill* / *Ice Storm*** (parchemins) frappent PLUSIEURS monstres à la fois
   — leurs jumeaux Dread le confirment (`ZONE_CONTACT`, `ZONE_CARRE_2X2`) — où
   le ciblage de zone côté héros est explicitement `NON_IMPLEMENTES`
   (`MotsClesSort::CIBLE_MONSTRES_ZONE`). Le lecteur manquant vit dans
   `ResolveurTour::sortDegats()`.
-- ***Snowshoes of Speed*** a un précédent SYMÉTRIQUE exact
-  (`malus_deplacement`), mais ses deux seuls appelants (`MenuMoteur`,
-  `ResolveurTour`) sont hors périmètre — et la carte est de toute façon bornée
-  aux quêtes glacées, un thème que la boîte désactivée n'offre jamais.
+- ***Snowshoes of Speed*** est portée depuis le 2026-09-10 :
+  `Equipement::bonusDeplacementActif()` (symétrique de `malusDeplacement()`)
+  est lu aux deux mêmes points de passage (`MenuMoteur`, `ResolveurTour`), et
+  la boîte est active (`DemarreurQuete::BOITES_THEMATIQUES`) depuis le
+  2026-09-06 — « région gelée » est arbitrée comme le thème de boîte FIGÉ du
+  groupe, faute d'une définition plus précise dans la source.
 - ***Ice Bridge* / *Skate*** demandent un mécanisme neuf (poser du terrain en
   cours de quête ; moduler le jet de déplacement) plutôt qu'une couture
   existante — non portées, dette nommée dans `config/cartes.php`.
@@ -1102,9 +1112,11 @@ simplement n'être pas sorti).
 ne donne AUCUN dé d'attaque, et lui en inventer pour le loger en arme aurait été
 la valeur non sourcée que ce document interdit.
 
-**Quatre artefacts attendent encore une mécanique**, chacun avec la sienne
-nommée dans `config/cartes.php` : intercepter les dégâts de **Mind** (*Sky Orb*,
-écartée par arbitrage — rien n'en inflige) et les trois cartes de la boîte glace.
+⚠ **Section datée** : au 2026-09-10, l'Orbe Céleste, l'Anneau de Chaleur et les
+Raquettes de Vitesse ont rejoint les cartes portées (voir §9.1bis plus bas et
+`config/cartes.php`) — *Gel de l'Esprit* leur a donné, entre-temps, un
+producteur réel de dégâts de Mind. Seul le Brassard de Glace reste écarté,
+pour une raison plus étroite que « rien n'en inflige ».
 
 #### Les parchemins
 

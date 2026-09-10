@@ -20,11 +20,13 @@ namespace App\Engine;
  *    feu (Dread) ; lecteurs = l'Anneau de Feu (immunité) et la régénération du
  *    troll (qu'une brûlure interrompt). Porté.
  *  - **`froid`** : sources = Morsure de Froid, Tempête de Glace (Dread,
- *    `SortDreadSeeder`, depuis le 2026-09-04) ; lecteur = `MoteurSorts::absorbeDegat()`,
- *    le même point de passage que le feu. Porté à son tour — ⚠ ça ne rend pas
- *    pour autant l'Anneau de Chaleur / le Bracelet de Glace portables : ces
- *    deux cartes protègent aussi d'un TERRAIN gelé (coffres, rivières) qui
- *    n'existe pas encore dans le moteur (voir `config/cartes.php`).
+ *    `SortDreadSeeder`, depuis le 2026-09-04), et depuis le 2026-09-10 les
+ *    deux terrains de glace qui blessent (Chambre forte de glace, Rivière
+ *    gelée — `TerrainSeeder`) ; lecteur = `MoteurSorts::absorbeDegat()`, le
+ *    même point de passage que le feu, consulté par `ResolveurTour` aux TROIS
+ *    chemins qui blessent un héros (tir ami, sort de Dread, terrain). Porté à
+ *    son tour — c'est ce qui a rendu l'Anneau de Chaleur portable
+ *    (`config/cartes.php`).
  *
  * Un sort SANS `type_degat` est neutre : il ne déclenche ni immunité ni
  * interdiction de régénération. C'est le cas de tous les autres.

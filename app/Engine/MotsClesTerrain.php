@@ -130,6 +130,19 @@ final class MotsClesTerrain
             'lecteur' => 'App\Partie\ResolveurTour::teleporterSiTunnel()',
             'libelle' => 'téléporte vers son autre extrémité',
         ],
+
+        // Chambre forte de glace, Rivière gelée (2026-09-10) — NATURE du
+        // dégât (`App\Engine\TypeDegat`), lue AVANT d'infliger : sans elle,
+        // aucune pièce d'`immunite_degat` (Anneau de Chaleur) ne pourrait
+        // jamais intercepter un dégât de TERRAIN, seulement un sort. Même
+        // registre fermé que `MotsClesEquipement::IMMUNITE_DEGAT`.
+        'type_degat' => [
+            'lecteur' => [
+                'App\Partie\ResolveurTour::saignerParTerrain()',
+                'App\Partie\ResolveurTour::saignerSurRiviere()',
+            ],
+            'libelle' => 'dégât de nature : %s',
+        ],
     ];
 
     /**

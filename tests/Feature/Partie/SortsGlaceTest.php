@@ -248,6 +248,91 @@ it("est réellement CHOISI par choisirSort() (via jouerTourDread, le vrai point 
 });
 
 // ==================================================================
+// ORBE CÉLESTE (Sky Orb) — absorption à jetons sur Gel de l'Esprit
+// ==================================================================
+
+/**
+ * Pose une pièce dans un emplacement donné, sans passer par les garde-fous.
+ * (Copie locale : les fonctions d'un fichier Pest ne sont visibles qu'une
+ * fois ce fichier chargé, donc jamais fiables d'un fichier de test à l'autre —
+ * même patron que `ChargesEtSortsTest::poser()`.)
+ */
+function poserPourGlace(Personnage $p, string $nom, string $emplacement): \App\Models\Inventaire
+{
+    return \App\Models\Inventaire::create([
+        'personnage_id' => $p->id,
+        'objet_id' => \App\Models\Objet::where('nom', $nom)->firstOrFail()->id,
+        'emplacement' => $emplacement,
+        'quantite' => 1,
+    ]);
+}
+
+it("l'Orbe Céleste absorbe la perte de Mind un jeton à la fois, et épargne le héros si elle couvre tout", function () {
+    $scene = sceneGlace(
+        [['m', 's', 's', 'm']],
+        herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
+        monstreCatalogue: 'Archimage elfe',
+        herosAttrs: ['attribut_mind' => 4, 'pv_mind_max' => 4, 'pv_mind' => 4],
+    );
+    forcerSortUnique($scene['instance'], "Gel de l'Esprit");
+    $orbe = poserPourGlace($scene['heros'], 'Orbe Céleste', 'talisman');
+
+    // 4 dés, aucun bouclier blanc (que des crânes) : Mind à zéro SANS l'Orbe —
+    // 4 points de perte, exactement les 4 jetons de la carte.
+    $sort = actionGlace(jouerTourGlace($scene, [1, 2, 3, 1]), "Gel de l'Esprit");
+
+    expect($sort['resultats'][0]['bouclier_blanc'])->toBeFalse()
+        ->and($sort['resultats'][0]['degats_mind'])->toBe(0)
+        ->and($sort['resultats'][0]['mind_absorbe'])->toBe(4)
+        ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(4)
+        ->and($scene['etatHeros']->fresh()->tombe)->toBeFalse()
+        ->and((int) $orbe->fresh()->charges)->toBe(0);
+});
+
+it("laisse passer le reste une fois ses jetons épuisés — absorption PARTIELLE, pas une immunité", function () {
+    $scene = sceneGlace(
+        [['m', 's', 's', 'm']],
+        herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
+        monstreCatalogue: 'Archimage elfe',
+        herosAttrs: ['attribut_mind' => 4, 'pv_mind_max' => 4, 'pv_mind' => 4],
+    );
+    forcerSortUnique($scene['instance'], "Gel de l'Esprit");
+    $orbe = poserPourGlace($scene['heros'], 'Orbe Céleste', 'talisman');
+    // Déjà entamée : il ne reste que 2 jetons sur les 4 de la carte.
+    $orbe->update(['charges' => 2]);
+
+    // 4 dés, aucun bouclier blanc : 4 points de perte, 2 absorbés, 2 encaissés.
+    $sort = actionGlace(jouerTourGlace($scene, [1, 2, 3, 1]), "Gel de l'Esprit");
+
+    expect($sort['resultats'][0]['mind_absorbe'])->toBe(2)
+        ->and($sort['resultats'][0]['degats_mind'])->toBe(2)
+        ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(2)
+        ->and((int) $orbe->fresh()->charges)->toBe(0);
+});
+
+it('épuisée, l\'Orbe Céleste reste au sac mais ne protège plus de rien', function () {
+    $scene = sceneGlace(
+        [['m', 's', 's', 'm']],
+        herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
+        monstreCatalogue: 'Archimage elfe',
+        herosAttrs: ['attribut_mind' => 3, 'pv_mind_max' => 3, 'pv_mind' => 3],
+    );
+    forcerSortUnique($scene['instance'], "Gel de l'Esprit");
+    $orbe = poserPourGlace($scene['heros'], 'Orbe Céleste', 'talisman');
+    $orbe->update(['charges' => 0]);
+
+    // 3 dés, aucun bouclier blanc : Mind à zéro, EXACTEMENT comme sans l'Orbe.
+    $sort = actionGlace(jouerTourGlace($scene, [1, 2, 3]), "Gel de l'Esprit");
+
+    expect($sort['resultats'][0]['mind_absorbe'])->toBe(0)
+        ->and($sort['resultats'][0]['degats_mind'])->toBe(3)
+        ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(0)
+        ->and($scene['etatHeros']->fresh()->tombe)->toBeTrue()
+        // L'objet reste en inventaire — rien ne le supprime au sac.
+        ->and($orbe->fresh())->not->toBeNull();
+});
+
+// ==================================================================
 // MUR DE GLACE (Ice Wall)
 // ==================================================================
 

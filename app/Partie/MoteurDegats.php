@@ -88,8 +88,7 @@ final class MoteurDegats
 
     /**
      * Sort du Dread qui entame l'ESPRIT plutôt que le corps — *Gel de l'Esprit*
-     * (Mind Freeze, non encore porté : plan glace phase 2) en sera le premier
-     * exemple.
+     * (Mind Freeze, `MoteurDread::sortDreadMind()`) en est le premier exemple.
      *
      * ⚠ Clé DISTINCTE de `SOURCE_SORT_DREAD` (Body) et pas une réutilisation :
      * `memoriser()` cumule par source dans `degats_subis`, et mélanger les deux
@@ -251,11 +250,10 @@ final class MoteurDegats
      * anticipe déjà (il traite les deux jauges depuis le début, en la
      * qualifiant lui-même de « correcte mais dormante »). ⚠ Contrairement à la
      * branche Body, où chacun des ~14 appelants pose `tombe` lui-même après
-     * avoir relu `pv_body` (marqué `// C4`), on le fait ICI, au centre : il
-     * n'existe encore aucun appelant réel (Gel de l'Esprit / Mind Freeze
-     * arrive en phase 2 du plan glace), donc rien n'impose d'éclater cette
-     * responsabilité entre plusieurs sites — et la centraliser évite de
-     * l'oublier au premier producteur qui arrivera.
+     * avoir relu `pv_body` (marqué `// C4`), on le fait ICI, au centre : Gel
+     * de l'Esprit reste le SEUL appelant réel à ce jour, donc rien n'impose
+     * d'éclater cette responsabilité entre plusieurs sites — et la
+     * centraliser évite de l'oublier au premier autre producteur qui arrivera.
      *
      * ⚠ `Personnage::booted()` N'est PAS étendu au Mind : `premier_degat_subi`
      * nomme le premier dégât SUBI dans un vocabulaire où le dégât est

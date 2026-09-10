@@ -142,16 +142,20 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
 
     expect($portees('equipement'))->toBe(20)
         ->and($portees('potions'))->toBe(15)
-        // 31 artefacts portés sur 35 : les 4 restants sont l'Orbe Céleste
-        // (dégâts de Mind, que RIEN n'inflige) et les 3 cartes de la boîte
-        // GLACE, écartées en bloc.
+        // 34 artefacts portés sur 35 : seul le Brassard de Glace reste écarté
+        // (2 clauses sur 4 sans lecteur — voir sa dette, config/cartes.php).
         // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des
         // Ombres, Sceptre de Télékinésie : elles n'ont demandé AUCUNE mécanique
         // neuve, seulement de réunir sur un OBJET ce qui existait sur des sorts.
         // ⚠ Sept de plus le 2026-09-04 — Serre du Corbeau, Bottes de Lièvre,
         // Bottes elfiques, Anneau du Retour, Bouclier de l'Aube, Bâton Ancien,
         // Baguette d'Os : chacune attendait une mécanique, aucune un arbitrage.
-        ->and($portees('artefacts'))->toBe(31)
+        // ⚠ Trois de plus le 2026-09-10 — Orbe Céleste (absorption à jetons
+        // sur `infligerMindAHeros()`, Gel de l'Esprit ayant entre-temps rejoint
+        // le catalogue côté Dread), Anneau de Chaleur et Raquettes de Vitesse
+        // (deux dettes du 2026-09-06 dont la raison avait déjà changé le jour
+        // même où elles ont été écrites — `docs/regles/artefacts.md`).
+        ->and($portees('artefacts'))->toBe(34)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

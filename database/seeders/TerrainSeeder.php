@@ -19,6 +19,16 @@ use Illuminate\Database\Seeder;
  * Ice Cave Entrance, Ice Gremlin Treasure Room…), qui sont des noms de SALLE
  * sans mécanique propre, pas du terrain.
  *
+ * ⚠ Le *Crystal Key Tile* est de ce dernier groupe, et le dire explicitement
+ * vaut mieux que de le laisser dans le lot : `docs/plan-glace-et-degats-mind.md`
+ * lui prêtait une mécanique (« clé d'ouverture, proche de `leviers` ») que la
+ * SOURCE n'énonce pas. Doc 18 §4 ne fait que le NOMMER, dans la même
+ * énumération que *Scepter Room* et *Cage Room* — aucune règle, aucun chiffre.
+ * Le seeder d'après le plan aurait donc inventé une tuile, ce que
+ * « ne jamais seeder une valeur que les livrets ne sourcent pas » interdit.
+ * C'est le PLAN qui avait tort, pas cette absence ; elle est ici par écrit
+ * pour qu'un prochain passage ne la reprenne pas pour un oubli.
+ *
  * ⚠ Aucun des 7 ne bloque le mouvement ni la vue à ce jour — ce sont des
  * dangers de SOL (on marche dessus, on glisse, on coûte plus cher), pas des
  * murs. La seule pièce du lot qui bloquera un jour le mouvement (le Mur de
@@ -94,9 +104,15 @@ class TerrainSeeder extends Seeder
             [
                 'nom' => 'Rivière gelée', 'nom_anglais' => 'Icy River',
                 'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
+                // `type_degat: froid` (2026-09-10) : le dégât de terrain est
+                // un FROID au sens propre — Morsure de Froid en a déjà donné
+                // la source. Sans cette clé, l'Anneau de Chaleur/le Bracelet
+                // de Glace ne pourraient jamais intercepter une noyade de
+                // rivière gelée, quand bien même le lecteur existerait.
                 'effet' => [
                     'jet_des_combat' => 1,
                     'sur' => ['bouclier_blanc' => ['degats_pv_body' => 1]],
+                    'type_degat' => 'froid',
                 ],
             ],
             // Tunnel de glace (Ice Tunnels) — « paires de téléportation, très
@@ -119,10 +135,15 @@ class TerrainSeeder extends Seeder
             [
                 'nom' => 'Chambre forte de glace', 'nom_anglais' => 'Ice Vault',
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
+                // `type_degat: froid` (2026-09-10) : même raison que la
+                // Rivière gelée juste au-dessus — sans elle, aucun anneau ne
+                // pourrait jamais protéger d'un froid qui gèle une chambre
+                // forte plutôt qu'un sort.
                 'effet' => [
                     'jet_des_combat' => 1,
                     'recurrent' => 'par_tour_dans_la_zone',
                     'sur' => ['crane' => ['degats_pv_body' => 1]],
+                    'type_degat' => 'froid',
                 ],
             ],
             // Glace magique (Magic Ice) — « support du sort Ice Bridge / Ice

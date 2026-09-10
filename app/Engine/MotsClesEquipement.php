@@ -117,6 +117,44 @@ final class MotsClesEquipement
      */
     public const MALUS_DEPLACEMENT = 'malus_deplacement';
 
+    /**
+     * Symétrique de `MALUS_DEPLACEMENT` : cases de déplacement en PLUS, en
+     * PERMANENCE tant que la pièce est portée — « Raquettes de Vitesse / Snowshoes
+     * of Speed : +2 cases de déplacement (…), utilisables seulement dans les
+     * quêtes glacées » (Frozen Horror, `config/cartes.php`).
+     *
+     * ⚠ Homonyme ÉVITÉ à dessein de `bonus_deplacement` (Potion de dextérité) :
+     * cette clé-LÀ pose un BUFF TEMPORAIRE lu par `MoteurSorts::bonusDes()`
+     * (`ResolveurTour::pointsDeplacement()`) — un jet de plus, une fois. Celle-ci
+     * modifie le SOCLE avant le jet, en continu, exactement comme
+     * `malusDeplacement()` dont c'est le miroir : deux mécaniques que la carte
+     * de la Plate Mail et celle des Raquettes ne confondent pas non plus.
+     *
+     * « Région gelée » n'est sourcée nulle part au-delà du nom : le thème de
+     * boîte FIGÉ du groupe (`groupes.theme_bestiaire`,
+     * `DemarreurQuete::themeBestiaireDuGroupe()`) est la plus proche notion de
+     * « région » que le moteur connaisse — arbitrage écrit faute de source qui
+     * tranche plus finement (une case de terrain ne suffirait pas : Glace
+     * glissante elle-même n'est jamais posée hors d'une quête `horreur_des_glaces`,
+     * `TerrainSeeder::boite`).
+     * Lecteur : `Partie\Equipement::bonusDeplacementActif()`, consulté par
+     * `MenuMoteur::deplacementDuTour()` ET `ResolveurTour::resoudreDeplacement()`
+     * — jamais l'un sans l'autre, sous peine que le menu propose une portée que
+     * le résolveur refuse.
+     */
+    public const BONUS_DEPLACEMENT_PORTE = 'bonus_deplacement_porte';
+
+    /**
+     * Annule l'effet de la Glace glissante (Slippery Ice) au contact — même
+     * carte que `BONUS_DEPLACEMENT_PORTE`, seconde clause : « et annule la
+     * glace glissante » (`config/cartes.php`). ⚠ NE couvre QUE la tuile nommée
+     * « Glace glissante » : la Glissière de glace (Ice Slide) est une tuile
+     * DISTINCTE que la carte ne nomme pas — l'étendre à elle aurait inventé une
+     * immunité que rien ne source.
+     * Lecteur : `ResolveurTour::tronquerSurGlace()`.
+     */
+    public const ANNULE_GLACE_GLISSANTE = 'annule_glace_glissante';
+
     // ------------------------------------------------------- ARTEFACTS D'ARME
 
     /**
@@ -175,16 +213,42 @@ final class MotsClesEquipement
     public const TUE_SAUF_BOUCLIER_NOIR = 'tue_sauf_bouclier_noir';
 
     /**
-     * Annule intégralement les dégâts d'une NATURE donnée (`App\Engine\TypeDegat`),
-     * au prix d'une charge — « prevents the wearer from being affected by the
-     * next two Fire or Chaos Fire spells they encounter. The ring turns to ash
-     * after protecting the wearer from the second spell » (Anneau de Feu).
+     * Annule intégralement les dégâts d'une NATURE donnée (`App\Engine\TypeDegat`)
+     * — « prevents the wearer from being affected by the next two Fire or Chaos
+     * Fire spells they encounter. The ring turns to ash after protecting the
+     * wearer from the second spell » (Anneau de Feu).
      *
      * Immunité, pas réduction : la carte dit « not affected », pas « moins ».
-     * Lecteur : `MoteurSorts::absorbeDegat()`, consulté par les deux chemins qui
-     * blessent un héros — un sort de héros en tir ami et un sort de Dread.
+     * ⚠ Chargée par défaut (`CHARGES` à côté), mais pas TOUJOURS : l'Anneau de
+     * Chaleur (Ring of Warmth) ne porte aucune charge sur sa carte — l'absence
+     * de `charges` fait de son immunité une protection PERMANENTE tant que la
+     * pièce est portée, le comportement par défaut de tout objet sans compteur
+     * (`MoteurCharges` : « objet SANS `effet.charges` est illimité »), pas une
+     * exception à inventer pour lui.
+     * Lecteur : `MoteurSorts::absorbeDegat()`, consulté par les trois chemins
+     * qui blessent un héros — un sort de héros en tir ami, un sort de Dread, et
+     * les dégâts de TERRAIN typés (`ResolveurTour::saignerParTerrain()` /
+     * `saignerSurRiviere()`, Chambre forte de glace et Rivière gelée).
      */
     public const IMMUNITE_DEGAT = 'immunite_degat';
+
+    /**
+     * Absorbe des dégâts de MIND un point à la fois, sur un COMPTEUR de
+     * charges qui décroît d'UNE unité par point encaissé (pas par instance de
+     * sort, contrairement à `IMMUNITE_DEGAT`) — « Orbe Céleste / Sky Orb :
+     * absorbe 4 points de dégâts de Mind, un jeton à la fois, puis se brise »
+     * (Mage of the Mirror, `config/cartes.php`). Toujours accompagnée de
+     * `CHARGES` : sans compteur, l'absorption serait illimitée, ce que
+     * « puis se brise » exclut.
+     *
+     * ⚠ PAS une réutilisation d'`IMMUNITE_DEGAT` : celle-là bloque une NATURE de
+     * dégât en entier, celle-ci grignote un MONTANT quel que soit le sort qui le
+     * cause — *Gel de l'Esprit* (Mind Freeze) n'a d'ailleurs aucun `type_degat`,
+     * la carte ne dit jamais « feu » ni « froid ».
+     * Lecteur : `MoteurSorts::absorbePartielDegatMind()`, consulté par
+     * `MoteurDread::sortDreadMind()` avant `MoteurDegats::infligerMindAHeros()`.
+     */
+    public const ABSORBE_DEGATS_MIND = 'absorbe_degats_mind';
 
     // ------------------------------------------------------- ÉCONOMIE DE SORTS
 
@@ -650,6 +714,8 @@ final class MotsClesEquipement
         self::DEUX_MAINS,
         self::INCOMPATIBLE_DEUX_MAINS,
         self::MALUS_DEPLACEMENT,
+        self::BONUS_DEPLACEMENT_PORTE,
+        self::ANNULE_GLACE_GLISSANTE,
         self::DEGATS_FIXES,
         self::ACTIVABLE,
         self::CIBLE,
@@ -671,6 +737,7 @@ final class MotsClesEquipement
         self::CHARGES,
         self::TUE_SAUF_BOUCLIER_NOIR,
         self::IMMUNITE_DEGAT,
+        self::ABSORBE_DEGATS_MIND,
         self::RESTAURE_SORTS,
         self::SECOND_SORT_PAR_TOUR,
         self::SORT_NON_EPUISE,
@@ -785,6 +852,8 @@ final class MotsClesEquipement
 
         // --- Déplacement
         'bonus_deplacement' => '+%s de déplacement',
+        self::BONUS_DEPLACEMENT_PORTE => '+%s de déplacement (quêtes glacées)',
+        self::ANNULE_GLACE_GLISSANTE => 'Ignore la Glace glissante',
         'de_deplacement_supplementaire' => '+%s dé de déplacement',
         'deplacement_multiplie' => 'Déplacement ×%s',
         'franchit_figures' => 'Traverse les figurines',
@@ -809,6 +878,7 @@ final class MotsClesEquipement
         self::SECOND_SORT_PAR_TOUR => 'Un second sort par tour',
         self::SORT_NON_EPUISE => 'Le sort lancé n\'est pas épuisé',
         self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
+        self::ABSORBE_DEGATS_MIND => 'Absorbe les dégâts de Mind, un point à la fois',
         'reflet_sort_dread' => 'Renvoie un sort du maître du donjon',
         self::SORT_ID => 'Lance un sort',
 

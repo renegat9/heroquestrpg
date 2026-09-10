@@ -109,7 +109,13 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         'relance_attaque_monstre', 'reflet_sort_dread',
         'saut_piege_de_combat', 'de_deplacement_supplementaire',
         // Et la relance par face : c'est bien l'ARME qui la porte.
-        'relance_des_attaque_sur_face'];
+        'relance_des_attaque_sur_face',
+        // ⚠ 2026-09-10 : trois cartes de plus, même raison à chaque fois — la
+        // pièce change ce que le porteur ENCAISSE ou PARCOURT, pas un dé.
+        // Orbe Céleste absorbe des dégâts de Mind au jeton, Anneau de Chaleur
+        // réutilise `immunite_degat` (déjà listé), Raquettes de Vitesse ajoute
+        // des cases de déplacement en permanence tant qu'elle est portée.
+        'absorbe_degats_mind', 'bonus_deplacement_porte'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))

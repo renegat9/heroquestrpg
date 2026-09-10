@@ -16,6 +16,7 @@ use App\Partie\MenuMoteur;
 use App\Partie\MoteurDread;
 use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\ObjetSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\TerrainSeeder;
 
@@ -33,16 +34,17 @@ use Database\Seeders\TerrainSeeder;
  * geste de héros ne l'atteignait — l'option de menu et la résolution qui
  * manquaient sont prouvées ici, bout en bout.
  *
- * ⚠ Les 7 terrains sourcés valent tous `boite = horreur_des_glaces`, une boîte
- * volontairement DÉSACTIVÉE (`DemarreurQuete::BOITES_INCOMPLETES`) : aucune
- * carte assemblée procéduralement n'en pose aujourd'hui. Les scènes sont donc
- * construites À LA MAIN, comme `TerrainCarteTest::queteAvecCarteEtTerrain()`
- * et `SortsGlaceTest::sceneGlace()` — même patron, nom distinct pour ne rien
- * redéclarer entre fichiers de test.
+ * ⚠ Les 7 terrains sourcés valent tous `boite = horreur_des_glaces` — la boîte
+ * est ACTIVE depuis le 2026-09-06 (`DemarreurQuete::BOITES_THEMATIQUES`), mais
+ * `AssembleurCarte::placerTerrains()` ne la pose que sous ce thème précis : les
+ * scènes de ce fichier restent construites À LA MAIN, comme
+ * `TerrainCarteTest::queteAvecCarteEtTerrain()` et `SortsGlaceTest::sceneGlace()`
+ * — même patron, nom distinct pour ne rien redéclarer entre fichiers de test —
+ * pour un contrôle géométrique total, indépendant du thème du groupe.
  */
 
 beforeEach(function () {
-    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, SortDreadSeeder::class]);
+    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, SortDreadSeeder::class, ObjetSeeder::class]);
 });
 
 // ---------------------------------------------------------------------
@@ -438,6 +440,48 @@ it("ne blesse PAS sur la Rivière gelée quand le dé ne tombe pas sur bouclier 
         ->and((int) $etat->deplacement_restant)->toBe(0);
 });
 
+/**
+ * Pose une pièce dans un emplacement donné, sans passer par les garde-fous.
+ * (Copie locale : les fonctions d'un fichier Pest ne sont visibles qu'une
+ * fois ce fichier chargé, donc jamais fiables d'un fichier de test à
+ * l'autre — même patron que `ChargesEtSortsTest::poser()`.)
+ */
+function poserPourTerrain(Personnage $p, string $nom, string $emplacement): \App\Models\Inventaire
+{
+    return \App\Models\Inventaire::create([
+        'personnage_id' => $p->id,
+        'objet_id' => \App\Models\Objet::where('nom', $nom)->firstOrFail()->id,
+        'emplacement' => $emplacement,
+        'quantite' => 1,
+    ]);
+}
+
+it("l'Anneau de Chaleur immunise contre la Rivière gelée — même bouclier blanc, aucun dégât", function () {
+    $riviere = Terrain::where('nom', 'Rivière gelée')->firstOrFail();
+
+    $scene = sceneTerrainGlace(
+        [array_fill(0, 6, 's')],
+        herosPos: ['x' => 0, 'y' => 0],
+        terrain: [
+            ['x' => 2, 'y' => 0, 'terrain_id' => $riviere->id],
+            ['x' => 3, 'y' => 0, 'terrain_id' => $riviere->id],
+        ],
+    );
+    poserPourTerrain($scene['heros'], 'Anneau de Chaleur', 'talisman');
+    $pvAvant = (int) $scene['heros']->pv_body;
+
+    // Bouclier blanc partout : sans l'anneau, cette séquence blesserait
+    // exactement 2 (cf. le test jumeau ci-dessus, sans anneau).
+    desFiges(array_fill(0, 40, 4));
+
+    app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'], optionDeplacement(), ['x' => 5, 'y' => 0],
+    );
+
+    expect((int) $scene['heros']->fresh()->pv_body)->toBe($pvAvant, 'immunisé au froid, la rivière ne blesse plus')
+        ->and((int) $scene['etatHeros']->fresh()->position_x)->toBe(5, 'l\'immunité ne coupe pas le mouvement');
+});
+
 // =======================================================================
 // 3. CHAMBRE FORTE DE GLACE — 1 Body PAR TOUR passé dedans, AUCUNE réaction
 // =======================================================================
@@ -506,6 +550,29 @@ it('ne saigne PAS si le jet ne tombe pas sur un crâne', function () {
     );
 
     expect((int) $scene['heros']->fresh()->pv_body)->toBe($pvAvant);
+});
+
+it("l'Anneau de Chaleur immunise aussi contre la Chambre forte de glace — même crâne, aucun dégât", function () {
+    $vault = Terrain::where('nom', 'Chambre forte de glace')->firstOrFail();
+
+    $scene = sceneTerrainGlace(
+        [array_fill(0, 3, 's'), array_fill(0, 3, 's')],
+        herosPos: ['x' => 0, 'y' => 0],
+        terrain: [['x' => 0, 'y' => 0, 'terrain_id' => $vault->id]],
+    );
+    poserPourTerrain($scene['heros'], 'Anneau de Chaleur', 'talisman');
+    $pvAvant = (int) $scene['heros']->pv_body;
+    ajouterSecondHeros($scene['quete'], $scene['groupe']->fresh(), ['x' => 0, 'y' => 1]);
+
+    // Crâne partout — le jet qui blesse SANS l'anneau (cf. le test jumeau).
+    desFiges(array_fill(0, 20, 1));
+
+    app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'],
+        ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'], [],
+    );
+
+    expect((int) $scene['heros']->fresh()->pv_body)->toBe($pvAvant, 'immunisé au froid, la chambre forte ne saigne plus');
 });
 
 // =======================================================================

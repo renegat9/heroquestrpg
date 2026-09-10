@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesEquipement;
 use App\Models\ClasseHeros;
 use App\Models\Competence;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\Quete;
 use App\Partie\Marche\CapaciteSac;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -345,6 +347,51 @@ final class Equipement
         }
 
         return (int) $this->valeurEffetPorte($personnage, 'malus_deplacement');
+    }
+
+    /**
+     * Bonus de déplacement PERMANENT de l'équipement porté, borné aux quêtes
+     * de la boîte que la carte nomme — « Raquettes de Vitesse / Snowshoes of
+     * Speed : +2 cases de déplacement (…) utilisables seulement dans les
+     * quêtes glacées » (Frozen Horror).
+     *
+     * Symétrique de `malusDeplacement()`, MÊME point de passage pour les deux
+     * mêmes appelants (`MenuMoteur::deplacementDuTour()`,
+     * `ResolveurTour::resoudreDeplacement()`) — sous peine que le menu
+     * annonce une portée que le résolveur refuse.
+     *
+     * ⚠ « Région gelée » n'est définie nulle part au-delà du nom (doc 18 §4 se
+     * contente de la NOMMER) : arbitrage écrit faute de source qui tranche —
+     * le thème de boîte FIGÉ du groupe (`groupes.theme_bestiaire`,
+     * `DemarreurQuete::themeBestiaireDuGroupe()`) est la plus proche notion de
+     * « région » que le moteur connaisse. Une case de terrain de glace n'aurait
+     * pas suffi : Glace glissante elle-même n'est jamais posée hors d'une
+     * quête `horreur_des_glaces` (`TerrainSeeder::boite`), donc la borne porte
+     * sur la QUÊTE entière plutôt que sur la case courante.
+     */
+    public function bonusDeplacementActif(Personnage $personnage, Quete $quete): int
+    {
+        $bonus = $this->valeurEffetPorte($personnage, MotsClesEquipement::BONUS_DEPLACEMENT_PORTE);
+
+        if ($bonus <= 0 || $quete->groupe === null) {
+            return 0;
+        }
+
+        return app(DemarreurQuete::class)->themeBestiaireDuGroupe($quete->groupe) === 'horreur_des_glaces'
+            ? $bonus
+            : 0;
+    }
+
+    /**
+     * Le porteur ignore-t-il la Glace glissante au contact ? — « et annule la
+     * glace glissante » (Raquettes de Vitesse). ⚠ NE couvre QUE la tuile
+     * nommée « Glace glissante » : la Glissière de glace (Ice Slide) est une
+     * tuile DISTINCTE que la carte ne nomme pas — lecteur :
+     * `ResolveurTour::tronquerSurGlace()`.
+     */
+    public function annuleGlaceGlissante(Personnage $personnage): bool
+    {
+        return $this->valeurEffetPorte($personnage, MotsClesEquipement::ANNULE_GLACE_GLISSANTE) > 0;
     }
 
     public function estAccessible(Personnage $personnage, Objet $objet): bool

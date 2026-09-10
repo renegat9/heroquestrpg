@@ -648,8 +648,19 @@ final class MenuMoteur
                 $personnage, MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE, $etat,
             );
 
+            // RAQUETTES DE VITESSE : même point de passage que
+            // `ResolveurTour::resoudreDeplacement()` — le menu ne doit jamais
+            // annoncer une portée que le résolveur refuserait ensuite. Ajouté
+            // au socle passé à `calculer()`, JAMAIS à `$base` lui-même : comme
+            // le malus, il doit rester absorbé dans `$jet->total` sans changer
+            // la valeur de `$base` que la ligne de retour réutilise pour
+            // reconstituer le dé affiché (`$total - $base`).
+            $bonusRaquettes = $etat->quete !== null
+                ? $this->equipement->bonusDeplacementActif($personnage, $etat->quete)
+                : 0;
+
             $jet = (new Deplacement($this->des))->calculer(
-                $base,
+                $base + $bonusRaquettes,
                 $this->equipement->malusDeplacement($personnage),
                 (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
             );

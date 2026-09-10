@@ -545,6 +545,46 @@ class ObjetSeeder extends Seeder
                     'controle_monstres' => ['nom_base' => 'Squelette'],
                     'frequence' => 'une_fois_par_quete']],
 
+            // ---- Trois cartes de plus (2026-09-10) : le froid a désormais une
+            // SOURCE, un lecteur `MoteurDegats::infligerMindAHeros()` a un
+            // appelant réel (Gel de l'Esprit), et la couche TERRAIN blesse
+            // vraiment — trois dettes du 2026-09-06 dont la raison a changé
+            // depuis, réexaminées carte par carte (`config/cartes.php`).
+
+            // « Orbe Céleste » / Sky Orb (Mage of the Mirror) : « absorbs 4
+            // Mind Points of damage via 4 tokens, then becomes useless »
+            // (doc 18 §3). PAS `immunite_degat` : celui-ci bloque une NATURE
+            // de dégât en entier par charge (Anneau de Feu) ; l'Orbe grignote
+            // un MONTANT, un jeton par point encaissé, quel que soit le sort —
+            // *Gel de l'Esprit* n'a d'ailleurs aucun `type_degat`.
+            ['nom' => 'Orbe Céleste', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'talisman',
+                'effet' => ['absorbe_degats_mind' => true, 'charges' => 4]],
+
+            // « Anneau de Chaleur » / Ring of Warmth (Frozen Horror) :
+            // immunise contre le sort Chill, les coffres de glace (Chambre
+            // forte de glace) et les rivières gelées (config/cartes.php,
+            // texte transcrit depuis la carte photographiée). AUCUNE charge
+            // sur la carte : `immunite_degat` sans `charges` est une immunité
+            // PERMANENTE tant que la pièce est portée (comportement par défaut
+            // de tout objet sans compteur, `MoteurCharges`), pas les 2 usages
+            // de l'Anneau de Feu. `froid` couvre les trois clauses d'un coup :
+            // un sort de type froid comme un dégât de terrain désormais typé
+            // (`TerrainSeeder` : Chambre forte de glace, Rivière gelée).
+            ['nom' => 'Anneau de Chaleur', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman',
+                'effet' => ['immunite_degat' => 'froid']],
+
+            // « Raquettes de Vitesse » / Snowshoes of Speed (Frozen Horror) :
+            // « +2 cases de déplacement et annule la glace glissante.
+            // Utilisables seulement dans les quêtes glacées » — symétrique
+            // permanent de `malus_deplacement` (Armure de plates), mais borné
+            // à `groupes.theme_bestiaire === horreur_des_glaces`
+            // (`Equipement::bonusDeplacementActif()`) : « région gelée »
+            // n'étant définie nulle part au-delà du nom, le thème de boîte
+            // FIGÉ est la plus proche notion de « région » que le moteur
+            // connaisse (arbitrage écrit, config/cartes.php).
+            ['nom' => 'Raquettes de Vitesse', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'bottes',
+                'effet' => ['bonus_deplacement_porte' => 2, 'annule_glace_glissante' => true]],
+
             // ----- Armures (6 cartes) -----
             //
             // Elles se CUMULENT, comme au plateau : casque (slot propre depuis

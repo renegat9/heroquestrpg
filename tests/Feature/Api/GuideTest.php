@@ -85,7 +85,11 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // personne. Leur inventer un tag serait exactement l'invention que
         // §2.1bis interdit — et pour les bottes, ce serait pire : leur seule
         // vraie limite est « une fois par tour », qui vit ailleurs.
-        'Bottes de Lièvre', "Baguette d'Os", 'Anneau du Retour'];
+        'Bottes de Lièvre', "Baguette d'Os", 'Anneau du Retour',
+        // ⚠ 2026-09-10 : Orbe Céleste, Anneau de Chaleur et Raquettes de
+        // Vitesse ne posent non plus aucune restriction de classe sur leur
+        // carte — mêmes raisons que ci-dessus.
+        'Orbe Céleste', 'Anneau de Chaleur', 'Raquettes de Vitesse'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
