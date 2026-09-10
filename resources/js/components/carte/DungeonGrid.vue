@@ -81,6 +81,16 @@ const classeTerrain = (x, y) => {
     const t = terrainDe(x, y);
     return t ? `terrain-${icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT)}` : null;
 };
+// Titre de la case : nom du terrain, ET son surcoût s'il y en a un (Rivière
+// gelée : 2 points pour l'atteindre au lieu de 1, doc 18 §4). Sans ce second
+// membre, une case grisée sur la manette n'a QUE la teinte « danger » pour
+// s'expliquer — un effet qui coûte plus cher doit pouvoir se vérifier au
+// survol, pas seulement se déduire d'une couleur.
+const titreTerrain = (x, y) => {
+    const t = terrainDe(x, y);
+    if (! t) return undefined;
+    return t.cout_deplacement > 1 ? `${t.nom} (coûte ${t.cout_deplacement} points de déplacement)` : t.nom;
+};
 
 const cells = computed(() => {
     const out = [];
@@ -156,7 +166,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             class="dg-cell"
             :class="[c.t, classeTerrain(c.x, c.y), cellClass ? cellClass(c.x, c.y) : null]"
             :style="{ gridColumn: c.x + 1, gridRow: c.y + 1 }"
-            :title="terrainDe(c.x, c.y)?.nom"
+            :title="titreTerrain(c.x, c.y)"
             @click="emit('cell', c.x, c.y)"
         >
             <slot name="cell" :x="c.x" :y="c.y" />

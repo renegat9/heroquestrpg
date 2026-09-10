@@ -3206,8 +3206,19 @@ final class MoteurDread
                     $cx, $cy,
                 );
 
-                if ($chemin !== null && count($chemin) <= (int) $instance->monstre->deplacement) {
-                    if ($meilleure === null || count($chemin) < count($meilleure[1])) {
+                // ⚠ Le budget se compte en POINTS, pas en cases (2026-09-06).
+                // `Grille::chemin()` est pondéré depuis la Rivière gelée : il rend
+                // le chemin le moins CHER, dont le nombre de cases n'est plus le
+                // coût. Comparer `count($chemin)` faisait charger le monstre plus
+                // loin que son déplacement ne le permet dès qu'une case coûteuse
+                // était sur la route — et choisissait la cible la moins bien
+                // placée en croyant la plus proche. Même distinction que celle qui
+                // garde `Grille::distance()` géométrique : une case coûteuse reste
+                // adjacente, elle est seulement plus chère à franchir.
+                $cout = $chemin === null ? null : $grille->coutChemin($chemin);
+
+                if ($chemin !== null && $cout <= (int) $instance->monstre->deplacement) {
+                    if ($meilleure === null || $cout < $grille->coutChemin($meilleure[1])) {
                         $meilleure = [$cible, $chemin];
                     }
                 }

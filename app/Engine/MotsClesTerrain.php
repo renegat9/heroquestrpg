@@ -41,6 +41,7 @@ namespace App\Engine;
  *
  * @see \App\Partie\ResolveurTour::tronquerSurGlace()          jet_des_combat, sur, chute, fin_tour, degats_pv_body
  * @see \App\Partie\ResolveurTour::saignerParTerrain()         recurrent
+ * @see \App\Partie\ResolveurTour::saignerSurRiviere()          jet_des_combat, sur, degats_pv_body (SANS arrêt — Rivière gelée)
  * @see \App\Partie\ResolveurTour::teleporterSiTunnel()        teleportation
  */
 final class MotsClesTerrain
@@ -54,7 +55,11 @@ final class MotsClesTerrain
         // contact (glissante/glissière) ou à chaque tour passé dedans (chambre
         // forte). Un seul dé sourcé à ce jour (les 4 lignes valent 1).
         'jet_des_combat' => [
-            'lecteur' => ['App\Partie\ResolveurTour::tronquerSurGlace()', 'App\Partie\ResolveurTour::saignerParTerrain()'],
+            'lecteur' => [
+                'App\Partie\ResolveurTour::tronquerSurGlace()',
+                'App\Partie\ResolveurTour::saignerParTerrain()',
+                'App\Partie\ResolveurTour::saignerSurRiviere()',
+            ],
             'libelle' => 'jette {valeur} dé(s) de combat',
         ],
 
@@ -63,7 +68,11 @@ final class MotsClesTerrain
         // texte joueur propre, chaque sous-clé (chute, fin_tour,
         // degats_pv_body) dit la sienne.
         'sur' => [
-            'lecteur' => ['App\Partie\ResolveurTour::tronquerSurGlace()', 'App\Partie\ResolveurTour::saignerParTerrain()'],
+            'lecteur' => [
+                'App\Partie\ResolveurTour::tronquerSurGlace()',
+                'App\Partie\ResolveurTour::saignerParTerrain()',
+                'App\Partie\ResolveurTour::saignerSurRiviere()',
+            ],
             'libelle' => 'selon le résultat du jet',
         ],
 
@@ -86,14 +95,21 @@ final class MotsClesTerrain
             'libelle' => 'finit immédiatement le tour du héros',
         ],
 
-        // Glissière de glace (sur bouclier blanc), Chambre forte de glace (sur
-        // crâne), Rivière gelée (sur bouclier blanc, hors périmètre de la
-        // truncation mais lu par le même chemin). Passe par
-        // `MoteurDegats::infligerAHeros()` avec une source DÉDIÉE, hors
-        // `ReactionEffet::SOURCES_REACTIVES` — un danger de décor, pas un coup
-        // reçu, même raison que le poison et l'étreinte du Yéti.
+        // Glissière de glace (sur bouclier blanc, ARRÊTE le tour — lu par
+        // `tronquerSurGlace()`), Chambre forte de glace (sur crâne, RÉCURRENT
+        // — `saignerParTerrain()`), Rivière gelée (sur bouclier blanc, SANS
+        // arrêt — `saignerSurRiviere()`, méthode SŒUR distincte : une case de
+        // rivière n'empêche jamais d'entrer dans la suivante, contrairement à
+        // la Glissière). Passe par `MoteurDegats::infligerAHeros()` avec une
+        // source DÉDIÉE, hors `ReactionEffet::SOURCES_REACTIVES` — un danger
+        // de décor, pas un coup reçu, même raison que le poison et l'étreinte
+        // du Yéti.
         'degats_pv_body' => [
-            'lecteur' => ['App\Partie\ResolveurTour::tronquerSurGlace()', 'App\Partie\ResolveurTour::saignerParTerrain()'],
+            'lecteur' => [
+                'App\Partie\ResolveurTour::tronquerSurGlace()',
+                'App\Partie\ResolveurTour::saignerParTerrain()',
+                'App\Partie\ResolveurTour::saignerSurRiviere()',
+            ],
             'libelle' => '{valeur} PV de Body',
         ],
 

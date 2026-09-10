@@ -8,7 +8,21 @@ use App\Models\Carte;
 
 /**
  * Vue tactique de la carte assemblée : traversabilité et plus courts chemins
- * ORTHOGONAUX (doc 03 §12 — pas de diagonale) par parcours en largeur (BFS).
+ * ORTHOGONAUX (doc 03 §12 — pas de diagonale).
+ *
+ * ⚠ DEUX parcours cohabitent, et ne doivent JAMAIS se confondre (doc 18 §4,
+ * plan glace §2 — la Rivière Gelée est ce qui les a séparés) :
+ *  - `chemin()` / `casesAtteignables()` sont PONDÉRÉS (Dijkstra, file de
+ *    priorité, `parcoursPondere()`) : chaque pas coûte `coutDeplacement()` de
+ *    la case d'ARRIVÉE, pas systématiquement 1. C'est le déplacement RÉEL —
+ *    une case de Rivière Gelée (coût 2) le ralentit deux fois plus qu'une
+ *    case de sol ordinaire.
+ *  - `distance()` reste un parcours à coût UNIFORME (`parcours()`, un pas =
+ *    un pas) : elle sert la PORTÉE et l'ADJACENCE (une arbalète tire à N
+ *    cases, deux figures sont adjacentes à distance 1), qu'aucun terrain ne
+ *    ralentit — une flèche n'est pas freinée par la glace. La confondre avec
+ *    le parcours pondéré raccourcirait la portée de toute arme à distance
+ *    dès qu'une case de glace se trouve sur la ligne.
  *
  * Les cases occupées (héros — y compris tombés, C4 : ils occupent leur case —
  * et monstres actifs) sont infranchissables ; le désengagement reste libre
@@ -91,13 +105,11 @@ final class Grille
     private array $portes = [];
 
     /**
-     * COÛT DE DÉPLACEMENT par case (doc 18 §4, terrain — phase 4a), défaut 1
-     * (une case ordinaire). Posé par `definirCoutsDeplacement()`, lu par
-     * `coutDeplacement()`. ⚠ Fondation SEULE à ce jour : `casesAtteignables()`
-     * et `chemin()` restent une BFS à coût UNIFORME (`$d + 1`) et ne
-     * consultent pas encore cette carte — un autre agent les rendra pondérés
-     * (file de priorité) pour que la Rivière Gelée (coût 2) ralentisse
-     * réellement le déplacement. Voir le commentaire de `distance()`.
+     * COÛT DE DÉPLACEMENT par case (doc 18 §4, terrain), défaut 1 (une case
+     * ordinaire). Posé par `definirCoutsDeplacement()`, lu par
+     * `coutDeplacement()` et consommé par le parcours PONDÉRÉ
+     * (`parcoursPondere()`, `chemin()`, `casesAtteignables()`) — jamais par
+     * `distance()`, qui reste géométrique. Voir le docblock de la classe.
      *
      * @var array<string, int>
      */
@@ -577,16 +589,10 @@ final class Grille
     }
 
     /**
-     * Plus court chemin orthogonal (cases occupées exclues, départ inclus
-     * d'office) ; null si l'arrivée est inaccessible.
-     *
-     * ⚠ BFS à coût UNIFORME à ce jour (`parcours()`, un pas = un pas) : ne
-     * consulte PAS encore `$this->couts` (doc 18 §4, terrain). C'est ICI —
-     * avec `casesAtteignables()` ci-dessous — que le déplacement doit devenir
-     * PONDÉRÉ (file de priorité) pour que la Rivière Gelée (coût 2) ralentisse
-     * réellement un héros. `distance()`, elle, doit rester géométrique — voir
-     * son commentaire — donc ne PAS la faire déléguer telle quelle à une
-     * version pondérée de cette méthode sans y prendre garde.
+     * Plus court chemin orthogonal PONDÉRÉ (cases occupées exclues, départ
+     * inclus d'office) ; null si l'arrivée est inaccessible. Chaque pas coûte
+     * `coutDeplacement()` de la case d'ARRIVÉE du pas (doc 18 §4) — Dijkstra
+     * via `parcoursPondere()`, pas la BFS à coût uniforme de `distance()`.
      *
      * @return list<array{x: int, y: int}>|null étapes SANS la case de départ
      */
@@ -596,6 +602,36 @@ final class Grille
             return [];
         }
 
+        $resultat = $this->parcoursPondere($departX, $departY, $arriveeX, $arriveeY);
+        $cle = "{$arriveeX},{$arriveeY}";
+
+        if (! isset($resultat['parents'][$cle])) {
+            return null;
+        }
+
+        return $this->reconstruireChemin($resultat['parents'], "{$departX},{$departY}", $cle);
+    }
+
+    /**
+     * Distance de déplacement GÉOMÉTRIQUE (nb de pas orthogonaux, jamais de
+     * coût) ; null si inaccessible.
+     *
+     * ⚠ DOIT RESTER GÉOMÉTRIQUE (doc 18 §4, plan glace §2) : cette méthode
+     * sert aussi à la PORTÉE et à l'ADJACENCE (une arbalète tire à N cases,
+     * deux figures sont adjacentes à distance 1) — une flèche n'est PAS
+     * ralentie par la glace. Elle garde donc son PROPRE parcours à coût
+     * uniforme (`parcours()`) plutôt que de déléguer à `chemin()`, qui lui est
+     * pondéré depuis le branchement de la Rivière Gelée : les deux parcours
+     * partagent la même grille mais jamais le même algorithme. Les mélanger
+     * raccourcirait la portée de toute arme à distance dès qu'une case de
+     * glace se trouve sur la ligne.
+     */
+    public function distance(int $departX, int $departY, int $arriveeX, int $arriveeY): ?int
+    {
+        if ($departX === $arriveeX && $departY === $arriveeY) {
+            return 0;
+        }
+
         $parents = $this->parcours($departX, $departY, $arriveeX, $arriveeY);
         $cle = "{$arriveeX},{$arriveeY}";
 
@@ -603,49 +639,82 @@ final class Grille
             return null;
         }
 
-        $chemin = [];
+        $n = 0;
         while ($cle !== "{$departX},{$departY}") {
-            [$x, $y] = array_map(intval(...), explode(',', $cle));
-            $chemin[] = ['x' => $x, 'y' => $y];
             $cle = $parents[$cle];
+            $n++;
         }
 
-        return array_reverse($chemin);
+        return $n;
     }
 
     /**
-     * Distance de déplacement (nb de pas orthogonaux) ; null si inaccessible.
+     * Coût total (points de déplacement) d'un chemin déjà calculé — somme de
+     * `coutDeplacement()` sur chaque case du chemin (départ exclu, comme le
+     * rend `chemin()`). Sert aux appelants qui doivent savoir combien de
+     * points un trajet a réellement coûté (Rivière Gelée : 3 cases coûtent 6,
+     * pas 3) sans recalculer eux-mêmes le parcours.
      *
-     * ⚠ DOIT RESTER GÉOMÉTRIQUE (doc 18 §4, plan glace §2) : cette méthode
-     * sert aussi à la PORTÉE et à l'ADJACENCE (une arbalète tire à N cases,
-     * deux figures sont adjacentes à distance 1) — une flèche n'est PAS
-     * ralentie par la glace. Le jour où `chemin()`/`casesAtteignables()`
-     * deviennent pondérés (coût de terrain), `distance()` ne doit PAS se
-     * mettre à compter des « coûts » à la place de pas : soit elle garde son
-     * propre parcours à coût uniforme, soit elle continue à déléguer à une
-     * variante de `chemin()` qui reste, elle, non pondérée. Les mélanger
-     * raccourcirait la portée de toute arme à distance dès qu'une case de
-     * glace se trouve sur la ligne.
+     * @param  list<array{x: int, y: int}>  $chemin
      */
-    public function distance(int $departX, int $departY, int $arriveeX, int $arriveeY): ?int
+    public function coutChemin(array $chemin): int
     {
-        $chemin = $this->chemin($departX, $departY, $arriveeX, $arriveeY);
+        $total = 0;
 
-        return $chemin === null ? null : count($chemin);
+        foreach ($chemin as $case) {
+            $total += $this->coutDeplacement((int) $case['x'], (int) $case['y']);
+        }
+
+        return $total;
     }
 
     /**
-     * Toutes les cases atteignables en AU PLUS `$pas` pas, avec leur chemin.
+     * Combien de cases EN TÊTE d'un chemin déjà calculé (dans l'ordre rendu
+     * par `chemin()`, départ exclu) tiennent dans un budget de points de
+     * déplacement — chaque case comptant son `coutDeplacement()` propre,
+     * jamais 1 uniformément.
+     *
+     * Sert aux appelants qui bornent un chemin DÉJÀ tronqué par autre chose
+     * (piège, racines…) avec un budget de points connu APRÈS coup — le
+     * déplacement des monstres et des alliés, qui indexaient jusqu'ici
+     * `$chemin[$pas - 1]` en confondant nombre de cases et points dépensés.
+     * `derniereCaseOuSArreter()` reste inchangée : elle attend toujours un
+     * INDEX de cases, celui-ci le lui fournit déjà correct.
+     *
+     * ⚠ Cas limite : si même la PREMIÈRE case dépasse le budget (ex. 1 point
+     * restant devant une case à 2), rend 0 — l'appelant ne doit alors PAS
+     * bouger, jamais « s'arrêter à moitié » dans la case trop chère.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     */
+    public function pasAffordables(array $chemin, int $budget): int
+    {
+        $depense = 0;
+        $n = 0;
+
+        foreach ($chemin as $case) {
+            $depense += $this->coutDeplacement((int) $case['x'], (int) $case['y']);
+
+            if ($depense > $budget) {
+                break;
+            }
+
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /**
+     * Toutes les cases atteignables en un budget d'AU PLUS `$pas` points de
+     * déplacement, avec leur chemin — PONDÉRÉ (Dijkstra), comme `chemin()`.
      *
      * Même parcours que {@see self::chemin()} — cases occupées exclues, portes
      * fermées bloquantes — mais borné et SANS destination : on veut l'ensemble,
      * pas une route. Existe pour que l'IA puisse CHOISIR sa case plutôt que de
      * subir la plus courte : un monstre à distance repositionne pour garder sa
      * ligne de mire, ce qu'un `chemin()` par case candidate ferait au prix d'un
-     * BFS complet par candidate (des centaines par tour).
-     *
-     * ⚠ BFS à coût UNIFORME à ce jour, comme `chemin()` : ne consulte pas
-     * `coutDeplacement()` — voir le commentaire de `chemin()`.
+     * parcours complet par candidate (des centaines par tour).
      *
      * @return array<string, list<array{x: int, y: int}>> "x,y" → étapes sans le départ
      */
@@ -655,51 +724,38 @@ final class Grille
             return [];
         }
 
-        $file = [[$departX, $departY, 0]];
-        $vus = ["{$departX},{$departY}" => true];
+        $depart = "{$departX},{$departY}";
+        $resultat = $this->parcoursPondere($departX, $departY, budgetMax: $pas);
+
         $chemins = [];
-
-        while ($file !== []) {
-            [$x, $y, $d] = array_shift($file);
-
-            if ($d >= $pas) {
+        foreach (array_keys($resultat['couts']) as $cle) {
+            if ($cle === $depart) {
                 continue;
             }
 
-            foreach (self::DIRECTIONS as [$dx, $dy]) {
-                $nx = $x + $dx;
-                $ny = $y + $dy;
-                $cle = "{$nx},{$ny}";
+            [$x, $y] = array_map(intval(...), explode(',', $cle));
 
-                if (isset($vus[$cle]) || ! $this->estTraversable($nx, $ny)) {
-                    continue;
-                }
-
-                if ($this->porteBloqueEntre($x, $y, $nx, $ny)) {
-                    continue;
-                }
-
-                $vus[$cle] = true;
-                $file[] = [$nx, $ny, $d + 1];
-
-                // ⚠ On TRAVERSE un allié, on ne s'y ARRÊTE pas : sa case reste
-                // dans le parcours (elle sert de passage) mais ne figure pas
-                // parmi les destinations proposées. Un seul point de passage
-                // pour la règle — le menu, le déplacement et le tour des
-                // monstres lisent tous cette liste.
-                if ($this->estOccupeeParFigure($nx, $ny)) {
-                    continue;
-                }
-
-                $chemins[$cle] = [...($chemins["{$x},{$y}"] ?? []), ['x' => $nx, 'y' => $ny]];
+            // ⚠ On TRAVERSE un allié, on ne s'y ARRÊTE pas : sa case a bien
+            // été explorée par `parcoursPondere()` (qui l'ignore comme
+            // `estTraversable()` le fait), mais ne figure pas parmi les
+            // destinations proposées ici. Un seul point de passage pour la
+            // règle — le menu, le déplacement et le tour des monstres lisent
+            // tous cette liste.
+            if ($this->estOccupeeParFigure($x, $y)) {
+                continue;
             }
+
+            $chemins[$cle] = $this->reconstruireChemin($resultat['parents'], $depart, $cle);
         }
 
         return $chemins;
     }
 
     /**
-     * BFS depuis le départ ; s'arrête dès que l'arrivée est atteinte.
+     * BFS à coût UNIFORME depuis le départ ; s'arrête dès que l'arrivée est
+     * atteinte. Réservée à `distance()` (portée, adjacence) — voir son
+     * docblock : `chemin()` et `casesAtteignables()` utilisent désormais
+     * `parcoursPondere()`, un algorithme SŒUR mais distinct.
      *
      * @return array<string, string> clé case → clé case parente
      */
@@ -739,5 +795,119 @@ final class Grille
         }
 
         return $parents;
+    }
+
+    /**
+     * Parcours PONDÉRÉ (Dijkstra, file de priorité) depuis le départ — chaque
+     * pas coûte `coutDeplacement()` de la case d'ARRIVÉE du pas (doc 18 §4 :
+     * la Rivière Gelée coûte 2, pas 1). Cœur commun de `chemin()` et
+     * `casesAtteignables()` — jamais de `distance()`, qui garde son propre
+     * `parcours()` à coût uniforme (voir le docblock de la classe).
+     *
+     * S'arrête dès qu'une CIBLE fournie (`$cibleX`/`$cibleY`) est FINALISÉE
+     * (Dijkstra classique : sa première extraction de la file porte déjà son
+     * coût minimal). Sans cible, explore tout ce qu'autorise `$budgetMax`
+     * (nécessaire à `casesAtteignables()` : sans borne, un donjon entier
+     * serait parcouru à chaque appel).
+     *
+     * File de priorité codée sur un ENTIER unique (`-(coût * 1_000_000 +
+     * séquence)`) plutôt que sur le coût seul : la séquence d'insertion
+     * départage les coûts égaux dans l'ordre où ils ont été DÉCOUVERTS, qui
+     * reproduit exactement l'ordre FIFO + `DIRECTIONS` fixe de l'ancienne BFS
+     * — sur une grille à coût uniforme (aucune case de terrain posée), ce
+     * parcours rend donc EXACTEMENT les mêmes chemins que l'ancienne BFS,
+     * aucune suite existante ne doit en être affectée. « Ordre d'exploration
+     * fixe → comportements scriptés déterministes », comme `DIRECTIONS`.
+     * Suppression paresseuse (« lazy deletion ») : une entrée sortie de la
+     * file dont le coût enregistré a depuis été amélioré est simplement
+     * ignorée plutôt que retirée activement — PHP n'offre pas de
+     * décrémentation de clé sur `SplPriorityQueue`.
+     *
+     * @return array{couts: array<string, int>, parents: array<string, string>}
+     */
+    private function parcoursPondere(
+        int $departX,
+        int $departY,
+        ?int $cibleX = null,
+        ?int $cibleY = null,
+        ?int $budgetMax = null,
+    ): array {
+        $depart = "{$departX},{$departY}";
+        $couts = [$depart => 0];
+        $parents = [];
+        $finalisees = [];
+
+        $file = new \SplPriorityQueue();
+        $sequence = 0;
+        $file->insert([$departX, $departY, 0], 0);
+
+        while (! $file->isEmpty()) {
+            [$x, $y, $coutCourant] = $file->extract();
+            $cle = "{$x},{$y}";
+
+            // Entrée obsolète : soit déjà finalisée, soit dépassée par un
+            // coût moindre inséré depuis (suppression paresseuse).
+            if (isset($finalisees[$cle]) || $coutCourant > ($couts[$cle] ?? PHP_INT_MAX)) {
+                continue;
+            }
+
+            $finalisees[$cle] = true;
+
+            if ($cibleX !== null && $x === $cibleX && $y === $cibleY) {
+                break;
+            }
+
+            foreach (self::DIRECTIONS as [$dx, $dy]) {
+                $nx = $x + $dx;
+                $ny = $y + $dy;
+                $ncle = "{$nx},{$ny}";
+
+                if (isset($finalisees[$ncle]) || ! $this->estTraversable($nx, $ny)) {
+                    continue;
+                }
+
+                if ($this->porteBloqueEntre($x, $y, $nx, $ny)) {
+                    continue;
+                }
+
+                $nouveauCout = $coutCourant + $this->coutDeplacement($nx, $ny);
+
+                if ($budgetMax !== null && $nouveauCout > $budgetMax) {
+                    continue; // hors budget : jamais inséré, jamais une destination possible
+                }
+
+                if ($nouveauCout < ($couts[$ncle] ?? PHP_INT_MAX)) {
+                    $couts[$ncle] = $nouveauCout;
+                    $parents[$ncle] = $cle;
+                    $sequence++;
+                    $file->insert([$nx, $ny, $nouveauCout], -($nouveauCout * 1_000_000 + $sequence));
+                }
+            }
+        }
+
+        return ['couts' => $couts, 'parents' => $parents];
+    }
+
+    /**
+     * Reconstruit un chemin (départ EXCLU, comme `chemin()` le rend) à partir
+     * d'une table de parents (`parcours()` ou `parcoursPondere()`) — cœur
+     * commun aux deux, pour que la façon de remonter la chaîne ne diverge
+     * jamais entre les deux parcours.
+     *
+     * @param  array<string, string>  $parents
+     * @return list<array{x: int, y: int}>
+     */
+    private function reconstruireChemin(array $parents, string $depart, string $cible): array
+    {
+        $chemin = [];
+        $cle = $cible;
+
+        while ($cle !== $depart) {
+            [$x, $y] = array_map(intval(...), explode(',', $cle));
+            $chemin[] = ['x' => $x, 'y' => $y];
+            $cle = $parents[$cle];
+        }
+
+        return array_reverse($chemin);
     }
 }

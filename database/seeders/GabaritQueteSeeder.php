@@ -221,15 +221,21 @@ class GabaritQueteSeeder extends Seeder
                     'rencontre_finale' => [
                         'tier' => 'boss',
                         'escorte_budget' => 6,
-                        // ⚠ `horreur_glacee` est RETIRÉ (René, 2026-09-04) : trois
-                        // des six sorts de sa carte ne sont pas portés, et un boss
-                        // final à moitié écrit n'a rien à faire en tête d'affiche.
-                        // La raison vit dans `DemarreurQuete::BOITES_INCOMPLETES`,
-                        // que le test de couverture consulte — sans quoi il
-                        // signalerait l'Horreur des Glaces comme une régression.
+                        // ⚠ `horreur_glacee` est REVENU le 2026-09-06. Il avait été
+                        // retiré le 2026-09-04 parce que trois des six sorts de sa
+                        // carte n'étaient pas portés — « un boss final à moitié
+                        // écrit n'a rien à faire en tête d'affiche ». Les six le
+                        // sont désormais (Gel de l'Esprit, Mur de Glace, Patinage
+                        // ont rejoint Morsure de Froid, Tempête de Glace et
+                        // Apaisement), et `BOITES_INCOMPLETES` est vide.
+                        //
+                        // ⚠ Le pool n'est PAS filtré ici : c'est `DemarreurQuete`
+                        // qui restreint les candidats au thème du groupe. L'écrire
+                        // deux fois ferait diverger les deux copies — un seul point
+                        // de passage, comme partout ailleurs.
                         'archetypes' => [
                             'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
-                            'spectre_effroi', 'archimage_elfe',
+                            'spectre_effroi', 'archimage_elfe', 'horreur_glacee',
                         ],
                         // Les deux bosses sans répertoire : ils frappent, c'est
                         // tout, et c'est une lecture du combat final aussi.

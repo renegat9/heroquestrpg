@@ -363,6 +363,82 @@ it("la Glissière de glace blesse EN PLUS de finir le tour, sur bouclier blanc",
 });
 
 // =======================================================================
+// 2bis. RIVIÈRE GELÉE — dégâts SANS arrêt (doc 18 §4, plan glace §3 phase 4)
+// =======================================================================
+
+it("la Rivière gelée blesse SANS arrêter le mouvement — une fois PAR case traversée, sur bouclier blanc", function () {
+    $riviere = Terrain::where('nom', 'Rivière gelée')->firstOrFail();
+
+    $scene = sceneTerrainGlace(
+        [array_fill(0, 6, 's')],
+        herosPos: ['x' => 0, 'y' => 0],
+        terrain: [
+            ['x' => 2, 'y' => 0, 'terrain_id' => $riviere->id],
+            ['x' => 3, 'y' => 0, 'terrain_id' => $riviere->id],
+        ],
+    );
+    $pvAvant = (int) $scene['heros']->pv_body;
+
+    // Bouclier blanc partout (4) : couvre le d6 de déplacement (base 4 + 4 = 8
+    // points, largement assez pour les 7 points que coûtent les 5 cases — 3
+    // à 1 + 2 à 2) ET les deux jets de combat de la rivière (un par case).
+    desFiges(array_fill(0, 40, 4));
+
+    $resultat = app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'], optionDeplacement(), ['x' => 5, 'y' => 0],
+    );
+
+    $etat = $scene['etatHeros']->fresh();
+
+    // ⚠ Aucun ARRÊT : contrairement à Glace glissante/Glissière, la rivière
+    // n'empêche jamais d'entrer dans la case suivante — le héros atteint sa
+    // destination DEMANDÉE, pas la première case de rivière rencontrée.
+    expect((int) $etat->position_x)->toBe(5, 'la rivière ne coupe jamais le mouvement — destination atteinte')
+        ->and((int) $etat->position_y)->toBe(0)
+        ->and($etat->a_joue)->toBeFalse('aucun fin_tour sur la rivière : le créneau action reste ouvert')
+        ->and($resultat['terrain']['nom'])->toBe('Rivière gelée')
+        ->and($resultat['terrain']['chute'])->toBeFalse()
+        ->and($resultat['terrain']['fin_tour'])->toBeFalse()
+        // Deux cases de rivière traversées, bouclier blanc à chaque fois :
+        // 1 + 1 = 2, pas un seul jet pour tout le trajet.
+        ->and($resultat['terrain']['degats'])->toBe(2)
+        ->and((int) $scene['heros']->fresh()->pv_body)->toBe($pvAvant - 2)
+        // Le coût, lui, obéit à `deplacement_restant` : 8 points de départ
+        // moins 7 dépensés (3 cases à 1 + 2 cases à 2) = 1.
+        ->and((int) $etat->deplacement_restant)->toBe(1);
+});
+
+it("ne blesse PAS sur la Rivière gelée quand le dé ne tombe pas sur bouclier blanc, mais le mouvement n'est de toute façon jamais arrêté", function () {
+    $riviere = Terrain::where('nom', 'Rivière gelée')->firstOrFail();
+
+    $scene = sceneTerrainGlace(
+        [array_fill(0, 6, 's')],
+        herosPos: ['x' => 0, 'y' => 0],
+        terrain: [
+            ['x' => 2, 'y' => 0, 'terrain_id' => $riviere->id],
+            ['x' => 3, 'y' => 0, 'terrain_id' => $riviere->id],
+        ],
+    );
+    $pvAvant = (int) $scene['heros']->pv_body;
+
+    // Crâne (3) partout : base 4 + 3 = 7 points, EXACTEMENT le coût du trajet
+    // (3 cases à 1 + 2 cases à 2 = 7) — et aucun jet ne tombe sur bouclier
+    // blanc, donc aucun dégât.
+    desFiges(array_fill(0, 40, 3));
+
+    $resultat = app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'], optionDeplacement(), ['x' => 5, 'y' => 0],
+    );
+
+    $etat = $scene['etatHeros']->fresh();
+
+    expect((int) $etat->position_x)->toBe(5, 'toujours aucun arrêt, dé ou pas')
+        ->and($resultat)->not->toHaveKey('terrain', 'aucun jet gagnant : rien à annoncer')
+        ->and((int) $scene['heros']->fresh()->pv_body)->toBe($pvAvant)
+        ->and((int) $etat->deplacement_restant)->toBe(0);
+});
+
+// =======================================================================
 // 3. CHAMBRE FORTE DE GLACE — 1 Body PAR TOUR passé dedans, AUCUNE réaction
 // =======================================================================
 

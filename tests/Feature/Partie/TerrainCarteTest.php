@@ -428,19 +428,26 @@ it('ne bloque ni mouvement ni vue pour les 7 terrains sourcés, via FabriqueGril
         ->and($grille->ligneDeVue(0, 0, 4, 0, figuresBloquent: true))->toBeTrue();
 });
 
-it('expose le coût de déplacement de la Rivière gelée sur la Grille, SANS qu\'aucune BFS ne le consomme encore', function () {
+it('expose le coût de déplacement de la Rivière gelée sur la Grille, et le fait peser sur le parcours PONDÉRÉ sans toucher à distance()', function () {
     $riviere = Terrain::where('nom', 'Rivière gelée')->firstOrFail();
     $cases = [array_fill(0, 5, 's')];
     $quete = queteAvecCarteEtTerrain($cases, [['x' => 2, 'y' => 0, 'terrain_id' => $riviere->id]]);
 
     $grille = FabriqueGrille::pour($quete);
 
+    // Couloir d'une seule rangée : AUCUN détour possible, `chemin()` traverse
+    // donc forcément la case de rivière — sa LONGUEUR (4 cases) ne change pas,
+    // mais son COÛT le fait : `RiviereGeleeTest` prouve le cas où un détour
+    // existe (Dijkstra le préfère), celui-ci prouve juste que le coût est
+    // désormais bien consommé sur un trajet qui n'a pas le choix.
     expect($grille->coutDeplacement(2, 0))->toBe(2)
         ->and($grille->coutDeplacement(0, 0))->toBe(1)
-        // Fondation seule (phase 4a) : distance()/chemin() restent
-        // GÉOMÉTRIQUES, la Rivière gelée ne ralentit PAS encore le parcours.
+        // distance() reste GÉOMÉTRIQUE (portée, adjacence) : 4 pas, jamais 5.
         ->and($grille->distance(0, 0, 4, 0))->toBe(4)
-        ->and($grille->chemin(0, 0, 4, 0))->toHaveCount(4);
+        ->and($grille->chemin(0, 0, 4, 0))->toHaveCount(4)
+        // …mais coutChemin() le confronte au budget réel : 3 cases de sol (1
+        // chacune) + 1 case de rivière (2) = 5, jamais 4.
+        ->and($grille->coutChemin($grille->chemin(0, 0, 4, 0)))->toBe(5);
 });
 
 // ---------------------------------------------------------------------
@@ -522,7 +529,15 @@ it('publie un terrain de COULOIR comme un terrain de SALLE — le brouillard est
 it('ne pose JAMAIS un terrain de glace sous un thème non-glace', function () {
     $gabarit = gabaritAvecStructureTerrain(gabaritTerrainAvecBoss(), ['terrains' => ['min' => 6, 'max' => 6]]);
 
-    foreach (DemarreurQuete::BOITES_THEMATIQUES as $theme) {
+    // ⚠ La liste se DÉRIVE des thèmes actifs, et `horreur_des_glaces` en fait
+    // partie depuis le 2026-09-06 : c'est le seul thème sous lequel la glace
+    // DOIT apparaître, donc le seul à exclure ici. Le test suivant en est la
+    // preuve positive — les deux se lisent ensemble, et retirer l'un des deux
+    // laisserait le filtre à moitié vérifié.
+    $nonGlace = array_values(array_diff(DemarreurQuete::BOITES_THEMATIQUES, ['horreur_des_glaces']));
+    expect($nonGlace)->not->toBeEmpty();
+
+    foreach ($nonGlace as $theme) {
         [, $carte] = queteAvecCarteTerrainAssemblee($gabarit, 42, $theme);
 
         expect($carte['terrain'])->toBe([], "thème « {$theme} » : un terrain de glace est apparu");

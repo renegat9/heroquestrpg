@@ -589,11 +589,15 @@ final class ResolveurTour
             ]);
         }
 
-        $distance = count($chemin);
+        // ⚠ COÛT, pas nombre de cases (doc 18 §4, Rivière Gelée) : `chemin()`
+        // rend déjà le trajet le MOINS CHER (Dijkstra), mais son NOMBRE de
+        // cases n'est plus son coût dès qu'une case pondérée s'y trouve —
+        // `coutChemin()` fait la somme réelle des points qu'il consommerait.
+        $distance = $grille->coutChemin($chemin);
 
         if ($distance > $restant) {
             throw ValidationException::withMessages([
-                'parametres' => "Destination hors de portée : {$distance} cases pour {$restant} de déplacement restant.",
+                'parametres' => "Destination hors de portée : {$distance} points de déplacement pour {$restant} restants.",
             ]);
         }
 
@@ -672,7 +676,7 @@ final class ResolveurTour
         // le chemin BFS et rendrait le trajet ENTIER, gonflant le décompte de
         // points dépensés.
         $cheminParcouru = $this->cheminJusqua($chemin, $entreeTunnel);
-        $parcourue = count($cheminParcouru);
+        $parcourue = count($cheminParcouru); // nombre de CASES — animation et champ `distance` du payload
 
         // Animation case-par-case (table) : le trajet réel du héros (type
         // « heros » pour coller aux figurines EtatGroupe — l'acteur, lui, est
@@ -686,11 +690,16 @@ final class ResolveurTour
             ];
         }
 
-        // Un arrêt DUR (piège immobilisant / chute) TERMINE le mouvement ; un
-        // arrêt SOUPLE (détection) ou une arrivée normale conservent les points
-        // restants (on pourra se redéplacer / désamorcer puis continuer). Le
-        // mouvement restant sera FORFAIT à la première action hors mouvement.
-        $restantApres = $arretDur ? 0 : max(0, $restant - $parcourue);
+        // ⚠ POINTS dépensés, pas cases traversées (doc 18 §4, Rivière Gelée :
+        // 3 cases de rivière coûtent 6, pas 3) — distinct de `$parcourue`
+        // ci-dessus, qui reste le compte de cases pour l'animation et le champ
+        // `distance` du payload. Un arrêt DUR (piège immobilisant / chute)
+        // TERMINE le mouvement ; un arrêt SOUPLE (détection) ou une arrivée
+        // normale conservent les points restants (on pourra se redéplacer /
+        // désamorcer puis continuer). Le mouvement restant sera FORFAIT à la
+        // première action hors mouvement.
+        $couteParcouru = $grille->coutChemin($cheminParcouru);
+        $restantApres = $arretDur ? 0 : max(0, $restant - $couteParcouru);
         $mouvementFini = $arretDur || $restantApres <= 0;
 
         $etat->update([
@@ -746,6 +755,33 @@ final class ResolveurTour
                 if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
                     $etat->update(['tombe' => true]);
                 }
+            }
+        }
+
+        // RIVIÈRE GELÉE (doc 18 §4) — troisième famille de dégâts de terrain,
+        // à côté de `tronquerSurGlace()` (dégâts qui ARRÊTENT le tour) et
+        // `saignerParTerrain()` (dégâts RÉCURRENTS, par tour) : ici, des
+        // dégâts SANS arrêt — chaque case de rivière ENTRÉE inflige son
+        // propre jet, mais aucune ne coupe le mouvement (à la différence de
+        // Glace glissante / Glissière). Balayée sur `$cheminParcouru`, le
+        // chemin RÉELLEMENT foulé (pièges/racines/tunnel déjà résolus) —
+        // jamais sur `$chemin` brut, pour ne jamais faire saigner une case
+        // que le héros n'a en fait pas atteinte.
+        $degatsRiviere = $this->saignerSurRiviere($quete, $cheminParcouru);
+
+        if ($degatsRiviere > 0) {
+            $retenus = $this->degats->infligerAHeros(
+                $personnage, $degatsRiviere, self::SOURCE_DEGATS_TERRAIN, ['terrain' => 'Rivière gelée'],
+            );
+            // Additif plutôt qu'écrasant : la Glace glissante/Glissière ci-dessus
+            // a pu poser son propre `payload['terrain']` sur une autre case du
+            // même trajet (rare, mais possible) — on cumule les dégâts plutôt que
+            // de perdre l'un des deux évènements.
+            $payload['terrain'] ??= ['nom' => 'Rivière gelée', 'chute' => false, 'fin_tour' => false];
+            $payload['terrain']['degats'] = ($payload['terrain']['degats'] ?? 0) + $retenus;
+
+            if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
+                $etat->update(['tombe' => true]);
             }
         }
 
@@ -2500,7 +2536,12 @@ final class ResolveurTour
      *
      * ⚠ La Chambre forte de glace (`recurrent`) est explicitement ÉCARTÉE ici
      * — son jet n'est pas un jet d'ENTRÉE, c'est `saignerParTerrain()`, en fin
-     * de tour, qui la lit.
+     * de tour, qui la lit. La Rivière gelée l'est tout autant, mais pour une
+     * raison distincte : son jet EST un jet de contact, mais aucune de ses
+     * faces ne nomme `chute`/`fin_tour` — `$peutArreter` ci-dessous l'écarte
+     * AVANT de lancer le moindre dé, pour ne pas en rouler un ici qui ne
+     * servirait jamais (`saignerSurRiviere()`, plus bas, est la SEULE à la
+     * lire — un jet par case, jamais deux).
      *
      * Renseigne `$this->evenementGlace` (réinitialisé dans `resoudre()`)
      * plutôt que de retourner autre chose qu'un chemin : `resoudreDeplacement()`
@@ -2546,8 +2587,30 @@ final class ResolveurTour
             $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
             $finTourInconditionnel = (bool) ($effet['fin_tour'] ?? false);
 
-            if ($nbDes < 1 && ! $finTourInconditionnel) {
-                continue;
+            // ⚠ Cette tuile peut-elle un jour ARRÊTER (chute/fin_tour), sur
+            // N'IMPORTE quelle face ? Vérifié sur le VOCABULAIRE déclaré, pas
+            // sur le jet — AVANT de lancer le moindre dé. La Rivière gelée
+            // porte `jet_des_combat` mais AUCUNE face n'y nomme `chute` ni
+            // `fin_tour` (seul `degats_pv_body`, lu par `saignerSurRiviere()`
+            // sur le chemin RÉELLEMENT foulé) : sans cette garde, chaque case
+            // de rivière traversée aurait roulé un dé ICI pour ne jamais s'en
+            // servir, PUIS un second dans `saignerSurRiviere()` — deux jets
+            // pour un seul événement, et le second décalé par le premier dans
+            // toute séquence de dés non uniforme.
+            $peutArreter = $finTourInconditionnel;
+            if (! $peutArreter) {
+                foreach ((array) ($effet['sur'] ?? []) as $issuePossible) {
+                    if (is_array($issuePossible)
+                        && (array_key_exists('chute', $issuePossible) || array_key_exists('fin_tour', $issuePossible))) {
+                        $peutArreter = true;
+
+                        break;
+                    }
+                }
+            }
+
+            if (($nbDes < 1 && ! $finTourInconditionnel) || ! $peutArreter) {
+                continue; // ne peut jamais arrêter le tour : pas la couture de cette méthode
             }
 
             $issue = [];
@@ -2562,8 +2625,11 @@ final class ResolveurTour
 
             // Sans fin de tour inconditionnelle (Glissière), seule une issue qui
             // NOMME `chute` ou `fin_tour` déclenche quoi que ce soit — un jet
-            // « raté » sans ces clés est un passage normal (ex. futur
-            // `degats_pv_body` seul, comme la Rivière gelée, hors périmètre).
+            // qui tombe sur une AUTRE face que celle(s) qui arrêtent (ex. Glace
+            // glissante sur crâne) est un passage normal. `$peutArreter`
+            // ci-dessus a déjà écarté les tuiles qui ne PEUVENT jamais nommer
+            // ces clés (Rivière gelée) — cette garde-ci ne reste nécessaire que
+            // pour le jet RÉELLEMENT tombé sur une face sans effet.
             if (! $finTourInconditionnel
                 && ! array_key_exists('chute', $issue) && ! array_key_exists('fin_tour', $issue)) {
                 continue;
@@ -2643,6 +2709,80 @@ final class ResolveurTour
         if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
             $etat->update(['tombe' => true]); // C4, symétrique de saignerParConditions()/rongerParRejetons()
         }
+    }
+
+    /**
+     * RIVIÈRE GELÉE (Icy River, doc 18 §4) — « coûte 2 cases de déplacement
+     * par case, dégâts sur bouclier blanc ». Troisième famille de dégâts de
+     * terrain, distincte à DESSEIN des deux précédentes :
+     *  - `tronquerSurGlace()` gère les dégâts qui ARRÊTENT le tour (Glace
+     *    glissante/Glissière) — un jet AVANT le déplacement effectif, ancré à
+     *    UNE case, invalidé en bloc si un piège postérieur raccourcit le
+     *    trajet avant d'y arriver.
+     *  - `saignerParTerrain()` gère les dégâts RÉCURRENTS (Chambre forte) —
+     *    à la FIN du tour, sur la case où le héros s'arrête.
+     *  - Ici : des dégâts SANS arrêt, une case n'empêchant jamais d'entrer
+     *    dans la suivante. Mélanger cette famille à `tronquerSurGlace()`
+     *    aurait réintroduit son ancrage à une case unique — invalidant TOUT
+     *    le trajet si un piège postérieur raccourcit le chemin, alors qu'ici
+     *    chaque case déjà entrée doit rester acquise pour elle-même.
+     *
+     * Balayée sur le chemin RÉELLEMENT foulé (`$cheminParcouru`, après
+     * pièges/racines/tunnel) — jamais sur le chemin brut — pour ne jamais
+     * faire saigner une case que le héros n'a en fait pas atteinte.
+     *
+     * ⚠ Exclut explicitement les tuiles récurrentes (`recurrent`, déjà lues
+     * par `saignerParTerrain()`) et celles qui portent `chute`/`fin_tour`
+     * sur AU MOINS une face (déjà lues par `tronquerSurGlace()`) — sans quoi
+     * Glace glissante et Glissière saigneraient DEUX FOIS pour le même pas.
+     *
+     * @param  list<array{x: int, y: int}>  $cheminParcouru
+     */
+    private function saignerSurRiviere(Quete $quete, array $cheminParcouru): int
+    {
+        $total = 0;
+
+        foreach ($cheminParcouru as $case) {
+            $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
+
+            if ($entree === null) {
+                continue;
+            }
+
+            $effet = $entree['effet'];
+
+            if (($effet['recurrent'] ?? null) !== null || ($effet['fin_tour'] ?? false)) {
+                continue; // Chambre forte / Glissière : déjà couvertes ailleurs
+            }
+
+            $sur = (array) ($effet['sur'] ?? []);
+            $bloque = false;
+
+            foreach ($sur as $issue) {
+                if (is_array($issue) && (array_key_exists('chute', $issue) || array_key_exists('fin_tour', $issue))) {
+                    $bloque = true;
+
+                    break;
+                }
+            }
+
+            if ($bloque) {
+                continue; // Glace glissante : déjà couverte par tronquerSurGlace()
+            }
+
+            $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
+
+            for ($i = 0; $i < $nbDes; $i++) {
+                $nomFace = match ($this->des->deCombat()) {
+                    FaceDeCombat::BouclierBlanc => 'bouclier_blanc',
+                    FaceDeCombat::BouclierNoir => 'bouclier_noir',
+                    default => 'crane',
+                };
+                $total += (int) ($sur[$nomFace]['degats_pv_body'] ?? 0);
+            }
+        }
+
+        return $total;
     }
 
     /**
@@ -7454,7 +7594,13 @@ final class ResolveurTour
             $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
             $chemin = array_slice($tronque, 1);
 
-            $pas = min((int) $instance->monstre->deplacement, count($chemin));
+            // ⚠ POINTS de déplacement, pas nombre de cases (doc 18 §4, Rivière
+            // Gelée) : `min(deplacement, count($chemin))` confondait les deux
+            // tant que toute case coûtait 1 — `pasAffordables()` compte les
+            // POINTS réellement dépensés en tête de ce chemin déjà tronqué par
+            // les chausse-trappes, et rend l'INDEX que `derniereCaseOuSArreter()`
+            // attend toujours (elle n'a pas changé : seul ce qu'on lui passe l'est).
+            $pas = $grille->pasAffordables($chemin, (int) $instance->monstre->deplacement);
 
             if ($instance->monstre->grandeTaille()) {
                 // Déplacement multi-cases (3.9) — SIMPLIFICATION assumée : le BFS
@@ -8767,11 +8913,20 @@ final class ResolveurTour
         [$cible, $chemin] = $meilleure;
 
         if ($chemin !== []) {
-            $pas = min((int) $merc->deplacement, count($chemin));
-            $arrivee = $chemin[$pas - 1];
-            $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-            $ax = (int) $arrivee['x'];
-            $ay = (int) $arrivee['y'];
+            // ⚠ POINTS, pas cases (doc 18 §4, Rivière Gelée) — voir le même
+            // correctif sur le déplacement des monstres, `jouerMonstre()`
+            // ci-dessus. `pasAffordables()` peut désormais rendre 0 (la toute
+            // première case dépasse le budget) là où `min(...)` ne le pouvait
+            // jamais : l'allié reste alors immobile plutôt que de lire l'index
+            // -1 de `$chemin`.
+            $pas = $grille->pasAffordables($chemin, (int) $merc->deplacement);
+
+            if ($pas > 0) {
+                $arrivee = $chemin[$pas - 1];
+                $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+                $ax = (int) $arrivee['x'];
+                $ay = (int) $arrivee['y'];
+            }
         }
 
         $e = $cible->monstre->emprise();

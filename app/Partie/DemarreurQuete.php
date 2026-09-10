@@ -496,6 +496,13 @@ final class DemarreurQuete
         'mage_du_miroir',
         'horde_ogre',
         'jungles_delthrak',
+        // ⚠ Rallumée le 2026-09-06, après que les cinq règles nommées par
+        // `BOITES_INCOMPLETES` ont été portées. Passer de 4 à 5 thèmes change le
+        // modulo de `themeBestiaire()` — c'est précisément pourquoi le thème est
+        // désormais FIGÉ dans `groupes.theme_bestiaire` au démarrage : sans cette
+        // colonne, une campagne en cours serait passée de la jungle à la banquise
+        // entre deux quêtes.
+        'horreur_des_glaces',
     ];
 
     /**
@@ -514,12 +521,21 @@ final class DemarreurQuete
      * @var array<string, string>
      */
     public const BOITES_INCOMPLETES = [
-        'horreur_des_glaces' => 'Trois des six sorts de son boss ne sont pas portés '
-            .'(Ice Wall, Mind Freeze, Skate — ils demandent du terrain destructible, '
-            .'des dégâts de Mind et un mode de déplacement pour monstre), l\'étreinte '
-            .'du Yéti et le vol du Gremlin non plus, et l\'équipement de glace était '
-            .'déjà écarté. Les créatures RESTENT au catalogue comme blocs de stats '
-            .'— c\'est le THÈME et le BOSS qui sont retirés, pas le bestiaire.',
+        // ⚠ VIDE depuis le 2026-09-06. `horreur_des_glaces` en est sortie quand
+        // les cinq règles qu'elle nommait ont été portées : les trois sorts de
+        // son boss (Gel de l'Esprit, Mur de Glace, Patinage — ses SIX sorts
+        // fixes sont désormais tous là), l'étreinte du Yéti et le vol du
+        // Gremlin. Son équipement reste écarté, mais il l'était déjà sur ses
+        // propres mérites : sept cartes de glace restent des dettes NOMMÉES
+        // dans `config/cartes.php`, ce qui n'a jamais empêché une boîte de
+        // tourner — le thème et le boss sont ce qui était retiré, pas le
+        // matériel de trésor.
+        //
+        // Le dispositif RESTE en place, et c'est voulu : une boîte se retire
+        // par une phrase écrite qui dit POURQUOI, jamais par une absence
+        // silencieuse de la liste ci-dessus. `SorciersNommesTest` vérifie les
+        // deux sens — rien de désactivé ne peut être offert en thème, rien
+        // d'offert ne peut être désactivé.
     ];
 
     /**

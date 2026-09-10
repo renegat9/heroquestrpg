@@ -80,21 +80,45 @@ const mobilierOccupe = computed(() => {
     return s;
 });
 
-// BFS des cases accessibles dans la portée.
+// Coût de déplacement du TERRAIN (doc 18 §4 — Rivière gelée : 2 points pour
+// ENTRER dans la case, au lieu de 1) — MIROIR de `Terrain::cout_deplacement`,
+// déjà publié par `EtatGroupe::terrain()` mais jusqu'ici jamais lu ici : le
+// BFS d'accessibilité comptait chaque case pour 1, quel que soit son coût
+// réel, et pouvait donc surbrillancer une case que le serveur refusait
+// ensuite — exactement l'« effet que rien n'annonce » que CLAUDE.md proscrit.
+const coutParCase = computed(() => {
+    const m = {};
+    for (const t of props.carte.terrain ?? []) {
+        m[cle(t.x, t.y)] = Math.max(1, t.cout_deplacement ?? 1);
+    }
+    return m;
+});
+const coutDe = (x, y) => coutParCase.value[cle(x, y)] ?? 1;
+
+// Cases accessibles dans le budget de points `portee` — parcours PONDÉRÉ
+// (Dijkstra), MIROIR de `Grille::casesAtteignables()` (doc 18 §4, plan glace
+// §2) : chaque pas coûte `coutDe()` de la case d'ARRIVÉE, pas 1 uniformément.
+// ⚠ Sert UNIQUEMENT à choisir une DESTINATION (surbrillance + tap) — le
+// serveur revalide de toute façon chaque déplacement, coût compris.
 const accessibles = computed(() => {
     const { largeur: w, hauteur: h, cases } = props.carte;
     const dist = { [cle(props.depart.x, props.depart.y)]: 0 };
-    const file = [{ x: props.depart.x, y: props.depart.y }];
     const out = new Set();
-    while (file.length) {
-        const { x, y } = file.shift();
-        const d = dist[cle(x, y)];
-        if (d >= props.portee) continue;
+    // File de priorité par scan linéaire : la zone qu'un déplacement de héros
+    // peut explorer tient en quelques dizaines de cases (bornée par `portee`
+    // ET par le brouillard) — pas besoin d'un tas pour rester instantané.
+    let frontiere = [{ x: props.depart.x, y: props.depart.y, d: 0 }];
+    while (frontiere.length) {
+        let iMin = 0;
+        for (let i = 1; i < frontiere.length; i++) {
+            if (frontiere[i].d < frontiere[iMin].d) iMin = i;
+        }
+        const { x, y, d } = frontiere.splice(iMin, 1)[0];
+        if (d > (dist[cle(x, y)] ?? Infinity)) continue; // entrée dépassée (suppression paresseuse)
         for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
             const nx = x + dx; const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
             const k = cle(nx, ny);
-            if (k in dist) continue;
             if (porteFermeeEntre(x, y, nx, ny)) continue;  // on ne traverse pas une porte fermée
             const porteOuverteIci = portesParArete.value.get(cleArete(x, y, nx, ny))?.etat === 'ouverte';
             const caseConnue = cases?.[ny]?.[nx] === 's';
@@ -116,12 +140,17 @@ const accessibles = computed(() => {
             const voisinImmediat = d === 0 && (cases?.[ny]?.[nx] ?? 'b') !== 'm';
             if (!caseConnue && !porteOuverteIci && !voisinImmediat) continue;
             if (occupees.value.has(k) || mobilierOccupe.value.has(k)) continue;
-            dist[k] = d + 1;
-            out.add(k);
-            // Ne PAS étendre le BFS au-delà d'une case encore dans le brouillard :
-            // on ignore ce qu'il y a plus loin tant que le serveur n'a pas révélé
-            // la salle (prochain état, après ce déplacement).
-            if (caseConnue) file.push({ x: nx, y: ny });
+
+            const nd = d + coutDe(nx, ny);
+            if (nd > props.portee) continue; // hors budget : jamais une destination possible
+            if (nd < (dist[k] ?? Infinity)) {
+                dist[k] = nd;
+                out.add(k);
+                // Ne PAS étendre au-delà d'une case encore dans le brouillard :
+                // on ignore ce qu'il y a plus loin tant que le serveur n'a pas
+                // révélé la salle (prochain état, après ce déplacement).
+                if (caseConnue) frontiere.push({ x: nx, y: ny, d: nd });
+            }
         }
     }
     return out;
