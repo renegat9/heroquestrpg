@@ -36,6 +36,12 @@ return [
         // sur la vue de dessus et l'emprise, parce qu'un meuble se lit sur la
         // carte à plat, contrairement à un piège cadré en couloir.
         'mobilier' => 'Meuble de donjon vu de dessus : {nom}. {description} Pièce isolée sur fond sombre, occupant {largeur} sur {hauteur} cases. {style}',
+        // TERRAIN (doc 18 §4, The Frozen Horror, phase 4a) : une case de sol
+        // dangereuse ou magique (glace glissante, rivière gelée, tunnel de
+        // téléportation…), pas un obstacle qu'on contourne comme le mobilier —
+        // d'où l'insistance sur la texture de la case elle-même, vue de dessus
+        // comme le mobilier (une case se lit à plat sur la carte).
+        'terrain' => 'Case de sol de donjon vue de dessus : {nom}, texture de glace ou de givre caractéristique. Case isolée sur fond sombre. {style}',
         // LEVIER et PORTE (2026-08-29) : les deux seuls éléments d'une salle
         // sans table de catalogue — un levier n'est qu'un id dans la grille, une
         // porte une arête. Ils sont donc nommés comme les CLASSES, par un

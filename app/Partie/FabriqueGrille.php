@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Models\GroupeMercenaire;
 use App\Models\Mobilier;
 use App\Models\Quete;
+use App\Models\Terrain;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -30,6 +31,13 @@ use Illuminate\Validation\ValidationException;
  * mouvement mais pas la vue ne doit jamais participer au test
  * `figuresBloquent` de `ligneDeVue()`, sans quoi une simple table arrêterait
  * les flèches — exactement le bug corrigé par cette séparation.
+ *
+ * Le TERRAIN (doc 18 §4, phase 4a) suit le même principe qu'une cinquième
+ * couche : `bloque_mouvement`/`bloque_vue` alimentent les MÊMES jeux
+ * `$obstacles`/`$opaques` que le mobilier (jamais `$occupees`, un terrain
+ * n'est pas une figure), et `cout_deplacement` alimente
+ * `Grille::definirCoutsDeplacement()` — posé ici mais pas encore consulté par
+ * aucune BFS (voir les commentaires de `Grille::distance()`/`chemin()`).
  */
 final class FabriqueGrille
 {
@@ -182,10 +190,74 @@ final class FabriqueGrille
             }
         }
 
+        // Terrain (doc 18 §4, phase 4a) : cinquième couche de la carte, lue
+        // dans CETTE MÊME MÉTHODE — jamais ailleurs — pour la même raison que
+        // le mobilier ci-dessus : un second point de lecture ferait diverger
+        // déplacement, ciblage et ligne de vue. Boucle SÉPARÉE de celle du
+        // mobilier (catalogue distinct, `Mobilier` vs `Terrain`) mais qui en
+        // partage le principe à la lettre : un terrain, comme un meuble, ne
+        // passe JAMAIS par `Grille::occuper()` — ce n'est pas une figure — et
+        // ses deux drapeaux sont lus INDÉPENDAMMENT, dans les MÊMES jeux de
+        // cases ($obstacles/$opaques) que le mobilier, pour que déplacement,
+        // ciblage et ligne de vue continuent de raisonner sur une seule
+        // grille tactique cohérente.
+        $terrain = (array) ($carte->grille['terrain'] ?? []);
+        $couts = [];
+        if ($terrain !== []) {
+            $typesTerrain = Terrain::query()
+                ->whereIn('id', array_values(array_unique(array_column($terrain, 'terrain_id'))))
+                ->get(['id', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue'])
+                ->keyBy('id');
+
+            foreach ($terrain as $entree) {
+                $type = $typesTerrain->get($entree['terrain_id'] ?? null);
+                if ($type === null) {
+                    continue;
+                }
+
+                $case = ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+
+                if ($type->bloque_mouvement) {
+                    $obstacles[] = $case;
+                }
+                if ($type->bloque_vue) {
+                    $opaques[] = $case;
+                }
+                // Le coût de déplacement (Rivière Gelée = 2) est posé sur la
+                // grille dès cette phase pour que la donnée existe, mais
+                // AUCUNE BFS ne le lit encore — voir Grille::distance()/
+                // chemin()/casesAtteignables() : un autre agent les rend
+                // pondérées.
+                if ($type->cout_deplacement !== 1) {
+                    $couts[] = [...$case, 'cout' => (int) $type->cout_deplacement];
+                }
+            }
+        }
+
+        // MUR DE GLACE (doc 18 §4, sort du boss — Ice Wall, plan glace phase
+        // 2) : couche DÉDIÉE `carte.grille['glace']`, PAS le catalogue
+        // `terrains` — cette pose est un effet de sort en cours de quête (le
+        // précédent exact est `chausse_trappes`), là où `terrains` est un
+        // catalogue de référence posé une fois à l'assemblage et dont une
+        // entrée figurerait, à tort, dans le pool de tirage statique de
+        // `AssembleurCarte::placerTerrains()`. « Bloque le déplacement mais
+        // pas la vue » (texte de carte, mot pour mot) : `obstruer()`
+        // SEULEMENT, jamais `occuper()` — un mur de glace n'est pas une
+        // figure, il ne doit jamais entrer dans `$occupees` (le seul jeu que
+        // `figuresBloquent` consulte), sinon il arrêterait les flèches
+        // exactement comme le bug historique du mobilier. Boucle DÉDIÉE, dans
+        // CETTE MÊME méthode — jamais ailleurs — pour la même raison que le
+        // mobilier et le terrain au-dessus : un second point de lecture
+        // ferait diverger déplacement, ciblage et ligne de vue.
+        foreach ((array) ($carte->grille['glace'] ?? []) as $cellule) {
+            $obstacles[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
+        }
+
         $grille->occuper($occupees);
         $grille->occuperAllie($alliees);
         $grille->obstruer($obstacles);
         $grille->occulter($opaques);
+        $grille->definirCoutsDeplacement($couts);
 
         return $grille;
     }

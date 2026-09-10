@@ -37,6 +37,7 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Models\Sort;
+use App\Models\Terrain;
 use App\Partie\Audio\BanqueBarks;
 use App\Partie\Fouille\DeckFouille;
 use App\Partie\Narration\BibliothequeNarration;
@@ -134,6 +135,20 @@ final class ResolveurTour
     /** Tout le monde est à terre et plus rien ne peut l'empêcher : quête échouée. */
     public const CHUTE_TPK = 'tpk';
 
+    /**
+     * Source dédiée pour `MoteurDegats::infligerAHeros()` — un danger de TERRAIN
+     * (Glissière de glace, Chambre forte de glace, doc 18 §4), jamais un coup.
+     *
+     * ⚠ N'est PAS une constante de `MoteurDegats` : `infligerAHeros()` prend une
+     * chaîne quelconque, et `MoteurDegats.php` appartient à un autre chantier en
+     * cours (voir le rapport de cette phase). Elle joue exactement le même rôle
+     * que `MoteurDegats::SOURCE_POISON`/`SOURCE_ETREINTE` — une clé DISTINCTE
+     * pour que `degats_subis` ne mélange jamais un dégât de décor à un poison,
+     * et une chaîne absente de `ReactionEffet::SOURCES_REACTIVES` (liste blanche
+     * : ne pas y figurer suffit à ne jamais offrir de réaction hors tour).
+     */
+    private const SOURCE_DEGATS_TERRAIN = 'terrain';
+
     /*
      * ⚠ Les quatre constantes de NOM qui vivaient ici (NOEUD_FRENESIE,
      * NOEUD_COUP_PUISSANT, NOEUD_GARDE_TENACE, NOEUDS_AVANTAGE_MIND) sont
@@ -178,6 +193,21 @@ final class ResolveurTour
     private array $mouvementsAnime = [];
 
     /**
+     * Événement GLACE de la résolution courante — canal latéral entre
+     * `tronquerSurGlace()` (qui le remplit au contact d'une Glace glissante /
+     * Glissière de glace) et le reste de `resoudreDeplacement()`/`resoudre()`
+     * (qui le lit pour infliger les dégâts, publier l'annonce et FORCER le
+     * créneau à `tour`). Même patron que `$mouvementsAnime` : une méthode qui
+     * ne retourne qu'un chemin tronqué (comme `tronquerSurChausseTrappes()`)
+     * n'a pas de second canal pour dire CE QUI s'est passé.
+     *
+     * Réinitialisé à chaque `resoudre()`, comme `$mouvementsAnime`.
+     *
+     * @var array{terrain: string, x: int, y: int, chute: bool, fin_tour: bool, degats_pv_body: int}|null
+     */
+    private ?array $evenementGlace = null;
+
+    /**
      * @param  array<string, mixed>  $option  option du dernier menu proposé (déjà validée)
      * @param  array<string, mixed>  $parametres  paramètres du client (ex. destination x/y)
      * @return array<string, mixed> résultat moteur (echo + narration)
@@ -185,6 +215,7 @@ final class ResolveurTour
     public function resoudre(Groupe $groupe, Personnage $personnage, array $option, array $parametres = []): array
     {
         $this->mouvementsAnime = [];
+        $this->evenementGlace = null;
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -334,6 +365,13 @@ final class ResolveurTour
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
                 'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                // MUR DE GLACE (Ice Wall, plan glace phase 2) : attaquer une
+                // case de `carte.grille['glace']` adjacente, proposée par
+                // `MenuMoteur`. `MoteurDread::endommagerMurDeGlace()` existait
+                // déjà, publique et testée directement, sans le moindre geste
+                // de héros pour l'atteindre — dette nommée par l'agent qui l'a
+                // écrite, soldée ici.
+                'briser_glace' => $this->resoudreBriserGlace($groupe, $quete, $personnage, $option, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -341,9 +379,18 @@ final class ResolveurTour
                 $resultat['bonus_reserve_arcanique'] = true;
             }
 
+            // GLACE GLISSANTE / GLISSIÈRE DE GLACE : « fin de tour immédiate »
+            // (doc 18 §4) — le créneau visé par l'option (mouvement) est
+            // remplacé par `tour`, qui rejoue toute la cérémonie de fin de
+            // tour (rejetons, poison/terrain, roche mortelle, buffs `ce_tour`)
+            // plutôt que de poser `a_joue` en douce. Lu APRÈS la résolution :
+            // `tronquerSurGlace()` (appelée depuis `resoudreDeplacement()`,
+            // ci-dessus dans ce `match`) vient de remplir `$evenementGlace`.
+            $creneauEffectif = ($this->evenementGlace['fin_tour'] ?? false) ? 'tour' : $creneau;
+
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
-            $this->marquerCreneau($etat, $creneau, $bonusReserveArcanique, $bonusHeroisme);
+            $this->marquerCreneau($etat, $creneauEffectif, $bonusReserveArcanique, $bonusHeroisme);
 
             // *Baguette d'Os* : « à la suite du tour du joueur » (René,
             // 2026-09-04). Le tour vient peut-être de se terminer — c'est là,
@@ -574,8 +621,13 @@ final class ResolveurTour
         // tronqueurs plutôt que testé ici : les monstres empruntent le même
         // code pour les chausse-trappes, et un `if` en amont aurait dispensé
         // les créatures aussi.
+        //
+        // GLACE GLISSANTE / GLISSIÈRE DE GLACE (doc 18 §4) : troisième raison
+        // d'écourter le même trajet, glissée entre les deux précédentes —
+        // `tronquerSurGlace()` remplit `$evenementGlace` (canal latéral, lu
+        // plus bas ET après la résolution complète, dans `resoudre()`).
         $tronque = $this->tronquerSurChausseTrappes(
-            $quete, $this->tronquerSurRacines($quete, $chemin, $personnage), $personnage,
+            $quete, $this->tronquerSurGlace($quete, $this->tronquerSurRacines($quete, $chemin, $personnage), $personnage), $personnage,
         );
 
         if (count($tronque) < count($chemin)) {
@@ -590,9 +642,36 @@ final class ResolveurTour
         $arretDur = $controle['dur'] ?? false;
         $arrivee = $controle['arret'] ?? ['x' => $x, 'y' => $y];
 
+        // ⚠ Un piège peut avoir arrêté le héros AVANT la case de glace que
+        // `tronquerSurGlace()` visait (elle n'est qu'une borne SUPÉRIEURE du
+        // trajet, posée avant le contrôle des pièges — même statut que la
+        // chausse-trappe juste au-dessus). Le héros qui n'atteint jamais la
+        // case ne doit ni saigner, ni voir son tour forcé.
+        if ($this->evenementGlace !== null
+            && ((int) $arrivee['x'] !== $this->evenementGlace['x'] || (int) $arrivee['y'] !== $this->evenementGlace['y'])) {
+            $this->evenementGlace = null;
+        }
+
+        // TUNNEL DE GLACE (doc 18 §4) : résolu sur la case d'ARRIVÉE déjà
+        // déterminée (piège/racines/glace pris en compte) — jamais avant, sinon
+        // un héros stoppé net par un piège avant l'entrée « traverserait » quand
+        // même. `teleporterSiTunnel()` refuse elle-même une sortie occupée ou
+        // une salle non découverte : `null` veut dire « rien ne bouge ».
+        $entreeTunnel = $arrivee;
+        $teleportation = $this->teleporterSiTunnel($quete, $personnage, (int) $arrivee['x'], (int) $arrivee['y']);
+
+        if ($teleportation !== null) {
+            $arrivee = $teleportation;
+        }
+
         // Chemin RÉELLEMENT parcouru (jusqu'à l'arrêt éventuel) → pour l'animation
         // case-par-case côté table (E4) et le décompte des points dépensés.
-        $cheminParcouru = $this->cheminJusqua($chemin, $arrivee);
+        // ⚠ Calculé sur `$entreeTunnel`, PAS sur `$arrivee` : la téléportation
+        // n'est pas un pas de plus, le héros ne « marche » pas jusqu'à l'autre
+        // extrémité — `cheminJusqua()` chercherait une case qui n'est pas sur
+        // le chemin BFS et rendrait le trajet ENTIER, gonflant le décompte de
+        // points dépensés.
+        $cheminParcouru = $this->cheminJusqua($chemin, $entreeTunnel);
         $parcourue = count($cheminParcouru);
 
         // Animation case-par-case (table) : le trajet réel du héros (type
@@ -641,6 +720,41 @@ final class ResolveurTour
             // ne sont pas posés sur le plateau, seul l'Explorateur les sait là.
             'pieges_pressentis' => $controle['alertes'] ?? [],
         ];
+
+        // GLACE GLISSANTE / GLISSIÈRE DE GLACE — annonce ET dégâts. Un effet
+        // automatique que rien n'annonce est injouable : la « chute » narrative
+        // et la fin de tour forcée (appliquée par `resoudre()`, qui lit ce même
+        // `$evenementGlace` APRÈS ce retour) doivent apparaître dans le payload
+        // que la manette reçoit, pas seulement dans son EFFET.
+        if ($this->evenementGlace !== null) {
+            $payload['terrain'] = [
+                'nom' => $this->evenementGlace['terrain'],
+                'chute' => $this->evenementGlace['chute'],
+                'fin_tour' => $this->evenementGlace['fin_tour'],
+            ];
+
+            if ($this->evenementGlace['degats_pv_body'] > 0) {
+                $retenus = $this->degats->infligerAHeros(
+                    $personnage, $this->evenementGlace['degats_pv_body'], self::SOURCE_DEGATS_TERRAIN,
+                    ['terrain' => $this->evenementGlace['terrain']],
+                );
+                $payload['terrain']['degats'] = $retenus;
+
+                // C4, comme tout dégât qui vide la jauge : un héros à 0 PV de
+                // Body tombe, relevable — même geste que `saignerParConditions()`
+                // et `rongerParRejetons()` juste à côté.
+                if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
+                    $etat->update(['tombe' => true]);
+                }
+            }
+        }
+
+        // TUNNEL DE GLACE — même raison : la case d'arrivée réelle n'est plus
+        // celle demandée, la manette doit le voir pour ne pas croire à un bug
+        // d'affichage.
+        if ($teleportation !== null) {
+            $payload['teleportation'] = ['de' => $entreeTunnel, 'vers' => $teleportation];
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -2032,6 +2146,13 @@ final class ResolveurTour
      * ⚠ La DURÉE, elle, n'est pas décrémentée ici : `decrementerDurees()` s'en
      * charge en fin de round. Les deux cadences coïncident tant qu'un héros joue
      * une fois par round ; les mêler ferait fondre le poison deux fois trop vite.
+     *
+     * ⚠ SOURCE DÉDIÉE par condition (Étreinte du Yéti, 2026-09-06) : poison et
+     * étreinte saignent tous deux ICI, mais ne doivent jamais se mélanger dans
+     * `degats_subis` — la Plume anti-poison rendrait à l'un des PV perdus à
+     * l'autre. `degats_pv_body_par_tour_source` porte cette distinction ;
+     * l'absence de la clé retombe sur `SOURCE_POISON`, le seul saignement du
+     * catalogue avant l'étreinte.
      */
     private function saignerParConditions(EtatPersonnageQuete $etat): void
     {
@@ -2048,13 +2169,40 @@ final class ResolveurTour
                 continue;
             }
 
+            $source = (string) data_get(
+                $condition->effet, 'degats_pv_body_par_tour_source', MoteurDegats::SOURCE_POISON,
+            );
+
+            // Étreinte du Yéti : « …jusqu'à la mort du héros ou celle du Yéti ».
+            // Si l'agrippeur est déjà mort (tué pendant que la victime attendait
+            // son propre tour), la prise n'a plus de sens — on libère au lieu de
+            // saigner un tour de plus. `libererEtreintesOrphelines()` couvre le
+            // cas symétrique où c'est un AUTRE héros qui l'achève.
+            if ($source === MoteurDegats::SOURCE_ETREINTE) {
+                $instanceId = (int) str_replace('etreinte:', '', (string) $condition->pivot->source);
+                $vivant = $instanceId > 0 && InstanceMonstre::where('id', $instanceId)
+                    ->where('quete_id', $etat->quete_id)->where('etat', 'actif')->exists();
+
+                if (! $vivant) {
+                    $personnage->conditions()->detach($condition->id);
+
+                    continue;
+                }
+            }
+
             $this->degats->infligerAHeros(
-                $personnage, $parTour, MoteurDegats::SOURCE_POISON,
+                $personnage, $parTour, $source,
                 ['condition' => $condition->nom],
             );
 
             if ((int) $personnage->fresh()->pv_body === 0) {
                 $etat->update(['tombe' => true]); // C4 : à terre, relevable
+
+                // « …jusqu'à la mort du héros » : la chute éteint la prise
+                // elle-même, le Yéti redevient libre d'attaquer une autre cible.
+                if ($source === MoteurDegats::SOURCE_ETREINTE) {
+                    $personnage->conditions()->detach($condition->id);
+                }
             }
         }
     }
@@ -2276,6 +2424,277 @@ final class ResolveurTour
         }
 
         return $chemin;
+    }
+
+    /**
+     * TERRAIN de cette carte (`carte.grille['terrain']`), enrichi du `nom` et
+     * de l'`effet` de catalogue — même jointure que `FabriqueGrille::pour()`,
+     * mais celle-ci lit les RÈGLES (`effet`) là où `FabriqueGrille` ne lit que
+     * les deux drapeaux de blocage et le coût. Boucle SÉPARÉE, volontairement :
+     * relire `FabriqueGrille` depuis ici l'obligerait à publier `effet`, une
+     * donnée dont ni le déplacement ni la ligne de vue n'ont besoin.
+     *
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, effet: array<string, mixed>, paire_id: ?string}>
+     */
+    private function terrainDeLaCarte(Quete $quete): array
+    {
+        $entrees = (array) data_get($quete->carte?->grille, 'terrain', []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Terrain::query()
+            ->whereIn('id', array_values(array_unique(array_column($entrees, 'terrain_id'))))
+            ->get(['id', 'nom', 'effet'])
+            ->keyBy('id');
+
+        $resultat = [];
+
+        foreach ($entrees as $entree) {
+            $type = $catalogue->get($entree['terrain_id'] ?? null);
+
+            if ($type === null) {
+                continue;
+            }
+
+            $resultat[] = [
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+                'terrain_id' => (int) $type->id,
+                'nom' => (string) $type->nom,
+                'effet' => (array) $type->effet,
+                'paire_id' => $entree['paire_id'] ?? null,
+            ];
+        }
+
+        return $resultat;
+    }
+
+    /** Entrée de terrain posée exactement sur (x, y), ou `null`. */
+    private function terrainSur(Quete $quete, int $x, int $y): ?array
+    {
+        foreach ($this->terrainDeLaCarte($quete) as $entree) {
+            if ($entree['x'] === $x && $entree['y'] === $y) {
+                return $entree;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * GLACE GLISSANTE / GLISSIÈRE DE GLACE (doc 18 §4) — même famille que
+     * `tronquerSurChausseTrappes()` juste au-dessus : contact avec la tuile,
+     * jet immédiat, chemin tronqué à cette case si l'effet déclenche.
+     *
+     * ⚠ POLARITÉ INVERSE de la chausse-trappe : là où bouclier blanc = SAUF
+     * (« may continue »), ici bouclier blanc = DANGER (« bouclier blanc =
+     * chute et fin de tour », doc 18 §4). Toute autre face = passage normal,
+     * sans effet — le vocabulaire ne déclare QUE `sur.bouclier_blanc`.
+     *
+     * Glissière de glace porte `fin_tour` au SOMMET d'`effet`, INCONDITIONNEL
+     * (hors de `sur`) : « une glissière fait toujours sortir du tour, la carte
+     * ne roule le dé que pour la BLESSURE » — le tour finit qu'on touche
+     * bouclier blanc ou non, seul `degats_pv_body` dépend du jet.
+     *
+     * ⚠ La Chambre forte de glace (`recurrent`) est explicitement ÉCARTÉE ici
+     * — son jet n'est pas un jet d'ENTRÉE, c'est `saignerParTerrain()`, en fin
+     * de tour, qui la lit.
+     *
+     * Renseigne `$this->evenementGlace` (réinitialisé dans `resoudre()`)
+     * plutôt que de retourner autre chose qu'un chemin : `resoudreDeplacement()`
+     * lit ce canal pour infliger les dégâts, publier l'annonce et forcer le
+     * créneau `tour` — même patron que `$mouvementsAnime` pour l'animation.
+     *
+     * ⚠ Comme pour les racines et les chausse-trappes, l'appelant doit
+     * REÉCRIRE `$x`/`$y` sur la dernière case rendue (le piège le plus cher de
+     * ce chantier) : sinon le héros arrive à bon port en ayant l'air stoppé.
+     *
+     * ⚠ PAS de garde « index 0 = case de départ » ici, contrairement à
+     * `tronquerSurChausseTrappes()` : celle-ci ne peut se le permettre QUE
+     * parce que le déplacement des MONSTRES lui repique leur position en tête
+     * de `$chemin` avant l'appel (voir ce site). Le déplacement des HÉROS,
+     * lui, passe `$chemin` tel que rendu par `Grille::chemin()` — qui EXCLUT
+     * déjà la case de départ (elle boucle « tant que la clé n'est pas le
+     * départ », sans jamais l'ajouter). `$chemin[0]` y est donc déjà la
+     * PREMIÈRE case réellement entrée, jamais le départ : un héros qui glisse
+     * dès son premier pas doit être arrêté dès ce premier pas — « posée au
+     * CONTACT », dit la carte (doc 18 §4).
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return list<array{x: int, y: int}>
+     */
+    private function tronquerSurGlace(Quete $quete, array $chemin, ?Personnage $personnage = null): array
+    {
+        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
+            return $chemin;
+        }
+
+        if ($chemin === []) {
+            return $chemin;
+        }
+
+        foreach ($chemin as $index => $case) {
+            $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
+
+            if ($entree === null || ($entree['effet']['recurrent'] ?? null) !== null) {
+                continue; // Chambre forte de glace : hors périmètre, saignerParTerrain() s'en charge
+            }
+
+            $effet = $entree['effet'];
+            $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
+            $finTourInconditionnel = (bool) ($effet['fin_tour'] ?? false);
+
+            if ($nbDes < 1 && ! $finTourInconditionnel) {
+                continue;
+            }
+
+            $issue = [];
+            for ($i = 0; $i < $nbDes; $i++) {
+                $nomFace = match ($this->des->deCombat()) {
+                    FaceDeCombat::BouclierBlanc => 'bouclier_blanc',
+                    FaceDeCombat::BouclierNoir => 'bouclier_noir',
+                    default => 'crane',
+                };
+                $issue = [...$issue, ...(array) ($effet['sur'][$nomFace] ?? [])];
+            }
+
+            // Sans fin de tour inconditionnelle (Glissière), seule une issue qui
+            // NOMME `chute` ou `fin_tour` déclenche quoi que ce soit — un jet
+            // « raté » sans ces clés est un passage normal (ex. futur
+            // `degats_pv_body` seul, comme la Rivière gelée, hors périmètre).
+            if (! $finTourInconditionnel
+                && ! array_key_exists('chute', $issue) && ! array_key_exists('fin_tour', $issue)) {
+                continue;
+            }
+
+            $this->evenementGlace = [
+                'terrain' => $entree['nom'],
+                'x' => (int) $case['x'],
+                'y' => (int) $case['y'],
+                'chute' => (bool) ($issue['chute'] ?? false),
+                'fin_tour' => $finTourInconditionnel || (bool) ($issue['fin_tour'] ?? false),
+                'degats_pv_body' => (int) ($issue['degats_pv_body'] ?? 0),
+            ];
+
+            return array_slice($chemin, 0, $index + 1);
+        }
+
+        return $chemin;
+    }
+
+    /**
+     * CHAMBRE FORTE DE GLACE (doc 18 §4, `recurrent: par_tour_dans_la_zone`) —
+     * « inflige 1 Body Point par tour passé dedans, sur un skull ». Appelée au
+     * MÊME RYTHME que `saignerParConditions()` juste à côté (fin de tour
+     * explicite, créneau `tour`) : le héros saigne sur la case où il TERMINE
+     * son tour, jamais sur celle où il l'a commencé — traverser la chambre
+     * sans s'y arrêter n'y laisse rien.
+     *
+     * ⚠ Ce n'est PAS un cas de `saignerParConditions()` : cette dernière
+     * n'interroge que `$personnage->conditions()` (poison, étreinte), toutes
+     * PORTÉES par le héros. Ici la source est le TERRAIN lui-même — d'où une
+     * méthode SŒUR plutôt qu'une branche de plus dans celle du poison.
+     *
+     * Passe par `MoteurDegats::infligerAHeros()` avec `self::SOURCE_DEGATS_TERRAIN`,
+     * hors de `ReactionEffet::SOURCES_REACTIVES` — un danger de DÉCOR, pas un
+     * coup reçu, même raison que le poison et l'étreinte du Yéti.
+     */
+    private function saignerParTerrain(EtatPersonnageQuete $etat): void
+    {
+        $personnage = $etat->personnage;
+
+        if ($personnage === null || $etat->tombe || $etat->position_x === null || $etat->quete === null) {
+            return;
+        }
+
+        $entree = $this->terrainSur($etat->quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($entree === null || ($entree['effet']['recurrent'] ?? null) !== 'par_tour_dans_la_zone') {
+            return;
+        }
+
+        $effet = $entree['effet'];
+        $nbDes = (int) ($effet['jet_des_combat'] ?? 0);
+
+        if ($nbDes < 1) {
+            return;
+        }
+
+        $montant = 0;
+        for ($i = 0; $i < $nbDes; $i++) {
+            $nomFace = match ($this->des->deCombat()) {
+                FaceDeCombat::BouclierBlanc => 'bouclier_blanc',
+                FaceDeCombat::BouclierNoir => 'bouclier_noir',
+                default => 'crane',
+            };
+            $montant += (int) ($effet['sur'][$nomFace]['degats_pv_body'] ?? 0);
+        }
+
+        if ($montant < 1) {
+            return;
+        }
+
+        $retenus = $this->degats->infligerAHeros(
+            $personnage, $montant, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $entree['nom']],
+        );
+
+        if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
+            $etat->update(['tombe' => true]); // C4, symétrique de saignerParConditions()/rongerParRejetons()
+        }
+    }
+
+    /**
+     * TUNNEL DE GLACE (Ice Tunnels, doc 18 §4) — paires de téléportation
+     * posées par `AssembleurCarte::placerTerrains()` (`terrain_id` partagé,
+     * `paire_id` commun aux DEUX extrémités). Résolu sur la case d'ARRIVÉE
+     * déjà déterminée par l'appelant — jamais avant le contrôle des pièges,
+     * sans quoi un héros arrêté net avant l'entrée « traverserait » quand même.
+     *
+     * ⚠ TRAVERSER N'EST PAS S'ARRÊTER, mais ici c'est la SORTIE qui doit être
+     * libre : si l'autre extrémité est occupée par une figure, la
+     * téléportation est refusée et le héros reste sur l'entrée — deux
+     * figurines ne partagent jamais une case.
+     *
+     * ⚠ JAMAIS dans une salle NON DÉCOUVERTE — même garde que
+     * `derniereCaseOuSArreter()` pour un traversant (éthéré/agile) : un héros
+     * qui apparaîtrait dans une pièce que le groupe n'a pas ouverte y serait
+     * invisible et injouable.
+     *
+     * @return array{x: int, y: int}|null la nouvelle position si téléporté, `null` si rien n'a bougé
+     */
+    private function teleporterSiTunnel(Quete $quete, Personnage $personnage, int $x, int $y): ?array
+    {
+        $entree = $this->terrainSur($quete, $x, $y);
+
+        if ($entree === null || ($entree['effet']['teleportation'] ?? false) !== true || $entree['paire_id'] === null) {
+            return null;
+        }
+
+        $autre = null;
+        foreach ($this->terrainDeLaCarte($quete) as $candidate) {
+            if ($candidate['paire_id'] === $entree['paire_id']
+                && ($candidate['x'] !== $x || $candidate['y'] !== $y)) {
+                $autre = $candidate;
+
+                break;
+            }
+        }
+
+        if ($autre === null) {
+            return null; // paire incomplète : ne devrait pas arriver, prudence
+        }
+
+        if (! $this->salleDecouverte($quete, $quete->sallesDecouvertes(), $autre['x'], $autre['y'])) {
+            return null;
+        }
+
+        if ($this->grille($quete, exceptPersonnageId: $personnage->id)->estOccupeeParFigure($autre['x'], $autre['y'])) {
+            return null;
+        }
+
+        return ['x' => $autre['x'], 'y' => $autre['y']];
     }
 
     /**
@@ -4008,13 +4427,15 @@ final class ResolveurTour
         // clé distincte de `soin_pv_mind`, qui lui est chiffré (Potion de
         // restauration supérieure).
         //
-        // ⚠ CORRECTE MAIS DORMANTE, et c'est dit : aucun chemin ne réduit
-        // `pv_mind` aujourd'hui. Le parchemin rendra donc 0 tant que rien ne
-        // saura entamer l'esprit — exactement l'état de la branche Mind de
-        // `resoudreRelever()`, et de la moitié Mind de la Restauration
-        // supérieure. Ce n'est pas une règle promise et jamais tenue : c'est le
-        // lecteur d'une règle dont la SOURCE manque, et il sera juste le jour
-        // où elle arrivera.
+        // ⚠ CORRECTE, ET RÉVEILLÉE EN PARTIE (2026-09-06) : le PRODUCTEUR existe
+        // désormais — `MoteurDegats::infligerMindAHeros()` — mais AUCUN chemin
+        // de jeu réel ne l'appelle encore : Gel de l'Esprit (Mind Freeze), son
+        // premier déclencheur, est une phase à part (plan glace, phase 2). Le
+        // parchemin rend donc encore 0 tant que ce chemin n'existe pas — mais
+        // ce n'est plus « une règle dont la source manque » comme au 2026-09-05 :
+        // c'est un lecteur prêt qui attend son premier appelant, exactement
+        // comme la branche Mind de `resoudreRelever()` et la moitié Mind de la
+        // Restauration supérieure.
         if (! empty($effet[self::EFFET_RESTAURE_PV_MIND])) {
             $cible = $this->cibleSort($quete, $option, $parametres);
             /** @var Personnage $heros */
@@ -4312,6 +4733,53 @@ final class ResolveurTour
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
         ];
+    }
+
+    /**
+     * MUR DE GLACE (Ice Wall, sort du boss — plan glace phase 2) : l'ATTAQUE
+     * qui manquait à `MoteurDread::endommagerMurDeGlace()`. Cette dernière
+     * était écrite, publique et testée DIRECTEMENT — mais aucun geste de héros
+     * ne l'atteignait (dette nommée par l'agent qui l'a écrite, exactement la
+     * forme d'`actionner_levier` avant qu'aucun gabarit ne pose de levier).
+     *
+     * « Encaisse un dé de combat par attaque, jusqu'à 5 crânes cumulés » —
+     * UN dé, un CRÂNE compte, comme un coup qui porte. Le mur n'oppose AUCUNE
+     * défense : `endommagerMurDeGlace()` ignore toute autre face.
+     *
+     * ⚠ `MoteurDread::endommagerMurDeGlace()` interdit — appelée, jamais
+     * modifiée. Elle journalise DÉJÀ la rupture (`glace_dissipee`, raison
+     * `brisee`) : ne JAMAIS dupliquer cette annonce ici, la table verrait le
+     * mur se briser deux fois dans le même fil.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreBriserGlace(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        array $option,
+        array $acteur,
+    ): array {
+        $x = (int) ($option['parametres']['x'] ?? -1);
+        $y = (int) ($option['parametres']['y'] ?? -1);
+
+        $face = $this->des->deCombat();
+        $brisee = $this->dread->endommagerMurDeGlace($quete, $x, $y, $face);
+
+        $payload = [
+            'type' => 'briser_glace',
+            'personnage' => $personnage->nom,
+            'x' => $x,
+            'y' => $y,
+            'face' => $face->value,
+            'brisee' => $brisee,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
     }
 
     /**
@@ -6357,9 +6825,19 @@ final class ResolveurTour
      * Expire les buffs `fin_du_combat` (Potion de rage, Peau de Pierre) dès que
      * plus aucun monstre n'est engagé. Idempotent : appelable après chaque
      * action sans risque.
+     *
+     * ⚠ Porte aussi deux nettoyages « The Frozen Horror » (doc 18 §2), pour la
+     * même raison qu'elle porte déjà l'expiration des buffs : c'est le point
+     * de passage appelé après CHAQUE action de héros, quel que soit le chemin
+     * qui a tué un monstre (frappe, sort, eau bénite…) — la libération de
+     * l'étreinte du Yéti et la restitution du butin du Gremlin doivent suivre
+     * la mort sans délai, pas attendre le prochain tour de la victime.
      */
     private function verifierFinDuCombat(Quete $quete): void
     {
+        $this->dread->libererEtreintesOrphelines($quete);
+        $this->dread->restituerButinsRecuperes($quete);
+
         if ($this->combatTermine($quete)) {
             $this->sorts->expirerBuffsQuete($quete, DureeEffet::FIN_DU_COMBAT);
         }
@@ -6660,6 +7138,15 @@ final class ResolveurTour
      *
      * Idempotent : appelable autant de fois qu'on veut, il ne referme pas une
      * quête déjà close.
+     *
+     * ⚠ Compte déjà le MIND (arbitrage de René, 2026-09-06 : un héros à 0 Mind
+     * tombe, comme à 0 Body) SANS ligne à ajouter ici — la condition ne lit que
+     * la colonne `tombe`, jamais `pv_body` directement, et
+     * `MoteurDegats::infligerMindAHeros()` pose désormais `tombe => true` à 0
+     * Mind exactement comme les ~14 sites Body le font. Un groupe entier tombé
+     * d'esprit est donc déjà un TPK par construction ; c'est la même
+     * discipline que `EtatPersonnageQuete::booted()` applique à la narration
+     * de la chute, observée sur la colonne plutôt que câblée par appelant.
      */
     public function verdictDeChute(Groupe $groupe, Quete $quete): string
     {
@@ -6817,6 +7304,30 @@ final class ResolveurTour
             return $payload;
         }
 
+        // Étreinte du Yéti (doc 18 §2) : « le Yéti ne peut alors faire aucune
+        // autre attaque » tant qu'il tient un héros — il resserre, il n'avance
+        // ni ne frappe. Le saignement automatique lui-même est porté par la
+        // condition de la VICTIME (`saignerParConditions()`, à son propre
+        // rythme de tour) ; ce contrôle n'a qu'un rôle, faire taire l'attaque
+        // du Yéti tant que la prise dure. Dérivé de la condition et non d'un
+        // état propre au monstre — voir `MoteurDread::victimeDeLetreinte()`.
+        $etreint = $this->dread->victimeDeLetreinte($instance);
+
+        if ($etreint !== null) {
+            $victime = $cibles->firstWhere('personnage_id', $etreint)
+                ?? $quete->etatsPersonnages()->where('personnage_id', $etreint)->first();
+
+            $payload = [
+                'type' => 'etreinte_maintenue',
+                'monstre' => $nomMonstre,
+                'cible' => ['personnage_id' => $etreint, 'nom' => $victime?->personnage?->nom],
+                'action' => 'etreinte',
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         // Boss / sous-boss : sorts de Dread + capacités spéciales (Régénération,
         // Charge). Si une action Dread a été jouée, on retourne son payload.
         $tier = $instance->monstre->tier ?? 'base';
@@ -6875,6 +7386,17 @@ final class ResolveurTour
 
         if ($accroche !== null) {
             return $accroche;
+        }
+
+        // Le Gremlin des glaces vole plutôt que de frapper (doc 18 §2) — même
+        // famille de retour anticipé : « attacks OR steals ». Tant qu'il porte
+        // un butin, cette même activation ne fait que contrôler la ligne de
+        // vue (voir `MoteurDread::voler()`) avant de laisser le tour se jouer
+        // normalement.
+        $vol = $this->dread->voler($groupe, $quete, $instance, $cibles, $acteur);
+
+        if ($vol !== null) {
+            return $vol;
         }
 
         // Héros le plus proche : plus court chemin vers une case adjacente
@@ -7167,6 +7689,19 @@ final class ResolveurTour
             $cible->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
 
+        // Étreinte du Yéti (doc 18 §2) : « dès qu'il inflige au moins 1 Body
+        // Point, agrippe le héros ». Ce coup qui ÉTABLIT la prise reste un jet
+        // d'attaque/défense NORMAL comme celui-ci — seuls les tours suivants
+        // deviennent automatiques (`saignerParConditions()`) et n'attaquent
+        // plus (`jouerMonstre()`, via `MoteurDread::victimeDeLetreinte()`).
+        // ⚠ Jamais sur une cible déjà tombée : un héros à terre n'a plus de
+        // tour à perdre, la prise n'aurait rien à priver.
+        $etreinteEtablie = $subis > 0 && ! $cible->tombe && $this->dread->aCapacite($instance, 'etreinte');
+
+        if ($etreinteEtablie) {
+            $this->dread->etablirEtreinte($instance, $personnage);
+        }
+
         // Tacticien : « peut bouger AVANT *et* APRÈS son action ». Le second
         // mouvement est une PERMISSION, pas une obligation — c'est donc à nous
         // de décider ce qu'il en fait. Choix retenu : le décrochage. Il se
@@ -7194,6 +7729,9 @@ final class ResolveurTour
             'degats' => $subis,
             'pv_body_apres' => (int) $personnage->pv_body,
             'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
+            // Étreinte du Yéti : annoncée sur CE coup, puisque c'est lui qui la
+            // déclenche — un effet automatique que rien n'annonce est injouable.
+            'etreinte_etablie' => $etreinteEtablie,
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -7580,6 +8118,10 @@ final class ResolveurTour
             // défense — c'est le seul dégât du jeu qui ne passe par aucun dé.
             $this->rongerParRejetons($etat);
             $this->saignerParConditions($etat);
+
+            // Chambre forte de glace (doc 18 §4) : même rythme, source
+            // DISTINCTE — voir `saignerParTerrain()`.
+            $this->saignerParTerrain($etat);
         } elseif ($creneau === 'action') {
             if ($bonusReserveArcanique) {
                 // Réserve arcanique (nœud magicien) : ce sort consomme le

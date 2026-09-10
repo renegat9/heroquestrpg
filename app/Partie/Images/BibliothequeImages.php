@@ -146,6 +146,14 @@ final class BibliothequeImages
             : null;
     }
 
+    /** Terrain (doc 18 §4, phase 4a) — même patron que `urlMobilier()`/`urlEpreuve()`. */
+    public function urlTerrain(?int $id, ?string $nom): ?string
+    {
+        return $id
+            ? $this->url($this->relatifCatalogue('terrains', $id, (string) $nom)) ?? $this->vignette('terrain', $id)
+            : null;
+    }
+
     public function urlSort(?int $id, ?string $nom): ?string
     {
         return $id

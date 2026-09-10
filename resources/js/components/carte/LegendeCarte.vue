@@ -26,7 +26,8 @@ import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
-    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, icone,
+    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
+    TERRAIN_TEINTE_DEFAUT, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -69,6 +70,20 @@ const meubles = computed(() => parNom(props.carte?.mobilier).map((m) => ({
 })));
 
 const leviers = computed(() => (props.carte?.leviers ?? []).length);
+
+// Terrain (doc 18 §4) : trois catégories seulement (voir TERRAIN_TEINTES,
+// symboles.js) — un DANGER exige un jet de dé de combat au contact ou par
+// tour passé dedans, un PASSAGE téléporte, un DECOR n'a aucun effet à ce jour.
+const TERRAIN_DETAILS = {
+    danger: 'jet de dé de combat — risque de chute, de blocage ou de dégâts',
+    passage: 'téléporte vers son autre extrémité',
+    decor: 'sans effet à ce jour',
+};
+const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
+    nom: t.nom,
+    categorie: icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT),
+    img: t.image_url ?? null,
+})));
 
 // États de piège réellement présents : « désamorcé » n'a rien à faire dans la
 // légende d'une carte où aucun piège ne l'est.
@@ -147,6 +162,15 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
                 <div class="lg-ligne">
                     <span class="lg-chip lg-levier"><MSym :n="LEVIER_ICONE" fill /></span>
                     <span>Ouvre une porte verrouillée — jet de Body, retentable sans limite</span>
+                </div>
+            </section>
+
+            <section v-if="terrains.length" class="lg-sect">
+                <div class="lg-sous">Terrain</div>
+                <div v-for="t in terrains" :key="t.nom" class="lg-ligne">
+                    <span class="lg-chip lg-terrain" :class="`cat-${t.categorie}`" />
+                    <Vignette class="lg-img" :src="t.img" icon="ac_unit" fill />
+                    <span>{{ t.nom }} <em>— {{ TERRAIN_DETAILS[t.categorie] }}</em></span>
                 </div>
             </section>
 
@@ -234,4 +258,16 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
 .lg-meuble { border-radius: 3px; color: oklch(0.85 0.05 70);
   background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55); }
+
+/* Terrain : la même teinte de CASE que DungeonGrid.vue (.dg-cell.terrain-*),
+   réduite à une pastille — le terrain n'a pas de silhouette propre puisqu'il
+   n'en porte aucune sur la carte (voir symboles.js). */
+.lg-terrain { border-radius: 3px; }
+.lg-terrain.cat-danger {
+  background:
+    repeating-linear-gradient(135deg, oklch(0.78 0.15 220 / 0.32) 0 3px, transparent 3px 6px),
+    oklch(0.30 0.05 220);
+  box-shadow: inset 0 0 0 1px oklch(0.78 0.15 220 / 0.5); }
+.lg-terrain.cat-passage { background: oklch(0.32 0.09 290); box-shadow: inset 0 0 0 1px oklch(0.72 0.13 290 / 0.55); }
+.lg-terrain.cat-decor { background: oklch(0.27 0.03 220); box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.4); }
 </style>

@@ -78,6 +78,15 @@ class PlaceholderController extends Controller
         'porte' => 'M318 620 V392 a132 132 0 0 1 264 0 V620 Z M522 506 m-16 0 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0',
         'epreuve' => 'M330 288 h240 v264 h-240 Z M378 348 h144 M378 408 h144 M378 468 h96 '
             .'M450 600 v72 M408 672 h84',
+        // TERRAIN (2026-09-06, phase 6a) : un flocon/cristal de glace générique
+        // — trois axes et leurs courtes ramifications — pour la FAMILLE, pas
+        // pour UN terrain précis. Même leçon que le mobilier : dessiner une
+        // rivière gelée ou un tunnel aurait nommé une seule case là où
+        // l'emblème doit représenter les sept.
+        'terrain' => 'M280 450 L620 450 M365 303 L535 597 M535 303 L365 597 '
+            .'M555 425 L555 475 M345 425 L345 475 '
+            .'M481 553 L524 528 M376 372 L419 347 '
+            .'M376 528 L419 553 M481 347 L524 372',
     ];
 
     /**

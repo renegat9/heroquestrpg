@@ -8,6 +8,7 @@ use App\Models\Epreuve;
 use App\Models\GabaritQuete;
 use App\Models\Mobilier;
 use App\Models\Piege;
+use App\Models\Terrain;
 use App\Models\Tuile;
 use App\Partie\Aleatoire\PrngLineaire;
 use Illuminate\Support\Collection;
@@ -86,6 +87,8 @@ final class AssembleurCarte
      *   leviers: list<array{x: int, y: int, levier_id: string}>,
      *   pieges: list<array{x: int, y: int, piege_id: int|null, etat: string}>,
      *   mobilier: list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>,
+     *   epreuves: list<array{x: int, y: int, epreuve_id: int, salle: int, tentee_par: list<int>}>,
+     *   terrain: list<array{x: int, y: int, terrain_id: int, paire_id?: string}>,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>,
      *   aretes: list<array{a: int, b: int, porte_a: array{x: int, y: int}, porte_b: array{x: int, y: int}}>
@@ -97,13 +100,28 @@ final class AssembleurCarte
     /** Ce que chaque carte SANS passage ajoute à la chance de la suivante. */
     public const PALIER_PASSAGE_SECRET = 10;
 
+    /** Nom du terrain « Tunnel de glace » — identifie l'entrée de catalogue à poser par paires. */
+    private const NOM_TERRAIN_TUNNEL = 'Tunnel de glace';
+
     /**
      * @param  int  $chancePassageSecret  probabilité (en %) qu'une salle soit
      *                                    cachée derrière une porte secrète —
      *                                    le compteur de pitié du groupe, qui
      *                                    monte tant qu'aucune n'est tombée
+     * @param  ?string  $themeBestiaire  boîte d'extension FIGÉE du groupe
+     *                                   (`groupes.theme_bestiaire`, phase 6a),
+     *                                   PAS recalculée ici — filtre la couche
+     *                                   TERRAIN (doc 18 §4) exactement comme
+     *                                   `DemarreurQuete::acheterMonstres()`
+     *                                   filtre déjà les monstres : un terrain
+     *                                   dont `boite` ne vaut ni `null` ni ce
+     *                                   thème n'est jamais posé. `null` ici
+     *                                   (thème inconnu de l'appelant, ex. les
+     *                                   tests) ne pose QUE les terrains
+     *                                   `boite = null` — fail open, jamais
+     *                                   une erreur.
      */
-    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET): array
+    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET, ?string $themeBestiaire = null): array
     {
         $structure = $gabarit->structure ?? [];
         $suivant = $this->creerPRNG($graine);
@@ -229,8 +247,12 @@ final class AssembleurCarte
         }
 
         $portes = $this->devoilerSecretesEnConflit($portes);
-        $leviers = $this->placerLeviers($structure);
-        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $suivant);
+        // ⚠ AVANT les pièges : placerLeviers() peut verrouiller une porte et
+        // pose son levier sur une case de sol — les pièges ne doivent jamais
+        // atterrir dessus (même raison que les seuils), et placerPieges() en
+        // reçoit donc la liste ci-dessous.
+        $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $suivant);
+        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $leviers, $suivant);
         $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
@@ -238,6 +260,12 @@ final class AssembleurCarte
         // fêlé ne se pose que là), et ne doit pas atterrir sous un meuble, où
         // elle serait invisible et hors d'atteinte.
         $epreuves = $this->placerEpreuves($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $suivant);
+
+        // TERRAIN (doc 18 §4, phase 4a) : cinquième couche, posée APRÈS les
+        // épreuves pour la même raison qu'elles sont posées après le mobilier
+        // — ne jamais atterrir sous une couche déjà posée, où elle serait soit
+        // invisible, soit contradictoire (quel effet gagne ?).
+        $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $themeBestiaire);
 
         return [
             'largeur' => $largeur,
@@ -254,10 +282,15 @@ final class AssembleurCarte
             // puisqu'une liaison supplémentaire est `secrete` elle aussi sans
             // rien cacher (elle n'ouvre qu'un raccourci).
             'passage_secret' => $passageSecret,
-            // Leviers d'ouverture (doc 14 §3.3) : éléments {x, y, levier_id} posés
-            // au contact desquels l'action « Actionner le levier » ouvre la porte
-            // liée (verrou.levier_id). Vide par défaut ; le gabarit/contenu les
-            // déclare via structure.leviers (positions explicites).
+            // Leviers d'ouverture (doc 14 §3.3, procédural depuis 2026-09-06) :
+            // éléments {x, y, levier_id} posés au contact desquels l'action
+            // « Actionner le levier » ouvre la porte liée (verrou.levier_id).
+            // Sixième couche, même patron que pièges/mobilier/épreuves/terrain —
+            // le gabarit dit COMBIEN (structure.leviers.min/max), l'assembleur
+            // CHOISIT la porte à verrouiller et la case du levier. Voir
+            // placerLeviers() : c'était jusqu'ici la seule couche qui exigeait
+            // des coordonnées qu'aucun gabarit ne pouvait connaître à l'avance,
+            // si bien qu'aucun levier n'avait jamais été posé en partie réelle.
             'leviers' => $leviers,
             'pieges' => $pieges,
             // Mobilier (doc 17) : troisième couche superposée à la grille, même
@@ -274,6 +307,16 @@ final class AssembleurCarte
             // producteur depuis la suppression de `MenuChoix` (2026-08-18) et
             // laissaient six talents de la grille sans le moindre déclencheur.
             'epreuves' => $epreuves,
+            // TERRAIN (doc 18 §4, The Frozen Horror) : cinquième couche, même
+            // patron que les quatre précédentes — AUCUNE case 'm'/'s' ne
+            // change, seul FabriqueGrille lit cette liste pour occuper
+            // (bloque_mouvement) / occulter (bloque_vue) / coûter
+            // (cout_deplacement, PAS encore consommé par la BFS — voir
+            // Grille::definirCoutsDeplacement()). Une entrée ne porte PAS son
+            // index de salle (`{x, y, terrain_id}`, comme les leviers) : une
+            // case de glace en COULOIR n'a pas d'index à porter, le brouillard
+            // dérive la visibilité des coordonnées, pas d'un index.
+            'terrain' => $terrain,
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
         ];
@@ -945,26 +988,215 @@ final class AssembleurCarte
     }
 
     /**
-     * Leviers déclarés par le gabarit (positions explicites) — doc 14 §3.3.
+     * Leviers PROCÉDURAUX (2026-09-06) — sixième couche, même patron que
+     * `placerPieges()`/`placerMobilier()`/`placerEpreuves()`/`placerTerrains()` :
+     * le gabarit dit COMBIEN (`structure.leviers.min/max`), l'assembleur
+     * CHOISIT la porte à verrouiller et la case du levier.
+     *
+     * `placerLeviers(array $structure)` exigeait jusqu'ici des positions
+     * explicites (`structure.leviers[] = {x, y, levier_id}`) — des
+     * coordonnées que la carte, générée à l'EXÉCUTION, ne peut pas connaître
+     * à l'avance. Aucun gabarit n'en a donc jamais déclaré, si bien que
+     * `actionner_levier` — pourtant câblé de bout en bout côté
+     * `MoteurPortes`/`MenuMoteur`/`ResolveurTour` — n'était jamais atteint en
+     * partie réelle.
+     *
+     * ⚠ **Les leviers ne sont PAS thématiques** (René, 2026-09-06 :
+     * « les leviers devraient être disponibles pour toute quête, alors que
+     * les éléments de froid ne devraient être présents que si la thématique
+     * est liée »). Contrairement à `placerTerrains()`, aucun filtre `boite`,
+     * aucun paramètre `$theme` : un levier a sa place dans n'importe quel
+     * donjon, glace ou non.
+     *
+     * Cycle complet : parmi les portes de l'ARBRE COUVRANT (jamais une
+     * liaison SUPPLÉMENTAIRE — verrouiller une boucle ne gênerait personne,
+     * la salle restant joignable par l'autre route, exactement le défaut
+     * d'une couche jamais alimentée un cran plus haut) qui sont closes et
+     * ORDINAIRES (jamais déjà secrètes — un passage caché et un verrou sont
+     * deux mécaniques distinctes, les mélanger serait incompréhensible pour
+     * le joueur), on en choisit une, on la fait passer à `verrouillee` avec
+     * `verrou: {type: levier, levier_id}`, puis on pose le levier
+     * CORRESPONDANT sur une case de sol déjà atteignable sans cette porte.
+     *
+     * La porte côté PARENT de chaque arête (`$portes[2*i]`, cf. la boucle de
+     * construction des portes dans `assembler()` — deux portes poussées par
+     * arête, dans l'ordre `[porte_parent, porte_enfant]`) est celle qui porte
+     * historiquement la restriction (`construirePorte()` : « c'est la porte
+     * côté salle PARENT […] qui porte la restriction ») : verrouiller cette
+     * porte scelle tout le sous-arbre au-delà, exactement ce qu'un verrou de
+     * jeu doit faire.
+     *
+     * ⚠ INVARIANT DUR (le seul vrai piège de la fonctionnalité, René) : le
+     * levier ne doit JAMAIS se trouver derrière la porte qu'il verrouille —
+     * sinon il faut le levier pour aller au levier. Vérifié par un PARCOURS
+     * RÉEL (`Grille::casesAtteignables()`, sur une grille de test où TOUTES
+     * les portes sont ouvertes SAUF celle qu'on verrouille) depuis la salle
+     * de départ, exactement comme `terrainCasseraitConnexite()` vérifie déjà
+     * la joignabilité pour le terrain — jamais déduit de la structure de
+     * l'arbre, qui ne dit rien des liaisons supplémentaires ni des salles
+     * mitoyennes. Aucune case atteignable ? On RENONCE au verrou plutôt que
+     * de le forcer : la porte reste simplement fermée, ouvrable à la main
+     * (`MoteurPortes::ouvrableAMain()` gère déjà ce cas par défaut).
+     *
+     * ⚠ Les verrous déjà ACCEPTÉS plus tôt dans cette même carte sont eux
+     * aussi traités comme bloquants pendant la vérification suivante : sans
+     * ça, deux leviers pourraient se verrouiller l'un l'autre en chaîne (le
+     * levier A cadenassé derrière la porte B, le levier B derrière la porte
+     * A) — une impasse qu'une vérification porte par porte, isolée, ne
+     * verrait jamais, chacune prise seule semblant franchissable.
+     *
+     * ⚠ En revanche — c'est déjà arbitré et volontaire — une salle PEUT
+     * dépendre d'un SEUL levier, sans seconde route : forcer un levier
+     * demande un jet de Body (`ResolveurTour::resoudreActionnerLevier()`) et
+     * il est réessayable SANS LIMITE, ce qui est exactement ce qui permet à
+     * une salle de tenir à ce seul levier sans jamais se refermer.
+     *
+     * Format de sortie INCHANGÉ : `{x, y, levier_id}`, SANS index de salle —
+     * un levier de couloir n'a pas de salle à porter, et `EtatGroupe` dérive
+     * déjà la visibilité des coordonnées, pas d'un index (même format que
+     * `terrain`). `levier_id` est une simple chaîne unique qui apparie le
+     * levier à sa porte ; il n'y a pas de table catalogue pour les leviers,
+     * et il n'en faut pas.
      *
      * @param  array<string, mixed>  $structure
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array<string, mixed>>  $portes  MUTÉ EN PLACE : la porte choisie passe à `verrouillee`
+     * @param  int  $nombreSalles  nombre de salles de la carte — l'arbre couvrant
+     *                             compte exactement `$nombreSalles - 1` arêtes,
+     *                             les premières de `$portes` (indices `[0, 2×(n-1)[`,
+     *                             pas par pas de 2 — porte_parent puis porte_enfant)
      * @return list<array{x: int, y: int, levier_id: string}>
      */
-    private function placerLeviers(array $structure): array
-    {
-        $leviers = [];
+    private function placerLeviers(
+        array $structure,
+        array $cases,
+        array $salles,
+        array &$portes,
+        int $nombreSalles,
+        \Closure $suivant,
+    ): array {
+        $min = (int) data_get($structure, 'leviers.min', 0);
+        $max = max($min, (int) data_get($structure, 'leviers.max', $min));
 
-        foreach ((array) data_get($structure, 'leviers', []) as $levier) {
-            if (isset($levier['x'], $levier['y'], $levier['levier_id'])) {
-                $leviers[] = [
-                    'x' => (int) $levier['x'],
-                    'y' => (int) $levier['y'],
-                    'levier_id' => (string) $levier['levier_id'],
-                ];
+        if ($max <= 0 || ! isset($salles[0])) {
+            return [];
+        }
+
+        $depart = $this->interieur($cases, $salles[0])[0] ?? null;
+        if ($depart === null) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+        $voulus = $prng->entre($min, $max);
+
+        if ($voulus <= 0) {
+            return [];
+        }
+
+        // Indices des portes côté PARENT de chaque arête de L'ARBRE COUVRANT
+        // (les `$nombreSalles - 1` premières arêtes construites par
+        // `assembler()`, AVANT les liaisons supplémentaires) : deux portes
+        // par arête dans l'ordre [porte_parent, porte_enfant], d'où le pas
+        // de 2 à partir de l'indice 0.
+        $indicesArbre = $nombreSalles >= 2 ? range(0, $nombreSalles - 2) : [];
+        $candidatesIndex = [];
+        foreach ($indicesArbre as $indexArete) {
+            $idxPorte = 2 * $indexArete;
+            if (isset($portes[$idxPorte]) && ($portes[$idxPorte]['etat'] ?? null) === MoteurPortes::ETAT_FERMEE) {
+                $candidatesIndex[] = $idxPorte;
             }
         }
 
+        if ($candidatesIndex === []) {
+            return [];
+        }
+
+        $candidatesIndex = $prng->melanger($candidatesIndex);
+
+        // Seuils de TOUTE porte de la carte (verrouillée ou non) : jamais une
+        // case de levier dessus — même raison que le mobilier, à la fois
+        // invisible (même calque de rendu) et indéclenchable.
+        $seuils = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $seuils["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+
+        // Plafond de pas large mais SÛR pour couvrir toute la carte, quelle
+        // que soit la sinuosité du chemin réel (un plus court chemin ne
+        // revisite jamais une case, donc ne dépasse jamais le nombre total
+        // de cases de la grille).
+        $porteeMax = count($cases) * count($cases[0] ?? []);
+
+        $leviers = [];
+        $prises = [];             // cases déjà données à un AUTRE levier de cette carte
+        $aretesVerrouillees = []; // arêtes déjà verrouillées CE tour-ci (chaîne interdite)
+
+        foreach ($candidatesIndex as $idxPorte) {
+            if (count($leviers) >= $voulus) {
+                break;
+            }
+
+            $cleArete = $this->cleAreteDePorte($portes[$idxPorte]);
+
+            // Grille de TEST : toutes les portes OUVERTES (franchissables),
+            // SAUF celle qu'on est en train de verrouiller et celles déjà
+            // verrouillées plus tôt sur cette carte — la question posée n'est
+            // pas « ce chemin est-il ouvert maintenant ? » mais « existe-t-il,
+            // sans passer par LA porte qu'on verrouille (ni par un verrou déjà
+            // accepté) ? ».
+            $grilleTest = new Grille($cases);
+            $grilleTest->definirPortes(array_map(function (array $p) use ($cleArete, $aretesVerrouillees) {
+                $bloquee = $this->cleAreteDePorte($p) === $cleArete
+                    || isset($aretesVerrouillees[$this->cleAreteDePorte($p)]);
+                $p['etat'] = $bloquee ? MoteurPortes::ETAT_FERMEE : MoteurPortes::ETAT_OUVERTE;
+
+                return $p;
+            }, $portes));
+
+            $atteignables = $grilleTest->casesAtteignables($depart['x'], $depart['y'], $porteeMax);
+
+            $candidatsCase = [];
+            foreach (array_keys($atteignables) as $cle) {
+                if (isset($seuils[$cle]) || isset($prises[$cle])) {
+                    continue;
+                }
+                [$cx, $cy] = array_map('intval', explode(',', $cle));
+                if ($cx >= $salles[0]['x'] && $cx < $salles[0]['x'] + $salles[0]['largeur']
+                    && $cy >= $salles[0]['y'] && $cy < $salles[0]['y'] + $salles[0]['hauteur']) {
+                    continue; // jamais en salle de départ : subi au tour 1, pas joué
+                }
+                $candidatsCase[] = ['x' => $cx, 'y' => $cy];
+            }
+
+            if ($candidatsCase === []) {
+                continue; // RENONCE à ce verrou : la porte reste fermée, ouvrable à la main
+            }
+
+            $position = $prng->melanger($candidatsCase)[0];
+            $levierId = 'levier-'.(count($leviers) + 1);
+
+            $portes[$idxPorte]['etat'] = MoteurPortes::ETAT_VERROUILLEE;
+            $portes[$idxPorte]['verrou'] = ['type' => 'levier', 'levier_id' => $levierId];
+
+            $aretesVerrouillees[$cleArete] = true;
+            $prises["{$position['x']},{$position['y']}"] = true;
+
+            $leviers[] = ['x' => $position['x'], 'y' => $position['y'], 'levier_id' => $levierId];
+        }
+
         return $leviers;
+    }
+
+    /** Clé d'arête (`Grille::cleArete()`) de la porte — l'arête qu'elle verrouille. */
+    private function cleAreteDePorte(array $porte): string
+    {
+        [$a, $b] = Grille::casesPorte($porte);
+
+        return Grille::cleArete($a['x'], $a['y'], $b['x'], $b['y']);
     }
 
     /**
@@ -986,10 +1218,16 @@ final class AssembleurCarte
      * qu'un `Personnage`, un monstre ne peut pas y être passé. Une créature
      * postée sur un piège est donc une embuscade, pas un bug.
      *
+     * ⚠ `$leviers` (posés juste avant, voir `assembler()`) est exclu des
+     * candidats — un piège dessous serait à la fois invisible (même calque de
+     * rendu) et à jamais indéclenchable pour le levier, même raison que les
+     * exclusions déjà faites pour le mobilier/les épreuves/le terrain.
+     *
      * @param  array<string, mixed>  $structure
      * @param  list<array{x: int, y: int}>  $milieuxCouloirs
      * @param  list<list<string>>  $cases
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
      * @return list<array{x: int, y: int, piege_id: int|null, etat: string}>
      */
     private function placerPieges(
@@ -997,6 +1235,7 @@ final class AssembleurCarte
         array $milieuxCouloirs,
         array $cases,
         array $salles,
+        array $leviers,
         \Closure $suivant,
     ): array {
         // Cases de salle éligibles : tout l'intérieur SAUF la salle de départ.
@@ -1020,13 +1259,22 @@ final class AssembleurCarte
         // Garde-fou finaL : jamais dans la salle de départ, quelle que soit
         // l'origine du candidat. Un milieu de couloir peut y tomber quand une
         // salle mitoyenne a été rapprochée et a absorbé le couloir voisin.
+        // Ni sur la case d'un levier déjà posé.
         $depart = $salles[0] ?? null;
-        if ($depart !== null) {
-            $candidats = array_values(array_filter($candidats, fn (array $c) => ! (
+        $casesLeviers = [];
+        foreach ($leviers as $levier) {
+            $casesLeviers["{$levier['x']},{$levier['y']}"] = true;
+        }
+        $candidats = array_values(array_filter($candidats, function (array $c) use ($depart, $casesLeviers) {
+            if (isset($casesLeviers["{$c['x']},{$c['y']}"])) {
+                return false;
+            }
+
+            return $depart === null || ! (
                 $c['x'] >= $depart['x'] && $c['x'] < $depart['x'] + $depart['largeur']
                 && $c['y'] >= $depart['y'] && $c['y'] < $depart['y'] + $depart['hauteur']
-            )));
-        }
+            );
+        }));
 
         $min = (int) data_get($structure, 'pieges.min', 0);
         $max = max($min, (int) data_get($structure, 'pieges.max', $min));
@@ -1518,6 +1766,305 @@ final class AssembleurCarte
         }
 
         return count($vus) === count($libres);
+    }
+
+    /**
+     * TERRAIN (doc 18 §4, The Frozen Horror, phase 4a) — cinquième couche, même
+     * patron que `placerMobilier()`/`placerEpreuves()` : AUCUNE case 'm'/'s' ne
+     * change, seul `FabriqueGrille` lit cette liste. Une case de terrain
+     * répond à « que COÛTE cette case, et que se passe-t-il quand on la
+     * traverse ou qu'on y reste ? » — la question qu'aucune des quatre couches
+     * précédentes ne pose.
+     *
+     * ⚠ Jamais dans la salle 0 (même raison que pièges/mobilier/épreuves : une
+     * case dangereuse sous le groupe au tour 1 se subit, elle ne se joue pas),
+     * jamais sur un seuil, un levier, un piège, un meuble ou une épreuve déjà
+     * posés — une case qui porterait deux couches à la fois serait, au choix,
+     * invisible ou incohérente (quel effet gagne ?).
+     *
+     * ⚠ INVARIANT DUR, comme le mobilier : une case qui BLOQUE LE MOUVEMENT ne
+     * doit JAMAIS isoler une autre case par ailleurs atteignable. Même BFS
+     * depuis un seul seuil que `salleResteConnexe()` (voir
+     * `terrainCasseraitConnexite()` juste en dessous), la pose ABANDONNÉE
+     * plutôt que forcée — et la vérification tient compte du mobilier
+     * BLOQUANT déjà posé dans la même salle : la combinaison des deux couches
+     * pourrait isoler une case qu'aucune des deux, seule, n'aurait isolée.
+     * Aucun des 7 terrains sourcés à ce jour ne bloque le mouvement (ce sont
+     * des dangers de sol, pas des murs), mais le mécanisme doit tenir pour le
+     * prochain qui le fera (le Mur de Glace, sort du boss — hors périmètre de
+     * cette phase) : c'est tout l'intérêt de le VÉRIFIER plutôt que de le
+     * supposer, exactement la leçon de `salleResteConnexe()`.
+     *
+     * ⚠ Les TUNNELS DE GLACE se posent PAR PAIRES (téléportation) : les deux
+     * extrémités ou aucune — un tunnel à sens unique n'en serait pas un. Les
+     * deux moitiés d'une paire partagent un `paire_id` propre à cette carte.
+     *
+     * ⚠ Comptage gouverné par `structure.terrains` (même format que
+     * `structure.pieges`/`structure.epreuves` : `min`/`max`) pour les terrains
+     * ORDINAIRES, et `structure.terrains.tunnels` (`min`/`max` de PAIRES)
+     * séparément pour les tunnels. Un gabarit qui ne déclare NI L'UN NI
+     * L'AUTRE ne pose AUCUN terrain (défaut 0 partout) — la leçon des
+     * leviers : une couche qui fonctionne mais qu'aucun gabarit n'alimente
+     * encore équivaut à une couche absente, à la différence près qu'elle
+     * n'abîme rien en silence. `GabaritQueteSeeder` déclare désormais
+     * `structure.terrains` sur les trois gabarits (2026-09-06, phase 6a).
+     *
+     * ⚠ Le COMPTAGE (le gabarit) et le CHOIX (le thème, `$theme`) sont deux
+     * questions séparées, exactement comme pour le mobilier vs les épreuves :
+     * le gabarit dit COMBIEN, le thème dit LESQUELS. Les 7 terrains sourcés
+     * sont tous `boite = horreur_des_glaces`, une boîte volontairement absente
+     * de `DemarreurQuete::BOITES_THEMATIQUES` (règles du Yéti/Gremlin/3 sorts
+     * incomplètes) : la couche reste donc INERTE en jeu réel — `min`/`max` a
+     * beau demander des cases, le filtre par thème n'en laisse jamais passer
+     * une seule — jusqu'à ce qu'une phase ultérieure rallume la boîte. C'est
+     * assumé, pas un bug : le même sort que le boss et les créatures de la
+     * boîte de glace, déjà seedés et déjà inertes pour la même raison.
+     *
+     * @param  array<string, mixed>  $structure
+     * @param  list<list<string>>  $cases
+     * @param  array<int, array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array{x: int, y: int, cote?: string}>  $portes
+     * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
+     * @param  list<array{x: int, y: int}>  $pieges
+     * @param  list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>  $mobilier
+     * @param  list<array{x: int, y: int, epreuve_id: int, salle: int, tentee_par: list<int>}>  $epreuves
+     * @param  ?string  $theme  boîte FIGÉE du groupe (`groupes.theme_bestiaire`,
+     *                          phase 6a) — filtre le catalogue AVANT tout tirage :
+     *                          seuls les terrains dont `boite` vaut `null`
+     *                          (« convient à tout thème », même lecture que
+     *                          `monstres.boite`) OU ce thème exactement restent
+     *                          candidats. `null` ici (thème inconnu) ne garde
+     *                          que les terrains `boite = null` — fail open,
+     *                          jamais d'erreur. C'est ce qui empêche une
+     *                          Rivière gelée d'apparaître dans une quête de
+     *                          jungle : les 7 terrains sourcés sont TOUS
+     *                          `boite = horreur_des_glaces`, si bien qu'à ce
+     *                          jour — cette boîte n'étant pas dans
+     *                          `DemarreurQuete::BOITES_THEMATIQUES` — aucun ne
+     *                          se pose jamais en jeu réel. Assumé : la couche
+     *                          reste inerte tant que la boîte de glace n'est
+     *                          pas rallumée, exactement comme son boss.
+     * @return list<array{x: int, y: int, terrain_id: int, paire_id?: string}>
+     */
+    private function placerTerrains(
+        array $structure,
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $mobilier,
+        array $epreuves,
+        \Closure $suivant,
+        ?string $theme = null,
+    ): array {
+        $catalogue = Terrain::query()->orderBy('id')->get()
+            ->filter(fn (Terrain $t) => $t->boite === null || $t->boite === $theme)
+            ->values();
+
+        if ($catalogue->isEmpty()) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+
+        // Cases interdites à TOUT terrain : seuils, leviers, pièges, mobilier,
+        // épreuves — même liste que celle bâtie pour les épreuves, une couche
+        // plus loin.
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+        foreach ($leviers as $levier) {
+            $interdites["{$levier['x']},{$levier['y']}"] = true;
+        }
+        foreach ($pieges as $piege) {
+            $interdites["{$piege['x']},{$piege['y']}"] = true;
+        }
+        foreach ($mobilier as $meuble) {
+            for ($dx = 0; $dx < (int) ($meuble['l'] ?? 1); $dx++) {
+                for ($dy = 0; $dy < (int) ($meuble['h'] ?? 1); $dy++) {
+                    $interdites[((int) $meuble['x'] + $dx).','.((int) $meuble['y'] + $dy)] = true;
+                }
+            }
+        }
+        foreach ($epreuves as $epreuve) {
+            $interdites["{$epreuve['x']},{$epreuve['y']}"] = true;
+        }
+
+        // Par salle (jamais la 0) : l'INTÉRIEUR COMPLET (pour la BFS de
+        // connexité, comme `placerMobilier()`), les cases LIBRES (candidates
+        // réelles, interdictions retirées) et les SEUILS (départs de BFS).
+        $parSalle = [];
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue; // salle de départ : jamais de terrain sous le groupe au tour 1
+            }
+
+            $interieurSalle = $this->interieur($cases, $salle);
+            $libres = array_values(array_filter(
+                $interieurSalle,
+                fn (array $p) => ! isset($interdites["{$p['x']},{$p['y']}"]),
+            ));
+
+            if ($libres === []) {
+                continue;
+            }
+
+            $parSalle[$i] = [
+                'interieur' => $interieurSalle,
+                'libres' => $libres,
+                'seuils' => $this->seuilsDeSalle($salle, $portes),
+            ];
+        }
+
+        if ($parSalle === []) {
+            return [];
+        }
+
+        // Mobilier BLOQUANT déjà posé, PAR SALLE : point de départ de
+        // `$bloquantesParSalle` ci-dessous — la connexité doit tenir compte de
+        // la couche précédente, pas seulement du terrain qu'on est en train
+        // de poser. Deux couches chacune inoffensive prises seule pourraient
+        // isoler une case ENSEMBLE.
+        $idsMobilierBloquant = Mobilier::query()->where('bloque_mouvement', true)->pluck('id')->all();
+        $bloquantesParSalle = [];
+        foreach ($mobilier as $meuble) {
+            if (! in_array($meuble['mobilier_id'] ?? null, $idsMobilierBloquant, true)) {
+                continue;
+            }
+            $i = (int) ($meuble['salle'] ?? -1);
+            for ($dx = 0; $dx < (int) ($meuble['l'] ?? 1); $dx++) {
+                for ($dy = 0; $dy < (int) ($meuble['h'] ?? 1); $dy++) {
+                    $bloquantesParSalle[$i][((int) $meuble['x'] + $dx).','.((int) $meuble['y'] + $dy)] = true;
+                }
+            }
+        }
+
+        $terrains = [];
+        $occupeesGlobal = []; // toute case déjà donnée à un terrain (bloquant ou non), toutes salles confondues
+
+        $tunnel = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TUNNEL);
+        $ordinaires = $catalogue->reject(fn (Terrain $t) => $tunnel !== null && $t->is($tunnel))->values();
+
+        $min = (int) data_get($structure, 'terrains.min', 0);
+        $max = max($min, (int) data_get($structure, 'terrains.max', $min));
+        $voulues = $prng->entre($min, $max);
+
+        if ($voulues > 0 && $ordinaires->isNotEmpty()) {
+            // Pool global mélangé de tous les couples (salle, case) — même
+            // logique que `placerPieges()` : garder les salles en tête
+            // biaiserait la distribution vers les premières salles de l'arbre.
+            $pool = [];
+            foreach ($parSalle as $i => $entree) {
+                foreach ($entree['libres'] as $position) {
+                    $pool[] = [...$position, 'salle' => $i];
+                }
+            }
+            $pool = $prng->melanger($pool);
+
+            foreach ($pool as $candidate) {
+                if (count($terrains) >= $voulues) {
+                    break;
+                }
+
+                $cle = "{$candidate['x']},{$candidate['y']}";
+                if (isset($occupeesGlobal[$cle])) {
+                    continue;
+                }
+
+                $type = $ordinaires[$prng->suivant() % $ordinaires->count()];
+                $i = $candidate['salle'];
+
+                if ($this->terrainCasseraitConnexite($type, $parSalle[$i], $cle, $bloquantesParSalle[$i] ?? [])) {
+                    continue; // cette pose isolerait une case : abandon, PAS de repli
+                }
+
+                if ($type->bloque_mouvement) {
+                    $bloquantesParSalle[$i][$cle] = true;
+                }
+
+                $terrains[] = ['x' => $candidate['x'], 'y' => $candidate['y'], 'terrain_id' => (int) $type->id];
+                $occupeesGlobal[$cle] = true;
+            }
+        }
+
+        // Tunnels de glace : posés PAR PAIRES, jamais un seul — une paire peut
+        // relier deux salles différentes (c'est même l'intérêt du tunnel).
+        if ($tunnel !== null) {
+            $minPaires = (int) data_get($structure, 'terrains.tunnels.min', 0);
+            $maxPaires = max($minPaires, (int) data_get($structure, 'terrains.tunnels.max', $minPaires));
+            $vouluesPaires = $prng->entre($minPaires, $maxPaires);
+
+            $poolTunnel = [];
+            foreach ($parSalle as $i => $entree) {
+                foreach ($entree['libres'] as $position) {
+                    $cle = "{$position['x']},{$position['y']}";
+                    if (! isset($occupeesGlobal[$cle])) {
+                        $poolTunnel[] = [...$position, 'salle' => $i];
+                    }
+                }
+            }
+            $poolTunnel = $prng->melanger($poolTunnel);
+
+            for ($p = 0; $p < $vouluesPaires && count($poolTunnel) >= 2; $p++) {
+                $a = array_shift($poolTunnel);
+                $b = array_shift($poolTunnel);
+                $cleA = "{$a['x']},{$a['y']}";
+                $cleB = "{$b['x']},{$b['y']}";
+
+                // Le tunnel ne bloque ni mouvement ni vue (catalogue) : rien à
+                // revérifier ici, exactement comme les terrains non bloquants
+                // ci-dessus — le mécanisme de connexité reste néanmoins
+                // disponible pour le jour où ça changerait (aucun aujourd'hui).
+                if ($this->terrainCasseraitConnexite($tunnel, $parSalle[$a['salle']], $cleA, $bloquantesParSalle[$a['salle']] ?? [])
+                    || $this->terrainCasseraitConnexite($tunnel, $parSalle[$b['salle']], $cleB, $bloquantesParSalle[$b['salle']] ?? [])
+                ) {
+                    continue; // l'une des deux extrémités casserait la connexité : ni l'une ni l'autre
+                }
+
+                $paireId = 'tunnel-'.($p + 1);
+                $terrains[] = ['x' => $a['x'], 'y' => $a['y'], 'terrain_id' => (int) $tunnel->id, 'paire_id' => $paireId];
+                $terrains[] = ['x' => $b['x'], 'y' => $b['y'], 'terrain_id' => (int) $tunnel->id, 'paire_id' => $paireId];
+                $occupeesGlobal[$cleA] = true;
+                $occupeesGlobal[$cleB] = true;
+            }
+        }
+
+        return $terrains;
+    }
+
+    /**
+     * Poser `$type` sur `$cle` (déjà "x,y") casserait-il la connexité de la
+     * salle ? Réutilise `salleResteConnexe()` — même BFS depuis un seul seuil
+     * que le mobilier, jamais multi-sources (cf. son commentaire : un seuil
+     * enfermé dans une poche se compterait « atteint » du seul fait d'être sa
+     * propre source).
+     *
+     * Un terrain qui ne bloque pas le mouvement (`bloque_mouvement: false`) ne
+     * peut par construction rien isoler — retour immédiat, pas de BFS pour
+     * rien. Sans seuil identifié pour cette salle, refuse par prudence : on ne
+     * peut pas PROUVER la connexité sans point de départ.
+     *
+     * @param  array{interieur: list<array{x: int, y: int}>, libres: list<array{x: int, y: int}>, seuils: list<array{x: int, y: int}>}  $entreeSalle
+     * @param  array<string, true>  $bloquantesAvant  cases déjà bloquantes dans CETTE salle (terrain déjà posé + mobilier bloquant)
+     */
+    private function terrainCasseraitConnexite(Terrain $type, array $entreeSalle, string $cle, array $bloquantesAvant): bool
+    {
+        if (! $type->bloque_mouvement) {
+            return false;
+        }
+
+        if ($entreeSalle['seuils'] === []) {
+            return true;
+        }
+
+        $occupeesApres = $bloquantesAvant;
+        $occupeesApres[$cle] = true;
+
+        return ! $this->salleResteConnexe($entreeSalle['interieur'], $entreeSalle['seuils'], $occupeesApres);
     }
 
     /**

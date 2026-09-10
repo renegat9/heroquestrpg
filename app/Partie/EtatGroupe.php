@@ -17,6 +17,7 @@ use App\Models\Mobilier;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Models\Terrain;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Narration\BibliothequeNarration;
 use Illuminate\Support\Facades\Cache;
@@ -265,7 +266,7 @@ final class EtatGroupe
      * pièges encore cachés et les portes secrètes non révélées n'y figurent
      * JAMAIS, la table ne doit pas les montrer (contrat).
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, portes: list<array{x: int, y: int, etat: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -360,6 +361,12 @@ final class EtatGroupe
             // un jet de Body et peut commander l'unique porte d'une salle — un
             // mécanisme invisible qui verrouille le donjon.
             'leviers' => $this->leviers($carte, $cases),
+            // TERRAIN (doc 18 §4, phase 4a) : cinquième couche, mêmes
+            // conditions d'affichage que les leviers — une entrée ne porte pas
+            // son index de salle (`{x, y, terrain_id}`, même format d'origine
+            // que les leviers, cf. commentaire de `terrain()`), le brouillard
+            // est le SEUL critère.
+            'terrain' => $this->terrain($carte, $cases),
             'portes' => $portes,
         ];
     }
@@ -643,6 +650,50 @@ final class EtatGroupe
                 'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
                 'image_url' => app(BibliothequeImages::class)->urlLevier(),
             ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Terrain visible (doc 18 §4, phase 4a) : le SEUL critère est le
+     * brouillard de la case, exactement comme les leviers — et pour la même
+     * raison. Une entrée ne porte PAS son index de salle
+     * (`{x, y, terrain_id}` [+ `paire_id` pour les tunnels], même format
+     * d'origine que `leviers` — `{x, y, levier_id}`) : un tunnel ou une case
+     * de glace posée en COULOIR n'a pas d'index de salle à dériver, où le
+     * brouillard répond directement à « cette case est-elle vue ? ».
+     *
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, image_url: ?string}>
+     */
+    private function terrain(Carte $carte, array $cases): array
+    {
+        $visibles = collect($carte->grille['terrain'] ?? [])
+            ->filter(fn (array $entree) => ($cases[(int) $entree['y']][(int) $entree['x']] ?? 'b') !== 'b');
+
+        $catalogue = Terrain::query()
+            ->whereIn('id', $visibles->pluck('terrain_id')->filter()->unique())
+            ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue'])
+            ->keyBy('id');
+
+        return $visibles
+            ->map(function (array $entree) use ($catalogue) {
+                $type = $catalogue[$entree['terrain_id']] ?? null;
+
+                return [
+                    'x' => (int) $entree['x'],
+                    'y' => (int) $entree['y'],
+                    'terrain_id' => (int) $entree['terrain_id'],
+                    'nom' => $type?->nom ?? 'Terrain',
+                    'cout_deplacement' => (int) ($type?->cout_deplacement ?? 1),
+                    // Deux propriétés INDÉPENDANTES (comme le mobilier, doc 17
+                    // §portage / doc 18 §4) : ne jamais les refusionner.
+                    'bloque_mouvement' => $type?->bloque_mouvement ?? false,
+                    'bloque_vue' => $type?->bloque_vue ?? false,
+                    'paire_id' => isset($entree['paire_id']) ? (string) $entree['paire_id'] : null,
+                    'image_url' => app(BibliothequeImages::class)->urlTerrain($type?->id, $type?->nom),
+                ];
+            })
             ->values()
             ->all();
     }

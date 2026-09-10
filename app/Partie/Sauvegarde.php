@@ -303,6 +303,14 @@ final class Sauvegarde
 
         return [
             'etiquette' => $etiquette,
+            // ⚠ N'y figurent QUE les trois champs que `restaurer()` réécrit :
+            // `chance_passage_secret` et, depuis la phase 6a,
+            // `theme_bestiaire` sont des CONSTANTES DE CAMPAGNE posées sur la
+            // ligne `groupes` elle-même — jamais réécrites par `restaurer()`,
+            // jamais remises à zéro par un redémarrage de quête. Rien ne peut
+            // donc les faire dériver d'un instantané à l'autre, et il n'y a
+            // rien à restaurer : les ajouter au snapshot figerait une valeur
+            // qu'aucun chemin ne modifie jamais entre la prise et la reprise.
             'groupe' => [
                 'or' => (int) $groupe->or,
                 'phase' => $groupe->phase,

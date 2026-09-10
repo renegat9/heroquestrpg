@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Combat;
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesSort;
 use App\Engine\MotsClesSortDread as Mot;
@@ -106,6 +107,12 @@ use Illuminate\Support\Facades\DB;
  *      autre ;
  *   5. Invocation si ≤ 1 autre monstre actif (verrou 1×/rencontre) ;
  *   6. Fuite si pv_body < 25 % du max (verrou 1×/rencontre).
+ *
+ * ⚠ Trois familles de plus depuis le plan glace, phase 2 (2026-09-06) — Gel de
+ * l'Esprit (`TYPE_MIND`), Mur de Glace (`TYPE_TERRAIN`), Patinage
+ * (`TYPE_DEPLACEMENT`). La liste ci-dessus décrit la logique HISTORIQUE
+ * d'avant le passage au score générique (`scoreSort()`) ; leur rang exact
+ * (95 / 50 / 45) est documenté là où il est décidé, pas ici.
  */
 final class MoteurDread
 {
@@ -261,6 +268,19 @@ final class MoteurDread
 
         // Collecte les actions Dread jouées ce tour (régénération + action principale).
         $actions = [];
+
+        // 0. Entretien du Mur de Glace : « chaque case dure tant que le
+        //    lanceur la voit ». Rejoué au DÉBUT de CHAQUE tour de CE monstre
+        //    — qu'il recaste ou non ce tour-ci — exactement comme le style du
+        //    Moine se recharge en tête de tour : c'est le seul « début de
+        //    tour » qu'un moteur par round possède. Sans effet et sans coût
+        //    pour les 99 % de monstres qui n'ont jamais posé la moindre case
+        //    (`entretienMurDeGlace()` sort tôt s'il n'y a rien à sa charge).
+        $entretien = $this->entretienMurDeGlace($groupe, $quete, $instance, $acteur);
+
+        if ($entretien !== null) {
+            $actions[] = $entretien;
+        }
 
         // 1. Régénération : +1 PV Body au DÉBUT du tour (avant toute action).
         //    Une créature BRÛLÉE ne régénère plus : « damage done by fire is
@@ -713,6 +733,23 @@ final class MoteurDread
             // vide est le défaut que ce filtre existe pour empêcher.
             Mot::TYPE_DESTRUCTION => $this->ciblesDuSort($sort, $quete, $instance, $cibles, $enVue)
                 ->contains(fn (EtatPersonnageQuete $e) => $this->cibleDeRouille($sort, $e->personnage) !== null),
+            // Gel de l'Esprit : il faut au moins un héros EN VUE qui ait
+            // encore un point de Mind à perdre — un héros déjà à 0 Mind est
+            // déjà tombé, le geler une seconde fois ne dirait rien de plus.
+            Mot::TYPE_MIND => $this->cibleMindFreeze($enVue) !== null,
+            // Mur de Glace : au moins une case candidate a survécu au filtre
+            // d'occupation ET à l'invariant de connexité — `planMurDeGlace()`
+            // est le SEUL point de passage, lu ici et repris tel quel par la
+            // résolution (la leçon de la Tempête de feu, un niveau plus loin).
+            Mot::TYPE_TERRAIN => $this->planMurDeGlace(
+                $quete, $instance, $enVue, (int) data_get($sort->effet, 'cases_max', 4),
+            ) !== [],
+            // Patinage : au moins un héros en vue est atteignable par un
+            // chemin qui traverse les figures ET progresse réellement (un
+            // héros déjà au contact ne donne aucun chemin à parcourir).
+            Mot::TYPE_DEPLACEMENT => $this->planPatinage(
+                $quete, $instance, $enVue, (int) data_get($sort->effet, 'cases', 12),
+            ) !== null,
             default => false,
         };
     }
@@ -749,6 +786,18 @@ final class MoteurDread
             // la campagne — c'est la seule chose de ce paquet qui ne se répare
             // pas.
             Mot::TYPE_DESTRUCTION => 90,
+            // Juste sous les dégâts à cible unique (100) : Gel de l'Esprit
+            // peut faire tomber un héros d'un coup, exactement comme un coup
+            // mortel — mais c'est une cible unique, sans le bonus de zone des
+            // dégâts.
+            Mot::TYPE_MIND => 95,
+            // Entre l'invocation (60) et le soin (40) : un outil défensif qui
+            // ralentit la poursuite sans blesser ni soigner personne.
+            Mot::TYPE_TERRAIN => 50,
+            // Juste sous le Mur de Glace : un pur repositionnement, utile
+            // mais moins immédiatement rentable qu'un obstacle qui protège
+            // tout de suite.
+            Mot::TYPE_DEPLACEMENT => 45,
             Mot::TYPE_FUITE => 10,
             default => 0,
         };
@@ -1307,6 +1356,9 @@ final class MoteurDread
             Mot::TYPE_SOIN => $this->sortDreadSoin($groupe, $quete, $instance, $sort, $acteur),
             Mot::TYPE_FUITE => $this->sortDreadFuite($groupe, $quete, $instance, $sort, $cibles, $acteur),
             Mot::TYPE_DESTRUCTION => $this->sortDreadDestruction($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
+            Mot::TYPE_MIND => $this->sortDreadMind($groupe, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_TERRAIN => $this->sortDreadMurDeGlace($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_DEPLACEMENT => $this->sortDreadPatinage($groupe, $quete, $instance, $sort, $enVue, $acteur),
             default => $this->sortDreadGenericJournal($groupe, $sort, $acteur),
         };
     }
@@ -2017,6 +2069,547 @@ final class MoteurDread
             ->first();
     }
 
+    // ------------------------------------------------------------------
+    // Gel de l'Esprit (Mind Freeze — The Frozen Horror, plan glace phase 2)
+    // ------------------------------------------------------------------
+
+    /**
+     * « The hero rolls 1 combat die per Mind Point they possess before the
+     * attack. If at least one white shield is rolled, they have 1 Mind Point
+     * remaining. If not, Mind is reduced to zero [...]. »
+     *
+     * ⚠ Résolution DÉDIÉE, pas une variante de `degatsInfliges()` : il n'y a
+     * ni dés d'attaque ni jet de défense, et le nombre de dés lancés est la
+     * JAUGE `pv_mind` du héros AVANT le jet — jamais `attribut_mind`
+     * (`MoteurDread::cibleMindFreeze()`). L'issue est un montant à FIXER (1
+     * Mind restant, ou zéro), pas un nombre de points à retirer : c'est
+     * pourquoi le sort calcule d'abord la PERTE (`avant − cible`) avant
+     * d'appeler `MoteurDegats::infligerMindAHeros()`, seul producteur de la
+     * jauge — il pose déjà `tombe` à 0 Mind, ce lecteur ne le refait pas.
+     *
+     * ⚠ L'« état de choc » de la carte est une DETTE NOMMÉE (section du
+     * livret Frozen Horror que le projet n'a pas) — non inventée. Ce qui EST
+     * porté : Mind à zéro fait tomber le héros, la symétrie que
+     * `MoteurDegats::infligerMindAHeros()` porte déjà depuis la phase 1 du
+     * plan (arbitrage de René, 2026-09-06).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadMind(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $victime = $this->cibleMindFreeze($enVue);
+
+        if ($victime === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $personnage = $victime->personnage;
+        $avant = (int) $personnage->pv_mind;
+
+        // Autant de dés de COMBAT (faces du jeu) que de Mind POSSÉDÉS — jamais
+        // des d6 bruts, la carte parle bien de « combat die ».
+        $faces = $this->des->desCombat($avant);
+        $succes = in_array(FaceDeCombat::BouclierBlanc, $faces, true);
+
+        // « 1 Mind Point remaining » sur succès, « reduced to zero » sinon :
+        // deux VALEURS CIBLES, pas un montant de dégât — d'où la soustraction
+        // avant l'appel au producteur, qui lui ne connaît que des pertes.
+        $cible = $succes ? 1 : 0;
+        $perte = max(0, $avant - $cible);
+
+        $subis = $this->degats->infligerMindAHeros(
+            $personnage, $perte, MoteurDegats::SOURCE_SORT_DREAD_MIND,
+            ['sort' => $sort->nom, 'lanceur_id' => (int) $instance->id],
+        );
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'resultats' => [[
+                'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+                'des' => array_map(fn (FaceDeCombat $f) => $f->value, $faces),
+                'bouclier_blanc' => $succes,
+                'pv_mind_avant' => $avant,
+                'pv_mind_apres' => (int) $personnage->pv_mind,
+                'degats_mind' => $subis,
+                'cible_tombee' => (int) $personnage->pv_mind === 0 && $subis > 0,
+            ]],
+        ];
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Cible de Gel de l'Esprit : le héros EN VUE dont la JAUGE `pv_mind` est
+     * la plus faible, parmi ceux qui en ont encore. ⚠ `pv_mind`, JAMAIS
+     * `attribut_mind` — la carte dit « per Mind Point POSSESSED », c'est-à-
+     * dire la jauge, et confondre les deux ferait résister moins bien un
+     * héros déjà entamé par ses propres soins, une règle que personne n'a
+     * écrite. Un héros à 0 Mind est déjà tombé : le geler ne dirait rien de
+     * plus, `null` l'exclut du calcul comme de la cible.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     */
+    private function cibleMindFreeze(Collection $enVue): ?EtatPersonnageQuete
+    {
+        return $enVue
+            ->filter(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind > 0)
+            ->sortBy(fn (EtatPersonnageQuete $e) => (int) $e->personnage->pv_mind)
+            ->first();
+    }
+
+    // ------------------------------------------------------------------
+    // Mur de Glace (Ice Wall — The Frozen Horror, plan glace phase 2)
+    // ------------------------------------------------------------------
+
+    /**
+     * « Zargon may place up to 4 spaces of solid ice on the board. These
+     * spaces block movement, but not line of sight. Each space of ice lasts
+     * as long as the spellcaster can see it, or until it has taken a total
+     * of 5 skulls from attacks made against it. »
+     *
+     * Écrit sur `carte.grille['glace']`, une couche DÉDIÉE et NON le
+     * catalogue `terrains` — voir le commentaire de `FabriqueGrille::pour()`
+     * pour la raison exacte (une entrée du catalogue serait candidate au
+     * tirage STATIQUE de `AssembleurCarte::placerTerrains()`, ce qu'une pose
+     * de sort ne doit jamais être). Chaque case porte `source_instance_id`
+     * (pour l'entretien lié à la vue de CE lanceur) et `cranes: 0` (pour
+     * `endommagerMurDeGlace()`).
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadMurDeGlace(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $maxCases = (int) data_get($sort->effet, 'cases_max', 4);
+        $retenues = $this->planMurDeGlace($quete, $instance, $enVue, $maxCases);
+
+        if ($retenues === []) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $carte = $quete->carte;
+        $grilleData = (array) $carte->grille;
+        $existantes = (array) ($grilleData['glace'] ?? []);
+
+        foreach ($retenues as $case) {
+            $existantes[] = [
+                'x' => $case['x'], 'y' => $case['y'],
+                'source_instance_id' => (int) $instance->id,
+                'cranes' => 0,
+            ];
+        }
+
+        $grilleData['glace'] = $existantes;
+        $carte->update(['grille' => $grilleData]);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'cases' => $retenues,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Jusqu'à `$maxCases` cases de glace CANDIDATES — POINT DE PASSAGE UNIQUE
+     * du choix (`sortUtilisable`) ET de la résolution : deux lectures de la
+     * même pose finiraient toujours par diverger (la leçon de la Tempête de
+     * feu).
+     *
+     * ⚠ Aucune règle de placement stratégique n'est donnée par la carte
+     * (« Zargon may place... ») : porté au plus simple défendable — les
+     * PREMIÈRES cases du chemin RÉEL entre le lanceur et le héros en vue le
+     * plus proche, en partant DU LANCEUR. Un rempart qui se dresse contre le
+     * lanceur lui-même maximise aussi sa chance de rester dans son propre
+     * champ de vision, condition d'entretien de la carte.
+     *
+     * ⚠ INVARIANT DUR : chaque candidate qui isolerait une case aujourd'hui
+     * accessible depuis le lanceur est ÉCARTÉE — jamais imposée. Même
+     * raisonnement qu'à la génération de la carte
+     * (`AssembleurCarte::terrainCasseraitConnexite()`), porté ici pour une
+     * pose EN COURS DE PARTIE en comparant l'ATTEIGNABLE du lanceur
+     * avant/après (`Grille::casesAtteignables()`) — pas une seconde boucle de
+     * décor : c'est la même `FabriqueGrille::pour()` que joue le groupe.
+     *
+     * ⚠ LES FIGURES SONT EFFACÉES DE CE CALCUL
+     * (`Grille::autoriserFranchissementFigures()`), et c'est une correction,
+     * pas une négligence : une case occupée n'est JAMAIS « atteignable »
+     * (`estTraversable()`), donc le héros visé — qui se tient précisément sur
+     * SA case — ne compterait jamais parmi les cases à protéger, et une glace
+     * qui le coupe du reste du donjon ne « casserait » rien aux yeux d'un
+     * calcul qui ne l'a jamais vu comme accessible pour commencer. C'est très
+     * exactement la lecture STRUCTURELLE de la génération de carte, qui elle
+     * non plus ne voit aucune figure (les héros n'existent pas encore à ce
+     * moment-là) — la reproduire fidèlement ici, plutôt que d'y ajouter les
+     * figures présentes, est ce qui rend l'invariant vrai plutôt que rassurant.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @return list<array{x: int, y: int}>
+     */
+    private function planMurDeGlace(Quete $quete, InstanceMonstre $instance, Collection $enVue, int $maxCases): array
+    {
+        if ($enVue->isEmpty() || $instance->position_x === null || $maxCases <= 0) {
+            return [];
+        }
+
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        $grilleReelle = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+        $cible = $enVue->sortBy(fn (EtatPersonnageQuete $c) => $this->distance($instance, $c))->first();
+        $chemin = $this->cheminVersCaseAdjacente($grilleReelle, $ix, $iy, (int) $cible->position_x, (int) $cible->position_y);
+
+        if ($chemin === null || $chemin === []) {
+            return []; // déjà au contact, ou hors d'atteinte : rien entre les deux à renforcer
+        }
+
+        $existantes = (array) ($quete->carte?->grille['glace'] ?? []);
+        $pas = $this->bornePasCarte($quete);
+
+        // ⚠ LES FIGURES NE COMPTENT PAS DANS CE CALCUL — sans quoi le héros
+        // visé, occupant sa propre case, ne serait JAMAIS « atteignable »
+        // (une case occupée n'est jamais traversable) et une case de glace
+        // qui le coupe du reste du donjon ne « casserait » rien aux yeux du
+        // test : le héros n'aurait jamais compté comme accessible pour
+        // commencer. `autoriserFranchissementFigures()` efface héros et
+        // monstres du calcul — seuls les murs, le mobilier, le terrain et la
+        // glace déjà posée continuent de border le passage. C'est la lecture
+        // STRUCTURELLE, la même que celle de la génération de carte, qui elle
+        // non plus ne voit aucune figure (les héros ne sont pas encore
+        // placés à ce moment-là).
+        $grilleAvant = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+        $grilleAvant->autoriserFranchissementFigures();
+        $avant = $grilleAvant->casesAtteignables($ix, $iy, $pas);
+        $avant["{$ix},{$iy}"] = []; // le lanceur lui-même compte comme toujours atteignable
+
+        $retenues = [];
+
+        foreach (array_slice($chemin, 0, $maxCases * 2) as $case) {
+            if (count($retenues) >= $maxCases) {
+                break;
+            }
+
+            $x = (int) $case['x'];
+            $y = (int) $case['y'];
+
+            $dejaGlacee = collect($existantes)->contains(fn (array $c) => (int) $c['x'] === $x && (int) $c['y'] === $y);
+
+            if ($dejaGlacee || $grilleReelle->estOccupeeParFigure($x, $y)) {
+                continue; // pas de glace sous une figure, ni deux fois la même case
+            }
+
+            $grilleApres = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+            $grilleApres->autoriserFranchissementFigures();
+            $grilleApres->obstruer([...$retenues, ['x' => $x, 'y' => $y]]);
+            $apres = $grilleApres->casesAtteignables($ix, $iy, $pas);
+            $apres["{$ix},{$iy}"] = [];
+
+            $isolerait = false;
+
+            foreach (array_keys($avant) as $cle) {
+                if ($cle === "{$x},{$y}") {
+                    continue; // trivialement bloquée par la case elle-même
+                }
+                if (! isset($apres[$cle])) {
+                    $isolerait = true;
+
+                    break;
+                }
+            }
+
+            if ($isolerait) {
+                continue; // renonce à CETTE case, jamais imposée — invariant dur
+            }
+
+            $retenues[] = ['x' => $x, 'y' => $y];
+        }
+
+        return $retenues;
+    }
+
+    /** Borne haute sûre du nombre de pas d'une BFS sur cette carte (jamais plus de cases que la carte n'en a). */
+    private function bornePasCarte(Quete $quete): int
+    {
+        $cases = (array) ($quete->carte?->grille['cases'] ?? []);
+        $hauteur = count($cases);
+        $largeur = $hauteur > 0 ? count($cases[0] ?? []) : 0;
+
+        return max(1, $hauteur * $largeur);
+    }
+
+    /**
+     * Entretien du Mur de Glace : « each space of ice lasts as long as the
+     * spellcaster can see it ». Rejoué en tête de `jouerTourDread()`, pour
+     * CE lanceur (`source_instance_id`) — les cases qu'il ne voit plus
+     * (`ligneDeVue`, figures comprises, même filtre que `ciblesEnVue()`)
+     * quittent `carte.grille['glace']`. `null` sans rien à faire, pour que
+     * l'appelant n'ajoute aucune ligne au journal.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    private function entretienMurDeGlace(Groupe $groupe, Quete $quete, InstanceMonstre $instance, array $acteur): ?array
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null || $instance->position_x === null) {
+            return null;
+        }
+
+        $glace = (array) ($carte->grille['glace'] ?? []);
+        $miennes = array_filter($glace, fn (array $c) => (int) ($c['source_instance_id'] ?? 0) === (int) $instance->id);
+
+        if ($miennes === []) {
+            return null; // repli rapide : la quasi-totalité des monstres n'a jamais posé de glace
+        }
+
+        $grille = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+        $ix = (int) $instance->position_x;
+        $iy = (int) $instance->position_y;
+
+        $disparues = [];
+        $restantes = [];
+
+        foreach ($glace as $cellule) {
+            if ((int) ($cellule['source_instance_id'] ?? 0) !== (int) $instance->id
+                || $grille->ligneDeVue($ix, $iy, (int) $cellule['x'], (int) $cellule['y'], figuresBloquent: true)) {
+                $restantes[] = $cellule;
+
+                continue;
+            }
+
+            $disparues[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
+        }
+
+        if ($disparues === []) {
+            return null;
+        }
+
+        $grilleData = (array) $carte->grille;
+        $grilleData['glace'] = $restantes;
+        $carte->update(['grille' => $grilleData]);
+
+        $payload = [
+            'type' => 'glace_dissipee',
+            'monstre' => $instance->nomAffiche(),
+            'raison' => 'hors_de_vue',
+            'cases' => $disparues,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Une case de Mur de Glace encaisse UN dé de combat — « until it has
+     * taken a total of 5 skulls from attacks made against it » : seul un
+     * CRÂNE compte, exactement comme un coup qui porte. Rend `true` si la
+     * case a cédé (et disparaît de `carte.grille['glace']`).
+     *
+     * ⚠ PUBLIQUE et SANS APPELANT réel à ce jour : « attaquer le mur »
+     * demande une option de menu et un chemin de résolution
+     * (`MenuMoteur`/`ResolveurTour`), tous deux hors périmètre de cette
+     * phase — le compteur de crânes est prêt, câblé et testé directement,
+     * exactement comme `MoteurDegats::infligerMindAHeros()` l'a été le temps
+     * que *Gel de l'Esprit* existe. DETTE NOMMÉE : le geste du joueur qui
+     * appelle cette méthode reste à écrire.
+     */
+    public function endommagerMurDeGlace(Quete $quete, int $x, int $y, FaceDeCombat $face): bool
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null || $face !== FaceDeCombat::Crane) {
+            return false;
+        }
+
+        $seuil = (int) data_get(SortDread::where('nom', 'Mur de Glace')->value('effet'), 'cranes_rupture', 5);
+        $glace = (array) ($carte->grille['glace'] ?? []);
+        $trouvee = false;
+        $detruite = false;
+        $restantes = [];
+
+        foreach ($glace as $cellule) {
+            if (! $trouvee && (int) $cellule['x'] === $x && (int) $cellule['y'] === $y) {
+                $trouvee = true;
+                $cranes = (int) ($cellule['cranes'] ?? 0) + 1;
+
+                if ($cranes >= $seuil) {
+                    $detruite = true;
+
+                    continue; // ne rejoint pas $restantes : la case a cédé
+                }
+
+                $cellule['cranes'] = $cranes;
+            }
+
+            $restantes[] = $cellule;
+        }
+
+        if (! $trouvee) {
+            return false;
+        }
+
+        $grilleData = (array) $carte->grille;
+        $grilleData['glace'] = $restantes;
+        $carte->update(['grille' => $grilleData]);
+
+        if ($detruite && $quete->groupe !== null) {
+            Journal::ajouter($quete->groupe, 'action', [
+                'type' => 'glace_dissipee',
+                'raison' => 'brisee',
+                'cases' => [['x' => $x, 'y' => $y]],
+            ]);
+        }
+
+        return $detruite;
+    }
+
+    // ------------------------------------------------------------------
+    // Patinage (Skate — The Frozen Horror, plan glace phase 2)
+    // ------------------------------------------------------------------
+
+    /**
+     * « The spellcaster skates 12 spaces this turn, moving through spaces
+     * occupied by heroes and monsters. This effect lasts for one turn. »
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadPatinage(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $portee = (int) data_get($sort->effet, 'cases', 12);
+        $plan = $this->planPatinage($quete, $instance, $enVue, $portee);
+
+        if ($plan === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $instance->update(['position_x' => $plan['arrivee']['x'], 'position_y' => $plan['arrivee']['y']]);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'depart' => $plan['depart'],
+            'arrivee' => $plan['arrivee'],
+            'cases_franchies' => count($plan['franchi']),
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Destination de Patinage — POINT DE PASSAGE UNIQUE du choix ET de la
+     * résolution. Cible le héros EN VUE le plus proche par un chemin qui
+     * TRAVERSE LES FIGURES (`Grille::autoriserFranchissementFigures()` —
+     * distincte d'`autoriserFranchissement()`/Agile, qui lève AUSSI le
+     * mobilier : la carte de Patinage ne parle QUE des figures), plafonné à
+     * `$portee` cases, en partant du LANCEUR ; l'arrivée recule ensuite
+     * jusqu'à la dernière case RÉELLEMENT libre
+     * (`derniereCaseFranchissable()`) — même raisonnement que
+     * `ResolveurTour::derniereCaseOuSArreter()` : traverser n'est pas
+     * s'arrêter.
+     *
+     * `null` si aucun héros en vue n'offre de chemin, OU si le lanceur est
+     * déjà au contact (rien à traverser) — `sortUtilisable()` et la
+     * résolution lisent tous deux ce `null`.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @return array{depart: array{x: int, y: int}, arrivee: array{x: int, y: int}, franchi: list<array{x: int, y: int}>}|null
+     */
+    private function planPatinage(Quete $quete, InstanceMonstre $instance, Collection $enVue, int $portee): ?array
+    {
+        if ($enVue->isEmpty() || $instance->position_x === null || $portee <= 0) {
+            return null;
+        }
+
+        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+
+        $grille = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+        $grille->autoriserFranchissementFigures();
+
+        $meilleur = null;
+
+        foreach ($enVue as $cible) {
+            $chemin = $this->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], (int) $cible->position_x, (int) $cible->position_y);
+
+            if ($chemin === null || $chemin === []) {
+                continue; // hors d'atteinte même en traversant, ou déjà au contact
+            }
+
+            if ($meilleur === null || count($chemin) < count($meilleur)) {
+                $meilleur = $chemin;
+            }
+        }
+
+        if ($meilleur === null) {
+            return null;
+        }
+
+        $franchi = array_slice($meilleur, 0, $portee);
+        $arrivee = $this->derniereCaseFranchissable($quete, $instance, $franchi);
+
+        if ($arrivee === null) {
+            return null; // aucune case réellement libre sur tout le trajet : pas de progrès
+        }
+
+        return ['depart' => $depart, 'arrivee' => $arrivee, 'franchi' => $franchi];
+    }
+
+    /**
+     * Dernière case du trajet où le patineur a le droit de s'ARRÊTER — même
+     * raisonnement que `ResolveurTour::derniereCaseOuSArreter()` (traverser
+     * n'est pas s'arrêter) : recul jusqu'à la dernière case RÉELLEMENT libre
+     * sur la grille NORMALE (figures comprises). ⚠ Patinage ne traverse ni
+     * les murs ni le mobilier (sa carte ne parle QUE des figures) : à la
+     * différence de l'éthéré/agile, aucune case du trajet ne peut donc jamais
+     * tomber hors d'une salle DÉCOUVERTE — le trajet reste entièrement dans
+     * un territoire que le lanceur pouvait déjà, en principe, atteindre à
+     * pied. Aucun garde-fou de salle découverte à reprendre ici.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return array{x: int, y: int}|null
+     */
+    private function derniereCaseFranchissable(Quete $quete, InstanceMonstre $instance, array $chemin): ?array
+    {
+        $reelle = FabriqueGrille::pour($quete, exceptInstanceId: $instance->id);
+
+        for ($i = count($chemin) - 1; $i >= 0; $i--) {
+            $case = $chemin[$i];
+
+            if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])) {
+                return $case;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * *Soothe* / *Restore Dread* : « restores up to N lost Body Points to the
      * spellcaster or any one monster ».
@@ -2204,6 +2797,263 @@ final class MoteurDread
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         return $payload;
+    }
+
+    // ------------------------------------------------------------------
+    // Étreinte du Yéti (The Frozen Horror, doc 18 §2)
+    // ------------------------------------------------------------------
+
+    /**
+     * Établit l'ÉTREINTE sur la victime d'un coup qui vient de porter au
+     * moins 1 Body Point (appelé par `ResolveurTour::resoudreAttaqueMonstre()`,
+     * le jet qui l'établit reste un jet d'attaque/défense NORMAL — seuls les
+     * tours suivants deviennent automatiques).
+     *
+     * ⚠ Aucun état propre au Yéti : « qui tient qui » se lit entièrement sur
+     * la condition posée côté héros, via son `source` (`etreinte:{instance}`)
+     * — c'est la même vérité que lit `victimeDeLetreinte()` pour faire taire
+     * son attaque, et que libère `libererEtreintesOrphelines()` à sa mort.
+     * Deux copies de « qui agrippe qui » auraient fini par diverger — la leçon
+     * de `Salles::indexDe()`.
+     */
+    public function etablirEtreinte(InstanceMonstre $instance, Personnage $personnage): void
+    {
+        $condition = Condition::where('nom', 'Agrippé')->first();
+
+        if ($condition === null) {
+            return; // catalogue non semé : on n'invente pas de condition
+        }
+
+        $personnage->conditions()->syncWithoutDetaching([
+            $condition->id => ['duree' => 0, 'source' => "etreinte:{$instance->id}"],
+        ]);
+    }
+
+    /**
+     * Le héros actuellement agrippé par CETTE instance, ou `null` — dérivé de
+     * la condition, jamais d'un état propre au monstre (voir `etablirEtreinte()`).
+     * Sert à `ResolveurTour::jouerMonstre()` : « le Yéti ne peut alors faire
+     * aucune autre attaque » tant qu'il tient quelqu'un.
+     */
+    public function victimeDeLetreinte(InstanceMonstre $instance): ?int
+    {
+        if (! $this->aCapacite($instance, 'etreinte')) {
+            return null;
+        }
+
+        $condition = Condition::where('nom', 'Agrippé')->first();
+
+        if ($condition === null) {
+            return null;
+        }
+
+        $ligne = DB::table('personnage_conditions')
+            ->where('condition_id', $condition->id)
+            ->where('source', "etreinte:{$instance->id}")
+            ->first();
+
+        return $ligne === null ? null : (int) $ligne->personnage_id;
+    }
+
+    /**
+     * « …jusqu'à la mort du héros ou celle du Yéti » : si l'agrippeur n'existe
+     * plus ou n'est plus `actif`, la prise n'a plus de sens et doit tomber —
+     * quel que soit le chemin qui l'a tué (frappe, sort, eau bénite…). Appelé
+     * depuis `ResolveurTour::verifierFinDuCombat()`, donc après CHAQUE action
+     * de héros : la libération suit la mort du Yéti sans délai, plutôt que
+     * d'attendre le prochain tour de la victime.
+     *
+     * ⚠ `saignerParConditions()` fait la MÊME vérification à son rythme à
+     * elle (le tour de la victime) pour éviter un dernier saignement de trop
+     * quand le Yéti est déjà mort avant que son tour n'arrive ; celle-ci
+     * couvre le cas où c'est un AUTRE héros qui l'a achevé pendant que la
+     * victime reste bloquée jusqu'à sa propre prochaine action.
+     */
+    public function libererEtreintesOrphelines(Quete $quete): void
+    {
+        $condition = Condition::where('nom', 'Agrippé')->first();
+
+        if ($condition === null) {
+            return;
+        }
+
+        $lignes = DB::table('personnage_conditions')
+            ->where('condition_id', $condition->id)
+            ->where('source', 'like', 'etreinte:%')
+            ->get();
+
+        foreach ($lignes as $ligne) {
+            $instanceId = (int) str_replace('etreinte:', '', (string) $ligne->source);
+
+            $vivant = $instanceId > 0 && InstanceMonstre::where('id', $instanceId)
+                ->where('quete_id', $quete->id)
+                ->where('etat', 'actif')
+                ->exists();
+
+            if (! $vivant) {
+                DB::table('personnage_conditions')->where('id', $ligne->id)->delete();
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Vol du Gremlin des glaces (The Frozen Horror, doc 18 §2)
+    // ------------------------------------------------------------------
+
+    /**
+     * **Le Gremlin des glaces VOLE** un objet non équipé au lieu d'attaquer :
+     * « on the GM's turn, attacks OR steals an object (never an EQUIPPED
+     * weapon/armour/shield) then flees at full speed ; the object is lost if
+     * no hero sees it at the start of the GM's next turn ».
+     *
+     * Deux temps, un par activation :
+     *  1. Au contact d'un héros porteur d'un objet volable et sans butin en
+     *     cours, il le prend et fuit à la case libre la plus éloignée des
+     *     héros — même lecture que `sortDreadFuite()`/`caseLaPlusEloignee()` :
+     *     nos donjons procéduraux n'ont pas de repaire secret marqué à
+     *     rejoindre.
+     *  2. Tant qu'il porte un butin, chacune de SES activations suivantes ne
+     *     fait plus que contrôler la ligne de vue — « au début du tour
+     *     suivant du MJ » est ici sa prochaine activation, la seule
+     *     granularité que la boucle de round lui donne. Non vu : l'objet est
+     *     PERDU pour de bon. Vu : le butin reste, et le tour se joue
+     *     normalement ensuite (il peut approcher et attaquer).
+     *
+     * ⚠ « jamais l'arme/armure/bouclier équipés » exclut `Equipement::SLOTS` :
+     * seul ce qui dort au sac ou en consommable est volable.
+     * ⚠ La pièce est DÉPLACÉE dans `habillage.vol_objet` (jamais recréée), pour
+     * ne perdre ni ses `charges` ni ses `ameliorations` de Forge à la
+     * récupération — même précaution que `DonObjet`. `habillage` ride déjà le
+     * snapshot (`Sauvegarde::debutQuete()`/`restaurerMonstres()`), donc une
+     * reprise ne fait pas disparaître le butin d'un joueur.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    public function voler(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Collection $cibles, array $acteur): ?array
+    {
+        if (! $this->aCapacite($instance, 'vol_objet')) {
+            return null;
+        }
+
+        $nomMonstre = $instance->nomAffiche();
+        $enCours = (array) data_get($instance->habillage, 'vol_objet');
+
+        // Déjà porteur d'un butin : « un objet », singulier — pas de second
+        // vol tant que le premier n'est ni rendu ni perdu. On ne fait que
+        // contrôler la vue.
+        if ($enCours !== []) {
+            if ($this->ciblesEnVue($quete, $instance, $cibles)->isNotEmpty()) {
+                return null; // encore vu : le butin reste, tour normal ensuite
+            }
+
+            $habillage = $instance->habillage ?? [];
+            unset($habillage['vol_objet']);
+            $instance->update(['habillage' => $habillage]);
+
+            Journal::ajouter($groupe, 'action', [
+                'type' => 'objet_perdu',
+                'monstre' => $nomMonstre,
+                'objet' => $enCours['objet_nom'] ?? null,
+            ], $acteur);
+
+            return null; // ce n'est pas une action : le tour se joue normalement ensuite
+        }
+
+        $porteur = $cibles->first(fn (EtatPersonnageQuete $c) => abs((int) $c->position_x - (int) $instance->position_x)
+            + abs((int) $c->position_y - (int) $instance->position_y) === 1);
+
+        if ($porteur === null || $porteur->personnage === null) {
+            return null; // personne au contact : tour normal (il attaquera)
+        }
+
+        $ligne = $porteur->personnage->inventaire()
+            ->whereNotIn('emplacement', Equipement::SLOTS)
+            ->with('objet')
+            ->inRandomOrder()
+            ->first();
+
+        if ($ligne === null) {
+            return null; // rien à voler au sac : tour normal
+        }
+
+        $vol = [
+            'personnage_id' => (int) $porteur->personnage_id,
+            'objet_id' => $ligne->objet_id,
+            'objet_nom' => $ligne->objet?->nom,
+            'emplacement' => $ligne->emplacement,
+            'quantite' => (int) $ligne->quantite,
+            'charges' => $ligne->charges,
+            'ameliorations' => $ligne->ameliorations,
+        ];
+
+        $ligne->delete();
+
+        $habillage = $instance->habillage ?? [];
+        $habillage['vol_objet'] = $vol;
+        $instance->update(['habillage' => $habillage]);
+
+        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+        $caseCible = $this->caseLaPlusEloignee($quete, $instance, $cibles);
+
+        if ($caseCible !== null) {
+            $instance->update(['position_x' => $caseCible['x'], 'position_y' => $caseCible['y']]);
+        }
+
+        $payload = [
+            'type' => 'vol_objet',
+            'monstre' => $nomMonstre,
+            'cible' => ['personnage_id' => $porteur->personnage_id, 'nom' => $porteur->personnage->nom],
+            'objet' => $vol['objet_nom'],
+            'depart' => $depart,
+            'fuite_vers' => $caseCible ?? $depart,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Récupérable en tuant le Gremlin AVANT qu'il ne sorte de vue : un Gremlin
+     * `vaincu` qui porte encore un butin le RESTITUE intact à son propriétaire
+     * — même point de passage que `libererEtreintesOrphelines()` juste
+     * au-dessus, et pour la même raison : quel que soit le chemin qui l'a tué,
+     * la récupération suit sans délai. Appelée depuis
+     * `ResolveurTour::verifierFinDuCombat()`.
+     *
+     * ⚠ Ligne RECRÉÉE (jamais déplacée, contrairement à `DonObjet`) : le vol
+     * l'avait déjà SUPPRIMÉE (voir `voler()`), il n'y a donc plus de ligne à
+     * déplacer — mais ses `charges`/`ameliorations` d'origine sont conservées
+     * telles quelles, ce qui revient au même pour le joueur.
+     */
+    public function restituerButinsRecuperes(Quete $quete): void
+    {
+        foreach ($quete->instancesMonstres()->where('etat', 'vaincu')->get() as $instance) {
+            $vol = (array) data_get($instance->habillage, 'vol_objet');
+
+            if ($vol === []) {
+                continue;
+            }
+
+            $personnage = Personnage::find($vol['personnage_id'] ?? null);
+
+            if ($personnage !== null) {
+                Inventaire::create([
+                    'personnage_id' => $personnage->id,
+                    'objet_id' => $vol['objet_id'],
+                    'emplacement' => $vol['emplacement'],
+                    'quantite' => $vol['quantite'],
+                    'charges' => $vol['charges'],
+                    'ameliorations' => $vol['ameliorations'],
+                ]);
+            }
+
+            $habillage = $instance->habillage ?? [];
+            unset($habillage['vol_objet']);
+            $instance->update(['habillage' => $habillage]);
+        }
     }
 
     /**

@@ -183,20 +183,64 @@ return [
             ['carte' => 'Elven Boots', 'objet' => 'Bottes elfiques'],
 
             // ---- Non portés : chacun nomme la mécanique qui manque ----
+            // ⚠ 2026-09-06 : le PRODUCTEUR existe désormais
+            // (`MoteurDegats::infligerMindAHeros()`, plan glace phase 1) —
+            // « MoteurDegats n'intercepte que le Body » n'est plus vrai. Ce
+            // qui manque a changé de nature : plus un point d'interception,
+            // mais l'ABSORPTION elle-même (un lecteur d'objet à jetons sur
+            // cette méthode, façon Anneau de Feu côté Body) — et rien ne
+            // l'appelle encore en jeu, Mind Freeze étant une phase à part.
             ['carte' => 'Sky Orb', 'nom' => 'Orbe Céleste',
                 'texte' => 'Absorbe 4 points de dégâts de Mind, un jeton à la fois.',
-                'manque' => "Absorber des dégâts de MIND : `MoteurDegats` n'intercepte que le Body."],
+                'manque' => "Le producteur existe (`MoteurDegats::infligerMindAHeros()`) mais rien ne "
+                    ."l'appelle encore en jeu ; il manque l'ABSORPTION à jetons elle-même, un lecteur "
+                    .'objet sur cette méthode.'],
 
-            // ---- Boîte GLACE (Frozen Horror) : règles absentes du jeu ----
+            // ---- Boîte GLACE (Frozen Horror) : 3 artefacts, examinés carte
+            // par carte le 2026-09-06 (phase 5 du plan). Aucun n'a pu être
+            // porté — chacun pour une raison PRÉCISE, pas « la boîte est
+            // écartée en bloc » comme avant cette relecture.
+            //
+            // ⚠ Le froid a une SOURCE et un LECTEUR depuis le 2026-09-04
+            // (`Morsure de Froid`, `Tempête de Glace` côté Dread — leur jumeau
+            // héros *Chaleur* aussi, cf. `parchemins` ci-dessous) et la couche
+            // TERRAIN (`cartes.grille['terrain']`, phase 4a) existe depuis le
+            // 2026-09-06 avec les DEUX terrains que ces cartes nomment
+            // (Rivière gelée, Chambre forte de glace). Ce n'est donc plus « rien
+            // à quoi résister » pour ces trois-là — et pourtant aucune n'est
+            // portable : voir chaque `manque` pour la raison exacte, qui n'est
+            // plus la même qu'avant.
             ['carte' => 'Ring of Warmth', 'paquet' => 'Frozen Horror', 'nom' => 'Anneau de Chaleur',
                 'texte' => 'Immunise contre le sort Chill, les coffres de glace et les rivières gelées.',
-                'manque' => 'GLACE — ni sort de froid, ni terrain gelé dans le jeu. Rien à quoi résister (arbitrage de René).'],
+                'manque' => "GLACE — le sort Chill a un lecteur (resistance_degats_type/absorbeDegat), "
+                    ."mais l'immunité aux coffres/rivières est la MOITIÉ dominante de cette carte, et rien "
+                    ."ne peut encore la tenir : la couche terrain (Chambre forte de glace, Rivière gelée) "
+                    ."ne blesse encore PERSONNE — aucun lecteur n'applique `terrains.effet` en jeu (posé au "
+                    ."tour/déplacement, ce qui vit dans ResolveurTour, hors périmètre de cette phase). Et le "
+                    ."dégât de terrain lui-même ne porte aucun `type_degat` : même une fois ce lecteur écrit, "
+                    ."`resistance_degats_type: froid` ne l'intercepterait pas sans qu'on tague aussi l'effet "
+                    ."du terrain — deux pièces manquantes, pas une. Porter la seule immunité au sort Chill "
+                    ."aurait vendu un anneau « anti-froid » qui laisse geler dans une chambre forte de glace : "
+                    ."exactement la carte à moitié tenue que ce registre existe pour ne jamais afficher."],
             ['carte' => 'Armband of Ice', 'paquet' => 'Frozen Horror', 'nom' => 'Brassard de Glace',
                 'texte' => "Immunise contre Mind Freeze et Chill, contre les coffres de glace et les rivières gelées, et réduit d'1 point les dégâts d'Ice Storm.",
-                'manque' => "GLACE — mêmes absences, et trois sorts de froid qui n'existent pas au catalogue."],
+                'manque' => "GLACE — même moitié manquante que l'Anneau de Chaleur (immunité de terrain sans "
+                    ."lecteur de dégât de terrain), EN PLUS de Mind Freeze, non porté (dégâts de Mind "
+                    ."désormais lisibles via MoteurDegats::infligerMindAHeros(), mais rien ne joue encore ce "
+                    ."sort côté Dread) et de la réduction d'1 point sur Ice Storm, lui-même non porté côté "
+                    ."héros (voir parchemins ci-dessous). Trois pièces manquantes sur quatre clauses : porter "
+                    ."ce bracelet reviendrait à ne tenir qu'un quart de sa carte."],
             ['carte' => 'Snowshoes of Speed', 'paquet' => 'Frozen Horror', 'nom' => 'Raquettes de Vitesse',
                 'texte' => '+2 cases de déplacement et annule la glace glissante. Utilisables seulement dans les quêtes glacées.',
-                'manque' => "GLACE — le bonus serait portable, mais la carte le réserve aux régions gelées, qui n'existent pas."],
+                'manque' => "GLACE — le bonus de déplacement a un précédent SYMÉTRIQUE exact "
+                    ."(malus_deplacement/Equipement::malusDeplacement(), lu par Deplacement::calculer()), "
+                    ."mais ses DEUX seuls appelants sont MenuMoteur et ResolveurTour, hors périmètre de "
+                    ."cette phase : un lecteur qu'on écrirait ici (bonus_deplacement) ne serait jamais "
+                    ."invoqué, exactement la clé décorative que ce projet interdit. « Annule la glace "
+                    ."glissante » demande en plus la résolution du terrain Glace glissante elle-même "
+                    ."(non écrite). Et la carte est de toute façon bornée aux « quêtes glacées », un thème que "
+                    ."DemarreurQuete::BOITES_THEMATIQUES n'offre pas tant que la boîte reste désactivée : "
+                    ."un objet qui ne ferait jamais rien en jeu réel, même une fois câblé."],
         ],
     ],
 
@@ -239,22 +283,49 @@ return [
             ['carte' => 'Spell Scroll — Treasure Without Doom', 'sort' => 'Trésor sans Péril'],
             ['carte' => 'Spell Scroll — Psychic Recovery', 'sort' => 'Récupération Psychique'],
 
-            // ---- Boîte GLACE : non prises en compte ----
+            // ---- Boîte GLACE : 1 portée, 4 non prises en compte (phase 5,
+            // 2026-09-06 — examen carte par carte, plus « écartée en bloc »).
+            //
+            // ⚠ *Warmth* est le cas limite honnête que CLAUDE.md annonçait
+            // depuis le 2026-08-15 : un soin fixe de 3, sans zone, sans
+            // résistance, sans terrain — rien ne manquait que l'examen.
+            ['carte' => 'Spell Scroll — Warmth', 'paquet' => 'Frozen Horror', 'sort' => 'Chaleur'],
+
+            // ⚠ *Chill* est la carte la plus proche d'être portable — et elle
+            // ne l'est pas, pour une raison précise trouvée en confrontant
+            // les deux côtés de la table : côté Dread, `Morsure de Froid` est
+            // déclarée `zone => ZONE_CONTACT` (les 4 cases orthogonales du
+            // lanceur, PLUSIEURS monstres à la fois) — pas une cible unique.
+            // Le texte du parchemin (« 1 PV à TOUT monstre orthogonalement
+            // adjacent ») confirme qu'il s'agit de la même règle, pas d'une
+            // carte plus simple. Or côté HÉROS, `MotsClesSort::CIBLE_MONSTRES_ZONE`
+            // est explicitement `NON_IMPLEMENTES` — « le sort touche une seule
+            // cible » — et son seul lecteur possible, `ResolveurTour::sortDegats()`,
+            // est hors périmètre de cette phase. Le porter en dégradant
+            // silencieusement « tous les monstres adjacents » en « un seul »
+            // serait exactement la carte à moitié tenue à ne pas afficher.
             ['carte' => 'Spell Scroll — Chill', 'paquet' => 'Frozen Horror', 'nom' => 'Morsure du Froid',
                 'texte' => '1 PV à tout monstre orthogonalement adjacent au lanceur ; la victime ne peut pas se défendre.',
-                'manque' => 'GLACE — sort de froid absent du catalogue (arbitrage de René).'],
-            ['carte' => 'Spell Scroll — Warmth', 'paquet' => 'Frozen Horror', 'nom' => 'Chaleur',
-                'texte' => "Rend jusqu'à 3 PV de Body au lanceur ou à un héros de son choix.",
-                'manque' => 'GLACE — la règle serait portable telle quelle, mais le sort appartient au jeu de froid, écarté en bloc.'],
+                'manque' => "GLACE — cible multiple (les 4 cases orthogonales du lanceur, comme son jumeau "
+                    ."Dread `zone => ZONE_CONTACT`) : `MotsClesSort::CIBLE_MONSTRES_ZONE` est explicitement "
+                    ."NON_IMPLEMENTES côté héros (« le sort touche une seule cible »), et son seul lecteur "
+                    ."possible vit dans ResolveurTour::sortDegats(), hors périmètre de cette phase."],
             ['carte' => 'Spell Scroll — Ice Storm', 'paquet' => 'Frozen Horror', 'nom' => 'Tempête de Glace',
                 'texte' => 'Zone de 2×2 ; chaque figure y est attaquée séparément à 3 dés, sans défense possible. Interdit en couloir.',
-                'manque' => 'GLACE — et une zone rectangulaire, que notre vocabulaire de zone ne sait pas décrire.'],
+                'manque' => "GLACE — même manque que Chill, un cran plus loin : une zone carrée 2×2 existe "
+                    ."déjà côté Dread (`MotsClesSortDread::ZONE_CARRE_2X2`, lue par `MoteurDread::casesZone()`), "
+                    ."mais rien d'équivalent n'existe côté héros — `ResolveurTour::sortDegats()`, hors périmètre."],
             ['carte' => 'Spell Scroll — Ice Bridge', 'paquet' => 'Frozen Horror', 'nom' => 'Pont de Glace',
                 'texte' => 'Crée un pont permanent permettant de franchir fosse, piège, gouffre, crevasse ou case glacée.',
-                'manque' => "GLACE — et poser du TERRAIN en cours de quête, ce qu'aucune mécanique ne fait."],
+                'manque' => "GLACE — poser du TERRAIN en cours de quête (la couche `cartes.grille['terrain']` "
+                    ."n'est peuplée qu'à l'assemblage, doc 18 §4/phase 4a) ET la résolution de sort qui le "
+                    ."ferait, toutes deux hors périmètre — un mécanisme neuf, pas une couture existante."],
             ['carte' => 'Spell Scroll — Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
                 'texte' => '+6 au jet de déplacement et traversée des monstres et héros, pour un tour.',
-                'manque' => 'GLACE — cavernes gelées inexistantes.'],
+                'manque' => "GLACE — la traversée des figures a un précédent qui MARCHE (`franchit_figures`, "
+                    ."posé par le sort Voile de Brume), mais le « +6 au jet de déplacement » n'a aucun lecteur "
+                    ."symétrique câblable ici : le seul point qui module l'allonge (`Deplacement::calculer()`) "
+                    ."n'est appelé que par `MenuMoteur`/`ResolveurTour`, hors périmètre de cette phase."],
         ],
     ],
 
@@ -302,6 +373,12 @@ return [
             ['carte' => 'Mind Blast', 'paquet' => 'Dread Moon', 'sort_dread' => 'Choc Mental'],
             ['carte' => 'Dreadlights', 'paquet' => 'Dread Moon', 'sort_dread' => "Feux de l'Effroi"],
             ['carte' => 'Creeping Grasp', 'paquet' => 'Delthrak', 'sort_dread' => 'Étreinte des Ronces'],
+            // ⚠ Porté le 2026-09-06 SANS son « état de choc » : la carte délègue
+            // cette règle à une section du livret Frozen Horror que nous n'avons
+            // pas. Ce qui est tenu — le jet à 1 dé par point de Mind POSSÉDÉ
+            // (la jauge, pas l'attribut), et la chute à 0 Mind — l'est
+            // entièrement ; l'état de choc reste une dette ÉCRITE, pas un oubli.
+            ['carte' => 'Mind Freeze', 'paquet' => 'Frozen Horror', 'sort_dread' => "Gel de l'Esprit"],
 
             // ---- Invocation ----
             ['carte' => 'Summon Undead', 'paquet' => 'Base', 'sort_dread' => 'Invocation de morts-vivants'],
@@ -315,20 +392,22 @@ return [
             ['carte' => 'Restore Dread', 'paquet' => 'Dread Moon', 'sort_dread' => "Restauration de l'Effroi"],
             ['carte' => 'Escape', 'paquet' => 'Base', 'sort_dread' => 'Fuite'],
 
+            // ---- Terrain et déplacement (portés le 2026-09-06) ----
+            // ⚠ Le Mur de Glace vit sur SA couche `cartes.grille['glace']`, et
+            // non dans le catalogue `terrains` : une entrée de ce catalogue
+            // serait candidate au tirage STATIQUE de `AssembleurCarte::placerTerrains()`,
+            // ce qu'aucune carte ne décrit — un mur de glace se pose en cours de
+            // partie, comme les chausse-trappes. C'est l'architecture du terrain
+            // qui est réutilisée (boucle unique de `FabriqueGrille::pour()`),
+            // jamais son catalogue.
+            ['carte' => 'Ice Wall', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Mur de Glace'],
+            ['carte' => 'Skate', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Patinage'],
+
             // ---- Non portées : chacune avec la mécanique qui lui manque ----
-            ['carte' => 'Mind Freeze', 'paquet' => 'Frozen Horror', 'nom' => "Gel de l'Esprit",
-                'texte' => 'Le héros lance 1 dé de combat par point de Mind possédé avant l\'attaque. Au moins un bouclier blanc : il lui reste 1 Mind. Aucun : Mind à zéro, le héros entre en « état de choc ».',
-                'manque' => "DÉGÂTS DE MIND — `MoteurDegats` ne voit que le Body (même dette que l'Orbe du Ciel), et « l'état de choc » est une règle du livret Frozen Horror que nous n'avons pas."],
             ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'nom' => 'Malédiction du loup-garou',
                 'texte' => 'Le héros lance un dé rouge : sur un 6 le sort est sans effet, sinon il contracte la malédiction du loup-garou.',
                 'manque' => 'TRANSFORMATION D\'UN HÉROS EN MONSTRE — la carte délègue toute sa règle à la section « Turning Heroes into Werewolves » d\'un livret que nous n\'avons pas.'],
             ['carte' => 'Rust', 'paquet' => 'Base', 'sort_dread' => 'Rouille'],
-            ['carte' => 'Ice Wall', 'paquet' => 'Frozen Horror', 'nom' => 'Mur de Glace',
-                'texte' => "Jusqu'à 4 cases de glace pleine qui bloquent le déplacement mais pas la vue ; chacune dure tant que le lanceur la voit, ou jusqu'à 5 crânes cumulés d'attaques.",
-                'manque' => 'TERRAIN DESTRUCTIBLE À COMPTEUR — la couche `chausse_trappes` en est le plus proche parent, mais elle n\'a ni points de vie ni entretien lié à la vue du lanceur.'],
-            ['carte' => 'Skate', 'paquet' => 'Frozen Horror', 'nom' => 'Patinage',
-                'texte' => 'Le lanceur patine sur 12 cases et traverse héros et monstres. Dure un tour.',
-                'manque' => "MODE DE DÉPLACEMENT POUR UN MONSTRE — `franchit_figures` n'existe que sur le héros, et le déplacement des monstres est piloté par le moteur, sans buff qui le module."],
             ['carte' => 'Dispel', 'paquet' => 'Dread Moon', 'nom' => 'Dissipation',
                 'texte' => "Pendant le tour d'un héros, pour annuler un sort qu'il vient de lancer : le lanceur Dread ajoute 1 dé rouge à ses points de Mind, le héros fait de même ; le plus haut total l'emporte.",
                 'manque' => "RÉACTION DU MJ PENDANT LE TOUR D'UN HÉROS — `MoteurReactions` ne parle qu'aux héros (offre sur canal privé, réponse d'un téléphone). Ici c'est le MJ qui réagit, sans joueur à consulter : la résolution serait synchrone, mais le point d'entrée n'existe pas."],

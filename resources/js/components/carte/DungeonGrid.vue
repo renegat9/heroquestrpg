@@ -13,7 +13,8 @@ import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
-    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, icone,
+    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
+    TERRAIN_TEINTE_DEFAUT, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -42,6 +43,13 @@ const props = defineProps({
      *  parfois l'unique porte d'une salle : un mécanisme invisible qui verrouille
      *  le donjon. */
     levers: { type: Array, default: () => [] },
+    /** Terrain des salles découvertes (doc 18 §4) : [{x, y, nom, cout_deplacement,
+     *  bloque_mouvement, bloque_vue, paire_id}]. ⚠ Rendu comme une TEINTE de la
+     *  case elle-même (pas un marqueur posé dessus) — voir TERRAIN_TEINTES dans
+     *  symboles.js pour la raison. C'était la couche « leviers » de 2026-08-27,
+     *  publiée mais dessinée NULLE PART : gratuit tant qu'aucune case de glace
+     *  n'était posée, un piège invisible le jour où il y en a une. */
+    terrain: { type: Array, default: () => [] },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
 });
@@ -57,6 +65,22 @@ const TUILES = { m: 'wall', s: 'floor', b: 'fog' };
 const iconePiege = (t) => t.ic ?? icone(PIEGE_ICONES, t.nom, PIEGE_ICONE_DEFAUT);
 const iconeEpreuve = (e) => e.ic ?? icone(EPREUVE_ICONES, e.nom, EPREUVE_ICONE_DEFAUT);
 const iconeMeuble = (f) => f.ic ?? icone(MOBILIER_ICONES, f.nom, MOBILIER_ICONE_DEFAUT);
+
+// Coordonnée → catégorie de terrain, pour une résolution en O(1) case par case
+// (même raison que `cells` : un `.find()` par case sur une carte de 5000
+// cellules aurait un coût quadratique au premier grand donjon).
+const terrainParCase = computed(() => {
+    const table = {};
+    for (const t of props.terrain) {
+        table[`${t.x},${t.y}`] = t;
+    }
+    return table;
+});
+const terrainDe = (x, y) => terrainParCase.value[`${x},${y}`] ?? null;
+const classeTerrain = (x, y) => {
+    const t = terrainDe(x, y);
+    return t ? `terrain-${icone(TERRAIN_TEINTES, t.nom, TERRAIN_TEINTE_DEFAUT)}` : null;
+};
 
 const cells = computed(() => {
     const out = [];
@@ -130,8 +154,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             v-for="c in cells"
             :key="`c-${c.x}-${c.y}`"
             class="dg-cell"
-            :class="[c.t, cellClass ? cellClass(c.x, c.y) : null]"
+            :class="[c.t, classeTerrain(c.x, c.y), cellClass ? cellClass(c.x, c.y) : null]"
             :style="{ gridColumn: c.x + 1, gridRow: c.y + 1 }"
+            :title="terrainDe(c.x, c.y)?.nom"
             @click="emit('cell', c.x, c.y)"
         >
             <slot name="cell" :x="c.x" :y="c.y" />
@@ -244,6 +269,32 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-cell.fog { background: oklch(0.16 0.01 255); }
 .dg-cell.fog::after { content: ""; position: absolute; inset: 0; border-radius: 3px;
   background: radial-gradient(circle at 50% 40%, oklch(0.26 0.015 255 / 0.6), oklch(0.1 0.008 255 / 0.95)); }
+
+/* ---- terrain (doc 18 §4) : la CASE elle-même change de teinte, ce n'est pas
+   un marqueur posé dessus — voir le commentaire de TERRAIN_TEINTES dans
+   symboles.js pour la raison (un héros se TIENT sur la glace). Trois
+   catégories : `danger` porte une HACHURE en plus de la teinte — la couleur
+   seule se lit mal sous le voile de brouillard ou en accessibilité réduite,
+   la texture porte l'information même en niveaux de gris ; `passage` (tunnel)
+   et `decor` (sans effet à ce jour) restent une simple teinte. Placées AVANT
+   la surcouche manette qui suit : sur la manette, « case accessible »/« case
+   occupée » doivent rester lisibles par-dessus un sol givré, jamais l'inverse
+   — la cascade CSS (règle déclarée plus bas = priorité) fait ce travail sans
+   qu'aucune des deux couches n'ait à connaître l'autre. */
+.dg-cell.terrain-danger {
+  background:
+    repeating-linear-gradient(135deg, oklch(0.78 0.15 220 / 0.24) 0 4px, transparent 4px 9px),
+    linear-gradient(150deg, oklch(0.30 0.05 220), oklch(0.22 0.045 225));
+  box-shadow: inset 0 0 0 1px oklch(0.78 0.15 220 / 0.4);
+}
+.dg-cell.terrain-passage {
+  background: linear-gradient(150deg, oklch(0.32 0.09 290), oklch(0.21 0.06 290));
+  box-shadow: inset 0 0 0 1px oklch(0.72 0.13 290 / 0.45);
+}
+.dg-cell.terrain-decor {
+  background: linear-gradient(150deg, oklch(0.27 0.03 220), oklch(0.20 0.02 225));
+  box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.3);
+}
 
 /* ---- surcouche manette (accessibilité / départ / occupants) ---- */
 .dg-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }

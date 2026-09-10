@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Events\HerosVaSubirDegats;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Personnage;
 
 /**
@@ -25,6 +26,11 @@ use App\Models\Personnage;
  * Ce moteur couvre les chemins de dégâts connus ; l'observateur rattrape tout
  * ce qui écrirait `pv_body` sans passer par ici, aujourd'hui ou demain. Les
  * deux ne font pas double emploi — l'un intercepte, l'autre constate.
+ *
+ * `infligerMindAHeros()` (2026-09-06) est la MÉTHODE SŒUR pour la jauge
+ * d'esprit, PAS un paramètre `$jauge` sur celle du Body : les deux jauges ne
+ * partagent ni leurs réactions, ni leur réduction, ni leur mémoire — voir son
+ * docblock pour ce qu'elle reprend et ce qu'elle laisse délibérément de côté.
  *
  * Voir `reference/19_mots_cles_effets.md` §Regain et §Dégâts.
  */
@@ -64,6 +70,33 @@ final class MoteurDegats
      * Les cartes réactives parlent d'un COUP reçu ; ceci est une hémorragie.
      */
     public const SOURCE_POISON = 'poison';
+
+    /**
+     * ÉTREINTE DU YÉTI (The Frozen Horror, doc 18 §2) : « 2 Body Points
+     * automatiques (sans jet de défense, sans action possible) à chaque tour
+     * suivant du MJ, jusqu'à la mort du héros ou celle du Yéti ». Saigne par
+     * le MÊME lecteur que le poison (`ResolveurTour::saignerParConditions()`,
+     * `conditions.effet.degats_pv_body_par_tour`), sous une source DISTINCTE
+     * — sinon la Plume anti-poison rendrait à l'étreinte des PV perdus au
+     * poison, et réciproquement.
+     *
+     * ⚠ Hors de `SOURCES_REACTIVES`, même raison que le poison et les jetons
+     * de Rejeton : la carte parle d'une PRISE qui serre, pas d'un coup qu'on
+     * annule d'un battement d'aile.
+     */
+    public const SOURCE_ETREINTE = 'etreinte';
+
+    /**
+     * Sort du Dread qui entame l'ESPRIT plutôt que le corps — *Gel de l'Esprit*
+     * (Mind Freeze, non encore porté : plan glace phase 2) en sera le premier
+     * exemple.
+     *
+     * ⚠ Clé DISTINCTE de `SOURCE_SORT_DREAD` (Body) et pas une réutilisation :
+     * `memoriser()` cumule par source dans `degats_subis`, et mélanger les deux
+     * jauges sous la même clé ferait rendre à la Plume anti-poison des PV de
+     * Body pour des points d'esprit perdus.
+     */
+    public const SOURCE_SORT_DREAD_MIND = 'sort_dread_mind';
 
     /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
@@ -153,19 +186,22 @@ final class MoteurDegats
      * quête, comme les jetons de Rejeton et les compteurs de capacités. Un cumul
      * de poison qui traverserait le hub ferait rendre à la Plume des PV perdus
      * dans un donjon précédent.
+     *
+     * Rend l'état relu — `infligerMindAHeros()` s'en resert pour poser `tombe`
+     * sans reproduire la même requête juste après.
      */
-    private function memoriser(Personnage $heros, string $source, int $subis): void
+    private function memoriser(Personnage $heros, string $source, int $subis): ?EtatPersonnageQuete
     {
         $quete = $heros->groupeActif?->queteCourante;
 
         if ($subis <= 0 || $quete === null) {
-            return;
+            return null;
         }
 
         $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->first();
 
         if ($etat === null) {
-            return;
+            return null;
         }
 
         $cumul = (array) ($etat->degats_subis ?? []);
@@ -175,5 +211,86 @@ final class MoteurDegats
             'degats_subis' => $cumul,
             'dernier_degat' => ['source' => $source, 'montant' => $subis],
         ]);
+
+        return $etat;
+    }
+
+    /**
+     * Applique `$degats` au Mind d'un héros et rend ce qui a RÉELLEMENT été
+     * retiré — pendant fidèle d'`infligerAHeros()` pour la jauge d'esprit.
+     *
+     * ⚠ MÉTHODE SŒUR, PAS un paramètre `$jauge` sur la méthode Body : Body et
+     * Mind ne partagent ni leurs réactions, ni leur réduction, ni leur mémoire
+     * (voir plus bas) — un `if ($jauge === …)` toutes les cinq lignes aurait
+     * fabriqué deux méthodes déguisées en une, chacune plus dure à lire que
+     * les deux séparées.
+     *
+     * Trois choses que le Body fait et que ceci NE FAIT PAS, et pourquoi :
+     *
+     *  1. **Pas de `reduction_degats`** (Cuir tanné, Peau de fer, Rempart) : les
+     *     trois cartes disent « damage » dans un jeu où le seul dégât physique
+     *     existe. L'étendre au Mind serait inventer une règle qu'aucune carte
+     *     ne porte.
+     *  2. **Pas de `HerosVaSubirDegats` / `MoteurReactions::proposer()`** :
+     *     *Dark Wings* et *Twisting Torrent* annulent un COUP encaissé — aucune
+     *     carte réactive ne parle de l'esprit. `ReactionEffet::SOURCES_REACTIVES`
+     *     reste donc sans la moindre source Mind.
+     *  3. **Pas de `soin_urgence`** par la même occasion : `soinsDisponibles()`
+     *     est entièrement bâti sur `soin_pv_body` / `soin_pv_body_de`, et rien
+     *     ici ne l'appelle — proposer un soin d'urgence Body sur une chute
+     *     d'esprit offrirait une ressource que le joueur ne peut pas dépenser
+     *     pour CETTE raison.
+     *
+     * Ce qui EST repris : `memoriser()`, mais sous une clé de SOURCE distincte
+     * (jamais `SOURCE_SORT_DREAD` telle quelle) — sinon `degats_subis` mêlerait
+     * les deux jauges, et la Plume anti-poison rendrait des PV de Body pour des
+     * points d'esprit perdus.
+     *
+     * **Chute** (arbitrage de René, 2026-09-06) : un héros à 0 Mind tombe,
+     * exactement comme à 0 Body — c'est la symétrie que `ResolveurTour::resoudreRelever()`
+     * anticipe déjà (il traite les deux jauges depuis le début, en la
+     * qualifiant lui-même de « correcte mais dormante »). ⚠ Contrairement à la
+     * branche Body, où chacun des ~14 appelants pose `tombe` lui-même après
+     * avoir relu `pv_body` (marqué `// C4`), on le fait ICI, au centre : il
+     * n'existe encore aucun appelant réel (Gel de l'Esprit / Mind Freeze
+     * arrive en phase 2 du plan glace), donc rien n'impose d'éclater cette
+     * responsabilité entre plusieurs sites — et la centraliser évite de
+     * l'oublier au premier producteur qui arrivera.
+     *
+     * ⚠ `Personnage::booted()` N'est PAS étendu au Mind : `premier_degat_subi`
+     * nomme le premier dégât SUBI dans un vocabulaire où le dégât est
+     * physique (Peau de Pierre) ; l'étendre ferait expirer ce buff sur un gel
+     * mental que sa carte ne mentionne jamais.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    public function infligerMindAHeros(
+        Personnage $heros,
+        int $degats,
+        string $source,
+        array $contexte = [],
+    ): int {
+        $degats = max(0, $degats);
+
+        if ($degats === 0) {
+            return 0;
+        }
+
+        $avant = (int) $heros->pv_mind;
+        $heros->update(['pv_mind' => max(0, $avant - $degats)]);
+
+        $subis = $avant - (int) $heros->pv_mind;
+
+        if ($subis === 0) {
+            return 0;
+        }
+
+        $etat = $this->memoriser($heros, $source, $subis);
+
+        if ((int) $heros->pv_mind === 0) {
+            $etat?->update(['tombe' => true]); // C4 — symétrique du Body, jauge Mind
+        }
+
+        return $subis;
     }
 }

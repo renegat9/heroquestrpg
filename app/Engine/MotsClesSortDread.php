@@ -52,6 +52,31 @@ final class MotsClesSortDread
      */
     public const TYPE_DESTRUCTION = 'destruction';
 
+    /**
+     * Le sort entame la JAUGE DE MIND, jamais le Body (*Mind Freeze*,
+     * plan glace phase 2). Famille à part et pas un `degats` déguisé : sa
+     * résolution ne lance ni dés d'attaque ni dés de défense, elle lance
+     * `pv_mind` dés de combat CONTRE le sort lui-même — un jeu de règles que
+     * `degatsInfliges()` (écrit pour le Body) ne sait pas dire.
+     */
+    public const TYPE_MIND = 'mind';
+
+    /**
+     * Le sort pose un OBSTACLE sur la carte (*Ice Wall*, plan glace phase 2).
+     * Ni un dégât, ni une condition, ni une invocation : une pose de terrain
+     * en cours de quête, sur sa propre couche `carte.grille['glace']`.
+     */
+    public const TYPE_TERRAIN = 'terrain';
+
+    /**
+     * Le sort déplace le LANCEUR par un mode de déplacement spécial
+     * (*Skate*, plan glace phase 2) — traverse les figures, pas les murs.
+     * Aucune autre famille ne bouge le lanceur sans le faire disparaître
+     * (voir `TYPE_FUITE`, qui téléporte) ni sans blesser personne (voir
+     * la capacité `charge`, qui frappe en plus de se déplacer).
+     */
+    public const TYPE_DEPLACEMENT = 'deplacement';
+
     public const TYPES = [
         self::TYPE_DEGATS,
         self::TYPE_CONTROLE,
@@ -59,6 +84,9 @@ final class MotsClesSortDread
         self::TYPE_SOIN,
         self::TYPE_FUITE,
         self::TYPE_DESTRUCTION,
+        self::TYPE_MIND,
+        self::TYPE_TERRAIN,
+        self::TYPE_DEPLACEMENT,
     ];
 
     // -------------------------------------------------------- RÉSISTANCES
@@ -118,6 +146,31 @@ final class MotsClesSortDread
      */
     public const RESISTANCE_RUPTURE_5_6 = 'rupture_5_6_un_de';
 
+    /**
+     * BOUCLIER BLANC, autant de DÉS DE COMBAT que de points de Mind
+     * POSSÉDÉS (*Mind Freeze*, plan glace phase 2) : « The hero rolls 1
+     * combat die per Mind Point [...]. If at least one white shield is
+     * rolled, they have 1 Mind Point remaining. If not, Mind is reduced to
+     * zero ».
+     *
+     * ⚠ Ne pas la confondre avec `RESISTANCE_DES_COMBAT_CRANE` : celle-ci
+     * lance TOUJOURS un seul dé et c'est un CRÂNE qui blesse (*Creeping
+     * Grasp*) ; celle-là lance AUTANT DE DÉS QUE DE MIND et c'est un
+     * BOUCLIER BLANC qui sauve. Ni le nombre de dés ni la face gagnante ne
+     * coïncident — les confondre ferait gagner un magicien épais (Mind 4,
+     * quatre chances de blanc) et perdre un barbare (Mind 1, une seule) sur
+     * la même mauvaise règle. ⚠ Et ce n'est PAS `RESISTANCE_RUPTURE_PAR_MIND`
+     * non plus : celle-là lance des d6 BRUTS et cherche un 6 pour se LIBÉRER
+     * d'une condition déjà posée ; celle-ci lance des DÉS DE COMBAT (faces du
+     * jeu, pas 1-6 bruts) et décide d'un coup, sans condition à rompre plus
+     * tard.
+     *
+     * ⚠ La jauge lue est `pv_mind` (les points POSSÉDÉS), jamais
+     * `attribut_mind` (le plafond) — voir `MoteurDread::cibleMindFreeze()` /
+     * `sortDreadMind()`.
+     */
+    public const RESISTANCE_BOUCLIER_BLANC_PAR_MIND = 'bouclier_blanc_par_mind';
+
     public const RESISTANCES = [
         self::RESISTANCE_AUCUNE,
         self::RESISTANCE_DES_ROUGES,
@@ -125,6 +178,7 @@ final class MotsClesSortDread
         self::RESISTANCE_PALIERS_D6,
         self::RESISTANCE_RUPTURE_PAR_MIND,
         self::RESISTANCE_RUPTURE_5_6,
+        self::RESISTANCE_BOUCLIER_BLANC_PAR_MIND,
     ];
 
     /** Les deux ruptures — celles qui se rejouent au début du tour de la victime. */
@@ -260,6 +314,21 @@ final class MotsClesSortDread
         'teleportation' => [
             'lecteur' => 'App\Partie\MoteurDread::sortDreadFuite',
             'libelle' => 'Règle de destination du lanceur qui se dérobe',
+        ],
+
+        // -- Plan glace, phase 2 (2026-09-06) --------------------------
+
+        'cases_max' => [
+            'lecteur' => 'App\Partie\MoteurDread::planMurDeGlace',
+            'libelle' => 'Nombre maximum de cases de glace posées par lancer',
+        ],
+        'cranes_rupture' => [
+            'lecteur' => 'App\Partie\MoteurDread::endommagerMurDeGlace',
+            'libelle' => 'Crânes cumulés avant qu\'une case de glace ne cède',
+        ],
+        'cases' => [
+            'lecteur' => 'App\Partie\MoteurDread::planPatinage',
+            'libelle' => 'Portée du déplacement du lanceur, en cases',
         ],
     ];
 

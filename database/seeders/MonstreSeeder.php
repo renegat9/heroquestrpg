@@ -229,10 +229,18 @@ class MonstreSeeder extends Seeder
                 'archetype_lanceur' => 'archimage_elfe'],
 
             // ---- The Frozen Horror (doc 18) ----
+            // « attacks OR steals an object (never an equipped weapon/armour/
+            // shield) then flees at full speed ; the object is lost if no hero
+            // sees it at the start of the GM's next turn » — `vol_objet`,
+            // portée par `MoteurDread::voler()`.
             ['nom_base' => 'Gremlin des glaces', 'deplacement' => 10, 'attaque' => 2, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 3,
-                'tier' => 'base', 'boite' => 'horreur_des_glaces', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'horreur_des_glaces', 'cout' => 4, 'capacites' => ['vol_objet'], 'sorts_dread' => []],
+            // « dès qu'il inflige au moins 1 Body Point, agrippe le héros… » —
+            // `etreinte`, portée par `ResolveurTour::resoudreAttaqueMonstre()`
+            // (établissement) et `saignerParConditions()`/`jouerMonstre()`
+            // (saignement automatique + interdiction d'attaquer tant qu'il tient).
             ['nom_base' => 'Yéti', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 2,
-                'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9, 'capacites' => ['etreinte'], 'sorts_dread' => []],
             // Boss de sa boîte. Grande figurine, comme l'ogre.
             // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind
             // Freeze, Skate, Soothe*) + 6 au choix du MJ » (Frozen Horror

@@ -91,6 +91,19 @@ final class Grille
     private array $portes = [];
 
     /**
+     * COÛT DE DÉPLACEMENT par case (doc 18 §4, terrain — phase 4a), défaut 1
+     * (une case ordinaire). Posé par `definirCoutsDeplacement()`, lu par
+     * `coutDeplacement()`. ⚠ Fondation SEULE à ce jour : `casesAtteignables()`
+     * et `chemin()` restent une BFS à coût UNIFORME (`$d + 1`) et ne
+     * consultent pas encore cette carte — un autre agent les rendra pondérés
+     * (file de priorité) pour que la Rivière Gelée (coût 2) ralentisse
+     * réellement le déplacement. Voir le commentaire de `distance()`.
+     *
+     * @var array<string, int>
+     */
+    private array $couts = [];
+
+    /**
      * @param  list<list<string>>  $cases  m = mur, s = sol
      */
     public function __construct(private readonly array $cases) {}
@@ -240,6 +253,31 @@ final class Grille
     }
 
     /**
+     * Coûts de déplacement du TERRAIN (doc 18 §4), une entrée par case dont le
+     * coût diffère de 1 (`{x, y, cout}`) — c'est ce qui rend la Rivière Gelée
+     * possible (2 cases de déplacement par case franchie). Même patron que
+     * `obstruer()`/`occulter()` : posé par `FabriqueGrille::pour()`, jamais
+     * ailleurs.
+     *
+     * ⚠ FONDATION SEULE : rien ne consulte encore `$this->couts` — voir le
+     * commentaire de la propriété et celui de `distance()`.
+     *
+     * @param  list<array{x: int, y: int, cout: int}>  $couts
+     */
+    public function definirCoutsDeplacement(array $couts): void
+    {
+        foreach ($couts as $entree) {
+            $this->couts["{$entree['x']},{$entree['y']}"] = max(1, (int) $entree['cout']);
+        }
+    }
+
+    /** Coût de déplacement d'une case — 1 (sol ordinaire) si non renseigné. */
+    public function coutDeplacement(int $x, int $y): int
+    {
+        return $this->couts["{$x},{$y}"] ?? 1;
+    }
+
+    /**
      * Traverser la Pierre (doc 02 §7) : pour CE héros et CE tour, la roche ne
      * barre plus le passage — « traverse les murs sur tout le déplacement du
      * jet » (Witch Lord, reference/18_extensions.md §3).
@@ -260,6 +298,21 @@ final class Grille
     public function autoriserFranchissement(): void
     {
         $this->obstacles = [];
+        $this->occupees = [];
+        $this->alliees = [];
+    }
+
+    /**
+     * **Patinage** (Skate, The Frozen Horror, doc 18 §4 — sort du boss) :
+     * « le lanceur patine [...] et traverse héros et monstres ». Distincte
+     * d'`autoriserFranchissement()` (Agile), qui lève AUSSI le mobilier
+     * bloquant : la carte de Patinage ne parle QUE des figures, jamais du
+     * mobilier ni des murs — une créature qui patine glisse toujours autour
+     * d'une table, elle ne la traverse pas. Seul `$occupees`/`$alliees` est
+     * levé ; `$obstacles` (mobilier, terrain) reste plein.
+     */
+    public function autoriserFranchissementFigures(): void
+    {
         $this->occupees = [];
         $this->alliees = [];
     }
@@ -527,6 +580,14 @@ final class Grille
      * Plus court chemin orthogonal (cases occupées exclues, départ inclus
      * d'office) ; null si l'arrivée est inaccessible.
      *
+     * ⚠ BFS à coût UNIFORME à ce jour (`parcours()`, un pas = un pas) : ne
+     * consulte PAS encore `$this->couts` (doc 18 §4, terrain). C'est ICI —
+     * avec `casesAtteignables()` ci-dessous — que le déplacement doit devenir
+     * PONDÉRÉ (file de priorité) pour que la Rivière Gelée (coût 2) ralentisse
+     * réellement un héros. `distance()`, elle, doit rester géométrique — voir
+     * son commentaire — donc ne PAS la faire déléguer telle quelle à une
+     * version pondérée de cette méthode sans y prendre garde.
+     *
      * @return list<array{x: int, y: int}>|null étapes SANS la case de départ
      */
     public function chemin(int $departX, int $departY, int $arriveeX, int $arriveeY): ?array
@@ -554,6 +615,17 @@ final class Grille
 
     /**
      * Distance de déplacement (nb de pas orthogonaux) ; null si inaccessible.
+     *
+     * ⚠ DOIT RESTER GÉOMÉTRIQUE (doc 18 §4, plan glace §2) : cette méthode
+     * sert aussi à la PORTÉE et à l'ADJACENCE (une arbalète tire à N cases,
+     * deux figures sont adjacentes à distance 1) — une flèche n'est PAS
+     * ralentie par la glace. Le jour où `chemin()`/`casesAtteignables()`
+     * deviennent pondérés (coût de terrain), `distance()` ne doit PAS se
+     * mettre à compter des « coûts » à la place de pas : soit elle garde son
+     * propre parcours à coût uniforme, soit elle continue à déléguer à une
+     * variante de `chemin()` qui reste, elle, non pondérée. Les mélanger
+     * raccourcirait la portée de toute arme à distance dès qu'une case de
+     * glace se trouve sur la ligne.
      */
     public function distance(int $departX, int $departY, int $arriveeX, int $arriveeY): ?int
     {
@@ -571,6 +643,9 @@ final class Grille
      * subir la plus courte : un monstre à distance repositionne pour garder sa
      * ligne de mire, ce qu'un `chemin()` par case candidate ferait au prix d'un
      * BFS complet par candidate (des centaines par tour).
+     *
+     * ⚠ BFS à coût UNIFORME à ce jour, comme `chemin()` : ne consulte pas
+     * `coutDeplacement()` — voir le commentaire de `chemin()`.
      *
      * @return array<string, list<array{x: int, y: int}>> "x,y" → étapes sans le départ
      */

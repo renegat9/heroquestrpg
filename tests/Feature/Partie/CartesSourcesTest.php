@@ -152,9 +152,13 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // Bottes elfiques, Anneau du Retour, Bouclier de l'Aube, Bâton Ancien,
         // Baguette d'Os : chacune attendait une mécanique, aucune un arbitrage.
         ->and($portees('artefacts'))->toBe(31)
-        // 14 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
-        // et trois ont été écrits le 2026-09-04 — Trésor sans Péril,
-        // Récupération Psychique, Éclair. Ne restent que les 5 cartes de la
-        // boîte GLACE, écartées en bloc.
-        ->and($portesSort('parchemins'))->toBe(14);
+        // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
+        // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
+        // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06
+        // (phase 5, examen carte par carte de la boîte GLACE) : un soin fixe
+        // de 3, sans zone ni résistance ni terrain, rien ne lui manquait que
+        // l'examen. Ne restent que 4 cartes de la boîte GLACE — Chill,
+        // Ice Storm, Ice Bridge, Skate — chacune avec sa dette PROPRE
+        // (config/cartes.php), plus « écartées en bloc ».
+        ->and($portesSort('parchemins'))->toBe(15);
 });

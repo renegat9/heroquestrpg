@@ -8,13 +8,19 @@ use App\Partie\MoteurDread;
 use Illuminate\Database\Seeder;
 
 /**
- * LES 22 SORTS DE DREAD PORTÉS, un par carte officielle.
+ * LES 26 SORTS DE DREAD PORTÉS, un par carte officielle.
  *
  * Source : `dread_spells.pdf` — 29 sorts photographiés par René le 2026-09-04,
- * transcrits carte par carte en **doc 09 §4bis**. Sept ne sont pas portés et
+ * transcrits carte par carte en **doc 09 §4bis**. Trois ne sont pas portés et
  * sont recensés dans `config/cartes.php` (section `dread`) avec, chacune, la
- * mécanique qui lui manque : *Mind Freeze*, *Werewolf's Curse*, *Rust*,
- * *Ice Wall*, *Skate*, *Dispel*, *Mirror Magic*.
+ * mécanique qui lui manque : *Werewolf's Curse*, *Dispel*, *Mirror Magic*.
+ *
+ * ⚠ *Mind Freeze*, *Ice Wall* et *Skate* ont rejoint le catalogue le
+ * 2026-09-06 (plan glace, phase 2 — `docs/plan-glace-et-degats-mind.md`) :
+ * les mécaniques qui leur manquaient (dégâts de Mind, terrain destructible à
+ * compteur, mode de déplacement pour un monstre) sont désormais écrites. Seule
+ * l'« état de choc » de *Mind Freeze* reste une dette nommée — une section du
+ * livret Frozen Horror que le projet n'a pas.
  *
  * ⚠ Rien ici n'est inventé. Le **Trait de Chaos** — notre seul sort sans carte —
  * a quitté le catalogue par migration ; il portait la frappe à distance des
@@ -126,6 +132,31 @@ class SortDreadSeeder extends Seeder
                     'type_degat' => 'froid',
                     'touche_monstres' => true,
                     'hors_couloir' => true,
+                ]],
+
+            // ============================================================
+            // MIND (plan glace, phase 2 — 2026-09-06)
+            // ============================================================
+
+            // « The hero rolls 1 combat die per Mind Point they possess before
+            // the attack. If at least one white shield is rolled, they have
+            // 1 Mind Point remaining. If not, Mind is reduced to zero and the
+            // hero enters a state of shock. »
+            // ⚠ Le nombre de dés est la JAUGE `pv_mind` (les points POSSÉDÉS),
+            // jamais l'attribut : `MoteurDread::sortDreadMind()` le lit sur le
+            // personnage, pas sur `attribut_mind`. Résolution dédiée — ni
+            // `des_degats`/`degats_fixes` (le sort ne blesse pas un nombre
+            // fixe, il FIXE le résultat à 1 ou 0), ni jet de défense.
+            // ⚠ « entre en état de choc » délègue à une section du livret
+            // Frozen Horror que nous n'avons pas — DETTE NOMMÉE, non portée.
+            // Ce qui EST porté : Mind à zéro fait tomber le héros, exactement
+            // comme à 0 Body (arbitrage de René, 2026-09-06, phase 1 du plan) —
+            // `MoteurDegats::infligerMindAHeros()` le fait déjà, sans qu'il y
+            // ait besoin d'inventer l'« état de choc » pour que le sort ait un
+            // effet réel en jeu.
+            ['nom' => "Gel de l'Esprit", 'palier' => 'boss', 'type' => Mot::TYPE_MIND,
+                'effet' => [
+                    'resistance' => Mot::RESISTANCE_BOUCLIER_BLANC_PAR_MIND,
                 ]],
 
             // ============================================================
@@ -324,6 +355,51 @@ class SortDreadSeeder extends Seeder
                         // la donnée le dit aussi.
                         'epargne_artefacts' => true,
                     ],
+                ]],
+
+            // ============================================================
+            // TERRAIN / DÉPLACEMENT (plan glace, phase 2 — 2026-09-06)
+            // ============================================================
+
+            // « Zargon may place up to 4 spaces of solid ice on the board.
+            // These spaces block movement, but not line of sight. Each space
+            // of ice lasts as long as the spellcaster can see it, or until it
+            // has taken a total of 5 skulls from attacks made against it. »
+            // ⚠ « bloque le déplacement, pas la vue » est MOT POUR MOT la
+            // séparation `bloque_mouvement`/`bloque_vue` du 2026-08-05 — mais
+            // la pose se fait EN COURS DE QUÊTE, sur sa propre couche
+            // `carte.grille['glace']` (précédent : `chausse_trappes`), jamais
+            // sur le catalogue `terrains` (qui est posé une fois, à
+            // l'assemblage, et dont une entrée figurerait à tort dans le pool
+            // de tirage statique de `AssembleurCarte::placerTerrains()`).
+            // `MoteurDread::planMurDeGlace()` choisit les cases ET vérifie
+            // qu'aucune n'isole une case aujourd'hui accessible (invariant dur
+            // du projet) ; `endommagerMurDeGlace()` tient le compteur de
+            // crânes ; `entretienMurDeGlace()`, rejoué à chaque tour du
+            // lanceur, retire les cases qu'il ne voit plus.
+            ['nom' => 'Mur de Glace', 'palier' => 'boss', 'type' => Mot::TYPE_TERRAIN,
+                'effet' => [
+                    'cases_max' => 4,
+                    'cranes_rupture' => 5,
+                ]],
+
+            // « The spellcaster skates 12 spaces this turn, moving through
+            // spaces occupied by heroes and monsters. This effect lasts for
+            // one turn. »
+            // ⚠ MODE DE DÉPLACEMENT POUR UN MONSTRE — `franchit_figures`
+            // n'existait que côté héros (Voile de Brume) ; le déplacement des
+            // monstres est piloté par le moteur, sans buff qui le module.
+            // `Grille::autoriserFranchissementFigures()` porte donc SA propre
+            // implémentation (distincte d'`autoriserFranchissement()`, qui
+            // lève AUSSI le mobilier — la carte ne parle que des figures).
+            // `MoteurDread::planPatinage()` cible le héros en vue le plus
+            // proche PAR UN CHEMIN qui traverse les figures, plafonné à
+            // `cases`, puis recule jusqu'à la dernière case RÉELLEMENT libre
+            // (même raisonnement que `ResolveurTour::derniereCaseOuSArreter()` :
+            // traverser n'est pas s'arrêter).
+            ['nom' => 'Patinage', 'palier' => 'boss', 'type' => Mot::TYPE_DEPLACEMENT,
+                'effet' => [
+                    'cases' => 12,
                 ]],
 
             // ============================================================

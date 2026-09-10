@@ -39,10 +39,19 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
 
     expect($cartes)->toHaveCount(29);
 
-    // 23 depuis le 2026-09-04 : la *Rouille* a été portée sur arbitrage de
-    // René — « c'est correct qu'un joueur puisse perdre un objet ».
+    // 26 depuis le 2026-09-06 : les trois derniers sorts de The Frozen Horror
+    // — Gel de l'Esprit, Mur de Glace, Patinage — ont été portés pour rendre à
+    // l'Horreur des Glaces la moitié de son répertoire, et à la boîte ses
+    // règles manquantes. (23 depuis le 2026-09-04, quand la *Rouille* a été
+    // portée sur arbitrage de René : « c'est correct qu'un joueur puisse
+    // perdre un objet ».)
+    //
+    // ⚠ Les 3 qui restent NE SONT PAS des oublis : *Werewolf's Curse* délègue
+    // sa règle à un livret que nous n'avons pas, *Dispel* et *Mirror Magic*
+    // demandent une RÉACTION DU MJ pendant le tour d'un héros, un point
+    // d'entrée que `MoteurReactions` n'a pas (il ne parle qu'aux joueurs).
     $portees = $cartes->whereNotNull('sort_dread');
-    expect($portees)->toHaveCount(23);
+    expect($portees)->toHaveCount(26);
 
     // Chaque carte écartée dit son texte de plateau ET la mécanique qui lui
     // manque : une carte non portée est une dette NOMMÉE, pas un oubli.

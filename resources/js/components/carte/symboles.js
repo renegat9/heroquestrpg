@@ -50,4 +50,37 @@ export const MOBILIER_ICONE_DEFAUT = 'category';
 /** Levier d'ouverture (doc 14 §3.3) — un seul type, donc pas de table. */
 export const LEVIER_ICONE = 'toggle_on';
 
+/**
+ * Terrain (doc 18 §4, The Frozen Horror) → catégorie de TEINTE de case.
+ *
+ * ⚠ FORME DÉLIBÉRÉMENT DIFFÉRENTE des cinq familles ci-dessus : figures,
+ * pièges, épreuves, leviers et mobilier sont des OBJETS posés SUR une case —
+ * un rond, un carré, un losange, un octogone, un bloc. Le terrain, lui, EST
+ * la case : un héros ne se tient pas À CÔTÉ de la glace, il se tient DESSUS.
+ * Un marqueur de plus entrerait en concurrence visuelle avec la figurine qui
+ * l'occupe (la leçon déjà payée par l'épreuve, qui a dû abandonner son disque
+ * plein pour un losange — cf. DungeonGrid.vue). On teinte donc la case
+ * elle-même plutôt que de poser un symbole dessus.
+ *
+ * Trois catégories, pas sept teintes : le vocabulaire d'EFFET compte sept
+ * terrains, mais le joueur n'a besoin de distinguer que trois RISQUES —
+ * `danger` (jet de dé de combat exigé au contact ou par tour : Glace
+ * glissante, Glissière de glace, Rivière gelée, Chambre forte de glace),
+ * `passage` (Tunnel de glace — téléportation, pas un jet) et `decor` (Glace
+ * magique, Rebord de crevasse — sans effet à ce jour). Sept teintes
+ * distinctes auraient demandé sept mémorisations pour un gain de lecture nul
+ * — le joueur agit différemment face à un danger et face à un passage, pas
+ * face à chacun des sept noms.
+ */
+export const TERRAIN_TEINTES = {
+    'Glace glissante': 'danger',
+    'Glissière de glace': 'danger',
+    'Rivière gelée': 'danger',
+    'Chambre forte de glace': 'danger',
+    'Tunnel de glace': 'passage',
+    'Glace magique': 'decor',
+    'Rebord de crevasse': 'decor',
+};
+export const TERRAIN_TEINTE_DEFAUT = 'decor';
+
 export const icone = (table, nom, defaut) => table[nom] ?? defaut;

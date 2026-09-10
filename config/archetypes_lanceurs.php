@@ -133,15 +133,20 @@ return [
         // « connaît 6 sorts Dread fixes (*Chill, Ice Storm, Ice Wall, Mind
         // Freeze, Skate, Soothe*) + 6 sorts au choix du MJ » (Frozen Horror
         // p. 37).
-        // ⚠ TROIS des six ne sont pas portés — Ice Wall, Mind Freeze et Skate
-        // demandent chacun une mécanique entière (registre `config/cartes.php`).
-        // On ne les nomme donc pas ici : un répertoire qui cite un sort absent
-        // du catalogue rétrécit en silence, et personne ne verrait que la moitié
-        // du boss a disparu. Les trois portés, plus le *Choc Mental* au titre
-        // des « 6 au choix du MJ » que sa carte lui accorde expressément.
+        // ⚠ Les SIX sorts fixes sont désormais TOUS portés (plan glace,
+        // phase 2 — 2026-09-06 : *Gel de l'Esprit*, *Mur de Glace* et
+        // *Patinage* ont rejoint *Morsure de Froid*, *Tempête de Glace* et
+        // *Apaisement*, déjà là). Le répertoire passe de 4 à 7 : les six
+        // fixes de la carte, plus le *Choc Mental* au titre des « 6 sorts au
+        // choix du MJ » qu'elle accorde expressément — un répertoire qui cite
+        // un sort absent du catalogue rétrécirait en silence, ce qui n'est
+        // plus le cas d'aucun des six.
         'sorts' => [
             'Morsure de Froid',
             'Tempête de Glace',
+            "Gel de l'Esprit",
+            'Mur de Glace',
+            'Patinage',
             'Apaisement',
             'Choc Mental',
         ],

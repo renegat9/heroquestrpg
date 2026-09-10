@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Models\Epreuve;
 use App\Models\Mobilier;
 use App\Models\Piege;
+use App\Models\Terrain;
 use Database\Seeders\EpreuveSeeder;
 use Database\Seeders\MobilierSeeder;
 use Database\Seeders\PiegeSeeder;
+use Database\Seeders\TerrainSeeder;
 
 /*
  * CHAQUE SYMBOLE DE LA CARTE A SON ICÔNE, ET RÉCIPROQUEMENT (René, 2026-08-27).
@@ -77,6 +79,21 @@ it('donne une icône à chaque MEUBLE du catalogue, et pas une de plus', functio
         ->and(array_diff($declarees, $catalogue))->toBe([], 'icônes orphelines');
 });
 
+it('donne une teinte à chaque TERRAIN du catalogue, et pas une de plus', function () {
+    // ⚠ Le défaut des leviers, mot pour mot (CLAUDE.md, 2026-08-27) : la couche
+    // était PUBLIÉE (EtatGroupe.carte.terrain) mais dessinée NULLE PART — gratuit
+    // tant qu'aucune case de glace n'était posée, un piège invisible le jour où
+    // il y en a une. C'est ce test qui doit attraper le trou, comme il le fait
+    // déjà pour le mobilier.
+    $this->seed(TerrainSeeder::class);
+
+    $catalogue = Terrain::pluck('nom')->all();
+    $declarees = iconesDeclarees('TERRAIN_TEINTES');
+
+    expect(array_diff($catalogue, $declarees))->toBe([], 'terrains sans teinte propre')
+        ->and(array_diff($declarees, $catalogue))->toBe([], 'teintes orphelines');
+});
+
 it('couvre chaque ÉTAT DE PORTE par une illustration, et pas un de plus', function () {
     // ⚠ Les états viennent de `MoteurPortes::ETAT_*` et le contrat les publie
     // tels quels. Un état ajouté au moteur sans entrée de config retomberait en
@@ -118,6 +135,12 @@ it('fait lire la MÊME table au rendu et à la légende', function () {
         $source = file_get_contents(base_path("resources/js/components/carte/{$fichier}"));
 
         expect(str_contains($source, "from './symboles.js'"))->toBeTrue("{$fichier} n'importe pas symboles.js")
-            ->and(str_contains($source, 'const PIEGE_ICONES = {'))->toBeFalse("{$fichier} redéclare une table d'icônes");
+            ->and(str_contains($source, 'const PIEGE_ICONES = {'))->toBeFalse("{$fichier} redéclare une table d'icônes")
+            ->and(str_contains($source, 'const TERRAIN_TEINTES = {'))->toBeFalse("{$fichier} redéclare la table de terrain")
+            // ⚠ L'assertion qui aurait attrapé le défaut des leviers AVANT qu'il
+            // ne coûte un donjon verrouillé : une table déclarée dans
+            // symboles.js mais jamais RÉFÉRENCÉE par le rendu ni la légende est
+            // publiée pour rien — exactement ce qui est arrivé à `leviers`.
+            ->and(str_contains($source, 'TERRAIN_TEINTES'))->toBeTrue("{$fichier} ne lit pas TERRAIN_TEINTES — le terrain resterait invisible");
     }
 });

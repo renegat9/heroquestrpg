@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             PiegeSeeder::class,
             MobilierSeeder::class,
             EpreuveSeeder::class,
+            TerrainSeeder::class,
             TuileSeeder::class,
             GabaritQueteSeeder::class,
         ]);

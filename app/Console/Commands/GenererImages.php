@@ -13,6 +13,7 @@ use App\Models\Epreuve;
 use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Models\Terrain;
 use App\Partie\Images\BibliothequeImages;
 use Illuminate\Console\Command;
 
@@ -31,7 +32,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|leviers|portes|sorts|tous}
+        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -166,6 +167,14 @@ final class GenererImages extends Command
                     'largeur' => (string) $m->largeur,
                     'hauteur' => (string) $m->hauteur,
                 ]),
+            ];
+        }
+
+        foreach (Terrain::all() as $t) {
+            $cibles[] = [
+                'type' => 'terrains',
+                'rel' => $biblio->relatifCatalogue('terrains', $t->id, $t->nom),
+                'prompt' => $biblio->prompt('terrain', ['nom' => $t->nom]),
             ];
         }
 

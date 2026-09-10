@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use App\Engine\RegainEffet;
+use App\Engine\TypeDegat;
 use App\Events\HerosVaSubirDegats;
+use App\Models\Competence;
+use App\Models\Objet;
 use App\Models\Sort;
+use App\Models\SortDread;
 use App\Partie\MoteurDegats;
 use App\Partie\MoteurSorts;
 use Database\Seeders\ClasseHerosSeeder;
@@ -15,6 +19,7 @@ use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
+use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Http;
@@ -41,7 +46,7 @@ beforeEach(function () {
 
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
         PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class,
-        MobilierSeeder::class, ClasseHerosSeeder::class, SortSeeder::class]);
+        MobilierSeeder::class, ClasseHerosSeeder::class, SortSeeder::class, SortDreadSeeder::class]);
 });
 
 it('laisse un écouteur ANNULER les dégâts avant qu\'ils ne touchent les PV', function () {
@@ -187,4 +192,41 @@ it('déclare chaque regain sans utilisateur comme une DETTE nommée', function (
 
     expect($dettesPerimees)->toBe([], 'dette(s) réglée(s) mais toujours déclarée(s) dans '
         .'RegainEffet::SANS_UTILISATEUR : '.implode(', ', $dettesPerimees));
+});
+
+it('confronte TypeDegat::SANS_SOURCE au catalogue dans les deux sens', function () {
+    // Jumeau du test ci-dessus pour `RegainEffet::SANS_UTILISATEUR` — et c'est
+    // précisément l'ABSENCE de ce jumeau qui a laissé `froid` dériver : la
+    // constante disait « aucune source » longtemps après que `Morsure de
+    // Froid` (`SortDreadSeeder`, 2026-09-04) lui en ait donné une, sans qu'un
+    // seul test rouge ne le signale.
+    //
+    // `effet.type_degat` peut apparaître sur un sort de héros, un sort de
+    // Dread, un objet (potion/artefact de résistance) ou une compétence
+    // (talent de résistance) — les quatre catalogues sont donc confrontés.
+    $typeDegatSur = fn (array $effet): ?string => $effet['type_degat'] ?? null;
+
+    $utilises = collect()
+        ->merge(Sort::query()->get()->map(fn (Sort $s) => $typeDegatSur((array) $s->effet)))
+        ->merge(SortDread::query()->get()->map(fn (SortDread $s) => $typeDegatSur((array) $s->effet)))
+        ->merge(Objet::query()->get()->map(fn (Objet $o) => $typeDegatSur((array) $o->effet)))
+        ->merge(Competence::query()->get()->map(fn (Competence $c) => $typeDegatSur((array) $c->effet)))
+        ->filter()
+        ->unique()
+        ->values();
+
+    // (a) aucune nature déclarée SANS_SOURCE ne doit être réellement utilisée.
+    foreach (array_keys(TypeDegat::SANS_SOURCE) as $nature) {
+        expect($utilises->contains($nature))->toBeFalse(
+            "« {$nature} » est déclarée TypeDegat::SANS_SOURCE mais un effet du catalogue la porte : la dette est périmée.",
+        );
+    }
+
+    // (b) et l'inverse, la vraie garde : toute nature RÉELLEMENT utilisée doit
+    // être hors de SANS_SOURCE, sous peine de documenter une dette qui n'en
+    // est plus une (le défaut exact qui a laissé `froid` dériver).
+    $dettesPerimees = $utilises->filter(fn (string $n) => array_key_exists($n, TypeDegat::SANS_SOURCE));
+
+    expect($dettesPerimees->all())->toBe([], 'nature(s) portée(s) par le catalogue mais toujours déclarée(s) '
+        .'dans TypeDegat::SANS_SOURCE : '.$dettesPerimees->implode(', '));
 });

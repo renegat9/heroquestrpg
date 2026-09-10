@@ -78,6 +78,26 @@ class GabaritQueteSeeder extends Seeder
                     // elles, le moteur n'émet qu'un seul jet — la fouille de zone —
                     // et les contextes `savoir`/`social_peur` n'ont aucun producteur.
                     'epreuves' => ['min' => 1, 'max' => 2],
+                    // TERRAIN (doc 18 §4, phase 6a) : même format que
+                    // pieges/epreuves — le gabarit dit COMBIEN, le thème du
+                    // groupe (`groupes.theme_bestiaire`) dit LESQUELS
+                    // (`AssembleurCarte::placerTerrains()`). ⚠ Inerte à ce
+                    // jour : les 7 terrains sourcés sont tous
+                    // `boite = horreur_des_glaces`, une boîte absente de
+                    // `DemarreurQuete::BOITES_THEMATIQUES` tant que ses règles
+                    // restent incomplètes — voir le rapport de la phase 6a.
+                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    // LEVIERS (2026-09-06, phase 6b) : même format que
+                    // pieges/epreuves/terrains — le gabarit dit COMBIEN,
+                    // `AssembleurCarte::placerLeviers()` choisit LA porte à
+                    // verrouiller et la case du levier, et renonce plutôt que
+                    // de forcer si aucune case n'est atteignable sans elle.
+                    // ⚠ Contrairement à `terrains`, AUCUN filtre de thème — un
+                    // levier a sa place dans n'importe quel donjon (arbitrage
+                    // René 2026-09-06). Valeurs sobres : un donjon n'est pas
+                    // une salle des machines, une porte verrouillée reste
+                    // l'exception dans une quête d'exploration ordinaire.
+                    'leviers' => ['min' => 0, 'max' => 1],
                     'butin' => ['or_base' => 50],
                 ],
             ],
@@ -142,6 +162,13 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
                     'epreuves' => ['min' => 1, 'max' => 2],
+                    // TERRAIN — même remarque que ci-dessus (inerte tant que
+                    // la boîte de glace n'est pas rallumée).
+                    'terrains' => ['min' => 2, 'max' => 3, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    // LEVIERS — voir le commentaire du gabarit « Exploration
+                    // simple ». Un antre de sous-boss gagne à garder au moins
+                    // une antichambre gardée par une porte verrouillée.
+                    'leviers' => ['min' => 1, 'max' => 1],
                     'butin' => ['or_base' => 120],
                 ],
             ],
@@ -210,6 +237,14 @@ class GabaritQueteSeeder extends Seeder
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'epreuves' => ['min' => 1, 'max' => 2],
+                    // TERRAIN — même remarque que ci-dessus (inerte tant que
+                    // la boîte de glace n'est pas rallumée).
+                    'terrains' => ['min' => 2, 'max' => 4, 'tunnels' => ['min' => 1, 'max' => 2]],
+                    // LEVIERS — voir le commentaire du gabarit « Exploration
+                    // simple ». Le donjon final est le plus grand (7-10
+                    // salles) : deux antichambres verrouillées avant la salle
+                    // du trône restent sobres au regard de sa taille.
+                    'leviers' => ['min' => 1, 'max' => 2],
                     'butin' => ['or_base' => 300],
                 ],
             ],

@@ -161,7 +161,12 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // Mots-clés de Jungles of Delthrak, portés le 2026-08-10…
         'agile', 'venimeux', 'tacticien', 'racines_entravantes', 'spawn', 's_accroche',
         // …et l'éthéré de Rise of the Dread Moon.
-        'ethere'];
+        'ethere',
+        // The Frozen Horror (doc 18 §2, plan glace phase 3) : l'étreinte du
+        // Yéti (`ResolveurTour::resoudreAttaqueMonstre()`/`jouerMonstre()`/
+        // `saignerParConditions()`) et le vol du Gremlin des glaces
+        // (`MoteurDread::voler()`).
+        'etreinte', 'vol_objet'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(

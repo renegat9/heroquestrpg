@@ -6,7 +6,8 @@ use App\Models\Sort;
 use Illuminate\Database\Seeder;
 
 /**
- * Les 12 sorts héros (doc 02 §7) — 4 éléments × 3 sorts.
+ * Les 12 sorts héros (doc 02 §7) — 4 éléments × 3 sorts — plus les sorts
+ * `parchemin` (aucune école, n'existent qu'en parchemin, doc 16 §3bis).
  * difficulte_parchemin = succès de Mind requis pour un non-lanceur (S1).
  */
 class SortSeeder extends Seeder
@@ -361,6 +362,35 @@ class SortSeeder extends Seeder
             // pas des dés, et rien ne les réduit — ni défense, ni dés rouges.
             ['element' => 'parchemin', 'nom' => 'Éclair', 'type' => 'degats', 'difficulte_parchemin' => 3,
                 'effet' => ['cible' => 'soi', 'rayon' => true, 'degats_fixes' => 2]],
+
+            // « This spell restores up to 3 Body Points to the spellcaster or
+            // any one hero of their choice. » (Spell Scroll — Warmth, Frozen
+            // Horror, doc 16 §9.1) — un soin FIXE plafonné au maximum, mot pour
+            // mot `soin_pv_body` d'Eau de Guérison/Soin du Corps : aucun lecteur
+            // neuf, la carte tenait déjà dans le vocabulaire.
+            //
+            // ⚠ CLAUDE.md le disait depuis le 2026-08-15 : « Warmth is the
+            // honest edge case: a plain 3-point heal, portable as-is, set aside
+            // only because it belongs to that box. » Elle rejoint le catalogue
+            // le jour où le reste de la boîte de glace obtient enfin un examen
+            // carte par carte (phase 5, 2026-09-06) — les 4 autres restent
+            // écartées, cf. `config/cartes.php`.
+            //
+            // ⚠ `element: parchemin` (comme Trésor sans Péril/Récupération
+            // Psychique/Éclair) et NON `eau` : la carte ne dit nulle part
+            // qu'un magicien/elfe l'apprend d'office, et lui donner une école
+            // existante l'aurait ajoutée gratuitement au grimoire du premier
+            // héros qui choisit l'eau — un sort de plus au départ que la carte
+            // ne promet pas.
+            //
+            // ⚠ `difficulte_parchemin: 2` — la carte ne chiffre aucune
+            // difficulté (aucun livret ne le fait, doc 16 §2.1bis) ; alignée sur
+            // les deux autres sorts UTILITAIRES `parchemin` déjà semés (Trésor
+            // sans Péril, Récupération Psychique), faute d'un nombre imprimé —
+            // décision prise à défaut de source, à réviser si une meilleure
+            // apparaît.
+            ['element' => 'parchemin', 'nom' => 'Chaleur', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'heros', 'soin_pv_body' => 3]],
         ];
 
         foreach ($sorts as $sort) {

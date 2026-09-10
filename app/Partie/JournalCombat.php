@@ -213,6 +213,11 @@ final class JournalCombat
                     ? "{$acteurNom} s'arrache aux ronces"
                     : "{$acteurNom} taille les ronces qui retiennent ".($a['cible']['nom'] ?? 'son compagnon'),
             )],
+            // Mur de Glace qui fond, ou qui vole en éclats — plan glace phase
+            // 2 : sans cette ligne, une case bloquant un couloir disparaîtrait
+            // du plateau sans qu'aucune manette ne le dise, et un joueur
+            // verrait un passage s'ouvrir de lui-même.
+            'glace_dissipee' => [$this->glaceDissipee($a)],
             default => [],
         };
     }
@@ -264,6 +269,27 @@ final class JournalCombat
             return [$this->info("{$acteurNom} — {$nom} : il se dérobe et disparaît")];
         }
 
+        // Mur de Glace (plan glace phase 2) : pas de victime, une POSE. Sans
+        // cette ligne, une case bloquant le couloir apparaîtrait sur la table
+        // sans que le fil du combat n'en dise un mot — le même défaut que le
+        // piège muet de 2026-08-05.
+        if (isset($a['cases']) && ! isset($a['resultats'])) {
+            $compte = count((array) $a['cases']);
+
+            return [[
+                'texte' => $compte === 0
+                    ? "{$acteurNom} — {$nom} : la glace ne prend nulle part"
+                    : "{$acteurNom} — {$nom} : {$compte} case".($compte > 1 ? 's' : '').' de glace pleine se dresse'.($compte > 1 ? 'nt' : ''),
+                'ton' => $compte === 0 ? 'echec' : 'info',
+            ]];
+        }
+
+        // Patinage (plan glace phase 2) : le lanceur se déplace, il ne blesse
+        // personne — l'arrivée est ce qui doit se lire.
+        if (isset($a['arrivee'])) {
+            return [$this->info("{$acteurNom} — {$nom} : patine sur ".($a['cases_franchies'] ?? 0).' case(s) et jaillit ailleurs')];
+        }
+
         $resultats = (array) ($a['resultats'] ?? []);
 
         // *Rouille* : la seule ligne du fil qui annonce une perte DÉFINITIVE.
@@ -274,6 +300,24 @@ final class JournalCombat
                 'texte' => "{$nom} ronge ".($resultats[0]['cible']['nom'] ?? 'un héros')
                     .' : '.$resultats[0]['objet_detruit'].' tombe en poussière — définitivement',
                 'ton' => 'mort',
+            ]];
+        }
+
+        // Gel de l'Esprit (plan glace phase 2) : une jauge de MIND, pas de
+        // Body — la ligne générique plus bas lirait `degats` (absent ici,
+        // la clé est `degats_mind`) et afficherait « sans dommage » sur un
+        // héros au bord de l'évanouissement.
+        if (isset($resultats[0]['pv_mind_apres'])) {
+            $r = $resultats[0];
+            $cible = $r['cible']['nom'] ?? 'un héros';
+
+            if (! empty($r['cible_tombee'])) {
+                return [['texte' => "{$nom} vide l'esprit de {$cible} — il s'effondre !", 'ton' => 'chute']];
+            }
+
+            return [[
+                'texte' => "{$nom} fige l'esprit de {$cible} (Mind {$r['pv_mind_avant']} → {$r['pv_mind_apres']})",
+                'ton' => 'subit',
             ]];
         }
 
@@ -342,6 +386,27 @@ final class JournalCombat
         return [empty($a['rompu'])
             ? ['texte' => "{$nom} ne parvient pas à briser {$condition}{$des}", 'ton' => 'echec']
             : ['texte' => "{$nom} brise {$condition} !{$des}", 'ton' => 'succes']];
+    }
+
+    /**
+     * Un Mur de Glace fond (le lanceur ne le voit plus) ou vole en éclats
+     * (5 crânes cumulés) — plan glace phase 2. Les deux raisons se lisent
+     * différemment : la première n'est pas une victoire du groupe, la
+     * seconde en est une.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array{texte: string, ton: string}
+     */
+    private function glaceDissipee(array $a): array
+    {
+        $compte = count((array) ($a['cases'] ?? []));
+        $pluriel = $compte > 1 ? 's' : '';
+
+        if (($a['raison'] ?? null) === 'brisee') {
+            return ['texte' => "Le mur de glace se fissure et s'effondre en éclats — {$compte} case{$pluriel} de moins", 'ton' => 'succes'];
+        }
+
+        return ['texte' => ($a['monstre'] ?? 'La créature')." ne voit plus sa glace — {$compte} case{$pluriel} fond".($compte > 1 ? 'ent' : ''), 'ton' => 'info'];
     }
 
     /**

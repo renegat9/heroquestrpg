@@ -9,6 +9,7 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
 use App\Engine\ResultatDeplacement;
+use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
@@ -57,6 +58,29 @@ final class MenuMoteur
         private readonly Talents $talents,
         private readonly StylesElementaires $styles,
     ) {}
+
+    /**
+     * Cases de `carte.grille['glace']` (Mur de Glace, plan glace phase 2)
+     * ADJACENTES (orthogonal) à (x, y) — même patron que
+     * `MoteurPortes::leviersAdjacents()`. Couche DÉDIÉE, distincte du
+     * catalogue `terrains` : posée en cours de quête par
+     * `MoteurDread::sortDreadMurDeGlace()`, jamais par
+     * `AssembleurCarte::placerTerrains()`.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    private function glaceAdjacente(Carte $carte, int $x, int $y): array
+    {
+        $adjacentes = [];
+
+        foreach ((array) ($carte->grille['glace'] ?? []) as $cellule) {
+            if (abs((int) $cellule['x'] - $x) + abs((int) $cellule['y'] - $y) === 1) {
+                $adjacentes[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
+            }
+        }
+
+        return $adjacentes;
+    }
 
     /**
      * Monstres qu'un héros peut tenter de REPOUSSER d'une case (2026-08-24).
@@ -1491,6 +1515,30 @@ final class MenuMoteur
                         'type' => 'jet',
                         'jet' => ['attribut' => 'body', 'difficulte' => $difficulte],
                         'parametres' => ['mobilier' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
+                }
+
+                // MUR DE GLACE (Ice Wall, plan glace phase 2) — l'option qui
+                // manquait à `MoteurDread::endommagerMurDeGlace()` : écrite,
+                // testée directement, mais aucune case n'était atteignable
+                // depuis le menu (dette nommée par l'agent qui l'a écrite).
+                // Couche DÉDIÉE `carte.grille['glace']` — jamais le catalogue
+                // `terrains` : cette pose est un effet de sort en cours de
+                // quête, posée et entretenue par `MoteurDread`, pas une entrée
+                // du tirage statique de `AssembleurCarte::placerTerrains()`.
+                //
+                // ⚠ PAS de jet de Body (le mur n'oppose aucune défense
+                // d'attribut) : `ResolveurTour::resoudreBriserGlace()` roule un
+                // dé de COMBAT et n'accepte qu'un crâne, exactement le texte
+                // de la carte — le précédent le plus proche pour la
+                // CONSTRUCTION de l'option est la destruction de mobilier
+                // juste au-dessus, pas son jet.
+                foreach ($this->glaceAdjacente($quete->carte, $px, $py) as $cellule) {
+                    $options[] = [
+                        'id' => "briser_glace_{$cellule['x']}_{$cellule['y']}",
+                        'libelle' => 'Frapper le mur de glace',
+                        'type' => 'briser_glace',
+                        'parametres' => ['x' => $cellule['x'], 'y' => $cellule['y']],
                     ];
                 }
 

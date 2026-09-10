@@ -172,8 +172,23 @@ final class DemarreurQuete
         // fouiller. Au pire cinq cartes sèches, puis la certitude.
         $chance = (int) ($groupe->chance_passage_secret ?? AssembleurCarte::CHANCE_PASSAGE_SECRET);
 
+        // Thème du bestiaire (René, 2026-09-06, phase 6a) : FIGÉ pour toute la
+        // campagne, en pratique au PREMIER démarrage de quête — un groupe
+        // existe avant d'avoir jamais joué, il n'y a pas d'autre ancrage.
+        // Écrit UNE SEULE FOIS (jamais retouché si déjà rempli), exactement
+        // l'arbitrage déjà pris pour `type_jalon`/`objectif_majeur` de la
+        // quête, un cran plus haut : `BOITES_THEMATIQUES` va bientôt passer de
+        // 4 à 5 entrées (réactivation de la boîte de glace) et un thème
+        // recalculé à chaque quête changerait de modulo SOUS une campagne EN
+        // COURS — passant de la jungle à la banquise entre deux portes, ce que
+        // `themeBestiaire()` interdit déjà en commentaire pour le boss final.
+        if ($groupe->theme_bestiaire === null) {
+            $groupe->update(['theme_bestiaire' => $this->themeBestiaire((int) $groupe->id)]);
+        }
+        $theme = $groupe->theme_bestiaire;
+
         $carte = $this->assembleur->assembler(
-            $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance,
+            $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance, $theme,
         );
 
         // ⚠ Écrit AVANT tout le reste du démarrage : la suite peut lever (spawns
@@ -184,7 +199,7 @@ final class DemarreurQuete
             : min(100, $chance + AssembleurCarte::PALIER_PASSAGE_SECRET)]);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres(
-            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id,
+            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $theme,
         );
 
         if (count($carte['spawn_heros']) < $heros->count()) {
@@ -522,6 +537,29 @@ final class DemarreurQuete
     }
 
     /**
+     * Thème EFFECTIF d'un groupe — la valeur FIGÉE (`groupes.theme_bestiaire`,
+     * phase 6a) si elle existe, sinon le calcul historique. Jamais `null`.
+     *
+     * ⚠ C'est le point de passage que tout appelant doit utiliser désormais
+     * pour « quel est le thème DE CE GROUPE » — `acheterMonstres()` et
+     * `AssembleurCarte::placerTerrains()` compris — plutôt que rappeler
+     * `themeBestiaire((int) $groupe->id)` directement : ce dernier recalcule
+     * la rotation sur la longueur ACTUELLE de `BOITES_THEMATIQUES`, qui va
+     * passer de 4 à 5 entrées, exactement ce que la colonne existe pour
+     * empêcher de faire dériver une campagne en cours.
+     *
+     * ⚠ Un groupe dont la colonne n'a pas encore été remplie (elle ne l'est
+     * qu'au PROCHAIN démarrage de quête, cf. `demarrer()`) retombe ICI sur le
+     * calcul historique — jamais sur `null` : une campagne déjà en cours au
+     * moment où cette colonne arrive ne doit rien voir changer tant qu'elle
+     * n'a pas rejoué.
+     */
+    public function themeBestiaireDuGroupe(Groupe $groupe): string
+    {
+        return $groupe->theme_bestiaire ?? $this->themeBestiaire((int) $groupe->id);
+    }
+
+    /**
      * COÛT EFFECTIF d'une créature dans le budget de rencontre — le seul calcul
      * qui fasse foi.
      *
@@ -601,12 +639,26 @@ final class DemarreurQuete
      * d'ennemis faibles + quelques ennemis forts » (config `jeu.rencontres`).
      *
      * @param  array<string, mixed>  $structure
+     * @param  ?string  $theme  thème FIGÉ du groupe (`themeBestiaireDuGroupe()`),
+     *                          transmis par l'appelant — repli sur
+     *                          `themeBestiaire($graineGroupe)` quand absent
+     *                          (appel direct en test, `$graineGroupe` sert
+     *                          alors lui-même de graine de thème comme avant
+     *                          cette colonne).
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?string $theme = null): array
     {
         $achats = [];
         $restant = $budget;
+        // ⚠ Une SEULE résolution du thème pour toute la méthode — le pool du
+        // boss final et le tri des monstres « forts » lisaient jusqu'ici
+        // chacun leur propre `themeBestiaire($graineGroupe)`, deux appels pour
+        // la même valeur. `$theme` (déjà résolu par l'appelant depuis la
+        // colonne figée du groupe) prévaut ; le repli ne sert qu'aux deux
+        // tests qui invoquent cette méthode directement par réflexion avec un
+        // simple entier.
+        $theme ??= $this->themeBestiaire($graineGroupe);
 
         $tierFinal = data_get($structure, 'rencontre_finale.tier');
         if (is_string($tierFinal)) {
@@ -671,7 +723,6 @@ final class DemarreurQuete
                 // le pool entier. Une préférence, pas un filtre — c'est ce qui
                 // permet à une boîte pauvre en boss (la Horde ogre n'a que des
                 // brutes) de rester jouable.
-                $theme = $this->themeBestiaire($graineGroupe);
                 $duTheme = $candidats->where('boite', $theme)->values();
                 $candidats = $duTheme->isNotEmpty() ? $duTheme : $candidats;
 
@@ -707,9 +758,8 @@ final class DemarreurQuete
         // commun, elles ne le remplacent pas. Filtrer les faibles aurait donné
         // un donjon de Gremlins (la boîte des glaces n'a qu'une créature de tier
         // base) ; ne rien filtrer du tout ne montrait jamais la signature.
-        $themeBoite = $this->themeBestiaire($graineGroupe);
         $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)
-            ->sortByDesc(fn (Monstre $m) => [$m->boite === $themeBoite ? 1 : 0, (int) $m->cout])
+            ->sortByDesc(fn (Monstre $m) => [$m->boite === $theme ? 1 : 0, (int) $m->cout])
             ->values();
 
         // Aucun « faible » défini (seuil mal réglé / bestiaire atypique) : tout le

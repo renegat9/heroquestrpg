@@ -129,6 +129,24 @@ class ConditionSeeder extends Seeder
             ['nom' => 'Envenimé', 'type' => 'physique', 'duree_defaut' => 1,
                 'effet' => ['deplacement_interdit' => true, 'fin' => 'prochain_tour']],
 
+            // Étreinte du Yéti (The Frozen Horror, doc 18 §2) : « dès qu'il
+            // inflige au moins 1 Body Point, agrippe le héros dans une étreinte
+            // qui inflige 2 Body Points AUTOMATIQUES (sans jet de défense, sans
+            // action possible pour la victime) à chaque tour suivant du MJ,
+            // jusqu'à la mort du héros ou celle du Yéti ». Rien de neuf à
+            // câbler : `degats_pv_body_par_tour` saigne déjà (poison,
+            // `ResolveurTour::saignerParConditions()`), et `deplacement_interdit`
+            // + `action_interdite` privent déjà des deux créneaux (Paralysé).
+            // `degats_pv_body_par_tour_source` distingue la SOURCE du poison —
+            // sans quoi `degats_subis` mélangerait les deux jauges de saignement
+            // et la Plume anti-poison rendrait à l'un des PV perdus à l'autre.
+            // `fin: liberation` reste DESCRIPTIF (comme pour Immobilisé) : la
+            // libération réelle est portée par `saignerParConditions()` et
+            // `ResolveurTour::libererEtreintesOrphelines()`, pas par ce mot.
+            ['nom' => 'Agrippé', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['degats_pv_body_par_tour' => 2, 'degats_pv_body_par_tour_source' => 'etreinte',
+                    'deplacement_interdit' => true, 'action_interdite' => true, 'fin' => 'liberation']],
+
             // Flamme hypnotique (répertoire elfique, © 2023) : « paralyzed for
             // 3 turns — unable to move, attack, or defend ». Les trois d'un
             // coup, et `defense_nulle` est une SUPPRESSION, pas un malus : la

@@ -23,6 +23,13 @@ class Groupe extends Model
         // Compteur de pitié du passage secret (2026-08-27) : 50 % de base,
         // +10 par carte sans passage, retour à 50 dès qu'on en pose un.
         'chance_passage_secret',
+        // Boîte du bestiaire, FIGÉE pour toute la campagne (2026-09-06,
+        // phase 6a) — écrite une seule fois par DemarreurQuete::demarrer(),
+        // jamais recalculée ensuite. `null` tant qu'aucune quête n'a démarré
+        // (ou pour une campagne antérieure à cette colonne) : lire via
+        // DemarreurQuete::themeBestiaireDuGroupe(), qui retombe alors sur le
+        // calcul historique plutôt que de traiter `null` comme une erreur.
+        'theme_bestiaire',
         'etat',
         'phase',
         'quete_courante_id',

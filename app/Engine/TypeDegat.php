@@ -19,22 +19,22 @@ namespace App\Engine;
  *  - **`feu`** : sources = Boule de Feu, Trait de Feu (catalogue), Tempête de
  *    feu (Dread) ; lecteurs = l'Anneau de Feu (immunité) et la régénération du
  *    troll (qu'une brûlure interrompt). Porté.
- *  - **`froid`** : ⚠ **aucune source**. Les six sorts de froid de *The Frozen
- *    Horror* — Chill, Ice Storm, Ice Wall, Mind Freeze, Skate, Soothe — sont
- *    **nommés** par le livret (reference/18 §Frozen Horror) mais leurs effets ne
- *    figurent nulle part dans ce qu'on a. Le mot est déclaré parce que la
- *    mécanique le supporte ; les deux cartes de résistance au froid restent donc
- *    non portées, faute de quoi que ce soit contre quoi résister.
+ *  - **`froid`** : sources = Morsure de Froid, Tempête de Glace (Dread,
+ *    `SortDreadSeeder`, depuis le 2026-09-04) ; lecteur = `MoteurSorts::absorbeDegat()`,
+ *    le même point de passage que le feu. Porté à son tour — ⚠ ça ne rend pas
+ *    pour autant l'Anneau de Chaleur / le Bracelet de Glace portables : ces
+ *    deux cartes protègent aussi d'un TERRAIN gelé (coffres, rivières) qui
+ *    n'existe pas encore dans le moteur (voir `config/cartes.php`).
  *
  * Un sort SANS `type_degat` est neutre : il ne déclenche ni immunité ni
  * interdiction de régénération. C'est le cas de tous les autres.
  */
 final class TypeDegat
 {
-    /** Feu — la seule nature qui ait aujourd'hui une source et des lecteurs. */
+    /** Feu — sources et lecteurs depuis le 2026-08-09. */
     public const FEU = 'feu';
 
-    /** Froid — déclaré, sans source (voir le docbloc). */
+    /** Froid — sources et lecteur depuis le 2026-09-04 (Morsure de Froid). */
     public const FROID = 'froid';
 
     /** @var list<string> */
@@ -45,11 +45,18 @@ final class TypeDegat
      * catalogue peut les porter — le moteur les appliquerait —, mais rien ne
      * les émet : c'est une dette nommée, pas un oubli.
      *
+     * ⚠ VIDE depuis le 2026-09-06 : `froid` en est sorti quand `Morsure de
+     * Froid` lui a donné sa première source (2026-09-04) sans que cette
+     * constante suive — exactement le genre de dérive silencieuse que le
+     * mécanisme existe pour empêcher. `TypeDegatSansSourceTest` (dans
+     * `RegainEtDegatsTest.php`, sur le modèle de `RegainEffet::SANS_UTILISATEUR`)
+     * confronte désormais cette liste au catalogue dans les deux sens, pour
+     * qu'une prochaine nature ne puisse pas dériver de la même façon sans
+     * qu'un test rouge le dise.
+     *
      * @var array<string, string>
      */
-    public const SANS_SOURCE = [
-        self::FROID => 'Les 6 sorts de froid de The Frozen Horror sont nommés (reference/18) mais leurs effets sont introuvables.',
-    ];
+    public const SANS_SOURCE = [];
 
     public static function estConnu(?string $type): bool
     {

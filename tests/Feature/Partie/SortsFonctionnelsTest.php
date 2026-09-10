@@ -141,10 +141,11 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
     $attendus = collect(Sort::all())->groupBy('element')->map->count();
 
     expect($attendus[MoteurSorts::REPERTOIRE_ELFIQUE] ?? 0)->toBe(6)
-        // ⚠ 30 depuis le 2026-09-04 : *Trésor sans Péril*, *Récupération
-        // Psychique* et *Éclair*, les trois sorts à n'exister qu'en parchemin
-        // (élément `parchemin`, aucune école).
-        ->and(Sort::count())->toBe(30);
+        // ⚠ 31 depuis le 2026-09-06 : *Trésor sans Péril*, *Récupération
+        // Psychique* et *Éclair* (2026-09-04), puis *Chaleur* (2026-09-06,
+        // phase 5 — le parchemin Warmth) — quatre sorts à n'exister qu'en
+        // parchemin (élément `parchemin`, aucune école).
+        ->and(Sort::count())->toBe(31);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {
