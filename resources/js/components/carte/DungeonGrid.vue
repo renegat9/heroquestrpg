@@ -38,7 +38,7 @@ const props = defineProps({
     /** Style de la grille (le parent décide la taille : caméra 1fr côté table,
      *  22px + gap côté manette). Fusionné au `display:grid` du socle. */
     gridStyle: { type: Object, default: () => ({}) },
-    /** Leviers des salles découvertes : [{x, y, levier_id, difficulte}]. Ils
+    /** Leviers des salles découvertes : [{x, y, difficulte}]. Ils
      *  n'étaient dessinés NULLE PART (2026-08-27) alors qu'un levier commande
      *  parfois l'unique porte d'une salle : un mécanisme invisible qui verrouille
      *  le donjon. */
@@ -107,9 +107,29 @@ const cells = computed(() => {
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
 
+// ⚠ `etat: 'mur'` N'EST PAS un état de porte (`MoteurPortes::ETAT_*` en garde
+// quatre) — c'est le déguisement que `EtatGroupe::portes()` pose sur une porte
+// secrète non révélée (2026-09-10, signalé en partie réelle : « les murs ayant
+// un passage secret étaient ouverts vis-à-vis les passages secrets »). Les deux
+// cases qu'elle sépare sont du SOL, souvent déjà visibles des deux côtés (une
+// boucle relie deux zones qui ont chacune leur accès normal) : la retirer du
+// payload laissait un couloir d'apparence parfaitement continue là où le
+// moteur bloque bel et bien le passage (`Grille::porteBloqueEntre`).
+//
+// Elle est donc rendue ici, mais SANS passer par `PORTE_ETATS` : aucun libellé,
+// aucune info-bulle, aucun cadenas — un survol ne doit rien révéler qu'un vrai
+// mur ne révélerait. Le battant lui-même (`.dg-door.mur` plus bas) reprend
+// l'apparence de la roche (`.dg-cell.wall`), en pleine hauteur d'arête, sans
+// jambages : une porte fermée annonce « pousse-moi », ce mur ne doit rien
+// annoncer du tout.
 const doors = computed(() => (props.carte.portes ?? [])
-    .filter((p) => PORTE_ETATS[p.etat])
+    .filter((p) => p.etat === 'mur' || PORTE_ETATS[p.etat])
     .map((p) => {
+        if (p.etat === 'mur') {
+            return {
+                x: p.x, y: p.y, cote: p.cote === 's' ? 's' : 'e', etat: 'mur', cadenas: false, titre: undefined,
+            };
+        }
         const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
         return {
             x: p.x,
@@ -404,6 +424,29 @@ const doors = computed(() => (props.carte.portes ?? [])
    trouvé se distingue d'une porte ordinaire. */
 .dg-door.secrete { background: linear-gradient(var(--deg, 90deg), #b18ad8, #5b3f7a); }
 .dg-door.secrete::before, .dg-door.secrete::after { background: #e0cdf5; }
+
+/* MUR — déguisement d'une porte secrète NON TROUVÉE (2026-09-10, signalé en
+   partie réelle : « les murs ayant un passage secret étaient ouverts vis-à-vis
+   les passages secrets »). Les deux cases qu'elle sépare restent du SOL — et
+   souvent déjà EXPLORÉES des deux côtés (une porte de liaison supplémentaire
+   relie deux zones qui ont chacune leur accès normal) : le brouillard ne fait
+   pas le travail ici, seul le rendu peut dire « ceci est bloqué ».
+   ⚠ Un battant `background: transparent` littéral ne suffirait pas : posé EN
+   SURCOUCHE de deux cases de sol déjà peintes (z-index au-dessus), il
+   laisserait leur dégradé transparaître sans rien casser — cette arête n'est
+   pas une case murée qui REMPLACE le sol dessous, juste une couche par-dessus.
+   La teinte reprend donc la couleur RENDUE d'un mur — le fond sombre qui
+   transparaît à travers `.dg-cell.wall` (`--stone-950`, la même que le
+   brouillard) — en PLEINE largeur/hauteur de case (pas les 30 %/80 % d'un
+   battant), pour occuper l'équivalent visuel d'une case murée entière à
+   cheval sur la cloison. Et SANS jambage : ce sont eux qui font lire « il y a
+   une porte ici » ; sans eux et sans info-bulle (`d.titre` reste `undefined`
+   pour cet état), rien ne dit « cherche ici » — juste « le couloir s'arrête
+   là », ce qu'un cul-de-sac de roche donne déjà à l'écran. */
+.dg-door.mur { background: var(--stone-950, oklch(0.16 0.012 255)); box-shadow: none; border-radius: 0; }
+.dg-door.cote-e.mur { top: 0; bottom: 0; width: 100%; }
+.dg-door.cote-s.mur { left: 0; right: 0; height: 100%; }
+.dg-door.mur::before, .dg-door.mur::after { content: none; }
 
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 

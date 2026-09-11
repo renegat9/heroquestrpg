@@ -16,8 +16,10 @@ le moteur, initiative, réactions hors tour. Un pot de cookies par joueur.
 
 ## Outils donnés aux agents
 - `vue.py <slot>` — situation du héros : PV, alliés, monstres visibles,
-  conditions (avec leur SOURCE), destinations atteignables, menu **avec ses
-  sous-choix dépliés**, et pour un sort ses dés/soin/durée.
+  conditions (avec leur SOURCE), **leviers visibles et portes verrouillées**,
+  **terrain proche** (thème glace), destinations atteignables (en **points**,
+  pas en cases — voir plus bas), menu **avec ses sous-choix dépliés**, et pour
+  un sort ses dés/soin/durée.
 - `hq.sh <slot> etat|menu|moi|pret|choix|reaction`
 - **au hub** : `hq.sh <slot> marche|panier <json>|confirmer|equiper <inv>|donner <inv> <perso>`
 - **vote** : `hq.sh <slot> votes|vote <option_id>`
@@ -45,6 +47,47 @@ la boutique sans rien pour l'ouvrir — et `menu` renvoie toujours `null` au hub
 cette route ne servant qu'en quête. Un agent ne dispose QUE de ce qu'on lui
 donne : un verbe manquant ne produit pas une erreur, il produit un joueur
 paralysé qui croit le serveur en panne.
+
+⚠ **Leviers** (posés dans TOUTE quête depuis le 2026-09-06 — avant, aucun ne
+l'avait jamais été) et **terrain de glace** (thème `horreur_des_glaces`
+seulement) suivent la même logique, réparée le 2026-09-10 avant qu'une session
+ne la paye :
+
+- `vue.py` liste désormais, inconditionnellement, les **leviers visibles**
+  (`levier_id`, difficulté du jet de Body, distance) et les **portes
+  verrouillées** (type de verrou, distance). ⚠ **L'API ne publie NULLE PART
+  quel `levier_id` ouvre quelle porte** — `EtatGroupe::portes()` ne renvoie que
+  le TYPE du verrou (`verrou: "levier"`), jamais son `levier_id` ;
+  `ResolveurTour::resoudreActionnerLevier()` retrouve l'appariement lui-même,
+  côté serveur seulement. Un agent (comme un joueur humain) ne peut donc pas
+  savoir À L'AVANCE lequel des leviers visibles ouvre telle porte : `vue.py`
+  liste les candidats, `pilote.py` en vise un au hasard — retentable sans
+  limite, jamais pire qu'un essai perdu.
+- `actionner_levier` **n'a pas de verbe dédié** dans `hq.sh` et n'en a pas
+  besoin : comme `ouvrir_porte`, c'est une option PAR levier adjacent (id
+  `actionner_levier_{x}_{y}`, **uniquement au contact**) dont les `parametres`
+  sont déjà fixés côté serveur dans le dernier menu envoyé — le résolveur ne
+  lit jamais ceux que le client soumettrait. `hq.sh <slot> choix
+  actionner_levier_X_Y` **sans troisième argument** suffit. ⚠ Ce n'est PAS une
+  option à liste façon `lancer_sort` (elle n'a pas de sous-choix à plat) —
+  une supposition initiale à corriger si elle revient.
+- `pilote.py` vise maintenant le levier : porte close ouvrable en priorité,
+  puis — seulement si une porte verrouillée par levier reste sans autre porte
+  connue — le levier visible le plus proche. Il faut plusieurs tours pour
+  l'atteindre (l'option n'apparaît qu'au contact), c'est attendu.
+- **Le déplacement se compte en POINTS, pas en cases**, depuis la Rivière
+  gelée (coût 2 pour ENTRER dans une case de rivière). `vue.py` calcule
+  désormais ses destinations par un Dijkstra pondéré, MIROIR de
+  `Grille::casesAtteignables()` côté serveur et de `DeplacementSheet.vue` côté
+  manette, au lieu d'une BFS à coût uniforme qui surbrillançait des cases que
+  le serveur refusait ensuite. `pilote.py` ne recalcule rien lui-même : il se
+  fie aux destinations que `vue.py` propose.
+- Un **Tunnel de glace** téléporte : la case d'arrivée (`rep.vers`) peut
+  différer de la case demandée — `pilote.py` l'annonce (`[TUNNEL DE GLACE]`)
+  au lieu d'y voir une anomalie. Une **Glace glissante**/**Glissière de
+  glace** peut finir le tour immédiatement sur un bouclier blanc
+  (`rep.terrain.fin_tour`) — c'est la règle, annoncée de même, pas une erreur
+  silencieuse.
 
 ## ⚠ Consigne OBLIGATOIRE à donner aux agents
 > Tu n'as que `vue.py`, `hq.sh` et `sleep`. **N'utilise AUCUN outil de

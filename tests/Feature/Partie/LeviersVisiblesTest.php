@@ -21,8 +21,15 @@ use Illuminate\Support\Facades\Http;
  * invisible verrouille le donjon : l'option n'apparaît qu'au CONTACT, et rien
  * sur la carte ne dit où aller le chercher.
  *
+ * ⚠ Depuis le 2026-09-11, `levier_id` n'est PAS publié (arbitrage de René) :
+ * la PORTE n'annonce que le TYPE de son verrou (`verrou: 'levier'`), jamais
+ * lequel l'ouvre. Publier l'id côté levier seul donnait au joueur la moitié
+ * d'un appariement — des identifiants qui ne se raccordaient à rien, ce qui est
+ * pire que zéro ou que deux. On découvre quel levier ouvre quelle porte EN
+ * L'ACTIONNANT. L'appariement reste serveur, où il est re-validé.
+ *
  * ⚠ L'autre moitié de la règle est le BROUILLARD. Une entrée de levier ne porte
- * pas sa salle (`{x, y, levier_id, difficulte}`, format d'origine) : elle est
+ * pas sa salle (`{x, y}` publiés, la grille garde `levier_id`) : elle est
  * déduite des coordonnées. Publier sans filtrer poserait un marqueur par-dessus
  * le brouillard et révélerait l'emplacement d'un mécanisme que le groupe n'a
  * pas encore atteint — exactement ce que `mobilier()` et `epreuves()` évitent.
@@ -70,7 +77,10 @@ it('publie les leviers d\'une salle DÉCOUVERTE, avec leur difficulté', functio
     $carte = app(EtatGroupe::class)->payload($ctx['groupe']->fresh())['carte'];
 
     expect($carte['leviers'])->toHaveCount(1)
-        ->and($carte['leviers'][0]['levier_id'])->toBe('herse_nord')
+        // ⚠ L'IDENTIFIANT NE SORT PAS. C'est l'arbitrage du 2026-09-11, et il se
+        // teste par l'ABSENCE : un appariement à moitié visible est pire que pas
+        // d'appariement du tout.
+        ->and($carte['leviers'][0])->not->toHaveKey('levier_id')
         ->and($carte['leviers'][0]['x'])->toBe($ici['x'])
         ->and($carte['leviers'][0]['y'])->toBe($ici['y'])
         // ⚠ La DIFFICULTÉ voyage avec le marqueur : c'est elle que l'infobulle
@@ -137,6 +147,7 @@ it('montre un levier de COULOIR seulement si sa case est VUE', function () {
         $leviers = app(EtatGroupe::class)->payload($groupe->fresh())['carte']['leviers'];
 
         expect($leviers)->toHaveCount(1)
-            ->and($leviers[0]['levier_id'])->toBe('herse_vue');
+            ->and($leviers[0])->not->toHaveKey('levier_id')
+            ->and($leviers[0]['x'])->toBe($vue['x']);
     }
 });

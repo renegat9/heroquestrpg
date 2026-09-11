@@ -3,9 +3,21 @@
 
 Les agents décident ; la géométrie (BFS sur la grille, portes, cases libres)
 est faite ici — sinon ils passeraient leur tour à calculer des chemins.
+
+⚠ Depuis le 2026-09-06, un LEVIER est posé dans TOUTE quête (avant, aucun ne
+l'avait jamais été) et, sous le thème `horreur_des_glaces`, la carte porte du
+TERRAIN (glace glissante, rivière gelée, tunnels…). Un agent ne dispose que de
+ce qu'on lui montre : sans ces deux sections, il ne voit ni le levier qui
+ouvre une salle scellée, ni le coût réel d'une case de rivière — exactement le
+sort qu'ont connu les sept verbes manquants du README jusqu'au 2026-08-17.
+
+⚠ Le DÉPLACEMENT SE COMPTE EN POINTS, PAS EN CASES depuis la Rivière gelée
+(coût 2 pour ENTRER dans la case, doc 18 §4) : la BFS « cases atteignables »
+ci-dessous est un Dijkstra PONDÉRÉ, MIROIR de `Grille::casesAtteignables()`
+côté serveur et de `DeplacementSheet.vue` côté manette — une BFS à coût
+uniforme surbrillancerait des destinations que le serveur refuse ensuite.
 """
 import json, subprocess, sys, os
-from collections import deque
 
 S = os.path.dirname(os.path.abspath(__file__))
 slot = sys.argv[1]
@@ -45,7 +57,72 @@ for e in mon:
 if not mon:
     print("  (aucun monstre en vue)")
 
-# --- cases atteignables : BFS orthogonal sur le sol connu, portes closes bloquantes
+# --- LEVIERS (doc 18 §4 / 2026-09-06) : affichés INCONDITIONNELLEMENT, pas
+# seulement « proches » — ils sont rares (1-2 par carte, `structure.leviers.
+# min/max`) et une salle peut ne tenir qu'à un seul. `actionner_levier`
+# n'apparaît au MENU qu'au contact (voisin orthogonal) : c'est cette liste qui
+# dit à l'agent où aller AVANT d'y être.
+leviers = carte.get("leviers") or []
+if leviers:
+    print("LEVIERS visibles :")
+    for l in leviers:
+        d = abs(l["x"] - moi["x"]) + abs(l["y"] - moi["y"])
+        print(f"  levier en ({l['x']},{l['y']}) "
+              f"— jet de Body, difficulté {l.get('difficulte')} — distance {d}")
+
+# --- PORTES VERROUILLÉES : `verrou` publié par `EtatGroupe::portes()` est le
+# TYPE du verrou (cle/monstres_vaincus/levier), PAS un identifiant. ⚠ L'API NE
+# PUBLIE NULLE PART quel levier ouvre QUELLE porte — et depuis le 2026-09-11
+# (arbitrage de René) le levier ne publie même plus son identifiant, parce que
+# la porte n'a jamais publié le sien : donner la moitié d'un appariement, c'est
+# afficher des ids qui ne se raccordent à rien. `ResolveurTour::
+# resoudreActionnerLevier()` retrouve l'appariement lui-même via
+# `verrou.levier_id`, côté serveur seulement. Un joueur (humain ou agent) ne
+# peut donc PAS savoir À L'AVANCE lequel des leviers visibles ouvre CETTE
+# porte — il le découvre en l'actionnant (retentable sans limite). On liste
+# les CANDIDATS plutôt que d'inventer un identifiant que l'API ne donne pas.
+portes_carte = carte.get("portes") or []
+verrouillees = [p for p in portes_carte if p.get("etat") == "verrouillee"]
+if verrouillees:
+    print("PORTES VERROUILLÉES :")
+    for p in verrouillees:
+        d = abs(p["x"] - moi["x"]) + abs(p["y"] - moi["y"])
+        verrou = p.get("verrou")
+        piste = ""
+        if verrou == "levier" and leviers:
+            piste = "  → candidat(s) : " + ", ".join(f"({l['x']},{l['y']})" for l in leviers)
+        elif verrou == "levier":
+            piste = "  → AUCUN levier visible pour l'instant"
+        print(f"  ({p['x']},{p['y']}) verrou={verrou} — distance {d}{piste}")
+
+# --- TERRAIN (doc 18 §4, thème horreur_des_glaces UNIQUEMENT) : cases proches
+# avec leur coût et leur effet. L'API ne publie PAS `effet` (seulement `nom`,
+# `cout_deplacement`, `paire_id`) — le texte d'effet ci-dessous est du texte
+# FIXE tiré du catalogue (`TerrainSeeder`), pas une donnée relue à chaque
+# appel : s'il divergeait du moteur, seul `App\Engine\MotsClesTerrain` fait foi.
+EFFETS_TERRAIN = {
+    "Glace glissante": "jet au CONTACT — bouclier blanc = chute + fin de tour immédiate",
+    "Glissière de glace": "fin de tour INCONDITIONNELLE en l'empruntant — bouclier blanc = 1 PV Body en plus",
+    "Rivière gelée": "SANS arrêt — bouclier blanc = 1 PV Body de froid à CHAQUE case entrée",
+    "Tunnel de glace": "téléporte instantanément vers son jumeau (même paire_id) — normal, pas une anomalie",
+    "Chambre forte de glace": "1 PV Body de froid (sur crâne) À CHAQUE tour passé dessus, pas qu'au contact",
+    "Glace magique": "décor — ancrage de sort du boss (Mur/Pont de glace), aucun effet sur un héros",
+    "Rebord de crevasse": "décor — aucun effet mécanique",
+}
+terrain_carte = carte.get("terrain") or []
+terrain_proche = sorted(
+    ((t, abs(t["x"] - moi["x"]) + abs(t["y"] - moi["y"])) for t in terrain_carte),
+    key=lambda p: p[1],
+)[:20]
+if terrain_proche:
+    print("TERRAIN proche :")
+    for t, d in terrain_proche:
+        effet = EFFETS_TERRAIN.get(t.get("nom"), "")
+        paire = f" — jumeau paire_id={t['paire_id']}" if t.get("paire_id") else ""
+        print(f"  ({t['x']},{t['y']}) {t.get('nom')} — coût {t.get('cout_deplacement')} pt(s) pour ENTRER"
+              f" — distance {d}{paire}" + (f" — {effet}" if effet else ""))
+
+# --- cases atteignables : Dijkstra pondéré sur le sol connu, portes closes bloquantes
 cases = (carte.get("grille") or {}).get("cases") or carte.get("cases") or []
 portes = (carte.get("grille") or {}).get("portes") or carte.get("portes") or []
 occupe = {(e["x"], e["y"]) for e in ent if e.get("x") is not None and not e.get("tombe")}
@@ -53,33 +130,65 @@ occupe = {(e["x"], e["y"]) for e in ent if e.get("x") is not None and not e.get(
 # Le MOBILIER barre le passage (doc 17, `bloque_mouvement`) : sans lui, le BFS
 # proposait des cases que le serveur refusait — deux tentatives perdues par
 # Borin, une par Krogar.
+# ⚠ Bug corrigé au passage (2026-09-10) : `EtatGroupe::mobilier()` publie `l`/
+# `h` en clés PLATES, PAS nichées sous `emprise` — cette boucle lisait
+# `m.get("emprise")` (toujours absent) et retombait donc silencieusement sur
+# 1×1 pour CHAQUE meuble, même un meuble 2×2 qui n'en bloquait alors qu'un
+# quart. Jamais remarqué en partie réelle (juste des destinations en plus
+# tentées et refusées, absorbées par la boucle d'essai de `pilote.py`), mais
+# faux depuis l'origine de ce fichier.
 for m in ((carte.get("grille") or {}).get("mobilier") or carte.get("mobilier") or []):
     if not m.get("bloque_mouvement", True):
         continue
     mx, my = int(m.get("x", -1)), int(m.get("y", -1))
-    l, h = int((m.get("emprise") or {}).get("l", 1)), int((m.get("emprise") or {}).get("h", 1))
+    l, h = int(m.get("l", 1)), int(m.get("h", 1))
     for dy in range(h):
         for dx in range(l):
             occupe.add((mx + dx, my + dy))
-bloque = set()
+
+# Coût de déplacement du TERRAIN (doc 18 §4 — Rivière gelée : 2 points pour
+# ENTRER dans la case, au lieu de 1) — MIROIR de `Terrain::cout_deplacement`
+# et de `coutParCase`/`coutDe()` dans `DeplacementSheet.vue`.
+cout_case = {}
+for t in terrain_carte:
+    cout_case[(t["x"], t["y"])] = max(1, int(t.get("cout_deplacement", 1)))
+
+def cout_de(x, y):
+    return cout_case.get((x, y), 1)
+
+# Portes indexées par ARÊTE (MIROIR de `portesParArete` dans
+# `DeplacementSheet.vue`) : une porte non-ouverte bloque le pas, une porte
+# OUVERTE garantit du sol juste derrière même si le brouillard n'a pas encore
+# révélé la case (on continue son mouvement à travers une porte qu'on vient
+# d'ouvrir, comme le permet le moteur serveur).
+def arete_cle(a, b):
+    return (a, b) if a <= b else (b, a)
+
+portes_par_arete = {}
 for p in portes:
-    if p.get("etat") == "ouverte":
-        continue
-    bloque.add(((p.get("x"), p.get("y")), p.get("cote")))
+    x, y = p.get("x"), p.get("y")
+    a = (x, y)
+    b = (x, y + 1) if p.get("cote") == "s" else (x + 1, y)
+    portes_par_arete[arete_cle(a, b)] = p
+
+def porte_fermee_entre(a, b):
+    p = portes_par_arete.get(arete_cle(a, b))
+    return p is not None and p.get("etat") != "ouverte"
+
+def porte_ouverte_entre(a, b):
+    p = portes_par_arete.get(arete_cle(a, b))
+    return p is not None and p.get("etat") == "ouverte"
+
+def case_brute(x, y):
+    if x < 0 or y < 0:
+        return "b"
+    try:
+        return cases[y][x]
+    except (IndexError, TypeError):
+        return "b"
 
 def sol(x, y):
-    try:
-        return cases[y][x] in ("s", "p")
-    except (IndexError, TypeError):
-        return False
-
-def porte_bloque(a, b):
-    (x1, y1), (x2, y2) = a, b
-    for (px, py), cote in bloque:
-        d = {"n": (0, -1), "s": (0, 1), "e": (1, 0), "o": (-1, 0)}.get(cote or "e", (1, 0))
-        if (px, py) == (x1, y1) and (x1 + d[0], y1 + d[1]) == (x2, y2): return True
-        if (px, py) == (x2, y2) and (x2 + d[0], y2 + d[1]) == (x1, y1): return True
-    return False
+    return case_brute(x, y) in ("s", "p")
 
 portee = 0
 menu = json.loads(subprocess.run(
@@ -91,17 +200,43 @@ for o in opts:
         portee = int((o.get("parametres") or {}).get("portee") or 0)
 
 if portee:
+    # Dijkstra pondéré à la main (scan linéaire — MIROIR de
+    # `DeplacementSheet.vue` : la zone qu'un déplacement de héros peut
+    # explorer tient en quelques dizaines de cases, pas besoin d'un tas pour
+    # rester instantané). Chaque pas coûte `cout_de()` de la case d'ARRIVÉE,
+    # PAS 1 uniformément — c'est ce qui rend la Rivière gelée possible et ce
+    # que `Grille::casesAtteignables()` fait déjà côté serveur.
     depart = (moi["x"], moi["y"])
-    vus, file = {depart: 0}, deque([depart])
-    while file:
-        c = file.popleft()
-        if vus[c] >= portee: continue
-        for dx, dy in ((1,0),(-1,0),(0,1),(0,-1)):
-            n = (c[0]+dx, c[1]+dy)
-            if n in vus or not sol(*n) or n in occupe or porte_bloque(c, n): continue
-            vus[n] = vus[c] + 1; file.append(n)
-    dest = sorted(((v, k) for k, v in vus.items() if k != depart), reverse=True)[:14]
-    print(f"DÉPLACEMENT possible ({portee} cases) — quelques destinations :")
+    dist = {depart: 0}
+    frontiere = [(0, depart)]
+    while frontiere:
+        frontiere.sort(key=lambda p: p[0])
+        d, c = frontiere.pop(0)
+        if d > dist.get(c, float("inf")):
+            continue  # entrée dépassée (suppression paresseuse)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (c[0] + dx, c[1] + dy)
+            if porte_fermee_entre(c, n):
+                continue
+            case_connue = sol(*n)
+            # Filet de sécurité (§2.16) : une case VOISINE IMMÉDIATE reste
+            # proposée même si la carte connue est incomplète, sauf mur
+            # explicite — sans lui, une carte partielle peut rendre la liste
+            # de destinations VIDE et figer le héros.
+            voisin_immediat = d == 0 and case_brute(*n) != "m"
+            if not case_connue and not porte_ouverte_entre(c, n) and not voisin_immediat:
+                continue
+            if n in occupe:
+                continue
+            nd = d + cout_de(*n)
+            if nd > portee:
+                continue  # hors budget : jamais une destination possible
+            if nd < dist.get(n, float("inf")):
+                dist[n] = nd
+                if case_connue:
+                    frontiere.append((nd, n))
+    dest = sorted(((v, k) for k, v in dist.items() if k != depart), reverse=True)[:14]
+    print(f"DÉPLACEMENT possible ({portee} POINTS, pas cases) — quelques destinations :")
     print("  " + " ".join(f"({x},{y})/{d}" for d, (x, y) in dest))
 
 # Fiche des sorts du héros (dés, durée) : sans elle, impossible de savoir si un

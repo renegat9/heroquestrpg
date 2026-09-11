@@ -43,7 +43,7 @@ Routes protégées par middleware `auth` sauf connexion.
             "objectif_majeur": false,
             "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
-            "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee", "verrou": "cle|monstres_vaincus|levier"}]},
+            "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete|mur", "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
@@ -527,7 +527,16 @@ parleur*, *Méditation*, *Cartographe* — ne se déclenchaient **jamais** en pa
 
 ### Symboles de la carte et légende (2026-08-27)
 
-**EtatGroupe.carte** gagne `leviers: [{x, y, levier_id, difficulte}]`.
+**EtatGroupe.carte** gagne `leviers: [{x, y, difficulte}]`.
+
+⚠ **`levier_id` N'EST PLUS PUBLIÉ** (arbitrage de René, 2026-09-11). Il l'était,
+alors que la PORTE, elle, n'annonce que le *type* de son verrou (`verrou: "levier"`)
+et jamais lequel l'ouvre. Le joueur lisait donc des identifiants qui ne se
+raccordaient à rien — la moitié d'un appariement, ce qui est pire que zéro ou que
+deux. On retire la moitié visible : on découvre quel levier ouvre quelle porte
+**en l'actionnant**, comme au plateau. L'appariement reste côté serveur
+(`ResolveurTour::resoudreActionnerLevier()` lit `verrou.levier_id`), où il est
+re-validé — la liste blanche n'a jamais eu besoin de passer par le client.
 
 ⚠ Cette couche n'était publiée **nulle part** : aucun levier n'était donc dessiné
 sur aucune des deux cartes. Sans conséquence tant qu'aucun n'était posé, mais
@@ -535,7 +544,7 @@ depuis qu'en forcer un demande un jet de Body et qu'une salle peut ne tenir qu'�
 cette porte, c'était un mécanisme **invisible** qui verrouille le donjon —
 l'option n'apparaît qu'au contact, et rien ne disait où aller le chercher.
 
-- **Brouillard** : une entrée de levier ne porte pas sa salle (`{x, y, levier_id}`,
+- **Brouillard** : une entrée de levier ne porte pas sa salle (`{x, y}` publiés,
   format d'origine), elle est **déduite des coordonnées**. Un levier de **couloir**
   est toujours montré — un couloir n'a pas d'index de salle et n'est jamais
   « découvert », le cacher rendrait le mécanisme introuvable.
@@ -573,6 +582,11 @@ générer une image que rien n'irait chercher.
 
 `EtatGroupe.carte.leviers[]` et `carte.portes[]` gagnent `image_url`.
 `images:generer --type=leviers|portes` les produit.
+
+⚠ **`etat: "mur"`** (2026-09-10, §Portes & exploration plus bas) n'entre PAS dans
+cette liste : c'est le déguisement publié pour une porte secrète non trouvée, pas
+un état du moteur, donc il ne prend ni entrée `config('images.portes')`, ni
+`image_url` — un mur n'en affiche jamais.
 
 **Une silhouette par famille**, parce que les marqueurs se côtoient dans une même
 salle : figurine **ronde**, piège **carré**, épreuve **losange** doré, levier
@@ -678,10 +692,33 @@ disposition est un **arbre 2D branchu** (couloirs à 2 voies, une seule porte pa
 de salle) ; `cartes.grille` porte aussi `salles[]` et `aretes[]` (métadonnées de
 tracé, non servies dans le payload).
 
-- **EtatGroupe.carte** gagne `portes: [{x, y, etat, verrou?}]` — les portes
-  **secrètes non révélées n'y figurent jamais** (même règle que les pièges cachés)
-  et leur case reste un mur ; une porte connue est rendue comme une porte (`p`),
-  une `verrouillee` porte un cadenas (`verrou` = type du verrou).
+- **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, verrou?, image_url?}]` —
+  une porte connue est rendue comme une porte, une `verrouillee` porte un cadenas
+  (`verrou` = type du verrou).
+  ⚠ **Une porte `secrete` non révélée n'est PLUS retirée du payload** (régression
+  signalée en partie réelle le 2026-09-10 : les deux cases qu'elle sépare sont du
+  **sol**, souvent déjà visibles des DEUX côtés — une boucle `liaisonsSupplementaires()`
+  relie deux zones qui ont chacune leur propre accès normal — donc **la retirer
+  laissait un couloir parfaitement continu à l'écran**, sans rien pour dire que le
+  moteur bloquait le passage. Elle est désormais publiée **comme un mur** :
+  `{x, y, cote, etat: "mur"}`, **sans** `secrete`, **sans** `revele`, **sans**
+  `verrou`, **sans** `image_url` — un vrai mur n'en a pas non plus. `etat: "mur"`
+  n'est **pas** un état du moteur (`MoteurPortes::ETAT_*` reste à quatre valeurs) :
+  c'est un déguisement d'affichage posé par `EtatGroupe::portes()` au moment de la
+  publication, jamais persisté. Le rendu (`DungeonGrid.vue`) lui donne la même
+  apparence que la roche environnante (voir §Symboles de la carte et légende
+  plus haut) — sans jambages, sans battant doré, sans info-bulle : il doit se
+  lire comme « le couloir s'arrête là », pas comme une pancarte. ⚠ Distinction résiduelle assumée : un mur ordinaire n'a
+  **aucune** entrée dans `portes[]` (c'est une case `m`), alors qu'un mur-déguisement
+  en a une (l'arête existe dans `cartes.grille.portes`) — un client qui compare le
+  nombre d'entrées `mur` aux cases `m` voisines pourrait statistiquement repérer
+  qu'« une entrée `mur` isolée entre deux cases `s` » diffère d'un mur de roche. Le
+  JSON ne porte en revanche **aucun** champ qui le confirme (ni `secrete`, ni
+  `revele`), donc rien qui distingue ce cas d'une porte `fermee`/`verrouillee`
+  ordinaire — ni le champ qui dirait « cherche ici ».
+- Une fois la fouille réussie, `MoteurPortes::revelerSecretes()` passe l'entrée à
+  `{etat: "ouverte", revele: true}` (inchangé) — la publication suit alors la
+  branche normale et l'affiche comme une porte ouverte.
 - **Fouiller la zone** (option `fouiller`, type `jet`, Mind difficulté 1) : un seul
   jet réussi révèle dans le rayon de fouille les **pièges cachés** ET les **portes
   secrètes** (qui s'ouvrent). Echo : `pieges_reveles`, `portes_revelees`.

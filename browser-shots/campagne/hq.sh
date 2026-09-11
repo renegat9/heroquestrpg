@@ -27,6 +27,21 @@
 # la `cle` étant celle que l'entrée porte dans `parametres.objets[]` du menu —
 # c'est elle la liste blanche, le serveur refuse tout ce qui n'y est pas.
 #
+# ⚠ `actionner_levier` (depuis 2026-09-06, un levier est posé dans TOUTE
+# quête) n'a PAS de verbe dédié, et n'en a PAS besoin : comme `ouvrir_porte`,
+# c'est une option PAR levier adjacent (id `actionner_levier_{x}_{y}`,
+# uniquement au CONTACT) dont les `parametres` sont déjà fixés côté serveur
+# dans le dernier menu envoyé — `ResolveurTour::resoudreActionnerLevier()` ne
+# lit d'ailleurs jamais ceux que le client soumettrait. `choix` SANS troisième
+# argument suffit :
+#
+#   hq.sh <slot> choix actionner_levier_12_7
+#
+# Jet de Body, RETENTABLE sans limite. `vue.py` liste les leviers visibles et
+# leur difficulté ; `EtatGroupe::portes()` ne publie que le TYPE du verrou
+# d'une porte (`verrou: "levier"`), jamais le `levier_id` qui l'ouvre — cet
+# appariement n'existe nulle part côté API, à découvrir en essayant.
+#
 # ⚠ `vote` a manqué au harnais jusqu'au 2026-08-15, et ça a coûté une campagne :
 # « Quitter le donjon » ouvre un VOTE de groupe, le proposeur ne vote PAS
 # d'office, et le vote tient 6 heures sans s'auto-résoudre. Un joueur sans ce

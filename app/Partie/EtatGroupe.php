@@ -263,8 +263,11 @@ final class EtatGroupe
     /**
      * Carte jouable — cases + pièges CONNUS (détectés / désarmés /
      * déclenchés) + mobilier des salles DÉCOUVERTES + portes CONNUES : les
-     * pièges encore cachés et les portes secrètes non révélées n'y figurent
-     * JAMAIS, la table ne doit pas les montrer (contrat).
+     * pièges encore cachés n'y figurent JAMAIS, la table ne doit pas les
+     * montrer (contrat). Une porte secrète non révélée, elle, FIGURE — mais
+     * masquée en mur (voir `portes()`) : la retirer laissait l'arête sans
+     * aucun repère, donc un couloir d'apparence continue là où le moteur
+     * bloque (signalé en partie réelle, 2026-09-10).
      *
      * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
@@ -280,11 +283,14 @@ final class EtatGroupe
         // réelle le 2026-09-04 : « on voit le couloir alors que le passage
         // secret n'est pas trouvé ».
         //
-        //  - `$portes` est ce qu'on PUBLIE : `portes()` en retire les portes
-        //    secrètes non révélées, puisqu'un joueur ne doit pas les voir ;
+        //  - `$portes` est ce qu'on PUBLIE : `portes()` déguise en mur toute
+        //    porte secrète non révélée (2026-09-10) — un joueur ne doit
+        //    toujours pas savoir qu'elle est secrète, mais l'arête doit rester
+        //    lisible comme un obstacle, pas disparaître ;
         //  - `$aretes` est ce qui BLOQUE LA VUE, et doit contenir la carte
-        //    ENTIÈRE. Une porte secrète non trouvée est la chose la plus opaque
-        //    du donjon : c'est un mur, tant qu'on ne l'a pas percée.
+        //    ENTIÈRE avec l'état BRUT (`secrete`, pas `mur`). Une porte secrète
+        //    non trouvée est la chose la plus opaque du donjon : c'est un mur,
+        //    tant qu'on ne l'a pas percée.
         //
         // Les deux ne faisaient qu'une, et le brouillard recevait donc la liste
         // AMPUTÉE : l'arête ne portait plus de porte, le défaut
@@ -493,22 +499,53 @@ final class EtatGroupe
     }
 
     /**
-     * Portes CONNUES de la carte (doc 14 §3.1/3.3) : une porte secrète NON
-     * révélée est masquée (même règle que les pièges cachés). Le type de verrou
-     * d'une porte verrouillée est exposé (icône cadenas côté table).
+     * Portes CONNUES de la carte (doc 14 §3.1/3.3). Le type de verrou d'une
+     * porte verrouillée est exposé (icône cadenas côté table).
      *
-     * @return list<array{x: int, y: int, etat: string, verrou?: string}>
+     * ⚠ Une porte secrète NON révélée n'est plus RETIRÉE (régression signalée
+     * en partie réelle le 2026-09-10 : « les murs ayant un passage secret
+     * étaient ouverts vis-à-vis les passages secrets »). Elle relie deux cases
+     * de SOL, et le moteur (`Grille::porteBloqueEntre()`) la bloque comme
+     * n'importe quelle porte non ouverte — mais un client qui la retire
+     * entièrement du payload rend cette arête indiscernable d'un simple
+     * couloir ouvert : rien ne reste pour dire que le passage s'arrête là. Pire
+     * encore pour une porte de LIAISON SUPPLÉMENTAIRE (boucle) : les deux
+     * salles qu'elle relie ont chacune leur accès normal, donc les deux côtés
+     * sont déjà explorés et visibles — le brouillard ne masque plus rien ici,
+     * SEUL l'affichage de la porte disait « ceci est bloqué ».
+     *
+     * Elle est donc publiée comme un MUR (`etat: 'mur'`) : ni `secrete`, ni
+     * `revele`, ni `verrou`, ni `image_url` — un mur de roche n'en a pas non
+     * plus. `'mur'` n'est PAS un état de `MoteurPortes::ETAT_*` : c'est un
+     * déguisement d'affichage posé ICI, au moment de la publication, jamais
+     * écrit en base. `DungeonGrid.vue` lui donne le même rendu qu'une case de
+     * roche (voir le composant) : aucun battant, aucun jambage, aucune
+     * info-bulle — un mur qui ressemble à un mur ordinaire, pas une pancarte
+     * « cherche ici ».
+     *
+     * @return list<array{x: int, y: int, cote: string, etat: string, verrou?: string, image_url?: ?string}>
      */
     private function portes(Carte $carte): array
     {
         return collect($carte->grille['portes'] ?? [])
-            ->filter(fn (array $p) => ($p['etat'] ?? 'ouverte') !== MoteurPortes::ETAT_SECRETE || ($p['revele'] ?? false))
             ->map(function (array $p) {
+                $etatBrut = (string) ($p['etat'] ?? 'ouverte');
+                $secreteMasquee = $etatBrut === MoteurPortes::ETAT_SECRETE && ! ($p['revele'] ?? false);
+
+                if ($secreteMasquee) {
+                    return [
+                        'x' => (int) $p['x'],
+                        'y' => (int) $p['y'],
+                        'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
+                        'etat' => 'mur',
+                    ];
+                }
+
                 $porte = [
                     'x' => (int) $p['x'],
                     'y' => (int) $p['y'],
                     'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
-                    'etat' => (string) ($p['etat'] ?? 'ouverte'),
+                    'etat' => $etatBrut,
                 ];
                 // ⚠ Une illustration PAR ÉTAT : c'est l'état qui porte
                 // l'information, une image unique rendrait une porte close et
@@ -620,7 +657,7 @@ final class EtatGroupe
      * joueur n'a aucun moyen de savoir lequel s'applique.
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, levier_id: string, difficulte: int}>
+     * @return list<array{x: int, y: int, difficulte: int}>
      */
     private function leviers(Carte $carte, array $cases): array
     {
@@ -646,7 +683,14 @@ final class EtatGroupe
             ->map(fn (array $l) => [
                 'x' => (int) $l['x'],
                 'y' => (int) $l['y'],
-                'levier_id' => (string) ($l['levier_id'] ?? ''),
+                // ⚠ `levier_id` N'EST PAS PUBLIÉ (René, 2026-09-11). Il l'était,
+                // alors que la PORTE n'annonce que le TYPE de son verrou
+                // (`verrou: 'levier'`) et jamais lequel l'ouvre : le joueur
+                // lisait des identifiants qui ne se raccordaient à rien — la
+                // moitié d'un appariement, pire que zéro ou que deux. On
+                // découvre quel levier ouvre quelle porte EN L'ACTIONNANT.
+                // L'appariement reste serveur (`resoudreActionnerLevier()`), où
+                // il est re-validé : il n'a jamais eu besoin du client.
                 'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
                 'image_url' => app(BibliothequeImages::class)->urlLevier(),
             ])

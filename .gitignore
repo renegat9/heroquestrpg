@@ -64,3 +64,6 @@ browser-shots/jd-*.json
 # à demander à la prochaine campagne de tuer un processus qui ne lui appartient
 # pas — voire un autre programme réutilisant le même numéro.
 /browser-shots/campagne/*.pid
+# Bytecode compilé de vue.py/pilote.py — même raison que les .pid : un artefact
+# de la machine qui a joué, jamais du code à relire ni à versionner.
+/browser-shots/campagne/__pycache__/

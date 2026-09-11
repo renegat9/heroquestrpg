@@ -3,8 +3,10 @@
 
 Stratégie volontairement simple mais qui exerce TOUTE la boucle : frapper si
 une cible est légale, sinon lancer un sort, sinon ouvrir une porte (c'est ce
-qui révèle les salles), sinon fouiller, sinon avancer le plus loin possible,
-sinon passer.
+qui révèle les salles), sinon actionner un levier trouvé au contact, sinon
+fouiller, sinon avancer — vers un levier visible si une porte verrouillée par
+levier bloque la seule progression connue, sinon vers la porte close la plus
+proche —, sinon passer.
 
 ⚠ Depuis le 2026-09-01, une option peut PORTER une liste de sous-choix au lieu
 d'être elle-même le sort, le parchemin ou l'objet : `lancer_sort` remplace les
@@ -14,6 +16,24 @@ lanceur muet, et c'est exactement ce que le harnais est censé détecter. Le
 protocole est le même que celui du pilote A-à-Z (`browser-shots/aaz/jouer.py`),
 volontairement : deux harnais qui divergent sur la forme des menus finissent
 par accuser le moteur chacun leur tour.
+
+⚠ Depuis le 2026-09-06, un LEVIER est posé dans TOUTE quête. `actionner_levier`
+n'est PAS une option à liste (elle n'est PAS dans `LISTES` ci-dessous) : comme
+`ouvrir_porte`, c'est une option PAR levier adjacent (id
+`actionner_levier_{x}_{y}`), déjà posée par `MenuMoteur` (~ligne 1508) avec ses
+`parametres` FIXÉS CÔTÉ SERVEUR. `ResolveurTour::resoudreActionnerLevier()`
+(~ligne 6004) ne lit d'ailleurs JAMAIS les `parametres` soumis par le client —
+seulement l'option retrouvée dans le DERNIER MENU envoyé (`ChoixController`,
+`->first(fn ($o) => $o['id'] === $option_id)`). `choix(slot, oid)` SANS
+troisième argument suffit donc, exactement comme pour une porte — pas de forme
+« à plat » façon `lancer_sort` à reproduire ici.
+
+⚠ Sous le thème `horreur_des_glaces`, le déplacement se compte en POINTS, pas
+en cases, depuis la Rivière gelée (coût 2/case) : `destinations()` reste un
+simple parseur du texte de `vue.py`, qui fait maintenant lui-même un Dijkstra
+pondéré — ce pilote ne recalcule JAMAIS de distance en cases, il se contente
+des destinations que `vue.py` (miroir du serveur) a déjà validées comme
+atteignables dans le budget du tour.
 """
 import json, subprocess, sys, re, random
 
@@ -133,19 +153,49 @@ def jouer(slot):
         if oid.startswith("ouvrir_porte"):
             return ("PORTE " + oid, choix(slot, oid))
 
+    # LEVIER — n'apparaît au menu qu'AU CONTACT (voisin orthogonal). Priorité
+    # juste derrière les portes déjà ouvrables : c'est la raison la plus
+    # probable d'être venu jusqu'ici, et il est RETENTABLE sans limite (jet de
+    # Body), donc jamais pire qu'une tentative perdue. Passe AVANT de se
+    # défendre uniquement dans ce sens précis : il ne dépasse jamais l'attaque
+    # ni les sorts, testés plus haut.
+    for oid in opts:
+        if oid.startswith("actionner_levier"):
+            return ("LEVIER " + oid, choix(slot, oid))
+
     if "fouiller_tresor" in opts:
         return ("FOUILLE", choix(slot, "fouiller_tresor"))
 
     if "se_deplacer" in opts:
         dests = destinations(slot)
         etat = hq(slot, "etat") or {}
-        fermees = [(d["x"], d["y"]) for d in ((etat.get("carte") or {}).get("portes") or [])
-                   if d.get("etat") == "fermee"]
+        carte = etat.get("carte") or {}
+        portes = carte.get("portes") or []
+        fermees = [(d["x"], d["y"]) for d in portes if d.get("etat") == "fermee"]
 
-        # Viser la PORTE CLOSE la plus proche : au hasard, le groupe tourne dans
-        # la salle de départ et la quête ne progresse jamais.
-        if fermees:
-            dests.sort(key=lambda t: min(abs(t[0] - px) + abs(t[1] - py) for px, py in fermees))
+        # LEVIER — cible de repli, PAS la priorité par défaut : on ne quitte
+        # pas une porte déjà ouvrable pour un détour. On ne la prend que
+        # lorsqu'une porte verrouillée PAR LEVIER reste sans autre porte
+        # ouvrable connue — c'est cette situation précise que le README décrit
+        # (« une salle peut rester inaccessible et la quête s'enliser »).
+        # ⚠ On ne peut PAS savoir quel levier ouvre CETTE porte (l'API ne
+        # publie pas l'appariement, voir vue.py) : on vise donc N'IMPORTE quel
+        # levier visible — en pratique 1 à 2 par carte (`structure.leviers.
+        # min/max`), et l'action est retentable sans limite si ce n'est pas
+        # le bon.
+        verrouillees_levier = any(
+            d.get("etat") == "verrouillee" and d.get("verrou") == "levier" for d in portes
+        )
+        leviers = carte.get("leviers") or []
+        cibles = fermees
+        if not cibles and verrouillees_levier and leviers:
+            cibles = [(l["x"], l["y"]) for l in leviers]
+
+        # Viser la cible la plus proche (porte close, ou levier à défaut) : au
+        # hasard, le groupe tourne dans la salle de départ et la quête ne
+        # progresse jamais.
+        if cibles:
+            dests.sort(key=lambda t: min(abs(t[0] - cx) + abs(t[1] - cy) for cx, cy in cibles))
         else:
             random.shuffle(dests)
 
@@ -155,7 +205,28 @@ def jouer(slot):
         for x, y, _ in dests[:8]:
             rep = choix(slot, "se_deplacer", {"x": x, "y": y})
             if not (rep or {}).get("message"):
-                return (f"DEPLACE ({x},{y})", rep)
+                # ⚠ La case d'ARRIVÉE peut différer de (x, y) demandée — un
+                # Tunnel de glace téléporte (`rep.teleportation`), ce n'est
+                # PAS une anomalie : `rep.vers` dit la vérité. Une Glace
+                # glissante/Glissière peut aussi finir le tour tout de suite
+                # (`rep.terrain.fin_tour`) : c'est la règle, pas une erreur —
+                # on l'annonce au lieu de la laisser muette (CLAUDE.md : « un
+                # effet automatique que rien n'annonce est injouable »).
+                arrivee = (rep or {}).get("vers") or {"x": x, "y": y}
+                label = f"DEPLACE ({x},{y}) → ({arrivee.get('x')},{arrivee.get('y')})"
+                terrain_evt = (rep or {}).get("terrain")
+                if terrain_evt:
+                    bits = [terrain_evt.get("nom", "terrain")]
+                    if terrain_evt.get("chute"):
+                        bits.append("CHUTE")
+                    if terrain_evt.get("fin_tour"):
+                        bits.append("fin de tour")
+                    if terrain_evt.get("degats"):
+                        bits.append(f"{terrain_evt['degats']} dégâts")
+                    label += "  [" + ", ".join(bits) + "]"
+                if (rep or {}).get("teleportation"):
+                    label += "  [TUNNEL DE GLACE]"
+                return (label, rep)
 
     if "attendre" in opts:
         return ("PASSE", choix(slot, "attendre"))
