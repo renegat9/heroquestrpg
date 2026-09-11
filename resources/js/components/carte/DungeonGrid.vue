@@ -108,28 +108,6 @@ const cells = computed(() => {
     return out;
 });
 
-// Contour des salles (René, 2026-09-11 : « le plateau a des salles cernées
-// d'un trait, on ne voit pas où une salle s'arrête »). Lu directement sur
-// `carte.salles` — comme `cases`/`portes` juste au-dessus, PAS comme
-// `traps`/`furniture` plus bas : ce n'est que de la géométrie (un rectangle),
-// aucune icône à résoudre, donc pas de prop dédiée ni de conversion chez
-// l'appelant à maintenir des deux côtés.
-//
-// ⚠ Le BROUILLARD est déjà fait : `EtatGroupe::carte()` ne publie QUE les
-// salles DÉCOUVERTES dans `carte.salles` (`SallesPubliquesTest`, verrouillé
-// depuis 2026-08-29) — ce composant ne fait qu'afficher ce qu'on lui donne,
-// il n'a AUCUN filtre à dupliquer ici. Republier ce filtre ici serait une
-// seconde copie de la règle, qui dérive dès que l'une bouge sans l'autre.
-//
-// ⚠ Deux salles ACCOLÉES (mur commun, `AssembleurCarte::accolerSallesMitoyennes()`)
-// restent DEUX rectangles distincts dans `carte.salles`, chacun avec sa
-// propre bordure : leurs murs se RECOUVRENT d'exactement une case (voir
-// `chevaucheUneSalle()`), donc les deux traits tombent chacun sur SA face du
-// mur partagé — pas sur la même ligne — et se lisent comme deux salles avec
-// un mur épais d'une case entre elles, jamais comme une seule grande salle.
-// Rien à coder pour ce cas : c'est la conséquence directe de dessiner
-// fidèlement CHAQUE rectangle publié, indépendamment des autres.
-const rooms = computed(() => props.carte.salles ?? []);
 
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
@@ -185,21 +163,6 @@ const doors = computed(() => (props.carte.portes ?? [])
             <slot name="cell" :x="c.x" :y="c.y" />
         </div>
 
-        <!-- contour des salles DÉCOUVERTES (René, 2026-09-11) : un rectangle
-             par salle, dessiné sur SON emprise entière (mur de contour compris,
-             comme `carte.salles` le publie) — c'est ce qui fait que deux salles
-             accolées tracent bien DEUX traits, un de chaque côté du mur
-             partagé, au lieu d'un seul contour fondu. `pointer-events: none` :
-             un simple repère visuel, jamais une cible de clic (la case dessous
-             reste seule responsable du tap manette). -->
-        <div
-            v-for="s in rooms"
-            :key="`room-${s.index}`"
-            class="dg-room-holder"
-            :style="{ gridColumn: `${s.x + 1} / span ${s.largeur}`, gridRow: `${s.y + 1} / span ${s.hauteur}` }"
-        >
-            <div class="dg-room-outline" />
-        </div>
 
         <!-- pièges : marqueur au-dessus des cases, sous les figurines -->
         <div
@@ -298,16 +261,6 @@ const doors = computed(() => (props.carte.portes ?? [])
    ses cases en `1fr` et ne peut donc pas annoncer de pixels. */
 .dg { --dg-icone: clamp(11px, 1.3vw, 20px); }
 
-/* ⚠ TAILLE DE LA CASE EN PX — `--dg-cell`, posée par le PARENT (même patron
-   que `--dg-icone` ci-dessus) : le CONTOUR de salle plus bas (`.dg-room-outline`)
-   a besoin d'une épaisseur de trait qui suive la case réelle — ~38 px sur la
-   feuille de déplacement de la manette, une valeur dynamique côté table (la
-   caméra zoome). Un trait en `%` se serait résolu sur la police héritée, en
-   `vw` sur la largeur d'écran : aucun des deux ne suit la cellule. Le repli
-   ci-dessous est une valeur raisonnable si jamais un futur appelant de
-   DungeonGrid oublie de la poser — mieux vaut un trait à peu près au bon
-   calibre qu'un `calc()` cassé. */
-.dg { --dg-cell: 32px; }
 
 /* ---- cases (mêmes teintes table & manette) ---- */
 /* ⚠ TROIS PLANS DE LUMINOSITÉ, et ils doivent le RESTER (René, 2026-09-11 :
@@ -338,40 +291,6 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-cell.fog::after { content: ""; position: absolute; inset: 0; border-radius: 3px;
   background: radial-gradient(circle at 50% 40%, oklch(0.17 0.012 255 / 0.6), oklch(0.07 0.006 255 / 0.95)); }
 
-/* ---- contour des salles (René, 2026-09-11 : « le plateau imprimé a des
-   salles cernées d'un trait ») ----
-   Un rectangle par salle DÉCOUVERTE (`rooms`, lu sur `carte.salles`), posé sur
-   SON emprise complète — mur de contour compris, comme le rectangle publié le
-   décrit. Deux salles ACCOLÉES restent deux rectangles qui se RECOUVRENT d'une
-   case sur leur mur commun (`chevaucheUneSalle()`) : chaque trait tombe donc
-   sur SA face du mur partagé, jamais sur la même ligne — elles se lisent comme
-   deux salles avec un mur épais entre elles, jamais comme une seule grande
-   salle fondue. Rien de spécial à coder pour ce cas : c'est la conséquence
-   directe de dessiner fidèlement CHAQUE rectangle, indépendamment des autres.
-
-   ⚠ Le trait doit tenir aux DEUX échelles (~38 px manette, caméra dynamique à
-   la table) : son épaisseur se calcule sur `--dg-cell` (la taille RÉELLE de la
-   case en px, posée par le parent — voir son commentaire plus haut), jamais en
-   `%`/`vw`. `clamp()` borne le résultat : sous 1.5 px le trait disparaîtrait à
-   une petite case, au-delà de 3 px il épaissirait au point de concurrencer les
-   silhouettes (figures rondes, pièges carrés, épreuves losange, leviers
-   octogone) sur une grande case de table.
-
-   ⚠ Luminosité choisie ENTRE la roche (L 0.115) et les silhouettes des
-   marqueurs (or 0.80, bleu 0.72, battant de porte ~0.75) : assez clair pour se
-   détacher du mur sur lequel il court la plupart du temps (le rectangle publié
-   inclut l'anneau de mur de la salle), assez sombre pour ne jamais lire comme
-   une figurine, un piège ou une épreuve de plus. Même famille de teinte
-   (hue 255) que la roche et le sol : un contour qui appartient à
-   l'architecture, pas un marqueur de contenu — les couleurs de contenu
-   (or/bleu/rouge) restent réservées aux familles de silhouettes déjà en place. */
-.dg-room-holder { position: relative; pointer-events: none; z-index: 1; }
-.dg-room-outline {
-  position: absolute; inset: 0; border-radius: 4px;
-  border-width: clamp(1.5px, calc(var(--dg-cell) * 0.045), 3px);
-  border-style: solid;
-  border-color: oklch(0.52 0.02 255 / 0.9);
-}
 
 /* ---- terrain (doc 18 §4) : la CASE elle-même change de teinte, ce n'est pas
    un marqueur posé dessus — voir le commentaire de TERRAIN_TEINTES dans

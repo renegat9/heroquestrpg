@@ -620,15 +620,10 @@ brouillard ; publier tous les rectangles donnerait le nombre, la taille et la
 position des salles jamais ouvertes — le brouillard contourné par la porte de
 derrière.
 
-**Contour des salles sur la carte (René, 2026-09-11, front seul — payload
-inchangé).** `DungeonGrid.vue` dessine désormais un rectangle sur l'emprise de
-chaque entrée de `salles[]`, table et manette. Aucun champ ajouté : le
-brouillard de `salles[]` (ci-dessus) est la SEULE condition d'affichage, sans
-filtre dupliqué côté client — une salle non découverte n'y figurant pas, son
-contour ne se dessine pas non plus. Deux salles accolées (voir plus bas)
-restent deux rectangles distincts qui se recouvrent d'une case sur leur mur
-commun ; chaque contour est donc tracé sur SA face du mur, et les deux se
-lisent comme deux salles séparées, jamais comme une seule.
+**Le contour de salle a été retiré** (René, 2026-09-11, le jour même où il avait été
+posé — front seul, **payload inchangé dans les deux sens**). `salles[]` reste publié et reste
+filtré par le brouillard : il sert le rendu des salles, pas un trait de contour. Ce qui rend
+une salle lisible est le CONTRASTE sol/roche, pas un cerne.
 
 La table gagne un second bouton à côté de la légende : la légende explique les
 **symboles**, l'aperçu énumère le **contenu** de la salle où se tient le héros

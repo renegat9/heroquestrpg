@@ -218,7 +218,6 @@ const gridStyle = computed(() => ({
     // salle cette fois (DungeonGrid.vue, `.dg-room-outline`) : un trait
     // calculé en `%` se serait résolu sur la police héritée, en `vw` sur la
     // largeur d'écran — jamais sur la case, dans les deux cas.
-    '--dg-cell': `${CASE}px`,
 }));
 
 // Bornes de défilement, relues à chaque scroll : une flèche qui ne peut plus
