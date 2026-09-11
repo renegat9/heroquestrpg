@@ -228,6 +228,19 @@ const ICONE_JOURNAL = {
         <div v-else class="turn-banner mine"><MSym n="bolt" fill /> C'est ton tour — choisis une action</div>
         <InitMini :cur="initCur ?? hero.name.slice(0, 3).toUpperCase()" :order="initOrder" />
         <div class="sect-title"><MSym n="touch_app" :size="16" /> {{ menu.contexte || 'Actions' }}</div>
+
+        <!-- ⚠ `situation` était PRODUIT par le serveur et rendu NULLE PART
+             (constaté le 2026-09-11 en cherchant pourquoi la Potion d'héroïsme
+             « ne donnait pas de 2e attaque » : elle la donnait, et rien ne le
+             disait). Un effet automatique que rien n'annonce est injouable —
+             le joueur frappait une fois, revoyait le même menu, et terminait
+             son tour sans savoir qu'une seconde frappe l'attendait.
+             Il porte aussi « Vous ne pouvez pas agir ce tour », « Tour terminé »
+             et le message de secours d'un menu de repli : trois situations où
+             le silence se lit comme une panne. -->
+        <p v-if="menu.situation" class="menu-situation">
+            <MSym n="info" :size="15" fill /> {{ menu.situation }}
+        </p>
         <div class="choices">
             <ChoiceCard
                 v-for="o in menu.options"
