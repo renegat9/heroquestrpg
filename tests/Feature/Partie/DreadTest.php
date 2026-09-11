@@ -16,8 +16,10 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
 use App\Models\SortDread;
+use App\Partie\Grille;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurSorts;
+use App\Partie\Salles;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -1067,7 +1069,41 @@ it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', fun
     // Répertoire réduit à la Tempête : le héros reste EN VUE mais hors zone.
     $boss->monstre->update(['sorts_dread' => ['Tempête de feu'], 'archetype_lanceur' => null]);
 
+    $carte = $quete->carte;
+    $salles = (array) ($carte->grille['salles'] ?? []);
+    $salleBoss = Salles::indexDe($salles, (int) $boss->position_x, (int) $boss->position_y);
+
+    // Ouvre UNE porte de la salle du boss (2026-09-11 : une porte non ouverte
+    // bloque désormais sa CASE et coupe la vue au travers — y compris en
+    // diagonale, où seule une fuite de ligne de vue laissait auparavant
+    // « voir » au travers d'une porte close). Une salle fraîchement générée a
+    // TOUTES ses portes fermées : sans en ouvrir une pour de vrai, aucune
+    // case hors de la salle n'est jamais visible depuis l'intérieur, et le
+    // scénario « en vue mais hors zone » que ce test veut poser est
+    // irréalisable — il ne l'était devenu que par cette fuite.
+    $portes = (array) ($carte->grille['portes'] ?? []);
+    $indexPorte = null;
+    foreach ($portes as $i => $p) {
+        $embrasure = Grille::caseEmbrasure($p, $salles);
+        if (($p['etat'] ?? 'ouverte') === 'fermee'
+            && Salles::indexDe($salles, $embrasure['x'], $embrasure['y']) === $salleBoss) {
+            $indexPorte = $i;
+            break;
+        }
+    }
+    expect($indexPorte)->not->toBeNull('la salle du boss doit avoir au moins une porte simplement fermée à ouvrir');
+    $portes[$indexPorte]['etat'] = 'ouverte';
+    $carte->update(['grille' => [...$carte->grille, 'portes' => $portes]]);
+    $quete->load('carte');
+
     $grille = App\Partie\FabriqueGrille::pour($quete, exceptInstanceId: $boss->id);
+    // La ZONE de Tempête de feu, c'est la SALLE du lanceur (`salleDuLanceur()`,
+    // « hors_couloir ») — « hors zone » veut donc dire « hors de CETTE salle »,
+    // pas seulement « visible ». Une case visible mais toujours DANS la salle
+    // du boss (à travers la pièce, sans obstacle) est aussi visible qu'une
+    // case au-delà d'une porte : la distinguer exige de le vérifier
+    // explicitement, plutôt que de compter sur le hasard du premier match
+    // trouvé par le parcours ci-dessous pour retomber hors la salle.
     $vueLoin = null;
 
     foreach ($quete->carte->grille['cases'] as $y => $ligne) {
@@ -1075,6 +1111,7 @@ it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', fun
             $distance = abs((int) $x - (int) $boss->position_x) + abs((int) $y - (int) $boss->position_y);
 
             if ($distance >= 2 && in_array($type, ['s', 'p'], true)
+                && Salles::indexDe($salles, (int) $x, (int) $y) !== $salleBoss
                 && caseQueteLibre($quete, (int) $x, (int) $y)
                 && $grille->ligneDeVue((int) $boss->position_x, (int) $boss->position_y, (int) $x, (int) $y, figuresBloquent: true)) {
                 $vueLoin = ['x' => (int) $x, 'y' => (int) $y];

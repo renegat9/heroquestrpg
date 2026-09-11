@@ -1,14 +1,18 @@
 <script setup>
 // GRILLE DE DONJON PARTAGÉE — socle commun à la carte TABLE (narrateur) et à la
 // mini-carte MANETTE (déplacement), pour qu'elles rendent le TERRAIN de façon
-// IDENTIQUE : cases (mur / sol / brouillard), portes en ARÊTE (battant sur la
-// cloison, jamais une case) et marqueurs de pièges. Chaque parent ajoute sa
-// couche propre — figurines animées + caméra côté table ; surbrillance des
-// cases accessibles + tap côté manette — via les slots/props ci-dessous.
+// IDENTIQUE : cases (mur / sol / brouillard), portes et marqueurs de pièges.
+// Chaque parent ajoute sa couche propre — figurines animées + caméra côté
+// table ; surbrillance des cases accessibles + tap côté manette — via les
+// slots/props ci-dessous.
 //
-// La porte étant une arête, son battant est dimensionné en POURCENTAGE de la
-// case : même rendu quelle que soit la taille de case (grande table, petit
-// 22px manette). C'était LA source de divergence (deux CSS de portes séparées).
+// La porte VIT sur une arête (`{x,y,cote}`, identité et verrous côté serveur —
+// voir `MoteurPortes`), mais elle BLOQUE et se DESSINE désormais sur une case,
+// son embrasure (`p.embrasure`, René 2026-09-11 : « la porte doit être
+// centrale à sa case ») : c'est là que son battant est dessiné, en POURCENTAGE
+// de la case pour un rendu identique quelle que soit sa taille (grande table,
+// petit 22px manette). C'était LA source de divergence historique (deux CSS de
+// portes séparées).
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import {
@@ -130,74 +134,40 @@ const rooms = computed(() => props.carte.salles ?? []);
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
 
-// ⚠ `etat: 'mur'` N'EST PAS un état de porte (`MoteurPortes::ETAT_*` en garde
-// quatre) — c'est le déguisement que `EtatGroupe::portes()` pose sur une porte
-// secrète non révélée (2026-09-10, signalé en partie réelle : « les murs ayant
-// un passage secret étaient ouverts vis-à-vis les passages secrets »). Les deux
-// cases qu'elle sépare sont du SOL, souvent déjà visibles des deux côtés (une
-// boucle relie deux zones qui ont chacune leur accès normal) : la retirer du
-// payload laissait un couloir d'apparence parfaitement continue là où le
-// moteur bloque bel et bien le passage (`Grille::porteBloqueEntre`).
+// Portes (René, 2026-09-11 : « la porte doit être centrale à sa case,
+// bloquant l'entrée dans sa case tant qu'elle n'est pas ouverte »). Chaque
+// porte est désormais rendue sur SA CASE D'EMBRASURE (`p.embrasure`, publiée
+// par `EtatGroupe::portes()` — la case parmi les deux que sépare l'arête qui
+// appartient réellement au mur d'une salle, `Grille::caseEmbrasure()`), plus
+// sur l'arête `(x,y,cote)` elle-même : c'est là que le moteur la bloque, et
+// c'est donc là qu'il faut la dessiner pour que la carte ne mente pas.
 //
-// Elle est donc rendue ici, mais SANS passer par `PORTE_ETATS` : aucun libellé,
-// aucune info-bulle, aucun cadenas — un survol ne doit rien révéler qu'un vrai
-// mur ne révélerait. Le battant lui-même (`.dg-door.mur` plus bas) reprend
-// l'apparence de la roche (`.dg-cell.wall`), en pleine hauteur d'arête, sans
-// jambages : une porte fermée annonce « pousse-moi », ce mur ne doit rien
-// annoncer du tout.
+// ⚠ Une porte SECRÈTE non révélée n'apparaît plus du tout ici : elle n'a
+// PLUS d'entrée dans `carte.portes` (2026-09-11, remplace le déguisement
+// `etat: 'mur'` du 2026-09-10) — sa case d'embrasure est peinte `m` dans
+// `carte.cases` par le serveur, donc `.dg-cell.wall` la rend déjà, sans rien
+// de spécial à faire ici. Aucun cas particulier à traiter dans ce composant.
+//
+// L'ancienne FUSION des deux voies d'un seuil large (une porte de chaque
+// côté d'un couloir à 2 cases) n'a plus lieu d'être : `AssembleurCarte` ne
+// pose plus qu'UNE porte par bout de jonction depuis la décision « un seuil
+// fait une case » (2026-08-08), et chaque porte occupe maintenant sa PROPRE
+// case, jamais une arête partagée avec sa voisine — il n'y a donc plus deux
+// battants à confondre en un seul.
 const doors = computed(() => (props.carte.portes ?? [])
-    .filter((p) => p.etat === 'mur' || PORTE_ETATS[p.etat])
+    .filter((p) => PORTE_ETATS[p.etat] && p.embrasure)
     .map((p) => {
-        if (p.etat === 'mur') {
-            return {
-                x: p.x, y: p.y, cote: p.cote === 's' ? 's' : 'e', etat: 'mur', cadenas: false, titre: undefined,
-            };
-        }
         const verrou = p.verrou ? (PORTE_VERROUS[p.verrou] ?? p.verrou) : null;
+
         return {
-            x: p.x,
-            y: p.y,
-            cote: p.cote === 's' ? 's' : 'e', // arête EST ('e') ou SUD ('s')
+            x: p.embrasure.x,
+            y: p.embrasure.y,
+            cote: p.cote === 's' ? 's' : 'e', // arête EST ('e') ou SUD ('s') — oriente le glyphe
             etat: p.etat,
             cadenas: p.etat === 'verrouillee',
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
-    })
-    // FUSION DES DEUX VOIES D'UN MÊME SEUIL. Un passage large de 2 cases porte
-    // deux arêtes-portes côte à côte (AssembleurCarte) : dessinées séparément,
-    // chacune avec ses deux montants, elles se lisaient comme DEUX PORTES
-    // accolées au lieu d'une ouverture large (signalé par René, 2026-08-07).
-    // On les rend en un seul battant couvrant les deux cases, avec ses montants
-    // aux extrémités — ce que la géométrie décrit réellement.
-    //
-    // Fusion purement GÉOMÉTRIQUE : le contrat n'expose pas la `jonction` aux
-    // clients. Deux portes du même côté, même état, adjacentes sur l'axe du
-    // seuil, sont forcément les deux voies d'un même passage — c'est ainsi que
-    // la carte les produit.
-    // Trié d'abord : la carte ne garantit aucun ordre, et deux voies arrivaient
-    // en Y décroissant (19 puis 18) — la voisine n'était alors jamais reconnue.
-    .sort((a, b) => a.cote.localeCompare(b.cote) || (a.x - b.x) || (a.y - b.y))
-    .reduce((fusionnees, porte) => {
-        // Porte EST : le seuil s'étend en Y (même x, y qui se suivent).
-        // Porte SUD : le seuil s'étend en X (même y, x qui se suivent).
-        const axe = porte.cote === 'e' ? 'y' : 'x';
-        const fixe = porte.cote === 'e' ? 'x' : 'y';
-
-        const voisine = fusionnees.find((f) => f.cote === porte.cote
-            && f.etat === porte.etat
-            && f[fixe] === porte[fixe]
-            && f[axe] + f.span === porte[axe]);
-
-        if (voisine) {
-            voisine.span += 1;
-
-            return fusionnees;
-        }
-
-        fusionnees.push({ ...porte, span: 1 });
-
-        return fusionnees;
-    }, []));
+    }));
 </script>
 
 <template>
@@ -296,14 +266,13 @@ const doors = computed(() => (props.carte.portes ?? [])
             </div>
         </div>
 
-        <!-- portes : battant sur la CLOISON (arête), en % de la case -->
+        <!-- portes : battant CENTRÉ dans sa case d'embrasure (René, 2026-09-11 —
+             plus sur une arête, voir le commentaire de `doors` ci-dessus) -->
         <div
             v-for="(d, i) in doors"
             :key="`d-${d.x}-${d.y}-${d.cote}-${i}`"
             class="dg-door-holder"
-            :style="d.cote === 'e'
-                ? { gridColumn: d.x + 1, gridRow: `${d.y + 1} / span ${d.span}` }
-                : { gridColumn: `${d.x + 1} / span ${d.span}`, gridRow: d.y + 1 }"
+            :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
         >
             <div class="dg-door" :class="[`cote-${d.cote}`, d.etat]" :title="d.titre">
                 <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
@@ -492,74 +461,43 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-furn .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-furn.non-bloquant { opacity: 0.6; box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.3); }
 
-/* ---- portes : battant en % de la case, sur l'arête est/sud ----
-   Test de jeu 2026-07-31 : les joueurs ne repéraient PAS les portes. Une porte
-   ouverte n'était qu'un pointillé de 2 px à 50 % d'opacité — invisible sur les
-   cases de 22 px de la manette —, et un joueur a pris deux fois la case d'un
-   allié pour un seuil. On dessine donc systématiquement les DEUX JAMBAGES
-   (montants) de l'ouverture : c'est eux qui font lire « passage » même quand le
-   battant est effacé. Le battant, lui, ne dit plus que l'ÉTAT. */
-.dg-door-holder { position: relative; pointer-events: none; z-index: 3; }
-.dg-door { position: absolute; border-radius: 2px;
-  background: linear-gradient(var(--deg, 90deg), #d8a23a, #7a531d);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.7), 0 1px 3px oklch(0 0 0 / 0.6);
+/* ---- portes : battant CENTRÉ DANS SA CASE D'EMBRASURE, plus sur une arête
+   (René, 2026-09-11 : « la porte doit être centrale à sa case, bloquant
+   l'entrée dans sa case tant qu'elle n'est pas ouverte » — le moteur bloque
+   désormais cette case exactement comme il bloquait déjà l'arête, voir
+   `Grille::caseEmbrasure()`. La carte doit donc montrer la même chose : un
+   obstacle qui occupe une case, pas un trait sur son bord).
+   Test de jeu 2026-07-31 : les joueurs ne repéraient PAS les portes — un
+   pointillé à 50 % d'opacité sur une arête étroite était invisible à 22 px.
+   Le battant occupe maintenant le gros de sa case, comme le bloc plein du
+   mobilier (§mobilier plus haut) : un obstacle doit se lire comme un
+   obstacle, pas comme une décoration. Il reste ORIENTÉ selon `cote` — une
+   embrasure EST perce un mur vertical (battant vertical, plus étroit en
+   largeur), une embrasure SUD perce un mur horizontal (battant horizontal,
+   plus étroit en hauteur) — pour que l'œil retrouve, même sans lire le
+   libellé, LEQUEL des quatre murs de la case est percé. */
+.dg-door-holder { position: relative; pointer-events: none; z-index: 3; display: grid; place-items: center; }
+.dg-door { position: absolute; border-radius: 3px;
+  background: linear-gradient(150deg, #d8a23a, #7a531d);
+  box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.6), 0 1px 3px oklch(0 0 0 / 0.55);
   display: grid; place-items: center; }
-.dg-door.cote-e { --deg: 90deg; top: 10%; bottom: 10%; right: 0; width: 30%; transform: translateX(50%); }
-.dg-door.cote-s { --deg: 180deg; left: 10%; right: 10%; bottom: 0; height: 30%; transform: translateY(50%); }
+.dg-door.cote-e { inset: 8% 24%; }
+.dg-door.cote-s { inset: 24% 8%; }
 
-/* Jambages : deux tenons clairs aux extrémités de l'arête, toujours visibles. */
-.dg-door::before, .dg-door::after {
-  content: ''; position: absolute; background: #f0d79a;
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.75); border-radius: 1px;
-}
-.dg-door.cote-e::before, .dg-door.cote-e::after { left: -10%; right: -10%; height: 22%; min-height: 3px; }
-.dg-door.cote-e::before { top: -14%; }
-.dg-door.cote-e::after { bottom: -14%; }
-.dg-door.cote-s::before, .dg-door.cote-s::after { top: -10%; bottom: -10%; width: 22%; min-width: 3px; }
-.dg-door.cote-s::before { left: -14%; }
-.dg-door.cote-s::after { right: -14%; }
+.dg-door.verrouillee { background: linear-gradient(150deg, #b98a3a, #6a4a1c); }
 
-.dg-door.verrouillee { background: linear-gradient(var(--deg, 90deg), #b98a3a, #6a4a1c); }
+/* Ouverte : le battant s'efface, un simple cadre marque encore l'embrasure —
+   la case elle-même redevient un sol ordinaire, praticable et transparente
+   (`Grille::estTraversable()`/`ligneDeVue()`), donc rien ne doit plus la
+   faire lire comme un obstacle. */
+.dg-door.ouverte { background: none;
+  box-shadow: inset 0 0 0 1.5px oklch(0.75 0.12 88 / 0.55); }
 
-/* Ouverte : le battant s'efface, les jambages restent — l'ouverture se voit. */
-.dg-door.ouverte { background: none; box-shadow: none; }
-
-/* Secrète RÉVÉLÉE (le serveur masque les autres) : violet, pour qu'un raccourci
+/* Secrète RÉVÉLÉE (le serveur ne publie plus du tout les autres — leur case
+   se peint en roche côté serveur, `EtatGroupe::carte()` — et `.dg-cell.wall`
+   les rend déjà sans rien de spécial ici) : violet, pour qu'un raccourci
    trouvé se distingue d'une porte ordinaire. */
-.dg-door.secrete { background: linear-gradient(var(--deg, 90deg), #b18ad8, #5b3f7a); }
-.dg-door.secrete::before, .dg-door.secrete::after { background: #e0cdf5; }
-
-/* MUR — déguisement d'une porte secrète NON TROUVÉE (2026-09-10, signalé en
-   partie réelle : « les murs ayant un passage secret étaient ouverts vis-à-vis
-   les passages secrets »). Les deux cases qu'elle sépare restent du SOL — et
-   souvent déjà EXPLORÉES des deux côtés (une porte de liaison supplémentaire
-   relie deux zones qui ont chacune leur accès normal) : le brouillard ne fait
-   pas le travail ici, seul le rendu peut dire « ceci est bloqué ».
-   ⚠ Un battant `background: transparent` littéral ne suffirait pas : posé EN
-   SURCOUCHE de deux cases de sol déjà peintes (z-index au-dessus), il
-   laisserait leur dégradé transparaître sans rien casser — cette arête n'est
-   pas une case murée qui REMPLACE le sol dessous, juste une couche par-dessus.
-   La teinte reprend donc EXACTEMENT le dégradé de `.dg-cell.wall` — depuis le
-   2026-09-11 la roche a sa propre teinte au lieu d'être transparente, et ce
-   battant a suivi le même jour (voir plus bas) — en PLEINE largeur/hauteur de
-   case (pas les 30 %/80 % d'un
-   battant), pour occuper l'équivalent visuel d'une case murée entière à
-   cheval sur la cloison. Et SANS jambage : ce sont eux qui font lire « il y a
-   une porte ici » ; sans eux et sans info-bulle (`d.titre` reste `undefined`
-   pour cet état), rien ne dit « cherche ici » — juste « le couloir s'arrête
-   là », ce qu'un cul-de-sac de roche donne déjà à l'écran. */
-/* ⚠ SUIT LA ROCHE, jamais le fond de page. Tant que `.dg-cell.wall` était
-   transparent, la couleur perçue d'un mur ÉTAIT `--stone-950` et ce battant la
-   reprenait. Depuis que la roche a sa propre teinte (2026-09-11), s'accrocher
-   à `--stone-950` rendrait ce mur-ci PLUS CLAIR que tous les autres — la
-   pancarte « cherche ici » que ce déguisement existe précisément pour éviter.
-   Les deux valeurs doivent bouger ensemble : c'est une seule couleur, écrite à
-   deux endroits faute d'un token partagé. */
-.dg-door.mur { background: linear-gradient(150deg, oklch(0.125 0.011 255), oklch(0.108 0.010 255));
-  box-shadow: none; border-radius: 0; }
-.dg-door.cote-e.mur { top: 0; bottom: 0; width: 100%; }
-.dg-door.cote-s.mur { left: 0; right: 0; height: 100%; }
-.dg-door.mur::before, .dg-door.mur::after { content: none; }
+.dg-door.secrete { background: linear-gradient(150deg, #b18ad8, #5b3f7a); }
 
 .dg-door-lock { color: #f0d79a; font-size: 0.6em; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 

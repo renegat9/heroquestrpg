@@ -43,7 +43,8 @@ Routes protégées par middleware `auth` sauf connexion.
             "objectif_majeur": false,
             "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
-            "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete|mur", "verrou": "cle|monstres_vaincus|levier"}]},
+            "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
+                        "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
@@ -580,13 +581,17 @@ test les confronte **dans les deux sens** — un état ajouté au moteur sans
 illustration retomberait en silence sur l'emblème SVG, une entrée orpheline ferait
 générer une image que rien n'irait chercher.
 
-`EtatGroupe.carte.leviers[]` et `carte.portes[]` gagnent `image_url`.
+`EtatGroupe.carte.leviers[]` et `carte.portes[]` gagnent `image_url`. Chaque
+entrée de `carte.portes[]` gagne aussi `embrasure: {x, y}` (§Portes &
+exploration plus bas) — la case sur laquelle `DungeonGrid.vue` centre l'image.
 `images:generer --type=leviers|portes` les produit.
 
-⚠ **`etat: "mur"`** (2026-09-10, §Portes & exploration plus bas) n'entre PAS dans
-cette liste : c'est le déguisement publié pour une porte secrète non trouvée, pas
-un état du moteur, donc il ne prend ni entrée `config('images.portes')`, ni
-`image_url` — un mur n'en affiche jamais.
+⚠ **Une porte secrète non révélée n'a plus d'existence à illustrer** (2026-09-11,
+§Portes & exploration plus bas) : elle ne figure plus du tout dans `portes[]`,
+sa case se peint directement `m` dans `carte.cases` — un mur n'affiche jamais
+d'`image_url`, il n'y a donc plus de cas particulier à documenter ici (l'ancien
+déguisement `etat: "mur"` du 2026-09-10, qui vivait dans cette liste sans
+illustration, est retiré avec lui).
 
 **Une silhouette par famille**, parce que les marqueurs se côtoient dans une même
 salle : figurine **ronde**, piège **carré**, épreuve **losange** doré, levier
@@ -684,11 +689,29 @@ achète *Colosse*, il descend quand le costaud s'en va.
 
 L'état des portes vit dans la carte de la quête (`cartes.grille.portes` :
 `{x, y, cote: "e|s", etat: "fermee|ouverte|verrouillee|secrete", verrou?, revele?}`).
-Une porte **ne prend PAS de case** : c'est une **ARÊTE** (cloison) entre la case
-`(x,y)` et sa voisine EST (`cote:"e"` → `(x+1,y)`) ou SUD (`cote:"s"` → `(x,y+1)`),
-**activable des deux côtés**. Une porte NON `ouverte` rend cette arête
-**infranchissable** (pathfinding) et **opaque** (ligne de vue) — les deux cases,
-elles, restent du sol ; une porte `ouverte` laisse passer pas et regard.
+Une porte vit sur une **ARÊTE** (cloison) entre la case `(x,y)` et sa voisine EST
+(`cote:"e"` → `(x+1,y)`) ou SUD (`cote:"s"` → `(x,y+1)`), **activable des deux
+côtés** — ce champ ne change pas.
+
+⚠ **Une porte NON `ouverte` bloque désormais sa CASE, EN PLUS de son arête**
+(René, 2026-09-11, après avoir joué : « la porte doit être centrale à sa case,
+bloquant l'entrée dans sa case tant qu'elle n'est pas ouverte »). Des deux cases
+que sépare l'arête, UNE est l'**embrasure** — celle qui appartient à l'anneau de
+mur d'une salle (`carte.salles`, mur compris), c'est-à-dire la case que le mur a
+réellement cédée pour ouvrir le seuil ; l'autre reste un simple sol de couloir
+(ou, pour une jonction MITOYENNE, l'intérieur immédiat de l'autre salle) et n'a
+jamais été un mur. `Grille::caseEmbrasure()` tranche laquelle des deux avec ce
+rectangle ; le calcul n'a PAS lieu deux fois — chaque entrée de `portes[]` publie
+directement `embrasure: {x, y}` (ci-dessous), pour que `DungeonGrid.vue` (rendu)
+et `DeplacementSheet.vue` (miroir client du pathfinding) lisent la même case au
+lieu de re-dériver la règle chacun de son côté.
+Non `ouverte`, l'embrasure devient **inoccupable** (pathfinding) et **opaque**
+(ligne de vue) **des DEUX côtés** — corollaire assumé (René, 2026-09-11) : avant
+ce correctif, seule l'arête protégeait le pas VENU DU COULOIR ; rien ne protégeait
+le pas venu de L'INTÉRIEUR de la salle, et un héros pouvait s'y tenir. `ouverte`,
+elle redevient un sol ordinaire : on la traverse et on voit à travers, et **la
+salle derrière se révèle** (comme toute ouverture de porte, `revelerDerriere()`).
+Aucun coût de déplacement n'est introduit par l'embrasure elle-même.
 
 **Codes de case (`carte.cases`)** : `m` mur, `s` sol, `b` **brouillard** (plus de
 case `p` : la porte est une arête, rendue sur le bord entre deux cases).
@@ -709,45 +732,52 @@ pas de case pour relier deux salles ») ; les vrais couloirs ne subsistent que
 pour les salles non-feuilles et celles qu'un chevauchement empêche d'accoler.
 Sur une jonction ainsi devenue MITOYENNE, `portes[]` ne compte plus qu'**UNE**
 entrée au lieu de deux — la case de seuil que se partageaient les deux anciens
-battants encadrants n'existe plus, un seul suffit sur l'arête commune. Le
-format d'une entrée de `portes[]` ne change pas ; seul le **nombre** d'entrées
-partageant un `jonction` passe de 2 à 1 pour ce cas. `carte.aretes[i].porte_a`
-et `.porte_b` valent alors les MÊMES coordonnées (pas de second bout à
-publier). Une porte SECRÈTE peut désormais elle aussi être mitoyenne — un
-passage dérobé directement dans un mur partagé entre deux salles, plus fidèle
-au plateau qu'un cul-de-sac de couloir ; le déguisement `etat: "mur"`
-(ci-dessus) s'applique identiquement tant qu'elle n'est pas trouvée.
+battants encadrants n'existe plus, un seul suffit sur l'arête commune, et c'est
+elle qui EST l'embrasure des deux salles à la fois (elles se touchent
+exactement sur cette case). Le format d'une entrée de `portes[]` ne change pas ;
+seul le **nombre** d'entrées partageant un `jonction` passe de 2 à 1 pour ce cas.
+`carte.aretes[i].porte_a` et `.porte_b` valent alors les MÊMES coordonnées (pas
+de second bout à publier). Une porte SECRÈTE peut désormais elle aussi être
+mitoyenne — un passage dérobé directement dans un mur partagé entre deux
+salles, plus fidèle au plateau qu'un cul-de-sac de couloir ; sa case se peint
+en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
 
-- **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, verrou?, image_url?}]` —
-  une porte connue est rendue comme une porte, une `verrouillee` porte un cadenas
-  (`verrou` = type du verrou).
-  ⚠ **Une porte `secrete` non révélée n'est PLUS retirée du payload** (régression
-  signalée en partie réelle le 2026-09-10 : les deux cases qu'elle sépare sont du
-  **sol**, souvent déjà visibles des DEUX côtés — une boucle `liaisonsSupplementaires()`
-  relie deux zones qui ont chacune leur propre accès normal — donc **la retirer
-  laissait un couloir parfaitement continu à l'écran**, sans rien pour dire que le
-  moteur bloquait le passage. Elle est désormais publiée **comme un mur** :
-  `{x, y, cote, etat: "mur"}`, **sans** `secrete`, **sans** `revele`, **sans**
-  `verrou`, **sans** `image_url` — un vrai mur n'en a pas non plus. `etat: "mur"`
-  n'est **pas** un état du moteur (`MoteurPortes::ETAT_*` reste à quatre valeurs) :
-  c'est un déguisement d'affichage posé par `EtatGroupe::portes()` au moment de la
-  publication, jamais persisté. Le rendu (`DungeonGrid.vue`) lui donne la même
-  apparence que la roche environnante (voir §Symboles de la carte et légende
-  plus haut) — sans jambages, sans battant doré, sans info-bulle : il doit se
-  lire comme « le couloir s'arrête là », pas comme une pancarte. ⚠ Distinction résiduelle assumée : un mur ordinaire n'a
-  **aucune** entrée dans `portes[]` (c'est une case `m`), alors qu'un mur-déguisement
-  en a une (l'arête existe dans `cartes.grille.portes`) — un client qui compare le
-  nombre d'entrées `mur` aux cases `m` voisines pourrait statistiquement repérer
-  qu'« une entrée `mur` isolée entre deux cases `s` » diffère d'un mur de roche. Le
-  JSON ne porte en revanche **aucun** champ qui le confirme (ni `secrete`, ni
-  `revele`), donc rien qui distingue ce cas d'une porte `fermee`/`verrouillee`
-  ordinaire — ni le champ qui dirait « cherche ici ».
+- **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, embrasure: {x, y}, verrou?, image_url?}]` —
+  une porte connue est rendue comme une porte, centrée sur sa case `embrasure`
+  (§Symboles de la carte et légende plus haut), une `verrouillee` porte un
+  cadenas (`verrou` = type du verrou).
+  ⚠ **Une porte `secrete` non révélée n'est TOUJOURS PAS retirée du payload
+  sans rien pour la remplacer** (ça, c'est le défaut du 2026-09-04 — toujours
+  corrigé) — mais depuis que la porte bloque sa CASE (2026-09-11), le correctif
+  a changé de forme. La version du 2026-09-10 la publiait déguisée en mur
+  (`etat: "mur"`, un état d'affichage jamais persisté). **Cette version-là est
+  retirée à son tour** : une porte `secrete` non révélée n'a maintenant
+  **aucune entrée dans `portes[]`** — ni `mur`, ni rien —, exactement comme un
+  mur de roche ordinaire. Ce qui portait l'information est désormais
+  `carte.cases` lui-même : sa case d'embrasure y est peinte **`m`**, au même
+  titre que n'importe quel mur, **avant** l'application du brouillard (pour
+  qu'elle en suive exactement les mêmes règles d'affichage — silhouette d'un
+  mur qui borde une case visible, mur qu'un héros touche…). ⚠ Ancienne
+  distinction résiduelle, désormais **éliminée** : le mur-déguisement gardait
+  une entrée dans `portes[]` qu'un mur ordinaire n'a jamais ; en ne publiant
+  plus AUCUNE entrée pour ce cas, il n'y a plus rien à comparer — la porte
+  secrète non trouvée est rigoureusement indiscernable d'un mur, y compris en
+  comptant les entrées.
 - Une fois la fouille réussie, `MoteurPortes::revelerSecretes()` passe l'entrée à
-  `{etat: "ouverte", revele: true}` (inchangé) — la publication suit alors la
-  branche normale et l'affiche comme une porte ouverte.
+  `{etat: "fermee", revele: true}` — **pas** `"ouverte"` (arbitrage de René,
+  2026-09-11 : « un passage secret trouvé devrait l'afficher comme une porte
+  fermée, on peut maintenant interagir avec pour l'ouvrir » — trouver et
+  franchir sont deux actes distincts, comme au plateau ; sans ça, un seul jet
+  de Mind révélait la salle ET son coffre sans qu'on ait eu à s'en approcher,
+  puisque toute ouverture de porte révèle la salle derrière). `revele: true`
+  reste posé : c'est lui qui distingue une porte trouvée d'une porte
+  ordinaire, une fois l'état sorti de `secrete`. La publication suit alors la
+  branche normale (`portes()`) et l'affiche comme une porte fermée, avec sa
+  case d'embrasure de nouveau franchissable dès qu'elle s'ouvre.
 - **Fouiller la zone** (option `fouiller`, type `jet`, Mind difficulté 1) : un seul
   jet réussi révèle dans le rayon de fouille les **pièges cachés** ET les **portes
-  secrètes** (qui s'ouvrent). Echo : `pieges_reveles`, `portes_revelees`.
+  secrètes** (qui deviennent des portes fermées, ouvrables). Echo : `pieges_reveles`,
+  `portes_revelees`.
 - **Verrous** (doc 14 §3.3) :
   - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}`) au contact d'une porte
     verrouillée, offerte si le héros possède l'objet-clé → la porte s'ouvre (persistant) ;

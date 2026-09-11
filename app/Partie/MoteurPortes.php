@@ -81,19 +81,32 @@ final class MoteurPortes
      * Porte FERMÉE (verrouillée, ou secrète non révélée) orthogonalement
      * adjacente à (x, y), avec son index — null sinon.
      *
+     * ⚠ « Adjacente » teste désormais l'ADJACENCE GÉOMÉTRIQUE à la case
+     * d'EMBRASURE (`Grille::caseEmbrasure()`), pas l'égalité à l'une des deux
+     * `casesPorte()` (René, 2026-09-11 : une porte non ouverte bloque
+     * maintenant sa case). L'ancien test supposait qu'on pouvait se TENIR sur
+     * le seuil pour l'ouvrir ; ce n'est plus vrai QUE côté couloir, plus côté
+     * salle — un héros qui vient d'entrer par un autre accès et s'arrête
+     * juste devant une porte close, depuis l'INTÉRIEUR, ne serait jamais sur
+     * aucune des deux `casesPorte()` (l'embrasure lui est fermée, et l'autre
+     * cellule est souvent à plus d'un pas). Sans ce changement, une porte dont
+     * l'embrasure tombe côté salle ne serait plus jamais ouvrable de
+     * l'intérieur : personne ne pourrait jamais se tenir assez près pour
+     * presser « Ouvrir la porte ».
+     *
      * @return array{index: int, porte: array<string, mixed>}|null
      */
     public function porteFermeeAdjacente(Carte $carte, int $x, int $y): ?array
     {
         $reponse = null;
+        $salles = (array) ($carte->grille['salles'] ?? []);
 
         foreach ($this->portes($carte) as $index => $porte) {
             if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
                 continue;
             }
-            // Porte = arête : ouvrable depuis L'UNE des deux cases qu'elle sépare.
-            [$a, $b] = Grille::casesPorte($porte);
-            if (($a['x'] !== $x || $a['y'] !== $y) && ($b['x'] !== $x || $b['y'] !== $y)) {
+            $embrasure = Grille::caseEmbrasure($porte, $salles);
+            if (abs($embrasure['x'] - $x) + abs($embrasure['y'] - $y) !== 1) {
                 continue;
             }
 

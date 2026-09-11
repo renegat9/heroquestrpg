@@ -44,6 +44,25 @@ const porteFermeeEntre = (x1, y1, x2, y2) => {
     return !!p && p.etat !== 'ouverte'; // fermee / verrouillee / secrete
 };
 
+// Case d'EMBRASURE d'une porte NON ouverte (René, 2026-09-11 : « la porte
+// doit être centrale à sa case, bloquant l'entrée dans sa case tant qu'elle
+// n'est pas ouverte ») — MIROIR de `Grille::estTraversable()`/`ligneDeVue()`
+// côté serveur, en PLUS de l'arête ci-dessus (`porteFermeeEntre`), pas à sa
+// place : avant ce miroir, le BFS client ne gardait que le pas venu du
+// couloir bloqué, jamais celui venu de l'INTÉRIEUR de la salle — il aurait
+// donc continué à surbrillancer une case que le serveur refuse désormais des
+// deux côtés, un refus sans explication que « le menu ne propose jamais ce
+// que le résolveur refusera » interdit. `p.embrasure` est publiée toute
+// faite par `EtatGroupe::portes()` (`Grille::caseEmbrasure()`) : la dériver
+// une seconde fois ici serait une deuxième copie de cette règle géométrique.
+const embrasuresFermees = computed(() => {
+    const s = new Set();
+    for (const p of props.carte.portes ?? []) {
+        if (p.etat !== 'ouverte' && p.embrasure) s.add(cle(p.embrasure.x, p.embrasure.y));
+    }
+    return s;
+});
+
 // Cases occupées par une AUTRE figurine BLOQUANTE — MÊME règle que le moteur
 // (FabriqueGrille) pour ne jamais bloquer une case que le serveur laisse libre :
 //  - le héros sur sa propre case de départ ne se bloque pas ;
@@ -140,6 +159,7 @@ const accessibles = computed(() => {
             const voisinImmediat = d === 0 && (cases?.[ny]?.[nx] ?? 'b') !== 'm';
             if (!caseConnue && !porteOuverteIci && !voisinImmediat) continue;
             if (occupees.value.has(k) || mobilierOccupe.value.has(k)) continue;
+            if (embrasuresFermees.value.has(k)) continue; // case d'embrasure close : inoccupable
 
             const nd = d + coutDe(nx, ny);
             if (nd > props.portee) continue; // hors budget : jamais une destination possible

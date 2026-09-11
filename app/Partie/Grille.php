@@ -40,6 +40,18 @@ use App\Models\Carte;
  *  - `$opaques` (`occulter()`) : le mobilier qui bloque la VUE
  *    (`bloque_vue`, ex. une bibliothèque). Coupe `ligneDeVue()`
  *    INCONDITIONNELLEMENT, comme un mur, que `figuresBloquent` soit vrai ou non.
+ *
+ * ⚠ **Une porte NON ouverte bloque sa CASE, en plus de son ARÊTE** (René,
+ * 2026-09-11, après avoir joué : « la porte doit être centrale à sa case,
+ * bloquant l'entrée dans sa case tant qu'elle n'est pas ouverte »). Une porte
+ * garde son arête (`$portes`/`porteBloqueEntre()`, inchangé) ET gagne une
+ * case (`$porteParCase`/`caseEmbrasure()`) : sa case d'EMBRASURE — celle des
+ * deux `casesPorte()` qui tombe sur l'anneau de mur d'une salle, voir
+ * `caseEmbrasure()` — devient inoccupable et opaque tant que l'état n'est pas
+ * `ouverte`, exactement comme `estTraversable()`/`ligneDeVue()` le font déjà
+ * pour 'm'. Ouverte, elle redevient un sol ordinaire : on la traverse et on
+ * voit à travers, aucun coût de déplacement ne change. L'algorithme de
+ * `ligneDeVue()` ne change pas : une case de plus lui est simplement soumise.
  */
 final class Grille
 {
@@ -105,6 +117,29 @@ final class Grille
     private array $portes = [];
 
     /**
+     * État des portes indexé par CASE D'EMBRASURE (René, 2026-09-11, après
+     * avoir joué : « la porte doit être centrale à sa case, bloquant l'entrée
+     * dans sa case tant qu'elle n'est pas ouverte »). Distinct de `$portes`
+     * ci-dessus (indexé par ARÊTE, inchangé, toujours consulté par
+     * `porteBloqueEntre()`) : les DEUX coexistent, la porte bloque désormais
+     * sa case EN PLUS de son arête, elle ne remplace rien.
+     *
+     * Pourquoi une case de plus était nécessaire : l'arête ne protège qu'UN
+     * des deux pas menant à l'embrasure (celui qui vient du couloir). L'autre
+     * pas — venu de L'INTÉRIEUR de la salle, vers cette même case — n'était
+     * gardé par AUCUNE arête déclarée (`AssembleurCarte::creuserArete()` ne
+     * pousse qu'UNE porte par bout de jonction), si bien qu'un héros pouvait
+     * AUJOURD'HUI se tenir dans une embrasure fermée en y entrant par la
+     * salle. Bloquer la CASE ferme les deux pas d'un coup, sans toucher à
+     * `porteBloqueEntre()` ni à l'algorithme de `ligneDeVue()` — une case de
+     * plus à consulter, exactement comme pour 'm'. Alimenté par
+     * `definirPortes()` via `caseEmbrasure()`.
+     *
+     * @var array<string, string> clé case "x,y" → 'ouverte' | 'fermee' | 'verrouillee' | 'secrete'
+     */
+    private array $porteParCase = [];
+
+    /**
      * COÛT DE DÉPLACEMENT par case (doc 18 §4, terrain), défaut 1 (une case
      * ordinaire). Posé par `definirCoutsDeplacement()`, lu par
      * `coutDeplacement()` et consommé par le parcours PONDÉRÉ
@@ -123,7 +158,7 @@ final class Grille
     public static function depuisCarte(Carte $carte): self
     {
         $grille = new self($carte->grille['cases'] ?? []);
-        $grille->definirPortes($carte->grille['portes'] ?? []);
+        $grille->definirPortes($carte->grille['portes'] ?? [], $carte->grille['salles'] ?? []);
 
         return $grille;
     }
@@ -160,17 +195,89 @@ final class Grille
      * Charge l'état des portes de la carte (cartes.grille.portes) dans la
      * grille tactique. Chaque entrée : {x, y, cote, etat, verrou?, revele?}.
      *
+     * `$salles` (cartes.grille.salles, mur compris) sert à `caseEmbrasure()` —
+     * repli sur [] pour les grilles de test qui n'en posent pas (voir son
+     * docblock pour le comportement de repli).
+     *
      * @param  list<array{x: int, y: int, cote?: string, etat?: string}>  $portes
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
      */
-    public function definirPortes(array $portes): void
+    public function definirPortes(array $portes, array $salles = []): void
     {
         foreach ($portes as $porte) {
             if (! isset($porte['x'], $porte['y'])) {
                 continue;
             }
             [$a, $b] = self::casesPorte($porte);
-            $this->portes[self::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = (string) ($porte['etat'] ?? 'ouverte');
+            $etat = (string) ($porte['etat'] ?? 'ouverte');
+            $this->portes[self::cleArete($a['x'], $a['y'], $b['x'], $b['y'])] = $etat;
+
+            $embrasure = self::caseEmbrasure($porte, $salles);
+            $this->porteParCase["{$embrasure['x']},{$embrasure['y']}"] = $etat;
         }
+    }
+
+    /**
+     * La case d'EMBRASURE d'une porte : celle des deux `casesPorte()` qui
+     * tombe sur l'ANNEAU DE MUR d'une salle — son rectangle `salles[]` (mur
+     * compris), mais seulement le BORD (x ou y sur une des quatre limites),
+     * jamais l'intérieur. C'est très exactement la case que
+     * `AssembleurCarte::creuserArete()` perce dans le mur d'une salle pour
+     * ouvrir le seuil ; l'autre case (le couloir, ou pour une jonction
+     * MITOYENNE l'intérieur immédiat de l'autre salle) n'a jamais été un mur
+     * et reste un simple sol.
+     *
+     * Établi sur une carte réellement assemblée (René, 2026-09-11) : porte
+     * `cote:'e'` en (29,30) — la colonne x=30 reste un MUR à la ligne du
+     * dessus (y=29), donc c'est (30,30), PAS (29,30), qui est l'embrasure.
+     * ⚠ La règle « côté ⇒ x+1 » suffit à CE cas mais pas en général :
+     * `creuserArete()` perce tantôt la case GAUCHE/HAUT (sortie de la salle
+     * PARENT), tantôt la case DROITE/BAS (entrée de la salle qui suit),
+     * selon laquelle des deux salles de l'arête est spatialement à gauche —
+     * une pure affaire de géométrie de l'arbre, indépendante du sens de la
+     * relation parent/enfant. Seul le rectangle de salle permet de trancher
+     * dans les deux sens ; c'est le même test que `seuilsDeSalle()` durcit
+     * au BORD plutôt qu'à tout le rectangle (l'intérieur d'une salle
+     * mitoyenne tombe, lui aussi, dans le rectangle du voisin sans jamais
+     * avoir été un mur).
+     *
+     * Repli : si aucune salle ne réclame ni l'une ni l'autre case (grille de
+     * test sans `salles`, jonction dégénérée), on retombe sur la case
+     * (x+1,y)/(x,y+1) — le comportement historique, jamais atteint sur une
+     * carte réellement assemblée.
+     *
+     * @param  array{x: int, y: int, cote?: string}  $porte
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @return array{x: int, y: int}
+     */
+    public static function caseEmbrasure(array $porte, array $salles): array
+    {
+        [$a, $b] = self::casesPorte($porte);
+
+        foreach ([$a, $b] as $case) {
+            foreach ($salles as $salle) {
+                if (self::surAnneauMur($salle, $case['x'], $case['y'])) {
+                    return $case;
+                }
+            }
+        }
+
+        return $b;
+    }
+
+    /** La case (x,y) est-elle sur le BORD du rectangle de la salle (mur compris) ? */
+    private static function surAnneauMur(array $salle, int $x, int $y): bool
+    {
+        $xMin = (int) $salle['x'];
+        $yMin = (int) $salle['y'];
+        $xMax = $xMin + (int) $salle['largeur'] - 1;
+        $yMax = $yMin + (int) $salle['hauteur'] - 1;
+
+        if ($x < $xMin || $x > $xMax || $y < $yMin || $y > $yMax) {
+            return false;
+        }
+
+        return $x === $xMin || $x === $xMax || $y === $yMin || $y === $yMax;
     }
 
     /**
@@ -353,15 +460,26 @@ final class Grille
 
     public function estTraversable(int $x, int $y): bool
     {
-        // Une porte ne prend plus de case (arête) : la traversabilité est
-        // purement « case libre » (sol, inoccupée). Le blocage par une porte
-        // fermée se joue sur l'ARÊTE entre deux cases (porteBloqueEntre),
-        // évalué au moment du pas (pathfinding) — pas ici.
+        // Une porte vit sur une ARÊTE (`porteBloqueEntre()`, évalué au moment
+        // du pas côté pathfinding) — MAIS bloque aussi désormais sa case
+        // d'EMBRASURE (voir plus bas, `porteFermeeSurCase()`), ce que ce
+        // commentaire disait autrefois ne jamais arriver.
         // Occupée par une FIGURE, OU rendue infranchissable par un meuble
         // (`$obstacles`, doc 17) : les deux jeux de cases bloquent le
         // mouvement, mais seul `$occupees` participe au test `figuresBloquent`
         // de `ligneDeVue()` — un meuble n'est pas une figure interposée.
         if (isset($this->occupees["{$x},{$y}"]) || isset($this->obstacles["{$x},{$y}"])) {
+            return false;
+        }
+
+        // Case d'EMBRASURE d'une porte NON ouverte (René, 2026-09-11) :
+        // inoccupable, comme un mur — des DEUX côtés, contrairement à l'ancien
+        // blocage par arête seule (`porteBloqueEntre()`, toujours actif
+        // ci-dessous) qui ne gardait que le pas venu du couloir. Traverser la
+        // Pierre lève CETTE case comme elle lève la roche et l'arête de porte
+        // (voir `porteBloqueEntre()`) : elle ne fait AUCUNE exception pour une
+        // porte, close ou non.
+        if (! $this->traverseRoche && $this->porteFermeeSurCase($x, $y)) {
             return false;
         }
 
@@ -580,12 +698,42 @@ final class Grille
     }
 
     /**
-     * La case (x,y) coupe-t-elle la ligne de vue ? Uniquement un mur ('m'/hors
-     * grille) désormais — les portes vivent sur les arêtes (porteBloqueEntre).
+     * La case (x,y) coupe-t-elle la ligne de vue ? Un mur ('m'/hors grille),
+     * OU la case d'EMBRASURE d'une porte NON ouverte (René, 2026-09-11) — elle
+     * coupe la vue exactement comme un mur, tant que la porte n'est pas
+     * `ouverte`. L'arête (`porteBloqueEntre()`, testée séparément dans
+     * `ligneDeVue()`) continue de couvrir l'axe « à travers la porte » ; ceci
+     * ajoute l'axe « à travers la case », qu'aucune arête ne protégeait côté
+     * intérieur de la salle. `traverseRoche` lève les deux ensemble (Traverser
+     * la Pierre passe aussi les portes closes, voir `porteBloqueEntre()`).
      */
     private function bloqueVue(int $x, int $y): bool
     {
-        return ($this->cases[$y][$x] ?? 'm') === 'm';
+        if (($this->cases[$y][$x] ?? 'm') === 'm') {
+            return true;
+        }
+
+        return ! $this->traverseRoche && $this->porteFermeeSurCase($x, $y);
+    }
+
+    /**
+     * La case (x,y) est-elle l'embrasure d'une porte NON `ouverte` ?
+     *
+     * PUBLIC (et pas seulement interne à `estTraversable()`/`bloqueVue()`) :
+     * `Rayon::cases()` (Esprit Ardent, Éclair) répète son PROPRE test
+     * `estRoche() || porteBloqueEntre()` plutôt que d'appeler
+     * `estTraversable()` — un rayon traverse les FIGURES, qu'`estTraversable()`
+     * bloque, donc il ne peut pas le réutiliser tel quel. Sans cette case en
+     * plus, un rayon lancé depuis L'INTÉRIEUR d'une salle vers une porte close
+     * la traverserait tout droit, exactement le bug que ce chantier corrige
+     * ailleurs — une seule méthode pour la question, appelée des DEUX endroits
+     * qui la posent, plutôt que deux réponses qui pourraient diverger.
+     */
+    public function porteFermeeSurCase(int $x, int $y): bool
+    {
+        $etat = $this->porteParCase["{$x},{$y}"] ?? null;
+
+        return $etat !== null && $etat !== 'ouverte';
     }
 
     /**

@@ -264,10 +264,11 @@ final class EtatGroupe
      * Carte jouable — cases + pièges CONNUS (détectés / désarmés /
      * déclenchés) + mobilier des salles DÉCOUVERTES + portes CONNUES : les
      * pièges encore cachés n'y figurent JAMAIS, la table ne doit pas les
-     * montrer (contrat). Une porte secrète non révélée, elle, FIGURE — mais
-     * masquée en mur (voir `portes()`) : la retirer laissait l'arête sans
-     * aucun repère, donc un couloir d'apparence continue là où le moteur
-     * bloque (signalé en partie réelle, 2026-09-10).
+     * montrer (contrat). Un passage secret non révélé, lui, ne figure PLUS du
+     * tout dans `portes[]` (2026-09-11, remplace le déguisement `etat: 'mur'`
+     * du 2026-09-10) : sa case d'EMBRASURE est peinte en ROCHE ci-dessous,
+     * AVANT le brouillard — indiscernable de n'importe quel mur, sans plus
+     * rien à publier pour le dire.
      *
      * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
@@ -283,12 +284,12 @@ final class EtatGroupe
         // réelle le 2026-09-04 : « on voit le couloir alors que le passage
         // secret n'est pas trouvé ».
         //
-        //  - `$portes` est ce qu'on PUBLIE : `portes()` déguise en mur toute
-        //    porte secrète non révélée (2026-09-10) — un joueur ne doit
-        //    toujours pas savoir qu'elle est secrète, mais l'arête doit rester
-        //    lisible comme un obstacle, pas disparaître ;
+        //  - `$portes` est ce qu'on PUBLIE : `portes()` retire désormais
+        //    ENTIÈREMENT toute porte secrète non révélée (2026-09-11) — sa
+        //    case peinte en roche, quelques lignes plus bas, fait tout le
+        //    travail qu'un déguisement `etat: 'mur'` faisait à la main ;
         //  - `$aretes` est ce qui BLOQUE LA VUE, et doit contenir la carte
-        //    ENTIÈRE avec l'état BRUT (`secrete`, pas `mur`). Une porte secrète
+        //    ENTIÈRE avec l'état BRUT (`secrete`, pas retiré). Une porte secrète
         //    non trouvée est la chose la plus opaque du donjon : c'est un mur,
         //    tant qu'on ne l'a pas percée.
         //
@@ -299,14 +300,30 @@ final class EtatGroupe
         // 12 à 16 cases inatteignables devenaient visibles — le couloir d'en
         // face, et la salle au bout.
         $aretes = (array) ($carte->grille['portes'] ?? []);
+        $salles = (array) ($carte->grille['salles'] ?? []);
         $portes = $this->portes($carte);
-        // Une porte vit désormais sur une ARÊTE : aucune case 'p' à poser — les
-        // cases restent sol/mur, la porte est rendue sur la cloison (x,y,cote).
+        // Une porte vit sur une ARÊTE (x,y,cote) — aucune case 'p' à poser —
+        // mais bloque désormais AUSSI sa case d'EMBRASURE (René, 2026-09-11).
         $cases = $carte->grille['cases'] ?? [];
+
+        // Passage secret NON TROUVÉ : sa case d'embrasure (`Grille::caseEmbrasure()`,
+        // même règle que le moteur et que `portes()` ci-dessus) se peint en
+        // ROCHE — AVANT le brouillard, pour qu'elle en suive exactement les
+        // mêmes règles d'affichage (silhouette d'un mur qui borde une case
+        // visible, mur qu'un héros touche…). C'est ce qui remplace le
+        // déguisement `etat: 'mur'` posé le 2026-09-10 : la case fait le
+        // travail, `portes()` n'a plus rien à publier pour ce cas (filtré
+        // au-dessus).
+        foreach ($aretes as $arete) {
+            $etatArete = (string) ($arete['etat'] ?? 'ouverte');
+            if ($etatArete === MoteurPortes::ETAT_SECRETE && ! ($arete['revele'] ?? false)) {
+                $embrasure = Grille::caseEmbrasure($arete, $salles);
+                $cases[$embrasure['y']][$embrasure['x']] = 'm';
+            }
+        }
 
         // Brouillard de guerre (chantier 2) : on ne dévoile que les salles
         // découvertes et ce qu'on atteint depuis elles par des portes OUVERTES.
-        $salles = (array) ($carte->grille['salles'] ?? []);
         // Lu EN BASE (§2.16) : la salle 0 (départ) est toujours incluse. Cet
         // avancement pilote le brouillard, donc les cases que la manette juge
         // accessibles — le perdre immobilisait tout le groupe.
@@ -500,52 +517,43 @@ final class EtatGroupe
 
     /**
      * Portes CONNUES de la carte (doc 14 §3.1/3.3). Le type de verrou d'une
-     * porte verrouillée est exposé (icône cadenas côté table).
+     * porte verrouillée est exposé (icône cadenas côté table), ainsi que sa
+     * case d'EMBRASURE (`embrasure: {x, y}`, `Grille::caseEmbrasure()`) — la
+     * case que la porte bloque en plus de son arête (René, 2026-09-11), et
+     * celle où `DungeonGrid.vue` centre désormais son battant. Publiée
+     * plutôt que recalculée côté client : la manette tient son PROPRE
+     * parcours (`DeplacementSheet.vue`) et devait déjà appliquer la même
+     * règle pour ne jamais surbrillancer une case que le serveur refuse — un
+     * second calcul de « quelle case est l'embrasure » aurait été une
+     * deuxième copie de la règle, vouée à diverger dès qu'elle bouge.
      *
-     * ⚠ Une porte secrète NON révélée n'est plus RETIRÉE (régression signalée
-     * en partie réelle le 2026-09-10 : « les murs ayant un passage secret
-     * étaient ouverts vis-à-vis les passages secrets »). Elle relie deux cases
-     * de SOL, et le moteur (`Grille::porteBloqueEntre()`) la bloque comme
-     * n'importe quelle porte non ouverte — mais un client qui la retire
-     * entièrement du payload rend cette arête indiscernable d'un simple
-     * couloir ouvert : rien ne reste pour dire que le passage s'arrête là. Pire
-     * encore pour une porte de LIAISON SUPPLÉMENTAIRE (boucle) : les deux
-     * salles qu'elle relie ont chacune leur accès normal, donc les deux côtés
-     * sont déjà explorés et visibles — le brouillard ne masque plus rien ici,
-     * SEUL l'affichage de la porte disait « ceci est bloqué ».
+     * ⚠ Une porte SECRÈTE non révélée n'est **plus publiée du tout** ici
+     * (2026-09-11 — remplace le déguisement `etat: 'mur'` du 2026-09-10) :
+     * sa case d'embrasure est peinte en ROCHE (`carte()`, avant le
+     * brouillard) exactement comme n'importe quel mur, donc il n'y a plus
+     * rien à publier — la case fait tout le travail que le déguisement
+     * faisait à la main. Voir `carte()` pour le détail.
      *
-     * Elle est donc publiée comme un MUR (`etat: 'mur'`) : ni `secrete`, ni
-     * `revele`, ni `verrou`, ni `image_url` — un mur de roche n'en a pas non
-     * plus. `'mur'` n'est PAS un état de `MoteurPortes::ETAT_*` : c'est un
-     * déguisement d'affichage posé ICI, au moment de la publication, jamais
-     * écrit en base. `DungeonGrid.vue` lui donne le même rendu qu'une case de
-     * roche (voir le composant) : aucun battant, aucun jambage, aucune
-     * info-bulle — un mur qui ressemble à un mur ordinaire, pas une pancarte
-     * « cherche ici ».
-     *
-     * @return list<array{x: int, y: int, cote: string, etat: string, verrou?: string, image_url?: ?string}>
+     * @return list<array{x: int, y: int, cote: string, etat: string, embrasure: array{x: int, y: int}, verrou?: string, image_url?: ?string}>
      */
     private function portes(Carte $carte): array
     {
+        $salles = (array) ($carte->grille['salles'] ?? []);
+
         return collect($carte->grille['portes'] ?? [])
-            ->map(function (array $p) {
+            ->filter(function (array $p) {
                 $etatBrut = (string) ($p['etat'] ?? 'ouverte');
-                $secreteMasquee = $etatBrut === MoteurPortes::ETAT_SECRETE && ! ($p['revele'] ?? false);
 
-                if ($secreteMasquee) {
-                    return [
-                        'x' => (int) $p['x'],
-                        'y' => (int) $p['y'],
-                        'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
-                        'etat' => 'mur',
-                    ];
-                }
-
+                return $etatBrut !== MoteurPortes::ETAT_SECRETE || ($p['revele'] ?? false);
+            })
+            ->map(function (array $p) use ($salles) {
+                $etatBrut = (string) ($p['etat'] ?? 'ouverte');
                 $porte = [
                     'x' => (int) $p['x'],
                     'y' => (int) $p['y'],
                     'cote' => (string) ($p['cote'] ?? 'e'), // arête EST ('e') ou SUD ('s')
                     'etat' => $etatBrut,
+                    'embrasure' => Grille::caseEmbrasure($p, $salles),
                 ];
                 // ⚠ Une illustration PAR ÉTAT : c'est l'état qui porte
                 // l'information, une image unique rendrait une porte close et

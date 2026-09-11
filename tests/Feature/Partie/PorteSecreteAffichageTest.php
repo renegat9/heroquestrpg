@@ -17,22 +17,20 @@ use Illuminate\Support\Facades\Http;
  * vis-à-vis les passages secrets ; il faudrait que ce soit un MUR jusqu'à ce
  * qu'un passage secret soit trouvé par la fouille. »
  *
- * `Grille::porteBloqueEntre()` bloquait déjà tout ce qui n'est pas `ouverte`,
- * secrète comprise. Le défaut vivait entièrement côté AFFICHAGE :
- * `EtatGroupe::portes()` RETIRAIT purement et simplement la porte secrète non
- * révélée du payload. Les deux cases qu'elle sépare sont du SOL — et pour une
- * porte de LIAISON SUPPLÉMENTAIRE (`AssembleurCarte::liaisonsSupplementaires()`,
- * une boucle par-dessus l'arbre couvrant), les DEUX salles qu'elle relie ont
- * chacune leur propre accès normal : elles sont donc déjà explorées et
- * visibles des deux côtés, le brouillard ne masque plus rien du tout. Sans la
- * porte, il ne restait RIEN pour dire que le passage était bloqué — un
- * couloir d'apparence parfaitement continue, avec une arête invisible que le
- * résolveur refusait sans explication (« le menu ne propose jamais ce que le
- * résolveur refusera », CLAUDE.md).
+ * Le correctif du 2026-09-10 réglait ça avec un DÉGUISEMENT d'affichage
+ * (`etat: 'mur'`, posé par `EtatGroupe::portes()`) : la porte secrète restait
+ * dans le payload, habillée en mur.
  *
- * Correctif : la porte secrète non révélée reste dans le payload, déguisée en
- * MUR (`etat: 'mur'`) — un état d'AFFICHAGE posé par `EtatGroupe::portes()`,
- * jamais écrit en base, absent de `MoteurPortes::ETAT_*`.
+ * ⚠ Ce fichier teste désormais la VERSION 2026-09-11 de ce même correctif,
+ * rendue possible par le blocage PAR CASE (`Grille::caseEmbrasure()`, René,
+ * après avoir joué : « la porte doit être centrale à sa case, bloquant
+ * l'entrée dans sa case tant qu'elle n'est pas ouverte »). Puisque la porte
+ * bloque maintenant une VRAIE case, cette case peut se peindre en ROCHE
+ * (`m`) dans `carte.cases` — indiscernable d'un mur ordinaire par
+ * construction, pas seulement par accord de vocabulaire. Le déguisement
+ * `etat: 'mur'` n'a donc plus de raison d'être : une porte secrète non
+ * révélée ne figure PLUS DU TOUT dans `carte.portes` (ni masquée, ni sous
+ * aucune autre forme), exactement comme un mur de roche n'y figure jamais.
  *
  * ⚠ Helpers LOCAUX et nommés distinctement de ceux de `PortesExplorationTest`
  * (`demarrerExplo`/`poserPortes`) : ces fonctions globales ne sont chargées
@@ -82,57 +80,59 @@ function fixerPortesSecretes(Quete $quete, array $portes): void
     $quete->load('carte');
 }
 
-it('publie une porte secrète non révélée comme un MUR, jamais avec `secrete`/`revele`/`verrou`/`image_url`', function () {
+it('ne publie PAS une porte secrète non révélée dans carte.portes, et peint sa case d\'embrasure en roche', function () {
     [$quete, $etat] = demarrerExploPourteSecrete();
 
     $hx = (int) $etat->position_x;
     $hy = (int) $etat->position_y;
     fixerPortesSecretes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'secrete', 'revele' => false]]);
 
-    $portes = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.portes');
+    $embrasure = Grille::caseEmbrasure(
+        ['x' => $hx, 'y' => $hy, 'cote' => 'e'],
+        (array) ($quete->fresh()->carte->grille['salles'] ?? []),
+    );
+
+    $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    $portes = $partage['carte']['portes'];
     $porte = collect($portes)->first(fn ($p) => $p['x'] === $hx && $p['y'] === $hy && ($p['cote'] ?? null) === 'e');
 
-    expect($porte)->not->toBeNull('la porte secrète a disparu du payload — régression inverse (ancien défaut)')
-        ->and($porte['etat'])->toBe('mur')
-        ->and($porte)->not->toHaveKey('secrete')
-        ->and($porte)->not->toHaveKey('revele')
-        ->and($porte)->not->toHaveKey('verrou')
-        ->and($porte)->not->toHaveKey('image_url');
-
-    // Rien de plus que ce qu'un mur ordinaire pourrait justifier : x, y, cote, etat.
-    $clefs = collect(array_keys($porte))->sort()->values()->all();
-    expect($clefs)->toBe(['cote', 'etat', 'x', 'y']);
+    // Rien à publier pour ce cas : c'est la case, pas une entrée de `portes[]`,
+    // qui dit « ceci est bloqué » — régression inverse de l'ancien défaut
+    // (où la porte disparaissait purement et simplement du payload) exclue
+    // par l'assertion sur `cases` juste en dessous.
+    expect($porte)->toBeNull()
+        ->and($partage['carte']['cases'][$embrasure['y']][$embrasure['x']])->toBe('m');
 });
 
-it('LE bug : le moteur bloque toujours le passage derrière le mur affiché (cohérence moteur/affichage)', function () {
+it('LE bug (2026-09-10) : le moteur bloque toujours le passage — des DEUX côtés (2026-09-11)', function () {
     [$quete, $etat] = demarrerExploPourteSecrete();
 
     $hx = (int) $etat->position_x;
     $hy = (int) $etat->position_y;
     fixerPortesSecretes($quete, [['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'secrete', 'revele' => false]]);
 
-    // Le payload dit « mur » ; le moteur, lui, raisonne toujours sur l'état
-    // RÉEL stocké en base (`secrete`) et bloque — c'est exactement la
-    // cohérence que ce ticket exige : ce que la table montre doit annoncer ce
-    // que le résolveur va décider, jamais le contraire.
-    $grille = Grille::depuisCarte($quete->fresh()->carte);
+    // Le payload ne dit plus rien ; le moteur, lui, raisonne toujours sur
+    // l'état RÉEL stocké en base (`secrete`) et bloque — la case d'embrasure
+    // est inoccupable, des DEUX côtés (le durcissement du 2026-09-11 : avant
+    // lui, seul le pas venu du couloir était protégé).
+    $carte = $quete->fresh()->carte;
+    $grille = Grille::depuisCarte($carte);
+    $embrasure = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], (array) ($carte->grille['salles'] ?? []));
+
     expect($grille->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
-        // Les deux cases, elles, restent bien du sol — ce n'est pas une case
-        // murée, seule l'ARÊTE bloque (doc 14 §3.1).
-        ->and($grille->estTraversable($hx, $hy))->toBeTrue()
-        ->and($grille->estTraversable($hx + 1, $hy))->toBeTrue();
+        ->and($grille->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse();
 });
 
-it('la porte de LIAISON SUPPLÉMENTAIRE reste un mur même quand les DEUX salles sont déjà explorées', function () {
+it('la porte de LIAISON SUPPLÉMENTAIRE peint elle aussi sa case en roche, même quand les DEUX salles sont déjà explorées', function () {
     // ⚠ Le cas précis vu en partie réelle. Une porte secrète issue de
     // `secretiserUneAreteDArbre()` (arbre couvrant) cache une salle qui n'a
     // QUE cet accès — le brouillard suffit à masquer ce qu'il y a derrière.
     // Mais une porte de `liaisonsSupplementaires()` (boucle) relie deux
     // salles qui ont CHACUNE leur propre accès normal : les deux sont déjà
     // explorées, donc déjà DÉCOUVERTES au sens du brouillard, et les deux
-    // côtés de l'arête sont déjà `'s'` visibles. Un test qui ne construirait
-    // qu'une salle cachée derrière la porte manquerait précisément ce cas —
-    // c'est lui qui produisait « un couloir parfaitement continu à l'écran ».
+    // côtés de l'arête seraient déjà `'s'` visibles SANS le correctif de
+    // cette case. C'est précisément lui qui produisait « un couloir
+    // parfaitement continu à l'écran » avant le 2026-09-10.
     [$quete, $etat] = demarrerExploPourteSecrete();
 
     // Carte synthétique MINIMALE, entièrement contrôlée : deux salles 2×1
@@ -169,20 +169,26 @@ it('la porte de LIAISON SUPPLÉMENTAIRE reste un mur même quand les DEUX salles
 
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
 
-    // Le brouillard ne masque effectivement RIEN ici : les deux côtés de
-    // l'arête sont visibles — c'est précisément le cas où seul l'affichage de
-    // la porte pouvait encore dire « c'est bloqué ».
-    expect($partage['carte']['cases'][1])->toBe(['s', 's', 's', 's']);
+    // La case (1,1) — bord droit de la salle GAUCHE (x=[0,1]), l'embrasure —
+    // se peint en roche : c'est elle, et non plus une entrée `portes[]`, qui
+    // dit « c'est bloqué » malgré un brouillard qui ne masque plus rien ici.
+    // (La case (2,1), bord gauche de la salle droite, est l'AUTRE candidate —
+    // `caseEmbrasure()` s'arrête à la première salle qui réclame une case, et
+    // la salle gauche est déclarée en premier : c'est elle qui gagne. Les
+    // deux salles se touchant sur cette arête, l'une ou l'autre aurait été
+    // correcte — seule compte l'unicité du choix.)
+    expect($partage['carte']['cases'][1])->toBe(['s', 'm', 's', 's']);
 
     $porte = collect($partage['carte']['portes'])->first(fn ($p) => $p['x'] === 1 && $p['y'] === 1 && ($p['cote'] ?? null) === 'e');
-    expect($porte)->not->toBeNull('la porte a disparu de la carte alors que les deux salles sont visibles — le couloir redevient continu')
-        ->and($porte['etat'])->toBe('mur');
+    expect($porte)->toBeNull();
 
-    // Et le moteur continue de bloquer, sur la carte réelle.
-    expect(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre(1, 1, 2, 1))->toBeTrue();
+    // Et le moteur continue de bloquer, sur la carte réelle — des deux côtés.
+    $grille = Grille::depuisCarte($quete->fresh()->carte);
+    expect($grille->porteBloqueEntre(1, 1, 2, 1))->toBeTrue()
+        ->and($grille->estTraversable(1, 1))->toBeFalse();
 });
 
-it('après une fouille réussie, la porte n\'est plus masquée et devient franchissable', function () {
+it('après une fouille réussie, la porte est publiée FERMÉE (case et arête redeviennent franchissables une fois ouverte)', function () {
     [$quete, $etat] = demarrerExploPourteSecrete();
 
     $hx = (int) $etat->position_x;
@@ -199,15 +205,19 @@ it('après une fouille réussie, la porte n\'est plus masquée et devient franch
     // ⚠ Une fouille réussie rend une porte FERMÉE, pas ouverte (arbitrage de
     // René, 2026-09-11 : « un passage secret trouvé devrait l'afficher comme
     // une porte fermée, on peut maintenant interagir avec pour l'ouvrir »).
-    // Le déguisement en mur tombe — c'est l'objet de ce correctif — mais le
-    // passage reste BLOQUÉ tant que personne ne l'ouvre : trouver n'est pas
-    // franchir, et la salle derrière ne se révèle qu'à l'ouverture.
+    // Elle réapparaît alors dans `portes[]` — trouver n'est pas franchir, et
+    // sa case reste bloquée (des deux côtés) tant que personne ne l'ouvre.
+    $carte = $quete->fresh()->carte;
+    $embrasure = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], (array) ($carte->grille['salles'] ?? []));
+
     $portes = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.portes');
     $porte = collect($portes)->first(fn ($p) => $p['x'] === $hx && $p['y'] === $hy && ($p['cote'] ?? null) === 'e');
 
     expect($porte)->not->toBeNull()
         ->and($porte['etat'])->toBe('fermee')
-        ->and(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue();
+        ->and($porte['embrasure'])->toBe(['x' => $embrasure['x'], 'y' => $embrasure['y']])
+        ->and(Grille::depuisCarte($carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
+        ->and(Grille::depuisCarte($carte)->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse();
 
     // …et elle s'ouvre alors comme n'importe quelle porte fermée. C'est la
     // moitié utile de l'arbitrage : sans elle, on aurait juste rendu un
@@ -215,10 +225,12 @@ it('après une fouille réussie, la porte n\'est plus masquée et devient franch
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "ouvrir_porte_{$hx}_{$hy}_e"])
         ->assertStatus(202);
 
-    expect(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse();
+    $carteOuverte = $quete->fresh()->carte;
+    expect(Grille::depuisCarte($carteOuverte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse()
+        ->and(Grille::depuisCarte($carteOuverte)->estTraversable($embrasure['x'], $embrasure['y']))->toBeTrue();
 });
 
-it('un mur de roche ordinaire et une porte secrète non révélée sont indiscernables dans le payload', function () {
+it('un mur de roche ordinaire et une case d\'embrasure de porte secrète non révélée sont RIGOUREUSEMENT indiscernables', function () {
     [$quete, $etat] = demarrerExploPourteSecrete();
 
     $hx = (int) $etat->position_x;
@@ -228,22 +240,27 @@ it('un mur de roche ordinaire et une porte secrète non révélée sont indiscer
         ['x' => $hx, 'y' => $hy, 'cote' => 's', 'etat' => 'fermee'],
     ]);
 
-    $portes = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.portes'));
-    $mur = $portes->first(fn ($p) => ($p['cote'] ?? null) === 'e' && $p['x'] === $hx && $p['y'] === $hy);
-    $fermee = $portes->first(fn ($p) => ($p['cote'] ?? null) === 's' && $p['x'] === $hx && $p['y'] === $hy);
+    $carte = $quete->fresh()->carte;
+    $salles = (array) ($carte->grille['salles'] ?? []);
+    $embrasureSecrete = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], $salles);
+    $embrasureFermee = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 's'], $salles);
 
-    expect($mur['etat'])->toBe('mur')
-        ->and($fermee['etat'])->toBe('fermee');
+    $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    $portes = collect($partage['carte']['portes']);
 
-    // ⚠ Distinction résiduelle ASSUMÉE, pas maquillée : un mur de roche
-    // ordinaire (case `m`) n'a AUCUNE entrée dans `carte.portes` — cette
-    // arête-ci EN a une, parce qu'il existe un mécanisme de fouille dessus.
-    // Ce test vérifie donc ce qui EST atteignable : aucun champ de l'entrée
-    // ne la trahit. Elle porte exactement le même vocabulaire (x, y, cote,
-    // etat) qu'une porte `fermee` ordinaire, sans rien de plus — pas de champ
-    // qui dirait « cherche ici ».
-    $clefsMur = collect(array_keys($mur))->sort()->values()->all();
-    expect($clefsMur)->toBe(['cote', 'etat', 'x', 'y'])
-        ->and($mur)->not->toHaveKey('image_url')
-        ->and($fermee)->toHaveKey('image_url'); // une VRAIE porte, elle, en a une — la différence est ATTENDUE ici
+    // Le passage secret n'a PLUS AUCUNE entrée dans `portes[]` (ni côté 'e',
+    // ni sous quelque forme que ce soit) — exactement comme un mur de roche
+    // ordinaire : la distinction résiduelle qu'un déguisement laissait
+    // (« une entrée `mur` isolée » repérable en comptant les entrées) a
+    // disparu avec le déguisement lui-même.
+    expect($portes->first(fn ($p) => ($p['cote'] ?? null) === 'e' && $p['x'] === $hx && $p['y'] === $hy))->toBeNull()
+        // La porte FERMÉE ordinaire, elle, reste publiée normalement.
+        ->and($portes->first(fn ($p) => ($p['cote'] ?? null) === 's' && $p['x'] === $hx && $p['y'] === $hy)['etat'])->toBe('fermee');
+
+    // Et sa case se lit dans `cases` comme n'importe quel mur : 'm', sans
+    // rien qui la distingue d'un mur voisin qui n'a jamais caché de porte.
+    expect($partage['carte']['cases'][$embrasureSecrete['y']][$embrasureSecrete['x']])->toBe('m')
+        // La case de la porte FERMÉE ordinaire, elle, reste du sol — seule
+        // l'entrée `portes[]` (et son battant) la distinguent d'un mur.
+        ->and($partage['carte']['cases'][$embrasureFermee['y']][$embrasureFermee['x']])->toBe('s');
 });

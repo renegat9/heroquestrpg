@@ -179,11 +179,16 @@ it('bloque le pathfinding et la ligne de vue derrière une porte verrouillée (�
     expect(collect($partage['carte']['portes'])->first(fn ($p) => $p['x'] === $hx && $p['y'] === $hy && ($p['cote'] ?? null) === 'e'))
         ->toMatchArray(['x' => $hx, 'y' => $hy, 'cote' => 'e', 'etat' => 'verrouillee', 'verrou' => 'cle']);
 
-    // Elle barre le PAS est ET la vue sur l'arête, sans prendre de case (les
-    // deux côtés restent du sol traversable).
-    $grille = Grille::depuisCarte($quete->fresh()->carte);
+    // Elle barre le PAS est ET la vue sur l'arête ; ELLE BLOQUE AUSSI SA CASE
+    // D'EMBRASURE (René, 2026-09-11) — laquelle des deux dépend du rectangle
+    // de la salle réellement assemblée ici, d'où `caseEmbrasure()` plutôt
+    // qu'une case codée en dur.
+    $carte = $quete->fresh()->carte;
+    $grille = Grille::depuisCarte($carte);
+    $embrasure = Grille::caseEmbrasure(['x' => $hx, 'y' => $hy, 'cote' => 'e'], (array) ($carte->grille['salles'] ?? []));
+
     expect($grille->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue()
-        ->and($grille->estTraversable($hx + 1, $hy))->toBeTrue()
+        ->and($grille->estTraversable($embrasure['x'], $embrasure['y']))->toBeFalse()
         ->and($grille->ligneDeVue($hx, $hy, $hx + 1, $hy))->toBeFalse();
 });
 

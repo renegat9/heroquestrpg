@@ -56,7 +56,15 @@ final class Rayon
             $sx = $x + $dx;
             $sy = $y + $dy;
 
-            if ($grille->estRoche($sx, $sy) || $grille->porteBloqueEntre($x, $y, $sx, $sy)) {
+            // Roche, arête de porte close franchie (le pas venu du couloir),
+            // OU case d'EMBRASURE d'une porte close (le pas venu de la salle —
+            // René, 2026-09-11 : une porte non ouverte bloque désormais sa case
+            // autant que son arête, voir `Grille::porteFermeeSurCase()`). Sans
+            // ce troisième test, un rayon lancé DEPUIS l'intérieur d'une salle
+            // vers sa porte close la traverserait tout droit.
+            if ($grille->estRoche($sx, $sy)
+                || $grille->porteBloqueEntre($x, $y, $sx, $sy)
+                || $grille->porteFermeeSurCase($sx, $sy)) {
                 return $cases;
             }
 

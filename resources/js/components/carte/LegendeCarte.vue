@@ -95,7 +95,7 @@ const etatsPiege = computed(() => Object.entries(ETATS_PIEGE)
     .filter(([cle]) => (props.carte?.pieges ?? []).some((p) => p.etat === cle)));
 
 const PORTES = [
-    ['ouverte', 'Ouverte — les montants seuls restent'],
+    ['ouverte', 'Ouverte — la case se traverse et se voit à travers'],
     ['fermee', 'Fermée — l\'ouvrir révèle la salle et ses monstres'],
     ['verrouillee', 'Verrouillée — clé, gardien à vaincre ou levier'],
     ['secrete', 'Passage secret révélé par une fouille'],
