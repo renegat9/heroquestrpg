@@ -109,6 +109,22 @@ Toutes à **2 dés rouges** de déplacement, comme les quatre de base.
 
 Trois observations qui pèsent sur l'équilibrage :
 
+⚠ **Les chiffres de ce tableau sont des TOTAUX ÉQUIPÉS, pas des bases** (René,
+2026-09-11 : « la carte de départ compte déjà le bouclier dans la fiche »). Une
+fiche de héros montre le personnage **avec son matériel de départ**. La valeur à
+seeder est donc la base, dont on déduit l'équipement : le **Chevalier** affiche
+D3 et démarre avec un bouclier (+1) — sa base est **2**. Il était seedé à 3, donc
+il arrivait à **4 dés de défense dès le premier tour**.
+
+⚠ C'est le **même défaut que celui déjà corrigé côté attaque**, et le docblock
+d'`Equipement::recalculerCombat()` le raconte : « l'arme s'AJOUTAIT à une valeur
+de classe qui encodait déjà l'arme de départ — un barbare (3) avec une épée
+large (3) arrivait à 6 dés ». Le correctif d'alors n'a porté que sur l'attaque,
+et son commentaire affirmait « les quatre classes ont 2 dés de base, aucun double
+compte à corriger » — vrai à l'époque, faux dès l'arrivée du Chevalier, jamais
+revu. Le **Moine** reste à 3 sans rien corriger : il n'a ni bouclier ni armure de
+départ, donc son 3 est bien une base.
+
 - Le **Chevalier** et le **Berserker** montent à **7 Body**, entre le Nain (7)
   et le Barbare (8) — mais le Chevalier ajoute **3 dés de défense** et un
   bouclier de départ, ce qu'aucun héros de base n'a. Le **Moine** aussi est à

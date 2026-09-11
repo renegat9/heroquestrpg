@@ -614,9 +614,18 @@ final class Equipement
      * encodait déjà l'arme de départ — un barbare (3) avec une épée large (3)
      * arrivait à 6 dés, et l'équipement n'était plus qu'une inflation.
      *
-     * **Défense — l'armure S'AJOUTE** : les quatre classes ont 2 dés de base et
-     * les pièces d'armure valent +1 chacune ; aucun double compte à corriger,
-     * on garde le cumul (casque + bouclier = 2 + 1 + 1).
+     * **Défense — l'armure S'AJOUTE** : les pièces d'armure valent +1 chacune et
+     * se cumulent (casque + bouclier = 2 + 1 + 1).
+     *
+     * ⚠ Cette phrase disait « les quatre classes ont 2 dés de base, aucun double
+     * compte à corriger ». C'était vrai quand seules les quatre classes de base
+     * existaient — et faux dès l'arrivée du **Chevalier**, seedé au TOTAL de sa
+     * carte (D3, bouclier de départ compris) puis recevant ce bouclier en plus :
+     * 4 dés dès le premier tour. Corrigé le 2026-09-11 (base 2), signalé par
+     * René en jouant. La défense avait répété, mot pour mot, le défaut que le
+     * paragraphe ci-dessus raconte pour l'attaque. ⚠ Une valeur de classe est
+     * une BASE ; un chiffre de fiche officielle est un TOTAL ÉQUIPÉ — le Moine
+     * reste à 3 précisément parce qu'il ne démarre avec aucune protection.
      *
      * Les améliorations de Forge (`bonus_des_attaque` / `bonus_des_defense`,
      * portées par la ligne d'inventaire) s'ajoutent par-dessus dans les deux cas.

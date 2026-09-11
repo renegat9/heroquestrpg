@@ -163,7 +163,30 @@ class ClasseHerosSeeder extends Seeder
             // Chevalier — le seul héros à DÉMARRER avec un bouclier, et deux de
             // ses trois capacités portent « **Requires shield** ». Profil de
             // tank complet : plates comprises.
-            ['nom' => 'chevalier', 'race' => 'humain', 'pv_body' => 7, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 3, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'armure_lourde', 'bouclier', 'arme_deux_mains', 'talisman_chevalier']],
+            //
+            // ⚠ CORRECTION DE PORTAGE, PAS une divergence (René, 2026-09-11,
+            // après avoir joué : « la carte de départ compte déjà le bouclier
+            // dans la fiche »). Sa carte affiche **D3**, mais ce 3 est un TOTAL
+            // ÉQUIPÉ : le Chevalier est le seul héros à démarrer avec un
+            // bouclier (`GroupeController`, `'chevalier' => ['Épée courte',
+            // 'Bouclier']`). Sa BASE est donc 2, et le bouclier la ramène à 3 —
+            // le chiffre de la carte.
+            //
+            // ⚠ C'est le MÊME défaut que celui déjà corrigé côté ATTAQUE, et le
+            // docblock d'`Equipement::recalculerCombat()` le raconte : « l'arme
+            // s'AJOUTAIT à une valeur de classe qui encodait déjà l'arme de
+            // départ — un barbare (3) avec une épée large (3) arrivait à 6 dés ».
+            // La défense a répété l'histoire : seedée au total de la carte (3),
+            // puis +1 du bouclier par-dessus = **4 dés dès le premier tour**.
+            // Le commentaire d'`Equipement` disait « les quatre classes ont 2
+            // dés de base, aucun double compte à corriger » — vrai quand il a
+            // été écrit, faux depuis que le Chevalier existe, et jamais revu.
+            //
+            // ⚠ Le MOINE reste à 3 et c'est correct : il n'a ni bouclier ni
+            // armure de départ, donc son 3 EST une base. C'est ce contraste qui
+            // rend la règle lisible — le chiffre d'une carte est un total avec
+            // l'équipement de départ, et la base s'en déduit.
+            ['nom' => 'chevalier', 'race' => 'humain', 'pv_body' => 7, 'pv_mind' => 2, 'attr_body' => 4, 'attr_mind' => 1, 'des_attaque' => 1, 'des_defense' => 2, 'deplacement_base' => 4, 'bonus_sac' => 0, 'tags_equipement' => ['arme_legere', 'arme_courante', 'arme_distance', 'armure_legere', 'armure_lourde', 'bouclier', 'arme_deux_mains', 'talisman_chevalier']],
 
             // Berserker — 3 dés d'attaque de base et deux capacités qui exigent
             // d'être BLESSÉ : l'armure lourde irait contre son propre jeu, qui
