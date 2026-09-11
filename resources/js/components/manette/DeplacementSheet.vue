@@ -239,14 +239,19 @@ function occupantDe(x, y) {
         && ! (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)));
 }
 
-/** Initiale affichée sur la case d'un compagnon (René, 2026-09-11 : « peux-tu
- *  identifier les joueurs sur la carte de la manette »). À 38 px un portrait
- *  devient une tache — c'est la leçon des illustrations de carte, qui vivent
- *  dans la LÉGENDE et jamais sur la grille. Une lettre se lit d'un coup d'œil
- *  et tient à cette taille. */
+/** TROIS PREMIÈRES LETTRES du compagnon (René, 2026-09-11 : « peux-tu mettre
+ *  les 3 premières lettres des joueurs pour les identifier » — une initiale
+ *  seule ne se rattachait pas assez vite à un nom autour de la table).
+ *
+ *  ⚠ Pas de portrait : à 38 px une illustration devient une tache. C'est la
+ *  leçon des images de carte, qui vivent dans la LÉGENDE et jamais sur la
+ *  grille, parce que la silhouette est ce qu'on lit d'un coup d'œil.
+ *
+ *  ⚠ Trois lettres ne tiennent pas dans un disque : la pastille est un
+ *  RECTANGLE arrondi, et la graisse compense la petite taille. */
 function initialeDe(x, y) {
     const nom = (occupantDe(x, y)?.nom ?? '').trim();
-    return nom ? nom[0].toUpperCase() : '';
+    return nom ? nom.slice(0, 3).toUpperCase() : '';
 }
 
 /** ⚠ Deux héros peuvent porter le MÊME nom (constaté en partie : deux
@@ -486,7 +491,10 @@ onMounted(async () => {
    sombre pour que la lettre tienne sur n'importe quelle teinte. */
 .dep-initiale {
   display: grid; place-items: center; width: 100%; height: 100%;
-  border-radius: 50%; font-weight: 800; font-size: 15px; line-height: 1;
+  /* Rectangle arrondi, pas un disque : trois lettres dans un cercle de 38 px
+     obligeraient à descendre sous 8 px pour tenir dans la corde. */
+  border-radius: 6px;
+  font-weight: 800; font-size: 11px; line-height: 1; letter-spacing: -0.04em;
   color: oklch(0.98 0 0);
   background: oklch(0.52 0.15 var(--dep-allie-h, 260));
   box-shadow: inset 0 0 0 1.5px oklch(0.16 0.012 255 / 0.85);
