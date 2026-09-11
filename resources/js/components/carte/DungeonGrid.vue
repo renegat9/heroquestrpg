@@ -104,6 +104,29 @@ const cells = computed(() => {
     return out;
 });
 
+// Contour des salles (René, 2026-09-11 : « le plateau a des salles cernées
+// d'un trait, on ne voit pas où une salle s'arrête »). Lu directement sur
+// `carte.salles` — comme `cases`/`portes` juste au-dessus, PAS comme
+// `traps`/`furniture` plus bas : ce n'est que de la géométrie (un rectangle),
+// aucune icône à résoudre, donc pas de prop dédiée ni de conversion chez
+// l'appelant à maintenir des deux côtés.
+//
+// ⚠ Le BROUILLARD est déjà fait : `EtatGroupe::carte()` ne publie QUE les
+// salles DÉCOUVERTES dans `carte.salles` (`SallesPubliquesTest`, verrouillé
+// depuis 2026-08-29) — ce composant ne fait qu'afficher ce qu'on lui donne,
+// il n'a AUCUN filtre à dupliquer ici. Republier ce filtre ici serait une
+// seconde copie de la règle, qui dérive dès que l'une bouge sans l'autre.
+//
+// ⚠ Deux salles ACCOLÉES (mur commun, `AssembleurCarte::accolerSallesMitoyennes()`)
+// restent DEUX rectangles distincts dans `carte.salles`, chacun avec sa
+// propre bordure : leurs murs se RECOUVRENT d'exactement une case (voir
+// `chevaucheUneSalle()`), donc les deux traits tombent chacun sur SA face du
+// mur partagé — pas sur la même ligne — et se lisent comme deux salles avec
+// un mur épais d'une case entre elles, jamais comme une seule grande salle.
+// Rien à coder pour ce cas : c'est la conséquence directe de dessiner
+// fidèlement CHAQUE rectangle publié, indépendamment des autres.
+const rooms = computed(() => props.carte.salles ?? []);
+
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
 
@@ -190,6 +213,22 @@ const doors = computed(() => (props.carte.portes ?? [])
             @click="emit('cell', c.x, c.y)"
         >
             <slot name="cell" :x="c.x" :y="c.y" />
+        </div>
+
+        <!-- contour des salles DÉCOUVERTES (René, 2026-09-11) : un rectangle
+             par salle, dessiné sur SON emprise entière (mur de contour compris,
+             comme `carte.salles` le publie) — c'est ce qui fait que deux salles
+             accolées tracent bien DEUX traits, un de chaque côté du mur
+             partagé, au lieu d'un seul contour fondu. `pointer-events: none` :
+             un simple repère visuel, jamais une cible de clic (la case dessous
+             reste seule responsable du tap manette). -->
+        <div
+            v-for="s in rooms"
+            :key="`room-${s.index}`"
+            class="dg-room-holder"
+            :style="{ gridColumn: `${s.x + 1} / span ${s.largeur}`, gridRow: `${s.y + 1} / span ${s.hauteur}` }"
+        >
+            <div class="dg-room-outline" />
         </div>
 
         <!-- pièges : marqueur au-dessus des cases, sous les figurines -->
@@ -290,15 +329,80 @@ const doors = computed(() => (props.carte.portes ?? [])
    ses cases en `1fr` et ne peut donc pas annoncer de pixels. */
 .dg { --dg-icone: clamp(11px, 1.3vw, 20px); }
 
+/* ⚠ TAILLE DE LA CASE EN PX — `--dg-cell`, posée par le PARENT (même patron
+   que `--dg-icone` ci-dessus) : le CONTOUR de salle plus bas (`.dg-room-outline`)
+   a besoin d'une épaisseur de trait qui suive la case réelle — ~38 px sur la
+   feuille de déplacement de la manette, une valeur dynamique côté table (la
+   caméra zoome). Un trait en `%` se serait résolu sur la police héritée, en
+   `vw` sur la largeur d'écran : aucun des deux ne suit la cellule. Le repli
+   ci-dessous est une valeur raisonnable si jamais un futur appelant de
+   DungeonGrid oublie de la poser — mieux vaut un trait à peu près au bon
+   calibre qu'un `calc()` cassé. */
+.dg { --dg-cell: 32px; }
+
 /* ---- cases (mêmes teintes table & manette) ---- */
+/* ⚠ TROIS PLANS DE LUMINOSITÉ, et ils doivent le RESTER (René, 2026-09-11 :
+   « on trouve difficile de distinguer les salles avec le fond de la page »).
+
+   Le défaut mesuré : le mur était `transparent`, donc littéralement le fond de
+   page (`--stone-950`, L 0.16) ; le brouillard valait 0.16 lui aussi ; et le
+   sol ne montait qu'à 0.20-0.235. Un rapport de contraste sol/fond d'environ
+   1.3:1 là où 3:1 est le minimum pour qu'une forme se distingue — et sur la
+   MANETTE, le sol tombait pile sur `--stone-900` (0.20), la couleur du panneau
+   qui le porte. Le donjon n'avait donc aucune silhouette : pas de roche, du
+   vide. La seule chose qui disait « ceci est une salle » était un liseré
+   intérieur d'1 px à 35 % d'opacité, invisible à 22 px sur un téléphone.
+
+   L'ordre à préserver, du plus sombre au plus clair :
+     brouillard (0.10) < ROCHE (0.115) < fond de page (0.16) < SOL (0.26-0.30)
+   La roche est plus sombre que la page EXPRÈS : c'est ce qui donne au donjon
+   une silhouette découpée, au lieu de le laisser se fondre dans l'écran. */
 .dg-cell { position: relative; border-radius: 3px; }
+/* `void` = hors carte, et reste transparent : c'est la seule case qui doit
+   disparaître dans la page. La confondre avec `wall` redessinerait un cadre
+   rectangulaire autour de donjons qui n'en ont pas. */
 .dg-cell.void { background: transparent; }
-.dg-cell.wall { background: transparent; }
-.dg-cell.floor { background: linear-gradient(150deg, oklch(0.235 0.013 255), oklch(0.20 0.012 255));
-  box-shadow: inset 0 0 0 1px oklch(0.3 0.014 255 / 0.35); }
-.dg-cell.fog { background: oklch(0.16 0.01 255); }
+.dg-cell.wall { background: linear-gradient(150deg, oklch(0.125 0.011 255), oklch(0.108 0.010 255)); }
+.dg-cell.floor { background: linear-gradient(150deg, oklch(0.30 0.015 255), oklch(0.26 0.014 255));
+  box-shadow: inset 0 0 0 1px oklch(0.40 0.016 255 / 0.40); }
+.dg-cell.fog { background: oklch(0.10 0.008 255); }
 .dg-cell.fog::after { content: ""; position: absolute; inset: 0; border-radius: 3px;
-  background: radial-gradient(circle at 50% 40%, oklch(0.26 0.015 255 / 0.6), oklch(0.1 0.008 255 / 0.95)); }
+  background: radial-gradient(circle at 50% 40%, oklch(0.17 0.012 255 / 0.6), oklch(0.07 0.006 255 / 0.95)); }
+
+/* ---- contour des salles (René, 2026-09-11 : « le plateau imprimé a des
+   salles cernées d'un trait ») ----
+   Un rectangle par salle DÉCOUVERTE (`rooms`, lu sur `carte.salles`), posé sur
+   SON emprise complète — mur de contour compris, comme le rectangle publié le
+   décrit. Deux salles ACCOLÉES restent deux rectangles qui se RECOUVRENT d'une
+   case sur leur mur commun (`chevaucheUneSalle()`) : chaque trait tombe donc
+   sur SA face du mur partagé, jamais sur la même ligne — elles se lisent comme
+   deux salles avec un mur épais entre elles, jamais comme une seule grande
+   salle fondue. Rien de spécial à coder pour ce cas : c'est la conséquence
+   directe de dessiner fidèlement CHAQUE rectangle, indépendamment des autres.
+
+   ⚠ Le trait doit tenir aux DEUX échelles (~38 px manette, caméra dynamique à
+   la table) : son épaisseur se calcule sur `--dg-cell` (la taille RÉELLE de la
+   case en px, posée par le parent — voir son commentaire plus haut), jamais en
+   `%`/`vw`. `clamp()` borne le résultat : sous 1.5 px le trait disparaîtrait à
+   une petite case, au-delà de 3 px il épaissirait au point de concurrencer les
+   silhouettes (figures rondes, pièges carrés, épreuves losange, leviers
+   octogone) sur une grande case de table.
+
+   ⚠ Luminosité choisie ENTRE la roche (L 0.115) et les silhouettes des
+   marqueurs (or 0.80, bleu 0.72, battant de porte ~0.75) : assez clair pour se
+   détacher du mur sur lequel il court la plupart du temps (le rectangle publié
+   inclut l'anneau de mur de la salle), assez sombre pour ne jamais lire comme
+   une figurine, un piège ou une épreuve de plus. Même famille de teinte
+   (hue 255) que la roche et le sol : un contour qui appartient à
+   l'architecture, pas un marqueur de contenu — les couleurs de contenu
+   (or/bleu/rouge) restent réservées aux familles de silhouettes déjà en place. */
+.dg-room-holder { position: relative; pointer-events: none; z-index: 1; }
+.dg-room-outline {
+  position: absolute; inset: 0; border-radius: 4px;
+  border-width: clamp(1.5px, calc(var(--dg-cell) * 0.045), 3px);
+  border-style: solid;
+  border-color: oklch(0.52 0.02 255 / 0.9);
+}
 
 /* ---- terrain (doc 18 §4) : la CASE elle-même change de teinte, ce n'est pas
    un marqueur posé dessus — voir le commentaire de TERRAIN_TEINTES dans
@@ -435,15 +539,24 @@ const doors = computed(() => (props.carte.portes ?? [])
    SURCOUCHE de deux cases de sol déjà peintes (z-index au-dessus), il
    laisserait leur dégradé transparaître sans rien casser — cette arête n'est
    pas une case murée qui REMPLACE le sol dessous, juste une couche par-dessus.
-   La teinte reprend donc la couleur RENDUE d'un mur — le fond sombre qui
-   transparaît à travers `.dg-cell.wall` (`--stone-950`, la même que le
-   brouillard) — en PLEINE largeur/hauteur de case (pas les 30 %/80 % d'un
+   La teinte reprend donc EXACTEMENT le dégradé de `.dg-cell.wall` — depuis le
+   2026-09-11 la roche a sa propre teinte au lieu d'être transparente, et ce
+   battant a suivi le même jour (voir plus bas) — en PLEINE largeur/hauteur de
+   case (pas les 30 %/80 % d'un
    battant), pour occuper l'équivalent visuel d'une case murée entière à
    cheval sur la cloison. Et SANS jambage : ce sont eux qui font lire « il y a
    une porte ici » ; sans eux et sans info-bulle (`d.titre` reste `undefined`
    pour cet état), rien ne dit « cherche ici » — juste « le couloir s'arrête
    là », ce qu'un cul-de-sac de roche donne déjà à l'écran. */
-.dg-door.mur { background: var(--stone-950, oklch(0.16 0.012 255)); box-shadow: none; border-radius: 0; }
+/* ⚠ SUIT LA ROCHE, jamais le fond de page. Tant que `.dg-cell.wall` était
+   transparent, la couleur perçue d'un mur ÉTAIT `--stone-950` et ce battant la
+   reprenait. Depuis que la roche a sa propre teinte (2026-09-11), s'accrocher
+   à `--stone-950` rendrait ce mur-ci PLUS CLAIR que tous les autres — la
+   pancarte « cherche ici » que ce déguisement existe précisément pour éviter.
+   Les deux valeurs doivent bouger ensemble : c'est une seule couleur, écrite à
+   deux endroits faute d'un token partagé. */
+.dg-door.mur { background: linear-gradient(150deg, oklch(0.125 0.011 255), oklch(0.108 0.010 255));
+  box-shadow: none; border-radius: 0; }
 .dg-door.cote-e.mur { top: 0; bottom: 0; width: 100%; }
 .dg-door.cote-s.mur { left: 0; right: 0; height: 100%; }
 .dg-door.mur::before, .dg-door.mur::after { content: none; }

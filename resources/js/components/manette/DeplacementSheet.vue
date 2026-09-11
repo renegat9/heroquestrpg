@@ -193,6 +193,12 @@ const gridStyle = computed(() => ({
     // variable, agrandir la case laissait les symboles à ~10 px (voir
     // DungeonGrid.vue).
     '--dg-icone': `${Math.round(CASE * 0.46)}px`,
+    // Taille RÉELLE de la case en px (ici une constante, la manette ne zoome
+    // pas) — même rôle que `--dg-icone` juste au-dessus, pour le CONTOUR de
+    // salle cette fois (DungeonGrid.vue, `.dg-room-outline`) : un trait
+    // calculé en `%` se serait résolu sur la police héritée, en `vw` sur la
+    // largeur d'écran — jamais sur la case, dans les deux cas.
+    '--dg-cell': `${CASE}px`,
 }));
 
 // Bornes de défilement, relues à chaque scroll : une flèche qui ne peut plus

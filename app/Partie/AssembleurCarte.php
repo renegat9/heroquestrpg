@@ -46,7 +46,14 @@ use RuntimeException;
  *     DIAGONALE — « deux héros à la fois peuvent attaquer un monstre qui bloque
  *     un seuil de porte », LR p. 14, cf. reference/16_armurerie.md §6.2, règle
  *     que le moteur applique déjà (`attaque_diagonale`). La seconde voie du
- *     couloir subsiste : elle élargit le COULOIR, jamais le seuil ;
+ *     couloir subsiste : elle élargit le COULOIR, jamais le seuil ; ⚠ EXCEPTION
+ *     (René, 2026-09-11) — `accolerSallesMitoyennes()` (juste avant, à l'étape
+ *     4bis) glisse par défaut chaque salle-FEUILLE mur contre mur avec sa
+ *     parente : l'arête devient alors MITOYENNE, le couloir se réduit à
+ *     l'ancienne case de mur des deux salles, et cette même arête ne pousse
+ *     plus qu'UNE SEULE porte (pas 2) — « dans le jeu original il n'y en a
+ *     pas » ; les vrais couloirs ne subsistent que pour les salles non-feuilles
+ *     et celles que le chevauchement empêche d'accoler ;
  *  6. pièges (structure.pieges.min) posés au milieu des couloirs ;
  *  7. spawns : héros dans la salle 0 ; monstres en ROUND-ROBIN sur les autres
  *     salles (répartition — fini « tous dans la dernière pièce ») en
@@ -184,7 +191,7 @@ final class AssembleurCarte
         // l'une à l'autre, sans couloir. C'est le cas de figure du plateau (une
         // annexe, un cabinet, une salle au trésor qui donne sur la grande
         // salle) et ça casse la monotonie du « couloir, salle, couloir ».
-        $aretes = $this->accolerSallesMitoyennes($aretes, $poses, $suivant);
+        $aretes = $this->accolerSallesMitoyennes($aretes, $poses);
 
         // --- Pose des salles ---------------------------------------------
         foreach ($tuiles as $i => $tuile) {
@@ -213,6 +220,14 @@ final class AssembleurCarte
         $portes = [];
         $aretesSortie = [];
         $milieuxCouloirs = [];
+        // Index (dans `$portes`) de la porte PARENT de chaque arête — celle qui
+        // porte la restriction et que `placerLeviers()` peut verrouiller. Une
+        // jonction ORDINAIRE pousse 2 entrées (parent puis enfant), une jonction
+        // MITOYENNE n'en pousse plus qu'UNE (2026-09-11, cf. `creuserArete()`) :
+        // l'ancien calcul `2 * $indexArete` supposait un pas fixe et se
+        // déréglait dès la première mitoyenne. On note donc la position RÉELLE
+        // au moment de la pousser, plutôt que de la recalculer.
+        $indexPorteParentParArete = [];
 
         foreach ($aretes as $indexArete => $arete) {
             // Une liaison supplémentaire marquée `secrete` l'emporte sur la spec
@@ -226,18 +241,33 @@ final class AssembleurCarte
                 $arete, $spec,
             );
 
+            $indexPorteParentParArete[$indexArete] = count($portes);
+
             // `jonction` : toutes les portes d'un même passage (jusqu'à 4 quand
             // il est large de 2 cases) partagent cet identifiant, pour que
             // MoteurPortes les ouvre ENSEMBLE — sans quoi un passage à 2 cases
-            // s'ouvrirait à moitié et resterait un goulot d'une case.
+            // s'ouvrirait à moitié et resterait un goulot d'une case. Une
+            // jonction MITOYENNE n'a qu'une porte : `porte_enfant` vaut alors
+            // `null` (cf. `creuserArete()`) et n'est PAS poussée — la case
+            // qu'elle aurait encadrée est déjà du sol sans restriction, rien à
+            // déclarer.
             foreach ([$resultat['porte_parent'], $resultat['porte_enfant'], ...$resultat['portes_secondaires']] as $porte) {
+                if ($porte === null) {
+                    continue;
+                }
                 $porte['jonction'] = $indexArete;
                 $portes[] = $porte;
             }
             $aretesSortie[] = [
                 'a' => $arete['parent'], 'b' => $arete['enfant'],
                 'porte_a' => ['x' => $resultat['porte_parent']['x'], 'y' => $resultat['porte_parent']['y']],
-                'porte_b' => ['x' => $resultat['porte_enfant']['x'], 'y' => $resultat['porte_enfant']['y']],
+                // Mitoyenne : pas de porte_enfant distincte — on republie celles
+                // du parent (distance 0), pour que les consommateurs qui lisent
+                // porte_a/porte_b comme « les deux bouts du seuil » (cf.
+                // CouloirsTest) continuent de trouver un couple valide.
+                'porte_b' => $resultat['porte_enfant'] !== null
+                    ? ['x' => $resultat['porte_enfant']['x'], 'y' => $resultat['porte_enfant']['y']]
+                    : ['x' => $resultat['porte_parent']['x'], 'y' => $resultat['porte_parent']['y']],
             ];
             // Une jonction MITOYENNE n'a pas de couloir : son « milieu » tomberait
             // dans la salle voisine, où un piège de couloir n'a rien à faire.
@@ -251,7 +281,7 @@ final class AssembleurCarte
         // pose son levier sur une case de sol — les pièges ne doivent jamais
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
-        $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $suivant);
+        $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
         $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $leviers, $suivant);
         $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant);
 
@@ -511,24 +541,60 @@ final class AssembleurCarte
     }
 
     /**
-     * Accole certaines salles-FEUILLES à leur parente : leurs murs coïncident,
-     * et le perçage produit alors un couloir de longueur 1 — c'est-à-dire un
-     * simple SEUIL, une porte directe d'une salle à l'autre.
+     * Accole les salles-FEUILLES à leur parente PAR DÉFAUT (René, 2026-09-11 :
+     * « tu mets toujours une case pour relier 2 salles, mais dans le jeu
+     * original il n'y en a pas ») : leurs murs coïncident, et le perçage
+     * produit alors un couloir de longueur 1 — c'est-à-dire un simple SEUIL,
+     * une porte directe d'une salle à l'autre. Les vrais couloirs
+     * SUBSISTENT : pour les salles non-feuilles (voir plus bas) et pour toute
+     * feuille que `chevaucheUneSalle()` refuse — le boyau court et artificiel
+     * disparaît, la notion de couloir reste pour les salles réellement
+     * éloignées.
+     *
+     * ⚠ Avant cette date, l'accolement n'était tenté qu'une feuille sur deux
+     * (tirage `$suivant() % 2`) : une surprise plutôt qu'une norme. Le tirage
+     * est retiré — CHAQUE feuille éligible est désormais accolée, et seuls
+     * `chevaucheUneSalle()` et les deux gardes ci-dessous y renoncent encore.
+     * Le PRNG perd donc un cran de consommation ici ; c'est voulu (l'algorithme
+     * change de comportement), pas une régression de reproductibilité — une
+     * même graine reste déterministe, juste sur une séquence différente.
      *
      * **Pourquoi seulement des feuilles.** Décaler une salle le long de l'axe
      * de son arête déplace sa médiane perpendiculaire. Si elle avait d'autres
      * arêtes, leurs couloirs cesseraient d'être droits — toute la géométrie des
      * slots uniformes repose sur l'alignement des médianes. Une feuille n'a
-     * qu'une arête : la déplacer ne casse rien.
+     * qu'une arête : la déplacer ne casse rien. GARDE-FOU CONSERVÉ : lever
+     * cette restriction demanderait de redresser TOUTES les arêtes d'une
+     * salle repositionnée, pas seulement celle qu'on accole — hors périmètre
+     * de cette correction.
      *
-     * Le décalage est ANNULÉ s'il ferait chevaucher une autre salle : mieux vaut
-     * un couloir de plus qu'un donjon malformé.
+     * **Pourquoi jamais la salle 0.** GARDE-FOU CONSERVÉ, tel quel : elle
+     * accueille tout le groupe et sert de repère — le déplacement d'une
+     * scène déjà fixée dans l'esprit des joueurs n'apporte rien, et rien
+     * n'exige de la coller à sa voisine.
+     *
+     * **Pourquoi les arêtes SECRÈTES sont désormais ACCOLÉES aussi**
+     * (garde-fou LEVÉ, décision explicite). L'ancienne exclusion datait d'avant
+     * le correctif du 2026-09-10 (« et avant d'être trouvé, c'est un MUR — pas
+     * un trou », `EtatGroupe::portes()` déguise toute porte secrète non
+     * révélée en case de roche). Une porte secrète mitoyenne n'a donc plus
+     * besoin d'un couloir pour se cacher : le seuil mitoyen, tant qu'il n'est
+     * pas trouvé, se peint exactement comme le mur qui l'entoure — c'est même
+     * *plus* fidèle au plateau, où un passage dérobé est typiquement un pan de
+     * mur entre deux pièces voisines, pas la porte d'un cul-de-sac au bout
+     * d'un couloir. Rien ne change côté connectivité : `secretiserUneAreteDArbre()`
+     * a déjà retiré toute boucle qui desservirait la salle cachée AVANT que
+     * cette méthode ne s'exécute.
+     *
+     * Le décalage est ANNULÉ s'il ferait chevaucher une autre salle (GARDE-FOU
+     * CONSERVÉ, `chevaucheUneSalle()`) : mieux vaut un couloir de plus qu'un
+     * donjon malformé — on RENONCE, jamais on ne force.
      *
      * @param  list<array{parent: int, enfant: int, direction: string, secrete?: bool}>  $aretes
      * @param  array<int, array{x: int, y: int, largeur: int, hauteur: int}>  $poses
      * @return list<array{parent: int, enfant: int, direction: string, secrete?: bool, mitoyenne?: bool}>
      */
-    private function accolerSallesMitoyennes(array $aretes, array &$poses, \Closure $suivant): array
+    private function accolerSallesMitoyennes(array $aretes, array &$poses): array
     {
         // Degré de chaque salle, liaisons supplémentaires comprises.
         $degre = [];
@@ -541,13 +607,10 @@ final class AssembleurCarte
             $enfant = $arete['enfant'];
 
             // Feuille uniquement, et jamais la salle de départ (elle accueille
-            // tout le groupe et sert de repère).
-            if ($enfant === 0 || ($degre[$enfant] ?? 0) !== 1 || ! empty($arete['secrete'])) {
-                continue;
-            }
-
-            // Environ une feuille sur deux, pour que ça reste une surprise.
-            if ($suivant() % 2 !== 0) {
+            // tout le groupe et sert de repère) — les deux SEULS gardes tenus
+            // en amont de la géométrie ; voir le docblock pour le sort de
+            // l'exclusion des arêtes secrètes (levée) et du tirage (retiré).
+            if ($enfant === 0 || ($degre[$enfant] ?? 0) !== 1) {
                 continue;
             }
 
@@ -842,12 +905,30 @@ final class AssembleurCarte
      * couloir ; la voie parallèle (juste avant) reste un cul-de-sac SANS
      * porte contre le mur de chaque salle — jamais deux portes adjacentes.
      *
+     * ⚠ **Arête MITOYENNE (René, 2026-09-11) : UNE SEULE porte, pas deux.**
+     * `accolerSallesMitoyennes()` a rapproché les deux salles jusqu'à faire
+     * coïncider leur mur commun ; géométriquement `xPorteGauche === xPorteDroite`
+     * (resp. `yPorteHaut === yPorteBas`) — la « voie rapide » se réduit à UNE
+     * case, l'ancienne case de mur des deux salles à la fois, et la voie
+     * parallèle est vide. Percer $porteGauche ET $porteDroite comme au cas
+     * général posait alors DEUX arêtes-portes encadrant cette unique case
+     * (sortie de la salle gauche, puis entrée de la salle droite un cran plus
+     * loin) — deux battants sur un seuil qui n'en montre qu'un au plateau.
+     * On ne garde donc que `porte_parent` (celle qui porte historiquement la
+     * restriction de `$spec` — verrou/secrète) ; `porte_enfant` devient `null`,
+     * et l'appelant (`assembler()`) ne la pousse pas dans `portes[]`. L'arête
+     * qui aurait séparé cette case de l'intérieur du parent (ex-`porteDroite`)
+     * n'est simplement JAMAIS enregistrée : deux cases de sol sans entrée dans
+     * `portes[]` sont déjà, par construction, franchissables sans restriction
+     * (`Grille::porteBloqueEntre()`) — inutile de la poser « ouverte », l'absence
+     * suffit.
+     *
      * @param  list<list<string>>  $cases
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>  $salles
      * @param  list<array{0: int, 1: int}>  $positionsGrille
-     * @param  array{parent: int, enfant: int, direction: string}  $arete
+     * @param  array{parent: int, enfant: int, direction: string, mitoyenne?: bool}  $arete
      * @param  array{etat: string, verrou?: array<string, mixed>}|null  $spec
-     * @return array{porte_parent: array<string, mixed>, porte_enfant: array<string, mixed>, milieu: array{x: int, y: int}}
+     * @return array{porte_parent: array<string, mixed>, porte_enfant: ?array<string, mixed>, milieu: array{x: int, y: int}}
      */
     private function creuserArete(
         array &$cases,
@@ -861,6 +942,7 @@ final class AssembleurCarte
         $parent = $arete['parent'];
         $enfant = $arete['enfant'];
         $direction = $arete['direction'];
+        $mitoyenne = ! empty($arete['mitoyenne']);
         // Un SEUIL FAIT UNE CASE (décision de René, 2026-08-08) : plus de
         // seconde paire de portes. Conservé vide pour ne pas changer le contrat
         // de retour de creuserArete(), lu par l'appelant.
@@ -895,7 +977,7 @@ final class AssembleurCarte
             $porteDroite = $this->construirePorte($xPorteDroite - 1, $r, 'e', $droite === $parent ? $spec : null);
 
             $porteParent = $gauche === $parent ? $porteGauche : $porteDroite;
-            $porteEnfant = $gauche === $parent ? $porteDroite : $porteGauche;
+            $porteEnfant = $mitoyenne ? null : ($gauche === $parent ? $porteDroite : $porteGauche);
 
             $milieu = ['x' => $xPorteGauche + intdiv(self::LONGUEUR_COULOIR, 2) + 1, 'y' => $r];
         } else {
@@ -924,7 +1006,7 @@ final class AssembleurCarte
             $porteBas = $this->construirePorte($c, $yPorteBas - 1, 's', $bas === $parent ? $spec : null);
 
             $porteParent = $haut === $parent ? $porteHaut : $porteBas;
-            $porteEnfant = $haut === $parent ? $porteBas : $porteHaut;
+            $porteEnfant = $mitoyenne ? null : ($haut === $parent ? $porteBas : $porteHaut);
 
             $milieu = ['x' => $c, 'y' => $yPorteHaut + intdiv(self::LONGUEUR_COULOIR, 2) + 1];
         }
@@ -1018,13 +1100,17 @@ final class AssembleurCarte
      * `verrou: {type: levier, levier_id}`, puis on pose le levier
      * CORRESPONDANT sur une case de sol déjà atteignable sans cette porte.
      *
-     * La porte côté PARENT de chaque arête (`$portes[2*i]`, cf. la boucle de
-     * construction des portes dans `assembler()` — deux portes poussées par
-     * arête, dans l'ordre `[porte_parent, porte_enfant]`) est celle qui porte
-     * historiquement la restriction (`construirePorte()` : « c'est la porte
-     * côté salle PARENT […] qui porte la restriction ») : verrouiller cette
-     * porte scelle tout le sous-arbre au-delà, exactement ce qu'un verrou de
-     * jeu doit faire.
+     * La porte côté PARENT de chaque arête est celle qui porte historiquement
+     * la restriction (`construirePorte()` : « c'est la porte côté salle
+     * PARENT […] qui porte la restriction ») : verrouiller cette porte scelle
+     * tout le sous-arbre au-delà, exactement ce qu'un verrou de jeu doit
+     * faire. ⚠ Son index dans `$portes` n'est PLUS `2 * $indexArete`
+     * (2026-09-11) : une jonction MITOYENNE (`accolerSallesMitoyennes()`, « un
+     * mur, une porte ») ne pousse plus qu'UNE entrée au lieu de deux, ce qui
+     * décale tout ce qui suit dès la première rencontrée. `assembler()` note
+     * donc la position RÉELLE de chaque porte-parent au moment où il la
+     * pousse (`$indexPorteParentParArete`) et la transmet ici toute faite,
+     * plutôt que de la recalculer par arithmétique.
      *
      * ⚠ INVARIANT DUR (le seul vrai piège de la fonctionnalité, René) : le
      * levier ne doit JAMAIS se trouver derrière la porte qu'il verrouille —
@@ -1063,9 +1149,10 @@ final class AssembleurCarte
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
      * @param  list<array<string, mixed>>  $portes  MUTÉ EN PLACE : la porte choisie passe à `verrouillee`
      * @param  int  $nombreSalles  nombre de salles de la carte — l'arbre couvrant
-     *                             compte exactement `$nombreSalles - 1` arêtes,
-     *                             les premières de `$portes` (indices `[0, 2×(n-1)[`,
-     *                             pas par pas de 2 — porte_parent puis porte_enfant)
+     *                             compte exactement `$nombreSalles - 1` arêtes
+     * @param  array<int, int>  $indexPorteParentParArete  index RÉEL, dans `$portes`,
+     *                             de la porte côté parent de chaque arête de
+     *                             l'arbre (clé = indice d'arête, cf. `assembler()`)
      * @return list<array{x: int, y: int, levier_id: string}>
      */
     private function placerLeviers(
@@ -1074,6 +1161,7 @@ final class AssembleurCarte
         array $salles,
         array &$portes,
         int $nombreSalles,
+        array $indexPorteParentParArete,
         \Closure $suivant,
     ): array {
         $min = (int) data_get($structure, 'leviers.min', 0);
@@ -1095,16 +1183,15 @@ final class AssembleurCarte
             return [];
         }
 
-        // Indices des portes côté PARENT de chaque arête de L'ARBRE COUVRANT
-        // (les `$nombreSalles - 1` premières arêtes construites par
-        // `assembler()`, AVANT les liaisons supplémentaires) : deux portes
-        // par arête dans l'ordre [porte_parent, porte_enfant], d'où le pas
-        // de 2 à partir de l'indice 0.
+        // Portes côté PARENT de chaque arête de L'ARBRE COUVRANT (les
+        // `$nombreSalles - 1` premières arêtes construites par `assembler()`,
+        // AVANT les liaisons supplémentaires) — position réelle fournie par
+        // l'appelant, cf. docblock ci-dessus.
         $indicesArbre = $nombreSalles >= 2 ? range(0, $nombreSalles - 2) : [];
         $candidatesIndex = [];
         foreach ($indicesArbre as $indexArete) {
-            $idxPorte = 2 * $indexArete;
-            if (isset($portes[$idxPorte]) && ($portes[$idxPorte]['etat'] ?? null) === MoteurPortes::ETAT_FERMEE) {
+            $idxPorte = $indexPorteParentParArete[$indexArete] ?? null;
+            if ($idxPorte !== null && isset($portes[$idxPorte]) && ($portes[$idxPorte]['etat'] ?? null) === MoteurPortes::ETAT_FERMEE) {
                 $candidatesIndex[] = $idxPorte;
             }
         }

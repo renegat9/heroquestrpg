@@ -67,6 +67,13 @@ const gridStyle = computed(() => {
         gridTemplateColumns: `repeat(${c}, 1fr)`,
         gridTemplateRows: `repeat(${r}, 1fr)`,
         transform: `translate(${centrer(largeurVue, largeurCarte, cibleX * px)}px, ${centrer(hauteurVue, hauteurCarte, cibleY * px)}px)`,
+        // Taille RÉELLE de la case en px, pour que le contour de salle
+        // (DungeonGrid.vue, `--dg-cell`) se dimensionne sur la cellule et non
+        // sur une unité relative (`%`/`vw`, qui se résout sur la police
+        // héritée ou la largeur d'écran — jamais sur la case) : `px` est
+        // recalculé par `mesurer()` à chaque redimensionnement, donc le trait
+        // suit le zoom de la caméra exactement comme la grille elle-même.
+        '--dg-cell': `${px}px`,
     };
 });
 

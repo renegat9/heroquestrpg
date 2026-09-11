@@ -344,22 +344,35 @@ it('répartit les monstres sur AU MOINS 2 salles distinctes, boss en position 0'
 // Jonctions larges de 2 cases (test de jeu 2026-07-31)
 // ---------------------------------------------------------------------------
 
-it('ne pose qu\'UNE porte par salle : un seuil fait UNE case, comme au plateau', function () {
+it('ne pose qu\'UNE porte par salle : un seuil fait UNE case, comme au plateau — UNE SEULE pour un seuil MITOYEN', function () {
     $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 7717);
 
     $parJonction = collect($carte['portes'])->groupBy('jonction');
+    $aretesParJonction = collect($carte['aretes']);
 
     expect($parJonction)->not->toBeEmpty();
 
     foreach ($parJonction as $jonction => $portes) {
-        // 2 portes par jonction : une par salle, aux deux bouts du couloir.
-        // Ce test en exigeait 4 (seuils larges de 2 cases, pour qu'un tank ne
-        // bouche pas la vue au tireur). Le jeu officiel n'a que des portes
-        // d'UNE case et règle ce cas par l'attaque en DIAGONALE — « deux héros
-        // à la fois peuvent attaquer un monstre qui bloque un seuil de porte »
-        // (LR p. 14, reference/16_armurerie.md §6.2). Décision de René,
-        // 2026-08-08.
-        expect($portes)->toHaveCount(2, "jonction {$jonction} : seuil dédoublé");
+        // Une jonction MITOYENNE (salles mur contre mur, René 2026-09-11 —
+        // « accoler les salles par défaut ») se reconnaît à `porte_a === porte_b`
+        // dans `carte.aretes` (même convention que le test « creuse chaque
+        // couloir… » plus haut : `creuserArete()` republie la seule porte
+        // restante aux deux places quand il n'y en a qu'une, cf. son docblock).
+        $arete = $aretesParJonction[$jonction] ?? null;
+        $mitoyenne = $arete !== null
+            && $arete['porte_a']['x'] === $arete['porte_b']['x']
+            && $arete['porte_a']['y'] === $arete['porte_b']['y'];
+
+        // Jonction ORDINAIRE : 2 portes, une par salle, aux deux bouts du
+        // couloir. Ce test en exigeait 4 à l'origine (seuils larges de 2
+        // cases, pour qu'un tank ne bouche pas la vue au tireur) — le jeu
+        // officiel n'a que des portes d'UNE case et règle ce cas par
+        // l'attaque en DIAGONALE (LR p. 14, reference/16_armurerie.md §6.2,
+        // décision de René, 2026-08-08). Jonction MITOYENNE : une seule
+        // porte sur l'arête partagée, « dans le jeu original il n'y en a
+        // pas » (René, 2026-09-11) — deux battants sur un seuil qui n'en
+        // montre qu'un au plateau serait exactement le défaut inverse.
+        expect($portes)->toHaveCount($mitoyenne ? 1 : 2, "jonction {$jonction} : ".($mitoyenne ? 'seuil mitoyen dédoublé' : 'seuil dédoublé'));
 
         // …et jamais deux portes accolées sur un même bord.
         $parBord = $portes->groupBy(fn ($p) => $p['cote'] === 'e' ? $p['x'] : $p['y']);
@@ -369,11 +382,118 @@ it('ne pose qu\'UNE porte par salle : un seuil fait UNE case, comme au plateau',
     }
 });
 
+it('accole les salles PAR DÉFAUT (René, 2026-09-11) et reste connexe sur des dizaines de graines', function () {
+    // L'INVARIANT DUR : accoler ne doit JAMAIS couper l'accès à une salle
+    // depuis le spawn héros — vérifié sur un lot de graines, portes ouvertes
+    // (la géométrie, pas l'état des portes — cf. le test « garde toutes les
+    // salles réellement reliées » plus haut, qui ne fait ça que sur UNE graine).
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = gabaritNormal();
+
+    $jonctionsMitoyennes = 0;
+
+    foreach (range(1, 60) as $i) {
+        $graine = $i * 131;
+        $carte = $assembleur->assembler($gabarit, $graine);
+
+        $grille = new Grille($carte['cases']);
+        $grille->definirPortes(array_map(fn (array $p) => [...$p, 'etat' => 'ouverte'], $carte['portes']));
+        $depart = $carte['spawn_heros'][0];
+
+        foreach ($carte['salles'] as $j => $salle) {
+            $centre = ['x' => $salle['x'] + intdiv($salle['largeur'], 2), 'y' => $salle['y'] + intdiv($salle['hauteur'], 2)];
+            expect($grille->chemin($depart['x'], $depart['y'], $centre['x'], $centre['y']))
+                ->not->toBeNull("graine {$graine} : salle {$j} inatteignable après accolement");
+        }
+
+        foreach ($carte['aretes'] as $arete) {
+            if ($arete['porte_a']['x'] === $arete['porte_b']['x'] && $arete['porte_a']['y'] === $arete['porte_b']['y']) {
+                $jonctionsMitoyennes++;
+            }
+        }
+    }
+
+    // Et le comportement par défaut s'exerce RÉELLEMENT sur ce lot de graines
+    // (sinon « la norme » n'en serait pas une, juste un chemin de code mort).
+    expect($jonctionsMitoyennes)->toBeGreaterThan(0);
+});
+
+it('deux salles accolées ne partagent qu\'UNE SEULE porte sur leur arête commune, et les deux cases sont du sol', function () {
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = gabaritNormal();
+    $verifiees = 0;
+
+    foreach (range(1, 60) as $i) {
+        $graine = $i * 131;
+        $carte = $assembleur->assembler($gabarit, $graine);
+        $parJonction = collect($carte['portes'])->groupBy('jonction');
+
+        foreach ($carte['aretes'] as $jonction => $arete) {
+            $mitoyenne = $arete['porte_a']['x'] === $arete['porte_b']['x'] && $arete['porte_a']['y'] === $arete['porte_b']['y'];
+            if (! $mitoyenne) {
+                continue;
+            }
+
+            $verifiees++;
+            $portes = $parJonction[$jonction] ?? collect();
+            expect($portes)->toHaveCount(1, "graine {$graine}, jonction {$jonction} : seuil mitoyen dédoublé — deux battants sur un mur qui n'en montre qu'un");
+
+            [$a, $b] = Grille::casesPorte($portes->first());
+            expect($carte['cases'][$a['y']][$a['x']])->toBe('s')
+                ->and($carte['cases'][$b['y']][$b['x']])->toBe('s');
+        }
+    }
+
+    expect($verifiees)->toBeGreaterThan(0, 'aucune jonction mitoyenne rencontrée sur ces graines : le test ne prouve rien');
+});
+
+it('garde un vrai couloir pour les salles NON accolées (non-feuilles, ou chevauchement refusé)', function () {
+    // « accoler par défaut » ne doit pas faire disparaître le couloir : les
+    // salles réellement éloignées (non-feuilles de l'arbre, ou une feuille que
+    // `chevaucheUneSalle()` refuse) doivent en garder un — le boyau court et
+    // artificiel disparaît, pas la notion de couloir (René, 2026-09-11).
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = gabaritNormal();
+    $total = 60;
+    $sansCouloir = 0;
+
+    foreach (range(1, $total) as $i) {
+        $carte = $assembleur->assembler($gabarit, $i * 131);
+
+        $couloirs = collect($carte['aretes'])->filter(
+            fn (array $a) => ! ($a['porte_a']['x'] === $a['porte_b']['x'] && $a['porte_a']['y'] === $a['porte_b']['y'])
+        );
+
+        if ($couloirs->isEmpty()) {
+            $sansCouloir++;
+
+            continue;
+        }
+
+        // Un vrai couloir garde au moins une case entre ses deux portes (sa
+        // « voie rapide », déjà éprouvée en détail par le test F plus haut) —
+        // ici on vérifie juste qu'il n'a PAS dégénéré en seuil mitoyen.
+        foreach ($couloirs as $arete) {
+            $distance = abs($arete['porte_a']['x'] - $arete['porte_b']['x']) + abs($arete['porte_a']['y'] - $arete['porte_b']['y']);
+            expect($distance)->toBeGreaterThan(1, "graine {$i} : couloir trop court pour ne pas être un seuil mitoyen");
+        }
+    }
+
+    expect($sansCouloir)->toBe(0, "{$sansCouloir}/{$total} cartes n'ont plus AUCUN couloir réel — « accoler par défaut » aurait supprimé la notion de couloir plutôt que le boyau artificiel");
+});
+
 it('n\'ouvre que le seuil poussé, et laisse fermé celui d\'en face', function () {
     [$groupe, $quete] = groupeAvecCarte(7717);
 
     $portes = $quete->carte->grille['portes'];
-    $index = collect($portes)->search(fn ($p) => ($p['etat'] ?? '') === 'fermee');
+    // ⚠ Doit être une jonction à 2 PORTES (un vrai couloir) : depuis
+    // l'accolement par défaut (2026-09-11), une jonction MITOYENNE n'en a
+    // qu'une, et « l'autre bout » qu'on vérifie ci-dessous n'existe pas.
+    $parJonction = collect($portes)->groupBy('jonction')->filter(fn ($p) => $p->count() === 2);
+    $jonctionChoisie = $parJonction->keys()->first();
+    expect($jonctionChoisie)->not->toBeNull('aucune jonction à 2 portes sur cette graine : le test ne prouve rien');
+
+    $index = collect($portes)->search(fn ($p) => ($p['jonction'] ?? null) === $jonctionChoisie && ($p['etat'] ?? '') === 'fermee');
     $poussee = $portes[$index];
     $jonction = $poussee['jonction'];
 

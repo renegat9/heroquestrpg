@@ -319,9 +319,11 @@ it('mesure le taux de renoncement au verrou, et le FORCE au besoin pour prouver 
             // `placerLeviers()` prend `$portes` PAR RÉFÉRENCE (4ᵉ paramètre) :
             // `invoke()` ne le supporte pas pour un paramètre par référence,
             // il faut passer par `invokeArgs()` avec une vraie variable dans
-            // le tableau d'arguments.
+            // le tableau d'arguments. L'arête unique (index 0) pousse sa seule
+            // porte-parent en position 0 de `$portes` — même convention que
+            // `assembler()` (`$indexPorteParentParArete`, 2026-09-11).
             $portesArg = $portes;
-            $resultat = $methode->invokeArgs($assembleur, [$structure, $cases, $salles, &$portesArg, 2, fn () => $graine]);
+            $resultat = $methode->invokeArgs($assembleur, [$structure, $cases, $salles, &$portesArg, 2, [0 => 0], fn () => $graine]);
             expect($resultat)->toBe([], "graine {$graine} : le renoncement forcé n'a PAS renoncé — le mécanisme d'abandon ne s'active plus");
         }
     }

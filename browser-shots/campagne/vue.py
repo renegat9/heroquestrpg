@@ -95,6 +95,25 @@ if verrouillees:
             piste = "  → AUCUN levier visible pour l'instant"
         print(f"  ({p['x']},{p['y']}) verrou={verrou} — distance {d}{piste}")
 
+# --- PORTES FERMÉES (ouvrables à la main, sans clé) : depuis l'arbitrage du
+# 2026-09-10, une fouille réussie ne fait plus qu'AFFICHER un passage secret
+# comme une porte fermée ORDINAIRE (`etat: "fermee"`) — il faut ensuite
+# `ouvrir_porte_{x}_{y}_{cote}`, une option qui n'apparaît qu'AU CONTACT.
+# L'API ne distingue PAS une porte fermée d'origine d'une porte secrète tout
+# juste révélée : les deux ont exactement `etat: "fermee"`, par construction
+# (`MoteurPortes::fouiller()` réécrit l'état en base, `EtatGroupe::portes()`
+# ne republie donc jamais `secrete` pour une porte révélée). On les liste
+# donc TOUTES ensemble, sans essayer de deviner laquelle vient d'apparaître.
+# ⚠ Un passage NON trouvé est publié `etat: "mur"` (ni porte, ni `revele`,
+# ni `verrou`) : il n'apparaît PAS ici, et ne doit jamais être visé.
+fermees = [p for p in portes_carte if p.get("etat") == "fermee"]
+if fermees:
+    print("PORTES FERMÉES (ouvrables, sans clé) :")
+    for p in fermees:
+        d = abs(p["x"] - moi["x"]) + abs(p["y"] - moi["y"])
+        contact = "  → À PORTÉE (ouvrir_porte au menu)" if d <= 1 else ""
+        print(f"  ({p['x']},{p['y']}) côté {p.get('cote')} — distance {d}{contact}")
+
 # --- TERRAIN (doc 18 §4, thème horreur_des_glaces UNIQUEMENT) : cases proches
 # avec leur coût et leur effet. L'API ne publie PAS `effet` (seulement `nom`,
 # `cout_deplacement`, `paire_id`) — le texte d'effet ci-dessous est du texte

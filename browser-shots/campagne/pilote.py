@@ -149,6 +149,15 @@ def jouer(slot):
             if joue:
                 return joue
 
+    # ⚠ Depuis l'arbitrage du 2026-09-10, une fouille réussie ne fait plus
+    # qu'AFFICHER un passage secret comme une porte fermée ORDINAIRE — il faut
+    # ensuite l'ouvrir explicitement. Rien de spécial à coder ici : le serveur
+    # n'offre `ouvrir_porte_{x}_{y}_{cote}` QUE pour une porte réellement
+    # fermée (jamais pour un `mur`, l'état d'un passage secret non trouvé —
+    # voir vue.py), et cette boucle générique la prend dès qu'elle apparaît,
+    # qu'elle date de la genèse de la carte ou de la fouille du tour d'avant.
+    # C'est déjà la bonne priorité : avant le levier et la fouille, pour ne
+    # jamais laisser une porte ouvrable derrière soi.
     for oid in opts:
         if oid.startswith("ouvrir_porte"):
             return ("PORTE " + oid, choix(slot, oid))
@@ -163,8 +172,22 @@ def jouer(slot):
         if oid.startswith("actionner_levier"):
             return ("LEVIER " + oid, choix(slot, oid))
 
+    # ⚠ `fouiller` (jet de Mind, difficulté 1) est une option DISTINCTE de
+    # `fouiller_tresor` (`MenuMoteur` ~ligne 1629) : c'est ELLE qui cherche
+    # pièges ET portes secrètes en une seule action — `fouiller_tresor` ne
+    # tire que la carte de trésor de la salle. Ce pilote ne connaissait que la
+    # seconde jusqu'ici : deux quêtes entières jouées sans qu'un seul héros
+    # ne cherche jamais un passage secret, alors même qu'ils traversaient des
+    # salles qui en bordent un. `fouiller_pierre` est la variante du Moine
+    # (Style de la Terre, « Parler à la pierre ») qui ne peut pas rater —
+    # même fouille, jamais pire. Priorité AVANT le trésor : un passage
+    # secret peut conditionner la suite de la carte, une pièce d'or jamais.
+    for oid in ("fouiller", "fouiller_pierre"):
+        if oid in opts:
+            return ("FOUILLE ZONE", choix(slot, oid))
+
     if "fouiller_tresor" in opts:
-        return ("FOUILLE", choix(slot, "fouiller_tresor"))
+        return ("FOUILLE TRESOR", choix(slot, "fouiller_tresor"))
 
     if "se_deplacer" in opts:
         dests = destinations(slot)

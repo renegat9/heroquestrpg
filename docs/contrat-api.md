@@ -615,6 +615,16 @@ brouillard ; publier tous les rectangles donnerait le nombre, la taille et la
 position des salles jamais ouvertes — le brouillard contourné par la porte de
 derrière.
 
+**Contour des salles sur la carte (René, 2026-09-11, front seul — payload
+inchangé).** `DungeonGrid.vue` dessine désormais un rectangle sur l'emprise de
+chaque entrée de `salles[]`, table et manette. Aucun champ ajouté : le
+brouillard de `salles[]` (ci-dessus) est la SEULE condition d'affichage, sans
+filtre dupliqué côté client — une salle non découverte n'y figurant pas, son
+contour ne se dessine pas non plus. Deux salles accolées (voir plus bas)
+restent deux rectangles distincts qui se recouvrent d'une case sur leur mur
+commun ; chaque contour est donc tracé sur SA face du mur, et les deux se
+lisent comme deux salles séparées, jamais comme une seule.
+
 La table gagne un second bouton à côté de la légende : la légende explique les
 **symboles**, l'aperçu énumère le **contenu** de la salle où se tient le héros
 actif — figurines (avec le `nom_base` de catalogue sous le nom habillé par
@@ -691,6 +701,22 @@ voile). Purement cosmétique — le moteur travaille toujours sur la carte réel
 disposition est un **arbre 2D branchu** (couloirs à 2 voies, une seule porte par bord
 de salle) ; `cartes.grille` porte aussi `salles[]` et `aretes[]` (métadonnées de
 tracé, non servies dans le payload).
+
+⚠ **Salles ACCOLÉES par défaut, un seul battant (René, 2026-09-11)** —
+`AssembleurCarte::accolerSallesMitoyennes()` glisse désormais PAR DÉFAUT chaque
+salle-feuille mur contre mur avec sa parente (« dans le jeu original il n'y a
+pas de case pour relier deux salles ») ; les vrais couloirs ne subsistent que
+pour les salles non-feuilles et celles qu'un chevauchement empêche d'accoler.
+Sur une jonction ainsi devenue MITOYENNE, `portes[]` ne compte plus qu'**UNE**
+entrée au lieu de deux — la case de seuil que se partageaient les deux anciens
+battants encadrants n'existe plus, un seul suffit sur l'arête commune. Le
+format d'une entrée de `portes[]` ne change pas ; seul le **nombre** d'entrées
+partageant un `jonction` passe de 2 à 1 pour ce cas. `carte.aretes[i].porte_a`
+et `.porte_b` valent alors les MÊMES coordonnées (pas de second bout à
+publier). Une porte SECRÈTE peut désormais elle aussi être mitoyenne — un
+passage dérobé directement dans un mur partagé entre deux salles, plus fidèle
+au plateau qu'un cul-de-sac de couloir ; le déguisement `etat: "mur"`
+(ci-dessus) s'applique identiquement tant qu'elle n'est pas trouvée.
 
 - **EtatGroupe.carte** gagne `portes: [{x, y, cote, etat, verrou?, image_url?}]` —
   une porte connue est rendue comme une porte, une `verrouillee` porte un cadenas
