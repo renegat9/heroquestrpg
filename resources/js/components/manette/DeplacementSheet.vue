@@ -68,12 +68,42 @@ const embrasuresFermees = computed(() => {
 //  - le héros sur sa propre case de départ ne se bloque pas ;
 //  - un héros TOMBÉ s'enjambe (ne bloque pas) ;
 //  - un monstre non-actif (vaincu) a déjà quitté le plateau — filtre défensif.
+// ⚠ DEUX ensembles, et il en faut deux — c'est la règle du plateau : « on peut
+// traverser la case d'un autre héros (pas s'y arrêter), on ne peut jamais
+// partager une case » (LR p. 12, doc 16 §5). Le serveur la tient depuis le
+// 2026-09-04 avec son quatrième jeu de cases (`Grille::$alliees`, opt-in
+// `franchitAllies`) ; ce miroir, lui, fondait tout dans `occupees` et
+// traitait un compagnon comme un mur. Résultat signalé par René en jouant :
+// deux héros dans un couloir se bloquaient encore À L'ÉCRAN alors que le
+// moteur, lui, les laissait passer depuis une semaine.
+//
+// ⚠ C'est la TROISIÈME fois qu'un miroir client dérive d'une règle serveur
+// (après le coût de déplacement pondéré et le calcul des cases atteignables).
+// Tout miroir est une seconde copie de la règle : il ne dérive pas le jour où
+// on l'écrit, il dérive le jour où la règle bouge sans lui.
+const BLOQUANTE = (e) => e.type === 'monstre';
+
+/** Cases où l'on ne peut ni passer ni s'arrêter : les MONSTRES. */
 const occupees = computed(() => {
     const s = new Set();
     for (const e of props.entites) {
         if (e.x === props.depart.x && e.y === props.depart.y) continue;
+        if (! BLOQUANTE(e)) continue;
+        if ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0) continue;
+        s.add(cle(e.x, e.y));
+    }
+    return s;
+});
+
+/** Cases TRAVERSABLES mais où l'on ne peut pas S'ARRÊTER : héros, alliés,
+ *  mercenaires — tout ce qui n'est pas un monstre. Un héros à terre ne compte
+ *  pas : il n'occupe plus sa case comme obstacle. */
+const alliees = computed(() => {
+    const s = new Set();
+    for (const e of props.entites) {
+        if (e.x === props.depart.x && e.y === props.depart.y) continue;
+        if (BLOQUANTE(e)) continue;
         if (e.type === 'heros' && e.tombe) continue;
-        if (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)) continue;
         s.add(cle(e.x, e.y));
     }
     return s;
@@ -165,7 +195,13 @@ const accessibles = computed(() => {
             if (nd > props.portee) continue; // hors budget : jamais une destination possible
             if (nd < (dist[k] ?? Infinity)) {
                 dist[k] = nd;
-                out.add(k);
+                // ⚠ Une case d'ALLIÉ se TRAVERSE mais n'est jamais une
+                // DESTINATION (LR p. 12 : « pas s'y arrêter », et « on ne peut
+                // jamais partager une case »). On l'ajoute donc à la frontière
+                // — sinon tout ce qui est derrière un compagnon reste
+                // inatteignable à l'écran — mais PAS à `out`, sinon le joueur
+                // taperait une case que le serveur refusera.
+                if (! alliees.value.has(k)) out.add(k);
                 // Ne PAS étendre au-delà d'une case encore dans le brouillard :
                 // on ignore ce qu'il y a plus loin tant que le serveur n'a pas
                 // révélé la salle (prochain état, après ce déplacement).
