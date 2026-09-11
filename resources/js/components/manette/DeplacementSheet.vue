@@ -216,13 +216,46 @@ const accessibles = computed(() => {
 // occupant (monstre/allié) ou case accessible ; null = terrain nu.
 function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
-    if (occupees.value.has(cle(x, y))) {
-        const ent = props.entites.find((e) => e.x === x && e.y === y);
+    const k = cle(x, y);
+    if (occupees.value.has(k)) {
+        const ent = occupantDe(x, y);
         // Une créature enrôlée par la Baguette d'Os n'est plus un ennemi ce
         // tour-ci : elle se peint comme un allié, ici comme sur la table.
-        return (ent?.type === 'monstre' && !ent?.controle_par) ? 'monstre' : 'allie';
+        return (ent?.type === 'monstre' && ! ent?.controle_par) ? 'monstre' : 'allie';
     }
-    return accessibles.value.has(cle(x, y)) ? 'accessible' : null;
+    // ⚠ Les ALLIÉS ont leur propre ensemble depuis qu'on peut les traverser
+    // (2026-09-11). Ne tester que `occupees` les rendait INVISIBLES sur la
+    // carte : ni couleur, ni glyphe, un compagnon devenu du sol nu. Ils ne
+    // sont pas non plus dans `accessibles` — on les traverse, on ne s'y
+    // arrête pas — donc sans ce test ils ne retombent sur rien.
+    if (alliees.value.has(k)) return 'allie';
+    return accessibles.value.has(k) ? 'accessible' : null;
+}
+
+/** L'entité debout sur cette case, s'il y en a une. */
+function occupantDe(x, y) {
+    return props.entites.find((e) => e.x === x && e.y === y
+        && ! (e.type === 'heros' && e.tombe)
+        && ! (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)));
+}
+
+/** Initiale affichée sur la case d'un compagnon (René, 2026-09-11 : « peux-tu
+ *  identifier les joueurs sur la carte de la manette »). À 38 px un portrait
+ *  devient une tache — c'est la leçon des illustrations de carte, qui vivent
+ *  dans la LÉGENDE et jamais sur la grille. Une lettre se lit d'un coup d'œil
+ *  et tient à cette taille. */
+function initialeDe(x, y) {
+    const nom = (occupantDe(x, y)?.nom ?? '').trim();
+    return nom ? nom[0].toUpperCase() : '';
+}
+
+/** ⚠ Deux héros peuvent porter le MÊME nom (constaté en partie : deux
+ *  « Thrakor »), donc l'initiale seule ne suffit pas à les distinguer. La
+ *  teinte se dérive de l'`id`, stable d'un tour à l'autre — deux compagnons
+ *  homonymes restent alors deux figurines différentes à l'œil. */
+function teinteDe(x, y) {
+    const id = occupantDe(x, y)?.id;
+    return id == null ? null : { '--dep-allie-h': `${(Number(id) * 47) % 360}` };
 }
 
 function toucher(x, y) {
@@ -324,6 +357,12 @@ onMounted(async () => {
                     <template #cell="{ x, y }">
                         <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
                         <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />
+                        <span
+                            v-else-if="surcouche(x, y) === 'allie' && initialeDe(x, y)"
+                            class="dep-initiale"
+                            :style="teinteDe(x, y)"
+                            :title="occupantDe(x, y)?.nom"
+                        >{{ initialeDe(x, y) }}</span>
                     </template>
                     </DungeonGrid>
                 </div>
@@ -441,4 +480,16 @@ onMounted(async () => {
   display: flex; justify-content: safe center; align-items: safe center; }
 /* Départ/occupants : centrer l'icône dans la case (DungeonGrid gère le reste). */
 .dep-scroll .dg-cell { display: grid; place-items: center; }
+
+/* Initiale d'un compagnon (René, 2026-09-11). Pleine case, fond teinté par
+   `--dep-allie-h` (dérivé de l'id) pour séparer deux homonymes, et un contour
+   sombre pour que la lettre tienne sur n'importe quelle teinte. */
+.dep-initiale {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  border-radius: 50%; font-weight: 800; font-size: 15px; line-height: 1;
+  color: oklch(0.98 0 0);
+  background: oklch(0.52 0.15 var(--dep-allie-h, 260));
+  box-shadow: inset 0 0 0 1.5px oklch(0.16 0.012 255 / 0.85);
+  text-shadow: 0 1px 2px oklch(0.16 0.012 255 / 0.9);
+}
 </style>
