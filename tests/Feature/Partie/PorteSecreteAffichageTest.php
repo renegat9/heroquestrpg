@@ -196,22 +196,26 @@ it('après une fouille réussie, la porte n\'est plus masquée et devient franch
         ->assertJsonPath('resultat.issue', 'reussite')
         ->assertJsonPath('resultat.portes_revelees.0.x', $hx);
 
-    // ⚠ `MoteurPortes::revelerSecretes()` écrit l'état RÉEL à `ouverte` (pas
-    // `secrete`) — comportement déjà verrouillé par
-    // `PortesExplorationTest` (« révèle par « Fouiller la zone » »), et ce
-    // correctif n'y touche pas. Cette moitié du test vérifie donc ce qui est
-    // VRAI après CE correctif : le déguisement tombe (`mur` a disparu) et le
-    // passage s'ouvre réellement — pas la couleur exacte du rendu, qui suit
-    // l'état réel publié tel quel (voir le rapport final : un déguisement
-    // révélé par une VRAIE fouille rend comme une porte ouverte ordinaire,
-    // pas en violet « secrète », faute d'un marqueur persistant distinct —
-    // hors périmètre de ce correctif, signalé plutôt que maquillé).
+    // ⚠ Une fouille réussie rend une porte FERMÉE, pas ouverte (arbitrage de
+    // René, 2026-09-11 : « un passage secret trouvé devrait l'afficher comme
+    // une porte fermée, on peut maintenant interagir avec pour l'ouvrir »).
+    // Le déguisement en mur tombe — c'est l'objet de ce correctif — mais le
+    // passage reste BLOQUÉ tant que personne ne l'ouvre : trouver n'est pas
+    // franchir, et la salle derrière ne se révèle qu'à l'ouverture.
     $portes = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json('carte.portes');
     $porte = collect($portes)->first(fn ($p) => $p['x'] === $hx && $p['y'] === $hy && ($p['cote'] ?? null) === 'e');
 
     expect($porte)->not->toBeNull()
-        ->and($porte['etat'])->not->toBe('mur')
-        ->and(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse();
+        ->and($porte['etat'])->toBe('fermee')
+        ->and(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeTrue();
+
+    // …et elle s'ouvre alors comme n'importe quelle porte fermée. C'est la
+    // moitié utile de l'arbitrage : sans elle, on aurait juste rendu un
+    // passage trouvé inutilisable.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "ouvrir_porte_{$hx}_{$hy}_e"])
+        ->assertStatus(202);
+
+    expect(Grille::depuisCarte($quete->fresh()->carte)->porteBloqueEntre($hx, $hy, $hx + 1, $hy))->toBeFalse();
 });
 
 it('un mur de roche ordinaire et une porte secrète non révélée sont indiscernables dans le payload', function () {

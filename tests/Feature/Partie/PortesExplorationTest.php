@@ -113,8 +113,12 @@ it('révèle par « Fouiller la zone » une porte secrète ET un piège, et n\'i
         ->assertJsonPath('resultat.portes_revelees.0.x', $hx + 1)
         ->assertJsonPath('resultat.pieges_reveles.0.nom', 'Piège à lances');
 
+    // ⚠ FERMÉE, pas ouverte (arbitrage de René, 2026-09-11). Trouver un passage
+    // et le franchir sont deux actes : la fouille le révèle, il reste à
+    // l'ouvrir. Avant, un seul jet de Mind donnait la porte, la salle derrière
+    // ET son coffre — puisque toute ouverture de porte révèle sa salle.
     $grille = $quete->fresh()->carte->grille;
-    expect($grille['portes'][0]['etat'])->toBe('ouverte')
+    expect($grille['portes'][0]['etat'])->toBe('fermee')
         ->and($grille['portes'][0]['revele'])->toBeTrue()
         ->and($grille['pieges'][0]['etat'])->toBe('detecte')
         // Fouiller la zone n'invoque JAMAIS de monstre errant (doc 14 §3.2).

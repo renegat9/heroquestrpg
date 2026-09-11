@@ -132,7 +132,8 @@ final class MoteurPortes
 
     /**
      * Fouille RÉUSSIE : révèle les portes SECRÈTES dans le rayon de fouille
-     * (Manhattan) autour du fouilleur — elles passent `revele:true` + ouvertes.
+     * (Manhattan) autour du fouilleur — elles passent `revele:true` + FERMÉES.
+     * Trouver n'est pas franchir : il reste à les ouvrir.
      *
      * @return list<array{x: int, y: int}> portes révélées
      */
@@ -188,7 +189,7 @@ final class MoteurPortes
     /**
      * Le révélateur, dont seul le FILTRE change — factorisé quand la Potion de
      * vision a demandé une seconde géométrie. Deux copies de « une porte
-     * secrète devient ouverte et révélée » auraient fini par diverger.
+     * secrète devient FERMÉE et révélée » auraient fini par diverger.
      *
      * @return list<array{x: int, y: int}>
      */
@@ -201,7 +202,19 @@ final class MoteurPortes
                 continue;
             }
 
-            $this->changer($carte, $index, ['revele' => true, 'etat' => self::ETAT_OUVERTE]);
+            // ⚠ FERMÉE, pas ouverte (arbitrage de René, 2026-09-11 : « un passage
+            // secret trouvé devrait l'afficher comme une porte fermée, on peut
+            // maintenant interagir avec pour l'ouvrir »). Trouver un passage et
+            // le franchir sont DEUX actes, comme au plateau — et la fouille
+            // révélait jusqu'ici la salle derrière du même geste, puisque toute
+            // ouverture de porte révèle sa salle. Un jet de Mind réussi donnait
+            // donc la pièce ET son coffre sans qu'on ait à s'en approcher.
+            //
+            // `revele` reste posé : l'état n'est plus `secrete`, donc le
+            // déguisement en mur de `EtatGroupe::portes()` ne s'applique plus
+            // — mais le drapeau garde la trace de CE QUI a été trouvé, et c'est
+            // lui qui distingue une porte découverte d'une porte ordinaire.
+            $this->changer($carte, $index, ['revele' => true, 'etat' => self::ETAT_FERMEE]);
             $reveles[] = ['x' => (int) $porte['x'], 'y' => (int) $porte['y']];
         }
 
