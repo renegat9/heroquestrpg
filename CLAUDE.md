@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 HeroQuest-based tabletop RPG with an AI game master ("MJ IA"). Self-hosted, internal project (LAN play between friends — no public deployment). Implemented so far: deterministic engine (`app/Engine`, Pest-tested), full DB layer (migrations/models/seeders per `reference/12_schema_donnees.md`), AI GM module (`app/Agent`: Anthropic client, per-task skills with JSON schemas, Qdrant bible client, queue jobs, Reverb events), game-loop services (`app/Partie`), REST API, and the Vue front ported from the `reference/heroquest/` mockups. The API/front/realtime contract lives in `docs/contrat-api.md` — change it there first. The whole MVP scope of `reference/00_synthese.md` §8 is covered (combat, checks, traps, spells, market, votes, levels, Dread/bosses, campaign closure, snapshots/reprise).
 
+**Added 2026-09-10 → 09-12**, each detailed in `docs/regles/`: a **`terrains` catalogue**
+with its own closed vocabulary `App\Engine\MotsClesTerrain` (ice walls, bridges, chasms —
+`bloque_mouvement` / `bloque_vue` / `cout_deplacement`, read by the single
+`FabriqueGrille::pour()` loop, never a second one); **Mind damage with a real producer**
+(`MoteurDegats::infligerMindAHeros()` — the readers had existed for months with nothing
+feeding them); **The Frozen Horror** relit as a box theme; movement re-based on a
+**weighted Dijkstra** (`Grille::parcoursPondere()`, `coutChemin()`, `pasAffordables()`)
+while `distance()` stays **geometric** (range and adjacency); and a **door that occupies
+its own cell** (`Grille::caseEmbrasure()`), which is what let an undiscovered secret
+passage finally be painted as plain rock.
+
 **Consolidated rule: every durable game state lives in the DB, never in cache.** The cache holds only ephemera — the current menu, the market phase, narrator presence. Exploration progress, searched rooms and the search deck all started life as cache keys with a TTL; losing one re-closed the fog over explored ground and **froze the whole group** (playtest verdict §2.16). Never reintroduce that pattern: add a column.
 
 ## Hard rules
@@ -30,10 +41,28 @@ reason, and the two must never drift.
 - **The menu never offers what the resolver will refuse**, and a list carried by an
   option **is** the whitelist the resolver re-validates. → `docs/regles/combat-et-tour.md`
 - **One rule, one point of passage** (`Salles::indexDe()`, `FabriqueGrille::pour()`,
-  `DifficulteBody::plafonnee()`, `ResolveurTour::frapper()`, `Equipement::estAccessible()`).
+  `DifficulteBody::plafonnee()`, `ResolveurTour::frapper()`, `Equipement::estAccessible()`,
+  and since 2026-09-11: `Grille::caseEmbrasure()` for a door's cell,
+  `MoteurSorts::mobiliteCombatDisponible()`, `Equipement::recalculerCombat()`,
+  `DeckFouille::sallesACoffre()`).
   Two copies of a rule too simple to notice drifting is this project's most repeated defect.
 - **`sortBy([$f, $g])` is never a multi-key sort** — Laravel reads a callable there as a
   *comparator*, and it never errors. It bit twice. → `docs/regles/sorts-dread.md`
+- **The server publishes the DECISION, not the ingredients.** A client that re-derives a
+  server rule in JS drifts the day the rule moves — **five occurrences in one week**
+  (2026-09-11/12), all in `DeplacementSheet.vue` / `ActionTab.vue`. `attaque_supplementaire`,
+  `sort_bonus_disponible`, `franchit_figures` and `embrasure` are therefore computed
+  server-side and sent **already decided**. → `docs/regles/front-manette-et-table.md`
+- **Connected is not playable.** A procedural placement that only re-checks *connectivity*
+  accepts a one-cell corridor four heroes cannot stand in — `salleResteConnexe()` was
+  satisfied while half the party stood on the threshold, unable to act (real game,
+  2026-09-12). Furniture placement and monster spawns both keep a **floor of free cells**.
+  → `docs/regles/carte-donjon.md` §2.12 ter
+- **One merchant, everything at normal price** (René, 2026-09-12), until negotiation
+  exists: `PhaseMarche::ouvrir()` **deliberately ignores** the requested profile. The four
+  profiles stay declared — they are the raw material of negotiation, not dead code, and a
+  test pins that all four yield the same stall at the same price so a later pass cannot
+  rewire the parameter believing it fixes a bug. → `docs/regles/exploration-et-fouille.md`
 - **An automatic effect that nothing announces is unplayable.** Journal it, publish it in
   the payload, render it on a screen — a mute payload is the same defect as no payload.
 - **The game must stay playable with NO API key**: engine menus, scripted narration,
@@ -66,9 +95,9 @@ table, and most of them look like a reasonable idea until you read why they lost
 
 | File | Read it before touching |
 |---|---|
-| `docs/regles/carte-donjon.md` | map generation, rooms/corridors/thresholds, furniture, traps, secret passage, map symbols & legend |
+| `docs/regles/carte-donjon.md` | map generation, rooms/corridors/thresholds, furniture, traps, **terrain**, secret passage, map symbols & legend, the **tile pool** and room playability |
 | `docs/regles/epreuves-et-attributs.md` | épreuves, `attribut_body` (push, smash, lever), difficulty ceiling |
-| `docs/regles/exploration-et-fouille.md` | search deck & artefacts, chests, room reveal, quest end, retreat vote, market cart |
+| `docs/regles/exploration-et-fouille.md` | search deck & artefacts, chests (incl. the **boss-room chest** and what a secret passage pays), room reveal, quest end, retreat vote, market cart and the **single merchant** |
 | `docs/regles/combat-et-tour.md` | menu & sub-choices, two-step targeting, turn slots, `GET /menu`, thrown weapon, monster conditions |
 | `docs/regles/equipement-et-armurerie.md` | mastery tags, class card backs, the equipment deck conversion, two weapons, charges vs frequency, stall, gifts |
 | `docs/regles/artefacts.md` | the 59 artefact cards, activable pieces, fidelity pass, poison, the dressing race |
@@ -79,7 +108,7 @@ table, and most of them look like a reasonable idea until you read why they lost
 | `docs/regles/talents-et-capacites.md` | innate card capacities, the 3×3 talent grid, level cadence, the 21 mechanics and their readers |
 | `docs/regles/narration-et-ia.md` | the AI builds the quest and no longer plays it, beats, quest opening, telemetry, Réglages, the B1 lock |
 | `docs/regles/medias-images-et-audio.md` | illustrations & SVG emblems, webp twins, barks, narrator voice, ambiance |
-| `docs/regles/front-manette-et-table.md` | what belongs on the phone vs the table screen, zoom & D-pad, room preview, objective banner, emergency menu |
+| `docs/regles/front-manette-et-table.md` | what belongs on the phone vs the table screen, **which decisions the server publishes rather than the client re-deriving**, zoom & D-pad, room preview, objective banner, emergency menu |
 
 ## Skills — `.claude/skills/`
 

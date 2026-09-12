@@ -27,8 +27,14 @@ qu'un **vocabulaire d'effets FERMÉ** :
   jamais tenue. → skill **`ajouter-mecanique-moteur`**
 
 Vocabulaires fermés (`app/Engine/`) : `MotsClesEquipement` · `MotsClesSort` ·
-`MotsClesSortDread` · `MotsClesTalent` · `MotsClesEpreuve` · `DureeEffet` ·
-`RegainEffet` · `TypeDegat` · `ReactionEffet`.
+`MotsClesSortDread` · `MotsClesTalent` · `MotsClesEpreuve` · `MotsClesTerrain` ·
+`DureeEffet` · `RegainEffet` · `TypeDegat` · `ReactionEffet`.
+
+⚠ `MotsClesTerrain` est arrivé le 2026-09-10 et n'était listé **nulle part** — ni ici,
+ni dans `CLAUDE.md`, ni dans `docs/regles/` — jusqu'au 2026-09-12. Une liste de
+vocabulaires fermés incomplète est pire qu'absente : elle donne l'assurance d'avoir
+vérifié. Ajouter le vocabulaire À CETTE LISTE fait partie de la création d'un
+vocabulaire, au même titre que son test dans les deux sens.
 
 ## ⚠ Garde-fou n°2 — rien n'est inventé, tout est sourcé
 
@@ -49,7 +55,8 @@ monstre vient d'une **carte** ou d'un **livret**, et s'inscrit au registre
 | Sort de Dread | `SortDreadSeeder` | `nom`, `palier`, `effet` |
 | Mobilier | `MobilierSeeder` | emprise, `bloque_mouvement`, `bloque_vue`, `adosse_au_mur`, `difficulte_destruction`, `effet.fouille` |
 | Épreuve | `EpreuveSeeder` | attribut, difficulté, `effet`, `exige_placement` |
-| Tuile | `TuileSeeder` | `type`, `theme`, `grille` |
+| Tuile | `TuileSeeder` | `type`, `theme`, `grille` — ⚠ il **purge** avant de semer, et rien ne référence `tuiles.id` : changer un patron prend effet au prochain `db:seed`, sans migration |
+| Terrain | `TerrainSeeder` | `nom`, `boite`, `bloque_mouvement`, `bloque_vue`, `cout_deplacement`, `effet` (vocabulaire `MotsClesTerrain`) |
 | Gabarit de quête | `GabaritQueteSeeder` | `structure` (`objectif`, `objectif_majeur`, `deck_fouille`, `rencontre_finale`), budget |
 | Compétence | `CompetenceSeeder` | `categorie`/`colonne`/`rang` (grille 3×3) ou `innee`, `effet.mecanique`, `description` |
 | Condition / Forge / Mercenaire | `Condition`/`ForgeAmelioration`/`Mercenaire` Seeder | — |

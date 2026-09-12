@@ -26,6 +26,15 @@ The hard invariant is connectivity: a badly placed piece cuts access to a chest 
 
 **Une couche TERRAIN, et le sol cesse d'être neutre** (`terrains`, `cartes.grille['terrain']`, 2026-09-06). Les quatre couches existantes — pièges, leviers, mobilier, épreuves — répondent toutes à « qu'y a-t-il ICI ? ». Aucune ne répondait à « que **coûte** cette case, et que se passe-t-il quand je la traverse ou que j'y reste ? ». Sept tuiles sourcées de *The Frozen Horror* (doc 18 §4) : glace glissante, glissière, rivière gelée, tunnel, chambre forte, glace magique, rebord de crevasse. Posée sur le patron **exact** de `placerMobilier()` — aucun type de case nouveau, aucune migration de tuile — et lue dans la **même** méthode `FabriqueGrille::pour()`, jamais une seconde : deux boucles feraient diverger déplacement, ciblage et ligne de vue. ⚠ Un terrain n'est pas une figure : `obstruer()` / `occulter()`, **jamais** `occuper()`.
 
+⚠ **Son vocabulaire d'effets est FERMÉ, comme les autres** : `App\Engine\MotsClesTerrain`
+(2026-09-10). Il a pourtant vécu deux jours sans figurer dans **aucune** liste de
+vocabulaires — ni `CLAUDE.md`, ni la skill `ajouter-element-de-jeu`, ni ici — alors que
+ces listes sont précisément ce qu'on consulte pour savoir si un effet doit passer par la
+case « mécanique d'abord ». Corrigé le 2026-09-12. ⚠ Une liste de vocabulaires fermés
+**incomplète est pire qu'absente** : elle donne l'assurance d'avoir vérifié. L'inscrire
+aux trois endroits fait partie de la création d'un vocabulaire, au même titre que son
+test dans les deux sens (`TerrainEnJeuTest`).
+
 ⚠ **Le gabarit dit COMBIEN, le thème dit LESQUELS.** Les sept tuiles portent `terrains.boite = 'horreur_des_glaces'`, et `placerTerrains()` ne retient que `boite === null` (convient à tout thème, comme pour le bestiaire) ou la boîte du groupe. Sans cette seconde moitié, déclarer `structure.terrains` aurait mis une **rivière gelée dans une quête de jungle** : le thème serait resté une affaire de bestiaire pendant que le sol, lui, aurait été glacé partout.
 
 ⚠ **La Rivière gelée a fait passer le déplacement en COÛT PONDÉRÉ** (2026-09-06). `casesAtteignables()` et `chemin()` sont désormais un parcours de Dijkstra ; **`distance()` reste géométrique**, et cette distinction est tout. Elle sert à la **portée** et à l'**adjacence** : la flèche d'un arbalétrier n'est pas ralentie par la glace, et deux cases voisines restent adjacentes même si l'une coûte 2. Les confondre aurait **raccourci la portée de toutes les armes à distance** dès qu'une case coûteuse traînait sur la ligne — un défaut qui ne se serait vu qu'en partie, sur un tir qui rate sans raison. ⚠ Corollaire trouvé dans la foulée : tout ce qui budgétait en `count($chemin)` comptait des **cases** là où il fallait des **points** (`MoteurDread` pour la charge des monstres, le déplacement des alliés) — d'où `Grille::coutChemin()` et `Grille::pasAffordables()`, et un seul point de passage pour la question.
