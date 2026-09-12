@@ -214,3 +214,42 @@ fouillait les salles 0, 1, 2 en dur : **une salle à coffre ne pioche pas dans l
 elle rend son coffre — la carte `errant` empilée n'était jamais tirée et l'issue
 revenait `artefact`. Il choisit maintenant trois salles **hors `salles_coffre`**, lu
 sur la quête plutôt que figé. Vérifié 12 fois de suite : vert.
+
+**Ce qui varie d'une carte à l'autre, et ce qui ne varie jamais** (mesuré 2026-09-12,
+question de René : « les cartes sont-elles tout le temps générées de la même façon ? »).
+
+⚠ **La carte est rigoureusement DÉTERMINISTE par (groupe, numéro de quête)** : la
+graine vaut `crc32($groupe->identifiant.':'.$positionArc)` (`DemarreurQuete`).
+Vérifié : deux appels rendent une carte identique au caractère près ; un autre groupe
+à la même position rend une carte différente. **Recommencer une quête redonne donc le
+même donjon.** ⚠ C'est l'inverse du choix pris pour le **deck de fouille** le
+2026-08-05 (dé-graine du groupe, « une reprise ne doit pas rendre la pioche connue »),
+et l'asymétrie est volontaire : la carte est **stockée en base** et doit survivre
+telle quelle à une reprise de snapshot — `salle_artefact` / `salles_coffre` y sont
+épinglées pour la même raison. Une carte re-tirée déplacerait le coffre sous les pieds
+du groupe.
+
+Ce qui **varie** (10 positions d'arc d'un vrai groupe, gabarit `normale`) : **10
+signatures de tuiles distinctes sur 10**, 5 à 8 salles, 3 à 9 meubles, 1 à 2 pièges,
+0 à 1 levier, 1 à 2 épreuves, 1 à 2 portes secrètes.
+
+Ce qui **ne varie jamais** :
+- le **squelette** — arbre couvrant + boucles + couloirs, **salle 0 = départ**,
+  **dernière salle = rencontre finale** ;
+- le **thème du bestiaire**, figé pour toute la campagne dans
+  `groupes.theme_bestiaire` (arbitrage du 2026-09-06, pour que l'ajout d'une 5ᵉ boîte
+  ne change pas le modulo sous une campagne en cours) ;
+- l'**objectif**, et c'est le point le moins évident. ⚠ **`choisirGabarit()` ne tire
+  RIEN** : il fait `where('type_jalon', $type)->orderBy('id')->first()`. Il existe
+  exactement **trois** gabarits, un par type de jalon (`normale` →
+  `atteindre_et_recuperer`, `sous_boss`, `boss_final`), donc le gabarit est
+  entièrement déterminé par la position dans l'arc. **Toute quête ordinaire a le même
+  objectif.**
+
+⚠ **Piège latent, à dire avant qu'il ne coûte** : semer un second gabarit `normale`
+ne changerait rien — il ne serait **jamais choisi**, `orderBy('id')->first()` prenant
+toujours le même. C'est la classe de défaut exacte du levier qui n'a jamais été placé
+(tout le mécanisme écrit et testé, rien qui l'atteigne). Rendre le gabarit **tirable**
+(graine `crc32($identifiant.':'.$positionArc)`, la même que la carte, pour rester
+reproductible) est le préalable à toute variété d'objectifs — mais seul, ce
+changement n'a **aucun effet visible** tant qu'il n'y a qu'un gabarit par jalon.
