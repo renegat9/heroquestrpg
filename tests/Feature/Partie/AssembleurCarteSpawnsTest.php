@@ -117,3 +117,51 @@ it('laisse des cases libres dans chaque salle peuplée de monstres', function ()
         }
     }
 });
+
+it('ne fait JAMAIS apparaître un monstre sur une case occupée par le décor', function () {
+    // ⚠ Signalé par René en partie réelle (2026-09-11) : « les monstres ne
+    // devraient pas apparaître dans les meubles et les portes fermées », puis
+    // « spawn seulement dans les cases vides ». Le défaut était une ASYMÉTRIE DE
+    // SIGNATURE : `spawnsHeros()` recevait `$portes` et évitait les embrasures,
+    // `spawnsMonstres()` ne recevait que `$cases` et `$salles` — il ne pouvait
+    // pas éviter ce qu'on ne lui donnait pas.
+    $gabarit = GabaritQuete::query()->orderByDesc('id')->firstOrFail();
+    $assembleur = app(AssembleurCarte::class);
+
+    $cartesVues = 0;
+    $spawnsVus = 0;
+
+    foreach (range(1, 40) as $graine) {
+        $carte = $assembleur->assembler($gabarit, $graine, 40, 'horreur_des_glaces');
+        $cartesVues++;
+
+        $occupe = [];
+        foreach ($carte['portes'] as $porte) {
+            $e = Grille::caseEmbrasure($porte, $carte['salles']);
+            $occupe["{$e['x']},{$e['y']}"] = 'porte';
+        }
+        foreach ($carte['mobilier'] ?? [] as $m) {
+            for ($dy = 0; $dy < max(1, (int) ($m['h'] ?? 1)); $dy++) {
+                for ($dx = 0; $dx < max(1, (int) ($m['l'] ?? 1)); $dx++) {
+                    $occupe[((int) $m['x'] + $dx).','.((int) $m['y'] + $dy)] = 'mobilier';
+                }
+            }
+        }
+        foreach (['pieges', 'leviers', 'epreuves', 'terrain'] as $couche) {
+            foreach ($carte[$couche] ?? [] as $e) {
+                $occupe[((int) $e['x']).','.((int) $e['y'])] = $couche;
+            }
+        }
+
+        foreach ($carte['spawn_monstres'] as $s) {
+            $spawnsVus++;
+            $cle = "{$s['x']},{$s['y']}";
+            expect($occupe[$cle] ?? null)->toBeNull(
+                "graine {$graine} : un monstre apparaît en ({$s['x']},{$s['y']}) sur « ".($occupe[$cle] ?? '?').' »',
+            );
+        }
+    }
+
+    // Le test ne prouverait rien s'il n'avait jamais vu de spawn.
+    expect($cartesVues)->toBe(40)->and($spawnsVus)->toBeGreaterThan(40);
+});

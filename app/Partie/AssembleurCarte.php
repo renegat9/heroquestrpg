@@ -348,7 +348,9 @@ final class AssembleurCarte
             // dérive la visibilité des coordonnées, pas d'un index.
             'terrain' => $terrain,
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
-            'spawn_monstres' => $this->spawnsMonstres($cases, $salles),
+            'spawn_monstres' => $this->spawnsMonstres($cases, $salles, $this->casesDuDecor(
+                $salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain,
+            )),
         ];
     }
 
@@ -2333,7 +2335,60 @@ final class AssembleurCarte
      */
     private const RESERVE_CASES_LIBRES = 4;
 
-    private function spawnsMonstres(array $cases, array $salles): array
+    /**
+     * Cases du décor où un monstre ne doit JAMAIS apparaître (René, 2026-09-11,
+     * après avoir joué : « les monstres ne devraient pas apparaître dans les
+     * meubles et les portes fermées » puis « spawn seulement dans les cases
+     * vides »).
+     *
+     * ⚠ Le défaut était une ASYMÉTRIE DE SIGNATURE, pas un calcul faux :
+     * `spawnsHeros()` recevait `$portes` et évitait donc les embrasures, tandis
+     * que `spawnsMonstres()` ne recevait que `$cases` et `$salles` — il ne
+     * POUVAIT pas éviter ce qu'on ne lui donnait pas. Et `interieur()` ne teste
+     * qu'une chose : « est-ce du sol ». Les spawns sont pourtant calculés APRÈS
+     * la pose de toutes les couches : la donnée était là, simplement pas
+     * transmise. `DemarreurQuete` pose ensuite la créature sans re-valider.
+     *
+     * ⚠ Un seul point de passage, appelé une fois : deux recensements du décor
+     * divergeraient au premier ajout de couche — et une couche neuve oubliée
+     * ici se verrait en partie, sous la forme d'un monstre dans une table.
+     *
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>  $salles
+     * @return array<string, true>  clés « x,y »
+     */
+    private function casesDuDecor(array $salles, array $portes, array $mobilier, array $pieges, array $leviers, array $epreuves, array $terrain): array
+    {
+        $pris = [];
+
+        // Embrasures : une porte occupe SA case depuis le 2026-09-11, et une
+        // porte close y interdit même l'entrée. Un monstre posé là serait
+        // enfermé dans le battant.
+        foreach ($portes as $porte) {
+            $e = Grille::caseEmbrasure($porte, $salles);
+            $pris["{$e['x']},{$e['y']}"] = true;
+        }
+
+        // Mobilier : son EMPRISE entière (`l`×`h`), pas seulement son ancre —
+        // une table 2×1 prend deux cases, et seule la première était visible
+        // depuis l'ancre.
+        foreach ($mobilier as $m) {
+            for ($dy = 0; $dy < max(1, (int) ($m['h'] ?? 1)); $dy++) {
+                for ($dx = 0; $dx < max(1, (int) ($m['l'] ?? 1)); $dx++) {
+                    $pris[((int) $m['x'] + $dx).','.((int) $m['y'] + $dy)] = true;
+                }
+            }
+        }
+
+        foreach ([$pieges, $leviers, $epreuves, $terrain] as $couche) {
+            foreach ($couche as $e) {
+                $pris[((int) $e['x']).','.((int) $e['y'])] = true;
+            }
+        }
+
+        return $pris;
+    }
+
+    private function spawnsMonstres(array $cases, array $salles, array $decor = []): array
     {
         $n = count($salles);
 
@@ -2349,8 +2404,15 @@ final class AssembleurCarte
         // reçu 5 monstres — plus aucune case libre, salle impénétrable, et une
         // SEULE case du donjon adjacente à elle. Le combat s'est joué à un héros
         // contre cinq à travers ce goulot, et a coûté la partie.
-        $listes = array_map(function (int $i) use ($cases, $salles) {
-            $interieur = $this->interieur($cases, $salles[$i]);
+        $listes = array_map(function (int $i) use ($cases, $salles, $decor) {
+            // ⚠ « Spawn seulement dans les cases VIDES » (René, 2026-09-11) :
+            // on retire tout ce que le décor occupe AVANT de calculer la
+            // réserve, sinon on réserverait des cases déjà prises et une salle
+            // meublée se remplirait quand même à ras bord.
+            $interieur = array_values(array_filter(
+                $this->interieur($cases, $salles[$i]),
+                fn (array $p) => ! isset($decor["{$p['x']},{$p['y']}"]),
+            ));
 
             // On réserve une place d'entrée par héros possible, dans la limite
             // de la moitié de la salle (une petite salle garde au moins 1 case).
