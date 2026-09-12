@@ -1740,6 +1740,29 @@ final class MoteurSorts
         return false;
     }
 
+    /**
+     * MOBILITÉ DE COMBAT effective, talent OU buff confondus — la même
+     * expression, désormais au SEUL endroit qui la calcule, que
+     * `ResolveurTour::resoudreDeplacer()` appliquait déjà en dur
+     * (`$this->capacites->a($personnage, 'franchit_figures') ||
+     * $this->sorts->franchitFigures($personnage)`).
+     *
+     * ⚠ `EtatGroupe` et `MenuMoteur::peutSeDeplacer()` en ont besoin pour la
+     * MÊME raison que `sort_bonus_disponible` : un client ne peut pas deviner
+     * si CE héros porte le talent du Rogue ou le buff de Voile de Brume, donc
+     * le serveur publie la DÉCISION plutôt que de la laisser se re-dériver —
+     * un cinquième miroir aurait dérivé comme les quatre précédents
+     * (`docs/regles/front-manette-et-table.md`). Sans elle, la manette
+     * traitait tout monstre comme un mur MÊME pour un héros qui les
+     * traverse : le talent existait côté moteur et restait injouable côté
+     * écran (signalé en partie réelle, 2026-09-11).
+     */
+    public function mobiliteCombatDisponible(Personnage $personnage): bool
+    {
+        return app(CapacitesInnees::class)->a($personnage, 'franchit_figures')
+            || $this->franchitFigures($personnage);
+    }
+
     /** Héros inattaquable (condition « Évanescent » du catalogue). */
     public function estInattaquable(Personnage $personnage): bool
     {

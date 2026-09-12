@@ -16,6 +16,15 @@ const props = defineProps({
     portee: { type: Number, required: true },
     de: { type: [Number, null], default: null },
     base: { type: Number, default: 0 },
+    // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : publié par `EtatGroupe`
+    // (`entites[].franchit_figures`, calculé par
+    // `MoteurSorts::mobiliteCombatDisponible()`) — la DÉCISION serveur, pas
+    // un talent/buff que ce composant pourrait deviner lui-même. René,
+    // 2026-09-11 : « la mobilité de combat du Rogue ne permet pas de se
+    // déplacer à travers les ennemis » — le moteur l'autorisait déjà,
+    // c'était CE miroir qui traitait tout monstre comme un mur pour tout le
+    // monde.
+    franchitFigures: { type: Boolean, default: false },
 });
 const emit = defineEmits(['deplacer', 'close']);
 
@@ -81,9 +90,22 @@ const embrasuresFermees = computed(() => {
 // (après le coût de déplacement pondéré et le calcul des cases atteignables).
 // Tout miroir est une seconde copie de la règle : il ne dérive pas le jour où
 // on l'écrit, il dérive le jour où la règle bouge sans lui.
-const BLOQUANTE = (e) => e.type === 'monstre';
+//
+// ⚠ QUATRIÈME dérive (René, 2026-09-11 : « la mobilité de combat du Rogue ne
+// permet pas de se déplacer à travers les ennemis »). Un monstre était
+// bloquant SANS CONDITION, alors que le résolveur lève cette barrière pour un
+// héros qui porte le talent `franchit_figures` (Rogue) ou le buff Voile de
+// Brume (`ResolveurTour::resoudreDeplacer()`,
+// `MoteurSorts::mobiliteCombatDisponible()`). Le talent existait côté moteur
+// et restait injouable côté écran : le joueur ne pouvait même pas TAPER la
+// case au-delà d'un monstre. `props.franchitFigures` porte la DÉCISION
+// publiée par `EtatGroupe` — ce composant ne peut pas deviner tout seul si CE
+// héros porte le talent ou le buff.
+const BLOQUANTE = (e) => e.type === 'monstre' && ! props.franchitFigures;
 
-/** Cases où l'on ne peut ni passer ni s'arrêter : les MONSTRES. */
+/** Cases où l'on ne peut ni passer ni s'arrêter : les MONSTRES — sauf pour un
+ *  héros qui les franchit ce tour-ci (`franchitFigures`), auquel cas ils
+ *  rejoignent `alliees` ci-dessous : traversables, jamais une destination. */
 const occupees = computed(() => {
     const s = new Set();
     for (const e of props.entites) {
@@ -96,14 +118,16 @@ const occupees = computed(() => {
 });
 
 /** Cases TRAVERSABLES mais où l'on ne peut pas S'ARRÊTER : héros, alliés,
- *  mercenaires — tout ce qui n'est pas un monstre. Un héros à terre ne compte
- *  pas : il n'occupe plus sa case comme obstacle. */
+ *  mercenaires — tout ce qui n'est pas un monstre BLOQUANT (voir `BLOQUANTE`
+ *  ci-dessus : un monstre y tombe aussi quand `franchitFigures` est vrai).
+ *  Un héros à terre ne compte pas : il n'occupe plus sa case comme obstacle. */
 const alliees = computed(() => {
     const s = new Set();
     for (const e of props.entites) {
         if (e.x === props.depart.x && e.y === props.depart.y) continue;
         if (BLOQUANTE(e)) continue;
         if (e.type === 'heros' && e.tombe) continue;
+        if (e.type === 'monstre' && ((e.etat ?? 'actif') !== 'actif' || (e.pv_body ?? 1) <= 0)) continue;
         s.add(cle(e.x, e.y));
     }
     return s;
@@ -212,23 +236,32 @@ const accessibles = computed(() => {
     return out;
 });
 
+/** Rendu d'une figure présente sur une case : 'monstre' (icône dédiée) sauf
+ *  pour un allié — hérité, mercenaire, ou monstre enrôlé par la Baguette d'Os
+ *  (`controle_par`), qui n'est plus un ennemi ce tour-ci et se peint comme sur
+ *  la table — ou pour un monstre devenu traversable (`franchitFigures`) : il
+ *  reste un MONSTRE à l'écran, seule sa capacité à bloquer a changé. */
+function silhouetteDe(x, y) {
+    const ent = occupantDe(x, y);
+    return (ent?.type === 'monstre' && ! ent?.controle_par) ? 'monstre' : 'allie';
+}
+
 // Surcouche par case (au-dessus du terrain rendu par DungeonGrid) : départ,
 // occupant (monstre/allié) ou case accessible ; null = terrain nu.
 function surcouche(x, y) {
     if (x === props.depart.x && y === props.depart.y) return 'depart';
     const k = cle(x, y);
-    if (occupees.value.has(k)) {
-        const ent = occupantDe(x, y);
-        // Une créature enrôlée par la Baguette d'Os n'est plus un ennemi ce
-        // tour-ci : elle se peint comme un allié, ici comme sur la table.
-        return (ent?.type === 'monstre' && ! ent?.controle_par) ? 'monstre' : 'allie';
-    }
+    if (occupees.value.has(k)) return silhouetteDe(x, y);
     // ⚠ Les ALLIÉS ont leur propre ensemble depuis qu'on peut les traverser
-    // (2026-09-11). Ne tester que `occupees` les rendait INVISIBLES sur la
-    // carte : ni couleur, ni glyphe, un compagnon devenu du sol nu. Ils ne
-    // sont pas non plus dans `accessibles` — on les traverse, on ne s'y
-    // arrête pas — donc sans ce test ils ne retombent sur rien.
-    if (alliees.value.has(k)) return 'allie';
+    // (2026-09-11) — et un monstre qu'un Rogue/Voile de Brume franchit y
+    // tombe aussi désormais (`BLOQUANTE`, plus haut) : ne tester que
+    // `occupees` les rendait INVISIBLES sur la carte (ni couleur, ni glyphe,
+    // une figure devenue sol nu), et un test qui rendait tout `alliees`
+    // comme 'allie' sans condition aurait peint un monstre traversable en
+    // pastille de compagnon — silhouette FAUSSE pour une figure qui reste un
+    // ennemi. Ils ne sont pas non plus dans `accessibles` — on les traverse,
+    // on ne s'y arrête pas — donc sans ce test ils ne retombent sur rien.
+    if (alliees.value.has(k)) return silhouetteDe(x, y);
     return accessibles.value.has(k) ? 'accessible' : null;
 }
 

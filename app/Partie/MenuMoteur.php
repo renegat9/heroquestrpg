@@ -12,7 +12,6 @@ use App\Engine\ResultatDeplacement;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
-use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -797,12 +796,34 @@ final class MenuMoteur
     }
 
     /**
-     * Le héros a-t-il AU MOINS une case orthogonale accessible (donc un
-     * déplacement réel possible) ? On reconstruit le plateau du moteur — même
-     * occupation que ResolveurTour::grille (autres héros, monstres actifs avec
-     * emprise, alliés) et portes/murs de la carte — puis on teste les 4 voisins :
-     * l'ensemble atteignable est vide SSI aucun voisin n'est traversable. Sans
-     * carte/position, on suppose le déplacement possible (ne jamais masquer à tort).
+     * Le héros a-t-il au moins une case d'ARRIVÉE légale (donc un déplacement
+     * réel possible) ? Sans carte/position, on suppose le déplacement possible
+     * (ne jamais masquer à tort).
+     *
+     * ⚠ Reconstruisait jusqu'ici sa PROPRE boucle d'occupation — une copie de
+     * `FabriqueGrille::pour()`, le point de passage unique de cette question
+     * (doc CLAUDE.md « une règle, un point de passage ») — et traitait tout
+     * héros ou mercenaire DEBOUT comme un mur. Or depuis le 2026-09-04 « on
+     * peut traverser la case d'un allié, pas s'y arrêter » (LR p. 12, doc 16
+     * §5) : le menu retirait donc « Se déplacer » à un héros encerclé
+     * d'ALLIÉS que le résolveur, lui, aurait laissé passer (signalé en partie
+     * réelle, 2026-09-11). `FabriqueGrille::pour(…, franchitAllies: true)` est
+     * exactement l'appel que fait `ResolveurTour::resoudreDeplacer()`.
+     *
+     * ⚠ Ni un simple voisin : un héros dont les 4 cases adjacentes sont toutes
+     * occupées (par des alliés, ou par des monstres pour un Rogue) peut
+     * pourtant avoir une case libre à 2 pas, atteignable en les traversant.
+     * `casesAtteignables()` (même parcours pondéré que le résolveur) explore
+     * à travers les figures traversables tout en excluant leur case des
+     * destinations — un simple test des 4 voisins sous-estimait la portée
+     * réelle du résolveur.
+     *
+     * ⚠ MOBILITÉ DE COMBAT (Rogue) / Voile de Brume et Traverser la Pierre
+     * sont relus ICI pour la même raison qu'un Rogue ne peut pas CLIQUER
+     * au-delà d'un monstre sans le même calcul côté `EtatGroupe` : un talent
+     * ou un buff qui lève les figures ou la roche pour le résolveur doit
+     * lever le même mur pour le menu, sans quoi « Se déplacer » disparaît
+     * derrière un obstacle que le clic suivant aurait pourtant accepté.
      */
     private function peutSeDeplacer(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): bool
     {
@@ -810,42 +831,21 @@ final class MenuMoteur
             return true;
         }
 
-        $grille = Grille::depuisCarte($quete->carte);
+        $grille = FabriqueGrille::pour(
+            $quete,
+            exceptPersonnageId: $personnage->id,
+            traverseRoche: $this->sorts->traverseRoche($personnage),
+            franchitAllies: true,
+        );
 
-        $occupees = [];
-        foreach ($quete->etatsPersonnages()->get() as $autre) {
-            // Un allié TOMBÉ ne bloque pas le passage — on l'enjambe (même
-            // règle que FabriqueGrille, cf. HerosTombeTest). Il était compté
-            // ici, si bien que le menu retirait « Se déplacer » à un héros
-            // qu'en réalité le moteur aurait laissé avancer (§2.17).
-            if ($autre->personnage_id !== $personnage->id && $autre->position_x !== null && ! $autre->tombe) {
-                $occupees[] = ['x' => (int) $autre->position_x, 'y' => (int) $autre->position_y];
-            }
-        }
-        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
-            if ($instance->position_x !== null) {
-                $e = $instance->monstre->emprise();
-                $occupees = array_merge($occupees, $grille->cellulesEmprise(
-                    (int) $instance->position_x, (int) $instance->position_y, $e['l'], $e['h'],
-                ));
-            }
-        }
-        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'actif')->get() as $allie) {
-            if ($allie->position_x !== null) {
-                $occupees[] = ['x' => (int) $allie->position_x, 'y' => (int) $allie->position_y];
-            }
-        }
-        $grille->occuper($occupees);
-
-        $x = (int) $etat->position_x;
-        $y = (int) $etat->position_y;
-        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-            if ($grille->estTraversable($x + $dx, $y + $dy)) {
-                return true;
-            }
+        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
+            $grille->autoriserFranchissement();
         }
 
-        return false;
+        $pas = $this->pointsRestants($personnage, $etat);
+
+        return $pas >= 1
+            && $grille->casesAtteignables((int) $etat->position_x, (int) $etat->position_y, $pas) !== [];
     }
 
     /**

@@ -42,7 +42,7 @@ function donnerObjet(int $personnageId, string $nomObjet, string $emplacement = 
     ]);
 }
 
-it('ouvre la phase au hub : profil bourg par défaut, raretés et stocks du profil, prix du catalogue', function () {
+it('ouvre la phase au hub : profil bourg par défaut, TOUTES les raretés (jamais d\'unique), stocks et prix du catalogue', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $groupe->update(['or' => 1000]);
@@ -58,17 +58,26 @@ it('ouvre la phase au hub : profil bourg par défaut, raretés et stocks du prof
 
     $inventaire = collect($reponse->json('inventaire'));
 
-    // Bourg : commun + peu commun seulement — jamais de rare ni d'unique.
+    // René, 2026-09-11, en partie réelle : « change le marchand pour toujours
+    // tout pouvoir acheter » — tombé sur un bourg sans la moindre armure
+    // sérieuse (Cotte de mailles / Armure de plates sont `rare`). Les QUATRE
+    // profils vendent désormais toutes les raretés — jamais d'`unique`
+    // (butin de quête seulement, inchangé).
     expect($inventaire->pluck('rarete')->unique()->sort()->values()->all())
-        ->toBe(['commun', 'peu_commun']);
+        ->toBe(['commun', 'peu_commun', 'rare']);
 
-    // Prix = prix_base × 1,0 ; stocks playtest : commun illimité, peu_commun 3.
+    // Prix = prix_base × 1,0 ; stocks playtest inchangés : commun illimité,
+    // peu_commun 3, rare 1 — élargir QUI vend le rare ne change pas COMBIEN
+    // il en vend (décision distincte, doc 04 §4 : « rare, souvent 1 »).
     $epee = $inventaire->firstWhere('nom', 'Épée courte');
     $rapiere = $inventaire->firstWhere('nom', 'Rapière');
+    $platesArmor = $inventaire->firstWhere('nom', 'Armure de plates');
     expect($epee['prix'])->toBe(150)
         ->and($epee['stock'])->toBeNull()
         ->and($rapiere['prix'])->toBe(250)
-        ->and($rapiere['stock'])->toBe(3);
+        ->and($rapiere['stock'])->toBe(3)
+        ->and($platesArmor)->not->toBeNull()
+        ->and($platesArmor['stock'])->toBe(1);
 
     // Panier vide initialisé pour chaque joueur membre.
     $reponse->assertJsonPath('paniers.0.joueur_id', $alice->id)
@@ -79,16 +88,36 @@ it('ouvre la phase au hub : profil bourg par défaut, raretés et stocks du prof
     $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('profil', 'bourg');
 });
 
-it('applique le profil de lieu : village = commun seul à ×1,2', function () {
+it('une armure RARE est achetable en VILLAGE comme en CITÉ, et le multiplicateur du lieu s\'applique toujours', function () {
+    // Cas précis signalé par René, 2026-09-11 : tombé sur un bourg sans la
+    // moindre armure sérieuse. Armure de plates (rare, prix_base 850) doit
+    // désormais apparaître dans TOUS les profils — le multiplicateur restant
+    // la seule chose que le lieu change encore (village ×1,2, cité ×1,0 :
+    // René n'a pas demandé de le retirer).
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
-    creerHeros($alice, $groupe, 'Albrecht', 1);
 
-    $reponse = $this->postJson('/api/groupes/table-1/marche', ['profil' => 'village'])->assertCreated();
+    $village = creerGroupe('table-village');
+    creerHeros($alice, $village, 'Albrecht', 1);
+    $repVillage = $this->postJson('/api/groupes/table-village/marche', ['profil' => 'village'])->assertCreated();
+    $platesVillage = collect($repVillage->json('inventaire'))->firstWhere('nom', 'Armure de plates');
 
-    $inventaire = collect($reponse->json('inventaire'));
-    expect($inventaire->pluck('rarete')->unique()->all())->toBe(['commun'])
-        ->and($inventaire->firstWhere('nom', 'Dague')['prix'])->toBe(30); // 25 × 1,2
+    expect($platesVillage)->not->toBeNull()
+        ->and($platesVillage['rarete'])->toBe('rare')
+        ->and($platesVillage['prix'])->toBe(1020) // 850 × 1,2
+        ->and($platesVillage['stock'])->toBe(1); // stock inchangé : question distincte du profil
+
+    $cite = creerGroupe('table-cite');
+    creerHeros($alice, $cite, 'Roland', 1);
+    $repCite = $this->postJson('/api/groupes/table-cite/marche', ['profil' => 'cite'])->assertCreated();
+    $platesCite = collect($repCite->json('inventaire'))->firstWhere('nom', 'Armure de plates');
+
+    expect($platesCite)->not->toBeNull()
+        ->and($platesCite['rarete'])->toBe('rare')
+        ->and($platesCite['prix'])->toBe(850); // 850 × 1,0
+
+    // La Dague (commune) confirme que le multiplicateur joue aussi sur le
+    // bas de l'échelle des prix, pas seulement sur les pièces rares.
+    expect(collect($repVillage->json('inventaire'))->firstWhere('nom', 'Dague')['prix'])->toBe(30); // 25 × 1,2
 });
 
 it('refuse d\'ouvrir le marché pendant une quête (hub uniquement)', function () {
@@ -166,7 +195,7 @@ it('refuse la vente d\'un objet que le joueur ne possède pas', function () {
     expect($dagueDeBob->fresh())->not->toBeNull();
 });
 
-it('refuse un achat hors profil ou au-delà du stock', function () {
+it('refuse un achat hors profil (un ARTEFACT, jamais en vente) ou au-delà du stock', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $groupe->update(['or' => 5000]);
@@ -174,9 +203,12 @@ it('refuse un achat hors profil ou au-delà du stock', function () {
 
     $this->postJson('/api/groupes/table-1/marche')->assertCreated(); // bourg
 
-    // La hache de bataille est rare : absente de l'étal d'un bourg.
+    // ⚠ Depuis le 2026-09-11, la RARETÉ ne ferme plus aucun profil (René :
+    // « change le marchand pour toujours tout pouvoir acheter ») — la Hache
+    // de bataille (rare, 450) est désormais bien à l'étal d'un bourg. Seul un
+    // objet `unique` (butin de quête) reste hors profil, dans tous les cas.
     $this->putJson('/api/groupes/table-1/marche/panier', [
-        'achats' => [['objet_id' => Objet::where('nom', 'Hache de bataille')->first()->id]],
+        'achats' => [['objet_id' => Objet::where('nom', 'Fléau des Orques')->first()->id]],
         'ventes' => [],
     ])->assertStatus(422);
 
@@ -187,6 +219,13 @@ it('refuse un achat hors profil ou au-delà du stock', function () {
         'achats' => [['objet_id' => Objet::where('nom', 'Rapière')->first()->id, 'quantite' => 4]],
         'ventes' => [],
     ])->assertStatus(422);
+
+    // La Hache de bataille (rare), elle, s'achète bien — c'est le point même
+    // du correctif.
+    $this->putJson('/api/groupes/table-1/marche/panier', [
+        'achats' => [['objet_id' => Objet::where('nom', 'Hache de bataille')->first()->id]],
+        'ventes' => [],
+    ])->assertOk();
 });
 
 it('refuse la finalisation si la bourse commune ne couvre pas le total (total projeté < 0)', function () {

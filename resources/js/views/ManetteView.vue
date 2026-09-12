@@ -1228,6 +1228,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         :portee="feuilleOption.option.parametres?.portee ?? feuilleOption.option.parametres?.portee_base ?? 0"
                         :de="feuilleOption.option.parametres?.de ?? null"
                         :base="feuilleOption.option.parametres?.base ?? 0"
+                        :franchit-figures="monEntite?.franchit_figures === true"
                         @deplacer="deplacerVers"
                         @close="retourFeuille"
                     />

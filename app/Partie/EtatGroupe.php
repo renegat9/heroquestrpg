@@ -907,6 +907,19 @@ final class EtatGroupe
                     // journal annonçait la seconde frappe, le bouton la
                     // refusait quand même (signalé en partie réelle, 2026-09-11).
                     'attaque_supplementaire' => (bool) ($etat?->attaque_supplementaire ?? false),
+                    // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : « on peut
+                    // traverser une case occupée par un monstre, pas s'y
+                    // arrêter ». Le moteur le sait (`ResolveurTour`,
+                    // `MoteurSorts::mobiliteCombatDisponible()`), le client
+                    // ne le peut pas — un talent de classe et un buff de sort
+                    // ne se devinent pas depuis la manette. Sans ce drapeau,
+                    // `DeplacementSheet.vue` traitait tout monstre comme un
+                    // mur pour TOUT héros, Rogue compris : le talent existait
+                    // côté moteur et restait injouable côté écran (signalé en
+                    // partie réelle, 2026-09-11). On publie la DÉCISION,
+                    // calculée par la MÊME méthode que le résolveur — pas un
+                    // cinquième miroir qui la re-déduirait.
+                    'franchit_figures' => $this->sorts->mobiliteCombatDisponible($p),
                     // RÉSERVE ARCANIQUE (talent du magicien) et Baguette de
                     // Rappel : un SECOND sort au-delà du créneau d'action, le
                     // pendant exact de la seconde attaque ci-dessus. Même

@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
+use App\Models\Quete;
 use App\Partie\EtatGroupe;
 use App\Partie\MenuMoteur;
 use Database\Seeders\GabaritQueteSeeder;
@@ -172,4 +175,91 @@ it('retire un monstre vaincu de l\'état partagé — plus sur la carte manette/
 
     $apres = collect($etatGroupe->payload($groupe->fresh())['entites'])->where('type', 'monstre')->pluck('id');
     expect($apres)->not->toContain($instance->id);
+});
+
+/*
+ * René, 2026-09-11, en partie réelle : « le déplacement n'affiche pas dans les
+ * actions quand on est entouré même si des amis sont présents et qui peuvent
+ * être traversés ». `MenuMoteur::peutSeDeplacer()` refaisait sa PROPRE boucle
+ * d'occupation et comptait tout héros DEBOUT comme un mur — la règle du
+ * plateau permet pourtant de le traverser (pas de s'y arrêter) depuis le
+ * 2026-09-04. `FabriqueGrille::pour(…, franchitAllies: true)` est désormais le
+ * seul point de passage de cette question, comme pour le résolveur.
+ */
+
+it('garde « Se déplacer » pour un héros ENTOURÉ D\'ALLIÉS, même sans aucun pas immédiat libre', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $voisins = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+    // Force les 4 voisins en SOL, plus une échappée à 2 pas à l'est — atteignable
+    // seulement en traversant le compagnon planté sur (hx+1, hy).
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    foreach ($voisins as [$dx, $dy]) {
+        $grille['cases'][$hy + $dy][$hx + $dx] = 's';
+    }
+    $grille['cases'][$hy][$hx + 2] = 's';
+    $carte->update(['grille' => $grille]);
+    $quete->refresh();
+
+    // Quatre compagnons plantés sur les 4 cases adjacentes — de simples états
+    // de quête, comme `DeplacementTest::« DÉPASSE un compagnon »`.
+    $pseudos = ['bob', 'carol', 'dave', 'erin'];
+    foreach ($voisins as $i => [$dx, $dy]) {
+        $joueur = JoueurAuthentifiable::create([
+            'pseudo' => $pseudos[$i], 'identifiant' => $pseudos[$i], 'mot_de_passe' => 'secret',
+        ]);
+        $allie = creerHeros($joueur, $groupe, "Allié{$i}", 10 + $i);
+        EtatPersonnageQuete::create([
+            'quete_id' => $quete->id, 'personnage_id' => $allie->id,
+            'position_x' => $hx + $dx, 'position_y' => $hy + $dy,
+        ]);
+    }
+
+    $menu = menuMoteurPour($groupe, $hero);
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->not->toBeNull();
+
+    // …mais s'ARRÊTER sur un allié reste refusé : seul le PASSAGE s'ouvre, pas
+    // le partage de case (« DÉPASSE un compagnon », `DeplacementTest.php`).
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+    $this->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => ['x' => $hx + 1, 'y' => $hy],
+    ])->assertStatus(422)->assertJsonPath(
+        'errors.parametres.0',
+        'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
+    );
+});
+
+it('perd « Se déplacer » pour le MÊME héros quand ses 4 voisins sont des MURS', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $grille['cases'][$hy + $dy][$hx + $dx] = 'm';
+    }
+    $carte->update(['grille' => $grille]);
+    $quete->refresh();
+
+    $menu = menuMoteurPour($groupe, $hero);
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->toBeNull();
 });

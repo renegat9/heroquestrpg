@@ -350,7 +350,7 @@ final class AssembleurCarte
             'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles, $this->casesDuDecor(
                 $salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain,
-            )),
+            ), $suivant),
         ];
     }
 
@@ -2388,13 +2388,31 @@ final class AssembleurCarte
         return $pris;
     }
 
-    private function spawnsMonstres(array $cases, array $salles, array $decor = []): array
+    /**
+     * @param  \Closure  $suivant  PRNG du donjon (`creerPRNG()`) — JAMAIS
+     *                             `shuffle()`/`random_int()`, sous peine de
+     *                             perdre la reproductibilité à graine égale
+     *                             que `CouloirsTest` verrouille. Méthode
+     *                             `private`, un seul appelant (`assembler()`
+     *                             ci-dessus) : rien d'autre à tenir compatible.
+     */
+    private function spawnsMonstres(array $cases, array $salles, array $decor, \Closure $suivant): array
     {
         $n = count($salles);
 
         if ($n <= 1) {
             return [];
         }
+
+        // René, 2026-09-11, en partie réelle : « la position des monstres
+        // devrait être aléatoire dans la salle ». `interieur()` rend ses cases
+        // en ordre de LECTURE (ligne par ligne) et `array_slice()` en gardait
+        // toujours le MÊME préfixe : les monstres se massaient donc dans le
+        // même coin (haut-gauche) d'une salle à l'autre, et la réserve
+        // (§2.12 bis) tombait toujours dans le coin opposé. Un SEUL PRNG local,
+        // amorcé par le PRNG du donjon — jamais `shuffle()` — pour que la carte
+        // reste reproductible à graine égale.
+        $prng = new PrngLineaire($suivant());
 
         $ordre = array_merge([$n - 1], $n > 2 ? range(1, $n - 2) : []);
 
@@ -2404,7 +2422,7 @@ final class AssembleurCarte
         // reçu 5 monstres — plus aucune case libre, salle impénétrable, et une
         // SEULE case du donjon adjacente à elle. Le combat s'est joué à un héros
         // contre cinq à travers ce goulot, et a coûté la partie.
-        $listes = array_map(function (int $i) use ($cases, $salles, $decor) {
+        $listes = array_map(function (int $i) use ($cases, $salles, $decor, $prng) {
             // ⚠ « Spawn seulement dans les cases VIDES » (René, 2026-09-11) :
             // on retire tout ce que le décor occupe AVANT de calculer la
             // réserve, sinon on réserverait des cases déjà prises et une salle
@@ -2413,6 +2431,11 @@ final class AssembleurCarte
                 $this->interieur($cases, $salles[$i]),
                 fn (array $p) => ! isset($decor["{$p['x']},{$p['y']}"]),
             ));
+
+            // Mélangé AVANT de trancher la réserve : sans ça, le tri par
+            // lecture revenait par la porte d'à côté et la réserve, elle
+            // aussi, restait toujours au même coin.
+            $interieur = $prng->melanger($interieur);
 
             // On réserve une place d'entrée par héros possible, dans la limite
             // de la moitié de la salle (une petite salle garde au moins 1 case).

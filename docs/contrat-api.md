@@ -1265,6 +1265,23 @@ souffre du même défaut — ni publiée par `EtatGroupe`, ni lue par
 `creneauConsomme()`, qui grise donc « Lancer un sort » après un premier sort
 alors que le résolveur accepterait le second.
 
+⚠ **`entites[].franchit_figures`** (héros seulement, 2026-09-11) — signalé en
+partie réelle : « la mobilité de combat du Rogue ne permet pas de se déplacer
+à travers les ennemis ». Le moteur avait raison depuis toujours
+(`ResolveurTour::resoudreDeplacer()` lève les figures pour un héros qui porte
+le talent `franchit_figures` ou le buff *Voile de Brume*), mais
+`DeplacementSheet.vue` refait son PROPRE parcours de surbrillance et traitait
+tout monstre comme un mur inconditionnellement — un client ne peut pas deviner
+qu'un héros précis porte ce talent ou ce buff, donc il ne pouvait matériellement
+pas savoir qu'il devait cesser de bloquer. `EtatGroupe` publie la DÉCISION,
+calculée par `MoteurSorts::mobiliteCombatDisponible()` — désormais le seul
+point de passage de cette expression, relu par `ResolveurTour` et par
+`MenuMoteur::peutSeDeplacer()` (qui en avait besoin pour la même raison : ne
+pas retirer « Se déplacer » à un héros qui franchirait un monstre bloquant ses
+4 voisins). `DeplacementSheet.vue` traite un monstre comme une case ALLIÉE
+(traversable, jamais une destination) quand `franchit_figures` vaut vrai pour
+CE héros, au lieu de toujours l'exclure du parcours.
+
 ## Modèle de session : Narrateur (table) vs Joueur (compte)
 
 Deux rôles d'entrée distincts (doc 11 §7).

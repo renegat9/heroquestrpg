@@ -313,7 +313,16 @@ final class MotsClesTalent
             // donc le site qui LIT la clé, et le test a servi à s'en apercevoir
             // — la déclaration précédente désignait un fichier où le mot
             // « franchit_figures » n'a jamais figuré.
-            'lecteur' => 'App\Partie\ResolveurTour::resoudreDeplacement()',
+            //
+            // ⚠ Rebranché le 2026-09-11 sur `MoteurSorts::mobiliteCombatDisponible()`,
+            // qui a repris à `ResolveurTour::resoudreDeplacement()` la lecture
+            // de cette clé pour que `EtatGroupe` et `MenuMoteur::peutSeDeplacer()`
+            // partagent le MÊME calcul (un Rogue ne pouvait pas cliquer une
+            // case au-delà d'un monstre : le talent existait côté moteur et
+            // restait injouable côté manette). `ResolveurTour` continue
+            // d'APPLIQUER la décision sans nommer la clé — même distinction
+            // qu'avec `Grille::autoriserFranchissement()` ci-dessus.
+            'lecteur' => 'App\Partie\MoteurSorts::mobiliteCombatDisponible()',
             'libelle' => 'traverse les cases occupées',
             'icone' => 'directions_run',
         ],

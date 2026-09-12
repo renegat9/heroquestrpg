@@ -549,10 +549,13 @@ final class ResolveurTour
         // ⚠ VOILE DE BRUME emprunte ce chemin depuis le 2026-09-02 : sa carte
         // porte MOT POUR MOT la même phrase que celle du Rogue. Le talent et le
         // buff mènent donc au même mode de déplacement, pas à deux copies.
-        $franchitFigures = $this->capacites->a($personnage, 'franchit_figures')
-            || $this->sorts->franchitFigures($personnage);
-
-        if ($franchitFigures) {
+        //
+        // ⚠ `MoteurSorts::mobiliteCombatDisponible()` est désormais le SEUL
+        // point de passage de cette expression (2026-09-11) : `EtatGroupe` et
+        // `MenuMoteur::peutSeDeplacer()` la relisent pour publier/décider la
+        // même chose que ce résolveur — trois copies de cette question
+        // auraient dérivé l'une de l'autre au premier changement du talent.
+        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
             $grille->autoriserFranchissement();
         }
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);

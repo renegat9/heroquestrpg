@@ -165,3 +165,75 @@ it('ne fait JAMAIS apparaître un monstre sur une case occupée par le décor', 
     // Le test ne prouverait rien s'il n'avait jamais vu de spawn.
     expect($cartesVues)->toBe(40)->and($spawnsVus)->toBeGreaterThan(40);
 });
+
+/*
+ * René, 2026-09-11, en partie réelle : « la position des monstres devrait
+ * être aléatoire dans la salle ». `interieur()` rend ses cases en ordre de
+ * LECTURE et `array_slice()` en gardait toujours le même préfixe : les
+ * monstres se massaient dans le même coin d'une carte à l'autre. Le mélange
+ * passe par le PRNG DU DONJON (`creerPRNG()`), jamais `shuffle()`/
+ * `random_int()`, pour que la carte reste reproductible à graine égale.
+ */
+
+it('est reproductible : la MÊME graine pose les mêmes monstres aux mêmes positions', function () {
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = GabaritQuete::query()->firstOrFail();
+
+    $a = $assembleur->assembler($gabarit, 424242);
+    $b = $assembleur->assembler($gabarit, 424242);
+
+    expect($a['spawn_monstres'])->toBe($b['spawn_monstres'])
+        ->and($a['cases'])->toBe($b['cases']); // la carte entière doit rester identique, pas seulement les spawns
+});
+
+it('disperse les monstres : des graines DIFFÉRENTES ne posent pas systématiquement le même coin de salle', function () {
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = GabaritQuete::query()->firstOrFail();
+
+    $positionsRelatives = [];
+    foreach (range(1, 30) as $i) {
+        $carte = $assembleur->assembler($gabarit, $i * 104729);
+        if ($carte['spawn_monstres'] === []) {
+            continue;
+        }
+
+        // Position du PREMIER monstre posé, relative au coin de SA salle —
+        // avant le correctif, c'était systématiquement (1,1) (la première case
+        // de sol en ordre de lecture, juste après le mur).
+        $premier = $carte['spawn_monstres'][0];
+        foreach ($carte['salles'] as $s) {
+            if ($premier['x'] >= $s['x'] && $premier['x'] < $s['x'] + $s['largeur']
+                && $premier['y'] >= $s['y'] && $premier['y'] < $s['y'] + $s['hauteur']) {
+                $positionsRelatives[] = ($premier['x'] - $s['x']).','.($premier['y'] - $s['y']);
+                break;
+            }
+        }
+    }
+
+    expect($positionsRelatives)->not->toBe([])
+        ->and(count(array_unique($positionsRelatives)))->toBeGreaterThan(1,
+            'le premier monstre atterrit toujours à la même position relative dans sa salle : le mélange ne joue pas.',
+        );
+});
+
+it('pose toujours spawn_monstres[0] dans la salle de la RENCONTRE FINALE (la dernière de l\'arbre)', function () {
+    // Le mélange par salle ne doit pas déplacer un monstre d'une salle à une
+    // autre — DemarreurQuete pose le boss sur ce premier spawn.
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = GabaritQuete::query()->firstOrFail();
+
+    foreach (range(1, 20) as $i) {
+        $carte = $assembleur->assembler($gabarit, $i * 65537);
+        if ($carte['spawn_monstres'] === []) {
+            continue;
+        }
+
+        $derniere = $carte['salles'][count($carte['salles']) - 1];
+        $premier = $carte['spawn_monstres'][0];
+
+        expect($premier['x'])->toBeGreaterThanOrEqual($derniere['x'])
+            ->and($premier['x'])->toBeLessThan($derniere['x'] + $derniere['largeur'])
+            ->and($premier['y'])->toBeGreaterThanOrEqual($derniere['y'])
+            ->and($premier['y'])->toBeLessThan($derniere['y'] + $derniere['hauteur']);
+    }
+});
