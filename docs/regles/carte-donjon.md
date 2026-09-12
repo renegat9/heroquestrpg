@@ -127,3 +127,33 @@ n°2 les rend jouables (1 monstre, 4 cases au groupe) mais ne les agrandit pas.
 Retirer la plus petite tuile (`mmpm`/`mssm`/`mssp`/`mmmm`, intérieur 2×2) est une
 décision de **variété** — le vivier doit rester ≥ 6 formes distinctes — et n'a pas
 été prise.
+
+**Le vivier de salles, mesuré** (2026-09-12, 60 graines × 3 gabarits). Neuf tuiles
+`type=salle` dans `TuileSeeder`, **toutes réellement placées** — aucune tuile morte.
+⚠ Le sol observé n'est **pas** l'intérieur de la tuile : les `p` du vivier sont
+**ignorés**, l'assembleur perce ses portes sur la **médiane du slot** (commentaire de
+`TuileSeeder`, « intérieurs PLEINS uniquement »), et chaque case de porte percée
+devient du sol franchissable. D'où `sol observé = intérieur + nombre de portes
+réellement percées (1 à 4)`.
+
+| hors-tout | intérieur | sol observé | où elle tombe |
+|---|---|---|---|
+| 9×7 | 7×5 = 35 | 36–39 | **salle de départ**, quasi exclusivement |
+| 9×6 (thème `boss`) | 7×4 = 28 | 29–30 | **salle finale**, exclusivement |
+| 9×5 | 7×3 = 21 | 22–25 | courante |
+| 7×7 | 5×5 = 25 | 26–29 | courante |
+| 7×6 | 5×4 = 20 | 21–24 | courante |
+| 7×5 | 5×3 = 15 | 16–19 | courante |
+| 5×7 | 3×5 = 15 | 16–19 | courante |
+| 5×5 | 3×3 = 9 | 10–13 | courante |
+| 4×4 | 2×2 = **4** | **5–8** | courante — la plus petite |
+
+⚠ **Trois faits structurels que la liste seule ne dit pas.** (1) La **plus grande**
+tuile est réservée de fait à la **salle 0** : 40 fois sur 60 en `vaincre_sous_boss`,
+60 sur 60 en `vaincre_boss_final`, et **une seule fois ailleurs** sur 180 cartes. Le
+groupe y démarre empilé, c'est cohérent — mais cela veut dire que les salles
+**qu'on joue** plafonnent à 9×5 / 7×7, jamais 9×7. (2) La salle **finale** reçoit
+toujours la tuile `boss`, la seule à n'avoir qu'**une porte** — une entrée unique,
+voulue. (3) Les salles ordinaires se répartissent à peu près uniformément, et la
+**4×4 en représente 16 %** (52 sur 330) : c'est elle qui porte tout le problème de
+§2.12 ter, et ce n'est pas un cas marginal.
