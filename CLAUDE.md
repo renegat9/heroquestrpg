@@ -42,6 +42,15 @@ reason, and the two must never drift.
 - **Restart `queue` / `queue-jeu` after ANY PHP change** (§Commands — it froze a playtest).
 - **Every generated PNG needs its `.webp` twin** (`image-tools/webp.sh` after `images:generer`).
 - **No demo mode** (§Commands). Always test against the real seeded stack.
+- **NEVER destroy real game data** (René, 2026-09-12). Groups, characters and
+  accounts in the MariaDB container are *production*: campaigns last for weeks and
+  he wants them back. ❌ `partie:purger --supprimer --tout`, ❌ `migrate:fresh`,
+  ❌ any `DELETE` on `groupes`/`personnages`/`joueurs`. Tests run on a **throwaway
+  sqlite copy**, never the container's DB. A change to existing rows is a
+  **migration**, not a destructive re-seed — seeders are `updateOrCreate` and
+  purge nothing, so `db:seed` stays safe. A harness campaign is cleaned with
+  `browser-shots/campagne/nettoyer.sh`, which targets *its own* group.
+  ⚠ Say this explicitly in every agent brief, or an agent will purge in good faith.
 - **Withdrawing content is a written choice, never an omission**: name it and say why
   (`DemarreurQuete::BOITES_INCOMPLETES`, the `manque` entries of `config/cartes.php`,
   the named divergence list of `BestiaireSourceTest`).

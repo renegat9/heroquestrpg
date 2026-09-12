@@ -45,13 +45,25 @@ final class ProfilMarche
     public const DEFAUT = 'bourg';
 
     /**
+     * ⚠ LE SEUL PROFIL EN USAGE (René, 2026-09-12) : « force l'utilisation d'un
+     * marchand qui vend tout au prix normal ». `PhaseMarche::ouvrir()` ignore le
+     * profil demandé et prend celui-ci — tout le catalogue, multiplicateur 1.0.
+     *
+     * Les trois autres restent déclarés plus bas et ne sont plus atteignables.
+     * C'est un choix ÉCRIT, pas un oubli : ils seront la matière de la
+     * négociation (« si on intègre la négociation on regardera pour différents
+     * types de marchands »), et les effacer obligerait à les réinventer.
+     */
+    public const UNIQUE = 'cite';
+
+    /**
      * @var array<string, array{multiplicateur: float, raretes: list<string>}>
      */
     public const PROFILS = [
-        'village' => ['multiplicateur' => 1.2, 'raretes' => ['commun', 'peu_commun', 'rare']],
+        'village' => ['multiplicateur' => 1.0, 'raretes' => ['commun', 'peu_commun', 'rare']],
         'bourg' => ['multiplicateur' => 1.0, 'raretes' => ['commun', 'peu_commun', 'rare']],
         'cite' => ['multiplicateur' => 1.0, 'raretes' => ['commun', 'peu_commun', 'rare']],
-        'marche_noir' => ['multiplicateur' => 1.2, 'raretes' => ['commun', 'peu_commun', 'rare']],
+        'marche_noir' => ['multiplicateur' => 1.0, 'raretes' => ['commun', 'peu_commun', 'rare']],
     ];
 
     /** Stock de départ par rareté — null = illimité (valeurs playtest). */

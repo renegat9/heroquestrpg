@@ -50,7 +50,10 @@ it('ouvre la phase au hub : profil bourg par défaut, TOUTES les raretés (jamai
 
     $reponse = $this->postJson('/api/groupes/table-1/marche')->assertCreated();
 
-    $reponse->assertJsonPath('profil', 'bourg')
+    // ⚠ `cite` et non `bourg` depuis le 2026-09-12 : un marchand UNIQUE est
+    // forcé, qui vend tout au prix normal (René). Le profil demandé est ignoré
+    // volontairement — voir `PhaseMarche::ouvrir()`.
+    $reponse->assertJsonPath('profil', 'cite')
         ->assertJsonPath('or_courant', 1000)
         ->assertJsonPath('total_projete', 1000);
 
@@ -85,7 +88,7 @@ it('ouvre la phase au hub : profil bourg par défaut, TOUTES les raretés (jamai
 
     // Déjà ouverte → 422 ; GET rend le même état.
     $this->postJson('/api/groupes/table-1/marche')->assertStatus(422);
-    $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('profil', 'bourg');
+    $this->getJson('/api/groupes/table-1/marche')->assertOk()->assertJsonPath('profil', 'cite');
 });
 
 it('une armure RARE est achetable en VILLAGE comme en CITÉ, et le multiplicateur du lieu s\'applique toujours', function () {
@@ -103,7 +106,10 @@ it('une armure RARE est achetable en VILLAGE comme en CITÉ, et le multiplicateu
 
     expect($platesVillage)->not->toBeNull()
         ->and($platesVillage['rarete'])->toBe('rare')
-        ->and($platesVillage['prix'])->toBe(1020) // 850 × 1,2
+        // ⚠ Prix NORMAL partout depuis le 2026-09-12 : les multiplicateurs de
+        // lieu sont à 1.0 en attendant la négociation, qui leur redonnera un
+        // sens. 850 × 1,0.
+        ->and($platesVillage['prix'])->toBe(850)
         ->and($platesVillage['stock'])->toBe(1); // stock inchangé : question distincte du profil
 
     $cite = creerGroupe('table-cite');
@@ -117,7 +123,8 @@ it('une armure RARE est achetable en VILLAGE comme en CITÉ, et le multiplicateu
 
     // La Dague (commune) confirme que le multiplicateur joue aussi sur le
     // bas de l'échelle des prix, pas seulement sur les pièces rares.
-    expect(collect($repVillage->json('inventaire'))->firstWhere('nom', 'Dague')['prix'])->toBe(30); // 25 × 1,2
+    // ⚠ Prix NORMAL : 25 × 1,0 (marchand unique forcé depuis le 2026-09-12).
+    expect(collect($repVillage->json('inventaire'))->firstWhere('nom', 'Dague')['prix'])->toBe(25);
 });
 
 it('refuse d\'ouvrir le marché pendant une quête (hub uniquement)', function () {
@@ -549,4 +556,33 @@ it('retire de l\'étal ce qu\'AUCUN membre du groupe ne peut utiliser', function
     creerHeros($alice, $groupe, 'Krogar', 2, ['classe' => 'barbare']);
 
     expect($noms())->toContain('Potion de rage guerrière');
+});
+
+it('FORCE un marchand unique qui vend tout au prix normal, quel que soit le profil demandé', function () {
+    // ⚠ René, 2026-09-12 : « pour l'instant force l'utilisation d'un marchand
+    // qui vend tout au prix normal ; si on intègre la négociation on regardera
+    // pour différents types de marchands ». Le profil demandé — par le MJ IA ou
+    // par la requête — est IGNORÉ volontairement. Ce test existe pour que
+    // l'ignorer reste un CHOIX : sans lui, un futur passage rebrancherait le
+    // paramètre en croyant réparer un bug.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Krogar', 1, ['classe' => 'barbare']);
+
+    foreach (['village', 'bourg', 'cite', 'marche_noir'] as $demande) {
+        Illuminate\Support\Facades\Cache::flush();
+        $etat = app(App\Partie\Marche\PhaseMarche::class)->ouvrir($groupe->fresh(), $demande);
+
+        expect($etat['multiplicateur'])->toBe(1.0, "profil « {$demande} » : le prix doit rester normal");
+
+        $raretes = collect($etat['inventaire'])->pluck('rarete')->unique()->sort()->values()->all();
+
+        // Une pièce RARE doit être en rayon, quel que soit le profil demandé —
+        // c'est exactement ce qui manquait (aucune armure sérieuse hors cité,
+        // la rareté se déduisant du prix).
+        // ⚠ `toContain` de Pest prend N valeurs ATTENDUES, pas un message :
+        // passer une explication en 2ᵉ argument la cherche dans le tableau.
+        expect($raretes)->toContain('rare');
+        expect(collect($etat['inventaire'])->pluck('nom')->all())->toContain('Armure de plates');
+    }
 });

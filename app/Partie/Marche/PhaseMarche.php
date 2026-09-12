@@ -80,7 +80,21 @@ final class PhaseMarche
             ]);
         }
 
-        $profil ??= ProfilMarche::DEFAUT;
+        // ⚠ PROFIL FORCÉ (René, 2026-09-12) : « pour l'instant force l'utilisation
+        // d'un marchand qui vend tout au prix normal ; si on intègre la
+        // négociation on regardera pour différents types de marchands ».
+        //
+        // Le profil demandé — par le MJ IA ou par la requête — est donc IGNORÉ,
+        // volontairement et non par omission. Les quatre profils restent
+        // déclarés dans `ProfilMarche` : ils ne coûtent rien tant qu'ils dorment,
+        // et ils seront la matière de la négociation. Les effacer obligerait à
+        // les réinventer.
+        //
+        // ⚠ Ce qui a motivé la décision : la rareté SE DÉDUIT DU PRIX
+        // (`RareteButin`), donc une armure chère devenait `rare`, donc invisible
+        // hors de la cité — personne n'avait choisi qu'aucune protection ne soit
+        // achetable avant. Un marchand pauvre par accident de barème.
+        $profil = ProfilMarche::UNIQUE;
         $config = ProfilMarche::PROFILS[$profil];
 
         // MAÎTRISES DU GROUPE : l'étal ne présente pas ce que PERSONNE du
