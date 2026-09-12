@@ -57,7 +57,24 @@ final class DeckFouille
         $nbSalles = count($salles);
 
         $deck = $prng->melanger($this->cartes($composition, $nbSalles));
-        $salleArtefact = $this->salleLaPlusProfonde($carte, $prng);
+        // ⚠ QUÊTE À BOSS : le coffre va dans SA salle (René, 2026-09-12 : « quand
+        // la mission est de tuer le boss, il faudrait avoir un coffre dans sa
+        // salle, contenant trésor ou artefact »).
+        //
+        // Ce qui l'a motivé, constaté en partie réelle : l'artefact allait dans
+        // la salle la plus PROFONDE DU GRAPHE, or l'objectif vise la salle de
+        // RENCONTRE FINALE — les deux n'ont aucune raison d'être la même. Sur sa
+        // quête 99, l'Anneau de Chaleur dormait en salle 5, seule accessible par
+        // un passage secret jamais trouvé, sur une arête d'ARBRE (aucun autre
+        // accès). Le groupe a tué son sous-boss en salle 6 et la quête s'est
+        // close sur une impasse jamais ouverte. Rien, nulle part, ne disait
+        // qu'un artefact existait : ce n'était pas un choix manqué, c'était un
+        // choix qu'on ne pouvait pas faire.
+        //
+        // ⚠ La salle la plus profonde reste le repli — pour les quêtes SANS
+        // boss (`atteindre_et_recuperer`), où récompenser l'exploration garde
+        // tout son sens. La règle ne remplace pas l'autre, elle la précède.
+        $salleArtefact = $this->salleDuBoss($gabarit, $carte) ?? $this->salleLaPlusProfonde($carte, $prng);
         $artefactId = $salleArtefact === null ? null : $this->choisirArtefact($groupe, $prng);
 
         return [
@@ -277,6 +294,32 @@ final class DeckFouille
      * au sort le ferait parfois tomber dans la première salle ouverte, au tour
      * 2, avant le moindre combat. Égalité de profondeur tranchée par le PRNG.
      */
+    /**
+     * Salle de la RENCONTRE FINALE quand l'objectif est d'y abattre quelqu'un
+     * (René, 2026-09-12). `spawnsMonstres()` y pose `spawn_monstres[0]`, et
+     * `DemarreurQuete` y fait atterrir le boss : c'est donc la DERNIÈRE salle de
+     * l'arbre, et la seule dont l'objectif garantisse la visite.
+     *
+     * ⚠ `null` pour toute autre mission — le coffre retombe alors sur la salle
+     * la plus profonde, et l'exploration reste ce qui le paie.
+     */
+    private function salleDuBoss(GabaritQuete $gabarit, array $carte): ?int
+    {
+        $objectif = (string) data_get($gabarit->structure, 'objectif', '');
+
+        if (! in_array($objectif, ['vaincre_sous_boss', 'vaincre_boss_final'], true)) {
+            return null;
+        }
+
+        $salles = (array) data_get($carte, 'salles', []);
+
+        // ⚠ Même convention que `AssembleurCarte::spawnsMonstres()`, qui
+        // commence son round-robin par `$n - 1` « pour que spawn_monstres[0] (le
+        // boss côté DemarreurQuete) y atterrisse ». Deux façons de désigner la
+        // salle finale divergeraient au premier changement de génération.
+        return count($salles) >= 2 ? count($salles) - 1 : null;
+    }
+
     private function salleLaPlusProfonde(array $carte, PrngLineaire $prng): ?int
     {
         $salles = (array) data_get($carte, 'salles', []);

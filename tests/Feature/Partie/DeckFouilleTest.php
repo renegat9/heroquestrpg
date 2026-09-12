@@ -822,3 +822,42 @@ it('ne paie le coffre de salle qu UNE FOIS : le second fouilleur pioche normalem
 
     expect($resultat['coffre'] ?? false)->toBeFalse();
 });
+
+it('met le coffre dans la salle du BOSS quand la mission est de l\'abattre', function () {
+    // ⚠ René, 2026-09-12 : « quand la mission est de tuer le boss, il faudrait
+    // avoir un coffre dans sa salle, contenant trésor ou artefact ».
+    //
+    // Constaté en partie réelle (quête 99) : l'artefact allait dans la salle la
+    // plus PROFONDE DU GRAPHE, l'objectif visait la salle de RENCONTRE FINALE,
+    // et les deux différaient. L'Anneau de Chaleur dormait derrière un passage
+    // secret jamais trouvé, sur une arête d'ARBRE — aucun autre accès. Le groupe
+    // a tué son sous-boss ailleurs et la quête s'est close sur une impasse.
+    $carte = ['salles' => array_fill(0, 7, ['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]),
+              'aretes' => [['a' => 0, 'b' => 1], ['a' => 1, 'b' => 4], ['a' => 4, 'b' => 5], ['a' => 1, 'b' => 6]]];
+
+    $groupe = creerGroupe();
+    $deck = app(App\Partie\Fouille\DeckFouille::class);
+
+    foreach (['vaincre_sous_boss', 'vaincre_boss_final'] as $objectif) {
+        // ⚠ Gabarit réel, structure modifiée EN MÉMOIRE et jamais sauvegardée :
+        // les données de jeu sont de la production depuis le 2026-09-12.
+        $gabarit = App\Models\GabaritQuete::query()->firstOrFail();
+        $gabarit->structure = ['objectif' => $objectif, 'deck_fouille' => ['or' => 30]];
+
+        $r = $deck->construire($gabarit, $carte, $groupe, 1);
+
+        // 6 = dernière salle = rencontre finale, la SEULE dont l'objectif
+        // garantisse la visite.
+        expect($r['salle_artefact'])->toBe(6)
+            ->and($r['salles_coffre'])->toContain(6);
+    }
+
+    // ⚠ Hors quête à boss, la salle la plus PROFONDE reste la règle : là,
+    // récompenser l'exploration garde tout son sens. La nouvelle règle précède
+    // l'ancienne, elle ne la remplace pas.
+    $gabarit = App\Models\GabaritQuete::query()->firstOrFail();
+    $gabarit->structure = ['objectif' => 'atteindre_et_recuperer', 'deck_fouille' => ['or' => 30]];
+
+    // 0→1→4→5 : la salle 5 est la plus profonde du graphe, la 6 ne l'est pas.
+    expect($deck->construire($gabarit, $carte, $groupe, 1)['salle_artefact'])->toBe(5);
+});
