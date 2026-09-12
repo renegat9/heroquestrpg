@@ -1606,6 +1606,11 @@ final class AssembleurCarte
             $interieur = $this->interieur($cases, $salle);
             $occupeesSalle = []; // cases déjà prises par un meuble déjà posé DANS cette salle
 
+            // ⚠ Le tirage est TOUJOURS consommé, même si le plafond ci-dessous
+            // le ramène à 0 : sauter le `suivant()` ferait diverger la suite
+            // PRNG selon la taille de la salle, et deux donjons de même graine
+            // cesseraient d'être identiques (même précaution que le tirage du
+            // passage secret).
             $cible = $prng->suivant() % 4; // 0..3, salles vides comprises
 
             for ($pose = 0; $pose < $cible; $pose++) {
@@ -1615,6 +1620,23 @@ final class AssembleurCarte
 
                 if ($place === null) {
                     continue; // aucune position valide trouvée : la salle reste moins meublée
+                }
+
+                // §2.12 ter — la salle doit rester JOUABLE, pas seulement
+                // connexe (René, 2026-09-12, après une partie à 4 : « les
+                // salles étaient trop petites ou trop encombrées pour que tous
+                // les joueurs puissent agir »). `salleResteConnexe()` ne dit
+                // que « on peut encore circuler » : un boyau d'une case de
+                // large le satisfait, et quatre héros n'y tiennent pas. La
+                // densité, elle, était tirée SANS regarder l'aire — une salle
+                // de 5 cases pouvait recevoir trois meubles.
+                //
+                // Le même arbitrage existait déjà pour les monstres depuis
+                // §2.12 bis (`RESERVE_CASES_LIBRES`) et n'avait jamais été
+                // appliqué aux meubles, qui mangent exactement les mêmes cases.
+                if (count($interieur) - count($occupeesSalle) - count($place['cellules'])
+                    < self::CASES_JOUABLES_MINIMUM) {
+                    continue; // ce meuble-là rendrait la salle injouable : on y renonce
                 }
 
                 foreach ($place['cellules'] as $cellule) {
@@ -2336,6 +2358,20 @@ final class AssembleurCarte
     private const RESERVE_CASES_LIBRES = 4;
 
     /**
+     * Cases de sol qu'une salle doit conserver LIBRES de tout meuble : les
+     * quatre du groupe au complet (`RESERVE_CASES_LIBRES`) plus deux pour ce
+     * qu'il vient y combattre. En dessous, la salle est « connexe » et
+     * pourtant injouable — la moitié du groupe reste sur le seuil sans pouvoir
+     * agir, ce qui s'est vu en partie réelle le 2026-09-12.
+     *
+     * ⚠ Ce n'est PAS un plafond sur le nombre de meubles : c'est un plancher
+     * sur les cases restantes, parce qu'un meuble occupe 1 ou 2 cases selon
+     * son emprise — compter les meubles laisserait passer deux emprises de 2
+     * là où trois emprises de 1 seraient refusées.
+     */
+    private const CASES_JOUABLES_MINIMUM = self::RESERVE_CASES_LIBRES + 2;
+
+    /**
      * Cases du décor où un monstre ne doit JAMAIS apparaître (René, 2026-09-11,
      * après avoir joué : « les monstres ne devraient pas apparaître dans les
      * meubles et les portes fermées » puis « spawn seulement dans les cases
@@ -2437,9 +2473,21 @@ final class AssembleurCarte
             // aussi, restait toujours au même coin.
             $interieur = $prng->melanger($interieur);
 
-            // On réserve une place d'entrée par héros possible, dans la limite
-            // de la moitié de la salle (une petite salle garde au moins 1 case).
-            $reserve = min(self::RESERVE_CASES_LIBRES, intdiv(count($interieur), 2));
+            // On réserve une place d'entrée par héros possible. ⚠ Le plafond
+            // était « la moitié de la salle », ce qui faisait RÉTRÉCIR la
+            // réserve des héros exactement quand la salle devenait étroite —
+            // l'inverse de ce qu'il faut : une salle de 5 cases gardait 2
+            // cases pour le groupe et en donnait 3 aux monstres. Quatre héros
+            // n'y tenaient pas, et deux d'entre eux restaient sur le seuil
+            // sans pouvoir agir (René, 2026-09-12, partie à 4 personnages).
+            //
+            // Le plafond devient « laisser au moins UNE place de monstre » :
+            // c'est la salle qui dicte la taille du combat, pas le combat qui
+            // chasse le groupe de la salle. Une petite salle reçoit donc peu
+            // de monstres au lieu de peu de héros — et le budget de rencontre
+            // reporte le reste ailleurs, ce qu'il sait déjà faire puisqu'il
+            // répartit sur `$listes`.
+            $reserve = min(self::RESERVE_CASES_LIBRES, max(0, count($interieur) - 1));
 
             return array_slice($interieur, 0, max(0, count($interieur) - $reserve));
         }, $ordre);

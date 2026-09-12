@@ -998,3 +998,151 @@ it('laisse Bibliothèque ET Table toutes deux INTRAVERSABLES : bloque_vue ne cha
     expect($grille->estTraversable(1, 0))->toBeFalse()
         ->and($grille->estTraversable(3, 0))->toBeFalse();
 });
+
+/*
+ * §2.12 ter — UNE SALLE DOIT RESTER JOUABLE, PAS SEULEMENT CONNEXE.
+ *
+ * René, 2026-09-12, après une partie à 4 personnages : « il arrivait souvent
+ * que les salles étaient trop petites ou trop encombrées pour que tous les
+ * joueurs puissent agir ; on a usé de l'option de détruire les meubles quand
+ * on pouvait, mais des fois ce n'est pas possible ». Le Tombeau est
+ * INDESTRUCTIBLE par construction (`difficulte_destruction` à `null`, un bloc
+ * de pierre) — l'échappatoire n'existe donc pas toujours, et la correction doit
+ * se faire à la GÉNÉRATION, pas au jeu.
+ *
+ * Deux causes distinctes, mesurées avant correction sur 60 cartes :
+ *   1. `placerMobilier()` tirait 0..3 meubles SANS regarder l'aire de la salle.
+ *      Son seul garde-fou, `salleResteConnexe()`, dit « on peut circuler » —
+ *      un boyau d'une case de large le satisfait. 29 salles sur 390 tombaient
+ *      sous 6 cases libres, jusqu'à 2.
+ *   2. La réserve de monstres était plafonnée à LA MOITIÉ de la salle, donc
+ *      elle rétrécissait quand la salle rétrécissait : une salle de 5 cases
+ *      gardait 2 cases au groupe et en offrait 3 aux monstres.
+ */
+it('laisse toujours de quoi déployer le groupe : meubles plafonnés par l\'aire', function () {
+    $gabarit = GabaritQuete::query()->get()
+        ->first(fn ($g) => data_get($g->structure, 'objectif') === 'vaincre_sous_boss')
+        ?? GabaritQuete::query()->firstOrFail();
+
+    $assembleur = app(AssembleurCarte::class);
+    $vues = 0;
+
+    foreach (range(1, 30) as $graine) {
+        $carte = $assembleur->assembler($gabarit, $graine, 40);
+
+        foreach ($carte['salles'] as $i => $salle) {
+            if ($i === 0) {
+                continue; // salle de départ : jamais meublée, le groupe y démarre empilé
+            }
+
+            $sol = [];
+            for ($y = $salle['y']; $y < $salle['y'] + $salle['hauteur']; $y++) {
+                for ($x = $salle['x']; $x < $salle['x'] + $salle['largeur']; $x++) {
+                    if (($carte['cases'][$y][$x] ?? 'm') === 's') {
+                        $sol["{$x},{$y}"] = true;
+                    }
+                }
+            }
+
+            foreach ($carte['mobilier'] as $meuble) {
+                if ((int) $meuble['salle'] !== $i) {
+                    continue;
+                }
+                for ($dy = 0; $dy < (int) $meuble['h']; $dy++) {
+                    for ($dx = 0; $dx < (int) $meuble['l']; $dx++) {
+                        unset($sol[((int) $meuble['x'] + $dx).','.((int) $meuble['y'] + $dy)]);
+                    }
+                }
+            }
+
+            $vues++;
+
+            // ⚠ Le plancher ne porte QUE sur les salles réellement meublées :
+            // une tuile de 5 cases est déjà sous le seuil sans un seul meuble,
+            // et la taille des tuiles est une question distincte, non tranchée.
+            $aMeuble = collect($carte['mobilier'])->contains(fn ($m) => (int) $m['salle'] === $i);
+
+            if ($aMeuble) {
+                expect(count($sol))->toBeGreaterThanOrEqual(
+                    6,
+                    "graine {$graine}, salle {$i} : meublée et réduite à ".count($sol).' cases libres',
+                );
+            }
+        }
+    }
+
+    expect($vues)->toBeGreaterThan(100);
+});
+
+it('offre moins de MONSTRES dans une petite salle, jamais moins de place aux héros', function () {
+    $gabarit = GabaritQuete::query()->get()
+        ->first(fn ($g) => data_get($g->structure, 'objectif') === 'vaincre_sous_boss')
+        ?? GabaritQuete::query()->firstOrFail();
+
+    $assembleur = app(AssembleurCarte::class);
+    $petites = 0;
+
+    foreach (range(1, 30) as $graine) {
+        $carte = $assembleur->assembler($gabarit, $graine, 40);
+
+        foreach ($carte['salles'] as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+
+            $dedans = fn (array $p): bool => $p['x'] >= $salle['x']
+                && $p['x'] < $salle['x'] + $salle['largeur']
+                && $p['y'] >= $salle['y']
+                && $p['y'] < $salle['y'] + $salle['hauteur'];
+
+            // ⚠ On compte les cases où un HÉROS PEUT SE TENIR, pas le sol
+            // brut : un meuble en retire, un seuil ou un piège n'en retire
+            // pas. Une première version comptait le sol brut et passait
+            // AUSSI SANS le correctif — donc elle ne prouvait rien.
+            $sol = [];
+            for ($y = $salle['y']; $y < $salle['y'] + $salle['hauteur']; $y++) {
+                for ($x = $salle['x']; $x < $salle['x'] + $salle['largeur']; $x++) {
+                    if (($carte['cases'][$y][$x] ?? 'm') === 's') {
+                        $sol["{$x},{$y}"] = true;
+                    }
+                }
+            }
+            foreach ($carte['mobilier'] as $meuble) {
+                if ((int) $meuble['salle'] !== $i) {
+                    continue;
+                }
+                for ($dy = 0; $dy < (int) $meuble['h']; $dy++) {
+                    for ($dx = 0; $dx < (int) $meuble['l']; $dx++) {
+                        unset($sol[((int) $meuble['x'] + $dx).','.((int) $meuble['y'] + $dy)]);
+                    }
+                }
+            }
+            $sol = count($sol);
+
+            $places = count(array_filter($carte['spawn_monstres'], $dedans));
+
+            // ⚠ Une salle garde TOUJOURS au moins une place de monstre : sans
+            // ça, une petite salle deviendrait un couloir décoratif que rien
+            // ne défend, et le budget de rencontre n'aurait plus où se poser.
+            expect($places)->toBeGreaterThanOrEqual(
+                1,
+                "graine {$graine}, salle {$i} : aucune place de monstre",
+            );
+
+            // ⚠ Et le vivier de places laisse toujours de quoi poser les
+            // quatre héros. C'est l'inversion du plafond « moitié de la
+            // salle » : la salle dicte la taille du combat.
+            expect($sol - $places)->toBeGreaterThanOrEqual(
+                4,
+                "graine {$graine}, salle {$i} : {$sol} cases, {$places} places de monstre",
+            );
+
+            if ($sol <= 8) {
+                $petites++;
+            }
+        }
+    }
+
+    // Le test ne prouverait rien s'il n'avait croisé aucune petite salle.
+    expect($petites)->toBeGreaterThan(10);
+});

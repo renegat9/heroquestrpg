@@ -71,3 +71,59 @@ The hard invariant is connectivity: a badly placed piece cuts access to a chest 
 ⚠ **Un monstre n'apparaît QUE sur une case vide** (René, 2026-09-11, après avoir joué : « les monstres ne devraient pas apparaître dans les meubles et les portes fermées », puis « spawn seulement dans les cases vides »). Le défaut était une **asymétrie de signature**, pas un calcul faux : `spawnsHeros($cases, $salle, $portes)` recevait les portes et évitait donc les embrasures, tandis que `spawnsMonstres($cases, $salles)` ne recevait **rien de tel** — il ne pouvait pas éviter ce qu'on ne lui donnait pas. Et `interieur()` ne teste qu'une chose : « est-ce du sol ». ⚠ Les spawns sont pourtant calculés **après** la pose de toutes les couches : la donnée était disponible, simplement pas transmise, et `DemarreurQuete` pose ensuite la créature **sans re-valider**.
 
 ⚠ `casesDuDecor()` est le **point de passage unique** qui recense ce qui occupe une case — embrasures, mobilier (son **emprise entière** `l`×`h`, pas seulement son ancre), pièges, leviers, épreuves, terrain. Deux recensements divergeraient au premier ajout de couche, et une couche neuve oubliée là se verrait **en partie**, sous la forme d'un monstre dans une table. ⚠ Le filtre s'applique **avant** le calcul de la réserve de cases libres (§2.12 bis), sinon on réserverait des cases déjà prises et une salle meublée se remplirait quand même à ras bord.
+
+**§2.12 ter — une salle doit rester JOUABLE, pas seulement connexe** (René,
+2026-09-12, après une partie à 4 personnages : « il arrivait souvent que les salles
+étaient trop petites ou trop encombrées pour que tous les joueurs puissent agir ; on
+a usé de l'option de détruire les meubles quand on pouvait, mais des fois ce n'est
+pas possible »). ⚠ L'échappatoire « détruire le meuble » **n'existe pas toujours** :
+le **Tombeau** porte `difficulte_destruction` à `null`, indestructible par décision
+(« un bloc de pierre »), et `MoteurMobilier` filtre en `whereNotNull` — 41 tombeaux
+sur 428 meubles posés en 60 cartes. La correction devait donc se faire à la
+**génération**, pas au jeu.
+
+Deux causes distinctes, chacune mesurée sur 60 cartes avant correction :
+
+1. ⚠ **`placerMobilier()` tirait 0..3 meubles SANS regarder l'aire de la salle.** Son
+   seul garde-fou était `salleResteConnexe()` — qui ne dit que « on peut encore
+   circuler » : **un boyau d'une case de large le satisfait**, et quatre héros n'y
+   tiennent pas. Une salle de 5 cases pouvait recevoir trois meubles. Mesuré : **29
+   salles sur 390 tombaient sous 6 cases libres, jusqu'à 2**. Le plancher
+   `CASES_JOUABLES_MINIMUM` (= `RESERVE_CASES_LIBRES + 2`, les quatre du groupe plus
+   deux pour ce qu'il vient combattre) refuse maintenant la pose qui franchirait le
+   seuil. ⚠ C'est un plancher sur les **cases restantes**, jamais un plafond sur le
+   **nombre** de meubles : une emprise vaut 1 ou 2 cases, et compter les meubles
+   laisserait passer deux emprises de 2 là où trois emprises de 1 seraient refusées.
+   Coût réel : 24 meubles en moins sur 428 — la variété du décor ne bouge pas.
+2. ⚠ **La réserve de monstres rétrécissait quand la salle rétrécissait.** Le plafond
+   était `min(RESERVE_CASES_LIBRES, intdiv($interieur, 2))` — « la moitié de la salle »
+   — donc une salle de 5 cases gardait **2** cases au groupe et en offrait **3** aux
+   monstres : exactement l'inverse de ce que §2.12 bis voulait obtenir. Il devient
+   `min(RESERVE_CASES_LIBRES, $interieur - 1)` : **la salle dicte la taille du
+   combat**, pas le combat qui chasse le groupe de la salle. Une petite salle reçoit
+   donc peu de monstres au lieu de peu de héros, et le budget de rencontre reporte le
+   reste ailleurs — ce qu'il sait déjà faire, puisqu'il répartit sur `$listes`. Le
+   « au moins une place de monstre » de l'ancien plafond est **conservé** par le
+   `- 1` : sans lui une petite salle deviendrait un couloir décoratif que rien ne
+   défend. Mesuré après : **toute salle laisse au moins 4 cases au groupe** (minimum
+   observé avant : 2).
+
+⚠ **Le tirage `% 4` reste consommé même quand le plancher le ramène à 0** : sauter le
+`suivant()` ferait diverger la suite PRNG selon la taille de la salle, et deux donjons
+de même graine cesseraient d'être identiques — même précaution que le tirage du
+passage secret.
+
+⚠ **Aucune migration rétroactive, et c'est un choix.** `MoteurMobilier` marque une
+pièce détruite **à son index dans la grille** (`$grille['mobilier'][$index]['detruit']`)
+plutôt que de la retirer — précisément pour ne pas décaler les index. Retirer des
+meubles d'une carte déjà générée réattribuerait donc les drapeaux `detruit` et l'état
+de fouille aux mauvaises pièces. Le correctif vaut pour la **prochaine carte
+assemblée**, et une quête en cours garde ses salles encombrées.
+
+⚠ **Ce que ceci ne corrige PAS, et qui reste ouvert** : les tuiles elles-mêmes. Le
+vivier va de **5 à 30 cases de sol**, et **34 salles sur 390 (8,7 %) ont 6 cases ou
+moins** — trop petites pour quatre héros et deux monstres *même vides*. Le correctif
+n°2 les rend jouables (1 monstre, 4 cases au groupe) mais ne les agrandit pas.
+Retirer la plus petite tuile (`mmpm`/`mssm`/`mssp`/`mmmm`, intérieur 2×2) est une
+décision de **variété** — le vivier doit rester ≥ 6 formes distinctes — et n'a pas
+été prise.
