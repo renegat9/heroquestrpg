@@ -194,6 +194,7 @@ final class JournalCombat
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
+            'actionner_levier' => $this->levier($a, $acteurNom),
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
             'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
@@ -697,6 +698,44 @@ final class JournalCombat
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
      */
+    /**
+     * LEVIER — le fil de combat n'en disait RIEN (2026-09-11). Un levier de
+     * couloir ouvre souvent une porte hors de vue : sans ligne ici, un jet raté
+     * et un jet réussi se ressemblent exactement à l'écran, et le groupe
+     * s'éloigne d'un mécanisme qu'il aurait pu retenter.
+     *
+     * ⚠ Le forçage est RETENTABLE SANS LIMITE — c'est ce qui permet à une salle
+     * de ne tenir qu'à ce levier sans jamais se refermer. Le dire fait partie du
+     * message, sinon l'échec se lit comme un cul-de-sac.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function levier(array $a, string $acteurNom): array
+    {
+        $jet = (array) ($a['jet'] ?? []);
+        $ouvertes = (array) ($a['portes_ouvertes'] ?? []);
+
+        if (($jet['issue'] ?? null) === 'echec') {
+            return [[
+                'texte' => "{$acteurNom} force le levier sans succès ("
+                    .(int) ($jet['succes'] ?? 0).'/'.(int) ($jet['difficulte'] ?? 0)
+                    .') — on peut réessayer',
+                'ton' => 'rate',
+            ]];
+        }
+
+        return [[
+            'texte' => $ouvertes === []
+                // Réussite sans porte à ouvrir : elle l'était déjà. Le dire
+                // évite de chercher un effet qui a eu lieu au tour d'avant.
+                ? "{$acteurNom} actionne le levier — le passage est déjà ouvert"
+                : "{$acteurNom} actionne le levier : ".count($ouvertes)
+                    .(count($ouvertes) > 1 ? ' portes s\'ouvrent' : ' porte s\'ouvre'),
+            'ton' => $ouvertes === [] ? 'info' : 'tresor',
+        ]];
+    }
+
     private function fouille(array $a, string $acteurNom): array
     {
         $lignes = match ($a['issue'] ?? null) {

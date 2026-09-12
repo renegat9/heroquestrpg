@@ -39,6 +39,12 @@ it('route un résultat moteur vers CHAQUE temps fort que la pré-génération pr
         ['type' => 'deplacement'],
         ['type' => 'ouvrir_porte'],
         ['type' => 'actionner_levier'],
+        // ⚠ Le levier qui RÉSISTE est un temps fort à part (2026-09-11) : le
+        // dispatch ne regardait pas le jet et racontait « la pierre gronde au
+        // loin » même sur un échec. Un levier de couloir ouvre une porte hors
+        // de vue — la narration est alors la seule chose qui dise ce qui s'est
+        // passé, et elle disait le contraire.
+        ['type' => 'actionner_levier', 'jet' => ['issue' => 'echec']],
         ['type' => 'attaque', 'degats' => 2, 'cible_vaincue' => true],
         ['type' => 'attaque', 'degats' => 2, 'cible_vaincue' => false],
         ['type' => 'attaque', 'degats' => 0],

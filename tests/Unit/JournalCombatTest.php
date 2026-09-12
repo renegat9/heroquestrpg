@@ -222,3 +222,31 @@ it('distingue « rien à prendre » de « rien pour vous »', function () {
         ->and($indispo)->toContain('utiliser')
         ->and($vide)->toContain('en vain');
 });
+
+it('distingue un levier forcé d\'un levier qui résiste', function () {
+    // ⚠ Signalé par René en partie réelle (2026-09-11) : « on a un levier dans
+    // un corridor qui est supposé ouvrir une porte dans la salle suivante mais
+    // ça ne fait rien ». Le jet avait ÉCHOUÉ (3 dés, 0 succès) — le moteur avait
+    // raison. Mais le fil de combat était MUET sur les leviers, et la narration
+    // annonçait « la pierre gronde au loin » sans regarder le jet. Un levier de
+    // couloir ouvre une porte hors de vue : ces lignes sont la SEULE chose qui
+    // dise ce qui s'est passé.
+    $echec = collect(lignes([
+        'type' => 'actionner_levier',
+        'jet' => ['issue' => 'echec', 'succes' => 0, 'difficulte' => 2],
+        'portes_ouvertes' => [],
+    ], 'Krogar'))->pluck('texte')->join(' | ');
+
+    $reussite = collect(lignes([
+        'type' => 'actionner_levier',
+        'jet' => ['issue' => 'reussite', 'succes' => 2, 'difficulte' => 2],
+        'portes_ouvertes' => [['x' => 36, 'y' => 30]],
+    ], 'Krogar'))->pluck('texte')->join(' | ');
+
+    // ⚠ L'échec doit dire qu'on peut RECOMMENCER : le forçage est retentable
+    // sans limite, et sans cette mention le groupe lit un cul-de-sac.
+    expect($echec)->toContain('sans succès')
+        ->and($echec)->toContain('réessayer')
+        ->and($reussite)->toContain("porte s'ouvre")
+        ->and($reussite)->not->toContain('réessayer');
+});

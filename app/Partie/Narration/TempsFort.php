@@ -89,6 +89,14 @@ final class TempsFort
         'mobilier_rien' => ['heros'],
         'porte_ouverte' => [],
         'levier_actionne' => ['heros'],
+        // ⚠ L'ÉCHEC a son propre temps fort (2026-09-11). `levier_actionne`
+        // était dispatché SANS regarder le jet : sur un échec, la narration
+        // annonçait quand même « la pierre gronde au loin » alors que rien ne
+        // s'était ouvert. Un mensonge poli est pire qu'un silence — le joueur
+        // s'éloigne en croyant le mécanisme déclenché. Signalé par René en
+        // partie réelle : « on a un levier dans un corridor qui est supposé
+        // ouvrir une porte dans la salle suivante mais ça ne fait rien ».
+        'levier_echoue' => ['heros'],
     ];
 
     /** @return list<string> */

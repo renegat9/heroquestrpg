@@ -404,7 +404,15 @@ class ChoixController extends Controller
                 default => 'progression',
             },
             'ouvrir_porte' => 'porte_ouverte',
-            'actionner_levier' => 'levier_actionne',
+            // ⚠ ON REGARDE LE JET. Dispatché inconditionnellement jusqu'au
+            // 2026-09-11, `levier_actionne` racontait « la pierre gronde au
+            // loin » même sur un échec — le joueur croyait le mécanisme
+            // déclenché et s'éloignait. La porte, elle, est souvent hors de vue
+            // (levier de couloir, porte de la salle suivante) : la narration est
+            // alors la SEULE chose qui dise ce qui s'est passé.
+            'actionner_levier' => (($resultat['jet']['issue'] ?? null) === 'echec')
+                ? 'levier_echoue'
+                : 'levier_actionne',
             'reprise' => 'reprise',
             'deplacement' => 'deplacement',
             // Inatteignable en pratique via ce contrôleur (une attaque cible

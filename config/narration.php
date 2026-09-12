@@ -201,6 +201,18 @@ return [
                 'Un raclement de pierre, et le passage est libre.',
             ],
         ],
+        // ⚠ Le levier RÉSISTE — et il est RETENTABLE SANS LIMITE (c'est ce qui
+        // permet à une salle de tenir à ce seul levier sans jamais se refermer).
+        // Le dire est la moitié utile du message : sans ça, le groupe s'éloigne
+        // en croyant le passage condamné.
+        'levier_echoue' => [
+            'ambiance' => 'mystere',
+            'variantes' => [
+                '{heros} pèse sur le levier : la pierre résiste. Rien ne bouge — mais rien n\'est perdu.',
+                'Le levier grince sous la poigne de {heros} sans céder ; il faudra recommencer.',
+                '{heros} force le mécanisme en vain — la prise est mauvaise, pas le levier.',
+            ],
+        ],
         'levier_actionne' => [
             'ambiance' => 'mystere',
             'variantes' => [
