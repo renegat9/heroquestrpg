@@ -26,14 +26,25 @@ class MoteurPotions
     ) {}
 
     /**
-     * Boit une ligne d'inventaire consommable portée par $personnage.
+     * Boit une ligne d'inventaire consommable PORTÉE par $personnage, au
+     * profit de $cible — un compagnon orthogonalement adjacent (René,
+     * 2026-09-11), ou $personnage lui-même par défaut (comportement inchangé).
+     *
+     * ⚠ $personnage reste le PORTEUR : c'est son inventaire qui perd
+     * l'exemplaire, et c'est lui qui doit être dans la manette au moment de
+     * l'action (la fiole part de SON sac). $cible est celui qui BOIT — tous
+     * les effets (soins, buffs, conditions, restauration de sorts) atterrissent
+     * sur lui, jamais sur le porteur, et c'est SA classe que la carte
+     * restreint (Krogar le Barbare peut tendre une Potion de rage guerrière à
+     * Aldric le magicien adjacent, mais c'est Aldric qui but, donc c'est lui
+     * que la carte refuse).
      *
      * @param  array<string, mixed>  $parametres  choix du joueur — `sort_ids`
      *                                            pour les potions qui rendent
      *                                            un nombre limité de sorts.
      * @return array<string, mixed> résumé moteur (effets appliqués)
      */
-    public function boire(Personnage $personnage, Inventaire $ligne, array $parametres = []): array
+    public function boire(Personnage $personnage, Inventaire $ligne, array $parametres = [], ?Personnage $cible = null): array
     {
         $objet = $ligne->objet;
 
@@ -48,22 +59,30 @@ class MoteurPotions
             ]);
         }
 
+        $buveur = $cible ?? $personnage;
+
         // RESTRICTION DE CLASSE — trois potions officielles sont réservées au
         // Barbare et deux à l'Elfe (doc 16 §2.1bis). C'est ici qu'elle est
         // opposable, et nulle part ailleurs : un consommable ne passe jamais
         // par `Equipement::equiper()`, donc rien ne l'aurait contrôlé.
-        if (! app(Equipement::class)->estAccessible($personnage, $objet)) {
+        //
+        // ⚠ Elle porte sur $buveur, PAS sur $personnage : sans quoi tendre sa
+        // potion à un voisin contournerait en silence une règle de carte
+        // officielle dès que le porteur, lui, avait la bonne classe.
+        if (! app(Equipement::class)->estAccessible($buveur, $objet)) {
             throw ValidationException::withMessages([
-                'inventaire_id' => "« {$objet->nom} » n'est pas pour un {$personnage->classe}.",
+                'inventaire_id' => "« {$objet->nom} » n'est pas pour un {$buveur->classe}.",
             ]);
         }
 
         $effet = (array) $objet->effet;
 
         // L'état de quête sert désormais à quatre effets ; on le charge une
-        // fois. La potion se boit hors tour, donc il peut être absent (au hub).
-        $etat = $personnage->groupeActif?->queteCourante?->etatsPersonnages()
-            ->where('personnage_id', $personnage->id)->first();
+        // fois — celui du BUVEUR, pas du porteur : un buff/compteur « par
+        // tour » appartient à qui va agir avec, pas à qui a tendu la fiole.
+        // La potion se boit hors tour, donc il peut être absent (au hub).
+        $etat = $buveur->groupeActif?->queteCourante?->etatsPersonnages()
+            ->where('personnage_id', $buveur->id)->first();
 
         // « you may use only one potion per turn » (Potion de dextérité). ⚠ La
         // garde ne vaut QUE pour les potions marquées `une_par_tour` : brider
@@ -77,25 +96,27 @@ class MoteurPotions
 
         $applique = [];
 
-        // Soin Body / Mind — plafonné au maximum du héros.
+        // Soin Body / Mind — plafonné au maximum du héros. Tout ce qui suit
+        // porte sur $buveur : c'est LUI qui encaisse l'effet, jamais le
+        // porteur qui a sorti la fiole du sac.
         // Soin ALÉATOIRE (fiole de fouille) : 1d6 PV, plafonné au maximum.
         if (isset($effet['soin_pv_body_de'])) {
-            $avant = (int) $personnage->pv_body;
+            $avant = (int) $buveur->pv_body;
             $de = $this->des->d6();
-            $personnage->pv_body = min((int) $personnage->pv_body_max, $avant + $de);
-            $applique['soin_pv_body'] = $personnage->pv_body - $avant;
+            $buveur->pv_body = min((int) $buveur->pv_body_max, $avant + $de);
+            $applique['soin_pv_body'] = $buveur->pv_body - $avant;
             $applique['de'] = $de;
         }
 
         if (isset($effet['soin_pv_body'])) {
-            $avant = (int) $personnage->pv_body;
-            $personnage->pv_body = min((int) $personnage->pv_body_max, $avant + (int) $effet['soin_pv_body']);
-            $applique['soin_pv_body'] = $personnage->pv_body - $avant;
+            $avant = (int) $buveur->pv_body;
+            $buveur->pv_body = min((int) $buveur->pv_body_max, $avant + (int) $effet['soin_pv_body']);
+            $applique['soin_pv_body'] = $buveur->pv_body - $avant;
         }
         if (isset($effet['soin_pv_mind'])) {
-            $avant = (int) $personnage->pv_mind;
-            $personnage->pv_mind = min((int) $personnage->pv_mind_max, $avant + (int) $effet['soin_pv_mind']);
-            $applique['soin_pv_mind'] = $personnage->pv_mind - $avant;
+            $avant = (int) $buveur->pv_mind;
+            $buveur->pv_mind = min((int) $buveur->pv_mind_max, $avant + (int) $effet['soin_pv_mind']);
+            $applique['soin_pv_mind'] = $buveur->pv_mind - $avant;
         }
 
         // Potion de restauration supérieure : « restores any hero's Body and
@@ -104,13 +125,13 @@ class MoteurPotions
         // remet les deux jauges à leur plafond au lancement de chaque quête,
         // donc aucun état de départ n'a besoin d'être mémorisé.
         if (! empty($effet['restaure_jauges_depart'])) {
-            $applique['soin_pv_body'] = (int) $personnage->pv_body_max - (int) $personnage->pv_body;
-            $applique['soin_pv_mind'] = (int) $personnage->pv_mind_max - (int) $personnage->pv_mind;
-            $personnage->pv_body = (int) $personnage->pv_body_max;
-            $personnage->pv_mind = (int) $personnage->pv_mind_max;
+            $applique['soin_pv_body'] = (int) $buveur->pv_body_max - (int) $buveur->pv_body;
+            $applique['soin_pv_mind'] = (int) $buveur->pv_mind_max - (int) $buveur->pv_mind;
+            $buveur->pv_body = (int) $buveur->pv_body_max;
+            $buveur->pv_mind = (int) $buveur->pv_mind_max;
         }
 
-        $personnage->save();
+        $buveur->save();
 
         // Un soin RELÈVE, comme le sort (décision de René, 2026-08-06).
         //
@@ -119,7 +140,7 @@ class MoteurPotions
         // remontait à 4 PV… et restait couché, alors que le même soin lancé en
         // SORT le remettait debout (`ResolveurTour::sortUtilitaire`). Deux
         // chemins pour un même effet ne doivent pas raconter deux règles.
-        $this->releverSiSoigne($personnage);
+        $this->releverSiSoigne($buveur);
 
         // Antidote — retire une condition nommée si présente.
         // Potion d'héroïsme : une ATTAQUE SUPPLÉMENTAIRE ce tour-ci — deux
@@ -140,7 +161,7 @@ class MoteurPotions
         // ferait rien faute de paramètre serait pire qu'un choix arbitraire.
         if (! empty($effet['restaure_sorts'])) {
             $applique['sorts_restaures'] = app(MoteurSorts::class)->restaurerSorts(
-                $personnage,
+                $buveur,
                 is_int($effet['restaure_sorts']) ? $effet['restaure_sorts'] : null,
                 array_map('intval', (array) ($parametres['sort_ids'] ?? [])),
             );
@@ -149,7 +170,7 @@ class MoteurPotions
         if (isset($effet['retire_condition'])) {
             $condition = Condition::query()->where('nom', $effet['retire_condition'])->first();
             if ($condition !== null) {
-                $personnage->conditions()->detach($condition->id);
+                $buveur->conditions()->detach($condition->id);
                 $applique['retire_condition'] = $effet['retire_condition'];
             }
         }
@@ -165,7 +186,7 @@ class MoteurPotions
         // rendrait une seconde fois des PV déjà rendus.
         if (isset($effet['soin_source'])) {
             $applique['soin_source'] = $this->soignerParSource(
-                $personnage, (string) $effet['soin_source'],
+                $buveur, (string) $effet['soin_source'],
             );
         }
 
@@ -180,7 +201,7 @@ class MoteurPotions
         // `MotsClesEquipement::DUREE` : un effet qui déclare quand il s'arrête
         // est un effet qui dure.
         if (isset($effet['duree'])) {
-            $applique['buff'] = $this->sorts->appliquerBuffPotion($personnage, $objet)->nom;
+            $applique['buff'] = $this->sorts->appliquerBuffPotion($buveur, $objet)->nom;
         }
 
         // Potion de vitesse bue APRÈS avoir entamé son mouvement.
@@ -210,17 +231,22 @@ class MoteurPotions
             $ligne->delete();
         }
 
-        $personnage->refresh();
+        $buveur->refresh();
 
         return [
             'type' => 'potion',
             'objet' => $objet->nom,
-            'personnage_id' => $personnage->id,
+            'personnage_id' => $buveur->id,
+            // ⚠ Présent seulement quand la potion change de main : la table et
+            // le journal doivent pouvoir dire « Krogar tend sa potion à Aldric »
+            // plutôt que la confondre avec un soin sur soi. Absent partout
+            // ailleurs — pas de changement de forme pour le cas `soi`.
+            'porteur_id' => (int) $personnage->id === (int) $buveur->id ? null : $personnage->id,
             'effets' => $applique,
-            'pv_body' => (int) $personnage->pv_body,
-            'pv_body_max' => (int) $personnage->pv_body_max,
-            'pv_mind' => (int) $personnage->pv_mind,
-            'pv_mind_max' => (int) $personnage->pv_mind_max,
+            'pv_body' => (int) $buveur->pv_body,
+            'pv_body_max' => (int) $buveur->pv_body_max,
+            'pv_mind' => (int) $buveur->pv_mind,
+            'pv_mind_max' => (int) $buveur->pv_mind_max,
         ];
     }
 

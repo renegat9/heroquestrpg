@@ -144,11 +144,33 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Eau bénite', 'categorie' => 'outil', 'prix_base' => 400, 'emplacement' => 'consommable',
                 'effet' => ['tue_creatures' => ['Squelette', 'Zombie', 'Momie']]],
 
+            // ⚠ CIBLE ADJACENTE (René, 2026-09-11, en jouant) : « lorsqu'on
+            // utilise une potion, il faudrait pouvoir cibler le joueur actuel
+            // OU un joueur adjacent ». Toutes les potions ci-dessous — sauf
+            // l'Élixir de Vie et la Poudre d'Invisibilité, DÉJÀ en `heros`
+            // (activables, un tiers en était déjà la cible normale) — portent
+            // donc `cible: heros_adjacent` : le porteur ou un voisin
+            // orthogonal (`MotsClesSort::CIBLE_HEROS_ADJACENT`).
+            //
+            // RAISON de l'ouverture à TOUTES : chaque effet ci-dessous s'écrit
+            // sur la ligne / les conditions du BUVEUR (`MoteurPotions::boire()`)
+            // et n'est jamais relu au nom de « qui agit en ce moment » — un
+            // soin, une condition (`duree`), un compteur `capacites_tour`, un
+            // total de sorts restaurés appartiennent tous au buveur et sont
+            // relus à SON prochain jet/attaque/défense/déplacement, qu'il
+            // s'agisse de son propre tour ou d'un tour ultérieur dans la même
+            // manche. Le seul chemin « en direct » (`deplacement_multiplie`
+            // appliqué immédiatement à `deplacement_restant`) ne s'applique
+            // de toute façon QUE si le buveur est déjà en train de bouger —
+            // vrai pour soi-même bue avant de partir aussi bien que pour un
+            // voisin : aucune potion de la liste n'a de mécanique qui exige
+            // d'être son propre porteur. Rien n'empêche donc de la tendre.
+            //
             // Fiole trouvée en fouille : soin ALÉATOIRE (1d6), là où la potion
             // achetée au marché rend un montant fixe. Rareté `unique` pour la
             // tenir hors de l'étal — on ne l'achète pas, on la trouve.
             ['nom' => 'Fiole de soin', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 100, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body_de' => 6]],
+                'effet' => ['soin_pv_body_de' => 6, 'cible' => 'heros_adjacent']],
 
             // Potions du deck de trésor du plateau. Elles réutilisent les clés
             // que le moteur lit déjà (`bonus_des_attaque`/`bonus_des_defense`,
@@ -157,16 +179,16 @@ class ObjetSeeder extends Seeder
             // l'attaque vient de l'arme chez nous, un bonus de dés n'aurait pas
             // rendu la carte du plateau.
             ['nom' => "Potion d'héroïsme", 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['attaque_supplementaire' => true]],
+                'effet' => ['attaque_supplementaire' => true, 'cible' => 'heros_adjacent']],
             // `duree` : vocabulaire App\Engine\DureeEffet (reference/19_mots_cles_effets.md).
             // Ces deux-là portaient `duree => 0`, qui n'est pas une durée mais
             // l'absence de compteur : rien ne les retirait jamais. Force et
             // Défense sont donc des BURSTS (+2 sur un jet), là où Rage, au même
             // prix, tient tout le combat pour +1 — départ playtest.
             ['nom' => 'Potion de force', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_attaque' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de défense', 'categorie' => 'consommable', 'prix_base' => 150, 'emplacement' => 'consommable',
-                'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_defense' => 2, 'duree' => 'prochaine_defense', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
 
             // ----- Artefacts UNIQUES (doc 04 §4/§6, reference/16 §9) -----
             //
@@ -420,8 +442,11 @@ class ObjetSeeder extends Seeder
             // used immediately. » — même clé que l'Antidote, aucune mécanique
             // nouvelle. Elle n'attendait qu'un CANAL : depuis que le coffre
             // accepte un consommable en repli, elle en a un.
+            // Même clé, même ouverture de ciblage que l'Antidote au venin
+            // (2026-09-11) : soigner un compagnon empoisonné est le cas
+            // d'école de la potion qu'on tend plutôt que qu'on boit.
             ['nom' => 'Plume anti-poison', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 300, 'emplacement' => 'consommable',
-                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison']],
+                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison', 'cible' => 'heros_adjacent']],
 
             // « The Wand of Recall allows you to cast two spells instead of one
             // during your turn. » — le pouvoir du nœud Réserve arcanique, mais
@@ -631,63 +656,69 @@ class ObjetSeeder extends Seeder
             // deck de trésor. Elles cohabitent donc avec les potions officielles
             // ci-dessous sans faire doublon de nom.
             ['nom' => 'Potion de soin', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body' => 4]],
+                'effet' => ['soin_pv_body' => 4, 'cible' => 'heros_adjacent']],
 
             // ----- Les 15 potions officielles (`potions.pdf`, doc 16 §2.1bis) -----
             //
             // Trois sont réservées au BARBARE et deux à l'ELFE : c'est le texte
             // des cartes, et c'est la première fois qu'un consommable porte une
             // restriction de classe. Elle passe par `tag_equipement`, comme
-            // toutes les autres, et `MoteurPotions::boire()` la fait respecter.
+            // toutes les autres, et `MoteurPotions::boire()` la fait respecter —
+            // désormais sur le BUVEUR (voir la note `cible` plus haut), ce qui
+            // se prouve précisément sur les deux réservées à l'Elfe ci-dessous :
+            // un non-Elfe peut porter Rappel/Vision et les tendre à un Elfe
+            // adjacent, jamais se les boire à lui-même.
             ['nom' => 'Potion de dextérité', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable',
                 // « adds 5 movement squares to your next dice roll OR guarantees
                 // one successful pit jump » — les deux moitiés sont posées
                 // ensemble, le joueur prend celle que sa situation lui offre.
                 'effet' => ['bonus_deplacement' => 5, 'saut_fosse_automatique' => true, 'une_par_tour' => true,
-                    'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
+                    'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de bataille', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
-                'effet' => ['relance_des_attaque' => true, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['relance_des_attaque' => true, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body' => 2]],
+                'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
-                'effet' => ['deplacement_multiplie' => 2, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['deplacement_multiplie' => 2, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de force glaciale', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
-                'effet' => ['multiplicateur_degats' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['multiplicateur_degats' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Antidote au venin', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable',
                 // ⚠ « caused by poison needles or poison darts only » n'est PAS
                 // portable : la source d'un dégât n'est mémorisée nulle part sur
                 // le héros. Même forme que la Plume anti-poison (doc 16 §10).
-                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison']],
+                'effet' => ['retire_condition' => 'Empoisonné', 'soin_source' => 'poison', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de peau de givre', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
-                'effet' => ['bonus_des_defense' => 2, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['bonus_des_defense' => 2, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de magie', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable',
-                'effet' => ['restaure_sorts' => 3]],
+                'effet' => ['restaure_sorts' => 3, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de rappel', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
-                'effet' => ['restaure_sorts' => 1]],
+                'effet' => ['restaure_sorts' => 1, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de rage guerrière', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 // « 2 attacks per turn as long as there are monsters in sight » :
                 // le drapeau se pose ici, et `rythmerBuffsDeVue()` le RÉARME à
                 // chaque début de tour tant qu'un ennemi est en vue.
-                'effet' => ['attaque_supplementaire' => true, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé']],
+                'effet' => ['attaque_supplementaire' => true, 'duree' => 'plus_de_monstre_en_vue', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             // Guérison et Régénération sont mécaniquement IDENTIQUES chez nous
             // (1d6 plafonné au maximum, même prix) : c'est le texte des deux
             // cartes, l'une disant « roll 1 red die », l'autre « up to 6 lost
             // Body Points. Roll 1 red die ». On les sème quand même toutes les
             // deux, et on le dit (doc 16 §10).
             ['nom' => 'Potion de guérison', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body_de' => 6]],
+                'effet' => ['soin_pv_body_de' => 6, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de régénération', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body_de' => 6]],
+                'effet' => ['soin_pv_body_de' => 6, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de restauration', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
-                'effet' => ['soin_pv_body' => 1, 'soin_pv_mind' => 1]],
+                'effet' => ['soin_pv_body' => 1, 'soin_pv_mind' => 1, 'cible' => 'heros_adjacent']],
+            // Explicitement citée par René comme exemple de ce qui « a du
+            // sens » donnée à un voisin — Elfe seulement, comme Rappel.
             ['nom' => 'Potion de vision', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_elfe',
-                'effet' => ['revele_pieges_et_portes_en_vue' => true, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Clairvoyance']],
+                'effet' => ['revele_pieges_et_portes_en_vue' => true, 'duree' => 'premier_degat_subi', 'condition_appliquee' => 'Clairvoyance', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de restauration supérieure', 'categorie' => 'consommable', 'prix_base' => 800, 'emplacement' => 'consommable',
                 // « restores any hero's Body and Mind Points to the level they
                 // were at when the hero started the Quest » = au MAXIMUM chez
                 // nous. La clause « cure a hero turned into a werewolf » n'a pas
                 // d'objet : aucun lycanthrope au bestiaire.
-                'effet' => ['restaure_jauges_depart' => true]],
+                'effet' => ['restaure_jauges_depart' => true, 'cible' => 'heros_adjacent']],
         ];
 
         foreach ($objets as $objet) {

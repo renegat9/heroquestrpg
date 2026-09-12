@@ -34,6 +34,26 @@ final class MotsClesSort
      */
     public const CIBLE_HEROS = 'heros';
 
+    /**
+     * Le porteur lui-même OU un héros ORTHOGONALEMENT ADJACENT — ni le reste
+     * de la ligne de vue, ni la diagonale. **À NE PAS CONFONDRE avec
+     * `CIBLE_HEROS`** : celui-ci rend TOUS les héros en vue (portée d'un
+     * sort qui traverse une salle) ; celui-là un seul geste de table —
+     * « lorsqu'on utilise une potion, il faudrait pouvoir cibler le joueur
+     * actuel OU un joueur adjacent » (René, 2026-09-11). Tendre sa fiole à
+     * qui est à côté de soi, pas au bout du couloir.
+     *
+     * ⚠ La restriction de classe d'un objet porté par `cible` doit s'opposer
+     * au DESTINATAIRE, jamais au porteur qui le sort de son sac — sans quoi
+     * une potion réservée au Barbare contournerait sa carte dès qu'un
+     * magicien la tendrait à un voisin. Lecteurs : `MenuMoteur::ciblesObjet()`
+     * (adjacence via `Grille::sontAdjacentes()`, `$diagonales` par défaut à
+     * `false` — même convention que `ResolveurTour::resoudreRelever()` pour
+     * relever un allié tombé) et `MoteurPotions::boire()` (le 4ᵉ paramètre
+     * `$cible`, jamais le porteur).
+     */
+    public const CIBLE_HEROS_ADJACENT = 'heros_adjacent';
+
     /** Un monstre. */
     public const CIBLE_MONSTRE = 'monstre';
 
@@ -57,6 +77,7 @@ final class MotsClesSort
     public const CIBLES = [
         self::CIBLE_SOI,
         self::CIBLE_HEROS,
+        self::CIBLE_HEROS_ADJACENT,
         self::CIBLE_MONSTRE,
         self::CIBLE_MONSTRES_ZONE,
     ];

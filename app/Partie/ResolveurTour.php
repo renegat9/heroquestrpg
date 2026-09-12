@@ -5857,7 +5857,31 @@ final class ResolveurTour
             // `une_par_tour`, relève sur soin, décrément de la pile. On lui
             // délègue au lieu de réimplémenter : c'est aussi lui que la feuille
             // de réaction appelle quand un héros tombe.
-            $payload += ['potion' => app(MoteurPotions::class)->boire($personnage, $ligne)];
+            //
+            // ⚠ CIBLE ADJACENTE (René, 2026-09-11) : `$cibleId` peut désigner
+            // un AUTRE héros que le porteur (`effet.cible: heros_adjacent`,
+            // « Potion de rage guerrière » tendue à un voisin). `boire()` fait
+            // porter la restriction de classe sur ce buveur via son 4ᵉ
+            // paramètre — jamais sur le porteur, sans quoi la carte serait
+            // contournée en silence. On revalide le tombé ici comme
+            // `cibleHerosArtefact()` le fait pour les artefacts : l'état a pu
+            // changer entre la génération du menu (déjà validée ci-dessus
+            // contre `$legales`, la liste blanche) et la soumission du choix.
+            $buveur = $personnage;
+
+            if ($cibleId > 0 && $cibleId !== $personnage->id) {
+                $buveur = $quete->etatsPersonnages()
+                    ->where('personnage_id', $cibleId)->where('tombe', false)
+                    ->with('personnage')->first()?->personnage;
+
+                if ($buveur === null) {
+                    throw ValidationException::withMessages([
+                        'parametres' => 'Ce héros ne peut plus recevoir cette potion.',
+                    ]);
+                }
+            }
+
+            $payload += ['potion' => app(MoteurPotions::class)->boire($personnage, $ligne, [], $buveur)];
 
             return $this->journaliserUsageObjet($groupe, $payload, $acteur);
         } else {

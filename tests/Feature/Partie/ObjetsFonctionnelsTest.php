@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Engine\MotsClesEquipement;
+use App\Engine\MotsClesSort;
 use App\Models\Objet;
 use App\Models\Sort;
 use Database\Seeders\ObjetSeeder;
@@ -62,6 +63,23 @@ it('n\'accumule pas de mot-clé d\'équipement que plus aucun objet ne porte', f
 
     expect($orphelins)->toBe([], 'mot(s)-clé déclaré(s) que plus aucun objet ne porte : '
         .implode(', ', $orphelins).' — retire-le du vocabulaire, ou donne-lui un porteur.');
+});
+
+it('n\'emploie sur un objet que des `cible` déclarées dans MotsClesSort', function () {
+    // Miroir exact de `SortsFonctionnelsTest` côté sorts : `cible` est le même
+    // vocabulaire fermé des deux côtés (`MotsClesEquipement::CIBLE`), donc il
+    // se teste dans les DEUX SENS ici aussi — sans quoi un objet pourrait
+    // porter un mot que ni un lecteur ni un test ne surveille.
+    foreach (Objet::all() as $objet) {
+        $cible = (array) $objet->effet;
+
+        if (! isset($cible['cible'])) {
+            continue;
+        }
+
+        expect(in_array($cible['cible'], MotsClesSort::CIBLES, true))
+            ->toBeTrue("{$objet->nom} : cible « {$cible['cible']} » hors vocabulaire.");
+    }
 });
 
 it('garde la difficulté des parchemins synchronisée avec celle du sort', function () {

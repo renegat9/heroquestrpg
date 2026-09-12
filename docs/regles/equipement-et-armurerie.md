@@ -18,6 +18,31 @@ The rest reuses what existed: **Berserker** loses `arme_distance`; **Rogue** los
 
 **Nineteen items entered with a reader each** (the condition René set: keep the cards *and* make them work). Four are hardware — **caltrops** (a runtime `carte.grille['chausse_trappes']` layer, one combat die on entry, white shield to keep going), **smoke bomb** (the monster leaves `$occupees`, which lifts movement blocking AND line of sight in one gesture, since that set is the engine's only occupancy loop — but ⚠ *traversing is not stopping*: ending a move on its square is refused), **holy water** (kills undead by `monstres.nom_base`, never the AI-dressed name), **bandolier** (`compte_comme_arme`: no extra die, only the rules that *require* a dagger — the Rogue's Ambidextrie, and closing the Monk's bare-handed techniques). Fifteen are potions, and three of them carry a **class restriction — a first for a consumable**: `MoteurPotions` consulted no right at all, since a consumable never goes through `equiper()`. The decision is extracted into `Equipement::estAccessible()` and applied at the **three** places that must agree — the resolver *refuses*, `/moi` *badges* (`utilisable`, greying the button — a hero may carry a companion's potion), `MoteurReactions::soinsDisponibles()` *filters* (offering an emergency heal the resolver would refuse is worse than offering none).
 
+⚠ **The class restriction follows whoever DRINKS, never whoever carries** (René,
+2026-09-11, mid-game: "when using a potion, I should be able to target the
+current player OR an adjacent one"). Fifteen potions used to be drunk on
+oneself only, so checking the class of `$personnage` — the one pulling the
+bottle from their own bag — and the class of the drinker were the same person
+by construction. A new `heros_adjacent` target (`MotsClesSort`, contrasted
+against `heros` — that one returns every hero in line of sight for a spell,
+this one only the bearer plus an orthogonally-adjacent neighbour) breaks that
+equivalence: a Barbarian can now hand their Battle Rage potion to an adjacent
+wizard, and it is the **wizard's** class the card should refuse, not the
+barbarian's. `MoteurPotions::boire()` therefore takes a 4th, optional `$cible`
+parameter (the drinker, defaulting to the carrier — unchanged behaviour for
+every self-drunk potion) and checks `estAccessible()` against it; every
+subsequent write (healing, buffs, spell restores, the fallen-hero revive) also
+moved from `$personnage` to that drinker. `MenuMoteur::ciblesObjet()` filters
+candidate targets — bearer included — through the same `estAccessible()`
+check, so the illegal pairing never reaches the menu at all: a wizard
+adjacent to that same Barbarian never sees themself offered as a legal
+target. Twenty-one of the twenty-three consumables now carry
+`heros_adjacent`; the Elixir of Life and the Invisibility Dust keep their
+pre-existing `heros` (they already targeted a third party by design) and were
+left untouched. A fallen adjacent hero is **not** offered either, same rule as
+`heros` — reviving one is `resoudreRelever()`'s job, a different mechanic this
+change does not extend.
+
 Twelve keywords were added to `MotsClesEquipement`, each with its reader, plus a **seventh duration**: `plus_de_monstre_en_vue`, which the barbarian's two potions need and `fin_du_combat` cannot say — the latter reasons over the whole quest, the former over the bearer's **line of sight**. ⚠ It is evaluated at the **start of the turn** (`MoteurSorts::rythmerBuffsDeVue()`, same hook as the Monk's style recovery, same idempotence guard), which both expires the buffs *and* **re-arms** Battle Rage's second attack — without that guard, re-arming after every action would grant a third attack.
 
 **Two weapons in hand — the off-hand grants a CHOICE, not a die** (René's call, 2026-08-12; doc 16 §2.2, doc 01 §7). Four loadouts, and only four: two one-handed weapons · one two-handed weapon · one one-handed weapon + shield · one one-handed weapon alone. This had been blocked twice over, and the second blocker was the real one: *no card says what the second weapon grants*, so wiring it meant inventing the one number that matters. René's answer removes the number entirely — the off-hand adds **nothing** to the dice, it adds an attack **option**. The menu therefore emits one attack per weapon ("Attaquer — Épée large", "Attaquer — Dague"), each carrying **its own** legal targets, because reach, diagonals and throwing belong to the WEAPON, not the hero: a crossbow sees the room, a sword its four neighbours, a longsword adds the diagonals.

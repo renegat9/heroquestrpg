@@ -505,7 +505,12 @@ final class MotsClesEquipement
     /** L'objet entre dans la liste « Utiliser un objet » sans être un consommable. */
     public const ACTIVABLE = 'activable';
 
-    /** Qui l'objet vise : `soi` · `heros` · `monstre` (vocabulaire de MotsClesSort). */
+    /**
+     * Qui l'objet vise : `soi` · `heros` · `heros_adjacent` · `monstre`
+     * (vocabulaire de MotsClesSort). `heros_adjacent` (2026-09-11) : le
+     * porteur ou un voisin orthogonal, pour les potions — la restriction de
+     * classe d'un objet porté suit alors le DESTINATAIRE, jamais le porteur.
+     */
     public const CIBLE = 'cible';
 
     /** Créneau dépensé par l'usage : `action` ou `gratuit`. */
@@ -988,6 +993,11 @@ final class MotsClesEquipement
         'action' => "l'action du tour",
         'soi' => 'soi-même',
         'heros' => 'un héros',
+        // 2026-09-11 : sans cette entrée, la ligne « Cible » d'une potion
+        // adjacente serait tombée sur le remplacement générique — « heros
+        // adjacent », l'exact slug-déguisé-en-phrase que cette table existe
+        // pour éviter.
+        'heros_adjacent' => 'un héros adjacent',
         'monstre' => 'un monstre',
         'contact' => 'au contact',
         'distance' => 'à distance',

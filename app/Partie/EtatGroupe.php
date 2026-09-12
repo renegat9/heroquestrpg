@@ -899,6 +899,34 @@ final class EtatGroupe
                     'a_joue' => (bool) ($etat?->a_joue ?? false),
                     'a_deplace' => (bool) ($etat?->a_deplace ?? false),
                     'a_agi' => (bool) ($etat?->a_agi ?? false),
+                    // Potion d'héroïsme / Rage guerrière : une SECONDE attaque
+                    // au-delà du créneau d'action normal (`ResolveurTour`,
+                    // `$bonusHeroisme`). Sans ce drapeau, le miroir client
+                    // (`ActionTab::creneauConsomme()`) ne pouvait pas savoir que
+                    // l'option d'attaque restait légale après `a_agi` — le
+                    // journal annonçait la seconde frappe, le bouton la
+                    // refusait quand même (signalé en partie réelle, 2026-09-11).
+                    'attaque_supplementaire' => (bool) ($etat?->attaque_supplementaire ?? false),
+                    // RÉSERVE ARCANIQUE (talent du magicien) et Baguette de
+                    // Rappel : un SECOND sort au-delà du créneau d'action, le
+                    // pendant exact de la seconde attaque ci-dessus. Même
+                    // maladie, signalée par l'agent qui corrigeait la première :
+                    // ni publiée, ni lue, donc « Lancer un sort » se grisait
+                    // après le premier lancer alors que le serveur l'acceptait.
+                    //
+                    // ⚠ On publie la DÉCISION, pas le drapeau brut. Le client ne
+                    // peut pas décider seul : la condition serveur exige de
+                    // savoir si le héros POSSÈDE le talent ou la pièce, ce que
+                    // le payload ne dit nulle part — la lui faire re-dériver
+                    // serait fabriquer un cinquième miroir, et c'est exactement
+                    // la classe de défaut qu'on vient de payer quatre fois cette
+                    // semaine. « Une décision prise côté serveur s'y publie
+                    // plutôt que de se re-dériver côté client. »
+                    'sort_bonus_disponible' => $etat !== null
+                        && (bool) $etat->a_agi
+                        && ! (bool) $etat->bonus_sort_utilise
+                        && (app(Talents::class)->a($p, 'sort_supplementaire_par_tour')
+                            || app(MoteurCharges::class)->pieceActive($p, 'second_sort_par_tour') !== null),
                     // Rejetons ACCROCHÉS (Jungles of Delthrak) : 1 PV automatique
                     // et indéfendable par jeton, à chaque fin de tour. Exposé
                     // parce qu'il DOIT se voir — c'est un dégât que rien

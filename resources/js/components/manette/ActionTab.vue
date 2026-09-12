@@ -175,6 +175,26 @@ function creneauConsomme(option) {
         case 'relever':
         case 'attente':
             return false;
+        // ⚠ Potion d'héroïsme / Rage guerrière (corrigé 2026-09-11, signalé en
+        // partie réelle : « j'ai pris une potion d'héroïsme après avoir
+        // attaqué mais l'action d'attaque était grisée »). Troisième défaut du
+        // même miroir, deux cicatrices plus haut dans ce fichier :
+        // `actionner_levier` se croyait gratuit, `objet_libre` manquait —
+        // celui-ci grisait l'attaque dès `a_agi` sans jamais regarder si le
+        // bonus de seconde frappe (`etat.attaque_supplementaire`) l'avait
+        // rouverte. Miroir exact de la garde serveur `$bonusHeroisme`
+        // (`ResolveurTour::resoudreOption()`) : ne grise PAS moins que le
+        // serveur n'accepte, sinon c'est un 422 offert à la place d'un bouton.
+        case 'attaque':
+            return !!moi.a_agi && !moi.attaque_supplementaire;
+        // RÉSERVE ARCANIQUE / Baguette de Rappel — le pendant du bonus
+        // d'attaque, et la MÊME maladie : « Lancer un sort » se grisait après le
+        // premier lancer alors que `ResolveurTour` l'acceptait encore
+        // (`$bonusReserveArcanique`). ⚠ On lit une DÉCISION publiée par le
+        // serveur, jamais une condition reconstituée : elle dépend du talent et
+        // des charges du héros, que ce payload ne porte pas.
+        case 'sort':
+            return !!moi.a_agi && !moi.sort_bonus_disponible;
         default:
             return !!moi.a_agi;
     }

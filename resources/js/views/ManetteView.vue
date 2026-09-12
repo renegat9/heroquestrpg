@@ -418,7 +418,19 @@ const creneauxDuTour = computed(() => {
     const e = monEntite.value;
     if (!e || typeof e.a_agi !== 'boolean') return null; // serveur plus ancien
 
-    return { a_joue: !!e.a_joue, a_deplace: !!e.a_deplace, a_agi: !!e.a_agi };
+    return {
+        a_joue: !!e.a_joue, a_deplace: !!e.a_deplace, a_agi: !!e.a_agi,
+        // Potion d'héroïsme / Rage guerrière : sans lui, `ActionTab` grisait
+        // l'attaque après `a_agi` même quand le serveur en acceptait une
+        // seconde — `!!undefined` reste `false`, donc un client plus ancien
+        // que ce champ retombe sur l'ancien comportement (rien de neuf grisé).
+        attaque_supplementaire: !!e.attaque_supplementaire,
+        // Pendant exact pour les SORTS (Réserve arcanique, Baguette de Rappel).
+        // ⚠ C'est une DÉCISION calculée par le serveur, pas un drapeau brut :
+        // savoir si le héros a le talent ou la pièce n'est nulle part dans ce
+        // payload, et le re-dériver ici fabriquerait un miroir de plus.
+        sort_bonus_disponible: !!e.sort_bonus_disponible,
+    };
 });
 const initMini = computed(() => initiativeVersMini(store.state.etat?.initiative));
 const initCur = computed(() => {

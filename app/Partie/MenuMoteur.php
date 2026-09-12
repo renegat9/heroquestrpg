@@ -364,6 +364,7 @@ final class MenuMoteur
         Personnage $personnage,
         string $cible,
         bool $tombeAdmis = false,
+        ?Objet $objet = null,
     ): array {
         if ($cible === MotsClesSort::CIBLE_SOI) {
             return [];
@@ -390,6 +391,42 @@ final class MenuMoteur
             return $cibles === [] ? [] : ['cibles' => $cibles];
         }
 
+        // ⚠ LA RESTRICTION DE CLASSE SUIT LA CIBLE, jamais le porteur qui
+        // sort l'objet de son sac (René, 2026-09-11) : « le menu n'offre
+        // jamais ce que le résolveur va refuser » (règle dure du projet), et
+        // c'est `MoteurPotions::boire()` qui refusera si le DESTINATAIRE
+        // n'a pas la classe requise — un magicien peut très bien PORTER une
+        // Potion de rage guerrière réservée au Barbare (`/moi` la badge déjà
+        // ainsi), il ne peut simplement pas la boire lui-même, ni la faire
+        // boire à un voisin qui ne l'est pas davantage.
+        $accessible = fn (?Personnage $candidat): bool => $candidat !== null
+            && ($objet === null || $this->equipement->estAccessible($candidat, $objet));
+
+        // `heros_adjacent` — le porteur OU un héros ORTHOGONALEMENT adjacent
+        // (`Grille::sontAdjacentes()`, `$diagonales` par défaut à `false` —
+        // même convention que `ResolveurTour::resoudreRelever()`). Distinct
+        // de `heros` : pas toute la ligne de vue, seulement le contact.
+        if ($cible === MotsClesSort::CIBLE_HEROS_ADJACENT) {
+            $requete = $quete->etatsPersonnages()->with('personnage');
+
+            if (! $tombeAdmis) {
+                $requete->where('tombe', false);
+            }
+
+            $cibles = $requete->get()
+                ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && $e->position_x !== null
+                    && ($e->personnage_id === $personnage->id || $grille->sontAdjacentes(
+                        (int) $etat->position_x, (int) $etat->position_y,
+                        (int) $e->position_x, (int) $e->position_y,
+                    ))
+                    && $accessible($e->personnage))
+                ->map(fn (EtatPersonnageQuete $e) => [
+                    'id' => $e->personnage_id, 'type' => 'heros', 'nom' => $e->personnage->nom,
+                ])->values()->all();
+
+            return $cibles === [] ? [] : ['cibles' => $cibles];
+        }
+
         // `heros` — le lanceur COMPRIS : il se voit toujours lui-même.
         //
         // ⚠ `$tombeAdmis` existe pour l'Élixir de Vie, seul artefact dont la
@@ -404,7 +441,8 @@ final class MenuMoteur
 
         $cibles = $requete->get()
             ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null
-                && ($e->personnage_id === $personnage->id || $vue($e->position_x, $e->position_y)))
+                && ($e->personnage_id === $personnage->id || $vue($e->position_x, $e->position_y))
+                && $accessible($e->personnage))
             ->map(fn (EtatPersonnageQuete $e) => [
                 'id' => $e->personnage_id, 'type' => 'heros', 'nom' => $e->personnage->nom,
             ])->values()->all();
@@ -537,6 +575,7 @@ final class MenuMoteur
                     ...$this->ciblesObjet(
                         $quete, $personnage, (string) ($objet->effet['cible'] ?? 'soi'),
                         tombeAdmis: ! empty($objet->effet['releve']),
+                        objet: $objet,
                     ),
                 ];
 
@@ -544,17 +583,44 @@ final class MenuMoteur
             }
 
             // POTIONS — `MoteurPotions` n'accepte que la catégorie
-            // `consommable`, c'est le même filtre que `/moi.consommables`.
-            if ($objet->categorie === 'consommable' && $equipement->estAccessible($personnage, $objet)) {
-                $entrees[] = [
-                    'cle' => "objet:{$ligne->id}",
-                    'inventaire_id' => $ligne->id,
-                    'nom' => $objet->nom,
-                    'detail' => 'Boire',
-                    'cout' => 'gratuit',
-                    'quantite' => (int) $ligne->quantite,
-                    'avantages' => MotsClesEquipement::avantages((array) $objet->effet),
-                ];
+            // `consommable` (et jamais un `activable`, déjà traité et sorti
+            // par le `continue` ci-dessus), c'est le même filtre que
+            // `/moi.consommables`.
+            //
+            // ⚠ CIBLE ADJACENTE (René, 2026-09-11) : `effet.cible` peut
+            // désormais valoir `heros_adjacent` — tendre sa potion à un
+            // voisin, pas seulement la boire soi-même. `ciblesObjet()` filtre
+            // alors chaque candidat par `estAccessible()` : la restriction de
+            // classe d'une carte suit qui VA BOIRE, jamais qui la sort du
+            // sac (`MoteurPotions::boire()` la revérifie côté résolveur). Pour
+            // `soi` — l'écrasante majorité des potions — `ciblesObjet()` ne
+            // construit toujours rien, et c'est l'accessibilité du PORTEUR
+            // qui décide, comme avant : comportement inchangé.
+            if ($objet->categorie === 'consommable' && empty($objet->effet['activable'])) {
+                $ciblePotion = (string) ($objet->effet['cible'] ?? MotsClesSort::CIBLE_SOI);
+                $ciblesPotion = $this->ciblesObjet($quete, $personnage, $ciblePotion, objet: $objet);
+
+                // « Le menu n'offre jamais ce que le résolveur va refuser » :
+                // sur `soi`, seule l'accessibilité du porteur compte ; sur
+                // `heros_adjacent`, l'entrée n'apparaît QUE s'il reste au
+                // moins un destinataire légal (soi compris) — jamais un
+                // bouton qui répondrait toujours non.
+                $offrable = $ciblePotion === MotsClesSort::CIBLE_SOI
+                    ? $equipement->estAccessible($personnage, $objet)
+                    : $ciblesPotion !== [];
+
+                if ($offrable) {
+                    $entrees[] = [
+                        'cle' => "objet:{$ligne->id}",
+                        'inventaire_id' => $ligne->id,
+                        'nom' => $objet->nom,
+                        'detail' => 'Boire',
+                        'cout' => 'gratuit',
+                        'quantite' => (int) $ligne->quantite,
+                        'avantages' => MotsClesEquipement::avantages((array) $objet->effet),
+                        ...$ciblesPotion,
+                    ];
+                }
             }
         }
 

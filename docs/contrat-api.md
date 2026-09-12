@@ -1204,6 +1204,32 @@ Ronces*) — coûte l'**action**, porte `parametres.cibles` (soi + voisins
 entravés) comme `soin_allie`, et le résolveur revalide contre cette liste
 blanche. Payload : `{type: "liberer_entraves", cible, sur_soi}`.
 
+⚠ **Cible adjacente pour les potions** (René, 2026-09-11, en jouant — « il
+faudrait pouvoir cibler le joueur actuel ou un joueur adjacent »). Nouveau mot
+`heros_adjacent` dans le vocabulaire `cible` de `MotsClesSort`/
+`MotsClesEquipement::CIBLE` — le porteur OU un héros ORTHOGONALEMENT adjacent
+(`Grille::sontAdjacentes()`, diagonales exclues, même convention que relever un
+allié tombé). Vingt-et-une potions le portent dans `effet.cible` (toutes sauf
+l'Élixir de Vie et la Poudre d'Invisibilité, déjà `heros`/`activable` et
+inchangées) ; l'entrée `utiliser_objet` d'une potion ainsi ouverte publie donc
+désormais `parametres.objets[].cibles` — **rien de neuf côté forme**, c'est le
+même patron que les artefacts activables (`parametres.cibles` par entrée, 3ᵉ
+niveau de la manette qui ne s'ouvre que si l'entrée en porte). Conséquence
+assumée : une potion `heros_adjacent` demande désormais TOUJOURS un `cible_id`
+— même pour se la boire soi-même quand personne d'autre n'est à contact —,
+exactement comme la Poudre d'Invisibilité le demandait déjà.
+⚠ **La restriction de classe d'une potion suit désormais qui BOIT, jamais qui
+la sort du sac** : `MoteurPotions::boire()` prend un 4ᵉ paramètre `$cible`
+(le buveur, `$personnage` par défaut) et vérifie `estAccessible()` contre LUI.
+Un Barbare peut tendre sa Potion de rage guerrière (réservée au Barbare) à un
+magicien adjacent — refusé, c'est le magicien qui boirait — et à l'inverse un
+magicien peut PORTER la même potion (trouvée en fouille) et la tendre à un
+Barbare adjacent — acceptée, c'est le Barbare qui boit. `ciblesObjet()` filtre
+déjà la liste blanche par cette même règle, donc le cas refusé n'apparaît même
+pas dans le menu. Payload `resultat.potion` gagne `porteur_id` (nullable,
+présent seulement quand potion et buveur diffèrent) pour que la table/le
+journal distinguent « X boit » de « X tend sa potion à Y ».
+
 **Capacités** (`monstres.capacites` JSON) : Invocation (comme le sort, sbires
 de base — payload `{type: "capacite_dread", capacite: "invocation", invoques}` ;
 elle ne coûte **aucun** usage de Dread, partage le verrou 1×/rencontre du sort
@@ -1220,6 +1246,24 @@ un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
 l'Effroi — **les monstres** gagnent 1 dé contre lui), *Immobilisé* (Étreinte des
 Ronces — se libère par une action), et *Apeuré*, qui **plafonne** désormais
 l'attaque à 1 dé au lieu de la diminuer de 1.
+
+⚠ **`entites[].attaque_supplementaire`** (héros seulement, 2026-09-11) — signalé
+en partie réelle : « j'ai pris une potion d'héroïsme après avoir attaqué mais
+l'action d'attaque était grisée ». La veille, `menu.situation` avait été corrigé
+pour ANNONCER le bonus ; le bouton, lui, restait grisé pour de bon, faute d'une
+donnée pour le miroir client — deux moitiés d'une seule réparation. `EtatGroupe`
+publie donc ce drapeau à côté de `a_agi`/`a_deplace`/`a_joue`, et
+`ManetteView.creneauxDuTour` le relaie dans `{a_joue, a_deplace, a_agi,
+attaque_supplementaire}` passé à `ActionTab`. `ActionTab.creneauConsomme()`
+cesse de griser une option `type: "attaque"` quand il vaut vrai — miroir exact
+de la garde serveur `$bonusHeroisme` (`ResolveurTour::resoudreOption()`) :
+« le menu n'offre jamais ce que le résolveur refusera » vaut aussi dans
+l'autre sens, un bouton grisé ne doit jamais refuser ce que le résolveur
+accepterait. ⚠ **Divergence signalée, non corrigée ici** : la Réserve
+arcanique / Baguette de Rappel (second sort du tour, `etat.bonus_sort_utilise`)
+souffre du même défaut — ni publiée par `EtatGroupe`, ni lue par
+`creneauConsomme()`, qui grise donc « Lancer un sort » après un premier sort
+alors que le résolveur accepterait le second.
 
 ## Modèle de session : Narrateur (table) vs Joueur (compte)
 
