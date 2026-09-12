@@ -56,3 +56,30 @@ reste réel, il est seulement moins rare. ⚠ Et les deux ne s'excluent pas : me
 porte secrète dans **19 cas sur 40** — c'est exactement le cas de la quête 99
 ci-dessus, et c'est pourquoi une porte secrète non trouvée peut coûter la quête
 entière et non un bonus.
+
+⚠ **Faut-il un SECOND passage secret quand le premier tombe sur la salle objectif ?**
+(René, 2026-09-12). La crainte est fondée : `sallesACoffre()` part de
+`[$salleArtefact]` puis ajoute la plus profonde salle de chaque jonction secrète —
+si les deux **coïncident**, l'ensemble se réduit à un seul coffre et le passage
+secret n'apporte **rien de plus** que la route obligatoire. Mesuré sur 60 cartes par
+objectif, en comptant les coffres réellement produits :
+
+| objectif | 1 coffre | 2 | 3 | 4 | secret sans gain supplémentaire |
+|---|---|---|---|---|---|
+| `atteindre_et_recuperer` | 25 | 32 | 3 | — | **25 / 60** |
+| `vaincre_sous_boss` | 4 | 41 | 15 | — | **4 / 60** |
+| `vaincre_boss_final` | — | 27 | 31 | 2 | **0 / 60** |
+
+⚠ **Réponse : non, on n'ajoute pas de second passage.** Le déplacement de l'artefact
+vers la salle du boss a **déjà supprimé** l'effondrement là où il était massif :
+l'artefact n'est plus dans la salle la plus profonde du graphe, donc il ne partage
+plus le coffre du passage secret. Il ne reste que `atteindre_et_recuperer` (25/60) —
+et là, le coffre effondré **EST l'objectif** (`objectifAccompli()` exige que
+`salle_artefact` ait été fouillée) : le passage secret mène à la plus grosse
+récompense de la quête, pas à rien. ⚠ Ajouter un second passage se heurterait à
+trois arbitrages en vigueur : le taux est tenu à **50 % + compteur de pitié**
+précisément pour que « il y a toujours un passage caché » ne devienne pas une règle
+que les joueurs apprennent (2026-08-27) ; `groupes.chance_passage_secret` compte
+**s'il y en a eu un**, pas combien, et deux passages rendraient « placé » ambigu ; et
+le tirage consomme un pas de PRNG **dans les deux branches** pour que deux donjons de
+même graine restent identiques — un second tirage conditionnel casserait ça.
