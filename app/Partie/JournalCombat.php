@@ -712,12 +712,38 @@ final class JournalCombat
                 'texte' => "{$acteurNom} met la main sur ".($a['objet']['nom'] ?? 'un artefact').' !',
                 'ton' => 'tresor',
             ]],
+            // ⚠ `objet` MANQUAIT, et le `default` disait « fouille en vain »
+            // pendant que le héros empochait la pièce (signalé par René en
+            // partie réelle, 2026-09-11 : « on gagne des items quand on cherche
+            // mais le message dit cherche en vain »). C'est l'issue du
+            // MOBILIER (`MoteurMobilier::tirerButin()`) — le coffre du deck ne
+            // rend que de l'or, des potions et des artefacts, jamais d'objet
+            // d'équipement. `ChoixController` la connaissait pourtant déjà
+            // (`'objet' => 'mobilier_objet'`) : la narration était juste, le
+            // fil de combat mentait. Un `match` sans cas et un `default`
+            // rassurant, c'est une issue muette qui se raconte à l'envers.
+            'objet' => [[
+                'texte' => "{$acteurNom} trouve ".($a['objet']['nom'] ?? 'un objet'),
+                'ton' => 'tresor',
+            ]],
             'errant' => [[
                 'texte' => ($a['monstre']['nom'] ?? 'Un monstre').' surgit du coffre !',
                 'ton' => 'subit',
             ]],
             'piege' => [],
-            default => [$this->info("{$acteurNom} fouille en vain")],
+            // ⚠ « En vain » n'est vrai QUE si rien n'était à prendre. Deux cas
+            // distincts s'y cachaient : un meuble dont le butin existait mais
+            // que PERSONNE du groupe ne pouvait utiliser (`objet_indisponible`,
+            // règle de l'étal — « un meuble ne rend plus une potion que
+            // personne sur place ne peut boire »), et un errant qu'aucun budget
+            // ne permettait de faire sortir. Les dire, c'est la différence
+            // entre « il n'y avait rien » et « il y avait quelque chose, pas
+            // pour vous ».
+            default => [$this->info(match (true) {
+                ! empty($a['objet_indisponible']) => "{$acteurNom} ne trouve rien que le groupe puisse utiliser",
+                ! empty($a['errant_indisponible']) => "{$acteurNom} fouille — un bruit, puis plus rien",
+                default => "{$acteurNom} fouille en vain",
+            })],
         };
 
         if (! empty($a['sac_deborde'])) {

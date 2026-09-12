@@ -186,3 +186,39 @@ describe('JournalCombat — restitution mécanique (aucun LLM)', function () {
             ->and($l[2]['ton'])->toBe('pare');
     });
 });
+
+it('raconte un objet trouvé dans un meuble, au lieu de « fouille en vain »', function () {
+    // ⚠ Signalé par René en partie réelle (2026-09-11) : « on gagne des items
+    // quand on cherche mais le message dit cherche en vain ». L'issue `objet`
+    // — celle du MOBILIER (`MoteurMobilier::tirerButin()`) — manquait au `match`
+    // et tombait sur le `default`. `ChoixController` la connaissait pourtant
+    // déjà (`'objet' => 'mobilier_objet'`) : la narration était juste, le fil
+    // de combat mentait.
+    $l = lignes([
+        'type' => 'fouille_mobilier', 'issue' => 'objet',
+        'mobilier' => 'Coffre', 'objet' => ['nom' => 'Épée large'],
+    ], 'Krogar');
+
+    $textes = collect($l)->pluck('texte')->join(' | ');
+
+    expect($textes)->toContain('Épée large')
+        ->and($textes)->not->toContain('en vain');
+});
+
+it('distingue « rien à prendre » de « rien pour vous »', function () {
+    // Butin tiré mais qu'AUCUN héros engagé ne peut utiliser (règle de l'étal :
+    // « un meuble ne rend plus une potion que personne sur place ne peut boire »).
+    $indispo = collect(lignes([
+        'type' => 'fouille_mobilier', 'issue' => 'rien',
+        'mobilier' => 'Armoire', 'objet_indisponible' => true,
+    ], 'Krogar'))->pluck('texte')->join(' | ');
+
+    // Meuble réellement vide.
+    $vide = collect(lignes([
+        'type' => 'fouille_mobilier', 'issue' => 'rien', 'mobilier' => 'Armoire',
+    ], 'Krogar'))->pluck('texte')->join(' | ');
+
+    expect($indispo)->not->toContain('en vain')
+        ->and($indispo)->toContain('utiliser')
+        ->and($vide)->toContain('en vain');
+});
