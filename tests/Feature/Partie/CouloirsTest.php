@@ -249,11 +249,30 @@ it('pose les portes inter-salles FERMÉES par défaut : elles barrent le passage
     $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 42);
 
     // Les portes de l'ARBRE sont fermées ; les liaisons SUPPLÉMENTAIRES (boucles)
-    // peuvent être secrètes — mais rien d'autre.
+    // peuvent être secrètes ; et une porte peut être VERROUILLÉE — mais rien
+    // d'autre.
+    //
+    // ⚠ `verrouillee` est arrivé APRÈS ce test, avec les leviers procéduraux :
+    // la liste disait encore « fermée ou secrète, rien d'autre » et ne tenait
+    // que parce qu'aucun levier n'était placé sur CETTE graine. Elle a cédé au
+    // premier changement du vivier de tuiles (2026-09-12), sans qu'aucune
+    // règle ne bouge. On ne se contente donc pas d'élargir la liste : on exige
+    // que chaque verrou NOMME un levier qui existe — c'est plus fort que ce
+    // que le test vérifiait avant, et ça se casserait pour une vraie raison.
     $etats = array_unique(array_column($carte['portes'], 'etat'));
     sort($etats);
-    expect(array_diff($etats, ['fermee', 'secrete']))->toBe([])
+    expect(array_diff($etats, ['fermee', 'secrete', 'verrouillee']))->toBe([])
         ->and(in_array('fermee', $etats, true))->toBeTrue();
+
+    $leviers = array_column($carte['leviers'], 'levier_id');
+    foreach ($carte['portes'] as $index => $porte) {
+        if (($porte['etat'] ?? '') !== 'verrouillee') {
+            continue;
+        }
+        expect(data_get($porte, 'verrou.type'))->toBe('levier', "porte {$index}")
+            ->and(in_array(data_get($porte, 'verrou.levier_id'), $leviers, true))
+            ->toBeTrue("porte {$index} : verrou sur un levier absent de la carte");
+    }
 
     // Et elles barrent RÉELLEMENT : sans les ouvrir, une salle non voisine du
     // départ est inatteignable.
@@ -918,7 +937,7 @@ it('rend une case de mobilier BLOQUANT infranchissable via FabriqueGrille, sourc
             }
         }
     }
-    $libre = collect($carte['salles'])->flatMap(function (array $s) use ($carte, $occupeesMeubles) {
+    $libres = collect($carte['salles'])->flatMap(function (array $s) use ($carte, $occupeesMeubles) {
         $libres = [];
         for ($y = $s['y']; $y < $s['y'] + $s['hauteur']; $y++) {
             for ($x = $s['x']; $x < $s['x'] + $s['largeur']; $x++) {
@@ -929,10 +948,19 @@ it('rend une case de mobilier BLOQUANT infranchissable via FabriqueGrille, sourc
         }
 
         return $libres;
-    })->first();
+    });
 
-    expect($libre)->not->toBeNull()
-        ->and($grille->estTraversable($libre['x'], $libre['y']))->toBeTrue();
+    // ⚠ On demande qu'AU MOINS UNE de ces cases soit traversable, pas que la
+    // PREMIÈRE le soit. Le commentaire ci-dessus disait déjà « hors figure »,
+    // mais le filtre ne retirait que les meubles : la première case retenue
+    // pouvait porter un monstre — `FabriqueGrille` l'obstrue alors légitimement
+    // (`$occupees`), et le terrain bloquant ferait pareil. Le test passait par
+    // chance et a cédé au premier changement du vivier de tuiles (2026-09-12).
+    // L'intention réelle — « la grille ne bloque pas TOUT » — est exactement
+    // celle-ci, et elle ne dépend d'aucun ordre de parcours.
+    expect($libres)->not->toBeEmpty()
+        ->and($libres->contains(fn (array $c) => $grille->estTraversable($c['x'], $c['y'])))
+        ->toBeTrue('aucune case de sol hors mobilier n\'est traversable');
 });
 
 // ---------------------------------------------------------------------------

@@ -1081,18 +1081,28 @@ it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', fun
     // case hors de la salle n'est jamais visible depuis l'intérieur, et le
     // scénario « en vue mais hors zone » que ce test veut poser est
     // irréalisable — il ne l'était devenu que par cette fuite.
+    //
+    // ⚠ On ouvre TOUTES les portes fermées de la salle du boss, pas la
+    // première trouvée. N'en ouvrir qu'une faisait dépendre le test de la
+    // géométrie exacte tirée par la graine : au premier changement du vivier
+    // de tuiles (2026-09-12) la porte retenue donnait sur un couloir hors de
+    // la ligne de vue du boss, et la recherche de `$vueLoin` ci-dessous ne
+    // trouvait plus rien — sans qu'aucune règle de jeu ait bougé. Ouvrir
+    // davantage de portes ne change RIEN à ce que le test affirme (le boss
+    // renonce à Tempête de feu parce que la cible est hors de sa SALLE) : ça
+    // ne fait qu'élargir ce qu'il peut voir, donc rendre le scénario
+    // atteignable quelle que soit la carte.
     $portes = (array) ($carte->grille['portes'] ?? []);
-    $indexPorte = null;
+    $ouvertes = 0;
     foreach ($portes as $i => $p) {
         $embrasure = Grille::caseEmbrasure($p, $salles);
         if (($p['etat'] ?? 'ouverte') === 'fermee'
             && Salles::indexDe($salles, $embrasure['x'], $embrasure['y']) === $salleBoss) {
-            $indexPorte = $i;
-            break;
+            $portes[$i]['etat'] = 'ouverte';
+            $ouvertes++;
         }
     }
-    expect($indexPorte)->not->toBeNull('la salle du boss doit avoir au moins une porte simplement fermée à ouvrir');
-    $portes[$indexPorte]['etat'] = 'ouverte';
+    expect($ouvertes)->toBeGreaterThan(0, 'la salle du boss doit avoir au moins une porte simplement fermée à ouvrir');
     $carte->update(['grille' => [...$carte->grille, 'portes' => $portes]]);
     $quete->load('carte');
 
@@ -1120,7 +1130,9 @@ it('ne choisit pas Tempête de feu quand personne ne se tient dans sa zone', fun
         }
     }
 
-    expect($vueLoin)->not->toBeNull();
+    expect($vueLoin)->not->toBeNull(
+        'aucune case visible depuis le boss hors de sa salle : scénario « en vue mais hors zone » irréalisable sur cette carte',
+    );
     $etatHeros->update(['position_x' => $vueLoin['x'], 'position_y' => $vueLoin['y']]);
 
     desFiges(array_fill(0, 200, 4));

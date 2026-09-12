@@ -54,6 +54,17 @@ class TuileSeeder extends Seeder
                 'mssm',
                 'mmpm',
             ])],
+            // Sa TRANSPOSÉE, intérieur 3x2 (René, 2026-09-12). ⚠ Il faut bien
+            // deux patrons : l'assembleur ne fait AUCUNE rotation, il lit
+            // `largeur`/`hauteur` tels que semés. Le vivier le dit déjà de
+            // lui-même — `5x7` et `7x5` y figurent séparément alors que l'une
+            // est la transposée de l'autre.
+            ['type' => 'salle', 'theme' => 'generique', 'grille' => $grille([
+                'mmpmm',
+                'msssm',
+                'psssp',
+                'mmpmm',
+            ])],
             // Grande salle (boss)
             // Variété de salles (test de jeu 2026-07-31) : le vivier ne comptait
             // que 3 formes, si bien que toutes les salles d'un donjon se

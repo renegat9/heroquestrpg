@@ -163,6 +163,7 @@ réellement percées (1 à 4)`.
 | 5×7 | 3×5 = 15 | 16–19 | courante |
 | 5×5 | 3×3 = 9 | 10–13 | courante |
 | 4×5 | 2×3 = 6 | 7–10 | courante — la plus petite |
+| 5×4 | 3×2 = 6 | 7–10 | courante — la transposée de la précédente |
 
 ⚠ **Trois faits structurels que la liste seule ne dit pas.** (1) La **plus grande**
 tuile est réservée de fait à la **salle 0** : 40 fois sur 60 en `vaincre_sous_boss`,
@@ -174,3 +175,42 @@ voulue. (3) Les salles ordinaires se répartissent à peu près uniformément, e
 **plus petite en représente 16 %** (52 sur 330) : c'est elle qui portait tout le
 problème de §2.12 ter, et ce n'était pas un cas marginal — d'où son remplacement,
 au paragraphe suivant.
+
+⚠ **L'assembleur ne fait AUCUNE rotation** (René, 2026-09-12 : « est-ce que ça permet
+aussi d'avoir des salles 3x2 ? » — non, pas sans un second patron). Il lit
+`largeur`/`hauteur` tels que semés, et pose la tuile telle quelle. Le vivier le disait
+déjà de lui-même : `5×7` et `7×5` y figurent **séparément** alors que l'une est la
+transposée de l'autre. Une orientation qu'on veut voir sortir doit donc être **semée**.
+La transposée `5×4` (intérieur 3×2) est ajoutée pour cette raison — mesurée à 78 poses
+sur 120 cartes, sol observé 7 à 10 comme sa jumelle, et le minimum de cases laissées
+au groupe dans toute salle reste **5**.
+
+⚠ **Trois tests ont cédé au changement de vivier sans qu'aucune règle ne bouge** — ils
+tenaient par la géométrie tirée à une graine, pas par la propriété qu'ils annonçaient.
+Chacun a été **renforcé**, jamais relâché :
+- `CouloirsTest` listait les états de porte comme « `fermee` ou `secrete`, rien
+  d'autre ». C'était vrai avant les **leviers procéduraux**, qui verrouillent une
+  porte : la liste survivait parce qu'aucun levier ne tombait sur CETTE graine. Elle
+  accepte désormais `verrouillee` **et exige que chaque verrou nomme un levier
+  présent sur la carte** (`verrou.type = 'levier'`, `verrou.levier_id`).
+- Le « contrôle négatif » du mobilier bloquant vérifiait que la **PREMIÈRE** case de
+  sol hors meuble est traversable. Son propre commentaire disait « hors figure », mais
+  le filtre ne retirait que les meubles : la case retenue pouvait porter un monstre,
+  que `FabriqueGrille` obstrue légitimement. Il demande maintenant qu'**au moins une**
+  le soit — ce qui est exactement l'intention (« la grille ne bloque pas tout ») et ne
+  dépend d'aucun ordre de parcours.
+- `DreadTest` n'ouvrait qu'**une** porte de la salle du boss pour poser « en vue mais
+  hors zone » ; la porte retenue donnait désormais sur un couloir hors ligne de vue. Il
+  les ouvre toutes — ça n'affecte en rien ce que le test affirme (le boss renonce à
+  Tempête de feu parce que la cible est hors de sa SALLE).
+
+⚠ **Et un quatrième était déjà instable avant tout ça** : « fait surgir un errant à
+CHAQUE carte » échouait **3 fois sur 10**, mesuré. Deux défauts empilés. D'abord
+`deplacerVersSalle()` posait le héros sur `($salle['x'], $salle['y'])` — le coin du
+**rectangle**, donc un **mur** ; `spawnErrant()` cherchant une case libre en anneaux
+autour du héros, ces anneaux débordaient hors de la salle (il se pose désormais sur la
+**médiane**, que l'assembleur garantit intérieure). Ensuite et surtout, le test
+fouillait les salles 0, 1, 2 en dur : **une salle à coffre ne pioche pas dans le deck**,
+elle rend son coffre — la carte `errant` empilée n'était jamais tirée et l'issue
+revenait `artefact`. Il choisit maintenant trois salles **hors `salles_coffre`**, lu
+sur la quête plutôt que figé. Vérifié 12 fois de suite : vert.

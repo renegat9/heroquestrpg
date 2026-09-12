@@ -91,13 +91,45 @@ function deplacerVersSalle(Quete $quete, EtatPersonnageQuete $etat, int $salle):
 {
     $s = $quete->carte->grille['salles'][$salle];
 
+    // ⚠ Le héros se pose sur une case de SOL, pas sur `($s['x'], $s['y'])` —
+    // qui est le coin du RECTANGLE de la salle, donc un mur. Il y a toujours
+    // été posé, et ça se voyait à un endroit : `spawnErrant()` cherche une
+    // case libre en anneaux de rayon ≤ 3 AUTOUR DU HÉROS, et depuis un angle
+    // de maçonnerie ces anneaux tombent en grande partie hors de la salle.
+    // Le test « fait surgir un errant à CHAQUE carte » échouait donc environ
+    // 3 fois sur 10, au gré de la carte tirée — pour une raison (pas de place)
+    // qui n'a rien à voir avec ce qu'il affirme (pas de plafond de budget).
+    // ⚠ Et sur la MÉDIANE de la salle, pas sur sa première case de sol — qui
+    // est l'angle intérieur haut-gauche. Depuis un angle, les anneaux de
+    // `spawnErrant()` débordent encore largement hors de la salle : poser le
+    // héros sur le sol au lieu du mur faisait tomber l'échec de 3 fois sur 10
+    // à 1 fois sur 10, la médiane l'élimine. C'est la case que l'assembleur
+    // garantit intérieure (il perce ses portes dessus), donc elle est du sol
+    // par construction, quelle que soit la tuile.
+    $cases = $quete->carte->grille['cases'];
+    $sol = null;
+    foreach ([[(int) ($s['mediane_x'] ?? -1), (int) ($s['mediane_y'] ?? -1)]] as [$mx, $my]) {
+        if (($cases[$my][$mx] ?? 'm') === 's') {
+            $sol = ['x' => $mx, 'y' => $my];
+        }
+    }
+    for ($y = (int) $s['y']; $y < (int) $s['y'] + (int) $s['hauteur'] && $sol === null; $y++) {
+        for ($x = (int) $s['x']; $x < (int) $s['x'] + (int) $s['largeur']; $x++) {
+            if (($cases[$y][$x] ?? 'm') === 's') {
+                $sol = ['x' => $x, 'y' => $y];
+                break;
+            }
+        }
+    }
+    expect($sol)->not->toBeNull("salle {$salle} sans aucune case de sol");
+
     // refresh() indispensable : sur une instance chargée AVANT l'action, les
     // drapeaux de tour valent encore false en mémoire, donc update() ne les
     // voit pas « sales » et n'écrit rien — le héros resterait a_agi en base.
     $etat->refresh();
     $etat->update([
-        'position_x' => (int) $s['x'],
-        'position_y' => (int) $s['y'],
+        'position_x' => $sol['x'],
+        'position_y' => $sol['y'],
         'a_joue' => false,
         'a_agi' => false,
         'a_deplace' => false,
@@ -441,7 +473,22 @@ it('fait surgir un errant à CHAQUE carte, sans plafond', function () {
 
     // La carte errant est la plus fréquente du deck (6 sur 24) et elle revient
     // sous le paquet : un budget qui s'épuise en aurait fait une carte blanche.
-    foreach ([0, 1, 2] as $tour) {
+    //
+    // ⚠ On fouille trois salles SANS COFFRE. Une salle à coffre ne pioche PAS
+    // dans le deck — elle rend son coffre — donc la carte `errant` empilée
+    // n'était jamais tirée et l'issue revenait `artefact`. Le test échouait
+    // ainsi ~3 fois sur 10 selon la carte tirée au démarrage, pour une raison
+    // (mauvaise salle) étrangère à ce qu'il affirme (pas de plafond d'errants).
+    // ⚠ Et `salles_coffre` bouge avec la génération : le figer en dur ici
+    // rendrait le test faux au prochain changement de placement des coffres.
+    $coffres = array_map('intval', (array) $quete->fresh()->salles_coffre);
+    $sansCoffre = array_values(array_filter(
+        array_keys((array) $quete->carte->grille['salles']),
+        fn (int $i) => ! in_array($i, $coffres, true),
+    ));
+    expect(count($sansCoffre))->toBeGreaterThanOrEqual(3, 'carte sans trois salles hors coffre');
+
+    foreach (array_slice($sansCoffre, 0, 3) as $tour) {
         deplacerVersSalle($quete->fresh(), $etat, $tour);
         empilerCarteFouille($quete->fresh(), ['issue' => 'errant']);
         $resultat = fouiller();
