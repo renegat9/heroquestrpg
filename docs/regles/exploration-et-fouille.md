@@ -36,3 +36,23 @@ It opens **one vote with three outcomes** rather than two votes, because retreat
 ⚠ **La salle la plus profonde reste la règle hors quête à boss** (`atteindre_et_recuperer`), où récompenser l'exploration garde tout son sens. La nouvelle règle **précède** l'ancienne, elle ne la remplace pas. ⚠ Et la salle finale se désigne par la **même convention** que `AssembleurCarte::spawnsMonstres()` (« la DERNIÈRE, pour que `spawn_monstres[0]` y atterrisse ») : deux façons de la nommer divergeraient au premier changement de génération.
 
 ⚠ **Le deck de fouille ordinaire ne contient AUCUN artefact** — 24 cartes : trésors, potions, errants, pièges. Les artefacts ne viennent **que** des coffres désignés. Une quête où l'on n'ouvre pas le bon coffre est une quête **sans artefact**, quoi qu'on fouille par ailleurs.
+
+⚠ **Un passage secret mène TOUJOURS à un coffre, et un coffre ne rend jamais rien**
+(René, 2026-09-12 : « il faut quand même qu'un passage secret amène à un gain, c'est
+toujours le cas ? » — question posée **après** le déplacement de l'artefact vers la
+salle du boss, et elle méritait une mesure, pas un raisonnement). `sallesACoffre()`
+ajoute, pour **chaque** porte `secrete`, la **PLUS PROFONDE** des deux salles que la
+jonction relie — l'autre est du côté déjà exploré. Mesuré sur 25 cartes à HEAD :
+**66 salles derrière un secret, 66 coffres, 0 manquant**, verrouillé par
+`DeckFouilleTest` (« garantit qu'un passage secret mène TOUJOURS à un coffre »).
+⚠ **Ne jamais exiger un coffre des DEUX côtés d'une arête secrète** : la première
+version de cette mesure le faisait et annonçait 39 défauts sur 40, tous imaginaires.
+⚠ Ce que le coffre **paie** a changé, en revanche : avant, la salle la plus profonde
+était **souvent** celle du passage secret, donc le secret menait à l'**artefact** ;
+depuis, en quête à boss, l'artefact part dans la salle du boss et le secret paie une
+**potion ou de l'or doublé** (branche `! $estArtefact` de `carteCoffre()`). Le gain
+reste réel, il est seulement moins rare. ⚠ Et les deux ne s'excluent pas : mesuré sur
+40 cartes `vaincre_sous_boss`, la salle du boss se trouve **elle-même** derrière une
+porte secrète dans **19 cas sur 40** — c'est exactement le cas de la quête 99
+ci-dessus, et c'est pourquoi une porte secrète non trouvée peut coûter la quête
+entière et non un bonus.

@@ -861,3 +861,64 @@ it('met le coffre dans la salle du BOSS quand la mission est de l\'abattre', fun
     // 0→1→4→5 : la salle 5 est la plus profonde du graphe, la 6 ne l'est pas.
     expect($deck->construire($gabarit, $carte, $groupe, 1)['salle_artefact'])->toBe(5);
 });
+
+it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
+    // ⚠ René, 2026-09-12 : « il faut quand même qu'un passage secret amène à un
+    // gain, c'est toujours le cas ? ». Question posée APRÈS avoir déplacé
+    // l'artefact dans la salle du boss — et elle méritait une mesure, pas un
+    // raisonnement : le déplacement aurait pu vider les passages secrets de
+    // leur intérêt sans que rien ne le signale.
+    //
+    // ⚠ `sallesACoffre()` n'ajoute que la PLUS PROFONDE des deux salles qu'une
+    // porte secrète relie — l'autre est du côté déjà exploré. Un test qui
+    // exigerait un coffre des DEUX côtés échouerait à tort (première version de
+    // cette mesure : 39 « défauts » sur 40, tous imaginaires).
+    $gabarit = App\Models\GabaritQuete::query()->get()
+        ->first(fn ($g) => data_get($g->structure, 'objectif') === 'vaincre_sous_boss')
+        ?? App\Models\GabaritQuete::query()->firstOrFail();
+
+    $groupe = creerGroupe();
+    $assembleur = app(App\Partie\AssembleurCarte::class);
+    $deck = app(App\Partie\Fouille\DeckFouille::class);
+
+    $sallesSecretes = 0;
+
+    foreach (range(1, 25) as $graine) {
+        $carte = $assembleur->assembler($gabarit, $graine, 40);
+        $fouille = $deck->construire($gabarit, $carte, $groupe, 1);
+
+        $voisins = [];
+        foreach ($carte['aretes'] as $a) {
+            $voisins[(int) $a['a']][] = (int) $a['b'];
+            $voisins[(int) $a['b']][] = (int) $a['a'];
+        }
+        $profondeur = [0 => 0];
+        $file = [0];
+        while ($file !== []) {
+            $c = array_shift($file);
+            foreach ($voisins[$c] ?? [] as $v) {
+                if (! isset($profondeur[$v])) { $profondeur[$v] = $profondeur[$c] + 1; $file[] = $v; }
+            }
+        }
+
+        foreach ($carte['portes'] as $porte) {
+            if (($porte['etat'] ?? '') !== 'secrete') { continue; }
+            $arete = $carte['aretes'][$porte['jonction'] ?? -1] ?? null;
+            if ($arete === null) { continue; }
+
+            $a = (int) $arete['a'];
+            $b = (int) $arete['b'];
+            $derriere = ($profondeur[$a] ?? 0) >= ($profondeur[$b] ?? 0) ? $a : $b;
+
+            // La salle de départ ne compte pas : on ne cache pas un coffre là
+            // où le groupe commence.
+            if ($derriere === 0) { continue; }
+
+            $sallesSecretes++;
+            expect($fouille['salles_coffre'])->toContain($derriere);
+        }
+    }
+
+    // Le test ne prouverait rien s'il n'avait vu aucun passage secret.
+    expect($sallesSecretes)->toBeGreaterThan(20);
+});
