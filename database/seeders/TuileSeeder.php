@@ -38,11 +38,21 @@ class TuileSeeder extends Seeder
                 'msssssm',
                 'mmmpmmm',
             ])],
+            // La plus petite salle du vivier : intérieur 2x3 (René, 2026-09-12,
+            // « remplace la 2x2 par 2x3 »). Elle valait 2x2 = 4 cases de sol,
+            // et représentait 16 % des salles ORDINAIRES — pas un cas
+            // marginal : quatre héros et ce qu'ils venaient combattre n'y
+            // tenaient pas, et la moitié du groupe restait sur le seuil sans
+            // pouvoir agir (§2.12 ter de `docs/regles/carte-donjon.md`).
+            // Les quatre 'p' sont là pour la lisibilité du patron seulement :
+            // l'assembleur perce sur `intdiv($w, 2)` / `intdiv($h, 2)`, soit
+            // la colonne 2 et la ligne 2 — toutes deux dans l'intérieur.
             ['type' => 'salle', 'theme' => 'generique', 'grille' => $grille([
                 'mmpm',
                 'mssm',
-                'mssp',
-                'mmmm',
+                'pssp',
+                'mssm',
+                'mmpm',
             ])],
             // Grande salle (boss)
             // Variété de salles (test de jeu 2026-07-31) : le vivier ne comptait

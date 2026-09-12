@@ -120,13 +120,29 @@ meubles d'une carte déjà générée réattribuerait donc les drapeaux `detruit
 de fouille aux mauvaises pièces. Le correctif vaut pour la **prochaine carte
 assemblée**, et une quête en cours garde ses salles encombrées.
 
-⚠ **Ce que ceci ne corrige PAS, et qui reste ouvert** : les tuiles elles-mêmes. Le
-vivier va de **5 à 30 cases de sol**, et **34 salles sur 390 (8,7 %) ont 6 cases ou
-moins** — trop petites pour quatre héros et deux monstres *même vides*. Le correctif
-n°2 les rend jouables (1 monstre, 4 cases au groupe) mais ne les agrandit pas.
-Retirer la plus petite tuile (`mmpm`/`mssm`/`mssp`/`mmmm`, intérieur 2×2) est une
-décision de **variété** — le vivier doit rester ≥ 6 formes distinctes — et n'a pas
-été prise.
+**La plus petite tuile passe d'un intérieur 2×2 à 2×3** (René, 2026-09-12 :
+« remplace la 2x2 par 2x3 »). Les deux correctifs ci-dessus rendaient cette salle
+*jouable* — 1 monstre, 4 cases au groupe — sans l'agrandir : quatre héros y tenaient
+debout et rien de plus, un par face du monstre, zéro manœuvre. Elle passe de 4 à
+**6 cases** d'intérieur, soit `4x5` hors-tout (`mmpm`/`mssm`/`pssp`/`mssm`/`mmpm`).
+
+⚠ **Le choix était entre l'agrandir et lui interdire les monstres** (en faire un
+placard à fouiller, ce qu'elle est au plateau). L'agrandissement l'emporte parce
+qu'il ne crée **aucun nouveau cas** : une salle qui ne peut pas être défendue serait
+une deuxième espèce de salle, avec son propre chemin dans `spawnsMonstres()` et sa
+propre raison d'exister à expliquer. ⚠ Et la **variété est préservée** : `4x5` reste
+une forme distincte des huit autres — c'est la seule tuile large de 4 — donc le
+vivier garde ses 9 formes et respecte le plancher de 6 (playtest 2026-07-31).
+
+⚠ **Les quatre `p` du patron sont décoratifs**, comme sur toutes les tuiles :
+l'assembleur perce sur `intdiv($w, 2)` / `intdiv($h, 2)`, soit la colonne 2 et la
+ligne 2 — toutes deux dans l'intérieur, ce qui est la condition que le commentaire
+de `TuileSeeder` exige (« intérieurs PLEINS uniquement »). Mesuré après
+remplacement : sol observé **7 à 10 cases** (contre 5 à 8), tuile toujours placée
+107 fois sur 120 cartes, et le **minimum de cases laissées au groupe dans TOUTE
+salle du donjon passe de 4 à 5**. ⚠ `TuileSeeder` **purge avant de semer** et rien
+ne référence `tuiles.id` — changer un patron prend effet au prochain `db:seed`, sans
+migration.
 
 **Le vivier de salles, mesuré** (2026-09-12, 60 graines × 3 gabarits). Neuf tuiles
 `type=salle` dans `TuileSeeder`, **toutes réellement placées** — aucune tuile morte.
@@ -146,7 +162,7 @@ réellement percées (1 à 4)`.
 | 7×5 | 5×3 = 15 | 16–19 | courante |
 | 5×7 | 3×5 = 15 | 16–19 | courante |
 | 5×5 | 3×3 = 9 | 10–13 | courante |
-| 4×4 | 2×2 = **4** | **5–8** | courante — la plus petite |
+| 4×5 | 2×3 = 6 | 7–10 | courante — la plus petite |
 
 ⚠ **Trois faits structurels que la liste seule ne dit pas.** (1) La **plus grande**
 tuile est réservée de fait à la **salle 0** : 40 fois sur 60 en `vaincre_sous_boss`,
@@ -155,5 +171,6 @@ groupe y démarre empilé, c'est cohérent — mais cela veut dire que les salle
 **qu'on joue** plafonnent à 9×5 / 7×7, jamais 9×7. (2) La salle **finale** reçoit
 toujours la tuile `boss`, la seule à n'avoir qu'**une porte** — une entrée unique,
 voulue. (3) Les salles ordinaires se répartissent à peu près uniformément, et la
-**4×4 en représente 16 %** (52 sur 330) : c'est elle qui porte tout le problème de
-§2.12 ter, et ce n'est pas un cas marginal.
+**plus petite en représente 16 %** (52 sur 330) : c'est elle qui portait tout le
+problème de §2.12 ter, et ce n'était pas un cas marginal — d'où son remplacement,
+au paragraphe suivant.
