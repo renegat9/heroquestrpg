@@ -63,6 +63,25 @@ def j(v):
 
 TELEPHONE = re.compile(r'^(1[0-4]|3[0-3])-')
 
+def _dimensions_png(nom):
+    """(largeur, hauteur) lues dans l'IHDR du PNG d'origine — 8 octets d'en-tête,
+    4 de longueur, 4 de type, puis les deux entiers 32 bits.
+
+    ⚠ Sans dimensions, une image `loading="lazy"` n'occupe AUCUNE place tant
+    qu'elle n'est pas chargée : on saute sur une ancre, les captures au-dessus
+    arrivent ensuite, et le titre visé se retrouve 600 px plus bas. Mesuré. Le
+    ratio des .webp servis est celui des PNG (redimensionnement à largeur fixe),
+    donc ces valeurs-ci suffisent au navigateur pour réserver la bonne boîte."""
+    chemin = os.path.join(RACINE, 'browser-shots', 'livret', f'{nom}.png')
+    try:
+        with open(chemin, 'rb') as f:
+            entete = f.read(24)
+        if entete[:8] != b'\x89PNG\r\n\x1a\n':
+            return None
+        return int.from_bytes(entete[16:20], 'big'), int.from_bytes(entete[20:24], 'big')
+    except OSError:
+        return None
+
 def fig(nom, legende, classe=None):
     """`classe` est déduite du nom : une capture de manette (412x915) est bien
     plus haute que large et doit être plafonnée en hauteur, sinon elle occupe
@@ -72,7 +91,9 @@ def fig(nom, legende, classe=None):
         return f'<!-- capture manquante : {nom} -->'
     if classe is None:
         classe = 'fig tel' if TELEPHONE.match(nom) else 'fig'
-    return (f'<figure class="{classe}"><img src="{src}" alt="{e(legende)}">'
+    dim = _dimensions_png(nom)
+    taille = f' width="{dim[0]}" height="{dim[1]}"' if dim else ''
+    return (f'<figure class="{classe}"><img src="{src}"{taille} alt="{e(legende)}">'
             f'<figcaption>{legende}</figcaption></figure>')
 
 MORCEAUX = []
@@ -154,11 +175,11 @@ td.vig img{width:9mm;height:9mm;object-fit:cover;border-radius:2px;
 
 /* ------------------------------------------------------------- figures -- */
 figure.fig{margin:0 0 4mm;page-break-inside:avoid}
-figure.fig img{width:100%;display:block;border:1px solid #2a2118;border-radius:3px;
+figure.fig img{width:100%;height:auto;display:block;border:1px solid #2a2118;border-radius:3px;
   background:var(--nuit);box-shadow:0 2px 10px rgba(60,42,20,.22)}
 figure.fig figcaption{font-family:var(--ui);font-size:7.9pt;color:var(--encre-3);
   margin-top:1.4mm;line-height:1.35}
-figure.tel img{width:auto;max-width:100%;max-height:118mm;margin:0 auto}
+figure.tel img{width:auto;height:auto;max-width:100%;max-height:118mm;margin:0 auto}
 figure.tel figcaption{text-align:center}
 .duo{display:grid;grid-template-columns:1fr 1fr;gap:5mm;align-items:start}
 .trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm;align-items:start}
@@ -240,8 +261,8 @@ ecrire(f'''
 </div>''')
 
 # =============================================================== SOMMAIRE ==
-ecrire('<section class="chapitre" style="page-break-before:auto">'
-       '<h2>Sommaire</h2><div class="somm" id="somm"></div>')
+ecrire('<section class="chapitre" id="somm" style="page-break-before:auto">'
+       '<h2>Sommaire</h2><!--GABARIT-SOMMAIRE-->')
 ecrire('''
 <div class="encadre" style="margin-top:6mm">
   <h4>Comment lire ce livret</h4>
@@ -1484,10 +1505,10 @@ td.vig img{width:40px;height:40px;object-fit:cover;border-radius:6px;border:var(
 
 /* ---- figures ---- */
 figure.fig{margin:0 0 20px}
-figure.fig img{width:100%;display:block;border:var(--line);border-radius:10px;background:#000}
+figure.fig img{width:100%;height:auto;display:block;border:var(--line);border-radius:10px;background:#000}
 figure.fig figcaption{font-family:var(--ui);font-size:13px;color:var(--ink-500);
   margin-top:8px;line-height:1.45}
-figure.tel img{width:auto;max-width:100%;max-height:70vh;margin:0 auto}
+figure.tel img{width:auto;height:auto;max-width:100%;max-height:70vh;margin:0 auto}
 figure.tel figcaption{text-align:center}
 .duo,.trio{display:grid;gap:18px;align-items:start}
 .duo{grid-template-columns:1fr 1fr}
@@ -1552,8 +1573,9 @@ figure.tel figcaption{text-align:center}
 # ================================================== ASSEMBLAGE ============
 somm = ''.join(f'<div><a href="#ch{n}"><b>{n}</b><span>{t}</span></a></div>'
                 for n, t in CHAPITRES)
-corps = ''.join(MORCEAUX).replace('<div class="somm" id="somm"></div>',
-                                  f'<div class="somm">{somm}</div>')
+corps = ''.join(MORCEAUX)
+assert '<!--GABARIT-SOMMAIRE-->' in corps, 'le gabarit du sommaire a disparu'
+corps = corps.replace('<!--GABARIT-SOMMAIRE-->', f'<div class="somm">{somm}</div>')
 
 coupe = corps.index('<section class="chapitre"')
 couverture, interieur = corps[:coupe], corps[coupe:]

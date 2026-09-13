@@ -73,7 +73,7 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, d
 ./browser-shots/campagne/nettoyer.sh                            # ⚠ toujours finir par là
 ```
 
-## Cinq pièges déjà payés
+## Sept pièges déjà payés
 
 - **Le PDF faisait 104 Mo.** Chromium embarque le **bitmap décodé**, pas le fichier : les
   illustrations 1024×1024 de `public/images` pèsent autant qu'un poster. `generer.py` lit
@@ -99,6 +99,21 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, d
   la SPA, et il porte au passage la date de génération et la liste des chapitres. ⚠ Il a
   aussi fallu `index index.html` dans le bloc nginx — la directive `index` du serveur ne
   nomme que `index.php`, donc `/livret/` cherchait un `index.php` inexistant.
+- **Le lien « Sommaire » ne menait nulle part**, signalé par René. Le gabarit à remplacer
+  et l'ancre étaient le **même** `id="somm"` : la substitution du sommaire emportait donc
+  la cible du lien. Rien ne cassait, le clic ne faisait simplement rien. Deux rôles, deux
+  jetons — le marqueur est devenu un commentaire (`<!--GABARIT-SOMMAIRE-->`, avec une
+  assertion s'il disparaît) et l'ancre vit sur la `<section>`.
+- **Et les ancres de chapitre tombaient 600 px trop bas.** Une image `loading="lazy"` sans
+  dimensions n'occupe **aucune place** tant qu'elle n'est pas chargée : on saute sur
+  l'ancre, les captures au-dessus arrivent ensuite, et le titre visé descend. Le défaut
+  grandit avec la position dans le document, donc il est invisible sur les premiers
+  chapitres — d'où un test qui les parcourt **tous les seize**, pas un échantillon.
+  `fig()` lit maintenant l'IHDR du PNG d'origine et pose `width`/`height`.
+  ⚠ Ces attributs sont des **indications de présentation** : sans `height:auto` en CSS,
+  l'impression aurait pris la hauteur intrinsèque (1800 px). La règle devait donc partir
+  dans **les deux** feuilles, pas seulement celle de l'écran — corriger l'écran seul aurait
+  cassé le PDF en silence.
 
 ## Ce qui n'est pas versionné
 
