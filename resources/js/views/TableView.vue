@@ -75,11 +75,29 @@ onMounted(async () => {
                 // scène. La carte se ferme à la FIN DE LECTURE — le même signal
                 // qui dégèle les manettes (B1), jamais un minuteur : couper au
                 // milieu d'une phrase lue à voix haute serait pire que rien.
-                if (e.ouverture) store.setOuverture(e.texte);
+                if (e.ouverture) {
+                    annulerFermetureOuverture();
+                    store.setOuverture(e.texte);
+                }
 
-                const done = () => {
-                    store.fermerOuverture();
+                const done = (lu) => {
                     api.lectureTerminee().catch(() => {});
+
+                    // ⚠ La carte se ferme à la FIN DE LECTURE — mais sans voix,
+                    // `narrer` rappelle `apres` DANS LE MÊME TICK : elle
+                    // s'ouvrait et se refermait avant le moindre rendu, donc
+                    // n'apparaissait JAMAIS tant que le narrateur n'avait pas
+                    // cliqué « Activer le son » (signalé par René). Quand rien
+                    // ne la lit, c'est le temps de lecture du texte qui lui
+                    // donne sa durée — jamais un minuteur par-dessus une voix,
+                    // ce qui couperait une phrase en cours.
+                    if (lu || !e.ouverture) {
+                        annulerFermetureOuverture();
+                        store.fermerOuverture();
+
+                        return;
+                    }
+                    differerFermetureOuverture(e.texte);
                 };
                 voix.narrer({ texte: e.texte, url: e.url, interrompre: true, apres: done });
             },
@@ -122,6 +140,7 @@ onUnmounted(() => {
     animDemonte = true; // stoppe la boucle d'animation de déplacement
     desabonnements.forEach((off) => off());
     arreterHeartbeat();
+    annulerFermetureOuverture();
     document.removeEventListener('visibilitychange', pingAuReveil);
 });
 
@@ -284,6 +303,35 @@ const preparation = computed(() => store.state.preparation);
  * moment lu à voix haute ; l'avancement passe dans le bandeau du haut.
  */
 const carteOuverture = computed(() => ouverture.value);
+
+/*
+ * Fermeture DIFFÉRÉE de la carte d'ouverture, pour le cas — courant — où
+ * personne ne la lit à voix haute : voix jamais activée (l'autoplay du
+ * navigateur exige un clic), ou coupée depuis les Réglages, préférence
+ * persistée dans localStorage. Le minuteur ne s'arme QUE dans ce cas ; dès
+ * qu'une voix lit, c'est sa fin de lecture qui ferme, comme avant.
+ */
+let minuteurOuverture = null;
+
+function annulerFermetureOuverture() {
+    if (minuteurOuverture) {
+        clearTimeout(minuteurOuverture);
+        minuteurOuverture = null;
+    }
+}
+
+function differerFermetureOuverture(texte) {
+    annulerFermetureOuverture();
+    // Plancher 8 s : même un texte court doit être lisible depuis l'autre bout
+    // de la table. Plafond 45 s : la carte couvre le donjon, et la quête est
+    // déjà jouable pendant ce temps-là.
+    const duree = Math.min(45000, Math.max(8000, voix.dureeDeLecture(texte)));
+
+    minuteurOuverture = setTimeout(() => {
+        minuteurOuverture = null;
+        store.fermerOuverture();
+    }, duree);
+}
 const mjReflechit = computed(() => (etat.value ? store.state.mjReflechit : false));
 // En quête : héros présents sur la carte ; au hub (entités vides) : taille du
 // groupe (statuts « prêt »), sinon le compteur affichait toujours 0 au hub.

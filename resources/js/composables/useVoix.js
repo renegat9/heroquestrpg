@@ -160,7 +160,14 @@ function narrer(p) {
     // lui, couper la voix depuis le panneau bloquerait silencieusement la
     // progression du tour pour tous les joueurs (POST /table/lecture-terminee
     // n'est alors jamais envoyé).
-    if (!actif.value || muet.value || (!payload.texte && !payload.url)) { payload.apres?.(); return; }
+    // ⚠ `apres` reçoit LU : true si le texte a réellement été lu jusqu'au bout,
+    // false s'il ne l'a pas été du tout (voix inactive ou coupée). Sans cette
+    // distinction, l'écran de table refermait la carte d'ouverture de quête
+    // DANS LE MÊME TICK que son ouverture — elle n'apparaissait donc jamais
+    // tant que le narrateur n'avait pas cliqué « Activer le son » (signalé par
+    // René, mesuré sur la quête 99 du 2026-09-12 : les deux diffusions
+    // d'ouverture étaient bien parties, seq 1159 et 1160).
+    if (!actif.value || muet.value || (!payload.texte && !payload.url)) { payload.apres?.(false); return; }
     if (narrBusy) {
         // Narration de JEU (`interrompre`) : elle reflète l'état LE PLUS RÉCENT
         // → on coupe la narration en cours au lieu de l'empiler, ce qui évitait
@@ -194,11 +201,21 @@ function stopNarration() {
  * ~2,5 mots/seconde en français, corrigé du débit, avec une marge large : on
  * veut libérer un tour bloqué, pas couper une narration qui se déroule bien.
  */
-function dureePlausible(texte, debitVoix) {
+/**
+ * Durée de lecture plausible d'un texte, en millisecondes (≈2,5 mots/seconde,
+ * le débit d'un narrateur). Base commune au chien de garde ci-dessous — qui y
+ * ajoute sa marge — et à l'écran de table, qui s'en sert pour laisser une carte
+ * affichée le temps qu'on la lise QUAND AUCUNE VOIX NE LA LIT. Une seule
+ * définition de « combien de temps prend ce texte », deux usages.
+ */
+function dureeDeLecture(texte, debitVoix = 1) {
     const mots = String(texte ?? '').trim().split(/\s+/).filter(Boolean).length;
-    const secondes = (mots / 2.5) / Math.max(0.5, debitVoix || 1);
 
-    return Math.min(120000, Math.max(12000, Math.round(secondes * 1000 * 1.8)));
+    return Math.round(((mots / 2.5) / Math.max(0.5, debitVoix || 1)) * 1000);
+}
+
+function dureePlausible(texte, debitVoix) {
+    return Math.min(120000, Math.max(12000, Math.round(dureeDeLecture(texte, debitVoix) * 1.8)));
 }
 
 function lancerNarration({ texte, url, apres }) {
@@ -222,7 +239,7 @@ function lancerNarration({ texte, url, apres }) {
         narrAudio = null;
         const cb = narApres; narApres = null;
         if (narrPending) { const n = narrPending; narrPending = null; lancerNarration(n); }
-        cb?.(); // « lecture terminée » (B1) — après avoir éventuellement enchaîné la suivante
+        cb?.(true); // « lecture terminée » (B1) — après avoir éventuellement enchaîné la suivante
     };
 
     // CHIEN DE GARDE (B1). `apres` déclenche POST /table/lecture-terminee, qui
@@ -307,6 +324,7 @@ export function useVoix() {
         supporte, actif, speaking, muet, volume, debit, voixNavigateur,
         voixChoisie, voixDisponibles,
         narrer, jouerBark, activer, basculerMuet, definirVolume, definirDebit,
+        dureeDeLecture,
         basculerVoixNavigateur, choisirVoixNavigateur, testerVoix,
     };
 }

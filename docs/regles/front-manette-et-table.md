@@ -34,3 +34,20 @@ Le miroir sépare désormais deux ensembles, comme le serveur : les **monstres**
 **Le serveur publie la DÉCISION, le client ne la re-dérive jamais** — la réponse de fond aux cinq dérives de miroir de cette semaine (coût de déplacement pondéré, case d'embrasure, compagnon traversable, seconde attaque, second sort). ⚠ La règle se reconnaît à un test simple : **le client a-t-il les données pour trancher ?** S'il lui manque un talent, une charge, une pièce équipée — il ne les a pas, et lui faire deviner fabrique un miroir de plus. `EtatGroupe` expose donc `attaque_supplementaire`, `sort_bonus_disponible` et `franchit_figures` sur l'entité héros : trois **conclusions**, pas trois conditions à recomposer.
 
 ⚠ **`franchit_figures` a rendu explicite un troisième calcul en double** : l'expression `capacites->a('franchit_figures') || sorts->franchitFigures()` vivait dans `ResolveurTour`, manquait dans `MenuMoteur::peutSeDeplacer()`, et le client la devinait à l'envers. Elle est désormais `MoteurSorts::mobiliteCombatDisponible()`, **un seul point de passage** — et `MotsClesTalent` pointe son lecteur dessus, ce qui fait rougir `GrilleTalentsTest` si les deux se séparent à nouveau.
+
+**Une carte qui se ferme sur la fin de lecture n'existe pas quand rien ne lit.**
+`OuvertureQuete` — la carte plein cadre qui plante le donjon — s'ouvrait et se
+refermait **dans le même tick** dès que la voix n'était pas active : `useVoix.narrer()`
+appelle `apres` sur-le-champ quand `actif` est faux (autoplay non débloqué, le
+narrateur n'a pas cliqué « Activer le son ») ou que `muet` l'est (préférence
+persistée en `localStorage`), et c'est ce `apres` qui portait `fermerOuverture()`.
+Signalé par René (« popup à la 1re quête, absent à la 2e ») : les deux diffusions
+étaient bien parties côté serveur — mesuré sur la quête 99, seq 1159 et 1160,
+toutes deux `ouverture: true`. Le défaut n'était ni dans le job, ni dans le
+chaînage, ni dans le garde anti-inversion des séquences. `apres` reçoit désormais
+**`lu`** (true = réellement lu jusqu'au bout), et la table **diffère** la fermeture
+d'une durée de lecture (`useVoix.dureeDeLecture`, plancher 8 s, plafond 45 s)
+quand rien ne la rythme. ⚠ Jamais de minuteur **par-dessus une voix** : couper une
+phrase en cours de lecture reste l'arbitrage d'origine. Vérifié en conditions
+réelles, son volontairement non activé : carte visible à t+87 s, refermée seule à
+t+115 s.
