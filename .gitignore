@@ -67,3 +67,6 @@ browser-shots/jd-*.json
 # Bytecode compilé de vue.py/pilote.py — même raison que les .pid : un artefact
 # de la machine qui a joué, jamais du code à relire ni à versionner.
 /browser-shots/campagne/__pycache__/
+
+# Sauvegardes locales (volumineuses, et elles contiennent des comptes joueurs)
+/backups/

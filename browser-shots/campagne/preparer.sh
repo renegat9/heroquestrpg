@@ -10,6 +10,18 @@
 # avec 0 or, et rien n'y est achetable.
 set -eu
 D="$(cd "$(dirname "$0")" && pwd)"
+
+# ⚠ SAUVEGARDE D'ABORD (René, 2026-09-12). Ce script écrit dans la VRAIE base :
+# c'est exactement le moment où l'on veut un filet. Une campagne de harnais mal
+# nettoyée est un ennui ; une campagne réelle perdue est irrattrapable.
+# Non bloquant : si la sauvegarde échoue, on le DIT et on continue — un harnais
+# qui refuse de démarrer parce que le disque est plein n'aide personne.
+if [ -x "$D/../../image-tools/sauvegarder.sh" ]; then
+  "$D/../../image-tools/sauvegarder.sh" >/dev/null 2>&1 \
+    && echo "  ✓ sauvegarde prise avant la campagne" >&2 \
+    || echo "  ⚠ SAUVEGARDE ÉCHOUÉE — on continue, mais sans filet" >&2
+fi
+
 NOM="$1"; THEME="$2"; shift 2
 SUF=$(date +%H%M%S)
 

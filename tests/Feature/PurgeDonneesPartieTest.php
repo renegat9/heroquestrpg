@@ -81,7 +81,9 @@ it('purge campagnes, quêtes et héros — en gardant comptes, catalogues et ré
     $monstres = Monstre::count();
     $objets = Objet::count();
 
-    $this->artisan('partie:purger', ['--supprimer' => true])->assertSuccessful();
+    $this->artisan('partie:purger', ['--supprimer' => true])
+        ->expectsConfirmation('Confirmer la suppression ?', 'yes')
+        ->assertSuccessful();
 
     expect(Groupe::count())->toBe(0)
         ->and(Quete::count())->toBe(0)
@@ -105,9 +107,59 @@ it('--tout emporte en plus les comptes et la télémétrie', function () {
         'created_at' => now(),
     ]);
 
-    $this->artisan('partie:purger', ['--supprimer' => true, '--tout' => true])->assertSuccessful();
+    $this->artisan('partie:purger', ['--supprimer' => true, '--tout' => true])
+        ->expectsQuestion('Pour confirmer, recopiez le nombre de groupes à détruire (1)', '1')
+        ->assertSuccessful();
 
     expect(Joueur::count())->toBe(0)
         ->and(DB::table('consommation_ia')->count())->toBe(0)
         ->and(Monstre::count())->toBeGreaterThan(0); // les catalogues, toujours
+});
+
+/*
+ * LE GARDE-FOU, pas seulement la purge.
+ *
+ * ⚠ René, 2026-09-12 : « il n'y a plus de chance qu'un agent vide la base de
+ * données réelle ? ». La réponse était NON — rien n'arrêtait la commande. Ce
+ * qui suit rend le refus TESTÉ plutôt que promis : une confirmation qu'aucun
+ * test n'exerce est une confirmation qu'un prochain passage retirera « parce
+ * qu'elle gêne les scripts ».
+ */
+it('ANNULE si la confirmation simple est refusée — rien ne doit disparaître', function () {
+    demarrerQueteAvecMonstre('Gobelin');
+    app()['env'] = 'local';
+
+    $this->artisan('partie:purger', ['--supprimer' => true])
+        ->expectsConfirmation('Confirmer la suppression ?', 'no')
+        ->assertFailed();
+
+    expect(Groupe::count())->toBe(1)
+        ->and(Personnage::count())->toBeGreaterThan(0);
+});
+
+it('ANNULE --tout si le nombre recopié ne correspond pas', function () {
+    demarrerQueteAvecMonstre('Gobelin');
+    app()['env'] = 'local';
+
+    // ⚠ C'est TOUT l'intérêt de recopier un nombre plutôt que de répondre
+    // « oui » : un agent répond oui à n'importe quelle question fermée, il ne
+    // peut pas deviner un compte qu'il n'a pas lu dans l'inventaire au-dessus.
+    $this->artisan('partie:purger', ['--supprimer' => true, '--tout' => true])
+        ->expectsQuestion('Pour confirmer, recopiez le nombre de groupes à détruire (1)', '2')
+        ->assertFailed();
+
+    expect(Groupe::count())->toBe(1)
+        ->and(Joueur::count())->toBeGreaterThan(0);
+});
+
+it('laisse passer --force, la porte nommée pour les scripts', function () {
+    demarrerQueteAvecMonstre('Gobelin');
+    app()['env'] = 'local';
+
+    // ⚠ Assumé : un garde-fou impossible à contourner finit contourné par un
+    // chemin qu'on ne voit pas. Mieux vaut une porte nommée qu'un mur escaladé.
+    $this->artisan('partie:purger', ['--supprimer' => true, '--force' => true])
+        ->assertSuccessful();
+
+    expect(Groupe::count())->toBe(0);
 });

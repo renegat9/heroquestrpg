@@ -95,6 +95,33 @@ docker run --rm --network host -v "$PWD:/work" -w /work \
 ⚠ **Pas de mode démo** : aucun repli de données factices dans la SPA. Toujours
 tester contre la vraie stack seedée — c'est exprès, pour que les bugs se voient.
 
+## ⚠ Sauvegarder — avant tout le reste
+
+```bash
+./image-tools/sauvegarder.sh              # MariaDB + bible Qdrant, rotation sur 10
+./image-tools/sauvegarder.sh --verifier   # relit la dernière dans un MariaDB JETABLE
+./image-tools/sauvegarder.sh --lister
+```
+
+Jusqu'au 2026-09-12 il n'existait **aucune sauvegarde** : 210 Mo de volume, zéro dump,
+zéro script. Durcir les commandes ne faisait que réduire la probabilité d'un événement
+**irréversible**. ⚠ Les **deux volumes ensemble** — une base restaurée sans sa bible rend
+le RAG muet. ⚠ Et `--verifier` restaure dans un conteneur **jetable**, jamais dans celui du
+jeu : une sauvegarde jamais relue n'est pas une sauvegarde, et la vérifier ne doit pas
+risquer ce qu'elle protège.
+
+## ⚠ Les commandes qui détruisent sont bloquées
+
+`migrate:fresh`, `migrate:refresh`, `migrate:reset` et `db:wipe` **refusent** dès que la
+base porte un groupe ou un personnage
+(`AppServiceProvider::interdireLesCommandesDestructrices()`). `APP_ENV` vaut `local`, donc
+la confirmation native de Laravel **ne se déclenchait jamais** — elle n'existe qu'en
+`production`. Sortie de secours nommée : `HQ_AUTORISER_DESTRUCTION=1`, délibérément **pas**
+`--force` (un agent ajoute `--force` par réflexe, il n'invente pas une variable
+d'environnement). `partie:purger --supprimer` demande confirmation, et `--tout` exige de
+**recopier le nombre de groupes**. ⚠ `testing` passe librement : `RefreshDatabase` a besoin
+de `migrate:fresh`, et la suite tourne sur une sqlite jetable.
+
 ## Ménage après une session de test
 
 ⚠ **INTERDIT depuis le 2026-09-12** : `partie:purger --supprimer --tout`,
@@ -127,6 +154,7 @@ cache l'IP de l'upstream et rend des 502 tant qu'il n'a pas redémarré.
 (Les réglages du panneau « Réglages » s'appliquent, eux, **à chaud**.)
 
 ## Definition of done
+- [ ] Sauvegarde prise avant toute opération qui touche la vraie base
 - [ ] Workers redémarrés si du PHP a changé
 - [ ] Front rebuild si du Vue a changé
 - [ ] Suite Pest verte (conteneur jetable, pas `app`, **sur une copie sqlite**)

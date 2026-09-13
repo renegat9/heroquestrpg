@@ -38,7 +38,8 @@ final class PurgerDonneesPartie extends Command
 {
     protected $signature = 'partie:purger
         {--supprimer : Applique (sans ce drapeau, la commande se contente de lister)}
-        {--tout : Emporte AUSSI les comptes joueurs et la télémétrie de consommation IA}';
+        {--tout : Emporte AUSSI les comptes joueurs et la télémétrie de consommation IA}
+        {--force : Passe outre la confirmation — pour un script, JAMAIS pour un agent}';
 
     protected $description = 'Remet la base à zéro côté partie (catalogues et réglages conservés)';
 
@@ -74,6 +75,10 @@ final class PurgerDonneesPartie extends Command
             $this->warn('Inventaire seul. Relancer avec --supprimer pour appliquer.');
 
             return self::SUCCESS;
+        }
+
+        if (! $this->confirmerDestruction($groupes->count(), $personnages, $comptes, $tout)) {
+            return self::FAILURE;
         }
 
         // 1. Les campagnes, par le service : caches, Qdrant et images compris.
@@ -120,6 +125,62 @@ final class PurgerDonneesPartie extends Command
     }
 
     /** Aligne sur la LARGEUR AFFICHÉE : `sprintf` compte des octets, et « quêtes » en fait plus qu'il n'affiche de signes. */
+    /**
+     * Dernier rempart AVANT la destruction — et il est délibérément pénible.
+     *
+     * ⚠ Pourquoi (René, 2026-09-12 : « il n'y a plus de chance qu'un agent vide
+     * la base de données réelle ? ») : la réponse était NON. Tout ce qui
+     * protégeait ces lignes était de la PROSE — CLAUDE.md, les skills, une
+     * mémoire. Un agent qui ne les a pas lues, ou qui les a lues et a jugé que
+     * « purger » n'était pas « détruire », lançait la commande sans rencontrer
+     * la moindre résistance. Le seul garde-fou existant refusait
+     * l'environnement `testing` : l'exact inverse de ce qui protège des données
+     * réelles.
+     *
+     * ⚠ `--tout` exige de RECOPIER le nombre de groupes, pas de répondre « oui ».
+     * Un agent répond « oui » à n'importe quelle question fermée ; il ne peut
+     * pas recopier un nombre qu'il n'a pas lu dans l'inventaire juste au-dessus.
+     * C'est la différence entre une confirmation et un péage.
+     *
+     * ⚠ `--force` existe pour les scripts, et c'est assumé : un garde-fou
+     * impossible à contourner finit contourné par un chemin qu'on ne voit pas.
+     * Mieux vaut une porte nommée qu'un mur qu'on escalade.
+     */
+    private function confirmerDestruction(int $groupes, int $personnages, int $comptes, bool $tout): bool
+    {
+        if ($this->option('force')) {
+            $this->warn('--force : confirmation passée outre.');
+
+            return true;
+        }
+
+        if (! $this->input->isInteractive()) {
+            $this->error('Refusé : pas de terminal pour confirmer. Utilisez --force en connaissance de cause.');
+
+            return false;
+        }
+
+        $this->newLine();
+        $this->error('⚠ DESTRUCTION IRRÉVERSIBLE de données de PRODUCTION.');
+        $this->line("  {$groupes} groupe(s), {$personnages} personnage(s)".($tout ? ", {$comptes} compte(s)" : '').' vont disparaître.');
+        $this->line('  Les campagnes durent des semaines. Sauvegardez d\'abord : ./image-tools/sauvegarder.sh');
+        $this->newLine();
+
+        if ($tout) {
+            $saisi = (string) $this->ask("Pour confirmer, recopiez le nombre de groupes à détruire ({$groupes})");
+
+            if (trim($saisi) !== (string) $groupes) {
+                $this->error('Annulé : le nombre ne correspond pas.');
+
+                return false;
+            }
+
+            return true;
+        }
+
+        return (bool) $this->confirm('Confirmer la suppression ?', false);
+    }
+
     private function ligne(string $libelle, string $valeur): void
     {
         $this->line('  '.$libelle.str_repeat(' ', max(1, 26 - mb_strlen($libelle))).$valeur);

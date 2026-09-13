@@ -16,6 +16,8 @@ use App\Models\Parametre;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
 use App\Listeners\ImageMiroir;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 class AppServiceProvider extends ServiceProvider
@@ -100,6 +102,16 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
+    /**
+     * Les quatre commandes Laravel qui vident la base. ⚠ `migrate` seul n'y est
+     * PAS : il ajoute, il ne détruit pas — l'y mettre rendrait le garde si
+     * pénible qu'on le désactiverait.
+     */
+    private const COMMANDES_DESTRUCTRICES = ['migrate:fresh', 'migrate:refresh', 'migrate:reset', 'db:wipe'];
+
+    /** Code de sortie du refus — distinct de 1 pour se repérer dans un log. */
+    private const CODE_REFUS = 9;
+
     public function boot(): void
     {
         // Écouteurs d'interception des dégâts subis par un héros. Ils doivent
@@ -108,5 +120,68 @@ class AppServiceProvider extends ServiceProvider
         // Les effets qui exigent un CHOIX du joueur passent par
         // App\Partie\MoteurReactions, qui propose puis défait le coup.
         Event::listen(ImageMiroir::class);
+
+        $this->interdireLesCommandesDestructrices();
+    }
+
+    /**
+     * Refuse `migrate:fresh` & co. tant que la base porte une vraie campagne.
+     *
+     * ⚠ René, 2026-09-12 : « il n'y a plus de chance qu'un agent vide la base de
+     * données réelle ? ». La réponse était NON. Tout ce qui protégeait ces
+     * lignes était de la PROSE — `CLAUDE.md`, les skills, une mémoire — et la
+     * prose n'a jamais arrêté personne qui ne l'avait pas lue. Quatre commandes
+     * livrées avec Laravel suffisaient à effacer des semaines de campagne
+     * **sans poser une seule question**, parce que `ConfirmableTrait` ne demande
+     * confirmation QUE si `APP_ENV === 'production'` — et le conteneur tourne en
+     * `local`.
+     *
+     * ⚠ Pourquoi pas simplement `APP_ENV=production` : Laravel exigerait alors
+     * `--force` sur `migrate` et `db:seed` AUSSI, ce qui casse `setup.sh` et le
+     * cycle de développement, et bascule les pages d'erreur. Le garde ciblé ne
+     * change rien d'autre que ce qu'on veut empêcher.
+     *
+     * ⚠ La sortie de secours est une VARIABLE D'ENVIRONNEMENT, jamais un
+     * `--force` : un agent ajoute `--force` par réflexe quand une commande
+     * refuse, il n'invente pas `HQ_AUTORISER_DESTRUCTION=1`. Un garde-fou
+     * impossible à contourner finit contourné par un chemin qu'on ne voit pas —
+     * mieux vaut une porte nommée qu'un mur qu'on escalade.
+     *
+     * ⚠ `testing` passe librement : la suite Pest reconstruit sa base à chaque
+     * fichier, et elle tourne sur une sqlite jetable, jamais sur le conteneur.
+     */
+    private function interdireLesCommandesDestructrices(): void
+    {
+        if (app()->environment('testing') || env('HQ_AUTORISER_DESTRUCTION') === '1') {
+            return;
+        }
+
+        Event::listen(function (CommandStarting $evenement): void {
+            if (! in_array($evenement->command, self::COMMANDES_DESTRUCTRICES, true)) {
+                return;
+            }
+
+            try {
+                $groupes = DB::table('groupes')->count();
+                $personnages = DB::table('personnages')->count();
+            } catch (\Throwable) {
+                return; // Base vide ou non migrée : rien à protéger.
+            }
+
+            if ($groupes === 0 && $personnages === 0) {
+                return;
+            }
+
+            $sortie = $evenement->output;
+            $sortie->writeln('');
+            $sortie->writeln("<error>  REFUSÉ : `{$evenement->command}` détruirait des données de PRODUCTION.  </error>");
+            $sortie->writeln("  La base porte {$groupes} groupe(s) et {$personnages} personnage(s) — des campagnes qui durent des semaines.");
+            $sortie->writeln('  Sauvegarder  : ./image-tools/sauvegarder.sh');
+            $sortie->writeln('  Modifier des lignes existantes : écrire une MIGRATION, pas un re-seed destructif.');
+            $sortie->writeln('  Si c\'est vraiment voulu : HQ_AUTORISER_DESTRUCTION=1 php artisan '.$evenement->command);
+            $sortie->writeln('');
+
+            exit(self::CODE_REFUS);
+        });
     }
 }

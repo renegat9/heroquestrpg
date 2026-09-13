@@ -136,7 +136,27 @@ docker compose up -d                  # "prod" LAN mode
 docker compose exec app php artisan   # any artisan command (migrate, test, etc.)
 docker compose logs -f app queue      # follow the app and AI jobs
 docker compose restart queue queue-jeu   # MANDATORY after any PHP change (see below)
+./image-tools/sauvegarder.sh          # BACK UP MariaDB + the Qdrant bible (do this before anything risky)
+./image-tools/sauvegarder.sh --verifier   # restores the last one into a throwaway MariaDB and counts rows
 ```
+
+**Back up before anything that touches real data.** Until 2026-09-12 there was **no backup
+at all** — 210 MB of volume, no dump, no script — so every hardening measure was only
+lowering the odds of an **irreversible** event. `sauvegarder.sh` takes both volumes
+together (a base restored without its bible leaves the RAG mute), keeps the last 10, and
+`--verifier` proves the dump reloads by restoring it into a **throwaway** MariaDB and
+comparing row counts — a backup never read back is not a backup.
+`browser-shots/campagne/preparer.sh` now calls it first: the moment a harness campaign is
+about to write to the real DB is exactly when the net is wanted.
+
+⚠ **`migrate:fresh`, `migrate:refresh`, `migrate:reset` and `db:wipe` are REFUSED**
+while the DB holds a group or a character (`AppServiceProvider::interdireLesCommandesDestructrices()`).
+`APP_ENV` is `local`, so Laravel's own confirmation **never fired** — those four commands
+wiped weeks of campaign without asking anything. The named way out is
+`HQ_AUTORISER_DESTRUCTION=1`, deliberately **not** `--force`: an agent adds `--force` by
+reflex when a command refuses, it does not invent an environment variable.
+`partie:purger --supprimer` now asks, and `--tout` demands the **group count typed back**
+— an agent answers "yes" to any closed question, it cannot guess a number it did not read.
 
 **Restart the queue workers after every PHP change.** `app` reads the bind-mounted
 code per request, but `queue`/`queue-jeu` are long-running `queue:work` daemons that
