@@ -110,6 +110,16 @@ le RAG muet. ⚠ Et `--verifier` restaure dans un conteneur **jetable**, jamais 
 jeu : une sauvegarde jamais relue n'est pas une sauvegarde, et la vérifier ne doit pas
 risquer ce qu'elle protège.
 
+⚠ **Les données vivent dans un dossier de l'HÔTE**, hors du dépôt (`CHEMIN_DONNEES`,
+par défaut `../heroquest-donnees`), plus dans un volume Docker nommé. `docker compose
+down -v` ne retire que les volumes **nommés** : c'est la seule commande destructrice
+qu'aucun garde applicatif ne peut intercepter, puisqu'elle tourne hors de Laravel.
+Vérifié en vrai le 2026-09-13 — `down -v` lancé, les 6 personnages et la bible toujours
+là. ⚠ **Hors du dépôt** parce que `git clean -xfd` supprime AUSSI les fichiers ignorés :
+un dossier de données sous le dépôt aurait remplacé un risque rare par un risque banal.
+⚠ Et les anciens volumes nommés ne sont **plus déclarés** dans `docker-compose.yml`,
+donc compose ne peut plus les effacer : ils gardent l'état d'avant la bascule.
+
 ## ⚠ Les commandes qui détruisent sont bloquées
 
 `migrate:fresh`, `migrate:refresh`, `migrate:reset` et `db:wipe` **refusent** dès que la

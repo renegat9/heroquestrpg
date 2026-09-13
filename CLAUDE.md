@@ -217,7 +217,16 @@ Multiplayer model: roles are views, not devices — any browser can be **host** 
 
 Entry/session model (`docs/contrat-api.md` §Modèle de session): the **narrator/table** has no account — it opens a group by **code** (`POST /api/table`) and keeps a **heartbeat** (`POST /api/table/ping` ~every 15s → cache `table:active:{id}`, 30s TTL = "narrator active"). **Players** have accounts (register/login), a **roster** of characters (`/moi` → each character `disponible` or engaged with `groupe.narrateur_actif`), create a group **from a free character** (founder) or join by code. A quest starts when **all active members are marked ready** (`POST /groupes/{id}/pret`) **and** a narrator is active. Read routes (`/etat`, channels) accept a player member **or** the group's table session.
 
-Data: catalogs (bestiary, items, spells, tiles, traps) are seeded reference data — the AI may reskin names/descriptions but never change effects. Full schema in `reference/12_schema_donnees.md`. A complete campaign = the `mariadb_data` **and** `qdrant_data` volumes; back up both together.
+Data: catalogs (bestiary, items, spells, tiles, traps) are seeded reference data — the AI may reskin names/descriptions but never change effects. Full schema in `reference/12_schema_donnees.md`. A complete campaign = **MariaDB and the Qdrant bible**; back up both together
+(`./image-tools/sauvegarder.sh`). Since 2026-09-13 both live in a **host folder** outside the
+repo (`CHEMIN_DONNEES`, default `../heroquest-donnees`), not in a named Docker volume:
+`docker compose down -v` removes only **named** volumes, so a bind mount survives it — and it
+is the one command neither a Laravel guard nor a confirmation can intercept, running outside
+the application. Outside the repo because `git clean -xfd` deletes ignored files too, which
+would have swapped a rare risk for a banal one. ⚠ The old `heroquestrpg_mariadb_data` /
+`heroquestrpg_qdrant_data` volumes still hold the 2026-09-13 state and are **no longer declared**
+in `docker-compose.yml`, so nothing in compose can erase them — they are the migration's net,
+to be removed by hand only once weeks have proved the move.
 
 ## Design documents (`reference/`, French — the source of truth for all game rules)
 

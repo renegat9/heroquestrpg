@@ -138,6 +138,14 @@ info "Build des images (premier build : quelques minutes)…"
 $COMPOSE build --build-arg UID="$(id -u)" --build-arg GID="$(id -g)"
 
 info "Démarrage des conteneurs…"
+# Dossier des données PERSISTANTES, hors du dépôt (voir CHEMIN_DONNEES dans .env).
+# ⚠ Créé AVANT le premier démarrage : Docker créerait sinon le point de montage
+# lui-même, en root, et l'initialisation de MariaDB s'y casserait.
+CHEMIN_DONNEES="$(grep -E '^CHEMIN_DONNEES=' .env | cut -d= -f2- | tr -d '"'"'"'')"
+CHEMIN_DONNEES="${CHEMIN_DONNEES:-../heroquest-donnees}"
+mkdir -p "$CHEMIN_DONNEES/mariadb" "$CHEMIN_DONNEES/qdrant"
+ok "Données persistantes : $(cd "$CHEMIN_DONNEES" && pwd)"
+
 $COMPOSE up -d
 
 info "Attente de MariaDB (healthcheck)…"

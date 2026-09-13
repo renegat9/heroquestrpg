@@ -115,7 +115,11 @@ services:
       MARIADB_PASSWORD: ${DB_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
-      - mariadb_data:/var/lib/mysql      # volume = état des campagnes (à sauvegarder)
+      # ⚠ BIND MOUNT, plus un volume nommé (2026-09-13) : `docker compose down -v`
+      # ne retire que les volumes NOMMÉS — un dossier de l'hôte y survit. C'est la
+      # seule commande que ni un garde Laravel ni une confirmation ne peuvent
+      # intercepter, puisqu'elle s'exécute hors de l'application.
+      - ${CHEMIN_DONNEES:-../heroquest-donnees}/mariadb:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -128,7 +132,8 @@ services:
     image: qdrant/qdrant:v1.13.4
     restart: unless-stopped
     volumes:
-      - qdrant_data:/qdrant/storage      # volume = bibles des groupes (à sauvegarder avec mariadb_data)
+      # ⚠ Les DEUX ensemble : une base restaurée sans sa bible rend le RAG muet.
+      - ${CHEMIN_DONNEES:-../heroquest-donnees}/qdrant:/qdrant/storage
     networks: [game]
     # Pas de port publié non plus : seul `app` lui parle.
 
@@ -158,6 +163,14 @@ networks:
   game:
     driver: bridge
 
-volumes:
-  mariadb_data:
-  qdrant_data:
+# ⚠ PLUS AUCUN volume nommé déclaré, et c'est délibéré : `docker compose down -v`
+# supprime les volumes DÉCLARÉS ICI. Les anciens `heroquestrpg_mariadb_data` et
+# `heroquestrpg_qdrant_data` existent toujours sur la machine, avec l'état du
+# 2026-09-13 — ils ne sont plus rattachés à ce fichier, donc plus rien dans
+# compose ne peut les effacer. Ils sont le filet de la bascule ; à retirer à la
+# main (`docker volume rm`) quand plusieurs semaines auront prouvé la migration,
+# pas avant.
+#
+# Le chemin est paramétrable par CHEMIN_DONNEES, et il pointe HORS du dépôt par
+# défaut : `git clean -xfd` supprime AUSSI les fichiers ignorés, donc un dossier
+# de données sous le dépôt aurait remplacé un risque rare par un risque banal.

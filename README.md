@@ -174,7 +174,12 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
 
 - MariaDB, phpMyAdmin et Qdrant ne sont **jamais exposés** hors du réseau compose (phpMyAdmin bind 127.0.0.1 seulement).
 - Auth simple **acceptable en LAN/VPN uniquement**. Exposition WAN → proxy TLS + auth durcie (VPN recommandé à la place).
-- Une campagne complète = les volumes `mariadb_data` **et** `qdrant_data` — à sauvegarder ensemble.
+- Une campagne complète = **MariaDB et la bible Qdrant** — à sauvegarder ensemble, une base
+  restaurée sans sa bible rend le RAG muet. `./image-tools/sauvegarder.sh` prend les deux.
+- Les deux vivent dans un **dossier de l'hôte** (`CHEMIN_DONNEES`, par défaut
+  `../heroquest-donnees`), **hors du dépôt** — pas dans un volume Docker nommé. Deux raisons :
+  `docker compose down -v` ne retire que les volumes **nommés**, donc les données y survivent ;
+  et hors du dépôt parce que `git clean -xfd` supprime aussi les fichiers ignorés.
 
 ## 🛣️ Reste à faire (court terme)
 
