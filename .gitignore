@@ -70,3 +70,14 @@ browser-shots/jd-*.json
 
 # Sauvegardes locales (volumineuses, et elles contiennent des comptes joueurs)
 /backups/
+
+# Livret de jeu : tout y est DÉRIVÉ et régénérable (docs/livret/README.md).
+# Le PDF fait 16 Mo, les vignettes sont des copies réduites de public/images,
+# et les captures se reprennent sur la vraie stack. Seuls le générateur et les
+# scripts sont versionnés.
+/docs/livret/img/
+/docs/livret/livret.html
+/docs/livret/couverture.html
+/docs/livret/.*.pdf
+/public/livret/
+/browser-shots/livret/

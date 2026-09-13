@@ -48,5 +48,5 @@ else
   " 2>&1 | grep -vE '^\s*$|INFO' || true
 fi
 
-rm -f "$D"/jar-*.txt "$D"/perso-*.txt "$D/groupe.txt"
+rm -f "$D"/jar-*.txt "$D"/perso-*.txt "$D"/ident-*.txt "$D/groupe.txt"
 echo "  fichiers de session locaux effacés"

@@ -1,12 +1,28 @@
 <script setup>
 // ACCUEIL — choix de rôle : Narrateur (table) ou Joueur (compte + roster).
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import MSym from '../components/ui/MSym.vue';
 import { useApi } from '../composables/useApi';
 import { useGameStore } from '../store/game';
 
 const api = useApi();
 const store = useGameStore();
+
+/* ---- livret de jeu (PDF) ----
+ * Le PDF est un asset GÉNÉRÉ (docs/livret/README.md), donc absent d'une
+ * installation neuve — au même titre que public/images. On ne montre la carte
+ * que si le fichier répond : un lien mort sur l'accueil serait la « promesse
+ * faite au joueur et jamais tenue » que CLAUDE.md proscrit. HEAD, donc les
+ * 16 Mo ne sont jamais téléchargés pour cette vérification.
+ *
+ * ⚠ On vérifie le CONTENT-TYPE, pas seulement le statut. Le `try_files` de
+ * nginx renvoie la SPA en 200 pour tout ce qui n'existe pas : un statut seul
+ * disait donc « présent » quel que soit l'état du disque. `docker/nginx`
+ * porte désormais un `location /livret/ { try_files $uri =404; }` qui règle le
+ * cas à la source — ce test-ci reste la ceinture, pour que l'écran ne dépende
+ * pas d'un fichier de conf qu'il ne contrôle pas. */
+const LIVRET_URL = '/livret/HeroQuest-RPG-Livret-de-jeu.pdf';
+const livretDispo = ref(false);
 
 onMounted(async () => {
     try {
@@ -15,6 +31,14 @@ onMounted(async () => {
     } catch {
         // 401 = simplement pas connecté ; rien à faire, cet écran n'affiche
         // pas de données de session.
+    }
+
+    try {
+        const r = await fetch(LIVRET_URL, { method: 'HEAD' });
+        livretDispo.value = r.ok
+            && (r.headers.get('content-type') ?? '').includes('application/pdf');
+    } catch {
+        livretDispo.value = false;
     }
 });
 </script>
@@ -81,15 +105,34 @@ onMounted(async () => {
                 </RouterLink>
             </div>
 
-            <!-- lien vers le guide / compendium (public, sans compte) -->
-            <RouterLink to="/guide" class="acchoix-guide">
-                <MSym n="menu_book" fill :size="20" />
-                <span class="acchoix-guide-txt">
-                    <b>Guide de jeu</b>
-                    <em>Bestiaire, talents des héros, équipements, sorts et pièges</em>
-                </span>
-                <MSym n="arrow_forward" :size="18" />
-            </RouterLink>
+            <!-- références publiques : consultables sans compte -->
+            <div class="acchoix-liens">
+                <!-- guide / compendium, servi par l'API -->
+                <RouterLink to="/guide" class="acchoix-guide">
+                    <MSym n="menu_book" fill :size="20" />
+                    <span class="acchoix-guide-txt">
+                        <b>Guide de jeu</b>
+                        <em>Bestiaire, talents des héros, équipements, sorts et pièges</em>
+                    </span>
+                    <MSym n="arrow_forward" :size="18" />
+                </RouterLink>
+
+                <!-- livret PDF : asset généré, donc affiché seulement s'il est là -->
+                <a
+                    v-if="livretDispo"
+                    :href="LIVRET_URL"
+                    target="_blank"
+                    rel="noopener"
+                    class="acchoix-guide is-livret"
+                >
+                    <MSym n="picture_as_pdf" fill :size="20" />
+                    <span class="acchoix-guide-txt">
+                        <b>Livret de jeu (PDF)</b>
+                        <em>Les règles complètes en 42 pages — à lire, à imprimer, à poser sur la table</em>
+                    </span>
+                    <MSym n="download" :size="18" />
+                </a>
+            </div>
         </div>
     </div>
 </template>
@@ -153,6 +196,11 @@ onMounted(async () => {
   font-size: 13px; font-weight: 700; color: var(--torch); }
 
 /* ---- lien guide / compendium ---- */
+/* ⚠ .acchoix-inner a un gap de 40px : sans ce conteneur, les deux références
+   publiques se retrouveraient aussi éloignées l'une de l'autre que des cartes
+   de rôle, alors qu'elles forment un bloc. */
+.acchoix-liens { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+
 .acchoix-guide { width: 100%; display: flex; align-items: center; gap: 14px; text-decoration: none;
   padding: 16px 20px; border-radius: var(--r-lg, 14px); border: var(--line);
   background: linear-gradient(180deg, var(--stone-850), var(--stone-900)); color: var(--ink-200, #e7dcc6);
@@ -164,4 +212,10 @@ onMounted(async () => {
 .acchoix-guide-txt { display: flex; flex-direction: column; gap: 2px; }
 .acchoix-guide-txt b { font-family: var(--font-display); font-size: 16px; font-weight: 800; color: var(--parch-100); letter-spacing: 0.02em; }
 .acchoix-guide-txt em { font-style: normal; font-size: 12.5px; color: var(--ink-400); }
+
+/* Le livret est un document à emporter, pas un écran : sceau ambre plutôt
+   qu'or, pour qu'on ne le confonde pas d'un coup d'œil avec le guide. */
+.acchoix-guide.is-livret > .msym:first-child { color: var(--ember, #c2571d); }
+.acchoix-guide.is-livret:hover { border-color: var(--ember, #c2571d);
+  box-shadow: 0 0 24px oklch(0.62 0.17 42 / 0.18), var(--sh-2); }
 </style>
