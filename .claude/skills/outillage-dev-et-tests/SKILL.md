@@ -29,9 +29,13 @@ suite… », **sans une erreur nulle part**.
 
 ## Tests — Pest, dans un conteneur jetable
 
+⚠ **Sur une COPIE JETABLE, jamais sur `database/database.sqlite`** (René,
+2026-09-12 — les groupes et personnages sont de la **production**) :
+
 ```bash
-docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
-  -e DB_CONNECTION=sqlite -e DB_DATABASE=/app/database/database.sqlite \
+cp database/database.sqlite /tmp/essai.sqlite          # ⚠ la copie, pas l'original
+docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -v /tmp:/db -w /app \
+  -e DB_CONNECTION=sqlite -e DB_DATABASE=/db/essai.sqlite \
   composer:2 ./vendor/bin/pest                       # toute la suite
 #   … ./vendor/bin/pest tests/Feature/Partie/DreadTest.php    # un seul fichier
 #   … ./vendor/bin/pest --filter="nom du test"
@@ -50,6 +54,24 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -w /app \
   qui un crâne ne fait rien.
 - ⚠ Une assertion de payload en `toBe(...)` doit **ignorer `image_url`**, sinon
   elle casse dès qu'un asset existe.
+- ⚠ **`toContain('x', 'mon message')` n'a PAS de paramètre message** : Pest lit le
+  second argument comme une **seconde valeur attendue**. Pour un message, passer par
+  `expect(...)->toBeTrue("message")` sur une condition explicite.
+- ⚠ **Un test qui passe AUSSI sans le correctif ne prouve rien.** Le vérifier :
+  `git stash push -q <fichier>` → relancer → il doit **échouer** → `git stash pop -q`.
+  Payé le 2026-09-12 : un test « les monstres laissent de la place aux héros » comptait
+  le sol **brut** au lieu des cases tenables, et passait dans les deux sens.
+- ⚠ **Un test instable se MESURE avant de se corriger**, sinon on répare au hasard.
+  Boucle de 10 à 12 exécutions en comptant les échecs, puis on cherche la cause —
+  et on la LIT (`grep -A12 FAILED`) au lieu de la deviner. Sur `DeckFouilleTest`
+  (3 échecs sur 10) deux causes empilées se cachaient derrière une troisième supposée.
+- ⚠ **Un conteneur tué par un timeout SURVIT et corrompt la base du run suivant.**
+  `timeout` tue le client `docker run`, pas le conteneur : il continue d'écrire dans le
+  fichier sqlite qu'une exécution suivante vient de recopier — d'où une volée d'échecs
+  sans rapport (équipement, compendium, LLM). Avant de conclure à une régression :
+  `docker ps --filter ancestor=composer:2 -q | xargs -r docker kill`.
+  ⚠ L'outil Bash plafonne à **10 minutes** ; la suite complète dure ~6 min, donc
+  **une seule** suite par appel.
 
 ## Front
 
@@ -75,12 +97,23 @@ tester contre la vraie stack seedée — c'est exprès, pour que les bugs se voi
 
 ## Ménage après une session de test
 
+⚠ **INTERDIT depuis le 2026-09-12** : `partie:purger --supprimer --tout`,
+`migrate:fresh`, et tout `DELETE` sur `groupes` / `personnages` / `joueurs` de la base
+réelle. Les campagnes durent des semaines et René veut les retrouver. Jusque-là je
+terminais chaque session par une purge globale « pour laisser la maison propre » : la
+propreté ne vaut pas la perte d'une campagne en cours.
+
 ```bash
-docker compose exec app php artisan partie:purger            # liste seulement
-docker compose exec app php artisan partie:purger --supprimer
-docker compose exec app php artisan partie:purger --supprimer --tout   # + comptes + télémétrie IA
-./browser-shots/campagne/nettoyer.sh                         # ciblé sur la campagne courante
+docker compose exec app php artisan partie:purger            # inventaire, ne touche à rien
+./browser-shots/campagne/nettoyer.sh                         # ⚠ CIBLÉ sur sa propre campagne
 ```
+
+`partie:purger --supprimer` reste disponible mais **n'est plus la routine** : le nettoyage
+d'une campagne de harnais passe par `nettoyer.sh`, qui ne vise que le groupe qu'il a créé.
+Un changement sur des lignes existantes se fait par **migration**, jamais par re-seed
+destructif — les seeders écrivent en `updateOrCreate` et ne purgent pas, donc `db:seed`
+reste sûr (seule exception connue : `TuileSeeder`, qui purge exprès, et rien ne
+référence `tuiles.id`).
 
 ⚠ Les deux passent par **`ClotureCampagne::purger()`**, jamais par un `DELETE` :
 ce service emporte aussi les caches de phase, la **bible Qdrant** du groupe et
@@ -96,6 +129,7 @@ cache l'IP de l'upstream et rend des 502 tant qu'il n'a pas redémarré.
 ## Definition of done
 - [ ] Workers redémarrés si du PHP a changé
 - [ ] Front rebuild si du Vue a changé
-- [ ] Suite Pest verte (conteneur jetable, pas `app`)
+- [ ] Suite Pest verte (conteneur jetable, pas `app`, **sur une copie sqlite**)
+- [ ] Tout test neuf vérifié comme **échouant sans le correctif**
 - [ ] Vérifié en vrai contre la stack seedée, pas seulement en test
-- [ ] Session de test purgée via `partie:purger` / `nettoyer.sh`
+- [ ] Campagne de test nettoyée via `nettoyer.sh` — **jamais** `--supprimer --tout`

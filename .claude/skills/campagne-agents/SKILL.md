@@ -21,6 +21,18 @@ Two things it taught, both in the README. **A role does not test itself — prep
 verbes de `hq.sh`, format des sous-choix, pièges. Il est maintenu avec le
 harnais — cette skill l'amorce, elle ne le remplace pas et **ne le recopie pas**.
 
+## ⚠ À écrire DANS CHAQUE BRIEF D'AGENT, mot pour mot
+
+> Les groupes, personnages et comptes de la base MariaDB sont de la **production**.
+> ❌ `partie:purger --supprimer --tout`, ❌ `migrate:fresh`, ❌ tout `DELETE` sur
+> `groupes` / `personnages` / `joueurs`. Nettoyer **uniquement** avec
+> `browser-shots/campagne/nettoyer.sh`, qui ne vise que le groupe qu'il a créé.
+
+Sans cette phrase **explicite**, un agent purge **de bonne foi** : il voit une base
+encombrée de campagnes de test et fait le ménage. C'est un ordre que la consigne
+générale « ne casse rien » ne couvre pas, parce que purger ne ressemble pas à casser.
+(René, 2026-09-12 — les campagnes durent des semaines.)
+
 ## Les trois choses à ne pas rater
 
 1. **Le battement de la table expire en 30 s, en silence.** Sans
@@ -69,4 +81,5 @@ corrections retenues remontent dans `docs/regles/` (règles en vigueur).
 - [ ] Battement de table actif pendant toute la partie
 - [ ] Consigne « aucun outil de surveillance » donnée à chaque agent
 - [ ] Héros non joués couverts par `figurants.sh`
-- [ ] Défauts consignés, campagne purgée
+- [ ] Interdiction de purge écrite **dans chaque brief**, pas seulement connue
+- [ ] Défauts consignés, campagne nettoyée par `nettoyer.sh` (jamais `--tout`)

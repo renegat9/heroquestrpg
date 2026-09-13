@@ -57,9 +57,11 @@ description: >-
   choisie porte des `cibles`.
 - Une entrée épuisée **reste affichée**, `disponible: false`, **grisée** — la
   cacher fait croire au joueur qu'il a perdu le sort.
-- ⚠ **`ActionTab.creneauConsomme()` reflète `ResolveurTour::creneauOption()`** :
-  garder les deux en phase, et rester tolérant à l'absence des drapeaux
-  `a_joue` / `a_deplace` / `a_agi`.
+- ⚠ **`ActionTab.creneauConsomme()` ne REFLÈTE plus la règle serveur, il lit sa
+  DÉCISION** (2026-09-11). Il re-dérivait `ResolveurTour::creneauOption()` en JS, et
+  grisait donc « Attaquer » après la Potion d'héroïsme, qui donne pourtant une seconde
+  attaque. Il lit maintenant `moi.attaque_supplementaire` / `moi.sort_bonus_disponible`,
+  calculés côté serveur. Rester tolérant à l'absence de `a_joue` / `a_deplace` / `a_agi`.
 - La manette est une **pile de feuilles** (`feuilles`) : chaque retour **nomme sa
   destination**, un tap sur le fond dépile un niveau, un menu neuf vide la pile.
 
@@ -69,7 +71,15 @@ description: >-
   on la change **avant** le code.
 - `EtatGroupe` est le payload de la table ; `/moi` celui du joueur. Une décision
   prise côté serveur s'y **publie** plutôt que de se re-dériver côté client
-  (`slots_utiles`, `remplace`, `objectif_accompli`, `jetons_rejeton`).
+  (`slots_utiles`, `remplace`, `objectif_accompli`, `jetons_rejeton`, et depuis le
+  2026-09-11 : `attaque_supplementaire`, `sort_bonus_disponible`, `franchit_figures`,
+  `embrasure`).
+- ⚠ **C'est LA classe de défaut du projet côté front — cinq occurrences en une semaine**
+  (2026-09-11/12), toutes dans `DeplacementSheet.vue` et `ActionTab.vue`. Le schéma est
+  toujours le même : le client recopie une règle serveur en JS, puis la règle bouge d'un
+  côté seulement. Le voleur traversait ses alliés côté moteur et pas côté écran ; la
+  potion donnait sa 2ᵉ attaque et le bouton restait gris. **Publier la décision, pas les
+  ingrédients** — le client ne doit jamais avoir à savoir *pourquoi*.
 - Canaux : `groupe.{id}` (table) et `joueur.{id}` (privé). Une offre en attente
   se publie **aussi** dans `EtatGroupe` : une manette rechargée perdrait sinon
   l'offre, et le joueur son pouvoir, sans rien à l'écran qui le dise.

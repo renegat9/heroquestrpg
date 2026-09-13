@@ -2,12 +2,14 @@
 name: travailler-la-carte
 description: >-
   Utiliser pour tout travail sur la CARTE du donjon : génération (salles,
-  couloirs, seuils, boucles, passage secret), une couche de grille (pièges,
-  leviers, mobilier, épreuves), les portes, le brouillard, la ligne de vue, les
-  symboles et la légende. Déclencheurs : « la carte », « le donjon », « une
-  salle / un couloir / une porte », « le mobilier bloque », « le brouillard »,
-  « place un levier / une épreuve / un piège », « les symboles de la carte »,
-  « AssembleurCarte », « DungeonGrid », « ligne de vue ».
+  couloirs, seuils, boucles, passage secret, topologie, vivier de tuiles), une
+  couche de grille (pièges, leviers, mobilier, épreuves, terrain), les portes,
+  le brouillard, la ligne de vue, le coût de déplacement, les symboles et la
+  légende. Déclencheurs : « la carte », « le donjon », « une salle / un couloir /
+  une porte », « les salles sont trop petites / trop encombrées », « le mobilier
+  bloque », « le brouillard », « place un levier / une épreuve / un piège / un
+  terrain », « les symboles de la carte », « AssembleurCarte », « DungeonGrid »,
+  « ligne de vue ».
 ---
 
 # Travailler la carte du donjon
@@ -19,10 +21,22 @@ ce qui est découvert, c'est contourner le brouillard par la porte de derrière)
 
 ## Anatomie
 
-- `app/Partie/AssembleurCarte.php` — arbre de salles, couloirs, puis les couches :
-  `placerPieges()` · `placerLeviers()` · `placerMobilier()` · `placerEpreuves()`.
+- `app/Partie/AssembleurCarte.php` — arbre de salles, couloirs, puis les **cinq**
+  couches : `placerPieges()` · `placerLeviers()` · `placerMobilier()` ·
+  `placerEpreuves()` · `placerTerrains()` (2026-09-06 — la seule qui réponde à
+  « que **coûte** cette case ? » plutôt qu'à « qu'y a-t-il ici ? »).
   **Toute couche neuve suit ce patron exact** : pas de nouveau type de case, pas
   de migration de tuile, une clé dans `cartes.grille[...]`.
+- ⚠ **La topologie tient dans `construireArbre()`**, qui ne rend que `positions` +
+  `aretes` ; tout le reste (slots, couloirs, portes, couches, spawns) les consomme
+  **sans supposer un arbre**. C'est la couture à utiliser pour toute forme de donjon
+  nouvelle. → `docs/plan-topologies-de-carte.md` (TODO analysé, non planifié)
+- ⚠ **Le vivier de tuiles** : 10 patrons, sol de 6 à 35 cases. Les `p` des patrons sont
+  **ignorés** — l'assembleur perce sur `intdiv($w,2)`/`intdiv($h,2)`, donc le sol réel
+  vaut l'intérieur **plus 1 à 4 cases**. `TuileSeeder` **purge avant de semer** et rien
+  ne référence `tuiles.id` : changer un patron prend effet au prochain `db:seed`, sans
+  migration. ⚠ L'assembleur **ne fait AUCUNE rotation** : `5x7` et `7x5` sont deux
+  patrons distincts, une orientation voulue doit être **semée**.
 - `app/Partie/FabriqueGrille.php::pour()` — **la seule** boucle de mobilier du
   moteur. Un second chemin ferait diverger déplacement, ciblage et ligne de vue.
 - `app/Partie/Grille.php` — **trois** ensembles distincts : `$occupees`
@@ -33,6 +47,13 @@ ce qui est découvert, c'est contourner le brouillard par la porte de derrière)
   avec sa boucle : un `<=` pour `<` déplace une case-frontière selon qui demande.
 - `app/Partie/MoteurPortes.php` — `ouvrir()` n'ouvre **que le seuil poussé**,
   jamais l'autre bout de la jonction.
+- ⚠ **`Grille::caseEmbrasure()` est LE point de passage** de « quelle case occupe cette
+  porte ? » (2026-09-11). Une porte **bloque sa propre case** : non découverte, une
+  secrète se peint `'m'` dans `cases` et n'a **aucune entrée** dans `portes[]` — donc
+  rigoureusement indiscernable d'un mur, y compris en comptant les entrées.
+- ⚠ **`casesAtteignables()` / `chemin()` sont un Dijkstra PONDÉRÉ** (le terrain coûte) ;
+  `distance()` reste **géométrique** et sert à la portée et à l'adjacence. Les confondre
+  fait payer un tir au prix d'un détour.
 - `resources/js/components/carte/` — `DungeonGrid.vue` (rendu, table **et**
   manette), `symboles.js` (icônes, lu par le rendu **et** la légende),
   `LegendeCarte.vue`, `ApercuSalle.vue`.
@@ -44,6 +65,14 @@ ce qui est découvert, c'est contourner le brouillard par la porte de derrière)
    depuis UN seul seuil** (un BFS multi-sources rate les poches : chaque seuil
    est « atteint » du seul fait d'être sa propre source). Abandonner la pose
    plutôt que de la forcer.
+   ⚠ **Connexe ne veut pas dire JOUABLE** (René, partie à 4, 2026-09-12) :
+   `salleResteConnexe()` se contente d'un boyau d'une case de large, où quatre héros ne
+   tiennent pas. Garder un **plancher de cases libres** (`CASES_JOUABLES_MINIMUM` = les
+   4 du groupe + 2 pour ce qu'il combat) — un plancher sur les **cases restantes**,
+   jamais un plafond sur le **nombre** de pièces, une emprise valant 1 ou 2 cases.
+   ⚠ Et le tirage de densité se consomme **même quand le plancher le ramène à 0**, sinon
+   la suite PRNG diverge selon la taille de la salle et deux donjons de même graine
+   cessent d'être identiques.
 2. **Publication** dans `EtatGroupe` — ⚠ **filtrée par le brouillard**. Le piège
    à connaître : les leviers ne portent pas d'index de salle (`{x, y, levier_id}`),
    il faut le **dériver** des coordonnées ; un levier de **couloir** s'affiche
@@ -81,6 +110,7 @@ ce qui est découvert, c'est contourner le brouillard par la porte de derrière)
 
 ## Definition of done
 - [ ] Placement refusé proprement s'il casse la connectivité (jamais forcé)
+- [ ] Salle encore **jouable** après la pose : ≥ 4 cases libres pour le groupe
 - [ ] Publication filtrée par le brouillard, difficulté plafonnée
 - [ ] Silhouette déclarée dans `symboles.js`, illustration en légende seulement
 - [ ] `CouloirsTest` / `SymbolesCarteTest` / `BrouillardTest` verts

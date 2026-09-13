@@ -69,7 +69,25 @@ mais laissé dans un sac est une ligne ni équipable, ni vendable, ni affichable
 Précédents : les 5 artefacts sans carte (2026-09-03), le Trait de Chaos
 (2026-09-04), les 12 pièces du paquet fan (2026-08-15).
 
-### 7. Divergence assumée
+#### 6bis. ⚠ Une carte de départ montre un TOTAL ÉQUIPÉ, pas une stat de base
+
+La carte de classe du Chevalier annonce **3 dés de défense**. Ce n'est pas sa défense de
+base : c'est **2 + 1 pour le bouclier qu'il porte déjà**. Recopier le chiffre de la carte
+dans `classes_heros.des_defense` le fait compter **deux fois** dès que le bouclier est
+équipé — le héros défendait à 4 dés en partie réelle (René, 2026-09-11 : « la carte de
+départ compte déjà le bouclier dans la fiche »).
+
+⚠ **La même faute avait déjà été corrigée pour l'ATTAQUE**, et son commentaire disait
+« les quatre classes ont 2 dés de base, aucun double compte à corriger » — un commentaire
+devenu **faux** sans que rien ne le signale, et qui a servi à écarter le soupçon la
+seconde fois. Avant de porter une stat de carte de départ, se demander **ce que le
+personnage tient en main sur l'illustration**, et corriger le commentaire voisin quand il
+ment.
+
+⚠ Et ce n'est **pas** une divergence assumée : c'est une erreur de portage. La distinction
+compte — une divergence se déclare au §7 avec sa raison, une erreur se corrige.
+
+## 7. Divergence assumée
 Une valeur qu'on change sciemment (la défense de l'Ombre du Dread) se déclare
 dans la **liste de divergences nommées** du test, avec sa raison. Jamais un écart
 silencieux dans la table de gel.
@@ -85,4 +103,5 @@ silencieux dans la table de gel.
 - [ ] Test deux sens vert, liste « hors source » vide
 - [ ] Seeder à jour + **migration** si un élément sort du catalogue
 - [ ] Divergence volontaire déclarée avec sa raison
+- [ ] Stat de carte de DÉPART lue comme un total équipé, pas comme une base
 - [ ] La carte fait en jeu ce que son texte dit — vérifié, pas supposé

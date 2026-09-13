@@ -37,7 +37,15 @@ l'inscrire au vocabulaire, c'est le rendre introuvable au prochain passage.
 | `App\Engine\DureeEffet` | **quand un buff s'arrête** (7 mots-clés ; un entier = un compte à rebours en tours) |
 | `App\Engine\RegainEffet` | sur quel ÉVÉNEMENT un sort redevient lançable |
 | `App\Engine\TypeDegat` | nature du dégât (`feu`, `froid`) |
+| `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont) |
 | `App\Engine\ReactionEffet` | actions hors tour |
+
+⚠ **Inscrire le vocabulaire à CETTE TABLE fait partie de sa création.** `MotsClesTerrain`
+est né le 2026-09-10 et n'apparaissait **nulle part** — ni ici, ni dans `CLAUDE.md`, ni
+dans `docs/regles/` — jusqu'au 2026-09-12. Or c'est précisément cette table qu'on
+consulte pour savoir si un effet doit passer par « mécanique d'abord ». Une liste de
+vocabulaires fermés **incomplète est pire qu'absente** : elle donne l'assurance d'avoir
+vérifié.
 
 ⚠ Une durée, un regain et une fréquence sont **trois choses** : `effet.duree` dit
 quand le **buff** s'arrête, `personnage_sorts.disponible` si le **sort** est
@@ -88,6 +96,17 @@ Seulement maintenant. → skill `ajouter-element-de-jeu`.
   monter dans le snapshot (`Sauvegarde`).
 - **Annoncer l'effet** : journal + payload + écran. Un effet automatique que rien
   n'annonce est injouable.
+- ⚠ **La faute a un JUMEAU, moins connu : un lecteur sans PRODUCTEUR.** Les dégâts de
+  Mind avaient leurs lecteurs depuis des mois et **rien ne les infligeait jamais** ; la
+  clé n'était pas décorative, c'est la branche qui l'aurait produite qui n'existait pas.
+  Chercher les deux sens : « qui lit cette clé ? » **et** « qui l'écrit ? ».
+  ⚠ Le producteur se pose en **méthode sœur** (`MoteurDegats::infligerMindAHeros()`),
+  jamais en paramètre `$jauge` de l'existante : les deux jauges n'ont ni les mêmes
+  interceptions, ni le même soin d'urgence.
+- ⚠ **Un vocabulaire non testé se périme sans bruit.** `TypeDegat::SANS_SOURCE` a déclaré
+  le FROID sans source **deux jours après** qu'il en a eu une. Son jumeau
+  `RegainEffet::SANS_UTILISATEUR` était testé dans les deux sens et n'a jamais dérivé.
+  Quand deux constantes se ressemblent, elles ont besoin du **même** test.
 
 ## Lore
 `docs/regles/vocabulaires-effets.md` · `talents-et-capacites.md`

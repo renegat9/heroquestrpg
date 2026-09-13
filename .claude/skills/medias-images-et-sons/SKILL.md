@@ -24,7 +24,7 @@ description: >-
 
 ```bash
 docker compose exec app php artisan images:generer --type=tous   # résumable
-#   --type=classes|monstres|objets|pieges|epreuves|mobiliers|leviers|portes|sorts|tous
+#   --type=classes|monstres|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|tous
 #   --force  pour rejouer
 ./image-tools/webp.sh          # ⚠ TOUJOURS après images:generer
 docker compose exec app php artisan images:purger-orphelines
