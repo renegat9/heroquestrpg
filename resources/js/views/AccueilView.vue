@@ -8,20 +8,18 @@ import { useGameStore } from '../store/game';
 const api = useApi();
 const store = useGameStore();
 
-/* ---- livret de jeu (PDF) ----
- * Le PDF est un asset GÉNÉRÉ (docs/livret/README.md), donc absent d'une
+/* ---- livret de jeu ----
+ * Le livret est un asset GÉNÉRÉ (docs/livret/README.md), donc absent d'une
  * installation neuve — au même titre que public/images. On ne montre la carte
- * que si le fichier répond : un lien mort sur l'accueil serait la « promesse
- * faite au joueur et jamais tenue » que CLAUDE.md proscrit. HEAD, donc les
- * 16 Mo ne sont jamais téléchargés pour cette vérification.
+ * que si la page répond : un lien mort sur l'accueil serait la « promesse
+ * faite au joueur et jamais tenue » que CLAUDE.md proscrit.
  *
- * ⚠ On vérifie le CONTENT-TYPE, pas seulement le statut. Le `try_files` de
- * nginx renvoie la SPA en 200 pour tout ce qui n'existe pas : un statut seul
- * disait donc « présent » quel que soit l'état du disque. `docker/nginx`
- * porte désormais un `location /livret/ { try_files $uri =404; }` qui règle le
- * cas à la source — ce test-ci reste la ceinture, pour que l'écran ne dépende
- * pas d'un fichier de conf qu'il ne contrôle pas. */
-const LIVRET_URL = '/livret/HeroQuest-RPG-Livret-de-jeu.pdf';
+ * ⚠ On sonde le MANIFESTE, pas la page. Le `try_files` de nginx sert la SPA en
+ * 200 **et en text/html** pour tout ce qui manque : ni le statut ni le type ne
+ * distinguent une page absente d'une page présente. Un JSON, lui, ne peut pas
+ * être confondu avec la SPA. C'est le piège déjà payé sur le PDF, qui revient
+ * intact dès que la cible devient elle-même du HTML. */
+const LIVRET_URL = '/livret/';
 const livretDispo = ref(false);
 
 onMounted(async () => {
@@ -34,9 +32,9 @@ onMounted(async () => {
     }
 
     try {
-        const r = await fetch(LIVRET_URL, { method: 'HEAD' });
+        const r = await fetch('/livret/manifest.json', { headers: { Accept: 'application/json' } });
         livretDispo.value = r.ok
-            && (r.headers.get('content-type') ?? '').includes('application/pdf');
+            && (r.headers.get('content-type') ?? '').includes('application/json');
     } catch {
         livretDispo.value = false;
     }
@@ -117,7 +115,7 @@ onMounted(async () => {
                     <MSym n="arrow_forward" :size="18" />
                 </RouterLink>
 
-                <!-- livret PDF : asset généré, donc affiché seulement s'il est là -->
+                <!-- livret : asset généré, donc affiché seulement s'il est là -->
                 <a
                     v-if="livretDispo"
                     :href="LIVRET_URL"
@@ -125,12 +123,12 @@ onMounted(async () => {
                     rel="noopener"
                     class="acchoix-guide is-livret"
                 >
-                    <MSym n="picture_as_pdf" fill :size="20" />
+                    <MSym n="auto_stories" fill :size="20" />
                     <span class="acchoix-guide-txt">
-                        <b>Livret de jeu (PDF)</b>
-                        <em>Les règles complètes en 42 pages — à lire, à imprimer, à poser sur la table</em>
+                        <b>Livret de jeu</b>
+                        <em>Les règles complètes, de la première partie au bestiaire — version PDF en haut de page</em>
                     </span>
-                    <MSym n="download" :size="18" />
+                    <MSym n="arrow_forward" :size="18" />
                 </a>
             </div>
         </div>

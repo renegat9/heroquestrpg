@@ -9,11 +9,12 @@ et difficultés viennent du dump, de sorte qu'un livret périmé se régénère 
 lieu de mentir. Les textes de règle, eux, sont écrits ici et adossés aux docs
 de conception (reference/01 à 05, 10) — ils citent leur source en commentaire.
 """
-import json, os, re, sys, html, datetime
+import json, os, re, sys, html, shutil, datetime
 
 RACINE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAT = json.load(open(sys.argv[1], encoding='utf-8'))
 SORTIE = os.path.join(RACINE, 'docs', 'livret', 'livret.html')
+PDF = 'HeroQuest-RPG-Livret-de-jeu.pdf'
 
 # ---------------------------------------------------------------- images ----
 def _index(dossier):
@@ -197,7 +198,8 @@ figure.tel figcaption{text-align:center}
   margin-top:.8mm;line-height:1.2}
 
 .somm{font-family:var(--ui);font-size:10pt;columns:2;column-gap:10mm}
-.somm div{break-inside:avoid;margin-bottom:2.2mm;display:flex;gap:3mm;align-items:baseline}
+.somm div{break-inside:avoid;margin-bottom:2.2mm}
+.somm a{display:flex;gap:3mm;align-items:baseline;color:inherit;text-decoration:none}
 .somm b{color:var(--braise);font-variant-numeric:tabular-nums;min-width:6mm}
 
 .memo{columns:2;column-gap:8mm;font-family:var(--ui);font-size:8.8pt}
@@ -214,7 +216,8 @@ CHAPITRES = []          # (numéro, titre) pour le sommaire
 
 def chapitre(num, titre, chapo=None):
     CHAPITRES.append((num, titre))
-    ecrire(f'<section class="chapitre"><h2><span class="num">{num}</span>{titre}</h2>')
+    ecrire(f'<section class="chapitre" id="ch{num}">'
+           f'<h2><span class="num">{num}</span>{titre}</h2>')
     if chapo:
         ecrire(f'<p class="chapo">{chapo}</p>')
 
@@ -1384,21 +1387,245 @@ ecrire('''
 ''')
 fin()
 
+CSS_WEB = r"""
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Spectral:ital,wght@0,400;0,600;1,400&family=Public+Sans:wght@400;500;600;700&display=swap');
+
+/* Version ÉCRAN du livret. Feuille autonome, pas une surcharge de la feuille
+   d'impression : les deux médias n'ont presque aucune règle en commun (l'une
+   compte en millimètres et découpe des pages, l'autre défile et se replie sur
+   un téléphone), et empiler les deux revenait à écrire des surcharges pour
+   chaque déclaration. Les NOMS DE CLASSES, eux, sont les mêmes — le corps du
+   document est généré une seule fois. */
+:root{
+  --stone-950:oklch(0.16 0.012 255); --stone-900:oklch(0.20 0.013 255);
+  --stone-850:oklch(0.235 0.014 255); --stone-800:oklch(0.27 0.015 255);
+  --stone-700:oklch(0.34 0.016 255);
+  --parch-100:oklch(0.95 0.022 82); --parch-ink:oklch(0.30 0.030 60);
+  --torch:oklch(0.76 0.155 65); --gold:oklch(0.80 0.135 88);
+  --ember:oklch(0.62 0.170 42); --danger:oklch(0.60 0.200 25);
+  --ink-100:oklch(0.93 0.010 255); --ink-300:oklch(0.80 0.012 255);
+  --ink-500:oklch(0.64 0.013 255);
+  --display:'Cinzel','Trajan Pro',Georgia,serif;
+  --narr:'Spectral',Georgia,'Times New Roman',serif;
+  --ui:'Public Sans',system-ui,-apple-system,sans-serif;
+  --line:1px solid oklch(0.34 0.016 255 / .55);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--stone-950);color:var(--ink-100);
+     font-family:var(--narr);font-size:17px;line-height:1.65;
+     -webkit-text-size-adjust:100%}
+img{max-width:100%}
+
+/* ---- bandeau collant ---- */
+.lv-bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+  padding:10px 18px;background:oklch(0.16 0.012 255 / .92);backdrop-filter:blur(8px);
+  border-bottom:var(--line)}
+.lv-bar .t{font-family:var(--display);font-weight:700;font-size:15px;color:var(--parch-100);
+  letter-spacing:.02em;white-space:nowrap}
+.lv-bar .t .long{display:inline}
+.lv-bar .sp{flex:1}
+.lv-bar a{font-family:var(--ui);font-size:13px;font-weight:600;text-decoration:none;
+  color:var(--ink-300);border:var(--line);border-radius:8px;padding:6px 12px;white-space:nowrap}
+.lv-bar a:hover{color:var(--parch-100);border-color:var(--gold)}
+.lv-bar a.pdf{color:var(--torch);border-color:oklch(0.62 0.170 42 / .5)}
+
+.lv-page{max-width:900px;margin:0 auto;padding:0 20px 80px}
+
+/* ---- couverture ---- */
+.couv{position:relative;margin:0 -20px 34px;min-height:min(76vh,620px);
+  display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;background:#0c0906}
+.couv img.fond{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.6}
+.couv .voile{position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(12,9,6,.72) 0%,rgba(12,9,6,.15) 40%,rgba(12,9,6,.92) 82%,#0c0906 100%)}
+.couv .bloc{position:relative;padding:0 24px 34px}
+.couv .surtitre{font-family:var(--ui);letter-spacing:.3em;text-transform:uppercase;
+  font-size:11px;color:#d9a05b;margin-bottom:14px}
+.couv h1{font-family:var(--display);font-weight:700;font-size:clamp(38px,9vw,68px);
+  line-height:1.02;margin:0 0 14px;color:#f7ecd6}
+.couv .sous{font-style:italic;font-size:clamp(16px,2.6vw,20px);color:#e6d3b1;margin:0 0 18px;max-width:36ch}
+.couv .filet{height:2px;width:140px;background:linear-gradient(90deg,#c8862f,transparent);margin-bottom:16px}
+.couv .pied{font-family:var(--ui);font-size:12px;color:#b39b78}
+
+/* ---- titrage ---- */
+h2{font-family:var(--display);font-size:clamp(25px,5vw,34px);font-weight:700;
+   margin:0 0 6px;color:var(--parch-100);line-height:1.15}
+h2 .num{color:var(--ember);font-size:.62em;margin-right:12px}
+h3{font-family:var(--display);font-size:20px;font-weight:600;color:var(--torch);margin:34px 0 8px}
+h4{font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:.15em;
+   text-transform:uppercase;color:var(--gold);margin:26px 0 8px}
+.chapitre{padding-top:34px;margin-top:34px;border-top:var(--line);scroll-margin-top:64px}
+.chapitre:first-of-type{border-top:0;margin-top:0}
+.chapitre>h2{padding-bottom:12px;border-bottom:2px solid oklch(0.34 0.016 255 / .6);margin-bottom:18px}
+.chapo{font-style:italic;color:var(--ink-300);font-size:19px;margin:0 0 22px;
+  border-left:3px solid var(--ember);padding-left:16px}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 14px;padding-left:22px}
+li{margin-bottom:6px}
+strong{color:var(--parch-100);font-weight:600}
+em.vo{color:var(--ink-500);font-style:normal;font-size:.9em}
+code{font-family:var(--ui);font-size:.88em;background:var(--stone-850);
+  border:var(--line);border-radius:4px;padding:1px 5px}
+a{color:var(--torch)}
+
+/* ---- tableaux : ils débordent sur un téléphone, donc ils défilent ---- */
+.tscroll{overflow-x:auto;margin:0 0 18px;border:var(--line);border-radius:10px;
+  background:var(--stone-900);-webkit-overflow-scrolling:touch}
+.tscroll table{margin:0;border:0}
+table{width:100%;border-collapse:collapse;font-family:var(--ui);font-size:14px;min-width:min(100%,520px)}
+th{background:var(--stone-850);color:var(--ink-300);text-align:left;font-weight:700;
+   font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:10px 12px;
+   border-bottom:var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid oklch(0.27 0.015 255 / .7);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.nom{font-family:var(--narr);font-size:16px;font-weight:600;color:var(--parch-100)}
+td.vig{width:52px;padding:6px 8px}
+td.vig img{width:40px;height:40px;object-fit:cover;border-radius:6px;border:var(--line);display:block}
+
+/* ---- figures ---- */
+figure.fig{margin:0 0 20px}
+figure.fig img{width:100%;display:block;border:var(--line);border-radius:10px;background:#000}
+figure.fig figcaption{font-family:var(--ui);font-size:13px;color:var(--ink-500);
+  margin-top:8px;line-height:1.45}
+figure.tel img{width:auto;max-width:100%;max-height:70vh;margin:0 auto}
+figure.tel figcaption{text-align:center}
+.duo,.trio{display:grid;gap:18px;align-items:start}
+.duo{grid-template-columns:1fr 1fr}
+.trio{grid-template-columns:repeat(3,1fr)}
+
+/* ---- blocs ---- */
+.encadre{background:var(--stone-900);border:var(--line);border-left:3px solid var(--torch);
+  border-radius:10px;padding:16px 18px;margin:0 0 18px}
+.encadre h4{margin-top:0}
+.avert{border-left-color:var(--danger)}
+.cartouche{background:linear-gradient(180deg,var(--stone-850),var(--stone-900));
+  border:var(--line);border-radius:12px;padding:18px 20px;margin:0 0 18px}
+.cartouche h4{color:var(--gold);margin-top:0}
+
+.grille-classes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.cl{border:var(--line);border-radius:10px;overflow:hidden;background:var(--stone-900)}
+.cl img{width:100%;height:130px;object-fit:cover;object-position:center 22%;display:block}
+.cl .nom{font-family:var(--display);font-size:17px;font-weight:700;padding:10px 12px 2px;color:var(--parch-100)}
+.cl .race{font-family:var(--ui);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-500);padding:0 12px 8px}
+.cl .st{font-family:var(--ui);font-size:12px;color:var(--ink-300);padding:0 12px 12px;
+  display:flex;flex-wrap:wrap;gap:2px 12px}
+.cl .st b{color:var(--torch)}
+
+.des{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.de{border:var(--line);border-radius:10px;background:var(--stone-900);padding:16px;text-align:center}
+.de .face{font-size:30px;line-height:1}
+.de .lib{font-family:var(--ui);font-size:13px;font-weight:700;margin-top:8px;color:var(--parch-100)}
+.de .txt{font-family:var(--ui);font-size:12px;color:var(--ink-500);line-height:1.4;margin-top:4px}
+
+.vignettes{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px}
+.vg img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:var(--line)}
+.vg span{display:block;font-family:var(--ui);font-size:11px;color:var(--ink-300);
+  margin-top:5px;line-height:1.25;text-align:center}
+
+.somm{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-family:var(--ui);font-size:15px}
+.somm a{display:flex;gap:12px;align-items:baseline;color:var(--ink-300);text-decoration:none;
+  padding:6px 8px;border-radius:8px}
+.somm a:hover{color:var(--parch-100);background:var(--stone-850)}
+.somm b{color:var(--ember);font-variant-numeric:tabular-nums;min-width:22px}
+
+.memo{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:var(--ui);font-size:14px}
+.memo section{border:var(--line);border-radius:10px;padding:14px 16px;background:var(--stone-900)}
+.memo h4{margin:0 0 8px}
+.memo ul{padding-left:18px;margin:0}
+
+@media (max-width:760px){
+  body{font-size:16px}
+  .duo,.trio,.grille-classes,.des,.memo,.somm{grid-template-columns:1fr}
+  .vignettes{grid-template-columns:repeat(3,1fr)}
+  .lv-page{padding:0 14px 60px}
+  .lv-bar .t .long{display:none}   /* « HeroQuest RPG — » tronquait le titre */
+  .couv{margin:0 -14px 26px}
+  .cl img{height:150px}
+}
+@media (min-width:761px) and (max-width:980px){
+  .grille-classes{grid-template-columns:repeat(2,1fr)}
+  .vignettes{grid-template-columns:repeat(4,1fr)}
+}
+"""
+
 # ================================================== ASSEMBLAGE ============
-somm = ''.join(f'<div><b>{n}</b><span>{t}</span></div>' for n, t in CHAPITRES)
+somm = ''.join(f'<div><a href="#ch{n}"><b>{n}</b><span>{t}</span></a></div>'
+                for n, t in CHAPITRES)
 corps = ''.join(MORCEAUX).replace('<div class="somm" id="somm"></div>',
                                   f'<div class="somm">{somm}</div>')
-def page_html(contenu, css_sup=''):
-    return (f'<!doctype html><html lang="fr"><head><meta charset="utf-8">'
-            f'<title>HeroQuest RPG — Livret de jeu</title>'
-            f'<style>{CSS}{css_sup}</style></head><body>{contenu}</body></html>')
 
 coupe = corps.index('<section class="chapitre"')
 couverture, interieur = corps[:coupe], corps[coupe:]
 
 dossier = os.path.dirname(SORTIE)
 os.makedirs(dossier, exist_ok=True)
+
+# ------------------------------------------------------- version IMPRESSION --
+def page_impression(contenu, css_sup=''):
+    return (f'<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+            f'<title>HeroQuest RPG — Livret de jeu</title>'
+            f'<style>{CSS}{css_sup}</style></head><body>{contenu}</body></html>')
+
 open(os.path.join(dossier, 'couverture.html'), 'w', encoding='utf-8').write(
-    page_html(couverture, '@page{size:A4;margin:0}.couv{page-break-after:auto}'))
-open(SORTIE, 'w', encoding='utf-8').write(page_html(interieur))
+    page_impression(couverture, '@page{size:A4;margin:0}.couv{page-break-after:auto}'))
+open(SORTIE, 'w', encoding='utf-8').write(page_impression(interieur))
+
+# ------------------------------------------------------------ version WEB ----
+# Le CORPS est généré une seule fois : seuls les chemins d'images changent, et
+# les tableaux gagnent un conteneur défilant (huit colonnes de bestiaire ne
+# tiennent pas sur un téléphone — sans lui, c'est la PAGE qui défile de travers).
+WEB = os.path.join(RACINE, 'public', 'livret')
+os.makedirs(WEB, exist_ok=True)
+
+def vers_web(html):
+    h = html.replace('src="img/', 'src="/livret/img/')
+    h = h.replace('src="../../browser-shots/livret/web/', 'src="/livret/captures/')
+    h = h.replace('src="../../browser-shots/livret/', 'src="/livret/captures/')
+    h = h.replace('<table>', '<div class="tscroll"><table>').replace('</table>', '</table></div>')
+    h = h.replace('<img ', '<img loading="lazy" ')
+    return h
+
+barre = (
+    '<div class="lv-bar"><span class="t"><span class="long">HeroQuest RPG — </span>'
+    'Livret de jeu</span>'
+    '<span class="sp"></span>'
+    '<a href="#somm">Sommaire</a>'
+    f'<a class="pdf" href="/livret/{os.path.basename(PDF)}" target="_blank" rel="noopener">PDF</a>'
+    '</div>')
+
+open(os.path.join(WEB, 'index.html'), 'w', encoding='utf-8').write(
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    '<title>Livret de jeu — HeroQuest RPG</title>'
+    '<meta name="description" content="Les règles complètes de HeroQuest RPG : '
+    'héros, dés, tour, combat, équipement, magie, donjon, bestiaire.">'
+    f'<style>{CSS_WEB}</style></head><body>{barre}'
+    f'<div class="lv-page">{vers_web(couverture)}{vers_web(interieur)}</div></body></html>')
+
+# ⚠ Sonde d'existence pour l'accueil. Un HEAD sur index.html ne DISCRIMINE PAS :
+# le try_files de nginx sert la SPA en text/html pour tout ce qui manque, donc
+# une page absente répondait « présente ». Un JSON, lui, ne peut pas être
+# confondu avec la SPA — c'est le même piège que celui payé sur le PDF.
+json.dump({
+    'genere_le': datetime.date.today().isoformat(),
+    'chapitres': [{'numero': n, 'titre': t} for n, t in CHAPITRES],
+    'pdf': f'/livret/{os.path.basename(PDF)}',
+}, open(os.path.join(WEB, 'manifest.json'), 'w', encoding='utf-8'),
+    ensure_ascii=False, indent=1)
+
+# Les images du livret sont des copies RÉDUITES (docs/livret/img) : servir les
+# sources 1024x1024 de public/images rendrait la page web six fois plus lourde
+# pour un rendu identique à la taille d'affichage.
+for src, dst in ((os.path.join(RACINE, 'docs', 'livret', 'img'), os.path.join(WEB, 'img')),
+                 (os.path.join(RACINE, 'browser-shots', 'livret', 'web'),
+                  os.path.join(WEB, 'captures'))):
+    if os.path.isdir(src):
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst)
+
+poids = sum(os.path.getsize(os.path.join(r, f))
+            for r, _, fs in os.walk(WEB) for f in fs
+            if not f.endswith('.pdf'))
 print(f'{SORTIE} — {len(interieur) // 1024} Ko, {len(CHAPITRES)} chapitres (+ couverture.html)')
+print(f'{WEB}/index.html — version web, {poids // 1024} Ko avec ses images')

@@ -1,6 +1,13 @@
 # Livret de jeu — comment il se fabrique
 
-`public/livret/HeroQuest-RPG-Livret-de-jeu.pdf` (42 pages A4) n'est pas écrit à la main : il est
+Le livret existe en **deux formes tirées d'une seule source** : une page web
+(`public/livret/index.html`, celle vers laquelle pointe l'accueil) et un PDF A4 de 42 pages
+(`public/livret/HeroQuest-RPG-Livret-de-jeu.pdf`, à imprimer). Le corps du document est
+généré **une seule fois** ; seules la feuille de style et les chemins d'images diffèrent —
+les deux médias n'ayant presque aucune règle en commun, chacun a sa feuille autonome
+(`CSS` pour l'impression, `CSS_WEB` pour l'écran) plutôt qu'une pile de surcharges.
+
+Rien de tout cela n'est écrit à la main : il est
 **généré**, et c'est ce qui l'empêche de mentir. Les tableaux — stats des 12 classes,
 41 créatures, 105 objets, 31 sorts, pièges, mobilier, terrain, grilles de talents —
 sont extraits de la **base réelle** ; les copies d'écran sont prises sur la **vraie
@@ -21,7 +28,8 @@ docker compose exec -T app php artisan tinker --execute="
   file_put_contents('/tmp/catalogue.json', json_encode(\$d, JSON_UNESCAPED_UNICODE));"
 docker compose exec -T app cat /tmp/catalogue.json > /tmp/catalogue.json
 
-# 2. le HTML + la couverture
+# 2. la version WEB (public/livret/) + les sources d'impression (docs/livret/)
+#    — une seule commande produit les deux, et recopie images et captures
 python3 docs/livret/generer.py /tmp/catalogue.json
 
 # 3. le PDF (deux passes + fusion, voir plus bas)
@@ -38,12 +46,13 @@ docker run --rm -v "$PWD:/w" -w /w -e HUID="$(id -u)" -e HGID="$(id -g)" alpine:
     rm -f docs/livret/.couverture.pdf docs/livret/.interieur.pdf"'
 ```
 
-Le PDF final atterrit dans **`public/livret/`** : nginx le sert tel quel
-(`try_files $uri`), et c'est là que pointe la carte « Livret de jeu » de l'accueil.
-⚠ Cette carte **ne s'affiche que si le fichier existe** (une requête `HEAD` au montage
-de l'écran) : un lien mort sur la page d'accueil serait exactement la promesse non tenue
-que `CLAUDE.md` interdit. Sur une installation neuve, il faut donc générer le livret une
-fois pour que l'entrée apparaisse.
+Tout atterrit dans **`public/livret/`** — `index.html`, `img/`, `captures/`,
+`manifest.json` et le PDF — d'où nginx le sert. La carte « Livret de jeu » de l'accueil
+pointe sur `/livret/`, et la page web offre le PDF dans son bandeau collant.
+
+⚠ Cette carte **ne s'affiche que si le livret existe** : un lien mort sur la page
+d'accueil serait exactement la promesse non tenue que `CLAUDE.md` interdit. Sur une
+installation neuve, il faut donc générer le livret une fois pour que l'entrée apparaisse.
 
 ## Refaire les captures
 
@@ -64,7 +73,7 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, d
 ./browser-shots/campagne/nettoyer.sh                            # ⚠ toujours finir par là
 ```
 
-## Quatre pièges déjà payés
+## Cinq pièges déjà payés
 
 - **Le PDF faisait 104 Mo.** Chromium embarque le **bitmap décodé**, pas le fichier : les
   illustrations 1024×1024 de `public/images` pèsent autant qu'un poster. `generer.py` lit
@@ -83,11 +92,19 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, d
   (la ceinture, pour que l'accueil ne dépende pas d'une conf qu'il ne contrôle pas).
   ⚠ Éditer `default.conf` **casse son bind mount** : `docker compose restart web` échoue,
   il faut `docker compose up -d --force-recreate web`.
+- **Et le même piège revient intact quand la cible devient du HTML.** Sonder
+  `/livret/index.html` ne discrimine rien : la SPA de repli répond 200 **et** `text/html`,
+  exactement comme la vraie page. Le contrôle de content-type qui sauvait le cas PDF ne
+  sert donc plus à rien ici. D'où `manifest.json` : un JSON ne peut pas être confondu avec
+  la SPA, et il porte au passage la date de génération et la liste des chapitres. ⚠ Il a
+  aussi fallu `index index.html` dans le bloc nginx — la directive `index` du serveur ne
+  nomme que `index.php`, donc `/livret/` cherchait un `index.php` inexistant.
 
 ## Ce qui n'est pas versionné
 
 `docs/livret/img/` (vignettes dérivées de `public/images`), `browser-shots/livret/` (les
-captures) et `public/livret/` (le PDF) sont **régénérables** et ignorés par git — exactement
+captures) et tout `public/livret/` (page web, images, captures, manifeste, PDF) sont
+**régénérables** et ignorés par git — exactement
 comme `public/images`, qui pèse 275 Mo sur le disque et zéro dans l'historique. Ce qui est
 versionné, c'est ce qui permet de tout refaire : `generer.py`, `rendre-pdf.mjs`, les deux
 scripts de capture et ce README.
