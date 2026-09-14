@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Events\JournalCombatDiffuse;
+use App\Events\SceneTable;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Http\Controllers\Controller;
@@ -16,6 +17,7 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\JournalCombat;
+use App\Partie\SceneDeTable;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Partie\ResolveurTour;
 use App\Support\Journal;
@@ -84,7 +86,13 @@ class ChoixController extends Controller
      * d'un même process, et le lanceur de dés doit être résolu à CHAQUE
      * requête (les tests le re-bindent via desFiges()).
      */
-    public function choisir(Request $request, string $identifiant, ResolveurTour $resolveur, JournalCombat $journalCombat): JsonResponse
+    public function choisir(
+        Request $request,
+        string $identifiant,
+        ResolveurTour $resolveur,
+        JournalCombat $journalCombat,
+        SceneDeTable $scenesDeTable,
+    ): JsonResponse
     {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
@@ -145,13 +153,23 @@ class ChoixController extends Controller
             // groupe) : sans ça, en « combat instantané » (pas de narration IA),
             // un joueur ne voit que ses PV bouger — les attaques subies, le tour
             // des monstres, le résultat d'une fouille restaient invisibles.
+            $sequence = (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence');
+
             $lignes = $journalCombat->depuisResultat($resultat, $personnage->nom);
             if ($lignes !== []) {
-                broadcast(new JournalCombatDiffuse(
-                    $groupe,
-                    $lignes,
-                    (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
-                ));
+                broadcast(new JournalCombatDiffuse($groupe, $lignes, $sequence));
+            }
+
+            // SCÈNES ILLUSTRÉES pour l'écran de TABLE (.table.scene) : le même
+            // résultat moteur, mais monté pour être MONTRÉ — portraits de
+            // l'attaquant et du défendeur, volée de dés, objet trouvé, piège
+            // déclenché. Le journal, lui, aplatit tout cela en texte : les
+            // identités y meurent et plus aucune image n'y est résolvable.
+            // ⚠ MÊME séquence que le journal : les deux flux racontent le même
+            // instant, une scène ne doit jamais s'afficher derrière une plus
+            // récente.
+            foreach ($scenesDeTable->depuisResultat($resultat, $personnage) as $scene) {
+                broadcast(new SceneTable($groupe, $scene, $sequence));
             }
         } else {
             $resultat = [

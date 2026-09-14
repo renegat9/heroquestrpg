@@ -15,7 +15,7 @@ import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
-import JetDes from '../components/manette/JetDes.vue';
+import JetDes from '../components/ui/JetDes.vue';
 import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';

@@ -20,12 +20,14 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import MSym from '../ui/MSym.vue';
 import { useApi } from '../../composables/useApi';
 import { useVoix } from '../../composables/useVoix';
+import { useScenesTable } from '../../composables/useScenesTable';
 import { useAmbiance } from '../../composables/useAmbiance';
 
 defineEmits(['fermer']);
 
 const api = useApi();
 const voix = useVoix();
+const scenes = useScenesTable();
 const ambiance = useAmbiance();
 
 /* ---- chargement + formulaire serveur ---- */
@@ -502,6 +504,45 @@ async function enregistrer() {
                  préférence 100 % locale (localStorage), donc rendue même si le
                  chargement serveur échoue ou est encore en cours — contrairement
                  à la voix Gemini, elle n'a besoin d'aucune donnée du serveur. -->
+            <!-- Scènes illustrées : même nature que l'audio ci-dessous —
+                 préférence 100 % locale de l'appareil qui tient la table, donc
+                 hors du formulaire serveur et rendue même si son chargement
+                 échoue. -->
+            <section class="parametres-section parametres-audio">
+                <h3><MSym n="photo_library" :size="16" /> Scènes illustrées — cet appareil</h3>
+
+                <div class="parametres-audio-ligne">
+                    <button
+                        type="button"
+                        class="parametres-mute"
+                        :title="scenes.actives.value ? 'Désactiver les scènes' : 'Activer les scènes'"
+                        @click="scenes.basculerActives()"
+                    >
+                        <MSym :n="scenes.actives.value ? 'visibility' : 'visibility_off'" :size="18" />
+                    </button>
+                    <label class="parametres-slider">
+                        <span>
+                            Retour à la carte après
+                            <b>{{ (scenes.duree.value / 1000).toFixed(1).replace('.0', '') }} s</b>
+                            — ou au premier clic sur l'écran
+                        </span>
+                        <input
+                            type="range"
+                            :min="scenes.DUREE_MIN"
+                            :max="scenes.DUREE_MAX"
+                            step="500"
+                            :value="scenes.duree.value"
+                            :disabled="!scenes.actives.value"
+                            @input="scenes.definirDuree($event.target.value)"
+                        />
+                    </label>
+                </div>
+                <p class="parametres-aide">
+                    Les coups portés, les pièges déclenchés et les trouvailles s'affichent en grand
+                    sur la carte, avec leurs illustrations. Désactivez-les pour une table qui joue vite.
+                </p>
+            </section>
+
             <section class="parametres-section parametres-audio">
                 <h3><MSym n="record_voice_over" :size="16" /> Voix du narrateur — cet appareil</h3>
 

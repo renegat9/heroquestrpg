@@ -13,12 +13,14 @@ import GroupPanel from '../components/table/GroupPanel.vue';
 import NarrationBand from '../components/table/NarrationBand.vue';
 import OuvertureQuete from '../components/table/OuvertureQuete.vue';
 import PrologueOverlay from '../components/table/PrologueOverlay.vue';
+import SceneEvenement from '../components/table/SceneEvenement.vue';
 import MarketPanel from '../components/table/MarketPanel.vue';
 import ParametresPanel from '../components/table/ParametresPanel.vue';
 import UrgenceNarrateurPanel from '../components/table/UrgenceNarrateurPanel.vue';
 import { souscrireGroupe } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
 import { useVoix } from '../composables/useVoix';
+import { useScenesTable } from '../composables/useScenesTable';
 import { useAmbiance } from '../composables/useAmbiance';
 import {
     clotureVersConfirmations, entitesVersFigurines, entitesVersGroupe,
@@ -105,6 +107,10 @@ onMounted(async () => {
             // Journal MÉCANIQUE (dés, dégâts, morts, tours des monstres) : le même
             // fil que sur la manette, désormais AUSSI sur la table (C1/C2).
             '.combat.journal': (e) => store.pousserJournalCombat(e),
+            // SCÈNE ILLUSTRÉE de l'événement (.table.scene) — écran de table
+            // SEUL. Elle arrive DÉJÀ DÉCIDÉE : titre, images résolues, issue
+            // nommée. On ne fait que la mettre en file.
+            '.table.scene': (e) => empilerScene(e),
             '.mj.reflechit': (e) => store.setMjReflechit(e.actif),
             '.marche.ouvert': (e) => store.appliquerMarche(e),
             '.marche.maj': (e) => store.appliquerMarche(e),
@@ -141,6 +147,7 @@ onUnmounted(() => {
     desabonnements.forEach((off) => off());
     arreterHeartbeat();
     annulerFermetureOuverture();
+    clearTimeout(sceneMinuteur);
     document.removeEventListener('visibilitychange', pingAuReveil);
 });
 
@@ -304,6 +311,59 @@ const preparation = computed(() => store.state.preparation);
  */
 const carteOuverture = computed(() => ouverture.value);
 
+/* ---- scènes illustrées (.table.scene) ----------------------------------
+ *
+ * Une phase de monstres peut produire quatre attaques en une seconde. Sans
+ * règle, c'est vingt secondes de popups pendant que plus personne ne joue.
+ * D'où la file bornée ci-dessous : on garde la scène affichée et AU PLUS UNE
+ * en attente — au-delà, la plus ancienne saute, la dernière chose survenue
+ * étant la plus intéressante.
+ *
+ * ⚠ La fermeture ne dépend d'AUCUNE voix : clic sur l'écran, ou le délai réglé
+ * par le narrateur (défaut 5 s). La carte d'ouverture de quête a passé des
+ * semaines invisible parce que sa fermeture était accrochée à une fin de
+ * lecture qui, sans son activé, survient dans le même tick.
+ */
+const scenesReglages = useScenesTable();
+const sceneCourante = ref(null);
+const sceneEnAttente = ref(null);
+let sceneMinuteur = null;
+let sceneDerniereSequence = null;
+
+function empilerScene(scene) {
+    if (!scenesReglages.actives.value || !scene?.genre) return;
+
+    // Anti-inversion : même compteur que le journal. ⚠ Volontairement PAS le
+    // garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a
+    // pas à décider si une image s'affiche — c'est exactement l'erreur qui a
+    // rendu la carte d'ouverture invisible.
+    if (scene.sequence != null && sceneDerniereSequence != null
+        && scene.sequence < sceneDerniereSequence) return;
+    if (scene.sequence != null) sceneDerniereSequence = scene.sequence;
+
+    if (sceneCourante.value) { sceneEnAttente.value = scene; return; }
+    montrerScene(scene);
+}
+
+function montrerScene(scene) {
+    sceneCourante.value = scene;
+    clearTimeout(sceneMinuteur);
+    sceneMinuteur = setTimeout(fermerScene, scenesReglages.duree.value);
+}
+
+function fermerScene() {
+    clearTimeout(sceneMinuteur);
+    sceneMinuteur = null;
+    sceneCourante.value = null;
+
+    if (sceneEnAttente.value) {
+        const suivante = sceneEnAttente.value;
+        sceneEnAttente.value = null;
+        montrerScene(suivante);
+    }
+}
+
+
 /*
  * Fermeture DIFFÉRÉE de la carte d'ouverture, pour le cas — courant — où
  * personne ne la lit à voix haute : voix jamais activée (l'autoplay du
@@ -410,6 +470,11 @@ function rejouerPrologue() {
 watch(prologue, (p) => {
     if (p && p.auto && !prologueVu) ouvrirPrologue();
 }, { immediate: true });
+
+/* ⚠ Une superposition PLEIN CADRE l'emporte toujours : ouverture de quête,
+ * prologue, vote, clôture. Une scène ne doit jamais se poser par-dessus le
+ * moment que la table est en train de lire à voix haute. */
+const sceneVisible = computed(() => sceneCourante.value && !carteOuverture.value && !prologueOuvert.value);
 
 /* ---- musique d'ambiance : suit la scène sonore de l'EtatGroupe ---- */
 const sceneAmbiance = computed(() => (etat.value ? etat.value.groupe?.ambiance : null));
@@ -595,6 +660,15 @@ watch(() => store.state.clotureTerminee, (t) => {
                 :texte="ouverture ?? ''"
                 :image="sceneImage"
                 :titre="sousTitre"
+            />
+
+            <!-- Scène illustrée de l'événement : se pose DANS la zone carte,
+                 sans la recouvrir — la carte, les figurines et les PV restent
+                 lisibles autour (arbitrage du 2026-09-05). -->
+            <SceneEvenement
+                v-if="sceneVisible"
+                :scene="sceneCourante"
+                @fermer="fermerScene"
             />
             <!-- bandeau haut -->
             <div class="top">

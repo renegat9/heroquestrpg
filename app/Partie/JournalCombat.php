@@ -34,6 +34,45 @@ namespace App\Partie;
 final class JournalCombat
 {
     /**
+     * Les phases qu'un résultat de tour peut contenir, dans l'ordre où elles se
+     * jouent.
+     *
+     * ⚠ PUBLIQUES parce que {@see SceneDeTable} parcourt le MÊME résultat pour
+     * en tirer les scènes de l'écran de table. Deux listes séparées dériveraient
+     * au premier type de phase ajouté — et c'est exactement ce qui s'est produit
+     * avec `pieges_declenches` (au pluriel), couvert d'un seul côté : un héros
+     * tombait dans une fosse, perdait ses PV et n'avait pas une ligne.
+     */
+    public const PHASES = ['tour_allies', 'tour_monstres'];
+
+    /** Les deux clés sous lesquelles un piège peut être IMBRIQUÉ dans une action. */
+    public const CLES_PIEGE = ['declenchement', 'pieges_declenches'];
+
+    /**
+     * Toutes les actions d'un résultat de tour, à plat et dans l'ordre : celle
+     * du héros, puis celles des alliés, puis celles des monstres.
+     *
+     * Point de passage unique du parcours — voir {@see self::PHASES}.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return list<array<string, mixed>>
+     */
+    public static function actionsDuTour(array $resultat): array
+    {
+        $actions = [$resultat];
+
+        foreach (self::PHASES as $phase) {
+            foreach ($resultat[$phase]['actions'] ?? [] as $action) {
+                if (is_array($action)) {
+                    $actions[] = $action;
+                }
+            }
+        }
+
+        return $actions;
+    }
+
+    /**
      * @param  array<string, mixed>  $resultat  résultat moteur d'un tour
      * @return list<array{texte: string, ton: string}>
      */
@@ -41,19 +80,11 @@ final class JournalCombat
     {
         $lignes = [];
 
-        foreach ($this->ligneAction($resultat, $acteurNom) as $ligne) {
-            $lignes[] = $ligne;
-        }
-
-        // Tour des alliés scriptés (3.5), puis tour des monstres (C2) — étalés.
-        foreach (['tour_allies', 'tour_monstres'] as $phase) {
-            foreach ($resultat[$phase]['actions'] ?? [] as $action) {
-                if (! is_array($action)) {
-                    continue;
-                }
-                foreach ($this->ligneAction($action, $acteurNom) as $ligne) {
-                    $lignes[] = $ligne;
-                }
+        // Action du héros, puis tour des alliés scriptés (3.5), puis celui des
+        // monstres (C2) — étalés. Le parcours est partagé avec SceneDeTable.
+        foreach (self::actionsDuTour($resultat) as $action) {
+            foreach ($this->ligneAction($action, $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
             }
         }
 

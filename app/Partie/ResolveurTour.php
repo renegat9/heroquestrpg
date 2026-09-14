@@ -7918,6 +7918,11 @@ final class ResolveurTour
         $payload = [
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
+            // ⚠ L'INSTANCE, pas seulement le nom : c'est elle qui porte le
+            // portrait dynamique d'un boss (`dyn/monstre/{instance_id}`), et le
+            // nom AFFICHÉ est celui de l'habillage IA — il ne retrouve donc
+            // aucune ligne de catalogue. Lu par `SceneDeTable` (.table.scene).
+            'instance_id' => $instance->id,
             // ⚠ Journalisé, pas seulement renvoyé : le `portee` était posé sur la
             // charge utile APRÈS `Journal::ajouter`, donc le fil de combat de la
             // table ne distinguait pas un TIR d'un coup de mêlée. C'est pourtant
@@ -7936,6 +7941,15 @@ final class ResolveurTour
             // Étreinte du Yéti : annoncée sur CE coup, puisque c'est lui qui la
             // déclenche — un effet automatique que rien n'annonce est injouable.
             'etreinte_etablie' => $etreinteEtablie,
+            // ⚠ LES FACES DU JET, qui manquaient ici (2026-09-14). Le contrat
+            // promet depuis toujours que `.combat.journal` porte les dés « y
+            // compris ceux des MONSTRES » — mais ce chemin-ci ne publiait que
+            // `touches`/`boucliers`, des totaux. Le fil affichait donc « 2 crânes
+            // / 1 bouclier » sans jamais montrer la volée, et la scène de table
+            // n'avait aucun dé à rendre sur le coup qu'on venait d'encaisser.
+            // Les chemins de MoteurDread, eux, la publiaient déjà : une même
+            // promesse tenue d'un côté et pas de l'autre.
+            ...$resultat->pourJournal(),
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);

@@ -51,3 +51,34 @@ quand rien ne la rythme. ⚠ Jamais de minuteur **par-dessus une voix** : couper
 phrase en cours de lecture reste l'arbitrage d'origine. Vérifié en conditions
 réelles, son volontairement non activé : carte visible à t+87 s, refermée seule à
 t+115 s.
+
+**Les scènes illustrées de l'écran de table** (`.table.scene`,
+`App\Partie\SceneDeTable`, 2026-09-14). Le moteur rend un résultat structuré —
+attaquant, défendeur, faces de dés réellement tombées, objet tiré, piège
+déclenché — et `JournalCombat::depuisResultat()` l'APLATIT en une phrase : les
+identités y meurent, donc plus aucune image n'y est résolvable. D'où un
+événement **parallèle** plutôt qu'une ligne enrichie — une ligne de journal est
+un résumé destiné à défiler, lu aussi par les manettes, et lui faire porter la
+mise en scène d'un écran qui n'est pas le sien en ferait la seule structure du
+projet à servir deux métiers opposés. ⚠ Le parcours du résultat est **partagé**
+(`JournalCombat::actionsDuTour()`) : deux parcours dériveraient au premier type
+de phase ajouté, exactement comme `pieges_declenches` au pluriel, couvert d'un
+seul côté, avait laissé un héros tomber dans une fosse sans une ligne.
+⚠ **Toutes les URL d'images sont résolues côté serveur**, chaîne de repli
+comprise jusqu'à l'emblème SVG : la table n'a aucun identifiant à joindre et
+aucun cadre ne peut rester vide, même sans clé d'IA.
+⚠ **La carte reste lisible** : la scène se pose DANS la zone carte sans la
+recouvrir, et cède à toute superposition plein cadre (ouverture, prologue). Le
+popup retiré le 2026-09-05 couvrait le donjon une à deux minutes pendant que la
+partie était jouable — cet arbitrage n'est pas rouvert.
+⚠ **La fermeture ne dépend d'aucune voix** (René, 2026-09-14) : clic sur l'écran
+du narrateur, ou délai réglé dans ses paramètres — défaut 5 s, préférence
+d'APPAREIL persistée en `localStorage` comme le volume, pas une règle de jeu. La
+file est bornée à une scène affichée + une en attente : une phase de monstres
+produit quatre attaques en une seconde, et sans borne c'est vingt secondes de
+popups pendant que plus personne ne joue.
+⚠ **Les faces de dés des MONSTRES manquaient** dans `attaque_monstre`
+(`ResolveurTour`) : le contrat promettait pourtant depuis toujours que le journal
+les porte « y compris ceux des monstres », et les chemins de `MoteurDread` les
+publiaient déjà. Une même promesse tenue d'un côté et pas de l'autre — trouvée en
+regardant une scène d'attaque sans le moindre dé.

@@ -7,7 +7,7 @@ import { nextTick, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import InitMini from './InitMini.vue';
-import JetDes from './JetDes.vue';
+import JetDes from '../ui/JetDes.vue';
 import { elementInfo, TYPES_SORT } from '../../store/game';
 
 const props = defineProps({

@@ -3,10 +3,12 @@
  * Un JET COMPLET : la volée de l'attaquant et celle du défenseur, chacune
  * nommée, chaque dé gagnant entouré de vert.
  *
- * Rendu unique, deux emplois : l'overlay de révélation (grand, ~3 s après SON
- * action) et le fil du combat (petit, permanent — l'historique). Deux rendus
- * séparés auraient dérivé, et c'est justement une divergence de ce genre qui a
- * produit le défaut d'origine.
+ * Rendu unique, TROIS emplois : l'overlay de révélation de la manette (grand,
+ * ~3 s après SON action), le fil du combat (petit, permanent — l'historique) et,
+ * depuis le 2026-09-14, la SCÈNE de l'écran de table. Des rendus séparés
+ * auraient dérivé, et c'est justement une divergence de ce genre qui a produit
+ * le défaut d'origine — d'où le déplacement de ce composant de `manette/` vers
+ * `ui/` : il n'appartient plus à un seul écran.
  *
  * ⚠ Le succès n'est PAS une propriété du dé, mais du couple (dé, lanceur) :
  * un bouclier blanc pare pour un héros et ne pare rien pour un monstre ; un
@@ -15,7 +17,7 @@
  * (App\Engine\ResultatAttaque::pourJournal) et on ne fait que comparer.
  */
 import { computed } from 'vue';
-import MSym from '../ui/MSym.vue';
+import MSym from './MSym.vue';
 
 const props = defineProps({
     /** {atk, def, touchante, defensive, attaquant, defenseur, touches, boucliers} */
