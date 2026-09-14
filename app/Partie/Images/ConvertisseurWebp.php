@@ -5,34 +5,44 @@ declare(strict_types=1);
 namespace App\Partie\Images;
 
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\Process;
 
 /**
  * Produit le jumeau **.webp** d'une image générée, au moment où elle est écrite.
  *
- * ⚠ PHP n'a ici NI gd NI imagick (`docker/app/Dockerfile`) : la conversion passe
- * par le binaire `cwebp` de `libwebp-tools`, ajouté à l'image pour cela. C'est
- * la même contrainte qui avait fait d'`image-tools/webp.sh` un script shell
- * plutôt qu'une commande artisan — sauf qu'un script est une **étape**, et
- * qu'une étape s'oublie : les illustrations des quêtes 98 et 99 sont restées
- * sans jumeau jusqu'au 2026-09-13, servies en 1,3 Mo là où 52 et 71 Ko
- * suffisaient (René : « ne faudrait-il pas toujours convertir les images quand
- * elles sont générées ? »). C'est le même défaut de forme que le ménage des
- * campagnes de harnais : le manque n'était pas un moyen de savoir QUOI
- * convertir, c'était le geste lui-même.
+ * ⚠ Pourquoi la conversion vit ICI, et non dans un script à relancer : un geste
+ * à penser est un geste oublié. `image-tools/webp.sh` se lance APRÈS coup, et
+ * les illustrations des quêtes 98 et 99 sont restées servies en 1,3 Mo là où 52
+ * et 71 Ko suffisaient (René, 2026-09-13 : « ne faudrait-il pas toujours
+ * convertir les images quand elles sont générées ? »). C'est le même défaut de
+ * forme que le ménage des campagnes de harnais : ce qui manquait n'était pas un
+ * moyen de savoir QUOI convertir, c'était le geste lui-même.
  *
- * ⚠ **BEST-EFFORT, jamais bloquant.** Sans le binaire — image pas encore
- * reconstruite, suite de tests dans un conteneur `composer:2` — on renvoie
- * `false` et l'appelant garde son PNG. `BibliothequeImages::url()` sert le webp
- * quand il existe et retombe sur le PNG sinon : il n'y a rien à casser, il n'y a
- * qu'un gain à ne pas prendre. Une génération d'image ne doit jamais échouer
- * parce qu'un outil de compression manque.
+ * ⚠ **GD, pas un binaire externe** (René, 2026-09-13 : « pourquoi tu
+ * n'installes pas php avec gd ou imagick ? »). La première version lançait
+ * `cwebp` en sous-processus, au motif de garder le MÊME encodeur
+ * qu'`image-tools/webp.sh`. Mesuré sur une vraie illustration : GD et cwebp
+ * rendent des fichiers **rigoureusement identiques** — 74 706 octets des deux
+ * côtés — parce que GD encode le WebP avec libwebp, exactement comme cwebp.
+ * L'argument de continuité ne tenait donc pas, et il restait un sous-processus,
+ * un chemin de binaire à sonder et un délai d'attente à gérer pour rien.
  *
- * `image-tools/webp.sh` reste utile et n'est pas remplacé : il **rattrape** le
- * parc déjà écrit, et sert à rejouer une qualité différente (`--force`).
+ * ⚠ **Imagick, non** : ImageMagick entier plus une compilation PECL, pour
+ * convertir un PNG en WebP. GD fait exactement ce qu'il faut, et rien de plus.
  *
- * Volontairement NON `final` : la suite tournant sans `cwebp`, elle vérifie que
- * le convertisseur est APPELÉ — via un espion qui hérite d'ici — plutôt que
+ * ⚠ **BEST-EFFORT, jamais bloquant.** Sans support WebP dans GD — image pas
+ * reconstruite, ou suite de tests dans un conteneur `composer:2` qui n'a même
+ * pas GD — on renvoie `false` et l'appelant garde son PNG.
+ * {@see BibliothequeImages::url()} sert le webp quand il existe et retombe sur
+ * le PNG sinon : il n'y a rien à casser, il n'y a qu'un gain à ne pas prendre.
+ * Une génération d'image ne doit jamais échouer parce que la compression manque.
+ *
+ * `image-tools/webp.sh` n'est pas remplacé : il **rattrape** le parc déjà écrit
+ * et rejoue une qualité différente (`--force`). Il tourne dans un conteneur
+ * alpine jetable, côté hôte, donc il garde son `cwebp` — les deux produisent le
+ * même octet, la mesure ci-dessus le dit.
+ *
+ * Volontairement NON `final` : la suite tournant sans GD, elle vérifie que le
+ * convertisseur est APPELÉ — via un espion qui hérite d'ici — plutôt que
  * l'existence du fichier.
  */
 class ConvertisseurWebp
@@ -46,12 +56,9 @@ class ConvertisseurWebp
      */
     public const QUALITE = 85;
 
-    /** Secondes : une image de 1024×1024 se convertit en bien moins que ça. */
-    private const DELAI = 20;
-
     public function disponible(): bool
     {
-        return $this->binaire() !== null;
+        return function_exists('imagewebp') && function_exists('imagecreatefromstring');
     }
 
     /**
@@ -62,29 +69,36 @@ class ConvertisseurWebp
      */
     public function jumeler(string $absolu): bool
     {
-        $binaire = $this->binaire();
-
-        if ($binaire === null || ! is_file($absolu)) {
+        if (! $this->disponible() || ! is_file($absolu)) {
             return false;
         }
 
         $jumeau = preg_replace('/\.[^.\/]+$/', '', $absolu).'.webp';
+        $image = null;
 
         try {
-            $process = new Process([
-                $binaire, '-q', (string) self::QUALITE, '-quiet', $absolu, '-o', $jumeau,
-            ]);
-            $process->setTimeout(self::DELAI);
-            $process->run();
+            // `imagecreatefromstring` reconnaît le format tout seul : le
+            // catalogue est en PNG (BibliothequeImages::FORMAT), mais rien ici
+            // n'a besoin de le savoir.
+            $image = @imagecreatefromstring((string) file_get_contents($absolu));
 
-            if (! $process->isSuccessful()) {
-                // Pas un Log::warning bruyant : l'absence de jumeau ne casse
-                // rien, et une génération de catalogue en produit des centaines.
-                Log::info('Jumeau .webp impossible — le PNG est servi tel quel.', [
+            if ($image === false) {
+                Log::info('Jumeau .webp impossible — image source illisible.', [
                     'image' => basename($absolu),
-                    'erreur' => trim($process->getErrorOutput()),
                 ]);
 
+                return false;
+            }
+
+            // ⚠ Deux gestes obligatoires avant d'encoder, et silencieux si on
+            // les oublie : un PNG en palette indexée ne s'encode pas en WebP,
+            // et sans `savealpha` la transparence ressort en noir — nos
+            // illustrations d'objets et de portes en ont.
+            imagepalettetotruecolor($image);
+            imagealphablending($image, false);
+            imagesavealpha($image, true);
+
+            if (! imagewebp($image, $jumeau, self::QUALITE)) {
                 return false;
             }
         } catch (\Throwable $e) {
@@ -94,25 +108,12 @@ class ConvertisseurWebp
             ]);
 
             return false;
-        }
-
-        return is_file($jumeau);
-    }
-
-    /**
-     * Chemin du binaire `cwebp`, ou null s'il n'est pas installé.
-     *
-     * Résolu à chaque appel plutôt que mémorisé : un worker `queue:work` vit des
-     * heures, et l'image peut être reconstruite sous lui.
-     */
-    private function binaire(): ?string
-    {
-        foreach (['/usr/bin/cwebp', '/usr/local/bin/cwebp', '/bin/cwebp'] as $chemin) {
-            if (is_executable($chemin)) {
-                return $chemin;
+        } finally {
+            if ($image instanceof \GdImage) {
+                imagedestroy($image);
             }
         }
 
-        return null;
+        return is_file($jumeau);
     }
 }

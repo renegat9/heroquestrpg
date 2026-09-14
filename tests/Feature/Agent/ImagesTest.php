@@ -157,7 +157,7 @@ it('préfère le jumeau WebP quand il existe, sans casser le repli PNG', functio
  * en 1,3 Mo parce que `image-tools/webp.sh` n'avait pas été relancé derrière.
  *
  * On teste que le CONVERTISSEUR EST APPELÉ, pas que le fichier existe : la suite
- * tourne dans un conteneur `composer:2` qui n'a pas `cwebp`, et c'est justement
+ * tourne dans un conteneur `composer:2` qui n'a même pas GD, et c'est justement
  * pour ça que la conversion doit rester best-effort côté production.
  */
 function espionWebp(): object
@@ -230,10 +230,10 @@ it('jumelle aussi les images du catalogue (images:generer passe par la biblioth�
     }
 });
 
-it('sans cwebp, la conversion échoue en silence et le PNG reste servi', function () {
-    // Le conteneur de test n'a pas le binaire : c'est le cas nominal ici, et il
-    // doit rendre false sans lever — une génération d'image ne doit jamais
-    // échouer parce qu'un outil de compression manque.
+it('sans support WebP, la conversion échoue en silence et le PNG reste servi', function () {
+    // Le conteneur de test n'a pas GD : c'est le cas nominal ici, et il doit
+    // rendre false sans lever — une génération d'image ne doit jamais échouer
+    // parce que la compression manque.
     publicJetable();
     $conv = new ConvertisseurWebp;
     $png = public_path('images/dyn/quete/4243.png');

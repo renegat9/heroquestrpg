@@ -219,8 +219,8 @@ final class BibliothequeImages
      * création l'ignorait, et des illustrations de quête sont restées servies
      * en 1,3 Mo faute d'avoir relancé le script (René, 2026-09-13).
      *
-     * La conversion est best-effort : sans `cwebp`, on garde le PNG et
-     * {@see self::url()} le sert tel quel.
+     * La conversion est best-effort : sans support WebP dans GD, on garde le
+     * PNG et {@see self::url()} le sert tel quel.
      */
     public function enregistrer(string $rel, string $octets): string
     {

@@ -22,12 +22,17 @@
 penser, donc un geste oublié : les illustrations des quêtes 98 et 99 sont restées
 servies en 1,3 Mo là où 52 et 71 Ko suffisaient. C'est le même défaut de forme que
 le ménage des campagnes de harnais : ce qui manquait n'était pas un moyen de
-savoir QUOI convertir, c'était le geste lui-même. ⚠ `docker/app/Dockerfile`
-embarque désormais `libwebp-tools` (PHP n'a toujours ni gd ni imagick) — **les
-quatre services `app`/`queue`/`queue-jeu`/`reverb` ont leur propre image et
-doivent toutes être reconstruites**, or ce sont les *queues* qui génèrent les
-illustrations. ⚠ La conversion reste **best-effort** : sans `cwebp`, on garde le
-PNG et `url()` le sert tel quel — une génération d'image ne doit jamais échouer
+savoir QUOI convertir, c'était le geste lui-même. ⚠ `docker/app/Dockerfile` installe
+**GD avec `--with-webp`**, et non un binaire externe : mesuré sur une vraie
+illustration, GD et `cwebp` rendent des fichiers **rigoureusement identiques**
+(74 706 octets des deux côtés — GD encode avec libwebp, comme cwebp), donc le
+sous-processus, le chemin de binaire à sonder et le délai d'attente ne payaient
+rien. ⚠ Imagick serait ImageMagick entier plus une compilation PECL pour
+convertir un PNG en WebP. ⚠ **Les quatre services `app`/`queue`/`queue-jeu`/
+`reverb` ont leur propre image et doivent toutes être reconstruites**, or ce sont
+les *queues* qui génèrent les illustrations — reconstruire `app` seul laisse le
+défaut entier. ⚠ La conversion reste **best-effort** : sans support WebP, on
+garde le PNG et `url()` le sert tel quel — une génération d'image ne doit jamais échouer
 parce qu'un outil de compression manque. ⚠ `images:generer` écrivait son PNG avec
 un `file_put_contents` à elle : **deux écritures pour une seule règle**, et
 celle-là n'en avait pas ; elle passe maintenant par `enregistrer()`.
