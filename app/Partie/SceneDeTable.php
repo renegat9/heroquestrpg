@@ -39,7 +39,7 @@ use App\Partie\Images\BibliothequeImages;
 final class SceneDeTable
 {
     /** Genres rendus par le composant de table. Tout autre type reste muet. */
-    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute'];
+    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet'];
 
     public function __construct(private readonly BibliothequeImages $images) {}
 
@@ -109,6 +109,7 @@ final class SceneDeTable
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
             'actionner_levier' => $this->levier($a, $acteur),
+            'potion' => $this->potion($a, $acteur),
             'sort', 'parchemin' => $this->sort($a, $acteur),
             default => null,
         };
@@ -356,6 +357,93 @@ final class SceneDeTable
                 'ton' => $reussi ? 'tresor' : 'echec',
                 'libelle' => $reussi ? $this->gainDuJet($a + $butin) : 'raté',
             ],
+        ];
+    }
+
+    /**
+     * POTION ou consommable bu.
+     *
+     * ⚠ Deux cas, et l'écran doit les distinguer : boire SA potion, ou en tendre
+     * une à un voisin. Le moteur le dit déjà — `porteur_id` n'est présent que
+     * lorsque la potion change de main, et il vaut null sur soi. On ne redéduit
+     * donc rien : c'est le payload qui tranche.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function potion(array $a, Personnage $acteur): ?array
+    {
+        $nom = (string) ($a['objet'] ?? '');
+
+        if ($nom === '') {
+            return null;
+        }
+
+        $buveur = Personnage::find((int) ($a['personnage_id'] ?? 0)) ?? $acteur;
+        $porteur = ($id = (int) ($a['porteur_id'] ?? 0)) > 0 ? Personnage::find($id) : null;
+        $objet = Objet::where('nom', $nom)->first();
+        $effets = (array) ($a['effets'] ?? []);
+
+        $acteurs = $porteur === null
+            ? [$this->acteurHeros($buveur, 'acteur')]
+            : [$this->acteurHeros($porteur, 'acteur'), $this->acteurHeros($buveur, 'cible')];
+
+        return [
+            'genre' => 'objet',
+            'titre' => $porteur === null
+                ? $buveur->nom.' boit '.$nom
+                : $porteur->nom.' tend '.$nom.' à '.$buveur->nom,
+            'sous_titre' => $porteur === null ? null : 'À un héros adjacent',
+            'acteurs' => $acteurs,
+            'jet' => null,
+            'objets' => [[
+                'nom' => $nom,
+                'image_url' => $this->images->urlObjet($objet?->id, $nom)
+                    ?? $this->images->vignette('objet', $objet?->id ?? $nom),
+                'detail' => $objet === null ? null : $this->effetsLisibles($objet),
+            ]],
+            'issue' => $this->effetPotion($effets, $buveur),
+        ];
+    }
+
+    /**
+     * Ce que la potion a RÉELLEMENT fait — le soin effectif, pas celui promis
+     * par la carte : boire une potion de 4 PV à 1 PV du maximum n'en rend qu'un.
+     *
+     * @param  array<string, mixed>  $effets
+     * @return array{ton: string, libelle: string}
+     */
+    private function effetPotion(array $effets, Personnage $buveur): array
+    {
+        $bouts = [];
+
+        if (($body = (int) ($effets['soin_pv_body'] ?? 0)) > 0) {
+            $bouts[] = "+{$body} PV de Body";
+        }
+        if (($mind = (int) ($effets['soin_pv_mind'] ?? 0)) > 0) {
+            $bouts[] = "+{$mind} PV de Mind";
+        }
+        if (! empty($effets['buff'])) {
+            $bouts[] = (string) $effets['buff'];
+        }
+        if (! empty($effets['attaque_supplementaire'])) {
+            $bouts[] = 'une attaque supplémentaire';
+        }
+        if (($sorts = (int) ($effets['sorts_restaures'] ?? 0)) > 0) {
+            $bouts[] = $sorts.' sort'.($sorts > 1 ? 's' : '').' retrouvé'.($sorts > 1 ? 's' : '');
+        }
+        if (! empty($effets['retire_condition'])) {
+            $bouts[] = 'plus '.mb_strtolower((string) $effets['retire_condition']);
+        }
+
+        if ($bouts === []) {
+            return ['ton' => 'info', 'libelle' => 'aucun effet — les jauges étaient pleines'];
+        }
+
+        return [
+            'ton' => 'tresor',
+            'libelle' => implode(' · ', $bouts)
+                .' — '.(int) $buveur->pv_body.'/'.(int) $buveur->pv_body_max.' PV',
         ];
     }
 

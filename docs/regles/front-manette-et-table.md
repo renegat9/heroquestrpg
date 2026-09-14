@@ -157,3 +157,25 @@ l'écran. Elle capture les clics — c'est ainsi qu'on revient à la carte —, 
 posée plus haut elle avalait aussi ceux destinés au bandeau du MJ, aux réglages
 et au menu d'urgence : cinq secondes d'interface inerte à chaque coup porté.
 Constaté en essayant de replier le bandeau pendant qu'une scène s'affichait.
+
+**Une seule taille de tuile, et des légendes bornées** (René, 2026-09-14).
+Portraits, objets et créatures partagent `--scn-tuile` : ils faisaient 132 px
+d'un côté et 88 de l'autre, ce qui laissait lire une hiérarchie qui n'existe pas.
+Une légende ne dépasse **jamais** la largeur de son image et revient à la ligne —
+« Chacal des Sables Éternels » débordait et décalait toute la rangée.
+
+**La carte de scène a une LARGEUR FIXE** (600 px, quatre tuiles par rangée) et
+une hauteur libre. Elle se dimensionnait sur son contenu : elle sautait d'une
+scène à l'autre — une chute étroite, une salle à six créatures deux fois plus
+large — et l'œil du narrateur devait la rechercher à chaque fois. ⚠ Elle ne
+prend **pas** toute la carte pour autant (question de René) : la couvrir
+entièrement rouvrirait l'arbitrage du 2026-09-05, qui avait fait retirer le popup
+précédent — « on est capable de jouer alors qu'il y a un popup ».
+
+**La potion dit sur QUI elle est bue.** `MoteurPotions` publiait déjà la
+distinction — `porteur_id` n'existe que lorsque la potion CHANGE DE MAIN, et vaut
+null sur soi — mais aucun écran ne la disait. La scène nomme le porteur et le
+buveur dans cet ordre, et son issue donne le soin **effectif** (`effets.soin_pv_body`),
+jamais celui promis par la carte : boire 4 PV à un point du maximum n'en rend
+qu'un. ⚠ Pas de « vs » : les rôles sont `acteur` et `cible`, pas attaquant et
+défenseur.

@@ -560,3 +560,48 @@ it('montre le meuble fracassé et ce qu\'il rendait', function () {
         ->and($scene['objets'][0]['detail'])->toBe('fracassé')
         ->and($scene['issue']['libelle'])->toBe("+45 pièces d'or pour le groupe");
 });
+
+it('distingue une potion bue sur SOI d\'une potion tendue à un voisin', function () {
+    // ⚠ Le moteur le dit déjà : `porteur_id` n'est présent que lorsque la potion
+    // CHANGE DE MAIN, et vaut null sur soi. On ne redéduit rien — c'est le
+    // payload qui tranche.
+    $grom = sceneHeros('Grom', 'barbare');
+    $thora = sceneHeros('Thora', 'elfe');
+    $potion = App\Models\Objet::where('nom', 'Potion de soin')->first()
+        ?? App\Models\Objet::query()->firstOrFail();
+
+    $soi = scenesDe([
+        'type' => 'potion', 'objet' => $potion->nom,
+        'personnage_id' => $grom->id, 'porteur_id' => null,
+        'effets' => ['soin_pv_body' => 4],
+    ], $grom)[0];
+
+    $voisin = scenesDe([
+        'type' => 'potion', 'objet' => $potion->nom,
+        'personnage_id' => $thora->id, 'porteur_id' => $grom->id,
+        'effets' => ['soin_pv_body' => 3],
+    ], $grom)[0];
+
+    expect($soi['genre'])->toBe('objet')
+        ->and($soi['titre'])->toBe('Grom boit '.$potion->nom)
+        ->and($soi['sous_titre'])->toBeNull()
+        ->and($soi['acteurs'])->toHaveCount(1)
+        ->and($soi['issue']['libelle'])->toContain('+4 PV de Body')
+        // Le porteur ET le buveur, dans cet ordre.
+        ->and($voisin['titre'])->toBe('Grom tend '.$potion->nom.' à Thora')
+        ->and($voisin['sous_titre'])->toBe('À un héros adjacent')
+        ->and(collect($voisin['acteurs'])->pluck('role')->all())->toBe(['acteur', 'cible']);
+});
+
+it('dit le soin RÉELLEMENT rendu, pas celui promis par la carte', function () {
+    // Boire une potion de 4 PV à un point du maximum n'en rend qu'un : c'est
+    // `effets.soin_pv_body` que le moteur calcule, jamais la valeur de la carte.
+    $grom = sceneHeros('Grom', 'barbare');
+    $potion = App\Models\Objet::query()->firstOrFail();
+
+    $rien = scenesDe(['type' => 'potion', 'objet' => $potion->nom,
+        'personnage_id' => $grom->id, 'effets' => []], $grom)[0];
+
+    expect($rien['issue']['ton'])->toBe('info')
+        ->and($rien['issue']['libelle'])->toContain('jauges étaient pleines');
+});

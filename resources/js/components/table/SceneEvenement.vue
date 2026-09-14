@@ -44,6 +44,7 @@ const ICONE_GENRE = {
     sort: 'auto_awesome',
     salle: 'door_open',
     chute: 'heart_broken',
+    objet: 'science',
 };
 
 const icone = computed(() => ICONE_GENRE[props.scene.genre] ?? 'bolt');
@@ -111,47 +112,61 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
     border: var(--line-strong); border-radius: var(--r-xl, 18px);
     box-shadow: 0 18px 60px rgba(0, 0, 0, .55), var(--sh-3);
     padding: 20px 26px 18px; text-align: center;
-    min-width: 380px; max-width: min(760px, 82%);
+    /* ⚠ LARGEUR FIXE, hauteur libre (René, 2026-09-14). Avant, la carte se
+       dimensionnait sur son contenu : elle sautait d'une scène à l'autre — une
+       chute étroite, une salle à six créatures deux fois plus large — et l'œil
+       du narrateur devait la rechercher à chaque fois. Elle ne prend PAS toute
+       la carte pour autant : la carte doit rester lisible autour, c'est
+       l'arbitrage du 2026-09-05 qui avait fait retirer le popup précédent. */
+    /* 600 px = quatre tuiles par rangée (4×118 + gaps + marges). Plus large,
+       une scène à deux figures flottait dans le vide. */
+    width: min(600px, 86%);
 }
+
+/* Une seule taille de tuile pour TOUTES les images de la carte — portraits,
+   objets, créatures. Elles avaient 132 px d'un côté et 88 de l'autre, ce qui
+   faisait lire une hiérarchie qui n'existe pas. */
+.scn-carte { --scn-tuile: 118px; }
 
 .scn-titre {
     font-family: var(--font-display); font-size: 18px; font-weight: 700;
     color: var(--parch-100); letter-spacing: .02em;
     margin: 0; display: flex; align-items: center; justify-content: center; gap: 9px;
+    text-wrap: balance;
 }
-.scn-titre .msym { color: var(--torch); }
+.scn-titre .msym { color: var(--torch); flex: none; }
 .scn-sous { font-size: 12.5px; color: var(--ink-500); margin: 4px 0 0; }
 
-.scn-acteurs { display: flex; align-items: flex-start; justify-content: center; gap: 22px; margin: 16px 0 4px; position: relative; }
-.scn-acteur { margin: 0; }
-.scn-acteur img {
-    width: 132px; height: 132px; object-fit: cover; display: block;
+.scn-acteurs, .scn-objets {
+    display: flex; flex-wrap: wrap; align-items: flex-start;
+    justify-content: center; gap: 18px 20px;
+}
+.scn-acteurs { margin: 16px 0 4px; position: relative; }
+.scn-objets { margin: 16px 0 2px; }
+
+.scn-acteur, .scn-objet { margin: 0; width: var(--scn-tuile); }
+.scn-acteur img, .scn-objet img {
+    width: var(--scn-tuile); height: var(--scn-tuile); object-fit: cover; display: block;
     border-radius: 12px; border: var(--line-strong); background: var(--stone-950);
 }
-.scn-acteur figcaption { display: flex; flex-direction: column; gap: 1px; margin-top: 7px; }
-.scn-nom { font-size: 13.5px; font-weight: 700; color: var(--ink-100); }
+/* ⚠ La légende ne dépasse JAMAIS la largeur de son image, et revient à la ligne
+   plutôt que de pousser les tuiles voisines : « Chacal des Sables Éternels »
+   débordait et décalait toute la rangée. */
+.scn-acteur figcaption, .scn-objet figcaption {
+    display: flex; flex-direction: column; gap: 2px; margin-top: 7px;
+    width: var(--scn-tuile); overflow-wrap: anywhere; hyphens: auto;
+}
+.scn-nom { font-size: 12.5px; font-weight: 700; color: var(--ink-100); line-height: 1.25; }
 .scn-pv { font-size: 11.5px; color: var(--ink-500); font-variant-numeric: tabular-nums; }
-.scn-detail { font-size: 11.5px; color: var(--ink-400, #9aa4b2); line-height: 1.35;
+.scn-detail { font-size: 11px; color: var(--ink-400, #9aa4b2); line-height: 1.3;
     font-variant-numeric: tabular-nums; }
 
 .scn-vs {
-    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: calc(var(--scn-tuile) / 2 - 13px); left: 50%; transform: translateX(-50%);
     font-family: var(--font-display); font-size: 15px; color: var(--ember);
     background: var(--stone-900); border: var(--line); border-radius: 999px;
     padding: 2px 9px; letter-spacing: .04em;
 }
-
-.scn-objets { display: flex; justify-content: center; gap: 20px; margin: 16px 0 2px;
-    flex-wrap: wrap; align-items: flex-start; }
-.scn-objet { margin: 0; }
-.scn-objet img {
-    width: 88px; height: 88px; object-fit: cover; display: block;
-    border-radius: 10px; border: var(--line-strong); background: var(--stone-950);
-}
-.scn-objet figcaption { display: flex; flex-direction: column; gap: 2px; margin-top: 7px;
-    /* ⚠ Assez large pour un bloc de stats (« Att 3 · Déf 2 · 1 PV · dépl. 8 »)
-       ou deux effets d'objet : à 132 px le texte se coupait en trois lignes. */
-    max-width: 190px; }
 
 .scn-issue {
     font-family: var(--font-display); font-size: 16px; font-weight: 700;
