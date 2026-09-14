@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Partie\Narration;
 
 use App\Events\NarrationDiffusee;
+use App\Events\SceneTable;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Evenement;
+use App\Partie\SceneDeTable;
 use App\Support\Journal;
 
 /**
@@ -33,6 +36,18 @@ final class AnnonceurChute
         if ($groupe === null || $heros === null) {
             return;
         }
+
+        // SCÈNE de chute/relèvement pour l'écran de table (.table.scene) : la
+        // figure en grand, au moment qui compte le plus d'une partie.
+        // ⚠ AVANT le retour anticipé ci-dessous : la scène ne doit pas dépendre
+        // de l'existence d'une variante de narration. Deux promesses distinctes,
+        // deux conditions distinctes — les accrocher l'une à l'autre est
+        // exactement ce qui avait rendu la carte d'ouverture de quête invisible.
+        broadcast(new SceneTable(
+            $groupe,
+            app(SceneDeTable::class)->chute($heros, $cle === 'heros_tombe'),
+            (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
+        ));
 
         $recit = $this->narration->pourQuete($quete, $cle, ['heros' => $heros->nom]);
 

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Models\InstanceMonstre;
+use App\Models\Mobilier;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
+use App\Models\Quete;
 use App\Partie\Images\BibliothequeImages;
 
 /**
@@ -36,7 +38,7 @@ use App\Partie\Images\BibliothequeImages;
 final class SceneDeTable
 {
     /** Genres rendus par le composant de table. Tout autre type reste muet. */
-    public const GENRES = ['attaque', 'piege', 'fouille', 'jet'];
+    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute'];
 
     public function __construct(private readonly BibliothequeImages $images) {}
 
@@ -104,6 +106,7 @@ final class SceneDeTable
             'piege_declenche' => $this->piege($a, $acteur),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
+            'sort', 'parchemin' => $this->sort($a, $acteur),
             default => null,
         };
     }
@@ -317,6 +320,183 @@ final class SceneDeTable
                 'libelle' => $reussi ? 'réussi' : 'raté',
             ],
         ];
+    }
+
+    /**
+     * Sort ou parchemin : le lanceur, la carte du sort, et la cible s'il y en a
+     * une. C'est le seul genre où l'illustration du CATALOGUE DE SORTS sert —
+     * 31 cartes générées qu'aucun écran ne montrait.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function sort(array $a, Personnage $acteur): ?array
+    {
+        $nomSort = (string) ($a['sort']['nom'] ?? '');
+
+        if ($nomSort === '') {
+            return null;
+        }
+
+        $sortId = (int) ($a['sort']['id'] ?? 0);
+        $cibleNom = $a['cible']['nom'] ?? null;
+        $degats = (int) ($a['degats'] ?? 0);
+        $soin = (int) ($a['soin'] ?? 0);
+        $parchemin = ($a['type'] ?? null) === 'parchemin';
+
+        $acteurs = [$this->acteurHeros($acteur, 'acteur')];
+
+        // La cible, quand il y en a une : un monstre visé, ou un héros soigné.
+        if (($instanceId = (int) ($a['cible']['instance_id'] ?? 0)) > 0) {
+            $acteurs[] = $this->acteurMonstre($instanceId, (string) $cibleNom, 'cible');
+        } elseif (($persoId = (int) ($a['cible']['personnage_id'] ?? 0)) > 0
+            && ($autre = Personnage::find($persoId)) !== null) {
+            $acteurs[] = $this->acteurHeros($autre, 'cible');
+        }
+
+        return [
+            'genre' => 'sort',
+            'titre' => $acteur->nom.' lance '.$nomSort,
+            'sous_titre' => $parchemin
+                ? 'Parchemin — usage unique'
+                : (($e = (string) ($a['sort']['element'] ?? '')) !== '' ? ucfirst($e) : null),
+            'acteurs' => $acteurs,
+            'jet' => $this->jetDesDes($a, $nomSort, (string) ($cibleNom ?? 'la cible')),
+            'objets' => [[
+                'nom' => $nomSort,
+                'image_url' => $this->images->urlSort($sortId ?: null, $nomSort)
+                    ?? $this->images->vignette('sort', $sortId ?: $nomSort),
+                'detail' => $a['sort']['type'] ?? null,
+            ]],
+            'issue' => match (true) {
+                ! empty($a['cible_vaincue']) => ['ton' => 'mort', 'libelle' => $cibleNom.' est foudroyé'],
+                $degats > 0 => ['ton' => 'degats', 'libelle' => "−{$degats} PV"],
+                $soin > 0 => ['ton' => 'tresor', 'libelle' => "+{$soin} PV rendus"],
+                default => ['ton' => 'info', 'libelle' => $nomSort.' opère'],
+            },
+        ];
+    }
+
+    /**
+     * SALLE RÉVÉLÉE — la bande de ce qu'elle contient, au moment où la porte
+     * s'ouvre. C'est le genre qui change le plus l'écran : la narration disait
+     * « un Ossement de la Forge erre entre les débris » et l'on ne voyait qu'un
+     * pion.
+     *
+     * ⚠ Uniquement ce que l'ouverture RÉVÈLE réellement — monstres et mobilier.
+     * Jamais les pièges : ils restent cachés jusqu'à la fouille, et les montrer
+     * ici retournerait la règle.
+     *
+     * @param  list<\App\Models\InstanceMonstre>  $monstres  ceux qu'on vient de révéler
+     * @return array<string, mixed>|null
+     */
+    public function salle(Quete $quete, int $salle, array $monstres): ?array
+    {
+        $objets = [];
+
+        foreach ($monstres as $instance) {
+            $objets[] = [
+                'nom' => $instance->nomAffiche(),
+                'image_url' => $this->images->urlMonstre(
+                    (int) $instance->id,
+                    $instance->monstre_id,
+                    $instance->monstre?->nom_base,
+                ),
+                'detail' => null,
+            ];
+        }
+
+        foreach ($this->mobilierDe($quete, $salle) as $meuble) {
+            $objets[] = $meuble;
+        }
+
+        if ($objets === []) {
+            return null; // une salle vide n'a rien à montrer : le récit suffit
+        }
+
+        $n = count($monstres);
+
+        return [
+            'genre' => 'salle',
+            'titre' => "La salle s'ouvre",
+            'sous_titre' => $n > 0 ? $n.' créature'.($n > 1 ? 's' : '').' à l\'intérieur' : null,
+            'acteurs' => [],
+            'jet' => null,
+            'objets' => array_slice($objets, 0, 6), // au-delà, la bande déborde
+            'issue' => [
+                'ton' => $n > 0 ? 'degats' : 'info',
+                // ⚠ L'accord suit le compte : « 1 créature à l'intérieur » puis
+                // « Elles vous ont vus » se contredisaient à l'écran.
+                'libelle' => match (true) {
+                    $n > 1 => 'Elles vous ont vus',
+                    $n === 1 => 'Elle vous a vus',
+                    default => "Personne, pour l'instant",
+                },
+            ],
+        ];
+    }
+
+    /**
+     * CHUTE ou RELÈVEMENT d'un héros — la figure en grand.
+     *
+     * ⚠ À 0 PV de Body un héros est TOMBÉ, pas mort : il occupe sa case et reste
+     * relevable jusqu'à la fin du combat (P1/C4). L'écran doit le dire, sinon la
+     * table croit la partie finie pour lui.
+     *
+     * @return array<string, mixed>
+     */
+    public function chute(Personnage $heros, bool $tombe): array
+    {
+        return [
+            'genre' => 'chute',
+            'titre' => $tombe ? $heros->nom." s'effondre" : $heros->nom.' se relève',
+            'sous_titre' => $tombe ? "Relevable jusqu'à la fin du combat" : null,
+            'acteurs' => [$this->acteurHeros($heros, 'acteur')],
+            'jet' => null,
+            'objets' => [],
+            'issue' => $tombe
+                ? ['ton' => 'mort', 'libelle' => '0 PV de Body']
+                : ['ton' => 'tresor', 'libelle' => 'de nouveau debout'],
+        ];
+    }
+
+    /**
+     * Le mobilier d'une salle, lu dans la grille et borné à ses limites.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mobilierDe(Quete $quete, int $salle): array
+    {
+        $s = (array) data_get($quete->carte?->grille, "salles.{$salle}");
+
+        if ($s === []) {
+            return [];
+        }
+
+        $x0 = (int) ($s['x'] ?? 0);
+        $y0 = (int) ($s['y'] ?? 0);
+        $x1 = $x0 + (int) ($s['largeur'] ?? 0) - 1;
+        $y1 = $y0 + (int) ($s['hauteur'] ?? 0) - 1;
+
+        $entrees = collect((array) data_get($quete->carte?->grille, 'mobiliers', []))
+            ->filter(fn ($m) => is_array($m)
+                && (int) ($m['x'] ?? -1) >= $x0 && (int) ($m['x'] ?? -1) <= $x1
+                && (int) ($m['y'] ?? -1) >= $y0 && (int) ($m['y'] ?? -1) <= $y1);
+
+        $types = Mobilier::query()
+            ->whereIn('id', $entrees->pluck('mobilier_id')->filter()->unique())
+            ->get()->keyBy('id');
+
+        return $entrees->map(function (array $m) use ($types) {
+            $type = $types[$m['mobilier_id'] ?? null] ?? null;
+
+            return [
+                'nom' => $type?->nom ?? 'Meuble',
+                'image_url' => $this->images->urlMobilier($type?->id, $type?->nom)
+                    ?? $this->images->vignette('mobilier', $type?->id ?? 0),
+                'detail' => $type?->fouillable ? 'fouillable' : null,
+            ];
+        })->values()->all();
     }
 
     // ---- briques ----------------------------------------------------------

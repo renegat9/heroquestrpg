@@ -23,6 +23,8 @@ use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Events\MouvementAnime;
 use App\Events\NarrationDiffusee;
+use App\Events\SceneTable as SceneTableEvent;
+use App\Models\Evenement;
 use App\Models\Condition;
 use App\Models\Epreuve;
 use App\Models\EtatPersonnageQuete;
@@ -8632,6 +8634,24 @@ final class ResolveurTour
         }
 
         Journal::ajouter($groupe, 'systeme', ['action' => 'salle_decouverte', 'salle' => $salle, 'monstres_reveles' => $reveles]);
+
+        // SCÈNE de salle révélée pour l'écran de table (.table.scene) : la bande
+        // illustrée de ce que la porte vient de découvrir — créatures et
+        // mobilier. Elle est émise ICI et non depuis le résolveur de tour parce
+        // que la révélation est un EFFET DE BORD, pas un résultat d'action :
+        // c'est le seul endroit qui sait qu'une salle vient à l'instant de
+        // basculer (la méthode sort d'entrée de jeu si elle était déjà connue).
+        // ⚠ Le CONSTRUCTEUR de scènes reste unique (App\Partie\SceneDeTable) —
+        // deux déclencheurs, une seule façon de monter une scène.
+        $sceneSalle = app(SceneDeTable::class)->salle($quete, $salle, $aReveler->all());
+
+        if ($sceneSalle !== null) {
+            broadcast(new SceneTableEvent(
+                $groupe,
+                $sceneSalle,
+                (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
+            ));
+        }
 
         // Verrou B1 : le joueur suivant attend que le narrateur ait « parlé »
         // (la TABLE l'éteint après lecture, POST /table/lecture-terminee).

@@ -7,9 +7,11 @@ use App\Partie\JournalCombat;
 use App\Partie\SceneDeTable;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
+use Database\Seeders\SortSeeder;
 
 /**
  * Scènes illustrées de l'écran de table (`.table.scene`).
@@ -20,7 +22,7 @@ use Database\Seeders\PiegeSeeder;
  */
 beforeEach(function () {
     $this->seed([ClasseHerosSeeder::class, MonstreSeeder::class, ObjetSeeder::class,
-        PiegeSeeder::class, GabaritQueteSeeder::class]);
+        PiegeSeeder::class, GabaritQueteSeeder::class, SortSeeder::class, MobilierSeeder::class]);
 });
 
 /** Les champs du contrat (docs/contrat-api.md, `.table.scene`). */
@@ -205,4 +207,137 @@ it('résout une image même sans illustration générée (emblème de repli)', f
 
     expect($images->urlHeros(4242, 'barbare'))->toBeString()->not->toBeEmpty()
         ->and($images->urlMonstre(4242, null, null))->toContain('/api/placeholder/');
+});
+
+it('met un sort en scène avec sa carte, sans « vs » sur un soin', function () {
+    $sort = App\Models\Sort::query()->firstOrFail();
+    $acteur = sceneHeros('Aldric', 'magicien');
+    $soigne = sceneHeros('Thora', 'elfe');
+
+    $scene = scenesDe([
+        'type' => 'sort',
+        'sort' => ['id' => $sort->id, 'nom' => $sort->nom, 'element' => $sort->element, 'type' => $sort->type],
+        'cible' => ['personnage_id' => $soigne->id, 'nom' => 'Thora'],
+        'soin' => 4,
+    ], $acteur)[0];
+
+    expect($scene['genre'])->toBe('sort')
+        ->and($scene['objets'][0]['nom'])->toBe($sort->nom)
+        ->and($scene['issue']['libelle'])->toBe('+4 PV rendus')
+        // ⚠ Aucun rôle `defenseur` : un soin n'est pas un affrontement, et c'est
+        // le RÔLE — pas le nombre d'acteurs — qui commande le « vs » à l'écran.
+        ->and(collect($scene['acteurs'])->pluck('role')->all())->toBe(['acteur', 'cible']);
+});
+
+it('montre le contenu d\'une salle révélée — créatures et mobilier, jamais les pièges', function () {
+    $groupe = creerGroupe('g-salle');
+    $quete = App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'titre' => 'Salle', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
+    ]);
+    $meuble = App\Models\Mobilier::query()->firstOrFail();
+    App\Models\Carte::create([
+        'quete_id' => $quete->id,
+        'largeur' => 100, 'hauteur' => 100,
+        'grille' => [
+            'salles' => [['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4]],
+            'mobiliers' => [
+                ['x' => 1, 'y' => 1, 'l' => 1, 'h' => 1, 'mobilier_id' => $meuble->id],
+                ['x' => 90, 'y' => 90, 'l' => 1, 'h' => 1, 'mobilier_id' => $meuble->id], // hors salle
+            ],
+            'pieges' => [['x' => 2, 'y' => 2, 'piege_id' => 1]],
+        ],
+    ]);
+
+    $scene = app(SceneDeTable::class)->salle($quete->fresh(), 0, []);
+
+    expect($scene['genre'])->toBe('salle')
+        // Le meuble DE la salle, pas celui d'à côté.
+        ->and($scene['objets'])->toHaveCount(1)
+        ->and($scene['objets'][0]['nom'])->toBe($meuble->nom)
+        // ⚠ Les pièges restent cachés jusqu'à la fouille : les montrer ici
+        // retournerait la règle.
+        ->and(collect($scene['objets'])->pluck('nom')->all())->not->toContain('Fosse');
+});
+
+it('ne montre rien d\'une salle vide — le récit suffit', function () {
+    $groupe = creerGroupe('g-vide');
+    $quete = App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'titre' => 'Vide', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
+    ]);
+    App\Models\Carte::create([
+        'quete_id' => $quete->id,
+        'largeur' => 100, 'hauteur' => 100,
+        'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]], 'mobiliers' => []],
+    ]);
+
+    expect(app(SceneDeTable::class)->salle($quete->fresh(), 0, []))->toBeNull();
+});
+
+it('dit qu\'un héros tombé reste RELEVABLE, et le relèvement aussi', function () {
+    // ⚠ À 0 PV un héros est TOMBÉ, pas mort (P1/C4). Sans cette mention la table
+    // croit la partie finie pour lui.
+    $heros = sceneHeros('Grom', 'barbare');
+    $scenes = app(SceneDeTable::class);
+
+    $chute = $scenes->chute($heros, true);
+    $releve = $scenes->chute($heros, false);
+
+    expect($chute['genre'])->toBe('chute')
+        ->and($chute['sous_titre'])->toContain('Relevable')
+        ->and($chute['issue']['ton'])->toBe('mort')
+        ->and($releve['titre'])->toContain('se relève')
+        ->and($releve['issue']['ton'])->toBe('tresor');
+});
+
+it('publie les mêmes champs de contrat sur TOUS les genres', function () {
+    // Le test dans les deux sens, étendu aux genres qui n'ont ni acteur ni dé :
+    // une scène de salle ne doit pas inventer de clé, ni en perdre une.
+    $heros = sceneHeros('Borin');
+    $groupe = creerGroupe('g-tous');
+    $quete = App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'titre' => 'T', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
+    ]);
+    App\Models\Carte::create([
+        'quete_id' => $quete->id,
+        'largeur' => 100, 'hauteur' => 100,
+        'grille' => [
+            'salles' => [['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]],
+            'mobiliers' => [['x' => 1, 'y' => 1, 'l' => 1, 'h' => 1,
+                'mobilier_id' => App\Models\Mobilier::query()->firstOrFail()->id]],
+        ],
+    ]);
+    $scenes = app(SceneDeTable::class);
+
+    foreach ([$scenes->chute($heros, true), $scenes->salle($quete->fresh(), 0, [])] as $scene) {
+        expect(array_keys($scene))->toEqualCanonicalizing(CHAMPS_SCENE)
+            ->and($scene['genre'])->toBeIn(SceneDeTable::GENRES);
+    }
+});
+
+it('accorde l\'issue d\'une salle avec le nombre de créatures', function () {
+    // ⚠ « 1 créature à l'intérieur » suivi de « Elles vous ont vus » se
+    // contredisait à l'écran — vu en partie réelle le 2026-09-14.
+    $groupe = creerGroupe('g-accord');
+    $quete = App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'titre' => 'A', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
+    ]);
+    App\Models\Carte::create([
+        'quete_id' => $quete->id, 'largeur' => 100, 'hauteur' => 100,
+        'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4]], 'mobiliers' => []],
+    ]);
+    $scenes = app(SceneDeTable::class);
+    $un = sceneInstanceMonstre();
+
+    expect($scenes->salle($quete->fresh(), 0, [$un])['sous_titre'])->toBe('1 créature à l\'intérieur')
+        ->and($scenes->salle($quete->fresh(), 0, [$un])['issue']['libelle'])->toBe('Elle vous a vus')
+        ->and($scenes->salle($quete->fresh(), 0, [$un, sceneInstanceMonstre()])['issue']['libelle'])
+        ->toBe('Elles vous ont vus');
 });

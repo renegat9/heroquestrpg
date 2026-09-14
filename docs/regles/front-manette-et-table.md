@@ -77,6 +77,21 @@ d'APPAREIL persistée en `localStorage` comme le volume, pas une règle de jeu. 
 file est bornée à une scène affichée + une en attente : une phase de monstres
 produit quatre attaques en une seconde, et sans borne c'est vingt secondes de
 popups pendant que plus personne ne joue.
+**Trois genres ont deux déclencheurs à part** : la **salle révélée** part de
+`ResolveurTour::revelerSalle()` et la **chute/relève** de `AnnonceurChute` —
+parce que ce sont des EFFETS DE BORD, pas des résultats d'action, et que ces
+deux endroits sont les seuls à savoir qu'une salle vient à l'instant de basculer
+ou qu'un héros vient de tomber. ⚠ Le CONSTRUCTEUR reste unique
+(`App\Partie\SceneDeTable`) : trois déclencheurs, une seule façon de monter une
+scène. ⚠ La scène de chute part **avant** le retour anticipé d'`AnnonceurChute` :
+elle ne doit pas dépendre de l'existence d'une variante de narration — accrocher
+deux promesses l'une à l'autre est exactement ce qui avait rendu la carte
+d'ouverture invisible. ⚠ Une salle ne montre **jamais ses pièges** : ils restent
+cachés jusqu'à la fouille, et les afficher retournerait la règle. ⚠ Le « vs » se
+lit sur le RÔLE publié, pas sur le nombre d'acteurs : un sort de soin en a deux
+lui aussi, et « Sylvaine vs Borin » raconterait le contraire de ce qui s'est
+passé.
+
 ⚠ **Les faces de dés des MONSTRES manquaient** dans `attaque_monstre`
 (`ResolveurTour`) : le contrat promettait pourtant depuis toujours que le journal
 les porte « y compris ceux des monstres », et les chemins de `MoteurDread` les

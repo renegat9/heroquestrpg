@@ -41,13 +41,19 @@ const ICONE_GENRE = {
     piege: 'dangerous',
     fouille: 'search',
     jet: 'casino',
+    sort: 'auto_awesome',
+    salle: 'door_open',
+    chute: 'heart_broken',
 };
 
 const icone = computed(() => ICONE_GENRE[props.scene.genre] ?? 'bolt');
 const acteurs = computed(() => props.scene.acteurs ?? []);
 const objets = computed(() => props.scene.objets ?? []);
-/** Deux acteurs = un affrontement : on les met face à face, avec le « vs ». */
-const duel = computed(() => acteurs.value.length === 2);
+/* ⚠ Le « vs » ne se déduit PAS du nombre d'acteurs : un sort de soin en a deux
+ * lui aussi, et « Sylvaine vs Borin » raconterait le contraire de ce qui vient
+ * de se passer. C'est le RÔLE publié par le serveur qui dit s'il y a
+ * affrontement. */
+const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
 </script>
 
 <template>
