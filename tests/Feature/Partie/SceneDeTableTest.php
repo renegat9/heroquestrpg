@@ -98,7 +98,10 @@ it('nomme un coup paré autrement qu\'un coup manqué', function () {
         'degats' => 0,
     ];
 
-    expect(scenesDe($base + ['touches' => 0])[0]['issue']['libelle'])->toBe('manqué')
+    // ⚠ Depuis le 2026-09-14 l'issue dit aussi POURQUOI : sans le compte,
+    // « paré » et « manqué » se ressemblent trop pour apprendre quoi que ce soit
+    // du jet qu'on vient de voir.
+    expect(scenesDe($base + ['touches' => 0])[0]['issue']['libelle'])->toBe('manqué — aucun crâne')
         ->and(scenesDe($base + ['touches' => 2])[0]['issue']['libelle'])->toBe('paré');
 });
 
@@ -445,4 +448,115 @@ it('dit ce que le jet RAPPORTE, pas seulement qu\'il est réussi', function () {
         'jet' => ['succes' => 3, 'difficulte' => 3],
     ])[0];
     expect($muet['issue']['libelle'])->toBe('réussi');
+});
+
+it('dit les dégâts ET la mise hors de combat sur un coup fatal', function () {
+    // ⚠ René, 2026-09-14 : « tu affiches −2 PV, mais faudrait-il pas afficher
+    // −2 PV, l'adversaire est défait ? » Un coup fatal ne disait que « est
+    // terrassé » : on perdait le chiffre, qui est la moitié de l'information.
+    $instance = sceneInstanceMonstre();
+
+    $scene = scenesDe([
+        'type' => 'attaque',
+        'cible' => ['instance_id' => $instance->id, 'nom' => 'Orque'],
+        'touches' => 3, 'boucliers' => 0, 'degats' => 2, 'cible_vaincue' => true,
+        'faces_attaque' => ['crane'], 'faces_defense' => [],
+        'face_touchante' => 'crane', 'face_defensive' => 'bouclier_noir',
+    ])[0];
+
+    expect($scene['issue']['libelle'])->toBe('−2 PV · Orque est terrassé');
+});
+
+it('dit POURQUOI un coup n\'a rien fait — paré ou manqué, et avec quoi', function () {
+    $instance = sceneInstanceMonstre();
+    $base = ['type' => 'attaque', 'cible' => ['instance_id' => $instance->id, 'nom' => 'Orque'], 'degats' => 0];
+
+    expect(scenesDe($base + ['touches' => 0, 'boucliers' => 0])[0]['issue']['libelle'])
+        ->toBe('manqué — aucun crâne')
+        ->and(scenesDe($base + ['touches' => 2, 'boucliers' => 2])[0]['issue']['libelle'])
+        ->toBe('paré — 2 boucliers');
+});
+
+it('réunit une frappe BALAYÉE en UNE scène, une vignette par cible', function () {
+    // ⚠ Une scène, pas une par cible : trois popups d'affilée pour un seul geste
+    // noieraient la table, et la file n'en garde qu'une en attente de toute façon.
+    $a = sceneInstanceMonstre();
+    $b = sceneInstanceMonstre();
+
+    $scene = scenesDe([
+        'type' => 'attaque_balayee', 'capacite' => 'Fauchaison', 'cibles' => 2, 'vaincus' => 1,
+        'frappes' => [
+            ['cible' => ['instance_id' => $a->id, 'nom' => 'Gobelin'], 'degats' => 1,
+                'touches' => 1, 'boucliers' => 0, 'cible_vaincue' => true],
+            ['cible' => ['instance_id' => $b->id, 'nom' => 'Orque'], 'degats' => 0,
+                'touches' => 0, 'boucliers' => 0],
+        ],
+    ])[0];
+
+    expect($scene['genre'])->toBe('attaque')
+        ->and($scene['titre'])->toContain('Fauchaison')
+        ->and($scene['objets'])->toHaveCount(2)
+        ->and($scene['objets'][0]['detail'])->toContain('terrassé')
+        ->and($scene['objets'][1]['detail'])->toBe('manqué — aucun crâne')
+        ->and($scene['issue']['libelle'])->toBe('1 abattu');
+});
+
+it('aligne toutes les figures atteintes par un sort de ZONE', function () {
+    $sort = App\Models\Sort::query()->firstOrFail();
+    $a = sceneInstanceMonstre();
+    $b = sceneInstanceMonstre();
+
+    $scene = scenesDe([
+        'type' => 'sort',
+        'sort' => ['id' => $sort->id, 'nom' => 'Flamme hypnotique', 'element' => 'elfique'],
+        'zone' => true, 'salle' => 0,
+        'touches' => [
+            ['type' => 'monstre', 'instance_id' => $a->id, 'nom' => 'Gobelin', 'de' => 5],
+            ['type' => 'monstre', 'instance_id' => $b->id, 'nom' => 'Orque', 'de' => 6],
+        ],
+    ])[0];
+
+    expect($scene['sous_titre'])->toBe('2 figures atteintes')
+        // la carte du sort, puis une vignette par figure touchée
+        ->and($scene['objets'])->toHaveCount(3)
+        ->and($scene['objets'][1]['detail'])->toBe('atteint');
+});
+
+it('met en scène un levier actionné — et dit qu\'on peut réessayer', function () {
+    // ⚠ Le forçage est RETENTABLE SANS LIMITE. Le dire fait partie du message :
+    // sans cela un échec se lit comme un cul-de-sac et le groupe s'éloigne d'un
+    // mécanisme qu'il aurait pu retenter. Même arbitrage que le fil de combat.
+    $ok = scenesDe([
+        'type' => 'actionner_levier', 'force' => true,
+        'jet' => ['succes' => 2, 'difficulte' => 2],
+        'portes_ouvertes' => [['x' => 3, 'y' => 4]],
+    ])[0];
+    $ko = scenesDe([
+        'type' => 'actionner_levier', 'force' => false,
+        'jet' => ['succes' => 0, 'difficulte' => 2], 'portes_ouvertes' => [],
+    ])[0];
+
+    expect($ok['titre'])->toContain('levier')
+        ->and($ok['issue']['libelle'])->toBe("1 porte s'ouvre")
+        ->and($ok['objets'][0]['detail'])->toBe('actionné')
+        ->and($ko['issue']['libelle'])->toContain('réessayer');
+});
+
+it('montre le meuble fracassé et ce qu\'il rendait', function () {
+    // ⚠ Le butin d'un meuble est NICHÉ sous `butin` et jamais fusionné à plat :
+    // le payload d'un jet porte déjà son propre `issue` (le résultat du DÉ), et
+    // les mettre au même niveau écrasait l'un par l'autre.
+    $meuble = App\Models\Mobilier::where('nom', 'Coffre')->first()
+        ?? App\Models\Mobilier::query()->firstOrFail();
+
+    $scene = scenesDe([
+        'type' => 'jet', 'libelle' => 'Fracasser '.$meuble->nom.' — jet de Body',
+        'jet' => ['succes' => 2, 'difficulte' => 2],
+        'mobilier' => $meuble->nom, 'detruit' => true,
+        'butin' => ['issue' => 'tresor', 'or' => 45],
+    ])[0];
+
+    expect($scene['objets'][0]['nom'])->toBe($meuble->nom)
+        ->and($scene['objets'][0]['detail'])->toBe('fracassé')
+        ->and($scene['issue']['libelle'])->toBe("+45 pièces d'or pour le groupe");
 });

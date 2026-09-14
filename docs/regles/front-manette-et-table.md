@@ -126,3 +126,34 @@ tour. L'observateur les attrape tous ; on garde la source unique et on corrige
 seulement l'instant. Conséquence à l'écran : **attaque 5 s, puis chute 5 s**, et
 la file ne retient qu'UNE scène en attente — une salve de six coups ne peut donc
 jamais dépasser deux scènes d'affilée.
+
+**Multi-cibles : UNE scène, une vignette par cible** (2026-09-14). Une frappe
+balayée (*Fauchaison*, *Frénésie*) et un sort de zone (*Flamme hypnotique*,
+*Chant de guérison*) touchent plusieurs figures en un seul geste. Trois popups
+d'affilée pour une seule action noieraient la table — et la file n'en garde
+qu'une en attente de toute façon. Chaque cible est donc une vignette portant
+**son** issue. ⚠ `touches` ne publiait que le NOM de la créature : sans
+`instance_id` aucun portrait n'était résolvable, le nom affiché venant de
+l'habillage IA.
+
+**Une issue dit tout ce qui s'est passé, et pourquoi.** Un coup fatal rend
+« −2 PV · X est terrassé » et non le seul « terrassé » : le chiffre est la moitié
+de l'information (René). Un coup sans effet dit **pourquoi** — « manqué — aucun
+crâne » ou « paré — 2 boucliers » — sans quoi les deux se ressemblent trop pour
+qu'on apprenne quoi que ce soit du jet qu'on vient de voir. Un héros mis à terre
+« tombe », un monstre « est terrassé » : à 0 PV un héros reste relevable.
+
+**Le bandeau du MJ se replie** (`NarrationBand`, René 2026-09-14) : un récit de
+salle mange le tiers bas de l'écran. 86 px → 50 px, mesuré. ⚠ Il **revient tout
+seul au texte suivant** : un repli qui survivrait ferait taire le maître du jeu
+sans que personne ne s'en souvienne — même famille de défaut que la carte
+d'ouverture invisible, un état qui persiste au-delà de ce qu'il devait couvrir.
+⚠ Sa première version ne repliait RIEN : `.table-screen .narr` (spécificité
+0,2,0) écrasait `.narr-replie` (0,1,0). Les blocs `<style>` sont globaux ici, et
+c'est la collision que ces règles signalent depuis le début.
+
+⚠ **Une scène ne couvre QUE la zone carte** (`.map-wrap`), jamais la racine de
+l'écran. Elle capture les clics — c'est ainsi qu'on revient à la carte —, donc
+posée plus haut elle avalait aussi ceux destinés au bandeau du MJ, aux réglages
+et au menu d'urgence : cinq secondes d'interface inerte à chaque coup porté.
+Constaté en essayant de replier le bandeau pendant qu'une scène s'affichait.

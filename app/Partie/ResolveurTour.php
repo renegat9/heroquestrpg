@@ -4412,7 +4412,11 @@ final class ResolveurTour
                     (string) $sort->effet['condition_monstre'],
                     $this->sorts->dureeConditionMonstre($sort),
                 );
-                $touches[] = ['type' => 'monstre', 'nom' => $instance->nomAffiche(), 'de' => $de];
+                // ⚠ L'INSTANCE aussi : c'est elle qui porte le portrait, et le nom
+                // AFFICHÉ vient de l'habillage IA — il ne retrouve aucune ligne de
+                // catalogue. Lu par `SceneDeTable` (.table.scene).
+                $touches[] = ['type' => 'monstre', 'instance_id' => $instance->id,
+                    'nom' => $instance->nomAffiche(), 'de' => $de];
             }
         }
 

@@ -103,10 +103,12 @@ final class SceneDeTable
     {
         return match ($a['type'] ?? null) {
             'attaque', 'attaque_allie' => $this->attaqueDuGroupe($a, $acteur),
+            'attaque_balayee' => $this->attaqueBalayee($a, $acteur),
             'attaque_monstre' => $this->attaqueDuMonstre($a),
             'piege_declenche' => $this->piege($a, $acteur),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
+            'actionner_levier' => $this->levier($a, $acteur),
             'sort', 'parchemin' => $this->sort($a, $acteur),
             default => null,
         };
@@ -176,7 +178,7 @@ final class SceneDeTable
             ])),
             'jet' => $this->jetDesDes($a, $monstre, $cibleNom),
             'objets' => [],
-            'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee'])),
+            'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee']), heros: true),
         ];
     }
 
@@ -317,9 +319,23 @@ final class SceneDeTable
             ];
         }
 
-        // L'objet gagné, s'il y en a un : il mérite son illustration comme
-        // n'importe quelle trouvaille.
-        if (($objetId = (int) ($a['objet']['id'] ?? 0)) > 0
+        // Le MEUBLE fracassé : c'est lui le sujet du jet, il mérite son image.
+        if (($nomMeuble = (string) ($a['mobilier'] ?? '')) !== '') {
+            $type = Mobilier::where('nom', $nomMeuble)->first();
+            $objets[] = [
+                'nom' => $nomMeuble,
+                'image_url' => $this->images->urlMobilier($type?->id, $nomMeuble)
+                    ?? $this->images->vignette('mobilier', $type?->id ?? 0),
+                'detail' => empty($a['detruit']) ? null : 'fracassé',
+            ];
+        }
+
+        // ⚠ Le butin d'un meuble est NICHÉ sous `butin`, jamais à plat : le
+        // payload d'un jet porte déjà son propre `issue` (le résultat du DÉ), et
+        // les fusionner écrasait l'un par l'autre. On lit donc les deux niveaux.
+        $butin = (array) ($a['butin'] ?? []);
+
+        if (($objetId = (int) ($butin['objet']['id'] ?? $a['objet']['id'] ?? 0)) > 0
             && ($objet = Objet::find($objetId)) !== null) {
             $objets[] = [
                 'nom' => $objet->nom,
@@ -338,8 +354,99 @@ final class SceneDeTable
             'objets' => $objets,
             'issue' => [
                 'ton' => $reussi ? 'tresor' : 'echec',
-                'libelle' => $reussi ? $this->gainDuJet($a) : 'raté',
+                'libelle' => $reussi ? $this->gainDuJet($a + $butin) : 'raté',
             ],
+        ];
+    }
+
+    /**
+     * LEVIER actionné — le geste qui ouvre une porte hors de vue.
+     *
+     * ⚠ Le forçage est RETENTABLE SANS LIMITE, et le dire fait partie du
+     * message : sans cela un échec se lit comme un cul-de-sac, et le groupe
+     * s'éloigne d'un mécanisme qu'il aurait pu retenter. Même arbitrage que la
+     * ligne du fil de combat.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function levier(array $a, Personnage $acteur): ?array
+    {
+        $jet = (array) ($a['jet'] ?? []);
+        $ouvertes = count((array) ($a['portes_ouvertes'] ?? []));
+        $reussi = ! empty($a['force']);
+
+        return [
+            'genre' => 'jet',
+            'titre' => $acteur->nom.' actionne le levier',
+            'sous_titre' => (int) ($jet['succes'] ?? 0).' succès sur '
+                .(int) ($jet['difficulte'] ?? 0).' requis',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => null,
+            'objets' => [[
+                'nom' => 'Levier',
+                'image_url' => $this->images->urlLevier() ?? $this->images->vignette('levier', 'levier'),
+                'detail' => $reussi ? 'actionné' : 'il résiste',
+            ]],
+            'issue' => $reussi
+                ? ['ton' => 'tresor', 'libelle' => $ouvertes > 0
+                    ? $ouvertes.' porte'.($ouvertes > 1 ? 's' : '').' s\'ouvre'.($ouvertes > 1 ? 'nt' : '')
+                    : 'le passage était déjà ouvert']
+                : ['ton' => 'echec', 'libelle' => 'sans succès — on peut réessayer'],
+        ];
+    }
+
+    /**
+     * FRAPPE BALAYÉE — une attaque, plusieurs cibles (la *Fauchaison* du
+     * barbare, la *Frénésie* du berserker).
+     *
+     * ⚠ Une scène, pas une par cible : trois popups d'affilée pour un seul geste
+     * noieraient la table, et la file n'en garde de toute façon qu'une en
+     * attente. Chaque cible est une vignette avec SON issue.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function attaqueBalayee(array $a, Personnage $acteur): ?array
+    {
+        $frappes = array_values(array_filter((array) ($a['frappes'] ?? []), 'is_array'));
+
+        if ($frappes === []) {
+            return null;
+        }
+
+        $objets = [];
+        $touches = 0;
+
+        foreach ($frappes as $f) {
+            $degats = (int) ($f['degats'] ?? 0);
+            $touches += $degats > 0 ? 1 : 0;
+            $instanceId = (int) ($f['cible']['instance_id'] ?? 0);
+            $nom = (string) ($f['cible']['nom'] ?? 'cible');
+
+            $objets[] = [
+                'nom' => $nom,
+                'image_url' => $instanceId > 0
+                    ? $this->acteurMonstre($instanceId, $nom, 'cible')['image_url']
+                    : $this->images->vignette('monstre', $nom),
+                'detail' => $this->issueDuCoup($f, $degats, $nom, ! empty($f['cible_vaincue']))['libelle'],
+            ];
+        }
+
+        $vaincus = (int) ($a['vaincus'] ?? 0);
+
+        return [
+            'genre' => 'attaque',
+            'titre' => $acteur->nom.' — '.(string) ($a['capacite'] ?? 'frappe balayée'),
+            'sous_titre' => count($frappes).' ennemis au contact',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => null, // une volée PAR cible : elles sont dans les vignettes
+            'objets' => array_slice($objets, 0, 6),
+            'issue' => $vaincus > 0
+                ? ['ton' => 'mort', 'libelle' => $vaincus.' abattu'.($vaincus > 1 ? 's' : '')]
+                : ($touches > 0
+                    ? ['ton' => 'degats', 'libelle' => $touches.' touché'.($touches > 1 ? 's' : '')]
+                    : ['ton' => 'echec', 'libelle' => 'aucun coup ne porte']),
         ];
     }
 
@@ -366,6 +473,36 @@ final class SceneDeTable
         $parchemin = ($a['type'] ?? null) === 'parchemin';
 
         $acteurs = [$this->acteurHeros($acteur, 'acteur')];
+        $objets = [[
+            'nom' => $nomSort,
+            'image_url' => $this->images->urlSort($sortId ?: null, $nomSort)
+                ?? $this->images->vignette('sort', $sortId ?: $nomSort),
+            'detail' => $a['sort']['type'] ?? null,
+        ]];
+
+        // ⚠ SORT DE ZONE : il touche toute une salle, ou tous les héros en vue
+        // (Flamme hypnotique, Chant de guérison). Une seule `cible` ne dirait
+        // rien de ce qui vient de se passer — on aligne donc toutes les figures
+        // atteintes, chacune avec ce qu'elle a pris.
+        $zone = $this->ciblesDeZone($a);
+
+        if ($zone !== []) {
+            foreach ($zone as $touchee) {
+                $objets[] = $touchee;
+            }
+
+            return [
+                'genre' => 'sort',
+                'titre' => $acteur->nom.' lance '.$nomSort,
+                'sous_titre' => count($zone).' figure'.(count($zone) > 1 ? 's' : '').' atteinte'
+                    .(count($zone) > 1 ? 's' : ''),
+                'acteurs' => $acteurs,
+                'jet' => null,
+                'objets' => array_slice($objets, 0, 6),
+                'issue' => ['ton' => isset($a['soignes']) ? 'tresor' : 'degats',
+                    'libelle' => $nomSort.' balaie la salle'],
+            ];
+        }
 
         // La cible, quand il y en a une : un monstre visé, ou un héros soigné.
         if (($instanceId = (int) ($a['cible']['instance_id'] ?? 0)) > 0) {
@@ -383,12 +520,7 @@ final class SceneDeTable
                 : (($e = (string) ($a['sort']['element'] ?? '')) !== '' ? ucfirst($e) : null),
             'acteurs' => $acteurs,
             'jet' => $this->jetDesDes($a, $nomSort, (string) ($cibleNom ?? 'la cible')),
-            'objets' => [[
-                'nom' => $nomSort,
-                'image_url' => $this->images->urlSort($sortId ?: null, $nomSort)
-                    ?? $this->images->vignette('sort', $sortId ?: $nomSort),
-                'detail' => $a['sort']['type'] ?? null,
-            ]],
+            'objets' => $objets,
             'issue' => match (true) {
                 ! empty($a['cible_vaincue']) => ['ton' => 'mort', 'libelle' => $cibleNom.' est foudroyé'],
                 $degats > 0 => ['ton' => 'degats', 'libelle' => "−{$degats} PV"],
@@ -396,6 +528,49 @@ final class SceneDeTable
                 default => ['ton' => 'info', 'libelle' => $nomSort.' opère'],
             },
         ];
+    }
+
+    /**
+     * Les figures atteintes par un sort de ZONE, chacune avec ce qu'elle a pris.
+     *
+     * Deux formes selon le sort : `touches` (monstres — Flamme hypnotique) et
+     * `soignes` (héros — Chant de guérison). Le moteur les publie telles, on ne
+     * fait que les habiller.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array<string, mixed>>
+     */
+    private function ciblesDeZone(array $a): array
+    {
+        $out = [];
+
+        foreach ((array) ($a['touches'] ?? []) as $t) {
+            if (! is_array($t)) {
+                continue;
+            }
+            $id = (int) ($t['instance_id'] ?? 0);
+            $nom = (string) ($t['nom'] ?? 'cible');
+            $out[] = [
+                'nom' => $nom,
+                'image_url' => $id > 0
+                    ? $this->acteurMonstre($id, $nom, 'cible')['image_url']
+                    : $this->images->vignette('monstre', $nom),
+                'detail' => 'atteint',
+            ];
+        }
+
+        foreach ((array) ($a['soignes'] ?? []) as $s) {
+            if (! is_array($s) || ($heros = Personnage::find((int) ($s['personnage_id'] ?? 0))) === null) {
+                continue;
+            }
+            $out[] = [
+                'nom' => (string) ($s['nom'] ?? $heros->nom),
+                'image_url' => $this->images->urlHeros($heros->id, $heros->classe),
+                'detail' => '+'.(int) ($s['soin'] ?? 0).' PV',
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -614,10 +789,16 @@ final class SceneDeTable
      * @param  array<string, mixed>  $a
      * @return array{ton: string, libelle: string}
      */
-    private function issueDuCoup(array $a, int $degats, string $cible, bool $vaincue): array
+    private function issueDuCoup(array $a, int $degats, string $cible, bool $vaincue, bool $heros = false): array
     {
+        // ⚠ Les DÉGÂTS **et** la mise hors de combat (René, 2026-09-14 : « tu
+        // affiches −2 PV, mais faudrait-il pas afficher −2 PV, l'adversaire est
+        // défait ? »). Un coup fatal disait seulement « est terrassé » : on
+        // perdait le chiffre, qui est la moitié de l'information.
         if ($vaincue) {
-            return ['ton' => 'mort', 'libelle' => "{$cible} est terrassé"];
+            $chute = $heros ? "{$cible} tombe" : "{$cible} est terrassé";
+
+            return ['ton' => 'mort', 'libelle' => $degats > 0 ? "−{$degats} PV · {$chute}" : $chute];
         }
         if ($degats > 0) {
             return ['ton' => 'degats', 'libelle' => "−{$degats} PV"];
@@ -625,10 +806,16 @@ final class SceneDeTable
 
         // ⚠ MANQUÉ ≠ PARÉ, la même distinction que le journal : un joueur
         // concluait que l'armure adverse était trop bonne quand c'étaient ses
-        // propres dés qui avaient échoué.
+        // propres dés qui avaient échoué. Et on DIT POURQUOI : sans le compte,
+        // « paré » et « manqué » se ressemblent trop pour qu'on apprenne quoi
+        // que ce soit du jet qu'on vient de voir.
+        $boucliers = (int) ($a['boucliers'] ?? 0);
+
         return (int) ($a['touches'] ?? 0) === 0
-            ? ['ton' => 'echec', 'libelle' => 'manqué']
-            : ['ton' => 'echec', 'libelle' => 'paré'];
+            ? ['ton' => 'echec', 'libelle' => 'manqué — aucun crâne']
+            : ['ton' => 'echec', 'libelle' => $boucliers > 0
+                ? "paré — {$boucliers} bouclier".($boucliers > 1 ? 's' : '')
+                : 'paré'];
     }
 
     /**

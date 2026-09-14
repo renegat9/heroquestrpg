@@ -662,14 +662,6 @@ watch(() => store.state.clotureTerminee, (t) => {
                 :titre="sousTitre"
             />
 
-            <!-- Scène illustrée de l'événement : se pose DANS la zone carte,
-                 sans la recouvrir — la carte, les figurines et les PV restent
-                 lisibles autour (arbitrage du 2026-09-05). -->
-            <SceneEvenement
-                v-if="sceneVisible"
-                :scene="sceneCourante"
-                @fermer="fermerScene"
-            />
             <!-- bandeau haut -->
             <div class="top">
                 <img v-if="enQuete && sceneImage" :src="sceneImage" alt="" class="scene-vignette" />
@@ -728,6 +720,19 @@ watch(() => store.state.clotureTerminee, (t) => {
             <!-- zone principale : carte + groupe -->
             <div class="main">
                 <div class="map-wrap">
+                    <!-- Scène illustrée de l'événement.
+                         ⚠ DANS `.map-wrap`, pas à la racine de l'écran : elle
+                         capture les clics (c'est ainsi qu'on revient à la
+                         carte), donc posée plus haut elle avalait AUSSI ceux
+                         destinés au bandeau du MJ, aux réglages et au menu
+                         d'urgence — cinq secondes d'interface inerte à chaque
+                         coup porté. Constaté en essayant de replier le bandeau
+                         pendant qu'une scène s'affichait. -->
+                    <SceneEvenement
+                        v-if="sceneVisible"
+                        :scene="sceneCourante"
+                        @fermer="fermerScene"
+                    />
                     <div class="torchspot" style="left: 8%; top: 20%" />
                     <div class="torchspot" style="right: 14%; bottom: 14%; animation-delay: 1.2s" />
                     <!-- phase marché (mode connecté) : vue partagée des paniers -->
