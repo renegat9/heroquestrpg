@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Agent\Memoire\ContexteAssembleur;
+use App\Agent\Skills\HabillageMonstres;
+use App\Jobs\GenererBarksBoss;
+use App\Jobs\GenererImagesQuete;
+use App\Jobs\GenererRecitsQuete;
+use App\Jobs\HabillerMonstres;
 use App\Models\Quete;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -164,4 +171,30 @@ it("n'écrase pas ce que la partie a posé pendant que le LLM répond", function
         // …ET la condition écrite entre-temps a survécu.
         ->and(app(App\Partie\MoteurSorts::class)
             ->monstreA($instance->fresh(), App\Partie\MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeTrue();
+});
+
+it("relance la séquence d'ouverture même quand l'appel d'habillage échoue", function () {
+    // ⚠ DÉFAUT MESURÉ, signalé par René le 2026-09-13. Le `catch` était le SEUL
+    // des quatre chemins de sortie de `handle()` à ne pas relancer la chaîne :
+    // un habillage en échec — timeout, quota, 500 du fournisseur — coûtait à la
+    // quête son OUVERTURE plein cadre, sa scène, ses barks et le portrait du
+    // boss, sans une ligne d'erreur côté joueur. La barre de préparation restait
+    // même figée sur « habillage » pour le reste de la partie, puisque seul
+    // GenererVoixQuete diffuse l'étape « pret ».
+    //
+    // L'habillage est un ORNEMENT : la mise en scène de la quête n'en dépend
+    // pas. Sans lui, RecitsQuete retombe sur les noms de catalogue.
+    fakeHabillage();
+    [, $groupe, , $quete] = demarrerQueteSimple();
+
+    Bus::fake();
+
+    $skill = Mockery::mock(HabillageMonstres::class);
+    $skill->shouldReceive('generer')->andThrow(new RuntimeException('LLM injoignable'));
+
+    (new HabillerMonstres($groupe->id, $quete->id))->handle($skill, app(ContexteAssembleur::class));
+
+    Bus::assertDispatched(GenererRecitsQuete::class);   // l'ouverture de quête
+    Bus::assertDispatched(GenererImagesQuete::class);   // scène + portrait de boss
+    Bus::assertDispatched(GenererBarksBoss::class);
 });

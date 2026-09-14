@@ -57,10 +57,9 @@ class HabillerMonstres implements ShouldQueue
         if ($blocs->isEmpty()) {
             // Aucun monstre à habiller (budget de rencontres à 0, quête
             // atypique) : les salles restent à décrire quand même — un donjon
-            // sans monstre a toujours des lieux et du mobilier. Même séquence
-            // d'ouverture que la sortie nominale : la scène avant les récits.
-            GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'scene');
-            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
+            // sans monstre a toujours des lieux et du mobilier. Sans boss, pas
+            // de barks ni de portrait de boss à générer.
+            $this->chainerOuverture(avecBoss: false);
 
             return;
         }
@@ -84,22 +83,28 @@ class HabillerMonstres implements ShouldQueue
                 'erreur' => $e->getMessage(),
             ]);
 
+            // ⚠ La chaîne repart QUAND MÊME. C'était le SEUL des quatre chemins
+            // de sortie à ne pas la relancer (René, 2026-09-13) : un appel
+            // d'habillage en échec — timeout, quota, 500 du fournisseur — coûtait
+            // à la quête son OUVERTURE, sa scène, ses barks et le portrait du
+            // boss, en silence ; et la barre de préparation restait figée sur
+            // « habillage » jusqu'à la fin de la quête, puisque seul
+            // GenererVoixQuete diffuse l'étape « pret ». L'habillage est un
+            // ornement, la mise en scène de la quête n'en dépend pas : sans lui,
+            // RecitsQuete retombe simplement sur les noms de catalogue.
+            $this->chainerOuverture(avecBoss: true);
+
             return;
         }
 
         $habillages = collect($sortie['habillages'] ?? [])->keyBy(fn ($h) => (int) $h['monstre_id']);
 
         if ($habillages->isEmpty()) {
-            // Même séquence d'ouverture que la sortie nominale (voir plus bas
-            // pour la raison) : scène, puis récits, puis le reste. Sans
-            // habillage, RecitsQuete retombe sur les noms de catalogue.
-            GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'scene');
-            GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
+            // Sortie vide du skill : rien à appliquer, mais la quête s'ouvre
+            // comme les autres — RecitsQuete retombe sur les noms de catalogue.
+            $this->chainerOuverture(avecBoss: true);
 
-            GenererBarksBoss::dispatch($this->queteId); // barks sur noms de catalogue
-            GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'boss');
-
-            return; // repli : rien à appliquer.
+            return;
         }
 
         foreach ($blocs as $instance) {
@@ -135,26 +140,47 @@ class HabillerMonstres implements ShouldQueue
         // La table rafraîchit les noms affichés.
         broadcast(new EtatGroupeDiffuse($groupe, app(EtatGroupe::class)->payload($groupe->fresh())));
 
-        // ⚠ L'ORDRE DE CES TROIS DISPATCHS EST LA SÉQUENCE D'OUVERTURE DE LA
-        // QUÊTE. Ils partagent la file `default`, donc l'ordre de dispatch EST
-        // l'ordre d'exécution.
-        //
-        // 1. L'IMAGE DE SCÈNE d'abord : l'écran de table ouvre la quête sur une
-        //    carte plein cadre — illustration + texte de mise en scène (René,
-        //    2026-08-21). Sans elle, cette carte n'aurait jamais son image sur
-        //    une première quête, ce qui la viderait de sa raison d'être.
-        GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'scene');
+        $this->chainerOuverture(avecBoss: true);
+    }
 
-        // 2. Les RÉCITS, qui doivent citer les monstres par leur nom HABILLÉ
-        //    (d'où le chaînage ici, après l'application ci-dessus). Ils
-        //    déclenchent l'ouverture une fois écrits.
-        //    ⚠ Ils passent devant les PORTRAITS : chronométré en campagne
-        //    réelle (2026-08-20), le pack attendait deux générations d'images
-        //    et n'arrivait qu'à t+4 min, laissant la quête se jouer quatre
-        //    minutes sur le repli générique.
+    /**
+     * Séquence d'ouverture de la quête — le SEUL point de passage, appelé par
+     * les QUATRE sorties de `handle()` (nominale, sortie vide, donjon sans
+     * monstre, échec de l'appel).
+     *
+     * ⚠ C'est cette unicité qui est le correctif du 2026-09-13 : la séquence
+     * était recopiée sur trois sorties et ABSENTE de la quatrième — celle du
+     * `catch` —, si bien qu'un habillage en échec privait la quête de son
+     * ouverture sans que rien ne le signale. Trois copies d'une règle, et la
+     * seule qui manquait était celle qu'on ne regardait jamais.
+     *
+     * ⚠ L'ORDRE EST LA SÉQUENCE. Ces jobs partagent la file `default`, donc
+     * l'ordre de dispatch EST l'ordre d'exécution.
+     *
+     * 1. L'IMAGE DE SCÈNE d'abord : l'écran de table ouvre la quête sur une
+     *    carte plein cadre — illustration + texte de mise en scène (René,
+     *    2026-08-21). Sans elle, cette carte n'aurait jamais son image sur une
+     *    première quête, ce qui la viderait de sa raison d'être.
+     * 2. Les RÉCITS, qui doivent citer les monstres par leur nom HABILLÉ (d'où
+     *    le chaînage APRÈS l'application, côté sortie nominale). Ils déclenchent
+     *    l'ouverture une fois écrits. ⚠ Ils passent devant les PORTRAITS :
+     *    chronométré en campagne réelle (2026-08-20), le pack attendait deux
+     *    générations d'images et n'arrivait qu'à t+4 min, laissant la quête se
+     *    jouer quatre minutes sur le repli générique.
+     * 3. Le reste, pur habillage, en arrière-plan.
+     *
+     * @param  bool  $avecBoss  faux quand la quête n'a AUCUN monstre : ni barks
+     *                          ni portrait de boss à générer.
+     */
+    private function chainerOuverture(bool $avecBoss): void
+    {
+        GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'scene');
         GenererRecitsQuete::dispatch($this->groupeId, $this->queteId);
 
-        // 3. Le reste, pur habillage, en arrière-plan.
+        if (! $avecBoss) {
+            return;
+        }
+
         GenererBarksBoss::dispatch($this->queteId);
         GenererImagesQuete::dispatch($this->groupeId, $this->queteId, 'boss');
     }

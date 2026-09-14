@@ -34,3 +34,19 @@
 
 **The "MJ réfléchit" lock must always self-heal.** `MjReflechit` freezes every controller until the **table** reports it finished reading the narration (`POST /table/lecture-terminee` — the B1 lock, deliberate: players don't act before the narrator has spoken). The server-side cache expires on its own (90 s), but **that expiry reaches no client**: `.groupe.etat` is only broadcast on a mutation, and nobody mutates while everyone believes they are frozen — a deadlock that stopped a whole playtest. `ManetteView` therefore force-thaws after 30 s **and re-reads `/etat`**, because thawing the buttons alone left the "MJ réfléchit" banner up and the turn never visibly returned. Never remove either half. ⚠ Since 2026-08-18 the lock covers only the table's **reading** time, not a generation — narration is resolved synchronously from the pre-generated pack. The B1 semantics are unchanged and deliberate; every site that raises it also lowers it when no récit is found.
 
+**La séquence d'ouverture d'une quête a UN seul point de passage**
+(`HabillerMonstres::chainerOuverture()`, 2026-09-13). Elle enchaîne, dans cet
+ordre et sur la même file : image de **scène**, puis **récits** — ce sont eux qui
+diffusent l'ouverture plein cadre —, puis barks et portrait du boss. Elle était
+recopiée sur **trois** des quatre sorties de `handle()` et **absente de la
+quatrième**, celle du `catch` : un appel d'habillage en échec — timeout, quota,
+500 du fournisseur — privait donc la quête de son ouverture, de sa scène, de ses
+barks et du portrait du boss, **en silence**, et laissait la barre de préparation
+figée sur « habillage » jusqu'à la fin de la partie (seul `GenererVoixQuete`
+diffuse l'étape `pret`). ⚠ L'habillage est un **ornement** : la mise en scène ne
+doit jamais en dépendre — sans lui, `RecitsQuete` retombe simplement sur les noms
+de catalogue. ⚠ Trois copies d'une règle, et la seule qui manquait était celle
+qu'on ne regardait jamais : c'est la raison d'être du point de passage unique, pas
+un détail de style. Verrouillé par `HabillageMonstresTest` (« relance la séquence
+d'ouverture même quand l'appel d'habillage échoue »), vérifié en le confrontant au
+code fautif — il échoue dessus.
