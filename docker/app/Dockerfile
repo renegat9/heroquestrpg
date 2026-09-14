@@ -2,8 +2,14 @@
 FROM php:8.3-fpm-alpine
 
 # Dépendances système
+#  - libwebp-tools : le binaire `cwebp`. PHP n'a ici ni gd ni imagick, et toute
+#    image générée doit avoir son jumeau .webp (~4 % du poids du PNG, servi en
+#    priorité par BibliothequeImages::url()). Tant que la conversion vivait dans
+#    `image-tools/webp.sh`, c'était une ÉTAPE à penser après coup — et des
+#    illustrations de quête sont restées servies en 1,3 Mo faute de l'avoir
+#    relancé. Elle se fait désormais à l'écriture, dans le conteneur.
 RUN apk add --no-cache \
-    git curl zip unzip icu-dev libzip-dev oniguruma-dev linux-headers $PHPIZE_DEPS
+    git curl zip unzip icu-dev libzip-dev oniguruma-dev linux-headers libwebp-tools $PHPIZE_DEPS
 
 # Extensions PHP nécessaires au projet
 #  - pdo_mysql : MariaDB

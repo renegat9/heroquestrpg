@@ -75,12 +75,12 @@ final class GenererImages extends Command
                 continue;
             }
 
-            $dossier = dirname($fichier);
-            if (! is_dir($dossier)) {
-                mkdir($dossier, 0775, true);
-            }
-
-            file_put_contents($fichier, $octets);
+            // ⚠ Écrire par la bibliothèque, jamais en direct : c'est elle qui
+            // crée le dossier ET le jumeau .webp. Cette commande posait son PNG
+            // avec un `file_put_contents` à elle, donc sans jumeau — il fallait
+            // penser à relancer `image-tools/webp.sh` derrière, et c'est
+            // précisément l'étape qu'on oublie.
+            $biblio->enregistrer($cible['rel'], $octets);
             $this->line('✓ '.$cible['rel'].'  ('.round(strlen($octets) / 1024).' Ko)');
             $faits++;
         }

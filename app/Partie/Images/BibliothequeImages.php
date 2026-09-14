@@ -209,7 +209,19 @@ final class BibliothequeImages
         return ['rel' => $rel, 'absolu' => public_path("images/{$rel}"), 'url' => "/images/{$rel}"];
     }
 
-    /** Écrit un asset (crée le dossier) ; renvoie son URL publique. */
+    /**
+     * Écrit un asset (crée le dossier) ; renvoie son URL publique.
+     *
+     * ⚠ **Point de passage UNIQUE de toute image générée**, et c'est ce qui
+     * permet au jumeau `.webp` de naître AVEC elle plutôt que d'être une étape
+     * à penser après coup (`image-tools/webp.sh`). La suppression connaissait
+     * déjà le jumeau — {@see self::effacerDyn()} efface les deux — ; seule la
+     * création l'ignorait, et des illustrations de quête sont restées servies
+     * en 1,3 Mo faute d'avoir relancé le script (René, 2026-09-13).
+     *
+     * La conversion est best-effort : sans `cwebp`, on garde le PNG et
+     * {@see self::url()} le sert tel quel.
+     */
     public function enregistrer(string $rel, string $octets): string
     {
         $absolu = public_path("images/{$rel}");
@@ -217,6 +229,8 @@ final class BibliothequeImages
             mkdir(dirname($absolu), 0775, true);
         }
         file_put_contents($absolu, $octets);
+
+        app(ConvertisseurWebp::class)->jumeler($absolu);
 
         return "/images/{$rel}";
     }

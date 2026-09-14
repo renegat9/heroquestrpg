@@ -16,3 +16,24 @@
 
 **Every generated PNG needs its `.webp` twin — run `image-tools/webp.sh` after `images:generer`.** `BibliothequeImages::url()` serves the `.webp` when it exists and falls back to the PNG otherwise, so a missing twin breaks nothing and simply makes the screen **thirty times heavier** — the market went to ~46 MB on a phone before the twins were made (measured 2026-08-22; the mechanism itself dates from René's 2026-08-07 report, "la tablette prend vraiment du temps à charger"). 1024×1024 PNGs weigh ~1.3 MB, their webp ~50 KB. PHP here has **neither gd nor imagick**, so this cannot be an artisan command — it runs in a throwaway container like the audio tools, and ⚠ `apk add` needs root while the files must belong to the host, hence the `su-exec` dance in the script's header (a plain `-u $(id -u)` fails on "Unable to lock database"). The PNG stays the source and is never touched, so `--force` can replay a different quality.
 
+**Le jumeau `.webp` naît AVEC l'image, ce n'est plus une étape**
+(`ConvertisseurWebp`, appelé par `BibliothequeImages::enregistrer()`, 2026-09-13).
+`image-tools/webp.sh` était un script à relancer *après* coup — donc un geste à
+penser, donc un geste oublié : les illustrations des quêtes 98 et 99 sont restées
+servies en 1,3 Mo là où 52 et 71 Ko suffisaient. C'est le même défaut de forme que
+le ménage des campagnes de harnais : ce qui manquait n'était pas un moyen de
+savoir QUOI convertir, c'était le geste lui-même. ⚠ `docker/app/Dockerfile`
+embarque désormais `libwebp-tools` (PHP n'a toujours ni gd ni imagick) — **les
+quatre services `app`/`queue`/`queue-jeu`/`reverb` ont leur propre image et
+doivent toutes être reconstruites**, or ce sont les *queues* qui génèrent les
+illustrations. ⚠ La conversion reste **best-effort** : sans `cwebp`, on garde le
+PNG et `url()` le sert tel quel — une génération d'image ne doit jamais échouer
+parce qu'un outil de compression manque. ⚠ `images:generer` écrivait son PNG avec
+un `file_put_contents` à elle : **deux écritures pour une seule règle**, et
+celle-là n'en avait pas ; elle passe maintenant par `enregistrer()`.
+⚠ **Un test qui écrit dans le vrai `public/` peut le détruire** : la première
+version de ces tests a lancé `images:generer --force` sur l'arbre de travail et
+écrasé les quatre PNG de portes du catalogue avec 8 octets factices — sans que
+rien ne le signale, l'écran restant juste puisque les jumeaux `.webp` intacts
+étaient servis. Les PNG ont été reconstruits depuis ces jumeaux (`dwebp`), et les
+tests détournent désormais `public_path()` vers un dossier jetable.

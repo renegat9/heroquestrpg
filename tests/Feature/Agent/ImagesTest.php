@@ -7,6 +7,7 @@ use App\Agent\Image\ImageGemini;
 use App\Jobs\GenererImageHub;
 use App\Models\Parametre;
 use App\Partie\Images\BibliothequeImages;
+use App\Partie\Images\ConvertisseurWebp;
 use Illuminate\Support\Facades\Http;
 
 it('appelle Gemini image et renvoie les octets PNG décodés', function () {
@@ -147,4 +148,98 @@ it('préfère le jumeau WebP quand il existe, sans casser le repli PNG', functio
     @unlink($png);
     @unlink($webp);
     expect($lib->url('catalogue/classes/testwebp.png'))->toBeNull();
+});
+
+/**
+ * ⚠ Le jumeau .webp naît AVEC l'image, il n'est plus une étape à penser
+ * (René, 2026-09-13 : « ne faudrait-il pas toujours convertir les images quand
+ * elles sont générées ? »). Les scènes des quêtes 98 et 99 sont restées servies
+ * en 1,3 Mo parce que `image-tools/webp.sh` n'avait pas été relancé derrière.
+ *
+ * On teste que le CONVERTISSEUR EST APPELÉ, pas que le fichier existe : la suite
+ * tourne dans un conteneur `composer:2` qui n'a pas `cwebp`, et c'est justement
+ * pour ça que la conversion doit rester best-effort côté production.
+ */
+function espionWebp(): object
+{
+    $espion = new class extends ConvertisseurWebp
+    {
+        /** @var list<string> */
+        public array $jumeles = [];
+
+        public function jumeler(string $absolu): bool
+        {
+            $this->jumeles[] = $absolu;
+
+            return true;
+        }
+    };
+    app()->instance(ConvertisseurWebp::class, $espion);
+
+    return $espion;
+}
+
+/**
+ * Détourne `public_path()` vers un dossier jetable.
+ *
+ * ⚠ INDISPENSABLE, et payé cash : la première version de ces tests lançait
+ * `images:generer --force` sur le VRAI public/, et a écrasé les quatre PNG de
+ * portes du catalogue avec les 8 octets factices de la fausse réponse HTTP.
+ * Rien ne l'a signalé — l'écran restait juste, `BibliothequeImages::url()`
+ * servant le jumeau .webp intact. Un test qui écrit dans l'arbre de travail est
+ * un test qui peut le détruire.
+ */
+function publicJetable(): string
+{
+    $dossier = sys_get_temp_dir().'/hq-images-'.bin2hex(random_bytes(4));
+    mkdir($dossier.'/images', 0775, true);
+    app()->usePublicPath($dossier);
+
+    return $dossier;
+}
+
+it('jumelle en .webp toute image écrite par la bibliothèque', function () {
+    publicJetable();
+    $espion = espionWebp();
+
+    $url = (new BibliothequeImages)->enregistrer('dyn/quete/4242.png', 'PNGBYTES');
+
+    expect($url)->toBe('/images/dyn/quete/4242.png')
+        ->and($espion->jumeles)->toBe([public_path('images/dyn/quete/4242.png')]);
+});
+
+it('jumelle aussi les images du catalogue (images:generer passe par la bibliothèque)', function () {
+    // ⚠ La commande posait son PNG avec un `file_put_contents` à elle, donc sans
+    // jumeau : deux écritures pour une seule règle, et celle-ci n'en avait pas.
+    publicJetable();
+    config()->set('services.gemini.api_key', 'cle-test');
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [
+                ['inlineData' => ['mimeType' => 'image/png', 'data' => base64_encode('PNGBYTES')]],
+            ]]]],
+        ]),
+    ]);
+    $espion = espionWebp();
+
+    $this->artisan('images:generer', ['--type' => 'portes', '--force' => true])->assertSuccessful();
+
+    expect($espion->jumeles)->not->toBeEmpty();
+    foreach ($espion->jumeles as $chemin) {
+        expect($chemin)->toEndWith('.png')->and($chemin)->toStartWith(public_path('images/'));
+    }
+});
+
+it('sans cwebp, la conversion échoue en silence et le PNG reste servi', function () {
+    // Le conteneur de test n'a pas le binaire : c'est le cas nominal ici, et il
+    // doit rendre false sans lever — une génération d'image ne doit jamais
+    // échouer parce qu'un outil de compression manque.
+    publicJetable();
+    $conv = new ConvertisseurWebp;
+    $png = public_path('images/dyn/quete/4243.png');
+    @mkdir(dirname($png), 0775, true);
+    file_put_contents($png, 'PNGBYTES');
+
+    expect($conv->jumeler($png))->toBe($conv->disponible() && is_file(public_path('images/dyn/quete/4243.webp')))
+        ->and(is_file($png))->toBeTrue(); // le PNG survit dans tous les cas
 });
