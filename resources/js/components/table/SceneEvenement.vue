@@ -111,7 +111,7 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
     border: var(--line-strong); border-radius: var(--r-xl, 18px);
     box-shadow: 0 18px 60px rgba(0, 0, 0, .55), var(--sh-3);
     padding: 20px 26px 18px; text-align: center;
-    min-width: 380px; max-width: min(620px, 74%);
+    min-width: 380px; max-width: min(760px, 82%);
 }
 
 .scn-titre {
@@ -131,7 +131,8 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
 .scn-acteur figcaption { display: flex; flex-direction: column; gap: 1px; margin-top: 7px; }
 .scn-nom { font-size: 13.5px; font-weight: 700; color: var(--ink-100); }
 .scn-pv { font-size: 11.5px; color: var(--ink-500); font-variant-numeric: tabular-nums; }
-.scn-detail { font-size: 11px; color: var(--ink-500); }
+.scn-detail { font-size: 11.5px; color: var(--ink-400, #9aa4b2); line-height: 1.35;
+    font-variant-numeric: tabular-nums; }
 
 .scn-vs {
     position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
@@ -140,13 +141,17 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
     padding: 2px 9px; letter-spacing: .04em;
 }
 
-.scn-objets { display: flex; justify-content: center; gap: 16px; margin: 14px 0 2px; flex-wrap: wrap; }
+.scn-objets { display: flex; justify-content: center; gap: 20px; margin: 16px 0 2px;
+    flex-wrap: wrap; align-items: flex-start; }
 .scn-objet { margin: 0; }
 .scn-objet img {
     width: 88px; height: 88px; object-fit: cover; display: block;
     border-radius: 10px; border: var(--line-strong); background: var(--stone-950);
 }
-.scn-objet figcaption { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; max-width: 132px; }
+.scn-objet figcaption { display: flex; flex-direction: column; gap: 2px; margin-top: 7px;
+    /* ⚠ Assez large pour un bloc de stats (« Att 3 · Déf 2 · 1 PV · dépl. 8 »)
+       ou deux effets d'objet : à 132 px le texte se coupait en trois lignes. */
+    max-width: 190px; }
 
 .scn-issue {
     font-family: var(--font-display); font-size: 16px; font-weight: 700;

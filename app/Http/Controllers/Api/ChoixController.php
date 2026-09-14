@@ -18,6 +18,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\JournalCombat;
 use App\Partie\SceneDeTable;
+use App\Partie\TamponScenes;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Partie\ResolveurTour;
 use App\Support\Journal;
@@ -171,6 +172,13 @@ class ChoixController extends Controller
             foreach ($scenesDeTable->depuisResultat($resultat, $personnage) as $scene) {
                 broadcast(new SceneTable($groupe, $scene, $sequence));
             }
+
+            // ⚠ PUIS ce qui est né PENDANT la résolution — une chute, un
+            // relèvement. Ces scènes-là viennent d'un observateur qui se
+            // déclenche au moment où les PV touchent zéro, donc AVANT que
+            // l'action soit finie : sans ce report, la table montrait le héros à
+            // terre avant le coup qui l'y avait mis.
+            app(TamponScenes::class)->vider();
         } else {
             $resultat = [
                 'type' => $option['type'] ?? 'action',

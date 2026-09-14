@@ -31,6 +31,12 @@ class AppServiceProvider extends ServiceProvider
         // déterministe en test (le moteur fait autorité sur toute mécanique).
         $this->app->bind(LanceurDes::class, LanceurAleatoire::class);
 
+        // Tampon des scènes de table (App\Partie\TamponScenes) : SINGLETON, et
+        // c'est tout son fonctionnement — l'observateur de chute y dépose
+        // pendant la résolution, le contrôleur y puise après. Deux instances,
+        // et le tampon serait toujours vide au moment de le vider.
+        $this->app->singleton(TamponScenes::class);
+
         // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
         // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
         // compteur de tentative) doit survivre entre l'annonce du contexte et

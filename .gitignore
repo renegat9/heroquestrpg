@@ -81,3 +81,5 @@ browser-shots/jd-*.json
 /docs/livret/.*.pdf
 /public/livret/
 /browser-shots/livret/
+/browser-shots/valider/
+/browser-shots/valider2/

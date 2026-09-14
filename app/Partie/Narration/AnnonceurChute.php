@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace App\Partie\Narration;
 
 use App\Events\NarrationDiffusee;
-use App\Events\SceneTable;
 use App\Models\EtatPersonnageQuete;
-use App\Models\Evenement;
 use App\Partie\SceneDeTable;
+use App\Partie\TamponScenes;
 use App\Support\Journal;
 
 /**
@@ -39,15 +38,22 @@ final class AnnonceurChute
 
         // SCÈNE de chute/relèvement pour l'écran de table (.table.scene) : la
         // figure en grand, au moment qui compte le plus d'une partie.
+        //
+        // ⚠ MISE EN TAMPON, pas diffusée ici. Cet observateur se déclenche au
+        // moment exact où les PV touchent zéro — AU MILIEU de la résolution du
+        // tour —, alors que la scène de l'attaque ne part qu'une fois le tour
+        // entier résolu. Diffuser tout de suite montrait le héros à terre AVANT
+        // le coup qui l'y avait mis (René, 2026-09-14). Le tampon rend l'ordre
+        // au récit : l'attaque, puis la chute.
+        //
         // ⚠ AVANT le retour anticipé ci-dessous : la scène ne doit pas dépendre
         // de l'existence d'une variante de narration. Deux promesses distinctes,
         // deux conditions distinctes — les accrocher l'une à l'autre est
         // exactement ce qui avait rendu la carte d'ouverture de quête invisible.
-        broadcast(new SceneTable(
+        app(TamponScenes::class)->ajouter(
             $groupe,
             app(SceneDeTable::class)->chute($heros, $cle === 'heros_tombe'),
-            (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
-        ));
+        );
 
         $recit = $this->narration->pourQuete($quete, $cle, ['heros' => $heros->nom]);
 

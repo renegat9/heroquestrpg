@@ -139,7 +139,11 @@ it('montre ce que la fouille a sorti du paquet', function () {
 
     expect($scene['genre'])->toBe('fouille')
         ->and($scene['objets'][0]['nom'])->toBe($objet->nom)
-        ->and($scene['issue']['ton'])->toBe('tresor');
+        ->and($scene['issue']['ton'])->toBe('tresor')
+        // ⚠ L'issue dit ce qui s'est PASSÉ ; le nom de l'objet est déjà écrit
+        // sous son illustration, le répéter faisait doublon à l'écran.
+        ->and($scene['issue']['libelle'])->not->toBe($objet->nom)
+        ->and($scene['issue']['libelle'])->toContain('empoche');
 });
 
 it('reste MUET sur ce qui ne se montre pas', function () {
@@ -340,4 +344,105 @@ it('accorde l\'issue d\'une salle avec le nombre de créatures', function () {
         ->and($scenes->salle($quete->fresh(), 0, [$un])['issue']['libelle'])->toBe('Elle vous a vus')
         ->and($scenes->salle($quete->fresh(), 0, [$un, sceneInstanceMonstre()])['issue']['libelle'])
         ->toBe('Elles vous ont vus');
+});
+
+it('affiche les EFFETS d\'un objet trouvé, pas seulement sa catégorie', function () {
+    // ⚠ Les phrases viennent de `MotsClesEquipement::avantages()`, le vocabulaire
+    // déjà utilisé par l'étal, le sac et le menu d'action. En réécrire ici ferait
+    // dériver l'écran de table au premier mot-clé qui change.
+    $epee = App\Models\Objet::where('nom', 'Épée large')->firstOrFail();
+
+    $scene = scenesDe([
+        'type' => 'fouille_mobilier', 'issue' => 'objet',
+        'objet' => ['id' => $epee->id, 'nom' => $epee->nom, 'categorie' => $epee->categorie],
+    ])[0];
+
+    expect($scene['objets'][0]['detail'])
+        ->toBe(implode(' · ', App\Engine\MotsClesEquipement::avantages((array) $epee->effet)))
+        ->and($scene['objets'][0]['detail'])->toContain('dés d\'attaque');
+});
+
+it('affiche le bloc de stats des créatures d\'une salle', function () {
+    $groupe = creerGroupe('g-stats');
+    $quete = App\Models\Quete::create([
+        'groupe_id' => $groupe->id,
+        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'titre' => 'S', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
+    ]);
+    App\Models\Carte::create([
+        'quete_id' => $quete->id, 'largeur' => 100, 'hauteur' => 100,
+        'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4]], 'mobiliers' => []],
+    ]);
+    $instance = sceneInstanceMonstre();
+    $m = $instance->monstre;
+
+    $scene = app(SceneDeTable::class)->salle($quete->fresh(), 0, [$instance]);
+
+    expect($scene['objets'][0]['detail'])
+        ->toContain('Att '.$m->attaque)
+        ->toContain('Déf '.$m->defense)
+        // ⚠ Les PV viennent de l'INSTANCE (elle a pu être blessée), le reste du
+        // catalogue — l'habillage de l'IA ne touche jamais aux chiffres.
+        ->toContain($instance->pv_body.' PV')
+        ->toContain('dépl. '.$m->deplacement);
+});
+
+it('met la chute EN TAMPON, pour qu\'elle passe après le coup qui l\'a causée', function () {
+    // ⚠ DÉFAUT MESURÉ (René, 2026-09-14). L'observateur de `tombe` se déclenche
+    // au moment où les PV touchent zéro — AU MILIEU de la résolution —, alors que
+    // la scène de l'attaque ne part qu'une fois le tour résolu. La table montrait
+    // le héros à terre AVANT le coup qui l'y avait mis.
+    Illuminate\Support\Facades\Event::fake([App\Events\SceneTable::class]);
+    $heros = sceneHeros('Grom', 'barbare');
+    $tampon = app(App\Partie\TamponScenes::class);
+
+    $tampon->ajouter($heros->groupeActif ?? creerGroupe('g-tampon'),
+        app(SceneDeTable::class)->chute($heros, true));
+
+    // Rien n'est parti tant qu'on n'a pas vidé : c'est tout l'intérêt.
+    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\SceneTable::class);
+
+    $tampon->vider();
+    Illuminate\Support\Facades\Event::assertDispatched(App\Events\SceneTable::class, 1);
+
+    // Idempotent : un second vidage ne rediffuse rien.
+    $tampon->vider();
+    Illuminate\Support\Facades\Event::assertDispatched(App\Events\SceneTable::class, 1);
+});
+
+it('dit ce que le jet RAPPORTE, pas seulement qu\'il est réussi', function () {
+    // ⚠ René, 2026-09-14 : « pour les jets d'attribut, il faudrait aussi dire ce
+    // que donne le résultat ». « Réussi » ne dit pas ce qu'on gagne.
+    $parchemin = App\Models\Objet::query()->firstOrFail(); // n'importe quelle pièce du catalogue
+
+    $or = scenesDe([
+        'type' => 'jet', 'libelle' => 'Desceller la dalle — jet de Body',
+        'jet' => ['succes' => 2, 'difficulte' => 2], 'or' => 100,
+    ])[0];
+    expect($or['issue']['libelle'])->toBe("+100 pièces d'or pour le groupe");
+
+    $objet = scenesDe([
+        'type' => 'jet', 'libelle' => 'Grimoire à demi calciné — jet de Mind',
+        'jet' => ['succes' => 2, 'difficulte' => 2],
+        'objet' => ['id' => $parchemin->id, 'nom' => $parchemin->nom],
+    ])[0];
+    expect($objet['issue']['libelle'])->toBe($parchemin->nom)
+        // L'objet gagné mérite son illustration, comme toute trouvaille.
+        ->and($objet['objets'][0]['nom'])->toBe($parchemin->nom);
+
+    $fouille = scenesDe([
+        'type' => 'jet', 'libelle' => 'Fouiller la zone — jet de Mind',
+        'jet' => ['succes' => 1, 'difficulte' => 1],
+        'pieges_reveles' => [['x' => 1, 'y' => 1]],
+        'portes_revelees' => [['x' => 2, 'y' => 2], ['x' => 3, 'y' => 3]],
+    ])[0];
+    expect($fouille['issue']['libelle'])->toBe('1 piège repéré · 2 passages secrets');
+
+    // ⚠ Une mécanique sans lecteur retombe sur « réussi » — jamais sur une
+    // phrase inventée.
+    $muet = scenesDe([
+        'type' => 'jet', 'libelle' => 'Épreuve inconnue',
+        'jet' => ['succes' => 3, 'difficulte' => 3],
+    ])[0];
+    expect($muet['issue']['libelle'])->toBe('réussi');
 });

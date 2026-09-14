@@ -97,3 +97,32 @@ passé.
 les porte « y compris ceux des monstres », et les chemins de `MoteurDread` les
 publiaient déjà. Une même promesse tenue d'un côté et pas de l'autre — trouvée en
 regardant une scène d'attaque sans le moindre dé.
+
+**Ce qu'une scène doit DIRE, et pas seulement montrer** (René, 2026-09-14).
+Une fouille affiche les **effets** de l'objet trouvé — par
+`MotsClesEquipement::avantages()`, le vocabulaire déjà servi à l'étal, au sac et
+au menu d'action : en réécrire ici ferait dériver l'écran de table au premier
+mot-clé qui change. Une salle affiche le **bloc de stats** de chaque créature
+(PV pris sur l'INSTANCE, qui a pu être blessée ; attaque, défense et déplacement
+sur le CATALOGUE, que l'habillage IA ne touche jamais). Un jet d'attribut dit ce
+qu'il **rapporte** — or, objet, soin de groupe, pièges désarmés, passages
+secrets — et non « réussi » tout court ; ⚠ une mécanique d'épreuve sans lecteur
+retombe sur « réussi », jamais sur une phrase inventée. ⚠ Une issue ne répète
+jamais ce qui est déjà à l'écran : elle disait « ÉPÉE LARGE » sous l'illustration
+de l'épée large.
+
+**L'ordre du récit : l'action d'abord, sa conséquence ensuite**
+(`App\Partie\TamponScenes`). La chute part d'un OBSERVATEUR de
+`EtatPersonnageQuete.tombe`, donc à l'instant où les PV touchent zéro — au
+MILIEU de la résolution —, alors que la scène de l'attaque n'est diffusée
+qu'une fois le tour entier résolu. La table montrait donc le héros à terre, puis
+le coup qui l'y avait mis. Le tampon retient ce qui naît en cours de résolution
+et le diffuse après. ⚠ Il est **singleton** — deux instances et il serait
+toujours vide au moment de le vider — et il se **vide tout seul en fin de
+requête** : une scène retenue et jamais diffusée serait pire que l'ordre qu'on
+corrigeait. ⚠ Pourquoi pas déduire la chute de `cible_tombee` : parce qu'un héros
+tombe aussi d'un piège, d'un poison, d'un sort de Dread ou d'une réaction hors
+tour. L'observateur les attrape tous ; on garde la source unique et on corrige
+seulement l'instant. Conséquence à l'écran : **attaque 5 s, puis chute 5 s**, et
+la file ne retient qu'UNE scène en attente — une salve de six coups ne peut donc
+jamais dépasser deux scènes d'affilée.

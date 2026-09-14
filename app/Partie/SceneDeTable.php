@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesEquipement;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
 use App\Models\Objet;
@@ -244,9 +245,17 @@ final class SceneDeTable
                     'nom' => $objet->nom,
                     'image_url' => $this->images->urlObjet($objet->id, $objet->nom)
                         ?? $this->images->vignette('objet', $objet->id),
-                    'detail' => ucfirst((string) $objet->categorie),
+                    // ⚠ `MotsClesEquipement::avantages()` est le point de passage
+                    // DÉJÀ existant du vocabulaire d'équipement (étal, sac, menu
+                    // d'action). Réécrire ces phrases ici les ferait dériver du
+                    // jour où un mot-clé change — et le projet a déjà payé ça
+                    // avec une table de libellés tenue côté client.
+                    'detail' => $this->effetsLisibles($objet),
                 ];
-                $libelle = $objet->nom;
+                // ⚠ PAS le nom de l'objet : il est déjà écrit sous son
+                // illustration, deux lignes plus haut. Une issue doit dire ce
+                // qui s'est PASSÉ, pas répéter ce qu'on voit.
+                $libelle = $acteur->nom.' l\'empoche';
                 $ton = 'tresor';
             }
         }
@@ -308,6 +317,18 @@ final class SceneDeTable
             ];
         }
 
+        // L'objet gagné, s'il y en a un : il mérite son illustration comme
+        // n'importe quelle trouvaille.
+        if (($objetId = (int) ($a['objet']['id'] ?? 0)) > 0
+            && ($objet = Objet::find($objetId)) !== null) {
+            $objets[] = [
+                'nom' => $objet->nom,
+                'image_url' => $this->images->urlObjet($objet->id, $objet->nom)
+                    ?? $this->images->vignette('objet', $objet->id),
+                'detail' => $this->effetsLisibles($objet),
+            ];
+        }
+
         return [
             'genre' => 'jet',
             'titre' => $acteur->nom.' — '.(string) ($a['libelle'] ?? 'jet'),
@@ -317,7 +338,7 @@ final class SceneDeTable
             'objets' => $objets,
             'issue' => [
                 'ton' => $reussi ? 'tresor' : 'echec',
-                'libelle' => $reussi ? 'réussi' : 'raté',
+                'libelle' => $reussi ? $this->gainDuJet($a) : 'raté',
             ],
         ];
     }
@@ -402,7 +423,9 @@ final class SceneDeTable
                     $instance->monstre_id,
                     $instance->monstre?->nom_base,
                 ),
-                'detail' => null,
+                // Le bloc de stats : c'est ce qu'un joueur regarde avant de
+                // décider s'il charge ou s'il recule.
+                'detail' => $this->statsMonstre($instance),
             ];
         }
 
@@ -614,6 +637,101 @@ final class SceneDeTable
     private function porteeLisible(array $a): ?string
     {
         return ($a['portee'] ?? null) === 'distance' ? 'À distance' : null;
+    }
+
+    /**
+     * CE QUE LE JET RAPPORTE — « réussi » ne dit pas ce qu'on gagne (René,
+     * 2026-09-14 : « pour les jets d'attribut, il faudrait aussi dire ce que
+     * donne le résultat »).
+     *
+     * ⚠ Les gains sont FUSIONNÉS dans le payload par `resoudreEpreuve()` : on
+     * les lit là où le moteur les pose, sans rien recalculer. Une épreuve dont
+     * la mécanique n'aurait pas de lecteur ici retombe sur « réussi » — jamais
+     * sur une phrase inventée.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function gainDuJet(array $a): string
+    {
+        $bouts = [];
+
+        if (($or = (int) ($a['or'] ?? 0)) > 0) {
+            $bouts[] = "+{$or} pièces d'or pour le groupe";
+        }
+        if (($nom = (string) ($a['objet']['nom'] ?? '')) !== '') {
+            $bouts[] = $nom;
+        }
+        if (($soignes = (int) ($a['soin_groupe'] ?? 0)) > 0) {
+            $bouts[] = $soignes.' héros soigné'.($soignes > 1 ? 's' : '');
+        }
+        if (($desarmes = (int) ($a['desarme_pieges_salle'] ?? 0)) > 0) {
+            $bouts[] = $desarmes.' piège'.($desarmes > 1 ? 's' : '').' désarmé'.($desarmes > 1 ? 's' : '');
+        }
+        foreach ((array) ($a['retire_condition'] ?? []) as $condition) {
+            $bouts[] = 'plus '.mb_strtolower((string) $condition);
+        }
+        // Fouille de zone : ce qu'un jet de Mind a mis au jour.
+        if (($pieges = count((array) ($a['pieges_reveles'] ?? []))) > 0) {
+            $bouts[] = $pieges.' piège'.($pieges > 1 ? 's' : '').' repéré'.($pieges > 1 ? 's' : '');
+        }
+        if (($portes = count((array) ($a['portes_revelees'] ?? []))) > 0) {
+            $bouts[] = $portes.' passage'.($portes > 1 ? 's' : '').' secret'.($portes > 1 ? 's' : '');
+        }
+        if (! empty($a['objet_indisponible'])) {
+            $bouts[] = 'mais rien que ce groupe puisse utiliser';
+        }
+
+        return $bouts === [] ? 'réussi' : implode(' · ', $bouts);
+    }
+
+    /**
+     * Les effets d'un objet, en clair — « 3 dés d'attaque · frappe en diagonale ».
+     *
+     * ⚠ Passe par `MotsClesEquipement::avantages()`, le vocabulaire déjà utilisé
+     * par l'étal, le sac et le menu d'action : c'est LUI la source des phrases.
+     * En réécrire ici ferait dériver l'écran de table du reste du jeu au premier
+     * mot-clé qui change, et le projet a déjà payé exactement ça avec une table
+     * de libellés tenue côté client — aucun talent n'affichait le moindre
+     * chiffre, et personne ne l'avait vu.
+     */
+    private function effetsLisibles(Objet $objet): ?string
+    {
+        $avantages = MotsClesEquipement::avantages((array) $objet->effet);
+
+        // La catégorie seule quand l'objet n'a aucun effet lisible : mieux vaut
+        // « Consommable » qu'un vide sous l'illustration.
+        return $avantages === []
+            ? ucfirst((string) $objet->categorie)
+            : implode(' · ', array_slice($avantages, 0, 3));
+    }
+
+    /**
+     * Le bloc de stats d'une créature — « Att 3 · Déf 2 · 1 PV · dépl. 8 ».
+     *
+     * ⚠ Les PV viennent de l'INSTANCE (elle a pu être blessée), le reste du
+     * catalogue : c'est l'archétype qui porte attaque, défense et déplacement,
+     * et l'habillage de l'IA n'y touche jamais.
+     */
+    private function statsMonstre(InstanceMonstre $instance): ?string
+    {
+        $m = $instance->monstre;
+
+        if ($m === null) {
+            return null;
+        }
+
+        $bouts = [
+            'Att '.(int) $m->attaque,
+            'Déf '.(int) $m->defense,
+            (int) $instance->pv_body.' PV',
+            'dépl. '.(int) $m->deplacement,
+        ];
+
+        if ($m->portee !== 'corps_a_corps') {
+            $bouts[] = 'à distance';
+        }
+
+        return implode(' · ', $bouts);
     }
 
     /**
