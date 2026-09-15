@@ -14,11 +14,25 @@ defineProps({
     points: { type: Number, default: 0 },
     /** Identifiant du groupe (lien vers l'écran montée de niveau). */
     groupe: { type: String, default: null },
-    /** Nœuds d'arbre acquis, nommés ([{id, nom, type}]) — /moi + catalogue. */
+    /**
+     * Talents et capacités de carte acquis, nommés par le catalogue et
+     * ACCOMPAGNÉS DE LEUR ÉTAT D'USAGE publié par `/moi` :
+     * `[{id, nom, description, statut, libelle, raison, cadence}]`.
+     */
     competences: { type: Array, default: () => [] },
 });
 
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
+
+/* ⚠ Icône seulement : le STATUT et son LIBELLÉ viennent du serveur
+   (`Talents::STATUTS`). Le client n'en déduit rien — il ne sait pas ce qu'est
+   une fenêtre « une fois par quête », et c'est voulu. */
+const STATUT_ICONE = {
+    permanent: 'all_inclusive',
+    disponible: 'check_circle',
+    indisponible: 'lock',
+};
+const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
 </script>
 
 <template>
@@ -92,11 +106,26 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
 
         <div class="sect-title" style="margin-top: 18px"><MSym n="hub" :size="16" /> Talents acquis</div>
         <div v-if="competences.length" class="talent-list">
-            <div v-for="c in competences" :key="c.id" class="talent-item">
-                <span class="ti"><MSym n="workspace_premium" fill :size="16" /></span>
+            <div
+                v-for="c in competences"
+                :key="c.id"
+                class="talent-item"
+                :class="'talent-' + (c.statut || 'permanent')"
+            >
+                <span class="ti"><MSym :n="statutIcone(c)" fill :size="16" /></span>
                 <div class="tbody">
                     <div class="tn">{{ c.nom }}</div>
                     <div v-if="c.description" class="tdesc">{{ c.description }}</div>
+                    <!-- Une capacité épuisée RESTE affichée, grisée, avec la
+                         règle qui la ferme : la cacher ferait croire au joueur
+                         qu'il l'a perdue. -->
+                    <div v-if="c.libelle" class="tstat">
+                        <span class="tpuce">{{ c.libelle }}</span>
+                        <span v-if="c.cadence" class="tcad">{{ c.cadence }}</span>
+                    </div>
+                    <div v-if="c.raison" class="traison">
+                        <MSym n="info" :size="13" /> {{ c.raison }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -114,6 +143,30 @@ const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'lo
 .talent-item .tbody { min-width: 0; }
 .talent-item .tn { font-size: 14px; font-weight: 700; color: var(--parch-100); }
 .talent-item .tdesc { font-size: 12px; color: var(--ink-300); margin-top: 2px; line-height: 1.4; }
+
+/* État d'usage (2026-09-14) : la puce porte le libellé DÉCIDÉ par le serveur,
+   la couleur n'est qu'un rappel. ⚠ Classes préfixées `t…` : les blocs <style>
+   de ce projet fuient d'une vue à l'autre. */
+.talent-item .tstat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px; }
+.talent-item .tpuce {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; border: var(--line);
+    color: var(--ink-300); background: var(--stone-900);
+}
+.talent-item .tcad { font-size: 11px; color: var(--ink-500); }
+.talent-item .traison {
+    display: flex; align-items: flex-start; gap: 5px; margin-top: 5px;
+    font-size: 11.5px; line-height: 1.35; color: var(--ink-500);
+}
+.talent-item .traison .msym { flex: none; margin-top: 1px; }
+
+.talent-disponible .tpuce { color: var(--ok); border-color: currentColor; }
+/* Grisé, jamais caché — et le nom reste lisible : le joueur doit pouvoir
+   retrouver sa capacité pour comprendre POURQUOI elle est fermée.
+   ⚠ C'est le SCEAU qui s'éteint (le dégradé d'or part), pas la couleur du
+   glyphe : sur ce dégradé un glyphe gris ne se verrait tout simplement plus. */
+.talent-item.talent-indisponible { opacity: .66; border-color: oklch(0.44 0.016 255 / 0.5); }
+.talent-item.talent-indisponible .ti { background: var(--stone-800); color: var(--ink-500); }
 
 /* Bonus TEMPORAIRE d'un buff actif : distinct du chiffre de base, pour qu'on
    voie d'où vient la différence — et qu'on la voie disparaître. */

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Engine;
 
+use App\Partie\Talents;
+
 /**
  * VOCABULAIRE FERMÉ DES COMPÉTENCES — toutes : les nœuds de la grille de
  * talents comme les capacités de carte (`competences.innee`).
@@ -32,7 +34,7 @@ namespace App\Engine;
  *    s'affichaient sans un seul chiffre.
  *  - `icone` — Material Symbols, rendu par `Vignette`/`MSym`.
  *
- * @see \App\Partie\Talents  l'accesseur runtime (possession, valeur, cadence)
+ * @see Talents  l'accesseur runtime (possession, valeur, cadence)
  */
 final class MotsClesTalent
 {
@@ -408,12 +410,25 @@ final class MotsClesTalent
         ],
     ];
 
-    /** Cadences déclarées par `effet.frequence` → texte joueur. */
-    private const FREQUENCES = [
+    /**
+     * Cadences déclarées par `effet.frequence` → texte joueur.
+     *
+     * ⚠ PUBLIQUE depuis le 2026-09-14 : la fiche du joueur affiche la fenêtre
+     * de chaque capacité (`Talents::fiche()`), et une seconde table de cadences
+     * serait exactement la duplication que ce registre existe pour empêcher.
+     * Elle reste alignée sur `Talents::COMPTEURS`, testée dans les deux sens.
+     */
+    public const FREQUENCES = [
         'une_fois_par_quete' => 'une fois par quête',
         'une_fois_par_tour' => 'une fois par tour',
         'une_fois_par_usage' => 'une fois par attaque',
     ];
+
+    /** Le texte joueur d'une cadence, ou `null` si la capacité n'en a pas. */
+    public static function cadence(?string $frequence): ?string
+    {
+        return self::FREQUENCES[$frequence ?? ''] ?? null;
+    }
 
     /** `effet.condition` (passifs conditionnels) → texte joueur. */
     private const CONDITIONS = [

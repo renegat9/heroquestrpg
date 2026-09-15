@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Partie\Narration\AnnonceurChute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class EtatPersonnageQuete extends Model
 {
@@ -77,9 +79,9 @@ class EtatPersonnageQuete extends Model
             $cle = $etat->tombe ? 'heros_tombe' : 'heros_releve';
 
             try {
-                app(\App\Partie\Narration\AnnonceurChute::class)->annoncer($etat, $cle);
+                app(AnnonceurChute::class)->annoncer($etat, $cle);
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Annonce de chute/relèvement impossible.', [
+                Log::warning('Annonce de chute/relèvement impossible.', [
                     'etat_id' => $etat->id,
                     'cle' => $cle,
                     'erreur' => $e->getMessage(),
@@ -108,6 +110,24 @@ class EtatPersonnageQuete extends Model
             'degats_subis' => 'array',
             'dernier_degat' => 'array',
         ];
+    }
+
+    /**
+     * L'état de CE héros dans la quête EN COURS, ou `null` s'il n'en joue
+     * aucune (hub, quête close).
+     *
+     * ⚠ Point de passage UNIQUE. Ce `where` + `whereHas('quete', en_cours)`
+     * existait en QUATRE exemplaires identiques dans `MoteurReactions`, et un
+     * cinquième allait naître pour la fiche du joueur. « Hors quête » est une
+     * réponse que le reste du code interprète (pas de réaction, capacité à
+     * fenêtre fermée) : elle doit se lire au même endroit partout.
+     */
+    public static function enQuete(Personnage|int $personnage): ?self
+    {
+        return static::query()
+            ->where('personnage_id', $personnage instanceof Personnage ? $personnage->id : $personnage)
+            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
+            ->first();
     }
 
     public function personnage(): BelongsTo

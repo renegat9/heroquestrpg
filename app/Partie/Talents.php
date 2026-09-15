@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesTalent;
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Personnage;
+use Illuminate\Support\Collection;
 
 /**
  * Lecture des COMPÉTENCES d'un héros — point de passage unique.
@@ -24,7 +26,7 @@ use App\Models\Personnage;
  * Une grille qui répète les mêmes thèmes sur douze classes rend ce câblage
  * intenable : le nom est de la présentation, la mécanique est le contrat.
  *
- * @see \App\Engine\MotsClesTalent  le vocabulaire fermé et son lecteur déclaré
+ * @see MotsClesTalent  le vocabulaire fermé et son lecteur déclaré
  */
 class Talents
 {
@@ -32,6 +34,31 @@ class Talents
     protected const COMPTEURS = [
         'une_fois_par_quete' => 'capacites_utilisees',
         'une_fois_par_tour' => 'capacites_tour',
+    ];
+
+    /**
+     * La phrase qui dit qu'une fenêtre est CONSOMMÉE — une par fréquence
+     * comptée, donc exactement les clés de {@see self::COMPTEURS} (testé dans
+     * les deux sens : une fréquence qui se compte sans savoir le dire au joueur
+     * produirait un « Indisponible » muet, ce que le projet appelle un effet
+     * automatique que rien n'annonce).
+     */
+    private const EPUISEES = [
+        'une_fois_par_quete' => 'Déjà utilisée cette quête',
+        'une_fois_par_tour' => 'Déjà utilisée ce tour',
+    ];
+
+    /**
+     * Les trois états publiés par {@see self::fiche()} et leur texte joueur.
+     *
+     * ⚠ Le vocabulaire d'affichage vit ICI, pas dans une table du front : le
+     * client reçoit la décision (`statut`) ET son libellé, il n'en dérive
+     * aucun. C'est la classe de défaut la plus répétée du projet côté écran.
+     */
+    public const STATUTS = [
+        'permanent' => 'Toujours actif',
+        'disponible' => 'Disponible',
+        'indisponible' => 'Indisponible',
     ];
 
     /**
@@ -66,7 +93,7 @@ class Talents
      * mécanique dans deux colonnes, et deux `+1 dé de défense` font `+2`.
      *
      * @param  array<string, mixed>  $criteres
-     * @return \Illuminate\Support\Collection<int, Competence>
+     * @return Collection<int, Competence>
      */
     public function noeuds(Personnage $personnage, string $mecanique, array $criteres = [])
     {
@@ -125,23 +152,87 @@ class Talents
     {
         $noeud = $this->noeud($personnage, $mecanique, $criteres);
 
-        if ($noeud === null) {
-            return false;
+        return $noeud !== null && $this->fiche($personnage, $etat, $noeud)['raison'] === null;
+    }
+
+    /**
+     * L'état d'usage d'UN nœud possédé, DÉCIDÉ : utilisable ou non, et
+     * **pourquoi** quand il ne l'est pas.
+     *
+     * ⚠ C'est la même évaluation que {@see self::disponible()} — qui n'est plus
+     * qu'un booléen tiré d'ici. René, 2026-09-14 : « afficher si une abileté est
+     * disponible ou non et pourquoi il n'est pas disponible quand c'est le
+     * cas ». Le écrire à part aurait donné deux lectures d'une règle assez
+     * simple pour que personne ne remarque l'une dériver — et la manette aurait
+     * annoncé « Disponible » sur une capacité que le résolveur refuse.
+     *
+     * ⚠ L'ORDRE des refus n'est pas indifférent : on nomme d'abord ce qui est
+     * DÉPENSÉ (rien ne le rouvrira avant la fin de la fenêtre), puis ce qui est
+     * conditionnel (les PV remontent et descendent, le bouclier se rééquipe).
+     * Dire « exige un bouclier » d'une capacité déjà consommée enverrait le
+     * joueur fouiller son sac pour rien.
+     *
+     * @return array{statut: string, libelle: string, raison: string|null, cadence: string|null}
+     */
+    public function fiche(Personnage $personnage, ?EtatPersonnageQuete $etat, Competence $noeud): array
+    {
+        $effet = (array) $noeud->effet;
+        $frequence = $effet['frequence'] ?? null;
+        $cadence = MotsClesTalent::cadence(is_string($frequence) ? $frequence : null);
+        $compteur = self::compteurPour(is_string($frequence) ? $frequence : null);
+        $plafond = $effet['pv_body_max'] ?? null;
+
+        $raison = match (true) {
+            // Une fenêtre qui se compte n'existe QUE dans une quête : au hub,
+            // il n'y a pas d'`EtatPersonnageQuete` où la dépense pourrait
+            // s'inscrire, donc pas de capacité à dépenser.
+            $compteur !== null && $etat === null => 'Utilisable en quête seulement',
+            $compteur !== null && $this->dejaUtilisee($etat, $noeud->nom, $compteur) => self::EPUISEES[$frequence],
+            // ⚠ PLAFOND, pas seuil : la capacité s'ouvre quand on est BLESSÉ.
+            $plafond !== null && (int) $personnage->pv_body > (int) $plafond => sprintf(
+                'Exige %d PV de Body ou moins (tu en as %d)',
+                (int) $plafond,
+                (int) $personnage->pv_body,
+            ),
+            ! $this->bouclierSiRequis($personnage, $effet) => 'Exige un bouclier équipé',
+            default => null,
+        };
+
+        $fenetre = $cadence !== null || $plafond !== null || ! empty($effet['necessite_bouclier']);
+        $statut = $raison !== null ? 'indisponible' : ($fenetre ? 'disponible' : 'permanent');
+
+        return [
+            'statut' => $statut,
+            'libelle' => self::STATUTS[$statut],
+            'raison' => $raison,
+            'cadence' => $cadence,
+        ];
+    }
+
+    /**
+     * « **Requires shield** » — deux des trois capacités du Chevalier
+     * l'exigent, et sa carte lui en donne un au départ. Vrai si la capacité ne
+     * demande rien.
+     *
+     * ⚠ Remonté de `MoteurReactions` le 2026-09-14. Il y vivait en privé,
+     * empilé APRÈS `disponible()` à trois endroits : la condition ne faisait
+     * donc pas partie de la disponibilité, et toute autre lecture — à commencer
+     * par la fiche du joueur — croyait *Inébranlable* ouverte sur un chevalier
+     * les mains vides.
+     *
+     * @param  array<string, mixed>  $effet
+     */
+    public function bouclierSiRequis(Personnage $personnage, array $effet): bool
+    {
+        if (empty($effet['necessite_bouclier'])) {
+            return true;
         }
 
-        $plafond = $noeud->effet['pv_body_max'] ?? null;
-
-        if ($plafond !== null && (int) $personnage->pv_body > (int) $plafond) {
-            return false;
-        }
-
-        $compteur = static::COMPTEURS[$noeud->effet['frequence'] ?? ''] ?? null;
-
-        if ($compteur !== null) {
-            return $etat !== null && ! $this->dejaUtilisee($etat, $noeud->nom, $compteur);
-        }
-
-        return true;
+        return $personnage->inventaire()
+            ->where('emplacement', 'arme_secondaire')
+            ->with('objet')
+            ->get()
+            ->contains(fn ($ligne) => ($ligne->objet?->tag_equipement) === 'bouclier');
     }
 
     /**

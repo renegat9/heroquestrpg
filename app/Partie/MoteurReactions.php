@@ -67,10 +67,7 @@ final class MoteurReactions
             return;
         }
 
-        $etat = EtatPersonnageQuete::query()
-            ->where('personnage_id', $heros->id)
-            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
-            ->first();
+        $etat = EtatPersonnageQuete::enQuete($heros);
 
         if ($etat === null || $etat->reaction_en_attente !== null) {
             return; // hors quête, ou une proposition attend déjà : pas d'empilement
@@ -145,16 +142,14 @@ final class MoteurReactions
             && $this->capacites->disponible($heros, $etat, ReactionEffet::PLANCHER_PV)) {
             $noeud = $this->capacites->noeud($heros, ReactionEffet::PLANCHER_PV);
 
-            if ($this->bouclierSiRequis($heros, $noeud?->effet ?? [])) {
-                $this->deposer($etat, $heros, $heros, [
-                    'action' => ReactionEffet::PLANCHER_PV,
-                    'capacite' => $noeud?->nom,
-                    'nom' => $noeud?->nom,
-                    'description' => $noeud?->description,
-                ], $degats, $source, $contexte);
+            $this->deposer($etat, $heros, $heros, [
+                'action' => ReactionEffet::PLANCHER_PV,
+                'capacite' => $noeud?->nom,
+                'nom' => $noeud?->nom,
+                'description' => $noeud?->description,
+            ], $degats, $source, $contexte);
 
-                return;
-            }
+            return;
         }
 
         // ⚠ MÊME PLANCHER, PORTÉ PAR UN OBJET (2026-09-03) — *Cendres du Phénix* :
@@ -405,10 +400,7 @@ final class MoteurReactions
      */
     public function proposerRefletControle(Personnage $victime, array $contexte): bool
     {
-        $etat = EtatPersonnageQuete::query()
-            ->where('personnage_id', $victime->id)
-            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
-            ->first();
+        $etat = EtatPersonnageQuete::enQuete($victime);
 
         if ($etat === null) {
             return false;
@@ -606,10 +598,6 @@ final class MoteurReactions
 
             $noeud = $this->capacites->noeud($chevalier, ReactionEffet::DEFI_ERRANT);
 
-            if (! $this->bouclierSiRequis($chevalier, $noeud?->effet ?? [])) {
-                continue;
-            }
-
             $this->deposer($etat, $chevalier, $fouilleur, [
                 'action' => ReactionEffet::DEFI_ERRANT,
                 'capacite' => $noeud?->nom,
@@ -663,10 +651,6 @@ final class MoteurReactions
 
             $noeud = $this->capacites->noeud($protecteur, ReactionEffet::ANNULE_DEGATS_VOISIN);
 
-            if (! $this->bouclierSiRequis($protecteur, $noeud?->effet ?? [])) {
-                continue;
-            }
-
             $this->deposer($etat, $protecteur, $victime, [
                 'action' => ReactionEffet::ANNULE_DEGATS_VOISIN,
                 'capacite' => $noeud?->nom,
@@ -676,26 +660,6 @@ final class MoteurReactions
 
             return; // un seul protecteur sollicité : le plus proche dans l'ordre
         }
-    }
-
-    /**
-     * « **Requires shield** » — deux des trois capacités du Chevalier
-     * l'exigent, et sa carte lui en donne un au départ. Vrai si la capacité ne
-     * demande rien.
-     *
-     * @param  array<string, mixed>  $effet
-     */
-    private function bouclierSiRequis(Personnage $heros, array $effet): bool
-    {
-        if (empty($effet['necessite_bouclier'])) {
-            return true;
-        }
-
-        return $heros->inventaire()
-            ->whereIn('emplacement', ['arme_secondaire'])
-            ->with('objet')
-            ->get()
-            ->contains(fn ($ligne) => ($ligne->objet?->tag_equipement) === 'bouclier');
     }
 
     /**
@@ -754,10 +718,7 @@ final class MoteurReactions
      */
     public function resoudre(Groupe $groupe, Personnage $heros, bool $accepte, ?string $soin = null): array
     {
-        $etat = EtatPersonnageQuete::query()
-            ->where('personnage_id', $heros->id)
-            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
-            ->first();
+        $etat = EtatPersonnageQuete::enQuete($heros);
 
         $attente = $etat?->reaction_en_attente;
 
@@ -793,10 +754,7 @@ final class MoteurReactions
             ? Personnage::find((int) $attente['victime_id']) ?? $heros
             : $heros;
 
-        $etatVictime = EtatPersonnageQuete::query()
-            ->where('personnage_id', $victime->id)
-            ->whereHas('quete', fn ($q) => $q->where('etat', 'en_cours'))
-            ->first();
+        $etatVictime = EtatPersonnageQuete::enQuete($victime);
 
         $degats = (int) ($attente['degats'] ?? 0);
 

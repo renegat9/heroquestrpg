@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Engine\MotsClesTalent;
+use App\Models\ClasseHeros;
 use App\Models\Competence;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -110,6 +111,16 @@ it('compte les capacités « une fois par quête », et seulement celles-là', f
     $unique = Competence::where('classe', 'chevalier')->where('nom', 'Inébranlable')->firstOrFail();
     $heros->competences()->syncWithoutDetaching([$permanent->id, $unique->id]);
 
+    // ⚠ Le bouclier n'est pas un détail de mise en scène : *Inébranlable* dit
+    // « Requires shield », et depuis le 2026-09-14 cette condition fait partie
+    // de `disponible()` au lieu d'être empilée après lui dans `MoteurReactions`.
+    // Ce qu'on mesure ici est le COMPTEUR, pas le matériel — on équipe donc.
+    Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Bouclier')->firstOrFail()->id,
+        'quantite' => 1, 'emplacement' => 'arme_secondaire',
+    ]);
+
     expect($capacites->disponible($heros, $etat, 'plancher_pv'))->toBeTrue();
 
     $capacites->consommer($heros, $etat, 'plancher_pv');
@@ -177,7 +188,7 @@ it('donne à chaque classe le mouvement de sa RACE, plus un trait d\'agilité', 
     $socle = ['nain' => 3, 'halfling' => 3, 'humain' => 4, 'elfe' => 5];
     $agiles = ['rogue', 'moine', 'berserker', 'explorateur'];
 
-    foreach (App\Models\ClasseHeros::all() as $classe) {
+    foreach (ClasseHeros::all() as $classe) {
         // ⚠ `toHaveKey()` de Pest prend une VALEUR en second argument, pas un
         // message (piège déjà rencontré plus haut dans ce fichier).
         expect(array_key_exists((string) $classe->race, $socle))
@@ -191,7 +202,7 @@ it('donne à chaque classe le mouvement de sa RACE, plus un trait d\'agilité', 
 
     // Les deux invariants que la contradiction violait : aucun nain ne dépasse
     // l'elfe, aucun halfling ne dépasse un humain.
-    $par = App\Models\ClasseHeros::all()->keyBy('nom');
+    $par = ClasseHeros::all()->keyBy('nom');
 
     expect((int) $par['explorateur']->deplacement_base)->toBeLessThan((int) $par['elfe']->deplacement_base)
         ->and((int) $par['warlock']->deplacement_base)->toBeLessThan((int) $par['barbare']->deplacement_base);
@@ -201,11 +212,11 @@ it('donne une RACE à chaque classe, et une seule des quatre connues', function 
     // La race n'était qu'un COMMENTAIRE avant le 2026-08-13 : le guide ne
     // pouvait pas l'afficher, et un Explorateur plus lent qu'un Rogue restait
     // inexplicable pour le joueur.
-    foreach (App\Models\ClasseHeros::all() as $classe) {
+    foreach (ClasseHeros::all() as $classe) {
         expect(['humain', 'nain', 'elfe', 'halfling'])->toContain((string) $classe->race);
     }
 
-    $races = App\Models\ClasseHeros::all()->groupBy('race')->map->count();
+    $races = ClasseHeros::all()->groupBy('race')->map->count();
 
     // Rappel de René (2026-08-13) : hors Warlock (halfling) et Explorateur
     // (nain), toutes les classes d'extension sont humaines.
@@ -225,7 +236,7 @@ it('charge la DESCRIPTION du nœud : une offre de réaction doit être lisible',
     $groupe = creerGroupe();
     $chevalier = creerHeros($alice, $groupe, 'Roland', 1, ['classe' => 'chevalier']);
 
-    $capacites = app(App\Partie\CapacitesInnees::class);
+    $capacites = app(CapacitesInnees::class);
 
     foreach (['plancher_pv', 'annule_degats_voisin', 'defi_errant'] as $mecanique) {
         $noeud = $capacites->noeud($chevalier, $mecanique);

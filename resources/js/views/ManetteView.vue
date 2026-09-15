@@ -237,15 +237,27 @@ const monPerso = computed(() => {
 });
 const pointsCompetence = computed(() => monPerso.value?.points_competence ?? 0);
 
-/* ---- Talents acquis (fiche) : /moi ne porte que les IDS des nœuds ; on charge
-   le catalogue une fois pour les nommer sur la fiche (« Garde tenace » etc.). ---- */
+/* ---- Talents acquis (fiche) : /moi porte l'ÉTAT D'USAGE de chaque nœud
+   (`{id, statut, libelle, raison, cadence}` — décidé par `Talents::fiche()`) ;
+   le catalogue, chargé une fois, ne sert qu'à les NOMMER et à les décrire.
+   ⚠ La disponibilité ne se recalcule pas ici : ni `capacites_utilisees`, ni
+   `effet.frequence`, ni les PV n'ont à être relus côté client — le serveur a
+   déjà tranché, et une seconde lecture dériverait le jour où la règle bouge. ---- */
 const catalogueCompetences = ref([]);
 onMounted(async () => {
     try { catalogueCompetences.value = (await api.getCompetences()).competences ?? []; } catch { /* fiche sans noms de talents */ }
 });
 const mesCompetences = computed(() => {
     const parId = new Map(catalogueCompetences.value.map((c) => [c.id, c]));
-    return (monPerso.value?.competences ?? []).map((id) => parId.get(id)).filter(Boolean);
+    return (monPerso.value?.competences ?? [])
+        .map((c) => {
+            // Tolère l'ancienne forme (une simple liste d'ids) : une manette
+            // ouverte pendant un déploiement ne doit pas perdre ses talents.
+            const etat = typeof c === 'object' && c !== null ? c : { id: c };
+            const fiche = parId.get(etat.id);
+            return fiche ? { ...fiche, ...etat } : null;
+        })
+        .filter(Boolean);
 });
 
 /* ---- statut « Prêt » au hub (contrat « Statut prêt et démarrage de quête ») ----

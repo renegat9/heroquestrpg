@@ -198,11 +198,11 @@ it('acquiert un nœud d\'arbre et applique ses effets passifs chiffrés au perso
         'personnage_id' => $hero->id, 'competence_id' => idNoeud('nain', 'Œil du mineur'),
     ])->assertStatus(422);
 
-    // /api/moi reflète l'acquisition (ids des nœuds acquis).
+    // /api/moi reflète l'acquisition — chaque nœud avec son état d'usage décidé.
     $this->getJson('/api/moi')
         ->assertOk()
         ->assertJsonPath('joueur.personnages.0.points_competence', 1)
-        ->assertJsonPath('joueur.personnages.0.competences.0', $carrure);
+        ->assertJsonPath('joueur.personnages.0.competences.0.id', $carrure);
 });
 
 it('exige le prérequis de l\'arbre puis refuse sans point disponible', function () {

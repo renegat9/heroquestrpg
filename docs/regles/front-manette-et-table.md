@@ -179,3 +179,20 @@ buveur dans cet ordre, et son issue donne le soin **effectif** (`effets.soin_pv_
 jamais celui promis par la carte : boire 4 PV à un point du maximum n'en rend
 qu'un. ⚠ Pas de « vs » : les rôles sont `acteur` et `cible`, pas attaquant et
 défenseur.
+
+⚠ **La fiche dit la disponibilité de chaque capacité, et la raison quand elle
+est fermée** (René, 2026-09-14). `/moi.competences` ne porte plus une liste
+d'ids mais, par nœud, `{id, statut, libelle, raison, cadence}` — la **décision**
+de `App\Partie\Talents::fiche()`, pas ses ingrédients. `FicheTab.vue` n'a donc
+jamais à lire `capacites_utilisees`, `effet.frequence` ni le plafond de PV :
+c'est exactement la re-dérivation qui a mordu cinq fois en une semaine dans
+`DeplacementSheet.vue` / `ActionTab.vue`. Le **libellé** du statut vient lui
+aussi du serveur (`Talents::STATUTS`) : seule l'icône reste au client. Une
+capacité épuisée **reste affichée**, grisée, avec sa phrase — la cacher ferait
+croire au joueur qu'il l'a perdue, la même règle que pour les entrées de menu.
+⚠ Vérifié en partie réelle (`browser-shots/dispo-capacites.mjs`, chevalier et
+berserker) : « Utilisable en quête seulement » au hub, « Exige un bouclier
+équipé », « Exige 5 PV de Body ou moins (tu en as 7) », « Déjà utilisée cette
+quête ». `fullPage: true` ne sert à rien sur la manette — elle scrolle DANS un
+conteneur, pas dans la page ; la capture s'arrêtait au bas du viewport et
+coupait la section qu'on venait valider.

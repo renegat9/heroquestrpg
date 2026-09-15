@@ -836,7 +836,7 @@ nb de nœuds acquis` (dérivé, toujours juste).
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
 | POST | /groupes/{identifiant}/competences | {personnage_id, competence_id} | acquiert une case de la grille (422 : pas son héros, classe différente, prérequis manquant, aucun point) |
-| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [ids acquis]` |
+| GET | /api/moi | — | personnages enrichis : `niveau, points_competence, competences: [{id, statut, libelle, raison, cadence}]` (voir ci-dessous) |
 | GET | /api/competences | — | catalogue des grilles : `[{id, classe, nom, description, type, innee, categorie, categorie_icone, colonne, rang, effet, avantage, avantage_icone, prerequis_id}]` |
 
 **La GRILLE de talents** (René, 2026-08-23) — chaque classe a **3 colonnes ×
@@ -860,6 +860,31 @@ que ce qu'il fait. `avantage_icone` est son icône Material Symbols. Le front
 n'a donc plus de table de correspondance à tenir : la sienne était keyée sur des
 noms de *colonnes* du personnage et ne produisait **jamais** la moindre puce
 d'effet pour une compétence.
+
+⚠ **`/moi.competences` publie la DÉCISION d'usage, pas ses ingrédients**
+(René, 2026-09-14 : « afficher si une abileté est disponible ou non et pourquoi
+il n'est pas disponible quand c'est le cas »). Chaque entrée acquise —
+nœud de grille **et** capacité de carte — vaut
+`{id, statut, libelle, raison, cadence}` :
+
+- `statut` ∈ **`permanent`** (passif toujours actif, aucune fenêtre),
+  **`disponible`**, **`indisponible`** — c'est lui qui porte le style ;
+- `libelle` est le texte du statut (« Toujours actif », « Disponible »,
+  « Indisponible ») : le vocabulaire d'affichage vit côté serveur ;
+- `raison` n'est renseignée **que** sur `indisponible`, et nomme la règle qui
+  ferme la capacité — « Déjà utilisée cette quête », « Déjà utilisée ce tour »,
+  « Utilisable en quête seulement », « Exige 5 PV de Body ou moins (tu en
+  as 8) », « Exige un bouclier équipé » ;
+- `cadence` est la fenêtre lisible (`une fois par quête`/`tour`/`attaque`),
+  `null` pour un passif permanent.
+
+La source est **`App\Partie\Talents::fiche()`**, le même point de passage que
+`Talents::disponible()` — le booléen du moteur et la phrase du joueur sortent
+d'une seule évaluation, et ne peuvent donc pas se contredire. ⚠ La condition
+« **requires shield** » y est entrée à cette occasion : elle vivait dans un
+`MoteurReactions::bouclierSiRequis()` privé, empilé **après** `disponible()`,
+si bien que le moteur refusait *Inébranlable* sans bouclier pendant que toute
+autre lecture la croyait ouverte.
 
 ⚠ **Les talents se lisent par MÉCANIQUE, jamais par nom de nœud.**
 `effet.mecanique` appartient au vocabulaire fermé `MotsClesTalent::MECANIQUES`,

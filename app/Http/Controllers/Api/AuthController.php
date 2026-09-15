@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Api;
 use App\Auth\JoueurAuthentifiable;
 use App\Engine\MotsClesEquipement;
 use App\Http\Controllers\Controller;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Partie\Equipement;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\CapaciteSac;
+use App\Partie\Talents;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -112,12 +114,16 @@ class AuthController extends Controller
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $joueur->personnages()
-                ->with(['competences:competences.id', 'sorts', 'groupeActif', 'inventaire.objet'])
+                ->with(['competences:competences.id,competences.nom,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
                 ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                     'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
                     'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense'])
                 ->map(function ($p) {
                     $disponible = $p->groupe_actif_id === null;
+                    // L'état de quête sert aux fenêtres « une fois par quête /
+                    // par tour » des capacités : lu UNE fois par héros, pas une
+                    // fois par nœud.
+                    $etatQuete = EtatPersonnageQuete::enQuete($p);
 
                     $data = [
                         'id' => $p->id,
@@ -150,7 +156,19 @@ class AuthController extends Controller
                         // rien — deux exemplaires d'une règle assez simple pour
                         // que personne ne remarque l'une dériver.
                         'points_competence' => $p->pointsCompetence(),
-                        'competences' => $p->competences->pluck('id')->values()->all(),
+                        // ⚠ La DÉCISION d'usage, pas ses ingrédients (René,
+                        // 2026-09-14 : « afficher si une abileté est disponible
+                        // ou non et pourquoi il n'est pas disponible quand
+                        // c'est le cas »). Une manette qui relirait
+                        // `effet.frequence` et `capacites_utilisees` en JS
+                        // re-dériverait une règle serveur : c'est la classe de
+                        // défaut la plus répétée du projet côté écran, et
+                        // `Talents::fiche()` est le même point de passage que
+                        // le `disponible()` du moteur.
+                        'competences' => $p->competences
+                            ->map(fn ($c) => ['id' => $c->id] + app(Talents::class)->fiche($p, $etatQuete, $c))
+                            ->values()
+                            ->all(),
                         // Équipement réel (fiche/sac) : arme(s) + armure nommées,
                         // sac général à part — doc 01 §7 (emplacements). Chaque
                         // pièce ÉQUIPÉE porte son inventaire_id (pour déséquiper) ;
