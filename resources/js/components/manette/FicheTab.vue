@@ -154,9 +154,13 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
     color: var(--ink-300); background: var(--stone-900);
 }
 .talent-item .tcad { font-size: 11px; color: var(--ink-500); }
+/* ⚠ La CAUSE est en rouge et à pleine force (René, 2026-09-14 : « mettre en
+   rouge la cause, car c'est difficile à lire »). C'est la seule ligne de la
+   carte que le joueur cherche vraiment quand la capacité est fermée : elle ne
+   peut pas être le texte le plus pâle de l'entrée. */
 .talent-item .traison {
     display: flex; align-items: flex-start; gap: 5px; margin-top: 5px;
-    font-size: 11.5px; line-height: 1.35; color: var(--ink-500);
+    font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--danger);
 }
 .talent-item .traison .msym { flex: none; margin-top: 1px; }
 
@@ -165,7 +169,15 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
    retrouver sa capacité pour comprendre POURQUOI elle est fermée.
    ⚠ C'est le SCEAU qui s'éteint (le dégradé d'or part), pas la couleur du
    glyphe : sur ce dégradé un glyphe gris ne se verrait tout simplement plus. */
-.talent-item.talent-indisponible { opacity: .66; border-color: oklch(0.44 0.016 255 / 0.5); }
+/* ⚠ Le grisé se fait par COULEUR, pas par `opacity` : une opacité de parent
+   plafonne tous ses enfants, donc la cause rouge héritait du voile et restait
+   illisible — c'est précisément ce qu'il fallait corriger. */
+.talent-item.talent-indisponible {
+    border-color: oklch(0.44 0.016 255 / 0.5);
+    background: linear-gradient(180deg, oklch(0.22 0.008 255 / 0.5), var(--stone-900));
+}
+.talent-item.talent-indisponible .tn { color: var(--ink-300); }
+.talent-item.talent-indisponible .tdesc { color: var(--ink-500); }
 .talent-item.talent-indisponible .ti { background: var(--stone-800); color: var(--ink-500); }
 
 /* Bonus TEMPORAIRE d'un buff actif : distinct du chiffre de base, pour qu'on

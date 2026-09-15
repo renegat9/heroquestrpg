@@ -190,6 +190,12 @@ c'est exactement la re-dérivation qui a mordu cinq fois en une semaine dans
 aussi du serveur (`Talents::STATUTS`) : seule l'icône reste au client. Une
 capacité épuisée **reste affichée**, grisée, avec sa phrase — la cacher ferait
 croire au joueur qu'il l'a perdue, la même règle que pour les entrées de menu.
+⚠ **La cause est en ROUGE et à pleine force** (René, 2026-09-14 : « c'est
+difficile à lire ») : c'est la seule ligne que le joueur cherche vraiment quand
+la capacité est fermée, elle ne peut pas être le texte le plus pâle de l'entrée.
+Et le grisé se fait par **couleur**, plus par `opacity` — une opacité de parent
+plafonne tous ses enfants, donc le rouge héritait du voile qu'on venait de lui
+retirer.
 ⚠ Vérifié en partie réelle (`browser-shots/dispo-capacites.mjs`, chevalier et
 berserker) : « Utilisable en quête seulement » au hub, « Exige un bouclier
 équipé », « Exige 5 PV de Body ou moins (tu en as 7) », « Déjà utilisée cette
