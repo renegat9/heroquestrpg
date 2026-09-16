@@ -71,9 +71,36 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> hub      # marché, sac, 
 #   … marquer prêt, jouer quelques tours (browser-shots/campagne/boucle.sh) …
 node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, déplacement
 ./browser-shots/campagne/nettoyer.sh                            # ⚠ toujours finir par là
+
+# scènes de table (les popups) : il faut une quête DÉMARRÉE, donc preparer.sh et non -livret
+LONGUEUR=tres_courte ./browser-shots/campagne/preparer.sh "Titre" "thème" \
+  barbare:Grom nain:Borin elfe:Sylvaine magicien:Aldric
+node browser-shots/livret-scenes.mjs <code>      # (conteneur Playwright) AVANT le déclencheur
+docker cp browser-shots/livret-scenes.php heroquestrpg-app-1:/tmp/
+docker compose exec -T -e CODE=<code> app php artisan tinker --execute="require '/tmp/livret-scenes.php';"
+./browser-shots/campagne/nettoyer.sh
 ```
 
-## Sept pièges déjà payés
+Les scènes passent par le **vrai** constructeur `SceneDeTable` et le vrai écran de table ;
+seul le déclenchement est provoqué — attendre qu'un tour sorte trois crânes au bon moment
+coûterait une heure de dés pour la même image. Le déclencheur pose donc les PV à la main
+pour que les chiffres affichés restent cohérents, et choisit des créatures **illustrées** et
+ordinaires : la première série avait pris « la plus robuste », c'est-à-dire le maître de la
+quête, sans image. `TRACE=1` fait lister au script de capture chaque titre lu à l'écran.
+
+⚠ Une seule vue **plein écran** (`70-scene-attaque`) pour le contexte ; les autres sont
+**recadrées** sur la carte de scène. Réduit à une colonne A4, un écran de 1600 px ramène le
+texte d'une scène à 4 pt.
+
+Les captures servies vivent en `.webp` redimensionnés dans `browser-shots/livret/web/`
+(1500 px pour un écran de table, 760 pour une manette, 900 pour une carte recadrée) :
+
+```bash
+docker run --rm -v "$PWD:/w" -w /w alpine:3.20 sh -c 'apk add --no-cache libwebp-tools >/dev/null
+  cwebp -quiet -q 82 -resize 900 0 browser-shots/livret/71-scene-jet.png -o browser-shots/livret/web/71-scene-jet.webp'
+```
+
+## Pièges déjà payés
 
 - **Le PDF faisait 104 Mo.** Chromium embarque le **bitmap décodé**, pas le fichier : les
   illustrations 1024×1024 de `public/images` pèsent autant qu'un poster. `generer.py` lit
@@ -114,6 +141,11 @@ node browser-shots/livret-jeu.mjs <code> <identifiant> quete    # carte, menu, d
   l'impression aurait pris la hauteur intrinsèque (1800 px). La règle devait donc partir
   dans **les deux** feuilles, pas seulement celle de l'écran — corriger l'écran seul aurait
   cassé le PDF en silence.
+  ⚠ **Et il est revenu par une règle neuve** (scènes de table, 2026-09-16) : `width:auto`
+  sur `figure.scene img` annulait les attributs, et les cartes plus bas dans la page
+  mesuraient **2 px** avant chargement. L'écran les pose en `width:100%` plafonné ; seule
+  l'impression garde `auto`, parce que le plafond de hauteur exige que la largeur suive le
+  ratio, et qu'elle charge tout avant de rendre.
 
 ## Ce qui n'est pas versionné
 

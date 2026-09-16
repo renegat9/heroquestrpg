@@ -327,7 +327,10 @@ final class SceneDeTable
                 'nom' => $nomMeuble,
                 'image_url' => $this->images->urlMobilier($type?->id, $nomMeuble)
                     ?? $this->images->vignette('mobilier', $type?->id ?? 0),
-                'detail' => empty($a['detruit']) ? null : 'fracassé',
+                // ⚠ « en morceaux », pas « fracassé » : le catalogue mêle Table,
+                // Armoire, Coffre et Trône, et n'a pas de genre à lire. La légende
+                // « Table · fracassé » est sortie telle quelle dans le livret.
+                'detail' => empty($a['detruit']) ? null : 'en morceaux',
             ];
         }
 

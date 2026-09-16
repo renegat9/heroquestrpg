@@ -181,6 +181,13 @@ figure.fig figcaption{font-family:var(--ui);font-size:7.9pt;color:var(--encre-3)
   margin-top:1.4mm;line-height:1.35}
 figure.tel img{width:auto;height:auto;max-width:100%;max-height:118mm;margin:0 auto}
 figure.tel figcaption{text-align:center}
+/* Scène de table RECADRÉE sur sa carte (600 px de large à l'écran, pas 1600) :
+   en pleine colonne elle deviendrait une affiche, d'où un plafond de hauteur ET
+   de largeur — la scène de salle, large et basse, passait sous le premier seul.
+   ⚠ Ces règles vivent dans LES DEUX feuilles, comme `height:auto` — corriger
+   l'écran seul casse le PDF en silence. */
+figure.scene img{width:auto;height:auto;max-width:min(100%,120mm);max-height:92mm;margin:0 auto}
+figure.scene figcaption{text-align:center}
 .duo{display:grid;grid-template-columns:1fr 1fr;gap:5mm;align-items:start}
 .trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm;align-items:start}
 
@@ -531,6 +538,21 @@ Chaque crâne compte pour un succès, et la difficulté annoncée dit combien il
 « succès à coût » plutôt qu'un échec sec. Et les attributs <strong>n'ont aucun plafond</strong>
 — c'est la difficulté qui monte avec le groupe.</p>
 ''')
+ecrire('''
+<h3>Chaque lancer s'affiche sur la table</h3>
+<p>Attaque, défense, jet d'attribut, piège, fouille : dès qu'une action est résolue, l'écran du
+narrateur la montre en <strong>scène illustrée</strong> — les portraits, les dés réellement
+tombés, et surtout <strong>ce que le résultat rapporte</strong>. La carte reste visible autour.
+La scène se ferme d'un <strong>clic sur l'écran</strong>, ou d'elle-même après un délai réglable
+dans les paramètres du narrateur (<strong>5 secondes</strong> par défaut). Elle raconte ce que le
+moteur a décidé : l'écran ne calcule rien.</p>
+''')
+ecrire(fig('70-scene-attaque',
+           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et un gobelin, qui n'a "
+           "qu'un point de Body, est terrassé. Les dés qui comptent sont cerclés de vert."))
+ecrire(fig('71-scene-jet',
+           "Un jet d'attribut dit toujours ce qu'il rapporte : deux succès sur les deux requis, la "
+           "table vole en morceaux et laisse 45 pièces d'or au groupe.", 'fig scene'))
 
 EPR = CAT['epreuves']
 ecrire('<h3>Les épreuves du donjon</h3>'
@@ -628,6 +650,16 @@ ecrire('''
 <p>À <strong>0 point de Body</strong>, la figurine est <strong>tombée</strong> : elle occupe
 toujours sa case et reste <strong>relevable</strong> par un soin ou un allié. Elle ne meurt
 définitivement que si personne ne la relève avant la fin du combat.</p>
+''')
+ecrire('<div class="duo">' +
+       fig('72-scene-attaque-monstre',
+           "Mâchefer, un orque, frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
+           "dégâts l'amènent à zéro.", 'fig scene') +
+       fig('73-scene-chute',
+           "La scène suivante le dit : à terre, mais relevable jusqu'à la fin du combat. La chute "
+           "s'affiche toujours <em>après</em> le coup qui l'a causée.", 'fig scene') +
+       '</div>')
+ecrire('''
 
 <div class="encadre avert">
   <h4>Quand tout le groupe tombe</h4>
@@ -1043,6 +1075,10 @@ for t in TER:
            f'<td class="nom">{e(t["nom"])}</td><td class="n">{t["cout_deplacement"]}</td>'
            f'<td>{EFFET_TER.get(t["nom"], "—")}</td></tr>')
 ecrire('</tbody></table>')
+ecrire(fig('74-scene-salle',
+           "Quand une porte s'ouvre sur des créatures, la table les présente avec leurs "
+           "caractéristiques. Les noms sont ceux que le maître du jeu leur a donnés ; les chiffres "
+           "sont ceux du catalogue, et l'IA n'y touche pas.", 'fig scene'))
 ecrire(fig('21-table-quete',
            "L'ouverture d'une quête : le groupe vient d'entrer, tout le reste du donjon est "
            "encore sous le brouillard. Les rectangles dorés sont des portes."))
@@ -1062,6 +1098,11 @@ lances, et <strong>six monstres errants</strong>, de loin la carte la plus fréq
 Une fouille par héros <strong>et par salle</strong> — le premier qui cherche ne referme pas la
 pièce pour les autres, chacun tire la sienne. Le butin va au fouilleur ; l'or va au pot commun.
 Une carte piège <strong>termine le tour</strong>.</p>
+''')
+ecrire(fig('75-scene-fouille',
+           "Ce qu'une fouille trouve arrive avec ce que l'objet fait : une épée large, trois dés "
+           "d'attaque, et la frappe en diagonale.", 'fig scene'))
+ecrire('''
 
 <h3>Les coffres désignés</h3>
 <p>Ils ne consomment aucune carte du paquet. Deux règles les placent :</p>
@@ -1108,6 +1149,9 @@ Mais le <strong>nain</strong> et l'<strong>explorateur</strong> désamorcent
 <strong>sans outils</strong>, et par une résolution qui leur est propre : un seul dé, et seul un
 <strong>bouclier noir</strong> les fait échouer. Ce n'est pas un bonus, c'est leur métier.</p>
 ''')
+ecrire(fig('76-scene-piege',
+           "Un piège déclenché : le héros, le piège, et ce qu'il coûte. La fosse retire un point de "
+           "Body et immobilise celui qui y tombe.", 'fig scene'))
 PIE = CAT['pieges']
 EFFET_PIEGE = {
  'Fosse': "1 dégât et <strong>immobilise</strong> ; franchissable d'un jet de Body (difficulté 2) une fois détectée",
@@ -1510,6 +1554,13 @@ figure.fig figcaption{font-family:var(--ui);font-size:13px;color:var(--ink-500);
   margin-top:8px;line-height:1.45}
 figure.tel img{width:auto;height:auto;max-width:100%;max-height:70vh;margin:0 auto}
 figure.tel figcaption{text-align:center}
+/* ⚠ `width:100%` plafonné, JAMAIS `width:auto` ici : une image `loading=lazy` en
+   largeur auto ne réserve AUCUNE place avant chargement (mesuré : 2 px), et les
+   ancres de chapitre retombent — le piège n°7 du README, revenu par une règle neuve.
+   L'impression garde `auto` : elle charge tout avant de rendre, et le plafond de
+   hauteur exige de laisser la largeur suivre le ratio. */
+figure.scene img{width:100%;max-width:560px;height:auto;margin:0 auto}
+figure.scene figcaption{text-align:center}
 .duo,.trio{display:grid;gap:18px;align-items:start}
 .duo{grid-template-columns:1fr 1fr}
 .trio{grid-template-columns:repeat(3,1fr)}

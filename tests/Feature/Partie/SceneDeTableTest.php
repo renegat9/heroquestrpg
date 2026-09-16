@@ -557,7 +557,8 @@ it('montre le meuble fracassé et ce qu\'il rendait', function () {
     ])[0];
 
     expect($scene['objets'][0]['nom'])->toBe($meuble->nom)
-        ->and($scene['objets'][0]['detail'])->toBe('fracassé')
+        // Une tournure SANS accord : aucun genre n'est lisible au catalogue.
+        ->and($scene['objets'][0]['detail'])->toBe('en morceaux')
         ->and($scene['issue']['libelle'])->toBe("+45 pièces d'or pour le groupe");
 });
 

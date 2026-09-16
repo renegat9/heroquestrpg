@@ -40,8 +40,12 @@ docker compose exec app php artisan images:purger-orphelines
   ÉTAT de porte** — une porte barrée et un passage secret ne doivent pas être
   indiscernables ; un test confronte `config('images.portes')` aux `MoteurPortes::ETAT_*`
   **dans les deux sens**.
-- ⚠ **PHP n'a ici ni gd ni imagick** : le webp ne peut pas être une commande
-  artisan, d'où le conteneur jetable et la danse `su-exec` dans le script.
+- ⚠ **Le jumeau webp naît à l'écriture depuis le 2026-09-14** : l'image `app`
+  embarque GD compilé avec webp, et `BibliothequeImages::enregistrer()` — point de
+  passage unique de toute image générée — appelle `ConvertisseurWebp::jumeler()`.
+  `image-tools/webp.sh` reste le rattrapage des PNG plus anciens ou déposés à la main.
+- ⚠ **Un inventaire par `url*() === null` ne compte rien** : `urlMonstreCatalogue()`
+  et consorts rendent déjà l'emblème de repli. Chercher `/placeholder/` dans l'URL.
 - **Repli** : `PlaceholderController` rend un **emblème SVG** par type de sujet
   (`GET /api/placeholder/{type}/{graine}`), stable et distinct par graine.
   ⚠ L'emblème est **en FIN de chaîne, jamais au milieu** : un portrait de héros
