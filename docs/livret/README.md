@@ -19,6 +19,11 @@ Les textes de règle, eux, sont écrits dans `generer.py` et adossés à `refere
 ## Régénérer
 
 ```bash
+# 0. les vignettes d'impression, tirées de public/images (incrémental)
+#    ⚠ à refaire après CHAQUE images:generer : sans elles, une illustration neuve
+#    n'entre jamais dans le livret, et rien ne le signale
+./docs/livret/vignettes.sh
+
 # 1. le catalogue, depuis la base
 docker compose exec -T app php artisan tinker --execute="
   \$d = [];
@@ -147,11 +152,19 @@ docker run --rm -v "$PWD:/w" -w /w alpine:3.20 sh -c 'apk add --no-cache libwebp
   l'impression garde `auto`, parce que le plafond de hauteur exige que la largeur suive le
   ratio, et qu'elle charge tout avant de rendre.
 
+- **Les vignettes n'avaient pas de recette.** Elles avaient été tirées une fois, à la main,
+  et tout ce qui a été illustré ensuite restait hors du livret : 21 objets manquaient déjà
+  quand les 26 artefacts des cartes officielles ont reçu leur image (2026-09-16). D'où
+  `vignettes.sh`, incrémental, et l'étape 0 ci-dessus.
+  ⚠ `_index()` range les vignettes **par id**. Les images d'objets retirés du catalogue
+  restent dans `public/images` (Capuche du Magister, Runes naines…) et produisent donc des
+  vignettes orphelines — sans effet tant qu'aucun id n'est recyclé.
+
 ## Ce qui n'est pas versionné
 
 `docs/livret/img/` (vignettes dérivées de `public/images`), `browser-shots/livret/` (les
 captures) et tout `public/livret/` (page web, images, captures, manifeste, PDF) sont
 **régénérables** et ignorés par git — exactement
 comme `public/images`, qui pèse 275 Mo sur le disque et zéro dans l'historique. Ce qui est
-versionné, c'est ce qui permet de tout refaire : `generer.py`, `rendre-pdf.mjs`, les deux
-scripts de capture et ce README.
+versionné, c'est ce qui permet de tout refaire : `generer.py`, `rendre-pdf.mjs`,
+`vignettes.sh`, les scripts de capture et ce README.
