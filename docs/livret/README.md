@@ -24,14 +24,9 @@ Les textes de règle, eux, sont écrits dans `generer.py` et adossés à `refere
 #    n'entre jamais dans le livret, et rien ne le signale
 ./docs/livret/vignettes.sh
 
-# 1. le catalogue, depuis la base
-docker compose exec -T app php artisan tinker --execute="
-  \$d = [];
-  foreach (['classes_heros','monstres','objets','sorts','pieges','mobiliers','terrains','epreuves','competences'] as \$t) {
-    \$d[\$t] = \Illuminate\Support\Facades\Schema::hasTable(\$t) ? \DB::table(\$t)->get() : [];
-  }
-  file_put_contents('/tmp/catalogue.json', json_encode(\$d, JSON_UNESCAPED_UNICODE));"
-docker compose exec -T app cat /tmp/catalogue.json > /tmp/catalogue.json
+# 1. le catalogue, depuis la base — AVEC le texte d'effet de chaque objet, traduit
+#    par le serveur (MotsClesEquipement::avantages()), le même que le sac du téléphone
+./docs/livret/catalogue.sh /tmp/catalogue.json
 
 # 2. la version WEB (public/livret/) + les sources d'impression (docs/livret/)
 #    — une seule commande produit les deux, et recopie images et captures
@@ -160,6 +155,16 @@ docker run --rm -v "$PWD:/w" -w /w alpine:3.20 sh -c 'apk add --no-cache libwebp
   restent dans `public/images` (Capuche du Magister, Runes naines…) et produisent donc des
   vignettes orphelines — sans effet tant qu'aucun id n'est recyclé.
 
+- **Le livret traduisait les effets avec sa propre table.** Une fonction Python recopiée
+  un jour de `MotsClesEquipement` et jamais suivie : 37 objets sur 105 sortaient avec
+  « — », dont les Bottes elfiques et la Baguette de Rappel **dans la table des artefacts
+  « les plus marquants »** (signalé par René, 2026-09-16). Le texte vient maintenant du
+  serveur, embarqué par `catalogue.sh`, et `generer.py` **refuse** un catalogue qui ne le
+  porte pas plutôt que de retomber sur des tirets. La bascule a aussi fait voir deux
+  libellés serveur trop vagues, corrigés à la source pour la manette comme pour le livret :
+  « Dés d'attaque accrus contre certaines créatures » (la Lame des Esprits dit maintenant
+  lesquelles) et « Cible : un héros adjacent » (une potion se boit aussi soi-même).
+
 ## Ce qui n'est pas versionné
 
 `docs/livret/img/` (vignettes dérivées de `public/images`), `browser-shots/livret/` (les
@@ -167,4 +172,4 @@ captures) et tout `public/livret/` (page web, images, captures, manifeste, PDF) 
 **régénérables** et ignorés par git — exactement
 comme `public/images`, qui pèse 275 Mo sur le disque et zéro dans l'historique. Ce qui est
 versionné, c'est ce qui permet de tout refaire : `generer.py`, `rendre-pdf.mjs`,
-`vignettes.sh`, les scripts de capture et ce README.
+`vignettes.sh`, `catalogue.sh`, les scripts de capture et ce README.

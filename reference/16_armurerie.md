@@ -778,7 +778,7 @@ vaut 3 dés, sauf contre les morts-vivants.
 | **Brassards elfiques** / Elven Bracers | idem, « only an Elf » | tag `talisman_elfe` |
 | **Capuche du Magister** / Magister's Hood | idem, « only by a Wizard » | tag `talisman_magicien` |
 | **Runes naines** / Dwarven Runestones | idem, « only by a Dwarf » | tag `talisman_nain` |
-| **Arc elfique de Vindication** / Elven Bow | « instantly kills any one monster… unless the monster rolls a black shield on 1 combat die. There are only 4 arrows » | arme, `tue_sauf_bouclier_noir` + `charges: 4` |
+| **Arc elfique de Vindication** / Elven Bow | « instantly kills any one monster… unless the monster rolls a black shield on 1 combat die. There are only 4 arrows » — ⚠ **remplacé par l'arbitrage de René (2026-09-16)** : « Inflige automatiquement 3 de dommages par flèche sauf si un bouclier noir est tiré sur un dé. 4 flèches, après l'arc est détruit. Elfe seulement. » | arme, `degats_sauf_bouclier_noir: 3` + `charges: 4` (l'arc se brise à la dernière) |
 | **Anneau de Sort** / Spell Ring | « cast one spell twice in the same Quest » | talisman, `sort_non_epuise` + `charges: 1` |
 | **Baguette de Rappel** / Wand of Recall | « cast two spells instead of one during your turn » | talisman, `second_sort_par_tour` |
 | **Sceptre de Mémoire** / Rod of Memory | « roll one combat die per turn. On a black shield, the chosen spell may be cast again » | talisman, `sort_non_epuise_sur_bouclier_noir` |
@@ -971,8 +971,9 @@ profondeur suit donc la donnée, comme pour les sorts : le sceptre ouvre un
 troisième niveau, la cape part du deuxième), et `cout` dit si l'usage prend
 l'action. ⚠ La **charge** est le garde-fou du « once per quest », et le menu
 filtre sur `disponible()` : une option laissée après la charge dépensée serait un
-bouton qui répond toujours non. ⚠ Un artefact à charges **n'est pas consommé** —
-il devient inerte et reste au sac.
+bouton qui répond toujours non. ⚠ Un artefact à charges **se brise à son dernier usage** (arbitrage de René,
+2026-09-16, qui remplace « il devient inerte et reste au sac ») : détruit, il
+n'est plus détenu, et redevient donc trouvable dans les coffres.
 
 **Cinq de plus le même jour**, et toujours sans mécanique neuve : la couture
 `activable` posée pour les trois premiers les portait déjà.

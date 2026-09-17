@@ -1225,27 +1225,41 @@ final class ResolveurTour
         // à connaître l'équipement, qu'il ignore par construction.
         $degatsFixes = (int) ($armePrincipale?->effet['degats_fixes'] ?? 0);
 
-        // Arc elfique de Vindication : « instantly kills any one monster within
-        // the Elf's line of sight, unless the monster rolls a black shield on
-        // 1 combat die ». Une FLÈCHE par tir, et l'arc n'en a que quatre — sans
-        // les charges, une mort instantanée illimitée viderait un donjon sans
-        // combat. À court de flèches il devient inerte et retombe sur ses dés.
+        // Arc elfique de Vindication — ARBITRAGE DE RENÉ (2026-09-16), qui
+        // remplace la mort instantanée de la carte : « Inflige automatiquement 3
+        // de dommages par flèche sauf si un bouclier noir est tiré sur un dé. 4
+        // flèches, après l'arc est détruit. » Aucun jet d'attaque, aucune
+        // défense : UN dé de combat pour la cible, et seul le bouclier noir
+        // arrête la flèche. La quatrième flèche partie, l'arc se brise
+        // (`MoteurCharges::consommer()`) — il n'y a plus d'« arc ordinaire ».
         $fleche = $this->flecheDeVindication($ligneArme);
 
         if ($fleche !== null) {
             $face = FaceDeCombat::depuisD6($this->des->d6());
-            $survit = $face === FaceDeCombat::BouclierNoir;
+            $arretee = $face === FaceDeCombat::BouclierNoir;
+            $pvAvant = (int) $instance->pv_body;
+            $degats = $arretee ? 0 : min($pvAvant, (int) ($fleche->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0));
+            $pvApres = $pvAvant - $degats;
 
-            $payload = $this->payloadVindication($meta, $instance, $face, $survit, $fleche);
             $instance->update([
-                'pv_body' => $survit ? (int) $instance->pv_body : 0,
-                'etat' => $survit ? 'actif' : 'vaincu',
+                'pv_body' => $pvApres,
+                'etat' => $pvApres <= 0 ? 'vaincu' : 'actif',
             ]);
+
+            $payload = $this->payloadVindication($meta, $instance, $face, $degats, $pvApres, $fleche);
 
             $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
             $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
             Journal::ajouter($groupe, 'combat', $payload, $acteur);
-            $this->diffuserBark($groupe, $instance, $survit ? 'rate' : 'mort');
+            $this->charges->detruireSiEpuise($fleche);
+
+            // Une flèche arrêtée est un
+            // raté, une flèche qui blesse sans abattre est une touche.
+            $this->diffuserBark($groupe, $instance, match (true) {
+                $arretee => 'rate',
+                $pvApres <= 0 => 'mort',
+                default => 'touche',
+            });
 
             return $payload;
         }
@@ -2035,19 +2049,18 @@ final class ResolveurTour
      * L'arme est-elle un arc de Vindication encore chargé ? Rend la LIGNE
      * d'inventaire (dont la flèche vient d'être décomptée), ou `null`.
      *
-     * La flèche est dépensée ici, avant le jet : elle part que le monstre
-     * survive ou non — c'est ce que dit la carte, quatre flèches, pas quatre
-     * morts.
+     * La flèche est dépensée ici, avant le jet : elle part que la cible
+     * l'arrête ou non — quatre flèches, pas quatre coups au but.
+     * ⚠ La destruction de l'arc à la dernière flèche est DIFFÉRÉE : l'appelant
+     * journalise le tir, puis brise l'arc (`detruireSiEpuise()`).
      */
     private function flecheDeVindication(?Inventaire $ligne): ?Inventaire
     {
-        if (! (bool) ($ligne?->objet?->effet['tue_sauf_bouclier_noir'] ?? false)) {
+        if ((int) ($ligne?->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0) <= 0) {
             return null;
         }
 
-        // Épuisé : l'arc reste en main mais redevient une arme ordinaire, et
-        // l'attaque repart par le chemin normal (ses 2 dés).
-        return $this->charges->consommer($ligne) ? $ligne : null;
+        return $this->charges->consommer($ligne, differerDestruction: true) ? $ligne : null;
     }
 
     /**
@@ -2058,9 +2071,12 @@ final class ResolveurTour
         array $meta,
         InstanceMonstre $instance,
         FaceDeCombat $face,
-        bool $survit,
+        int $degats,
+        int $pvApres,
         Inventaire $arc,
     ): array {
+        $arretee = $face === FaceDeCombat::BouclierNoir;
+
         return [
             'type' => 'attaque',
             'option_id' => $meta['option_id'] ?? null,
@@ -2069,15 +2085,15 @@ final class ResolveurTour
             'vindication' => true,
             'faces_defense' => [$face->value],
             'faces_attaque' => [],
-            // Le monstre ne survit QUE sur un bouclier noir (ligne 662) : c'est
-            // donc la face qui « pare » ce jet, et la seule à entourer en vert.
+            // Seul un bouclier noir arrête la flèche : c'est donc la face qui
+            // « pare » ce jet, et la seule à entourer en vert.
             'face_defensive' => FaceDeCombat::BouclierNoir->value,
             'des_attaque_effectifs' => 0,
             'touches' => 0,
-            'boucliers' => $survit ? 1 : 0,
-            'degats' => $survit ? 0 : (int) $instance->pv_body,
-            'pv_body_apres' => $survit ? (int) $instance->pv_body : 0,
-            'cible_vaincue' => ! $survit,
+            'boucliers' => $arretee ? 1 : 0,
+            'degats' => $degats,
+            'pv_body_apres' => $pvApres,
+            'cible_vaincue' => $pvApres <= 0,
             'fleches_restantes' => $this->charges->restantes($arc->fresh()),
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
         ];
@@ -5825,16 +5841,16 @@ final class ResolveurTour
         if (! empty($effet['activable'])) {
             $payload += $this->resoudreArtefactActivable($quete, $personnage, $ligne, $effet, $cibleId);
 
-            // ⚠ Un artefact à CHARGES n'est pas perdu : il devient inerte à zéro
-            // et reste au sac. Il ne doit donc pas traverser la queue de méthode
-            // qui décrémente la pile et supprime la ligne — celle-là est écrite
-            // pour les trois consommables de matériel.
+            // ⚠ Un artefact à CHARGES ne traverse pas la queue de méthode qui
+            // décrémente la pile — celle-là est écrite pour les trois
+            // consommables de matériel. Sa destruction au dernier usage est
+            // tenue par `MoteurCharges::consommer()` (René, 2026-09-16).
             // ⚠ `consommerUsage()` dépense CE QUI LIMITE l'objet : la fenêtre
             // « une fois par quête » si sa carte en déclare une, la charge s'il
             // porte un total fini. Les deux notions coexistent — l'Arc de
             // Vindication a bien 4 flèches, pas une cadence.
             if (isset($effet['charges']) || isset($effet['frequence'])) {
-                $this->charges->consommerUsage($ligne, $etat);
+                $this->charges->consommerUsage($ligne, $etat, differerDestruction: true);
 
                 // ⚠ Deux comptes distincts, et la charge utile les distingue :
                 // `charges_restantes` n'a de sens que pour une pièce à total
@@ -5844,7 +5860,11 @@ final class ResolveurTour
                 $payload['charges_restantes'] = $this->charges->restantes($ligne->fresh());
                 $payload['usage_restant'] = $this->charges->utilisable($ligne->fresh(), $etat);
 
-                return $this->journaliserUsageObjet($groupe, $payload, $acteur);
+                $retour = $this->journaliserUsageObjet($groupe, $payload, $acteur);
+                // Destruction APRÈS la ligne d'usage, pour l'ordre du fil.
+                $this->charges->detruireSiEpuise($ligne);
+
+                return $retour;
             }
         } elseif (! empty($effet['tue_creatures'])) {
             $payload += $this->resoudreEauBenite($groupe, $quete, $etat, $cibleId, $effet);
@@ -5922,7 +5942,7 @@ final class ResolveurTour
      * any undead creature (skeleton, zombie, or mummy). »
      *
      * La carte ne donne AUCUNE portée : on retient la ligne de vue, comme la
-     * Flèche de Vindication, qui est l'autre effet du jeu tuant sans jet. C'est
+     * Flèche de Vindication, l'autre effet du jeu qui frappe sans jet. C'est
      * une décision de portage, consignée en doc 16 §10.
      *
      * @param  array<string, mixed>  $effet

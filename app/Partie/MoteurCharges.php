@@ -7,15 +7,23 @@ namespace App\Partie;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Inventaire;
 use App\Models\Personnage;
+use App\Support\Journal;
 
 /**
  * CHARGES d'un exemplaire d'objet (`inventaire.charges`).
  *
- * Un objet à charges fait ce qu'il annonce **N fois**, puis devient inerte : il
- * reste en inventaire, mais son effet cesse de s'appliquer. C'est le texte de la
- * carte de l'arc elfique — « There are only 4 arrows with this bow. It becomes
- * useless afterwards. » — et le même modèle sert aux anneaux et baguettes à
- * usage unique.
+ * Un objet à charges fait ce qu'il annonce **N fois**, puis il est DÉTRUIT : sa
+ * ligne d'inventaire disparaît au dernier usage.
+ *
+ * ⚠ ARBITRAGE DE RENÉ (2026-09-16), qui remplace « devient inerte et reste au
+ * sac » : « Les artefacts qui sont à usage unique ou limité peuvent être de
+ * nouveau trouvés une fois qu'ils sont détruits (plus assignés à un héros). »
+ * Inerte, l'arc vide restait au sac pour toujours — donc DÉTENU, donc écarté des
+ * coffres (`DeckFouille::choisirArtefact()` n'écarte que ce qu'un héros
+ * possède), donc perdu pour la campagne. Détruit, il redevient trouvable, sans
+ * statut à tenir : l'absence de ligne suffit. Les cinq objets à charges du
+ * catalogue sont tous des artefacts (Arc de Vindication, Anneaux de Feu et du
+ * Retour, Bâton Ancien, Orbe Céleste).
  *
  * Trois règles, et rien d'autre :
  *
@@ -59,7 +67,7 @@ final class MoteurCharges
      * Un objet illimité rend `true` sans rien écrire : les appelants n'ont pas à
      * savoir si la pièce qu'ils manipulent a des charges ou non.
      */
-    public function consommer(?Inventaire $ligne): bool
+    public function consommer(?Inventaire $ligne, bool $differerDestruction = false): bool
     {
         $restantes = $this->restantes($ligne);
 
@@ -73,7 +81,51 @@ final class MoteurCharges
 
         $ligne->update(['charges' => $restantes - 1]);
 
+        // ⚠ `$differerDestruction` : l'appelant qui JOURNALISE son action juste
+        // après (la flèche, l'anneau activé) détruit lui-même, ENSUITE, par
+        // `detruireSiEpuise()`. Sinon le fil dirait « l'arc se brise » avant
+        // « Lindir tire » — la chute affichée avant le coup, encore.
+        if ($restantes - 1 === 0 && ! $differerDestruction) {
+            $this->detruire($ligne);
+        }
+
         return true;
+    }
+
+    /** Détruit l'exemplaire s'il n'a plus de charge. Le pendant différé de `consommer()`. */
+    public function detruireSiEpuise(?Inventaire $ligne): void
+    {
+        if ($ligne !== null && $ligne->exists && $this->restantes($ligne->fresh()?->load('objet')) === 0) {
+            $this->detruire($ligne);
+        }
+    }
+
+    /**
+     * Le dernier usage vient de partir : l'objet se brise.
+     *
+     * ⚠ L'appelant garde le modèle EN MÉMOIRE (`$ligne->exists` passe à faux) :
+     * il peut encore lire son objet et ses charges pour son payload, mais plus
+     * rien ne doit le relire en base — `fresh()` rendrait `null`.
+     *
+     * ⚠ Journalisé : un artefact qui disparaît de la main d'un héros sans un mot
+     * est exactement l'effet automatique que rien n'annonce.
+     */
+    private function detruire(Inventaire $ligne): void
+    {
+        $nom = $ligne->objet?->nom;
+        $porteur = $ligne->personnage()->first();
+
+        $ligne->delete();
+
+        $groupe = $porteur?->groupeActif;
+
+        if ($groupe !== null) {
+            Journal::ajouter($groupe, 'combat', [
+                'type' => 'objet_detruit',
+                'objet' => $nom,
+                'personnage' => $porteur->nom,
+            ], ['type' => 'personnage', 'id' => $porteur->id, 'nom' => $porteur->nom]);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -134,7 +186,7 @@ final class MoteurCharges
      * a. Rend `false` si l'objet n'était pas utilisable — l'appelant ne doit
      * alors PAS appliquer l'effet.
      */
-    public function consommerUsage(?Inventaire $ligne, ?EtatPersonnageQuete $etat = null): bool
+    public function consommerUsage(?Inventaire $ligne, ?EtatPersonnageQuete $etat = null, bool $differerDestruction = false): bool
     {
         if (! $this->utilisable($ligne, $etat)) {
             return false;
@@ -146,7 +198,7 @@ final class MoteurCharges
             app(Talents::class)->marquerUtilisee($etat, self::cleFenetre($ligne), $compteur);
         }
 
-        return $this->consommer($ligne);
+        return $this->consommer($ligne, $differerDestruction);
     }
 
     /** La colonne qui compte la fréquence déclarée par l'objet, ou `null`. */

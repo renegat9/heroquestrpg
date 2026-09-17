@@ -13,6 +13,12 @@ import json, os, re, sys, html, shutil, datetime
 
 RACINE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAT = json.load(open(sys.argv[1], encoding='utf-8'))
+# ⚠ Ce que fait un objet est TRADUIT PAR LE SERVEUR (`MotsClesEquipement::avantages()`),
+# pas ici. Le livret tenait sa propre table Python, recopiée un jour et jamais suivie :
+# 37 objets sur 105 sortaient avec « — » (2026-09-16). Un catalogue produit à l'ancienne
+# doit donc ARRÊTER la génération, pas l'autoriser à retomber dans ce silence.
+if 'avantages_objets' not in CAT:
+    sys.exit("Catalogue sans « avantages_objets » : régénère-le avec ./docs/livret/catalogue.sh")
 SORTIE = os.path.join(RACINE, 'docs', 'livret', 'livret.html')
 PDF = 'HeroQuest-RPG-Livret-de-jeu.pdf'
 
@@ -693,85 +699,10 @@ ecrire(fig('22-table-donjon',
 fin()
 
 # ============================================= 7. L'ÉQUIPEMENT ============
-def avantages(ef):
-    """Phrase française pour les clés d'effet réellement portées par le catalogue."""
-    out = []
-    d = ef.get('des_attaque')
-    if d:
-        out.append(f"{d} dé{'s' if d > 1 else ''} d'attaque")
-    if ef.get('degats_fixes'):
-        out.append(f"{ef['degats_fixes']} dégât fixe, sans parade")
-    if ef.get('des_attaque_contre'):
-        c = ef['des_attaque_contre']
-        out.append(f"{c['des']} dés contre {', '.join(c['noms'])}")
-    if ef.get('attaque_double_contre'):
-        out.append('frappe deux fois contre ' + ', '.join(ef['attaque_double_contre']))
-    if ef.get('attaque_diagonale'):
-        out.append('frappe en diagonale')
-    if ef.get('portee') == 'distance':
-        out.append('arme à distance')
-    if ef.get('inutilisable_adjacent'):
-        out.append('inutilisable au contact')
-    if ef.get('deux_mains'):
-        out.append('se tient à deux mains')
-    if ef.get('jetable'):
-        out.append('peut être lancée — et se perd')
-    d = ef.get('des_defense')
-    if d:
-        out.append(f"+{d} dé{'s' if d > 1 else ''} de défense")
-    if ef.get('malus_deplacement'):
-        out.append(f"−{ef['malus_deplacement']} cases de déplacement")
-    if ef.get('incompatible_deux_mains'):
-        out.append('pas avec une arme à deux mains')
-    if ef.get('bonus_pv_body_max'):
-        out.append(f"+{ef['bonus_pv_body_max']} PV de Body maximum")
-    if ef.get('bonus_pv_mind_max'):
-        out.append(f"+{ef['bonus_pv_mind_max']} PV de Mind maximum")
-    if ef.get('soin_pv_body'):
-        out.append(f"rend {ef['soin_pv_body']} PV de Body")
-    if ef.get('soin_pv_mind'):
-        out.append(f"rend {ef['soin_pv_mind']} PV de Mind")
-    if ef.get('soin_pv_body_de'):
-        out.append(f"rend 1d{ef['soin_pv_body_de']} PV de Body")
-    if ef.get('bonus_des_attaque'):
-        out.append(f"+{ef['bonus_des_attaque']} dés d'attaque")
-    if ef.get('bonus_des_defense'):
-        out.append(f"+{ef['bonus_des_defense']} dés de défense")
-    if ef.get('attaque_supplementaire'):
-        out.append('une attaque supplémentaire')
-    if ef.get('relance_des_attaque'):
-        out.append("relance les dés d'attaque ratés")
-    if ef.get('multiplicateur_degats'):
-        out.append(f"dégâts ×{ef['multiplicateur_degats']}")
-    if ef.get('bonus_deplacement'):
-        out.append(f"+{ef['bonus_deplacement']} cases")
-    if ef.get('deplacement_multiplie'):
-        out.append(f"déplacement ×{ef['deplacement_multiplie']}")
-    if ef.get('restaure_sorts'):
-        out.append(f"rend {ef['restaure_sorts']} sort(s) épuisé(s)")
-    if ef.get('restaure_jauges_depart'):
-        out.append('rend toutes les jauges du départ')
-    if ef.get('retire_condition'):
-        out.append(f"retire « {ef['retire_condition']} »")
-    if ef.get('permet_desamorcage'):
-        out.append('permet de désamorcer les pièges')
-    if ef.get('tue_creatures'):
-        out.append('détruit ' + ', '.join(ef['tue_creatures']))
-    if ef.get('revele_pieges_et_portes_en_vue'):
-        out.append('révèle pièges et portes secrètes en vue')
-    if ef.get('saut_fosse_automatique'):
-        out.append('franchit les fosses sans jet')
-    if ef.get('franchit_figures'):
-        out.append('traverse les figurines')
-    if ef.get('franchit_mur'):
-        out.append('traverse les murs')
-    if ef.get('immunite_degat'):
-        out.append(f"immunité aux dégâts de {ef['immunite_degat']}")
-    if ef.get('charges'):
-        out.append(f"{ef['charges']} charges")
-    if ef.get('frequence') == 'une_fois_par_quete':
-        out.append('une fois par quête')
-    return ' · '.join(out) or '—'
+def avantages(objet):
+    """Ce que fait l'objet, tel que le SERVEUR le dit — le même texte que le sac de la
+    manette. Aucune traduction ici : voir `avantages_objets` dans docs/livret/catalogue.sh."""
+    return ' · '.join(CAT['avantages_objets'].get(str(objet['id'])) or []) or '—'
 
 OBJ = CAT['objets']
 def par(cat, raretes=None, tri=None):
@@ -789,7 +720,7 @@ def table_objets(liste, titre=None, colonne_prix=True):
         vig = f'<img src="{src}" alt="">' if src else ''
         prix = f'<td class="n">{o["prix_base"]}</td>' if colonne_prix else ''
         ecrire(f'<tr><td class="vig">{vig}</td><td class="nom">{e(o["nom"])}</td>{prix}'
-               f'<td>{avantages(j(o["effet"]))}</td></tr>')
+               f'<td>{e(avantages(o))}</td></tr>')
     ecrire('</tbody></table>')
 
 chapitre(7, "L'équipement",
@@ -1115,6 +1046,10 @@ ecrire('''
 <p>Le coffre désigné rend <strong>au plus un artefact</strong> par quête. S'il n'en reste aucun
 que le groupe puisse porter, il verse une <strong>grosse somme d'or</strong> à la place —
 jamais rien.</p>
+<p>Un artefact ne sort d'un coffre que <strong>si aucun héros du groupe ne le détient</strong>.
+Celui qu'on n'a pas su récupérer peut donc revenir dans une quête suivante, et un artefact à
+<strong>usage limité</strong> — l'Arc de Vindication et ses quatre flèches, l'Anneau du Retour —
+<strong>se brise</strong> à son dernier usage : le voilà, lui aussi, de nouveau trouvable.</p>
 
 <div class="encadre avert">
   <h4>Le paquet de fouille ne contient aucun artefact</h4>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Evenement;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -12,6 +13,7 @@ use App\Models\Quete;
 use App\Models\Sort;
 use App\Partie\Equipement;
 use App\Partie\Grille;
+use App\Partie\JournalCombat;
 use App\Partie\MoteurCharges;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurSorts;
@@ -177,7 +179,7 @@ it('rend null pour un objet sans charges, et le laisse toujours disponible', fun
         ->and($ligne->fresh()->charges)->toBeNull(); // rien n'a été écrit
 });
 
-it('décompte jusqu\'à zéro, puis refuse', function () {
+it('décompte jusqu\'à zéro, puis DÉTRUIT l\'objet — et le dit', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $magicien = creerHeros($alice, $groupe, 'Aldric', 1, ['classe' => 'magicien']);
@@ -193,16 +195,26 @@ it('décompte jusqu\'à zéro, puis refuse', function () {
     expect($charges->consommer($ligne))->toBeTrue()
         ->and($charges->restantes($ligne->fresh()))->toBe(1)
         ->and($charges->disponible($ligne->fresh()))->toBeTrue()
-        ->and($charges->consommer($ligne->fresh()))->toBeTrue()
-        ->and($charges->restantes($ligne->fresh()))->toBe(0)
-        ->and($charges->disponible($ligne->fresh()))->toBeFalse()
-        // Épuisé : l'objet RESTE en inventaire, il ne fait simplement plus rien.
-        ->and($charges->consommer($ligne->fresh()))->toBeFalse()
-        ->and($ligne->fresh())->not->toBeNull();
+        // La dernière charge sert encore : l'effet s'applique…
+        ->and($charges->consommer($ligne->fresh()->load('objet')))->toBeTrue()
+        // …puis l'anneau se BRISE (René, 2026-09-16). Il n'est plus « inerte au
+        // sac » : c'est ce qui le rend de nouveau trouvable dans les coffres.
+        ->and(Inventaire::find($ligne->id))->toBeNull();
+
+    // Et la disparition est annoncée — un artefact qui quitte la main d'un
+    // héros sans un mot est un effet automatique que rien n'annonce.
+    $annonce = Evenement::where('groupe_id', $groupe->id)->where('type', 'combat')->get()
+        ->first(fn ($e) => ($e->payload['type'] ?? null) === 'objet_detruit');
+
+    expect($annonce)->not->toBeNull()
+        ->and($annonce->payload['objet'])->toBe('Anneau de Feu')
+        ->and(app(JournalCombat::class)->depuisResultat($annonce->payload, 'Aldric')[0]['texte'])
+        ->toBe('Anneau de Feu de Aldric est épuisé et se brise');
 });
 
 // ---------------------------------------------------------------------------
-// Arc elfique de Vindication — 4 flèches, mort instantanée
+// Arc elfique de Vindication — 3 PV par flèche, 4 flèches, puis il se brise
+// (arbitrage de René, 2026-09-16, qui remplace la mort instantanée de la carte)
 // ---------------------------------------------------------------------------
 
 /** Prépare un elfe armé de l'arc, la cible éloignée et en ligne de vue. */
@@ -230,27 +242,44 @@ function tirer(array $ctx, int $face): TestResponse
     ]);
 }
 
-it('tue la cible d\'emblée, quels que soient ses PV', function () {
+it('inflige 3 PV par flèche, sans jet d\'attaque ni défense', function () {
     $ctx = elfeArme();
+    $ctx['instance']->update(['pv_body' => 5, 'pv_body_max' => 5]);
 
-    // 1 = crâne, donc pas de bouclier noir : la momie tombe d'un coup.
+    // 1 = crâne, pas de bouclier noir : la flèche porte ses 3 PV, et la cible
+    // en a 5 — elle tient. Plus de mort instantanée.
     tirer($ctx, 1)->assertStatus(202)
         ->assertJsonPath('resultat.vindication', true)
-        ->assertJsonPath('resultat.cible_vaincue', true)
+        ->assertJsonPath('resultat.degats', 3)
+        ->assertJsonPath('resultat.pv_body_apres', 2)
+        ->assertJsonPath('resultat.cible_vaincue', false)
         ->assertJsonPath('resultat.fleches_restantes', 3);
 
-    expect((int) $ctx['instance']->fresh()->pv_body)->toBe(0)
-        ->and($ctx['instance']->fresh()->etat)->toBe('vaincu')
+    expect((int) $ctx['instance']->fresh()->pv_body)->toBe(2)
+        ->and($ctx['instance']->fresh()->etat)->toBe('actif')
         ->and((int) $ctx['arc']->fresh()->charges)->toBe(3);
 });
 
-it('épargne la cible sur un bouclier noir — mais la flèche part quand même', function () {
+it('abat une cible qui n\'a pas plus de 3 PV', function () {
+    $ctx = elfeArme();
+    $ctx['instance']->update(['pv_body' => 2, 'pv_body_max' => 2]);
+
+    // Les dégâts affichés sont ceux RÉELLEMENT retirés, pas les 3 promis.
+    tirer($ctx, 1)->assertStatus(202)
+        ->assertJsonPath('resultat.degats', 2)
+        ->assertJsonPath('resultat.cible_vaincue', true);
+
+    expect($ctx['instance']->fresh()->etat)->toBe('vaincu');
+});
+
+it('s\'arrête sur un bouclier noir — mais la flèche part quand même', function () {
     $ctx = elfeArme();
     $pvAvant = (int) $ctx['instance']->pv_body;
 
-    // 6 = bouclier noir : le monstre survit. La carte donne quatre FLÈCHES,
-    // pas quatre morts — le carquois se vide dans les deux cas.
+    // 6 = bouclier noir : la cible arrête la flèche. Quatre FLÈCHES, pas quatre
+    // coups au but — le carquois se vide dans les deux cas.
     tirer($ctx, 6)->assertStatus(202)
+        ->assertJsonPath('resultat.degats', 0)
         ->assertJsonPath('resultat.cible_vaincue', false)
         ->assertJsonPath('resultat.fleches_restantes', 3);
 
@@ -258,34 +287,31 @@ it('épargne la cible sur un bouclier noir — mais la flèche part quand même'
         ->and((int) $ctx['arc']->fresh()->charges)->toBe(3);
 });
 
-it('redevient une arme ordinaire une fois le carquois vide', function () {
-    $ctx = demarrerQueteAvecMonstre('Momie', ['classe' => 'elfe']);
-    $arc = poser($ctx['heros'], 'Arc elfique de Vindication', 'arme_principale');
-    $arc->update(['charges' => 0]); // carquois vide
-    app(Equipement::class)->recalculerCombat($ctx['heros']->refresh());
+it('se BRISE à la dernière flèche, et le fil le dit APRÈS le tir', function () {
+    $ctx = elfeArme();
+    $ctx['instance']->update(['pv_body' => 5, 'pv_body_max' => 5]);
+    $ctx['arc']->update(['charges' => 1]); // la dernière flèche
 
-    eloignerPour($ctx['quete'], $ctx['instance'],
-        (int) $ctx['etatHeros']->position_x, (int) $ctx['etatHeros']->position_y);
+    tirer($ctx, 1)->assertStatus(202)
+        ->assertJsonPath('resultat.degats', 3)
+        ->assertJsonPath('resultat.fleches_restantes', 0);
 
-    desFiges(array_fill(0, 30, 4)); // boucliers blancs : combat neutre
-    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
-    desFiges(array_fill(0, 30, 4));
+    // « 4 flèches, après l'arc est détruit » : plus d'arc vide qui retomberait
+    // sur des dés d'arme ordinaire.
+    expect(Inventaire::find($ctx['arc']->id))->toBeNull();
 
-    // Plus de mort instantanée : l'attaque repasse par les dés de l'arc (2).
-    $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
-    ])->assertStatus(202)
-        ->assertJsonMissingPath('resultat.vindication')
-        ->assertJsonPath('resultat.des_attaque_effectifs', 2);
+    // ⚠ L'ORDRE : détruire pendant la dépense de la flèche journalisait « l'arc
+    // se brise » AVANT « l'elfe tire » — la chute avant le coup, encore.
+    $types = Evenement::where('groupe_id', $ctx['groupe']->id)->where('type', 'combat')
+        ->orderBy('sequence')->get()->map(fn ($e) => $e->payload['type'] ?? null)
+        ->filter(fn ($t) => in_array($t, ['attaque', 'objet_detruit'], true))->values()->all();
 
-    expect((int) $arc->fresh()->charges)->toBe(0); // rien de plus n'a été retiré
+    expect(array_slice($types, -2))->toBe(['attaque', 'objet_detruit']);
 });
 
 // ---------------------------------------------------------------------------
 // Économie de sorts
 // ---------------------------------------------------------------------------
-
-
 
 it('la Baguette de Rappel accorde un SECOND sort par tour, comme le nœud', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
@@ -332,7 +358,6 @@ it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
         ->and((int) $anneau->fresh()->charges)->toBe(0);
 });
 
-
 // ---------------------------------------------------------------------------
 // Types de dégâts — le feu (App\Engine\TypeDegat)
 // ---------------------------------------------------------------------------
@@ -364,9 +389,11 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
             ->assertJsonPath('resultat.degats', 0);
     }
 
-    // Deux sorts encaissés sans une égratignure, et l'anneau est vide.
+    // Deux sorts encaissés sans une égratignure, et l'anneau tombe en cendres :
+    // détruit au dernier usage (René, 2026-09-16), ce que la carte dit mot pour
+    // mot — « the ring turns to ash ».
     expect((int) $magicien->fresh()->pv_body)->toBe($pvAvant)
-        ->and((int) $anneau->fresh()->charges)->toBe(0);
+        ->and($anneau->fresh())->toBeNull();
 
     // Le troisième passe : « the ring turns to ash after the second spell ».
     rearmerTour($ctx, $magicien);

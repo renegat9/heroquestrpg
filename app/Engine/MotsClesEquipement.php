@@ -202,15 +202,21 @@ final class MotsClesEquipement
     public const CHARGES = 'charges';
 
     /**
-     * Tue la cible d'emblée, sauf si elle obtient un **bouclier noir** sur un
-     * unique dé de défense — « instantly kills any one monster within the Elf's
-     * line of sight, unless the monster rolls a black shield on 1 combat die ».
+     * Chaque flèche inflige N points de Body, SANS jet d'attaque ni défense, sauf
+     * si la cible obtient un **bouclier noir** sur un unique dé de combat.
      *
-     * S'accompagne TOUJOURS de `charges` : une mort instantanée illimitée
-     * viderait un donjon sans combat.
-     * Lecteur : `ResolveurTour::resoudreAttaque()`.
+     * ⚠ ARBITRAGE DE RENÉ (2026-09-16), qui remplace la carte : « Inflige
+     * automatiquement 3 de dommages par flèche sauf si un bouclier noir est tiré
+     * sur un dé. 4 flèches, après l'arc est détruit. Elfe seulement. » La carte
+     * *Elven Bow of Vindication* disait « instantly kills any one monster » —
+     * une mort instantanée qui effaçait un boss comme un gobelin. La clé
+     * `tue_sauf_bouclier_noir` a disparu avec elle.
+     *
+     * S'accompagne TOUJOURS de `charges` : quatre flèches, puis l'arc se brise
+     * (`MoteurCharges::consommer()`).
+     * Lecteur : `ResolveurTour::flecheDeVindication()`.
      */
-    public const TUE_SAUF_BOUCLIER_NOIR = 'tue_sauf_bouclier_noir';
+    public const DEGATS_SAUF_BOUCLIER_NOIR = 'degats_sauf_bouclier_noir';
 
     /**
      * Annule intégralement les dégâts d'une NATURE donnée (`App\Engine\TypeDegat`)
@@ -740,7 +746,7 @@ final class MotsClesEquipement
         self::BONUS_PV_BODY_MAX,
         self::BONUS_PV_MIND_MAX,
         self::CHARGES,
-        self::TUE_SAUF_BOUCLIER_NOIR,
+        self::DEGATS_SAUF_BOUCLIER_NOIR,
         self::IMMUNITE_DEGAT,
         self::ABSORBE_DEGATS_MIND,
         self::RESTAURE_SORTS,
@@ -831,7 +837,7 @@ final class MotsClesEquipement
         self::DES_DEFENSE => '%s dé(s) de défense',
         'bonus_des_attaque' => '+%s dé(s) d\'attaque',
         'bonus_des_defense' => '+%s dé(s) de défense',
-        'bonus_des_resistance_mentale' => '+%s dé(s) de résistance mentale',
+        'bonus_des_resistance_mentale' => '+%s dé(s) pour résister aux sorts du maître du donjon',
         self::ATTAQUE_DIAGONALE => 'Frappe en diagonale',
         self::DEGATS_FIXES => 'Inflige toujours %s PV',
         self::DES_ATTAQUE_CONTRE => 'Dés d\'attaque accrus contre certaines créatures',
@@ -842,7 +848,7 @@ final class MotsClesEquipement
         'relance_des_attaque' => 'Relance %s dé(s) d\'attaque raté(s)',
         'relance_des_attaque_sur_face' => 'Relance un dé selon la face obtenue',
         'relance_attaque_monstre' => 'Force l\'assaillant à relancer son attaque',
-        self::TUE_SAUF_BOUCLIER_NOIR => 'Tue net, sauf bouclier noir de la cible',
+        self::DEGATS_SAUF_BOUCLIER_NOIR => 'Chaque flèche inflige %s PV, sauf si la cible tire un bouclier noir',
         'tue_creatures' => 'Tue instantanément : %s',
         'controle_monstres' => 'Enrôle une créature',
 
@@ -864,8 +870,13 @@ final class MotsClesEquipement
         'franchit_figures' => 'Traverse les figurines',
         'franchit_mur' => 'Traverse les murs',
         'saut_fosse_automatique' => 'Franchit les fosses sans jet',
-        'saut_piege_de_combat' => 'Franchit un piège sans jet',
-        'ramene_heros_au_depart' => 'Ramène le héros à son point de départ',
+        // ⚠ Confronté à la carte *Rabbit Boots* le 2026-09-16 : « roll anything but a
+        // black shield on 1 combat die ». Le moteur lance bien ce dé
+        // (`ResolveurTour`) ; seul le libellé disait « sans jet ».
+        'saut_piege_de_combat' => 'Saute un piège découvert — échoue seulement sur un bouclier noir',
+        // ⚠ *Ring of Return* : « returns ALL heroes that the ring wearer can see ».
+        // Le moteur le fait (`ramenerAuDepart()`) ; le libellé n'en ramenait qu'un.
+        'ramene_heros_au_depart' => 'Ramène à l\'entrée de la quête tous les héros que le porteur voit, lui compris',
 
         // --- Soins et jauges
         'soin_pv_body' => 'Rend %s PV de Body',
@@ -874,7 +885,9 @@ final class MotsClesEquipement
         'restaure_jauges_depart' => 'Rend toutes les jauges au maximum',
         self::BONUS_PV_BODY_MAX => '+%s PV de Body maximum',
         self::BONUS_PV_MIND_MAX => '+%s PV de Mind maximum',
-        'plancher_pv' => 'Empêche de tomber à 0 PV',
+        // ⚠ Le jet de perte (5 ou 6) est câblé pour TOUT objet à plancher
+        // (`MoteurReactions`) : il fait partie de ce que l'objet coûte.
+        'plancher_pv' => 'Laisse 1 PV à son porteur quand il tombe à 0 — se consume sur 5 ou 6',
         'releve' => 'Remet un héros debout',
         'retire_condition' => 'Retire : %s',
 
@@ -896,11 +909,16 @@ final class MotsClesEquipement
         'condition_appliquee' => 'Applique : %s',
 
         // --- Économie d'usage
-        self::CHARGES => '%s utilisation(s)',
+        // ⚠ « puis l'objet se brise » (René, 2026-09-16) : un objet à charges
+        // n'est plus inerte au sac, il est DÉTRUIT au dernier usage — et redevient
+        // ainsi trouvable dans les coffres (`MoteurCharges::consommer()`).
+        self::CHARGES => '%s utilisation(s), puis l\'objet se brise',
         'frequence' => 'Cadence : %s',
         'cout' => 'Coût : %s',
         'une_par_tour' => 'Une seule fois par tour',
-        'activable' => 'S\'active à volonté',
+        // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
+        // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
+        'activable' => 'Pouvoir à déclencher',
         'usure_sur_des_identiques' => 'S\'use sur un jet trop régulier',
         'cible' => 'Cible : %s',
         'duree' => 'Durée : %s',
@@ -940,6 +958,50 @@ final class MotsClesEquipement
         $lignes = [];
 
         foreach ($effet as $cle => $valeur) {
+            // ⚠ La seule valeur STRUCTURÉE du vocabulaire (`{des, noms}`) : le
+            // gabarit générique n'en pouvait dire que « contre certaines
+            // créatures », quand le livret — avec sa propre table, retirée le
+            // 2026-09-16 — écrivait « 4 dés contre Squelette, Zombie, Momie ».
+            // La précision revient ici, au seul endroit qui traduit un effet.
+            if ($cle === self::DES_ATTAQUE_CONTRE && is_array($valeur)
+                && isset($valeur['des'], $valeur['noms']) && (array) $valeur['noms'] !== []) {
+                $lignes[] = self::accorder(
+                    sprintf('%s dé(s) d\'attaque contre %s', $valeur['des'], implode(', ', (array) $valeur['noms'])),
+                    $valeur['des'],
+                );
+
+                continue;
+            }
+
+            // *Raven's Talon* : « reroll any 1 Attack die that lands on a black
+            // shield ». Le gabarit générique disait « selon la face obtenue ».
+            if ($cle === 'relance_des_attaque_sur_face' && is_array($valeur)
+                && isset(self::FACES[(string) ($valeur['face'] ?? '')])) {
+                $nombre = (int) ($valeur['nombre'] ?? 1);
+                $lignes[] = self::accorder(
+                    sprintf('Relance %d dé(s) d\'attaque tombé(s) sur %s', $nombre, self::FACES[(string) $valeur['face']]),
+                    $nombre,
+                );
+
+                continue;
+            }
+
+            // *Bone Wand* : « control ALL skeletons in one room for one turn ». Le
+            // gabarit disait « une créature ».
+            if ($cle === 'controle_monstres' && is_array($valeur) && ($valeur['nom_base'] ?? '') !== '') {
+                $lignes[] = 'Commande pour un tour chaque '.$valeur['nom_base'].' de la salle';
+
+                continue;
+            }
+
+            // ⚠ `cible: soi` est de la plomberie de MENU (pas de troisième niveau
+            // de ciblage) : sur l'Anneau du Retour ou la Baguette d'Os, « Cible :
+            // soi-même » contredisait l'effet, qui vise tous les héros vus ou
+            // toute une salle. L'effet dit déjà sa portée ; la ligne se tait.
+            if ($cle === 'cible' && (! empty($effet['ramene_heros_au_depart']) || ! empty($effet['controle_monstres']))) {
+                continue;
+            }
+
             $gabarit = self::LIBELLES[$cle] ?? null;
 
             if ($gabarit === null) {
@@ -978,6 +1040,13 @@ final class MotsClesEquipement
      *
      * @var array<string, string>
      */
+    /** Faces du dé de combat, pour les effets qui en nomment une. */
+    private const FACES = [
+        'crane' => 'un crâne',
+        'bouclier_blanc' => 'un bouclier blanc',
+        'bouclier_noir' => 'un bouclier noir',
+    ];
+
     private const VALEURS = [
         'une_fois_par_quete' => 'une fois par quête',
         'une_fois_par_tour' => 'une fois par tour',
@@ -997,7 +1066,11 @@ final class MotsClesEquipement
         // adjacente serait tombée sur le remplacement générique — « heros
         // adjacent », l'exact slug-déguisé-en-phrase que cette table existe
         // pour éviter.
-        'heros_adjacent' => 'un héros adjacent',
+        // ⚠ « SOI OU un héros adjacent » (2026-09-16) : c'est ce que le moteur
+        // entend (`MenuMoteur`, « le porteur OU un héros orthogonalement
+        // adjacent »). « un héros adjacent » seul laissait croire qu'on ne peut
+        // pas boire sa propre potion — lu tel quel dans le livret de jeu.
+        'heros_adjacent' => 'soi ou un héros adjacent',
         'monstre' => 'un monstre',
         'contact' => 'au contact',
         'distance' => 'à distance',

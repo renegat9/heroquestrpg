@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Mobilier;
@@ -12,7 +13,9 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\AssembleurCarte;
 use App\Partie\Fouille\DeckFouille;
+use App\Partie\MoteurCharges;
 use App\Partie\MoteurMobilier;
 use App\Partie\Sauvegarde;
 use Database\Seeders\ClasseHerosSeeder;
@@ -352,6 +355,37 @@ it('exclut du tirage une arme unique déjà possédée par un héros du groupe',
 
     expect($suivant['artefact_objet_id'])->not->toBeNull()
         ->and($suivant['artefact_objet_id'])->not->toBe($dejaLa->id);
+});
+
+it('rend de nouveau TROUVABLE un artefact détruit', function () {
+    // René, 2026-09-16 : « si un artefact n'est plus attaché à un héros il
+    // faudrait le rendre disponible de nouveau dans les trésors ». Le coffre
+    // n'écarte que ce qu'un héros POSSÈDE ; il suffisait donc que l'objet épuisé
+    // ne reste plus au sac. Pas de statut : l'absence de ligne suffit.
+    [, $groupe, $hero, $quete] = demarrerFouille();
+
+    // Le groupe détient tous les autres artefacts portables : il ne reste que
+    // l'Anneau du Retour à tirer, s'il est libre.
+    $anneau = Objet::where('nom', 'Anneau du Retour')->firstOrFail();
+    Objet::where('rarete', 'unique')->whereIn('categorie', ['arme', 'armure'])->whereKeyNot($anneau->id)
+        ->pluck('id')->each(fn ($id) => Inventaire::create([
+            'personnage_id' => $hero->id, 'objet_id' => $id, 'emplacement' => 'sac', 'quantite' => 1,
+        ]));
+
+    $ligne = Inventaire::create([
+        'personnage_id' => $hero->id, 'objet_id' => $anneau->id, 'emplacement' => 'sac', 'quantite' => 1,
+    ]);
+
+    $tirer = fn () => app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe, 1)['artefact_objet_id'];
+
+    expect($tirer())->not->toBe($anneau->id); // détenu : écarté
+
+    // Son unique usage part : l'anneau se brise…
+    app(MoteurCharges::class)->consommer($ligne->load('objet'));
+
+    // …et le prochain coffre peut le rendre.
+    expect(Inventaire::find($ligne->id))->toBeNull()
+        ->and($tirer())->toBe($anneau->id);
 });
 
 it('verse `or_coffre` quand aucune arme unique n\'est disponible', function () {
@@ -880,15 +914,15 @@ it('met le coffre dans la salle du BOSS quand la mission est de l\'abattre', fun
     // secret jamais trouvé, sur une arête d'ARBRE — aucun autre accès. Le groupe
     // a tué son sous-boss ailleurs et la quête s'est close sur une impasse.
     $carte = ['salles' => array_fill(0, 7, ['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]),
-              'aretes' => [['a' => 0, 'b' => 1], ['a' => 1, 'b' => 4], ['a' => 4, 'b' => 5], ['a' => 1, 'b' => 6]]];
+        'aretes' => [['a' => 0, 'b' => 1], ['a' => 1, 'b' => 4], ['a' => 4, 'b' => 5], ['a' => 1, 'b' => 6]]];
 
     $groupe = creerGroupe();
-    $deck = app(App\Partie\Fouille\DeckFouille::class);
+    $deck = app(DeckFouille::class);
 
     foreach (['vaincre_sous_boss', 'vaincre_boss_final'] as $objectif) {
         // ⚠ Gabarit réel, structure modifiée EN MÉMOIRE et jamais sauvegardée :
         // les données de jeu sont de la production depuis le 2026-09-12.
-        $gabarit = App\Models\GabaritQuete::query()->firstOrFail();
+        $gabarit = GabaritQuete::query()->firstOrFail();
         $gabarit->structure = ['objectif' => $objectif, 'deck_fouille' => ['or' => 30]];
 
         $r = $deck->construire($gabarit, $carte, $groupe, 1);
@@ -902,7 +936,7 @@ it('met le coffre dans la salle du BOSS quand la mission est de l\'abattre', fun
     // ⚠ Hors quête à boss, la salle la plus PROFONDE reste la règle : là,
     // récompenser l'exploration garde tout son sens. La nouvelle règle précède
     // l'ancienne, elle ne la remplace pas.
-    $gabarit = App\Models\GabaritQuete::query()->firstOrFail();
+    $gabarit = GabaritQuete::query()->firstOrFail();
     $gabarit->structure = ['objectif' => 'atteindre_et_recuperer', 'deck_fouille' => ['or' => 30]];
 
     // 0→1→4→5 : la salle 5 est la plus profonde du graphe, la 6 ne l'est pas.
@@ -920,13 +954,13 @@ it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
     // porte secrète relie — l'autre est du côté déjà exploré. Un test qui
     // exigerait un coffre des DEUX côtés échouerait à tort (première version de
     // cette mesure : 39 « défauts » sur 40, tous imaginaires).
-    $gabarit = App\Models\GabaritQuete::query()->get()
+    $gabarit = GabaritQuete::query()->get()
         ->first(fn ($g) => data_get($g->structure, 'objectif') === 'vaincre_sous_boss')
-        ?? App\Models\GabaritQuete::query()->firstOrFail();
+        ?? GabaritQuete::query()->firstOrFail();
 
     $groupe = creerGroupe();
-    $assembleur = app(App\Partie\AssembleurCarte::class);
-    $deck = app(App\Partie\Fouille\DeckFouille::class);
+    $assembleur = app(AssembleurCarte::class);
+    $deck = app(DeckFouille::class);
 
     $sallesSecretes = 0;
 
@@ -944,14 +978,21 @@ it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
         while ($file !== []) {
             $c = array_shift($file);
             foreach ($voisins[$c] ?? [] as $v) {
-                if (! isset($profondeur[$v])) { $profondeur[$v] = $profondeur[$c] + 1; $file[] = $v; }
+                if (! isset($profondeur[$v])) {
+                    $profondeur[$v] = $profondeur[$c] + 1;
+                    $file[] = $v;
+                }
             }
         }
 
         foreach ($carte['portes'] as $porte) {
-            if (($porte['etat'] ?? '') !== 'secrete') { continue; }
+            if (($porte['etat'] ?? '') !== 'secrete') {
+                continue;
+            }
             $arete = $carte['aretes'][$porte['jonction'] ?? -1] ?? null;
-            if ($arete === null) { continue; }
+            if ($arete === null) {
+                continue;
+            }
 
             $a = (int) $arete['a'];
             $b = (int) $arete['b'];
@@ -959,7 +1000,9 @@ it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
 
             // La salle de départ ne compte pas : on ne cache pas un coffre là
             // où le groupe commence.
-            if ($derriere === 0) { continue; }
+            if ($derriere === 0) {
+                continue;
+            }
 
             $sallesSecretes++;
             expect($fouille['salles_coffre'])->toContain($derriere);

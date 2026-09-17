@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\ReactionEffet;
+
 /**
  * Formateur MÉCANIQUE du journal de combat (aucun LLM).
  *
@@ -186,6 +188,41 @@ final class JournalCombat
     }
 
     /**
+     * Une réaction hors tour ACCEPTÉE : ce qu'elle a fait, et — pour un
+     * artefact à plancher — ce que son dé de perte a décidé.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function reaction(array $a): array
+    {
+        if (empty($a['active'])) {
+            return [];
+        }
+
+        $nom = (string) ($a['sort'] ?? 'Une réaction');
+        $victime = (string) ($a['victime'] ?? 'le héros');
+        $annules = (int) ($a['degats_annules'] ?? 0);
+
+        $texte = match (true) {
+            ($a['action'] ?? null) === ReactionEffet::PLANCHER_PV => "{$nom} : {$victime} reste à 1 PV",
+            $annules > 0 => "{$nom} : {$annules} dégât".($annules > 1 ? 's' : '').' annulé'.($annules > 1 ? 's' : '')." pour {$victime}",
+            default => ($a['personnage'] ?? 'Un héros')." — {$nom}",
+        };
+
+        // Le dé de perte des Cendres du Phénix : « on a 5 or 6, this artifact
+        // is lost ». René (2026-09-16) : « il faut s'assurer de valider après
+        // utilisation si la carte reste ou est détruite » — le fil le dit.
+        if (isset($a['de_artefact'])) {
+            $texte .= ' — dé '.(int) $a['de_artefact'].' : '.(! empty($a['artefact_perdu'])
+                ? 'l\'artefact se consume'
+                : 'l\'artefact est conservé');
+        }
+
+        return [['texte' => $texte, 'ton' => ! empty($a['artefact_perdu']) ? 'degats' : 'info']];
+    }
+
+    /**
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
      */
@@ -240,6 +277,16 @@ final class JournalCombat
             'sort_dread_annule' => [$this->info("{$acteurNom} amorce ".($a['sort'] ?? 'un sort').' — sans effet')],
             'rupture_sort_dread' => $this->ruptureSortDread($a),
             'tour_perdu' => [$this->info(($a['nom'] ?? 'Le héros').' est encore étourdi — il passe son tour')],
+            // ⚠ Un objet à charges se BRISE au dernier usage (René, 2026-09-16) :
+            // sans cette ligne, l'arc disparaissait de la main de l'elfe sans
+            // un mot — et redevenait trouvable dans les coffres sans que
+            // personne sache qu'il était parti.
+            'objet_detruit' => [$this->info(($a['objet'] ?? 'Un artefact').' de '.($a['personnage'] ?? 'un héros').' est épuisé et se brise')],
+            // ⚠ LES RÉACTIONS ÉTAIENT MUETTES : elles retombaient sur `default`.
+            // Les Cendres du Phénix sauvaient un héros, lançaient leur dé de
+            // perte, et le fil n'en disait rien — ni le sauvetage, ni si
+            // l'artefact restait ou se consumait.
+            'reaction' => $this->reaction($a),
             'liberer_entraves' => [$this->info(
                 ! empty($a['sur_soi'])
                     ? "{$acteurNom} s'arrache aux ronces"

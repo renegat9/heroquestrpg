@@ -417,8 +417,14 @@ class ObjetSeeder extends Seeder
             // sight, unless the monster rolls a black shield on 1 combat die.
             // There are only 4 arrows with this bow. »
             ['nom' => 'Arc elfique de Vindication', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 1400, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_arc_long',
-                'effet' => ['des_attaque' => 2, 'portee' => 'distance', 'inutilisable_adjacent' => true,
-                    'deux_mains' => true, 'tue_sauf_bouclier_noir' => true, 'charges' => 4]],
+                // ⚠ ARBITRAGE DE RENÉ (2026-09-16), qui remplace « instantly kills » :
+                // chaque flèche inflige 3 PV sans jet, sauf bouclier noir de la cible
+                // sur 1 dé ; 4 flèches, puis l'arc se BRISE (`MoteurCharges`). Plus de
+                // `des_attaque` : l'arc n'attaque QUE par ses flèches, et il n'existe
+                // plus d'« arc vide » qui retomberait sur des dés. La portée, le
+                // contact et les deux mains restent ceux d'un arc.
+                'effet' => ['portee' => 'distance', 'inutilisable_adjacent' => true,
+                    'deux_mains' => true, 'degats_sauf_bouclier_noir' => 3, 'charges' => 4]],
 
             // « The Hero holding this magical scroll may choose to skip a turn
             // trying to read it. When read, it restores all spells that Hero

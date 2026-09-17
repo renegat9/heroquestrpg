@@ -25,6 +25,8 @@ const EFFETS_QTE = {
     // de feu portent la même clé et leur montant, lui, se réduit — la cible
     // lance des dés rouges. C'est `des_resistance` qui le dit juste à côté.
     degats_fixes: 'dégât(s) fixe(s), sans dés d\'attaque',
+    // Arc elfique de Vindication (arbitrage de René, 2026-09-16) : dégâts par flèche.
+    degats_sauf_bouclier_noir: 'dégât(s) par flèche, sauf bouclier noir de la cible',
     des_resistance: 'dé(s) rouge(s) de résistance (chaque 5 ou 6 annule 1 dégât)',
 };
 
@@ -55,7 +57,6 @@ const EFFETS_MALUS = {
 const EFFETS_BOOL = {
     attaque_supplementaire: 'Attaque supplémentaire ce tour',
     deux_mains: 'Arme à deux mains',
-    tue_sauf_bouclier_noir: 'Tue d’emblée (sauf bouclier noir)',
     restaure_sorts: 'Rend tous les sorts épuisés',
     second_sort_par_tour: 'Un second sort par tour',
     sort_non_epuise: 'Le prochain sort ne s’épuise pas',

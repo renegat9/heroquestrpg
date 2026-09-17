@@ -133,7 +133,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Orbe Céleste absorbe des dégâts de Mind au jeton, Anneau de Chaleur
         // réutilise `immunite_degat` (déjà listé), Raquettes de Vitesse ajoute
         // des cases de déplacement en permanence tant qu'elle est portée.
-        'absorbe_degats_mind', 'bonus_deplacement_porte'];
+        'absorbe_degats_mind', 'bonus_deplacement_porte',
+        // ⚠ 2026-09-16 : l'Arc de Vindication a perdu `des_attaque` — il ne frappe
+        // plus que par ses flèches (arbitrage de René). C'est cette clé-là qui
+        // dit ce qu'il change au porteur.
+        'degats_sauf_bouclier_noir'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))

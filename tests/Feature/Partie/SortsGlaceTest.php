@@ -3,13 +3,14 @@
 declare(strict_types=1);
 
 use App\Engine\Des\FaceDeCombat;
-use App\Engine\Des\LanceurDes;
-use App\Engine\Des\LanceurDeterministe;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\GabaritQuete;
+use App\Models\Groupe;
 use App\Models\InstanceMonstre;
+use App\Models\Inventaire;
 use App\Models\Monstre;
+use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\FabriqueGrille;
@@ -25,6 +26,7 @@ use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -62,7 +64,7 @@ beforeEach(function () {
  * @param  array{x: int, y: int}  $herosPos
  * @param  array{x: int, y: int}  $instancePos
  * @param  list<array{x: int, y: int, source_instance_id: int, cranes: int}>  $glace
- * @return array{groupe: App\Models\Groupe, quete: Quete, heros: Personnage, etatHeros: EtatPersonnageQuete, instance: InstanceMonstre}
+ * @return array{groupe: Groupe, quete: Quete, heros: Personnage, etatHeros: EtatPersonnageQuete, instance: InstanceMonstre}
  */
 function sceneGlace(
     array $cases,
@@ -153,7 +155,7 @@ function jouerTourGlace(array $scene, array $des): array
 
     return app(MoteurDread::class)->jouerTourDread(
         $scene['groupe'], $scene['quete']->fresh(), $scene['instance']->fresh()->load('monstre'),
-        new \Illuminate\Database\Eloquent\Collection([$scene['etatHeros']->fresh()]),
+        new Collection([$scene['etatHeros']->fresh()]),
     ) ?? [];
 }
 
@@ -257,11 +259,11 @@ it("est réellement CHOISI par choisirSort() (via jouerTourDread, le vrai point 
  * fois ce fichier chargé, donc jamais fiables d'un fichier de test à l'autre —
  * même patron que `ChargesEtSortsTest::poser()`.)
  */
-function poserPourGlace(Personnage $p, string $nom, string $emplacement): \App\Models\Inventaire
+function poserPourGlace(Personnage $p, string $nom, string $emplacement): Inventaire
 {
-    return \App\Models\Inventaire::create([
+    return Inventaire::create([
         'personnage_id' => $p->id,
-        'objet_id' => \App\Models\Objet::where('nom', $nom)->firstOrFail()->id,
+        'objet_id' => Objet::where('nom', $nom)->firstOrFail()->id,
         'emplacement' => $emplacement,
         'quantite' => 1,
     ]);
@@ -286,10 +288,12 @@ it("l'Orbe Céleste absorbe la perte de Mind un jeton à la fois, et épargne le
         ->and($sort['resultats'][0]['mind_absorbe'])->toBe(4)
         ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(4)
         ->and($scene['etatHeros']->fresh()->tombe)->toBeFalse()
-        ->and((int) $orbe->fresh()->charges)->toBe(0);
+        // Quatre jetons donnés : « the Sky Orb is rendered useless » — elle se
+        // BRISE désormais (René, 2026-09-16), et redevient trouvable.
+        ->and($orbe->fresh())->toBeNull();
 });
 
-it("laisse passer le reste une fois ses jetons épuisés — absorption PARTIELLE, pas une immunité", function () {
+it('laisse passer le reste une fois ses jetons épuisés — absorption PARTIELLE, pas une immunité', function () {
     $scene = sceneGlace(
         [['m', 's', 's', 'm']],
         herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
@@ -307,7 +311,7 @@ it("laisse passer le reste une fois ses jetons épuisés — absorption PARTIELL
     expect($sort['resultats'][0]['mind_absorbe'])->toBe(2)
         ->and($sort['resultats'][0]['degats_mind'])->toBe(2)
         ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(2)
-        ->and((int) $orbe->fresh()->charges)->toBe(0);
+        ->and($orbe->fresh())->toBeNull(); // jetons épuisés : l'Orbe s'est brisée
 });
 
 it('épuisée, l\'Orbe Céleste reste au sac mais ne protège plus de rien', function () {
@@ -367,7 +371,7 @@ it("N'ISOLE JAMAIS une case accessible — un couloir strict d'une case ne reço
 
     $retenues = $methode->invoke(
         app(MoteurDread::class), $scene['quete']->fresh(), $scene['instance']->fresh()->load('monstre'),
-        new \Illuminate\Database\Eloquent\Collection([$scene['etatHeros']->fresh()]), 4,
+        new Collection([$scene['etatHeros']->fresh()]), 4,
     );
 
     expect($retenues)->toBe([], 'un couloir strict ne doit recevoir aucune case — la poser isolerait le héros');
@@ -392,7 +396,7 @@ it('POSE bien de la glace quand la pièce laisse un détour — la contrainte ne
 
     $retenues = $methode->invoke(
         app(MoteurDread::class), $scene['quete']->fresh(), $scene['instance']->fresh()->load('monstre'),
-        new \Illuminate\Database\Eloquent\Collection([$scene['etatHeros']->fresh()]), 4,
+        new Collection([$scene['etatHeros']->fresh()]), 4,
     );
 
     expect($retenues)->not->toBe([], 'une pièce avec détour doit recevoir au moins une case de glace');
@@ -580,13 +584,13 @@ it('ne se déclenche PAS quand le lanceur est déjà au contact — rien à trav
 
     $plan = $methode->invoke(
         app(MoteurDread::class), $scene['quete']->fresh(), $scene['instance']->fresh(),
-        new \Illuminate\Database\Eloquent\Collection([$scene['etatHeros']->fresh()]), 12,
+        new Collection([$scene['etatHeros']->fresh()]), 12,
     );
 
     expect($plan)->toBeNull();
 });
 
-it("est réellement CHOISI par choisirSort() quand une figure bloque le seul passage normal", function () {
+it('est réellement CHOISI par choisirSort() quand une figure bloque le seul passage normal', function () {
     // Même scène que le test de traversée — mais celui-ci se concentre
     // uniquement sur la PREUVE DE SÉLECTION : `choisirSort()` doit retenir
     // Patinage quand il est le seul sort du répertoire ET que

@@ -18,6 +18,8 @@ use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
 use App\Partie\Equipement;
+use App\Partie\JournalCombat;
+use App\Partie\MoteurCharges;
 use App\Partie\MoteurDegats;
 use App\Partie\MoteurDread;
 use App\Partie\MoteurReactions;
@@ -381,8 +383,9 @@ it('ramène au départ le porteur ET les héros qu\'il voit, une seule fois', fu
         ->not->toBe([(int) $etatCompagnon->fresh()->position_x, (int) $etatCompagnon->fresh()->position_y]);
 
     // « It can only be used once » — un TOTAL, pas une cadence : la charge est
-    // consommée et l'option disparaît.
-    expect((int) Inventaire::find($anneau->id)->charges)->toBe(0);
+    // consommée, et l'anneau se BRISE (René, 2026-09-16) — ce qui le rend de
+    // nouveau trouvable dans les coffres.
+    expect(Inventaire::find($anneau->id))->toBeNull();
 });
 
 // ---------------------------------------------------------------------------
@@ -952,5 +955,39 @@ it('ne plante plus quand les Cendres du Phénix roulent leur dé de destruction'
 
     expect((int) $heros->fresh()->pv_body)->toBe(1)
         ->and($reaction['artefact_perdu'])->toBeTrue()
-        ->and(Inventaire::find($cendres->id))->toBeNull();
+        ->and(Inventaire::find($cendres->id))->toBeNull()
+        // Le fil DIT ce que le dé a décidé (René, 2026-09-16 : « il faut
+        // s'assurer de valider après utilisation si la carte reste ou est
+        // détruite ») — les réactions y étaient muettes.
+        ->and(app(JournalCombat::class)->depuisResultat($reaction, $heros->nom)[0]['texte'])
+        ->toContain('reste à 1 PV')->toContain('dé 5')->toContain("l'artefact se consume");
+});
+
+it('garde les Cendres du Phénix sur un 1 à 4, et le dit aussi', function () {
+    // La branche que rien ne testait : l'artefact SURVIT à son jet. Il reste au
+    // porteur — seul le porteur, arbitrage de René (2026-09-16) — et sa fenêtre
+    // « une fois par quête » est fermée jusqu'à la suivante.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    $cendres = porterArtefact($heros, 'Cendres du Phénix');
+
+    $heros->update(['pv_body' => 1]);
+    app(MoteurDegats::class)->infligerAHeros($heros, 3, MoteurDegats::SOURCE_ATTAQUE_MONSTRE, [
+        'instance_id' => (int) $ctx['instance']->id,
+    ]);
+
+    desFiges([3, ...array_fill(0, 8, 4)]); // 3 : l'artefact tient
+
+    $reaction = $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => true,
+    ])->assertOk()->json('reaction');
+
+    expect((int) $heros->fresh()->pv_body)->toBe(1)
+        ->and($reaction['artefact_perdu'])->toBeFalse()
+        ->and(Inventaire::find($cendres->id))->not->toBeNull()
+        ->and(app(MoteurCharges::class)->utilisable(
+            Inventaire::with('objet')->find($cendres->id), $ctx['etatHeros']->fresh(),
+        ))->toBeFalse()
+        ->and(app(JournalCombat::class)->depuisResultat($reaction, $heros->nom)[0]['texte'])
+        ->toContain('dé 3')->toContain("l'artefact est conservé");
 });

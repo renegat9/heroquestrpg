@@ -71,6 +71,26 @@ it('accorde les pluriels et écrit les énumérations en français', function ()
         ->toBe(['Rend 2 PV de Body']);
 });
 
+it('nomme les créatures visées par un bonus de dés, au lieu de « certaines créatures »', function () {
+    // La Lame des Esprits porte `{des, noms}` : la seule valeur structurée du
+    // vocabulaire. Le gabarit générique la réduisait à « contre certaines
+    // créatures » — moins précis que la table recopiée du livret, retirée le
+    // 2026-09-16 au profit de ce traducteur.
+    $lame = Objet::where('nom', 'Lame des Esprits')->firstOrFail();
+
+    expect(K::avantages((array) $lame->effet))
+        ->toContain("4 dés d'attaque contre Squelette, Zombie, Momie")
+        ->not->toContain("Dés d'attaque accrus contre certaines créatures");
+
+    // Une potion se boit OU se tend : le libellé doit dire les deux, sinon le
+    // lecteur croit qu'on ne peut pas la boire soi-même.
+    expect(K::avantages(['cible' => 'heros_adjacent']))->toBe(['Cible : soi ou un héros adjacent']);
+
+    // Mal formée, la valeur retombe sur le gabarit générique plutôt que sur rien.
+    expect(K::avantages(['des_attaque_contre' => ['noms' => []]]))
+        ->toBe(["Dés d'attaque accrus contre certaines créatures"]);
+});
+
 it('publie le détail dans /moi, pour le sac ET pour ce qui est porté', function () {
     // ⚠ Les deux, et pas seulement le sac : on doit pouvoir relire ce qu'on
     // porte autant que ce qu'on transporte — c'est même l'équipement porté qui
@@ -98,4 +118,44 @@ it('publie le détail dans /moi, pour le sac ET pour ce qui est porté', functio
 
     $sac = collect($perso['equipement']['sac'])->firstWhere('nom', 'Potion de soin');
     expect($sac['avantages'])->not->toBeEmpty();
+});
+
+it('dit ce que disent les CARTES d\'artefact, pas une approximation', function () {
+    // Confrontation aux cartes officielles (Drive, photos de René) le
+    // 2026-09-16 : ces libellés étaient faux ou trop vagues alors que le moteur,
+    // lui, suivait la carte. Chaque attente cite la carte qui la fonde.
+    $texte = fn (string $nom) => implode(' · ', K::avantages((array) Objet::where('nom', $nom)->firstOrFail()->effet));
+
+    // Rabbit Boots — « roll anything but a black shield on 1 combat die ».
+    expect($texte('Bottes de Lièvre'))->toContain('échoue seulement sur un bouclier noir')
+        ->not->toContain('sans jet');
+
+    // Ring of Return — « returns all heroes that the ring wearer can see ».
+    expect($texte('Anneau du Retour'))->toContain('tous les héros que le porteur voit')
+        // et plus de « Cible : soi-même » qui contredisait l'effet
+        ->not->toContain('Cible');
+
+    // Bone Wand — « control all skeletons in one room for one turn ».
+    expect($texte('Baguette d\'Os'))->toContain('chaque Squelette de la salle')
+        ->not->toContain('Cible');
+
+    // Raven's Talon — « reroll any 1 Attack die that lands on a black shield ».
+    expect($texte('Serre du Corbeau'))->toContain('Relance 1 dé d\'attaque tombé sur un bouclier noir');
+
+    // Phoenix Ash — « on a 5 or 6, this artifact is lost ».
+    expect($texte('Cendres du Phénix'))->toContain('se consume sur 5 ou 6');
+
+    // The Scales of Elethorn — « when you attempt to resist the effects of a
+    // Dread spell […] roll an additional die ».
+    expect($texte('Écailles d\'Elethorn'))->toContain('résister aux sorts du maître du donjon');
+
+    // Arc de Vindication — arbitrage de René (2026-09-16), qui remplace la carte.
+    expect($texte('Arc elfique de Vindication'))
+        ->toContain('Chaque flèche inflige 3 PV, sauf si la cible tire un bouclier noir')
+        ->toContain("4 utilisations, puis l'objet se brise")
+        ->not->toContain("dés d'attaque");
+
+    // « à volonté » ne précède plus une cadence qui le dément.
+    expect($texte('Sceptre de Télékinésie'))->not->toContain('à volonté')
+        ->toContain('Cadence : une fois par quête');
 });
