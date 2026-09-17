@@ -54,11 +54,16 @@ onMounted(async () => {
     try {
         store.appliquerEtat(await api.getEtatReprise(props.groupe));
         desabonnements.push(souscrireGroupe(props.groupe, {
-            // Animation case-par-case : arrive JUSTE AVANT `.groupe.etat` (ordre
-            // Reverb préservé) → on amorce le glissement avant que l'état ne pose
-            // les positions finales.
-            '.mouvement.anime': (e) => jouerMouvements(e.mouvements ?? []),
-            '.groupe.etat': (e) => store.appliquerEtat(e),
+            // Animation case-par-case : les trajets voyagent DANS l'état
+            // (2026-09-17). On ancre les figurines au départ AVANT de poser les
+            // positions finales — dans cet ordre, dans le même tick. L'ancien
+            // `.mouvement.anime` séparé pouvait arriver APRÈS l'état : la file
+            // `temps-reel` a deux workers.
+            '.groupe.etat': (e) => {
+                const { mouvements, ...etat } = e ?? {};
+                if (mouvements?.length) jouerMouvements(mouvements);
+                store.appliquerEtat(etat);
+            },
             // Étape de préparation d'une quête : l'écran montre où l'on en est
             // plutôt que de laisser le groupe devant un donjon muet pendant les
             // une à deux minutes de construction.
@@ -144,6 +149,8 @@ onMounted(async () => {
 });
 onUnmounted(() => {
     animDemonte = true; // stoppe la boucle d'animation de déplacement
+    clearTimeout(sceneRelance);
+    clearTimeout(sceneMinuteur);
     desabonnements.forEach((off) => off());
     arreterHeartbeat();
     annulerFermetureOuverture();
@@ -242,24 +249,70 @@ const entities = computed(() => entitesBrutes.value.map((e) => {
    Pendant le tour des monstres, la caméra ne bouge pas. */
 const heroActif = computed(() => entitesBrutes.value.find((e) => e.k === 'hero' && e.cur) ?? null);
 
-/* File d'animations de déplacement jouées séquentiellement (héros puis
-   monstres) — glissement d'une case à l'autre le long du chemin. */
+/* ⚠ La caméra ne quitte pas les monstres pendant qu'ils marchent (2026-09-17).
+   La phase des monstres rouvre le round dans la MÊME requête : l'état qui porte
+   leurs trajets désigne déjà le héros suivant, et la caméra filait sur lui
+   pendant que les monstres marchaient, parfois hors cadre. Elle suit le héros
+   actif, sauf pendant une marche de monstres — elle le rejoint à la fin. */
+const marcheMonstres = ref(false);
+const cibleCamera = ref(null);
+watch([heroActif, marcheMonstres], ([h, marche]) => {
+    if (!marche) cibleCamera.value = h ? { x: h.x, y: h.y } : null;
+}, { immediate: true });
+
+/* File des trajets, joués un à un — glissement d'une case à l'autre.
+   ⚠ TOUTES les figurines d'un lot sont TENUES sur leur case de départ dès
+   réception (2026-09-17). Seule celle qui marchait l'était : l'état, posé
+   aussitôt après, envoyait les suivantes à l'arrivée ; elles y restaient le
+   temps de la marche précédente, puis revenaient d'un coup au départ pour
+   refaire le trajet. Mesuré avec deux gobelins : 33,19 à 7 900 ms, retour en
+   37,19 à 8 756 ms, puis la marche. D'où « les monstres ne sont pas animés ». */
 const DUREE_PAS_MS = 150;
 let animEnCours = false;
 let animDemonte = false;
+let mouvementCourant = null;
 const fileMouvements = [];
 const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+const cleMouvement = (m) => `${m.type}:${m.id}`;
+/** Fin du dernier trajet joué, par figurine — une scène qui l'attendait passe. */
+const trajetsTermines = new Map();
 
-async function jouerMouvements(mouvements) {
-    for (const m of mouvements ?? []) {
-        if (m?.chemin?.length) fileMouvements.push(m);
+/** Cette figurine a-t-elle encore un trajet à jouer (en cours ou en file) ? */
+function figureEnMouvement(cle) {
+    return !!cle && (mouvementCourant === cle || fileMouvements.some((m) => cleMouvement(m) === cle));
+}
+
+function majMarcheMonstres() {
+    marcheMonstres.value = (mouvementCourant?.startsWith('monstre:') ?? false)
+        || fileMouvements.some((m) => m.type === 'monstre');
+}
+
+function jouerMouvements(mouvements) {
+    const nouveaux = (mouvements ?? []).filter((m) => m?.chemin?.length);
+    if (!nouveaux.length) return;
+
+    const ancres = { ...overrides.value };
+    for (const m of nouveaux) {
+        const cle = cleMouvement(m);
+        // Une figurine déjà tenue (trajet précédent pas encore joué) garde son
+        // ancre : elle rejouera ses trajets dans l'ordre.
+        if (!(cle in ancres)) ancres[cle] = { x: m.depart.x, y: m.depart.y };
+        fileMouvements.push(m);
     }
-    if (animEnCours) return;
+    overrides.value = ancres;
+    majMarcheMonstres();
+
+    if (!animEnCours) boucleMouvements();
+}
+
+async function boucleMouvements() {
     animEnCours = true;
     while (fileMouvements.length && !animDemonte) {
         const mv = fileMouvements.shift();
-        const cle = `${mv.type}:${mv.id}`;
-        // Ancre sur le départ (souvent = position courante), puis avance.
+        const cle = cleMouvement(mv);
+        mouvementCourant = cle;
+        majMarcheMonstres();
+
         overrides.value = { ...overrides.value, [cle]: { x: mv.depart.x, y: mv.depart.y } };
         await attendre(40);
         for (const c of mv.chemin) {
@@ -267,11 +320,23 @@ async function jouerMouvements(mouvements) {
             overrides.value = { ...overrides.value, [cle]: { x: c.x, y: c.y } };
             await attendre(DUREE_PAS_MS);
         }
-        const copie = { ...overrides.value };
-        delete copie[cle]; // libère → position finale (état)
-        overrides.value = copie;
+
+        mouvementCourant = null;
+        trajetsTermines.set(cle, Date.now());
+        // Libère → position finale (état), sauf si la même figurine a encore
+        // un trajet en file.
+        if (!fileMouvements.some((m) => cleMouvement(m) === cle)) {
+            const copie = { ...overrides.value };
+            delete copie[cle];
+            overrides.value = copie;
+        }
+        majMarcheMonstres();
+        // Une scène attendait peut-être la fin de CE trajet.
+        sceneSuivante();
     }
     animEnCours = false;
+    mouvementCourant = null;
+    majMarcheMonstres();
 }
 /* ---- fil des événements mécaniques (.combat.journal) sur la table (C2) : les
    plus récents en bas, comme sur la manette. ---- */
@@ -342,6 +407,11 @@ const fileScenes = [];
 let sceneMinuteur = null;
 let sceneDerniereSequence = null;
 
+/* Plafond d'attente d'une scène dont la figurine doit marcher : au-delà, on la
+   montre quand même — un état perdu ne doit pas geler l'écran. */
+const ATTENTE_TRAJET_MAX_MS = 3000;
+let sceneRelance = null;
+
 function empilerScene(scene) {
     if (!scenesReglages.actives.value || !scene?.genre) return;
 
@@ -353,7 +423,7 @@ function empilerScene(scene) {
         && scene.sequence < sceneDerniereSequence) return;
     if (scene.sequence != null) sceneDerniereSequence = scene.sequence;
 
-    fileScenes.push(scene);
+    fileScenes.push({ scene, recue: Date.now() });
     if (fileScenes.length > FILE_SCENES_MAX) fileScenes.splice(0, fileScenes.length - FILE_SCENES_MAX);
     sceneSuivante();
 }
@@ -366,10 +436,32 @@ function empilerScene(scene) {
  */
 function sceneSuivante() {
     if (sceneCourante.value || carteOuverture.value || prologueOuvert.value) return;
-    const scene = fileScenes.shift();
-    if (!scene) return;
+    const tete = fileScenes[0];
+    if (!tete) return;
 
-    sceneCourante.value = scene;
+    // ⚠ `figure` = « cette figurine vient de marcher : attends la fin de sa
+    // marche » (2026-09-17). Le coup d'un monstre s'affichait au centre de la
+    // carte pendant qu'il marchait encore vers sa cible. La TÊTE bloque les
+    // suivantes — l'ordre reste celui du jeu.
+    // ⚠ Et on attend le trajet MÊME S'IL N'EST PAS ENCORE ARRIVÉ : la scène (petit
+    // message) précède couramment l'état qui porte les trajets (gros message,
+    // deux workers) — mesuré, 756 ms d'avance. C'est le serveur qui sait qu'il y
+    // a une marche ; la table ne peut pas le déduire de ce qu'elle a reçu.
+    const figure = tete.scene.figure;
+    if (figure) {
+        if (figureEnMouvement(figure)) return; // la fin du trajet relance la file
+        const termine = trajetsTermines.get(figure) ?? 0;
+        const attendu = termine < tete.recue - ATTENTE_TRAJET_MAX_MS; // aucun trajet récent joué
+        const age = Date.now() - tete.recue;
+        if (attendu && age < ATTENTE_TRAJET_MAX_MS) {
+            clearTimeout(sceneRelance);
+            sceneRelance = setTimeout(sceneSuivante, ATTENTE_TRAJET_MAX_MS - age);
+            return;
+        }
+    }
+
+    fileScenes.shift();
+    sceneCourante.value = tete.scene;
     clearTimeout(sceneMinuteur);
     sceneMinuteur = setTimeout(fermerScene, scenesReglages.duree.value);
 }
@@ -789,8 +881,8 @@ watch(() => store.state.clotureTerminee, (t) => {
                         :entities="entities"
                         :traps="traps"
                         :furniture="furniture"
-                        :active-x="heroActif?.x ?? null"
-                        :active-y="heroActif?.y ?? null"
+                        :active-x="cibleCamera?.x ?? null"
+                        :active-y="cibleCamera?.y ?? null"
                     />
 
                     <!-- ⚠ Les deux outils vivent dans `.map-wrap`, PAS dans la

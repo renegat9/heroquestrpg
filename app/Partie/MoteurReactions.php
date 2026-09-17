@@ -845,6 +845,9 @@ final class MoteurReactions
             'type' => 'reaction',
             'personnage' => $heros->nom,
             'victime' => $victime->nom,
+            // Lu par la scène de table (`SceneDeTable::depuisReaction()`) : le
+            // portrait de celui qu'une Parade au bouclier vient de protéger.
+            'victime_id' => $victime->id,
             'sort' => $attente['nom'] ?? null,
             'action' => $action,
             'active' => true,

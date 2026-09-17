@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
-use App\Events\MouvementAnime;
+use App\Events\EtatGroupeDiffuse;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
+use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
+use App\Partie\FabriqueGrille;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -114,7 +116,7 @@ it('ne franchit PAS un monstre : le franchissement ne vaut qu\'entre ALLIÉS', f
     $etatAmi->update(['position_x' => $libres[0]['x'], 'position_y' => $libres[0]['y']]);
     $gobelin->update(['position_x' => $libres[1]['x'], 'position_y' => $libres[1]['y'], 'revele' => true]);
 
-    $grille = App\Partie\FabriqueGrille::pour(
+    $grille = FabriqueGrille::pour(
         $quete->fresh(), exceptPersonnageId: (int) $heros->id, franchitAllies: true,
     );
 
@@ -139,14 +141,14 @@ it('laisse un MONSTRE franchir un autre monstre, sans s\'arrêter dessus', funct
     ['quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat] = $ctx;
 
     $voisine = caseAdjacenteLibre($quete, (int) $gobelin->position_x, (int) $gobelin->position_y);
-    $autre = App\Models\InstanceMonstre::create([
+    $autre = InstanceMonstre::create([
         'quete_id' => $quete->id, 'monstre_id' => $gobelin->monstre_id,
         'pv_body' => 1, 'pv_body_max' => 1, 'pv_mind' => 1,
         'position_x' => $voisine['x'], 'position_y' => $voisine['y'],
         'etat' => 'actif', 'revele' => true,
     ]);
 
-    $grille = App\Partie\FabriqueGrille::pour(
+    $grille = FabriqueGrille::pour(
         $quete->fresh(), exceptInstanceId: (int) $gobelin->id, franchitAllies: true,
     );
 
@@ -154,7 +156,7 @@ it('laisse un MONSTRE franchir un autre monstre, sans s\'arrêter dessus', funct
         ->and($grille->estOccupeeParFigure($voisine['x'], $voisine['y']))->toBeTrue();
 
     // …et le HÉROS, lui, ne franchit ni l\'un ni l\'autre.
-    $vueHeros = App\Partie\FabriqueGrille::pour(
+    $vueHeros = FabriqueGrille::pour(
         $quete->fresh(), exceptPersonnageId: (int) $ctx['heros']->id, franchitAllies: true,
     );
     expect($vueHeros->estTraversable($voisine['x'], $voisine['y']))->toBeFalse();
@@ -265,8 +267,8 @@ it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se
     expect($etatA->fresh()->a_joue)->toBeTrue();
 });
 
-it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-case (E4)', function () {
-    Event::fake([MouvementAnime::class]);
+it('diffuse le trajet du héros DANS l\'état pour l\'animation case-par-case (E4)', function () {
+    Event::fake([EtatGroupeDiffuse::class]);
 
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
@@ -286,7 +288,7 @@ it('diffuse le trajet du héros (.mouvement.anime) pour l\'animation case-par-ca
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'se_deplacer', 'parametres' => $cible])
         ->assertStatus(202);
 
-    Event::assertDispatched(MouvementAnime::class, function ($e) use ($groupe, $heroA, $depart, $cible) {
+    Event::assertDispatched(EtatGroupeDiffuse::class, function ($e) use ($groupe, $heroA, $depart, $cible) {
         $mv = collect($e->mouvements)->firstWhere('id', $heroA->id);
 
         return $e->groupe->id === $groupe->id
@@ -461,7 +463,7 @@ it('garde le déplacement ENTIER quand on agit AVANT d\'avoir bougé', function 
 });
 
 it('diffuse aussi le trajet du MONSTRE, pour qu\'il ne se téléporte pas sur la table', function () {
-    Event::fake([MouvementAnime::class]);
+    Event::fake([EtatGroupeDiffuse::class]);
 
     // ⚠ Le trajet du monstre est enregistré AVANT la branche d'attaque
     // (ResolveurTour), pour couvrir « s'approche PUIS frappe » dans le même
@@ -492,7 +494,7 @@ it('diffuse aussi le trajet du MONSTRE, pour qu\'il ne se téléporte pas sur la
         ->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
         ->assertStatus(202);
 
-    Event::assertDispatched(MouvementAnime::class, function ($e) use ($groupe, $instance, $loin) {
+    Event::assertDispatched(EtatGroupeDiffuse::class, function ($e) use ($groupe, $instance, $loin) {
         $mv = collect($e->mouvements)->firstWhere('type', 'monstre');
 
         return $e->groupe->id === $groupe->id
@@ -500,6 +502,10 @@ it('diffuse aussi le trajet du MONSTRE, pour qu\'il ne se téléporte pas sur la
             && (int) $mv['id'] === (int) $instance->id
             && $mv['depart'] === $loin
             // Un chemin, pas un saut : au moins une case parcourue.
-            && is_array($mv['chemin']) && count($mv['chemin']) >= 1;
+            && is_array($mv['chemin']) && count($mv['chemin']) >= 1
+            // ⚠ DANS le message diffusé, avec l'état : un seul message, donc un
+            // ordre garanti malgré les deux workers de `temps-reel`.
+            && ($e->broadcastWith()['mouvements'] ?? null) === $e->mouvements
+            && isset($e->broadcastWith()['entites']);
     });
 });

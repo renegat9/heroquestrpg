@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Engine\MotsClesEquipement;
+use App\Engine\ReactionEffet;
 use App\Events\SceneTable;
 use App\Models\Carte;
 use App\Models\GabaritQuete;
@@ -39,7 +40,7 @@ beforeEach(function () {
 });
 
 /** Les champs du contrat (docs/contrat-api.md, `.table.scene`). */
-const CHAMPS_SCENE = ['genre', 'titre', 'sous_titre', 'acteurs', 'jet', 'deplacement', 'objets', 'issue'];
+const CHAMPS_SCENE = ['genre', 'titre', 'sous_titre', 'acteurs', 'jet', 'deplacement', 'figure', 'objets', 'issue'];
 
 function sceneHeros(string $nom, string $classe = 'nain'): Personnage
 {
@@ -692,4 +693,100 @@ it('a une icône côté table pour CHAQUE genre, et aucune pour un genre inconnu
     preg_match_all('/^\s*(\w+):/m', $bloc[1] ?? '', $cles);
 
     expect($cles[1])->toEqualCanonicalizing(SceneDeTable::GENRES);
+});
+
+it('fait attendre la table la fin de la MARCHE de la figurine — seulement si elle a marché', function () {
+    // `figure` veut dire « attends ce trajet » : publiée SEULEMENT pour une
+    // figurine qui a marché dans la même résolution. La scène arrive souvent
+    // AVANT l'état qui porte les trajets (deux workers) : la table ne peut pas
+    // deviner qu'une marche est en route, le serveur le lui dit.
+    $borin = sceneHeros('Borin');
+    $instance = sceneInstanceMonstre();
+    $coup = [
+        'type' => 'attaque_monstre', 'monstre' => 'Gobelin', 'instance_id' => $instance->id,
+        'cible' => ['personnage_id' => $borin->id, 'nom' => 'Borin'],
+        'touches' => 1, 'boucliers' => 0, 'degats' => 1,
+    ];
+    $scenes = app(SceneDeTable::class);
+
+    expect($scenes->depuisResultat($coup, $borin, ['monstre:'.$instance->id])[0]['figure'])
+        ->toBe('monstre:'.$instance->id)
+        // Déjà au contact, il n'a pas marché : rien à attendre.
+        ->and($scenes->depuisResultat($coup, $borin, [])[0]['figure'])->toBeNull()
+        // Un autre a marché, pas lui : rien à attendre non plus.
+        ->and($scenes->depuisResultat($coup, $borin, ['heros:'.$borin->id])[0]['figure'])->toBeNull()
+        // La chute n'en décide pas seule : c'est le tampon qui connaît la résolution.
+        ->and($scenes->chute($borin, true)['figure'])->toBeNull();
+});
+
+it('fait attendre la CHUTE d\'un héros qui a marché (piège en chemin), pas celle d\'un héros frappé sur place', function () {
+    Event::fake([SceneTable::class]);
+    $borin = sceneHeros('Borin');
+    $groupe = creerGroupe('g-tampon');
+    $tampon = new TamponScenes;
+
+    $tampon->ajouter($groupe, app(SceneDeTable::class)->chute($borin, true), 'heros:'.$borin->id);
+    $tampon->vider(['heros:'.$borin->id]);
+    $tampon->ajouter($groupe, app(SceneDeTable::class)->chute($borin, true), 'heros:'.$borin->id);
+    $tampon->vider([]);
+
+    $figures = Event::dispatched(SceneTable::class)
+        ->map(fn (array $appel) => $appel[0]->scene['figure'])->values()->all();
+
+    expect($figures)->toBe(['heros:'.$borin->id, null]);
+});
+
+it('met en scène une réaction ACCEPTÉE depuis une manette — plancher et dé de l\'artefact', function () {
+    $grom = sceneHeros('Grom', 'barbare');
+
+    $scenes = app(SceneDeTable::class)->depuisReaction([
+        'type' => 'reaction', 'active' => true, 'personnage' => 'Grom', 'victime' => 'Grom',
+        'victime_id' => $grom->id, 'sort' => 'Cendres du Phénix',
+        'action' => ReactionEffet::PLANCHER_PV, 'degats_annules' => 0,
+        'artefact' => 'Cendres du Phénix', 'de_artefact' => 3, 'artefact_perdu' => false,
+    ], $grom);
+
+    expect($scenes)->toHaveCount(1);
+    $scene = $scenes[0];
+
+    expect(array_keys($scene))->toEqualCanonicalizing(CHAMPS_SCENE)
+        ->and($scene['genre'])->toBe('reaction')
+        ->and($scene['titre'])->toBe('Cendres du Phénix')
+        ->and($scene['sous_titre'])->toBe('Grom réagit')
+        ->and($scene['figure'])->toBeNull() // une réaction ne suit jamais une marche
+        ->and($scene['objets'][0]['detail'])->toBe('dé 3 — conservé')
+        // Le MÊME texte que le fil de combat : une réaction se dit d'une façon.
+        ->and($scene['issue']['libelle'])->toBe("Grom reste à 1 PV — dé 3 : l'artefact est conservé");
+});
+
+it('montre le héros PROTÉGÉ par une parade, et la riposte comme une vraie frappe', function () {
+    $chevalier = sceneHeros('Roland', 'chevalier');
+    $borin = sceneHeros('Borin');
+    $instance = sceneInstanceMonstre();
+    $scenes = app(SceneDeTable::class);
+
+    $parade = $scenes->depuisReaction([
+        'type' => 'reaction', 'active' => true, 'personnage' => 'Roland', 'victime' => 'Borin',
+        'victime_id' => $borin->id, 'sort' => 'Parade au bouclier',
+        'action' => ReactionEffet::ANNULE_DEGATS_VOISIN, 'degats_annules' => 2,
+    ], $chevalier)[0];
+
+    expect($parade['sous_titre'])->toBe('Roland protège Borin')
+        ->and(collect($parade['acteurs'])->pluck('role')->all())->toBe(['acteur', 'cible'])
+        ->and($parade['issue']['libelle'])->toBe('2 dégâts annulés pour Borin');
+
+    // Représailles : la frappe elle-même, avec ses dés, et le nom de la réaction.
+    $riposte = $scenes->depuisReaction([
+        'type' => 'reaction', 'active' => true, 'personnage' => 'Borin', 'sort' => 'Représailles',
+        'action' => ReactionEffet::RIPOSTE,
+        'frappe' => ['type' => 'attaque', 'cible' => ['instance_id' => $instance->id, 'nom' => 'Gobelin'],
+            'touches' => 2, 'boucliers' => 0, 'degats' => 1],
+    ], $borin);
+
+    expect($riposte)->toHaveCount(1)
+        ->and($riposte[0]['genre'])->toBe('attaque')
+        ->and($riposte[0]['sous_titre'])->toBe('Représailles');
+
+    // Refusée ou sans objet : aucune scène.
+    expect($scenes->depuisReaction(['type' => 'reaction', 'active' => false], $borin))->toBe([]);
 });

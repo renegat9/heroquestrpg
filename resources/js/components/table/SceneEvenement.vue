@@ -46,6 +46,8 @@ const ICONE_GENRE = {
     chute: 'heart_broken',
     objet: 'science',
     deplacement: 'directions_walk',
+    // Réaction hors tour jouée depuis une manette (parade, plancher, riposte).
+    reaction: 'shield_with_heart',
 };
 
 /* Les points d'un d6, dans une grille 3×3 lue ligne à ligne. Pure mise en

@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Events\EtatGroupeDiffuse;
+use App\Events\SceneTable;
 use App\Http\Controllers\Controller;
+use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\Personnage;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurReactions;
+use App\Partie\SceneDeTable;
+use App\Partie\TamponScenes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +68,20 @@ class ReactionController extends Controller
         // Les PV ont pu remonter et le héros se relever : tout le monde doit le
         // voir, table comprise.
         EtatGroupeDiffuse::dispatch($groupe, app(EtatGroupe::class)->payload($groupe->fresh()));
+
+        // ⚠ …et la TABLE doit voir la réaction elle-même (René, 2026-09-17 : « une
+        // manette peut aussi réagir durant le tour d'un monstre »). La phase des
+        // monstres ne s'est pas arrêtée pendant que le joueur réfléchissait : sa
+        // parade ou sa riposte arrive après coup, et elle n'avait AUCUNE scène —
+        // l'écran montrait l'attaque, jamais ce qui l'avait défaite.
+        $sequence = (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence');
+
+        foreach (app(SceneDeTable::class)->depuisReaction($resultat, $heros) as $scene) {
+            broadcast(new SceneTable($groupe, $scene, $sequence));
+        }
+
+        // Une relève provoquée par la réaction (« se relève ») suit sa scène.
+        app(TamponScenes::class)->vider();
 
         return response()->json(['reaction' => $resultat]);
     }

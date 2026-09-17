@@ -147,7 +147,10 @@ class ChoixController extends Controller
             // ⚠ MÊME séquence que le journal : les deux flux racontent le même
             // instant, une scène ne doit jamais s'afficher derrière une plus
             // récente.
-            foreach ($scenesDeTable->depuisResultat($resultat, $personnage) as $scene) {
+            // ⚠ Une scène dont la figurine vient de MARCHER attend la fin de sa
+            // marche sur la table (`figure`) — le coup d'un monstre ne s'affiche
+            // plus pendant qu'il avance encore vers sa cible.
+            foreach ($scenesDeTable->depuisResultat($resultat, $personnage, $resolveur->figuresEnMarche()) as $scene) {
                 broadcast(new SceneTable($groupe, $scene, $sequence));
             }
 
@@ -156,7 +159,7 @@ class ChoixController extends Controller
             // déclenche au moment où les PV touchent zéro, donc AVANT que
             // l'action soit finie : sans ce report, la table montrait le héros à
             // terre avant le coup qui l'y avait mis.
-            app(TamponScenes::class)->vider();
+            app(TamponScenes::class)->vider($resolveur->figuresEnMarche());
         } else {
             $resultat = [
                 'type' => $option['type'] ?? 'action',

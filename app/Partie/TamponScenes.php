@@ -33,7 +33,7 @@ use App\Models\Groupe;
  */
 final class TamponScenes
 {
-    /** @var list<array{groupe: Groupe, scene: array<string, mixed>}> */
+    /** @var list<array{groupe: Groupe, scene: array<string, mixed>, figure: string|null}> */
     private array $enAttente = [];
 
     private bool $filetArme = false;
@@ -41,9 +41,9 @@ final class TamponScenes
     /**
      * @param  array<string, mixed>  $scene
      */
-    public function ajouter(Groupe $groupe, array $scene): void
+    public function ajouter(Groupe $groupe, array $scene, ?string $figure = null): void
     {
-        $this->enAttente[] = ['groupe' => $groupe, 'scene' => $scene];
+        $this->enAttente[] = ['groupe' => $groupe, 'scene' => $scene, 'figure' => $figure];
 
         if (! $this->filetArme) {
             $this->filetArme = true;
@@ -51,16 +51,28 @@ final class TamponScenes
         }
     }
 
-    /** Diffuse et oublie tout ce qui attend. Idempotent. */
-    public function vider(): void
+    /**
+     * Diffuse et oublie tout ce qui attend. Idempotent.
+     *
+     * @param  list<string>  $figuresEnMarche  `ResolveurTour::figuresEnMarche()` : une
+     *                                         chute d'un héros qui a marché (piège en chemin)
+     *                                         attend la fin de sa marche sur la table
+     */
+    public function vider(array $figuresEnMarche = []): void
     {
         $lot = $this->enAttente;
         $this->enAttente = [];
 
         foreach ($lot as $entree) {
+            $scene = $entree['scene'];
+
+            if ($entree['figure'] !== null && in_array($entree['figure'], $figuresEnMarche, true)) {
+                $scene['figure'] = $entree['figure'];
+            }
+
             broadcast(new SceneTable(
                 $entree['groupe'],
-                $entree['scene'],
+                $scene,
                 (int) Evenement::query()->where('groupe_id', $entree['groupe']->id)->max('sequence'),
             ));
         }

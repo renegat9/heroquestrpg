@@ -8,6 +8,7 @@ use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDeterministe;
 use App\Engine\ReactionEffet;
 use App\Engine\TypeFigurine;
+use App\Events\SceneTable;
 use App\Jobs\GenererMenu;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
@@ -38,6 +39,7 @@ use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\SortSeeder;
 use Database\Seeders\TuileSeeder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
@@ -990,4 +992,31 @@ it('garde les Cendres du Phénix sur un 1 à 4, et le dit aussi', function () {
         ))->toBeFalse()
         ->and(app(JournalCombat::class)->depuisResultat($reaction, $heros->nom)[0]['texte'])
         ->toContain('dé 3')->toContain("l'artefact est conservé");
+});
+
+it('montre la réaction à la TABLE quand la manette l\'accepte pendant le tour d\'un monstre', function () {
+    // René, 2026-09-17 : « une manette peut aussi réagir durant le tour d'un
+    // monstre (souvent suite à son attaque) ». La phase des monstres ne s'arrête
+    // pas pendant que le joueur réfléchit : sa réaction arrive après, par sa
+    // propre route, et n'avait aucune scène.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $heros = $ctx['heros'];
+    porterArtefact($heros, 'Cendres du Phénix');
+
+    $heros->update(['pv_body' => 1]);
+    app(MoteurDegats::class)->infligerAHeros($heros, 3, MoteurDegats::SOURCE_ATTAQUE_MONSTRE, [
+        'instance_id' => (int) $ctx['instance']->id,
+    ]);
+
+    Event::fake([SceneTable::class]);
+    desFiges([2, ...array_fill(0, 8, 4)]);
+
+    $this->postJson('/api/groupes/table-1/reaction', [
+        'personnage_id' => $heros->id, 'accepte' => true,
+    ])->assertOk();
+
+    Event::assertDispatched(SceneTable::class,
+        fn ($e) => $e->scene['genre'] === 'reaction'
+            && $e->scene['titre'] === 'Cendres du Phénix'
+            && str_contains($e->scene['issue']['libelle'], 'reste à 1 PV'));
 });

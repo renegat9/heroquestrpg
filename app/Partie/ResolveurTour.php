@@ -21,7 +21,6 @@ use App\Engine\TypeFigurine;
 use App\Events\BarkDiffuse;
 use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
-use App\Events\MouvementAnime;
 use App\Events\NarrationDiffusee;
 use App\Events\SceneTable as SceneTableEvent;
 use App\Models\Condition;
@@ -188,11 +187,31 @@ final class ResolveurTour
     /**
      * Déplacements de figurines de la résolution courante, pour l'animation
      * case-par-case côté table (E4) : chaque entrée = {type, id, depart, chemin}.
-     * Réinitialisé à chaque `resoudre` ; diffusé (MouvementAnime) avant l'état.
+     * Réinitialisé à chaque `resoudre` ; diffusé DANS l'état (`EtatGroupeDiffuse`).
      *
      * @var list<array{type: string, id: int, depart: array{x: int, y: int}, chemin: list<array{x: int, y: int}>}>
      */
     private array $mouvementsAnime = [];
+
+    /**
+     * Les figurines qui ont MARCHÉ dans la résolution courante (`type:id`).
+     *
+     * ⚠ Lu par ceux qui montent les scènes de table (2026-09-17) : une scène
+     * dont la figurine vient de marcher doit attendre la fin de cette marche.
+     * La scène (petit message) arrive couramment AVANT l'état qui porte les
+     * trajets (gros message, deux workers) — mesuré : 756 ms d'avance. La table
+     * ne peut donc pas déduire « il y a une marche à attendre » de ce qu'elle a
+     * déjà reçu : le serveur le lui dit.
+     *
+     * @return list<string>
+     */
+    public function figuresEnMarche(): array
+    {
+        return array_values(array_unique(array_map(
+            fn (array $m) => $m['type'].':'.$m['id'],
+            $this->mouvementsAnime,
+        )));
+    }
 
     /**
      * Événement GLACE de la résolution courante — canal latéral entre
@@ -439,15 +458,13 @@ final class ResolveurTour
             return $resultat;
         });
 
-        // Animation case-par-case (table, E4) : les trajets de figurines sont
-        // diffusés AVANT l'état, pour que la table amorce le glissement avant que
-        // l'état ne pose les positions finales (évite le « saut » puis rembobinage).
-        if ($this->mouvementsAnime !== []) {
-            broadcast(new MouvementAnime($groupe, $this->mouvementsAnime));
-        }
-
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.
-        broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
+        // Animation case-par-case (table, E4) : les trajets de figurines partent
+        // DANS le message d'état — un seul message, donc un ordre garanti, là où
+        // deux workers pouvaient publier l'état avant l'animation séparée.
+        broadcast(new EtatGroupeDiffuse(
+            $groupe, $this->etatGroupe->payload($groupe->fresh()), $this->mouvementsAnime,
+        ));
 
         return $resultat;
     }
@@ -8659,6 +8676,14 @@ final class ResolveurTour
         // ⚠ Le CONSTRUCTEUR de scènes reste unique (App\Partie\SceneDeTable) —
         // deux déclencheurs, une seule façon de monter une scène.
         $sceneSalle = app(SceneDeTable::class)->salle($quete, $salle, $aReveler->all());
+
+        // La salle se découvre QUAND le héros arrive au seuil : la scène attend
+        // la fin de SA marche (`figure`), sinon elle couvrait la carte pendant
+        // qu'il y marchait encore.
+        if ($sceneSalle !== null && $decouvreur !== null
+            && in_array('heros:'.$decouvreur->id, $this->figuresEnMarche(), true)) {
+            $sceneSalle['figure'] = 'heros:'.$decouvreur->id;
+        }
 
         if ($sceneSalle !== null) {
             broadcast(new SceneTableEvent(

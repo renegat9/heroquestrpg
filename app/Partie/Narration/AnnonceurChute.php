@@ -53,6 +53,7 @@ final class AnnonceurChute
         app(TamponScenes::class)->ajouter(
             $groupe,
             app(SceneDeTable::class)->chute($heros, $cle === 'heros_tombe'),
+            'heros:'.$heros->id,
         );
 
         $recit = $this->narration->pourQuete($quete, $cle, ['heros' => $heros->nom]);

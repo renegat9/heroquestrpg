@@ -201,25 +201,43 @@ final class JournalCombat
         }
 
         $nom = (string) ($a['sort'] ?? 'Une réaction');
+        $issue = $this->issueReaction($a);
+
+        return [[
+            'texte' => $issue !== null ? "{$nom} : {$issue}" : ($a['personnage'] ?? 'Un héros')." — {$nom}",
+            'ton' => ! empty($a['artefact_perdu']) ? 'degats' : 'info',
+        ]];
+    }
+
+    /**
+     * CE QUE la réaction a changé, sans son nom — `null` si rien de chiffré.
+     *
+     * ⚠ Public : la scène de table (`SceneDeTable::depuisReaction()`) le reprend
+     * tel quel. Deux formulations d'une même parade auraient dérivé.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    public function issueReaction(array $a): ?string
+    {
         $victime = (string) ($a['victime'] ?? 'le héros');
         $annules = (int) ($a['degats_annules'] ?? 0);
 
-        $texte = match (true) {
-            ($a['action'] ?? null) === ReactionEffet::PLANCHER_PV => "{$nom} : {$victime} reste à 1 PV",
-            $annules > 0 => "{$nom} : {$annules} dégât".($annules > 1 ? 's' : '').' annulé'.($annules > 1 ? 's' : '')." pour {$victime}",
-            default => ($a['personnage'] ?? 'Un héros')." — {$nom}",
+        $issue = match (true) {
+            ($a['action'] ?? null) === ReactionEffet::PLANCHER_PV => "{$victime} reste à 1 PV",
+            $annules > 0 => "{$annules} dégât".($annules > 1 ? 's' : '').' annulé'.($annules > 1 ? 's' : '')." pour {$victime}",
+            default => null,
         };
 
         // Le dé de perte des Cendres du Phénix : « on a 5 or 6, this artifact
         // is lost ». René (2026-09-16) : « il faut s'assurer de valider après
-        // utilisation si la carte reste ou est détruite » — le fil le dit.
-        if (isset($a['de_artefact'])) {
-            $texte .= ' — dé '.(int) $a['de_artefact'].' : '.(! empty($a['artefact_perdu'])
+        // utilisation si la carte reste ou est détruite » — on le dit.
+        if ($issue !== null && isset($a['de_artefact'])) {
+            $issue .= ' — dé '.(int) $a['de_artefact'].' : '.(! empty($a['artefact_perdu'])
                 ? 'l\'artefact se consume'
                 : 'l\'artefact est conservé');
         }
 
-        return [['texte' => $texte, 'ton' => ! empty($a['artefact_perdu']) ? 'degats' : 'info']];
+        return $issue;
     }
 
     /**

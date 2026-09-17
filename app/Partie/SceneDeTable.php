@@ -39,7 +39,7 @@ use App\Partie\Images\BibliothequeImages;
 final class SceneDeTable
 {
     /** Genres rendus par le composant de table. Tout autre type reste muet. */
-    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet', 'deplacement'];
+    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet', 'deplacement', 'reaction'];
 
     public function __construct(private readonly BibliothequeImages $images) {}
 
@@ -49,17 +49,118 @@ final class SceneDeTable
      * @param  array<string, mixed>  $resultat
      * @return list<array<string, mixed>>
      */
-    public function depuisResultat(array $resultat, Personnage $acteur): array
+    /**
+     * @param  list<string>  $figuresEnMarche  `ResolveurTour::figuresEnMarche()` —
+     *                                         les figurines dont la scène doit attendre la marche
+     */
+    public function depuisResultat(array $resultat, Personnage $acteur, array $figuresEnMarche = []): array
     {
         $scenes = [];
 
         foreach (JournalCombat::actionsDuTour($resultat) as $action) {
             foreach ($this->depuisAction($action, $acteur) as $scene) {
+                $figure = $this->figureDe($action, $acteur);
+                $scene['figure'] = in_array($figure, $figuresEnMarche, true) ? $figure : null;
                 $scenes[] = $scene;
             }
         }
 
         return $scenes;
+    }
+
+    /**
+     * La FIGURINE qui agit dans cette action, au format des trajets de l'état
+     * (`type:id`, cf. `EtatGroupeDiffuse::$mouvements`).
+     *
+     * ⚠ C'est ce qui permet à la table d'attendre la fin de la MARCHE avant
+     * d'afficher le coup (2026-09-17). Sans ce lien, « Gardien des Cryptes
+     * attaque Borin » s'affichait au centre de la carte pendant que le monstre
+     * marchait encore vers lui — mesuré : popup à 7 911 ms, arrivée à 9 319 ms.
+     * Publiée dans `figure` SEULEMENT si la figurine a marché dans la même
+     * résolution : la clé veut dire « attends ce trajet », et la table l'attend
+     * même s'il n'est pas encore arrivé.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function figureDe(array $a, Personnage $acteur): string
+    {
+        $instanceId = (int) ($a['instance_id'] ?? 0);
+
+        if ($instanceId > 0 && in_array($a['type'] ?? null, ['attaque_monstre', 'deplacement_monstre'], true)) {
+            return 'monstre:'.$instanceId;
+        }
+
+        return 'heros:'.$acteur->id;
+    }
+
+    /**
+     * Les scènes d'une RÉACTION hors tour acceptée — jouée depuis une manette,
+     * souvent pendant le tour d'un monstre, après son attaque.
+     *
+     * ⚠ Elles étaient INVISIBLES à la table (René, 2026-09-17 : « ne pas oublier
+     * qu'une manette peut aussi réagir durant le tour d'un monstre »). La phase
+     * des monstres ne s'arrête pas pendant que le joueur réfléchit : la riposte
+     * de *Représailles*, la *Parade au bouclier*, les *Cendres du Phénix*
+     * arrivaient après, sans scène — la table montrait le coup, jamais la parade.
+     *
+     * Une riposte est une vraie frappe : elle réutilise la scène d'attaque, avec
+     * le nom de la réaction en sous-titre. Les autres ont leur scène propre.
+     *
+     * @param  array<string, mixed>  $r  résultat de `MoteurReactions::resoudre()`
+     * @return list<array<string, mixed>>
+     */
+    public function depuisReaction(array $r, Personnage $heros): array
+    {
+        if (($r['type'] ?? null) !== 'reaction' || empty($r['active'])) {
+            return [];
+        }
+
+        if (is_array($r['frappe'] ?? null)) {
+            return array_map(
+                fn (array $scene) => array_replace($scene, ['sous_titre' => (string) ($r['sort'] ?? 'Riposte')]),
+                $this->depuisResultat($r['frappe'], $heros),
+            );
+        }
+
+        $acteurs = [$this->acteurHeros($heros, 'acteur')];
+        $victime = isset($r['victime_id']) ? Personnage::find((int) $r['victime_id']) : null;
+
+        if ($victime !== null && $victime->id !== $heros->id) {
+            $acteurs[] = $this->acteurHeros($victime, 'cible');
+        }
+
+        $objets = [];
+
+        if (isset($r['de_artefact'], $r['artefact'])) {
+            $objet = Objet::where('nom', (string) $r['artefact'])->first();
+            $objets[] = [
+                'nom' => (string) $r['artefact'],
+                'image_url' => $this->images->urlObjet($objet?->id, (string) $r['artefact'])
+                    ?? $this->images->vignette('objet', $objet?->id ?? 0),
+                'detail' => 'dé '.(int) $r['de_artefact'].' — '.(! empty($r['artefact_perdu']) ? 'se consume' : 'conservé'),
+            ];
+        }
+
+        $nom = (string) ($r['sort'] ?? 'Réaction');
+
+        return [[
+            'genre' => 'reaction',
+            'titre' => $nom,
+            'sous_titre' => $victime !== null && $victime->id !== $heros->id
+                ? $heros->nom.' protège '.$victime->nom
+                : $heros->nom.' réagit',
+            'acteurs' => $acteurs,
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null, // une réaction ne suit jamais une marche
+            'objets' => $objets,
+            // Le texte vient du fil de combat : une réaction se dit d'une seule
+            // façon, sur la table comme dans le journal.
+            'issue' => [
+                'ton' => ! empty($r['artefact_perdu']) ? 'degats' : 'tresor',
+                'libelle' => app(JournalCombat::class)->issueReaction($r) ?? $nom,
+            ],
+        ]];
     }
 
     /**
@@ -145,6 +246,7 @@ final class SceneDeTable
             ],
             'jet' => $this->jetDesDes($a, $attaquant, $cibleNom),
             'deplacement' => null,
+            'figure' => null,
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_vaincue'])),
         ];
@@ -180,6 +282,7 @@ final class SceneDeTable
             ])),
             'jet' => $this->jetDesDes($a, $monstre, $cibleNom),
             'deplacement' => null,
+            'figure' => null,
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee']), heros: true),
         ];
@@ -216,6 +319,7 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($victime, 'acteur')],
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => [[
                 'nom' => $nomPiege,
                 'image_url' => $this->imagePiege($nomPiege),
@@ -292,6 +396,7 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => $objets,
             'issue' => ['ton' => $ton, 'libelle' => $libelle],
         ];
@@ -360,6 +465,7 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => $objets,
             'issue' => [
                 'ton' => $reussi ? 'tresor' : 'echec',
@@ -405,6 +511,7 @@ final class SceneDeTable
             'acteurs' => $acteurs,
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => [[
                 'nom' => $nom,
                 'image_url' => $this->images->urlObjet($objet?->id, $nom)
@@ -481,6 +588,7 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => [[
                 'nom' => 'Levier',
                 'image_url' => $this->images->urlLevier() ?? $this->images->vignette('levier', 'levier'),
@@ -540,6 +648,7 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null, // une volée PAR cible : elles sont dans les vignettes
             'deplacement' => null,
+            'figure' => null,
             'objets' => array_slice($objets, 0, 6),
             'issue' => $vaincus > 0
                 ? ['ton' => 'mort', 'libelle' => $vaincus.' abattu'.($vaincus > 1 ? 's' : '')]
@@ -598,6 +707,7 @@ final class SceneDeTable
                 'acteurs' => $acteurs,
                 'jet' => null,
                 'deplacement' => null,
+                'figure' => null,
                 'objets' => array_slice($objets, 0, 6),
                 'issue' => ['ton' => isset($a['soignes']) ? 'tresor' : 'degats',
                     'libelle' => $nomSort.' balaie la salle'],
@@ -621,6 +731,7 @@ final class SceneDeTable
             'acteurs' => $acteurs,
             'jet' => $this->jetDesDes($a, $nomSort, (string) ($cibleNom ?? 'la cible')),
             'deplacement' => null,
+            'figure' => null,
             'objets' => $objets,
             'issue' => match (true) {
                 ! empty($a['cible_vaincue']) => ['ton' => 'mort', 'libelle' => $cibleNom.' est foudroyé'],
@@ -722,6 +833,7 @@ final class SceneDeTable
             'acteurs' => [],
             'jet' => null,
             'deplacement' => null,
+            'figure' => null,
             'objets' => array_slice($objets, 0, 6), // au-delà, la bande déborde
             'issue' => [
                 'ton' => $n > 0 ? 'degats' : 'info',
@@ -806,6 +918,7 @@ final class SceneDeTable
                 'des' => array_values(array_map('intval', $d['des'])),
                 'calcul' => $calcul.$plancher.' = '.$d['portee'],
             ],
+            'figure' => null, // le tour commence : aucune marche à attendre
             'objets' => [],
             'issue' => ['ton' => 'info', 'libelle' => $d['portee'].' '.$cases.' ce tour'],
         ];
@@ -820,6 +933,9 @@ final class SceneDeTable
             'acteurs' => [$this->acteurHeros($heros, 'acteur')],
             'jet' => null,
             'deplacement' => null,
+            // Posée par `TamponScenes::vider()` si le héros a marché (un piège
+            // marché en chemin) : c'est lui qui connaît la résolution.
+            'figure' => null,
             'objets' => [],
             'issue' => $tombe
                 ? ['ton' => 'mort', 'libelle' => '0 PV de Body']
