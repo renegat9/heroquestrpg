@@ -133,6 +133,10 @@ Route::middleware('auth:joueur')->group(function () {
     // Choix de menu : validation contre le dernier menu proposé + résolution
     // moteur (ResolveurTour), puis narration/menus en jobs.
     Route::post('/groupes/{identifiant}/choix', [ChoixController::class, 'choisir']);
+    // Aperçu du trajet AVANT de valider (2026-09-17) : le chemin exact que le
+    // héros parcourrait, calculé par le résolveur sur la grille qu'il
+    // parcourra — jamais re-dérivé en JS (le trajet déclenche les pièges).
+    Route::post('/groupes/{identifiant}/deplacement/apercu', [ChoixController::class, 'apercuDeplacement']);
     // Rattrapage du menu courant du joueur (reconnexion).
     Route::get('/groupes/{identifiant}/menu', [ChoixController::class, 'menu']);
 

@@ -51,6 +51,18 @@ export const MOBILIER_ICONE_DEFAUT = 'category';
 export const LEVIER_ICONE = 'toggle_on';
 
 /**
+ * MUR DE GLACE (doc 18 §4 — *Ice Wall*, sort du boss) — un seul type, donc pas
+ * de table, comme le levier.
+ *
+ * ⚠ C'est un MUR, pas un terrain : il ne teinte donc pas la case, il la
+ * remplit — même silhouette de BLOC PLEIN que le mobilier bloquant, parce
+ * qu'il se lit de la même façon (« on ne passe pas par là ») et qu'il se
+ * casse comme lui. La teinte glacée et le compteur de crânes le distinguent
+ * d'une armoire.
+ */
+export const GLACE_ICONE = 'ac_unit';
+
+/**
  * Terrain (doc 18 §4, The Frozen Horror) → catégorie de TEINTE de case.
  *
  * ⚠ FORME DÉLIBÉRÉMENT DIFFÉRENTE des cinq familles ci-dessus : figures,

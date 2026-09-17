@@ -250,6 +250,18 @@ export function useApi() {
             request('POST', `/groupes/${identifiant}/choix`, payload),
 
         /**
+         * POST /api/groupes/{identifiant}/deplacement/apercu {x, y} →
+         * {atteignable, raison?, chemin, cout, restant, restant_apres, pieges}.
+         *
+         * ⚠ Le TRAJET est demandé au serveur, jamais recalculé ici : les pièges
+         * sont contrôlés case par case dessus, et deux routes de même coût
+         * n'exposent pas aux mêmes. C'est le résolveur qui dit par où le héros
+         * passera (contrat, §Aperçu du trajet).
+         */
+        apercuDeplacement: (identifiant, x, y) =>
+            request('POST', `/groupes/${identifiant}/deplacement/apercu`, { x, y }),
+
+        /**
          * POST /api/groupes/{identifiant}/reaction {personnage_id, accepte}.
          * Réaction HORS TOUR (Dark Wings, Twisting Torrent) : la seule action
          * du jeu qui arrive pendant le tour de quelqu'un d'autre. Ne passe donc

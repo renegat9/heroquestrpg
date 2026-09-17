@@ -18,7 +18,7 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -54,6 +54,11 @@ const props = defineProps({
      *  publiée mais dessinée NULLE PART : gratuit tant qu'aucune case de glace
      *  n'était posée, un piège invisible le jour où il y en a une. */
     terrain: { type: Array, default: () => [] },
+    /** Murs de glace posés par le sort du boss (doc 18 §4) : [{x, y, cranes}].
+     *  ⚠ Rendus comme un BLOC PLEIN (cf. GLACE_ICONE dans symboles.js), pas
+     *  comme une teinte de terrain : c'est un obstacle qui barre la case, et
+     *  il était jusqu'ici dessiné NULLE PART alors qu'il bloque le mouvement. */
+    ice: { type: Array, default: () => [] },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
 });
@@ -211,6 +216,19 @@ const doors = computed(() => (props.carte.portes ?? [])
             </div>
         </div>
 
+        <!-- murs de glace (doc 18 §4) : bloc plein, comme un meuble bloquant —
+             ils barrent la case et se brisent à 5 crânes, que le titre annonce. -->
+        <div
+            v-for="(g, i) in ice"
+            :key="`g-${g.x}-${g.y}-${i}`"
+            class="dg-ice-holder"
+            :style="{ gridColumn: g.x + 1, gridRow: g.y + 1 }"
+        >
+            <div class="dg-ice" :title="`Mur de glace — ${g.cranes ?? 0}/5 crânes`">
+                <MSym :n="GLACE_ICONE" fill />
+            </div>
+        </div>
+
         <!-- leviers : mécanisme d'ouverture, au sol. Rendu en OCTOGONE bleu —
              ni un disque (réservé aux figurines), ni le losange doré de
              l'épreuve : les trois se côtoient dans une même salle et un joueur
@@ -321,6 +339,15 @@ const doors = computed(() => (props.carte.portes ?? [])
 /* ---- surcouche manette (accessibilité / départ / occupants) ---- */
 .dg-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }
 .dg-cell.accessible:hover { background: oklch(0.6 0.15 145 / 0.55); }
+/* ---- trajet prévu (manette, aperçu avant validation) : les cases que le héros
+   VA traverser, et la case visée. Teinte AMBRÉE, pas une nuance de plus du vert
+   des cases accessibles : le joueur doit voir d'un coup d'œil ce qui est
+   « atteignable » et ce qui est « le chemin choisi », y compris quand les deux
+   se superposent. */
+.dg-cell.trajet { background: oklch(0.72 0.15 75 / 0.38); cursor: pointer;
+  outline: 1px solid oklch(0.78 0.14 75 / 0.6); }
+.dg-cell.visee { background: oklch(0.78 0.16 75 / 0.65); cursor: pointer;
+  outline: 2px solid oklch(0.88 0.14 80 / 0.9); }
 .dg-cell.depart { background: linear-gradient(150deg, var(--ember), var(--ember-deep)); color: var(--parch-100); display: grid; place-items: center; }
 .dg-cell.allie { background: oklch(0.55 0.14 260 / 0.5); display: grid; place-items: center; }
 .dg-cell.monstre { background: oklch(0.55 0.16 25 / 0.45); color: var(--danger, #e66); display: grid; place-items: center; }
@@ -379,6 +406,17 @@ const doors = computed(() => (props.carte.portes ?? [])
   color: oklch(0.85 0.05 70); }
 .dg-furn .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-furn.non-bloquant { opacity: 0.6; box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.3); }
+
+/* ---- murs de glace (doc 18 §4) : MÊME silhouette que le mobilier bloquant
+   (bloc plein occupant la case) et une palette glacée — le joueur doit lire
+   « on ne passe pas » au premier coup d'œil, et comprendre du même geste que
+   ça se brise. */
+.dg-ice-holder { position: relative; pointer-events: none; z-index: 2; }
+.dg-ice { position: absolute; inset: 5%; border-radius: 4px; display: grid; place-items: center;
+  background: linear-gradient(150deg, oklch(0.62 0.09 220 / 0.85), oklch(0.44 0.08 235 / 0.9));
+  box-shadow: inset 0 0 0 1px oklch(0.88 0.06 220 / 0.7), 0 1px 3px oklch(0 0 0 / 0.5);
+  color: oklch(0.96 0.02 220); }
+.dg-ice .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 
 /* ---- portes : battant CENTRÉ DANS SA CASE D'EMBRASURE, plus sur une arête
    (René, 2026-09-11 : « la porte doit être centrale à sa case, bloquant

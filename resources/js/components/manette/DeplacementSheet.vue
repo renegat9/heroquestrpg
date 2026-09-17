@@ -5,6 +5,7 @@
 // l'écran table — pour un rendu identique ; cette feuille n'ajoute que la
 // surbrillance des cases accessibles (BFS) et le tap de destination.
 import { computed, nextTick, onMounted, ref } from 'vue';
+import { useApi } from '../../composables/useApi';
 import DungeonGrid from '../carte/DungeonGrid.vue';
 import LegendeCarte from '../carte/LegendeCarte.vue';
 import MSym from '../ui/MSym.vue';
@@ -25,6 +26,9 @@ const props = defineProps({
     // c'était CE miroir qui traitait tout monstre comme un mur pour tout le
     // monde.
     franchitFigures: { type: Boolean, default: false },
+    /** Code du groupe — sert UNIQUEMENT à demander l'aperçu de trajet au
+     *  serveur (`POST deplacement/apercu`). */
+    groupe: { type: String, default: '' },
 });
 const emit = defineEmits(['deplacer', 'close']);
 
@@ -140,6 +144,15 @@ const alliees = computed(() => {
 // le meuble lui-même, cette liste ne sert qu'à couper le BFS d'accessibilité.
 // `bloque_vue` (une bibliothèque coupe la vue mais une table non) n'entre PAS
 // dans ce calcul : la ligne de vue n'est pas ce que le BFS de déplacement mesure.
+// ⚠ TROIS sources pour UN seul jeu de cases, exactement comme `$obstacles`
+// côté serveur (`FabriqueGrille::pour()`) : le mobilier bloquant, le terrain
+// bloquant, et les MURS DE GLACE posés en cours de quête par le sort du boss
+// (`carte.glace`, doc 18 §4). Le mur de glace manquait ici — et n'était dessiné
+// nulle part — alors qu'il barre bel et bien la case côté moteur : la manette
+// proposait une destination derrière un mur invisible, que le serveur refusait
+// ensuite (René, 2026-09-17). Le terrain bloquant est ajouté par prévention :
+// aucun terrain du catalogue ne bloque à ce jour, mais le drapeau est publié et
+// le moteur le lit — le miroir ne doit pas attendre le premier qui bloquera.
 const mobilierOccupe = computed(() => {
     const s = new Set();
     for (const m of props.carte.mobilier ?? []) {
@@ -149,6 +162,12 @@ const mobilierOccupe = computed(() => {
                 s.add(cle(m.x + dx, m.y + dy));
             }
         }
+    }
+    for (const t of props.carte.terrain ?? []) {
+        if (t.bloque_mouvement) s.add(cle(t.x, t.y));
+    }
+    for (const g of props.carte.glace ?? []) {
+        s.add(cle(g.x, g.y));
     }
     return s;
 });
@@ -262,6 +281,11 @@ function surcouche(x, y) {
     // ennemi. Ils ne sont pas non plus dans `accessibles` — on les traverse,
     // on ne s'y arrête pas — donc sans ce test ils ne retombent sur rien.
     if (alliees.value.has(k)) return silhouetteDe(x, y);
+    // Trajet prévu : la case VISÉE d'abord (elle est aussi dans le chemin), puis
+    // les cases traversées — elles restent accessibles, on ne fait que dire
+    // « le héros passera par là ».
+    if (viseeSur(x, y)) return 'visee';
+    if (casesTrajet.value.has(k)) return 'trajet';
     return accessibles.value.has(k) ? 'accessible' : null;
 }
 
@@ -296,8 +320,69 @@ function teinteDe(x, y) {
     return id == null ? null : { '--dep-allie-h': `${(Number(id) * 47) % 360}` };
 }
 
-function toucher(x, y) {
-    if (accessibles.value.has(cle(x, y))) emit('deplacer', { x, y });
+// APERÇU DU TRAJET (René, 2026-09-17 : « que la figure utilise le vrai
+// chemin »). Un tap ne part plus tout droit : il demande au SERVEUR la route
+// exacte, la dessine, et c'est le second tap (ou le bouton) qui l'engage.
+//
+// ⚠ Le chemin vient du résolveur, il n'est PAS refait ici. Ce composant sait
+// déjà calculer des cases atteignables — et c'est précisément le piège : deux
+// routes de même coût n'exposent pas aux mêmes pièges (`controlerChemin()`
+// contrôle CASE PAR CASE), donc un chemin re-dérivé en JS pourrait annoncer un
+// trajet que le héros ne prendra pas. Le serveur publie la DÉCISION.
+const api = useApi();
+const apercu = ref(null);        // { x, y, chemin, cout, restant_apres, pieges, atteignable, raison, indisponible }
+const apercuEnCours = ref(false);
+
+/** Cases du trajet prévu, pour la surcouche (O(1) par case). */
+const casesTrajet = computed(() => {
+    const s = new Set();
+    for (const c of apercu.value?.chemin ?? []) s.add(cle(c.x, c.y));
+    return s;
+});
+
+// ⚠ L'état arrive en VOCABULAIRE MOTEUR (`detecte`/`desarme`/`declenche`) : le
+// dire tel quel à l'écran (« Fosse (detecte) ») met un identifiant de code sous
+// les yeux du joueur. Même table que celle de la légende, en plus court — une
+// ligne d'aperçu n'a pas la place d'une phrase.
+const ETATS_PIEGE = { detecte: 'détecté', desarme: 'désamorcé', declenche: 'déjà déclenché' };
+const trajetPieges = computed(() => (apercu.value?.pieges ?? []).map((p) => ({
+    ...p,
+    libelle: ETATS_PIEGE[p.etat] ?? p.etat,
+})));
+
+function viseeSur(x, y) {
+    return apercu.value !== null && apercu.value.x === x && apercu.value.y === y;
+}
+
+async function toucher(x, y) {
+    if (! accessibles.value.has(cle(x, y))) return;
+
+    // Second tap sur la MÊME case : c'est la confirmation.
+    if (viseeSur(x, y)) {
+        emit('deplacer', { x, y });
+        return;
+    }
+
+    apercu.value = { x, y, chemin: [], pieges: [], atteignable: true };
+    apercuEnCours.value = true;
+
+    try {
+        const rep = await api.apercuDeplacement(props.groupe, x, y);
+        // Une réponse tardive ne doit pas écraser un tap plus récent.
+        if (viseeSur(x, y)) apercu.value = { x, y, ...rep };
+    } catch {
+        // ⚠ L'aperçu ne doit JAMAIS empêcher de jouer : réseau coupé, serveur
+        // qui répond 422, peu importe — on garde la visée et le second tap
+        // part comme avant. Le moteur revalide de toute façon.
+        if (viseeSur(x, y)) apercu.value = { x, y, chemin: [], pieges: [], atteignable: true, indisponible: true };
+    } finally {
+        apercuEnCours.value = false;
+    }
+}
+
+/** Bouton « Y aller » : même chemin que le second tap. */
+function confirmer() {
+    if (apercu.value) emit('deplacer', { x: apercu.value.x, y: apercu.value.y });
 }
 
 // ZOOM (René, 2026-08-28). Les cases étaient à 22 px : sous la cible tactile
@@ -386,12 +471,34 @@ onMounted(async () => {
                 <button class="dep-close" type="button" @click="$emit('close')"><MSym n="close" /></button>
             </header>
 
-            <p v-if="accessibles.size" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour t'y déplacer</p>
+            <p v-if="accessibles.size && ! apercu" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour voir le trajet</p>
+
+            <!-- APERÇU : le trajet EXACT rendu par le serveur, à confirmer. Les
+                 pièges annoncés sont ceux que la carte montre DÉJÀ (détectés,
+                 désamorcés, déclenchés) — l'aperçu ne révèle rien. -->
+            <div v-else-if="apercu" class="dep-apercu">
+                <p class="dep-hint">
+                    <MSym n="route" :size="14" />
+                    <span v-if="apercuEnCours">Calcul du trajet…</span>
+                    <span v-else-if="apercu.indisponible">Trajet indisponible — touche encore pour y aller quand même</span>
+                    <span v-else-if="apercu.atteignable === false">{{ apercu.raison }}</span>
+                    <span v-else>{{ apercu.cout }} point{{ apercu.cout > 1 ? 's' : '' }} — il en restera {{ apercu.restant_apres }}</span>
+                </p>
+                <p v-for="p in trajetPieges" :key="`${p.x}-${p.y}`" class="dep-hint dep-hint-piege">
+                    <MSym n="warning" :size="14" /> Le trajet passe sur : {{ p.nom }} ({{ p.libelle }})
+                </p>
+                <button
+                    v-if="apercu.atteignable !== false"
+                    class="dep-aller"
+                    type="button"
+                    @click="confirmer"
+                ><MSym n="directions_walk" :size="16" fill /> Y aller</button>
+            </div>
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
                     <template #cell="{ x, y }">
                         <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
                         <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />
@@ -483,6 +590,19 @@ onMounted(async () => {
 .dep-hint .msym { color: var(--torch); }
 .dep-hint-bloque { color: var(--danger, #e66); }
 .dep-hint-bloque .msym { color: var(--danger, #e66); }
+
+/* Aperçu du trajet : bloc COMPACT (la manette n'a qu'un écran de téléphone, et
+   la carte doit rester la plus grande chose dessus) — une ligne de coût, une
+   ligne par piège connu traversé, un bouton pleine largeur pour engager.
+   ⚠ Classes préfixées `dep-` : les styles de SFC sont globaux ici. */
+.dep-apercu { display: flex; flex-direction: column; gap: 2px; }
+.dep-apercu .dep-hint { margin: 8px 0 6px; }
+.dep-hint-piege { color: var(--torch, #d9a441); margin: 0 0 6px; }
+.dep-hint-piege .msym { color: var(--torch, #d9a441); }
+.dep-aller { margin: 2px 0 10px; padding: 10px; border-radius: 11px; border: var(--line);
+  background: linear-gradient(150deg, var(--ember, #8c3b1b), var(--ember-deep, #5e2410));
+  color: var(--parch-100, #f3e7cf); font-weight: 700; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px; }
 .dep-fermer { margin-top: 12px; flex: none; width: 100%; padding: 11px; border-radius: 11px; border: var(--line);
   background: var(--stone-850); color: var(--ink-200, #e7dcc6); font-weight: 700; font-size: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px; }

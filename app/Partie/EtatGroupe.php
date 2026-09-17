@@ -270,7 +270,7 @@ final class EtatGroupe
      * AVANT le brouillard — indiscernable de n'importe quel mur, sans plus
      * rien à publier pour le dire.
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, portes: list<array{x: int, y: int, etat: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, glace: list<array{x: int, y: int, cranes: int}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -390,6 +390,12 @@ final class EtatGroupe
             // que les leviers, cf. commentaire de `terrain()`), le brouillard
             // est le SEUL critère.
             'terrain' => $this->terrain($carte, $cases),
+            // MUR DE GLACE (doc 18 §4) : couche DÉDIÉE `carte.grille['glace']`,
+            // posée en cours de quête par le sort du boss — jamais le catalogue
+            // `terrains`, jamais le mobilier. Publiée ici pour la même raison
+            // que les leviers l'ont été le 2026-08-27 : elle bloquait le
+            // mouvement côté moteur sans être dessinée nulle part.
+            'glace' => $this->glace($carte, $cases),
             'portes' => $portes,
         ];
     }
@@ -701,6 +707,36 @@ final class EtatGroupe
                 // il est re-validé : il n'a jamais eu besoin du client.
                 'difficulte' => DifficulteBody::plafonnee($quete, (int) ($l['difficulte'] ?? 2)),
                 'image_url' => app(BibliothequeImages::class)->urlLevier(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * MURS DE GLACE visibles (doc 18 §4 — *Ice Wall*, sort du boss).
+     *
+     * Couche `carte.grille['glace']`, DISTINCTE du catalogue `terrains` (voir
+     * `FabriqueGrille::pour()` et `MoteurDread::sortDreadMurDeGlace()` pour
+     * la raison) — mais publiée selon EXACTEMENT le même critère que lui et
+     * que les leviers : une case de glace n'a pas d'index de salle à dériver
+     * (un mur peut être posé en couloir), le brouillard répond directement à
+     * « cette case est-elle vue ? ».
+     *
+     * ⚠ `cranes` (5 le brisent) est publié : un mur qu'on frappe sans voir
+     * céder est un effet automatique que rien n'annonce. `source_instance_id`
+     * ne l'est PAS — c'est l'entretien du sort, pas une information de jeu.
+     *
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
+     * @return list<array{x: int, y: int, cranes: int}>
+     */
+    private function glace(Carte $carte, array $cases): array
+    {
+        return collect($carte->grille['glace'] ?? [])
+            ->filter(fn (array $c) => ($cases[(int) $c['y']][(int) $c['x']] ?? 'b') !== 'b')
+            ->map(fn (array $c) => [
+                'x' => (int) $c['x'],
+                'y' => (int) $c['y'],
+                'cranes' => (int) ($c['cranes'] ?? 0),
             ])
             ->values()
             ->all();

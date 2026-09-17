@@ -925,8 +925,11 @@ final class MenuMoteur
             franchitAllies: true,
         );
 
+        // Les figures seules, jamais le mobilier : même appel que
+        // `ResolveurTour::resoudreDeplacement()`, sans quoi le menu offrirait
+        // « Se déplacer » vers une case que seul un meuble traversé atteint.
         if ($this->sorts->mobiliteCombatDisponible($personnage)) {
-            $grille->autoriserFranchissement();
+            $grille->autoriserFranchissementFigures();
         }
 
         $pas = $this->pointsRestants($personnage, $etat);

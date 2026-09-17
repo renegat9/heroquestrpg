@@ -87,12 +87,21 @@ ce qui est découvert, c'est contourner le brouillard par la porte de derrière)
 5. **Test** : `SymbolesCarteTest` confronte `symboles.js` au catalogue **dans les
    deux sens** et vérifie que les deux composants importent le même fichier ;
    `CouloirsTest` verrouille les invariants de génération ;
-   `LeviersVisiblesTest` / `BrouillardTest` la publication.
+   `LeviersVisiblesTest` / `BrouillardTest` la publication ; `ApercuTrajetTest`
+   la publication des murs de glace **et** l'aperçu de trajet (le chemin annoncé
+   à la manette est celui que le résolveur parcourra).
 
 ## Pièges déjà payés
 - **Une couche publiée nulle part** : `leviers` n'a jamais été dessiné sur aucune
   des deux cartes — gratuit tant qu'aucun levier n'était posé, un donjon
   verrouillé le jour où il y en a eu un.
+  ⚠ **DEUXIÈME occurrence, 2026-09-17** : `carte.grille['glace']` (Mur de Glace,
+  sort du boss) bloquait le mouvement dans `FabriqueGrille::pour()` sans être
+  publié ni dessiné — la manette proposait des cases derrière un mur invisible,
+  le serveur les refusait. Le tell est toujours le même : **une couche lue par le
+  moteur et absente d'`EtatGroupe`**. À vérifier pour toute couche neuve, y
+  compris celles posées EN COURS DE PARTIE par un sort — ce sont justement
+  celles que la checklist d'assemblage ne couvre pas.
 - **Un seuil fait UNE case** (le plateau n'a que des portes d'une case). Le tank
   qui bouche la ligne de vue se règle par l'**attaque diagonale**, pas en
   élargissant le seuil.

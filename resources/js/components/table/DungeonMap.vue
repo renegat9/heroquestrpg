@@ -80,7 +80,7 @@ function centrer(dimVue, dimCarte, cible) {
 
 <template>
     <div ref="viewportEl" class="map">
-        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :grid-style="gridStyle" animate>
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :grid-style="gridStyle" animate>
             <!-- Figurines (héros / monstres / alliés) — enfants directs de la
                  grille : FLIP de glissement case-par-case, fondu à la mort. -->
             <div

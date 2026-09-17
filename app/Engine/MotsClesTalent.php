@@ -310,7 +310,7 @@ final class MotsClesTalent
             'icone' => 'swords',
         ],
         'franchit_figures' => [
-            // ⚠ `Grille::autoriserFranchissement()` APPLIQUE la règle, mais ne
+            // ⚠ `Grille::autoriserFranchissementFigures()` APPLIQUE la règle, mais ne
             // connaît pas la mécanique : elle reçoit un booléen. Le lecteur est
             // donc le site qui LIT la clé, et le test a servi à s'en apercevoir
             // — la déclaration précédente désignait un fichier où le mot
@@ -323,7 +323,7 @@ final class MotsClesTalent
             // case au-delà d'un monstre : le talent existait côté moteur et
             // restait injouable côté manette). `ResolveurTour` continue
             // d'APPLIQUER la décision sans nommer la clé — même distinction
-            // qu'avec `Grille::autoriserFranchissement()` ci-dessus.
+            // qu'avec `Grille::autoriserFranchissementFigures()` ci-dessus.
             'lecteur' => 'App\Partie\MoteurSorts::mobiliteCombatDisponible()',
             'libelle' => 'traverse les cases occupées',
             'icone' => 'directions_run',

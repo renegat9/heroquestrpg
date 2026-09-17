@@ -24,6 +24,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
 | PUT | /api/groupes/{identifiant}/ordre | {ordre:[personnage_id,…]} | réordonne l'ordre du tour (ordre_initiative) — **HUB seulement**, permutation exacte des héros actifs, **membre OU table** ; rediffuse `.prets.maj` réordonné |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
+| POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}]} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) |
 | GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros) |
 
 ## EtatGroupe (GET etat + broadcast `.groupe.etat`)
@@ -140,6 +141,30 @@ tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d
 manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
+
+#### Aperçu du trajet (2026-09-17)
+
+⚠ **Le trajet a des conséquences mécaniques** : `MoteurPieges::controlerChemin()`
+contrôle les pièges **case par case** le long du chemin, et une chausse-trappe ou
+des racines l'écourtent. Le joueur ne désignait pourtant qu'une DESTINATION — la
+route était choisie par le serveur (Dijkstra, la moins chère) et découverte à
+l'animation. René, 2026-09-17 : « que la figure utilise le vrai chemin ».
+
+`POST /api/groupes/{identifiant}/deplacement/apercu {x, y}` rend **ce chemin-là**,
+calculé par le MÊME code que la résolution (`ResolveurTour::grilleDeplacement()`,
+point de passage unique de « sur quoi ce héros marche-t-il ? ») : la manette le
+dessine sur sa mini-carte, avec les pièges CONNUS qu'il traverse, et le joueur
+confirme. C'est un appel serveur et non un second BFS client : un chemin
+re-dérivé en JS pourrait désigner une autre route de même coût, donc d'autres
+pièges — la sixième dérive de miroir de cette famille.
+
+⚠ **L'aperçu ne révèle RIEN** : `pieges` ne liste que les pièges déjà publiés dans
+`EtatGroupe.carte.pieges` (détectés / désarmés / déclenchés). Les pièges cachés,
+les chausse-trappes et les racines qui tronqueraient la course n'y figurent pas —
+les publier ferait de l'aperçu un détecteur de pièges gratuit.
+
+⚠ C'est un **aperçu**, pas une réservation : le résolveur recalcule tout au moment
+du choix (une réaction hors tour a pu déplacer une figurine entre les deux).
 
 ### Une action, puis un sous-choix (2026-09-01)
 
@@ -554,6 +579,19 @@ l'option n'apparaît qu'au contact, et rien ne disait où aller le chercher.
   `DifficulteBody::plafonnee()` exactement comme dans `MenuMoteur`. Publier la
   valeur brute ferait annoncer « difficulté 3 » sur la carte à un groupe à qui le
   menu proposera « difficulté 2 ».
+
+**Mur de Glace (2026-09-17).** **EtatGroupe.carte** gagne `glace: [{x, y, cranes}]`
+— la couche `carte.grille['glace']` posée en cours de quête par le sort du boss
+(`MoteurDread::sortDreadMurDeGlace()`), **jamais** le catalogue `terrains`.
+
+⚠ Elle répétait à la lettre le défaut des leviers : une couche **posée, lue par le
+moteur, et publiée NULLE PART**. Un mur de glace bloquait le mouvement
+(`FabriqueGrille::pour()` le range dans `$obstacles`) sans être dessiné sur aucune
+des deux cartes ni connu du calcul d'accessibilité de la manette : le joueur tapait
+une case derrière un mur invisible et le serveur refusait. `cranes` est le compteur
+de crânes encaissés (5 le brisent — carte *Ice Wall*, doc 18 §4) : sans lui,
+frapper le mur n'aurait aucun retour visible. Brouillard : même critère que les
+leviers et le terrain — la case est publiée si elle n'est pas brouillée.
 
 **Illustrations.** Pièges et épreuves publient une `image_url` depuis toujours ;
 elle n'était **affichée nulle part**. Le **mobilier** n'en avait aucune — ni

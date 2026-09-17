@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use App\Auth\JoueurAuthentifiable;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Mobilier;
 use App\Models\Monstre;
 use App\Models\Quete;
 use App\Partie\MenuMoteur;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\TuileSeeder;
@@ -201,4 +203,92 @@ it('MenuMoteur::peutSeDeplacer garde « Se déplacer » pour un Rogue encerclé 
     $menu = app(MenuMoteur::class)->generer($groupe->fresh(), $rogue->fresh());
 
     expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->not->toBeNull();
+});
+
+/*
+ * « On se retrouve parfois à se déplacer à travers les mobiliers » (René,
+ * 2026-09-17). La mobilité de combat passait par `Grille::autoriserFranchissement()`,
+ * le mode AGILE des monstres, qui efface AUSSI le mobilier et le terrain
+ * bloquant. La carte du Rogue ne parle que des cases OCCUPÉES par des monstres :
+ * une table reste une table.
+ *
+ * `MobilierSeeder` n'est semé qu'ICI, APRÈS le départ de la quête : semé dans le
+ * `beforeEach`, il meublerait les cartes générées et les couloirs forcés
+ * ci-dessus pourraient buter sur un meuble posé par l'assembleur.
+ */
+
+/** Remplace le mobilier de la carte par une Table 1×1 sur chacune des cases. */
+function poserTables(Quete $quete, array $cases): void
+{
+    test()->seed(MobilierSeeder::class);
+    $table = Mobilier::where('nom', 'Table')->firstOrFail();
+
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['mobilier'] = array_map(fn (array $c) => [
+        'mobilier_id' => $table->id, 'x' => $c['x'], 'y' => $c['y'], 'l' => 1, 'h' => 1,
+    ], $cases);
+    $carte->update(['grille' => $grille]);
+    $quete->refresh();
+}
+
+it('un ROGUE franchit un monstre mais JAMAIS une table : la case au-delà du meuble est refusée', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'rogue']);
+    ['alice' => $alice, 'quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat] = $ctx;
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    ['m' => $m, 'b' => $b] = forcerCouloirVersMonstre($quete, $hx, $hy);
+
+    // Le seul chemin vers B passe par la table. Le gobelin est retiré du
+    // couloir : c'est le MEUBLE seul qui doit barrer.
+    poserTables($quete, [$m]);
+    $gobelin->update(['etat' => 'vaincu']);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    expect(app(\App\Partie\MoteurSorts::class)->mobiliteCombatDisponible($ctx['heros']->fresh()))->toBeTrue();
+
+    $this->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $b,
+    ])->assertStatus(422)->assertJsonPath(
+        'errors.parametres.0',
+        'Destination inaccessible (mur, case occupée ou sur place).',
+    );
+
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([$hx, $hy]);
+});
+
+it('MenuMoteur::peutSeDeplacer retire « Se déplacer » à un Rogue cerné de TABLES', function () {
+    // Pendant du test « encerclé de MONSTRES » ci-dessus : la même échappée à
+    // deux pas, mais derrière quatre meubles. Le résolveur la refuse désormais,
+    // le menu ne doit donc plus la promettre.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $rogue = creerHeros($alice, $groupe, 'Voleuse', 1, ['classe' => 'rogue']);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $rogue->id)->firstOrFail();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $voisins = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    foreach ($voisins as [$dx, $dy]) {
+        $grille['cases'][$hy + $dy][$hx + $dx] = 's';
+    }
+    $grille['cases'][$hy][$hx + 2] = 's';
+    $carte->update(['grille' => $grille]);
+    $quete->refresh();
+
+    poserTables($quete, array_map(fn (array $d) => ['x' => $hx + $d[0], 'y' => $hy + $d[1]], $voisins));
+
+    desFiges(array_fill(0, 20, 4));
+    $menu = app(MenuMoteur::class)->generer($groupe->fresh(), $rogue->fresh());
+
+    expect(collect($menu['options'])->firstWhere('type', 'deplacement'))->toBeNull();
 });

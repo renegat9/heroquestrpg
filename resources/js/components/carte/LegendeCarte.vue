@@ -27,7 +27,7 @@ import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -70,6 +70,11 @@ const meubles = computed(() => parNom(props.carte?.mobilier).map((m) => ({
 })));
 
 const leviers = computed(() => (props.carte?.leviers ?? []).length);
+
+// Murs de glace posés en cours de quête (doc 18 §4) : on annonce aussi COMBIEN
+// de crânes le plus entamé a déjà encaissés — un mur qu'on frappe sans voir
+// céder ne dit pas au groupe si s'acharner vaut le coup.
+const glace = computed(() => (props.carte?.glace ?? []).length);
 
 // Terrain (doc 18 §4) : trois catégories seulement (voir TERRAIN_TEINTES,
 // symboles.js) — un DANGER exige un jet de dé de combat au contact ou par
@@ -162,6 +167,14 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
                 <div class="lg-ligne">
                     <span class="lg-chip lg-levier"><MSym :n="LEVIER_ICONE" fill /></span>
                     <span>Ouvre une porte verrouillée — jet de Body, retentable sans limite</span>
+                </div>
+            </section>
+
+            <section v-if="glace" class="lg-sect">
+                <div class="lg-sous">Murs de glace</div>
+                <div class="lg-ligne">
+                    <span class="lg-chip lg-glace"><MSym :n="GLACE_ICONE" fill /></span>
+                    <span>Barre la case — se brise à 5 crânes d'attaques, ou quand son lanceur le perd de vue</span>
                 </div>
             </section>
 
@@ -258,6 +271,10 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
 .lg-meuble { border-radius: 3px; color: oklch(0.85 0.05 70);
   background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55); }
+
+/* Mur de glace : même pastille que le bloc de DungeonGrid.vue (.dg-ice). */
+.lg-glace { background: linear-gradient(150deg, oklch(0.62 0.09 220 / 0.85), oklch(0.44 0.08 235 / 0.9));
+  box-shadow: inset 0 0 0 1px oklch(0.88 0.06 220 / 0.7); color: oklch(0.96 0.02 220); border-radius: 3px; }
 
 /* Terrain : la même teinte de CASE que DungeonGrid.vue (.dg-cell.terrain-*),
    réduite à une pastille — le terrain n'a pas de silhouette propre puisqu'il

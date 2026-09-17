@@ -476,6 +476,62 @@ class ChoixController extends Controller
     /**
      * Le personnage appartient-il au joueur ET est-il actif dans ce groupe ?
      */
+    /**
+     * POST /api/groupes/{identifiant}/deplacement/apercu {x, y}
+     *
+     * APERÇU du trajet, avant de valider (René, 2026-09-17 : « que la figure
+     * utilise le vrai chemin »). Le trajet n'est pas décoratif — les pièges
+     * sont contrôlés case par case dessus — et le joueur ne désignait jusqu'ici
+     * qu'une destination : il découvrait la route à l'animation.
+     *
+     * ⚠ Contrôleur volontairement SEC : tout le calcul vit dans
+     * `ResolveurTour::apercuDeplacement()`, sur la grille que le déplacement
+     * parcourra réellement. Le refaire ici (ou pire, en JS) recréerait la
+     * dérive de miroir que ce projet paie en boucle.
+     *
+     * ⚠ Même garde que `choisir()` : l'aperçu passe par le DERNIER MENU proposé
+     * à ce joueur. Sans lui, n'importe quel membre sonderait la carte à
+     * n'importe quel moment — un aperçu reste une lecture, mais elle n'a de
+     * sens que pour le héros dont c'est le tour.
+     */
+    public function apercuDeplacement(Request $request, string $identifiant, ResolveurTour $resolveur): JsonResponse
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+
+        $donnees = $request->validate([
+            'x' => ['required', 'integer', 'min:0'],
+            'y' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $dernierMenu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $joueur->id));
+
+        if (! is_array($dernierMenu)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun menu en attente pour ce joueur — attendez la proposition du MJ.',
+            ]);
+        }
+
+        $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $dernierMenu['personnage_id']);
+        $quete = $groupe->phase === 'quete' && $groupe->quete_courante_id !== null
+            ? Quete::find($groupe->quete_courante_id)
+            : null;
+
+        $etat = $quete === null ? null : EtatPersonnageQuete::where('quete_id', $quete->id)
+            ->where('personnage_id', $personnage->id)
+            ->first();
+
+        if ($quete === null || $etat === null || $etat->position_x === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun déplacement en cours : ce héros n\'est pas sur une carte.',
+            ]);
+        }
+
+        return response()->json($resolveur->apercuDeplacement(
+            $quete, $personnage, $etat, (int) $donnees['x'], (int) $donnees['y'],
+        ));
+    }
+
     private function personnageLegal(Groupe $groupe, int $joueurId, int $personnageId): Personnage
     {
         $personnage = $groupe->personnages()

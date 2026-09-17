@@ -429,6 +429,13 @@ final class Grille
      * mobilier ni des murs — une créature qui patine glisse toujours autour
      * d'une table, elle ne la traverse pas. Seul `$occupees`/`$alliees` est
      * levé ; `$obstacles` (mobilier, terrain) reste plein.
+     *
+     * C'est AUSSI le mode de la **Mobilité de combat** du Rogue (« traverser
+     * les cases occupées par des monstres ») et de tout ce qui en porte la
+     * mécanique `franchit_figures` (Voile de Brume, Poudre d'Invisibilité, Cape
+     * des Ombres). ⚠ Ne jamais la confondre avec Agile : un héros branché sur
+     * `autoriserFranchissement()` a traversé les tables en partie réelle
+     * (2026-09-17).
      */
     public function autoriserFranchissementFigures(): void
     {

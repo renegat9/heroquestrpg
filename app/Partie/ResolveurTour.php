@@ -493,6 +493,150 @@ final class ResolveurTour
     }
 
     /**
+     * LA grille sur laquelle CE héros marche — point de passage unique de la
+     * question (2026-09-17). La résolution d'un déplacement et l'APERÇU de
+     * trajet que la manette affiche avant de valider
+     * (`POST deplacement/apercu`) doivent parcourir exactement la même : un
+     * aperçu calculé sur une autre grille montrerait une route que le héros ne
+     * prendra pas, donc d'autres pièges — et le trajet, lui, déclenche
+     * (`MoteurPieges::controlerChemin()` contrôle case par case).
+     *
+     *  - `franchitAllies` : « on peut traverser la case d'un autre héros, pas
+     *    s'y arrêter » (LR p. 12, doc 16 §5). La règle était ÉCRITE dans la doc
+     *    depuis le portage des livrets et le moteur ne l'appliquait pas : deux
+     *    héros dans un couloir se bloquaient mutuellement.
+     *  - Traverser la Pierre : la roche et les portes closes s'ouvrent.
+     *  - MOBILITÉ DE COMBAT (Rogue) : « You may move UNSEEN through spaces
+     *    occupied by monsters. » Les FIGURES cessent de barrer — et elles
+     *    seules : la carte parle des cases OCCUPÉES, ni du mobilier ni de la
+     *    pierre. ⚠ Ce chemin appelait `Grille::autoriserFranchissement()`, le
+     *    mode AGILE des monstres (Jungles of Delthrak : « ignore le terrain
+     *    gênant, le mobilier et les héros »), et le commentaire d'alors le
+     *    revendiquait (« exactement `agile` côté héros »). Le mobilier et le
+     *    terrain bloquant s'effaçaient donc aussi : le Rogue traversait les
+     *    tables (René, 2026-09-17). « Parfois », parce qu'il fallait que le
+     *    PLUS COURT chemin passe par le meuble.
+     *  - VOILE DE BRUME emprunte le même chemin depuis le 2026-09-02 : sa carte
+     *    porte MOT POUR MOT la phrase de celle du Rogue — un seul mode de
+     *    déplacement, pas deux copies. `MoteurSorts::mobiliteCombatDisponible()`
+     *    est le SEUL point de passage de cette question (`EtatGroupe`,
+     *    `MenuMoteur::peutSeDeplacer()` et ce résolveur la relisent).
+     */
+    public function grilleDeplacement(Quete $quete, Personnage $personnage): Grille
+    {
+        $grille = $this->grille(
+            $quete,
+            exceptPersonnageId: $personnage->id,
+            traverseRoche: $this->sorts->traverseRoche($personnage),
+            franchitAllies: true,
+        );
+
+        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
+            $grille->autoriserFranchissementFigures();
+        }
+
+        return $grille;
+    }
+
+    /**
+     * APERÇU du trajet (René, 2026-09-17 : « que la figure utilise le vrai
+     * chemin ») — `POST deplacement/apercu`, AVANT que le joueur ne valide.
+     *
+     * ⚠ Le trajet n'est pas décoratif : `MoteurPieges::controlerChemin()`
+     * contrôle les pièges CASE PAR CASE dessus. Le joueur ne désignait pourtant
+     * qu'une destination et découvrait la route à l'animation — deux routes de
+     * même coût n'exposent pas aux mêmes pièges.
+     *
+     * ⚠ Le chemin est calculé ici, par le RÉSOLVEUR, sur la grille de
+     * `grilleDeplacement()` — la même que celle qu'il parcourra. Un BFS refait
+     * en JS aurait pu désigner une AUTRE route de coût égal : ce serait la
+     * sixième dérive de miroir de la famille (docs/regles/front-manette-et-table.md).
+     *
+     * ⚠ Cet aperçu ne RÉVÈLE rien : `pieges` ne rend que ceux déjà publiés dans
+     * `EtatGroupe.carte.pieges` (détecté / désarmé / déclenché). Les pièges
+     * cachés, les chausse-trappes et les racines qui tronqueraient la course
+     * n'y figurent pas — sans quoi l'aperçu serait un détecteur gratuit. C'est
+     * aussi pourquoi il ne rejoue NI les troncatures NI `controlerChemin()` :
+     * un trajet écourté à l'écran dirait « il y a quelque chose ici ».
+     *
+     * @return array{atteignable: bool, raison: ?string, chemin: list<array{x: int, y: int}>, cout: int, restant: int, restant_apres: int, pieges: list<array{x: int, y: int, nom: string, etat: string}>}
+     */
+    public function apercuDeplacement(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, int $x, int $y): array
+    {
+        $vide = ['chemin' => [], 'cout' => 0, 'pieges' => []];
+
+        $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
+        $totalTour = $etat->deplacement_tour ?? $base;
+        ['restant' => $restant] = $this->pointsDeplacement($personnage, $etat, $totalTour, consommer: false);
+
+        if ($this->sorts->deplacementInterdit($personnage)) {
+            return [...$vide, 'atteignable' => false, 'raison' => 'Impossible de bouger : tu es immobilisé.',
+                'restant' => $restant, 'restant_apres' => $restant];
+        }
+
+        $grille = $this->grilleDeplacement($quete, $personnage);
+        $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
+
+        if ($chemin === null || $chemin === []) {
+            return [...$vide, 'atteignable' => false, 'raison' => 'Destination inaccessible (mur, case occupée ou sur place).',
+                'restant' => $restant, 'restant_apres' => $restant];
+        }
+
+        // ⚠ COÛT, pas nombre de cases (doc 18 §4, Rivière Gelée) — même lecture
+        // que la résolution, sinon l'aperçu annoncerait un trajet payable que le
+        // choix refuserait ensuite.
+        $cout = $grille->coutChemin($chemin);
+        $trop = $cout > $restant;
+
+        return [
+            'atteignable' => ! $trop,
+            'raison' => $trop ? "Destination hors de portée : {$cout} points de déplacement pour {$restant} restants." : null,
+            'chemin' => array_map(fn (array $c) => ['x' => (int) $c['x'], 'y' => (int) $c['y']], $chemin),
+            'cout' => $cout,
+            'restant' => $restant,
+            'restant_apres' => $trop ? $restant : max(0, $restant - $cout),
+            'pieges' => $this->piegesConnusSur($quete, $chemin),
+        ];
+    }
+
+    /**
+     * Les pièges DÉJÀ CONNUS du groupe que ce trajet traverse — mêmes états que
+     * ceux publiés par `EtatGroupe::pieges()` (détecté, désarmé, déclenché), et
+     * pas un de plus : le joueur revoit sur son chemin ce que la carte lui
+     * montre déjà, il n'apprend rien de neuf.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return list<array{x: int, y: int, nom: string, etat: string}>
+     */
+    private function piegesConnusSur(Quete $quete, array $chemin): array
+    {
+        $surLeChemin = [];
+        foreach ($chemin as $case) {
+            $surLeChemin["{$case['x']},{$case['y']}"] = true;
+        }
+
+        $connus = collect($quete->carte?->grille['pieges'] ?? [])
+            ->filter(fn (array $p) => isset($surLeChemin[((int) $p['x']).','.((int) $p['y'])])
+                && in_array($p['etat'] ?? null, [
+                    MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+                ], true));
+
+        $noms = Piege::query()
+            ->whereIn('id', $connus->pluck('piege_id')->filter()->unique())
+            ->pluck('nom', 'id');
+
+        return $connus
+            ->map(fn (array $p) => [
+                'x' => (int) $p['x'],
+                'y' => (int) $p['y'],
+                'nom' => $noms[$p['piege_id']] ?? 'Piège',
+                'etat' => (string) $p['etat'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $parametres
      * @param  array<string, mixed>  $acteur
@@ -543,31 +687,7 @@ final class ResolveurTour
 
         $traverseRoche = $this->sorts->traverseRoche($personnage);
 
-        // ⚠ `franchitAllies` : « on peut traverser la case d'un autre héros (pas
-        // s'y arrêter) » — LR p. 12, doc 16 §5. La règle était ÉCRITE dans la
-        // doc depuis le portage des livrets et le moteur ne l'appliquait pas :
-        // deux héros dans un couloir se bloquaient mutuellement.
-        $grille = $this->grille(
-            $quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche, franchitAllies: true,
-        );
-
-        // MOBILITÉ DE COMBAT (Rogue) : « You may move UNSEEN through spaces
-        // occupied by monsters. » Exactement `agile` côté héros — le mobilier
-        // et les figures cessent de barrer, **les murs non** : la carte parle
-        // des cases occupées, pas de la pierre.
-        //
-        // ⚠ VOILE DE BRUME emprunte ce chemin depuis le 2026-09-02 : sa carte
-        // porte MOT POUR MOT la même phrase que celle du Rogue. Le talent et le
-        // buff mènent donc au même mode de déplacement, pas à deux copies.
-        //
-        // ⚠ `MoteurSorts::mobiliteCombatDisponible()` est désormais le SEUL
-        // point de passage de cette expression (2026-09-11) : `EtatGroupe` et
-        // `MenuMoteur::peutSeDeplacer()` la relisent pour publier/décider la
-        // même chose que ce résolveur — trois copies de cette question
-        // auraient dérivé l'une de l'autre au premier changement du talent.
-        if ($this->sorts->mobiliteCombatDisponible($personnage)) {
-            $grille->autoriserFranchissement();
-        }
+        $grille = $this->grilleDeplacement($quete, $personnage);
         $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
 
         if ($chemin === null || $chemin === []) {
@@ -831,15 +951,25 @@ final class ResolveurTour
      *
      * @return array{restant: int, multiplicateur: int}
      */
-    private function pointsDeplacement(Personnage $personnage, EtatPersonnageQuete $etat, int $totalTour): array
-    {
+    private function pointsDeplacement(
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        int $totalTour,
+        bool $consommer = true,
+    ): array {
         if ($etat->deplacement_restant !== null) {
             return ['restant' => (int) $etat->deplacement_restant, 'multiplicateur' => 1];
         }
 
         $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
 
-        if ($multiplicateur > 1) {
+        // ⚠ `$consommer` existe pour l'APERÇU de trajet, et pour lui seul :
+        // regarder où l'on irait ne doit RIEN dépenser. Sans ce garde-fou, le
+        // premier tap sur la mini-carte brûlait le buff de Vent Véloce, et la
+        // portée réelle du héros retombait à sa valeur normale au moment de
+        // valider — un calcul de portée dupliqué côté aperçu aurait, lui,
+        // dérivé au premier changement de règle (la faute maison).
+        if ($multiplicateur > 1 && $consommer) {
             $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
         }
 
