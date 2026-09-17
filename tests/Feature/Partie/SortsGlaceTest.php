@@ -314,7 +314,7 @@ it('laisse passer le reste une fois ses jetons épuisés — absorption PARTIELL
         ->and($orbe->fresh())->toBeNull(); // jetons épuisés : l'Orbe s'est brisée
 });
 
-it('épuisée, l\'Orbe Céleste reste au sac mais ne protège plus de rien', function () {
+it('à zéro jeton, l\'Orbe Céleste ne protège plus de rien', function () {
     $scene = sceneGlace(
         [['m', 's', 's', 'm']],
         herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
@@ -323,6 +323,9 @@ it('épuisée, l\'Orbe Céleste reste au sac mais ne protège plus de rien', fun
     );
     forcerSortUnique($scene['instance'], "Gel de l'Esprit");
     $orbe = poserPourGlace($scene['heros'], 'Orbe Céleste', 'talisman');
+    // ⚠ Une ligne À ZÉRO posée à la main : depuis le 2026-09-16 le dernier jeton
+    // DÉTRUIT l'Orbe (elle redevient trouvable), mais une ligne vide héritée
+    // d'avant ne doit rien protéger pour autant.
     $orbe->update(['charges' => 0]);
 
     // 3 dés, aucun bouclier blanc : Mind à zéro, EXACTEMENT comme sans l'Orbe.
@@ -332,7 +335,7 @@ it('épuisée, l\'Orbe Céleste reste au sac mais ne protège plus de rien', fun
         ->and($sort['resultats'][0]['degats_mind'])->toBe(3)
         ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(0)
         ->and($scene['etatHeros']->fresh()->tombe)->toBeTrue()
-        // L'objet reste en inventaire — rien ne le supprime au sac.
+        // Rien ne l'a dépensée ici : aucune charge n'a été consommée.
         ->and($orbe->fresh())->not->toBeNull();
 });
 

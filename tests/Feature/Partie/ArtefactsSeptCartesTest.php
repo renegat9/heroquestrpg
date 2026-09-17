@@ -1020,3 +1020,31 @@ it('montre la réaction à la TABLE quand la manette l\'accepte pendant le tour 
             && $e->scene['titre'] === 'Cendres du Phénix'
             && str_contains($e->scene['issue']['libelle'], 'reste à 1 PV'));
 });
+
+it('ouvre l\'Orbe Céleste et la Baguette d\'Os à TOUS les héros, avec leurs limites d\'usage', function () {
+    // Arbitrage de René (2026-09-17), aligné sur les cartes : *Sky Orb* dit « the
+    // hero who possesses this orb », *Bone Wand* « enables ANY hero ». Seuls les
+    // artefacts elfiques de Mage of the Mirror que leur carte réserve (Bottes,
+    // Brassards, Arc, Bâton Ancien) sont à l'Elfe.
+    $equipement = app(Equipement::class);
+    $classes = App\Models\ClasseHeros::pluck('nom');
+
+    foreach (['Orbe Céleste', "Baguette d'Os"] as $nom) {
+        $objet = Objet::where('nom', $nom)->firstOrFail();
+
+        foreach ($classes as $classe) {
+            expect($equipement->estAccessible(new Personnage(['classe' => $classe]), $objet))
+                ->toBeTrue("{$nom} doit être portable par : {$classe}");
+        }
+    }
+
+    // L'Orbe : QUATRE jetons, un point de Mind absorbé par jeton (le décompte
+    // lui-même est éprouvé en jeu dans SortsGlaceTest).
+    expect(Objet::where('nom', 'Orbe Céleste')->value('effet'))
+        ->toMatchArray(['absorbe_degats_mind' => true, 'charges' => 4]);
+
+    // La Baguette : une fois PAR QUÊTE, une cadence et non un total.
+    expect(Objet::where('nom', "Baguette d'Os")->value('effet'))
+        ->toMatchArray(['frequence' => 'une_fois_par_quete'])
+        ->not->toHaveKey('charges');
+});
