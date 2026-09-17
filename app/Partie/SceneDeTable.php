@@ -39,7 +39,7 @@ use App\Partie\Images\BibliothequeImages;
 final class SceneDeTable
 {
     /** Genres rendus par le composant de table. Tout autre type reste muet. */
-    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet'];
+    public const GENRES = ['attaque', 'piege', 'fouille', 'jet', 'sort', 'salle', 'chute', 'objet', 'deplacement'];
 
     public function __construct(private readonly BibliothequeImages $images) {}
 
@@ -144,6 +144,7 @@ final class SceneDeTable
                 $this->acteurMonstre($instanceId, $cibleNom, 'defenseur'),
             ],
             'jet' => $this->jetDesDes($a, $attaquant, $cibleNom),
+            'deplacement' => null,
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_vaincue'])),
         ];
@@ -178,6 +179,7 @@ final class SceneDeTable
                 $cible === null ? null : $this->acteurHeros($cible, 'defenseur'),
             ])),
             'jet' => $this->jetDesDes($a, $monstre, $cibleNom),
+            'deplacement' => null,
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee']), heros: true),
         ];
@@ -213,6 +215,7 @@ final class SceneDeTable
             'sous_titre' => $victime->nom.' vient de le déclencher',
             'acteurs' => [$this->acteurHeros($victime, 'acteur')],
             'jet' => null,
+            'deplacement' => null,
             'objets' => [[
                 'nom' => $nomPiege,
                 'image_url' => $this->imagePiege($nomPiege),
@@ -288,6 +291,7 @@ final class SceneDeTable
             'sous_titre' => $a['coffre'] ?? false ? 'Un coffre' : null,
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
+            'deplacement' => null,
             'objets' => $objets,
             'issue' => ['ton' => $ton, 'libelle' => $libelle],
         ];
@@ -355,6 +359,7 @@ final class SceneDeTable
             'sous_titre' => "{$succes} succès sur {$difficulte} requis",
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
+            'deplacement' => null,
             'objets' => $objets,
             'issue' => [
                 'ton' => $reussi ? 'tresor' : 'echec',
@@ -399,6 +404,7 @@ final class SceneDeTable
             'sous_titre' => $porteur === null ? null : 'À un héros adjacent',
             'acteurs' => $acteurs,
             'jet' => null,
+            'deplacement' => null,
             'objets' => [[
                 'nom' => $nom,
                 'image_url' => $this->images->urlObjet($objet?->id, $nom)
@@ -474,6 +480,7 @@ final class SceneDeTable
                 .(int) ($jet['difficulte'] ?? 0).' requis',
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
+            'deplacement' => null,
             'objets' => [[
                 'nom' => 'Levier',
                 'image_url' => $this->images->urlLevier() ?? $this->images->vignette('levier', 'levier'),
@@ -532,6 +539,7 @@ final class SceneDeTable
             'sous_titre' => count($frappes).' ennemis au contact',
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null, // une volée PAR cible : elles sont dans les vignettes
+            'deplacement' => null,
             'objets' => array_slice($objets, 0, 6),
             'issue' => $vaincus > 0
                 ? ['ton' => 'mort', 'libelle' => $vaincus.' abattu'.($vaincus > 1 ? 's' : '')]
@@ -589,6 +597,7 @@ final class SceneDeTable
                     .(count($zone) > 1 ? 's' : ''),
                 'acteurs' => $acteurs,
                 'jet' => null,
+                'deplacement' => null,
                 'objets' => array_slice($objets, 0, 6),
                 'issue' => ['ton' => isset($a['soignes']) ? 'tresor' : 'degats',
                     'libelle' => $nomSort.' balaie la salle'],
@@ -611,6 +620,7 @@ final class SceneDeTable
                 : (($e = (string) ($a['sort']['element'] ?? '')) !== '' ? ucfirst($e) : null),
             'acteurs' => $acteurs,
             'jet' => $this->jetDesDes($a, $nomSort, (string) ($cibleNom ?? 'la cible')),
+            'deplacement' => null,
             'objets' => $objets,
             'issue' => match (true) {
                 ! empty($a['cible_vaincue']) => ['ton' => 'mort', 'libelle' => $cibleNom.' est foudroyé'],
@@ -674,7 +684,7 @@ final class SceneDeTable
      * Jamais les pièges : ils restent cachés jusqu'à la fouille, et les montrer
      * ici retournerait la règle.
      *
-     * @param  list<\App\Models\InstanceMonstre>  $monstres  ceux qu'on vient de révéler
+     * @param  list<InstanceMonstre>  $monstres  ceux qu'on vient de révéler
      * @return array<string, mixed>|null
      */
     public function salle(Quete $quete, int $salle, array $monstres): ?array
@@ -711,6 +721,7 @@ final class SceneDeTable
             'sous_titre' => $n > 0 ? $n.' créature'.($n > 1 ? 's' : '').' à l\'intérieur' : null,
             'acteurs' => [],
             'jet' => null,
+            'deplacement' => null,
             'objets' => array_slice($objets, 0, 6), // au-delà, la bande déborde
             'issue' => [
                 'ton' => $n > 0 ? 'degats' : 'info',
@@ -734,6 +745,72 @@ final class SceneDeTable
      *
      * @return array<string, mixed>
      */
+    /**
+     * DÉBUT DU TOUR d'un héros : son portrait et son jet de déplacement (René,
+     * 2026-09-16 : « un popup pour afficher le dé de déplacement au début d'un
+     * tour de joueur »).
+     *
+     * ⚠ Les chiffres arrivent DÉCIDÉS par `MenuMoteur`, qui vient de lancer les
+     * dés : ce constructeur met en phrase, il ne recalcule rien. Surtout pas le
+     * dé à partir du total — c'est ce que fait encore l'option `se_deplacer`
+     * (`total − base`), et c'est faux dès qu'il y a un malus d'armure, des
+     * Raquettes ou deux dés.
+     *
+     * @param  array{base: int, des: list<int>, bonus_equipement: int, malus: int, total_jet: int, multiplicateur: int, bonus_potion: int, portee: int}  $d
+     */
+    public function deplacement(Personnage $heros, array $d): array
+    {
+        // ⚠ Chaque nombre NOMMÉ : « 3 + 5 = 8 » ne disait pas lequel était le
+        // dé (constaté sur la première capture en partie réelle).
+        $termes = ['base '.$d['base']];
+
+        if ($d['bonus_equipement'] > 0) {
+            $termes[] = $d['bonus_equipement'].' (équipement)';
+        }
+
+        $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des']);
+
+        $calcul = implode(' + ', $termes);
+
+        if ($d['malus'] > 0) {
+            $calcul .= ' − '.$d['malus'].' (armure)';
+        }
+
+        $brut = $d['base'] + $d['bonus_equipement'] + array_sum($d['des']) - $d['malus'];
+
+        // « le total ne descend jamais sous une case » : la phrase ne doit pas
+        // afficher une soustraction qui tombe à 0 et un total de 1.
+        $plancher = $brut !== $d['total_jet'] ? ' → au moins '.$d['total_jet'] : '';
+
+        if ($d['multiplicateur'] > 1) {
+            $calcul = '('.$calcul.$plancher.') × '.$d['multiplicateur'];
+            $plancher = '';
+        }
+
+        if ($d['bonus_potion'] > 0) {
+            $calcul .= $plancher.' + '.$d['bonus_potion'].' (potion)';
+            $plancher = '';
+        }
+
+        $cases = $d['portee'] > 1 ? 'cases' : 'case';
+
+        return [
+            'genre' => 'deplacement',
+            // « Au tour d'Aldric », pas « de Aldric » (vu sur la capture réelle).
+            // Voyelles seulement : devant un h, l'élision dépend du prénom.
+            'titre' => (preg_match('/^[aeiouyàâäéèêëîïôöùûü]/iu', (string) $heros->nom) ? "Au tour d'" : 'Au tour de ').$heros->nom,
+            'sous_titre' => count($d['des']) > 1 ? 'Jet de déplacement — '.count($d['des']).' dés' : 'Jet de déplacement',
+            'acteurs' => [$this->acteurHeros($heros, 'acteur')],
+            'jet' => null,
+            'deplacement' => [
+                'des' => array_values(array_map('intval', $d['des'])),
+                'calcul' => $calcul.$plancher.' = '.$d['portee'],
+            ],
+            'objets' => [],
+            'issue' => ['ton' => 'info', 'libelle' => $d['portee'].' '.$cases.' ce tour'],
+        ];
+    }
+
     public function chute(Personnage $heros, bool $tombe): array
     {
         return [
@@ -742,6 +819,7 @@ final class SceneDeTable
             'sous_titre' => $tombe ? "Relevable jusqu'à la fin du combat" : null,
             'acteurs' => [$this->acteurHeros($heros, 'acteur')],
             'jet' => null,
+            'deplacement' => null,
             'objets' => [],
             'issue' => $tombe
                 ? ['ton' => 'mort', 'libelle' => '0 PV de Body']

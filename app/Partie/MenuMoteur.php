@@ -9,8 +9,10 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
 use App\Engine\ResultatDeplacement;
+use App\Events\SceneTable;
 use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
@@ -19,6 +21,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Menu générique construit PAR LE MOTEUR depuis l'état exact — repli garanti
@@ -56,6 +59,8 @@ final class MenuMoteur
         private readonly CapacitesInnees $capacites,
         private readonly Talents $talents,
         private readonly StylesElementaires $styles,
+        private readonly OrdreDuTour $ordreDuTour,
+        private readonly SceneDeTable $scenes,
     ) {}
 
     /**
@@ -700,7 +705,17 @@ final class MenuMoteur
             return ['base' => $base, 'de' => null, 'total' => $base];
         }
 
-        if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue) {
+        // ⚠ AU TOUR DU HÉROS, et plus au début du round (2026-09-16). Les menus
+        // sont recalculés pour TOUS les héros après chaque choix : sans cette
+        // garde, les quatre dés partaient ensemble dès le premier menu du
+        // round, et la scène « au début d'un tour de joueur » que René demandait
+        // n'avait aucun instant à qui appartenir. La colonne `deplacement_tour`
+        // reste la garde d'unicité : un menu recalculé pendant le tour ne
+        // relance rien et n'annonce rien deux fois.
+        $groupe = $etat->quete?->groupe;
+
+        if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue
+            && $groupe !== null && $this->ordreDuTour->estSonTour($groupe, (int) $personnage->id)) {
             // Armure lourde : « a 2 square movement penalty » (carte Plate Mail).
             // `Deplacement` savait appliquer un malus depuis toujours, mais
             // aucun appelant ne le lui avait jamais dit — il n'avait donc
@@ -732,6 +747,8 @@ final class MenuMoteur
 
             $etat->update(['deplacement_tour' => $jet->total]);
 
+            $this->annoncerDeplacement($groupe, $personnage, $etat, $jet, $base, $bonusRaquettes);
+
             $this->userSurDesIdentiques($personnage, $etat, $bottes, $jet);
 
             // ÉVANESCENCE : « The hero moves unseen if they roll an 8 or lower
@@ -751,6 +768,76 @@ final class MenuMoteur
         $total = $etat->deplacement_tour ?? $base;
 
         return ['base' => $base, 'de' => $total > $base ? $total - $base : null, 'total' => $total];
+    }
+
+    /**
+     * La portée ANNONCÉE d'un tour entamé à neuf : le total du jet, multiplié
+     * (Vent Véloce, potion de vitesse), puis les cases EN PLUS de la potion de
+     * dextérité — ajoutées après, « une potion de vitesse ne double pas le
+     * bonus de l'autre ».
+     *
+     * ⚠ Miroir de `ResolveurTour::pointsDeplacement()`, et désormais lu aux
+     * DEUX endroits qui l'annoncent : l'option `se_deplacer` et la scène de
+     * début de tour. Écrite deux fois, la table aurait pu promettre 9 cases
+     * quand le téléphone en offrait 14.
+     *
+     * @return array{multiplicateur: int, bonus: int, portee: int}
+     */
+    private function porteeDuTour(Personnage $personnage, int $totalTour): array
+    {
+        $multiplicateur = $this->sorts->multiplicateurDeplacement($personnage);
+        $bonus = $this->sorts->bonusDes($personnage, 'bonus_deplacement');
+
+        return [
+            'multiplicateur' => $multiplicateur,
+            'bonus' => $bonus,
+            'portee' => $totalTour * $multiplicateur + $bonus,
+        ];
+    }
+
+    /**
+     * La SCÈNE de début de tour, sur l'écran de table (`genre: deplacement`).
+     *
+     * Émise ICI parce que c'est le seul instant où les dés RÉELS existent :
+     * `deplacement_tour` ne mémorise que le total, et toute relecture ultérieure
+     * devrait reconstituer le dé par soustraction — ce que fait encore l'option
+     * `se_deplacer`, faux dès qu'un malus, des Raquettes ou un second dé s'en
+     * mêlent.
+     *
+     * ⚠ Best-effort : une diffusion qui échoue ne doit jamais faire échouer la
+     * composition du menu — le joueur resterait sans rien à jouer.
+     */
+    private function annoncerDeplacement(
+        Groupe $groupe,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        ResultatDeplacement $jet,
+        int $base,
+        int $bonusEquipement,
+    ): void {
+        try {
+            $portee = $this->porteeDuTour($personnage, $jet->total);
+
+            broadcast(new SceneTable(
+                $groupe,
+                $this->scenes->deplacement($personnage->fresh() ?? $personnage, [
+                    'base' => $base,
+                    'des' => $jet->des !== [] ? $jet->des : array_filter([$jet->de]),
+                    'bonus_equipement' => $bonusEquipement,
+                    'malus' => $jet->malus,
+                    'total_jet' => $jet->total,
+                    'multiplicateur' => $portee['multiplicateur'],
+                    'bonus_potion' => $portee['bonus'],
+                    'portee' => $portee['portee'],
+                ]),
+                (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence'),
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Scène de début de tour impossible.', [
+                'personnage_id' => $personnage->id,
+                'erreur' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -913,8 +1000,7 @@ final class MenuMoteur
             // longue offre une destination que le résolveur refusera.
             $porteeEffective = $etat?->deplacement_restant !== null
                 ? (int) $etat->deplacement_restant
-                : $portee['total'] * $this->sorts->multiplicateurDeplacement($personnage)
-                    + $this->sorts->bonusDes($personnage, 'bonus_deplacement');
+                : $this->porteeDuTour($personnage, $portee['total'])['portee'];
 
             $options[] = [
                 'id' => 'se_deplacer',

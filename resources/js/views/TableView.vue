@@ -326,7 +326,19 @@ const carteOuverture = computed(() => ouverture.value);
  */
 const scenesReglages = useScenesTable();
 const sceneCourante = ref(null);
-const sceneEnAttente = ref(null);
+/*
+ * ⚠ UNE FILE, plus une seule place d'attente (2026-09-16). La place unique
+ * était ÉCRASÉE par chaque nouvelle scène : trois monstres qui frappent
+ * n'en montraient que deux, et une chute suivie du début de tour du héros
+ * suivant perdait la chute. Tant que les scènes étaient rares personne ne
+ * l'avait vu ; la scène de début de tour, qui arrive à CHAQUE tour, l'aurait
+ * rendu quotidien.
+ * Bornée malgré tout : un onglet resté en arrière-plan (minuteurs ralentis)
+ * ne doit pas rejouer dix minutes de partie à son retour — on garde les plus
+ * récentes.
+ */
+const FILE_SCENES_MAX = 8;
+const fileScenes = [];
 let sceneMinuteur = null;
 let sceneDerniereSequence = null;
 
@@ -341,11 +353,22 @@ function empilerScene(scene) {
         && scene.sequence < sceneDerniereSequence) return;
     if (scene.sequence != null) sceneDerniereSequence = scene.sequence;
 
-    if (sceneCourante.value) { sceneEnAttente.value = scene; return; }
-    montrerScene(scene);
+    fileScenes.push(scene);
+    if (fileScenes.length > FILE_SCENES_MAX) fileScenes.splice(0, fileScenes.length - FILE_SCENES_MAX);
+    sceneSuivante();
 }
 
-function montrerScene(scene) {
+/*
+ * ⚠ Une scène n'est tirée de la file que si RIEN ne la couvre. Avant, une scène
+ * arrivée pendant la carte d'ouverture devenait « courante » sous elle et son
+ * minuteur s'écoulait sans que personne la voie — le premier jet de
+ * déplacement d'une quête partait donc toujours dans le vide.
+ */
+function sceneSuivante() {
+    if (sceneCourante.value || carteOuverture.value || prologueOuvert.value) return;
+    const scene = fileScenes.shift();
+    if (!scene) return;
+
     sceneCourante.value = scene;
     clearTimeout(sceneMinuteur);
     sceneMinuteur = setTimeout(fermerScene, scenesReglages.duree.value);
@@ -355,12 +378,7 @@ function fermerScene() {
     clearTimeout(sceneMinuteur);
     sceneMinuteur = null;
     sceneCourante.value = null;
-
-    if (sceneEnAttente.value) {
-        const suivante = sceneEnAttente.value;
-        sceneEnAttente.value = null;
-        montrerScene(suivante);
-    }
+    sceneSuivante();
 }
 
 
@@ -475,6 +493,8 @@ watch(prologue, (p) => {
  * prologue, vote, clôture. Une scène ne doit jamais se poser par-dessus le
  * moment que la table est en train de lire à voix haute. */
 const sceneVisible = computed(() => sceneCourante.value && !carteOuverture.value && !prologueOuvert.value);
+// La file reprend dès que la carte d'ouverture ou le prologue se referment.
+watch(() => !!carteOuverture.value || !!prologueOuvert.value, (couvert) => { if (!couvert) sceneSuivante(); });
 
 /* ---- musique d'ambiance : suit la scène sonore de l'EtatGroupe ---- */
 const sceneAmbiance = computed(() => (etat.value ? etat.value.groupe?.ambiance : null));

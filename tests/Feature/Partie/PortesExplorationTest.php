@@ -350,7 +350,8 @@ it('« Fouiller — trésor » applique un piège ÉPHÉMÈRE au fouilleur, sans
     $avantPieges = count($quete->carte->grille['pieges'] ?? []);
 
     empilerCarteFouille($quete, ['issue' => 'piege']);
-    desFiges([1]); // branche « dégâts » de l'issue aléatoire du Piège de coffre
+    // + 4 : le dé de DÉPLACEMENT du héros dont le tour commence après le piège.
+    desFiges([1, 4]); // branche « dégâts » de l'issue aléatoire du Piège de coffre
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -368,7 +369,8 @@ it('« Fouiller — trésor » peut empoisonner (branche alternative de l\'issue
     [, , $hero, $quete] = demarrerExplo();
 
     empilerCarteFouille($quete, ['issue' => 'piege']);
-    desFiges([6]); // branche « condition_appliquee: Empoisonné »
+    // + 4 : le dé de DÉPLACEMENT du héros dont le tour commence après le piège.
+    desFiges([6, 4]); // branche « condition_appliquee: Empoisonné »
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)
@@ -387,7 +389,8 @@ it('Sang robuste (Nain) résiste à l\'Empoisonné du Piège de coffre', functio
     );
 
     empilerCarteFouille($quete, ['issue' => 'piege']);
-    desFiges([6]); // branche Empoisonné
+    // + 4 : le dé de DÉPLACEMENT du héros dont le tour commence après le piège.
+    desFiges([6, 4]); // branche Empoisonné
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
         ->assertStatus(202)

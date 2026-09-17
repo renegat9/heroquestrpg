@@ -45,6 +45,18 @@ const ICONE_GENRE = {
     salle: 'door_open',
     chute: 'heart_broken',
     objet: 'science',
+    deplacement: 'directions_walk',
+};
+
+/* Les points d'un d6, dans une grille 3×3 lue ligne à ligne. Pure mise en
+ * forme d'un NOMBRE publié par le serveur : aucune règle ici. */
+const POINTS_D6 = {
+    1: [5],
+    2: [1, 9],
+    3: [1, 5, 9],
+    4: [1, 3, 7, 9],
+    5: [1, 3, 5, 7, 9],
+    6: [1, 3, 4, 6, 7, 9],
 };
 
 const icone = computed(() => ICONE_GENRE[props.scene.genre] ?? 'bolt');
@@ -87,6 +99,17 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
             </div>
 
             <JetDes v-if="scene.jet" :jet="scene.jet" />
+
+            <!-- Début de tour : le dé ROUGE du plateau, et le calcul tel que le
+                 serveur l'a écrit (base, dés, armure, bonus — rien n'est refait ici). -->
+            <div v-if="scene.deplacement" class="scn-depl">
+                <div class="scn-des" role="img" :aria-label="'Dés : ' + scene.deplacement.des.join(', ')">
+                    <span v-for="(valeur, i) in scene.deplacement.des" :key="i" class="scn-d6">
+                        <i v-for="point in POINTS_D6[valeur] ?? []" :key="point" :class="'scn-pt' + point" />
+                    </span>
+                </div>
+                <p class="scn-calcul">{{ scene.deplacement.calcul }}</p>
+            </div>
 
             <p class="scn-issue" :class="'t-' + scene.issue.ton">{{ scene.issue.libelle }}</p>
         </div>
@@ -166,6 +189,32 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
     font-family: var(--font-display); font-size: 15px; color: var(--ember);
     background: var(--stone-900); border: var(--line); border-radius: 999px;
     padding: 2px 9px; letter-spacing: .04em;
+}
+
+/* ---- début de tour : le dé de déplacement ---- */
+.scn-depl { margin: 14px 0 2px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.scn-des { display: flex; gap: 14px; }
+.scn-d6 {
+    width: 64px; height: 64px; padding: 10px; box-sizing: border-box;
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+    border-radius: 13px;
+    /* Rouge comme le dé de déplacement du plateau — pas l'or du thème. */
+    background: linear-gradient(155deg, var(--body-bright), var(--body));
+    box-shadow: inset 0 -3px 0 oklch(0 0 0 / .28), 0 6px 16px oklch(0 0 0 / .45);
+    animation: scn-lancer .5s cubic-bezier(.2, .8, .25, 1.2);
+}
+.scn-d6 i {
+    width: 11px; height: 11px; border-radius: 50%; place-self: center;
+    background: var(--parch-100); box-shadow: inset 0 1px 1px oklch(0 0 0 / .35);
+}
+.scn-pt1 { grid-area: 1 / 1; } .scn-pt3 { grid-area: 1 / 3; }
+.scn-pt4 { grid-area: 2 / 1; } .scn-pt5 { grid-area: 2 / 2; } .scn-pt6 { grid-area: 2 / 3; }
+.scn-pt7 { grid-area: 3 / 1; } .scn-pt9 { grid-area: 3 / 3; }
+@keyframes scn-lancer { from { transform: rotate(-120deg) scale(.4); opacity: 0 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .scn-d6 { animation: none } }
+.scn-calcul {
+    margin: 0; font-size: 14px; color: var(--ink-300);
+    font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
 
 .scn-issue {

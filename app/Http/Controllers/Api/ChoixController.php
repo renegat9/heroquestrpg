@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Events\JournalCombatDiffuse;
-use App\Events\SceneTable;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
+use App\Events\SceneTable;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
@@ -17,10 +17,11 @@ use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
 use App\Partie\JournalCombat;
+use App\Partie\Narration\BibliothequeNarration;
+use App\Partie\OrdreDuTour;
+use App\Partie\ResolveurTour;
 use App\Partie\SceneDeTable;
 use App\Partie\TamponScenes;
-use App\Partie\Narration\BibliothequeNarration;
-use App\Partie\ResolveurTour;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,35 +49,13 @@ use Illuminate\Validation\ValidationException;
 class ChoixController extends Controller
 {
     /**
-     * Est-ce VRAIMENT le tour de ce héros ? Même règle que
-     * `ResolveurTour::verifierInitiative()` : le premier de l'ordre figé qui
-     * soit encore debout et n'ait pas joué.
-     *
-     * Dupliquer la lecture plutôt que d'exposer le résolveur est assumé — le
-     * contrôleur ne fait que DÉCIDER S'IL PROPOSE, le résolveur reste seul
-     * juge de ce qu'il accepte. Les deux doivent simplement dire « non » au
-     * même moment.
+     * Est-ce VRAIMENT le tour de ce héros ? Le contrôleur ne fait que DÉCIDER
+     * S'IL PROPOSE ; le résolveur reste seul juge de ce qu'il accepte — et les
+     * deux lisent désormais la même règle, `OrdreDuTour`.
      */
     private function estSonTour(Groupe $groupe, int $personnageId): bool
     {
-        $etats = $groupe->queteCourante?->etatsPersonnages()->get();
-
-        if ($etats === null) {
-            return false;
-        }
-
-        foreach ($groupe->personnages()->wherePivot('actif', true)
-            ->orderBy('groupe_personnages.ordre_initiative')->pluck('personnages.id') as $id) {
-            $etat = $etats->firstWhere('personnage_id', $id);
-
-            if ($etat === null || $etat->a_joue || $etat->tombe) {
-                continue;
-            }
-
-            return (int) $id === $personnageId;
-        }
-
-        return false;
+        return app(OrdreDuTour::class)->estSonTour($groupe, $personnageId);
     }
 
     /**
@@ -93,8 +72,7 @@ class ChoixController extends Controller
         ResolveurTour $resolveur,
         JournalCombat $journalCombat,
         SceneDeTable $scenesDeTable,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
         $joueur = Auth::guard('joueur')->user();
 

@@ -2,9 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Engine\MotsClesEquipement;
+use App\Events\SceneTable;
+use App\Models\Carte;
+use App\Models\GabaritQuete;
+use App\Models\InstanceMonstre;
+use App\Models\Mobilier;
+use App\Models\Monstre;
+use App\Models\Objet;
+use App\Models\Personnage;
+use App\Models\Quete;
+use App\Models\Sort;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\JournalCombat;
 use App\Partie\SceneDeTable;
+use App\Partie\TamponScenes;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MobilierSeeder;
@@ -12,6 +24,7 @@ use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
 use Database\Seeders\SortSeeder;
+use Illuminate\Support\Facades\Event;
 
 /**
  * Scènes illustrées de l'écran de table (`.table.scene`).
@@ -26,9 +39,9 @@ beforeEach(function () {
 });
 
 /** Les champs du contrat (docs/contrat-api.md, `.table.scene`). */
-const CHAMPS_SCENE = ['genre', 'titre', 'sous_titre', 'acteurs', 'jet', 'objets', 'issue'];
+const CHAMPS_SCENE = ['genre', 'titre', 'sous_titre', 'acteurs', 'jet', 'deplacement', 'objets', 'issue'];
 
-function sceneHeros(string $nom, string $classe = 'nain'): App\Models\Personnage
+function sceneHeros(string $nom, string $classe = 'nain'): Personnage
 {
     static $n = 0;
     $joueur = connecterJoueur('j'.(++$n));
@@ -37,20 +50,20 @@ function sceneHeros(string $nom, string $classe = 'nain'): App\Models\Personnage
 }
 
 /** Une instance de monstre réelle : c'est elle qui porte le portrait dynamique. */
-function sceneInstanceMonstre(): App\Models\InstanceMonstre
+function sceneInstanceMonstre(): InstanceMonstre
 {
     static $q = 0;
-    $monstre = App\Models\Monstre::query()->firstOrFail();
-    $quete = App\Models\Quete::create([
+    $monstre = Monstre::query()->firstOrFail();
+    $quete = Quete::create([
         'groupe_id' => creerGroupe('g-mon-'.(++$q))->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'Quête d\'essai',
         'position_arc' => 1,
         'type_jalon' => 'normale',
         'etat' => 'en_cours',
     ]);
 
-    return App\Models\InstanceMonstre::create([
+    return InstanceMonstre::create([
         'quete_id' => $quete->id,
         'monstre_id' => $monstre->id,
         'pv_body' => $monstre->pv_body,
@@ -61,7 +74,7 @@ function sceneInstanceMonstre(): App\Models\InstanceMonstre
     ]);
 }
 
-function scenesDe(array $resultat, ?App\Models\Personnage $acteur = null): array
+function scenesDe(array $resultat, ?Personnage $acteur = null): array
 {
     $acteur ??= sceneHeros('Borin');
 
@@ -132,7 +145,7 @@ it('montre le piège et sa victime, y compris quand il est IMBRIQUÉ dans un dé
 });
 
 it('montre ce que la fouille a sorti du paquet', function () {
-    $objet = App\Models\Objet::query()->firstOrFail();
+    $objet = Objet::query()->firstOrFail();
 
     $scene = scenesDe([
         'type' => 'fouille_tresor',
@@ -217,7 +230,7 @@ it('résout une image même sans illustration générée (emblème de repli)', f
 });
 
 it('met un sort en scène avec sa carte, sans « vs » sur un soin', function () {
-    $sort = App\Models\Sort::query()->firstOrFail();
+    $sort = Sort::query()->firstOrFail();
     $acteur = sceneHeros('Aldric', 'magicien');
     $soigne = sceneHeros('Thora', 'elfe');
 
@@ -238,13 +251,13 @@ it('met un sort en scène avec sa carte, sans « vs » sur un soin', function ()
 
 it('montre le contenu d\'une salle révélée — créatures et mobilier, jamais les pièges', function () {
     $groupe = creerGroupe('g-salle');
-    $quete = App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'Salle', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
     ]);
-    $meuble = App\Models\Mobilier::query()->firstOrFail();
-    App\Models\Carte::create([
+    $meuble = Mobilier::query()->firstOrFail();
+    Carte::create([
         'quete_id' => $quete->id,
         'largeur' => 100, 'hauteur' => 100,
         'grille' => [
@@ -270,12 +283,12 @@ it('montre le contenu d\'une salle révélée — créatures et mobilier, jamais
 
 it('ne montre rien d\'une salle vide — le récit suffit', function () {
     $groupe = creerGroupe('g-vide');
-    $quete = App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'Vide', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
     ]);
-    App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id,
         'largeur' => 100, 'hauteur' => 100,
         'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]], 'mobiliers' => []],
@@ -305,23 +318,26 @@ it('publie les mêmes champs de contrat sur TOUS les genres', function () {
     // une scène de salle ne doit pas inventer de clé, ni en perdre une.
     $heros = sceneHeros('Borin');
     $groupe = creerGroupe('g-tous');
-    $quete = App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'T', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
     ]);
-    App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id,
         'largeur' => 100, 'hauteur' => 100,
         'grille' => [
             'salles' => [['x' => 0, 'y' => 0, 'largeur' => 3, 'hauteur' => 3]],
             'mobiliers' => [['x' => 1, 'y' => 1, 'l' => 1, 'h' => 1,
-                'mobilier_id' => App\Models\Mobilier::query()->firstOrFail()->id]],
+                'mobilier_id' => Mobilier::query()->firstOrFail()->id]],
         ],
     ]);
     $scenes = app(SceneDeTable::class);
 
-    foreach ([$scenes->chute($heros, true), $scenes->salle($quete->fresh(), 0, [])] as $scene) {
+    $debutDeTour = $scenes->deplacement($heros, ['base' => 5, 'des' => [4], 'bonus_equipement' => 0,
+        'malus' => 0, 'total_jet' => 9, 'multiplicateur' => 1, 'bonus_potion' => 0, 'portee' => 9]);
+
+    foreach ([$scenes->chute($heros, true), $scenes->salle($quete->fresh(), 0, []), $debutDeTour] as $scene) {
         expect(array_keys($scene))->toEqualCanonicalizing(CHAMPS_SCENE)
             ->and($scene['genre'])->toBeIn(SceneDeTable::GENRES);
     }
@@ -331,12 +347,12 @@ it('accorde l\'issue d\'une salle avec le nombre de créatures', function () {
     // ⚠ « 1 créature à l'intérieur » suivi de « Elles vous ont vus » se
     // contredisait à l'écran — vu en partie réelle le 2026-09-14.
     $groupe = creerGroupe('g-accord');
-    $quete = App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'A', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
     ]);
-    App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id, 'largeur' => 100, 'hauteur' => 100,
         'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4]], 'mobiliers' => []],
     ]);
@@ -353,7 +369,7 @@ it('affiche les EFFETS d\'un objet trouvé, pas seulement sa catégorie', functi
     // ⚠ Les phrases viennent de `MotsClesEquipement::avantages()`, le vocabulaire
     // déjà utilisé par l'étal, le sac et le menu d'action. En réécrire ici ferait
     // dériver l'écran de table au premier mot-clé qui change.
-    $epee = App\Models\Objet::where('nom', 'Épée large')->firstOrFail();
+    $epee = Objet::where('nom', 'Épée large')->firstOrFail();
 
     $scene = scenesDe([
         'type' => 'fouille_mobilier', 'issue' => 'objet',
@@ -361,18 +377,18 @@ it('affiche les EFFETS d\'un objet trouvé, pas seulement sa catégorie', functi
     ])[0];
 
     expect($scene['objets'][0]['detail'])
-        ->toBe(implode(' · ', App\Engine\MotsClesEquipement::avantages((array) $epee->effet)))
+        ->toBe(implode(' · ', MotsClesEquipement::avantages((array) $epee->effet)))
         ->and($scene['objets'][0]['detail'])->toContain('dés d\'attaque');
 });
 
 it('affiche le bloc de stats des créatures d\'une salle', function () {
     $groupe = creerGroupe('g-stats');
-    $quete = App\Models\Quete::create([
+    $quete = Quete::create([
         'groupe_id' => $groupe->id,
-        'gabarit_id' => App\Models\GabaritQuete::query()->firstOrFail()->id,
+        'gabarit_id' => GabaritQuete::query()->firstOrFail()->id,
         'titre' => 'S', 'position_arc' => 1, 'type_jalon' => 'normale', 'etat' => 'en_cours',
     ]);
-    App\Models\Carte::create([
+    Carte::create([
         'quete_id' => $quete->id, 'largeur' => 100, 'hauteur' => 100,
         'grille' => ['salles' => [['x' => 0, 'y' => 0, 'largeur' => 4, 'hauteur' => 4]], 'mobiliers' => []],
     ]);
@@ -395,28 +411,28 @@ it('met la chute EN TAMPON, pour qu\'elle passe après le coup qui l\'a causée'
     // au moment où les PV touchent zéro — AU MILIEU de la résolution —, alors que
     // la scène de l'attaque ne part qu'une fois le tour résolu. La table montrait
     // le héros à terre AVANT le coup qui l'y avait mis.
-    Illuminate\Support\Facades\Event::fake([App\Events\SceneTable::class]);
+    Event::fake([SceneTable::class]);
     $heros = sceneHeros('Grom', 'barbare');
-    $tampon = app(App\Partie\TamponScenes::class);
+    $tampon = app(TamponScenes::class);
 
     $tampon->ajouter($heros->groupeActif ?? creerGroupe('g-tampon'),
         app(SceneDeTable::class)->chute($heros, true));
 
     // Rien n'est parti tant qu'on n'a pas vidé : c'est tout l'intérêt.
-    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\SceneTable::class);
+    Event::assertNotDispatched(SceneTable::class);
 
     $tampon->vider();
-    Illuminate\Support\Facades\Event::assertDispatched(App\Events\SceneTable::class, 1);
+    Event::assertDispatched(SceneTable::class, 1);
 
     // Idempotent : un second vidage ne rediffuse rien.
     $tampon->vider();
-    Illuminate\Support\Facades\Event::assertDispatched(App\Events\SceneTable::class, 1);
+    Event::assertDispatched(SceneTable::class, 1);
 });
 
 it('dit ce que le jet RAPPORTE, pas seulement qu\'il est réussi', function () {
     // ⚠ René, 2026-09-14 : « pour les jets d'attribut, il faudrait aussi dire ce
     // que donne le résultat ». « Réussi » ne dit pas ce qu'on gagne.
-    $parchemin = App\Models\Objet::query()->firstOrFail(); // n'importe quelle pièce du catalogue
+    $parchemin = Objet::query()->firstOrFail(); // n'importe quelle pièce du catalogue
 
     $or = scenesDe([
         'type' => 'jet', 'libelle' => 'Desceller la dalle — jet de Body',
@@ -502,7 +518,7 @@ it('réunit une frappe BALAYÉE en UNE scène, une vignette par cible', function
 });
 
 it('aligne toutes les figures atteintes par un sort de ZONE', function () {
-    $sort = App\Models\Sort::query()->firstOrFail();
+    $sort = Sort::query()->firstOrFail();
     $a = sceneInstanceMonstre();
     $b = sceneInstanceMonstre();
 
@@ -546,8 +562,8 @@ it('montre le meuble fracassé et ce qu\'il rendait', function () {
     // ⚠ Le butin d'un meuble est NICHÉ sous `butin` et jamais fusionné à plat :
     // le payload d'un jet porte déjà son propre `issue` (le résultat du DÉ), et
     // les mettre au même niveau écrasait l'un par l'autre.
-    $meuble = App\Models\Mobilier::where('nom', 'Coffre')->first()
-        ?? App\Models\Mobilier::query()->firstOrFail();
+    $meuble = Mobilier::where('nom', 'Coffre')->first()
+        ?? Mobilier::query()->firstOrFail();
 
     $scene = scenesDe([
         'type' => 'jet', 'libelle' => 'Fracasser '.$meuble->nom.' — jet de Body',
@@ -568,8 +584,8 @@ it('distingue une potion bue sur SOI d\'une potion tendue à un voisin', functio
     // payload qui tranche.
     $grom = sceneHeros('Grom', 'barbare');
     $thora = sceneHeros('Thora', 'elfe');
-    $potion = App\Models\Objet::where('nom', 'Potion de soin')->first()
-        ?? App\Models\Objet::query()->firstOrFail();
+    $potion = Objet::where('nom', 'Potion de soin')->first()
+        ?? Objet::query()->firstOrFail();
 
     $soi = scenesDe([
         'type' => 'potion', 'objet' => $potion->nom,
@@ -598,11 +614,82 @@ it('dit le soin RÉELLEMENT rendu, pas celui promis par la carte', function () {
     // Boire une potion de 4 PV à un point du maximum n'en rend qu'un : c'est
     // `effets.soin_pv_body` que le moteur calcule, jamais la valeur de la carte.
     $grom = sceneHeros('Grom', 'barbare');
-    $potion = App\Models\Objet::query()->firstOrFail();
+    $potion = Objet::query()->firstOrFail();
 
     $rien = scenesDe(['type' => 'potion', 'objet' => $potion->nom,
         'personnage_id' => $grom->id, 'effets' => []], $grom)[0];
 
     expect($rien['issue']['ton'])->toBe('info')
         ->and($rien['issue']['libelle'])->toContain('jauges étaient pleines');
+});
+
+/** Le jet de début de tour, avec des valeurs par défaut sans aucun ajustement. */
+function sceneDeplacement(Personnage $heros, array $d): array
+{
+    return app(SceneDeTable::class)->deplacement($heros, $d + [
+        'bonus_equipement' => 0, 'malus' => 0, 'multiplicateur' => 1, 'bonus_potion' => 0,
+    ]);
+}
+
+it('annonce le début du tour avec le dé et le calcul du déplacement', function () {
+    $grom = sceneHeros('Grom', 'barbare');
+
+    $scene = sceneDeplacement($grom, ['base' => 5, 'des' => [4], 'total_jet' => 9, 'portee' => 9]);
+
+    expect($scene['genre'])->toBe('deplacement')
+        ->and($scene['titre'])->toBe('Au tour de Grom')
+        // Élision devant une voyelle, accentuée comprise.
+        ->and(sceneDeplacement(sceneHeros('Aldric', 'magicien'), ['base' => 4, 'des' => [6], 'total_jet' => 10, 'portee' => 10])['titre'])
+        ->toBe("Au tour d'Aldric")
+        ->and(sceneDeplacement(sceneHeros('Éowyn', 'elfe'), ['base' => 5, 'des' => [1], 'total_jet' => 6, 'portee' => 6])['titre'])
+        ->toBe("Au tour d'Éowyn")
+        ->and($scene['sous_titre'])->toBe('Jet de déplacement')
+        ->and($scene['acteurs'])->toHaveCount(1)
+        ->and($scene['jet'])->toBeNull()
+        ->and($scene['deplacement'])->toBe(['des' => [4], 'calcul' => 'base 5 + dé 4 = 9'])
+        ->and($scene['issue'])->toBe(['ton' => 'info', 'libelle' => '9 cases ce tour']);
+});
+
+it('nomme chaque ajustement du jet au lieu de les fondre dans le total', function () {
+    // ⚠ C'est précisément ce que l'option `se_deplacer` ne sait pas faire : elle
+    // reconstitue le dé par `total − base`, et affiche donc un dé faux dès qu'un
+    // malus d'armure, des Raquettes ou un second dé s'en mêlent.
+    $sylvaine = sceneHeros('Sylvaine', 'elfe');
+
+    $bottes = sceneDeplacement($sylvaine,
+        ['base' => 7, 'des' => [3, 5], 'malus' => 2, 'total_jet' => 13, 'portee' => 13]);
+
+    expect($bottes['deplacement']['calcul'])->toBe('base 7 + dés 3 + 5 − 2 (armure) = 13')
+        ->and($bottes['deplacement']['des'])->toBe([3, 5])
+        ->and($bottes['sous_titre'])->toBe('Jet de déplacement — 2 dés');
+
+    // Raquettes, Vent Véloce, potion de dextérité : les cases de la potion
+    // s'ajoutent APRÈS le multiplicateur, comme dans le résolveur.
+    $tout = sceneDeplacement($sylvaine, ['base' => 5, 'bonus_equipement' => 2, 'des' => [4],
+        'total_jet' => 11, 'multiplicateur' => 2, 'bonus_potion' => 5, 'portee' => 27]);
+
+    expect($tout['deplacement']['calcul'])->toBe('(base 5 + 2 (équipement) + dé 4) × 2 + 5 (potion) = 27');
+});
+
+it('ne montre pas une soustraction qui contredit le plancher d\'une case', function () {
+    // « le total ne descend jamais sous une case » : 2 + 1 − 3 donne 0, le jet
+    // en vaut 1, et la phrase doit le dire plutôt que d'afficher « = 1 » après
+    // un calcul qui fait 0.
+    $borin = sceneHeros('Borin');
+
+    $scene = sceneDeplacement($borin, ['base' => 2, 'des' => [1], 'malus' => 3, 'total_jet' => 1, 'portee' => 1]);
+
+    expect($scene['deplacement']['calcul'])->toBe('base 2 + dé 1 − 3 (armure) → au moins 1 = 1')
+        ->and($scene['issue']['libelle'])->toBe('1 case ce tour');
+});
+
+it('a une icône côté table pour CHAQUE genre, et aucune pour un genre inconnu', function () {
+    // Le registre dans les deux sens, jusqu'à l'écran : un genre sans icône
+    // s'afficherait sous l'éclair générique, une icône sans genre serait une
+    // clé décorative.
+    $vue = file_get_contents(resource_path('js/components/table/SceneEvenement.vue'));
+    preg_match('/const ICONE_GENRE = \{(.*?)\};/s', $vue, $bloc);
+    preg_match_all('/^\s*(\w+):/m', $bloc[1] ?? '', $cles);
+
+    expect($cles[1])->toEqualCanonicalizing(SceneDeTable::GENRES);
 });

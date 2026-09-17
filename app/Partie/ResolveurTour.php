@@ -24,10 +24,10 @@ use App\Events\MjReflechit;
 use App\Events\MouvementAnime;
 use App\Events\NarrationDiffusee;
 use App\Events\SceneTable as SceneTableEvent;
-use App\Models\Evenement;
 use App\Models\Condition;
 use App\Models\Epreuve;
 use App\Models\EtatPersonnageQuete;
+use App\Models\Evenement;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
@@ -460,28 +460,19 @@ final class ResolveurTour
      */
     private function verifierInitiative(Groupe $groupe, Quete $quete, Personnage $personnage, Collection $etats): void
     {
-        $ordres = $groupe->personnages()
-            ->wherePivot('actif', true)
-            ->orderBy('groupe_personnages.ordre_initiative')
-            ->pluck('personnages.id');
+        // Même règle que la proposition du menu et que le jet de déplacement :
+        // `OrdreDuTour`, point de passage unique depuis le 2026-09-16.
+        $actif = app(OrdreDuTour::class)->herosActifId($groupe, $etats);
 
-        foreach ($ordres as $id) {
-            $etatHeros = $etats->firstWhere('personnage_id', $id);
+        if ($actif === null) {
+            throw ValidationException::withMessages(['personnage_id' => 'Aucun héros en attente ce tour.']);
+        }
 
-            if ($etatHeros === null || $etatHeros->a_joue || $etatHeros->tombe) {
-                continue;
-            }
-
-            if ((int) $id === (int) $personnage->id) {
-                return; // c'est bien son tour
-            }
-
+        if ($actif !== (int) $personnage->id) {
             throw ValidationException::withMessages([
                 'personnage_id' => 'Ce n\'est pas le tour de ce héros (ordre d\'initiative figé pour la quête).',
             ]);
         }
-
-        throw ValidationException::withMessages(['personnage_id' => 'Aucun héros en attente ce tour.']);
     }
 
     /**

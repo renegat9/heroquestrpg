@@ -5,8 +5,8 @@ declare(strict_types=1);
 use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\Condition;
-use App\Models\EtatPersonnageQuete;
 use App\Models\Epreuve;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -454,7 +454,9 @@ it('LA PREUVE DU CHANTIER — Érudition (magicien) ajoute un dé de Mind sur un
 
     // ── SANS le nœud (Albrecht, premier dans l'ordre d'initiative) ──
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $albrecht->id);
-    desFiges([1, 1]); // 2 dés (attribut_mind = 2), AUCUN bonus.
+    // + 1 : le dé de DÉPLACEMENT de Brunhilde, lancé quand son tour commence
+    // (depuis le 2026-09-16 ; il partait avant au début du round, dés réels).
+    desFiges([1, 1, 4]); // 2 dés (attribut_mind = 2), AUCUN bonus.
 
     $sansTalent = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
         ->assertStatus(202)->json('resultat');
@@ -520,7 +522,9 @@ it('LA PREUVE DU CHANTIER — Prestance (chevalier) ajoute un dé de Mind sur un
 
     // ── SANS le nœud (Albrecht) ──
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $albrecht->id);
-    desFiges([1, 1]); // 2 dés (attribut_mind = 2), aucun bonus.
+    // + 1 : le dé de DÉPLACEMENT de Brunhilde, lancé quand son tour commence
+    // (depuis le 2026-09-16 ; il partait avant au début du round, dés réels).
+    desFiges([1, 1, 4]); // 2 dés (attribut_mind = 2), aucun bonus.
 
     $sansTalent = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'epreuve_0'])
         ->assertStatus(202)->json('resultat');
