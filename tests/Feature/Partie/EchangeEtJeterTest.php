@@ -490,3 +490,45 @@ it('la SÉANCE préserve les améliorations de Forge, sans duplication de ligne'
         ->and($apres->ameliorations[0]['nom'])->toBe('Affûtée')
         ->and(Inventaire::where('objet_id', $ligne->objet_id)->count())->toBe(1);
 });
+
+it('le fil du combat DIT ce qui a circulé, dans les deux sens', function () {
+    // ⚠ Régression trouvée en jouant à DEUX le 2026-09-18, jamais par un test :
+    // `JournalCombat` lisait `objet`/`vers` — la forme du don unidirectionnel
+    // de la première livraison — alors que la séance publie `avec`/`donne`/
+    // `recu`. Les deux `??` tiraient donc à chaque fois et le fil annonçait
+    // « Grom donne un objet à un allié » quel que soit l'échange. Un effet
+    // annoncé sans être dit coûte autant qu'un effet muet.
+    $ctx = deuxHerosVoisins();
+    ['alice' => $alice, 'groupe' => $groupe, 'albrecht' => $albrecht, 'bertrand' => $bertrand] = $ctx;
+
+    $aMoi = objetDansSac($albrecht, 'Épée courte');
+    $aLui = objetDansSac($bertrand, 'Bouclier');
+
+    expect(optionPubliee($groupe, $alice, $albrecht, 'echanger'))->not->toBeNull();
+
+    test()->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'echanger',
+        'parametres' => ['cle' => "heros:{$bertrand->id}", 'transferts' => [
+            ['inventaire_id' => $aMoi->id, 'vers_personnage_id' => $bertrand->id, 'quantite' => 1],
+            ['inventaire_id' => $aLui->id, 'vers_personnage_id' => $albrecht->id, 'quantite' => 1],
+        ]],
+    ])->assertAccepted();
+
+    $payload = [
+        'type' => 'echanger',
+        'avec' => 'Bertrand',
+        'donne' => [['objet' => 'Épée courte', 'quantite' => 1]],
+        'recu' => [['objet' => 'Bouclier', 'quantite' => 1]],
+    ];
+
+    $texte = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($payload, 'Albrecht'))
+        ->pluck('texte')->implode(' | ');
+
+    // Les DEUX pièces sont nommées, et l'allié aussi : c'est tout ce que la
+    // ligne devait dire et ne disait pas.
+    expect($texte)->toContain('Épée courte')
+        ->and($texte)->toContain('Bouclier')
+        ->and($texte)->toContain('Bertrand')
+        ->and($texte)->not->toContain('un objet')
+        ->and($texte)->not->toContain('un allié');
+});

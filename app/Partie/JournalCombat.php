@@ -288,7 +288,17 @@ final class JournalCombat
             // geste du jeu qui détruit de la valeur sans rien rendre — le fil
             // doit le dire aussi clairement que la confirmation le demande
             // côté manette.
-            'echanger' => [$this->info("{$acteurNom} donne ".($a['objet'] ?? 'un objet').' à '.($a['vers'] ?? 'un allié'))],
+            // ⚠ CETTE LIGNE A MENTI À CHAQUE ÉCHANGE (trouvé en jouant à deux
+            // le 2026-09-18, jamais par un test). Elle lisait `objet`/`vers`,
+            // la forme du DON unidirectionnel de la première livraison ; depuis
+            // que l'échange est une SÉANCE, le payload porte `avec`, `donne` et
+            // `recu`. Les deux `??` tiraient donc systématiquement et le fil
+            // annonçait « donne un objet à un allié » quoi qu'il se passe — un
+            // effet annoncé sans être dit, ce qui coûte autant qu'un effet muet.
+            // ⚠ La dérive est invisible au diff : le formateur et le résolveur
+            // vivent dans deux fichiers, et un repli `??` transforme un champ
+            // renommé en phrase plausible plutôt qu'en erreur.
+            'echanger' => [$this->info($this->echange($a, $acteurNom))],
             'jeter' => [$this->info("{$acteurNom} jette ".($a['objet'] ?? 'un objet').' — définitif')],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
@@ -330,6 +340,75 @@ final class JournalCombat
             'glace_dissipee' => [$this->glaceDissipee($a)],
             default => [],
         };
+    }
+
+    /**
+     * La SÉANCE d'échange, dans les deux sens (doc 01 §7). Une seule action,
+     * donc une seule ligne — mais elle doit dire QUOI a circulé, sinon elle ne
+     * vaut pas mieux que le silence.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function echange(array $a, string $acteurNom): string
+    {
+        $allie = (string) ($a['avec'] ?? 'un allié');
+        $donne = $this->pieces($a['donne'] ?? []);
+        $recu = $this->pieces($a['recu'] ?? []);
+
+        // Les trois cas réels : on donne, on prend, ou l'on troque. Le troc est
+        // le seul que le don unidirectionnel ne savait pas dire.
+        if ($donne !== '' && $recu !== '') {
+            return "{$acteurNom} échange avec {$allie} : il donne {$donne}, il reçoit {$recu}";
+        }
+
+        if ($donne !== '') {
+            return "{$acteurNom} donne {$donne} à {$allie}";
+        }
+
+        if ($recu !== '') {
+            return "{$acteurNom} reçoit {$recu} de {$allie}";
+        }
+
+        // Le résolveur refuse une séance vide ; si la ligne arrive quand même,
+        // elle le dit plutôt que d'inventer un transfert.
+        return "{$acteurNom} ouvre son sac avec {$allie} — rien ne change de main";
+    }
+
+    /**
+     * « Épée large », « 2 Fioles de soin », « Épée large et 2 Fioles de soin ».
+     *
+     * @param  mixed  $liste  list<array{objet: string, quantite: int}>
+     */
+    private function pieces(mixed $liste): string
+    {
+        $noms = [];
+
+        foreach ((array) $liste as $piece) {
+            $nom = (string) ($piece['objet'] ?? '');
+
+            if ($nom === '') {
+                continue;
+            }
+
+            // ⚠ « Fiole de soin ×2 », jamais « 2 Fioles de soin » : pluraliser
+            // un nom de catalogue demanderait de connaître son nombre ET son
+            // genre, qui ne sont nulle part en base — même piège que le genre
+            // d'un héros, que `DonObjet` contourne déjà en tournant ses phrases
+            // sans pronom. La notation `×` est en plus celle que le menu
+            // emploie déjà pour une pile (`detail`), donc rien de neuf à lire.
+            $quantite = (int) ($piece['quantite'] ?? 1);
+            $noms[] = $quantite > 1 ? "{$nom} ×{$quantite}" : $nom;
+        }
+
+        if ($noms === []) {
+            return '';
+        }
+
+        // Le dernier se rattache par « et » : une énumération à virgules seules
+        // se lit mal dans un fil qu'on parcourt en pleine partie.
+        $dernier = array_pop($noms);
+
+        return $noms === [] ? $dernier : implode(', ', $noms).' et '.$dernier;
     }
 
     /**
