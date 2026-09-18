@@ -1000,6 +1000,107 @@ seconde arme **n'apporte aucun dé** — elle apporte une option d'attaque de pl
 (voir §Ciblage en deux temps). En quête, l'action d'équipement se dédouble de la
 même façon : `equiper_{id}` (main droite) et `equiper_{id}_gauche`.
 
+### Gérer son inventaire EN QUÊTE — trois gestes, deux créneaux
+
+Doc 01 §7 nomme trois gestes d'inventaire. Tous passent par `POST /choix`,
+**jamais** par les routes REST ci-dessus, qui restent **hub-only** : manipuler
+son sac en quête est un geste **de tour**, pris dans l'ordre d'initiative, pas un
+appel hors-tour.
+
+⚠ **ÉCART ASSUMÉ AVEC LE CANON, et il faut le lire comme tel** (René,
+2026-09-17). Doc 01 §7 écrit « Gérer son stuff coûte **l'action du tour** » et
+range les trois gestes sous cette phrase. **`jeter` en sort** : il ne coûte rien
+et se répète. La raison est une tension que le canon crée lui-même au paragraphe
+juste au-dessus — « sac plein → il faut **jeter un objet** pour le prendre
+(tension de gestion) » : au prix d'une action par pièce, se délester devant un
+coffre coûtait le tour entier, et la tension devenait une punition. Les deux
+autres gestes restent au prix fort. Ce n'est pas une omission ni une simplification
+d'implémentation : c'est une règle maison, écrite ici et dans
+`docs/regles/equipement-et-armurerie.md`.
+
+| Geste | Option | Porte | Créneau |
+|---|---|---|---|
+| Équiper / ranger | `equiper_{id}` · `equiper_{id}_gauche` · `desequiper_{id}` | une pièce par option | action |
+| **Échanger avec un allié adjacent** | `echanger` | `parametres.allies[]` | **action** (la séance entière) |
+| **Jeter un objet du sac** | `jeter` | `parametres.objets[]` | **interaction — GRATUIT** |
+
+⚠ **Les deux nouvelles suivent « une action, puis un sous-choix »** (§Ciblage en
+deux temps) : l'option ne porte pas un objet, elle porte **la liste** des objets.
+Un sac de six pièces aurait sinon ajouté douze boutons au menu d'action, que le
+doc 13 §3.1 borne à « 2 à 5 options claires ».
+
+**`jeter` — GRATUIT** (créneau `interaction`, René 2026-09-17 : « jeter des items
+ne prend pas d'action, permettant de jeter plusieurs choses dans le même tour »).
+Chaque entrée de `objets[]` porte `cle` (`"objet:{id}"`), `inventaire_id`, `nom`
+et `quantite`. ⚠ **L'option est émise HORS de la garde `! $aAgi`** : gratuite
+mais masquée dès que le héros a agi, elle le serait pour rien — or c'est
+justement après avoir agi qu'on veut se délester. ⚠ La leçon d'`actionner_levier`
+(retiré des gratuits le 2026-08-24 : un jet retentable sans coût se relance à
+l'infini) **ne s'applique pas** — chaque jet **retire** une pièce, la suite est
+finie et décroissante ; la répétition est le but, pas la faille.
+
+⚠ **L'objet est DÉTRUIT**, il ne tombe pas au sol : le moteur n'a aucune couche
+d'objets posés, et en inventer une serait une mécanique entière. Précédent de
+l'arme lancée (`consommerArmeLancee()` **supprime** la pièce). La manette
+confirme avant d'envoyer — seul geste du jeu qui détruit de la valeur sans rien
+rendre. → arbitrage `docs/regles/equipement-et-armurerie.md`
+
+**Quantité.** Quand `quantite > 1`, un palier de saisie numérique s'ouvre (`min`
+1, `max` = la pile). Corps : `{option_id: "jeter", parametres: {cle, quantite}}`.
+⚠ Le `max` publié est **re-validé** à la résolution contre la ligne en base : un
+champ numérique est la plus facile des whitelists à contourner. Une `quantite`
+absente vaut 1.
+
+**`echanger` — la SÉANCE du canon**, doc 01 §7 : « transférer armes/armures
+**entre les deux inventaires**, dans la limite des **capacités respectives** ».
+Bidirectionnel et multiple, pour **une** action. L'option porte
+`parametres.allies[]`, un par héros **orthogonalement adjacent** (Manhattan = 1)
+et **debout** ; chaque entrée porte `cle` (`"heros:{id}"`), `nom`, les deux sacs
+(`mon_sac[]`, `son_sac[]` — par ligne : `inventaire_id`, `nom`, `quantite`,
+`encombrant`) et les deux capacités (`ma_capacite`, `sa_capacite` :
+`{occupation, max}`).
+
+Corps : `{option_id: "echanger", parametres: {cle, transferts: [{inventaire_id,
+vers_personnage_id, quantite}]}}`. ⚠ **La capacité se juge sur l'ÉTAT FINAL**, et
+c'est la raison d'être de la séance : deux sacs pleins qui **échangent** deux
+armures est légal au canon, alors qu'aucun ordre d'application ne passerait un
+contrôle pièce par pièce. Le serveur calcule, pour chacun des deux héros,
+`final = occupation − encombrants sortants + encombrants entrants`, refuse en 422
+**en nommant le sac qui déborde**, et n'applique rien — la séance est atomique,
+une seule transaction.
+
+⚠ **Le seuil n'est PAS `final ≤ capacité`, mais `final ≤ capacité` OU
+`final ≤ occupation de départ`.** Un sac peut être **légitimement en
+dépassement** — « un butin de quête passe outre la capacité », dit
+`DonObjet`, « et donner est justement la façon de régulariser ». Avec le seuil
+naïf, le héros au sac débordant serait le seul à ne **jamais** pouvoir s'en
+servir pour se délester : refusé pour un état qu'il vient précisément
+d'améliorer. La règle exacte est donc « on ne finit pas au-dessus de la
+capacité, **ou** on ne s'est pas aggravé ». Le receveur ordinaire reste vérifié
+strictement, puisque recevoir augmente son occupation.
+
+⚠ **Chaque `inventaire_id` est re-validé** comme appartenant à l'un des deux
+héros, non **équipé**, et `vers_personnage_id` comme étant l'autre : la liste
+publiée est la whitelist, et un transfert est un triplet qu'un client peut
+inventer entièrement.
+
+⚠ **Aucun accord n'est demandé à l'allié** — le canon dit « échanger avec un
+joueur adjacent » et la table le fait de vive voix. Choix assumé : on peut vider
+le sac d'un allié sans le lui demander.
+
+⚠ **`encombrant` est publié PAR PIÈCE** pour que la séance affiche un total qui
+bouge en direct sans re-dériver de règle serveur : le client **additionne des
+entiers**, il ne juge jamais « un consommable ne compte pas ». L'aperçu peut se
+tromper ; le refus du serveur fait foi.
+
+Règles communes : une pièce **équipée** ne part pas (la ranger d'abord — ses dés
+doivent être révoqués proprement) ; l'option n'est **pas émise** sans entrée
+jouable (`echanger` sans allié adjacent, `jeter` sur un sac vide).
+
+⚠ Les deux gestes sont **annoncés** : journal `action` **et** ligne dans
+`.combat.journal`. Le fil de combat était muet sur `equiper`/`desequiper`, qui
+retombaient sur son `default` — corrigé en même temps, même règle.
+
 `achats[].personnage_id` est accepté mais **jamais envoyé par la manette**, qui
 n'expose aucun sélecteur de destinataire : **chacun achète pour soi**, et corrige
 après coup par un don au hub (`POST /dons`) si la pièce échoit au mauvais héros.

@@ -54,6 +54,51 @@ pointe sur `/livret/`, et la page web offre le PDF dans son bandeau collant.
 d'accueil serait exactement la promesse non tenue que `CLAUDE.md` interdit. Sur une
 installation neuve, il faut donc générer le livret une fois pour que l'entrée apparaisse.
 
+## Savoir QUAND refaire les captures
+
+```bash
+python3 docs/livret/fraicheur.py            # rapport
+python3 docs/livret/fraicheur.py --strict   # échoue si une capture est périmée
+```
+
+Les vignettes d'objets ont leur avertissement (ci-dessus, après chaque
+`images:generer`) ; les **captures d'écran n'en avaient aucun**. Elles vieillissaient en
+silence pendant que le texte, lui, était corrigé. Mesuré le 2026-09-17 : treize captures
+d'écran de jeu dataient du 09-13, après six commits de front — et **deux étaient déjà
+contredites par leur propre légende**. `30-manette-action` énumérait « se déplacer,
+attaquer, lancer un sort, tenter une épreuve, fouiller » alors que deux options avaient
+été ajoutées au menu ; `31-manette-deplacement` montrait un trajet d'avant le correctif,
+sous une prose qui affirmait déjà qu'« on ne traverse pas un meuble ». **La légende ment
+avant l'image** : c'est elle qu'il faut relire en premier.
+
+Chaque figure **déclare les fichiers qu'elle montre** (`DEPENDANCES`). Si l'un d'eux a été
+commité après la prise de la capture, elle est signalée. Ce n'est pas une preuve qu'elle
+ment — un commit peut ne rien changer à l'écran —, c'est une question posée à quelqu'un
+qui saura regarder.
+
+⚠ **Le registre se vérifie dans les deux sens**, comme tous les registres du projet :
+une figure du livret absente de `DEPENDANCES` fait échouer le contrôle (code 2), parce
+qu'une figure non surveillée vieillit exactement comme avant ; et une entrée qui ne
+correspond à aucune figure le fait échouer aussi. **Ajouter un `fig(...)` sans son entrée
+n'est pas une omission possible.**
+
+⚠ **Déclarez ÉTROIT.** La première version listait `ManetteView`/`TableView` — les
+coques — pour presque chaque figure : le contrôle a signalé **18 figures sur 27** dès sa
+première exécution, toutes sur le même commit. Un avertissement qui se déclenche partout
+n'est plus lu, et un garde-fou qu'on apprend à ignorer est pire que pas de garde-fou. On
+ne déclare que ce qui **peint** l'image — l'onglet ou la feuille, plus le service serveur
+quand c'est lui qui en compose le contenu (`MenuMoteur` pour le menu d'action,
+`SceneDeTable` pour les scènes).
+
+⚠ Mais pas trop étroit non plus : `DungeonGrid` est le **socle partagé** de la carte, à la
+manette comme à la table. Oublié, une évolution du rendu de carte n'aurait périmé aucune
+des trois figures qui le montrent — un faux négatif, c'est-à-dire un silence, bien pire
+qu'une fausse alerte qu'on voit passer.
+
+⚠ Les captures ne sont **pas versionnées** (`.gitignore : /browser-shots/livret/`), donc
+leur date de prise est leur `mtime`. Un dépôt fraîchement cloné les voit **absentes** —
+un état distinct de « périmée », que le rapport nomme.
+
 ## Refaire les captures
 
 ```bash

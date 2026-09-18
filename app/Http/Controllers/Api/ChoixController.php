@@ -92,6 +92,24 @@ class ChoixController extends Controller
             // le mode « ouvre une porte » du Génie produisant plusieurs entrées
             // pour le MÊME sort. Patron des `soins` réactifs (`potion:{id}`).
             'parametres.cle' => ['sometimes', 'string', 'max:64'],
+            // Jeter une PILE (doc 01 §7) : combien d'exemplaires. ⚠ La borne
+            // haute n'est PAS ici — elle dépend de la ligne en base, que
+            // `resoudreJeter()` relit et compare. Ce `min:1` n'empêche que
+            // l'absurde (0, négatif, texte) ; un champ numérique est la plus
+            // facile des whitelists à contourner, et la vraie est côté moteur.
+            'parametres.quantite' => ['sometimes', 'integer', 'min:1'],
+            // SÉANCE D'ÉCHANGE : plusieurs pièces, dans les deux sens, pour
+            // une seule action. ⚠ Sans ces règles, `validate()` ne rendrait
+            // PAS la clé — il ne rend que ce qu'on lui a déclaré — et les
+            // transferts arriveraient vides au résolveur, qui refuserait une
+            // séance pourtant bien remplie. Le plafond borne la charge, pas la
+            // légalité : `SeanceEchange` revalide chaque triplet (ligne
+            // appartenant à l'un des deux héros, non équipée, destinataire
+            // étant l'autre) et juge la capacité sur l'état FINAL.
+            'parametres.transferts' => ['sometimes', 'array', 'max:50'],
+            'parametres.transferts.*.inventaire_id' => ['required', 'integer', 'min:1'],
+            'parametres.transferts.*.vers_personnage_id' => ['required', 'integer', 'min:1'],
+            'parametres.transferts.*.quantite' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         // Le moteur fait autorité : seule une option du dernier menu proposé

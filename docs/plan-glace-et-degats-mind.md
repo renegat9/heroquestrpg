@@ -7,6 +7,80 @@
 
 ---
 
+## 0. Où en est ce plan — relevé du 2026-09-17
+
+> ⚠ **Ceci est un ENTÊTE D'AVANCEMENT, pas une réécriture.** Le corps du plan
+> reste daté du 2026-09-06 et garde son vocabulaire d'alors : on ne corrige pas
+> un instantané, on dit devant lui ce qu'il est devenu. Chaque ligne ci-dessous
+> a été relue dans le code le 2026-09-17, fichier et ligne à l'appui.
+
+**Six phases sur sept sont faites, dans l'ordre recommandé au §4** (`0 → 1 → 2 →
+3 → 6`, puis `4`, puis `5`) :
+
+| Phase | État | Preuve dans le code |
+|---|---|---|
+| 0 — la déclaration périmée | ✅ | `TypeDegat::SANS_SOURCE = []` (`app/Engine/TypeDegat.php:61`) |
+| 1 — les dégâts de Mind | ✅ | `MoteurDegats::infligerMindAHeros()` (`app/Partie/MoteurDegats.php:265`) — **le producteur qui manquait** aux lecteurs du §1a |
+| 2 — les 3 sorts du boss | ✅ | Gel de l'Esprit, Mur de Glace, Patinage : `horreur_glacee` tient ses **six** sorts fixes |
+| 3 — les 2 capacités de créature | ✅ | Étreinte du Yéti (`app/Partie/MoteurDread.php:2817`), vol du Gremlin |
+| 4 — la couche TERRAIN | ✅ | catalogue `terrains` + `App\Engine\MotsClesTerrain`, Dijkstra pondéré (`Grille::parcoursPondere()`, `coutChemin()`, `pasAffordables()`) |
+| 6 — rallumer la boîte | ✅ | `BOITES_INCOMPLETES` **vide**, `horreur_des_glaces` dans `BOITES_THEMATIQUES` |
+| 5 — les 8 cartes de glace | ⏳ **partielle** | 3 portées, 1 partielle, 4 non portées — détail ci-dessous |
+
+**Les deux distinctions du §2 ont tenu.** `distance()` est restée géométrique
+(portée, adjacence) pendant que seuls les parcours devenaient pondérés : la
+flèche de l'arbalétrier n'est pas ralentie par la glace, comme le §2 l'exigeait.
+Et le risque nommé au §5/phase 6 — passer de 4 à 5 thèmes **redistribue les
+campagnes en cours** — a été neutralisé plutôt que subi : le thème est désormais
+**figé** dans `groupes.theme_bestiaire` au démarrage, lu par
+`DemarreurQuete::themeEffectif()`, qui est le point de passage unique à employer
+au lieu de rappeler `themeBestiaire()` et sa rotation sur un modulo qui bouge.
+
+### Ce qui reste de la phase 5
+
+Portées : **Chaleur** (*Warmth* — le cas limite honnête, rien ne manquait que
+l'examen), **Anneau de Chaleur**, **Raquettes de Vitesse** (*Snowshoes of
+Speed*), plus **Mur de Glace** et **Patinage** côté Dread. Restent au registre,
+chacune avec sa mécanique nommée dans `config/cartes.php` :
+
+- **Brassard de Glace** — deux clauses sur quatre ; la moitié terrain est portée.
+- **Morsure du Froid** (*Chill*), **Tempête de Glace** (*Ice Storm*).
+- **Pont de Glace** (*Ice Bridge*), **Patinage** côté héros (*Skate*).
+
+⚠ **Une seule mécanique débloque trois de ces cinq cartes** : le **ciblage de
+zone côté héros**. `MotsClesSort::CIBLE_MONSTRES_ZONE` est toujours déclaré
+`NON_IMPLEMENTES` (`app/Engine/MotsClesSort.php:69`) et se comporte comme
+`CIBLE_MONSTRE` ; son lecteur vivrait dans `ResolveurTour::sortDegats()`. Il
+ferait tomber Morsure du Froid (les 4 cases orthogonales), Tempête de Glace **et**
+la seconde clause du Brassard. ⚠ La zone 2×2 existe déjà côté Dread
+(`MotsClesSortDread::ZONE_CARRE_2X2`, lue par `MoteurDread::casesZone()`) : c'est
+un cas de **« une règle, un point de passage »** à honorer d'emblée, pas deux
+géométries à écrire — le genre de copie trop simple pour qu'on la voie dériver.
+
+⚠ **Le motif d'écart du Pont de Glace a changé, et il ne faut pas le
+reconduire.** La phase 5 le refusait parce que « poser du terrain en cours de
+quête » n'existait pas : la couche n'était peuplée qu'à l'assemblage. Depuis le
+**Mur de Glace**, cela existe — une couche dédiée `carte.grille['glace']`,
+**écrite en pleine partie** (`app/Partie/MoteurDread.php:2193` et suivantes),
+relue par la boucle unique de `FabriqueGrille::pour()`
+(`app/Partie/FabriqueGrille.php:252`), avec fonte et rupture. Ce qui manque n'est
+donc plus le mécanisme mais son **côté héros** : un sort de héros qui pose du
+décor. À réexaminer carte en main, comme *Warmth* l'a été — la dette de la phase 5
+disait l'état du moteur du 2026-09-06, pas une impossibilité.
+
+⚠ Même remarque, plus prudente, pour **Patinage côté héros** : les Raquettes ont
+fait naître `Equipement::bonusDeplacementActif()`, symétrique de
+`malusDeplacement()` et lu aux deux mêmes points de passage. Un précédent existe
+donc pour l'allonge — mais il vient de l'**équipement porté**, pas d'un effet de
+sort d'un seul tour. À vérifier, pas à supposer.
+
+**Hors périmètre, inchangé et toujours assumé** : *Bottomless Chasm* (le moteur
+n'a aucune mort permanente — politique de jeu, pas défaut), *Living Fog Room*
+(leurres) et le **Sceptre** (décor destructible + explosion de zone), qui restent
+des dettes **nommées**.
+
+---
+
 ## 1. D'où vient le besoin
 
 **The Frozen Horror est la seule boîte DÉSACTIVÉE, pas absente.** Ses 4 créatures

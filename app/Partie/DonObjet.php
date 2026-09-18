@@ -28,6 +28,11 @@ use Illuminate\Validation\ValidationException;
  *    recrée pas une. C'est essentiel : la ligne porte ses `ameliorations` de
  *    Forge, qu'un create/delete perdrait silencieusement — le héros recevrait
  *    une épée ordinaire au lieu de l'épée Affûtée qu'on lui a tendue.
+ *
+ * Cette mécanique vit désormais dans {@see self::transferer()}, appelée par
+ * `donner()` (chemin unitaire, hub) ET par {@see SeanceEchange} (chemin
+ * multiple et bidirectionnel, en quête) : UN SEUL point de passage pour le
+ * mouvement lui-même, que le contrôle qui l'entoure soit unitaire ou net.
  */
 final class DonObjet
 {
@@ -79,23 +84,45 @@ final class DonObjet
             ]);
         }
 
-        DB::transaction(function () use ($ligne, $objet, $receveur, $quantite) {
-            if ($objet->emplacement === 'consommable') {
-                // Pile : on retire au donneur, on empile chez le receveur.
-                if ((int) $ligne->quantite <= $quantite) {
-                    $ligne->delete();
-                } else {
-                    $ligne->decrement('quantite', $quantite);
-                }
+        DB::transaction(fn () => $this->transferer($ligne, $receveur, $quantite));
+    }
 
-                RangementObjet::ranger($objet, (int) $receveur->id, $quantite);
+    /**
+     * La MÉCANIQUE pure du transfert — extraite de `donner()` le 2026-09-17
+     * pour que la SÉANCE d'échange en quête ({@see SeanceEchange}) puisse
+     * l'appeler PLUSIEURS fois (un mouvement par pièce, dans les deux sens)
+     * sous UNE SEULE validation déjà faite sur l'ÉTAT FINAL des deux sacs :
+     * deux sacs pleins qui échangent deux armures est légal au canon, et
+     * pourtant aucun contrôle pièce par pièce (`peutRanger()` avant chaque
+     * mouvement) ne le laisserait passer, dans quelque ordre que ce soit.
+     *
+     * ⚠ Ni contrôle de propriété ni de capacité ici — c'est tout l'intérêt de
+     * l'extraction : `donner()` reste le chemin UNITAIRE qui les fait (don au
+     * hub), la séance les fait à son échelle à elle (le NET des deux sacs)
+     * puis appelle CETTE méthode pour chaque mouvement. Ne jamais dupliquer
+     * la pile fusionnée / ligne déplacée ci-dessous — c'est précisément ce
+     * qui préserve les `ameliorations` de Forge.
+     */
+    public function transferer(Inventaire $ligne, Personnage $receveur, int $quantite = 1): void
+    {
+        $objet = $ligne->objet;
+        $quantite = max(1, $quantite);
 
-                return;
+        if ($objet->emplacement === 'consommable') {
+            // Pile : on retire au donneur, on empile chez le receveur.
+            if ((int) $ligne->quantite <= $quantite) {
+                $ligne->delete();
+            } else {
+                $ligne->decrement('quantite', $quantite);
             }
 
-            // Non consommable : la LIGNE change de propriétaire, améliorations
-            // de Forge comprises. Elle atterrit au sac — jamais équipée d'office.
-            $ligne->update(['personnage_id' => $receveur->id, 'emplacement' => 'sac']);
-        });
+            RangementObjet::ranger($objet, (int) $receveur->id, $quantite);
+
+            return;
+        }
+
+        // Non consommable : la LIGNE change de propriétaire, améliorations
+        // de Forge comprises. Elle atterrit au sac — jamais équipée d'office.
+        $ligne->update(['personnage_id' => $receveur->id, 'emplacement' => 'sac']);
     }
 }

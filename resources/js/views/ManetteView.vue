@@ -20,6 +20,7 @@ import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
 import ChoixListeSheet from '../components/manette/ChoixListeSheet.vue';
+import EchangeSheet from '../components/manette/EchangeSheet.vue';
 import VoteSheet from '../components/manette/VoteSheet.vue';
 import { souscrireGroupe, souscrireJoueur } from '../composables/useEcho';
 import { useApi } from '../composables/useApi';
@@ -538,6 +539,20 @@ const LISTES = {
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
     sacrifier_pour_sort: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
+    // Jeter (doc plan-echange-et-jeter, révision R1/R2 du 2026-09-17) : les
+    // lignes du sac, `confirmer` ouvre un palier de confirmation — et, si la
+    // pile compte plus d'un exemplaire, un palier de QUANTITÉ avant lui — dans
+    // ChoixListeSheet plutôt qu'un 3e niveau : `jeter` n'a pas de cibles.
+    // C'est le seul geste du jeu qui détruit de la valeur sans rien rendre.
+    jeter: { cle: 'objets', titre: 'Quel objet jeter ?', retour: 'Retour aux objets', confirmer: true },
+    // Échanger — la SÉANCE du canon (R3) : l'option porte désormais
+    // `parametres.allies[]` (un par allié adjacent debout), PAS des objets.
+    // Choisir un allié dans cette liste n'envoie rien : `choisirEntree`
+    // l'intercepte pour ouvrir EchangeSheet (mode 'echange'), qui affiche les
+    // deux sacs et n'a qu'une seule validation. `retour` nomme la liste
+    // qu'on retrouve en sortant de la séance (même convention que
+    // `liste.retour` pour un 3e niveau de ciblage : « Retour aux sorts », etc.).
+    echanger: { cle: 'allies', titre: 'Échanger avec qui ?', retour: 'Retour aux alliés' },
 };
 
 function choisirOption(choix) {
@@ -573,6 +588,11 @@ function choisirOption(choix) {
             mode: 'liste',
             titre: liste.titre,
             grouper: liste.grouper === true,
+            // `jeter` : confirmation avant l'envoi, portée par la frame jusqu'à
+            // ChoixListeSheet (patron repris de la confirmation tir ami de
+            // CibleSheet, au niveau de la liste puisque `jeter` n'a pas de
+            // niveau de cibles).
+            confirmer: liste.confirmer === true,
             entrees,
             retour: 'Retour aux actions',
         });
@@ -628,12 +648,33 @@ function choisirEntree(entree) {
     const { option, retour } = feuilleOption.value;
     const liste = LISTES[option.id];
 
+    // Échanger (R3) : choisir l'allié n'ENVOIE rien — ça ouvre la SÉANCE, qui
+    // porte sa propre validation unique (transferts[]). Testé AVANT `cibles` :
+    // une entrée d'allié n'en porte pas, et il ne faut pas non plus la laisser
+    // tomber jusqu'à l'envoi direct comme un choix simple sans sous-écran.
+    if (option.id === 'echanger') {
+        empiler({ option, mode: 'echange', allie: entree, retour: liste?.retour ?? 'Retour' });
+        return;
+    }
+
     if (Array.isArray(entree.cibles) && entree.cibles.length) {
         empiler(frameCible(option, entree, liste?.retour ?? 'Retour'));
         return;
     }
 
-    envoyerOption(option, { cle: entree.cle });
+    // R2 : ChoixListeSheet a pu faire choisir une QUANTITÉ avant de confirmer
+    // (`jeter` uniquement, portée par `entree.quantite_choisie`). Omise quand
+    // elle vaut 1 : le contrat le dit lui-même, « une quantité absente vaut 1 ».
+    const parametres = { cle: entree.cle };
+    if (entree.quantite_choisie > 1) parametres.quantite = entree.quantite_choisie;
+    envoyerOption(option, parametres);
+}
+
+/** Séance d'échange (R3) : une SEULE validation envoie tous les transferts —
+ *  la capacité finale est jugée côté serveur, jamais recalculée ici. */
+function validerEchange(transferts) {
+    const { option, allie } = feuilleOption.value;
+    envoyerOption(option, { cle: allie.cle, transferts });
 }
 
 /** Case choisie sur la mini-carte → POST {option_id, parametres: {x, y}}. */
@@ -1252,6 +1293,16 @@ const navItems = computed(() => (scene.value === 'marche'
                         v-else-if="feuilleOption && feuilleOption.mode === 'liste'"
                         :feuille="feuilleOption"
                         @choisir="choisirEntree"
+                        @retour="retourFeuille"
+                    />
+                    <!-- Séance d'échange (R3) — même remarque : avant le
+                         fourre-tout CibleSheet. -->
+                    <EchangeSheet
+                        v-else-if="feuilleOption && feuilleOption.mode === 'echange'"
+                        :feuille="feuilleOption"
+                        :mon-nom="hero.name"
+                        :mon-personnage-id="monPersonnageId"
+                        @valider="validerEchange"
                         @retour="retourFeuille"
                     />
                     <CibleSheet

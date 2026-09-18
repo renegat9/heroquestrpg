@@ -554,8 +554,9 @@ dans les paramètres du narrateur (<strong>5 secondes</strong> par défaut). Ell
 moteur a décidé : l'écran ne calcule rien.</p>
 ''')
 ecrire(fig('70-scene-attaque',
-           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et un gobelin, qui n'a "
-           "qu'un point de Body, est terrassé. Les dés qui comptent sont cerclés de vert."))
+           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et Briseur de Filons, "
+           "qui n'a qu'un point de Body comme tout monstre de base, est terrassé. Les dés qui "
+           "comptent sont cerclés de vert."))
 ecrire(fig('71-scene-jet',
            "Un jet d'attribut dit toujours ce qu'il rapporte : deux succès sur les deux requis, la "
            "table vole en morceaux et laisse 45 pièces d'or au groupe.", 'fig scene'))
@@ -603,12 +604,17 @@ autour de l'action.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('31-manette-deplacement',
-           "La feuille de déplacement : « 10 cases — 5 + dé 5 ». Les cases vertes sont "
-           "atteignables <em>et légales</em> ; le serveur les a déjà calculées, le téléphone "
-           "ne fait que les peindre.", 'fig tel') +
+           "Un tap ne part plus tout droit : le serveur renvoie le <strong>trajet exact</strong> "
+           "— ici 7 points, budget épuisé au bout — et le peint en orange ; seul un second tap, "
+           "ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle affiche "
+           "une décision déjà prise.", 'fig tel') +
        fig('30-manette-action',
-           "Le menu du tour, composé par le moteur : se déplacer, attaquer, lancer un sort, "
-           "tenter une épreuve, fouiller — et toujours terminer le tour.", 'fig tel') +
+           "Le menu du tour, composé par le moteur — jamais par l'IA. Il porte depuis le "
+           "2026-09-17 un geste de plus, visible ici : <strong>Jeter un objet</strong> "
+           "(gratuit, répétable, encore proposé après avoir agi). Le second, "
+           "<strong>Échanger avec un allié adjacent</strong> (une action, pour toute la "
+           "séance), n'apparaît que si un allié se tient à côté — pas le cas de ce tour, où "
+           "Borin vient d'encaisser Grom s'effondrer dans le fil du combat.", 'fig tel') +
        '</div>')
 ecrire('''
 <h3>Une action, et une seule</h3>
@@ -659,7 +665,7 @@ définitivement que si personne ne la relève avant la fin du combat.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('72-scene-attaque-monstre',
-           "Mâchefer, un orque, frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
+           "Spectre des Galeries frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
            "dégâts l'amènent à zéro.", 'fig scene') +
        fig('73-scene-chute',
            "La scène suivante le dit : à terre, mais relevable jusqu'à la fin du combat. La chute "
@@ -693,9 +699,10 @@ ecrire('''
 </ul>
 ''')
 ecrire(fig('22-table-donjon',
-           "Une salle basse, au chaud. À gauche, le fil des événements donne chaque jet ; en "
-           "haut, la barre d'initiative mêle héros et monstres révélés ; à droite, l'état du "
-           "groupe — Aldric est tombé à 0 point de Body, il est encore relevable."))
+           "Une galerie déjà bien entamée. À gauche, le fil des événements donne chaque jet ; "
+           "en haut, la barre d'initiative mêle héros et monstres révélés ; à droite, l'état du "
+           "groupe — Grom est tombé à 0 point de Body (« il s'affaisse et ne se relève pas », "
+           "dit le maître de jeu), encore relevable jusqu'à la fin du combat."))
 fin()
 
 # ============================================= 7. L'ÉQUIPEMENT ============
@@ -920,6 +927,51 @@ ecrire('''
   vérifiée ; celle du donneur peut être en dépassement, se délester étant justement la façon de
   régulariser un sac saturé par le butin. <strong>Un artefact appartient au groupe</strong>,
   pas à celui qui l'a trouvé : il circule.</p>
+</div>
+
+<div class="encadre">
+  <h4>En pleine quête : équiper, échanger, jeter</h4>
+  <p>Les trois gestes d'inventaire existent aussi <strong>dans le donjon</strong>, et deux
+  d'entre eux coûtent <strong>l'action du tour</strong> — vous ne réorganisez pas votre
+  barda en frappant.</p>
+  <ul>
+    <li><strong>Équiper / ranger</strong> une pièce : une action. Une arme à une main se
+    place à droite ou à gauche, et le menu dit ce qu'elle remplace.</li>
+    <li><strong>Échanger avec un allié adjacent</strong> : une action pour la
+    <strong>séance entière</strong>. Les deux sacs s'ouvrent côte à côte, les pièces
+    circulent <strong>dans les deux sens</strong> et autant que vous voulez, puis une
+    seule validation. Deux sacs pleins peuvent donc <strong>troquer</strong> : c'est
+    l'état final qui compte, pas chaque pièce prise à part. Comme au hub, rien à
+    confirmer — vous êtes autour de la même table.</li>
+    <li><strong>Jeter</strong> un objet : <strong>gratuit</strong>, et autant de fois que
+    vous le voulez dans le tour, y compris après avoir frappé.</li>
+  </ul>
+  <p>⚠ Un objet jeté est <strong>détruit</strong>, il ne reste pas au sol : le téléphone
+  vous le fait confirmer, et vous demande combien d'exemplaires quand il y en a
+  plusieurs.</p>
+</div>
+''')
+ecrire('<div class="duo">' +
+       fig('15-manette-echange',
+           "La séance d'échange avec Borin : les deux sacs côte à côte, une pièce "
+           "<strong>encombrante</strong> partant dans chaque sens — l'Épée large vers Borin, "
+           "son Bouclier vers Grom — pendant que la Fiole de soin, juste en dessous, ne porte "
+           "<em>aucun badge</em> : un consommable ne compte jamais dans la capacité du sac.",
+           'fig tel') +
+       fig('16-manette-jeter-quantite',
+           "« Jeter » sur une pile de plusieurs exemplaires ouvre d'abord un <strong>palier de "
+           "quantité</strong> : le nombre qui part est celui qu'on choisit ici — deux fioles sur "
+           "les trois portées — jamais toute la pile par défaut.", 'fig tel') +
+       '</div>')
+ecrire('''
+<div class="encadre avert">
+  <h4>Pourquoi jeter ne coûte rien</h4>
+  <p>Le canon range les trois gestes sous « gérer son stuff coûte l'action du tour ».
+  <strong>Nous en avons sorti « jeter »</strong>, et c'est un écart délibéré. Le même
+  paragraphe crée la tension qui l'exige : sac plein devant un coffre, il faut se délester
+  pour ramasser. Au prix d'une action par pièce, ouvrir un coffre encombré coûtait le tour
+  entier — la tension devenait une punition. Les deux autres gestes, eux, restent au prix
+  fort.</p>
 </div>''')
 fin()
 
@@ -1367,6 +1419,8 @@ ecrire('''
   <li>Bourse <strong>commune</strong></li>
   <li>Marché : au hub, atomique, tous doivent confirmer</li>
   <li>Don : au hub, sac du receveur vérifié</li>
+  <li>Échange en quête : allié <strong>adjacent</strong>, séance dans les deux sens, <strong>une</strong> action</li>
+  <li>Jeter : <strong>gratuit</strong>, répétable — l'objet est détruit</li>
   <li>Revente : 50 % · artefacts : jamais</li>
   <li>Sac = PV Body max ÷ 2 (+ bonus de classe)</li>
 </ul></section>

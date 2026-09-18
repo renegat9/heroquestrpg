@@ -76,6 +76,11 @@ const ICONE_TYPE = {
     actionner_levier: 'toggle_on',
     equiper: 'swords',
     desequiper: 'backpack',
+    // Échanger / jeter (2026-09-17) : sans entrée ici, tombaient sur
+    // `touch_app` comme `objet`/`objet_libre` avant eux — même défaut, repéré
+    // en ajoutant leurs voisins directs ci-dessus.
+    echanger: 'swap_horiz',
+    jeter: 'delete_forever',
     // Ajouté le 2026-09-04 avec l'*Étreinte des Ronces* (carte de Dread
     // *Creeping Grasp*) : « spend an action to DESTROY THE VINES ». On coupe,
     // d'où le sécateur plutôt qu'une main tendue.
@@ -169,6 +174,19 @@ function creneauConsomme(option) {
         // Activer un Style Élémentaire ne coûte aucun créneau (miroir de
         // `ResolveurTour::creneauOption`).
         case 'style':
+        // ⚠ AJOUTÉ 2026-09-17 (révision R1 du plan échange-et-jeter) : `jeter`
+        // passe au créneau `interaction`, donc GRATUIT côté serveur — et hors
+        // de la garde `! $aAgi` au menu, précisément pour rester utilisable
+        // APRÈS avoir agi (se délester une fois le coup porté, pas avant).
+        // Quatrième cicatrice de ce miroir, et la PREMIÈRE dans l'autre sens :
+        // `actionner_levier` se croyait gratuit à tort, `objet_libre` manquait,
+        // l'attaque ignorait le bonus d'héroïsme — ici c'est le serveur qui
+        // accepterait et le client qui aurait grisé. La leçon inverse
+        // d'`actionner_levier` (retiré des gratuits le 2026-08-24 contre un
+        // jet retentable à l'infini sans coût) NE S'APPLIQUE PAS : jeter
+        // RETIRE une pièce du sac à chaque geste, la suite est finie et
+        // décroissante — la répétition est le but recherché, pas une faille.
+        case 'jeter':
             return false;
         // Actions terminantes : disponibles tant que le tour n'est pas fini.
         case 'concentration':

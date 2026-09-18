@@ -527,8 +527,16 @@ L'interface affiche en parallèle les **objets équipés** et le **contenu du sa
 > équipée se déséquipe d'abord. Les consommables se transfèrent par pile.
 > Un **artefact circule** : il appartient au groupe, pas à son découvreur.
 >
-> L'échange **en pleine quête** (adjacence + coût d'action, tel que décrit
-> ci-dessus) reste à faire, comme « équiper » en quête et « jeter un objet ».
+> **Implémenté (2026-09-17) — les trois gestes de ce paragraphe sont complets.**
+> « Équiper » en quête l'était déjà ; l'**échange avec un allié adjacent** et
+> **jeter un objet du sac** sont deux options de menu résolues par `POST /choix`
+> (jamais les routes REST ci-dessus, qui restent hub-only), chacune au prix de
+> **l'action du tour**, comme ce paragraphe le demande. L'échange réutilise le
+> service du don : adjacence de Manhattan 1, receveur debout, capacité du sac
+> vérifiée **par objet** (un consommable entre partout, une armure non), et les
+> améliorations de Forge suivent la pièce. ⚠ Jeter **détruit** l'objet : le
+> moteur n'a aucune couche d'objets posés au sol — arbitrage écrit dans
+> `docs/regles/equipement-et-armurerie.md`, à relire avant d'en changer.
 
 ### Or
 - **À l'arrivée dans un groupe** : l'or **personnel** du personnage est **versé au pot commun** du groupe.

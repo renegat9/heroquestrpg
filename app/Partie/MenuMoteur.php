@@ -19,6 +19,7 @@ use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Quete;
+use App\Partie\Marche\CapaciteSac;
 use App\Partie\Votes\VoteGroupe;
 use App\Support\Journal;
 use Illuminate\Support\Facades\Log;
@@ -1116,6 +1117,57 @@ final class MenuMoteur
         // jamais sur le déplacement.
         $actionInterdite = $this->sorts->actionInterdite($personnage);
 
+        // ── JETER (créneau INTERACTION, GRATUIT — révision René 2026-09-17) ──
+        // « Jeter des items ne prend pas d'action, permettant d'en jeter
+        // plusieurs dans le même tour. » `ResolveurTour::creneauOption()`
+        // range déjà `jeter` en `interaction` : ce qui manquait ici, c'est de
+        // sortir l'option de la garde `! $aAgi` du créneau ACTION ci-dessous.
+        //
+        // ⚠ Piège nommé par le plan : rester dans ce bloc rendrait le geste
+        // gratuit pour le RÉSOLVEUR mais INVISIBLE au menu dès que le héros a
+        // agi — une gratuité pour rien, alors que c'est justement APRÈS avoir
+        // agi qu'on veut encore pouvoir se délester (le sac plein qui bloque
+        // un ramassage se découvre après avoir frappé, pas avant).
+        //
+        // ⚠ La leçon d'`actionner_levier` (retiré des créneaux gratuits le
+        // 2026-08-24 : un jet RETENTABLE sans coût se relance à l'infini dans
+        // le même tour) NE S'APPLIQUE PAS ici : jeter RETIRE une pièce du sac
+        // à CHAQUE geste, la suite est donc FINIE et DÉCROISSANTE — se
+        // répéter est le but voulu de la règle, pas la faille que le levier
+        // avait ouverte.
+        $lignesInventaire = $etat !== null && $etat->position_x !== null
+            ? $personnage->inventaire()->with('objet')->orderBy('id')->get()
+            : collect();
+
+        // ⚠ PAS `=== 'sac'` : une potion ou un parchemin vit en
+        // `emplacement === 'consommable'` et serait sinon exclu des deux
+        // gestes — précisément le cas d'usage du plan (« la potion du
+        // barbare rejoint le magicien »). Chargée UNE seule fois : sert aussi
+        // à « échanger » dans le créneau ACTION plus bas.
+        $lignesJetables = $lignesInventaire->filter(fn ($l) => $l->objet !== null
+            && ! in_array($l->emplacement, Equipement::SLOTS, true));
+
+        if ($lignesJetables->isNotEmpty() && ! $actionInterdite
+            && $etat !== null && $etat->position_x !== null) {
+            $options[] = [
+                'id' => 'jeter',
+                'libelle' => 'Jeter un objet — définitif',
+                'type' => 'jeter',
+                'parametres' => [
+                    'objets' => $lignesJetables->map(fn ($l) => [
+                        'cle' => "objet:{$l->id}",
+                        'inventaire_id' => (int) $l->id,
+                        'nom' => $l->objet->nom,
+                        // Publiée sur CHAQUE entrée (René 2026-09-17) : le
+                        // payload affichait « ×3 » et détruisait un seul
+                        // exemplaire — `quantite` est désormais le nombre
+                        // réel, et sert aussi de `max` au palier de saisie.
+                        'quantite' => (int) $l->quantite,
+                    ])->values()->all(),
+                ],
+            ];
+        }
+
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
         if ((! $aAgi || $bonusAttaqueDisponible) && ! $actionInterdite
             && $etat !== null && $etat->position_x !== null) {
@@ -1464,10 +1516,11 @@ final class MenuMoteur
             }
 
             // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
-            // du tour. Réutilise l'inventaire réel : « Équiper » les pièces
-            // d'équipement du sac, « Ranger » celles portées.
-            $lignesInventaire = $personnage->inventaire()->with('objet')->orderBy('id')->get();
-
+            // du tour. Réutilise l'inventaire réel (`$lignesInventaire`,
+            // chargée avant ce bloc pour servir aussi à « jeter », gratuit et
+            // hors de cette garde) : « Équiper » les pièces d'équipement du
+            // sac, « Ranger » celles portées.
+            //
             // Ce qui occupe chaque emplacement en ce moment : `equiper()` fait
             // un ÉCHANGE automatique (l'occupant retourne au sac), et le
             // libellé doit le dire.
@@ -1525,6 +1578,76 @@ final class MenuMoteur
                         'parametres' => ['inventaire_id' => (int) $ligne->id],
                     ];
                 }
+            }
+
+            // ÉCHANGER — désormais la SÉANCE du canon (révision René
+            // 2026-09-17), bidirectionnelle et multiple pour UNE action : doc
+            // 01 §7 dit « transférer armes/armures ENTRE LES DEUX inventaires,
+            // dans la limite des capacités RESPECTIVES ». La première
+            // livraison appelait `DonObjet::donner()` un objet à la fois,
+            // cible par cible — la forme du don au hub, pas celle de la
+            // règle : deux sacs PLEINS qui échangent deux armures est légal
+            // au canon, et pourtant AUCUN ordre d'application ne passerait un
+            // contrôle pièce par pièce (le premier mouvement échoue toujours,
+            // quel que soit le sens). `SeanceEchange::resoudre()` juge donc
+            // le NET des deux sacs une seule fois côté résolveur ; le menu ne
+            // fait plus que présenter les deux sacs côte à côte, PAR ALLIÉ
+            // (`parametres.allies[]`, `cle: "heros:{id}"`) — le patron
+            // d'adjacence reste celui de `relever` ci-dessus, Manhattan = 1.
+            //
+            // ⚠ `encombrant` est publié PAR PIÈCE (même filtre que
+            // `CapaciteSac::occupation()` : seul l'emplacement `sac` compte,
+            // un consommable jamais) pour que la manette affiche un total qui
+            // bouge en direct SANS re-dériver cette règle — elle additionne
+            // des entiers, elle ne juge jamais elle-même ce qui est
+            // encombrant. La validation à la soumission reste entièrement
+            // côté serveur (`SeanceEchange`) : cet aperçu peut se tromper.
+            $voisins = $quete->etatsPersonnages()
+                ->where('tombe', false)
+                ->where('personnage_id', '!=', $personnage->id)
+                ->with('personnage')
+                ->get()
+                ->filter(fn ($e) => $e->personnage !== null && $e->position_x !== null
+                    && abs((int) $e->position_x - (int) $etat->position_x)
+                        + abs((int) $e->position_y - (int) $etat->position_y) === 1);
+
+            if ($voisins->isNotEmpty()) {
+                $sacPublie = fn ($lignes) => $lignes->map(fn ($l) => [
+                    'inventaire_id' => (int) $l->id,
+                    'nom' => $l->objet->nom,
+                    'quantite' => (int) $l->quantite,
+                    'encombrant' => $l->emplacement === 'sac',
+                ])->values()->all();
+
+                $monSac = $sacPublie($lignesJetables);
+                $maCapacite = [
+                    'occupation' => CapaciteSac::occupation($personnage),
+                    'max' => CapaciteSac::pour($personnage),
+                ];
+
+                $entreesEchange = $voisins->map(function ($e) use ($sacPublie, $monSac, $maCapacite) {
+                    $sonSacLignes = $e->personnage->inventaire()->with('objet')->orderBy('id')->get()
+                        ->filter(fn ($l) => $l->objet !== null && ! in_array($l->emplacement, Equipement::SLOTS, true));
+
+                    return [
+                        'cle' => "heros:{$e->personnage_id}",
+                        'nom' => $e->personnage->nom,
+                        'mon_sac' => $monSac,
+                        'son_sac' => $sacPublie($sonSacLignes),
+                        'ma_capacite' => $maCapacite,
+                        'sa_capacite' => [
+                            'occupation' => CapaciteSac::occupation($e->personnage),
+                            'max' => CapaciteSac::pour($e->personnage),
+                        ],
+                    ];
+                })->values()->all();
+
+                $options[] = [
+                    'id' => 'echanger',
+                    'libelle' => 'Échanger avec un allié adjacent',
+                    'type' => 'echanger',
+                    'parametres' => ['allies' => $entreesEchange],
+                ];
             }
         }
 

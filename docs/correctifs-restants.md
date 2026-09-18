@@ -16,6 +16,150 @@
 
 ---
 
+## 0. Ce qui reste VRAIMENT — relevé du 2026-09-17
+
+> ⚠ **Entête d'avancement, pas une réécriture.** Le corps du document reste
+> daté : ses descriptions décrivent le code de juillet 2026 et le restent. Cette
+> section dit seulement, deux mois plus tard, **lesquels de ses « Restent » sont
+> encore vrais**.
+>
+> ⚠ **Périmètre du relevé** : les lignes « Restent » des §1 à §5 et les constats
+> du 2026-07-29 / 2026-08-01. Le **§6 « Non couvert par ce test »** n'a PAS été
+> ré-audité ici — il liste ce qu'un test n'a pas vu, pas une dette, et le dire
+> vaut mieux que le cocher de confiance.
+>
+> ⚠ **Comment chaque ligne a été vérifiée**, parce que « relu dans le code » est
+> une promesse trop large pour être tenue d'un bloc : les items qui nomment un
+> **fichier, une classe ou une route** ont été confrontés au code (absence
+> d'`echanger`/`jeter_objet`, absence de `Worker`, colonnes de migration,
+> `SpellInfoSheet.vue`) ; ceux qui nomment un **objet, un nœud ou un prix** ont
+> été confrontés au **catalogue** (`ObjetSeeder`, `CompetenceSeeder`, les
+> migrations de retrait) — c'est ce second contrôle qui manquait à la première
+> version de cette section, et il a fait tomber deux restes sur neuf. Ceux qui
+> décrivent un **symptôme de table** (narration décorrélée, porte sans option)
+> ne sont vérifiables qu'en jeu : ils restent marqués « à reproduire ».
+
+### Encore ouvert
+
+| Reste | Où il en est |
+|---|---|
+| **Voix du narrateur muette sur l'issue `errant`** | Le fil de combat l'annonce (« X surgit du coffre ! »), le narrateur se tait toujours. C'est un cas de la règle « un effet automatique que rien n'annonce » à moitié tenu. |
+| **Épilogue de défaite omettant les quêtes gagnées** | Inchangé — contexte à enrichir côté `ResumeCampagne`. |
+| **Onglet narrateur en arrière-plan > 1 min** | Toujours écarté, et c'est un **choix**, pas un oubli : aucun `Worker` dans `resources/js`. Le battement en Web Worker reste la piste nommée. |
+| **Narration décorrélée / en retard d'une action** | ⚠ Toujours **jamais reproduite côté serveur**. À reproduire AVANT de corriger quoi que ce soit — c'était déjà la consigne, elle tient. |
+| **Porte sans option « Ouvrir » plusieurs tours** | Toujours « à reconfirmer au prochain test » ; l'hypothèse du créneau déjà consommé n'a jamais été infirmée, et le grisage par cause (2026-09-14) la rendrait visible si elle se reproduisait. |
+| ~~**Équilibrage armes/maîtrise**~~ | ⚠ **Périmé des DEUX moitiés** — ni le Fendoir ni *Maîtrise lourde* n'existent encore. Voir « Fermé depuis ». |
+
+### Fermé depuis, et par quoi
+
+- ~~**Retour des actions de couleur**~~ (§5, « chantier de conception à part
+  entière ») — **livré par les ÉPREUVES** (René, 2026-08-24), et **par le chemin
+  exact que ce document annonçait** : des ancres posées sur la carte à sa
+  création, résolues par le moteur comme les leviers. 7 entrées seedées,
+  `App\Partie\MoteurEpreuves`, `App\Engine\MotsClesEpreuve`, quatrième couche de
+  `AssembleurCarte`. → `docs/regles/epreuves-et-attributs.md`
+- ~~**Détail des dés absent du journal**~~ (§1.3, « reste éventuel ») — répondu
+  **dans ce même fichier** par le §C1 : `JournalCombat::detailDes` publie
+  « · 3 crânes / 1 bouclier » sur la table **et** sur la manette.
+- ~~**D1 — descriptions des sorts + bouton « Lancer » → ciblage**~~ — la seule
+  ligne du §D, livrée mais jamais marquée : `SpellInfoSheet.vue` affiche l'effet
+  (y compris pour un sort épuisé ou hors tour, pour qu'on puisse le **relire**
+  sans pouvoir le lancer), « Lancer » porte l'option de menu et reste désactivé
+  **avec sa raison**, `CibleSheet.vue` prend le ciblage.
+- ~~**`salle_artefact` / `salles_coffre` figés à la reprise**~~ (verdict
+  2026-08-05) — devenus des **colonnes**
+  (`database/migrations/2026_08_02_000001_salles_coffre.php`). C'est le cas
+  fondateur de la règle consolidée de `CLAUDE.md` : **tout état de jeu durable
+  vit en base, jamais en cache.**
+- ~~**Échange d'objet en pleine quête** et **jeter un objet du sac**~~ (doc 01
+  §7) — **faits le 2026-09-17**, ce qui complète les **trois** gestes
+  d'inventaire du canon (« équiper » en quête l'était depuis juillet). Deux
+  options de menu résolues par `POST /choix`, au prix de l'action du tour ;
+  l'échange **appelle `DonObjet::donner()`** plutôt que de redire sa règle, et
+  ⚠ jeter **détruit** l'objet faute de toute couche d'objets posés au sol —
+  arbitrage écrit dans `docs/regles/equipement-et-armurerie.md`. Deux défauts
+  bloquants n'ont été trouvés qu'en **jouant** sur la vraie stack, pas à la
+  relecture : une `cle` publiée en entier là où le validateur et les cinq listes
+  sœurs veulent `"objet:{id}"` (tout clic en 422), et un filtre `emplacement ===
+  'sac'` qui excluait **tous les consommables** — donc précisément la potion que
+  le chantier existait pour faire circuler.
+- ~~**Prix vs revenus**~~ (§3, « potion 100 or vs ~50 or de butin — à
+  recalibrer ») — **retiré sur décision de René, 2026-09-17 : « on a les prix
+  originaux ».** Ce reste datait d'une époque où les prix étaient les nôtres :
+  doc 16 §1 posait que **les prix n'existent dans aucun livret**, et nos valeurs
+  étaient donc des propositions de playtest, recalibrables par définition. Les
+  **photos du paquet officiel** (`equipments.pdf` + `potions.pdf`, © 2021-2023
+  Hasbro, relevées le **2026-08-14**) ont levé cette impasse : `reference/16_armurerie.md`
+  §2.1bis porte les 35 cartes avec leur prix imprimé, et prime explicitement sur
+  la conversion fan de §2.2, dont l'auteur écrivait lui-même « I have changed
+  some item costs ».
+
+  ⚠ **Conséquence à ne pas manquer : le prix n'est plus un levier d'équilibrage,
+  c'est une source.** Le recalibrer reviendrait à *dé-sourcer* une valeur que le
+  carton atteste — exactement ce que la règle « ne jamais semer une valeur que
+  les livrets ou les cartes ne sourcent pas » interdit. Si un déséquilibre
+  apparaît en jeu, le côté ajustable est **le revenu** (or de quête, butin de
+  boss), qu'aucune carte ne source.
+
+  ⚠ Le chiffre de la ligne d'origine ne désignait d'ailleurs plus rien de
+  comparable : la *Potion of Healing* officielle vaut **500** (§2.1bis), et la
+  « Potion de soin » à 100 encore au catalogue n'est **pas un article de
+  boutique** — c'est une carte du **deck de trésor** que `DeckFouille` tire
+  nommément, conservée à dessein aux côtés des quinze potions officielles.
+
+- ~~**Équilibrage armes/maîtrise**~~ (§« Reste après les correctifs du
+  2026-08-01 ») — ⚠ **les deux moitiés de ce reste ont disparu avec leurs
+  objets**, et chacune par une décision écrite :
+
+  **« Le Fendoir des Titans (6 dés) n'a jamais été trouvé en jeu. »** Le Fendoir
+  n'était **pas une vraie carte** : il faisait partie des **7 artefacts
+  inventés**, sans aucun équivalent officiel ni en nom ni en effet
+  (`reference/16_armurerie.md:1243`). Tous les sept ne faisaient que monter la
+  courbe de dés — 4, 5, 6 — quand un vrai artefact fait ce que **rien d'autre ne
+  fait** ; le Fendoir **rendait toute l'armurerie caduque dès qu'on le trouvait**.
+  Supprimé le **2026-08-09**
+  (`database/migrations/2026_08_09_000001_artefacts_du_paquet_et_slot_talisman.php`,
+  avec ses lignes d'inventaire et les pointeurs de quête), remplacé par la
+  conversion du paquet officiel `sjeng-artefacts.pdf`. Son remplaçant de rôle, la
+  *Lame des Esprits*, lance **3 dés** — sauf contre les morts-vivants. Absent de
+  tous les seeders : rien ne le re-sème.
+
+  **« Le barbare paie *Maîtrise lourde* pour une armure que le nain a
+  gratuitement. »** La **symétrie elle-même** a été supprimée (René, 2026-08-22)
+  plutôt que rééquilibrée : les deux classes étaient miroirs — chacune payait la
+  spécialité gratuite de l'autre — et les **deux** nœuds sont partis,
+  *Maîtrise lourde* **et** *Poigne de forgeron*
+  (`database/migrations/2026_08_22_000002_retirer_maitrise_lourde_et_poigne.php`).
+  Barbare et nain ont tout dès le niveau 1. ⚠ La migration existe parce que
+  `CompetenceSeeder` est en `updateOrCreate` et ne purge pas : retirer un nœud du
+  seeder ne l'enlève d'aucune base déjà semée.
+
+  ⚠ **Leçon de méthode, notée ici exprès.** Ces deux lignes ont été reconduites
+  telles quelles dans la première version de cette §0 parce qu'elles avaient la
+  **forme** d'un reste d'équilibrage — et la forme n'est pas la nature : leurs
+  deux objets ont été retirés dans les trois semaines qui ont suivi leur
+  rédaction. **Une ligne de playtest qui nomme un objet, un nœud ou un prix se
+  confronte au catalogue avant d'être reportée**, au même titre qu'une clé se
+  confronte à son lecteur. C'est la raison pour laquelle le relevé ci-dessus dit
+  désormais *comment* chaque item a été vérifié, et non qu'il l'a été.
+- **Relevage à 1 PV** — ⚠ n'est PAS un reste : c'est une **décision figée**
+  (René, 2026-08-06), déjà revenue une fois sur ses pas. Le §3 dit l'intention à
+  relire avant d'y toucher. Ne pas rouvrir.
+
+### Ce qui a pris la place de ces restes
+
+Les chantiers ouverts d'aujourd'hui ne sont plus dans ce fichier : ils sont
+**`docs/plan-topologies-de-carte.md`** (enfilade / anneau / étoile — bloquant
+nommé : `DemarreurQuete::choisirGabarit()` ne **tire** rien, il fait encore
+`orderBy('id')->first()`), **`docs/plan-themes-bestiaire.md` §3** (le choix du
+thème à la création) et la **phase 5** de
+`docs/plan-glace-et-degats-mind.md` (les cartes de glace, dont trois n'attendent
+qu'un ciblage de zone côté héros). Les cartes officielles non portées, elles,
+restent où elles doivent être : les entrées `manque` de `config/cartes.php`,
+chacune nommant la mécanique qui lui fait défaut.
+
+---
+
 ## 1. Majeurs — fonctionnalités incomplètes
 
 ### 1.1 ~~Armes et armures sans aucun effet mécanique~~ — FAIT

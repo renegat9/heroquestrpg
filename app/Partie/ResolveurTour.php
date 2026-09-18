@@ -182,6 +182,8 @@ final class ResolveurTour
         private readonly DeckFouille $deck,
         private readonly MoteurCharges $charges,
         private readonly BibliothequeNarration $narration,
+        private readonly DonObjet $donObjet,
+        private readonly SeanceEchange $seanceEchange,
     ) {}
 
     /**
@@ -385,6 +387,8 @@ final class ResolveurTour
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
+                'echanger' => $this->resoudreEchange($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
+                'jeter' => $this->resoudreJeter($groupe, $personnage, $option, $parametres, $acteur),
                 'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 // MUR DE GLACE (Ice Wall, plan glace phase 2) : attaquer une
                 // case de `carte.grille['glace']` adjacente, proposée par
@@ -5051,6 +5055,126 @@ final class ResolveurTour
         return $payload;
     }
 
+    /**
+     * La SÉANCE d'échange avec un allié adjacent (doc 01 §7, révision René
+     * 2026-09-17, `docs/contrat-api.md` « Gérer son inventaire EN QUÊTE »).
+     *
+     * ⚠ `entreeChoisie()` revalide `parametres.cle` (`"heros:{id}"`) contre la
+     * liste PUBLIÉE `allies[]` — whitelist n°1, l'allié lui-même. La whitelist
+     * n°2 (chaque `inventaire_id`/`vers_personnage_id` de `transferts[]`) est
+     * revalidée PAR MOUVEMENT dans {@see SeanceEchange::resoudre()}, qui juge
+     * aussi la capacité des DEUX sacs sur leur ÉTAT FINAL — rien de tout cela
+     * n'est redit ici, un seul point de passage pour cette règle.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreEchange(Groupe $groupe, Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat, array $option, array $parametres, array $acteur): array
+    {
+        $option['parametres'] = $this->entreeChoisie($option, $parametres, 'allies');
+        $allieId = (int) str_replace('heros:', '', (string) data_get($option, 'parametres.cle', ''));
+
+        // Revalidé ici et non seulement au menu : l'allié a pu tomber, OU
+        // S'ÉLOIGNER, entre la génération du menu et la soumission de la
+        // séance (l'adjacence fait partie de la légalité, pas seulement
+        // d'être encore debout) — même garde que l'ancienne cible d'un don.
+        $allieEtat = $quete->etatsPersonnages()
+            ->where('personnage_id', $allieId)->where('tombe', false)
+            ->with('personnage')->first();
+
+        $encoreAdjacent = $allieEtat !== null && $allieEtat->personnage !== null
+            && $allieEtat->position_x !== null && $etat->position_x !== null
+            && abs((int) $allieEtat->position_x - (int) $etat->position_x)
+                + abs((int) $allieEtat->position_y - (int) $etat->position_y) === 1;
+
+        if (! $encoreAdjacent) {
+            throw ValidationException::withMessages(['parametres' => 'Cet allié ne peut plus participer à l\'échange.']);
+        }
+
+        $allie = $allieEtat->personnage;
+        $transferts = (array) ($parametres['transferts'] ?? []);
+
+        $resultat = $this->seanceEchange->resoudre($personnage, $allie, $transferts);
+
+        $payload = [
+            'type' => 'echanger',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'avec' => $allie->nom,
+            'donne' => $resultat['donne'],
+            'recu' => $resultat['recu'],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Jeter un ou plusieurs exemplaires d'une ligne du sac (doc 01 §7) —
+     * DESTRUCTION définitive : le moteur n'a aucune couche d'objets posés au
+     * sol, même précédent que l'arme lancée (`consommerArmeLancee()` supprime
+     * la pièce). La confirmation est du ressort de la manette, jamais du
+     * résolveur.
+     *
+     * ⚠ `quantite` (règle R2, révision René 2026-09-17) est REBORNÉE ici
+     * contre la ligne EN BASE, jamais contre le `quantite` publié par le menu
+     * — la pile a pu bouger entre la proposition et la soumission (ce geste
+     * étant justement gratuit et répétable dans le même tour). Un champ
+     * numérique est la plus facile des whitelists à contourner.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreJeter(Groupe $groupe, Personnage $personnage, array $option, array $parametres, array $acteur): array
+    {
+        $option['parametres'] = $this->entreeChoisie($option, $parametres, 'objets');
+        $ligne = $personnage->inventaire()->with('objet')
+            ->whereKey((int) data_get($option, 'parametres.inventaire_id', 0))->first();
+
+        if ($ligne === null || in_array($ligne->emplacement, Equipement::SLOTS, true)) {
+            throw ValidationException::withMessages(['option_id' => "Cet objet n'est pas dans votre sac."]);
+        }
+
+        $quantiteDemandee = $parametres['quantite'] ?? 1;
+
+        if (! is_numeric($quantiteDemandee) || (int) $quantiteDemandee < 1) {
+            throw ValidationException::withMessages(['parametres' => 'Quantité invalide : au moins 1.']);
+        }
+
+        $quantite = (int) $quantiteDemandee;
+
+        if ($quantite > (int) $ligne->quantite) {
+            throw ValidationException::withMessages([
+                'parametres' => "Il n'y en a pas autant dans le sac : {$ligne->quantite} au maximum.",
+            ]);
+        }
+
+        $objet = $ligne->objet;
+
+        if ($quantite >= (int) $ligne->quantite) {
+            $ligne->delete();
+        } else {
+            $ligne->decrement('quantite', $quantite);
+        }
+
+        $payload = [
+            'type' => 'jeter',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'objet' => $objet?->nom,
+            'quantite' => $quantite,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
     private function resoudreNarratif(Groupe $groupe, array $option, array $acteur): array
     {
         // ⚠ AUCUNE journalisation ici. `ChoixController` a déjà consigné le
@@ -8431,7 +8555,15 @@ final class ResolveurTour
             // coûterait rien se relancerait à l'infini dans le même tour. Il
             // retombe donc sur le créneau d'ACTION par défaut — on ne force plus
             // une herse en passant.
-            'ouvrir_porte', 'sortie', 'retraite', 'style', 'objet_libre' => 'interaction',
+            // `jeter` REJOINT cette liste le 2026-09-17 (révision René :
+            // « jeter des items ne prend pas d'action, permettant d'en jeter
+            // plusieurs dans le même tour »). ⚠ La leçon d'`actionner_levier`
+            // ci-dessus NE S'APPLIQUE PAS : un jet retentable SANS COÛT tourne
+            // en boucle parce que rien ne le consomme, alors que jeter RETIRE
+            // une pièce du sac à chaque geste — la suite est FINIE et
+            // DÉCROISSANTE, se répéter est le but voulu, pas la faille que le
+            // levier avait ouverte.
+            'ouvrir_porte', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter' => 'interaction',
             'concentration', 'relever', 'attente' => 'tour',
             default => 'action',
         };

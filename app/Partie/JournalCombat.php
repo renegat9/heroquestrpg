@@ -277,6 +277,19 @@ final class JournalCombat
             'desamorcage' => $this->desamorcage($a, $acteurNom),
             'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
+            // ⚠ ÉQUIPER/RANGER ÉTAIENT MUETS (ils tombaient sur `default`) :
+            // le fil se taisait sur un geste qui coûte pourtant l'action du
+            // tour en pleine quête. Corrigé EN MÊME TEMPS que l'ajout
+            // d'échanger/jeter, même règle — un effet que rien n'annonce est
+            // injouable.
+            'equiper' => [$this->info("{$acteurNom} équipe ".($a['objet'] ?? 'un objet'))],
+            'desequiper' => [$this->info("{$acteurNom} range ".($a['objet'] ?? 'un objet'))],
+            // ÉCHANGER / JETER (doc 01 §7, 2026-09-17) : jeter est le seul
+            // geste du jeu qui détruit de la valeur sans rien rendre — le fil
+            // doit le dire aussi clairement que la confirmation le demande
+            // côté manette.
+            'echanger' => [$this->info("{$acteurNom} donne ".($a['objet'] ?? 'un objet').' à '.($a['vers'] ?? 'un allié'))],
+            'jeter' => [$this->info("{$acteurNom} jette ".($a['objet'] ?? 'un objet').' — définitif')],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
