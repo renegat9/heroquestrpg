@@ -210,18 +210,27 @@ def main():
         # passe du livret a fini à « 7 en chantier » alors que ses sept
         # captures étaient neuves. On ne retient donc que les dépendances
         # modifiées APRÈS la prise, exactement comme pour un commit.
-        touches = sorted(
-            c for c in set(DEPENDANCES[nom]) & travail
+        # ⚠ C'est le FICHIER qui date, jamais le commit. Troisième correction
+        # de ce contrôle, et la plus instructive : comparer à la date du COMMIT
+        # rendait périmée toute capture prise AVANT le commit qui enregistre le
+        # code qu'elle montre — c'est-à-dire toutes, puisqu'on capture en fin de
+        # chantier et qu'on commite ensuite. Mesuré le 2026-09-18 : sept figures
+        # neuves déclarées périmées par le `git push` qui venait de les livrer.
+        # Le `mtime` du fichier source répond à la seule question qui compte —
+        # « l'écran a-t-il changé depuis la photo ? » — qu'il soit commité ou
+        # non. Le commit ne sert plus qu'à NOMMER le changement dans le rapport.
+        recents = sorted(
+            c for c in DEPENDANCES[nom]
             if os.path.exists(os.path.join(RACINE, c))
             and os.path.getmtime(os.path.join(RACINE, c)) > prise
         )
 
-        if touches:
-            en_cours.append((nom, touches))
-        elif commit is not None and commit > prise:
-            perimees.append((nom, date, sujet))
-        else:
+        if not recents:
             fraiches.append(nom)
+        elif set(recents) & travail:
+            en_cours.append((nom, sorted(set(recents) & travail)))
+        else:
+            perimees.append((nom, date, sujet))
 
     if absentes:
         print('· ABSENTES ({}) — dépôt neuf, ou captures jamais prises.'.format(len(absentes)))
