@@ -57,8 +57,13 @@ const ICONE_TYPE = {
     deplacement: 'directions_walk',
     // Proposer de rentrer (donjon nettoyé) vs BATTRE EN RETRAITE (ça tourne
     // mal) : deux gestes opposés, deux icônes — l'une part, l'autre recule.
+    // ⚠ `retraite` : PAS `sprint`, déjà pris par `franchir` (le saut de fosse,
+    // ci-dessous) — deux actions qui partageraient une icône se confondraient
+    // exactement au moment où elles apparaissent ensemble au menu (René,
+    // 2026-09-18 : « un bonhomme qui court »). `directions_run` est le coureur
+    // simple, distinct.
     sortie: 'logout',
-    retraite: 'u_turn_left',
+    retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',
     sort: 'auto_awesome',
@@ -74,8 +79,20 @@ const ICONE_TYPE = {
     concentration: 'self_improvement',
     ouvrir_porte: 'door_open',
     actionner_levier: 'toggle_on',
-    equiper: 'swords',
-    desequiper: 'backpack',
+    // ⚠ `equiper` PARTAGEAIT `swords` avec `attaque` juste au-dessus dans ce
+    // même menu — capture `combat-apres-haut.png` (2026-09-18) : « Attaquer »
+    // et « Équiper », deux lignes consécutives, icône PIXEL POUR PIXEL
+    // identique, seul le libellé les distingue. `checkroom` (le cintre —
+    // « on s'habille ») dit qu'on ÉQUIPE une pièce, sans reprendre l'épée
+    // croisée réservée à l'action qui FRAPPE.
+    equiper: 'checkroom',
+    // ⚠ `desequiper` (« Ranger ») portait `backpack` — EXACTEMENT l'icône
+    // d'`objet_libre` (« Utiliser un objet ») juste en dessous dans ce même
+    // menu (René, 2026-09-18, capture `armes-avant.png`/`combat-avant2-haut`:
+    // deux lignes consécutives strictement identiques). Ranger RANGE une
+    // pièce déjà portée — `archive` (le tiroir qu'on referme) le distingue
+    // d'« Utiliser un objet », qui reste au sac.
+    desequiper: 'archive',
     // Échanger / jeter (2026-09-17) : sans entrée ici, tombaient sur
     // `touch_app` comme `objet`/`objet_libre` avant eux — même défaut, repéré
     // en ajoutant leurs voisins directs ci-dessus.
@@ -136,83 +153,80 @@ function metaOption(o) {
 /**
  * Créneau consommé par cette option pour MON héros ?
  *
- * Miroir de `App\Partie\ResolveurTour::creneauOption()` — garder les deux en
- * phase. Le serveur RETIRE les options d'un créneau consommé, mais le menu
- * affiché peut dater d'avant l'action : on grise plutôt que de laisser le joueur
- * récolter un 422 « Tu as déjà agi ce tour ».
+ * Depuis le 2026-09-18 (contrat « creneau — chaque option dit ce qu'elle
+ * coûte ») : LIT `option.creneau`, publié par `ResolveurTour::creneauOption()`,
+ * IL NE LE RE-DÉRIVE PLUS DU TYPE. Ce fichier recopiait cette règle serveur en
+ * JS depuis toujours, et la copie a MENTI TROIS FOIS quand la règle a bougé
+ * sans elle — les trois cicatrices sont racontées plus bas, dans le REPLI qui
+ * les a vues naître et qui est le seul endroit où leur cause existe encore.
+ * Publier la décision supprime la classe de défaut : ce fichier n'a plus de
+ * table à tenir à jour, il n'a qu'un champ à lire.
  *
- * Tolérant à l'absence des drapeaux (client plus ancien que le serveur) : sans
- * eux, rien n'est grisé — le comportement d'avant.
+ * Le serveur RETIRE les options d'un créneau consommé, mais le menu affiché
+ * peut dater d'avant l'action : on grise plutôt que de laisser le joueur
+ * récolter un 422 « Tu as déjà agi ce tour ».
  */
 function creneauConsomme(option) {
     const moi = props.creneaux;
     if (!moi) return false;
     if (moi.a_joue) return true;
 
+    // ⚠ DEUX exceptions, et seulement deux, qui restent des `if` sur le TYPE :
+    // Potion d'héroïsme / Rage guerrière (`attaque`, corrigé 2026-09-11) et
+    // Réserve arcanique / Baguette de Rappel (`sort`). Elles ne dépendent PAS
+    // du prix de l'option — une attaque coûte bien l'action — mais de QUI la
+    // regarde : le même bouton `attaque` (ou `sort`) est tantôt permis tantôt
+    // refusé selon un bonus déjà consommé ce tour. « `creneau` dit le prix ;
+    // ces drapeaux disent qui a déjà payé » (contrat) — un champ de PRIX ne
+    // peut pas trancher une question d'ÉTAT, donc ça ne migre jamais dans le
+    // bloc qui lit `creneau` ci-dessous, quel que soit ce que publiera un
+    // jour `creneauOption()` pour ces deux types.
+    if (option?.type === 'attaque') return !!moi.a_agi && !moi.attaque_supplementaire;
+    if (option?.type === 'sort') return !!moi.a_agi && !moi.sort_bonus_disponible;
+
+    if (option?.creneau) {
+        switch (option.creneau) {
+            case 'mouvement':
+                return !!moi.a_deplace;
+            // Interaction LIBRE (porte, retraite, style, objet_libre, jeter…)
+            // et action TERMINANTE (concentration, relever, attente) : aucune
+            // des deux ne grise avant `a_joue`, déjà tranché plus haut.
+            case 'interaction':
+            case 'tour':
+                return false;
+            default: // 'action'
+                return !!moi.a_agi;
+        }
+    }
+
+    // ⚠ REPLI DÉGRADÉ — `option.creneau` ABSENT (un menu resté en cache d'avant
+    // ce champ, ou le menu de secours de `GenererMenu::failed()`). C'est ICI,
+    // et UNIQUEMENT ici jusqu'au 2026-09-18, que vivait la règle : une copie
+    // JS de `ResolveurTour::creneauOption()`, recopiée à la main plutôt que
+    // lue, qui a menti TROIS FOIS quand le serveur a changé sans elle —
+    // `actionner_levier` s'y croyait encore gratuit après que le serveur lui
+    // eut donné un prix (jet de Body, 2026-08-24), `objet_libre` y manquait
+    // tout à fait et grisait « Utiliser un objet » dès `a_agi` alors qu'une
+    // potion se boit justement après avoir frappé (2026-09-01), et `jeter` a
+    // bien failli subir le même sort avant d'être ajouté ici à temps
+    // (2026-09-17). La CAUSE — cette table recopiée — est supprimée du chemin
+    // normal ci-dessus ; ce switch ne reste que comme filet pour un menu trop
+    // vieux pour porter `creneau`, jamais comme source de vérité : retomber
+    // dessus pour TOUT dégriser à l'aveugle aurait été pire que le tolérer.
     switch (option?.type) {
         case 'deplacement':
         case 'franchissement':
             return !!moi.a_deplace;
-        // Ouvrir une porte = interaction LIBRE (E2).
-        // ⚠ `actionner_levier` N'EST PLUS ICI (corrigé 2026-09-01) : le serveur
-        // lui fait coûter l'action depuis le 2026-08-24, quand forcer un levier
-        // est devenu un jet de Body. Ce miroir croyait encore qu'il était
-        // gratuit, et gardait donc l'option cliquable après avoir agi — pour un
-        // 422. Un miroir se vérifie, il ne se déclare pas.
         case 'ouvrir_porte':
         case 'sortie':
-        // ⚠ `objet_libre` MANQUAIT : il tombait au `default` et l'option
-        // « Utiliser un objet » se grisait dès que le héros avait agi, alors
-        // qu'une potion se boit justement après avoir frappé. Le coût d'un
-        // objet dépend de l'OBJET, pas du type : la liste, elle, ne contient
-        // que du gratuit quand l'action est dépensée.
         case 'objet_libre':
-        // Proposer la retraite ne coûte pas son tour : c'est une proposition
-        // au groupe, pas une action — et elle doit rester possible au pire
-        // moment, sinon ce n'est pas une retraite.
         case 'retraite':
-        // Activer un Style Élémentaire ne coûte aucun créneau (miroir de
-        // `ResolveurTour::creneauOption`).
         case 'style':
-        // ⚠ AJOUTÉ 2026-09-17 (révision R1 du plan échange-et-jeter) : `jeter`
-        // passe au créneau `interaction`, donc GRATUIT côté serveur — et hors
-        // de la garde `! $aAgi` au menu, précisément pour rester utilisable
-        // APRÈS avoir agi (se délester une fois le coup porté, pas avant).
-        // Quatrième cicatrice de ce miroir, et la PREMIÈRE dans l'autre sens :
-        // `actionner_levier` se croyait gratuit à tort, `objet_libre` manquait,
-        // l'attaque ignorait le bonus d'héroïsme — ici c'est le serveur qui
-        // accepterait et le client qui aurait grisé. La leçon inverse
-        // d'`actionner_levier` (retiré des gratuits le 2026-08-24 contre un
-        // jet retentable à l'infini sans coût) NE S'APPLIQUE PAS : jeter
-        // RETIRE une pièce du sac à chaque geste, la suite est finie et
-        // décroissante — la répétition est le but recherché, pas une faille.
         case 'jeter':
-            return false;
-        // Actions terminantes : disponibles tant que le tour n'est pas fini.
         case 'concentration':
         case 'relever':
         case 'attente':
             return false;
-        // ⚠ Potion d'héroïsme / Rage guerrière (corrigé 2026-09-11, signalé en
-        // partie réelle : « j'ai pris une potion d'héroïsme après avoir
-        // attaqué mais l'action d'attaque était grisée »). Troisième défaut du
-        // même miroir, deux cicatrices plus haut dans ce fichier :
-        // `actionner_levier` se croyait gratuit, `objet_libre` manquait —
-        // celui-ci grisait l'attaque dès `a_agi` sans jamais regarder si le
-        // bonus de seconde frappe (`etat.attaque_supplementaire`) l'avait
-        // rouverte. Miroir exact de la garde serveur `$bonusHeroisme`
-        // (`ResolveurTour::resoudreOption()`) : ne grise PAS moins que le
-        // serveur n'accepte, sinon c'est un 422 offert à la place d'un bouton.
-        case 'attaque':
-            return !!moi.a_agi && !moi.attaque_supplementaire;
-        // RÉSERVE ARCANIQUE / Baguette de Rappel — le pendant du bonus
-        // d'attaque, et la MÊME maladie : « Lancer un sort » se grisait après le
-        // premier lancer alors que `ResolveurTour` l'acceptait encore
-        // (`$bonusReserveArcanique`). ⚠ On lit une DÉCISION publiée par le
-        // serveur, jamais une condition reconstituée : elle dépend du talent et
-        // des charges du héros, que ce payload ne porte pas.
-        case 'sort':
-            return !!moi.a_agi && !moi.sort_bonus_disponible;
         default:
             return !!moi.a_agi;
     }
@@ -287,6 +301,7 @@ const ICONE_JOURNAL = {
                 :title="o.libelle"
                 :meta="metaOption(o)"
                 :el-class="classeOption(o)"
+                :infini="o.creneau === 'interaction'"
                 :disabled="pending || creneauConsomme(o)"
                 @click="emit('choose', o)"
             />

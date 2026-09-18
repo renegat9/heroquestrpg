@@ -216,15 +216,19 @@ n'en désigne **pas** la cible : elle joint les cibles légales dans
 `parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,
 distance?}]` — et la manette ouvre sa feuille de ciblage. Le choix part en
 `POST choix {option_id, parametres: {cible_id, cible_type?}}`, **à plat**.
-Le combat émet **une option par ARME EN MAIN** (dual-wielding, 2026-08-12) :
-`attaquer` pour la main droite, `attaquer_secondaire` pour la gauche, plus
-`lancer` / `lancer_secondaire` quand l'arme se jette et que la cible est hors
-contact (l'arme est perdue — libellé jamais habillé par l'IA, il porte cette
-information mécanique). Chaque option porte `parametres.arme`
-(`arme_principale` | `arme_secondaire`) et **ses propres** `cibles` : la portée,
-les diagonales et le jet appartiennent à l'arme, pas au héros. Avec une seule
-arme en main (ou les mains nues), rien ne change — une seule option, libellée
-« Attaquer ».
+⚠ **Le dual-wielding a changé de forme le 2026-09-18** — voir §« Équiper,
+ranger et attaquer passent au sous-choix » plus bas, qui fait foi. Il émettait
+jusque-là **une option par arme en main** (`attaquer` / `attaquer_secondaire`,
+et leurs jumelles `lancer`), chacune portant `parametres.arme` et ses propres
+cibles. C'est désormais **une** option `attaquer` portant `parametres.armes[]`,
+chaque entrée gardant **ses propres** `cibles` — car la portée, les diagonales
+et le jet appartiennent à l'arme, pas au héros, et c'est cela qui n'a pas
+bougé.
+
+⚠ **La profondeur suit la donnée**, ici comme ailleurs : avec **une seule** arme
+en main (ou les mains nues), il n'y a rien à choisir et l'option reste **à
+plat** — `parametres.arme` + `parametres.cibles`, sans `cle`. La liste
+n'apparaît que lorsqu'un choix existe vraiment.
 
 **Capacités de carte** (classes d'extension, 2026-08-12). Elles ajoutent des
 options de type `attaque` — donc avec feuille de ciblage et liste blanche — que
@@ -242,9 +246,79 @@ le MENU seul peut émettre, leur coût vivant dans `parametres` :
 | `franchir_dragon_{x}_{y}` | `franchissement` | `{piege, cout, style}` | *Dragon Bondissant* : le saut de fosse réussit d'office |
 
 ⚠ Le type `style` est une **interaction** au sens des créneaux (comme
-`ouvrir_porte`) : `ActionTab.creneauConsomme()` doit le refléter. Et les
-libellés de ces options ne sont **jamais** habillés par l'IA — ils portent le
-prix (« sacrifier 2 PV », « à mains nues »), qu'une paraphrase effacerait.
+`ouvrir_porte`). Et les libellés de ces options ne sont **jamais** habillés par
+l'IA — ils portent le prix (« sacrifier 2 PV », « à mains nues »), qu'une
+paraphrase effacerait.
+
+### Équiper, ranger et attaquer passent au sous-choix (2026-09-18)
+
+Trois options portaient encore **une pièce chacune**, dernières survivantes
+d'avant la règle « une action, puis un sous-choix » (René, 2026-09-01) : elles
+datent de juillet et n'avaient jamais été converties.
+
+| Avant | Après |
+|---|---|
+| `equiper_{id}` · `equiper_{id}_gauche`, une par pièce et par main | **une** option `equiper` portant `parametres.pieces[]` |
+| `desequiper_{id}`, une par pièce portée | **une** option `ranger` portant `parametres.pieces[]` |
+| `attaquer` **et** `attaquer_secondaire` quand deux armes sont en main | **une** option `attaquer` portant `parametres.armes[]` |
+
+⚠ **La mesure qui a fondé la règle se reproduisait à l'identique.** Le menu d'un
+magicien de niveau 1 portait 14 options dont 9 sorts, là où le doc 13 §3.1 borne
+à « 2 à 5 options claires » ; la réponse fut que *l'option ne doit pas ÊTRE le
+sort, elle doit PORTER la liste des sorts*. L'équipement faisait pire : une arme
+à une main produit **deux** entrées (droite, gauche), si bien qu'un sac de deux
+armes, un casque et une armure, plus trois pièces portées, donnait **neuf**
+boutons d'équipement. Relevé en jeu le 2026-09-18 : dix options au menu de Grom
+avec **une seule** pièce au sac.
+
+**`pieces[]`** — par entrée : `cle` (`"piece:{inventaire_id}"`), `inventaire_id`,
+`nom`, et pour `equiper` les `slots` légaux (une entrée qui en porte **deux**
+ouvre le troisième niveau — le choix de main — exactement comme une entrée qui
+porte des `cibles`) et `remplace` (le nom de l'occupant, quand il y en a un).
+⚠ `Equipement::echangeUtile()` reste le point de passage qui écarte l'échange de
+deux pièces IDENTIQUES : proposer un geste qui coûte l'action et ne change rien
+est une option morte. Il filtre désormais les **entrées**, plus les options.
+
+**`armes[]`** — par entrée : `cle` (`"arme:{slot}"`), `slot`, `nom`,
+`des_attaque`, et **ses propres `cibles`**.
+⚠ **`cibles` PAR ENTRÉE, et pour une raison mécanique, pas par mimétisme** : la
+portée dépend de l'arme. Une arme longue frappe en **diagonale**
+(`attaque_diagonale`, voisinage de Tchebychev) là où une arme courte se limite
+aux quatre cases orthogonales — `MenuMoteur` le lit déjà pour composer les deux
+listes séparément. Une liste commune au niveau de l'option offrirait, avec la
+dague, une cible que seule la hallebarde atteint.
+
+⚠ **`lancer` reste une option À PART**, et ce n'est pas une inconséquence :
+jeter son arme n'est pas frapper avec: la pièce est **détruite**, et son libellé
+porte ce fait mécanique qu'une paraphrase effacerait. Elle porte néanmoins la
+même liste quand plusieurs armes sont jetables.
+
+### `creneau` — chaque option dit ce qu'elle coûte
+
+Depuis 2026-09-18, **toute option de menu porte son `creneau`** :
+`"mouvement"`, `"action"`, `"interaction"` (gratuit) ou `"tour"` (terminant).
+C'est la valeur de `ResolveurTour::creneauOption()`, publiée telle quelle.
+
+La manette affiche **∞** à la suite des options `interaction` — un geste qui ne
+dépense rien doit se voir, sans quoi le joueur l'économise comme s'il coûtait.
+Ouvrir une porte, se délester, activer un style, proposer la retraite : tout
+cela est répétable et n'entame aucun créneau.
+
+⚠ **Le client LIT ce champ, il ne le re-dérive pas.** C'était jusqu'ici une
+règle serveur recopiée en JS dans `ActionTab.creneauConsomme()`, et ce miroir a
+menti **trois fois** : `actionner_levier` s'y croyait gratuit après que le
+serveur lui eut donné un prix (2026-08-24), `objet_libre` y manquait tout à
+fait, et l'attaque y ignorait le bonus d'héroïsme. Une quatrième a été évitée
+de justesse en rendant `jeter` gratuit. Publier la décision supprime la cause :
+`creneauConsomme()` bascule sur `option.creneau` au lieu du `switch` sur
+`option.type`.
+
+⚠ Ce que le champ NE remplace PAS : les deux exceptions qui dépendent de l'ÉTAT
+du héros et non du type d'option — `attaque_supplementaire` (Potion d'héroïsme,
+Rage guerrière) et `sort_bonus_disponible` (Réserve arcanique, Baguette de
+Rappel). Elles restent publiées à part dans `entites[]`, parce qu'une même
+option d'attaque est tantôt permise tantôt refusée selon qui la regarde. Le
+`creneau` dit le prix ; ces drapeaux disent qui a déjà payé.
 
 ⚠ `parametres.cibles` **est la liste blanche** : l'identifiant d'option ne
 porte plus la légalité de la cible, donc la valider contre le menu ne la valide
@@ -938,8 +1012,37 @@ l'Elfe**, exclusive de `elements` (422 si les deux, 422 pour toute autre classe,
 permis et vaut l'école par défaut. Le catalogue du répertoire se lit dans
 `GET /api/guide` (`sorts[]`, filtrés sur `element === 'elfique'`, `id` inclus).
 
+**Suppression d'un personnage CRÉÉ PAR ERREUR** (`DELETE /api/personnages/{id}`,
+René 2026-09-18 : « on n'est pas en mesure de supprimer un personnage créé en
+erreur »). Rien ne le permettait : le roster ne savait qu'ajouter.
+
+⚠ **Trois conditions, toutes vérifiées serveur**, et la troisième est le cœur du
+garde-fou :
+1. le personnage appartient au **joueur authentifié** (404 sinon — on ne dit pas
+   à un joueur que le héros d'un autre existe) ;
+2. il est **`disponible`**, c'est-à-dire `groupe_actif_id === null`. On réutilise
+   la décision **déjà publiée** par `/moi` plutôt que d'en réinventer une : un
+   héros engagé se retire de son groupe d'abord ;
+3. il **n'a JAMAIS JOUÉ** — aucune ligne dans `etat_personnage_quete` (jamais
+   entré en quête) **ni** dans `personnage_historique` (jamais fini de
+   campagne). 422 nommé sinon.
+
+⚠ **Le vétéran est délibérément EXCLU, et c'est un choix écrit** (René,
+2026-09-18). Un héros entre deux campagnes porte des niveaux, de l'or, un
+équipement et un historique : c'est de la **donnée de campagne**, que la règle
+dure du projet interdit de détruire. Ce point d'entrée ne couvre que l'erreur de
+saisie — un roster qui se range (archiver un vétéran) est un **autre** chantier,
+nommé ici pour ne pas être confondu avec un oubli.
+
+Suppression **atomique**, en une transaction : inventaire, compétences, sorts,
+conditions et appartenance de groupe partent avec la ligne. ⚠ Un `DELETE` nu
+laisserait ces lignes orphelines — c'est la leçon de `ClotureCampagne::purger()`,
+qui existe précisément parce qu'effacer un groupe sans ses annexes en laissait
+partout. Réponse `204`.
+
 | Méthode | Route | Corps | Effet |
 |---|---|---|---|
+| DELETE | /personnages/{id} | — | supprime un personnage **jamais joué** du roster ; 404 : pas le sien ; 422 : engagé dans un groupe, ou a déjà joué |
 | PUT | /groupes/{identifiant}/sorts-elfiques | {personnage_id, sorts: [3]} | **rechoix** des 3 sorts elfiques — **hub uniquement**. 422 : en quête, héros d'un autre joueur, classe ≠ elfe, sorts hors répertoire, ou **Elfe parti sur une école** (ce choix-là est définitif) |
 
 À l'acquisition, les effets **passifs chiffrés** du nœud (`effet` JSON :

@@ -940,6 +940,31 @@ final class MenuMoteur
     }
 
     /**
+     * Publie `creneau` sur chaque option du menu (contrat « creneau — chaque
+     * option dit ce qu'elle coûte », 2026-09-18) : la valeur que rend
+     * `ResolveurTour::creneauOption()` pour son `type`, TELLE QUELLE.
+     *
+     * ⚠ UN SEUL POINT DE PASSAGE : cette méthode n'introduit AUCUNE table de
+     * correspondance à elle — elle appelle celle de `ResolveurTour`. Recopier
+     * le `match` ici referait exactement l'erreur qu'on corrige côté client
+     * (`ActionTab.creneauConsomme()`, qui a menti trois fois en gardant sa
+     * propre copie de cette règle). Les quatre points de sortie de `generer()`
+     * passent tous par ici avant de rendre leurs options.
+     *
+     * @param  list<array<string, mixed>>  $options
+     * @return list<array<string, mixed>>
+     */
+    private function avecCreneaux(array $options): array
+    {
+        return array_map(
+            static fn (array $option) => $option + [
+                'creneau' => ResolveurTour::creneauOption((string) ($option['type'] ?? '')),
+            ],
+            $options,
+        );
+    }
+
+    /**
      * @return array{situation: string, options: list<array<string, mixed>>}
      */
     public function generer(Groupe $groupe, Personnage $personnage): array
@@ -949,10 +974,10 @@ final class MenuMoteur
         if ($quete === null) {
             return [
                 'situation' => 'Le groupe se prépare au hub.',
-                'options' => [
+                'options' => $this->avecCreneaux([
                     ['id' => 'attendre', 'libelle' => 'Attendre et observer', 'type' => 'attente'],
                     ['id' => 'continuer', 'libelle' => 'Continuer prudemment', 'type' => 'action'],
-                ],
+                ]),
             ];
         }
 
@@ -1173,13 +1198,21 @@ final class MenuMoteur
             && $etat !== null && $etat->position_x !== null) {
             // DUAL-WIELDING (règle de René, 2026-08-12) : un héros peut tenir
             // DEUX armes à une main, et la seconde n'apporte aucun dé — elle
-            // apporte un CHOIX. D'où une option d'attaque par arme, et non plus
-            // une seule : « attaquer avec l'arme A », « attaquer avec l'arme B ».
+            // apporte un CHOIX. Depuis 2026-09-18 (René, doc contrat-api
+            // « Équiper, ranger et attaquer passent au sous-choix ») ce choix
+            // n'est plus deux OPTIONS (`attaquer` / `attaquer_secondaire`) : une
+            // seule option `attaquer` porte `parametres.armes[]`, une entrée
+            // par arme en main — le patron du 2026-09-01 (« l'option ne doit
+            // pas ÊTRE l'arme, elle doit PORTER la liste des armes »).
             //
-            // ⚠ Les cibles légales ne sont pas les mêmes d'une arme à l'autre :
-            // l'arbalète voit toute la salle, l'épée touche ses quatre voisines,
-            // l'épée longue ajoute les diagonales. Chaque option porte donc SA
-            // liste blanche, recalculée pour SON arme.
+            // ⚠ `cibles` reste PAR ENTRÉE, et c'est mécanique, pas du
+            // mimétisme : l'arbalète voit toute la salle, l'épée touche ses
+            // quatre voisines, l'épée longue ajoute les diagonales
+            // (`attaque_diagonale`). Une liste commune au niveau de l'option
+            // offrirait, avec la dague, une cible que seule la hallebarde
+            // atteint — `ResolveurTour::resoudreAttaque()` revalide donc la
+            // cible contre LES `cibles` DE L'ENTRÉE choisie, pas contre une
+            // liste de l'option.
             $armes = $this->equipement->armesEnMain($personnage);
             $mainsNues = $armes === [];
             $armePrincipale = $armes[0]->objet ?? null;
@@ -1188,6 +1221,8 @@ final class MenuMoteur
             // et n'importe qui peut toujours cogner.
             $lignesArmes = $mainsNues ? [null] : $armes;
             $ciblesParArme = [];
+            $armesAAttaquer = [];
+            $armesALancer = [];
 
             foreach ($lignesArmes as $ligneArme) {
                 $arme = $ligneArme?->objet;
@@ -1195,32 +1230,74 @@ final class MenuMoteur
                 $cibles = $this->ciblesPourArme($quete, $etat, $personnage, $arme);
                 $ciblesParArme[$slot] = $cibles;
 
-                // Suffixe seulement s'il y a un choix à faire : « Attaquer »
-                // reste « Attaquer » quand une seule arme est en main.
-                $suffixe = count($lignesArmes) > 1 && $arme !== null ? " — {$arme->nom}" : '';
-                $second = $slot === 'arme_secondaire';
+                $entree = [
+                    'cle' => "arme:{$slot}",
+                    'slot' => $slot,
+                    'nom' => $arme->nom ?? 'Mains nues',
+                    // Dés RÉELS avec CETTE arme (`desAttaqueAvec()`) : la
+                    // colonne `des_attaque` du héros ne connaît que la main
+                    // droite depuis le dual-wielding, publier la valeur par
+                    // arme est ce qui évite à la manette de la re-dériver.
+                    'des_attaque' => $this->equipement->desAttaqueAvec($personnage, $ligneArme),
+                ];
 
                 if ($cibles['attaquer'] !== []) {
-                    $options[] = [
-                        'id' => $second ? 'attaquer_secondaire' : 'attaquer',
-                        'libelle' => "Attaquer{$suffixe}",
-                        'type' => 'attaque',
-                        'lancer' => false,
-                        'parametres' => ['arme' => $slot, 'cibles' => $cibles['attaquer']],
-                    ];
+                    $armesAAttaquer[] = [...$entree, 'cibles' => $cibles['attaquer']];
                 }
 
                 if ($cibles['lancer'] !== []) {
-                    $options[] = [
-                        'id' => $second ? 'lancer_secondaire' : 'lancer',
-                        // Lancer PERD l'arme : le libellé doit le dire, sinon le
-                        // joueur se retrouve les mains vides sans l'avoir voulu.
-                        'libelle' => "Lancer {$arme->nom} (perdue)",
-                        'type' => 'attaque',
-                        'lancer' => true,
-                        'parametres' => ['arme' => $slot, 'lancer' => true, 'cibles' => $cibles['lancer']],
-                    ];
+                    $armesALancer[] = [...$entree, 'cibles' => $cibles['lancer']];
                 }
+            }
+
+            // ⚠ Le sous-choix ne s'ouvre QUE s'il y a vraiment un choix à
+            // faire (doc contrat-api : « attaquer AVEC DEUX ARMES ») — mains
+            // nues ou une seule arme en main restent la forme HISTORIQUE,
+            // `parametres.arme` + `parametres.cibles` À PLAT sur l'option,
+            // sans `cle` à fournir : la « profondeur suit la donnée » vaut
+            // aussi d'un niveau à l'autre, pas seulement pour le ciblage.
+            // `resoudreAttaque()` lit d'ailleurs déjà les deux formes.
+            if (count($armesAAttaquer) === 1) {
+                $options[] = [
+                    'id' => 'attaquer',
+                    'libelle' => 'Attaquer',
+                    'type' => 'attaque',
+                    'lancer' => false,
+                    'parametres' => ['arme' => $armesAAttaquer[0]['slot'], 'cibles' => $armesAAttaquer[0]['cibles']],
+                ];
+            } elseif ($armesAAttaquer !== []) {
+                $options[] = [
+                    'id' => 'attaquer',
+                    'libelle' => 'Attaquer',
+                    'type' => 'attaque',
+                    'lancer' => false,
+                    'parametres' => ['armes' => $armesAAttaquer],
+                ];
+            }
+
+            if (count($armesALancer) === 1) {
+                $options[] = [
+                    'id' => 'lancer',
+                    // Une seule arme jetable : pas d'ambiguïté, le libellé la
+                    // NOMME directement (comme avant le dual-wielding).
+                    'libelle' => "Lancer {$armesALancer[0]['nom']} (perdue)",
+                    'type' => 'attaque',
+                    'lancer' => true,
+                    'parametres' => ['arme' => $armesALancer[0]['slot'], 'cibles' => $armesALancer[0]['cibles']],
+                ];
+            } elseif ($armesALancer !== []) {
+                $options[] = [
+                    'id' => 'lancer',
+                    // Lancer PERD l'arme : le libellé doit le dire — jamais
+                    // habillé par l'IA — sinon le joueur se retrouve les mains
+                    // vides sans l'avoir voulu. Générique ici (deux armes
+                    // jetables à la fois), le nom de CHACUNE reste sur son
+                    // entrée.
+                    'libelle' => 'Lancer une arme (perdue)',
+                    'type' => 'attaque',
+                    'lancer' => true,
+                    'parametres' => ['armes' => $armesALancer],
+                ];
             }
 
             // Les capacités qui frappent (Furie, Force de la Montagne) partent
@@ -1362,7 +1439,7 @@ final class MenuMoteur
 
                 return [
                     'situation' => 'Une attaque supplémentaire vous est offerte ce tour.',
-                    'options' => $options,
+                    'options' => $this->avecCreneaux($options),
                 ];
             }
 
@@ -1516,17 +1593,25 @@ final class MenuMoteur
             }
 
             // Équiper / ranger une pièce en pleine quête (doc 01 §149) = action
-            // du tour. Réutilise l'inventaire réel (`$lignesInventaire`,
-            // chargée avant ce bloc pour servir aussi à « jeter », gratuit et
-            // hors de cette garde) : « Équiper » les pièces d'équipement du
-            // sac, « Ranger » celles portées.
+            // du tour. Depuis 2026-09-18 (René, doc contrat-api « Équiper,
+            // ranger et attaquer passent au sous-choix ») CHAQUE geste est
+            // UNE SEULE option portant `parametres.pieces[]`, au patron du
+            // 2026-09-01 : « l'option ne doit pas ÊTRE la pièce, elle doit
+            // PORTER la liste des pièces ». Mesure qui a motivé la
+            // conversion : dix options d'équipement pour UNE SEULE pièce au
+            // sac de Grom (une par pièce ET par main).
             //
-            // Ce qui occupe chaque emplacement en ce moment : `equiper()` fait
-            // un ÉCHANGE automatique (l'occupant retourne au sac), et le
-            // libellé doit le dire.
+            // Réutilise l'inventaire réel (`$lignesInventaire`, chargée avant
+            // ce bloc pour servir aussi à « jeter », gratuit et hors de cette
+            // garde) : « Équiper » les pièces d'équipement du sac, « Ranger »
+            // celles portées.
             $portees = $lignesInventaire
                 ->filter(fn ($l) => in_array($l->emplacement, Equipement::SLOTS, true))
-                ->keyBy('emplacement');
+                ->keyBy('emplacement')
+                ->all();
+
+            $piecesAEquiper = [];
+            $piecesARanger = [];
 
             foreach ($lignesInventaire as $ligne) {
                 $objet = $ligne->objet;
@@ -1535,49 +1620,54 @@ final class MenuMoteur
                 }
 
                 if ($ligne->emplacement === 'sac') {
-                    // Une arme à UNE main se porte à droite OU à gauche : une
-                    // option par main, sinon le dual-wielding n'existerait qu'au
-                    // hub. Les autres pièces gardent leur bouton unique.
-                    $slots = $this->equipement->slotsPossibles($objet);
+                    // ⚠ `Equipement::detailEquipabilite()` reste le point de
+                    // passage unique avec le sac du hub (`/moi`) : il écarte
+                    // les slots où monter la pièce ne changerait RIEN (deux
+                    // exemplaires identiques — René, 2026-09-04) et nomme ce
+                    // que chaque slot restant remplace. L'ENTRÉE, pas
+                    // l'option, porte désormais ce filtre.
+                    $detail = $this->equipement->detailEquipabilite($objet, $ligne, $portees);
 
-                    foreach ($slots as $slot) {
-                        $occupant = $portees[$slot] ?? null;
-
-                        // ⚠ Échanger deux exemplaires IDENTIQUES ne change rien
-                        // et coûte l'action du tour. La règle vit dans
-                        // `Equipement` : le sac du hub pose exactement la même
-                        // question, et deux copies dériveraient.
-                        if (! $this->equipement->echangeUtile($occupant, $ligne)) {
-                            continue;
-                        }
-
-                        $main = count($slots) > 1
-                            ? ($slot === 'arme_principale' ? ' (main droite)' : ' (main gauche)')
-                            : '';
-
-                        // Sans cette mention, deux pièces de même nom donnaient
-                        // « Équiper Casque » et « Ranger Casque » côte à côte :
-                        // le menu se contredisait lui-même.
-                        $remplace = $occupant?->objet !== null ? " — remplace {$occupant->objet->nom}" : '';
-
-                        // La main droite garde l'identifiant historique
-                        // `equiper_{id}` : c'est le geste ordinaire, et tout ce
-                        // qui l'appelait déjà continue de marcher.
-                        $options[] = [
-                            'id' => $slot === 'arme_secondaire' ? "equiper_{$ligne->id}_gauche" : "equiper_{$ligne->id}",
-                            'libelle' => "Équiper {$objet->nom}{$main}{$remplace}",
-                            'type' => 'equiper',
-                            'parametres' => ['inventaire_id' => (int) $ligne->id, 'emplacement' => $slot],
-                        ];
+                    if ($detail['slots_utiles'] === []) {
+                        continue; // équiper ne changerait rien : pas d'entrée
                     }
+
+                    $piecesAEquiper[] = [
+                        'cle' => "piece:{$ligne->id}",
+                        'inventaire_id' => (int) $ligne->id,
+                        'nom' => $objet->nom,
+                        // Une arme à UNE main garde DEUX slots utiles : c'est
+                        // ce qui ouvre le troisième niveau côté manette (le
+                        // choix de main), exactement comme une entrée qui
+                        // porte des `cibles`.
+                        'slots' => $detail['slots_utiles'],
+                        'remplace' => $detail['remplace'],
+                    ];
                 } elseif (in_array($ligne->emplacement, Equipement::SLOTS, true)) {
-                    $options[] = [
-                        'id' => "desequiper_{$ligne->id}",
-                        'libelle' => "Ranger {$objet->nom}",
-                        'type' => 'desequiper',
-                        'parametres' => ['inventaire_id' => (int) $ligne->id],
+                    $piecesARanger[] = [
+                        'cle' => "piece:{$ligne->id}",
+                        'inventaire_id' => (int) $ligne->id,
+                        'nom' => $objet->nom,
                     ];
                 }
+            }
+
+            if ($piecesAEquiper !== []) {
+                $options[] = [
+                    'id' => 'equiper',
+                    'libelle' => 'Équiper',
+                    'type' => 'equiper',
+                    'parametres' => ['pieces' => $piecesAEquiper],
+                ];
+            }
+
+            if ($piecesARanger !== []) {
+                $options[] = [
+                    'id' => 'ranger',
+                    'libelle' => 'Ranger',
+                    'type' => 'desequiper',
+                    'parametres' => ['pieces' => $piecesARanger],
+                ];
             }
 
             // ÉCHANGER — désormais la SÉANCE du canon (révision René
@@ -1901,7 +1991,7 @@ final class MenuMoteur
                 // traités au-dessus.
                 $options[] = ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'];
 
-                return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $options];
+                return ['situation' => 'Vous ne pouvez pas agir ce tour.', 'options' => $this->avecCreneaux($options)];
             }
 
             $options[] = [
@@ -2019,7 +2109,7 @@ final class MenuMoteur
 
         return [
             'situation' => $aJoue ? 'Tour terminé — au tour des autres héros.' : 'Vous progressez dans le donjon.',
-            'options' => $options,
+            'options' => $this->avecCreneaux($options),
         ];
     }
 }

@@ -179,3 +179,28 @@ reviennent `null` sans la moindre erreur — on croit alors avoir trouvé un bug
 Et deux préconditions muettes bloquent `fouiller_tresor` sans rien dire : le
 héros doit être DANS les bornes d'une salle (un couloir n'offre pas l'option) et
 la salle ne doit contenir aucun monstre actif **révélé**.
+
+---
+
+## ⚠ Tout ce qu'un agent fabrique doit appartenir au GROUPE DE HARNAIS
+
+`nettoyer.sh` est **ciblé** : il ne reprend que le groupe de `groupe.txt` et les
+comptes de ses héros. Il ne sait donc rien d'un personnage créé **de côté, sur
+un compte existant** — et un tel personnage survit à tous les ménages.
+
+Mesuré le 2026-09-18 : pour illustrer le bouton « Supprimer (créé par erreur) »
+sur la capture `10-roster` du livret, un agent a créé un héros *Test* sur le
+roster d'un **vrai joueur**. `nettoyer.sh` a purgé sa campagne et rapporté un
+état « propre » — le héros, lui, est resté sur le compte de René, qui l'a
+découvert en relisant le compte de personnages. L'agent a même annoncé ce total
+gonflé comme son état de départ, donc comme une référence.
+
+**La règle pour les briefs** : un agent ne crée JAMAIS de personnage, de compte
+ni de groupe hors du harnais monté par `preparer.sh`. Si une capture demande un
+héros dans un état particulier, il se pose sur un héros **du harnais** — c'est
+précisément ce que fait `livret-scenes.php` en posant des PV à la main plutôt
+qu'en fabriquant une créature.
+
+⚠ Et le contrôle qui l'aurait vu : **compter les personnages AVANT de commencer**,
+puis après `nettoyer.sh`. Un écart est un résidu, quel que soit ce que le script
+rapporte — il ne peut affirmer que ce qu'il a lui-même créé.

@@ -252,6 +252,30 @@ async function copierCode(code) {
     } catch { /* best-effort : le code reste lisible/sélectionnable à l'écran */ }
 }
 
+// Suppression (personnage CRÉÉ PAR ERREUR — René, 2026-09-18). Le bouton
+// n'apparaît que si le serveur publie `supprimable` (contrat DELETE
+// /personnages/{id}) : on ne re-dérive JAMAIS « jamais joué » ici, seulement
+// la confirmation locale du geste (irréversible), au même patron que le tir
+// ami de CibleSheet.vue / l'arrêt d'urgence d'UrgenceNarrateurPanel.vue —
+// un état par carte, pas une boîte `window.confirm` générique.
+const confirmerSuppression = ref({}); // { [perso.id]: bool }
+const suppressionEnCours = ref({});
+const erreurSuppression = ref({});
+
+async function supprimerPersonnage(perso) {
+    suppressionEnCours.value = { ...suppressionEnCours.value, [perso.id]: true };
+    erreurSuppression.value = { ...erreurSuppression.value, [perso.id]: '' };
+    try {
+        await api.supprimerPersonnage(perso.id);
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+        // Pas besoin de refermer la confirmation : la carte a disparu avec le perso.
+    } catch (e) {
+        erreurSuppression.value = { ...erreurSuppression.value, [perso.id]: e.message };
+        suppressionEnCours.value = { ...suppressionEnCours.value, [perso.id]: false };
+    }
+}
+
 // Reprendre
 async function reprendre(perso) {
     const statut = statutPersonnage(perso);
@@ -530,6 +554,48 @@ function libelleClasse(classe) {
                             <p v-if="erreurRejoindre[perso.id]" class="joueur-err">
                                 <MSym n="error" :size="14" /> {{ erreurRejoindre[perso.id] }}
                             </p>
+
+                            <!-- supprimer (créé par erreur) — visible SEULEMENT si le
+                                 serveur le permet (contrat) : jamais engagé, jamais joué.
+                                 Le vétéran (a joué / a fini une campagne) n'a pas ce bouton,
+                                 sans qu'aucune règle ne soit re-dérivée ici. -->
+                            <template v-if="statutPersonnage(perso).supprimable">
+                                <div v-if="!confirmerSuppression[perso.id]" class="pcard-actions">
+                                    <button
+                                        class="joueur-btn-danger-ghost-sm"
+                                        type="button"
+                                        @click="confirmerSuppression = { ...confirmerSuppression, [perso.id]: true }"
+                                    >
+                                        <MSym n="delete" :size="14" /> Supprimer (créé par erreur)
+                                    </button>
+                                </div>
+                                <div v-else class="pcard-mini-form">
+                                    <div class="joueur-danger-warn">
+                                        <MSym n="warning" fill :size="20" />
+                                        <span><b>{{ perso.nom }}</b> sera supprimé définitivement — action irréversible.</span>
+                                    </div>
+                                    <p v-if="erreurSuppression[perso.id]" class="joueur-err">
+                                        <MSym n="error" :size="14" /> {{ erreurSuppression[perso.id] }}
+                                    </p>
+                                    <div class="joueur-mini-btns">
+                                        <button
+                                            class="joueur-btn-danger-sm"
+                                            :disabled="suppressionEnCours[perso.id]"
+                                            @click="supprimerPersonnage(perso)"
+                                        >
+                                            <MSym n="delete_forever" />
+                                            {{ suppressionEnCours[perso.id] ? 'Suppression…' : 'Confirmer — supprimer' }}
+                                        </button>
+                                        <button
+                                            class="joueur-btn-ghost-sm"
+                                            :disabled="suppressionEnCours[perso.id]"
+                                            @click="confirmerSuppression = { ...confirmerSuppression, [perso.id]: false }"
+                                        >
+                                            Annuler
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
                         </template>
 
                         <!-- actions : perso ENGAGÉ -->
@@ -763,6 +829,22 @@ function libelleClasse(classe) {
   border-radius: var(--r-md); color: var(--ink-300); font-family: var(--font-ui); font-weight: 700;
   font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .joueur-btn-ghost-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- suppression (créé par erreur) — préfixées `joueur-` : beaucoup de
+   <style> de composants ne sont PAS scoped, les noms génériques fuient
+   entre vues (§Commands, CSS class collisions). ---- */
+.joueur-btn-danger-ghost-sm { padding: 9px 14px; background: var(--stone-800); border: 1px solid var(--danger, #c33);
+  border-radius: var(--r-md); color: var(--danger, #c33); font-family: var(--font-ui); font-weight: 700;
+  font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  transition: background .15s; }
+.joueur-btn-danger-ghost-sm:hover { background: oklch(0.6 0.2 25 / 0.12); }
+.joueur-btn-danger-sm { padding: 10px 16px; border: none; border-radius: var(--r-md);
+  background: var(--danger, #c33); color: var(--parch-100); font-family: var(--font-ui); font-weight: 800;
+  font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.joueur-btn-danger-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+.joueur-danger-warn { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-md);
+  font-size: 13px; color: var(--parch-100); background: oklch(0.6 0.2 25 / 0.14); border: 1px solid oklch(0.6 0.2 25 / 0.5); }
+.joueur-danger-warn .msym { color: var(--danger, #c33); flex: none; }
 
 .joueur-btn-action { padding: 9px 14px; background: var(--stone-800); border: var(--line); border-radius: var(--r-md);
   color: var(--ink-200); font-family: var(--font-ui); font-weight: 700; font-size: 13px;

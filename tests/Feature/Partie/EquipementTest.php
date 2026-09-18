@@ -198,15 +198,17 @@ it('équipe en PLEINE QUÊTE via l\'action du tour (doc 01 §149) : dés à jour
     $etat = $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail();
     $etat->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
 
-    // Le menu propose « Équiper Épée large ».
+    // Le menu propose UNE option `equiper` portant la liste des pièces
+    // (sous-choix, René 2026-09-18) — plus un bouton par pièce.
     desFiges(array_fill(0, 20, 4));
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
-    $optionId = "equiper_{$ligne->id}";
-    expect(collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id'))
-        ->toContain($optionId);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', 'equiper');
+    expect($option)->not->toBeNull();
+    $cle = collect($option['parametres']['pieces'])->firstWhere('inventaire_id', $ligne->id)['cle'];
 
     $this->actingAs($alice, 'joueur')
-        ->postJson('/api/groupes/table-1/choix', ['option_id' => $optionId])
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'equiper', 'parametres' => ['cle' => $cle]])
         ->assertStatus(202)
         ->assertJsonPath('resultat.type', 'equiper')
         ->assertJsonPath('resultat.objet', 'Épée large');
@@ -441,9 +443,14 @@ it('ne propose PAS d\'échanger deux exemplaires identiques du même emplacement
 
     $options = collect($this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'));
 
-    // « Ranger » reste : c'est le seul geste qui change quelque chose.
-    expect($options->pluck('id'))->toContain("desequiper_{$porte->id}")
-        ->and($options->pluck('id'))->not->toContain("equiper_{$dansLeSac->id}");
+    // « Ranger » reste : c'est le seul geste qui change quelque chose. Le
+    // sac ne contient QUE le doublon identique, donc l'option `equiper`
+    // (sous-choix, 2026-09-18) n'a plus une seule entrée à porter — elle
+    // n'existe pas.
+    $ranger = $options->firstWhere('id', 'ranger');
+    expect($ranger)->not->toBeNull()
+        ->and(collect($ranger['parametres']['pieces'])->pluck('inventaire_id'))->toContain($porte->id)
+        ->and($options->pluck('id'))->not->toContain('equiper');
 });
 
 it('DIT quelle pièce l\'échange va remplacer, plutôt que d\'afficher deux libellés identiques', function () {
@@ -483,10 +490,14 @@ it('DIT quelle pièce l\'échange va remplacer, plutôt que d\'afficher deux lib
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
 
     $option = collect($this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu.options'))
-        ->firstWhere('id', "equiper_{$sac->id}");
+        ->firstWhere('id', 'equiper');
+    $entree = collect($option['parametres']['pieces'] ?? [])->firstWhere('inventaire_id', $sac->id);
 
-    expect($option)->not->toBeNull()
-        ->and($option['libelle'])->toContain('remplace');
+    // `remplace` — carte {slot => nom de l'occupant} : pas un libellé habillé,
+    // la donnée que la manette formate elle-même (même patron que le sac du
+    // hub, `SacTab.titreEquiper()`).
+    expect($entree)->not->toBeNull()
+        ->and($entree['remplace']['casque'] ?? null)->toBe('Casque');
 });
 
 it('publie dans /moi les emplacements UTILES et ce que chacun remplace', function () {
@@ -522,4 +533,136 @@ it('publie dans /moi les emplacements UTILES et ce que chacun remplace', functio
     $ligneEpee = collect($sac)->firstWhere('inventaire_id', $arme->id);
     expect($ligneEpee['slots_utiles'])->toBe(['arme_principale', 'arme_secondaire'])
         ->and($ligneEpee['remplace'])->toBe([]);
+});
+
+// =====================================================================
+// SOUS-CHOIX `equiper` / `ranger` (René, 2026-09-18) — les trois dernières
+// options qui portaient encore UNE pièce chacune rejoignent le patron du
+// 2026-09-01 : « l'option ne doit pas ÊTRE la pièce, elle doit PORTER la
+// liste des pièces ».
+// =====================================================================
+
+it('offre UNE SEULE option `equiper`, quel que soit le nombre de pièces dans le sac', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'nain']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    // Trois pièces d'équipement DIFFÉRENTES au sac, mains et tête vides :
+    // dix options avait été le relevé de jeu qui a motivé la conversion
+    // (une seule pièce au sac produisait déjà dix boutons en comptant les
+    // pièces PORTÉES) — ici on vérifie l'autre sens, que plusieurs pièces
+    // équipables ne rouvrent pas le bouton-par-pièce.
+    $casque = sacDe($heros, 'Casque');
+    $bouclier = sacDe($heros, 'Bouclier');
+    $epee = sacDe($heros, 'Épée large');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail()
+        ->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $options = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options']);
+
+    // Une seule option `equiper` dans TOUT le menu…
+    expect($options->where('id', 'equiper'))->toHaveCount(1);
+
+    // … et elle porte les TROIS pièces.
+    $pieces = collect($options->firstWhere('id', 'equiper')['parametres']['pieces']);
+    expect($pieces->pluck('inventaire_id')->sort()->values()->all())
+        ->toBe(collect([$casque->id, $bouclier->id, $epee->id])->sort()->values()->all());
+});
+
+it('une arme à une main garde SES DEUX slots dans son entrée `equiper` — ce qui ouvre le choix de main', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'nain']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+
+    // Mains vides : une Dague au sac garde ses DEUX slots utiles.
+    $dague = sacDe($heros, 'Dague');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail()
+        ->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $option = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', 'equiper');
+
+    $entree = collect($option['parametres']['pieces'])->firstWhere('inventaire_id', $dague->id);
+    expect($entree['slots'])->toBe(['arme_principale', 'arme_secondaire']);
+
+    // La manette ouvre le troisième niveau sur CETTE base : le résolveur
+    // accepte le choix explicite de main…
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', [
+            'option_id' => 'equiper',
+            'parametres' => ['cle' => $entree['cle'], 'emplacement' => 'arme_secondaire'],
+        ])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.emplacement', 'arme_secondaire');
+
+    // …et REFUSE un emplacement hors des slots proposés PAR CETTE ENTRÉE —
+    // `arme_secondaire` reste un emplacement VALIDE en général (la Dague
+    // déjà en main gauche le prouve), mais pas pour CETTE pièce précise :
+    // une seconde Dague IDENTIQUE n'y changerait rien (`echangeUtile()`),
+    // seule la main droite (vide) reste utile pour elle.
+    $secondeDague = sacDe($heros->fresh(), 'Dague');
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->update(['a_joue' => false, 'a_agi' => false]);
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+    $optionSuivante = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
+        ->firstWhere('id', 'equiper');
+    $entreeSeconde = collect($optionSuivante['parametres']['pieces'])->firstWhere('inventaire_id', $secondeDague->id);
+    expect($entreeSeconde['slots'])->toBe(['arme_principale']);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'equiper',
+        'parametres' => ['cle' => $entreeSeconde['cle'], 'emplacement' => 'arme_secondaire'],
+    ])->assertStatus(422);
+});
+
+it('422 sur une entrée `equiper`/`ranger` hors de la liste publiée', function () {
+    Http::fake();
+    config(['services.anthropic.api_key' => null]);
+    $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class, PiegeSeeder::class]);
+
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'nain']);
+    $bob = JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
+    creerHeros($bob, $groupe, 'Brunhilde', 2);
+    sacDe($heros, 'Casque');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $quete->etatsPersonnages()->where('personnage_id', $heros->id)->firstOrFail()
+        ->update(['deplacement_tour' => 6, 'a_deplace' => false, 'a_agi' => false, 'a_joue' => false]);
+
+    desFiges(array_fill(0, 20, 4));
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $this->actingAs($alice, 'joueur')
+        ->postJson('/api/groupes/table-1/choix', [
+            'option_id' => 'equiper',
+            // Aucune ligne d'inventaire ne porte cet id : l'entrée n'a jamais
+            // figuré dans la liste publiée.
+            'parametres' => ['cle' => 'piece:999999'],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('parametres');
 });

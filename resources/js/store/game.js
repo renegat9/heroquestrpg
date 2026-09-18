@@ -1278,13 +1278,17 @@ export function resumeDuJoueur(payload, personnages = []) {
  * Retourne { disponible, groupe?, narrateur_actif?, identifiant? }.
  */
 export function statutPersonnage(personnage) {
-    if (!personnage) return { disponible: true };
+    if (!personnage) return { disponible: true, supprimable: false };
     if (personnage.disponible !== false && personnage.groupe == null) {
-        return { disponible: true };
+        // ⚠ `supprimable` est une DÉCISION publiée par /moi (contrat DELETE
+        // /personnages/{id}), jamais re-dérivée ici : « jamais joué » se lit
+        // sur deux tables que le front n'a aucune raison de connaître.
+        return { disponible: true, supprimable: personnage.supprimable === true };
     }
     const g = personnage.groupe ?? {};
     return {
         disponible: false,
+        supprimable: false, // engagé : DELETE /personnages/{id} le refuserait de toute façon (422)
         identifiant: g.identifiant ?? null,
         nom: g.nom ?? null,
         phase: g.phase ?? null,

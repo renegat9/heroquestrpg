@@ -97,8 +97,24 @@ DEPENDANCES = {
                           'resources/js/components/manette/ChoiceCard.vue',
                           'app/Partie/MenuMoteur.php'],
     '31-manette-deplacement': ['resources/js/components/manette/DeplacementSheet.vue'] + SOCLE,
-    '32-manette-combat': ['resources/js/components/manette/CibleSheet.vue',
+    # ⚠ CORRIGÉ 2026-09-18 : cette figure montre le FIL DU COMBAT (« Fil du
+    # combat », JournalCombat), pas une feuille de ciblage — c'est ActionTab.vue
+    # qui le peint, pas CibleSheet.vue (qui n'apparaît nulle part hors du tour
+    # actif). L'ancienne entrée n'aurait jamais signalé une évolution du fil.
+    '32-manette-combat': ['resources/js/components/manette/ActionTab.vue',
                           'app/Partie/JournalCombat.php'],
+    # Attaquer à une arme (forme À PLAT, `parametres.arme`+`cibles`) saute
+    # directement à CibleSheet ; c'est MenuMoteur qui décide de cette forme
+    # (une seule entrée dans `armesAAttaquer`) et ManetteView qui route dessus.
+    '33-manette-attaque-simple': ['resources/js/components/manette/CibleSheet.vue',
+                                 'resources/js/views/ManetteView.vue',
+                                 'app/Partie/MenuMoteur.php'],
+    # Deux armes aux cibles valides ouvrent le sous-choix « Avec quelle arme ? »
+    # (ChoixListeSheet, titre posé par ManetteView) avant CibleSheet — MenuMoteur
+    # décide de la forme `armes[]` et calcule les cibles PAR ARME.
+    '34-manette-attaque-deux-armes': ['resources/js/components/manette/ChoixListeSheet.vue',
+                                      'resources/js/views/ManetteView.vue',
+                                      'app/Partie/MenuMoteur.php'],
     '70-scene-attaque': [SCENE, 'app/Partie/SceneDeTable.php'],
     '71-scene-jet': [SCENE, 'app/Partie/SceneDeTable.php'],
     '72-scene-attaque-monstre': [SCENE, 'app/Partie/SceneDeTable.php'],
@@ -113,6 +129,25 @@ def figures_du_livret():
     """Les figures réellement appelées par `generer.py` — la source de vérité."""
     source = io.open(GENERER, encoding='utf-8').read()
     return set(re.findall(r"fig\('([0-9a-z-]+)'", source))
+
+
+def modifies_non_commites():
+    """Les chemins modifiés dans l'ARBRE DE TRAVAIL, pas encore commités.
+
+    ⚠ Angle mort mesuré le 2026-09-18, le lendemain de l'écriture de ce
+    contrôle : il ne comparait qu'aux COMMITS, si bien que deux chantiers
+    entiers posés dans l'arbre — qui changeaient le menu d'action de fond en
+    comble — le laissaient annoncer « à jour ». Une capture prise avant une
+    modification non commitée est pourtant tout aussi périmée qu'après un
+    commit : ce qui la périme, c'est que l'écran ait changé, pas que git l'ait
+    enregistré.
+    """
+    sortie = subprocess.run(
+        ['git', 'status', '--porcelain', '--untracked-files=all'],
+        cwd=RACINE, capture_output=True, text=True,
+    ).stdout
+
+    return {ligne[3:].strip() for ligne in sortie.splitlines() if len(ligne) > 3}
 
 
 def dernier_commit(chemins):
@@ -153,7 +188,8 @@ def main():
         print()
 
     # ── FRAÎCHEUR, FIGURE PAR FIGURE ─────────────────────────────────────────
-    absentes, perimees, fraiches = [], [], []
+    absentes, perimees, fraiches, en_cours = [], [], [], []
+    travail = modifies_non_commites()
 
     for nom in sorted(attendues & declarees):
         fichier = os.path.join(CAPTURES, nom + '.webp')
@@ -165,7 +201,24 @@ def main():
         prise = os.path.getmtime(fichier)
         commit, date, sujet = dernier_commit(DEPENDANCES[nom])
 
-        if commit is not None and commit > prise:
+        # ⚠ L'arbre de travail d'abord : un chantier en cours périme une
+        # capture avant tout commit, et c'est même le cas le PLUS fréquent —
+        # on refait les captures en fin de chantier, pas après le push.
+        # ⚠ Et l'ordre compte, sinon on crie au loup : une capture prise
+        # APRÈS l'édition non commitée est à jour, précisément parce qu'on
+        # vient de la refaire pour ce chantier-là. Mesuré le 2026-09-18 — la
+        # passe du livret a fini à « 7 en chantier » alors que ses sept
+        # captures étaient neuves. On ne retient donc que les dépendances
+        # modifiées APRÈS la prise, exactement comme pour un commit.
+        touches = sorted(
+            c for c in set(DEPENDANCES[nom]) & travail
+            if os.path.exists(os.path.join(RACINE, c))
+            and os.path.getmtime(os.path.join(RACINE, c)) > prise
+        )
+
+        if touches:
+            en_cours.append((nom, touches))
+        elif commit is not None and commit > prise:
             perimees.append((nom, date, sujet))
         else:
             fraiches.append(nom)
@@ -177,6 +230,14 @@ def main():
             print('    · {}'.format(nom))
         print()
 
+    if en_cours:
+        print('⚠ CHANTIER EN COURS ({}) — ce qu\'elles montrent est modifié dans l\'arbre'.format(len(en_cours)))
+        print('  de travail, pas encore commité. À refaire AVANT le commit, pas après :')
+        print('  c\'est le moment où l\'on sait encore ce qui a changé à l\'écran.')
+        for nom, touches in en_cours:
+            print('    · {:<26} {}'.format(nom, ', '.join(os.path.basename(c) for c in touches)))
+        print()
+
     if perimees:
         print('⚠ PÉRIMÉES ({}) — prises AVANT le dernier changement de ce qu\'elles montrent.'.format(len(perimees)))
         print('  Ce n\'est pas une preuve qu\'elles mentent : allez les REGARDER, et')
@@ -185,12 +246,12 @@ def main():
             print('    · {:<26} {} — {}'.format(nom, date, sujet[:64]))
         print()
 
-    print('{} à jour · {} périmées · {} absentes · {} figures au livret'.format(
-        len(fraiches), len(perimees), len(absentes), len(attendues)))
+    print('{} à jour · {} en chantier · {} périmées · {} absentes · {} figures au livret'.format(
+        len(fraiches), len(en_cours), len(perimees), len(absentes), len(attendues)))
 
     if faute_de_registre:
         return 2
-    if strict and perimees:
+    if strict and (perimees or en_cours):
         return 1
     return 0
 

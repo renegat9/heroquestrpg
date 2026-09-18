@@ -154,6 +154,43 @@ final class Equipement
     }
 
     /**
+     * Slots où monter CETTE pièce changerait vraiment quelque chose, et ce que
+     * chacun remplace — la question que le sac du hub (`/moi`) et l'option
+     * `equiper` du menu de quête (sous-choix, René 2026-09-18) posent
+     * maintenant IDENTIQUEMENT. Point de passage unique : avant la conversion
+     * du menu de quête en sous-choix, chacun dérivait `echangeUtile()` de son
+     * côté, et une pièce identique déjà équipée s'y proposait deux fois
+     * (René, 2026-09-04 — la panne que `echangeUtile()` a réglée une
+     * première fois, ici partagée plutôt que redupliquée).
+     *
+     * @param  array<string, Inventaire>  $occupants  `Equipement::occupants($personnage)` (ou son équivalent déjà en
+     *                                                 mémoire), calculé UNE SEULE fois pour tout le sac — jamais
+     *                                                 refait ligne par ligne.
+     * @return array{slots_utiles: list<string>, remplace: array<string, string>}
+     */
+    public function detailEquipabilite(Objet $objet, Inventaire $ligne, array $occupants): array
+    {
+        $possibles = $this->slotsPossibles($objet);
+
+        return [
+            'slots_utiles' => array_values(array_filter(
+                $possibles,
+                fn (string $slot) => $this->echangeUtile($occupants[$slot] ?? null, $ligne),
+            )),
+            // Carte {slot => nom de l'occupant}, jamais une valeur unique : un
+            // héros peut tenir DEUX armes différentes en même temps, et
+            // remplacer l'une n'est pas remplacer l'autre — le sac du hub
+            // le publiait déjà ainsi (`it.remplace?.[slot]`), le menu de
+            // quête lit maintenant la MÊME décision au lieu d'en inventer une
+            // simplifiée qui perdrait la main gauche.
+            'remplace' => collect($possibles)
+                ->mapWithKeys(fn (string $slot) => [$slot => ($occupants[$slot] ?? null)?->objet?->nom])
+                ->filter()
+                ->all(),
+        ];
+    }
+
+    /**
      * Équipe une ligne d'inventaire du SAC. Sans `$slot`, l'emplacement naturel
      * de l'objet (objet.emplacement) ; une arme à une main accepte aussi
      * `arme_secondaire` — la main gauche. L'occupant actuel du slot repart au

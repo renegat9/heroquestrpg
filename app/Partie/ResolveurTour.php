@@ -278,7 +278,7 @@ final class ResolveurTour
         // on refuse de rejouer un créneau déjà consommé ce tour. Réserve
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
         // créneau action normal — une seule fois par tour (bonus_sort_utilise).
-        $creneau = $this->creneauOption((string) ($option['type'] ?? ''));
+        $creneau = self::creneauOption((string) ($option['type'] ?? ''));
         // Second sort du tour : le nœud magicien *Réserve arcanique* OU la
         // Baguette de Rappel (« cast two spells instead of one »). Les deux
         // passent par le MÊME drapeau `bonus_sort_utilise`, donc un magicien
@@ -385,8 +385,8 @@ final class ResolveurTour
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
-                'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: true),
-                'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $acteur, equiper: false),
+                'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
+                'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
                 'echanger' => $this->resoudreEchange($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'jeter' => $this->resoudreJeter($groupe, $personnage, $option, $parametres, $acteur),
                 'objet', 'objet_libre' => $this->resoudreUsageObjet($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -1020,18 +1020,40 @@ final class ResolveurTour
         array $parametres,
         array $acteur,
     ): array {
-        $cibleId = (int) ($option['cible_id'] ?? $parametres['cible_id'] ?? 0);
-        $lancer = (bool) ($option['lancer'] ?? $option['parametres']['lancer'] ?? false);
+        $cibleId = (int) ($parametres['cible_id'] ?? 0);
+        $lancer = (bool) ($option['lancer'] ?? false);
 
-        // Ciblage en deux temps : l'option ne vaut plus pour UNE cible, elle
-        // joint la liste des cibles légales. C'est donc `parametres.cibles` qui
-        // porte maintenant la légalité — et non plus l'identifiant d'option que
-        // le contrôleur validait contre le menu. Sans cette vérification, un
-        // client pourrait viser n'importe quel monstre de la quête, hors portée
-        // et hors ligne de vue : la garde n'est pas défensive, elle REMPLACE
-        // celle que le repli des options vient de retirer.
-        $legales = $option['parametres']['cibles'] ?? null;
+        // Depuis 2026-09-18 (sous-choix), l'option `attaquer` / `lancer` ne
+        // porte plus UNE arme : elle porte `parametres.armes[]`, une entrée
+        // par arme en main. `entreeChoisie()` revalide `parametres.cle` contre
+        // CETTE liste — le même garde-fou que pour un sort ou un objet, sinon
+        // un client choisirait son arme courte à la portée de la longue.
+        //
+        // ⚠ Furie, Force de la Montagne… n'ont PAS de liste d'armes (elles
+        // frappent toujours de la main droite, ou à mains nues) : leur
+        // `parametres.cibles`/`parametres.arme` restent au niveau de
+        // l'OPTION, comme avant cette conversion — ce n'est pas un repli
+        // défensif, ce sont deux formes d'options distinctes qui partagent le
+        // même type `attaque`.
+        $armes = (array) data_get($option, 'parametres.armes', []);
 
+        if ($armes !== []) {
+            $entree = $this->entreeChoisie($option, $parametres, 'armes');
+            $slotArme = (string) ($entree['slot'] ?? 'arme_principale');
+            $legales = $entree['cibles'] ?? null;
+        } else {
+            $slotArme = (string) ($option['parametres']['arme'] ?? 'arme_principale');
+            $legales = $option['parametres']['cibles'] ?? null;
+        }
+
+        // Ciblage en deux temps : l'option (ou l'entrée choisie ci-dessus) ne
+        // vaut plus pour UNE cible, elle joint la liste des cibles légales.
+        // C'est donc cette liste qui porte la légalité — et non plus
+        // l'identifiant d'option que le contrôleur validait contre le menu.
+        // Sans cette vérification, un client pourrait viser n'importe quel
+        // monstre de la quête, hors portée et hors ligne de vue : la garde
+        // n'est pas défensive, elle REMPLACE celle que le repli des options
+        // vient de retirer.
         if (is_array($legales)) {
             $ids = array_map(
                 static fn ($c) => (int) (is_array($c) ? ($c['id'] ?? 0) : $c),
@@ -1056,12 +1078,9 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cible invalide : ce monstre n\'est pas une cible active et visible dans la quête.']);
         }
 
-        // DUAL-WIELDING : l'option dit AVEC QUELLE MAIN on frappe. Le menu émet
-        // une option par arme (« Attaquer — Épée large », « Attaquer — Dague »),
-        // chacune avec ses propres cibles ; le résolveur relit le slot plutôt
-        // que de supposer la main droite.
-        $slotArme = (string) ($option['parametres']['arme'] ?? 'arme_principale');
-
+        // DUAL-WIELDING : `$slotArme` (calculé plus haut, depuis l'entrée
+        // choisie ou depuis l'option) dit AVEC QUELLE MAIN on frappe — le
+        // résolveur relit le slot plutôt que de supposer la main droite.
         if (! in_array($slotArme, ['arme_principale', 'arme_secondaire'], true)) {
             throw ValidationException::withMessages(['option_id' => 'Main inconnue pour cette attaque.']);
         }
@@ -5023,23 +5042,51 @@ final class ResolveurTour
      * (créneau ACTION → forfait le déplacement restant, E1). Réutilise le service
      * Equipement (mêmes garde-fous deux-mains / capacité de sac qu'au hub).
      *
+     * ⚠ Depuis 2026-09-18 (sous-choix), `equiper` / `ranger` ne portent plus
+     * UNE pièce chacun : ils portent `parametres.pieces[]`.
+     * `entreeChoisie()` revalide `parametres.cle` contre CETTE liste — le
+     * même garde-fou qu'un sort ou un objet, sinon un client équiperait une
+     * pièce qui n'a jamais figuré au menu (un sac vidé entre-temps, par
+     * exemple).
+     *
      * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    private function resoudreEquipement(Groupe $groupe, Personnage $personnage, array $option, array $acteur, bool $equiper): array
+    private function resoudreEquipement(Groupe $groupe, Personnage $personnage, array $option, array $parametres, array $acteur, bool $equiper): array
     {
-        $ligneId = (int) data_get($option, 'parametres.inventaire_id', 0);
+        $entree = $this->entreeChoisie($option, $parametres, 'pieces');
+        $ligneId = (int) ($entree['inventaire_id'] ?? 0);
         $ligne = $personnage->inventaire()->with('objet')->whereKey($ligneId)->first();
 
         if ($ligne === null) {
             throw ValidationException::withMessages(['option_id' => 'Objet introuvable dans le sac de ce héros.']);
         }
 
+        $slot = null;
+
+        if ($equiper) {
+            // Une arme à une main porte DEUX slots utiles dans l'entrée : le
+            // menu ouvre alors le troisième niveau (choix de main) côté
+            // manette, et c'est `parametres.emplacement` qui revient ici.
+            // ⚠ Revalidé contre les slots DE CETTE ENTRÉE — pas contre
+            // `Equipement::slotsPossibles()` en général : deux pièces du même
+            // sac peuvent avoir des slots utiles différents selon ce qui est
+            // déjà porté (`echangeUtile()` a tranché au menu), et le
+            // résolveur ne fait que revérifier ce qu'il a déjà publié.
+            $slots = (array) ($entree['slots'] ?? []);
+            $slot = $parametres['emplacement'] ?? ($slots[0] ?? null);
+
+            if (! in_array($slot, $slots, true)) {
+                throw ValidationException::withMessages([
+                    'parametres' => 'Main invalide : ce choix ne fait pas partie des emplacements proposés pour cette pièce.',
+                ]);
+            }
+        }
+
         $ligne = $equiper
-            // Le slot vient du MENU (une option par main pour une arme à une
-            // main), donc du serveur : le client n'envoie que l'identifiant.
-            ? $this->equipement->equiper($personnage, $ligne, data_get($option, 'parametres.emplacement'))
+            ? $this->equipement->equiper($personnage, $ligne, $slot)
             : $this->equipement->desequiper($personnage, $ligne);
 
         $payload = [
@@ -8532,8 +8579,21 @@ final class ResolveurTour
      *  - `tour` : actions qui sacrifient le tour entier (concentration, relever,
      *    terminer le tour) ;
      *  - `action` : tout le reste (attaque, jet/fouille, sort, parchemin, désamorçage).
+     *
+     * PUBLIC et STATIQUE depuis le 2026-09-18 (contrat « creneau » — chaque
+     * option dit ce qu'elle coûte) : `MenuMoteur` l'appelle pour publier
+     * `creneau` sur CHAQUE option qu'il émet, au lieu de laisser le client
+     * reconstruire la même règle en JS. C'est CE miroir
+     * (`ActionTab.creneauConsomme()`) qui a menti trois fois — `actionner_levier`
+     * s'y croyait gratuit après que le serveur lui eut donné un prix
+     * (2026-08-24), `objet_libre` y manquait tout à fait, et l'attaque y
+     * ignorait le bonus d'héroïsme. Un SEUL point de passage supprime la
+     * cause : ni `MenuMoteur` ni le front ne recopient cette table, ils la
+     * LISENT ici. Pure fonction de `$type` (aucun `$this`) : statique de bon
+     * droit, appelable sans construire tout `ResolveurTour` et son cortège de
+     * dépendances pour une seule correspondance de chaînes.
      */
-    private function creneauOption(string $type): string
+    public static function creneauOption(string $type): string
     {
         return match ($type) {
             'deplacement', 'franchissement' => 'mouvement',

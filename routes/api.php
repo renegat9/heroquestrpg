@@ -119,6 +119,9 @@ Route::middleware('auth:joueur')->group(function () {
 
     // Roster joueur : créer un perso libre (sans l'engager dans un groupe).
     Route::post('/personnages', [GroupeController::class, 'creerPersonnage']);
+    // Supprimer un personnage CRÉÉ PAR ERREUR (jamais engagé, jamais joué) —
+    // le vétéran est hors de ce point d'entrée (docs/contrat-api.md).
+    Route::delete('/personnages/{id}', [GroupeController::class, 'supprimerPersonnage']);
     // Portrait unique d'un héros (génération IA à la demande).
 
     // Groupes / campagnes (création → dispatch du squelette en job).

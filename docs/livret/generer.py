@@ -381,9 +381,27 @@ ecrire('''
 </ol>
 ''')
 ecrire('<div class="duo">' +
-       fig('10-roster', 'Le roster d’un joueur : ses héros, disponibles ou engagés ailleurs.') +
+       fig('10-roster',
+           "Le roster d’un joueur : Grom, engagé et verrouillé sur la campagne en cours, "
+           "n’a pas de bouton de suppression ; Essai, libre et jamais entré en jeu, porte "
+           "<strong>Supprimer (créé par erreur)</strong>.") +
        fig('20-table-hub', 'Le hub sur l’écran de table : phase de marché ouverte, ordre du tour réglable, prologue à relire.') +
        '</div>')
+ecrire('''
+<h3>Supprimer un personnage créé par erreur</h3>
+<p>Un roster ne savait qu'ajouter — jusqu'à un mauvais clic sur la classe à la création. Trois
+conditions, <strong>toutes vérifiées côté serveur</strong>, ouvrent le bouton :</p>
+<ol>
+  <li>le personnage appartient au <strong>joueur connecté</strong> ;</li>
+  <li>il est <strong>libre</strong> — aucun groupe actif ;</li>
+  <li>il <strong>n'a jamais joué</strong> : jamais entré en quête, jamais achevé de campagne.</li>
+</ol>
+<p>⚠ <strong>Le vétéran est délibérément exclu, et c'est un choix, pas une limite technique.</strong>
+Un héros entre deux campagnes porte des niveaux, de l'or, un équipement, un historique : c'est de
+la <strong>donnée de campagne</strong>, que la règle dure du projet interdit de détruire. Ce
+bouton ne corrige que l'erreur de saisie ; ranger un vétéran qu'on ne joue plus reste un autre
+geste, à venir.</p>
+''')
 
 LONGUEURS = [('Très courte', '1 quête', 'une soirée'),
              ('Courte', '3 à 5 quêtes', 'quelques soirées'),
@@ -609,29 +627,44 @@ ecrire('<div class="duo">' +
            "ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle affiche "
            "une décision déjà prise.", 'fig tel') +
        fig('30-manette-action',
-           "Le menu du tour, composé par le moteur — jamais par l'IA. Il porte depuis le "
-           "2026-09-17 un geste de plus, visible ici : <strong>Jeter un objet</strong> "
-           "(gratuit, répétable, encore proposé après avoir agi). Le second, "
-           "<strong>Échanger avec un allié adjacent</strong> (une action, pour toute la "
-           "séance), n'apparaît que si un allié se tient à côté — pas le cas de ce tour, où "
-           "Borin vient d'encaisser Grom s'effondrer dans le fil du combat.", 'fig tel') +
+           "Le menu du tour, composé par le moteur — jamais par l'IA. Depuis le 2026-09-18, "
+           "<strong>Équiper</strong> et <strong>Ranger</strong> sont chacun <strong>une seule "
+           "option</strong>, quel que soit le nombre de pièces concernées — la liste vit dans "
+           "le sous-choix, pas dans le menu. <strong>Jeter un objet</strong> et "
+           "<strong>Utiliser un objet</strong> portent le symbole <strong>∞</strong> : gratuits "
+           "et répétables, ils restent proposés même après avoir agi.", 'fig tel') +
        '</div>')
 ecrire('''
 <h3>Une action, et une seule</h3>
 <p>Attaquer, lancer un sort, lire un parchemin, boire une potion, fouiller, désamorcer,
-actionner un levier, tenter une épreuve, ranger une arme : tout cela consomme
+actionner un levier, tenter une épreuve, équiper ou ranger une pièce : tout cela consomme
 <strong>l'action du tour</strong>. Une seule attaque par tour, sauf capacité explicite.</p>
-<p>Quand une action recouvre plusieurs objets — neuf sorts, trois parchemins, deux potions —
-le menu ne s'allonge pas : <strong>une seule entrée porte la liste</strong>, et l'on choisit
-ensuite. C'est la même règle partout, et c'est ce qui garde un menu lisible sur un téléphone.</p>
+<p>Quand une action recouvre plusieurs objets — neuf sorts, trois parchemins, deux potions,
+ou même une seule pièce d'équipement — le menu ne s'allonge pas : <strong>une seule entrée
+porte la liste</strong>, et l'on choisit ensuite. C'est la même règle partout, et c'est ce qui
+garde un menu lisible sur un téléphone : le doc 13 §3.1 borne à « 2 à 5 options claires », et un
+sac ordinaire — une arme à une main compte double, une pour la main droite, une pour la
+gauche — produisait <strong>neuf boutons</strong> rien que pour s'équiper. Relevé en jeu le
+2026-09-18 : dix options au menu pour une seule pièce au sac.</p>
+
+<h3>Les gestes qui ne coûtent rien</h3>
+<p>Une poignée de gestes n'entament <strong>aucun créneau</strong> du tour, ni le mouvement ni
+l'action : ouvrir une porte, jeter un objet, activer un style élémentaire, proposer la retraite
+au groupe, proposer de quitter le donjon, utiliser un objet dont la carte le dit elle-même
+(chausse-trappes, bombe fumigène). Répétables, ils restent au menu même après avoir
+agi — les économiser n'aurait aucun sens. Le téléphone <strong>lit</strong> ce que le serveur
+publie (le champ <code>creneau</code>, jamais recalculé côté client) et marque ces options d'un
+<strong>∞</strong> à la suite du libellé : un geste gratuit qui ne se voit pas comme tel se
+garde comme s'il coûtait.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('14-manette-sorts',
            "Le sous-choix d'un sort. « Sommeil » est grisé : déjà lancé, il ne redeviendra "
            "disponible qu'à la prochaine quête.", 'fig tel') +
        fig('32-manette-combat',
-           "Hors de son tour, le joueur suit le fil du combat — et le détail des dés : "
-           "crânes lancés contre boucliers noirs.", 'fig tel') +
+           "Hors de son tour, Aldric suit le fil du combat : Grom frappe Le Cœur de Pierre "
+           "Noire — 1 crâne — mais le boss pare avec 1 bouclier noir, 0 dégât rendu. Le "
+           "détail des dés reste complet, coup par coup, jamais résumé.", 'fig tel') +
        '</div>')
 ecrire('''
 <div class="encadre">
@@ -755,6 +788,18 @@ offre une attaque <em>par arme</em>, chacune avec ses propres cibles légales �
 diagonales et jet sont des propriétés de l'arme. C'est ainsi qu'on porte une arme de mêlée et
 une arme de jet sans rien reprendre au sac en plein combat.</p>
 ''')
+ecrire('<div class="duo">' +
+       fig('33-manette-attaque-simple',
+           "Une seule arme en main : toucher <strong>Attaquer</strong> mène directement à la "
+           "feuille de cibles. Aucun choix d'arme à faire, alors aucun n'est proposé — la "
+           "profondeur suit la donnée.", 'fig tel') +
+       fig('34-manette-attaque-deux-armes',
+           "Deux armes en main, de portées différentes : <strong>Attaquer</strong> ouvre "
+           "d'abord « Avec quelle arme ? ». La Rapière et l'Épée courte portent toutes deux "
+           "2 dés — ce n'est donc pas un dé de plus qui pose la question, c'est que la Rapière "
+           "frappe aussi en diagonale là où l'Épée courte se limite aux quatre cases "
+           "orthogonales : les deux entrées n'ont pas les mêmes cibles légales.", 'fig tel') +
+       '</div>')
 ecrire('<div class="duo">' +
        fig('13-manette-sac',
            "Le sac : deux épées larges équipées, une en main droite et une en main gauche. "
@@ -953,10 +998,10 @@ ecrire('''
 ''')
 ecrire('<div class="duo">' +
        fig('15-manette-echange',
-           "La séance d'échange avec Borin : les deux sacs côte à côte, une pièce "
-           "<strong>encombrante</strong> partant dans chaque sens — l'Épée large vers Borin, "
-           "son Bouclier vers Grom — pendant que la Fiole de soin, juste en dessous, ne porte "
-           "<em>aucun badge</em> : un consommable ne compte jamais dans la capacité du sac.",
+           "La séance d'échange entre Borin et Aldric : les deux sacs côte à côte, une pièce "
+           "<strong>encombrante</strong> partant dans chaque sens — le Bouclier de Borin vers "
+           "Aldric, sa Dague en retour — sous une seule validation. Les capacités affichées en "
+           "tête (2/4, 2/2) se recalculent à chaque curseur bougé, avant tout envoi au serveur.",
            'fig tel') +
        fig('16-manette-jeter-quantite',
            "« Jeter » sur une pile de plusieurs exemplaires ouvre d'abord un <strong>palier de "

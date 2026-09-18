@@ -9,9 +9,11 @@ use App\Http\Controllers\Api\Concerns\AutoriseLectureGroupe;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenererSqueletteCampagne;
 use App\Models\ClasseHeros;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Objet;
 use App\Models\Personnage;
+use App\Models\PersonnageHistorique;
 use App\Models\Competence;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\DemarreurQuete;
@@ -23,6 +25,7 @@ use App\Partie\CapacitesInnees;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -177,6 +180,70 @@ class GroupeController extends Controller
                 'disponible' => true,
             ],
         ], 201);
+    }
+
+    /**
+     * DELETE /api/personnages/{id} — supprime un personnage CRÉÉ PAR ERREUR
+     * du roster (René, 2026-09-18 : « on n'est pas en mesure de supprimer un
+     * personnage créé en erreur »). Rien ne le permettait avant : le roster
+     * ne savait qu'ajouter.
+     *
+     * ⚠ Trois gardes, DANS CET ORDRE (docs/contrat-api.md, contrat GELÉ) :
+     *  1. le héros appartient au joueur authentifié — `firstOrFail()` répond
+     *     404 sinon, y compris si l'id existe mais chez un autre joueur : on
+     *     ne révèle jamais qu'un héros d'un autre joueur existe ;
+     *  2. il est `disponible`, c'est-à-dire `groupe_actif_id === null` — on
+     *     RÉUTILISE la décision déjà publiée par /moi
+     *     (AuthController::profil()) plutôt que d'en réinventer une seconde ;
+     *  3. il n'a JAMAIS JOUÉ : aucune ligne dans `etat_personnage_quete`
+     *     (jamais entré en quête) NI dans `personnage_historique` (jamais
+     *     fini de campagne). Le vétéran est délibérément EXCLU — un héros
+     *     entre deux campagnes porte niveaux/or/équipement/historique, de la
+     *     donnée de campagne que la règle dure du projet interdit de
+     *     détruire. Un roster qui se RANGE (archiver un vétéran) est un
+     *     AUTRE chantier, pas celui-ci.
+     */
+    public function supprimerPersonnage(Request $request, int $id): Response
+    {
+        $joueur = Auth::guard('joueur')->user();
+
+        $personnage = Personnage::where('joueur_id', $joueur->id)->where('id', $id)->firstOrFail();
+
+        if ($personnage->groupe_actif_id !== null) {
+            throw ValidationException::withMessages([
+                'personnage' => 'Ce héros est engagé dans un groupe : retirez-le d\'abord.',
+            ]);
+        }
+
+        if (EtatPersonnageQuete::where('personnage_id', $personnage->id)->exists()) {
+            throw ValidationException::withMessages([
+                'personnage' => 'Ce héros est déjà entré en quête : ce n\'est plus une erreur de saisie.',
+            ]);
+        }
+
+        if (PersonnageHistorique::where('personnage_id', $personnage->id)->exists()) {
+            throw ValidationException::withMessages([
+                'personnage' => 'Ce héros a terminé au moins une campagne : c\'est un vétéran, pas une erreur de saisie.',
+            ]);
+        }
+
+        // Suppression ATOMIQUE. ⚠ Les annexes CASCADENT déjà (vérifié dans les
+        // migrations, `grep -rl personnage_id database/migrations/`) :
+        // groupe_personnages, inventaire, personnage_competences,
+        // personnage_sorts et personnage_conditions portent toutes
+        // `->constrained('personnages')->cascadeOnDelete()`. Les redéclarer
+        // ici en DELETE manuels serait la règle en double — la FK ET le code
+        // portant la même suppression, exactement ce que le projet interdit
+        // ailleurs. `etat_personnage_quete`/`personnage_historique` cascadent
+        // aussi, mais les deux gardes ci-dessus garantissent qu'elles sont
+        // déjà vides pour ce héros. La transaction reste : un événement
+        // modèle qui échouerait en aval ne doit pas laisser une suppression
+        // à moitié faite.
+        DB::transaction(function () use ($personnage) {
+            $personnage->delete();
+        });
+
+        return response()->noContent();
     }
 
     /**

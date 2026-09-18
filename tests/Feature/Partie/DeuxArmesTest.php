@@ -118,7 +118,7 @@ it('laisse l\'arme à une main cohabiter avec le bouclier, comme avant', functio
     expect((int) $heros->fresh()->des_defense)->toBe($defenseBase + 1);
 });
 
-it('offre une attaque PAR ARME dans le menu, chacune avec ses cibles', function () {
+it('offre une SEULE option `attaquer` portant une entrée PAR ARME, chacune avec ses cibles', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'barbare']);
     $heros = $ctx['heros'];
     $equipement = app(Equipement::class);
@@ -130,17 +130,27 @@ it('offre une attaque PAR ARME dans le menu, chacune avec ses cibles', function 
     $menu = Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu'];
     $options = collect($menu['options']);
 
-    $droite = $options->firstWhere('id', 'attaquer');
-    $gauche = $options->firstWhere('id', 'attaquer_secondaire');
+    // Sous-choix (René, 2026-09-18) : UNE SEULE option `attaquer`, plus
+    // `attaquer_secondaire` — la liste PORTE les deux armes.
+    expect($options->pluck('id'))->not->toContain('attaquer_secondaire');
+    $option = $options->firstWhere('id', 'attaquer');
+    expect($option)->not->toBeNull();
+
+    $armes = collect($option['parametres']['armes']);
+    $droite = $armes->firstWhere('slot', 'arme_principale');
+    $gauche = $armes->firstWhere('slot', 'arme_secondaire');
 
     expect($droite)->not->toBeNull()
         ->and($gauche)->not->toBeNull()
-        // Le libellé NOMME l'arme : sans lui, deux boutons « Attaquer »
-        // identiques seraient un choix aveugle.
-        ->and($droite['libelle'])->toBe('Attaquer — Épée large')
-        ->and($gauche['libelle'])->toBe('Attaquer — Dague')
-        ->and($droite['parametres']['arme'])->toBe('arme_principale')
-        ->and($gauche['parametres']['arme'])->toBe('arme_secondaire');
+        // Le NOM de l'arme voyage sur l'ENTRÉE, plus sur le libellé de
+        // l'option (générique, « Attaquer ») : deux cartes identiques
+        // seraient un choix aveugle sans lui.
+        ->and($droite['nom'])->toBe('Épée large')
+        ->and($gauche['nom'])->toBe('Dague')
+        ->and($droite['cle'])->toBe('arme:arme_principale')
+        ->and($gauche['cle'])->toBe('arme:arme_secondaire')
+        ->and($droite['cibles'])->not->toBeEmpty()
+        ->and($gauche['cibles'])->not->toBeEmpty();
 });
 
 it('frappe avec les dés de l\'arme CHOISIE, gauche comme droite', function () {
@@ -156,7 +166,7 @@ it('frappe avec les dés de l\'arme CHOISIE, gauche comme droite', function () {
 
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'attaquer',
-        'parametres' => ['cible_id' => $ctx['instance']->id],
+        'parametres' => ['cle' => 'arme:arme_principale', 'cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.des_attaque_effectifs', 3);
 
     // Le tour du héros a été consommé : on le rend pour rejouer de l'autre main.
@@ -165,9 +175,11 @@ it('frappe avec les dés de l\'arme CHOISIE, gauche comme droite', function () {
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
     desFiges(array_fill(0, 40, 4));
 
+    // MÊME option `attaquer` : c'est `parametres.cle` qui choisit la main
+    // gauche, plus un second identifiant d'option.
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'attaquer_secondaire',
-        'parametres' => ['cible_id' => $ctx['instance']->id],
+        'option_id' => 'attaquer',
+        'parametres' => ['cle' => 'arme:arme_secondaire', 'cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.des_attaque_effectifs', 1);
 });
 
@@ -187,12 +199,21 @@ it('LANCE l\'arme de la main gauche, et c\'est celle-là qui se perd', function 
 
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
     $menu = Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu'];
+    $options = collect($menu['options']);
 
-    expect(collect($menu['options'])->pluck('id'))->toContain('lancer_secondaire');
+    // Sous-choix : `lancer` reste une option À PART (l'arme est DÉTRUITE),
+    // mais UNE SEULE — jamais `lancer_secondaire`. Une seule arme jetable ici
+    // (l'épée large ne se lance pas) : pas d'ambiguïté, donc la forme HISTORIQUE
+    // à plat (`parametres.arme` + `cibles`), pas de liste `armes[]` à choisir.
+    expect($options->pluck('id'))->not->toContain('lancer_secondaire');
+    $lancer = $options->firstWhere('id', 'lancer');
+    expect($lancer)->not->toBeNull()
+        ->and($lancer['parametres']['arme'])->toBe('arme_secondaire')
+        ->and($lancer['libelle'])->toBe('Lancer Dague (perdue)');
 
     desFiges(array_fill(0, 40, 4));
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'lancer_secondaire',
+        'option_id' => 'lancer',
         'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.lancer.arme', 'Dague');
 
@@ -236,17 +257,21 @@ it('permet enfin à l\'AMBIDEXTRIE du Rogue de frapper de sa seconde arme', func
     // attack with a dagger » : la première frappe ouvre la seconde…
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'attaquer',
-        'parametres' => ['cible_id' => $ctx['instance']->id],
+        'parametres' => ['cle' => 'arme:arme_principale', 'cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.ambidextrie', true);
 
-    // …et la manette peut désormais la porter avec la DAGUE, littéralement.
+    // …et la manette peut désormais la porter avec la DAGUE, littéralement —
+    // TOUJOURS la même option `attaquer`, l'entrée main gauche reste dans sa
+    // liste.
     GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
     $menu = Cache::get(GenererMenu::cleMenu($ctx['groupe']->id, (int) $ctx['alice']->id))['menu'];
+    $option = collect($menu['options'])->firstWhere('id', 'attaquer');
 
-    expect(collect($menu['options'])->pluck('id'))->toContain('attaquer_secondaire');
+    expect($option)->not->toBeNull()
+        ->and(collect($option['parametres']['armes'])->pluck('slot'))->toContain('arme_secondaire');
 
     $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'attaquer_secondaire',
-        'parametres' => ['cible_id' => $ctx['instance']->id],
+        'option_id' => 'attaquer',
+        'parametres' => ['cle' => 'arme:arme_secondaire', 'cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.des_attaque_effectifs', 1); // les dés de la dague
 });

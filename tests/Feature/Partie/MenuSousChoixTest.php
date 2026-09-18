@@ -168,46 +168,53 @@ it('écarte de la liste la potion réservée à une AUTRE classe', function () {
     expect($objets->pluck('cle'))->not->toContain("objet:{$ligne->id}");
 });
 
-it('le miroir des créneaux de la manette dit la MÊME chose que le moteur', function () {
-    // ⚠ `ActionTab.creneauConsomme()` se déclare miroir de
-    // `ResolveurTour::creneauOption()`. Il avait dérivé sur DEUX types :
-    // `actionner_levier`, devenu payant côté serveur le 2026-08-24, et
-    // `objet_libre`, que le front ignorait — il grisait donc l'option gratuite
-    // dès que le héros avait agi. Un miroir se prouve, il ne se déclare pas.
+it('le miroir des créneaux de la manette LIT `option.creneau` — il ne le RE-DÉRIVE plus du type', function () {
+    // ⚠ Jusqu'au 2026-09-18, `ActionTab.creneauConsomme()` recopiait la table
+    // de `ResolveurTour::creneauOption()` en JS, et cette copie a MENTI TROIS
+    // FOIS quand le serveur a changé sans elle : `actionner_levier` devenu
+    // payant (2026-08-24), `objet_libre` qui manquait tout à fait, l'attaque
+    // qui ignorait le bonus d'héroïsme. Le contrat publie désormais la
+    // DÉCISION (`option.creneau`) — ce test vérifie que le chemin NORMAL ne
+    // recopie plus rien, et que le SEUL endroit qui garde encore une table par
+    // type (le repli dégradé, pour un menu en cache trop vieux pour porter
+    // `creneau`) reste fidèle au serveur.
     $vue = file_get_contents(base_path('resources/js/components/manette/ActionTab.vue'));
     $bloc = substr($vue, strpos($vue, 'function creneauConsomme'));
     $bloc = substr($bloc, 0, strpos($bloc, "\n}\n"));
 
-    // ⚠ On part du `switch`, pas du début de la fonction : les gardes du haut
-    // (`if (!moi) return false;`, `if (moi.a_joue) return true;`) sont elles
-    // aussi des `return` et décalaient le découpage d'un cran.
-    $bloc = substr($bloc, strpos($bloc, 'switch ('));
+    // Le chemin normal lit le champ publié — jamais une table recopiée.
+    expect($bloc)->toContain('switch (option.creneau)');
 
-    // Le `switch` range les types en TROIS groupes, séparés par leurs `return`.
-    // On les lit tels quels plutôt que de deviner : c'est la seule façon de
-    // comparer ce que le front fait VRAIMENT.
-    $groupes = preg_split('/return [^;]+;/', $bloc);
+    // Les DEUX seules exceptions qui testent encore `option?.type` sont des
+    // questions d'ÉTAT du héros (qui a déjà payé), pas de PRIX de l'option —
+    // le contrat le dit. Aucune autre ne doit s'y être ajoutée en silence.
+    $avantCreneau = substr($bloc, 0, strpos($bloc, 'switch (option.creneau)'));
+    preg_match_all("/option\?\.type === '([a-z_]+)'/", $avantCreneau, $exceptions);
+    expect(array_values(array_unique($exceptions[1])))->toEqualCanonicalizing(['attaque', 'sort']);
+
+    // Le REPLI DÉGRADÉ (menu en cache sans `creneau`) garde SA table par type
+    // — celle qu'on confronte au serveur, dans les DEUX sens, en lisant le
+    // `switch` tel qu'il existe plutôt qu'en devinant son contenu.
+    $repli = substr($bloc, strrpos($bloc, "switch (option?.type)"));
+    $groupes = preg_split('/return [^;]+;/', $repli);
     $casesDe = function (string $morceau): array {
         preg_match_all("/case '([a-z_]+)':/", $morceau, $m);
 
         return $m[1];
     };
 
-    // 0 = jusqu'au premier `return` (les types de MOUVEMENT), puis les gratuits,
-    // puis les terminants ; le reste tombe sur le `default` = action.
+    // 0 = jusqu'au premier `return` (les types de MOUVEMENT), 1 = jusqu'au
+    // second (les gratuits ET les terminants, un seul groupe désormais que
+    // `attaque`/`sort` sont sortis du switch) ; le reste tombe sur `default`.
     $mouvement = $casesDe($groupes[0] ?? '');
-    $libres = array_merge($casesDe($groupes[1] ?? ''), $casesDe($groupes[2] ?? ''));
-
-    $reflet = new ReflectionMethod(App\Partie\ResolveurTour::class, 'creneauOption');
-    $reflet->setAccessible(true);
-    $resolveur = app(App\Partie\ResolveurTour::class);
+    $libres = $casesDe($groupes[1] ?? '');
 
     $types = ['deplacement', 'franchissement', 'ouvrir_porte', 'actionner_levier', 'sortie',
         'retraite', 'style', 'objet_libre', 'objet', 'concentration', 'relever', 'attente',
-        'attaque', 'sort', 'parchemin', 'jet', 'poussee'];
+        'parchemin', 'jet', 'poussee'];
 
     foreach ($types as $type) {
-        $serveur = $reflet->invoke($resolveur, $type);
+        $serveur = App\Partie\ResolveurTour::creneauOption($type);
         $manette = in_array($type, $mouvement, true) ? 'mouvement'
             : (in_array($type, $libres, true) ? 'libre' : 'action');
 
@@ -217,6 +224,6 @@ it('le miroir des créneaux de la manette dit la MÊME chose que le moteur', fun
             default => 'action',
         };
 
-        expect($manette)->toBe($attendu, "« {$type} » : serveur = {$serveur}, manette = {$manette}");
+        expect($manette)->toBe($attendu, "« {$type} » (repli dégradé) : serveur = {$serveur}, manette = {$manette}");
     }
 });

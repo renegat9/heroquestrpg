@@ -135,6 +135,14 @@ export function useApi() {
         creerPersonnage: ({ nom, classe, elements }) =>
             request('POST', '/personnages', elements ? { nom, classe, elements } : { nom, classe }),
 
+        /**
+         * DELETE /api/personnages/{id} → 204.
+         * Supprime un personnage CRÉÉ PAR ERREUR (jamais engagé, jamais
+         * joué — contrat). 404 : pas le sien. 422 : engagé ou déjà joué —
+         * ne devrait pas survenir depuis l'UI, qui ne montre le bouton que
+         * si `supprimable` (déjà publié par /moi) est vrai.
+         */
+        supprimerPersonnage: (id) => request('DELETE', `/personnages/${id}`),
 
         // ---- table (Narrateur — session sans compte) ----
 

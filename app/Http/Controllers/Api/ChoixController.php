@@ -92,6 +92,13 @@ class ChoixController extends Controller
             // le mode « ouvre une porte » du Génie produisant plusieurs entrées
             // pour le MÊME sort. Patron des `soins` réactifs (`potion:{id}`).
             'parametres.cle' => ['sometimes', 'string', 'max:64'],
+            // ÉQUIPER (sous-choix, 2026-09-18) : la MAIN choisie quand
+            // l'entrée retenue porte deux slots utiles (arme à une main).
+            // ⚠ Borne large ici (juste les deux valeurs possibles) — la
+            // vraie whitelist est `parametres.slots` DE L'ENTRÉE, revalidée
+            // par `resoudreEquipement()` : deux pièces du même sac peuvent
+            // avoir des slots utiles différents.
+            'parametres.emplacement' => ['sometimes', Rule::in(['arme_principale', 'arme_secondaire'])],
             // Jeter une PILE (doc 01 §7) : combien d'exemplaires. ⚠ La borne
             // haute n'est PAS ici — elle dépend de la ligne en base, que
             // `resoudreJeter()` relit et compare. Ce `min:1` n'empêche que

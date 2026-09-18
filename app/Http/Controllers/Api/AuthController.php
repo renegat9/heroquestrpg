@@ -9,6 +9,7 @@ use App\Engine\MotsClesEquipement;
 use App\Http\Controllers\Controller;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\PersonnageHistorique;
 use App\Partie\Equipement;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\CapaciteSac;
@@ -109,21 +110,43 @@ class AuthController extends Controller
         /** @var JoueurAuthentifiable $joueur */
         $joueur = Auth::guard('joueur')->user();
 
+        $personnages = $joueur->personnages()
+            ->with(['competences:competences.id,competences.nom,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
+            ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
+                'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
+                'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense']);
+
+        // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
+        // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
+        // pas une par personnage (`enQuete()` ci-dessous ne couvre, lui, que
+        // la quête EN COURS).
+        $idsDejaEnQuete = EtatPersonnageQuete::whereIn('personnage_id', $personnages->pluck('id'))
+            ->distinct()->pluck('personnage_id');
+        $idsAvecHistorique = PersonnageHistorique::whereIn('personnage_id', $personnages->pluck('id'))
+            ->distinct()->pluck('personnage_id');
+
         return [
             'id' => $joueur->id,
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
-            'personnages' => $joueur->personnages()
-                ->with(['competences:competences.id,competences.nom,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
-                ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
-                    'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
-                    'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense'])
-                ->map(function ($p) {
+            'personnages' => $personnages
+                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique) {
                     $disponible = $p->groupe_actif_id === null;
                     // L'état de quête sert aux fenêtres « une fois par quête /
                     // par tour » des capacités : lu UNE fois par héros, pas une
                     // fois par nœud.
                     $etatQuete = EtatPersonnageQuete::enQuete($p);
+                    // ⚠ La DÉCISION « ce héros peut être supprimé », pas ses
+                    // ingrédients : DELETE /personnages/{id} réévalue ces
+                    // trois mêmes conditions côté serveur (contrat), et le
+                    // roster ne doit JAMAIS re-dériver « jamais joué » en JS —
+                    // même défaut que `sort_bonus_disponible`/`embrasure`.
+                    // `enQuete()` ne regarde QUE la quête `en_cours` ; ici il
+                    // faut TOUTE trace passée, d'où les deux ensembles calculés
+                    // en amont (une requête chacun, pas une par personnage).
+                    $supprimable = $disponible
+                        && ! $idsDejaEnQuete->contains($p->id)
+                        && ! $idsAvecHistorique->contains($p->id);
 
                     $data = [
                         'id' => $p->id,
@@ -232,6 +255,12 @@ class AuthController extends Controller
                                 ->map(function ($l) use ($p) {
                                     $equipement = app(Equipement::class);
                                     $portees = $equipement->occupants($p);
+                                    // Point de passage unique avec l'option `equiper` du menu
+                                    // de quête (sous-choix, 2026-09-18) : les deux posent la
+                                    // même question (« quels slots, et quoi remplacent-ils ? »)
+                                    // via `Equipement::detailEquipabilite()`, jamais recalculée
+                                    // deux fois.
+                                    $detail = $equipement->detailEquipabilite($l->objet, $l, $portees);
 
                                     return [
                                         'inventaire_id' => $l->id,
@@ -256,7 +285,7 @@ class AuthController extends Controller
                                         // Sans cette clé la manette ne pourrait pas
                                         // proposer le choix, et le second slot
                                         // n'existerait que pour l'API.
-                                        'slots' => app(Equipement::class)->slotsPossibles($l->objet),
+                                        'slots' => $equipement->slotsPossibles($l->objet),
                                         // ⚠ Les emplacements où monter la pièce
                                         // change VRAIMENT quelque chose, et ce que
                                         // chacun porte déjà (René, 2026-09-04 : le
@@ -270,15 +299,8 @@ class AuthController extends Controller
                                         // manette : le vocabulaire d'affichage vit
                                         // côté serveur, faute de quoi il dérive de
                                         // la règle qu'il décrit.
-                                        'slots_utiles' => array_values(array_filter(
-                                            $equipement->slotsPossibles($l->objet),
-                                            fn (string $slot) => $equipement->echangeUtile($portees[$slot] ?? null, $l),
-                                        )),
-                                        'remplace' => collect($equipement->slotsPossibles($l->objet))
-                                            ->mapWithKeys(fn (string $slot) => [
-                                                $slot => ($portees[$slot] ?? null)?->objet?->nom,
-                                            ])
-                                            ->filter()->all(),
+                                        'slots_utiles' => $detail['slots_utiles'],
+                                        'remplace' => $detail['remplace'],
                                     ];
                                 })
                                 ->values()
@@ -333,6 +355,11 @@ class AuthController extends Controller
                             ->values()
                             ->all(),
                         'disponible' => $disponible,
+                        // Contrat DELETE /personnages/{id} : le bouton
+                        // « Supprimer » du roster (JoueurView.vue) LIT ce
+                        // booléen au lieu de re-dériver « libre + jamais
+                        // joué » côté client — le serveur publie la décision.
+                        'supprimable' => $supprimable,
                     ];
 
                     // Personnage engagé : expose le groupe avec narrateur_actif (contrat).

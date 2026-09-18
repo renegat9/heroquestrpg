@@ -115,14 +115,44 @@ function meta(entree) {
         return quoi ? `${base} · ${quoi}` : base;
     }
 
+    // ÉQUIPER (pieces[]) : l'entrée porte `slots`/`remplace`, jamais `cout` —
+    // même décision que le sac du hub (`SacTab.titreEquiper()`), formulée ici
+    // pour ce niveau-ci ; le troisième niveau (choix de main) pose `detail`
+    // directement sur ses entrées synthétiques (`frameSlot`), qui retombent
+    // donc sur le dernier `return` ci-dessous sans repasser par ce cas.
+    if (Array.isArray(entree.slots)) {
+        if (entree.slots.length > 1) return 'Choisis la main';
+        const occupant = entree.remplace?.[entree.slots[0]];
+
+        return occupant ? `Remplace ${occupant}, qui retourne au sac` : '';
+    }
+
+    // ATTAQUER / LANCER (armes[]) : le nombre de dés vient de l'ARME, pas du
+    // héros (`Equipement::desAttaqueAvec()`) — c'est justement pourquoi il
+    // voyage par entrée plutôt que d'être lu sur la fiche.
+    if (entree.slot !== undefined && typeof entree.des_attaque === 'number') {
+        return `${entree.des_attaque} dé${entree.des_attaque > 1 ? 's' : ''} d'attaque`;
+    }
+
     return entree.detail ?? TYPES_SORT[entree.sort_type]?.l ?? '';
 }
 
 function carte(entree) {
     const el = entree.element ? elementInfo(entree.element) : null;
+    // ⚠ Les ARMES (`slot` présent — listes `attaquer`/`lancer`) portaient
+    // `backpack` comme n'importe quel objet du sac (René, 2026-09-18, capture
+    // `armes-avant.png` : « Épée large » et « Bâton » affichaient le même sac
+    // que « Ranger »/« Utiliser un objet »). Une arme qu'on brandit n'est pas
+    // un objet qu'on fouille — `swords` reprend l'icône de l'option
+    // `attaque`/`lancer` qui a ouvert cette liste.
+    const arme = entree.slot !== undefined;
+    // Les PIÈCES d'équipement (`slots`, pluriel — liste `equiper`/`ranger`)
+    // RESTENT au sac : elles en viennent bien (on les y remet en rangeant),
+    // contrairement à l'arme déjà en main pour frapper.
+    const objetDuSac = entree.cout || Array.isArray(entree.slots);
 
     return {
-        icon: el?.ic ?? (entree.cout ? 'backpack' : 'auto_awesome'),
+        icon: el?.ic ?? (arme ? 'swords' : objetDuSac ? 'backpack' : 'auto_awesome'),
         elClass: el ? `el-${el.cle ?? entree.element}` : '',
         badge: entree.quantite > 1 ? `×${entree.quantite}` : '',
         disabled: entree.disponible === false,

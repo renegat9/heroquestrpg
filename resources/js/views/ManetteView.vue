@@ -531,7 +531,7 @@ async function repondreReaction(accepte, soin = null) {
 }
 watch(() => store.state.menu, () => { feuilles.value = []; });
 
-/* Les trois options à SOUS-CHOIX et la liste qu'elles portent. Le libellé du
+/* Les options à SOUS-CHOIX et la liste qu'elles portent. Le libellé du
    retour NOMME la liste : c'est lui qu'affiche le niveau des cibles. */
 const LISTES = {
     lancer_sort: { cle: 'sorts', titre: 'Quel sort lancer ?', retour: 'Retour aux sorts', grouper: true },
@@ -539,6 +539,17 @@ const LISTES = {
     utiliser_objet: { cle: 'objets', titre: 'Quel objet utiliser ?', retour: 'Retour aux objets' },
     se_concentrer: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
     sacrifier_pour_sort: { cle: 'sorts', titre: 'Quel sort récupérer ?', retour: 'Retour aux sorts' },
+    // Équiper / ranger / attaquer (René, 2026-09-18) : les trois dernières
+    // options qui portaient encore UNE pièce chacune — `equiper_{id}`,
+    // `desequiper_{id}`, `attaquer` + `attaquer_secondaire` — rejoignent le
+    // patron du 2026-09-01. `equiper` ouvre en plus un TROISIÈME niveau (le
+    // choix de main) quand l'entrée porte deux `slots` : voir `choisirEntree`.
+    equiper: { cle: 'pieces', titre: 'Quelle pièce équiper ?', retour: 'Retour aux pièces' },
+    ranger: { cle: 'pieces', titre: 'Quelle pièce ranger ?', retour: 'Retour aux pièces' },
+    attaquer: { cle: 'armes', titre: 'Avec quelle arme ?', retour: 'Retour aux armes' },
+    // Lancer PERD l'arme (le libellé de l'OPTION le dit déjà) : la liste
+    // n'a besoin de rien de plus que le nom de chaque arme jetable.
+    lancer: { cle: 'armes', titre: 'Quelle arme lancer ?', retour: 'Retour aux armes' },
     // Jeter (doc plan-echange-et-jeter, révision R1/R2 du 2026-09-17) : les
     // lignes du sac, `confirmer` ouvre un palier de confirmation — et, si la
     // pile compte plus d'un exemplaire, un palier de QUANTITÉ avant lui — dans
@@ -638,11 +649,39 @@ function frameCible(option, source, retour) {
     };
 }
 
+/** Libellé de main, décidé une fois ici — pure présentation d'un enum stable
+ *  (« arme_principale » ne changera pas de sens), au même titre que SacTab.vue
+ *  le fait déjà pour le sac du hub : ce n'est pas une règle de jeu à dériver,
+ *  juste sa traduction. */
+const MAINS = { arme_principale: 'Main droite', arme_secondaire: 'Main gauche' };
+
+/**
+ * Frame du CHOIX DE MAIN — un troisième niveau, au même titre que le ciblage :
+ * une entrée `equiper` qui porte DEUX `slots` (arme à une main) ouvre cette
+ * feuille plutôt que d'envoyer directement, exactement comme une entrée qui
+ * porte des `cibles` ouvre `frameCible`. Réutilise `ChoixListeSheet` (mode
+ * `liste`) : c'est un choix parmi deux entrées, rien qui justifie un
+ * composant de plus.
+ */
+function frameSlot(option, entree, retour) {
+    const entrees = entree.slots.map((slot) => ({
+        // Même `cle` que la pièce : c'est TOUJOURS elle que le serveur doit
+        // recevoir, `emplacement` ne fait que désambiguïser la main.
+        cle: entree.cle,
+        emplacement: slot,
+        nom: MAINS[slot] ?? slot,
+        detail: entree.remplace?.[slot] ? `Remplace ${entree.remplace[slot]}, qui retourne au sac` : null,
+    }));
+
+    return { option, mode: 'liste', titre: `${entree.nom} — quelle main ?`, entrees, retour };
+}
+
 /**
  * Entrée choisie dans une liste. Si elle porte des cibles, on EMPILE le
- * ciblage ; sinon on envoie. ⚠ La profondeur suit la DONNÉE : un sort sur soi
- * (`cibles` absent) part du niveau 2, sans clic imposé pour une liste à une
- * seule entrée.
+ * ciblage ; si elle porte deux `slots` (arme à une main), on EMPILE le choix
+ * de main ; sinon on envoie. ⚠ La profondeur suit la DONNÉE : un sort sur soi
+ * (`cibles` absent), une pièce à un seul slot utile, ou une main déjà choisie
+ * partent directement — sans clic imposé pour un choix qui n'en est pas un.
  */
 function choisirEntree(entree) {
     const { option, retour } = feuilleOption.value;
@@ -662,11 +701,22 @@ function choisirEntree(entree) {
         return;
     }
 
+    // ÉQUIPER — une arme à une main garde deux slots UTILES (l'échange sur
+    // l'autre main ne serait pas un no-op) : exactement comme `cibles`
+    // ci-dessus, la donnée décide si un troisième niveau s'ouvre.
+    if (Array.isArray(entree.slots) && entree.slots.length > 1) {
+        empiler(frameSlot(option, entree, liste?.retour ?? 'Retour'));
+        return;
+    }
+
     // R2 : ChoixListeSheet a pu faire choisir une QUANTITÉ avant de confirmer
     // (`jeter` uniquement, portée par `entree.quantite_choisie`). Omise quand
     // elle vaut 1 : le contrat le dit lui-même, « une quantité absente vaut 1 ».
     const parametres = { cle: entree.cle };
     if (entree.quantite_choisie > 1) parametres.quantite = entree.quantite_choisie;
+    // Main déjà choisie (retour de `frameSlot` ci-dessus) : `emplacement`
+    // voyage avec la MÊME `cle`, le serveur revalide l'appartenance des deux.
+    if (entree.emplacement) parametres.emplacement = entree.emplacement;
     envoyerOption(option, parametres);
 }
 
