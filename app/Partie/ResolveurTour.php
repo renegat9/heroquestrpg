@@ -3333,12 +3333,17 @@ final class ResolveurTour
         // secrètes (passées révélées + ouvertes).
         if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true) && $resultat->estReussi()
             && $quete->carte !== null && $etat->position_x !== null) {
+            // ⚠ La grille est ce qui BLOQUE : sans elle, les deux révélations
+            // traversaient murs et portes closes (René, en partie, 2026-09-18).
+            // Une seule grille pour les deux, comme `balayerClairvoyance()`.
+            $grilleFouille = $this->grille($quete);
+
             $payload['pieges_reveles'] = $this->pieges->revelerAutour(
-                $groupe, $quete->carte, $personnage,
+                $groupe, $quete->carte, $personnage, $grilleFouille,
                 (int) $etat->position_x, (int) $etat->position_y,
             );
             $payload['portes_revelees'] = $this->portes->revelerSecretesAutour(
-                $groupe, $quete->carte, $personnage,
+                $groupe, $quete->carte, $personnage, $grilleFouille,
                 (int) $etat->position_x, (int) $etat->position_y,
             );
         }

@@ -150,11 +150,20 @@ final class MoteurPortes
      *
      * @return list<array{x: int, y: int}> portes révélées
      */
-    public function revelerSecretesAutour(Groupe $groupe, Carte $carte, Personnage $personnage, int $x, int $y): array
+    public function revelerSecretesAutour(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
     {
+        // ⚠ LIGNE DE VUE ajoutée le 2026-09-18, en même temps que celle de
+        // `MoteurPieges::revelerAutour()` — MÊME défaut, MÊME ligne, dans la
+        // jumelle appelée deux lignes plus loin par la fouille de zone. René
+        // n'avait signalé que le piège vu derrière une porte fermée ; corriger
+        // le piège sans la porte secrète aurait laissé le défaut identique dans
+        // le geste identique, à retrouver au prochain playtest.
+        // `revelerSecretesEnVue()` filtrait déjà ainsi : la fouille n'avait
+        // simplement jamais reçu de grille.
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) <= self::RAYON_FOUILLE,
+            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) <= self::RAYON_FOUILLE
+                && $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
         );
     }
 

@@ -53,17 +53,32 @@ onMounted(() => {
     charger();
 });
 
-/* ---- mon héros : personnage de /moi présent dans ce groupe ---- */
-const monPerso = computed(() => {
-    const persos = store.state.personnages ?? [];
-    const idsHeros = new Set((store.state.etat?.entites ?? [])
-        .filter((e) => e.type === 'heros')
-        .map((e) => e.id));
-    return persos.find((p) => idsHeros.has(p.id))
-        ?? persos.find((p) => p.groupe_actif_id != null || p.disponible === false)
-        ?? persos[0]
-        ?? null;
-});
+/* ---- mon héros : celui que /moi dit ENGAGÉ DANS CE GROUPE ----------------
+   ⚠ Corrigé en pleine partie le 2026-09-18 (René : « le montage de niveau
+   n'affiche pas le bon personnage, c'est le premier personnage qu'on a créé
+   qui apparaît au lieu de celui en cours »).
+
+   L'ancienne version enchaînait trois replis dont AUCUN ne regardait de quel
+   groupe il s'agissait : les héros présents dans `etat.entites` (mais `/etat`
+   est chargé en `.catch(() => {})`, donc souvent vide au montage), puis
+   « n'importe lequel de mes héros engagé QUELQUE PART », puis carrément
+   `persos[0]` — le premier créé. Un joueur ayant plusieurs personnages voyait
+   donc le mauvais, et le repli silencieux ressemblait à un choix.
+
+   ⚠ CE N'ÉTAIT PAS QU'UN DÉFAUT D'AFFICHAGE : `monPerso.id` part dans
+   `acquerirCompetence()`. Le mauvais héros affiché, c'est un point de
+   compétence dépensé sur le mauvais personnage — une donnée de campagne
+   abîmée, pas une gêne visuelle.
+
+   La règle juste tient en une ligne, et elle LIT une décision du serveur au
+   lieu de la reconstituer : `/moi` publie `groupe.identifiant` sur chaque
+   personnage engagé, et la route porte ce même identifiant.
+
+   ⚠ Aucun repli. Si aucun de mes héros n'est dans ce groupe, la réponse est
+   « aucun », jamais un voisin plausible : afficher le mauvais héros est pire
+   que n'en afficher aucun, puisque l'écran sert à DÉPENSER. */
+const monPerso = computed(() => (store.state.personnages ?? [])
+    .find((p) => p.groupe?.identifiant === props.groupe) ?? null);
 
 const heros = computed(() => {
     const p = monPerso.value;
@@ -193,6 +208,18 @@ const verrouLibelle = (n) => (n.verrou === 'prerequis'
                         <p>{{ erreurChargement }}</p>
                         <button class="btn btn-gold" style="width: auto" @click="charger">
                             <MSym n="refresh" /> Réessayer
+                        </button>
+                    </div>
+                    <!-- ⚠ Aucun de MES héros n'est engagé dans ce groupe. Cet
+                         état est DIT, jamais comblé par un voisin plausible :
+                         l'écran sert à dépenser un point de compétence, et
+                         afficher le mauvais héros y coûtait un point sur le
+                         mauvais personnage (René, en partie, 2026-09-18). -->
+                    <div v-else-if="!monPerso" class="state-note err">
+                        <MSym n="person_off" fill :size="26" />
+                        <p>Aucun de tes héros n'est engagé dans ce groupe — rien à faire monter ici.</p>
+                        <button class="btn btn-gold" style="width: auto" @click="charger">
+                            <MSym n="refresh" /> Recharger
                         </button>
                     </div>
                     <template v-else>

@@ -465,3 +465,58 @@ it('fait chuter le héros dans la fosse quand le franchissement échoue', functi
         ->and($hero->fresh()->pv_body)->toBe(7)
         ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte'); // persistante
 });
+
+/** Pose une porte sur une arête, en remplaçant celles de l'assembleur. */
+function poserPortePiege(Quete $quete, array $portes): void
+{
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['portes'] = $portes;
+    $carte->update(['grille' => $grille]);
+    $quete->load('carte');
+}
+
+it('ne révèle PAS par la fouille un piège derrière une PORTE FERMÉE, même à une case', function () {
+    // Signalé par René EN PLEINE PARTIE le 2026-09-18 : « j'ai fait une
+    // fouille de piège et j'ai détecté un piège en arrière d'une porte
+    // fermée ». Le filtre de `MoteurPieges::revelerAutour()` était purement
+    // géométrique — un rayon de Manhattan, sans le moindre contrôle de
+    // cloison — si bien que la fouille voyait à travers murs et portes.
+    //
+    // ⚠ La couture existait vingt lignes plus bas dans le même fichier :
+    // `revelerEnVue()` (Potion de Vision) filtrait DÉJÀ sur
+    // `Grille::ligneDeVue()`, qui bloque sur les portes fermées depuis qu'une
+    // porte est une ARÊTE (F6). La fouille n'avait jamais reçu de grille : elle
+    // ne pouvait rien bloquer — et faisait gratuitement mieux qu'une carte
+    // payante dont c'est tout l'intérêt.
+    //
+    // ⚠ La situation est CONSTRUITE, pas cherchée sur la carte générée. Une
+    // première version balayait les cases à la recherche d'un angle mort et se
+    // SAUTAIT quand la carte n'en offrait aucun — un test sauté n'épingle rien,
+    // et c'est précisément ce cas-ci qu'il faut tenir.
+    [, , , $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+
+    // Porte FERMÉE sur l'arête est du héros ; un piège juste derrière, et un
+    // autre au sud sans rien qui le cache. Les deux sont à UNE case, donc très
+    // largement dans le rayon de fouille : seule la vue les distingue.
+    poserPortePiege($quete, [['x' => $x, 'y' => $y, 'cote' => 'e', 'etat' => 'fermee']]);
+    poserPieges($quete, [
+        ['x' => $x, 'y' => $y + 1, 'nom' => 'Fosse', 'etat' => 'cache'],
+        ['x' => $x + 1, 'y' => $y, 'nom' => 'Piège à lances', 'etat' => 'cache'],
+    ]);
+
+    desFiges([1, 4]); // Mind : réussite de la fouille
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.issue', 'reussite')
+        ->assertJsonCount(1, 'resultat.pieges_reveles')
+        ->assertJsonPath('resultat.pieges_reveles.0.nom', 'Fosse');
+
+    $pieges = $quete->fresh()->carte->grille['pieges'];
+    expect($pieges[0]['etat'])->toBe('detecte')
+        ->and($pieges[1]['etat'])->toBe('cache');
+});

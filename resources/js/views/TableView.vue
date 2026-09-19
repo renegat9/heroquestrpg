@@ -718,6 +718,54 @@ const urgenceOuverte = ref(false);
 const urgenceEnCours = ref(false);
 const urgenceErreur = ref('');
 
+/* ---- PLEIN ÉCRAN (René, 2026-09-18) ------------------------------------
+   L'écran de table est projeté ou posé au milieu des joueurs : une fois la
+   partie lancée, la barre du navigateur ne sert plus qu'à manger la carte.
+
+   ⚠ L'état est LU du navigateur (`document.fullscreenElement`), jamais
+   mémorisé de notre côté : on sort du plein écran par Échap, par F11 ou par
+   le geste du système, et aucun de ces trois-là ne passe par notre bouton.
+   Un drapeau local se serait désynchronisé au premier Échap, laissant
+   l'icône proposer d'entrer dans un mode où l'on est déjà. C'est la même
+   discipline que partout ailleurs ici : lire l'état qui fait autorité plutôt
+   que d'en tenir une copie.
+
+   ⚠ Préfixes `webkit` conservés : Safari — y compris sur l'iPad qu'on pose
+   volontiers au centre de la table — n'expose toujours pas l'API non
+   préfixée. */
+const pleinEcran = ref(false);
+
+function relirePleinEcran() {
+    pleinEcran.value = !! (document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+async function basculerPleinEcran() {
+    try {
+        if (pleinEcran.value) {
+            await (document.exitFullscreen?.() ?? document.webkitExitFullscreen?.());
+        } else {
+            const cible = document.documentElement;
+            await (cible.requestFullscreen?.() ?? cible.webkitRequestFullscreen?.());
+        }
+    } catch {
+        // Un refus du navigateur (geste non reconnu, politique de l'iframe)
+        // n'a rien à dire au narrateur : le bouton reste, il retentera.
+    }
+
+    relirePleinEcran();
+}
+
+onMounted(() => {
+    relirePleinEcran();
+    document.addEventListener('fullscreenchange', relirePleinEcran);
+    document.addEventListener('webkitfullscreenchange', relirePleinEcran);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('fullscreenchange', relirePleinEcran);
+    document.removeEventListener('webkitfullscreenchange', relirePleinEcran);
+});
+
 async function redemarrerQueteUrgence() {
     urgenceEnCours.value = true;
     urgenceErreur.value = '';
@@ -820,6 +868,16 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span class="dots"><i /><i /><i /></span> Le MJ réfléchit…
                     </div>
                     <div class="conn"><span class="dot" />{{ joueursConnectes }} joueurs connectés</div>
+                    <!-- PLEIN ÉCRAN (René, 2026-09-18). L'écran de table est
+                         projeté ou posé au milieu des joueurs : la barre du
+                         navigateur ne sert plus à rien une fois la partie
+                         lancée, et elle mange la carte. -->
+                    <button class="status-params" type="button"
+                        :title="pleinEcran ? 'Quitter le plein écran' : 'Plein écran'"
+                        :aria-label="pleinEcran ? 'Quitter le plein écran' : 'Passer en plein écran'"
+                        @click="basculerPleinEcran">
+                        <MSym :n="pleinEcran ? 'fullscreen_exit' : 'fullscreen'" />
+                    </button>
                     <button class="status-urgence" type="button" title="Actions du narrateur" @click="urgenceOuverte = true">
                         <MSym n="crisis_alert" />
                     </button>

@@ -376,17 +376,38 @@ final class MoteurPieges
 
     /**
      * Fouille RÉUSSIE : révèle les pièges cachés dans un rayon de
-     * RAYON_FOUILLE cases (Manhattan) autour du fouilleur.
+     * RAYON_FOUILLE cases (Manhattan) **ET EN VUE** du fouilleur.
+     *
+     * ⚠ LA LIGNE DE VUE A ÉTÉ AJOUTÉE LE 2026-09-18, signalée en pleine partie
+     * par René : « j'ai fait une fouille de piège et j'ai détecté un piège en
+     * arrière d'une porte fermée ». Le filtre était purement géométrique — un
+     * rayon de Manhattan, sans le moindre contrôle de cloison — si bien qu'une
+     * fouille voyait à travers les murs et les portes closes.
+     *
+     * ⚠ Le défaut ne tenait pas à une règle manquante mais à une couture non
+     * branchée : `revelerEnVue()`, vingt lignes plus bas, filtrait DÉJÀ sur
+     * `Grille::ligneDeVue()` — laquelle bloque sur les murs et sur les portes
+     * fermées depuis que la porte est une arête (F6). La fouille, elle, n'avait
+     * jamais reçu de grille : elle ne pouvait donc rien bloquer.
+     *
+     * ⚠ Et c'était une incohérence de règle interne, pas seulement un excès de
+     * portée : la **Potion de Vision** est une carte payante dont tout l'intérêt
+     * est de voir les pièges « within their line of sight ». Une fouille qui
+     * traverse les cloisons faisait gratuitement mieux que la carte.
+     *
+     * Le rayon est CONSERVÉ (doc 10 §3) : on ne fouille pas une salle entière
+     * d'un jet. Les deux conditions se cumulent — à portée, et visible.
      *
      * @return list<array{x: int, y: int, nom: string}> pièges révélés
      */
-    public function revelerAutour(Groupe $groupe, Carte $carte, Personnage $personnage, int $x, int $y): array
+    public function revelerAutour(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
     {
         return $this->reveler(
             $groupe,
             $carte,
             $personnage,
-            fn (array $entree) => abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) <= self::RAYON_FOUILLE,
+            fn (array $entree) => abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) <= self::RAYON_FOUILLE
+                && $grille->ligneDeVue($x, $y, (int) $entree['x'], (int) $entree['y']),
             'fouille',
         );
     }
