@@ -590,6 +590,50 @@ final class DemarreurQuete
     }
 
     /**
+     * Libellé HUMAIN de chaque entrée de `BOITES_THEMATIQUES` — le nom
+     * OFFICIEL anglais de la boîte, tel qu'il figure sur `reference/18_extensions.md`
+     * (titres de section), jamais une traduction inventée (René, 2026-09-24 :
+     * « ne jamais semer une valeur que les livrets ne sourcent pas » couvre
+     * aussi les LIBELLÉS, pas seulement les stats — aucun de ces noms n'a de
+     * traduction française officielle publiée par Hasbro).
+     *
+     * ⚠ SEULE source du projet pour ce texte : `EtatGroupe` la lit pour ne
+     * jamais laisser un CLIENT traduire un identifiant de boîte — même
+     * discipline que `objectif_libelle` (le serveur publie la décision, pas
+     * les ingrédients).
+     *
+     * ⚠ Registre testé DANS LES DEUX SENS (`ThemeBestiaireLibelleTest`) :
+     * aucune entrée de `BOITES_THEMATIQUES` sans libellé ici, aucun libellé
+     * ici qui ne soit une entrée de `BOITES_THEMATIQUES` — la même discipline
+     * que `config/cartes.php` et `MotsCles*` (CLAUDE.md « une registry est
+     * testée BOTH WAYS »).
+     */
+    public const LIBELLES_BOITES = [
+        // reference/18_extensions.md ligne 796 : « Rise of the Dread Moon »
+        'dread_moon' => 'Rise of the Dread Moon',
+        // reference/18_extensions.md ligne 665 : « The Mage of the Mirror »
+        'mage_du_miroir' => 'The Mage of the Mirror',
+        // reference/18_extensions.md ligne 300 : « Against the Ogre Horde »
+        'horde_ogre' => 'Against the Ogre Horde',
+        // reference/18_extensions.md ligne 1238 : « Jungles of Delthrak »
+        'jungles_delthrak' => 'Jungles of Delthrak',
+        // reference/18_extensions.md ligne 504 : « The Frozen Horror »
+        'horreur_des_glaces' => 'The Frozen Horror',
+    ];
+
+    /**
+     * Libellé lisible d'une boîte de bestiaire — jamais l'identifiant brut,
+     * qui n'a de sens que pour le moteur. Repli sur l'identifiant lui-même
+     * quand il manque à `LIBELLES_BOITES` (`fail open` : un thème mal
+     * enregistré doit s'afficher plutôt que casser l'écran — les deux sens du
+     * registre sont de toute façon verrouillés par un test).
+     */
+    public function libelleBoiteBestiaire(string $boite): string
+    {
+        return self::LIBELLES_BOITES[$boite] ?? $boite;
+    }
+
+    /**
      * COÛT EFFECTIF d'une créature dans le budget de rencontre — le seul calcul
      * qui fasse foi.
      *

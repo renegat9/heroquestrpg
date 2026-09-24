@@ -536,6 +536,14 @@ const hubImage = computed(() => etat.value?.groupe?.image_url ?? null);
 const sceneImage = computed(() => etat.value?.quete?.image_url ?? null);
 const sousTitre = computed(() => etat.value?.groupe?.nom ?? '');
 
+// Thèmes de campagne (2026-09-24) : `EtatGroupe` publie les DEUX — le
+// narratif libre saisi à la création, et la boîte de bestiaire FIGÉE, déjà
+// avec son libellé lisible. Le client n'en traduit ni ne recalcule aucun,
+// il les affiche tels quels (`groupe.theme_bestiaire_libelle` vient de
+// `DemarreurQuete::LIBELLES_BOITES`, la seule source du texte).
+const themeNarratif = computed(() => etat.value?.groupe?.theme || null);
+const themeBoiteLibelle = computed(() => etat.value?.groupe?.theme_bestiaire_libelle || null);
+
 /**
  * L'objectif de la quête et son verdict — ou `null` s'il n'y a rien à dire.
  *
@@ -831,6 +839,15 @@ watch(() => store.state.clotureTerminee, (t) => {
                     </RouterLink>
                     <span class="ep">{{ sousTitre }}</span>
                     <h1>{{ titreQuete }}</h1>
+                    <!-- Thèmes de campagne (2026-09-24), discrets, sous le
+                         titre : le narratif libre et la boîte de bestiaire
+                         FIGÉE, chacun avec son libellé déjà décidé côté
+                         serveur — le client ne traduit jamais un identifiant
+                         de boîte. -->
+                    <div v-if="themeNarratif || themeBoiteLibelle" class="tv-themes">
+                        <span v-if="themeNarratif" class="tv-theme tv-theme-recit" :title="themeNarratif">{{ themeNarratif }}</span>
+                        <span v-if="themeBoiteLibelle" class="tv-theme tv-theme-boite" :title="themeBoiteLibelle">{{ themeBoiteLibelle }}</span>
+                    </div>
                     <!-- ⚠ EN TOUT TEMPS, jamais derrière un bouton (René,
                          2026-09-05). L'objectif était publié par l'API depuis
                          le 2026-08-20 et rendu sur AUCUN écran : le moteur
@@ -941,6 +958,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         :furniture="furniture"
                         :active-x="cibleCamera?.x ?? null"
                         :active-y="cibleCamera?.y ?? null"
+                        @inspecter="inspecter"
                     />
 
                     <!-- ⚠ Les deux outils vivent dans `.map-wrap`, PAS dans la
@@ -1168,6 +1186,16 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .quest h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 2vw, 30px); margin: 2px 0 0;
   color: var(--parch-100); letter-spacing: 0.03em; }
 
+/* Thèmes de campagne (2026-09-24) : DISCRETS — deux petites pastilles sous le
+   titre, jamais un bandeau qui mangerait la carte. Préfixées `tv-` : les
+   blocs <style> de ce fichier sont GLOBAUX (pas de `scoped`), et un nom
+   générique comme `.theme` fuiterait sur d'autres vues (CLAUDE.md). */
+.table-screen .quest .tv-themes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; max-width: 54ch; }
+.table-screen .quest .tv-theme { font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ink-500); color: var(--ink-300);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22ch; }
+.table-screen .quest .tv-theme-boite { border-color: var(--ember); color: var(--ember); }
+
 /* Objectif : discret tant qu'il reste à faire, franc une fois atteint — c'est
    le passage de l'un à l'autre que la table doit voir sans le chercher. */
 .table-screen .quest .obj { display: flex; align-items: flex-start; gap: 6px; margin-top: 5px;
@@ -1281,14 +1309,34 @@ watch(() => store.state.clotureTerminee, (t) => {
    ligne, calculées en JS à partir de la taille réelle de cette fenêtre). */
 .table-screen .map { contain: layout paint style; position: relative; overflow: hidden; aspect-ratio: 14 / 9; height: 100%; max-width: 100%;
   padding: 14px; border-radius: var(--r-lg); background: oklch(0.12 0.01 255);
-  box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6); }
+  box-shadow: inset 0 0 60px oklch(0 0 0 / 0.7), var(--sh-3); border: 1px solid oklch(0.3 0.02 255 / 0.6);
+  /* Glissé manuel (René, 2026-09-24) : `touch-action: none` laisse les Pointer
+     Events de DungeonMap.vue voir CHAQUE mouvement tactile — sans ça, le
+     navigateur tente d'abord un scroll/zoom de page sur une carte qui ne
+     défile pourtant nulle part. `user-select: none` évite de sélectionner les
+     libellés des figurines pendant qu'on glisse à la souris. */
+  touch-action: none; user-select: none; cursor: grab; }
+.table-screen .map:active { cursor: grabbing; }
 /* Le TERRAIN (cases / portes / pièges) est rendu par le socle partagé
    DungeonGrid (mêmes teintes que la manette). Ici : seule la couche figurines. */
+
+/* Bouton « Recentrer » (glissé manuel, René 2026-09-24) : coin haut-gauche,
+   libre — `.map-outils` (légende/aperçu) occupe déjà la colonne de droite. */
+.table-screen .map-recentrer { position: absolute; top: 10px; left: 10px; z-index: 10;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 7px 13px; border-radius: 999px; border: var(--line-strong);
+  background: oklch(0.14 0.01 255 / 0.86); color: var(--ink-100);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+  box-shadow: var(--sh-2); backdrop-filter: blur(3px); }
+.table-screen .map-recentrer:hover { border-color: var(--torch); color: var(--torch); }
 
 /* figurines */
 .table-screen .ent-holder { position: relative; }
 .table-screen .fig { position: absolute; inset: 8%; border-radius: 50%; display: grid; place-items: center; z-index: 4;
-  font-weight: 800; font-size: clamp(10px, 1vw, 15px); box-shadow: var(--sh-2); border: 2px solid; }
+  font-weight: 800; font-size: clamp(10px, 1vw, 15px); box-shadow: var(--sh-2); border: 2px solid;
+  /* Un tap l'ouvre (fiche de détail) — le curseur doit dire « cliquable », pas
+     hériter le `grab` du glissé de carte posé sur `.map` (TableView.vue). */
+  cursor: pointer; }
 .table-screen .fig .msym { font-size: clamp(14px, 1.4vw, 22px); }
 .table-screen .fig.hero { background: linear-gradient(160deg, var(--stone-300), var(--stone-500)); color: var(--stone-950); border-color: var(--parch-100); }
 .table-screen .fig.foe { background: linear-gradient(160deg, var(--body-bright), var(--ember-deep)); color: var(--parch-100); border-color: oklch(0.7 0.18 28); }

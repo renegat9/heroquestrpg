@@ -661,6 +661,75 @@ it('attribue l\'artefact réservé dès qu\'un héros de la classe est actif', f
     expect($choix['artefact_objet_id'])->toBe($reserveBarbare->id);
 });
 
+// ---------------------------------------------------------------------------
+// Artefact BOÎTÉ (`objets.boite`) — ne tombe que dans une campagne DE CETTE
+// BOÎTE (René, 2026-09-24). Les Raquettes de Vitesse (Frozen Horror) ne
+// rendent leur bonus qu'en quête `horreur_des_glaces`
+// (`Equipement::bonusDeplacementActif()`) : les tirer ailleurs grillerait la
+// seule arme unique du coffre de fin de donjon sur du butin mort.
+// ---------------------------------------------------------------------------
+
+it('ne tire JAMAIS les Raquettes de Vitesse hors du thème glacé', function () {
+    [, $groupe, , $quete] = demarrerFouille();
+    $groupe->update(['theme_bestiaire' => 'jungles_delthrak']);
+
+    $raquettes = Objet::where('nom', 'Raquettes de Vitesse')->firstOrFail();
+
+    // Toutes les autres armes/armures uniques déjà détenues : sans le filtre
+    // de boîte, les Raquettes seraient la seule candidate restante.
+    foreach (Objet::where('rarete', 'unique')->whereIn('categorie', ['arme', 'armure'])
+        ->where('id', '!=', $raquettes->id)->get() as $autre) {
+        Inventaire::create([
+            'personnage_id' => $groupe->personnages()->first()->id,
+            'objet_id' => $autre->id, 'emplacement' => 'sac', 'quantite' => 1,
+        ]);
+    }
+
+    $choix = app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe->fresh(), 1);
+
+    expect($choix['artefact_objet_id'])->not->toBe($raquettes->id);
+});
+
+it('reste tirable EN quête glacée — le thème n\'écarte pas, il resserre', function () {
+    [, $groupe, , $quete] = demarrerFouille();
+    $groupe->update(['theme_bestiaire' => 'horreur_des_glaces']);
+
+    $raquettes = Objet::where('nom', 'Raquettes de Vitesse')->firstOrFail();
+
+    foreach (Objet::where('rarete', 'unique')->whereIn('categorie', ['arme', 'armure'])
+        ->where('id', '!=', $raquettes->id)->get() as $autre) {
+        Inventaire::create([
+            'personnage_id' => $groupe->personnages()->first()->id,
+            'objet_id' => $autre->id, 'emplacement' => 'sac', 'quantite' => 1,
+        ]);
+    }
+
+    $choix = app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe->fresh(), 1);
+
+    expect($choix['artefact_objet_id'])->toBe($raquettes->id);
+});
+
+it('un artefact SANS boîte reste tirable dans N\'IMPORTE QUEL thème', function () {
+    [, $groupe, $hero, $quete] = demarrerFouille();
+    $groupe->update(['theme_bestiaire' => 'jungles_delthrak']);
+    $hero->update(['classe' => 'barbare']);
+
+    // L'Amulette du Nord (`boite` = null, réservée au barbare) doit rester
+    // tirable même dans un thème qui n'est pas le sien — elle n'en a pas.
+    $reserveBarbare = Objet::where('nom', 'Amulette du Nord')->firstOrFail();
+
+    foreach (Objet::where('rarete', 'unique')->where('id', '!=', $reserveBarbare->id)->get() as $autre) {
+        Inventaire::create([
+            'personnage_id' => $hero->id,
+            'objet_id' => $autre->id, 'emplacement' => 'sac', 'quantite' => 1,
+        ]);
+    }
+
+    $choix = app(DeckFouille::class)->construire($quete->gabarit, $quete->carte->grille, $groupe->fresh(), 1);
+
+    expect($choix['artefact_objet_id'])->toBe($reserveBarbare->id);
+});
+
 it('place un coffre derrière CHAQUE porte secrète, en plus de celui du fond', function () {
     [, $groupe, , $quete] = demarrerFouille();
 

@@ -48,14 +48,14 @@ const EFFETS_VALEUR = {
     deplacement_multiplie: 'Déplacement ×',
 };
 
-/** Valeurs chiffrées « libellé puis −nombre » (malus). */
-const EFFETS_MALUS = {
-    malus_deplacement: 'Déplacement',
-};
-
 /** Clés booléennes → libellé affiché quand la valeur est vraie. */
 const EFFETS_BOOL = {
     attaque_supplementaire: 'Attaque supplémentaire ce tour',
+    // Armure de plates (carte officielle 2021, René 2026-09-24) : « 1 seul dé
+    // rouge de mouvement » — chez nous (base + UN SEUL d6), le porteur perd
+    // LE dé. Remplace un ancien chiffre (`malus_deplacement`) qui affichait
+    // « Déplacement −2 », non sourcé (conversion fan Sjeng).
+    deplacement_sans_d6: 'Le dé de déplacement ne compte pas : avance de sa base seule',
     deux_mains: 'Arme à deux mains',
     restaure_sorts: 'Rend tous les sorts épuisés',
     second_sort_par_tour: 'Un second sort par tour',
@@ -201,9 +201,6 @@ export function effetVersChips(effet) {
         } else if (k in EFFETS_VALEUR && typeof v === 'number') {
             const label = EFFETS_VALEUR[k];
             chips.push({ texte: label.endsWith('×') ? `${label}${v}` : `${label} ${v}` });
-        } else if (k in EFFETS_MALUS && typeof v === 'number') {
-            // Signe explicite : « Déplacement 2 » se lirait comme un bonus.
-            chips.push({ texte: `${EFFETS_MALUS[k]} −${v}` });
         } else if (k in EFFETS_BOOL) {
             if (v) chips.push({ texte: EFFETS_BOOL[k] });
         } else if (k in EFFETS_ENUM) {

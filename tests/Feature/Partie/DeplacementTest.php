@@ -191,7 +191,7 @@ it('le menu expose l\'allonce (base + 1d6) lancée une seule fois par tour', fun
     expect((int) $etat->fresh()->deplacement_tour)->toBe(8);
 });
 
-it('Armure de plates : le héros perd 2 cases de déplacement (encombrement)', function () {
+it('Armure de plates : le héros perd le d6 de déplacement, avance de sa base', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1); // deplacement_base = 4
@@ -210,21 +210,25 @@ it('Armure de plates : le héros perd 2 cases de déplacement (encombrement)', f
         'quantite' => 1,
     ]);
 
-    $etat->update(['deplacement_tour' => null, 'a_joue' => false]);
-    desFiges([6]); // base 4 + d6 6 − malus 2 = 8
+    $etat->update(['deplacement_tour' => null, 'detail_deplacement_tour' => null, 'a_joue' => false]);
+    desFiges([6]); // base 4, d6 6 LANCÉ mais ANNULÉ → 4 cases
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
     $dep = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])
         ->firstWhere('type', 'deplacement');
 
-    // Le malus n'avait JAMAIS joué : aucun appelant ne le passait au moteur, et
-    // l'armure la plus chère du jeu n'avait que des avantages. Il vaut
-    // aujourd'hui 2 cases — « a 2 square movement penalty » (carte Plate Mail)
-    // — et non plus la suppression du d6, qui coûtait 3,5 cases en moyenne ET
-    // rendait le déplacement déterministe.
+    // Le d6 n'avait JAMAIS été annulé : aucun appelant ne le disait au moteur,
+    // et l'armure la plus chère du jeu n'avait que des avantages. Au plateau
+    // un héros lance DEUX dés de mouvement et la Plate Mail lui en retire UN ;
+    // chez nous (base + UN SEUL d6), retirer un dé retire LE SEUL dé — le
+    // porteur avance de sa base, point (carte officielle 2021, René 2026-09-24,
+    // en place d'un ancien `malus_deplacement: 2` non sourcé).
     expect($dep['parametres']['base'])->toBe(4)
-        ->and($dep['parametres']['portee'])->toBe(8)
-        ->and((int) $etat->fresh()->deplacement_tour)->toBe(8);
+        ->and($dep['parametres']['de'])->toBe(6)              // le dé RÉELLEMENT tombé, publié quand même
+        ->and($dep['parametres']['de_annule'])->toBeTrue()
+        ->and($dep['parametres']['de_annule_par'])->toBe('Armure de plates')
+        ->and($dep['parametres']['portee'])->toBe(4)
+        ->and((int) $etat->fresh()->deplacement_tour)->toBe(4);
 });
 
 it('déplacement fractionné : un pas laisse des points, on peut CONTINUER à se déplacer (E1)', function () {

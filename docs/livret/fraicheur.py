@@ -84,11 +84,23 @@ DEPENDANCES = {
     # jeter ? ») : la figure ne montre rien de ce que ActionTab compose.
     '16-manette-jeter-quantite': ['resources/js/components/manette/ChoixListeSheet.vue'],
     '19-table-prologue': ['resources/js/components/table/PrologueOverlay.vue'],
+    # ⚠ `TableView.vue` (2026-09-24) — la seule entorse volontaire à « pas de
+    # coque » de ce fichier, et justifiée ligne par ligne : les deux étiquettes
+    # de thème (narratif + boîte d'extension, `groupe.theme`/
+    # `theme_bestiaire_libelle`) sont peintes directement dans le bandeau haut
+    # de `TableView.vue`, PAS dans un composant dédié — il n'y en a pas. Sans
+    # cette entrée, une évolution des étiquettes de thème n'aurait périmé
+    # AUCUNE des trois figures qui les montrent : le même faux négatif que
+    # `DungeonGrid` (`SOCLE` ci-dessus) justifie de nommer la coque cette fois,
+    # parce que c'est elle qui peint l'élément — l'exception au principe
+    # « étroit », pas une brèche dedans.
     '20-table-hub': ['resources/js/components/table/GroupPanel.vue',
-                     'resources/js/components/table/MarketPanel.vue'],
+                     'resources/js/components/table/MarketPanel.vue',
+                     'resources/js/views/TableView.vue'],
     '21-table-quete': CARTE + ['resources/js/components/table/InitiativeBar.vue',
-                               'resources/js/components/table/OuvertureQuete.vue'],
-    '22-table-donjon': CARTE,
+                               'resources/js/components/table/OuvertureQuete.vue',
+                               'resources/js/views/TableView.vue'],
+    '22-table-donjon': CARTE + ['resources/js/views/TableView.vue'],
     # ⚠ Le menu est COMPOSÉ par le moteur : une option ajoutée là périme
     # l'image sans qu'aucun fichier Vue ne bouge. C'est exactement ce qui est
     # arrivé à cette figure, dont la légende ÉNUMÉRAIT un menu devenu
@@ -122,6 +134,28 @@ DEPENDANCES = {
     '74-scene-salle': [SCENE, 'app/Partie/SceneDeTable.php'],
     '75-scene-fouille': [SCENE, 'app/Partie/SceneDeTable.php'],
     '76-scene-piege': [SCENE, 'app/Partie/SceneDeTable.php'],
+    # Le dé de mouvement rayé d'un ✕ (contrat « L'Armure de plates FAIT
+    # PERDRE LE DÉ », 2026-09-24) : même scène `deplacement`, même composant.
+    '77-scene-deplacement': [SCENE, 'app/Partie/SceneDeTable.php'],
+    # La Forge du Nain (2026-09-24) : la feuille de détail d'objet
+    # (`InfoSheet.vue`) porte désormais le catalogue de forge et
+    # l'amélioration déjà posée — peinte par elle, ouverte depuis `SacTab.vue`.
+    '17-manette-forge': ['resources/js/components/manette/InfoSheet.vue',
+                         'resources/js/components/manette/SacTab.vue',
+                         'app/Partie/Forge.php'],
+    '18-manette-forge-visible': ['resources/js/components/manette/InfoSheet.vue',
+                                 'resources/js/components/manette/SacTab.vue',
+                                 'app/Partie/Forge.php'],
+    # La paire du dé de mouvement barré / compté (contrat « L'Armure de
+    # plates FAIT PERDRE LE DÉ ») : l'en-tête de `DeplacementSheet.vue`, et la
+    # DÉCISION qui l'alimente (`Equipement::deDeplacementAnnule()` et
+    # consorts, lus par `MenuMoteur`).
+    '35-manette-deplacement-plates': ['resources/js/components/manette/DeplacementSheet.vue',
+                                      'app/Partie/Equipement.php',
+                                      'app/Partie/MenuMoteur.php'],
+    '36-manette-deplacement-allegee': ['resources/js/components/manette/DeplacementSheet.vue',
+                                       'app/Partie/Equipement.php',
+                                       'app/Partie/MenuMoteur.php'],
 }
 
 

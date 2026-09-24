@@ -82,9 +82,12 @@ it('respecte les effets ATTESTÉS par les livrets', function () {
 
     // Armure de plates : +2 dés de défense (valeur de Borin's Armor, LR p. 7),
     // et elle RALENTIT son porteur — « unlike normal plate mail, this [...]
-    // does not slow down its wearer » dit en creux que la normale, si.
+    // does not slow down its wearer » dit en creux que la normale, si. Carte
+    // OFFICIELLE 2021 : « 1 seul dé rouge de mouvement » — chez nous (base +
+    // UN SEUL d6), le porteur perd donc LE dé (René, 2026-09-24), pas un
+    // chiffre retranché du total.
     expect(effetDe('Armure de plates')['des_defense'])->toBe(2)
-        ->and(effetDe('Armure de plates')['malus_deplacement'])->toBeGreaterThan(0);
+        ->and(effetDe('Armure de plates')['deplacement_sans_d6'])->toBeTrue();
 
     // Trousse à outils : permet le désamorçage (LR p. 19).
     expect(effetDe('Trousse à outils')['permet_desamorcage'])->toBeTrue();

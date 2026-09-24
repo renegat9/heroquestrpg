@@ -21,7 +21,7 @@ use Illuminate\Validation\ValidationException;
  * `des_defense` (`Equipement::recalculerCombat()`) ; Perforante, Cruelle,
  * Allégée et Gardée se lisent EN SITUATION sur l'exemplaire forgé
  * (`Equipement::effetForge()`, `relanceCruelle()`, `ignorerPremierEtatDuCombat()`,
- * et `malusDeplacement()`) — voir le docbloc de chaque clé dans
+ * et `deDeplacementAnnule()`) — voir le docbloc de chaque clé dans
  * `App\Engine\MotsClesEquipement`. {@see self::EFFETS_SUPPORTES} reste le
  * garde-fou : une FUTURE amélioration ajoutée au catalogue sans lecteur reste
  * filtrée ici plutôt que vendue comme si elle marchait.

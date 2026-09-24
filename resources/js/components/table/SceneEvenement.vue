@@ -69,6 +69,16 @@ const objets = computed(() => props.scene.objets ?? []);
  * de se passer. C'est le RÔLE publié par le serveur qui dit s'il y a
  * affrontement. */
 const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
+
+/* Le ✕ est visuel : l'aria-label porte la même information en mots, pour un
+ * lecteur d'écran — la décision reste celle publiée par le serveur. */
+const depAriaLabel = computed(() => {
+    const d = props.scene.deplacement;
+    if (!d) return '';
+    const base = 'Dés : ' + d.des.join(', ');
+
+    return d.de_annule ? base + ' — ne compte pas (' + d.de_annule_par + ')' : base;
+});
 </script>
 
 <template>
@@ -103,13 +113,32 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
             <JetDes v-if="scene.jet" :jet="scene.jet" />
 
             <!-- Début de tour : le dé ROUGE du plateau, et le calcul tel que le
-                 serveur l'a écrit (base, dés, armure, bonus — rien n'est refait ici). -->
+                 serveur l'a écrit (base, dés, armure, bonus — rien n'est refait
+                 ici). Le ✕ (contrat §« L'Armure de plates FAIT PERDRE LE DÉ »,
+                 2026-09-24) barre le dé ENTIER, montré tombé mais annulé — la
+                 DÉCISION et le nom de la pièce viennent déjà tranchés du serveur
+                 (`deplacement.de_annule(_par)`), ce composant ne fait que la
+                 dessiner. Aucun chiffre négatif : le porteur avance de sa base,
+                 point. -->
             <div v-if="scene.deplacement" class="scn-depl">
-                <div class="scn-des" role="img" :aria-label="'Dés : ' + scene.deplacement.des.join(', ')">
-                    <span v-for="(valeur, i) in scene.deplacement.des" :key="i" class="scn-d6">
+                <div
+                    class="scn-des"
+                    role="img"
+                    :aria-label="depAriaLabel"
+                >
+                    <span
+                        v-for="(valeur, i) in scene.deplacement.des"
+                        :key="i"
+                        class="scn-d6"
+                        :class="{ 'scn-d6--annule': scene.deplacement.de_annule }"
+                    >
                         <i v-for="point in POINTS_D6[valeur] ?? []" :key="point" :class="'scn-pt' + point" />
+                        <span v-if="scene.deplacement.de_annule" class="scn-d6-croix" aria-hidden="true">✕</span>
                     </span>
                 </div>
+                <p v-if="scene.deplacement.de_annule" class="scn-depl-annule">
+                    {{ scene.deplacement.de_annule_par }} — le dé ne compte pas
+                </p>
                 <p class="scn-calcul">{{ scene.deplacement.calcul }}</p>
             </div>
 
@@ -197,6 +226,7 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
 .scn-depl { margin: 14px 0 2px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .scn-des { display: flex; gap: 14px; }
 .scn-d6 {
+    position: relative; /* ancre le ✕ de malus, posé APRÈS le lancer */
     width: 64px; height: 64px; padding: 10px; box-sizing: border-box;
     display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
     border-radius: 13px;
@@ -214,6 +244,26 @@ const duel = computed(() => acteurs.value.some((a) => a.role === 'defenseur'));
 .scn-pt7 { grid-area: 3 / 1; } .scn-pt9 { grid-area: 3 / 3; }
 @keyframes scn-lancer { from { transform: rotate(-120deg) scale(.4); opacity: 0 } to { transform: none; opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .scn-d6 { animation: none } }
+/* Dé ANNULÉ (Armure de plates) : légèrement éteint sous son ✕, sans cacher la
+   face — le joueur doit voir ce qu'il aurait eu. */
+.scn-d6--annule { filter: saturate(.55) brightness(.82); }
+
+/* ✕ du dé de mouvement ANNULÉ (Armure de plates) : posé APRÈS le lancer
+   (délai > la durée de `scn-lancer`) — sur TOUS les dés affichés, y compris
+   le second des Bottes elfiques : la carte annule le d6 de mouvement, pas une
+   face précise, et rien ne source une exception pour un second dé. */
+.scn-d6-croix {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-family: var(--font-display); font-size: 34px; font-weight: 700;
+    color: var(--danger); text-shadow: 0 2px 6px oklch(0 0 0 / .6);
+    opacity: 0; animation: scn-croix-pose .3s ease-out .5s forwards;
+}
+@keyframes scn-croix-pose { from { opacity: 0; transform: scale(1.6) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .scn-d6-croix { animation: none; opacity: 1 } }
+.scn-depl-annule {
+    margin: 0; font-size: 12.5px; color: var(--danger);
+    font-variant-numeric: tabular-nums;
+}
 .scn-calcul {
     margin: 0; font-size: 14px; color: var(--ink-300);
     font-variant-numeric: tabular-nums; letter-spacing: .01em;

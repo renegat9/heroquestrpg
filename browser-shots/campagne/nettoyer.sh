@@ -42,8 +42,21 @@ else
     foreach (\App\Models\Personnage::whereIn('id', \$persos->pluck('id'))->get() as \$p) { \$p->delete(); }
     echo '  campagne $CODE purgée : '.\$persos->count().\" héros\n\";
     if ($GARDER == 0) {
-      foreach (\App\Models\Joueur::whereIn('id', \$joueurs)->get() as \$j) { \$j->delete(); }
-      echo '  '.\$joueurs->count().\" compte(s) supprimé(s)\n\";
+      // ⚠ On compte ce qui a DISPARU, jamais ce qu'on a demandé (2026-09-24).
+      // L'ancien message affichait \$joueurs->count() — l'INTENTION — et un
+      // échec de suppression était avalé plus bas par le « || true » : un
+      // compte fondateur a ainsi survécu sous le message « 2 compte(s)
+      // supprimé(s) », et l'agent qui l'a vu l'a supprimé à la main, dans la
+      // base réelle, contre la consigne. Un script de ménage qui ment pousse
+      // exactement au geste qu'il existe pour éviter.
+      foreach (\App\Models\Joueur::whereIn('id', \$joueurs)->get() as \$j) {
+        try { \$j->delete(); } catch (\Throwable \$e) { echo '  ⚠ compte '.\$j->identifiant.' NON supprimé : '.\$e->getMessage().\"\n\"; }
+      }
+      \$restants = \App\Models\Joueur::whereIn('id', \$joueurs)->pluck('identifiant');
+      echo '  '.(\$joueurs->count() - \$restants->count()).'/'.\$joueurs->count().\" compte(s) supprimé(s)\n\";
+      if (\$restants->isNotEmpty()) {
+        echo '  ⚠ RESTENT : '.\$restants->implode(', ').\" — à signaler, NE PAS supprimer à la main\n\";
+      }
     }
   " 2>&1 | grep -vE '^\s*$|INFO' || true
 fi

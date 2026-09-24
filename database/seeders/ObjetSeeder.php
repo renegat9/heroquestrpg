@@ -601,19 +601,36 @@ class ObjetSeeder extends Seeder
             // de l'Anneau de Feu. `froid` couvre les trois clauses d'un coup :
             // un sort de type froid comme un dégât de terrain désormais typé
             // (`TerrainSeeder` : Chambre forte de glace, Rivière gelée).
-            ['nom' => 'Anneau de Chaleur', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman',
+            //
+            // ⚠ `boite` (2026-09-24) : AUCUNE source de dégât `froid` n'existe
+            // hors du thème `horreur_des_glaces` — `TerrainSeeder` ne pose ses
+            // deux terrains glacés que dans ce thème (`AssembleurCarte::placerTerrains()`
+            // filtre STRICTEMENT sur `boite`), et *Morsure de Froid* n'est
+            // connue que par l'archétype `horreur_glacee` (config/archetypes_lanceurs.php).
+            // Contrairement à l'Anneau de Feu (Kellar's Keep) — dont le `feu`
+            // est infligé par des sorts de BASE dans toute campagne — cet
+            // anneau ne protège de rien ailleurs : `DeckFouille::choisirArtefact()`
+            // ne doit donc jamais en faire l'artefact unique d'une autre boîte.
+            ['nom' => 'Anneau de Chaleur', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 1000, 'emplacement' => 'talisman', 'boite' => 'horreur_des_glaces',
                 'effet' => ['immunite_degat' => 'froid']],
 
             // « Raquettes de Vitesse » / Snowshoes of Speed (Frozen Horror) :
             // « +2 cases de déplacement et annule la glace glissante.
-            // Utilisables seulement dans les quêtes glacées » — symétrique
-            // permanent de `malus_deplacement` (Armure de plates), mais borné
+            // Utilisables seulement dans les quêtes glacées » — ajoute au
+            // socle en PERMANENCE, comme `deplacement_sans_d6` (Armure de
+            // plates) modifie le tirage, mais bornée cette fois
             // à `groupes.theme_bestiaire === horreur_des_glaces`
             // (`Equipement::bonusDeplacementActif()`) : « région gelée »
             // n'étant définie nulle part au-delà du nom, le thème de boîte
             // FIGÉ est la plus proche notion de « région » que le moteur
             // connaisse (arbitrage écrit, config/cartes.php).
-            ['nom' => 'Raquettes de Vitesse', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'bottes',
+            //
+            // ⚠ `boite` (2026-09-24) : sans elle, `DeckFouille::choisirArtefact()`
+            // pouvait faire de CET objet l'artefact unique du coffre de fin de
+            // donjon d'une campagne de jungle — où il n'aurait plus jamais servi
+            // à rien (`bonusDeplacementActif()` rend 0 hors `horreur_des_glaces`)
+            // — grillant au passage la seule récompense d'artefact de la quête.
+            ['nom' => 'Raquettes de Vitesse', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'bottes', 'boite' => 'horreur_des_glaces',
                 'effet' => ['bonus_deplacement_porte' => 2, 'annule_glace_glissante' => true]],
 
             // ----- Armures (6 cartes) -----
@@ -646,11 +663,14 @@ class ObjetSeeder extends Seeder
             // neuves. Constaté au re-seed du 2026-08-15.
             ['nom' => 'Brassards', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
                 'effet' => ['des_defense' => 1]],
-            // « While wearing the Plate Mail, you have a 2 square movement
-            // penalty » : un chiffre, là où on retirait tout le d6 (−3,5 en
-            // moyenne). Le malus vient de la carte, pas d'une décision de table.
+            // Carte OFFICIELLE 2021 : « +2 dés de défense, mais 1 seul dé
+            // rouge de mouvement » (René, 2026-09-24 — remplace la valeur
+            // chiffrée `malus_deplacement: 2` de la conversion fan Sjeng, non
+            // sourcée). Chez nous (base + UN SEUL d6), retirer un dé retire LE
+            // SEUL dé : `deplacement_sans_d6` est donc un booléen, pas un
+            // chiffre — voir la migration `armure_de_plates_perd_le_de`.
             ['nom' => 'Armure de plates', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
-                'effet' => ['des_defense' => 2, 'malus_deplacement' => 2]],
+                'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true]],
 
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',

@@ -118,12 +118,13 @@ it('laisse le Nain et l’Explorateur désamorcer sans outils, eux seuls', funct
         ->and($pieges->peutDesamorcer(heros('rogue')))->toBeFalse();
 });
 
-it('épargne au Chevalier le malus de mouvement des armures', function () {
+it('épargne au Chevalier la perte du d6 de mouvement des armures', function () {
     $eq = app(Equipement::class);
 
-    // Sans équipement porté, tout le monde est à zéro : c'est la classe qui est
-    // testée, pas l'inventaire — le Chevalier reste à zéro quoi qu'il enfile.
-    expect($eq->malusDeplacement(heros('chevalier')))->toBe(0);
+    // Sans équipement porté, le d6 compte pour tout le monde : c'est la
+    // classe qui est testée, pas l'inventaire — le Chevalier garde son dé
+    // quoi qu'il enfile.
+    expect($eq->deDeplacementAnnule(heros('chevalier')))->toBeFalse();
 
     // Le nain, lui, garde le sien : l'exemption ne doit pas fuir aux voisins.
     expect(ClasseHeros::where('nom', 'nain')->firstOrFail()->tags_equipement)

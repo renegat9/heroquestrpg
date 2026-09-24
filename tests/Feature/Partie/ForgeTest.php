@@ -525,18 +525,20 @@ it('Cruelle relance un dé d\'attaque raté, une fois par COMBAT — pas par tou
         ->and($resultat3['touches'])->toBe(1);
 });
 
-it('Allégée annule le malus de déplacement de l\'armure lourde — sur SON exemplaire seulement', function () {
+it('Allégée fait compter à nouveau le d6 de déplacement — sur SON exemplaire seulement', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $heros = $ctx['heros'];
     $groupe = $ctx['groupe'];
     $equipement = app(Equipement::class);
 
-    $ligneArmure = equiperPourForge($heros, 'Armure de plates', 'armure'); // malus_deplacement: 2
-    expect($equipement->malusDeplacement($heros->fresh()))->toBe(2);
+    $ligneArmure = equiperPourForge($heros, 'Armure de plates', 'armure'); // deplacement_sans_d6: true
+    expect($equipement->deDeplacementAnnule($heros->fresh()))->toBeTrue()
+        ->and($equipement->sourceDeDeplacementAnnule($heros->fresh()))->toBe('Armure de plates');
 
     forgerPourTest($heros, $ligneArmure, 'Allégée');
 
-    expect($equipement->malusDeplacement($heros->fresh()))->toBe(0);
+    expect($equipement->deDeplacementAnnule($heros->fresh()))->toBeFalse()
+        ->and($equipement->sourceDeDeplacementAnnule($heros->fresh()))->toBeNull();
 });
 
 it('Gardée absorbe le premier Apeuré d\'un combat — l\'armure protège, ce n\'est pas une résistance mentale', function () {

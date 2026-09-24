@@ -17,6 +17,14 @@ const props = defineProps({
     portee: { type: Number, required: true },
     de: { type: [Number, null], default: null },
     base: { type: Number, default: 0 },
+    // Le d6 de déplacement compte-t-il ce tour ? DÉCISION serveur
+    // (`Equipement::deDeplacementAnnule()`/`sourceDeDeplacementAnnule()`,
+    // contrat §« L'Armure de plates FAIT PERDRE LE DÉ », 2026-09-24).
+    // `deAnnule` vaut `false` pour un Chevalier ou une armure Allégée : ce
+    // composant ne recalcule aucune des deux exemptions, il lit seulement ce
+    // que le serveur a décidé.
+    deAnnule: { type: Boolean, default: false },
+    deAnnulePar: { type: [String, null], default: null },
     // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : publié par `EtatGroupe`
     // (`entites[].franchit_figures`, calculé par
     // `MoteurSorts::mobiliteCombatDisponible()`) — la DÉCISION serveur, pas
@@ -466,10 +474,31 @@ onMounted(async () => {
                     <span class="dep-portee">{{ portee }}</span>
                     <span class="dep-portee-lbl">cases</span>
                 </div>
-                <div class="dep-detail" v-if="de != null">{{ base }} <span>+ dé {{ de }}</span></div>
+                <div class="dep-detail" v-if="de != null">
+                    {{ base }}
+                    <span v-if="!deAnnule">+ dé {{ de }}</span>
+                    <!-- Dé ANNULÉ (Armure de plates) : montré, rayé, jamais
+                         caché — le joueur voit ce qu'il aurait eu. Discret :
+                         une INFORMATION, pas une alerte (même ton que le
+                         reste de la feuille). -->
+                    <span v-else class="dep-de-annule">
+                        <span class="dep-de-barre">dé {{ de }}</span><b class="dep-de-x" aria-hidden="true">✕</b>
+                    </span>
+                </div>
                 <LegendeCarte class="dep-legende" :carte="carte" />
                 <button class="dep-close" type="button" @click="$emit('close')"><MSym n="close" /></button>
             </header>
+
+            <!-- ⚠ La note vit HORS de la rangée d'en-tête (René, 2026-09-24).
+                 Glissée dans `.dep-detail`, elle l'élargissait jusqu'à pousser
+                 le calcul AU-DESSUS du chiffre et se coller sur « cases », son
+                 icône posée par-dessus le libellé : quatre éléments pour une
+                 rangée de 412 px. La rangée garde le calcul (« 4 dé ~~2~~ ✕ »),
+                 la RAISON prend sa propre ligne, au rang de l'indication qui
+                 suit. -->
+            <p v-if="deAnnule" class="dep-de-note">
+                <MSym n="shield" :size="14" /> {{ deAnnulePar }} — le dé ne compte pas
+            </p>
 
             <p v-if="accessibles.size && ! apercu" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour voir le trajet</p>
 
@@ -581,8 +610,23 @@ onMounted(async () => {
 .dep-roll .msym { font-size: 26px; align-self: center; }
 .dep-portee { font-size: 26px; font-family: var(--font-display); }
 .dep-portee-lbl { font-size: 12px; color: var(--ink-400); font-weight: 700; }
-.dep-detail { font-size: 13px; color: var(--ink-400); font-weight: 700; }
+.dep-detail { font-size: 13px; color: var(--ink-400); font-weight: 700; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .dep-detail span { color: var(--ink-600); }
+/* Dé de mouvement ANNULÉ par une armure lourde (contrat §« L'Armure de
+   plates FAIT PERDRE LE DÉ ») : la face reste LISIBLE (barrée, pas cachée —
+   le joueur doit voir ce qu'il aurait eu), le ✕ vient EN PLUS. Discret —
+   c'est une information, pas une alerte. */
+.dep-de-annule { display: inline-flex; align-items: baseline; gap: 3px; }
+.dep-de-barre { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.dep-de-x { color: var(--danger, #e66); font-weight: 800; }
+/* Même gabarit que `.dep-hint` juste dessous : une ligne pleine, pas un
+   élément de plus dans la rangée d'en-tête. `margin-bottom: 0` parce que
+   l'indication qui suit porte déjà son propre espacement haut. */
+.dep-de-note {
+    display: flex; align-items: center; gap: 6px; margin: 8px 0 0;
+    font-size: 12.5px; color: var(--ink-400); font-weight: 600;
+}
+.dep-de-note .msym { color: var(--danger, #e66); }
 .dep-close { margin-left: auto; flex: none; display: grid; place-items: center; width: 34px; height: 34px;
   border-radius: 999px; border: var(--line); background: var(--stone-850); color: var(--ink-300); cursor: pointer; }
 

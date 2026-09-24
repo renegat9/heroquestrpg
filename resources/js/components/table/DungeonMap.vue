@@ -1,9 +1,11 @@
 <script setup>
 // Carte de la TABLE (narrateur) : le TERRAIN (cases / portes / pièges) est rendu
 // par le socle partagé DungeonGrid (identique à la manette) ; cette vue y ajoute
-// la CAMÉRA (fenêtre qui se recentre sur le héros actif) et la couche des
-// FIGURINES animées (glissement case-par-case, fondu à la mort).
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+// la CAMÉRA (fenêtre qui se recentre sur le héros actif, + un glissé manuel à la
+// main — René 2026-09-24), et la couche des FIGURINES animées (glissement
+// case-par-case, fondu à la mort, et désormais une fiche au tap : voir
+// TableView.vue, MÊME popup que celle ouverte depuis la barre d'initiative).
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import DungeonGrid from '../carte/DungeonGrid.vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
@@ -26,6 +28,12 @@ const props = defineProps({
     activeX: { type: Number, default: null },
     activeY: { type: Number, default: null },
 });
+// Émis au TAP (pas au glissé) sur une figurine — {id, type}, le même couple
+// que celui déjà consommé par `statsFigure()` (voir store/game.js) pour la
+// fiche ouverte depuis la barre d'initiative. Une seule fiche, une seule
+// popup : TableView branche cet événement sur SA fonction `inspecter`
+// existante plutôt que d'en recréer une.
+const emit = defineEmits(['inspecter']);
 
 // Doit rester égal au `padding` de `.table-screen .map` (TableView.vue).
 const PADDING_PX = 14;
@@ -36,6 +44,10 @@ let observateur = null;
 onMounted(() => {
     const mesurer = () => {
         if (viewportEl.value) cellPx.value = (viewportEl.value.clientWidth - 2 * PADDING_PX) / COLS_VUE;
+        // Un redimensionnement peut rendre un ancien décalage manuel invalide
+        // (la fenêtre a grandi, la carte tient maintenant tout entière) — on le
+        // reborne avec la MÊME règle que le glissé, jamais une nouvelle.
+        reborner();
     };
     mesurer();
     observateur = new ResizeObserver(mesurer);
@@ -43,17 +55,63 @@ onMounted(() => {
 });
 onBeforeUnmount(() => observateur?.disconnect());
 
-const gridStyle = computed(() => {
+/** Dimensions courantes (px) — fenêtre visible ET carte réelle, sur les deux
+ *  axes. Partagées par le rendu de la caméra ET par le bornage du glissé
+ *  ci-dessous, pour qu'aucun des deux ne puisse dériver de l'autre. */
+const dims = computed(() => {
     const c = Math.max(1, props.carte.largeur ?? COLS_VUE);
     const r = Math.max(1, props.carte.hauteur ?? LIGNES_VUE);
     const px = cellPx.value;
-    const largeurVue = COLS_VUE * px;
-    const hauteurVue = LIGNES_VUE * px;
-    const largeurCarte = c * px;
-    const hauteurCarte = r * px;
+    return {
+        c, r, px,
+        largeurVue: COLS_VUE * px, hauteurVue: LIGNES_VUE * px,
+        largeurCarte: c * px, hauteurCarte: r * px,
+    };
+});
 
-    const cibleX = (props.activeX ?? (c - 1) / 2) + 0.5;
-    const cibleY = (props.activeY ?? (r - 1) / 2) + 0.5;
+/** Point (px) que la caméra AUTOMATIQUE vise — le centre de la carte tant
+ *  qu'aucun héros actif n'est publié. */
+const cibleXPx = computed(() => ((props.activeX ?? (dims.value.c - 1) / 2) + 0.5) * dims.value.px);
+const cibleYPx = computed(() => ((props.activeY ?? (dims.value.r - 1) / 2) + 0.5) * dims.value.px);
+
+/** Décalage (px) qui centre `cible` dans la fenêtre, borné aux bords de la
+ *  carte. SEUL point de bornage de la caméra (une règle, un point de passage,
+ *  CLAUDE.md) : le glissé manuel le RÉUTILISE ci-dessous plutôt que d'écrire
+ *  une seconde borne qui finirait, un jour, par diverger de celle-ci. */
+function centrer(dimVue, dimCarte, cible) {
+    if (dimCarte <= dimVue) return (dimVue - dimCarte) / 2;
+    return Math.min(0, Math.max(dimVue - dimCarte, dimVue / 2 - cible));
+}
+
+/* ---- glissé manuel de la caméra (René, 2026-09-24) --------------------
+ * Le focus automatique reste LA RÈGLE : ce décalage ne fait que s'AJOUTER au
+ * centrage ci-dessus (cible effective = cible - décalage, réinjectée dans
+ * `centrer()`), et il est jeté dès que le héros actif change de case — voir
+ * le watcher plus bas. Sans cette remise à zéro, la table finirait plantée
+ * sur une vue d'il y a dix tours pendant que l'action continue hors cadre. */
+const decalageX = ref(0);
+const decalageY = ref(0);
+const aDecale = computed(() => decalageX.value !== 0 || decalageY.value !== 0);
+/* Coupe la transition PENDANT le glissé actif : la vue doit suivre le doigt
+ * sans délai. Hors glissé (recentrage automatique au changement de tour, ou
+ * clic sur « Recentrer »), une transition douce est réappliquée. */
+const enTrainDeGlisser = ref(false);
+
+/** Borne un décalage manuel CANDIDAT aux mêmes bords que `centrer()`, en
+ *  dérivant le résultat de `centrer()` lui-même (algèbre inverse) — jamais en
+ *  rejouant son `Math.min/Math.max` dans une seconde fonction. */
+function bornerDecalage(dimVue, dimCarte, ciblePx, decalageCandidat) {
+    const translateBorne = centrer(dimVue, dimCarte, ciblePx - decalageCandidat);
+    return ciblePx - (dimVue / 2 - translateBorne);
+}
+
+function reborner() {
+    decalageX.value = bornerDecalage(dims.value.largeurVue, dims.value.largeurCarte, cibleXPx.value, decalageX.value);
+    decalageY.value = bornerDecalage(dims.value.hauteurVue, dims.value.hauteurCarte, cibleYPx.value, decalageY.value);
+}
+
+const gridStyle = computed(() => {
+    const { largeurVue, hauteurVue, largeurCarte, hauteurCarte, c, r } = dims.value;
 
     return {
         // Positionnée dans la fenêtre `.map` (padding 14px), clippée par son
@@ -66,27 +124,100 @@ const gridStyle = computed(() => {
         height: `${hauteurCarte}px`,
         gridTemplateColumns: `repeat(${c}, 1fr)`,
         gridTemplateRows: `repeat(${r}, 1fr)`,
-        transform: `translate(${centrer(largeurVue, largeurCarte, cibleX * px)}px, ${centrer(hauteurVue, hauteurCarte, cibleY * px)}px)`,
-        // Taille RÉELLE de la case en px, pour que le contour de salle
+        transform: `translate(${centrer(largeurVue, largeurCarte, cibleXPx.value - decalageX.value)}px, ${centrer(hauteurVue, hauteurCarte, cibleYPx.value - decalageY.value)}px)`,
+        // Pendant le glissé : suit le doigt SANS délai. Sinon : transition douce
+        // (recentrage automatique au changement de tour, ou bouton Recentrer).
+        transition: enTrainDeGlisser.value ? 'none' : 'transform .25s ease',
     };
 });
 
-/** Décalage (px) qui centre `cible` dans la fenêtre, borné aux bords de la carte. */
-function centrer(dimVue, dimCarte, cible) {
-    if (dimCarte <= dimVue) return (dimVue - dimCarte) / 2;
-    return Math.min(0, Math.max(dimVue - dimCarte, dimVue / 2 - cible));
+// Le focus automatique reprend la main dès que le héros actif change de case
+// — nouveau tour, ou un pas de plus dans son déplacement. Le glissé n'est
+// qu'une consultation ponctuelle : on ne le quitte jamais à la main.
+watch([() => props.activeX, () => props.activeY], () => {
+    decalageX.value = 0;
+    decalageY.value = 0;
+});
+
+function recentrer() {
+    decalageX.value = 0;
+    decalageY.value = 0;
+}
+
+/* ---- glissé / tap (Pointer Events : souris ET tactile — l'écran de table est
+ * posé sur un PC, une télé ou une tablette, jamais un seul type de pointeur).
+ * ⚠ Sous le seuil, c'est un TAP (ouvre la fiche si on vise une figurine) ; au
+ * delà, un GLISSÉ (n'ouvre jamais rien) — sinon chaque recadrage de la vue
+ * ouvrirait une popup au passage. */
+const SEUIL_GLISSE_PX = 8;
+let geste = null; // { id, x0, y0, decalageX0, decalageY0, aBouge, figure }
+
+function debutGeste(e) {
+    if (geste) return; // un second doigt (pincement…) n'ouvre pas un second glissé
+    // ⚠ Le bouton « Recentrer » vit DANS `.map` (pour se positionner par-dessus
+    // la fenêtre) : sans cette sortie, `setPointerCapture()` ci-dessous
+    // retarget le CLIC qui suit sur `.map` lui-même, et le bouton ne reçoit
+    // jamais son `@click` — mesuré : le bouton restait affiché, la vue ne
+    // revenait jamais. Un pointerdown sur un contrôle interactif n'ouvre donc
+    // aucun glissé, il le laisse gérer son propre clic.
+    if (e.target.closest?.('.map-recentrer')) return;
+    const cibleFigure = e.target.closest?.('.ent-holder');
+    geste = {
+        id: e.pointerId,
+        x0: e.clientX, y0: e.clientY,
+        decalageX0: decalageX.value, decalageY0: decalageY.value,
+        aBouge: false,
+        // Ids numériques (clés primaires Eloquent, comme partout ailleurs dans
+        // ce fichier) : le dataset les rend en texte, `statsFigure()` compare
+        // par égalité stricte contre l'entier publié par l'API.
+        figure: cibleFigure ? { id: Number(cibleFigure.dataset.figId), type: cibleFigure.dataset.figType } : null,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+}
+
+function bougerGeste(e) {
+    if (!geste || e.pointerId !== geste.id) return;
+    const dx = e.clientX - geste.x0;
+    const dy = e.clientY - geste.y0;
+    if (!geste.aBouge) {
+        if (Math.hypot(dx, dy) < SEUIL_GLISSE_PX) return; // encore un tap possible
+        geste.aBouge = true;
+        enTrainDeGlisser.value = true;
+    }
+    const { largeurVue, largeurCarte, hauteurVue, hauteurCarte } = dims.value;
+    decalageX.value = bornerDecalage(largeurVue, largeurCarte, cibleXPx.value, geste.decalageX0 + dx);
+    decalageY.value = bornerDecalage(hauteurVue, hauteurCarte, cibleYPx.value, geste.decalageY0 + dy);
+}
+
+function finGeste(e, permettreTap) {
+    if (!geste || e.pointerId !== geste.id) return;
+    const { aBouge, figure } = geste;
+    geste = null;
+    enTrainDeGlisser.value = false;
+    if (permettreTap && !aBouge && figure?.id) emit('inspecter', { id: figure.id, type: figure.type });
 }
 </script>
 
 <template>
-    <div ref="viewportEl" class="map">
+    <div
+        ref="viewportEl"
+        class="map"
+        @pointerdown="debutGeste"
+        @pointermove="bougerGeste"
+        @pointerup="(e) => finGeste(e, true)"
+        @pointercancel="(e) => finGeste(e, false)"
+    >
         <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :grid-style="gridStyle" animate>
             <!-- Figurines (héros / monstres / alliés) — enfants directs de la
-                 grille : FLIP de glissement case-par-case, fondu à la mort. -->
+                 grille : FLIP de glissement case-par-case, fondu à la mort.
+                 `data-fig-*` : seule façon pour `debutGeste()` de savoir, au
+                 pointerdown, QUELLE figurine (le cas échéant) est visée. -->
             <div
                 v-for="e in entities"
                 :key="`ent-${e.k}-${e.id}`"
                 class="ent-holder"
+                :data-fig-id="e.id"
+                :data-fig-type="e.type"
                 :style="{
                     gridColumn: `${e.x + 1} / span ${e.ew ?? 1}`,
                     gridRow: `${e.y + 1} / span ${e.eh ?? 1}`,
@@ -108,9 +239,15 @@ function centrer(dimVue, dimCarte, cible) {
             </div>
         </DungeonGrid>
 
+        <!-- « Recentrer » : seulement quand la vue a été écartée à la main —
+             en permanence, il concurrencerait le seul signal qui doit compter
+             (« la vue a bougé »). Redonne la main au focus automatique. -->
+        <button v-if="aDecale" type="button" class="map-recentrer" @click="recentrer">
+            <MSym n="my_location" :size="16" /> Recentrer
+        </button>
+
         <!-- Légende : en surimpression d'un COIN DE LA FENÊTRE, hors de la
              grille — celle-ci se déplace sous la caméra à chaque tour, un
              bouton posé dedans glisserait avec le donjon.
              `.table-screen .map` est déjà `position: relative`. -->    </div>
 </template>
-

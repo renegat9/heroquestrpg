@@ -15,7 +15,7 @@ describe('Deplacement — base + 1d6 (doc 03 §3)', function () {
         expect($resultat->base)->toBe(5)
             ->and($resultat->de)->toBe(4)
             ->and($resultat->total)->toBe(9)
-            ->and($resultat->malus)->toBe(0);
+            ->and($resultat->deAnnule)->toBeFalse();
     });
 
     it('borne le total entre base+1 et base+6', function () {
@@ -27,7 +27,7 @@ describe('Deplacement — base + 1d6 (doc 03 §3)', function () {
             ->and($max->total)->toBe(9);
     });
 
-    it('accepte une base de 0 (cas limite : malus extrême)', function () {
+    it('accepte une base de 0 (cas limite : plancher à 1)', function () {
         $resultat = (new Deplacement(new LanceurDeterministe([2])))->calculer(0);
 
         expect($resultat->total)->toBe(2);
@@ -38,34 +38,36 @@ describe('Deplacement — base + 1d6 (doc 03 §3)', function () {
     })->throws(InvalidArgumentException::class);
 });
 
-describe('Deplacement — encombrement de l\'armure lourde', function () {
-    it('retranche le malus en CASES, sans supprimer le d6', function () {
-        // « While wearing the Plate Mail, you have a 2 square movement
-        // penalty » (carte Plate Mail) : base 4 + d6 5 − 2 = 7. Le dé est bien
-        // lancé — on retirait auparavant le d6 tout entier, ce qui rendait le
-        // déplacement DÉTERMINISTE en plus de coûter 3,5 cases en moyenne.
+describe('Deplacement — l\'Armure de plates FAIT PERDRE LE DÉ (René, 2026-09-24)', function () {
+    it('ignore le d6 dans le total quand deAnnule est vrai, sans supprimer le dé', function () {
+        // Carte officielle 2021 : « 1 red die only for movement ». Chez nous
+        // (base + UN SEUL d6), retirer un dé retire LE SEUL dé — le porteur
+        // avance de sa base SEULE. Le dé est quand même LANCÉ : on retirait
+        // auparavant un CHIFFRE (`malus: 2`, non sourcé, conversion fan) sans
+        // toucher au jet lui-même.
         $lanceur = new LanceurDeterministe([5]);
-        $resultat = (new Deplacement($lanceur))->calculer(base: 4, malus: 2);
+        $resultat = (new Deplacement($lanceur))->calculer(base: 4, deAnnule: true);
 
-        expect($resultat->total)->toBe(7)
-            ->and($resultat->de)->toBe(5)
-            ->and($resultat->malus)->toBe(2)
+        expect($resultat->total)->toBe(4)          // la base SEULE, le d6 (5) ignoré
+            ->and($resultat->de)->toBe(5)           // ⚠ le dé réellement tombé, publié quand même
+            ->and($resultat->deAnnule)->toBeTrue()
             ->and($lanceur->valeursRestantes())->toBe(0); // le dé A été consommé
     });
 
-    it('ne cloue jamais un héros sur place : plancher à 1 case', function () {
-        // Base 1, d6 = 1, malus 2 → −0 sur le papier. Rien au plateau
-        // n'immobilise un personnage, et un héros à 0 case ne pourrait ni
-        // fuir ni rejoindre le groupe.
-        $resultat = (new Deplacement(new LanceurDeterministe([1])))->calculer(base: 1, malus: 2);
+    it('ne cloue jamais un héros sur place : plancher à 1 case même dé annulé', function () {
+        // Base 0 (cas d'école) + dé annulé → 0 sur le papier. Rien au plateau
+        // n'immobilise un personnage, et un héros à 0 case ne pourrait ni fuir
+        // ni rejoindre le groupe.
+        $resultat = (new Deplacement(new LanceurDeterministe([6])))->calculer(base: 0, deAnnule: true);
 
-        expect($resultat->total)->toBe(1);
+        expect($resultat->total)->toBe(1)
+            ->and($resultat->de)->toBe(6);
     });
 
-    it('ignore un malus négatif (il ne devient jamais un bonus)', function () {
-        $resultat = (new Deplacement(new LanceurDeterministe([3])))->calculer(base: 4, malus: -5);
+    it('un dé qui compte (deAnnule faux) additionne bien sa face au total', function () {
+        $resultat = (new Deplacement(new LanceurDeterministe([3])))->calculer(base: 4, deAnnule: false);
 
         expect($resultat->total)->toBe(7)
-            ->and($resultat->malus)->toBe(0);
+            ->and($resultat->deAnnule)->toBeFalse();
     });
 });

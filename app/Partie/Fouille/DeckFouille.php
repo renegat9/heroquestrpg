@@ -11,6 +11,7 @@ use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
 use App\Partie\AssembleurCarte;
+use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\MoteurPortes;
 
@@ -440,12 +441,29 @@ final class DeckFouille
      * repli, quand tout le portable est déjà détenu — un coffre de fin de donjon
      * ne doit pas verser un parchemin à usage unique tant qu'il reste une pièce
      * permanente à donner, mais un parchemin vaut mieux que de l'or.
+     *
+     * ⚠ **Filtré par `objets.boite`** (René, 2026-09-24) : les Raquettes de
+     * Vitesse (*Snowshoes of Speed*, Frozen Horror) ne rendent leur bonus que
+     * dans une quête FIGÉE `horreur_des_glaces` (`Equipement::bonusDeplacementActif()`),
+     * mais rien n'empêchait ce coffre — la seule arme unique de la quête — de
+     * les verser dans une campagne de jungle, où elles ne serviraient plus
+     * jamais à rien : l'artefact unique de la quête consommé en butin mort.
+     * Même patron que la réservation de classe juste au-dessus : on pose la
+     * question COMPLÈTE (« cette boîte est-elle celle de CETTE campagne ? »)
+     * plutôt que de deviner depuis le nom de l'objet. `boite = null` reste
+     * tirable partout — c'est le cas de la quasi-totalité du catalogue, y
+     * compris des artefacts SOURCÉS d'une boîte thématique dont l'effet ne
+     * dépend d'aucun mécanisme propre à cette boîte (l'Anneau de Feu vient de
+     * Kellar's Keep mais protège d'un dégât de feu que le jeu de BASE inflige
+     * déjà) — vérifié carte par carte, jamais supposé depuis la provenance.
      */
     private function choisirArtefact(Groupe $groupe, PrngLineaire $prng): ?int
     {
         $idsHeros = $groupe->personnages()->pluck('personnages.id');
 
         $possedes = Inventaire::query()->whereIn('personnage_id', $idsHeros)->pluck('objet_id');
+
+        $theme = app(DemarreurQuete::class)->themeBestiaireDuGroupe($groupe);
 
         // Un artefact que personne ici ne pourra porter est du BUTIN MORT : un
         // groupe sans elfe perdait son unique artefact de quête sur des
@@ -474,6 +492,10 @@ final class DeckFouille
             ->where('rarete', 'unique')
             ->whereIn('categorie', $categories)
             ->whereNotIn('id', $possedes)
+            // Boîté et hors thème → butin mort garanti (Raquettes de Vitesse
+            // hors `horreur_des_glaces`) : écarté ici, avant même le filtre de
+            // classe, comme `boite = null` reste éligible dans TOUTE campagne.
+            ->where(fn ($q) => $q->whereNull('boite')->orWhere('boite', $theme))
             ->orderBy('id')
             ->get()
             ->filter(fn (Objet $o) => $equipement->utilisableParUnDeCesHeros($o, $actifs))

@@ -23,6 +23,11 @@ class EtatPersonnageQuete extends Model
         'a_agi',
         'deplacement_tour',
         'deplacement_restant',
+        // Détail RÉEL du jet de déplacement du tour — {base, des, de_annule,
+        // de_annule_par} — écrit une fois au lancer pour que la face survive à
+        // un menu régénéré en cours de tour. Voir la migration
+        // `detail_deplacement_tour` et App\Partie\MenuMoteur::deplacementDuTour().
+        'detail_deplacement_tour',
         'tombe',
         'garde_tenace_utilisee',
         'bonus_sort_utilise',
@@ -107,6 +112,7 @@ class EtatPersonnageQuete extends Model
             'tour_supplementaire' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
+            'detail_deplacement_tour' => 'array',
             'reaction_en_attente' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',

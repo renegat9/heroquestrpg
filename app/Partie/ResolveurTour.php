@@ -669,14 +669,20 @@ final class ResolveurTour
 
         // Allonce du tour : le d6 a été lancé à la génération du menu et MÉMORISÉ
         // (le joueur l'a vu avant de choisir sa case). Repli : lancer si absent.
-        // Raquettes de Vitesse : symétrique de `malusDeplacement()`, même
+        // Raquettes de Vitesse : symétrique de `deDeplacementAnnule()`, même
         // point de passage que `MenuMoteur::deplacementDuTour()` — sous peine
         // que ce repli recalcule un total que le menu n'a pas annoncé.
         $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->malusDeplacement($personnage))
+            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage))
             ->total;
-        $deDuTour = $totalTour > $base ? $totalTour - $base : null;
+        // ⚠ Face RÉELLE d'abord (colonne persistée par le menu), jamais
+        // reconstituée par soustraction — même défaut, même correctif que
+        // l'option `se_deplacer` (contrat §« L'Armure de plates FAIT PERDRE
+        // LE DÉ », 2026-09-24) : `totalTour > base ? totalTour - base : null`
+        // rendait un dé annulé indiscernable d'un dé jamais lancé.
+        $deDuTour = $etat->detail_deplacement_tour['des'][0]
+            ?? ($totalTour > $base ? $totalTour - $base : null);
 
         // Déplacement FRACTIONNÉ (E1) : on dépense sur les points RESTANTS du tour.
         ['restant' => $restant, 'multiplicateur' => $multiplicateur] = $this->pointsDeplacement($personnage, $etat, $totalTour);

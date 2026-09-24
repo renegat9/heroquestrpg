@@ -32,6 +32,8 @@ Routes protégées par middleware `auth` sauf connexion.
 ```json
 {
   "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours",
+             "theme": "Cryptes maudites sous la cité|null",
+             "theme_bestiaire": "horreur_des_glaces", "theme_bestiaire_libelle": "The Frozen Horror",
              "prets": [{"personnage_id": 1, "pret": false}],
              "mercenaires": [{"id": 3, "mercenaire_id": 2, "nom": "...", "type": "archer",
                               "animal": false, "pv_body": 1, "pv_body_max": 1}],
@@ -67,6 +69,19 @@ déclare aucun objectif : on n'annonce pas « accompli » là où rien n'était
 demandé. `objectif_majeur` marque une quête **ordinaire** qui fait monter d'un
 niveau si son objectif est accompli (doc 01 §5, troisième déclencheur) — un
 jalon, lui, s'annonce déjà par son boss.
+
+**Deux thèmes, deux natures** (2026-09-24) : `groupe.theme` est le thème
+NARRATIF libre saisi à la création (« crypte »…), déjà un texte humain —
+jamais un identifiant à traduire, `null` tant qu'aucun n'a été donné.
+`groupe.theme_bestiaire` est la boîte d'extension qui fournit le bestiaire
+(`groupes.theme_bestiaire`), FIGÉE pour toute la campagne dès la première
+quête et **jamais** `null` dans ce payload — `EtatGroupe` passe toujours par
+`DemarreurQuete::themeBestiaireDuGroupe()`, qui retombe sur le calcul
+historique tant que la colonne n'a pas encore été écrite, plutôt que
+d'exposer le `null` brut d'une campagne antérieure à cette colonne.
+`theme_bestiaire_libelle` est son libellé lisible, **déjà décidé côté
+serveur** (`DemarreurQuete::LIBELLES_BOITES`) : le client n'a jamais à
+traduire un identifiant de boîte, même règle que `objectif_libelle`.
 
 `groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
 (statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).
@@ -108,7 +123,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
 | `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes) |
-| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », malus d'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
+| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
@@ -141,6 +156,63 @@ tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d
 manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
+
+#### Le malus d'armure se VOIT sur le dé (2026-09-24)
+
+⚠ **`de` mentait depuis l'origine.** Le malus de l'armure était absorbé dans le
+total, puis `de` était **reconstitué** comme `total − base`. Avec l'Armure de
+plates (`malus_deplacement: 2`), un vrai 5 s'affichait « dé 3 » — la face
+montrée était le jet MOINS le malus — et un jet de 1 ou 2 faisait tout
+simplement disparaître le dé (`de: null`). Le malus n'était nommé qu'en texte
+sur la table (« − 2 (armure) »), et nulle part sur la manette. Il ne pouvait pas
+en être autrement : seul `deplacement_tour` (le TOTAL) était persisté, si bien
+qu'au premier menu régénéré en cours de tour la face réelle était perdue.
+
+Le détail du jet est désormais **persisté** au moment du lancer (colonne,
+jamais un cache — la règle consolidée du projet), et publié tel quel :
+
+`{base, des: [int], de_annule, de_annule_par, portee}`
+
+- `des` — les faces **réellement tombées**, jamais reconstituées ;
+- `de_annule` — la **DÉCISION** : le dé de mouvement ne compte pas ce tour ;
+- `de_annule_par` — le **nom** de la pièce qui l'annule (« Armure de plates »),
+  pour que l'écran dise *pourquoi* ;
+- `de` reste publié pour les lecteurs existants, **égal à la face réelle**.
+
+#### L'Armure de plates FAIT PERDRE LE DÉ (René, 2026-09-24)
+
+⚠ **La valeur précédente venait de la mauvaise source.** `malus_deplacement: 2`
+(« a 2 square movement penalty ») sortait de la conversion FAN Sjeng
+(`reference/16_armurerie.md` §2.2, « historique »). La carte **officielle** 2021
+— celle que René a photographiée, et dont le §2.1bis dit qu'elle **PRIME** sur
+Sjeng — écrit : *Plate Mail*, « +2 dés de défense, mais **1 seul dé rouge de
+mouvement** ». La règle dure du projet (« ne jamais semer une valeur que les
+livrets ou les cartes ne sourcent pas ») aurait dû l'emporter ; un paragraphe
+défendait pourtant −2 au motif que retirer le dé coûtait « −3,5 cases en moyenne
+et rendait le déplacement déterministe » — argument juste, mais posé sur un
+texte qui n'était pas la règle.
+
+Au plateau, un héros lance DEUX dés et la plate lui en retire UN. Chez nous
+(base de classe + UN seul d6, écart assumé de René), « retirer un dé » retire
+**le seul dé** : le héros en plate avance de sa **base**, point. C'est coûteux —
+3,5 cases en moyenne — et c'est voulu : c'est ce que valent 850 or et +2 dés de
+défense. Et c'est ce qui donne tout leur sens au **Chevalier** et à la Forge
+**Allégée**.
+
+⚠ **Le dé est quand même LANCÉ, puis barré d'un ✕** — la manette et la table le
+montrent tomber, puis le rayent, avec la pièce qui l'annule. Supprimer le lancer
+aurait rendu la pénalité invisible, exactement le défaut qu'on corrige : le
+joueur doit voir ce qu'il aurait eu.
+
+⚠ **Pas de ✕ quand le dé compte — et c'est la DÉCISION serveur qui le dit,
+jamais le client.** Deux exemptions, tranchées au même point de passage dans
+`Equipement` : le **Chevalier** (« les armures ne nuisent pas à son
+mouvement ») et l'amélioration **Allégée**, sur son propre exemplaire. Le client
+lit `de_annule`, il ne regarde ni la classe ni la forge.
+
+⚠ Le changement de la ligne de catalogue existante passe par une **migration**
+(jamais un re-seed destructeur), et l'arbitrage de `reference/16_armurerie.md`
+est réécrit pour dire quelle source fait foi.
 
 #### Aperçu du trajet (2026-09-17)
 

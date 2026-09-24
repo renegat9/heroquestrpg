@@ -249,11 +249,11 @@ return [
                     .'afficher.'],
 
             // « Raquettes de Vitesse » / Snowshoes of Speed : sa dette disait
-            // les deux appelants de `malusDeplacement()` (MenuMoteur,
+            // les deux appelants de `deDeplacementAnnule()` (MenuMoteur,
             // ResolveurTour) « hors périmètre de cette phase » — un découpage
             // de travail, jamais un blocage technique, et les deux fichiers ont
             // bougé depuis. `Equipement::bonusDeplacementActif()` est le
-            // symétrique de `malusDeplacement()`, lu aux DEUX mêmes points de
+            // symétrique de `deDeplacementAnnule()`, lu aux DEUX mêmes points de
             // passage. « Annule la glace glissante » cible nommément la tuile
             // Glace glissante (`ResolveurTour::tronquerSurGlace()`), pas la
             // Glissière (tuile distincte, non nommée par la carte). « Région

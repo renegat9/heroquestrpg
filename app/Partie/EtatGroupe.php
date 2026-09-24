@@ -61,6 +61,15 @@ final class EtatGroupe
         }
 
         $narrateurActif = TableController::narrateurActif($groupe);
+        // ⚠ Un groupe porte DEUX thèmes distincts (René, 2026-09-24), et
+        // aucun des deux n'était publié : le narrateur ne voyait ni le thème
+        // NARRATIF saisi à la création, ni la boîte de BESTIAIRE qui pilote
+        // réellement ce qui peuple le donjon. `themeBestiaireDuGroupe()` est
+        // le point de passage UNIQUE — jamais `theme_bestiaire` brut, qui vaut
+        // `null` sur une campagne antérieure à cette colonne — et le libellé
+        // est déjà DÉCIDÉ ici : le client ne traduit jamais un identifiant de
+        // boîte (`DemarreurQuete::LIBELLES_BOITES`, seule source du texte).
+        $themeBestiaire = app(DemarreurQuete::class)->themeBestiaireDuGroupe($groupe);
         $preambuleGroupe = [
             'id' => $groupe->id,
             'identifiant' => $groupe->identifiant,
@@ -69,6 +78,15 @@ final class EtatGroupe
             'or' => (int) $groupe->or,
             'etat' => $groupe->etat,
             'narrateur_actif' => $narrateurActif,
+            // Thème NARRATIF libre, saisi à la création (« crypte »…) — texte
+            // déjà humain, jamais un identifiant à traduire ; `null` tant
+            // qu'aucun n'a été donné.
+            'theme' => $groupe->theme,
+            // Boîte de BESTIAIRE, FIGÉE pour toute la campagne — l'identifiant
+            // ET son libellé lisible, les deux décidés ici, jamais par le
+            // client.
+            'theme_bestiaire' => $themeBestiaire,
+            'theme_bestiaire_libelle' => app(DemarreurQuete::class)->libelleBoiteBestiaire($themeBestiaire),
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan

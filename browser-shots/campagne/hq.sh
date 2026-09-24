@@ -14,6 +14,8 @@
 #                                             '[{"objet_id":12,"quantite":1}]'
 #   hq.sh <slot> confirmer                  ← confirmer (tous confirmés = achat)
 #   hq.sh <slot> equiper <inventaire_id> [emplacement]
+#   hq.sh <slot> desequiper <inventaire_id>         ← retire une pièce (au hub) ;
+#                                                      un objet équipé refuse le don tant qu'il l'est
 #   hq.sh <slot> donner <inventaire_id> <personnage_id>
 #
 # ⚠ Le verbe `potion` a été RETIRÉ le 2026-09-02, parce que la route qu'il
@@ -74,6 +76,8 @@ case "${1:-}" in
   confirmer) req POST "/groupes/$GROUPE/marche/confirmation" ;;
   equiper) req POST "/groupes/$GROUPE/equipement" \
              "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2${3:+,\"emplacement\":\"$3\"}}" ;;
+  desequiper) req DELETE "/groupes/$GROUPE/equipement" \
+             "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"inventaire_id\":$2}" ;;
   # ⚠ La route veut TROIS identifiants : le donneur, la ligne, le receveur.
   # La première version n'en envoyait que deux, sous un mauvais nom
   # (`beneficiaire_id`), et le don échouait en validation — signalé par la
@@ -83,5 +87,5 @@ case "${1:-}" in
   vote)    req POST "/groupes/$GROUPE/votes/bulletin" "{\"option_id\":\"$2\"}" ;;
   choix)   req POST "/groupes/$GROUPE/choix" "{\"option_id\":\"$2\"${3:+,\"parametres\":$3}}" ;;
   reaction) req POST "/groupes/$GROUPE/reaction" "{\"personnage_id\":$(cat "$(dirname "$0")/perso-$SLOT.txt"),\"accepte\":$2${3:+,\"soin\":\"$3\"}}" ;;
-  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|donner" >&2; exit 2 ;;
+  *) echo "usage: hq.sh <slot> etat|menu|moi|pret|choix|reaction|votes|vote|marche|panier|confirmer|equiper|desequiper|donner" >&2; exit 2 ;;
 esac

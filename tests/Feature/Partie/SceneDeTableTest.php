@@ -628,7 +628,8 @@ it('dit le soin RÉELLEMENT rendu, pas celui promis par la carte', function () {
 function sceneDeplacement(Personnage $heros, array $d): array
 {
     return app(SceneDeTable::class)->deplacement($heros, $d + [
-        'bonus_equipement' => 0, 'malus' => 0, 'multiplicateur' => 1, 'bonus_potion' => 0,
+        'bonus_equipement' => 0, 'de_annule' => false, 'de_annule_par' => null,
+        'multiplicateur' => 1, 'bonus_potion' => 0,
     ]);
 }
 
@@ -647,21 +648,26 @@ it('annonce le début du tour avec le dé et le calcul du déplacement', functio
         ->and($scene['sous_titre'])->toBe('Jet de déplacement')
         ->and($scene['acteurs'])->toHaveCount(1)
         ->and($scene['jet'])->toBeNull()
-        ->and($scene['deplacement'])->toBe(['des' => [4], 'calcul' => 'base 5 + dé 4 = 9'])
+        ->and($scene['deplacement'])->toBe(['des' => [4], 'calcul' => 'base 5 + dé 4 = 9', 'de_annule' => false, 'de_annule_par' => null])
         ->and($scene['issue'])->toBe(['ton' => 'info', 'libelle' => '9 cases ce tour']);
 });
 
 it('nomme chaque ajustement du jet au lieu de les fondre dans le total', function () {
     // ⚠ C'est précisément ce que l'option `se_deplacer` ne sait pas faire : elle
-    // reconstitue le dé par `total − base`, et affiche donc un dé faux dès qu'un
-    // malus d'armure, des Raquettes ou un second dé s'en mêlent.
+    // reconstitue le dé par `total − base`, et affiche donc un dé faux dès que
+    // l'Armure de plates, des Raquettes ou un second dé s'en mêlent.
     $sylvaine = sceneHeros('Sylvaine', 'elfe');
 
+    // Bottes elfiques (2 dés) ET Armure de plates (le d6 ne compte pas) : les
+    // DEUX dés restent publiés dans `des`, mais aucun ne rejoint le calcul —
+    // le porteur n'avance que de sa base (contrat, 2026-09-24).
     $bottes = sceneDeplacement($sylvaine,
-        ['base' => 7, 'des' => [3, 5], 'malus' => 2, 'total_jet' => 13, 'portee' => 13]);
+        ['base' => 7, 'des' => [3, 5], 'de_annule' => true, 'de_annule_par' => 'Armure de plates', 'total_jet' => 7, 'portee' => 7]);
 
-    expect($bottes['deplacement']['calcul'])->toBe('base 7 + dés 3 + 5 − 2 (armure) = 13')
+    expect($bottes['deplacement']['calcul'])->toBe('base 7 (Armure de plates : le dé ne compte pas) = 7')
         ->and($bottes['deplacement']['des'])->toBe([3, 5])
+        ->and($bottes['deplacement']['de_annule'])->toBeTrue()
+        ->and($bottes['deplacement']['de_annule_par'])->toBe('Armure de plates')
         ->and($bottes['sous_titre'])->toBe('Jet de déplacement — 2 dés');
 
     // Raquettes, Vent Véloce, potion de dextérité : les cases de la potion
@@ -673,14 +679,15 @@ it('nomme chaque ajustement du jet au lieu de les fondre dans le total', functio
 });
 
 it('ne montre pas une soustraction qui contredit le plancher d\'une case', function () {
-    // « le total ne descend jamais sous une case » : 2 + 1 − 3 donne 0, le jet
-    // en vaut 1, et la phrase doit le dire plutôt que d'afficher « = 1 » après
-    // un calcul qui fait 0.
+    // « le total ne descend jamais sous une case » : une base de 0 avec le dé
+    // ANNULÉ donnerait 0 sur le papier, le jet en vaut 1, et la phrase doit le
+    // dire plutôt que d'afficher « = 1 » après un calcul qui fait 0.
     $borin = sceneHeros('Borin');
 
-    $scene = sceneDeplacement($borin, ['base' => 2, 'des' => [1], 'malus' => 3, 'total_jet' => 1, 'portee' => 1]);
+    $scene = sceneDeplacement($borin,
+        ['base' => 0, 'des' => [4], 'de_annule' => true, 'de_annule_par' => 'Armure de plates', 'total_jet' => 1, 'portee' => 1]);
 
-    expect($scene['deplacement']['calcul'])->toBe('base 2 + dé 1 − 3 (armure) → au moins 1 = 1')
+    expect($scene['deplacement']['calcul'])->toBe('base 0 (Armure de plates : le dé ne compte pas) → au moins 1 = 1')
         ->and($scene['issue']['libelle'])->toBe('1 case ce tour');
 });
 

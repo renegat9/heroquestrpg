@@ -868,10 +868,20 @@ final class SceneDeTable
      * (`total − base`), et c'est faux dès qu'il y a un malus d'armure, des
      * Raquettes ou deux dés.
      *
-     * @param  array{base: int, des: list<int>, bonus_equipement: int, malus: int, total_jet: int, multiplicateur: int, bonus_potion: int, portee: int}  $d
+     * `de_annule`/`de_annule_par` (contrat §« L'Armure de plates FAIT PERDRE
+     * LE DÉ », 2026-09-24) sont la DÉCISION et le NOM de la pièce qui annule
+     * le d6 — publiés tels quels dans `deplacement.de_annule(_par)`, pour que
+     * la table raye le dé entier au lieu d'afficher un chiffre négatif. `??`
+     * couvre un appelant antérieur à ces clés, pas une seconde décision : la
+     * décision reste entièrement celle de `MenuMoteur`/`Equipement`.
+     *
+     * @param  array{base: int, des: list<int>, bonus_equipement: int, de_annule?: bool, de_annule_par?: ?string, total_jet: int, multiplicateur: int, bonus_potion: int, portee: int}  $d
      */
     public function deplacement(Personnage $heros, array $d): array
     {
+        $deAnnule = (bool) ($d['de_annule'] ?? false);
+        $deAnnulePar = $d['de_annule_par'] ?? null;
+
         // ⚠ Chaque nombre NOMMÉ : « 3 + 5 = 8 » ne disait pas lequel était le
         // dé (constaté sur la première capture en partie réelle).
         $termes = ['base '.$d['base']];
@@ -880,18 +890,23 @@ final class SceneDeTable
             $termes[] = $d['bonus_equipement'].' (équipement)';
         }
 
-        $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des']);
+        // Le dé ANNULÉ ne rejoint pas la somme — l'Armure de plates fait
+        // perdre le d6, elle ne retranche pas un chiffre de son résultat
+        // (contrat, 2026-09-24 : « pas de chiffre négatif »).
+        if (! $deAnnule) {
+            $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des']);
+        }
 
         $calcul = implode(' + ', $termes);
 
-        if ($d['malus'] > 0) {
-            $calcul .= ' − '.$d['malus'].' (armure)';
+        if ($deAnnule) {
+            $calcul .= ' ('.($deAnnulePar ?? 'armure').' : le dé ne compte pas)';
         }
 
-        $brut = $d['base'] + $d['bonus_equipement'] + array_sum($d['des']) - $d['malus'];
+        $brut = $d['base'] + $d['bonus_equipement'] + ($deAnnule ? 0 : array_sum($d['des']));
 
         // « le total ne descend jamais sous une case » : la phrase ne doit pas
-        // afficher une soustraction qui tombe à 0 et un total de 1.
+        // laisser croire à un total de 0.
         $plancher = $brut !== $d['total_jet'] ? ' → au moins '.$d['total_jet'] : '';
 
         if ($d['multiplicateur'] > 1) {
@@ -917,6 +932,10 @@ final class SceneDeTable
             'deplacement' => [
                 'des' => array_values(array_map('intval', $d['des'])),
                 'calcul' => $calcul.$plancher.' = '.$d['portee'],
+                // ✕ sur le dé côté client : la DÉCISION et son NOM viennent
+                // d'ici, jamais recalculés par le composant Vue.
+                'de_annule' => $deAnnule,
+                'de_annule_par' => $deAnnule ? $deAnnulePar : null,
             ],
             'figure' => null, // le tour commence : aucune marche à attendre
             'objets' => [],

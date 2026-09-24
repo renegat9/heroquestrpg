@@ -92,7 +92,16 @@ it('résout un déplacement : base + 1d6, chemin sur la grille, a_joue marqué',
 
     // L'allonce du tour (base + 1d6) est lancée à la génération du menu et
     // MÉMORISÉE — le joueur la voit avant de choisir sa case. Ici : base 4 + 3 = 7.
-    $etat->update(['deplacement_tour' => 7]);
+    // ⚠ `detail_deplacement_tour` DOIT être forcé avec `deplacement_tour` :
+    // c'est désormais lui, pas une reconstitution `total − base`, que la
+    // résolution lit pour publier `resultat.de` (contrat §« L'Armure de
+    // plates FAIT PERDRE LE DÉ », 2026-09-24) — sans lui, la valeur retombe
+    // sur la VRAIE face tirée à la génération automatique du menu de la
+    // quête, imprévisible ici puisqu'aucun dé n'est figé pour ce test.
+    $etat->update([
+        'deplacement_tour' => 7,
+        'detail_deplacement_tour' => ['base' => 4, 'des' => [3], 'de_annule' => false, 'de_annule_par' => null],
+    ]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'se_deplacer',

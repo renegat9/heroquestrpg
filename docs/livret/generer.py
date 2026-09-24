@@ -385,7 +385,10 @@ ecrire('<div class="duo">' +
            "Le roster d’un joueur : Grom, engagé et verrouillé sur la campagne en cours, "
            "n’a pas de bouton de suppression ; Essai, libre et jamais entré en jeu, porte "
            "<strong>Supprimer (créé par erreur)</strong>.") +
-       fig('20-table-hub', 'Le hub sur l’écran de table : phase de marché ouverte, ordre du tour réglable, prologue à relire.') +
+       fig('20-table-hub', 'Le hub sur l’écran de table : les deux thèmes de la campagne sous '
+                           'le titre — le récit libre et la boîte de bestiaire, figée pour '
+                           'toute la campagne — l’ordre du tour réglable, le récit du maître de '
+                           'jeu à relire en bas.') +
        '</div>')
 ecrire('''
 <h3>Supprimer un personnage créé par erreur</h3>
@@ -572,9 +575,9 @@ dans les paramètres du narrateur (<strong>5 secondes</strong> par défaut). Ell
 moteur a décidé : l'écran ne calcule rien.</p>
 ''')
 ecrire(fig('70-scene-attaque',
-           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et Briseur de Filons, "
-           "qui n'a qu'un point de Body comme tout monstre de base, est terrassé. Les dés qui "
-           "comptent sont cerclés de vert."))
+           "Grom frappe : deux crânes contre un bouclier noir, un dégât — et Crevassier des "
+           "Glaces, qui n'a qu'un point de Body comme tout monstre de base, est terrassé. Les "
+           "dés qui comptent sont cerclés de vert."))
 ecrire(fig('71-scene-jet',
            "Un jet d'attribut dit toujours ce qu'il rapporte : deux succès sur les deux requis, la "
            "table vole en morceaux et laisse 45 pièces d'or au groupe.", 'fig scene'))
@@ -619,20 +622,45 @@ qu'ils font.</p>
 <strong>orthogonales</strong> — jamais en diagonale. On ne traverse pas une figurine, ni un
 meuble. Le dé est lancé une fois par tour et le reste du déplacement peut être fractionné
 autour de l'action.</p>
+
+<h3>L'Armure de plates fait perdre le dé</h3>
+<p>La carte officielle 2021 est nette : « +2 dés de défense, mais <strong>1 seul dé rouge de
+mouvement</strong> ». Chez nous — une base de classe et un seul d6, jamais deux dés — retirer
+LE dé retire tout le hasard du tour : le héros en Armure de plates n'avance que de sa
+<strong>base</strong>, point. Coûteux — 3,5 cases en moyenne — et voulu : c'est ce que valent
+850 pièces d'or et +2 dés de défense.</p>
+<p>Le dé est <strong>quand même lancé</strong>, puis barré d'un ✕ : la manette et la table le
+montrent tomber avant de le rayer, avec le nom de la pièce qui l'annule. Cacher le lancer
+aurait caché la perte elle-même — le joueur doit voir ce qu'il aurait eu.</p>
+<p>Deux exemptions, et seulement deux : le <strong>Chevalier</strong> (« les armures ne le
+ralentissent pas ») et une plate forgée <strong>Allégée</strong> à la Forge du Nain, sur son
+propre exemplaire — voir <a href="#ch7">chapitre 7</a>. Le reste du groupe subit la perte du
+dé comme n'importe quel porteur de plates.</p>
 ''')
+ecrire('<div class="duo">' +
+       fig('35-manette-deplacement-plates',
+           "Grom en Armure de plates : le dé tombe (2), mais un ✕ le barre — « le dé ne "
+           "compte pas ». Il n'avance que de sa base, 4 cases.", 'fig tel') +
+       fig('36-manette-deplacement-allegee',
+           "Borin porte la même armure, forgée Allégée : le dé compte normalement — 3 + dé 2 "
+           "= 5 cases. Même pièce, même case d'armure ; seule la Forge change la règle.", 'fig tel') +
+       '</div>')
+ecrire(fig('77-scene-deplacement',
+           "La table le montre aussi, au moment où le tour commence : le dé rouge, rayé, et la "
+           "pièce responsable nommée en toutes lettres — jamais un chiffre qui change de sens "
+           "sans un mot pour le dire.", 'fig scene'))
 ecrire('<div class="duo">' +
        fig('31-manette-deplacement',
            "Un tap ne part plus tout droit : le serveur renvoie le <strong>trajet exact</strong> "
-           "— ici 7 points, budget épuisé au bout — et le peint en orange ; seul un second tap, "
+           "— ici 11 cases, budget épuisé au bout — et le peint en orange ; seul un second tap, "
            "ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle affiche "
            "une décision déjà prise.", 'fig tel') +
        fig('30-manette-action',
-           "Le menu du tour, composé par le moteur — jamais par l'IA. Depuis le 2026-09-18, "
-           "<strong>Équiper</strong> et <strong>Ranger</strong> sont chacun <strong>une seule "
-           "option</strong>, quel que soit le nombre de pièces concernées — la liste vit dans "
-           "le sous-choix, pas dans le menu. <strong>Jeter un objet</strong> et "
-           "<strong>Utiliser un objet</strong> portent le symbole <strong>∞</strong> : gratuits "
-           "et répétables, ils restent proposés même après avoir agi.", 'fig tel') +
+           "Le menu du tour, composé par le moteur — jamais par l'IA — et qui ne s'allonge pas : "
+           "depuis le 2026-09-18, <strong>Ranger</strong> reste <strong>une seule option</strong> "
+           "quel que soit le nombre de pièces concernées (même règle pour <strong>Équiper</strong> "
+           "dès que le sac en porte une), la liste vivant dans le sous-choix plutôt que dans le "
+           "menu.", 'fig tel') +
        '</div>')
 ecrire('''
 <h3>Une action, et une seule</h3>
@@ -662,9 +690,9 @@ ecrire('<div class="duo">' +
            "Le sous-choix d'un sort. « Sommeil » est grisé : déjà lancé, il ne redeviendra "
            "disponible qu'à la prochaine quête.", 'fig tel') +
        fig('32-manette-combat',
-           "Hors de son tour, Aldric suit le fil du combat : Grom frappe Le Cœur de Pierre "
-           "Noire — 1 crâne — mais le boss pare avec 1 bouclier noir, 0 dégât rendu. Le "
-           "détail des dés reste complet, coup par coup, jamais résumé.", 'fig tel') +
+           "Hors de son tour, Grom suit le fil du combat : le Tireur d'Au-delà touche Borin, "
+           "qui rend le coup à l'Ossement Scellé. Le détail des dés reste complet, coup par "
+           "coup, jamais résumé.", 'fig tel') +
        '</div>')
 ecrire('''
 <div class="encadre">
@@ -698,7 +726,7 @@ définitivement que si personne ne la relève avant la fin du combat.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('72-scene-attaque-monstre',
-           "Spectre des Galeries frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
+           "Briseur de Sceaux frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
            "dégâts l'amènent à zéro.", 'fig scene') +
        fig('73-scene-chute',
            "La scène suivante le dit : à terre, mais relevable jusqu'à la fin du combat. La chute "
@@ -723,8 +751,8 @@ ecrire('''
   <li><strong>Aucune attaque d'opportunité.</strong> On se désengage librement, comme au plateau.</li>
   <li><strong>Les monstres sont scriptés</strong> — ils visent le plus proche ou le plus faible.
       Le moteur les joue, l'IA les raconte. Elle ne choisit jamais leur cible.</li>
-  <li><strong>L'armure lourde coûte 2 cases</strong> de déplacement — le d6 est toujours lancé,
-      et le total ne descend jamais sous une case.</li>
+  <li><strong>L'Armure de plates fait perdre le dé</strong> de mouvement, pas deux cases — le d6
+      est toujours lancé, et rayé (voir <a href="#ch5">chapitre 5</a>).</li>
   <li><strong>Le tir ami existe.</strong> Un sort de zone ou une flèche mal placée peut toucher
       un allié : le placement avant de lancer est un vrai choix.</li>
   <li><strong>Une arme de jet est perdue.</strong> Dague ou hachette lancée reste où elle
@@ -732,10 +760,11 @@ ecrire('''
 </ul>
 ''')
 ecrire(fig('22-table-donjon',
-           "Une galerie déjà bien entamée. À gauche, le fil des événements donne chaque jet ; "
-           "en haut, la barre d'initiative mêle héros et monstres révélés ; à droite, l'état du "
-           "groupe — Grom est tombé à 0 point de Body (« il s'affaisse et ne se relève pas », "
-           "dit le maître de jeu), encore relevable jusqu'à la fin du combat."))
+           "Une galerie déjà bien entamée, cinq monstres révélés. À gauche, le fil des "
+           "événements donne chaque jet ; en haut, la barre d'initiative mêle héros et monstres, "
+           "sous les deux thèmes de la campagne ; à droite, l'état du groupe — Aldric est tombé "
+           "à 0 point de Body (« il glisse au sol au milieu du fracas », dit le maître de jeu), "
+           "encore relevable jusqu'à la fin du combat."))
 fin()
 
 # ============================================= 7. L'ÉQUIPEMENT ============
@@ -802,8 +831,9 @@ ecrire('<div class="duo">' +
        '</div>')
 ecrire('<div class="duo">' +
        fig('13-manette-sac',
-           "Le sac : deux épées larges équipées, une en main droite et une en main gauche. "
-           "Les potions ne comptent jamais dans la capacité du sac.", 'fig tel') +
+           "L'onglet Sac : Grom porte son Épée large et son Armure de plates, sac à dos "
+           "vide — 0/4. Chaque ligne équipée ouvre par le ⓘ sa feuille de détail complète, "
+           "amélioration de Forge comprise (chapitre 7).", 'fig tel') +
        fig('12-manette-fiche',
            "La fiche du héros : attributs de jet, points de vie, conditions actives et talents "
            "acquis.", 'fig tel') +
@@ -828,6 +858,38 @@ ecrire('<h4>Potions et consommables</h4>'
        'dans les actions, et peuvent viser un <strong>héros adjacent</strong> aussi bien que '
        'soi-même.</p>')
 table_objets(par('consommable', ('commun', 'peu_commun', 'rare')))
+
+ecrire('''
+<h3>La Forge du Nain</h3>
+<p>Un Nain qui a acquis le nœud <strong>Forge</strong> améliore <strong>définitivement</strong>
+une pièce d'équipement — arme ou armure, jamais un artefact — contre de l'or de la bourse
+commune, <strong>au hub uniquement</strong>. L'amélioration se choisit dans la feuille de
+détail de l'objet, ouverte depuis le Sac : le catalogue qui s'y affiche est la liste exacte
+que le serveur acceptera, jamais une promesse que le clic suivant refuserait.</p>
+<p>Les <strong>six</strong> améliorations du catalogue fonctionnent : <strong>Affûtée</strong>
+(+1 dé d'attaque), <strong>Renforcée</strong> (+1 dé de défense), <strong>Perforante</strong>
+(annule un bouclier de la cible), <strong>Cruelle</strong> (relance un dé d'attaque raté),
+<strong>Allégée</strong> (annule la perte du dé de mouvement d'une armure lourde — voir
+<a href="#ch5">chapitre 5</a>) et <strong>Gardée</strong> (ignore le premier Étourdi ou Apeuré
+du combat). <strong>« Une fois par combat »</strong> (Cruelle, Gardée) veut dire : tant qu'un
+monstre reste en vue, comme les styles élémentaires du Moine — le compteur se réarme dès que
+plus aucun monstre n'est visible.</p>
+<p>Une pièce forgée porte sa marque <strong>pour tout le monde</strong> : la feuille de détail
+affiche l'amélioration posée même à un joueur sans Nain dans son groupe — un fait sur l'objet,
+pas un secret du forgeron. Pour forger l'équipement d'un <strong>compagnon</strong>, on le lui
+échange d'abord (le Nain ne voit que son propre sac) ; une fois forgée, la pièce peut repartir
+vers son propriétaire sans perdre son amélioration.</p>
+''')
+ecrire('<div class="duo">' +
+       fig('17-manette-forge',
+           "La feuille de détail d'une Épée large non forgée : trois améliorations s'appliquent "
+           "à une arme, chacune avec son prix. Un bouton par option, jamais un choix que le "
+           "serveur refuserait ensuite.", 'fig tel') +
+       fig('18-manette-forge-visible',
+           "La même épée, forgée Affûtée puis rendue à son propriétaire (un barbare, pas un "
+           "Nain) : l'amélioration reste affichée, sans aucun bouton pour la refaire — visible "
+           "de tous, modifiable par un seul.", 'fig tel') +
+       '</div>')
 ecrire(fig('06-guide-equipement',
            "Le guide intégré liste l'armurerie complète, avec pour chaque pièce la classe qui "
            "peut la porter."))
@@ -945,14 +1007,18 @@ même armure.</p>
 <p>La revente se fait à <strong>50 % du prix marchand</strong>. Les objets
 <strong>uniques</strong> — les artefacts — ne s'achètent, ne se revendent et ne se forgent
 jamais.</p>
+<p>Avant que quiconque ouvre l'étal, le même onglet propose déjà de <strong>recruter un
+allié</strong> : un mercenaire scripté, payé sur la bourse commune et présent pour la durée
+d'une quête — un renfort de chair pour un groupe réduit, jamais un remplaçant permanent.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('11-manette-marche',
-           "L'étal sur le téléphone : prix, rareté, stock, et une fiche par objet. "
-           "Le bandeau rappelle l'or commun du groupe.", 'fig tel') +
+           "Avant l'ouverture de l'étal : la case « Prêt pour la quête », et déjà deux "
+           "mercenaires à recruter contre l'or commun — l'Éclaireur désamorce comme un nain, "
+           "l'Arbalétrier frappe à distance puis à l'épée au contact.", 'fig tel') +
        fig('20-table-hub',
-           "Le même marché vu de la table : les quatre paniers côte à côte et le total "
-           "projeté. Personne n'achète en aveugle.") +
+           "Le hub vu de la table, d'où l'on ouvre le marché pour tout le groupe : le bouton "
+           "est à côté de « Lancer la quête » et « Clôturer », jamais cachée derrière un menu.") +
        '</div>')
 ecrire('''
 <div class="encadre avert">
@@ -1108,8 +1174,9 @@ ecrire(fig('74-scene-salle',
            "caractéristiques. Les noms sont ceux que le maître du jeu leur a donnés ; les chiffres "
            "sont ceux du catalogue, et l'IA n'y touche pas.", 'fig scene'))
 ecrire(fig('21-table-quete',
-           "L'ouverture d'une quête : le groupe vient d'entrer, tout le reste du donjon est "
-           "encore sous le brouillard. Les rectangles dorés sont des portes."))
+           "L'en-tête d'une quête en cours : le titre du « Gardien des Premiers Sceaux », "
+           "l'objectif toujours visible sous les deux thèmes de la campagne, et la barre "
+           "d'initiative qui mêle les quatre héros à cinq monstres déjà révélés."))
 fin()
 
 # ======================================== 11. FOUILLER LE DONJON ==========
@@ -1140,6 +1207,10 @@ ecrire('''
   <li>et <strong>chaque passage secret mène à un coffre</strong> — celle des deux salles de la
       jonction qui est la plus profonde. Toujours. Un raccourci trouvé paie quelque chose.</li>
 </ul>
+<p>La salle désignée reçoit un <strong>vrai meuble Coffre</strong>, posé sur la carte comme
+n'importe quel autre — jamais une salle que la narration dirait « au coffre » sans qu'aucune
+case n'en montre un. Le placement du mobilier lui réserve toujours assez de cases libres pour
+qu'il tienne, quelle que soit la forme de la salle tirée.</p>
 <p>Le coffre désigné rend <strong>au plus un artefact</strong> par quête. S'il n'en reste aucun
 que le groupe puisse porter, il verse une <strong>grosse somme d'or</strong> à la place —
 jamais rien.</p>
@@ -1166,6 +1237,16 @@ CHOIX_ART = ['Fléau des Orques', 'Lame des Esprits', 'Dague de jet magique', 'A
              'Amulette du Nord', 'Talisman du Savoir', 'Anneau de Sort', 'Baguette de Rappel',
              'Cendres du Phénix', 'Cape des Ombres', 'Bottes elfiques', 'Arc elfique de Vindication']
 table_objets([o for n in CHOIX_ART for o in ARTEFACTS if o['nom'] == n], colonne_prix=False)
+ecrire('''
+<div class="encadre">
+  <h4>Deux artefacts n'appartiennent qu'à une boîte</h4>
+  <p>Les <strong>Raquettes de Vitesse</strong> et l'<strong>Anneau de Chaleur</strong> ne sortent
+  que dans une campagne au thème <strong>« Horreur des Glaces »</strong> — c'est la seule où le
+  froid existe comme dégât et où la glace glissante encombre le sol, donc la seule où ces deux
+  pièces servent à quelque chose. Le coffre désigné d'une autre campagne ne les propose jamais :
+  un artefact qui ne ferait rien nulle part n'est pas une récompense.</p>
+</div>
+''')
 fin()
 
 # ================================================= 12. LES PIÈGES =========
@@ -1419,7 +1500,7 @@ ecrire('''
   <li><strong>Une</strong> action, avant ou après</li>
   <li>Une seule attaque, sauf capacité</li>
   <li>Pas d'attaque d'opportunité</li>
-  <li>Armure lourde : −2 cases</li>
+  <li>Armure de plates : perd le d6 entier (Chevalier/Allégée : le garde)</li>
 </ul></section>
 
 <section><h4>Une attaque</h4><ul>

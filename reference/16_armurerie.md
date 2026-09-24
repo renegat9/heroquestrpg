@@ -245,17 +245,31 @@ une fois, côté classe, au lieu d'être répétée sur chaque pièce.
 | **Brassards** / Bracers | 200 | Déf. +1 | `armure` | — | **magicien seul** → `armure_magicien` |
 | **Cape de protection** / Cloak of Protection | 350 | Déf. +1 | `armure` | — | **magicien seul** → `armure_magicien` |
 | **Cotte de mailles** / Chain Mail | 450 | Déf. +1 | `armure` | — | pas magicien → `armure_legere` |
-| **Armure de plates** / Plate Mail | 850 | Déf. +2 | `armure` | `malus_deplacement: 2` | pas magicien → `armure_lourde` |
+| **Armure de plates** / Plate Mail | 850 | Déf. +2 | `armure` | ~~`malus_deplacement: 2`~~ → **perd le dé de mouvement** (carte officielle §2.1bis, 2026-09-24 — voir ci-dessous) | pas magicien → `armure_lourde` |
 
 Deux conséquences qui changent le jeu :
 
 - **Le magicien a enfin une défense.** Brassards et cape sont « May **only** be
   used by a Wizard » : les seules pièces qu'il puisse porter, et que personne
   d'autre ne peut lui prendre. Il passait jusqu'ici toute la campagne à 2 dés.
-- **L'armure de plates coûte 2 cases**, pas le d6. « While wearing the Plate
-  Mail, you have a 2 square movement penalty » : un chiffre, là où l'on
-  supprimait le dé entier — −3,5 cases en moyenne **et** un déplacement devenu
-  déterministe, deux écarts pour le prix d'un.
+- ~~**L'armure de plates coûte 2 cases**, pas le d6.~~ ⚠ **ARBITRAGE RENVERSÉ le
+  2026-09-24 (René) : la plate FAIT PERDRE LE DÉ de mouvement.** Ce paragraphe
+  défendait « −2 cases » en citant « While wearing the Plate Mail, you have a 2
+  square movement penalty » — mais cette phrase est celle de la **conversion fan
+  Sjeng** de ce §2.2, dont l'auteur dit lui-même avoir « changé des coûts et des
+  fonctionnalités ». La **carte officielle** du §2.1bis écrit « +2 dés de
+  défense, mais **1 seul dé rouge de mouvement** », et ce même document pose que
+  §2.1bis **PRIME** sur §2.2. La mauvaise source avait gagné, contre la règle
+  dure « ne jamais semer une valeur que les livrets ou les cartes ne sourcent
+  pas ».
+  Au plateau on lance deux dés et la plate en retire un ; chez nous (base de
+  classe + un seul d6, écart assumé) elle retire donc **le seul dé**, et le
+  héros n'avance que de sa base. L'objection écrite ici tient toujours —
+  « −3,5 cases en moyenne **et** un déplacement devenu déterministe » —, mais
+  c'est le prix que la carte fixe, pour 850 or et +2 dés de défense ; c'est aussi
+  ce qui donne leur sens au Chevalier et à la Forge *Allégée*. Le dé reste
+  **lancé puis barré** à l'écran, pour que la pénalité se voie. → contrat
+  §« L'Armure de plates FAIT PERDRE LE DÉ ».
 
 #### Le dual-wielding, porté le 2026-08-12
 

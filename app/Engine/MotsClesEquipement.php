@@ -105,30 +105,40 @@ final class MotsClesEquipement
 
     /**
      * Encombrement de l'armure lourde, **en cases** retranchées du déplacement
-     * du tour — « While wearing the Plate Mail, you have a 2 square movement
-     * penalty » (carte Plate Mail). Corroboré en creux par *Borin's Armor* :
-     * « unlike normal plate mail, this […] does not slow down its wearer »
-     * (LR p. 7) dit qu'une armure de plates ordinaire, elle, ralentit.
+     * du tour — le porteur avance de sa BASE SEULE, le d6 ne compte pas
+     * (René, 2026-09-24, sur la carte OFFICIELLE 2021 : *Plate Mail*, « +2 dés
+     * de défense, mais 1 seul dé rouge de mouvement »). Corroboré en creux par
+     * *Borin's Armor* : « unlike normal plate mail, this […] does not slow
+     * down its wearer » (LR p. 7) dit qu'une armure de plates ordinaire, elle,
+     * ralentit.
      *
-     * Chiffré, pas booléen : on supprimait auparavant le d6 entier
-     * (`deplacement_sans_d6`, −3,5 cases en moyenne) et le déplacement devenait
-     * DÉTERMINISTE — deux écarts à la carte pour le prix d'un.
-     * Lecteur : `Engine\Deplacement` via `Equipement::valeurEffetPorte()`.
+     * ⚠ REMPLACE `malus_deplacement` (retiré du vocabulaire, plus aucun objet
+     * ni amélioration de Forge ne le porte) : cette clé CHIFFRÉE (`−2 cases`)
+     * sortait de la conversion FAN Sjeng (`reference/16_armurerie.md` §2.2,
+     * « historique »), jamais de la carte officielle. Au plateau un héros
+     * lance DEUX dés de mouvement et la Plate Mail lui en retire UN ; chez
+     * nous (base de classe + UN SEUL d6, écart assumé du projet), retirer un
+     * dé retire LE SEUL dé — d'où un booléen, pas un chiffre. Le dé est quand
+     * même LANCÉ : la manette et la table le montrent tomber, puis le rayent
+     * d'un ✕, avec le nom de la pièce qui l'annule.
+     * Lecteur : `Partie\Equipement::deDeplacementAnnule()`, le même point de
+     * passage que lisent déjà `MenuMoteur::deplacementDuTour()` ET
+     * `ResolveurTour::resoudreDeplacement()`.
      */
-    public const MALUS_DEPLACEMENT = 'malus_deplacement';
+    public const DEPLACEMENT_SANS_D6 = 'deplacement_sans_d6';
 
     /**
-     * Symétrique de `MALUS_DEPLACEMENT` : cases de déplacement en PLUS, en
-     * PERMANENCE tant que la pièce est portée — « Raquettes de Vitesse / Snowshoes
-     * of Speed : +2 cases de déplacement (…), utilisables seulement dans les
-     * quêtes glacées » (Frozen Horror, `config/cartes.php`).
+     * Cases de déplacement en PLUS, en PERMANENCE tant que la pièce est
+     * portée — « Raquettes de Vitesse / Snowshoes of Speed : +2 cases de
+     * déplacement (…), utilisables seulement dans les quêtes glacées »
+     * (Frozen Horror, `config/cartes.php`).
      *
      * ⚠ Homonyme ÉVITÉ à dessein de `bonus_deplacement` (Potion de dextérité) :
      * cette clé-LÀ pose un BUFF TEMPORAIRE lu par `MoteurSorts::bonusDes()`
      * (`ResolveurTour::pointsDeplacement()`) — un jet de plus, une fois. Celle-ci
-     * modifie le SOCLE avant le jet, en continu, exactement comme
-     * `malusDeplacement()` dont c'est le miroir : deux mécaniques que la carte
-     * de la Plate Mail et celle des Raquettes ne confondent pas non plus.
+     * modifie le SOCLE avant le jet, en continu — la carte de la Plate Mail
+     * (`DEPLACEMENT_SANS_D6`) et celle des Raquettes ne se confondent pas non
+     * plus : l'une annule le dé, l'autre ajoute des cases fixes au socle.
      *
      * « Région gelée » n'est sourcée nulle part au-delà du nom : le thème de
      * boîte FIGÉ du groupe (`groupes.theme_bestiaire`,
@@ -229,10 +239,13 @@ final class MotsClesEquipement
     /**
      * Allégée (200 or, armure) : « Annule le malus de déplacement de
      * l'armure lourde (récupère le 1d6, règle AP) » (reference/04_market.md).
-     * Symétrique en LECTURE de `MALUS_DEPLACEMENT` : une pièce qui porte les
-     * deux sur le MÊME exemplaire voit son propre malus retombé à zéro —
-     * jamais une pièce forgée qui annulerait le malus d'une AUTRE armure.
-     * Lecteur : `Partie\Equipement::malusDeplacement()`, le même point de
+     * Le NOM garde « malus » par continuité avec la carte de Forge, mais son
+     * effet est désormais de récupérer le d6 (`DEPLACEMENT_SANS_D6`) plutôt
+     * que d'annuler un chiffre — même carte, même geste : « récupère le
+     * 1d6 ». Symétrique en LECTURE de `DEPLACEMENT_SANS_D6` : une pièce qui
+     * porte les deux sur le MÊME exemplaire voit son propre dé compter à
+     * nouveau — jamais une pièce forgée qui rendrait le dé d'une AUTRE armure.
+     * Lecteur : `Partie\Equipement::deDeplacementAnnule()`, le même point de
      * passage que lit déjà `MenuMoteur::deplacementDuTour()` ET
      * `ResolveurTour::resoudreDeplacement()`.
      */
@@ -801,7 +814,7 @@ final class MotsClesEquipement
         self::JETABLE,
         self::DEUX_MAINS,
         self::INCOMPATIBLE_DEUX_MAINS,
-        self::MALUS_DEPLACEMENT,
+        self::DEPLACEMENT_SANS_D6,
         self::BONUS_DEPLACEMENT_PORTE,
         self::ANNULE_GLACE_GLISSANTE,
         self::DEGATS_FIXES,
@@ -935,7 +948,7 @@ final class MotsClesEquipement
         // --- Forge du Nain
         self::ANNULE_BOUCLIERS_DEFENSE => 'Annule %s bouclier(s) de la défense de la cible',
         self::RELANCE_DE_ATTAQUE_RATE => 'Relance %s dé(s) d\'attaque raté(s) — une fois par combat',
-        self::ANNULE_MALUS_DEPLACEMENT => 'Annule le malus de déplacement de cette pièce',
+        self::ANNULE_MALUS_DEPLACEMENT => 'Le dé de déplacement compte à nouveau avec cette pièce',
         self::IGNORE_PREMIER_ETAT_DU_COMBAT => 'Ignore le premier état subi d\'un combat : %s',
 
         // --- Mains et port
@@ -944,7 +957,7 @@ final class MotsClesEquipement
         self::JETABLE => 'Peut être lancée — et se perd',
         self::PORTEE => 'Portée : %s',
         self::INUTILISABLE_ADJACENT => 'Inutilisable au contact',
-        self::MALUS_DEPLACEMENT => '−%s de déplacement',
+        self::DEPLACEMENT_SANS_D6 => 'Le dé de déplacement ne compte pas : avance de sa base seule',
         'compte_comme_arme' => 'Compte comme : %s',
 
         // --- Déplacement

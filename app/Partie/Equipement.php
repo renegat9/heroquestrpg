@@ -378,24 +378,60 @@ final class Equipement
      * cohérence finiraient par diverger — le menu proposerait des cases que le
      * résolveur refuserait, l'anti-patron que ce projet traque partout.
      */
-    public function malusDeplacement(Personnage $personnage): int
+    public function deDeplacementAnnule(Personnage $personnage): bool
+    {
+        return $this->detailDeDeplacementAnnule($personnage)['annule'];
+    }
+
+    /**
+     * Le NOM de la pièce qui annule le d6 de déplacement — `null` quand le dé
+     * compte (`deDeplacementAnnule()` rend `false`).
+     *
+     * ⚠ MÊME point de passage que `deDeplacementAnnule()`
+     * (`detailDeDeplacementAnnule()` ci-dessous, jamais recalculé séparément) :
+     * contrat §« L'Armure de plates FAIT PERDRE LE DÉ » (2026-09-24). Une
+     * seconde recherche de « l'armure portée » pourrait nommer une pièce dont
+     * l'effet vient justement d'être annulé — Allégée sur SON exemplaire, ou
+     * le Chevalier pour qui aucune armure ne compte. La décision et le nom
+     * doivent donc naître du même calcul ou ils finiront par se contredire.
+     */
+    public function sourceDeDeplacementAnnule(Personnage $personnage): ?string
+    {
+        return $this->detailDeDeplacementAnnule($personnage)['source'];
+    }
+
+    /**
+     * Calcul UNIQUE derrière `deDeplacementAnnule()` et
+     * `sourceDeDeplacementAnnule()` — la décision et la pièce qui l'impose
+     * sortent du même passage en mémoire de l'inventaire, jamais de deux
+     * requêtes qui pourraient diverger.
+     *
+     * @return array{annule: bool, source: ?string}
+     */
+    private function detailDeDeplacementAnnule(Personnage $personnage): array
     {
         if ($personnage->classe === 'chevalier') {
-            return 0;
+            return ['annule' => false, 'source' => null];
         }
 
         // Allégée (Forge) : « Annule le malus de déplacement de l'armure
-        // lourde » — sur SON PROPRE exemplaire seulement (une pièce forgée
-        // n'efface jamais le malus d'une AUTRE armure). D'où une comparaison
-        // pièce par pièce plutôt que `valeurEffetPorte()`, qui ne connaît pas
-        // l'amélioration attachée à CETTE ligne d'inventaire.
-        return (int) $personnage->inventaire()
+        // lourde (récupère le 1d6) » — sur SON PROPRE exemplaire seulement
+        // (une pièce forgée ne rend jamais le dé d'une AUTRE armure). D'où
+        // une comparaison pièce par pièce plutôt que `valeurEffetPorte()`,
+        // qui ne connaît pas l'amélioration attachée à CETTE ligne
+        // d'inventaire.
+        $retenue = $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
             ->with('objet')
             ->get()
-            ->max(fn (Inventaire $ligne) => $this->effetForge($ligne, MotsClesEquipement::ANNULE_MALUS_DEPLACEMENT)
-                ? 0
-                : (int) (($ligne->objet?->effet ?? [])['malus_deplacement'] ?? 0));
+            ->first(fn (Inventaire $ligne) => ! $this->effetForge($ligne, MotsClesEquipement::ANNULE_MALUS_DEPLACEMENT)
+                && ! empty(($ligne->objet?->effet ?? [])[MotsClesEquipement::DEPLACEMENT_SANS_D6]));
+
+        if ($retenue === null) {
+            return ['annule' => false, 'source' => null];
+        }
+
+        return ['annule' => true, 'source' => $retenue->objet?->nom];
     }
 
     /**
@@ -503,7 +539,7 @@ final class Equipement
      * Speed : +2 cases de déplacement (…) utilisables seulement dans les
      * quêtes glacées » (Frozen Horror).
      *
-     * Symétrique de `malusDeplacement()`, MÊME point de passage pour les deux
+     * Symétrique de `deDeplacementAnnule()`, MÊME point de passage pour les deux
      * mêmes appelants (`MenuMoteur::deplacementDuTour()`,
      * `ResolveurTour::resoudreDeplacement()`) — sous peine que le menu
      * annonce une portée que le résolveur refuse.
@@ -885,15 +921,6 @@ final class Equipement
         }
     }
 
-    /**
-     * Valeur CHIFFRÉE la plus forte portée par l'équipement pour cette clé, 0
-     * si aucune pièce ne la porte.
-     *
-     * Le max, pas la somme : `malus_deplacement` est une pénalité d'encombrement
-     * (« a 2 square movement penalty » sur l'armure de plates), pas un coût qui
-     * s'additionnerait pièce par pièce — deux armures lourdes ne se cumulent
-     * d'ailleurs pas, elles partagent un slot.
-     */
     /**
      * Le héros porte-t-il du MÉTAL (armure) ou un bouclier ?
      *

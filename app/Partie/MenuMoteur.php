@@ -703,7 +703,7 @@ final class MenuMoteur
         $base = (int) $personnage->deplacement_base;
 
         if ($etat === null) {
-            return ['base' => $base, 'de' => null, 'total' => $base];
+            return ['base' => $base, 'de' => null, 'des' => [], 'de_annule' => false, 'de_annule_par' => null, 'total' => $base];
         }
 
         // ⚠ AU TOUR DU HÉROS, et plus au début du round (2026-09-16). Les menus
@@ -717,10 +717,11 @@ final class MenuMoteur
 
         if ($etat->deplacement_tour === null && ! $etat->tombe && ! $etat->a_joue
             && $groupe !== null && $this->ordreDuTour->estSonTour($groupe, (int) $personnage->id)) {
-            // Armure lourde : « a 2 square movement penalty » (carte Plate Mail).
-            // `Deplacement` savait appliquer un malus depuis toujours, mais
-            // aucun appelant ne le lui avait jamais dit — il n'avait donc
-            // jamais joué, et l'armure la plus chère n'avait que des avantages.
+            // Armure lourde : « 1 red die only for movement » (carte Plate
+            // Mail officielle 2021). `Deplacement` savait annuler le d6 depuis
+            // toujours, mais aucun appelant ne le lui avait jamais dit — il
+            // n'avait donc jamais joué, et l'armure la plus chère n'avait que
+            // des avantages.
             // BOTTES ELFIQUES : « an extra red die for movement ». Le dé
             // supplémentaire est lancé ICI, avec les autres, parce que c'est
             // ICI que le jet du tour est fixé et mémorisé — le joueur le voit
@@ -732,23 +733,45 @@ final class MenuMoteur
             // RAQUETTES DE VITESSE : même point de passage que
             // `ResolveurTour::resoudreDeplacement()` — le menu ne doit jamais
             // annoncer une portée que le résolveur refuserait ensuite. Ajouté
-            // au socle passé à `calculer()`, JAMAIS à `$base` lui-même : comme
-            // le malus, il doit rester absorbé dans `$jet->total` sans changer
-            // la valeur de `$base` que la ligne de retour réutilise pour
-            // reconstituer le dé affiché (`$total - $base`).
+            // au socle passé à `calculer()`, JAMAIS à `$base` lui-même : la
+            // valeur publiée de `base` reste celle du personnage seul (contrat
+            // §« L'Armure de plates FAIT PERDRE LE DÉ », 2026-09-24).
             $bonusRaquettes = $etat->quete !== null
                 ? $this->equipement->bonusDeplacementActif($personnage, $etat->quete)
                 : 0;
 
+            // ⚠ MÊME appel que celui qui nomme la source : `deDeplacementAnnule()`
+            // et `sourceDeDeplacementAnnule()` sortent tous deux de
+            // `Equipement::detailDeDeplacementAnnule()`, jamais d'une seconde
+            // recherche qui pourrait nommer une armure dont l'effet vient
+            // d'être annulé (Chevalier, Allégée).
+            $deAnnule = $this->equipement->deDeplacementAnnule($personnage);
+            $deAnnulePar = $this->equipement->sourceDeDeplacementAnnule($personnage);
+
             $jet = (new Deplacement($this->des))->calculer(
                 $base + $bonusRaquettes,
-                $this->equipement->malusDeplacement($personnage),
+                $deAnnule,
                 (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
             );
 
-            $etat->update(['deplacement_tour' => $jet->total]);
+            // Détail RÉEL du jet, persisté au lancer — une colonne, jamais un
+            // cache (règle consolidée du projet) — pour que la face survive à
+            // un menu régénéré plus tard dans le même tour. `deplacement_tour`
+            // ne garde que le total ; c'était lui seul, et `de` se voyait
+            // reconstitué comme `total − base`, faux dès qu'un malus mordait,
+            // puis carrément absent quand le dé ne compte plus du tout
+            // (contrat §« L'Armure de plates FAIT PERDRE LE DÉ », 2026-09-24).
+            $etat->update([
+                'deplacement_tour' => $jet->total,
+                'detail_deplacement_tour' => [
+                    'base' => $base,
+                    'des' => $jet->des,
+                    'de_annule' => $jet->deAnnule,
+                    'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
+                ],
+            ]);
 
-            $this->annoncerDeplacement($groupe, $personnage, $etat, $jet, $base, $bonusRaquettes);
+            $this->annoncerDeplacement($groupe, $personnage, $etat, $jet, $base, $bonusRaquettes, $deAnnulePar);
 
             $this->userSurDesIdentiques($personnage, $etat, $bottes, $jet);
 
@@ -767,8 +790,31 @@ final class MenuMoteur
         }
 
         $total = $etat->deplacement_tour ?? $base;
+        $detail = $etat->detail_deplacement_tour;
 
-        return ['base' => $base, 'de' => $total > $base ? $total - $base : null, 'total' => $total];
+        if ($detail === null) {
+            // Compat : une ligne déjà en tour au moment où cette colonne est
+            // apparue (ou un très ancien snapshot restauré) porte un total
+            // mais pas de détail. On retombe sur l'ancienne reconstitution —
+            // fausse dès qu'un malus mordait, muette sur un dé annulé —
+            // plutôt que de perdre le tour en cours ; transitoire, un seul
+            // tour au pire.
+            $detail = [
+                'base' => $base,
+                'des' => array_values(array_filter([$total > $base ? $total - $base : null])),
+                'de_annule' => false,
+                'de_annule_par' => null,
+            ];
+        }
+
+        return [
+            'base' => (int) $detail['base'],
+            'de' => $detail['des'][0] ?? null,
+            'des' => array_values((array) $detail['des']),
+            'de_annule' => (bool) $detail['de_annule'],
+            'de_annule_par' => $detail['de_annule_par'] ?? null,
+            'total' => $total,
+        ];
     }
 
     /**
@@ -799,11 +845,16 @@ final class MenuMoteur
     /**
      * La SCÈNE de début de tour, sur l'écran de table (`genre: deplacement`).
      *
-     * Émise ICI parce que c'est le seul instant où les dés RÉELS existent :
-     * `deplacement_tour` ne mémorise que le total, et toute relecture ultérieure
-     * devrait reconstituer le dé par soustraction — ce que fait encore l'option
-     * `se_deplacer`, faux dès qu'un malus, des Raquettes ou un second dé s'en
-     * mêlent.
+     * Émise ICI parce que c'est le seul instant où les dés RÉELS existent —
+     * `$jet` vient tout juste d'être lancé, avant même sa persistance. Le
+     * détail est désormais aussi en colonne (`detail_deplacement_tour`), mais
+     * la scène reste construite depuis l'objet frais plutôt que de relire ce
+     * qui vient d'être écrit.
+     *
+     * `deAnnulePar` (2026-09-24, contrat §« L'Armure de plates FAIT PERDRE LE
+     * DÉ ») est le nom de la pièce qui annule le d6 — sorti du MÊME appel que
+     * `$jet->deAnnule` chez l'appelant (`Equipement::detailDeDeplacementAnnule()`),
+     * jamais recalculé ici.
      *
      * ⚠ Best-effort : une diffusion qui échoue ne doit jamais faire échouer la
      * composition du menu — le joueur resterait sans rien à jouer.
@@ -815,6 +866,7 @@ final class MenuMoteur
         ResultatDeplacement $jet,
         int $base,
         int $bonusEquipement,
+        ?string $deAnnulePar,
     ): void {
         try {
             $portee = $this->porteeDuTour($personnage, $jet->total);
@@ -825,7 +877,8 @@ final class MenuMoteur
                     'base' => $base,
                     'des' => $jet->des !== [] ? $jet->des : array_filter([$jet->de]),
                     'bonus_equipement' => $bonusEquipement,
-                    'malus' => $jet->malus,
+                    'de_annule' => $jet->deAnnule,
+                    'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
                     'total_jet' => $jet->total,
                     'multiplicateur' => $portee['multiplicateur'],
                     'bonus_potion' => $portee['bonus'],
@@ -1038,7 +1091,18 @@ final class MenuMoteur
                 'parametres' => [
                     'portee_base' => (int) $personnage->deplacement_base,
                     'base' => $portee['base'],
-                    'de' => $portee['de'],          // résultat du d6 (null si Armure de plates)
+                    // `de` est désormais la face RÉELLEMENT tombée, jamais
+                    // reconstituée (contrat §« L'Armure de plates FAIT PERDRE
+                    // LE DÉ », 2026-09-24) : avant, une Armure de plates
+                    // pouvait afficher « dé 3 » pour un vrai 5, ou faire
+                    // disparaître le dé (`de: null`) sur un jet de 1 ou 2. Le
+                    // dé compte ou non dans `portee` selon `de_annule` — il
+                    // reste publié dans les deux cas, pour que l'écran le
+                    // montre tomber puis, le cas échéant, le raye.
+                    'de' => $portee['de'],
+                    'des' => $portee['des'],                 // toutes les faces (2 avec les Bottes elfiques)
+                    'de_annule' => $portee['de_annule'],      // DÉCISION : le d6 ne compte pas ce tour
+                    'de_annule_par' => $portee['de_annule_par'], // nom de la pièce qui l'annule, null si le dé compte
                     'portee' => $porteeEffective,    // cases restantes ce tour
                 ],
             ];

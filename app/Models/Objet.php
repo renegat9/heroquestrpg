@@ -18,6 +18,10 @@ class Objet extends Model
         // Maîtrise requise pour ÉQUIPER la pièce (doc 01 §7) ; null = aucune.
         'tag_equipement',
         'effet',
+        // Boîte d'extension qui rend seule cet effet UTILE (2026-09-24,
+        // `DeckFouille::choisirArtefact()`) ; null = utilisable dans toute
+        // campagne, quel que soit son thème.
+        'boite',
     ];
 
     protected function casts(): array
