@@ -1240,6 +1240,50 @@ un dans l'arbre de la classe, et dit « hors de portée » sinon. Classe sans ta
 déclarés → **aucune restriction** (échec ouvert). La vérification n'a lieu qu'à
 l'équipement : une pièce déjà portée n'est jamais retirée rétroactivement.
 
+### La Forge du Nain devient ATTEIGNABLE (2026-09-18)
+
+`GET /api/forge` et `POST /api/groupes/{identifiant}/forge` existaient, testés et
+verts, **depuis des mois — et aucun écran ne les appelait**. Le seul « forge »
+de `resources/js` était le verbe, dans une phrase de l'écran narrateur. Une
+règle du canon (doc 01 §Forge) entièrement implémentée et **injouable** : ni
+clé décorative ni lecteur manquant cette fois, mais l'écran.
+
+⚠ **Et les améliorations déjà posées n'étaient publiées nulle part** : un objet
+forgé ne se distinguait d'un objet ordinaire sur aucun écran. Le projet
+protégeait pourtant soigneusement cette donnée — la séance d'échange déplace la
+ligne d'inventaire plutôt que de la recréer *précisément* pour ne pas perdre les
+`ameliorations`, et un test l'épingle — alors que personne ne pouvait en créer
+une seule en jouant.
+
+`/moi` porte désormais, sur chaque ligne d'inventaire arme/armure (portée **et**
+au sac) :
+
+| Champ | Contenu | Pourquoi côté serveur |
+|---|---|---|
+| `ameliorations` | `[{nom, avantages}]`, traduites par `MotsClesEquipement::avantages()` | un **fait sur l'objet**, visible par tous — même un joueur sans nain voit qu'une pièce est forgée |
+| `forgeable` | la **DÉCISION** : ce joueur peut-il forger CETTE pièce MAINTENANT | hub, forgeron actif lui appartenant, rareté ≠ `unique`, pas déjà améliorée — quatre ingrédients qu'un client recombinerait de travers |
+| `forge_catalogue` | `[{id, nom, prix, avantages}]` | **la liste blanche exacte** que `POST /forge` acceptera, même filtre `Forge::ameliorationsApplicables()` |
+
+⚠ `App\Partie\Forge` est le **point de passage unique** entre le 422 réel
+d'`appliquer()` et la décision publiée : un test les confronte **dans les deux
+sens**, parce qu'un bouton offert sur une pièce refusée est le même défaut qu'un
+bouton manquant sur une pièce forgeable.
+
+⚠ **Le prix n'entre PAS dans `forgeable`**, et c'est délibéré : l'or commun bouge
+à chaque tick, et par amélioration choisie. Le front grise une option trop chère
+en comparant deux nombres **déjà publiés** (`EtatGroupe.or` et le `prix` de
+l'entrée) — une arithmétique, pas une règle re-dérivée ; exactement ce que
+`RecrutementHub` fait déjà pour les mercenaires.
+
+⚠ `POST /forge` diffuse `EtatGroupeDiffuse` comme `/dons` et `/mercenaires` :
+sans cela, ni la bourse commune ni la pièce forgée d'un compagnon ne se
+mettaient à jour en direct sur son propre écran.
+
+⚠ **Non couvert, et nommé** : l'API autorise le Nain à forger l'équipement d'un
+**autre** héros, mais aucun écran ne le propose — `SacTab` ne montre que le sac
+du joueur connecté. L'affichage de l'amélioration posée, lui, est bien visible
+dans ce cas. Un sélecteur de compagnon reste à faire.
+
 **Don d'objets** (`POST /dons`) — répartition du butin au hub. Autorisation
 **asymétrique** : on donne depuis SES héros, vers **n'importe quel héros actif**
 du groupe (même logique que la Forge, où le Nain travaille l'équipement de ses

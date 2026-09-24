@@ -843,6 +843,25 @@ async function desequiper(inventaireId) {
     }
 }
 
+/* ---- Forge du Nain (hub) : améliore DÉFINITIVEMENT une pièce, contre l'or
+   COMMUN. `monPersonnageId` sert de forgeron — c'est justement pourquoi
+   `/moi` ne propose la feuille de Forge que si CE personnage (celui joué sur
+   ce téléphone) porte le nœud, jamais un autre héros du groupe. Le serveur
+   diffuse `.groupe.etat` (or débité) ET on relit `/moi` (l'amélioration
+   posée). */
+async function forger({ inventaireId, ameliorationId }) {
+    if (equipEnCours.value || !monPersonnageId.value || !inventaireId || !ameliorationId) return;
+    equipEnCours.value = true;
+    try {
+        await api.forger(props.groupe, monPersonnageId.value, inventaireId, ameliorationId);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
+    }
+}
+
 /* ---- Don d'un objet à un compagnon (hub) : le partage du butin. Le serveur
    diffuse `.groupe.etat`, donc la manette du RECEVEUR re-GET /moi toute seule ;
    ici on rafraîchit la nôtre pour voir l'objet quitter le sac. ---- */
@@ -1275,9 +1294,11 @@ const navItems = computed(() => (scene.value === 'marche'
                             :au-hub="auHub"
                             :equip-en-cours="equipEnCours"
                             :compagnons="compagnonsDeDon"
+                            :or-commun="orCommun"
                             @equiper="equiper"
                             @desequiper="desequiper"
                             @donner="donner"
+                            @forger="forger"
                         />
                     </div>
 

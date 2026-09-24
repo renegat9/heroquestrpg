@@ -180,11 +180,25 @@ final class Combat
         $relances = $this->des->desCombat($nbRatees);
         $indexRelance = 0;
 
-        return array_map(
-            fn ($face) => $face === $touchante || $indexRelance >= $nbRatees
-                ? $face
-                : $relances[$indexRelance++],
-            $faces,
-        );
+        // ⚠ Un `foreach` mutable, PAS un `array_map(fn (...) => ...)` avec un
+        // compteur incrémenté dans la closure (2026-09-19) : une fonction
+        // fléchée capture ses variables externes PAR VALEUR, une COPIE prise à
+        // sa création — `array_map` rappelle ensuite la MÊME closure pour
+        // chaque élément, mais chaque appel repart de cette copie plutôt que
+        // de la mutation laissée par l'appel précédent. `$indexRelance++`
+        // repartait donc de 0 à CHAQUE die, et `$relances[0]` remplaçait TOUS
+        // les ratés au lieu des `$nbRatees` premiers seulement — invisible
+        // tant que rien ne testait « relance N ratés sur PLUS de N » (Cruelle,
+        // Forge du Nain, 2026-09-19 : « Relance 1 dé, 1×/combat » avec deux
+        // ratés au jet a d'abord relancé les DEUX). Même patron que
+        // `relancerFace()`, juste au-dessus, qui ne portait pas ce défaut.
+        foreach ($faces as $rang => $face) {
+            if ($face !== $touchante && $indexRelance < $nbRatees) {
+                $faces[$rang] = $relances[$indexRelance];
+                $indexRelance++;
+            }
+        }
+
+        return array_values($faces);
     }
 }

@@ -187,8 +187,28 @@ final class DemarreurQuete
         }
         $theme = $groupe->theme_bestiaire;
 
+        // Deck de fouille + coffre à artefact : bâtis DEDANS l'assemblage,
+        // via la fermeture ci-dessous, PAS après (René, 2026-09-18 — la
+        // narration décrivait un coffre qu'aucune carte ne portait, quête 130).
+        // `AssembleurCarte::assembler()` invoque cette fermeture juste après
+        // que les salles/arêtes/portes soient stables, et AVANT de poser le
+        // mobilier : c'est le seul point où `placerMobilier()` peut garantir
+        // le Coffre par SA propre logique de plancher de cases jouables
+        // (§2.12 ter), sans risquer de le poser sur une case qu'un monstre
+        // occupera déjà (spawnsMonstres() ne tourne qu'en tout dernier). Le
+        // câblage des récompenses reste entièrement celui de
+        // `DeckFouille::construire()`, INCHANGÉ — cette fermeture ne fait que
+        // lui fournir, au bon moment, la carte partielle (salles/arêtes/portes)
+        // dont il a toujours eu besoin, et capture son résultat complet
+        // (`$fouille`) pour la suite de cette méthode.
+        $fouille = null;
         $carte = $this->assembleur->assembler(
             $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance, $theme,
+            function (array $cartePartielle) use ($gabarit, $groupe, $positionArc, &$fouille): array {
+                $fouille = $this->deck->construire($gabarit, $cartePartielle, $groupe, $positionArc);
+
+                return $fouille['salles_coffre'];
+            },
         );
 
         // ⚠ Écrit AVANT tout le reste du démarrage : la suite peut lever (spawns
@@ -205,12 +225,6 @@ final class DemarreurQuete
         if (count($carte['spawn_heros']) < $heros->count()) {
             throw new RuntimeException('Carte assemblée trop petite pour les héros du groupe.');
         }
-
-        // Deck de fouille + coffre à artefact, bâtis AVANT la transaction (deux
-        // lectures de catalogue, aucune écriture) pour être posés directement à
-        // la création de la quête — le snapshot `debut_quete` capture ainsi le
-        // deck neuf, et une reprise après TPK redonne exactement la même pioche.
-        $fouille = $this->deck->construire($gabarit, $carte, $groupe, $positionArc);
 
         $quete = DB::transaction(function () use ($groupe, $heros, $gabarit, $carte, $monstres, $positionArc, $typeJalon, $fouille) {
             $quete = Quete::create([

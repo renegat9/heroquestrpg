@@ -17,6 +17,9 @@ const props = defineProps({
     equipEnCours: { type: Boolean, default: false },
     // Autres héros actifs du groupe : destinataires possibles d'un don.
     compagnons: { type: Array, default: () => [] },
+    // Bourse commune (EtatGroupe.groupe.or) — pour griser une amélioration
+    // de Forge trop chère dans la feuille de détail, comme RecrutementHub.
+    orCommun: { type: Number, default: null },
 });
 /**
  * Les emplacements où équiper cette pièce change VRAIMENT quelque chose.
@@ -37,7 +40,7 @@ function titreEquiper(it, slot) {
     return remplace ? `Remplace ${remplace}, qui retourne au sac` : `Équiper ${it.nom}`;
 }
 
-const emit = defineEmits(['equiper', 'desequiper', 'donner']);
+const emit = defineEmits(['equiper', 'desequiper', 'donner', 'forger']);
 
 /* ---- Don d'un objet à un compagnon (hub, doc 01 §7). Le sélecteur s'ouvre
    sous la ligne concernée plutôt que dans une modale : le sac est déjà un
@@ -59,7 +62,22 @@ function ouvrirDetail(objet, sousTitre, icone = 'inventory_2') {
         sousTitre,
         icone,
         avantages: objet?.avantages ?? [],
+        // Forge du Nain : ces trois champs viennent tous du SERVEUR (/moi) —
+        // absents (potion, capacité…), ils retombent sur « rien à forger »
+        // plutôt que de faire planter la feuille.
+        inventaireId: objet?.inventaire_id ?? null,
+        ameliorations: objet?.ameliorations ?? [],
+        forgeable: objet?.forgeable ?? false,
+        forgeCatalogue: objet?.forge_catalogue ?? [],
     };
+}
+
+/** Forger : la feuille de détail se ferme tout de suite (même patron que
+ *  `confirmerDon` ci-dessus) — l'appel réel et son échec éventuel (narration)
+ *  sont à la charge du parent, qui rafraîchit `/moi` derrière. */
+function forgerObjet({ inventaireId, ameliorationId }) {
+    detail.value = null;
+    emit('forger', { inventaireId, ameliorationId });
 }
 
 function basculerDon(inventaireId) {
@@ -268,7 +286,13 @@ const deborde = computed(() => {
             :sous-titre="detail.sousTitre"
             :icone="detail.icone"
             :avantages="detail.avantages"
+            :inventaire-id="detail.inventaireId"
+            :ameliorations="detail.ameliorations"
+            :forgeable="detail.forgeable"
+            :forge-catalogue="detail.forgeCatalogue"
+            :or-commun="orCommun"
             @close="detail = null"
+            @forger="forgerObjet"
         />
     </template>
 

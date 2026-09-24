@@ -237,3 +237,87 @@ it('pose toujours spawn_monstres[0] dans la salle de la RENCONTRE FINALE (la der
             ->and($premier['y'])->toBeLessThan($derniere['y'] + $derniere['hauteur']);
     }
 });
+
+it('garantit un COFFRE réel dans les salles désignées, sans casser la jouabilité', function () {
+    // ⚠ Constaté en partie par René le 2026-09-18 : « dans la salle la plus
+    // loin, la narration parle d'un coffre mais il n'est pas affiché dans la
+    // carte ». Deux notions de coffre coexistaient sans se parler — le mobilier
+    // `Coffre` (posé, visible, fouillable) et la SALLE au coffre
+    // (`quetes.salles_coffre`, un simple numéro). Mesuré sur sa quête 130 :
+    // salle au coffre = 3, seul meuble de la carte = salle 2.
+    //
+    // ⚠ L'IA n'inventait rien : `RecitsQuete` lui envoie le coffre parmi les
+    // attributs de chaque salle. Elle décrivait fidèlement une donnée sans
+    // existence sur le plateau — la narration promettait ce que la carte ne
+    // portait pas.
+    $this->seed([Database\Seeders\MobilierSeeder::class]);
+
+    $gabarit = GabaritQuete::query()->orderBy('id')->firstOrFail();
+    $coffreId = App\Models\Mobilier::where('nom', 'Coffre')->firstOrFail()->id;
+    $assembleur = app(AssembleurCarte::class);
+
+    $demandees = 0;
+    $servies = 0;
+
+    foreach (range(1, 12) as $n) {
+        // On impose nous-mêmes les salles à servir : ce test vérifie la
+        // GARANTIE de pose, pas la désignation (celle-ci appartient à
+        // `DeckFouille` et a ses propres tests).
+        $cible = null;
+
+        $carte = $assembleur->assembler($gabarit, 7000 + $n, 15, null,
+            function (array $partielle) use (&$cible) {
+                // La salle la plus GRANDE : celle qui peut certainement
+                // accueillir un meuble, pour que l'assertion soit dure.
+                $meilleure = null;
+                foreach ($partielle['salles'] as $i => $s) {
+                    $aire = ($s['largeur'] - 2) * ($s['hauteur'] - 2);
+                    if ($i !== 0 && ($meilleure === null || $aire > $meilleure[1])) {
+                        $meilleure = [$i, $aire];
+                    }
+                }
+                $cible = $meilleure[0] ?? null;
+
+                return $cible === null ? [] : [$cible];
+            });
+
+        if ($cible === null) {
+            continue;
+        }
+
+        $demandees++;
+        $servies += collect($carte['mobilier'] ?? [])->contains(
+            fn ($m) => (int) $m['salle'] === $cible && (int) $m['mobilier_id'] === $coffreId,
+        ) ? 1 : 0;
+
+        // ⚠ Le plancher de cases jouables (§2.12 ter) n'est PAS revérifié ici :
+        // il appartient à `placerMobilier()`, qui compte les cases réellement
+        // traversables — pas l'aire du rectangle. Le recalculer dans ce test en
+        // serait une SECONDE COPIE, du défaut même que la garantie évite en
+        // réutilisant la pose existante. Ce que ce test doit prouver, c'est que
+        // le coffre est POSÉ ; que la salle reste jouable est déjà tenu par les
+        // tests §2.12 ter, et par le fait qu'on passe par la même méthode.
+    }
+
+    // La plus grande salle de chaque carte doit TOUJOURS pouvoir porter son
+    // coffre : si cette assertion tombe, c'est la pose qui a régressé, pas la
+    // taille des salles.
+    expect($demandees)->toBeGreaterThan(0)
+        ->and($servies)->toBe($demandees);
+});
+
+it('ne garantit AUCUN coffre quand personne n\'en demande — comportement inchangé', function () {
+    // ⚠ Le paramètre est optionnel et vaut `null` pour tous les appelants qui
+    // ignorent la notion de coffre (la quasi-totalité des tests) : sans lui,
+    // l'assemblage doit être RIGOUREUSEMENT identique à graine égale, sinon la
+    // garantie aurait déplacé le mobilier de tout le monde.
+    $this->seed([Database\Seeders\MobilierSeeder::class]);
+
+    $gabarit = GabaritQuete::query()->orderBy('id')->firstOrFail();
+    $assembleur = app(AssembleurCarte::class);
+
+    $sans = $assembleur->assembler($gabarit, 4242);
+    $avecFermetureVide = $assembleur->assembler($gabarit, 4242, 15, null, fn () => []);
+
+    expect($avecFermetureVide['mobilier'])->toBe($sans['mobilier']);
+});

@@ -1276,6 +1276,20 @@ final class MoteurSorts
         if (! $this->monstreEnVue($quete, $etat)) {
             $this->expirerBuffs($personnage, DureeEffet::PLUS_DE_MONSTRE_EN_VUE);
 
+            // Forge du Nain — Cruelle (relance) et Gardée (bouclier du
+            // premier état) sont « une fois par COMBAT » (René, 2026-09-19 :
+            // « si aucun monstre n'est présent dans les zones dévoilées alors
+            // on n'est pas en combat, sinon on est en combat »). La fenêtre
+            // se ferme donc ICI, au même instant et par le même prédicat que
+            // la récupération des Styles Élémentaires du Moine juste
+            // au-dessus — jamais un second point de réarmement.
+            // ⚠ Gardée par un test d'égalité, comme `styles_epuises` à côté :
+            // une écriture par tour pour un tableau déjà vide n'apporterait
+            // rien.
+            if ((array) $etat->capacites_combat !== []) {
+                $etat->update(['capacites_combat' => []]);
+            }
+
             return;
         }
 

@@ -223,6 +223,40 @@ describe('Combat — Coup puissant (relance des dés d\'attaque ratés)', functi
 
         expect($resultat->touches)->toBe(1);
     });
+
+    it('un maximum PLAFONNÉ relance CHAQUE dé raté avec SA PROPRE face — jamais la même partout', function () {
+        // Régression (2026-09-19, découverte en testant Cruelle — Forge du
+        // Nain, « relance 1 dé raté ») : `relancerRatees()` calculait bien
+        // `nbRatees`, mais son `array_map(fn (...) => ...)` incrémentait un
+        // compteur DANS une fonction fléchée — capturée par valeur, donc
+        // remise à zéro à CHAQUE élément de la volée. `$relances[$i++]`
+        // valait alors toujours `$relances[0]`, et LA MÊME face relancée
+        // remplaçait tous les ratés à la fois : deux boucliers blancs
+        // relancés « à 1 seul » (maximum=1) devenaient TOUS LES DEUX un
+        // crâne si le premier tirage en sortait un, au lieu d'UN SEUL.
+        //
+        // Trois dés ratés (blanc, blanc, blanc), un maximum de 2 relances :
+        // la première tourne en crâne, la seconde en bouclier noir (un raté
+        // qui RESTE raté). Le troisième dé n'est jamais retouché.
+        $combat = combatAvecFaces(
+            FaceDeCombat::BouclierBlanc, FaceDeCombat::BouclierBlanc, FaceDeCombat::BouclierBlanc,
+            FaceDeCombat::Crane, FaceDeCombat::BouclierNoir,
+        );
+
+        $resultat = $combat->resoudreAttaque(
+            desAttaque: 3,
+            desDefense: 0,
+            typeDefenseur: TypeFigurine::Monstre,
+            pvBodyDefenseur: 5,
+            relanceDesAttaqueRatee: 2,
+        );
+
+        // Le défaut aurait donné [crane, crane, crane] (les trois copiant la
+        // première relance) — ici seul le PREMIER raté devient un crâne.
+        expect(array_map(fn ($f) => $f->value, $resultat->facesAttaque))
+            ->toBe(['crane', 'bouclier_noir', 'bouclier_blanc'])
+            ->and($resultat->touches)->toBe(1);
+    });
 });
 
 it('Coup puissant relance ce qui RATE, pas ce qui touche (défenseur éthéré)', function () {

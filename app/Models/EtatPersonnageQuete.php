@@ -46,6 +46,10 @@ class EtatPersonnageQuete extends Model
         // Styles Élémentaires dépensés (Moine) : un troisième rythme, qui se
         // recharge dès qu'aucun monstre n'est en vue. Voir StylesElementaires.
         'styles_epuises',
+        // Améliorations de Forge « une fois par COMBAT » (Cruelle, Gardée) :
+        // même rythme que `styles_epuises` ci-dessus, même réarmement
+        // (MoteurSorts::rythmerBuffsDeVue()). Voir App\Partie\Equipement.
+        'capacites_combat',
     ];
 
     /**
@@ -107,6 +111,7 @@ class EtatPersonnageQuete extends Model
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
             'styles_epuises' => 'array',
+            'capacites_combat' => 'array',
             'degats_subis' => 'array',
             'dernier_degat' => 'array',
         ];

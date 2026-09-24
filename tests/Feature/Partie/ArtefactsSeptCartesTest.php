@@ -110,7 +110,13 @@ function poserPiegeArtefact(Quete $quete, int $x, int $y, string $nom, string $e
 
 it('ne relance QUE le bouclier noir, et un seul, là où Coup puissant relance tous les ratés', function () {
     // Volée de 3 : bouclier noir, bouclier blanc, bouclier noir.
-    $volee = fn () => new LanceurDeterministe([6, 4, 6, 1, 4, 4, 4, 4]);
+    // ⚠ Les 3e/4e/5e valeurs (relances de Coup puissant) sont TROIS crânes,
+    // pas un seul répété : chaque dé relancé doit tirer SA PROPRE face, et un
+    // bug corrigé le 2026-09-19 (`Combat::relancerRatees()`, une fonction
+    // fléchée dont le compteur ne survivait pas d'un élément à l'autre de
+    // l'`array_map`) donnait autrefois LA MÊME face aux trois. Trois valeurs
+    // identiques ici auraient laissé le bug invisible.
+    $volee = fn () => new LanceurDeterministe([6, 4, 6, 1, 1, 1, 4, 4]);
 
     // La Serre : UN dé, et seulement celui qui montre un bouclier noir. Le
     // quatrième nombre de la file (1 = crâne) est la relance.

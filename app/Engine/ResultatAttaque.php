@@ -124,6 +124,45 @@ final readonly class ResultatAttaque
     }
 
     /**
+     * Le MÊME jet, dont N boucliers du défenseur sont annulés APRÈS le
+     * lancer — Perforante (Forge du Nain) : « Annule 1 bouclier de la
+     * défense de la cible » (reference/04_market.md).
+     *
+     * ⚠ Pas un dé de défense EN MOINS (`ignore_defense_monstre`, qui retire
+     * un dé AVANT le jet) : la carte dit « annule un bouclier », après le
+     * jet, sur ce qui a été réellement obtenu — même principe de calcul mais
+     * pas la même variance, et surtout pas le même moment.
+     *
+     * Les deux volées et `boucliers` restent la VÉRITÉ DU JET (le joueur voit
+     * ce qui a été lancé, comme `pourJournal()` l'exige) ; seuls `degats`,
+     * `pvBodyApres` et `cibleTombee` changent — même fabrique et même raison
+     * que {@see self::avecDegatsMultiplies()}.
+     */
+    public function avecBouclierAnnule(int $nombre): self
+    {
+        if ($nombre <= 0 || $this->boucliers <= 0) {
+            return $this;
+        }
+
+        $boucliersEffectifs = max(0, $this->boucliers - $nombre);
+        $degats = max(0, $this->touches - $boucliersEffectifs);
+        $apres = max(0, $this->pvBodyAvant - $degats);
+
+        return new self(
+            facesAttaque: $this->facesAttaque,
+            facesDefense: $this->facesDefense,
+            touches: $this->touches,
+            boucliers: $this->boucliers,
+            degats: $degats,
+            pvBodyAvant: $this->pvBodyAvant,
+            pvBodyApres: $apres,
+            cibleTombee: $apres === 0,
+            faceTouchante: $this->faceTouchante,
+            faceDefensive: $this->faceDefensive,
+        );
+    }
+
+    /**
      * Le MÊME jet, dont les dégâts reçoivent un bonus PLAT — le talent
      * `bonus_degats_sort` (Puissance brute du magicien, Marque du damné du
      * warlock).

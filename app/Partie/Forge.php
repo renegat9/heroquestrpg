@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Models\ForgeAmelioration;
 use App\Models\Groupe;
 use App\Models\Inventaire;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,20 +16,98 @@ use Illuminate\Validation\ValidationException;
  * DÉFINITIVEMENT un exemplaire d'équipement (`inventaire.ameliorations`),
  * réalisée AU HUB contre de l'or de la bourse commune.
  *
- * Périmètre MVP : seules les 2 améliorations dont l'effet a un sens mécanique
- * déjà câblé (Equipement::appliquerEffet lit `ameliorations`) sont
- * applicables ici — Affûtée (`bonus_des_attaque`) et Renforcée
- * (`bonus_des_defense`). Les 4 autres du catalogue (Perforante, Cruelle,
- * Allégée, Gardée — `annule_boucliers_defense`, `relance_de_attaque_rate`,
- * `annule_malus_deplacement`, `ignore_premier_etat_du_combat`) exigent des
- * mécaniques de combat qui n'existent pas encore dans le moteur : elles
- * restent au catalogue mais sont refusées ici (chantier ouvert, à ne pas
- * confondre avec un bug — voir mémoire projet).
+ * Les 6 améliorations du catalogue sont désormais TOUTES câblées (2026-09-19)
+ * — Affûtée/Renforcée recopient un bonus de dés dans `des_attaque`/
+ * `des_defense` (`Equipement::recalculerCombat()`) ; Perforante, Cruelle,
+ * Allégée et Gardée se lisent EN SITUATION sur l'exemplaire forgé
+ * (`Equipement::effetForge()`, `relanceCruelle()`, `ignorerPremierEtatDuCombat()`,
+ * et `malusDeplacement()`) — voir le docbloc de chaque clé dans
+ * `App\Engine\MotsClesEquipement`. {@see self::EFFETS_SUPPORTES} reste le
+ * garde-fou : une FUTURE amélioration ajoutée au catalogue sans lecteur reste
+ * filtrée ici plutôt que vendue comme si elle marchait.
  */
 final class Forge
 {
-    /** Clés d'effet de ForgeAmelioration déjà lues par Equipement::appliquerEffet. */
-    private const EFFETS_SUPPORTES = ['bonus_des_attaque', 'bonus_des_defense'];
+    /**
+     * Clés d'effet de ForgeAmelioration dont la mécanique est câblée dans le
+     * moteur — chacune avec un lecteur nommé dans `MotsClesEquipement`.
+     *
+     * PUBLIC : c'est le même filtre que lit `estSupportee()`, seul point de
+     * passage entre le 422 d'`appliquer()` et la décision `forgeable` publiée
+     * par `/moi` (`AuthController::detailForge()`) — jamais une seconde copie.
+     *
+     * ⚠ Contient aussi `frequence` : `estSupportee()` exige que TOUTES les
+     * clés de l'effet soient couvertes, et Cruelle porte `frequence:
+     * une_fois_par_combat` À CÔTÉ de `relance_de_attaque_rate` — l'omettre
+     * aurait laissé Cruelle filtrée pour une clé pourtant lue
+     * (`Equipement::relanceCruelle()`).
+     */
+    public const EFFETS_SUPPORTES = [
+        'bonus_des_attaque', 'bonus_des_defense',
+        'annule_boucliers_defense', 'relance_de_attaque_rate', 'frequence',
+        'annule_malus_deplacement', 'ignore_premier_etat_du_combat',
+    ];
+
+    /** Catalogue déjà lu, gardé le temps d'une requête (`/moi` l'appelle par ligne de sac, pas par objet). */
+    private array $catalogueParCible = [];
+
+    /** Cette amélioration a-t-elle un effet dont la mécanique de combat est câblée ? */
+    public function estSupportee(ForgeAmelioration $amelioration): bool
+    {
+        return array_diff(array_keys($amelioration->effet), self::EFFETS_SUPPORTES) === [];
+    }
+
+    /**
+     * Améliorations RÉELLEMENT applicables (catégorie ET mécanique câblée) à
+     * une catégorie d'objet. Les 6 du catalogue le sont toutes aujourd'hui
+     * (cf. docblock de classe) ; le filtre par {@see self::EFFETS_SUPPORTES}
+     * reste le garde-fou pour une future amélioration semée sans lecteur —
+     * elle ne doit jamais atteindre un joueur comme une option qui marche.
+     *
+     * @return Collection<int, ForgeAmelioration>
+     */
+    public function ameliorationsApplicables(string $categorie): Collection
+    {
+        return $this->catalogueParCible[$categorie] ??= ForgeAmelioration::query()
+            ->where('cible', $categorie)
+            ->get()
+            ->filter(fn (ForgeAmelioration $a) => $this->estSupportee($a))
+            ->values();
+    }
+
+    /**
+     * La DÉCISION « cette pièce est-elle forgeable, maintenant » — publiée par
+     * `/moi`, jamais recalculée côté client (règle du projet : le serveur
+     * publie la décision, pas les ingrédients). `$forgeronDisponible` porte
+     * déjà les deux préalables que `ForgeController::appliquer()` vérifie
+     * avant tout le reste : le groupe est au hub, et LE JOUEUR QUI REGARDE
+     * contrôle un héros actif portant le nœud Forge — ni l'un ni l'autre ne se
+     * lit sur l'objet, donc ni l'un ni l'autre n'est recalculable ici.
+     *
+     * ⚠ Ne dit rien de l'or : le prix varie par amélioration choisie
+     * (`forge_catalogue` le porte), et la bourse commune est déjà publiée en
+     * clair (`EtatGroupe.groupe.or`) — comparer deux entiers déjà publiés
+     * n'est pas re-dériver une règle, c'est le même calcul que fait déjà
+     * `RecrutementHub.vue` pour les mercenaires.
+     */
+    public function estForgeable(Inventaire $ligne, bool $forgeronDisponible): bool
+    {
+        if (! $forgeronDisponible) {
+            return false;
+        }
+
+        $objet = $ligne->objet;
+
+        if ($objet === null || $objet->rarete === 'unique') {
+            return false;
+        }
+
+        if (($ligne->ameliorations ?? []) !== []) {
+            return false;
+        }
+
+        return $this->ameliorationsApplicables((string) $objet->categorie)->isNotEmpty();
+    }
 
     /**
      * Applique une amélioration à une ligne d'inventaire (arme/armure non
@@ -56,8 +135,7 @@ final class Forge
             ]);
         }
 
-        $clesEffet = array_keys($amelioration->effet);
-        if (array_diff($clesEffet, self::EFFETS_SUPPORTES) !== []) {
+        if (! $this->estSupportee($amelioration)) {
             throw ValidationException::withMessages([
                 'amelioration_id' => "« {$amelioration->nom} » n'est pas encore disponible : sa mécanique de combat reste à implémenter.",
             ]);

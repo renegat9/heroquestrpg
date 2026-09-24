@@ -525,6 +525,17 @@ final class JournalCombat
                 continue;
             }
 
+            // Gardée (Forge du Nain) : l'armure absorbe le PREMIER état de ce
+            // combat — ce n'est ni une résistance mentale ni un raté, et le
+            // dire autrement (la branche générique juste en dessous parle de
+            // « résiste ») ferait porter au Mind du héros un mérite qui
+            // revient à sa pièce d'équipement.
+            if (! empty($r['garde_par_forge'])) {
+                $lignes[] = ['texte' => "{$cible} — Gardée absorbe le premier ".($a['condition'] ?? 'effet')." de {$nom}", 'ton' => 'pare'];
+
+                continue;
+            }
+
             // Sort de CONTRÔLE : il pose une condition, il ne blesse pas.
             if (array_key_exists('effet_applique', $r) && ! isset($r['degats'])) {
                 $lignes[] = empty($r['effet_applique'])
@@ -618,12 +629,13 @@ final class JournalCombat
         $cible = $a['cible']['nom'] ?? 'la cible';
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
+        $forge = $this->suffixeForge($a);
 
         if (! empty($a['cible_vaincue'])) {
-            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}", 'ton' => 'mort']];
+            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}{$forge}", 'ton' => 'mort']];
         }
         if ($degats > 0) {
-            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'degats']];
+            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}{$forge}", 'ton' => 'degats']];
         }
 
         // ⚠ MANQUÉ ≠ PARÉ. Le repli disait « pare » dans les deux cas, et un
@@ -631,8 +643,33 @@ final class JournalCombat
         // c'étaient ses propres dés qui échouaient (constaté en partie réelle
         // le 2026-08-13 : « Gobelin pare l'assaut de Borin · 0 crâne »).
         return (int) ($a['touches'] ?? 0) === 0
-            ? [['texte' => "{$attaquant} manque {$cible}{$des}", 'ton' => 'echec']]
-            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}", 'ton' => 'pare']];
+            ? [['texte' => "{$attaquant} manque {$cible}{$des}{$forge}", 'ton' => 'echec']]
+            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}{$forge}", 'ton' => 'pare']];
+    }
+
+    /**
+     * Ce que la Forge du Nain vient de changer sur CE coup — Perforante
+     * (boucliers annulés) et Cruelle (relance consommée). Un effet automatique
+     * que rien n'annonce est injouable, et les deux jouent en silence côté
+     * dés : sans cette ligne, un joueur verrait un bouclier de moins, ou un
+     * jet retenté, sans jamais savoir pourquoi.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function suffixeForge(array $a): string
+    {
+        $bouts = [];
+
+        $annules = (int) ($a['boucliers_annules'] ?? 0);
+        if ($annules > 0) {
+            $bouts[] = "Perforante annule {$annules} bouclier".($annules > 1 ? 's' : '');
+        }
+
+        if (! empty($a['cruelle_relance'])) {
+            $bouts[] = 'Cruelle relance un dé raté';
+        }
+
+        return $bouts === [] ? '' : ' · '.implode(' · ', $bouts);
     }
 
     /**

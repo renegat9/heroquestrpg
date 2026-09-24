@@ -1769,6 +1769,23 @@ final class MoteurDread
                 }
             }
 
+            // Gardée (Forge du Nain, reference/04_market.md) : « Ignore le
+            // premier état subi d'un combat (étourdi / apeuré) ». C'est ICI,
+            // et nulle part ailleurs, qu'un sort de CONTRÔLE du MJ pose une
+            // condition sur un héros — le seul point de passage de
+            // `poserConditionHeros()`. La fenêtre se réarme au même instant
+            // et par le même prédicat que la récupération des Styles
+            // Élémentaires du Moine (`MoteurSorts::rythmerBuffsDeVue()` →
+            // `MoteurSorts::monstreEnVue()`) : jamais une seconde
+            // implémentation de « un monstre me voit ».
+            if (app(Equipement::class)->ignorerPremierEtatDuCombat($personnage, $cible, $conditionNom)) {
+                $ligne['effet_applique'] = false;
+                $ligne['garde_par_forge'] = true;
+                $resultats[] = $ligne;
+
+                continue;
+            }
+
             // Une condition dont la sortie est une RUPTURE ne porte pas de
             // compteur : elle dure jusqu'au 6, point. Les autres prennent la
             // durée déclarée par le sort, sinon celle du catalogue.

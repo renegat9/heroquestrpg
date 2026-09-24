@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Engine\MotsClesEquipement;
 use App\Models\ClasseHeros;
 use App\Models\Competence;
+use App\Models\EtatPersonnageQuete;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -383,7 +384,117 @@ final class Equipement
             return 0;
         }
 
-        return (int) $this->valeurEffetPorte($personnage, 'malus_deplacement');
+        // Allégée (Forge) : « Annule le malus de déplacement de l'armure
+        // lourde » — sur SON PROPRE exemplaire seulement (une pièce forgée
+        // n'efface jamais le malus d'une AUTRE armure). D'où une comparaison
+        // pièce par pièce plutôt que `valeurEffetPorte()`, qui ne connaît pas
+        // l'amélioration attachée à CETTE ligne d'inventaire.
+        return (int) $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->max(fn (Inventaire $ligne) => $this->effetForge($ligne, MotsClesEquipement::ANNULE_MALUS_DEPLACEMENT)
+                ? 0
+                : (int) (($ligne->objet?->effet ?? [])['malus_deplacement'] ?? 0));
+    }
+
+    /**
+     * Valeur portée par la FORGE sur CET exemplaire, pour la clé donnée —
+     * `null` si la pièce n'a pas été forgée ou ne porte pas cette clé.
+     *
+     * Un exemplaire n'a qu'UNE amélioration (`Forge::appliquer()` refuse une
+     * seconde), donc pas de somme à faire : le premier élément suffit. Point
+     * de passage COMMUN aux quatre mécaniques de Forge qui ne sont pas de
+     * simples bonus de dés (ceux-là restent recopiés dans `des_attaque` /
+     * `des_defense` par `recalculerCombat()`) — Perforante, Cruelle, Allégée,
+     * Gardée se lisent toutes EN SITUATION, sur l'exemplaire employé ou porté.
+     */
+    public function effetForge(?Inventaire $ligne, string $cle): mixed
+    {
+        return ((array) ($ligne?->ameliorations[0]['effet'] ?? []))[$cle] ?? null;
+    }
+
+    /**
+     * Cruelle (Forge, doc 04 §4) : « Relance 1 dé d'attaque raté, 1×/combat »
+     * — sur l'EXEMPLAIRE employé pour frapper, jamais un buff porté par le
+     * héros (même raison que la Serre du Corbeau : « when using this
+     * dagger »). Rend le nombre de dés à relancer (celui de la carte), ou 0
+     * si l'arme ne porte pas Cruelle, si sa fenêtre « une fois par combat »
+     * est déjà fermée, ou hors de toute quête.
+     *
+     * ⚠ CONSOMME la fenêtre au passage, dès que la relance est ACCORDÉE — la
+     * carte n'exige pas qu'elle ait SERVI (le même principe que
+     * `bonus_des_attaque_flanc`, dépensé au moment où il s'applique, pas au
+     * moment où il change une issue). La fenêtre vit sur
+     * `etat_personnage_quete.capacites_combat`, réarmée au même instant et
+     * par le même prédicat que la récupération des Styles Élémentaires
+     * (`MoteurSorts::rythmerBuffsDeVue()` → `MoteurSorts::monstreEnVue()`) —
+     * jamais une seconde lecture de « un monstre me voit ».
+     */
+    public function relanceCruelle(?EtatPersonnageQuete $etat, ?Inventaire $ligneArme): int
+    {
+        $valeur = (int) ($this->effetForge($ligneArme, MotsClesEquipement::RELANCE_DE_ATTAQUE_RATE) ?? 0);
+
+        if ($valeur <= 0 || $etat === null || $ligneArme === null) {
+            return 0;
+        }
+
+        $cle = 'forge:'.$ligneArme->id;
+
+        if (app(Talents::class)->dejaUtilisee($etat, $cle, 'capacites_combat')) {
+            return 0;
+        }
+
+        app(Talents::class)->marquerUtilisee($etat, $cle, 'capacites_combat');
+
+        return $valeur;
+    }
+
+    /**
+     * Gardée (Forge, doc 04 §4) : « Ignore le premier état subi d'un combat
+     * (étourdi / apeuré) ». Armure ou bouclier, une fois par COMBAT — la
+     * cadence tranchée par René (2026-09-19) sur le principe déjà câblé pour
+     * le Moine : « si aucun monstre n'est présent dans les zones dévoilées,
+     * on n'est pas en combat ». Même fenêtre et même réarmement que
+     * {@see self::relanceCruelle()}.
+     *
+     * ⚠ La liste des états couverts vit sur LA PIÈCE (`ignore_premier_etat_du_
+     * combat: ['Étourdi', 'Apeuré']`), jamais ici : le moteur ne fait que
+     * confronter le nom de la condition à ce que CETTE pièce déclare.
+     *
+     * Rend `true` — et consomme la fenêtre — si une pièce portée couvre cette
+     * condition et que la fenêtre est encore ouverte ; `false` sinon (rien à
+     * faire, l'appelant pose la condition normalement).
+     */
+    public function ignorerPremierEtatDuCombat(Personnage $personnage, ?EtatPersonnageQuete $etat, string $nomCondition): bool
+    {
+        if ($etat === null) {
+            return false;
+        }
+
+        $ligne = $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->first(fn (Inventaire $l) => in_array(
+                $nomCondition,
+                (array) $this->effetForge($l, MotsClesEquipement::IGNORE_PREMIER_ETAT_DU_COMBAT),
+                true,
+            ));
+
+        if ($ligne === null) {
+            return false;
+        }
+
+        $cle = 'forge:'.$ligne->id;
+
+        if (app(Talents::class)->dejaUtilisee($etat, $cle, 'capacites_combat')) {
+            return false;
+        }
+
+        app(Talents::class)->marquerUtilisee($etat, $cle, 'capacites_combat');
+
+        return true;
     }
 
     /**

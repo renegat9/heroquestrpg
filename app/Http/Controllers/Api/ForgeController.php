@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\EtatGroupeDiffuse;
 use App\Http\Controllers\Controller;
 use App\Models\ForgeAmelioration;
 use App\Models\Groupe;
 use App\Models\Inventaire;
+use App\Partie\EtatGroupe;
 use App\Partie\Forge;
 use App\Partie\Talents;
 use App\Support\Journal;
@@ -23,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ForgeController extends Controller
 {
-    public function __construct(private readonly Forge $forge) {}
+    public function __construct(
+        private readonly Forge $forge,
+        private readonly EtatGroupe $etatGroupe,
+    ) {}
 
     /** GET /api/forge — catalogue des améliorations. */
     public function catalogue(): JsonResponse
@@ -100,13 +105,23 @@ class ForgeController extends Controller
             'amelioration' => $amelioration->nom,
         ], ['type' => 'personnage', 'id' => $forgeron->id, 'nom' => $forgeron->nom]);
 
+        $groupe = $groupe->fresh();
+
+        // ⚠ La bourse commune a bougé, ET le Nain peut forger l'équipement
+        // D'UN AUTRE héros : sans ce broadcast, ni le porteur de la pièce
+        // (s'il n'est pas le forgeron) ni les autres manettes ne
+        // découvriraient l'amélioration — ou l'or débité — avant leur prochain
+        // rechargement. Même geste que `DonController::donner()` et
+        // `MercenaireController::recruter()` pour la même raison.
+        broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe)));
+
         return response()->json([
             'inventaire' => [
                 'id' => $ligne->id,
                 'objet' => $ligne->objet?->nom,
                 'ameliorations' => $ligne->ameliorations,
             ],
-            'groupe' => ['or' => (int) $groupe->fresh()->or],
+            'groupe' => ['or' => (int) $groupe->or],
         ], 201);
     }
 }

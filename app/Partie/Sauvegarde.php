@@ -396,6 +396,12 @@ final class Sauvegarde
                     // laquelle le joueur a déjà répondu.
                     'capacites_utilisees' => (array) ($e->capacites_utilisees ?? []),
                     'styles_epuises' => (array) ($e->styles_epuises ?? []),
+                    // Forge du Nain « une fois par COMBAT » (Cruelle, Gardée,
+                    // 2026-09-19) : PORTÉE, contrairement à `capacites_tour`
+                    // juste au-dessus — un combat traverse plusieurs tours, et
+                    // une reprise en son milieu rendrait gratuitement la
+                    // relance ou le bouclier déjà consommés.
+                    'capacites_combat' => (array) ($e->capacites_combat ?? []),
                     'garde_tenace_utilisee' => (bool) $e->garde_tenace_utilisee,
                     'jetons_rejeton' => (int) $e->jetons_rejeton,
                     // Mémoire des dégâts (2026-09-03) : même raison que les
@@ -604,6 +610,7 @@ final class Sauvegarde
                 // campagne en vol doit pouvoir se reprendre sans elles.
                 'capacites_utilisees' => $etat['capacites_utilisees'] ?? [],
                 'styles_epuises' => $etat['styles_epuises'] ?? [],
+                'capacites_combat' => $etat['capacites_combat'] ?? [],
                 'garde_tenace_utilisee' => $etat['garde_tenace_utilisee'] ?? false,
                 'jetons_rejeton' => $etat['jetons_rejeton'] ?? 0,
                 'degats_subis' => $etat['degats_subis'] ?? [],

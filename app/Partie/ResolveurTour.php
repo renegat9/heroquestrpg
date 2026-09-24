@@ -1444,6 +1444,13 @@ final class ResolveurTour
 
         $relanceFace = $this->relanceParFace($armePrincipale, $meta);
 
+        // Cruelle (Forge) : « Relance 1 dé d'attaque raté, 1×/combat ». Lue
+        // sur l'EXEMPLAIRE employé (`$ligneArme`), jamais un buff du héros —
+        // même raison que la Serre du Corbeau. `Equipement::relanceCruelle()`
+        // CONSOMME la fenêtre au passage, dès qu'elle est accordée : calculé
+        // une seule fois, ici, avant l'appel qui la dépense réellement.
+        $relanceCruelle = $this->equipement->relanceCruelle($etat, $ligneArme);
+
         $resultat = $degatsFixes > 0
             ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
             : (new Combat($this->des))->resoudreAttaque(
@@ -1459,9 +1466,14 @@ final class ResolveurTour
                 // (« relance chaque dé raté », « 1 reroll of your Attack dice »)
                 // — quand la Longue épée de Fortune n'en offre QU'UN. Le booléen
                 // les confondait, et l'épée relançait jusqu'à trois dés.
-                relanceDesAttaqueRatee: $this->talents->a($personnage, 'relance_des_attaque_rates')
-                    ? PHP_INT_MAX
-                    : $this->sorts->valeurBuffDeLArme($personnage, 'relance_des_attaque', $ligneArme?->id, PHP_INT_MAX),
+                // ⚠ Un `max()`, pas un `? :` : Cruelle est une TROISIÈME source,
+                // qui doit s'ajouter aux deux premières plutôt que les écraser —
+                // sans effet observable quand le talent est déjà à PHP_INT_MAX.
+                relanceDesAttaqueRatee: max(
+                    $this->talents->a($personnage, 'relance_des_attaque_rates') ? PHP_INT_MAX : 0,
+                    $this->sorts->valeurBuffDeLArme($personnage, 'relance_des_attaque', $ligneArme?->id, PHP_INT_MAX),
+                    $relanceCruelle,
+                ),
                 defenseurEthere: $ethere,
                 // SERRE DU CORBEAU : « When using this dagger […] you may reroll
                 // any 1 Attack die that lands on a black shield. »
@@ -1475,6 +1487,21 @@ final class ResolveurTour
                 relanceFaceAttaque: $relanceFace['face'],
                 relanceFaceMaximum: $relanceFace['nombre'],
             );
+
+        // Perforante (Forge) : « Annule 1 bouclier de la défense de la
+        // cible » — sur les boucliers RÉELLEMENT obtenus, jamais un dé de
+        // défense en moins avant le jet (`$desDefenseIgnores`, plus haut).
+        // Sans effet si l'arme ne la porte pas ou si la cible n'a obtenu
+        // aucun bouclier — `min()` avec le vrai compte pour l'annonce, la
+        // fabrique elle-même est déjà tolérante à un nombre trop grand.
+        $boucliersAnnules = min(
+            (int) ($this->equipement->effetForge($ligneArme, MotsClesEquipement::ANNULE_BOUCLIERS_DEFENSE) ?? 0),
+            $resultat->boucliers,
+        );
+
+        if ($boucliersAnnules > 0) {
+            $resultat = $resultat->avecBouclierAnnule($boucliersAnnules);
+        }
 
         // Potion de force glaciale (Barbare) : « their next attack causes twice
         // as many Body Points of damage as are rolled ».
@@ -1514,6 +1541,12 @@ final class ResolveurTour
             'bonus_tier' => $bonusTier,
             'bonus_elan' => $bonusElan,
             'defense_ignoree' => $desDefenseIgnores,
+            // Forge du Nain : un effet automatique que rien n'annonce est
+            // injouable — toujours présents (même à 0), comme leurs voisins
+            // ci-dessus, pour que le fil de combat (JournalCombat) sache dire
+            // ce qui vient de jouer sans deviner une clé absente.
+            'boucliers_annules' => $boucliersAnnules,
+            'cruelle_relance' => $relanceCruelle,
             'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
             'cible_etheree' => $ethere,
             'des_attaque_effectifs' => $desAttaqueEffectifs,

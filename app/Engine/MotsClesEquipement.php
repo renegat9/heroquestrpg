@@ -186,6 +186,73 @@ final class MotsClesEquipement
      */
     public const ATTAQUE_DOUBLE_CONTRE = 'attaque_double_contre';
 
+    // --------------------------------------------------- AMÉLIORATIONS DE FORGE
+    //
+    // Les quatre mots-clés suivants ne viennent JAMAIS de `objets.effet` : ils
+    // vivent sur `forge_ameliorations.effet` (le catalogue de la Forge du Nain,
+    // doc 04 §4) et, une fois posés, sur `inventaire.ameliorations[0].effet` —
+    // l'EXEMPLAIRE forgé, jamais la classe d'objet (`Partie\Forge::appliquer()`
+    // refuse une seconde amélioration sur la même pièce). Même vocabulaire
+    // fermé que le reste de ce fichier : une carte de Forge dit son effet en
+    // une phrase, ce fichier la traduit en clé déclarée, lue, testée.
+    // Lecteur commun aux quatre : `Partie\Equipement::effetForge()`.
+
+    /**
+     * Perforante (250 or, arme) : « Annule 1 bouclier de la défense de la
+     * cible » (reference/04_market.md). Appliqué APRÈS le jet, sur les
+     * boucliers RÉELLEMENT obtenus — pas un dé de défense en moins avant de
+     * lancer (`IGNORE_DEFENSE_MONSTRE`), qui n'a ni la même variance ni le
+     * même moment de calcul. Aucune cadence : chaque attaque avec cette arme
+     * en profite.
+     * Lecteur : `Engine\ResultatAttaque::avecBouclierAnnule()`, appelé par
+     * `Partie\ResolveurTour::frapper()` (le seul cœur de frappe).
+     */
+    public const ANNULE_BOUCLIERS_DEFENSE = 'annule_boucliers_defense';
+
+    /**
+     * Cruelle (120 or, arme) : « Relance 1 dé d'attaque raté, 1×/combat »
+     * (reference/04_market.md). S'accompagne toujours de {@see self::FREQUENCE}
+     * `une_fois_par_combat` — un TROISIÈME rythme, ni la quête ni le tour :
+     * arbitrage de René (2026-09-19), sur le principe déjà câblé pour le
+     * Moine (« si aucun monstre n'est présent dans les zones dévoilées, on
+     * n'est pas en combat »). La fenêtre vit sur `etat_personnage_quete.
+     * capacites_combat` (une colonne, jamais le cache) et se réarme au MÊME
+     * instant et par le MÊME prédicat que la récupération des Styles
+     * Élémentaires — `MoteurSorts::monstreEnVue()`, dans
+     * `MoteurSorts::rythmerBuffsDeVue()`. N'écris jamais un second « un
+     * monstre me voit ».
+     * Lecteur : `Partie\Equipement::relanceCruelle()`, consulté par
+     * `Partie\ResolveurTour::frapper()`.
+     */
+    public const RELANCE_DE_ATTAQUE_RATE = 'relance_de_attaque_rate';
+
+    /**
+     * Allégée (200 or, armure) : « Annule le malus de déplacement de
+     * l'armure lourde (récupère le 1d6, règle AP) » (reference/04_market.md).
+     * Symétrique en LECTURE de `MALUS_DEPLACEMENT` : une pièce qui porte les
+     * deux sur le MÊME exemplaire voit son propre malus retombé à zéro —
+     * jamais une pièce forgée qui annulerait le malus d'une AUTRE armure.
+     * Lecteur : `Partie\Equipement::malusDeplacement()`, le même point de
+     * passage que lit déjà `MenuMoteur::deplacementDuTour()` ET
+     * `ResolveurTour::resoudreDeplacement()`.
+     */
+    public const ANNULE_MALUS_DEPLACEMENT = 'annule_malus_deplacement';
+
+    /**
+     * Gardée (250 or, armure/bouclier) : « Ignore le premier état subi d'un
+     * combat (étourdi / apeuré) » (reference/04_market.md). La liste des
+     * états couverts est PORTÉE PAR LA DONNÉE (`['Étourdi', 'Apeuré']`), pas
+     * câblée dans le moteur : celui-ci ne fait que confronter le nom de la
+     * condition qu'on s'apprête à poser à ce que CETTE pièce déclare. Même
+     * cadence et même réarmement que {@see self::RELANCE_DE_ATTAQUE_RATE}
+     * (`capacites_combat`, `MoteurSorts::rythmerBuffsDeVue()`).
+     * Lecteur : `Partie\Equipement::ignorerPremierEtatDuCombat()`, consulté
+     * là où une condition de contrôle du MJ est POSÉE sur un héros
+     * (`Partie\MoteurDread::sortDreadControle()`, juste avant
+     * `poserConditionHeros()`).
+     */
+    public const IGNORE_PREMIER_ETAT_DU_COMBAT = 'ignore_premier_etat_du_combat';
+
     // -------------------------------------------------------------- CHARGES
 
     /**
@@ -541,7 +608,8 @@ final class MotsClesEquipement
     public const RELEVE = 'releve';
 
     /**
-     * CADENCE d'usage : `une_fois_par_quete` ou `une_fois_par_tour`.
+     * CADENCE d'usage : `une_fois_par_quete`, `une_fois_par_tour`, ou — depuis
+     * la Forge du Nain, 2026-09-19 — `une_fois_par_combat`.
      *
      * ⚠ À ne pas confondre avec {@see self::CHARGES}, et la confusion a coûté
      * six artefacts (2026-09-03). Une charge est un TOTAL qui ne se réarme
@@ -549,10 +617,19 @@ final class MotsClesEquipement
      * cadence qui repart à chaque quête — « once per quest ». Dire la seconde
      * avec la première donnait « une fois par CAMPAGNE ».
      *
-     * Lecteur : `MoteurCharges::fenetreOuverte()` / `consommerUsage()`, qui
-     * range la fenêtre dans le compteur des compétences
-     * (`etat_personnage_quete.capacites_utilisees`) — il naît vide avec la
-     * quête et voyage déjà dans le snapshot.
+     * Deux chemins de lecture COEXISTENT, selon d'où vient l'objet : un objet
+     * du catalogue (`objets.effet.frequence`, l'immense majorité — potions et
+     * artefacts activables) passe par `MoteurCharges::fenetreOuverte()` /
+     * `consommerUsage()`, qui range la fenêtre dans le compteur des
+     * compétences (`etat_personnage_quete.capacites_utilisees` ou
+     * `capacites_tour`, selon la valeur). Une amélioration de FORGE
+     * (`inventaire.ameliorations[0].effet.frequence`, aujourd'hui la seule
+     * porteuse de `une_fois_par_combat`) n'y passe PAS — `MoteurCharges` ne
+     * connaît que `objets.effet` — et se lit à la place par
+     * `Partie\Equipement::relanceCruelle()` /
+     * `Partie\Equipement::ignorerPremierEtatDuCombat()`, sur la colonne
+     * `etat_personnage_quete.capacites_combat`. Elle naît vide avec la quête
+     * et voyage déjà dans le snapshot.
      */
     public const FREQUENCE = 'frequence';
 
@@ -728,6 +805,10 @@ final class MotsClesEquipement
         self::BONUS_DEPLACEMENT_PORTE,
         self::ANNULE_GLACE_GLISSANTE,
         self::DEGATS_FIXES,
+        self::ANNULE_BOUCLIERS_DEFENSE,
+        self::RELANCE_DE_ATTAQUE_RATE,
+        self::ANNULE_MALUS_DEPLACEMENT,
+        self::IGNORE_PREMIER_ETAT_DU_COMBAT,
         self::ACTIVABLE,
         self::CIBLE,
         self::COUT,
@@ -851,6 +932,11 @@ final class MotsClesEquipement
         self::DEGATS_SAUF_BOUCLIER_NOIR => 'Chaque flèche inflige %s PV, sauf si la cible tire un bouclier noir',
         'tue_creatures' => 'Tue instantanément : %s',
         'controle_monstres' => 'Enrôle une créature',
+        // --- Forge du Nain
+        self::ANNULE_BOUCLIERS_DEFENSE => 'Annule %s bouclier(s) de la défense de la cible',
+        self::RELANCE_DE_ATTAQUE_RATE => 'Relance %s dé(s) d\'attaque raté(s) — une fois par combat',
+        self::ANNULE_MALUS_DEPLACEMENT => 'Annule le malus de déplacement de cette pièce',
+        self::IGNORE_PREMIER_ETAT_DU_COMBAT => 'Ignore le premier état subi d\'un combat : %s',
 
         // --- Mains et port
         self::DEUX_MAINS => 'Se tient à deux mains',
@@ -1050,6 +1136,9 @@ final class MotsClesEquipement
     private const VALEURS = [
         'une_fois_par_quete' => 'une fois par quête',
         'une_fois_par_tour' => 'une fois par tour',
+        // Forge du Nain (Cruelle, Gardée) : ni la quête ni le tour — le
+        // troisième rythme, réarmé quand plus aucun monstre n'est en vue.
+        'une_fois_par_combat' => 'une fois par combat',
         'prochaine_attaque' => 'prochaine attaque',
         'prochaine_defense' => 'prochaine défense',
         'premier_degat_subi' => 'premier dégât subi',

@@ -9,8 +9,10 @@ use App\Engine\MotsClesEquipement;
 use App\Http\Controllers\Controller;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\Inventaire;
 use App\Models\PersonnageHistorique;
 use App\Partie\Equipement;
+use App\Partie\Forge;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\CapaciteSac;
 use App\Partie\Talents;
@@ -125,13 +127,34 @@ class AuthController extends Controller
         $idsAvecHistorique = PersonnageHistorique::whereIn('personnage_id', $personnages->pluck('id'))
             ->distinct()->pluck('personnage_id');
 
+        // ⚠ Forge du Nain : « le serveur publie la DÉCISION, pas les
+        // ingrédients » — calculé UNE FOIS pour tout le roster, jamais objet
+        // par objet. Groupes où CE JOUEUR contrôle personnellement un
+        // forgeron actif (même condition que `ForgeController::appliquer()` :
+        // un de SES héros, actif dans le groupe, portant le nœud
+        // `forge_amelioration`) — la manette ne doit donc jamais re-dériver
+        // « ai-je un nain » ni « suis-je au hub » depuis `classe`/`phase`.
+        $groupesAvecForgeronDuJoueur = $personnages
+            ->filter(fn ($p) => $p->groupe_actif_id !== null && app(Talents::class)->a($p, 'forge_amelioration'))
+            ->pluck('groupe_actif_id')
+            ->unique();
+        $forge = app(Forge::class);
+
         return [
             'id' => $joueur->id,
             'pseudo' => $joueur->pseudo,
             'identifiant' => $joueur->identifiant,
             'personnages' => $personnages
-                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique) {
+                ->map(function ($p) use ($idsDejaEnQuete, $idsAvecHistorique, $groupesAvecForgeronDuJoueur, $forge) {
                     $disponible = $p->groupe_actif_id === null;
+                    // Les deux préalables de `ForgeController::appliquer()` avant
+                    // même de regarder l'objet : le groupe est au hub, et LE
+                    // JOUEUR QUI REGARDE (pas forcément CE personnage) contrôle
+                    // un forgeron actif ici. `Forge::estForgeable()` part de ce
+                    // booléen déjà tranché plutôt que de rejuger objet par objet.
+                    $peutForgerIci = ! $disponible
+                        && ($p->groupeActif->phase ?? null) === 'hub'
+                        && $groupesAvecForgeronDuJoueur->contains($p->groupe_actif_id);
                     // L'état de quête sert aux fenêtres « une fois par quête /
                     // par tour » des capacités : lu UNE fois par héros, pas une
                     // fois par nœud.
@@ -218,13 +241,14 @@ class AuthController extends Controller
                                     'des_attaque' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false)
                                         ? null
                                         : app(Equipement::class)->desAttaqueAvec($p, $l),
-                                ])
+                                ] + $this->detailForge($forge, $l, $peutForgerIci))
                                 ->values()
                                 ->all(),
                             'armure' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Slot propre depuis le 2026-08-08 : le casque se
                             // CUMULE avec l'armure de corps, comme au plateau.
@@ -233,13 +257,15 @@ class AuthController extends Controller
                             'casque' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Talisman (artefact de classe) : cinquième slot.
                             'talisman' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Bottes : sixième slot (2026-09-04). Sans cette clé
                             // la manette chausserait le héros sans jamais le
@@ -248,11 +274,12 @@ class AuthController extends Controller
                             'bottes' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'bottes' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)],
+                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             'sac' => $p->inventaire
                                 ->filter(fn ($l) => $l->emplacement === 'sac' && $l->objet !== null)
-                                ->map(function ($l) use ($p) {
+                                ->map(function ($l) use ($p, $forge, $peutForgerIci) {
                                     $equipement = app(Equipement::class);
                                     $portees = $equipement->occupants($p);
                                     // Point de passage unique avec l'option `equiper` du menu
@@ -301,7 +328,7 @@ class AuthController extends Controller
                                         // la règle qu'il décrit.
                                         'slots_utiles' => $detail['slots_utiles'],
                                         'remplace' => $detail['remplace'],
-                                    ];
+                                    ] + $this->detailForge($forge, $l, $peutForgerIci);
                                 })
                                 ->values()
                                 ->all(),
@@ -378,6 +405,48 @@ class AuthController extends Controller
                 })
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * Ce que `/moi` publie sur la Forge pour UNE ligne d'inventaire —
+     * l'amélioration déjà posée (lisible même quand ce joueur n'a pas de nain :
+     * René, « sans oublier d'afficher l'amélioration faite aux objets déjà
+     * forgés ») et la DÉCISION « forgeable maintenant », jamais ses ingrédients
+     * (rareté, phase, nœud du porteur — la manette ne les recombine pas).
+     *
+     * ⚠ `forge_catalogue` EST la liste blanche : c'est exactement l'ensemble
+     * que `POST /forge` acceptera pour `amelioration_id` sur cette pièce
+     * (même filtre, `Forge::ameliorationsApplicables()`) — jamais une pièce
+     * offerte que le résolveur refuserait, jamais l'inverse (`ForgeTest`
+     * confronte les deux sens).
+     *
+     * @return array{ameliorations: list<array<string, mixed>>, forgeable: bool, forge_catalogue: list<array<string, mixed>>}
+     */
+    private function detailForge(Forge $forge, Inventaire $ligne, bool $forgeronDisponible): array
+    {
+        $forgeable = $forge->estForgeable($ligne, $forgeronDisponible);
+
+        return [
+            'ameliorations' => collect($ligne->ameliorations ?? [])
+                ->map(fn ($a) => [
+                    'nom' => $a['nom'] ?? '',
+                    'avantages' => MotsClesEquipement::avantages((array) ($a['effet'] ?? [])),
+                ])
+                ->values()
+                ->all(),
+            'forgeable' => $forgeable,
+            'forge_catalogue' => $forgeable
+                ? $forge->ameliorationsApplicables((string) $ligne->objet?->categorie)
+                    ->map(fn ($a) => [
+                        'id' => $a->id,
+                        'nom' => $a->nom,
+                        'prix' => (int) $a->prix,
+                        'avantages' => MotsClesEquipement::avantages((array) $a->effet),
+                    ])
+                    ->values()
+                    ->all()
+                : [],
         ];
     }
 }

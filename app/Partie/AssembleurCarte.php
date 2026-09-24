@@ -127,8 +127,33 @@ final class AssembleurCarte
      *                                   tests) ne pose QUE les terrains
      *                                   `boite = null` — fail open, jamais
      *                                   une erreur.
+     * @param  ?\Closure  $sallesACoffre  `(array{salles: list<...>, aretes:
+     *                                   list<...>, portes: list<...>}): list<int>`
+     *                                   — désigne les salles qui DOIVENT
+     *                                   recevoir un Coffre réel (René,
+     *                                   2026-09-18 : la narration décrivait un
+     *                                   coffre qu'aucune carte ne portait).
+     *                                   Appelée ICI, entre la pose des portes
+     *                                   et `placerMobilier()`, avec la carte
+     *                                   PARTIELLE déjà stable à ce stade
+     *                                   (salles/arêtes/portes ne bougent plus
+     *                                   ensuite) — jamais après coup, sous
+     *                                   peine de contourner le plancher de
+     *                                   cases jouables de `placerMobilier()`
+     *                                   (§2.12 ter) ou de poser le coffre sur
+     *                                   une case qu'un monstre occupera déjà
+     *                                   (`spawnsMonstres()` ne tourne qu'en
+     *                                   toute fin d'assemblage). Le CALCUL des
+     *                                   salles-coffre reste entièrement celui
+     *                                   de `DeckFouille::construire()` — câblage
+     *                                   des récompenses, INTACT — cette
+     *                                   fermeture ne fait QUE lui fournir, au
+     *                                   bon moment, la carte partielle dont il
+     *                                   a besoin ; `null` (défaut, tous les
+     *                                   appelants existants) ne garantit rien,
+     *                                   comportement inchangé.
      */
-    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET, ?string $themeBestiaire = null): array
+    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET, ?string $themeBestiaire = null, ?\Closure $sallesACoffre = null): array
     {
         $structure = $gabarit->structure ?? [];
         $suivant = $this->creerPRNG($graine);
@@ -150,6 +175,15 @@ final class AssembleurCarte
         // --- Arbre branchu sur grille 2D --------------------------------
         ['grille' => $positionsGrille, 'aretes' => $aretes, 'passage_secret' => $passageSecret]
             = $this->construireArbre($n, $suivant, $chancePassageSecret);
+
+        // §2.12 ter EN AMONT (brief coffre, René 2026-09-18) : AVANT que la
+        // moindre tuile ne soit peinte, on s'assure que toute salle qu'un
+        // passage secret désignera comme salle-au-coffre est assez grande
+        // pour porter son `Coffre` — voir `garantirTaillesSallesACoffre()`
+        // pour le pourquoi de l'ordre (une fois peintes, les couloirs sont
+        // creusés sur la largeur/hauteur de chaque salle : un échange après
+        // coup demanderait de tout recreuser).
+        $tuiles = $this->garantirTaillesSallesACoffre($tuiles, $aretes);
 
         // --- Slots uniformes, salles centrées ---------------------------
         $maxLargeurTuile = max(array_map(fn (Tuile $t) => (int) $t->grille['largeur'], $tuiles));
@@ -277,13 +311,25 @@ final class AssembleurCarte
         }
 
         $portes = $this->devoilerSecretesEnConflit($portes);
+
+        // Salles à garantir un coffre (2026-09-18, brief coffre) : appelé ICI
+        // — $salles/$aretesSortie/$portes ont exactement la forme que porte le
+        // carte final pour ces trois clés, et ne bougent plus ensuite (locker
+        // une porte, plus bas, ne touche jamais une porte SECRÈTE — seules les
+        // `fermee` sont candidates). Sans callback (tous les appelants qui ne
+        // connaissent pas la notion de coffre — la quasi-totalité des tests),
+        // liste vide : comportement rigoureusement inchangé.
+        $sallesCoffreAGarantir = $sallesACoffre !== null
+            ? $sallesACoffre(['salles' => $salles, 'aretes' => $aretesSortie, 'portes' => $portes])
+            : [];
+
         // ⚠ AVANT les pièges : placerLeviers() peut verrouiller une porte et
         // pose son levier sur une case de sol — les pièges ne doivent jamais
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
         $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
         $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $leviers, $suivant);
-        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant);
+        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
         // une épreuve doit savoir quelles salles contiennent un piège (l'Autel
@@ -1560,15 +1606,49 @@ final class AssembleurCarte
      * @param  list<array{x: int, y: int, cote?: string}>  $portes
      * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
      * @param  list<array{x: int, y: int}>  $pieges
+     * @param  list<int>  $sallesAGarantirUnCoffre  salles (`DeckFouille::sallesACoffre()`,
+     *                                             via la fermeture `assembler()`)
+     *                                             qui DOIVENT recevoir un
+     *                                             `Coffre` — la narration
+     *                                             décrivait un coffre qu'aucune
+     *                                             carte ne portait (René,
+     *                                             2026-09-18). Posé EN PREMIER,
+     *                                             avant le mobilier ordinaire
+     *                                             ci-dessous — sinon un tirage
+     *                                             0..3 malchanceux pouvait
+     *                                             consommer à sa place le
+     *                                             plancher de cases jouables
+     *                                             d'une salle par ailleurs assez
+     *                                             grande. Toujours LA MÊME
+     *                                             logique de pose que le
+     *                                             mobilier ordinaire (jamais
+     *                                             une seconde copie du plancher
+     *                                             §2.12 ter) : si la salle est
+     *                                             trop exiguë pour l'accueillir
+     *                                             sans devenir injouable, on
+     *                                             RENONCE — voir le commentaire
+     *                                             au point d'appel, plus bas.
+     *                                             `garantirTaillesSallesACoffre()`
+     *                                             écarte déjà la plupart des
+     *                                             salles trop petites en amont,
+     *                                             AVANT même que cette méthode
+     *                                             ne soit appelée.
      * @return list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>
      */
-    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant): array
+    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = []): array
     {
         $catalogue = Mobilier::query()->orderBy('id')->get();
 
         if ($catalogue->isEmpty()) {
             return [];
         }
+
+        // ⚠ Peut être `null` si le catalogue n'a jamais été seedé avec un
+        // « Coffre » (ex. certains tests unitaires posent leur propre
+        // mobilier factice) : on ne peut garantir un type que le catalogue ne
+        // connaît pas — `registre testé dans les deux sens`, la garantie
+        // n'invente rien.
+        $coffre = $catalogue->firstWhere('nom', 'Coffre');
 
         $prng = new PrngLineaire($suivant());
 
@@ -1605,6 +1685,48 @@ final class AssembleurCarte
 
             $interieur = $this->interieur($cases, $salle);
             $occupeesSalle = []; // cases déjà prises par un meuble déjà posé DANS cette salle
+
+            // GARANTIE de coffre (René, 2026-09-18), posée EN PREMIER — avant
+            // le mobilier ordinaire tiré juste après, pas après lui. Posée en
+            // second, la pose forcée pouvait échouer alors même que la salle
+            // était assez grande : le tirage 0..3 ci-dessous consommait le
+            // plancher de cases jouables à sa place (mesuré : une partie des
+            // 11 renoncements sur 123 salles-au-coffre tenait à CET ordre, pas
+            // à la taille de la salle — `garantirTaillesSallesACoffre()`
+            // règle l'AUTRE partie, en amont de l'assemblage). Réserver la
+            // case du Coffre D'ABORD, dans `$occupeesSalle`, revient au même
+            // que réserver n'importe quel autre meuble déjà posé : le tirage
+            // ordinaire qui suit respecte le MÊME plancher §2.12 ter sans rien
+            // savoir de la raison de cette réservation — toujours les MÊMES
+            // helpers (`tenterPoseMobilier()` + le plancher), jamais une
+            // seconde copie de la règle.
+            if ($coffre !== null && in_array($i, $sallesAGarantirUnCoffre, true)) {
+                $place = $this->tenterPoseMobilier(
+                    $catalogue, $cases, $salle, $interieur, $seuils, $interdites, $occupeesSalle, $prng, $coffre,
+                );
+
+                if ($place !== null
+                    && count($interieur) - count($occupeesSalle) - count($place['cellules'])
+                        >= self::CASES_JOUABLES_MINIMUM) {
+                    foreach ($place['cellules'] as $cellule) {
+                        $occupeesSalle["{$cellule['x']},{$cellule['y']}"] = true;
+                    }
+
+                    $mobilier[] = [
+                        'mobilier_id' => $place['mobilier_id'],
+                        'x' => $place['x'], 'y' => $place['y'], 'l' => $place['l'], 'h' => $place['h'],
+                        'salle' => $i,
+                    ];
+                }
+                // ⚠ Repli EXPLICITE, jamais silencieux : même en tête, la pose
+                // peut échouer (pas de position valide, ou salle qui ne
+                // repasserait pas le plancher) — cas désormais rarissime grâce
+                // à `garantirTaillesSallesACoffre()`, mais toujours possible
+                // pour un donjon pathologiquement petit. La salle reste sans
+                // Coffre VISUEL plutôt que de casser la jouabilité ; la
+                // récompense elle-même reste due (`DeckFouille::carteCoffre()`
+                // ne regarde jamais si un meuble existe sur la carte).
+            }
 
             // ⚠ Le tirage est TOUJOURS consommé, même si le plafond ci-dessous
             // le ramène à 0 : sauter le `suivant()` ferait diverger la suite
@@ -1696,6 +1818,14 @@ final class AssembleurCarte
      * @param  list<array{x: int, y: int}>  $seuils
      * @param  array<string, true>  $interdites
      * @param  array<string, true>  $occupeesSalle
+     * @param  ?Mobilier  $typeImpose  quand fourni (garantie de coffre), le
+     *                                type n'est plus tiré au sort — seuls
+     *                                l'orientation et l'ancre restent
+     *                                aléatoires. La géométrie, les
+     *                                interdictions et `salleResteConnexe()`
+     *                                restent EXACTEMENT les mêmes : c'est tout
+     *                                l'intérêt de réutiliser cette méthode
+     *                                plutôt que d'écrire une seconde pose.
      * @return array{mobilier_id: int, x: int, y: int, l: int, h: int, cellules: list<array{x: int, y: int}>}|null
      */
     private function tenterPoseMobilier(
@@ -1707,6 +1837,7 @@ final class AssembleurCarte
         array $interdites,
         array $occupeesSalle,
         PrngLineaire $prng,
+        ?Mobilier $typeImpose = null,
     ): ?array {
         if ($interieur === []) {
             return null;
@@ -1715,7 +1846,9 @@ final class AssembleurCarte
         $grilleGeom = new Grille($cases); // cellulesEmprise() est une pure fonction de géométrie
 
         for ($tentative = 0; $tentative < 12; $tentative++) {
-            $type = $catalogue[$prng->suivant() % $catalogue->count()];
+            // Type imposé (garantie de coffre) : aucun tirage à consommer ici,
+            // le catalogue n'a rien à départager.
+            $type = $typeImpose ?? $catalogue[$prng->suivant() % $catalogue->count()];
             // Orientation : une pièce 1×2 tient aussi bien couchée que debout —
             // aucune des deux sources (§1) ne fixe un sens canonique.
             [$l, $h] = $prng->suivant() % 2 === 0
@@ -2370,6 +2503,174 @@ final class AssembleurCarte
      * là où trois emprises de 1 seraient refusées.
      */
     private const CASES_JOUABLES_MINIMUM = self::RESERVE_CASES_LIBRES + 2;
+
+    /**
+     * Cases de sol qu'une salle doit offrir pour pouvoir porter un `Coffre`
+     * RÉEL (1×1, `MobilierSeeder`) sans repasser sous `CASES_JOUABLES_MINIMUM`
+     * une fois posé (René, 2026-09-18 : « pour les salles coffres, on
+     * pourrait limiter les grosseurs de salle possible » — mesuré avant ce
+     * seuil : 11 renoncements sur 123 salles-au-coffre, la salle désignée
+     * étant trop exiguë pour porter son meuble). PUBLIC : lu à la fois ici
+     * (`garantirTaillesSallesACoffre()`, avant même la peinture des tuiles)
+     * et par `DeckFouille::salleLaPlusProfonde()` — UN SEUL repère, pour ne
+     * pas ressaisir « 7 » à deux endroits qui divergeraient le jour où
+     * `CASES_JOUABLES_MINIMUM` change.
+     */
+    public const CASES_MINIMUM_SALLE_COFFRE = self::CASES_JOUABLES_MINIMUM + 1;
+
+    /**
+     * Cases de SOL qu'un rectangle largeur×hauteur porte à l'intérieur,
+     * contour mural déduit — vrai pour toute tuile « salle » seedée
+     * (intérieur PLEIN, sans alcôve, cf. docblock de la classe) et donc pour
+     * toute salle assemblée, AVANT MÊME que `cases` existe. C'est ce qui
+     * permet de juger la taille d'une salle dès le choix des tuiles, avant
+     * que le passage secret ou la salle-artefact ne soient désignés.
+     *
+     * @param  array{largeur: int, hauteur: int}  $rectangle  une salle
+     *         assemblée (`carte.salles[i]`) OU `Tuile::$grille`, les deux
+     *         portant les mêmes clés `largeur`/`hauteur`.
+     */
+    public static function interieurSalle(array $rectangle): int
+    {
+        return max(0, (int) ($rectangle['largeur'] ?? 0) - 2) * max(0, (int) ($rectangle['hauteur'] ?? 0) - 2);
+    }
+
+    /**
+     * Salles PAYÉES par une porte secrète : pour chaque arête marquée
+     * `secrete`, la PLUS PROFONDE de ses deux salles (profondeur = distance
+     * depuis la salle 0 sur l'ENSEMBLE des arêtes, arbre et boucles
+     * confondus) — jamais les deux, l'autre côté reste la portion déjà
+     * explorée du donjon. Pur calcul de TOPOLOGIE, sans aucune notion de
+     * récompense : c'est ce qui permet à `DeckFouille::sallesACoffre()` (le
+     * câblage des récompenses) ET à `garantirTaillesSallesACoffre()` ci-dessous
+     * (la garantie de taille, AVANT peinture) de partager EXACTEMENT le même
+     * calcul plutôt que d'en tenir chacun sa copie — le défaut le plus répété
+     * de ce projet (`CLAUDE.md` « one rule, one point of passage »).
+     *
+     * @param  list<array{a: int, b: int, secrete?: bool}>  $aretes  une arête
+     *         par jonction (jamais une par porte : une jonction non-mitoyenne
+     *         pousse 2 portes mais reste UNE arête).
+     * @return list<int>
+     */
+    public static function sallesDerriereLesPortesSecretes(array $aretes): array
+    {
+        $voisins = [];
+        foreach ($aretes as $arete) {
+            $a = (int) $arete['a'];
+            $b = (int) $arete['b'];
+            $voisins[$a][] = $b;
+            $voisins[$b][] = $a;
+        }
+
+        $profondeur = [0 => 0];
+        $file = [0];
+        while ($file !== []) {
+            $courant = array_shift($file);
+            foreach ($voisins[$courant] ?? [] as $voisin) {
+                if (! isset($profondeur[$voisin])) {
+                    $profondeur[$voisin] = $profondeur[$courant] + 1;
+                    $file[] = $voisin;
+                }
+            }
+        }
+
+        $salles = [];
+        foreach ($aretes as $arete) {
+            if (empty($arete['secrete'])) {
+                continue;
+            }
+            $a = (int) $arete['a'];
+            $b = (int) $arete['b'];
+            $salles[] = ($profondeur[$a] ?? 0) >= ($profondeur[$b] ?? 0) ? $a : $b;
+        }
+
+        return array_values(array_unique($salles));
+    }
+
+    /**
+     * Échange, AVANT toute peinture de tuile, la FORME des salles que
+     * `sallesDerriereLesPortesSecretes()` désignera plus tard si elle est trop
+     * EXIGUË pour porter un `Coffre` réel (René, 2026-09-18) — jamais APRÈS :
+     * la géométrie des couloirs (`creuserArete()`) dépend de la
+     * largeur/hauteur de chaque salle, un échange une fois peint demanderait
+     * de tout recreuser.
+     *
+     * Ce n'est PAS un tirage supplémentaire : aucun `\Closure $suivant` n'est
+     * consommé ici, l'échange est purement déterministe (la plus grande tuile
+     * DISPONIBLE), donc n'affecte la reproductibilité d'aucune graine qui n'a
+     * pas besoin d'être corrigée.
+     *
+     * ⚠ La salle 0 (déjà la plus grande, `plusGrandeTuileEnTete()`), la salle
+     * du BOSS (thème imposé, `choisirTuiles()`) et TOUTE AUTRE salle-au-coffre
+     * de cette même carte (déjà assez grande, ou en cours de correction) ne
+     * sont JAMAIS données en échange : une donneuse prise parmi elles la
+     * rendrait à son tour trop exiguë, sans que la boucle ne la revérifie.
+     *
+     * L'échange ne fait que PERMUTER des formes déjà tirées pour cette carte
+     * — aucune n'est ajoutée ni retirée du lot — donc la diversité des formes
+     * VISIBLES sur la carte est rigoureusement inchangée ; seule la salle qui
+     * porte chaque forme peut changer.
+     *
+     * @param  list<Tuile>  $tuiles
+     * @param  list<array{parent: int, enfant: int, secrete?: bool}>  $aretes  arbre
+     *         + boucles, TEL QUE rendu par `construireArbre()` (pas encore
+     *         normalisé en 'a'/'b' : on le fait ici, localement).
+     * @return list<Tuile>
+     */
+    private function garantirTaillesSallesACoffre(array $tuiles, array $aretes): array
+    {
+        $dernier = count($tuiles) - 1;
+        $salleBoss = $dernier > 0 && ($tuiles[$dernier]->theme ?? null) === 'boss' ? $dernier : null;
+
+        $aretesNormalisees = array_map(fn (array $a) => [
+            'a' => (int) $a['parent'], 'b' => (int) $a['enfant'], 'secrete' => ! empty($a['secrete']),
+        ], $aretes);
+
+        $sallesACoffre = self::sallesDerriereLesPortesSecretes($aretesNormalisees);
+
+        // ⚠ AUCUNE salle-au-coffre — celle qu'on corrige à ce tour de boucle
+        // COMME celles qu'on a déjà jugées assez grandes, ou qu'on corrigera au
+        // tour suivant — ne doit jamais servir de DONNEUSE : lui prendre sa
+        // forme pour en dépanner une autre la rendrait à son tour trop exiguë,
+        // sans que la boucle ne la revérifie ensuite. Bug réellement mesuré en
+        // écrivant la mesure de ce brief : sur une carte à DEUX passages
+        // secrets, la première salle corrigée pouvait « déshabiller » la
+        // seconde (déjà assez grande, ou déjà réparée) pour s'habiller
+        // elle-même. La salle 0 et la salle du BOSS restent protégées pour les
+        // mêmes raisons qu'avant (déjà les plus grandes / thème imposé).
+        $protegees = array_flip([...$sallesACoffre, 0, ...($salleBoss !== null ? [$salleBoss] : [])]);
+
+        foreach ($sallesACoffre as $i) {
+            if (self::interieurSalle($tuiles[$i]->grille) >= self::CASES_MINIMUM_SALLE_COFFRE) {
+                continue; // déjà assez grande
+            }
+
+            $donneuse = null;
+            foreach ($tuiles as $j => $t) {
+                if (isset($protegees[$j])) {
+                    continue;
+                }
+                if ($donneuse === null || self::interieurSalle($t->grille) > self::interieurSalle($tuiles[$donneuse]->grille)) {
+                    $donneuse = $j;
+                }
+            }
+
+            if ($donneuse !== null && self::interieurSalle($tuiles[$donneuse]->grille) >= self::CASES_MINIMUM_SALLE_COFFRE) {
+                [$tuiles[$i], $tuiles[$donneuse]] = [$tuiles[$donneuse], $tuiles[$i]];
+            }
+            // ⚠ Repli EXPLICITE, jamais silencieux (`CLAUDE.md` « withdrawing
+            // content is a written choice ») : aucune tuile du donjon (hors
+            // salle 0 et boss) n'atteint le plancher. `placerMobilier()`
+            // renoncera alors au Coffre VISUEL pour cette salle — la
+            // récompense reste due (`DeckFouille::carteCoffre()` ne regarde
+            // jamais si un meuble existe). Non rencontré sur le vivier actuel
+            // (6 à 35 cases de sol, seuls DEUX patrons sur dix valent 6), mais
+            // pas exclu pour un futur vivier plus petit — on ne prétend pas
+            // que le cas n'existe pas, on dit ce qu'il devient.
+        }
+
+        return $tuiles;
+    }
 
     /**
      * Cases du décor où un monstre ne doit JAMAIS apparaître (René, 2026-09-11,

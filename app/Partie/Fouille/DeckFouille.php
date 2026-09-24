@@ -10,6 +10,7 @@ use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
+use App\Partie\AssembleurCarte;
 use App\Partie\Equipement;
 use App\Partie\MoteurPortes;
 
@@ -91,31 +92,38 @@ final class DeckFouille
      *
      * Trouver un passage caché ne rapportait rien — juste un raccourci. Le
      * coffre est ce qui paie la fouille. « Derrière » = celle des deux salles
-     * de la jonction la plus éloignée du départ.
+     * de la jonction la plus éloignée du départ — calcul délégué à
+     * `AssembleurCarte::sallesDerriereLesPortesSecretes()`, partagé avec la
+     * garantie de taille de la salle (`garantirTaillesSallesACoffre()`,
+     * appelée AVANT peinture des tuiles) plutôt que dupliqué ici : deux copies
+     * d'une profondeur-BFS aussi simple sont ce qui a le plus souvent divergé
+     * dans ce projet (`CLAUDE.md`).
      *
      * @param  array<string, mixed>  $carte
      * @return list<int>
      */
     private function sallesACoffre(array $carte, ?int $salleArtefact): array
     {
-        $profondeurs = $this->profondeurs($carte);
         $aretes = (array) data_get($carte, 'aretes', []);
-        $salles = $salleArtefact === null ? [] : [$salleArtefact];
 
-        foreach ((array) data_get($carte, 'portes', []) as $porte) {
-            if (($porte['etat'] ?? '') !== MoteurPortes::ETAT_SECRETE) {
-                continue;
-            }
+        // Jonctions secrètes : une porte NON-mitoyenne en pousse DEUX (une par
+        // salle), toutes deux à la même `jonction` — `unique()` ramène ça à
+        // une arête par jonction, comme l'attend `sallesDerriereLesPortesSecretes()`.
+        $jonctionsSecretes = collect((array) data_get($carte, 'portes', []))
+            ->filter(fn (array $p) => ($p['etat'] ?? '') === MoteurPortes::ETAT_SECRETE)
+            ->pluck('jonction')
+            ->unique();
 
-            $arete = $aretes[$porte['jonction'] ?? -1] ?? null;
-            if ($arete === null) {
-                continue;
-            }
-
-            $a = (int) $arete['a'];
-            $b = (int) $arete['b'];
-            $salles[] = ($profondeurs[$a] ?? 0) >= ($profondeurs[$b] ?? 0) ? $a : $b;
+        $aretesAvecSecrete = [];
+        foreach ($aretes as $i => $arete) {
+            $aretesAvecSecrete[] = [
+                'a' => (int) $arete['a'], 'b' => (int) $arete['b'],
+                'secrete' => $jonctionsSecretes->contains($i),
+            ];
         }
+
+        $salles = $salleArtefact === null ? [] : [$salleArtefact];
+        $salles = [...$salles, ...AssembleurCarte::sallesDerriereLesPortesSecretes($aretesAvecSecrete)];
 
         // Jamais la salle de départ : on ne cache pas un coffre là où le groupe
         // commence, et une porte secrète y menant en ferait un faux trésor.
@@ -123,8 +131,11 @@ final class DeckFouille
     }
 
     /**
-     * Profondeur de chaque salle depuis le départ (parcours en largeur sur les
-     * arêtes de l'arbre).
+     * Profondeur de chaque salle depuis le départ (parcours en largeur sur
+     * `carte.aretes`, arbre ET boucles confondus). Utilisé par
+     * `salleLaPlusProfonde()` SEUL depuis que `sallesACoffre()` délègue son
+     * propre besoin de profondeur à `AssembleurCarte::sallesDerriereLesPortesSecretes()`
+     * — un seul calcul, deux consommateurs à des fins différentes.
      *
      * @param  array<string, mixed>  $carte
      * @return array<int, int>
@@ -302,6 +313,13 @@ final class DeckFouille
      *
      * ⚠ `null` pour toute autre mission — le coffre retombe alors sur la salle
      * la plus profonde, et l'exploration reste ce qui le paie.
+     *
+     * ⚠ Jamais trop exiguë pour son Coffre (§2.12 ter) : cette salle utilise
+     * TOUJOURS la tuile de thème `boss` (`AssembleurCarte::choisirTuiles()`),
+     * dont l'intérieur (28 cases) dépasse largement
+     * `AssembleurCarte::CASES_MINIMUM_SALLE_COFFRE` — contrairement à
+     * `salleLaPlusProfonde()`, qui pioche parmi les tuiles génériques et doit
+     * donc se garder explicitement des deux plus petites.
      */
     private function salleDuBoss(GabaritQuete $gabarit, array $carte): ?int
     {
@@ -328,30 +346,11 @@ final class DeckFouille
             return null; // pas de coffre désigné : toutes les salles piochent
         }
 
-        $voisins = [];
-        foreach ((array) data_get($carte, 'aretes', []) as $arete) {
-            $a = (int) ($arete['a'] ?? -1);
-            $b = (int) ($arete['b'] ?? -1);
-            if ($a < 0 || $b < 0) {
-                continue;
-            }
-            $voisins[$a][] = $b;
-            $voisins[$b][] = $a;
-        }
-
-        $profondeur = [0 => 0];
-        $file = [0];
-
-        while ($file !== []) {
-            $courant = array_shift($file);
-            foreach ($voisins[$courant] ?? [] as $voisin) {
-                if (! isset($profondeur[$voisin])) {
-                    $profondeur[$voisin] = $profondeur[$courant] + 1;
-                    $file[] = $voisin;
-                }
-            }
-        }
-
+        // Même BFS que `sallesACoffre()` utilisait ici avant sa délégation à
+        // `AssembleurCarte::sallesDerriereLesPortesSecretes()` — celle-là
+        // repose sur les arêtes SECRÈTES, celle-ci sur la profondeur SEULE :
+        // deux besoins différents, un seul calcul de profondeur (`profondeurs()`).
+        $profondeur = $this->profondeurs($carte);
         unset($profondeur[0]); // jamais la salle de départ
 
         if ($profondeur === []) {
@@ -360,6 +359,45 @@ final class DeckFouille
             return count($salles) - 1;
         }
 
+        // §2.12 ter EN AMONT (René, 2026-09-18 : « pour les salles coffres, on
+        // pourrait limiter les grosseurs de salle possible »). Palier de
+        // profondeur par palier, en partant du plus profond : ne retenir que
+        // les salles assez grandes pour porter un `Coffre` réel — sinon la
+        // fouille de fond paie toujours (`carteCoffre()` ne regarde jamais si
+        // un meuble existe), mais aucun meuble ne le montre sur la carte
+        // (mesuré avant ce filtre : une partie des 11 renoncements sur 123
+        // salles-au-coffre). La PROGRESSION reste le critère premier — on ne
+        // redescend d'un palier que si AUCUNE salle du palier courant
+        // n'atteint le plancher — la taille ne fait que départager.
+        $parProfondeur = [];
+        foreach ($profondeur as $salle => $p) {
+            $parProfondeur[$p][] = $salle;
+        }
+        krsort($parProfondeur);
+
+        foreach ($parProfondeur as $candidats) {
+            $eligibles = array_values(array_filter(
+                $candidats,
+                fn (int $s) => AssembleurCarte::interieurSalle($salles[$s] ?? [])
+                    >= AssembleurCarte::CASES_MINIMUM_SALLE_COFFRE,
+            ));
+
+            if ($eligibles !== []) {
+                sort($eligibles);
+
+                return (int) $eligibles[$prng->suivant() % count($eligibles)];
+            }
+        }
+
+        // Repli EXPLICITE, jamais silencieux (`CLAUDE.md` « withdrawing content
+        // is a written choice ») : AUCUNE salle du donjon (départ exclu)
+        // n'atteint le plancher — un donjon si petit que même sa salle la plus
+        // profonde ne pourrait jamais porter de Coffre réel (non rencontré sur
+        // le vivier actuel de tuiles, cf. `AssembleurCarte::garantirTaillesSallesACoffre()`).
+        // On revient à la règle d'avant plutôt que de priver la quête de son
+        // coffre de fond : la récompense reste due, seul le meuble visuel
+        // manquera — exactement ce que `placerMobilier()` renonce déjà à poser
+        // dans ce cas.
         $max = max($profondeur);
         $candidats = array_keys($profondeur, $max, true);
         sort($candidats);

@@ -364,6 +364,17 @@ export function useApi() {
                 quantite,
             }),
 
+        /* Forge du Nain (hub) — améliore DÉFINITIVEMENT une pièce d'un héros
+           actif du groupe (le forgeron n'a pas besoin d'être le porteur).
+           `personnageId` est le NAIN forgeron (héros À CE joueur), pas le
+           porteur de l'objet — `ForgeController::appliquer()` le distingue. */
+        forger: (identifiant, personnageId, inventaireId, ameliorationId) =>
+            request('POST', `/groupes/${identifiant}/forge`, {
+                personnage_id: personnageId,
+                inventaire_id: inventaireId,
+                amelioration_id: ameliorationId,
+            }),
+
         // ---- alliés / mercenaires (contrat « Alliés », au hub uniquement) ----
 
         /** GET /api/mercenaires → catalogue recrutable [{id, nom, type, prix, stats…}]. */

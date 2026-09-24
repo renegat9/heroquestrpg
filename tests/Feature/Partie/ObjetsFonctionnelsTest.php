@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
+use App\Models\ForgeAmelioration;
 use App\Models\Objet;
 use App\Models\Sort;
+use Database\Seeders\ForgeAmeliorationSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\SortSeeder;
 
@@ -23,20 +25,32 @@ use Database\Seeders\SortSeeder;
  * doc s'y réfèrent. Ce fichier n'en est plus que le garde-fou : ajouter une clé
  * au seeder casse le test tant qu'on n'a pas tranché — lui écrire un lecteur,
  * ou la déclarer inerte en connaissance de cause.
+ *
+ * ⚠ Les améliorations de FORGE (`forge_ameliorations.effet`, doc 04 §4)
+ * partagent ce MÊME vocabulaire, sur une table différente de `objets` — les
+ * ignorer laisserait Perforante/Cruelle/Allégée/Gardée porter une clé sans
+ * lecteur, ou rendrait « orpheline » une clé qu'elles sont pourtant seules à
+ * porter, sans qu'aucun des deux tests ci-dessous ne le remarque.
  */
 // SortSeeder D'ABORD : les parchemins sont dérivés des sorts (ObjetSeeder
 // boucle sur Sort::all()), l'ordre inverse n'en crée aucun.
 beforeEach(function () {
-    $this->seed([SortSeeder::class, ObjetSeeder::class]);
+    $this->seed([SortSeeder::class, ObjetSeeder::class, ForgeAmeliorationSeeder::class]);
 });
 
-it('n\'introduit aucune clé d\'effet inconnue dans le catalogue', function () {
-    $cles = collect(Objet::all())
+/** @return list<string> */
+function clesEffetDuCatalogue(): array
+{
+    return collect(Objet::all())
         ->flatMap(fn (Objet $o) => array_keys((array) $o->effet))
+        ->merge(collect(ForgeAmelioration::all())->flatMap(fn (ForgeAmelioration $a) => array_keys((array) $a->effet)))
         ->unique()
-        ->sort()
         ->values()
         ->all();
+}
+
+it('n\'introduit aucune clé d\'effet inconnue dans le catalogue', function () {
+    $cles = collect(clesEffetDuCatalogue())->sort()->values()->all();
 
     $inconnues = array_values(array_filter(
         $cles,
@@ -49,19 +63,14 @@ it('n\'introduit aucune clé d\'effet inconnue dans le catalogue', function () {
         .'en connaissance de cause.');
 });
 
-it('n\'accumule pas de mot-clé d\'équipement que plus aucun objet ne porte', function () {
+it('n\'accumule pas de mot-clé d\'équipement que plus aucun objet ni amélioration de Forge ne porte', function () {
     // L'inverse du test précédent : un mot déclaré que le catalogue n'utilise
     // plus est une règle qui n'existe que sur le papier. C'est exactement ce
     // qu'était `attaque_second_rang` avant qu'on le retire — déclaré, lu par le
     // guide, porté par une Lance… et sans mécanique derrière.
-    $portees = collect(Objet::all())
-        ->flatMap(fn (Objet $o) => array_keys((array) $o->effet))
-        ->unique()
-        ->all();
+    $orphelins = array_values(array_diff(MotsClesEquipement::toutes(), clesEffetDuCatalogue()));
 
-    $orphelins = array_values(array_diff(MotsClesEquipement::toutes(), $portees));
-
-    expect($orphelins)->toBe([], 'mot(s)-clé déclaré(s) que plus aucun objet ne porte : '
+    expect($orphelins)->toBe([], 'mot(s)-clé déclaré(s) que plus aucun objet ni amélioration de Forge ne porte : '
         .implode(', ', $orphelins).' — retire-le du vocabulaire, ou donne-lui un porteur.');
 });
 

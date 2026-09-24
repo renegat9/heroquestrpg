@@ -506,3 +506,37 @@ it('la reprise conserve les compteurs PAR QUÊTE du héros (Concentration, jeton
         ->and((bool) $restaure->garde_tenace_utilisee)->toBeTrue()
         ->and($sorts->concentrationDisponible($mage->fresh(), $restaure))->toBeFalse();
 });
+
+it('la reprise conserve les améliorations de Forge « une fois par COMBAT » (Cruelle, Gardée)', function () {
+    // ⚠ Contrairement à `capacites_tour` (jamais snapshotté : vide à
+    // l'ouverture d'un round), `capacites_combat` traverse PLUSIEURS tours —
+    // un combat dure le temps que le monstre reste en vue. Une reprise en
+    // son milieu doit donc retrouver la relance de Cruelle déjà consommée,
+    // pas la rendre gratuitement.
+    //
+    // ⚠ Il FAUT un monstre en vue du héros : sinon la toute première
+    // régénération de menu qui suit la reprise (déclenchée par la
+    // restauration elle-même) referme aussitôt la fenêtre — exactement le
+    // même réarmement que celui que ce test vérifie par ailleurs, mais qui
+    // rendrait ici un faux négatif si le combat était déjà terminé.
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    ['groupe' => $groupe, 'heros' => $heros, 'quete' => $quete] = $ctx;
+
+    $etat = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $heros->id)->firstOrFail();
+
+    $etat->update(['capacites_combat' => ['forge:1']]);
+
+    app(App\Partie\Sauvegarde::class)->snapshotter($groupe->fresh(), 'nouveau_tour');
+
+    // On efface l'ardoise, puis on restaure.
+    $etat->update(['capacites_combat' => []]);
+
+    $snapshot = Snapshot::where('groupe_id', $groupe->id)->orderByDesc('id')->firstOrFail();
+    app(App\Partie\Sauvegarde::class)->restaurer($groupe->fresh(), $snapshot);
+
+    $restaure = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $heros->id)->firstOrFail();
+
+    expect((array) $restaure->capacites_combat)->toBe(['forge:1']);
+});
