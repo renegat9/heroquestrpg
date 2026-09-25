@@ -917,7 +917,10 @@ ni revendable, ni affichable, et ne le dit pas.
 donnée. Arbitrage de René — la règle est **reversée sur les talents
 `regain_sort`** (*Chant runique*, *Appel de la forêt*), où elle corrige autre
 chose : rendre un sort à **chaque** monstre abattu supprimait l'économie de
-sorts au lieu de l'assouplir. Le regain exige désormais un **bouclier noir**.
+sorts au lieu de l'assouplir. Le regain exigeait un **bouclier noir**.
+⚠ **Abandonné le 2026-09-25** (René) : plus de dé — ces deux talents gardent
+désormais **le sort qui abat un monstre** (`garde_sort_qui_tue`) ; une mise à
+mort à l'arme ne rend plus rien.
 Deux conséquences : `restaure_sorts` ne survit que sous sa forme **chiffrée**
 (Potion de magie 3, Potion de rappel 1), la forme « tous » n'ayant plus de carte ;
 et le mot-clé quitte `MotsClesEquipement`, qui ne décrit que des objets.

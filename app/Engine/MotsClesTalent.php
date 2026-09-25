@@ -202,9 +202,9 @@ final class MotsClesTalent
             'libelle' => 'dégât aux sorts offensifs',
             'icone' => 'bolt',
         ],
-        'regain_sort' => [
-            'lecteur' => 'App\Partie\MoteurSorts::regagnerSorts()',
-            'libelle' => 'récupère un sort',
+        'garde_sort_qui_tue' => [
+            'lecteur' => 'App\Partie\ResolveurTour::preserverSort()',
+            'libelle' => 'le sort qui abat un monstre reste disponible',
             'icone' => 'autorenew',
         ],
         'sacrifice_pv_pour_sort' => [

@@ -205,10 +205,11 @@ class ObjetSeeder extends Seeder
             // Galimatias, Parchemin de Sorts. Même ménage que les douze pièces
             // d'armurerie inventées par le paquet fan.
             //
-            // ⚠ La RÈGLE du Sceptre de Mémoire, elle, n'est pas perdue : René
-            // l'a reversée sur les talents `regain_sort` (Chant runique, Appel
-            // de la forêt), où le bouclier noir bride enfin un regain qui se
-            // déclenchait à chaque monstre abattu.
+            // ⚠ La RÈGLE du Sceptre de Mémoire (un sort épargné sur un
+            // bouclier noir) a d'abord été reversée sur les talents Chant
+            // runique et Appel de la forêt, puis abandonnée le 2026-09-25
+            // (René) : ils gardent désormais le sort qui abat un monstre, sans
+            // dé (`garde_sort_qui_tue`).
             //
             // On ne porte que les cartes dont le moteur sait DÉJÀ appliquer
             // l'effet ; les autres sont recensées avec ce qui leur manque dans

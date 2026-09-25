@@ -298,6 +298,14 @@ d'une attaque** (même composant de dés, même ton), avec le nom de celui qui
 résiste. ⚠ **Aucun payload ne change** : les faces y étaient déjà. C'est un
 défaut de RENDU — « un payload muet est le même défaut qu'aucun payload ».
 
+**Sort épargné — `sort_preserve` (2026-09-25).** Le résultat d'un `lancer_sort`
+porte `sort_preserve` quand le sort lancé **reste disponible** : `"anneau_de_sort"`
+(une charge de l'Anneau de sort) ou `"talent"` — *Chant runique* / *Appel de la
+forêt*, mécanique `garde_sort_qui_tue` : **le sort qui abat un monstre n'est pas
+épuisé** (René ; remplace l'ancien regain au bouclier noir). `sort_preserve_par`
+nomme alors le talent. Le fil l'annonce (« Boule de Feu reste disponible (Chant
+runique) ») : un sort resté allumé sans explication est un effet automatique muet.
+
 **Ciblage en deux temps.** Une option qui vise (`attaque`, `sort`, parchemin)
 n'en désigne **pas** la cible : elle joint les cibles légales dans
 `parametres.cibles` — `[{id, type: "monstre"|"heros", nom, nom_base?,

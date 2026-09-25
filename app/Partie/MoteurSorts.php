@@ -1402,35 +1402,14 @@ final class MoteurSorts
     {
         $rendus = 0;
 
-        // `regain_sort` (Chant runique de l'elfe, Appel de la forêt du druide) :
-        // le TALENT porte l'événement, là où jusqu'ici seul le SORT pouvait le
-        // déclarer. Il rend UN sort — le premier épuisé — et non tous : rendre
-        // le grimoire entier à chaque monstre abattu supprimerait l'économie de
-        // sorts au lieu de l'assouplir.
-        $talent = app(Talents::class)->noeud($personnage, 'regain_sort');
-        $parLeTalent = $talent !== null && ($talent->effet['regain'] ?? null) === $evenement;
-
-        // ⚠ BRIDAGE AU BOUCLIER NOIR (René, 2026-09-03) : rendre un sort à
-        // CHAQUE monstre abattu supprimait l'économie de sorts au lieu de
-        // l'assouplir. Le nœud qui le déclare tire 1 dé de combat, et seul un
-        // bouclier noir — une face sur six — rend le sort.
-        //
-        // ⚠ Le jet a lieu ICI, avant la boucle, et une seule fois : le déplacer
-        // à l'intérieur le relancerait par sort épuisé, ce qui rendrait le
-        // bridage d'autant plus faible que le grimoire est vide — l'inverse de
-        // l'effet voulu.
-        //
-        // Le mot-clé est celui du *Sceptre de Mémoire*, artefact fan retiré du
-        // catalogue le même jour : la règle ne change pas, son porteur si.
-        if ($parLeTalent && ! empty($talent->effet['sort_non_epuise_sur_bouclier_noir'])
-            && FaceDeCombat::depuisD6(app(LanceurDes::class)->d6()) !== FaceDeCombat::BouclierNoir) {
-            $parLeTalent = false;
-        }
-
+        // ⚠ Les talents `regain_sort` (Chant runique, Appel de la forêt) qui
+        // passaient ici — un sort rendu à chaque monstre abattu, sur un
+        // bouclier noir — sont devenus `garde_sort_qui_tue` le 2026-09-25
+        // (René) : ils épargnent le sort qui tue, lu par
+        // `ResolveurTour::preserverSort()`. Ce regain-ci ne sert plus qu'aux
+        // SORTS qui déclarent leur propre `regain`.
         foreach ($personnage->sorts()->wherePivot('disponible', false)->get() as $sort) {
-            $parCeSort = ($sort->effet['regain'] ?? null) === $evenement;
-
-            if (! $parCeSort && ! ($parLeTalent && $rendus === 0)) {
+            if (($sort->effet['regain'] ?? null) !== $evenement) {
                 continue;
             }
 

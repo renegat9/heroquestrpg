@@ -118,7 +118,7 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Artefacts d'économie de sorts : ils ne donnent ni dé ni PV, mais
         // changent bel et bien ce que le porteur peut faire de son tour.
         'restaure_sorts', 'second_sort_par_tour', 'sort_non_epuise',
-        'sort_non_epuise_sur_bouclier_noir', 'immunite_degat',
+        'immunite_degat',
         // ⚠ Un artefact ACTIVABLE ne modifie aucune statistique : il ouvre une
         // action. C'est tout autant « changer ce que le porteur peut faire de
         // son tour » — la Cape des Ombres et le Sceptre de Télékinésie ne

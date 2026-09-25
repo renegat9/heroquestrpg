@@ -477,7 +477,8 @@ it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function 
  *  - `restaure_sorts` survit sous sa forme CHIFFRÉE, portée par deux potions
  *    officielles (Potion de magie 3, Potion de rappel 1) — voir
  *    `PotionsOfficiellesTest`. Seule la forme « tous » disparaît, faute de carte.
- *  - `sort_non_epuise_sur_bouclier_noir` est REVERSÉ sur les talents
- *    `regain_sort` (arbitrage de René) : il y bride un regain qui se
+ *  - `sort_non_epuise_sur_bouclier_noir` a été REVERSÉ sur les talents
+ *    `regain_sort` (arbitrage de René), puis abandonné le 2026-09-25 : ces
+ *    talents gardent le sort qui tue (`garde_sort_qui_tue`). Il y bridait un regain qui se
  *    déclenchait à chaque monstre abattu. Éprouvé par `TalentsEnJeuTest`.
  */

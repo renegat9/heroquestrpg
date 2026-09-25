@@ -856,6 +856,25 @@ final class JournalCombat
      */
     private function sort(array $a, string $acteurNom): array
     {
+        $lignes = $this->lignesSort($a, $acteurNom);
+
+        // Un sort ÉPARGNÉ (Anneau de sort, talent qui garde le sort qui tue)
+        // restait allumé sur la manette sans que le fil dise pourquoi : un
+        // effet automatique que rien n'annonce est injouable (2026-09-25).
+        if (! empty($a['sort_preserve'])) {
+            $par = $a['sort_preserve_par'] ?? ($a['sort_preserve'] === 'anneau_de_sort' ? 'l\'Anneau de sort' : null);
+            $lignes[] = $this->info(($a['sort']['nom'] ?? 'Le sort').' reste disponible'.($par !== null ? " ({$par})" : ''));
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function lignesSort(array $a, string $acteurNom): array
+    {
         $nom = $a['sort']['nom'] ?? 'un sort';
         $cible = $a['cible']['nom'] ?? null;
         $des = $this->detailDes($a);

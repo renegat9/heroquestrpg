@@ -63,7 +63,6 @@ const EFFETS_BOOL = {
     restaure_sorts: 'Rend tous les sorts épuisés',
     second_sort_par_tour: 'Un second sort par tour',
     sort_non_epuise: 'Le prochain sort ne s’épuise pas',
-    sort_non_epuise_sur_bouclier_noir: 'Sort préservé sur un bouclier noir',
     incompatible_deux_mains: 'Incompatible deux mains',
     attaque_diagonale: 'Attaque en diagonale',
     inutilisable_adjacent: 'Inutilisable au contact',

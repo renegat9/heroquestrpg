@@ -135,17 +135,14 @@ class CompetenceSeeder extends Seeder
                 ['nom' => 'Second élément', 'type' => 'deblocage',
                     'description' => 'Ouvre un second domaine de magie : 3 sorts de plus à ton grimoire.',
                     'effet' => ['mecanique' => 'emplacement_element', 'nb_elements' => 1]],
-                // ⚠ BRIDÉ PAR UN JET depuis le 2026-09-03 (arbitrage de René) :
-                // rendre un sort à CHAQUE monstre abattu supprimait l'économie
-                // de sorts au lieu de l'assouplir — un lanceur qui tue deux fois
-                // par quête ne s'épuisait jamais. Le regain n'a lieu que sur un
-                // BOUCLIER NOIR, une face sur six. Le mot-clé est celui qui
-                // servait au Sceptre de Mémoire, artefact fan sorti du catalogue
-                // le même jour : la règle est la même, le porteur change.
+                // Le sort qui ABAT un monstre reste disponible (René,
+                // 2026-09-25). Il remplace « un sort rendu à chaque monstre
+                // abattu, sur un bouclier noir » (2026-09-03) : plus de dé,
+                // mais c'est le sort lui-même qui doit tuer — une mise à mort à
+                // l'épée ne rend plus rien, ce qui garde l'économie de sorts.
                 ['nom' => 'Chant runique', 'type' => 'passif',
-                    'description' => 'Chaque monstre que tu abats te laisse une chance de récupérer un sort épuisé : un bouclier noir sur 1 dé de combat.',
-                    'effet' => ['mecanique' => 'regain_sort', 'regain' => 'monstre_vaincu',
-                        'sort_non_epuise_sur_bouclier_noir' => true]],
+                    'description' => 'Quand un de tes sorts abat un monstre, il reste disponible : tu pourras le relancer.',
+                    'effet' => ['mecanique' => 'garde_sort_qui_tue']],
             ]],
             ['categorie' => 'Œil', 'icone' => 'my_location', 'noeuds' => [
                 ['nom' => 'Sens aiguisés', 'type' => 'passif',
@@ -274,9 +271,8 @@ class CompetenceSeeder extends Seeder
                     'effet' => ['mecanique' => 'recuperer_sort_epuise', 'cout' => 'tour_complet', 'frequence' => 'une_fois_par_quete']],
                 // Même bridage que le *Chant runique* de l'elfe, même raison.
                 ['nom' => 'Appel de la forêt', 'type' => 'passif',
-                    'description' => 'Chaque monstre que tu abats te laisse une chance de récupérer un sort épuisé : un bouclier noir sur 1 dé de combat.',
-                    'effet' => ['mecanique' => 'regain_sort', 'regain' => 'monstre_vaincu',
-                        'sort_non_epuise_sur_bouclier_noir' => true]],
+                    'description' => 'Quand un de tes sorts abat un monstre, il reste disponible : tu pourras le relancer.',
+                    'effet' => ['mecanique' => 'garde_sort_qui_tue']],
                 ['nom' => 'Verbe ancien', 'type' => 'actif',
                     'description' => "Quand un sort ennemi allait te frapper, un jet de Mind l'annule avant qu'il porte.",
                     'effet' => ['mecanique' => 'annuler_effet_magique', 'jet' => 'mind']],

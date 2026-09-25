@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Models\Personnage;
+use Illuminate\Testing\TestResponse;
+use App\Partie\JournalCombat;
 use App\Jobs\GenererMenu;
 use App\Models\Monstre;
 use App\Models\Quete;
@@ -375,39 +378,67 @@ it('bonus_degats_sort — la Puissance brute ajoute un dégât, mais jamais à u
         ->and($reduit['degats'])->toBe(max(0, $fixes + 1 - $desResistance));
 });
 
-it('regain_sort — le Chant runique rend UN sort à chaque monstre abattu', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe', 'des_attaque' => 3]);
-    $heros = $ctx['heros'];
+/**
+ * Lance la Boule de Feu de l'elfe sur le monstre du contexte, par la vraie
+ * route (menu puis POST choix). Dés figés à 1 : aucun dé rouge ne résiste.
+ */
+function lancerBouleDeFeuSurLeMonstre(array $ctx): TestResponse
+{
+    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+    $ctx['heros']->sorts()->syncWithoutDetaching([$boule->id => ['disponible' => true]]);
 
-    foreach (Sort::orderBy('id')->take(2)->get() as $sort) {
-        $heros->sorts()->syncWithoutDetaching([$sort->id => ['disponible' => false]]);
-    }
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 30, 1));
 
-    donnerTalent($heros, 'Chant runique');
+    return test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $ctx['instance']->id, 'cible_type' => 'monstre'],
+    ])->assertStatus(202);
+}
+
+function bouleDeFeuDisponible(Personnage $heros): bool
+{
+    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
+
+    return (bool) $heros->sorts()->wherePivot('sorts.id', $boule->id)->first()?->pivot->disponible;
+}
+
+it('garde_sort_qui_tue — le sort qui abat un monstre reste disponible, et le fil le dit', function () {
+    // René, 2026-09-25 : plus de bouclier noir. Le Chant runique rendait un
+    // sort épuisé à chaque monstre abattu, sur un 6 ; il garde désormais le
+    // sort qui TUE, sans jet.
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
+    donnerTalent($ctx['heros'], 'Chant runique');
     $ctx['instance']->update(['pv_body' => 1]);
 
-    // ⚠ BRIDÉ AU BOUCLIER NOIR depuis le 2026-09-03 (arbitrage de René) : le
-    // regain n'a lieu que sur un 6, et le test l'exerce dans les DEUX sens —
-    // sans quoi il ne prouverait rien du bridage.
-    //
-    // ⚠ Le monstre est ENDORMI, et ce n'est pas un détail de mise en scène :
-    // un dormeur ne lance aucun dé de défense (règle de sa carte, 2026-09-02),
-    // donc la file de dés se lit exactement [3 d'attaque, JET DE REGAIN]. Sans
-    // ça, la position du jet dépend du nombre de dés de défense du gobelin, et
-    // le test se met à mesurer le catalogue au lieu du talent.
-    app(MoteurSorts::class)->poserConditionMonstre($ctx['instance'], MoteurSorts::MONSTRE_ENDORMI);
+    $reponse = lancerBouleDeFeuSurLeMonstre($ctx)
+        ->assertJsonPath('resultat.cible_vaincue', true)
+        ->assertJsonPath('resultat.sort_preserve', 'talent')
+        ->assertJsonPath('resultat.sort_preserve_par', 'Chant runique');
 
-    frapperLeMonstre($ctx, [1, 4, 4, 6, ...array_fill(0, 8, 4)]);
+    expect(bouleDeFeuDisponible($ctx['heros']->fresh()))->toBeTrue();
 
-    // ⚠ UN seul sort rendu, et pas le grimoire entier : tout rendre à chaque
-    // mise à mort supprimerait l'économie de sorts au lieu de l'assouplir.
-    expect($heros->sorts()->wherePivot('disponible', true)->count())->toBe(1);
+    // Un effet automatique que rien n'annonce est injouable : le fil le dit.
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Sylvaine'))->pluck('texte');
+    expect($lignes->implode(' | '))->toContain('Boule de Feu reste disponible (Chant runique)');
 });
 
-it('regain_sort — sans bouclier noir, le Chant runique ne rend RIEN', function () {
-    // Le pendant du test précédent : c'est lui qui donne sa valeur au bridage.
-    // Sans jet, le talent rendait un sort à CHAQUE monstre abattu — un lanceur
-    // qui tue deux fois par quête ne s'épuisait jamais.
+it('garde_sort_qui_tue — un sort qui ne tue pas s\'épuise normalement', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe']);
+    donnerTalent($ctx['heros'], 'Chant runique');
+    $ctx['instance']->update(['pv_body' => 10]);
+
+    lancerBouleDeFeuSurLeMonstre($ctx)
+        ->assertJsonPath('resultat.cible_vaincue', false)
+        ->assertJsonMissingPath('resultat.sort_preserve');
+
+    expect(bouleDeFeuDisponible($ctx['heros']->fresh()))->toBeFalse();
+});
+
+it('garde_sort_qui_tue — une mise à mort à l\'arme ne rend plus aucun sort', function () {
+    // Le pendant qui garde l'économie de sorts : l'ancien talent rendait un sort
+    // à CHAQUE monstre abattu, quel que soit le moyen. C'est le sort lui-même
+    // qui doit tuer, désormais.
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'elfe', 'des_attaque' => 3]);
     $heros = $ctx['heros'];
 
@@ -417,11 +448,10 @@ it('regain_sort — sans bouclier noir, le Chant runique ne rend RIEN', function
 
     donnerTalent($heros, 'Chant runique');
     $ctx['instance']->update(['pv_body' => 1]);
-
-    // Même montage, au dé de regain près : bouclier BLANC, donc rien.
     app(MoteurSorts::class)->poserConditionMonstre($ctx['instance'], MoteurSorts::MONSTRE_ENDORMI);
 
-    frapperLeMonstre($ctx, [1, 4, 4, 4, ...array_fill(0, 8, 4)]);
+    // Même un 6 (l'ancien bouclier noir) ne rend plus rien.
+    frapperLeMonstre($ctx, [1, 4, 4, 6, ...array_fill(0, 8, 6)]);
 
     expect($ctx['instance']->fresh()->etat)->toBe('vaincu')
         ->and($heros->sorts()->wherePivot('disponible', true)->count())->toBe(0);

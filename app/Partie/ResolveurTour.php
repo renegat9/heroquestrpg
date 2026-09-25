@@ -3231,10 +3231,27 @@ final class ResolveurTour
         // dé après chaque incantation et épargnait le sort sur un bouclier noir.
         // L'artefact était une invention du paquet fan Ye Olde Inn et a quitté
         // le catalogue le 2026-09-03 avec les quatre autres. Sa RÈGLE, elle,
-        // survit — René l'a reversée sur les talents `regain_sort`, où elle
-        // bride le regain à chaque monstre abattu (`MoteurSorts::regagnerSorts`).
+        // avait survécu sur les talents `regain_sort`, avant qu'ils ne
+        // deviennent `garde_sort_qui_tue` (2026-09-25, juste en dessous).
         // On retire donc la branche plutôt que de la laisser interroger un objet
         // que plus rien ne sème.
+        // `garde_sort_qui_tue` (Chant runique de l'elfe, Appel de la forêt du
+        // druide — René, 2026-09-25) : le sort qui ABAT un monstre n'est pas
+        // épuisé. Il remplace l'ancien regain « un sort rendu à chaque monstre
+        // abattu, sur un bouclier noir » : le dé disparaît, et c'est désormais
+        // le sort LUI-MÊME, et lui seul, qui doit tuer — une mise à mort à
+        // l'épée ne rend plus rien.
+        // ⚠ Lu AVANT l'anneau : réussir sur un effet gratuit ne doit pas
+        // brûler une charge rare (même ordre que l'ancien sceptre).
+        $talent = $this->talents->noeud($personnage, 'garde_sort_qui_tue');
+
+        if ($talent !== null && $this->sortAAbattuUnMonstre($payload)) {
+            $payload['sort_preserve'] = 'talent';
+            $payload['sort_preserve_par'] = $talent->nom;
+
+            return true;
+        }
+
         $anneau = $this->charges->pieceActive($personnage, 'sort_non_epuise', $etat);
 
         if ($anneau !== null && $this->charges->consommerUsage($anneau, $etat)) {
@@ -3242,6 +3259,30 @@ final class ResolveurTour
             $payload['charges_restantes'] = $this->charges->restantes($anneau->fresh());
 
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Le sort qu'on vient de lancer a-t-il réduit un monstre à 0 PV ? Deux
+     * formes de résultat : une cible unique (`cible.type` monstre +
+     * `cible_vaincue`, `sortDegats()`) ou un rayon qui en traverse plusieurs
+     * (`touches[]`, `rayonDeSort()`). Un héros abattu par un tir ami ne compte
+     * pas : la carte parle de monstres.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function sortAAbattuUnMonstre(array $payload): bool
+    {
+        if (($payload['cible']['type'] ?? null) === 'monstre' && ! empty($payload['cible_vaincue'])) {
+            return true;
+        }
+
+        foreach (is_array($payload['touches'] ?? null) ? $payload['touches'] : [] as $touche) {
+            if (($touche['type'] ?? null) === 'monstre' && ! empty($touche['vaincu'])) {
+                return true;
+            }
         }
 
         return false;
