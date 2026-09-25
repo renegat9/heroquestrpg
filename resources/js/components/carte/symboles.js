@@ -11,16 +11,37 @@
 // icône neutre plutôt que le nom du glyphe en toutes lettres — Material Symbols
 // affiche sa ligature telle quelle quand le nom est inconnu.
 
-/** Pièges (`PiegeSeeder`) → icône Material Symbols. */
+/**
+ * Pièges (`PiegeSeeder`) → icône Material Symbols.
+ *
+ * ⚠ La Fosse et la Chute de blocs partageaient toutes deux une FLÈCHE VERS LE
+ * BAS (`vertical_align_bottom` / `keyboard_double_arrow_down`) : les deux se
+ * lisaient comme un trou (René, 2026-09-24 : « je semble toujours avoir des
+ * trous »). Or seule la Fosse EST un trou — la Chute de blocs, elle, DEVIENT
+ * un mur une fois déclenchée (« a permanent block », livret p. 14). Son icône
+ * de piège (encore caché/détecté) devient donc un DANGER de chute de pierres
+ * (`landslide`), jamais une flèche : plus aucune collision visuelle avec la
+ * Fosse, et le vocabulaire annonce déjà ce que la case va devenir.
+ */
 export const PIEGE_ICONES = {
     'Fosse': 'vertical_align_bottom',
     'Piège à lances': 'north',
-    'Chute de blocs': 'keyboard_double_arrow_down',
+    'Chute de blocs': 'landslide',
     'Piège de coffre': 'lock',
     'Aiguille empoisonnée': 'vaccines',
     'Fiole de poison': 'coronavirus',
 };
 export const PIEGE_ICONE_DEFAUT = 'warning';
+
+/**
+ * BLOC DE PIERRE tombé (Chute de blocs déclenchée, `MoteurPieges::ETAT_BLOC`,
+ * livret p. 14) → icône DISTINCTE de la Chute de blocs non déclenchée
+ * (`landslide` ci-dessus) : le piège était un DANGER, le bloc est un
+ * OBSTACLE — les confondre est exactement le défaut que cette entrée corrige.
+ * Rendu comme un bloc plein (voir `DungeonGrid.vue`, `.dg-trap.bloc`), jamais
+ * comme un trou.
+ */
+export const BLOC_ICONE = 'square';
 
 /** Épreuves (`EpreuveSeeder`) → icône Material Symbols. */
 export const EPREUVE_ICONES = {

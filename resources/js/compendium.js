@@ -28,6 +28,9 @@ const EFFETS_QTE = {
     // Arc elfique de Vindication (arbitrage de René, 2026-09-16) : dégâts par flèche.
     degats_sauf_bouclier_noir: 'dégât(s) par flèche, sauf bouclier noir de la cible',
     des_resistance: 'dé(s) rouge(s) de résistance (chaque 5 ou 6 annule 1 dégât)',
+    // Pièges de sol (livret de Zargon p. 14, 2026-09-25) : le guide affichait
+    // la clé brute « des combat: 3 ».
+    des_combat: 'dé(s) de combat, sans défense (1 PV par crâne)',
 };
 
 /** Soins exprimés en DÉS (`soin_pv_body_de: 6` = 1d6) — la Fiole de soin du
@@ -69,7 +72,7 @@ const EFFETS_BOOL = {
     saute_tour: 'La cible passe son prochain tour',
     ouvre_porte: 'Ou : ouvre une porte à distance',
     franchit_mur: 'Franchit les murs',
-    bloque_passage: 'Bloque le passage',
+    bloc_permanent: 'La case devient un bloc de pierre permanent (bloque le passage et la vue)',
     franchissable: 'Franchissable',
     permet_desamorcage: 'Permet le désamorçage',
     aleatoire: 'Aléatoire',

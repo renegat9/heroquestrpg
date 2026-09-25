@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\DeRouge;
 use App\Engine\Combat;
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
@@ -133,9 +134,6 @@ final class MoteurDread
     public const USAGES_SOUS_BOSS = 2;
 
     public const USAGES_BOSS = 3;
-
-    /** Seuil du d6 BRUT en dessous duquel un dé de résistance ne protège pas. */
-    public const SEUIL_DE_ROUGE = 5;
 
     /** Bonus de dés de défense de la capacité Résistance magique. */
     public const BONUS_RESISTANCE_MAGIQUE = 2;
@@ -1408,7 +1406,7 @@ final class MoteurDread
                 $de = $this->des->d6();
                 $des[] = $de;
 
-                if ($de >= self::SEUIL_DE_ROUGE) {
+                if (DeRouge::reussit($de)) {
                     $degats--;
                 }
             }

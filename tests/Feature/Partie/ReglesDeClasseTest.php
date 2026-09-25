@@ -132,8 +132,7 @@ it('épargne au Chevalier la perte du d6 de mouvement des armures', function () 
 });
 
 it('donne sa bandoulière au Rogue dès la création', function () {
-    $depart = (new ReflectionClass(App\Http\Controllers\Api\GroupeController::class))
-        ->getConstant('EQUIPEMENT_DEPART');
+    $depart = App\Partie\EquipementDepart::PAR_CLASSE;
 
     // Elle porte `compte_comme_arme: Dague` : c'est elle qui rend l'Ambidextrie
     // du Rogue littérale dès le premier tour, sans occuper sa main gauche.

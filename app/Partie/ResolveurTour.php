@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\DeRouge;
 use App\Engine\Combat;
 use App\Engine\Deplacement;
 use App\Engine\Des\FaceDeCombat;
@@ -231,6 +232,26 @@ final class ResolveurTour
     private ?array $evenementGlace = null;
 
     /**
+     * « Their turn immediately ends » (livret p. 14, contrat « Les trois
+     * pièges de sol », 2026-09-24) : la fosse, le piège à lances ET la chute
+     * de blocs ferment le tour ENTIER — pas seulement le déplacement — dès
+     * qu'ils se déclenchent, quel que soit le chemin qui les a fait mordre
+     * (marché dessus, désamorçage raté, saut raté). MÊME MÉCANISME que
+     * `$evenementGlace['fin_tour']` juste au-dessus (un flag posé pendant la
+     * résolution, lu une seule fois pour forcer `$creneauEffectif = 'tour'`) :
+     * un piège de sol n'a pas de canal de retour dédié pour le dire autrement,
+     * et dupliquer une seconde variable « à la glace » aurait recopié la
+     * règle plutôt que de la lire au même endroit.
+     *
+     * ⚠ EXCEPTION délibérée : une Chute de blocs déclenchée SOUS LE HÉROS QUI
+     * MARCHE dessus ne pose PAS ce flag tout de suite — il doit d'abord
+     * choisir où s'écarter (livret p. 14 : « the hero then decides to move
+     * ahead or move back »), et c'est CE choix (`s_ecarter_du_bloc`, créneau
+     * `tour`) qui ferme le tour. Voir `resoudreDeplacement()`.
+     */
+    private bool $finTourPiegeSol = false;
+
+    /**
      * @param  array<string, mixed>  $option  option du dernier menu proposé (déjà validée)
      * @param  array<string, mixed>  $parametres  paramètres du client (ex. destination x/y)
      * @return array<string, mixed> résultat moteur (echo + narration)
@@ -239,6 +260,7 @@ final class ResolveurTour
     {
         $this->mouvementsAnime = [];
         $this->evenementGlace = null;
+        $this->finTourPiegeSol = false;
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -397,6 +419,11 @@ final class ResolveurTour
                 // de héros pour l'atteindre — dette nommée par l'agent qui l'a
                 // écrite, soldée ici.
                 'briser_glace' => $this->resoudreBriserGlace($groupe, $quete, $personnage, $option, $acteur),
+                // CHUTE DE BLOCS (livret p. 14) : le SEUL choix qu'un héros
+                // debout sur le bloc peut encore faire — voir
+                // `MenuMoteur::generer()`, qui n'offre plus que cette option
+                // tant que `etat_personnage_quete.piege_a_ecarter` est posé.
+                's_ecarter_du_bloc' => $this->resoudreEcartDuBloc($groupe, $etat, $option, $parametres, $acteur),
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
@@ -411,7 +438,14 @@ final class ResolveurTour
             // plutôt que de poser `a_joue` en douce. Lu APRÈS la résolution :
             // `tronquerSurGlace()` (appelée depuis `resoudreDeplacement()`,
             // ci-dessus dans ce `match`) vient de remplir `$evenementGlace`.
-            $creneauEffectif = ($this->evenementGlace['fin_tour'] ?? false) ? 'tour' : $creneau;
+            //
+            // ⚠ MÊME BASCULE pour un PIÈGE DE SOL qui vient de se déclencher
+            // (`$this->finTourPiegeSol`, voir son docblock) : « their turn
+            // immediately ends » (livret p. 14) sous les trois pièges de sol,
+            // et c'est le SEUL et MÊME point de passage qui ferme un tour
+            // avant que les deux créneaux ne soient consommés.
+            $creneauEffectif = (($this->evenementGlace['fin_tour'] ?? false) || $this->finTourPiegeSol)
+                ? 'tour' : $creneau;
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
@@ -787,10 +821,20 @@ final class ResolveurTour
             $y = (int) $derniere['y'];
         }
 
-        $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin);
+        $controle = $this->pieges->controlerChemin($groupe, $quete->carte, $personnage, $etat, $chemin, $depart);
         $interrompu = $controle['arret'] !== null;
         $arretDur = $controle['dur'] ?? false;
         $arrivee = $controle['arret'] ?? ['x' => $x, 'y' => $y];
+
+        // « Their turn immediately ends » (livret p. 14) : un piège de sol
+        // vient de se déclencher SUR LE CHEMIN. Chute de blocs SEULE diffère
+        // ($attenteEcart posé) — le héros doit d'abord choisir où s'écarter,
+        // et c'est CE choix qui fermera son tour (voir `$finTourPiegeSol`).
+        $attenteEcart = $controle['attente_ecart'] ?? null;
+
+        if ($controle['declenchements'] !== [] && $attenteEcart === null) {
+            $this->finTourPiegeSol = true;
+        }
 
         // ⚠ Un piège peut avoir arrêté le héros AVANT la case de glace que
         // `tronquerSurGlace()` visait (elle n'est qu'une borne SUPÉRIEURE du
@@ -853,6 +897,11 @@ final class ResolveurTour
             'position_y' => $arrivee['y'],
             'deplacement_restant' => $restantApres,
             'a_deplace' => $mouvementFini,
+            // Chute de blocs : posé si le héros doit s'écarter (colonne, pas
+            // cache — voir la migration `piege_a_ecarter`) ; sinon explicitement
+            // effacé, un menu régénéré après tunnel/téléportation ne doit pas
+            // hériter d'un choix qui ne le concerne plus.
+            'piege_a_ecarter' => $attenteEcart,
         ]);
 
         $payload = [
@@ -3510,6 +3559,13 @@ final class ResolveurTour
             $payload['declenchement'] = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
             );
+
+            // « Their turn immediately ends » (livret p. 14) : le désamorceur
+            // n'est jamais SUR la case du piège (il agit depuis une case
+            // adjacente), donc jamais de bloc à écarter ici — juste le tour
+            // qui se ferme, comme pour les deux autres chemins de
+            // déclenchement (voir `$finTourPiegeSol`).
+            $this->finTourPiegeSol = true;
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
@@ -3737,7 +3793,78 @@ final class ResolveurTour
             );
             $payload['vers'] = ['x' => $cible['x'], 'y' => $cible['y']];
             $payload['deplacement_restant'] = 0;
+
+            // « Their turn immediately ends » (livret p. 14) : cette branche
+            // ne franchit qu'une FOSSE (`estFosse()` plus haut refuse tout
+            // autre piège) — jamais de bloc permanent à écarter ici, seulement
+            // le tour qui se ferme.
+            $this->finTourPiegeSol = true;
         }
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * S'ÉCARTER DU BLOC (Chute de blocs déclenchée, livret p. 14, 2026-09-24) :
+     * le SEUL choix qu'un héros debout sur le bloc peut encore faire — voir
+     * `MenuMoteur::generer()`, qui n'offre plus que `s_ecarter_du_bloc` tant
+     * que `etat_personnage_quete.piege_a_ecarter` est posé.
+     *
+     * ⚠ La liste blanche revalidée ici est `option['parametres']['cases']` —
+     * celle de l'OPTION du dernier menu, pas une reconstruction depuis la
+     * colonne (une règle, un point de passage : la colonne alimente l'option,
+     * l'option est ce que le résolveur revérifie, exactement comme
+     * `parametres.cibles` ailleurs). Une case hors liste est un 422 : le
+     * livret n'offre que reculer (toujours libre) et avancer (si praticable),
+     * jamais une troisième case.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreEcartDuBloc(
+        Groupe $groupe,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $x = (int) ($parametres['x'] ?? -1);
+        $y = (int) ($parametres['y'] ?? -1);
+
+        $cases = (array) ($option['parametres']['cases'] ?? []);
+        $choisie = null;
+
+        foreach ($cases as $candidate) {
+            if ((int) ($candidate['x'] ?? null) === $x && (int) ($candidate['y'] ?? null) === $y) {
+                $choisie = $candidate;
+                break;
+            }
+        }
+
+        if ($choisie === null) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cette case ne fait pas partie de celles proposées pour s\'écarter du bloc.',
+            ]);
+        }
+
+        $etat->update([
+            'position_x' => $x,
+            'position_y' => $y,
+            'piege_a_ecarter' => null,
+        ]);
+
+        $payload = [
+            'type' => 's_ecarter_du_bloc',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'bloc' => (array) ($option['parametres']['bloc'] ?? []),
+            'vers' => ['x' => $x, 'y' => $y],
+            'sens' => (string) ($choisie['sens'] ?? ''),
+        ];
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
 
@@ -4235,7 +4362,7 @@ final class ResolveurTour
             $face = $this->des->d6();
             $faces[] = $face;
 
-            if ($face >= 5) {
+            if (DeRouge::reussit($face)) {
                 $annules++;
             }
         }
@@ -8668,7 +8795,11 @@ final class ResolveurTour
             // DÉCROISSANTE, se répéter est le but voulu, pas la faille que le
             // levier avait ouverte.
             'ouvrir_porte', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter' => 'interaction',
-            'concentration', 'relever', 'attente' => 'tour',
+            // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
+            // choix qu'un héros debout sur un bloc de pierre tombé peut encore
+            // faire, et le livret dit que ce choix FERME son tour (p. 14) —
+            // exactement comme relever un compagnon ou se concentrer.
+            'concentration', 'relever', 'attente', 's_ecarter_du_bloc' => 'tour',
             default => 'action',
         };
     }

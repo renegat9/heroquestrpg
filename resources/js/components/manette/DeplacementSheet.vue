@@ -14,7 +14,9 @@ const props = defineProps({
     carte: { type: Object, required: true },   // { largeur, hauteur, cases, portes }
     entites: { type: Array, default: () => [] }, // [{type, id, x, y, ...}]
     depart: { type: Object, required: true },    // { x, y } du héros
-    portee: { type: Number, required: true },
+    // Non requis dès que `casesEcart` est fourni (voir plus bas) : ce mode-là
+    // n'a pas d'allonce à annoncer, juste au plus deux cases déjà décidées.
+    portee: { type: Number, default: 0 },
     de: { type: [Number, null], default: null },
     base: { type: Number, default: 0 },
     // Le d6 de déplacement compte-t-il ce tour ? DÉCISION serveur
@@ -37,6 +39,22 @@ const props = defineProps({
     /** Code du groupe — sert UNIQUEMENT à demander l'aperçu de trajet au
      *  serveur (`POST deplacement/apercu`). */
     groupe: { type: String, default: '' },
+    /**
+     * CHUTE DE BLOCS (livret p. 14, 2026-09-24) : liste blanche DÉJÀ DÉCIDÉE
+     * par le serveur, `option.parametres.cases` de `s_ecarter_du_bloc` —
+     * [{x, y, sens: 'avancer'|'reculer'}], au plus deux entrées. `null` =
+     * mode déplacement ORDINAIRE (allonce + BFS, comportement inchangé).
+     *
+     * ⚠ Non `null` change TROIS choses, jamais plus : les cases proposées
+     * (`accessibles` ci-dessous saute le BFS), l'en-tête (pas de dé à
+     * annoncer, il n'y en a pas eu) et le bouton de confirmation ne demande
+     * plus d'aperçu au serveur — un pas unique déjà validé n'a pas de trajet
+     * à prévisualiser. Tout le reste (la mini-carte, le tap, le second tap
+     * pour confirmer) est RÉUTILISÉ tel quel : c'est tout l'intérêt de ne pas
+     * avoir créé une seconde feuille pour un même geste (« toucher une case
+     * éclairée, confirmer »).
+     */
+    casesEcart: { type: Array, default: null },
 });
 const emit = defineEmits(['deplacer', 'close']);
 
@@ -152,15 +170,21 @@ const alliees = computed(() => {
 // le meuble lui-même, cette liste ne sert qu'à couper le BFS d'accessibilité.
 // `bloque_vue` (une bibliothèque coupe la vue mais une table non) n'entre PAS
 // dans ce calcul : la ligne de vue n'est pas ce que le BFS de déplacement mesure.
-// ⚠ TROIS sources pour UN seul jeu de cases, exactement comme `$obstacles`
+// ⚠ QUATRE sources pour UN seul jeu de cases, exactement comme `$obstacles`
 // côté serveur (`FabriqueGrille::pour()`) : le mobilier bloquant, le terrain
-// bloquant, et les MURS DE GLACE posés en cours de quête par le sort du boss
-// (`carte.glace`, doc 18 §4). Le mur de glace manquait ici — et n'était dessiné
-// nulle part — alors qu'il barre bel et bien la case côté moteur : la manette
-// proposait une destination derrière un mur invisible, que le serveur refusait
-// ensuite (René, 2026-09-17). Le terrain bloquant est ajouté par prévention :
-// aucun terrain du catalogue ne bloque à ce jour, mais le drapeau est publié et
-// le moteur le lit — le miroir ne doit pas attendre le premier qui bloquera.
+// bloquant, les MURS DE GLACE posés en cours de quête par le sort du boss
+// (`carte.glace`, doc 18 §4), et depuis le 2026-09-24 le BLOC PERMANENT d'une
+// Chute de blocs déclenchée (`carte.pieges[].etat === 'bloc'`, livret p. 14).
+// Le mur de glace manquait ici — et n'était dessiné nulle part — alors qu'il
+// barre bel et bien la case côté moteur : la manette proposait une
+// destination derrière un mur invisible, que le serveur refusait ensuite
+// (René, 2026-09-17). Le bloc de pierre aurait répété EXACTEMENT ce défaut :
+// `DungeonGrid` le dessine bien (le piège est publié, l'icône est distincte),
+// mais sans cette entrée le BFS d'accessibilité l'aurait ignoré et aurait
+// surbrillancé — et laissé taper — une case que `FabriqueGrille::pour()`
+// bloque désormais. Le terrain bloquant est ajouté par prévention : aucun
+// terrain du catalogue ne bloque à ce jour, mais le drapeau est publié et le
+// moteur le lit — le miroir ne doit pas attendre le premier qui bloquera.
 const mobilierOccupe = computed(() => {
     const s = new Set();
     for (const m of props.carte.mobilier ?? []) {
@@ -176,6 +200,9 @@ const mobilierOccupe = computed(() => {
     }
     for (const g of props.carte.glace ?? []) {
         s.add(cle(g.x, g.y));
+    }
+    for (const p of props.carte.pieges ?? []) {
+        if (p.etat === 'bloc') s.add(cle(p.x, p.y));
     }
     return s;
 });
@@ -200,7 +227,17 @@ const coutDe = (x, y) => coutParCase.value[cle(x, y)] ?? 1;
 // §2) : chaque pas coûte `coutDe()` de la case d'ARRIVÉE, pas 1 uniformément.
 // ⚠ Sert UNIQUEMENT à choisir une DESTINATION (surbrillance + tap) — le
 // serveur revalide de toute façon chaque déplacement, coût compris.
+//
+// CHUTE DE BLOCS (`casesEcart`) : AUCUN BFS ici — la liste blanche vient déjà
+// DÉCIDÉE par le serveur (`option.parametres.cases`), et la reconstruire par
+// un second calcul serait exactement la « seconde copie d'une règle serveur »
+// que ce fichier dénonce déjà trois fois plus haut pour l'occupation, le
+// coût de terrain et la mobilité de combat.
 const accessibles = computed(() => {
+    if (props.casesEcart) {
+        return new Set(props.casesEcart.map((c) => cle(c.x, c.y)));
+    }
+
     const { largeur: w, hauteur: h, cases } = props.carte;
     const dist = { [cle(props.depart.x, props.depart.y)]: 0 };
     const out = new Set();
@@ -371,6 +408,14 @@ async function toucher(x, y) {
         return;
     }
 
+    // CHUTE DE BLOCS : un pas, déjà validé par le serveur
+    // (`option.parametres.cases` EST la liste blanche que le résolveur
+    // revalide) — aucun trajet à demander, ce n'est pas un déplacement BFS.
+    if (props.casesEcart) {
+        apercu.value = { x, y, chemin: [{ x, y }], cout: 1, restant_apres: 0, pieges: [], atteignable: true };
+        return;
+    }
+
     apercu.value = { x, y, chemin: [], pieges: [], atteignable: true };
     apercuEnCours.value = true;
 
@@ -469,7 +514,14 @@ onMounted(async () => {
     <div class="dep-ov" @click.self="$emit('close')">
         <div class="dep-sheet">
             <header class="dep-head">
-                <div class="dep-roll">
+                <!-- CHUTE DE BLOCS : pas de dé à annoncer, il n'y en a pas eu
+                     ici — l'allonce du tour normal n'a pas sa place dans cette
+                     feuille-là (voir `casesEcart`). -->
+                <div class="dep-roll" v-if="casesEcart">
+                    <MSym n="square" fill />
+                    <span class="dep-portee-lbl">S'écarter du bloc de pierre</span>
+                </div>
+                <div class="dep-roll" v-else>
                     <MSym n="casino" fill />
                     <span class="dep-portee">{{ portee }}</span>
                     <span class="dep-portee-lbl">cases</span>
@@ -500,7 +552,21 @@ onMounted(async () => {
                 <MSym n="shield" :size="14" /> {{ deAnnulePar }} — le dé ne compte pas
             </p>
 
-            <p v-if="accessibles.size && ! apercu" class="dep-hint"><MSym n="touch_app" :size="14" /> Touche une case éclairée pour voir le trajet</p>
+            <!-- CHUTE DE BLOCS — avertissement du livret p. 14 : « the hero
+                 then decides to move ahead or move back ». Une décision
+                 assumée, pas empêchée : la manette PRÉVIENT, elle ne retire
+                 pas l'option d'avancer. -->
+            <p
+                v-if="casesEcart && casesEcart.some((c) => c.sens === 'avancer') && !apercu"
+                class="dep-hint dep-hint-piege"
+            >
+                <MSym n="warning" :size="14" /> Avancer peut t'isoler du reste du groupe — reculer te ramène à ta case de départ.
+            </p>
+
+            <p v-if="accessibles.size && ! apercu" class="dep-hint">
+                <MSym n="touch_app" :size="14" />
+                {{ casesEcart ? 'Touche une case éclairée pour t\'écarter' : 'Touche une case éclairée pour voir le trajet' }}
+            </p>
 
             <!-- APERÇU : le trajet EXACT rendu par le serveur, à confirmer. Les
                  pièges annoncés sont ceux que la carte montre DÉJÀ (détectés,
@@ -508,7 +574,8 @@ onMounted(async () => {
             <div v-else-if="apercu" class="dep-apercu">
                 <p class="dep-hint">
                     <MSym n="route" :size="14" />
-                    <span v-if="apercuEnCours">Calcul du trajet…</span>
+                    <span v-if="casesEcart">Confirme pour t'écarter là</span>
+                    <span v-else-if="apercuEnCours">Calcul du trajet…</span>
                     <span v-else-if="apercu.indisponible">Trajet indisponible — touche encore pour y aller quand même</span>
                     <span v-else-if="apercu.atteignable === false">{{ apercu.raison }}</span>
                     <span v-else>{{ apercu.cout }} point{{ apercu.cout > 1 ? 's' : '' }} — il en restera {{ apercu.restant_apres }}</span>
@@ -521,7 +588,7 @@ onMounted(async () => {
                     class="dep-aller"
                     type="button"
                     @click="confirmer"
-                ><MSym n="directions_walk" :size="16" fill /> Y aller</button>
+                ><MSym n="directions_walk" :size="16" fill /> {{ casesEcart ? "S'écarter" : 'Y aller' }}</button>
             </div>
             <p v-else class="dep-hint dep-hint-bloque"><MSym n="block" :size="14" /> Aucune case accessible — tu es bloqué. Ferme et termine ton tour.</p>
 

@@ -766,6 +766,106 @@ it('met en scène une réaction ACCEPTÉE depuis une manette — plancher et dé
         ->and($scene['issue']['libelle'])->toBe("Grom reste à 1 PV — dé 3 : l'artefact est conservé");
 });
 
+it('dessine les dés ROUGES de résistance d\'un sort de héros sur la scène de table', function () {
+    // ⚠ Les dés étaient calculés, publiés, et dessinés NULLE PART (René,
+    // 2026-09-24). Même détection que le fil de combat, un seul point de
+    // passage (JournalCombat::desJetUnilateral()).
+    $sort = Sort::query()->firstOrFail();
+    $acteur = sceneHeros('Aldric', 'magicien');
+
+    $scene = scenesDe([
+        'type' => 'sort',
+        'sort' => ['id' => $sort->id, 'nom' => 'Boule de Flammes', 'element' => 'feu'],
+        'cible' => ['nom' => 'Gargouille'],
+        'degats_fixes' => 3, 'des_resistance' => [2, 5, 6], 'degats_annules' => 2, 'degats' => 1,
+    ], $acteur)[0];
+
+    expect($scene['jet'])->not->toBeNull()
+        ->and($scene['jet']['def'])->toBe([2, 5, 6])
+        ->and($scene['jet']['defensive'])->toBe([5, 6])
+        ->and($scene['jet']['defenseur'])->toBe('Gargouille');
+});
+
+it('dessine le jet de Mind du sort du MJ, AU MOMENT où il frappe, sur la scène de table', function () {
+    // ⚠ `sort_dread` n'avait ici AUCUN cas (retombait sur `default => null`) :
+    // la table ne montrait RIEN quand le MJ lançait un sort de contrôle.
+    $victime = sceneHeros('Borin', 'nain');
+    $lanceurDeTour = sceneHeros('Aldric', 'magicien');
+
+    $scene = scenesDe([
+        'type' => 'sort_dread', 'sort' => 'Sommeil', 'condition' => 'Endormi',
+        'resultats' => [[
+            'cible' => ['personnage_id' => $victime->id, 'nom' => 'Borin'],
+            'mind_cible' => 2, 'succes' => 0, 'difficulte' => 1,
+            'faces' => ['bouclier_blanc', 'bouclier_noir'], 'effet_applique' => true,
+        ]],
+    ], $lanceurDeTour)[0];
+
+    expect($scene['genre'])->toBe('sort')
+        ->and($scene['titre'])->toBe('Sommeil')
+        ->and($scene['acteurs'])->toHaveCount(1)
+        ->and($scene['acteurs'][0]['nom'])->toBe('Borin')
+        ->and($scene['jet']['def'])->toBe(['bouclier_blanc', 'bouclier_noir'])
+        ->and($scene['jet']['defensive'])->toBe('crane')
+        ->and($scene['issue']['libelle'])->toContain('Borin');
+});
+
+it('dessine aussi le jet de Mind quand un héros RÉSISTE au sort du MJ', function () {
+    $victime = sceneHeros('Grom', 'barbare');
+
+    $scene = scenesDe([
+        'type' => 'sort_dread', 'sort' => 'Terreur', 'condition' => 'Apeuré',
+        'resultats' => [[
+            'cible' => ['personnage_id' => $victime->id, 'nom' => 'Grom'],
+            'mind_cible' => 4, 'succes' => 2, 'difficulte' => 1,
+            'faces' => ['crane', 'crane', 'bouclier_blanc', 'bouclier_noir'], 'effet_applique' => false,
+        ]],
+    ], sceneHeros('Aldric', 'magicien'))[0];
+
+    expect($scene['jet']['boucliers'])->toBe(2)
+        ->and($scene['issue']['ton'])->toBe('pare')
+        ->and($scene['issue']['libelle'])->toBe('Grom résiste');
+});
+
+it('ne montre AUCUNE scène pour un sort de Dread sans dé à montrer (soin, invocation)', function () {
+    // Rien ne change pour les sorts sans résistance — c'est un défaut de
+    // RENDU qui se corrige, pas une nouvelle scène pour chaque sort_dread.
+    expect(scenesDe([
+        'type' => 'sort_dread', 'sort' => 'Vol de vie', 'soin' => 3,
+        'cible' => ['nom' => 'Le Gardien'],
+    ], sceneHeros('Aldric', 'magicien')))->toBe([]);
+});
+
+it('dessine le(s) dé(s) d\'un piège de sol sur la scène de table — payload FABRIQUÉ', function () {
+    // ⚠ `MoteurPieges` ne publie pas encore `faces`/`touches` (un autre agent
+    // porte ce chantier) : la forme est fixée par le contrat, fabriquée ici.
+    $perso = sceneHeros('Krogar', 'nain');
+
+    $scene = scenesDe([
+        'type' => 'piege_declenche',
+        'piege' => ['nom' => 'Chute de blocs'],
+        'personnage' => ['id' => $perso->id, 'nom' => 'Krogar'],
+        'degats' => 2, 'faces' => ['crane', 'crane', 'bouclier_blanc'], 'touches' => 2,
+    ], $perso)[0];
+
+    expect($scene['jet'])->not->toBeNull()
+        ->and($scene['jet']['atk'])->toHaveCount(3)
+        ->and($scene['jet']['attaquant'])->toBe('Chute de blocs')
+        ->and($scene['jet']['defenseur'])->toBe('Krogar');
+});
+
+it('laisse le jet du piège à null tant qu\'aucune face n\'est publiée (fosse)', function () {
+    $perso = sceneHeros('Krogar', 'nain');
+
+    $scene = scenesDe([
+        'type' => 'piege_declenche', 'piege' => ['nom' => 'Fosse'],
+        'personnage' => ['id' => $perso->id, 'nom' => 'Krogar'],
+        'degats' => 1, 'immobilise' => true,
+    ], $perso)[0];
+
+    expect($scene['jet'])->toBeNull();
+});
+
 it('montre le héros PROTÉGÉ par une parade, et la riposte comme une vraie frappe', function () {
     $chevalier = sceneHeros('Roland', 'chevalier');
     $borin = sceneHeros('Borin');

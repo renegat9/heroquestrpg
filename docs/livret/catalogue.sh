@@ -21,6 +21,11 @@ docker compose exec -T app php artisan tinker --execute="
   foreach (['classes_heros','monstres','objets','sorts','pieges','mobiliers','terrains','epreuves','competences'] as \$t) {
     \$d[\$t] = \Illuminate\Support\Facades\Schema::hasTable(\$t) ? \DB::table(\$t)->get() : [];
   }
+  // Attaque et défense AVEC l'équipement de départ, décidées par le serveur
+  // (même source que GET /api/guide) : le livret ne refait pas le calcul.
+  \$d['depart_classes'] = \App\Models\ClasseHeros::all()->mapWithKeys(
+    fn (\$c) => [\$c->nom => \App\Partie\EquipementDepart::valeurs(\$c)]
+  );
   \$d['avantages_objets'] = \App\Models\Objet::all()->mapWithKeys(
     fn (\$o) => [(string) \$o->id => \App\Engine\MotsClesEquipement::avantages((array) \$o->effet)]
   );

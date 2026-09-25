@@ -266,3 +266,66 @@ toujours le même. C'est la classe de défaut exacte du levier qui n'a jamais é
 (graine `crc32($identifiant.':'.$positionArc)`, la même que la carte, pour rester
 reproductible) est le préalable à toute variété d'objectifs — mais seul, ce
 changement n'a **aucun effet visible** tant qu'il n'y a qu'un gabarit par jalon.
+
+**Les pièges de sol tirent enfin les TROIS types du livret de Zargon, pas
+toujours la Fosse** (contrat « Les trois pièges de sol, enfin tels que le
+livret les décrit », 2026-09-24). `AssembleurCarte::placerPieges()` posait
+jusque-là **le premier piège du catalogue pour CHAQUE piège** —
+`Piege::orderBy('id')->value('id')`, soit la Fosse. Mesuré sur toutes les
+cartes en base : 6 pièges, 6 fosses ; la Chute de blocs et le Piège à lances
+n'étaient **jamais** posés, et même posée, la Chute de blocs n'aurait rien
+bloqué (`bloque_passage` n'avait **aucun lecteur**). Chaque piège posé tire
+désormais son type parmi les pièges **de sol** du catalogue (jamais un piège
+de coffre/meuble, déclencheur `ouverture_tresor`), par le PRNG déterministe
+de l'assemblage — même point de passage, même raison de le consommer dans
+les deux branches, que le tirage du passage secret plus haut.
+
+⚠ **Les valeurs sont désormais SOURCÉES, livret p. 14** (photo de René,
+2026-09-24, « Pit / Spear / Falling Block Traps », recoupée par
+`reference/16_armurerie.md` §716 et `reference/17_mobilier.md` §121) — le
+catalogue les avait toutes aplaties à « 1 PV ». Fosse : 1 PV de Body, la
+tuile reste en jeu. Piège à lances : **1 dé de combat** (un crâne = 1 PV) et
+pas de tuile pour lui — « there are no spear trap tiles » — donc **détruit**
+au déclenchement. Chute de blocs : **3 dés de combat, aucune défense**, 1 PV
+par crâne, et la case devient un **bloc de pierre permanent**. ⚠ **« Their
+turn immediately ends » vaut pour les TROIS, sans exception** :
+`MoteurPieges::controlerChemin()` arrête maintenant TOUJOURS la course en
+dur dès qu'un piège caché se déclenche — avant cette date, seule la fosse
+(`immobilise`) ou une chute à 0 PV l'imposaient, et un piège à lances ou une
+chute de blocs laissaient le héros continuer sa marche en pleine hémorragie,
+déplacement et action encore intacts.
+
+**Le bloc tombé est un OBSTACLE, jamais un trou** — il bloque le passage ET
+la vue, comme un mur, lu par la boucle **unique** de `FabriqueGrille::pour()`
+(jamais une seconde, même raison que le mobilier, le terrain et le mur de
+glace ci-dessus) : `MoteurPieges::ETAT_BLOC` alimente `$obstacles` et
+`$opaques`, jamais `$occupees` — ce n'est pas une figure. Le héros qui se
+retrouve dessus **choisit** : avancer ou reculer, au plus deux cases
+(`MoteurPieges::casesEcart()`) — reculer vise la case d'où il venait, libre
+par construction (il vient d'en partir, dans la même résolution de tour) ;
+avancer vise la case suivante dans son sens de marche, seulement si
+`Grille::estTraversable()` l'accepte, la même case de réception qu'un saut de
+fosse. Le livret laisse le joueur s'isoler du groupe s'il choisit d'avancer —
+la manette **avertit**, elle n'empêche pas. Tant que ce choix n'est pas fait,
+le menu du héros ne contient **que** `s_ecarter_du_bloc` : c'est
+`piege_a_ecarter` (colonne de `etat_personnage_quete`, **jamais** le cache —
+la règle consolidée de `CLAUDE.md`, « chaque état durable vit en base ») qui
+porte l'attente, sur le patron exact de `reaction_en_attente`, pour qu'un
+téléphone rechargé retrouve le choix en attente plutôt qu'un menu muet. Une
+fois le choix posé, le tour se termine, comme pour les deux autres pièges.
+
+⚠ **Trois copies front du vocabulaire des états de piège, et `bloc` manquait
+aux TROIS** (même date) — à ne pas reproduire au prochain état ajouté.
+`PIEGE_ETATS` de `resources/js/store/game.js` écartait silencieusement le
+bloc de pierre dans `piegesVersMarqueurs()` (« un état inconnu est ignoré ») :
+il restait invisible sur l'écran de table alors qu'il bloquait déjà le
+passage côté moteur. La copie locale — même nom, même trou, jamais réimportée
+de `game.js` — de `ApercuSalle.vue` portait exactement le même manque.
+`DeplacementSheet.vue` avait un troisième point d'atterrissage : ses cases
+bloquantes (`mobilierOccupe`, déjà à trois sources — mobilier, terrain, mur
+de glace) seraient restées sourdes au bloc, et la manette aurait
+surbrillancé — et laissé taper — une case que `FabriqueGrille::pour()` bloque
+désormais. **Un état de piège ajouté se cherche dans les trois listes, pas
+une seule** — c'est la même classe de défaut, un cran plus loin, que « le
+rendu se déplace de l'arête vers la case » avait déjà payée pour les portes ;
+la leçon ne s'est pas généralisée toute seule d'un vocabulaire à l'autre.

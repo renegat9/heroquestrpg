@@ -602,6 +602,13 @@ final class EtatGroupe
         $connus = collect($carte->grille['pieges'] ?? [])
             ->filter(fn (array $entree) => in_array($entree['etat'] ?? null, [
                 MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+                // Bloc permanent (Chute de blocs) : DOIT rester visible pour
+                // toujours, sinon la table et la manette dessineraient un
+                // passage libre là où le moteur bloque déjà le mouvement et la
+                // vue (`FabriqueGrille::pour()`) — un piège invisible qui
+                // barre le donjon, exactement le défaut déjà payé par les
+                // leviers et le mur de glace.
+                MoteurPieges::ETAT_BLOC,
             ], true));
 
         $noms = Piege::query()

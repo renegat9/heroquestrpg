@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\DeRouge;
 use App\Engine\ReactionEffet;
 
 /**
@@ -49,6 +50,7 @@ final class JournalCombat
 
     /** Les deux clés sous lesquelles un piège peut être IMBRIQUÉ dans une action. */
     public const CLES_PIEGE = ['declenchement', 'pieges_declenches'];
+
 
     /**
      * Toutes les actions d'un résultat de tour, à plat et dans l'ordre : celle
@@ -164,7 +166,17 @@ final class JournalCombat
         $def = array_values((array) ($a['faces_defense'] ?? []));
 
         if ($atk === [] && $def === []) {
-            return null;
+            // Pas d'attaque à deux camps ici : peut-être un jet UNILATÉRAL
+            // (dé rouge, Mind, PIÈGE) publié directement sur cette action —
+            // un sort à `resistance: des_rouges`/`jet_mind` ou un piège de sol
+            // en action PRINCIPALE (`MoteurPieges`, `type: piege_declenche`)
+            // porte ses dés au sommet du payload. `cible.nom` couvre les
+            // sorts, `personnage.nom` couvre un piège (qui ne connaît pas de
+            // `cible`) — sans ce repli, cet appel générique écraserait le nom
+            // que `piegeDeclenche()` avait déjà résolu avec un `null`.
+            $nomCible = $a['cible']['nom'] ?? $a['personnage']['nom'] ?? null;
+
+            return $this->desJetUnilateral($a, $nomCible !== null ? (string) $nomCible : null);
         }
 
         // Qui frappe : le monstre a son propre nom, l'allié aussi ; sinon c'est
@@ -185,6 +197,103 @@ final class JournalCombat
             'touches' => isset($a['touches']) ? (int) $a['touches'] : null,
             'boucliers' => isset($a['boucliers']) ? (int) $a['boucliers'] : null,
         ];
+    }
+
+    /**
+     * Un jet UNILATÉRAL — une seule volée, PERSONNE en face : la cible d'un
+     * sort à dés rouges (`des_resistance` — `ResolveurTour::sortDegats()` —
+     * ou `des_rouges`, même mécanique publiée sous un autre nom par
+     * `MoteurDread::degatsInfliges()`, la Boule de Flammes du MJ vue de
+     * l'autre côté de la table, « one rule, both sides »), un jet de Mind
+     * (`mind_cible` + `faces` — `ResolveurTour::sortMental()` côté héros,
+     * `MoteurDread::sortDreadControle()` côté Dread, MÊME enum de faces que le
+     * combat), ou le dé d'un piège de sol (`faces` + `touches`, sans
+     * `mind_cible` — `MoteurPieges`). Les trois étaient CALCULÉS, PUBLIÉS, et
+     * DESSINÉS NULLE PART (René, 2026-09-24 : « pour les sorts d'attaque avec
+     * un lancer de dés pour résister, on ne voit pas le lancer de dé ») —
+     * `JetDes` ne savait lire que l'attaque à deux camps.
+     *
+     * Point de passage UNIQUE, lu par `self` (le fil) ET {@see SceneDeTable}
+     * (la table, via `app(JournalCombat::class)`) : deux détections de cette
+     * même forme auraient dérivé au premier sort de résistance ajouté — la
+     * même leçon que `Salles::indexDe()`.
+     *
+     * ⚠ La face gagnante est TOUJOURS celle du MOTEUR, jamais redéduite ici :
+     * un dé rouge réussit sur 5 OU 6 (`DeRouge::facesGagnantes()`), un jet de
+     * Mind ou de piège réussit sur un crâne (`App\Engine\Des\FaceDeCombat`).
+     * On ne fait que RECOPIER cette décision dans la forme que `JetDes.vue`
+     * sait déjà comparer.
+     *
+     * @param  array<string, mixed>  $a  le payload qui porte l'une des trois formes ci-dessus
+     * @param  string|null  $nomCible  la cible/victime, si l'appelant la connaît déjà (piège : `personnage`, pas `cible`)
+     * @return array<string, mixed>|null null si aucun dé n'a été lancé (cible immunisée à Mind 0, pas de résistance)
+     */
+    public function desJetUnilateral(array $a, ?string $nomCible = null): ?array
+    {
+        $nomCible ??= isset($a['cible']['nom']) ? (string) $a['cible']['nom'] : null;
+
+        $desRouges = array_values((array) ($a['des_resistance'] ?? $a['des_rouges'] ?? []));
+
+        if ($desRouges !== []) {
+            return [
+                'atk' => [],
+                'def' => $desRouges,
+                'touchante' => null,
+                'defensive' => DeRouge::facesGagnantes(),
+                'attaquant' => null,
+                'defenseur' => $nomCible,
+                'touches' => null,
+                'boucliers' => isset($a['degats_annules']) ? (int) $a['degats_annules'] : null,
+                'libelle_def' => 'résiste',
+            ];
+        }
+
+        // Jet de MIND : `mind_cible` est le marqueur — présent même quand
+        // AUCUN dé n'a été lancé (Mind 0 = immunisé), c'est ce qui distingue
+        // ce cas de « pas de jet de Mind du tout » plutôt que `faces` vide.
+        if (array_key_exists('mind_cible', $a)) {
+            $faces = array_values((array) ($a['faces'] ?? []));
+
+            if ($faces === []) {
+                return null; // immunisé : aucun dé, rien à dessiner
+            }
+
+            return [
+                'atk' => [],
+                'def' => $faces,
+                'touchante' => null,
+                'defensive' => 'crane',
+                'attaquant' => null,
+                'defenseur' => $nomCible,
+                'touches' => null,
+                'boucliers' => isset($a['succes']) ? (int) $a['succes'] : null,
+                'libelle_def' => 'résiste',
+            ];
+        }
+
+        // PIÈGE de sol : lui seul lance, sans défense en face — `faces` SANS
+        // `mind_cible` le distingue du cas précédent (les deux publient une
+        // clé `faces`, jamais ensemble).
+        if (array_key_exists('faces', $a) && array_key_exists('touches', $a)) {
+            $faces = array_values((array) $a['faces']);
+
+            if ($faces === []) {
+                return null;
+            }
+
+            return [
+                'atk' => $faces,
+                'def' => [],
+                'touchante' => 'crane',
+                'defensive' => null,
+                'attaquant' => isset($a['piege']['nom']) ? (string) $a['piege']['nom'] : null,
+                'defenseur' => $nomCible,
+                'touches' => (int) $a['touches'],
+                'boucliers' => null,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -538,9 +647,19 @@ final class JournalCombat
 
             // Sort de CONTRÔLE : il pose une condition, il ne blesse pas.
             if (array_key_exists('effet_applique', $r) && ! isset($r['degats'])) {
-                $lignes[] = empty($r['effet_applique'])
+                $ligne = empty($r['effet_applique'])
                     ? ['texte' => "{$cible} résiste à {$nom}", 'ton' => 'pare']
                     : ['texte' => "{$cible} subit {$nom} — ".($a['condition'] ?? 'affecté'), 'ton' => 'subit'];
+
+                // ⚠ LE JET DE MIND QUI DÉCIDE DE CETTE LIGNE N'ÉTAIT DESSINÉ
+                // NULLE PART (René, 2026-09-24) : `ruptureSortDread()` lisait
+                // déjà `faces` pour BRISER une condition après coup, en texte
+                // brut — jamais au moment où le sort FRAPPE, qui est ici.
+                if (($des = $this->desJetUnilateral($r, $cible)) !== null) {
+                    $ligne['des'] = $des;
+                }
+
+                $lignes[] = $ligne;
 
                 continue;
             }
@@ -548,12 +667,22 @@ final class JournalCombat
             $degats = (int) ($r['degats'] ?? 0);
 
             if (! empty($r['cible_tombee'])) {
-                $lignes[] = ['texte' => "{$nom} terrasse {$cible} !", 'ton' => 'chute'];
+                $ligne = ['texte' => "{$nom} terrasse {$cible} !", 'ton' => 'chute'];
             } elseif ($degats > 0) {
-                $lignes[] = ['texte' => "{$nom} frappe {$cible} (−{$degats} PV)", 'ton' => 'subit'];
+                $ligne = ['texte' => "{$nom} frappe {$cible} (−{$degats} PV)", 'ton' => 'subit'];
             } else {
-                $lignes[] = ['texte' => "{$cible} encaisse {$nom} sans dommage", 'ton' => 'pare'];
+                $ligne = ['texte' => "{$cible} encaisse {$nom} sans dommage", 'ton' => 'pare'];
             }
+
+            // Boule de Flammes du MJ (`des_rouges`, MoteurDread::degatsInfliges()) —
+            // même défaut, même correctif que la version héros de ce sort :
+            // « one rule, both sides » vaut aussi pour le silence qui allait
+            // avec.
+            if (($des = $this->desJetUnilateral($r, $cible)) !== null) {
+                $ligne['des'] = $des;
+            }
+
+            $lignes[] = $ligne;
         }
 
         foreach ((array) ($a['monstres_touches'] ?? []) as $m) {
@@ -1030,7 +1159,18 @@ final class JournalCombat
         $piege = $a['piege']['nom'] ?? 'Un piège';
         $degats = (int) ($a['degats'] ?? 0);
 
-        $lignes = [['texte' => "{$piege} se déclenche sur {$nom} !", 'ton' => 'subit']];
+        $ligneDeclenchement = ['texte' => "{$piege} se déclenche sur {$nom} !", 'ton' => 'subit'];
+
+        // Piège à lances (1 dé) / Chute de blocs (3 dés) : le jet était
+        // calculé, publié (`faces`/`touches`), et dessiné nulle part — cette
+        // méthode gère aussi bien le piège en action PRINCIPALE que celui
+        // IMBRIQUÉ (`declenchement`/`pieges_declenches`), donc les deux
+        // chemins récupèrent leurs dés ici, au même endroit.
+        if (($des = $this->desJetUnilateral($a, $nom)) !== null) {
+            $ligneDeclenchement['des'] = $des;
+        }
+
+        $lignes = [$ligneDeclenchement];
 
         if ($degats > 0) {
             $lignes[] = [

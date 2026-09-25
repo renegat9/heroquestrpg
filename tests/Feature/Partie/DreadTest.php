@@ -778,7 +778,12 @@ it('Résistance magique : +2 dés de défense vérifiés quand un héros lance B
     expect($reponse->json('resultat.des_resistance'))
         ->toHaveCount($desSort + MoteurDread::BONUS_RESISTANCE_MAGIQUE)
         // Aucun 5/6 figé : les 2 dégâts fixes passent entiers.
-        ->and($reponse->json('resultat.degats'))->toBe(2);
+        ->and($reponse->json('resultat.degats'))->toBe(2)
+        // … et la manette reçoit ces dés rouges DÉJÀ mis en forme (`des`) :
+        // elle ne lisait que `faces_attaque`, et restait muette sur le sort que
+        // le joueur venait de lancer lui-même (2026-09-24).
+        ->and($reponse->json('des.def'))->toBe($reponse->json('resultat.des_resistance'))
+        ->and($reponse->json('des.defensive'))->toBe([5, 6]);
 });
 
 it('Charge : le boss hors contact charge et attaque avec +1 dé', function () {

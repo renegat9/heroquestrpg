@@ -101,6 +101,10 @@ DEPENDANCES = {
                                'resources/js/components/table/OuvertureQuete.vue',
                                'resources/js/views/TableView.vue'],
     '22-table-donjon': CARTE + ['resources/js/views/TableView.vue'],
+    # Le BLOC DE PIERRE d'une Chute de blocs déclenchée (livret p. 14,
+    # 2026-09-24) : un obstacle peint par le socle de carte partagé, comme le
+    # mur de glace — même raison de dépendre de CARTE, pas d'une coque.
+    '23-table-bloc': CARTE + ['resources/js/views/TableView.vue', 'app/Partie/FabriqueGrille.php'],
     # ⚠ Le menu est COMPOSÉ par le moteur : une option ajoutée là périme
     # l'image sans qu'aucun fichier Vue ne bouge. C'est exactement ce qui est
     # arrivé à cette figure, dont la légende ÉNUMÉRAIT un menu devenu
@@ -156,6 +160,19 @@ DEPENDANCES = {
     '36-manette-deplacement-allegee': ['resources/js/components/manette/DeplacementSheet.vue',
                                        'app/Partie/Equipement.php',
                                        'app/Partie/MenuMoteur.php'],
+    # CHUTE DE BLOCS (livret p. 14, 2026-09-24) : la feuille « s'écarter »,
+    # MÊME composant que le déplacement ordinaire (`casesEcart`), et la
+    # DÉCISION qui la déclenche — `piege_a_ecarter` composé en menu forcé par
+    # `MenuMoteur::generer()`, routé par `ManetteView.vue`.
+    '37-manette-ecarter': ['resources/js/components/manette/DeplacementSheet.vue',
+                           'resources/js/views/ManetteView.vue',
+                           'app/Partie/MenuMoteur.php'] + SOCLE,
+    # Les dés de RÉSISTANCE se dessinent enfin (2026-09-24) : `JetDes.vue` sait
+    # désormais lire un jet UNILATÉRAL (dé rouge, Mind, piège), composé par
+    # `JournalCombat::desJetUnilateral()` et lu ici par `SceneDeTable`.
+    '78-scene-resistance': [SCENE, 'app/Partie/SceneDeTable.php',
+                            'app/Partie/JournalCombat.php',
+                            'resources/js/components/ui/JetDes.vue'],
 }
 
 

@@ -212,6 +212,12 @@ final class SceneDeTable
             'actionner_levier' => $this->levier($a, $acteur),
             'potion' => $this->potion($a, $acteur),
             'sort', 'parchemin' => $this->sort($a, $acteur),
+            // ⚠ `sort_dread` N'AVAIT AUCUN CAS ICI (retombait sur `default`) :
+            // le MJ lançait un sort de contrôle, le jet de Mind d'un héros
+            // décidait s'il résiste ou s'effondre sous *Sommeil*/*Terreur*, et
+            // la table ne montrait RIEN — le même défaut, le même correctif,
+            // que le fil de combat (`JournalCombat::sortDread()`).
+            'sort_dread' => $this->sortDread($a),
             default => null,
         };
     }
@@ -317,7 +323,11 @@ final class SceneDeTable
             'titre' => "{$nomPiege} !",
             'sous_titre' => $victime->nom.' vient de le déclencher',
             'acteurs' => [$this->acteurHeros($victime, 'acteur')],
-            'jet' => null,
+            // Piège à lances (1 dé) / Chute de blocs (3 dés) : le jet était
+            // calculé, publié, dessiné nulle part — même détection que le fil
+            // de combat, voir JournalCombat::desJetUnilateral(). `null` tant
+            // que le piège ne porte pas de `faces` (fosse : aucun dé).
+            'jet' => app(JournalCombat::class)->desJetUnilateral($a, $victime->nom),
             'deplacement' => null,
             'figure' => null,
             'objets' => [[
@@ -743,6 +753,81 @@ final class SceneDeTable
     }
 
     /**
+     * Sort de DREAD contre un ou plusieurs héros — un sort de contrôle
+     * (Sommeil, Terreur, Ralentissement, Commandement…) qui se joue au jet de
+     * Mind de la VICTIME, ou un sort de dégâts à dés rouges (Boule de Flammes
+     * du MJ). `sort_dread` n'avait ici aucun cas : la table ne montrait rien
+     * au moment où le sort frappait (René, 2026-09-24). Aucune illustration
+     * de catalogue n'existe pour les cartes de Dread (`SortDread` n'a pas de
+     * pipeline d'images, contrairement à `Sort`) : l'emblème générique du
+     * genre `sort` couvre la carte, comme le fait déjà le levier sans
+     * illustration propre.
+     *
+     * ⚠ Une scène, pas une par victime (même arbitrage que
+     * `attaqueBalayee()`) : la PREMIÈRE victime qui porte un dé décide de la
+     * scène — les autres restent dans le fil de combat, qui lui en garde une
+     * ligne chacune. Un sort SANS dé à montrer (Tempête, `resistance:
+     * aucune` ; une victime à Mind 0 immunisée ; un soin, une invocation…)
+     * rend `null` ici, exactement comme avant : cette scène ne DEVINE aucune
+     * narration, elle ne fait que dessiner un jet déjà décidé.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function sortDread(array $a): ?array
+    {
+        $nom = (string) ($a['sort'] ?? 'Un sort de Dread');
+        $resultats = array_values(array_filter((array) ($a['resultats'] ?? []), 'is_array'));
+
+        foreach ($resultats as $r) {
+            $cibleId = (int) ($r['cible']['personnage_id'] ?? 0);
+            $cibleNom = (string) ($r['cible']['nom'] ?? 'un héros');
+
+            // Point de passage UNIQUE avec le fil de combat : même détection,
+            // même face gagnante — voir JournalCombat::desJetUnilateral().
+            $jet = app(JournalCombat::class)->desJetUnilateral($r, $cibleNom);
+
+            if ($jet === null) {
+                continue; // rien à montrer pour cette victime : la suivante, ou aucune scène
+            }
+
+            $victime = $cibleId > 0 ? Personnage::find($cibleId) : null;
+
+            return [
+                'genre' => 'sort',
+                'titre' => $nom,
+                'sous_titre' => count($resultats) > 1
+                    ? "s'abat sur {$cibleNom} — ".count($resultats).' héros pris dans le sort'
+                    : "s'abat sur {$cibleNom}",
+                // ⚠ `cible`, jamais `defenseur` : le payload ne porte pas
+                // l'identité du lanceur (`MoteurDread::sortDreadControle()` ne
+                // publie ni `instance_id` ni nom de monstre au sommet), donc il
+                // n'y a qu'UN portrait ici — `defenseur` réveillerait le « vs »
+                // du duel (`SceneEvenement.vue`) en face de rien.
+                'acteurs' => $victime === null ? [] : [$this->acteurHeros($victime, 'cible')],
+                'jet' => $jet,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [[
+                    'nom' => $nom,
+                    'image_url' => $this->images->vignette('sort', $nom),
+                    'detail' => null,
+                ]],
+                'issue' => match (true) {
+                    ! empty($r['cible_tombee']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} s'effondre"],
+                    (int) ($r['degats'] ?? 0) > 0 => ['ton' => 'subit', 'libelle' => '−'.(int) $r['degats'].' PV'],
+                    array_key_exists('effet_applique', $r) => empty($r['effet_applique'])
+                        ? ['ton' => 'pare', 'libelle' => "{$cibleNom} résiste"]
+                        : ['ton' => 'subit', 'libelle' => "{$cibleNom} subit ".($a['condition'] ?? $nom)],
+                    default => ['ton' => 'info', 'libelle' => "{$nom} opère"],
+                },
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * Les figures atteintes par un sort de ZONE, chacune avec ce qu'elle a pris.
      *
      * Deux formes selon le sort : `touches` (monstres — Flamme hypnotique) et
@@ -1073,20 +1158,26 @@ final class SceneDeTable
         $atk = (array) ($a['faces_attaque'] ?? []);
         $def = (array) ($a['faces_defense'] ?? []);
 
-        if ($atk === [] && $def === []) {
-            return null; // dégâts fixes : aucun dé n'a été lancé, on n'en invente pas
+        if ($atk !== [] || $def !== []) {
+            return [
+                'atk' => array_values($atk),
+                'def' => array_values($def),
+                'touchante' => $a['face_touchante'] ?? 'crane',
+                'defensive' => $a['face_defensive'] ?? 'bouclier_blanc',
+                'attaquant' => $attaquant,
+                'defenseur' => $defenseur,
+                'touches' => (int) ($a['touches'] ?? 0),
+                'boucliers' => (int) ($a['boucliers'] ?? 0),
+            ];
         }
 
-        return [
-            'atk' => array_values($atk),
-            'def' => array_values($def),
-            'touchante' => $a['face_touchante'] ?? 'crane',
-            'defensive' => $a['face_defensive'] ?? 'bouclier_blanc',
-            'attaquant' => $attaquant,
-            'defenseur' => $defenseur,
-            'touches' => (int) ($a['touches'] ?? 0),
-            'boucliers' => (int) ($a['boucliers'] ?? 0),
-        ];
+        // Dé rouge de résistance (`des_resistance`/`des_rouges`) ou jet de
+        // Mind (`mind_cible` + `faces`) — SEULE la cible lance, contre un
+        // effet déjà décidé. Un sort à dégâts fixes sans l'un ni l'autre
+        // rend `null` : on n'invente pas un jet qui n'a pas eu lieu. Même
+        // détection que le fil de combat, un seul point de passage — voir
+        // JournalCombat::desJetUnilateral().
+        return app(JournalCombat::class)->desJetUnilateral($a, $defenseur);
     }
 
     /**

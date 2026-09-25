@@ -42,6 +42,14 @@ class EtatPersonnageQuete extends Model
         // Réaction hors tour proposée au joueur (Dark Wings, Twisting Torrent) :
         // {sort_id, nom, source, degats, expire_a}. Voir App\Partie\MoteurReactions.
         'reaction_en_attente',
+        // CHUTE DE BLOCS déclenchée sous ses pieds (livret p. 14, 2026-09-24) :
+        // {x, y, cases: [{x, y, sens}]} — le héros DOIT s'écarter (au plus deux
+        // cases, avancer/reculer) avant de pouvoir faire quoi que ce soit
+        // d'autre. En COLONNE et non en cache, même raison que
+        // `reaction_en_attente` juste au-dessus : un téléphone rechargé doit
+        // retrouver le choix en attente, pas perdre la seule option qui reste
+        // au héros. Voir App\Partie\MoteurPieges::declencher()/`MenuMoteur::generer()`.
+        'piege_a_ecarter',
         // Capacités « once per quest » déjà dépensées (liste de noms). Un
         // booléen par capacité aurait fait 24 colonnes.
         'capacites_utilisees',
@@ -114,6 +122,7 @@ class EtatPersonnageQuete extends Model
             'deplacement_restant' => 'integer',
             'detail_deplacement_tour' => 'array',
             'reaction_en_attente' => 'array',
+            'piege_a_ecarter' => 'array',
             'capacites_utilisees' => 'array',
             'capacites_tour' => 'array',
             'styles_epuises' => 'array',

@@ -18,6 +18,7 @@ use App\Models\Competence;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
+use App\Partie\EquipementDepart;
 use App\Partie\EtatGroupe;
 use App\Partie\MoteurReactions;
 use App\Partie\MoteurSorts;
@@ -349,64 +350,14 @@ class GroupeController extends Controller
     }
 
     /**
-     * Équipement de départ (parité HeroQuest). Les 3/2/2/1 dés d'attaque du
-     * doc 01 §4 ne sont PAS une force innée : ce sont les armes de départ du
-     * plateau. Elles sont donc données ici, et c'est l'arme qui fixe l'attaque
-     * (Equipement::recalculerCombat) — à mains nues, tout héros lance 1 dé.
-     *
-     * | Classe   | Arme de départ | Attaque résultante |
-     * |----------|----------------|--------------------|
-     * | Barbare  | Épée large     | 3                  |
-     * | Nain     | Épée courte    | 2 (+ trousse à outils) |
-     * | Elfe     | Épée courte    | 2                  |
-     * | Magicien | Dague          | 1                  |
-     *
-     * La trousse du Nain rend sa spécialité de désamorçage utilisable dès la
-     * première quête (elle porte `permet_desamorcage`).
+     * Donne et porte l'équipement de départ de la classe — la table vit dans
+     * `EquipementDepart`, qui sert aussi au guide et au livret.
      */
-    private const EQUIPEMENT_DEPART = [
-        'barbare' => ['Épée large'],
-        // Épée courte, comme l'elfe : « the shortsword is the starting weapon
-        // of the dwarf AND the elf » (LR p. 13, reference/16_armurerie.md §2).
-        // Le code donnait une Hachette — arme qui n'existe NULLE PART dans le
-        // matériel officiel (§10), et jetable, donc perdable définitivement —
-        // en contradiction avec le tableau du docblock juste au-dessus, qui
-        // annonçait déjà l'épée courte. Même attaque (2 dés), donc aucun
-        // rééquilibrage.
-        // ⚠ Plus de Trousse à outils depuis le 2026-08-22 : son dos de carte dit
-        // qu'il « désamorce les pièges SANS OUTILS ». La trousse ne lui servait
-        // plus à rien et lui mangeait une place de sac.
-        'nain' => ['Épée courte'],
-        'elfe' => ['Épée courte'],
-        'magicien' => ['Dague'],
-        // Les 8 classes d'extension : arme LUE SUR LA CARTE (« Starting
-        // Weapon »), reference/01_personnages.md §4bis.
-        'barde' => ['Dague'],
-        'druide' => ['Dague'],
-        'warlock' => ['Baguette'],
-        // Dos de carte : le Rogue « commence avec la bandoulière » (René,
-        // 2026-08-22). Elle porte `compte_comme_arme: Dague`, ce qui rend son
-        // Ambidextrie littérale dès le premier tour — sa seconde attaque exige
-        // une DAGUE, et c'est la bandoulière qui la lui donne sans occuper sa
-        // main gauche.
-        'rogue' => ['Dague', 'Bandoulière'],
-        // Le Moine n'a PAS d'arme de départ, et ce n'est pas un oubli : sa
-        // carte n'en donne aucune, ses mains nues SONT son arme (2 dés, contre
-        // 1 pour tout le monde).
-        'moine' => [],
-        // Seul héros du jeu à démarrer avec une ARMURE : sa carte porte
-        // « Starting Armor …… Shield », et deux de ses trois capacités exigent
-        // « Requires shield ».
-        'chevalier' => ['Épée courte', 'Bouclier'],
-        'berserker' => ['Épée large'],
-        'explorateur' => ['Hachette'],
-    ];
-
     private function equiperDepart(Personnage $personnage, string $classe): void
     {
         $equipement = app(Equipement::class);
 
-        foreach (self::EQUIPEMENT_DEPART[$classe] ?? [] as $nomObjet) {
+        foreach (EquipementDepart::PAR_CLASSE[$classe] ?? [] as $nomObjet) {
             $objet = Objet::where('nom', $nomObjet)->first();
 
             if ($objet === null) {

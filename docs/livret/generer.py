@@ -218,6 +218,7 @@ figure.scene figcaption{text-align:center}
 .cl .st{font-family:var(--ui);font-size:7.6pt;color:var(--encre-2);padding:0 2mm 2.2mm;
   display:flex;flex-wrap:wrap;gap:0 2.6mm}
 .cl .st b{color:var(--braise)}
+.cl .depart{font-family:var(--ui);font-size:7pt;font-style:italic;color:var(--encre-3);padding:0 2mm 2.2mm;margin-top:-1.4mm}
 
 .des{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;margin-bottom:4mm}
 .de{border:1px solid var(--trait);border-radius:3px;background:#fff;padding:3mm;text-align:center}
@@ -481,10 +482,12 @@ les valeurs de combat viennent de l'équipement.</strong></p>
 
 <div class="encadre avert">
   <h4>À mains nues, tout le monde lance un dé</h4>
-  <p>Les fiches ci-dessous donnent la <strong>base</strong> du héros. L'attaque vient de l'arme
-  équipée : un barbare tout nu frappe à 1 dé comme un magicien. C'est son épée large qui en
-  fait 3. De même, la défense vaut 2 pour tous, et casque, armure et bouclier
-  <strong>se cumulent</strong> par-dessus — jusqu'à 6 dés pour un héros complètement harnaché.</p>
+  <p>L'attaque vient de l'arme équipée : un barbare tout nu frappe à 1 dé comme un magicien.
+  C'est son épée large qui en fait 3. De même, la défense vaut 2 pour tous (3 pour le moine),
+  et casque, armure et bouclier <strong>se cumulent</strong> par-dessus — jusqu'à 6 dés pour
+  un héros complètement harnaché. Les fiches ci-dessous donnent l'attaque et la défense
+  <strong>avec l'équipement de départ</strong>, l'arme ou la pièce qui les produit nommée
+  dessous.</p>
 </div>
 ''')
 
@@ -495,13 +498,20 @@ for nom in ORDRE_CLASSES:
         continue
     src = img_classe(nom)
     titre, _ = LIB_CLASSE.get(nom, ('', ''))
+    # Décidé par le serveur (EquipementDepart::valeurs, via catalogue.sh) :
+    # jamais recalculé ici, sous peine de dériver du héros réellement créé.
+    dep = CAT.get('depart_classes', {}).get(nom) or {}
+    att = dep.get('des_attaque', c['des_attaque'])
+    dfs = dep.get('des_defense', c['des_defense'])
+    source = ' · '.join(filter(None, [dep.get('arme') or 'mains nues', *dep.get('pieces', [])]))
     ecrire(f'''<div class="cl">
       {'<img src="' + src + '" alt="">' if src else ''}
       <div class="nom">{nom.capitalize()}</div>
       <div class="race">{c['race']} · {titre}</div>
       <div class="st"><span>Body <b>{c['pv_body']}</b></span><span>Mind <b>{c['pv_mind']}</b></span>
         <span>att. B <b>{c['attr_body']}</b></span><span>att. M <b>{c['attr_mind']}</b></span>
-        <span>déf. <b>{c['des_defense']}</b></span><span>dépl. <b>{c['deplacement_base']}</b></span></div>
+        <span>attaque <b>{att}</b></span><span>déf. <b>{dfs}</b></span><span>dépl. <b>{c['deplacement_base']}</b></span></div>
+      <div class="depart">départ : {source}</div>
     </div>''')
 ecrire('</div>')
 
@@ -581,6 +591,19 @@ ecrire(fig('70-scene-attaque',
 ecrire(fig('71-scene-jet',
            "Un jet d'attribut dit toujours ce qu'il rapporte : deux succès sur les deux requis, la "
            "table vole en morceaux et laisse 45 pièces d'or au groupe.", 'fig scene'))
+ecrire('''
+<h3>Un jet peut n'avoir PERSONNE en face</h3>
+<p>Certains dés se lancent sans qu'un adversaire n'en jette en retour : une <strong>Boule de
+Feu</strong> ou un <strong>Trait de Feu</strong> fait lancer à la cible des <strong>dés rouges de
+résistance</strong> — un 5 ou un 6 annule un dégât, entouré de vert comme n'importe quel dé
+gagnant. Un sort du maître du jeu qui vise le <strong>Mind</strong> d'un héros (Sommeil,
+Terreur…) se joue pareil, côté défense seule ; le dé d'un piège de sol aussi. C'est toujours
+la <strong>cible</strong> qui lance : jamais une attaque contre rien.</p>
+''')
+ecrire(fig('78-scene-resistance',
+           "Boule de Feu : Sylvaine lance ses dés rouges de résistance. Deux 5-6 sur trois "
+           "annulent deux des trois dégâts du sort — même dé, même entourage vert que pour une "
+           "attaque, mais une seule volée : personne ne défend en face.", 'fig scene'))
 
 EPR = CAT['epreuves']
 ecrire('<h3>Les épreuves du donjon</h3>'
@@ -639,11 +662,11 @@ dé comme n'importe quel porteur de plates.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('35-manette-deplacement-plates',
-           "Grom en Armure de plates : le dé tombe (2), mais un ✕ le barre — « le dé ne "
+           "Grom en Armure de plates : le dé tombe (3), mais un ✕ le barre — « le dé ne "
            "compte pas ». Il n'avance que de sa base, 4 cases.", 'fig tel') +
        fig('36-manette-deplacement-allegee',
-           "Borin porte la même armure, forgée Allégée : le dé compte normalement — 3 + dé 2 "
-           "= 5 cases. Même pièce, même case d'armure ; seule la Forge change la règle.", 'fig tel') +
+           "Borin porte la même armure, forgée Allégée : le dé compte normalement — 3 + dé 1 "
+           "= 4 cases. Même pièce, même case d'armure ; seule la Forge change la règle.", 'fig tel') +
        '</div>')
 ecrire(fig('77-scene-deplacement',
            "La table le montre aussi, au moment où le tour commence : le dé rouge, rayé, et la "
@@ -1253,23 +1276,31 @@ fin()
 chapitre(12, 'Les pièges',
          "Cachés jusqu'à ce qu'on les cherche — ou qu'on marche dessus.")
 ecrire('''
-<p>Un piège est <strong>caché</strong> par défaut. L'action <strong>Fouiller</strong> révèle
-ceux de la zone ; le nain qui a pris le talent <em>Œil du mineur</em> détecte
-automatiquement ceux qui sont adjacents. Une fois détecté, on peut le
-<strong>désamorcer</strong>, le <strong>franchir</strong>, ou l'ignorer à ses risques.</p>
+<p>Un piège est <strong>caché</strong> par défaut, et il en existe <strong>trois sur le
+sol</strong> — la Fosse, le Piège à lances et la Chute de blocs — tirés au hasard à chaque
+pose, jamais toujours le même. L'action <strong>Fouiller</strong> révèle ceux de la zone ; le
+nain qui a pris le talent <em>Œil du mineur</em> détecte automatiquement ceux qui sont
+adjacents. Une fois détecté, on peut le <strong>désamorcer</strong>, <strong>franchir</strong>
+une Fosse, ou l'ignorer à ses risques.</p>
 <p>Désamorcer demande un <strong>jet de Body</strong>, ou une <strong>trousse à outils</strong>.
 Mais le <strong>nain</strong> et l'<strong>explorateur</strong> désamorcent
 <strong>sans outils</strong>, et par une résolution qui leur est propre : un seul dé, et seul un
 <strong>bouclier noir</strong> les fait échouer. Ce n'est pas un bonus, c'est leur métier.</p>
+<div class="encadre avert">
+  <h4>Un piège de sol qui se déclenche finit le tour, net</h4>
+  <p>Marcher sur l'un des trois — sans exception — met fin sur le coup au tour du héros : il
+  ne garde ni le reste de son déplacement, ni son action. Ce n'est pas une immobilisation
+  passagère, c'est la fin du tour.</p>
+</div>
 ''')
 ecrire(fig('76-scene-piege',
            "Un piège déclenché : le héros, le piège, et ce qu'il coûte. La fosse retire un point de "
            "Body et immobilise celui qui y tombe.", 'fig scene'))
 PIE = CAT['pieges']
 EFFET_PIEGE = {
- 'Fosse': "1 dégât et <strong>immobilise</strong> ; franchissable d'un jet de Body (difficulté 2) une fois détectée",
- 'Piège à lances': "1 dégât au déclenchement",
- 'Chute de blocs': "1 dégât et <strong>bloque le passage</strong>",
+ 'Fosse': "1 dégât ; franchissable d'un jet de Body (difficulté 2) une fois détectée. La tuile reste en place.",
+ 'Piège à lances': "1 dé de combat — un crâne = 1 dégât, sans défense possible. Détruit au déclenchement : il n'y a pas de tuile pour lui.",
+ 'Chute de blocs': "3 dés de combat, sans défense, 1 dégât par crâne. La case devient un <strong>bloc de pierre permanent</strong> qui bloque le passage et la vue.",
  'Piège de coffre': "à l'ouverture : 1 dégât <em>ou</em> empoisonnement",
  'Aiguille empoisonnée': "à l'ouverture : 1 dégât <em>ou</em> empoisonnement",
  'Fiole de poison': "à l'ouverture : <strong>empoisonné</strong>",
@@ -1282,6 +1313,25 @@ for p_ in PIE:
            f'<td class="nom">{e(p_["nom"])}</td><td class="n">{e(p_["desarmable"])}</td>'
            f'<td class="n">{e(p_["usage"])}</td><td>{EFFET_PIEGE.get(p_["nom"], "—")}</td></tr>')
 ecrire('</tbody></table>')
+ecrire('''
+<div class="encadre">
+  <h4>Le bloc de pierre reste, et il faut s'en écarter</h4>
+  <p>La Chute de blocs ne se relève pas : sa case devient un <strong>bloc de pierre
+  permanent</strong>, qui bloque le passage comme un mur — et la vue avec lui, exactement
+  comme un mur. Le héros qui vient de le faire tomber n'a alors qu'un choix : <strong>reculer</strong>
+  à la case d'où il venait, ou <strong>avancer</strong> d'une case de plus si elle est libre.
+  Avancer peut l'isoler du reste du groupe le temps d'un tour — la manette le prévient avant
+  qu'il ne confirme, elle ne l'en empêche pas.</p>
+</div>
+''')
+ecrire(fig('23-table-bloc',
+           "Le bloc de pierre d'une Chute de blocs, sur l'écran de table : un obstacle plein, "
+           "gris pierre, jamais le trou noir d'une fosse — il bloque le passage et la vue "
+           "comme un mur.", 'fig scene'))
+ecrire(fig('37-manette-ecarter',
+           "La seule option qui reste au héros debout sur le bloc : s'écarter, en avant ou en "
+           "arrière, au plus deux cases. Avancer peut l'isoler du groupe — la manette le dit "
+           "avant qu'il ne confirme."))
 ecrire('''
 <div class="encadre">
   <h4>Les conditions que l'on peut ramasser</h4>
@@ -1698,6 +1748,7 @@ figure.scene figcaption{text-align:center}
 .cl .st{font-family:var(--ui);font-size:12px;color:var(--ink-300);padding:0 12px 12px;
   display:flex;flex-wrap:wrap;gap:2px 12px}
 .cl .st b{color:var(--torch)}
+.cl .depart{font-family:var(--ui);font-size:11px;font-style:italic;color:var(--ink-500);padding:0 12px 12px;margin-top:-8px}
 
 .des{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .de{border:var(--line);border-radius:10px;background:var(--stone-900);padding:16px;text-align:center}

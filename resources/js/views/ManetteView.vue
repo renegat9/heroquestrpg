@@ -583,7 +583,11 @@ function choisirOption(choix) {
 
     // Déplacement : ouvre la mini-carte tappable (l'allonce du tour, dé déjà
     // lancé côté serveur, est dans l'option) → le joueur choisit sa case.
-    if (option.type === 'deplacement' && monEntite.value) {
+    //
+    // CHUTE DE BLOCS (livret p. 14) : MÊME feuille — `s_ecarter_du_bloc` ne
+    // porte ni allonce ni dé, juste `parametres.cases` (au plus deux, déjà
+    // décidées par le serveur) — voir `DeplacementSheet.casesEcart`.
+    if ((option.type === 'deplacement' || option.type === 's_ecarter_du_bloc') && monEntite.value) {
         empiler({ option, mode: 'deplacement', retour: 'Retour aux actions' });
         return;
     }
@@ -750,7 +754,7 @@ async function envoyerOption(option, parametres) {
     store.choixEnvoye(); // optimiste : gelés jusqu'à mon prochain menu / fin de tour
     try {
         const rep = await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
-        revelerDesResultat(rep?.resultat); // affiche le jet quelques secondes (#dés)
+        revelerDesResultat(rep?.resultat, rep?.des); // affiche le jet quelques secondes (#dés)
     } catch (e) {
         store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
         store.setNarration(e.message);
@@ -763,11 +767,19 @@ async function envoyerOption(option, parametres) {
    jour les PV — trop rapide, le joueur ne perçoit pas le lancer). ---- */
 const desReveles = ref(null);
 let timerDes = null;
-function revelerDesResultat(r) {
+function revelerDesResultat(r, desUnilateral = null) {
     if (!r) return;
     const atk = Array.isArray(r.faces_attaque) ? r.faces_attaque : [];
     const def = Array.isArray(r.faces_defense) ? r.faces_defense : [];
-    if (atk.length === 0 && def.length === 0) return; // aucun dé lancé (dégâts fixes)
+    if (atk.length === 0 && def.length === 0) {
+        // Jet unilatéral (résistance, Mind, piège) : le serveur l'envoie déjà
+        // mis en forme (`des`), faces gagnantes décidées — on l'affiche tel quel.
+        if (!desUnilateral) return; // aucun dé lancé (dégâts fixes)
+        desReveles.value = { ...desUnilateral, degats: r.degats ?? 0, cible: r.cible?.nom ?? r.cible_nom ?? null };
+        if (timerDes) clearTimeout(timerDes);
+        timerDes = setTimeout(() => { desReveles.value = null; }, 4200);
+        return;
+    }
 
     // ⚠ On transmet les faces BRUTES du moteur, pas une traduction. L'ancienne
     // version repliait `bouclier_blanc` ET `bouclier_noir` sur une même icône
@@ -1356,6 +1368,9 @@ const navItems = computed(() => (scene.value === 'marche'
                         :de-annule-par="feuilleOption.option.parametres?.de_annule_par ?? null"
                         :franchit-figures="monEntite?.franchit_figures === true"
                         :groupe="groupe"
+                        :cases-ecart="feuilleOption.option.type === 's_ecarter_du_bloc'
+                            ? (feuilleOption.option.parametres?.cases ?? [])
+                            : null"
                         @deplacer="deplacerVers"
                         @close="retourFeuille"
                     />

@@ -992,7 +992,7 @@ final class Equipement
             ->get();
 
         foreach ($portes as $ligne) {
-            $defense += (int) (($ligne->objet?->effet ?? [])['des_defense'] ?? 0);
+            $defense += self::defenseDeLaPiece((array) ($ligne->objet?->effet ?? []));
 
             foreach ((array) ($ligne->ameliorations ?? []) as $amelioration) {
                 $defense += (int) ($amelioration['effet']['bonus_des_defense'] ?? 0);
@@ -1028,9 +1028,7 @@ final class Equipement
         // L'ARME REMPLACE les dés de classe (l'arme fait l'attaque, doc 03 §8) ;
         // le bonus d'un nœud permanent, lui, s'AJOUTE — c'est le héros qui
         // frappe mieux, pas l'arme qui coupe plus.
-        if (isset($effet['des_attaque'])) {
-            $attaque = (int) $effet['des_attaque'];
-        }
+        $attaque = self::attaqueDeLArme($attaque, $effet);
 
         $attaque += $this->bonusPermanent($personnage, 'bonus_des_attaque');
 
@@ -1046,6 +1044,31 @@ final class Equipement
         }
 
         return max(0, $attaque);
+    }
+
+    /**
+     * L'ARME REMPLACE les dés de classe, elle ne s'y ajoute pas — la règle
+     * nue, sans héros ni base de données. Extraite pour que le guide et le
+     * livret annoncent l'attaque de départ d'une classe (`EquipementDepart`)
+     * par LA MÊME formule que celle qui équipe le héros créé : une copie en
+     * PHP ou en JS aurait dérivé le jour où la règle bouge.
+     *
+     * @param  array<string, mixed>  $effetArme  `[]` = à mains nues
+     */
+    public static function attaqueDeLArme(int $desDeClasse, array $effetArme): int
+    {
+        return isset($effetArme['des_attaque']) ? (int) $effetArme['des_attaque'] : $desDeClasse;
+    }
+
+    /**
+     * Les dés de défense qu'une pièce portée AJOUTE à la base — même raison
+     * d'être que `attaqueDeLArme()`.
+     *
+     * @param  array<string, mixed>  $effet
+     */
+    public static function defenseDeLaPiece(array $effet): int
+    {
+        return (int) ($effet['des_defense'] ?? 0);
     }
 
     /**

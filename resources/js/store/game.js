@@ -535,11 +535,22 @@ export function entitesVersFigurines(entites, initiative) {
         }));
 }
 
-/** Libellés des états de piège visibles (les cachés n'arrivent jamais). */
+/** Libellés des états de piège visibles (les cachés n'arrivent jamais).
+ *
+ *  ⚠ `bloc` (Chute de blocs déclenchée, livret p. 14, 2026-09-24) MANQUAIT ici
+ *  et se faisait donc SILENCIEUSEMENT ÉCARTER par `piegesVersMarqueurs()`
+ *  ci-dessous (« un état inconnu est ignoré ») : le bloc de pierre posé sur la
+ *  carte, bloquant déjà le passage et la vue côté moteur
+ *  (`FabriqueGrille::pour()`), restait invisible sur l'écran de table — un
+ *  obstacle qui n'existe pas à l'œil, trouvé en écran (capture
+ *  `table-bloc.png`) plutôt que par un test HTTP, qui ne passe jamais par ce
+ *  filtre côté SPA. Même défaut, même famille que les leviers et le mur de
+ *  glace publiés sans lecteur de rendu. */
 export const PIEGE_ETATS = {
     detecte: 'détecté',
     desarme: 'désarmé',
     declenche: 'déclenché',
+    bloc: 'bloc de pierre',
 };
 
 /** carte.pieges (contrat « Pièges ») → marqueurs [{x, y, etat, nom, titre}]

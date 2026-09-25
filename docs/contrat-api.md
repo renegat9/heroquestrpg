@@ -15,7 +15,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | Méthode | Route | Corps | Réponse |
 |---|---|---|---|
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
-| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes, competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
+| GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
 | GET | /api/moi | — | {joueur, personnages: [...]} |
 | POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |
@@ -122,7 +122,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
-| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes) |
+| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes). ⚠ **Depuis le 2026-09-24, un jet peut être UNILATÉRAL** — un dé rouge de résistance, un jet de Mind, un piège de sol : SEULE la cible (ou le piège) lance, `atk`/`def` ne porte alors qu'UNE volée. `touchante`/`defensive` valent soit une face unique (`'crane'` — Mind, piège), soit un **ENSEMBLE** de faces gagnantes (`[5, 6]` — dé rouge, chaque 5 OU 6 compte) : le client compare une face à cet ensemble, il ne choisit jamais lequel gagne. Deux champs optionnels, `libelle_atk`/`libelle_def` (défaut `attaque`/`défend`), renomment le verbe de la ligne quand ce n'est pas une attaque (`résiste`) — décidés par le même formateur, jamais par le composant de dés. Point de passage unique des trois formes : `JournalCombat::desJetUnilateral()`, lu aussi par `SceneDeTable` pour `.table.scene` |
 | `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
@@ -282,6 +282,21 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
 le reste — une voie, une validation, un journal. Conséquence assumée : on ne
 boit plus hors de son tour, ni au hub. Le cas d'urgence reste couvert par
 `MoteurReactions`, qui propose les potions du sac quand un héros tombe.
+
+**Les dés de RÉSISTANCE se dessinent (2026-09-24).** ⚠ Ils étaient calculés,
+publiés, et **dessinés nulle part** (René : « pour les sorts d'attaque avec un
+lancer de dés pour résister, on ne voit pas le lancer de dé »). Deux payloads
+muets :
+- sort de héros à `resistance: des_rouges` (*Boule de Feu*, *Trait de Feu*) : la
+  cible lance des dés rouges, publiés en `des_resistance` — que seul le
+  compendium mentionnait, en texte ;
+- sort du MJ contre un héros : le jet de Mind du héros, publié en `faces` (+
+  `mind_cible`, `issue`) — que le fil ne lisait QUE pour briser une condition
+  après coup, en texte brut (« · crane, bouclier_blanc »).
+Le fil du combat et la scène de table les dessinent désormais **comme les dés
+d'une attaque** (même composant de dés, même ton), avec le nom de celui qui
+résiste. ⚠ **Aucun payload ne change** : les faces y étaient déjà. C'est un
+défaut de RENDU — « un payload muet est le même défaut qu'aucun payload ».
 
 **Ciblage en deux temps.** Une option qui vise (`attaque`, `sort`, parchemin)
 n'en désigne **pas** la cible : elle joint les cibles légales dans
@@ -478,6 +493,13 @@ puisqu'un dé n'est un succès que relativement à qui le lance. La manette s'en
 sert pour entourer les dés gagnants en vert (`JetDes.vue`), et les mêmes
 valeurs repartent sous `des` dans `.combat.journal`.
 
+La réponse `202` de `POST /groupes/{id}/choix` porte, à côté de `resultat`, une
+clé **`des`** (2026-09-24) : le jet **unilatéral** de l'action (dés rouges de
+résistance, jet de Mind, dés d'un piège), déjà mis en forme par
+`JournalCombat::desJetUnilateral()` — exactement la forme `des` du fil, faces
+gagnantes décidées. `null` quand l'action n'en a pas. Sans elle, la manette
+restait muette sur la Boule de Feu que le joueur venait de lancer lui-même.
+
 ## Réactions hors tour
 
 `POST /api/groupes/{identifiant}/reaction` — `{personnage_id, accepte}` →
@@ -611,15 +633,65 @@ Broadcasts canal `groupe.{identifiant}` : `.vote.lance` ({vote}), `.vote.maj`
 
 ## Pièges (doc 10 — tout passe par les menus, pas de nouvel endpoint)
 
+### Les trois pièges de sol, enfin tels que le livret les décrit (2026-09-24)
+
+⚠ **Constat qui a motivé cette section** (René : « je semble toujours avoir des
+trous ») : `AssembleurCarte::placerPieges()` posait **le premier piège du
+catalogue pour CHAQUE piège** — `Piege::orderBy('id')->value('id')`, soit la
+Fosse. Mesuré sur toutes les cartes en base : 6 pièges, 6 fosses. La Chute de
+blocs et le Piège à lances n'étaient **jamais** placés. Et même posée, la Chute
+de blocs n'aurait rien bloqué : `bloque_passage` n'avait **aucun lecteur**.
+
+**Tirage** : chaque piège posé tire son type parmi les pièges **de sol** du
+catalogue (jamais un piège de coffre/meuble, dont le déclencheur est
+`ouverture_tresor`), par le PRNG déterministe de l'assemblage.
+
+**Valeurs sourcées** — livret de Zargon **p. 14** (photo de René, 2026-09-24,
+« Pit / Spear / Falling Block Traps »), recoupé par `reference/16_armurerie.md`
+§716 et `reference/17_mobilier.md` §121. Le catalogue les avait aplaties à
+« 1 PV » :
+
+| Piège | Déclenchement | Après |
+|---|---|---|
+| Fosse | 1 PV de Body | la tuile reste ; **le tour du héros se termine** |
+| Piège à lances | **1 dé de combat** : un crâne = 1 PV de Body | pas de tuile (*« there are no spear trap tiles »*) → **détruit** ; **le tour se termine** |
+| Chute de blocs | **3 dés de combat**, 1 PV par crâne, **aucune défense** | la case devient un **BLOC PERMANENT** ; le héros avance ou recule ; **le tour se termine** |
+
+⚠ **« Their turn immediately ends »** figure sous les TROIS pièges : le héros
+qui déclenche un piège ne garde **ni son déplacement restant ni son action**.
+
+Le payload d'un déclenchement (`declenchement`, `pieges_declenches[]`) porte les
+faces du jet quand il y en a un : `faces: [str]` (faces de dé de combat) et
+`touches` (crânes comptés). ⚠ C'est ce qui permet au fil et à la scène de table
+de DESSINER les dés du piège, comme ceux d'une attaque.
+
+**Le bloc tombé** (René, 2026-09-24) :
+- il bloque le **passage** (sourcé : « *the trap space is now a permanent block
+  in the game* ») **et la VUE**, comme un mur — lu par la boucle unique de
+  `FabriqueGrille::pour()`, jamais par une seconde ;
+- il est publié dans `EtatGroupe.carte` pour que la table et la manette le
+  dessinent comme un bloc de pierre, **pas** comme un trou ;
+- ⚠ **Le héros sur la case CHOISIT : avancer ou reculer** (René ; livret p. 14 :
+  *« the hero then decides to move ahead or move back to an empty square »*).
+  **Au plus deux cases** : **reculer** = la case d'où il venait (libre par
+  construction, donc la liste n'est jamais vide) ; **avancer** = la case suivante
+  dans le sens de sa marche, si elle est vide et praticable. Tant qu'il n'a pas
+  choisi, son menu ne contient QUE l'option `s_ecarter_du_bloc`, qui porte
+  `parametres.cases: [{x, y, sens: "avancer"|"reculer"}]` — la **liste blanche**
+  que le résolveur revalide. Corps : `{option_id: "s_ecarter_du_bloc",
+  parametres: {x, y}}`. L'état « doit s'écarter » vit en **colonne** (jamais en
+  cache : un téléphone rechargé doit retrouver le choix en attente). Une fois le
+  choix fait, **son tour se termine** (livret) — le livret ajoute que choisir
+  d'avancer peut l'isoler à jamais du groupe : la manette l'annonce.
+
 Cycle : **caché** (placé à l'assemblage) → **détecté** (action Fouiller réussie
 sur la zone ; auto pour un héros adjacent possédant le nœud *Œil du mineur*) →
 **désamorcé** / **franchi** / **déclenché**. L'état des pièges vit dans la carte
 de la quête.
 
 - **Déclenchement** : un héros qui entre sur la case d'un piège **caché**
-  (déplacement traversant inclus) le déclenche : effet immédiat (−1 PV Body de
-  départ, doc 10 §6), `fosse` = immobilisé (le déplacement s'arrête sur la
-  case), `piege_a_lances`/`chute_de_blocs` à usage unique. Journal + narration.
+  (déplacement traversant inclus) le déclenche : effet du tableau ci-dessus, puis **fin du tour** du héros (livret p. 14) ;
+  `piege_a_lances`/`chute_de_blocs` à usage unique. Journal + narration.
 - **Désamorcer** (option de menu si adjacent à un piège détecté) : jet de Body
   difficulté 1, réservé au Nain OU à un porteur de la Trousse à outils ; échec
   → le piège se déclenche sur le désamorceur (choix MVP, question ouverte n°3).

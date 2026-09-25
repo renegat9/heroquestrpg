@@ -253,6 +253,22 @@ final class FabriqueGrille
             $obstacles[] = ['x' => (int) $cellule['x'], 'y' => (int) $cellule['y']];
         }
 
+        // CHUTE DE BLOCS DÉCLENCHÉE (contrat « Les trois pièges de sol »,
+        // 2026-09-24 — livret p. 14 : « the trap space is now a permanent
+        // block in the game »). Boucle DÉDIÉE, dans CETTE MÊME méthode —
+        // jamais ailleurs, même raison que le mobilier/le terrain/le mur de
+        // glace ci-dessus : deux points de lecture feraient diverger
+        // déplacement, ciblage et ligne de vue. Bloque le mouvement ET LA VUE
+        // — René, 2026-09-24 : « comme un mur » — donc `$obstacles` ET
+        // `$opaques`, jamais `$occupees` : ce n'est pas une figure.
+        foreach ((array) ($carte->grille['pieges'] ?? []) as $entree) {
+            if (($entree['etat'] ?? null) === MoteurPieges::ETAT_BLOC) {
+                $case = ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+                $obstacles[] = $case;
+                $opaques[] = $case;
+            }
+        }
+
         $grille->occuper($occupees);
         $grille->occuperAllie($alliees);
         $grille->obstruer($obstacles);

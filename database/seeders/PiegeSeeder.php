@@ -6,8 +6,19 @@ use App\Models\Piege;
 use Illuminate\Database\Seeder;
 
 /**
- * Les 4 pièges de base HeroQuest (doc 10 §6).
- * Dégâts : 1 PV de Body partout (question ouverte n°1 — valeur de départ).
+ * Les pièges de HeroQuest (doc 10 §6).
+ *
+ * Les TROIS pièges DE SOL (Fosse, Piège à lances, Chute de blocs) sont
+ * sourcés livret de Zargon p. 14 (contrat « Les trois pièges de sol, enfin
+ * tels que le livret les décrit », 2026-09-24), recoupé par
+ * `reference/16_armurerie.md` §716 et `reference/17_mobilier.md` §121 — voir
+ * la migration `valeurs_pieges_de_sol` pour la ligne EXISTANTE du catalogue,
+ * que cette entrée `updateOrCreate` tient alignée pour une base fraîche.
+ *
+ * `des_combat` (lu par `MoteurPieges::declencher()`) : nombre de dés de
+ * combat lancés, un crâne = 1 PV de Body, sans jet de défense — le piège
+ * n'en a jamais lancé un. `bloc_permanent` (Chute de blocs) fait de la case
+ * un obstacle qui bloque passage ET vue, à jamais (`FabriqueGrille::pour()`).
  */
 class PiegeSeeder extends Seeder
 {
@@ -17,13 +28,12 @@ class PiegeSeeder extends Seeder
             ['nom' => 'Fosse', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant',
                 'effet' => [
                     'degats_pv_body' => 1,
-                    'condition_appliquee' => 'Immobilisé', // perd son déplacement
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                 ]],
             ['nom' => 'Piège à lances', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
-                'effet' => ['degats_pv_body' => 1]],
+                'effet' => ['des_combat' => 1]],
             ['nom' => 'Chute de blocs', 'detectable' => true, 'desarmable' => 'partiel', 'usage' => 'unique',
-                'effet' => ['degats_pv_body' => 1, 'bloque_passage' => true]],
+                'effet' => ['des_combat' => 3, 'bloc_permanent' => true]],
             // Deux pièges de MEUBLE (décision de René, 2026-08-17) : le tombeau
             // et l'établi de l'alchimiste peuvent mordre la main qui les fouille.
             //

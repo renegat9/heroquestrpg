@@ -261,8 +261,18 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <span class="stat" title="PV de Mind"><MSym n="psychology" fill :size="15" class="c-mind" /> {{ c.pv_mind }} <em>Mind</em></span>
                         <span class="stat" title="Attribut Body"><MSym n="fitness_center" :size="15" /> {{ c.attr_body }} <em>attr. Body</em></span>
                         <span class="stat" title="Attribut Mind"><MSym n="neurology" :size="15" /> {{ c.attr_mind }} <em>attr. Mind</em></span>
-                        <span class="stat" title="Dés d'attaque"><MSym n="swords" :size="15" class="c-atk" /> {{ c.des_attaque }} <em>attaque</em></span>
-                        <span class="stat" title="Dés de défense"><MSym n="shield" :size="15" class="c-def" /> {{ c.des_defense }} <em>défense</em></span>
+                        <!-- Attaque et défense AVEC l'équipement de départ, telles que
+                             le serveur les décide (`depart`) : la base nue d'avant
+                             montrait un barbare à 1 dé alors que son épée large en
+                             lance 3 dès la création. La base reste dans l'infobulle. -->
+                        <span class="stat" :title="`Dés d'attaque avec ${c.depart?.arme ?? 'les mains nues'} — ${c.des_attaque} à mains nues`">
+                            <MSym n="swords" :size="15" class="c-atk" /> {{ c.depart?.des_attaque ?? c.des_attaque }} <em>attaque</em>
+                            <span v-if="c.depart" class="guide-stat-source">{{ c.depart.arme ?? 'mains nues' }}</span>
+                        </span>
+                        <span class="stat" :title="`Dés de défense${c.depart?.pieces?.length ? ' avec ' + c.depart.pieces.join(', ') : ''} — base ${c.des_defense}`">
+                            <MSym n="shield" :size="15" class="c-def" /> {{ c.depart?.des_defense ?? c.des_defense }} <em>défense</em>
+                            <span v-if="c.depart?.pieces?.length" class="guide-stat-source">{{ c.depart.pieces.join(', ') }}</span>
+                        </span>
                         <span class="stat" :title="detailDeplacement(c)"><MSym n="directions_walk" :size="15" /> {{ c.deplacement_base }} <em>dépl.</em></span>
                         <span v-if="c.bonus_sac" class="stat" title="Bonus de sac"><MSym n="backpack" :size="15" /> +{{ c.bonus_sac }} <em>sac</em></span>
                     </div>
@@ -635,6 +645,7 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
 .stat { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 9px; background: var(--stone-800);
   border: 1px solid var(--stone-700); font-size: 13.5px; font-weight: 800; color: var(--parch-100); }
 .stat em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--ink-500); }
+.guide-stat-source { font-size: 11px; font-weight: 600; color: var(--ink-400); padding-left: 5px; border-left: 1px solid var(--stone-600); }
 .stat-row.sm .stat { padding: 4px 8px; font-size: 12.5px; }
 .c-body { color: var(--body-bright, oklch(0.7 0.17 25)); }
 .c-mind { color: var(--mind-bright, oklch(0.72 0.13 270)); }

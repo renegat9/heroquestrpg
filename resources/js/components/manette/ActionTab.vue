@@ -66,6 +66,11 @@ const ICONE_TYPE = {
     retraite: 'directions_run',
     desamorcer: 'handyman',
     franchir: 'sprint',
+    // CHUTE DE BLOCS (livret p. 14, 2026-09-24) : le seul choix qui reste au
+    // héros debout sur le bloc — même glyphe que le bloc lui-même sur la carte
+    // (`BLOC_ICONE` dans symboles.js), pour qu'un joueur qui vient de VOIR le
+    // bloc tombé reconnaisse l'action qui en parle.
+    s_ecarter_du_bloc: 'square',
     sort: 'auto_awesome',
     parchemin: 'description',
     // Ajoutés le 2026-09-01 : sans entrée ici, ils tombaient sur `touch_app`.

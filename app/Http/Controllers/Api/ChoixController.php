@@ -246,7 +246,39 @@ class ChoixController extends Controller
 
         // 202 : le moteur a résolu, l'état et la narration arrivent par Reverb.
         // Le résultat moteur est renvoyé en echo (affichage immédiat des dés).
-        return response()->json(['resultat' => $resultat], 202);
+        // `des` (2026-09-24) : un jet UNILATÉRAL (dés rouges d'une Boule de
+        // Feu, jet de Mind d'une Berceuse, dés d'un piège) déjà mis en forme
+        // par `JournalCombat` — la manette ne lisait que `faces_attaque` /
+        // `faces_defense` et restait muette sur le sort que le joueur venait
+        // de lancer lui-même. Même formateur que le fil et la table.
+        return response()->json([
+            'resultat' => $resultat,
+            'des' => is_array($resultat) ? $this->desUnilateraux($resultat) : null,
+        ], 202);
+    }
+
+    /**
+     * Le jet unilatéral de l'action, au sommet du résultat (sort) OU niché
+     * dans le piège que le héros a déclenché en marchant (`declenchement`,
+     * `pieges_declenches[]`, forme du contrat). Sans cette seconde lecture, la
+     * Chute de blocs lançait ses trois dés et la manette n'en montrait aucun
+     * (constaté en live, 2026-09-25).
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return array<string, mixed>|null
+     */
+    private function desUnilateraux(array $resultat): ?array
+    {
+        $journal = app(JournalCombat::class);
+        $nom = isset($resultat['personnage']['nom']) ? (string) $resultat['personnage']['nom'] : null;
+
+        foreach ([$resultat, $resultat['declenchement'] ?? null, ...array_values((array) ($resultat['pieges_declenches'] ?? []))] as $source) {
+            if (is_array($source) && ($des = $journal->desJetUnilateral($source, $source === $resultat ? null : $nom)) !== null) {
+                return $des;
+            }
+        }
+
+        return null;
     }
 
     /**

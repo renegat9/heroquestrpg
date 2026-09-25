@@ -1336,8 +1336,9 @@ final class AssembleurCarte
 
     /**
      * Pièges du gabarit (structure.pieges.min), un par couloir (arête), posé
-     * au milieu de son creusement — le premier piège du catalogue sert de
-     * bloc d'effet (l'IA habillera).
+     * au milieu de son creusement — le TYPE de chaque piège est tiré au
+     * hasard parmi les pièges DE SOL du catalogue par le PRNG déterministe de
+     * l'assemblage (l'IA n'habille que le nom/la description, jamais l'effet).
      *
      * Cycle de vie (doc 10 §2) : chaque piège démarre `cache`, puis passe à
      * `detecte` (fouille / Œil du mineur), `desarme`, ou `declenche` — l'état
@@ -1415,14 +1416,35 @@ final class AssembleurCarte
         $max = max($min, (int) data_get($structure, 'pieges.max', $min));
         $nbPieges = min($min + ($max > $min ? $prng->suivant() % ($max - $min + 1) : 0), count($candidats));
 
-        $piegeId = Piege::query()->orderBy('id')->value('id');
+        // ⚠ TIRAGE, pas un id fixe (René, 2026-09-24 : « je semble toujours
+        // avoir des trous ») — `Piege::orderBy('id')->value('id')` posait LE
+        // PREMIER piège du catalogue pour chaque case tirée, soit la Fosse :
+        // mesuré sur toutes les cartes en base, 6 pièges posés, 6 fosses. La
+        // Chute de blocs et le Piège à lances n'étaient donc JAMAIS placés,
+        // quel que soit le gabarit de quête.
+        //
+        // Pièges DE SOL uniquement — jamais un piège de coffre/meuble
+        // (`effet.declencheur === 'ouverture_tresor'`, doc 10 §5) : celui-là
+        // se tire à la fouille du trésor (`MoteurPieges::declencherEphemere()`),
+        // pas à l'assemblage de la carte.
+        $piegesSol = Piege::query()
+            ->orderBy('id')
+            ->get()
+            ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
+            ->values();
+
+        if ($piegesSol->isEmpty()) {
+            return [];
+        }
 
         $pieges = [];
         for ($i = 0; $i < $nbPieges; $i++) {
+            $piege = $piegesSol[$prng->suivant() % $piegesSol->count()];
+
             $pieges[] = [
                 'x' => $candidats[$i]['x'],
                 'y' => $candidats[$i]['y'],
-                'piege_id' => $piegeId,
+                'piege_id' => $piege->id,
                 'etat' => 'cache',
             ];
         }

@@ -1055,6 +1055,33 @@ final class MenuMoteur
             $this->sorts->rythmerBuffsDeVue($quete, $etat);
         }
 
+        // CHUTE DE BLOCS (livret p. 14, 2026-09-24) : « the hero then decides
+        // to move ahead or move back to an empty square ». Tant que ce choix
+        // n'est pas fait, RIEN D'AUTRE n'est proposé — ni se déplacer (le
+        // reste de l'allonce est déjà perdu), ni agir : ce court-circuite
+        // TOUTE la suite de la méthode, exactement comme le hub plus haut.
+        // `piege_a_ecarter` vit en COLONNE (`ResolveurTour::resoudreEcartDuBloc()`
+        // l'efface), jamais en cache : un téléphone rechargé au mauvais
+        // moment doit retrouver le choix en attente, pas une carte muette.
+        if ($etat !== null && $etat->piege_a_ecarter !== null) {
+            $attente = (array) $etat->piege_a_ecarter;
+
+            return [
+                'situation' => 'Le bloc de pierre s\'est refermé sur vous : vous devez vous écarter avant de poursuivre.',
+                'options' => $this->avecCreneaux([[
+                    'id' => 's_ecarter_du_bloc',
+                    'libelle' => 'S\'écarter du bloc de pierre',
+                    'type' => 's_ecarter_du_bloc',
+                    'parametres' => [
+                        'bloc' => ['x' => (int) ($attente['x'] ?? 0), 'y' => (int) ($attente['y'] ?? 0)],
+                        // Liste blanche — le résolveur la relit sur CETTE option,
+                        // jamais reconstruite depuis la colonne (un point de passage).
+                        'cases' => array_values((array) ($attente['cases'] ?? [])),
+                    ],
+                ]]),
+            ];
+        }
+
         $aJoue = (bool) ($etat?->a_joue ?? false);
         $aDeplace = $aJoue || (bool) ($etat?->a_deplace ?? false);
         $aAgi = $aJoue || (bool) ($etat?->a_agi ?? false);

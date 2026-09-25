@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\GroupeController;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Partie\Equipement;
@@ -102,13 +101,14 @@ it('donne aux héros l\'arme de départ des livrets', function () {
     // dague pour le magicien (LR p. 6, p. 13).
     $attendu = [
         'barbare' => 'Épée large',
-        'nain' => 'Épée courte',   // donnait une Hachette, arme inexistante au plateau
+        // First Light (2024), choix de René 2026-09-25 : divergence assumée
+        // envers le livret de 2021 (épée courte, LR p. 13).
+        'nain' => 'Hachette',
         'elfe' => 'Épée courte',
         'magicien' => 'Dague',
     ];
 
-    $reflet = new ReflectionClass(GroupeController::class);
-    $depart = $reflet->getConstant('EQUIPEMENT_DEPART');
+    $depart = App\Partie\EquipementDepart::PAR_CLASSE;
 
     foreach ($attendu as $classe => $arme) {
         expect($depart[$classe][0] ?? null)->toBe($arme, "arme de départ du {$classe}");

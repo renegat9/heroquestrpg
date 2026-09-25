@@ -15,7 +15,7 @@ import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
-    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, icone,
+    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, BLOC_ICONE, icone,
 } from './symboles.js';
 // ⚠ Le MÊME lecteur que le bandeau d'initiative et que le liseré doré de la
 // figurine : une seconde lecture, écrite ici, finirait par désigner un autre
@@ -34,7 +34,12 @@ const props = defineProps({
 
 const ouvert = ref(false);
 
-const PIEGE_ETATS = { detecte: 'détecté', desarme: 'désarmé', declenche: 'déclenché' };
+// ⚠ MÊME LISTE que `PIEGE_ETATS` de `store/game.js` — copie locale historique,
+// pas réimportée ici. `bloc` (Chute de blocs déclenchée, livret p. 14,
+// 2026-09-24) manquait aux DEUX copies : la première trouvée en capture
+// d'écran (le bloc de pierre n'apparaissait ni sur la carte ni dans cet
+// aperçu de salle), la seconde par grep une fois le défaut nommé.
+const PIEGE_ETATS = { detecte: 'détecté', desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre' };
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
 
@@ -123,7 +128,9 @@ const pieges = computed(() => (props.carte?.pieges ?? [])
         cle: `p-${p.x}-${p.y}`,
         nom: p.nom ?? 'Piège',
         img: p.image_url ?? null,
-        ic: icone(PIEGE_ICONES, p.nom, PIEGE_ICONE_DEFAUT),
+        // `bloc` (Chute de blocs déclenchée) prend l'icône du BLOC, pas celle
+        // du piège d'origine — même distinction, même raison que DungeonGrid.
+        ic: p.etat === 'bloc' ? BLOC_ICONE : icone(PIEGE_ICONES, p.nom, PIEGE_ICONE_DEFAUT),
         detail: PIEGE_ETATS[p.etat],
     })));
 

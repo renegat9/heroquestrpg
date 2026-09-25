@@ -18,7 +18,7 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -71,7 +71,12 @@ const TUILES = { m: 'wall', s: 'floor', b: 'fog' };
 // Résoudre chez l'appelant obligerait à convertir des deux côtés, et l'un des
 // deux finirait par ne pas suivre — c'est déjà ce qui rendait le mobilier
 // illustré à la table et générique sur la manette.
-const iconePiege = (t) => t.ic ?? icone(PIEGE_ICONES, t.nom, PIEGE_ICONE_DEFAUT);
+// `bloc` (Chute de blocs déclenchée, livret p. 14) porte une icône DISTINCTE
+// du piège encore actif : le nom de l'entrée reste « Chute de blocs » dans
+// les deux états (c'est le même `piege_id`), donc c'est l'ÉTAT — pas le nom —
+// qui décide de l'icône ici, sans quoi le bloc tombé reprendrait l'icône de
+// danger de son piège d'origine.
+const iconePiege = (t) => t.ic ?? (t.etat === 'bloc' ? BLOC_ICONE : icone(PIEGE_ICONES, t.nom, PIEGE_ICONE_DEFAUT));
 const iconeEpreuve = (e) => e.ic ?? icone(EPREUVE_ICONES, e.nom, EPREUVE_ICONE_DEFAUT);
 const iconeMeuble = (f) => f.ic ?? icone(MOBILIER_ICONES, f.nom, MOBILIER_ICONE_DEFAUT);
 
@@ -383,6 +388,17 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-trap.declenche { inset: 6%; border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
   box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }
+
+/* Chute de blocs DÉCLENCHÉE (livret p. 14) : un BLOC DE PIERRE PLEIN, comme le
+   mobilier bloquant ou un mur de glace (mêmes gabarit et raison : un obstacle
+   doit se lire comme un obstacle) — surtout PAS le trou circulaire de
+   `.dg-trap.declenche` ci-dessus, qui a motivé cette entrée : un bloc qui
+   bloque le passage n'est pas un trou dans le sol. Teinte grise, pierre — ni
+   le bois du mobilier (`.dg-furn`), ni le bleu glacé du mur (`.dg-ice`). */
+.dg-trap.bloc { inset: 5%; border-radius: 4px;
+  background: linear-gradient(150deg, oklch(0.42 0.008 255), oklch(0.26 0.008 255));
+  box-shadow: inset 0 0 0 1px oklch(0.58 0.008 255 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);
+  color: oklch(0.86 0.005 255); }
 
 /* ---- leviers : octogone bleu, une troisième silhouette. Les figurines sont
    RONDES, l'épreuve est un LOSANGE doré ; le levier ne doit donc être ni l'un

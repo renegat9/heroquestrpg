@@ -54,11 +54,9 @@ it('donne à chaque classe son arme de départ et la valeur d\'attaque du platea
         ->and((int) $hero->fresh()->des_defense)->toBe(2);
 })->with([
     ['barbare', 'Épée large', 3],
-    // « The shortsword is the starting weapon of the dwarf and the elf »
-    // (LR p. 13, reference/16_armurerie.md §2). Ce test affirmait « Hachette,
-    // arme de départ du nain au plateau » — or la hachette n'existe NULLE PART
-    // dans les 43 pages des deux livrets (§10). Même attaque (2 dés).
-    ['nain', 'Épée courte', 2],
+    // Hachette, comme la boîte First Light (René, 2026-09-25) — divergence
+    // assumée envers le livret de 2021, qui donnait une épée courte (LR p. 13).
+    ['nain', 'Hachette', 2],
     ['elfe', 'Épée courte', 2],
     ['magicien', 'Dague', 1],
 ]);
@@ -72,7 +70,7 @@ it('ne donne PLUS de trousse à outils au Nain — il désamorce sans outils', f
     // Son dos de carte dit « sans outils » (René, 2026-08-22) : la trousse ne
     // lui servait plus à rien et lui mangeait une place de sac.
     expect($noms)->not->toContain('Trousse à outils')
-        ->and($noms)->toContain('Épée courte');
+        ->and($noms)->toContain('Hachette');
 });
 
 it('donne sa bandoulière au Rogue dès la création', function () {
@@ -137,4 +135,31 @@ it('n\'expose plus de route de génération de portrait', function () {
     // Retirée (décision de René) : plus de génération d'image côté joueurs.
     // Les héros gardent leur illustration de CLASSE via BibliothequeImages.
     $this->postJson("/api/personnages/{$hero->id}/portrait")->assertNotFound();
+});
+
+it('annonce dans le guide l\'attaque et la défense du héros RÉELLEMENT créé', function (string $classe) {
+    // Le guide affichait la base nue (un barbare à 1 dé, un chevalier à 2 de
+    // défense) alors que le héros créé en lance 3 et 3 (René, 2026-09-24).
+    // Désormais il publie `depart`, calculé par `EquipementDepart::valeurs()` —
+    // et ce test compare ce qu'il PROMET à ce que la création DONNE, classe par
+    // classe : si l'une des deux formules bouge sans l'autre, il casse.
+    $depart = collect($this->getJson('/api/guide')->assertOk()->json('classes'))
+        ->firstWhere('nom', $classe)['depart'];
+
+    connecterJoueur('alice');
+    $hero = creerHerosParApi('Test', $classe)->fresh();
+
+    expect($depart['des_attaque'])->toBe((int) $hero->des_attaque, "attaque du {$classe}")
+        ->and($depart['des_defense'])->toBe((int) $hero->des_defense, "défense du {$classe}")
+        ->and($depart['arme'])->toBe(
+            $hero->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first()?->objet?->nom
+        );
+})->with(fn () => array_keys(App\Partie\EquipementDepart::PAR_CLASSE));
+
+it('nomme le bouclier du Chevalier comme source de sa défense', function () {
+    $chevalier = collect($this->getJson('/api/guide')->json('classes'))->firstWhere('nom', 'chevalier');
+
+    expect($chevalier['depart'])->toMatchArray([
+        'arme' => 'Épée courte', 'pieces' => ['Bouclier'], 'des_attaque' => 2, 'des_defense' => 3,
+    ]);
 });

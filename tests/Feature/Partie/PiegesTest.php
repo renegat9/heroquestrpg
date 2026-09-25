@@ -6,12 +6,16 @@ use App\Auth\JoueurAuthentifiable;
 use App\Jobs\GenererMenu;
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
+use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Objet;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Partie\AssembleurCarte;
+use App\Partie\FabriqueGrille;
+use App\Partie\MoteurPieges;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
@@ -193,28 +197,51 @@ it('interrompt la course d\'un Nain (Œil du mineur) quand un piège devient adj
         ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte');
 });
 
-it('déclenche un piège caché traversé : dégâts du catalogue, usage unique consommé', function () {
+it('déclenche un piège caché traversé : 1 dé de combat, un crâne = 1 PV, usage unique consommé, tour terminé', function () {
     [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
 
     $cible = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
     poserPieges($quete, [['x' => $cible['x'], 'y' => $cible['y'], 'nom' => 'Piège à lances', 'etat' => 'cache']]);
 
-    desFiges([3]); // 1d6 de déplacement
+    // ⚠ Le dé de déplacement d'Albrecht est déjà FIXÉ (roulé au démarrage de la
+    // quête, `DemarreurQuete::demarrer()`, avant que ce test ne contrôle le
+    // lanceur) : une seule case suffit largement, ce n'est jamais lui qui
+    // manque. La file ne sert donc qu'au dé de combat DU PIÈGE (2 = crâne),
+    // puis au dé de MOUVEMENT DE BRUNHILDE — son tour commence dans la MÊME
+    // requête, puisque le piège vient de fermer TOUT le tour d'Albrecht
+    // (livret p. 14) et que `ChoixController::choisir()` régénère le menu de
+    // chaque héros actif après chaque choix (`OrdreDuTour::estSonTour()`).
+    desFiges([2, 4]);
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'se_deplacer',
         'parametres' => $cible,
     ])->assertStatus(202);
 
+    // « Their turn immediately ends » (livret p. 14, 2026-09-24) : les TROIS
+    // pièges de sol arrêtent la course NET, désormais, y compris ceux qui ne
+    // sont pas la fosse — auparavant seule `immobilise` déclenchait l'arrêt
+    // dur et le piège à lances laissait le héros continuer sa marche.
     $reponse->assertJsonPath('resultat.type', 'deplacement')
-        ->assertJsonPath('resultat.interrompu', false) // pas une fosse : on finit le déplacement
+        ->assertJsonPath('resultat.interrompu', true)
+        ->assertJsonPath('resultat.vers', $cible)
         ->assertJsonPath('resultat.pieges_declenches.0.piege.nom', 'Piège à lances')
         ->assertJsonPath('resultat.pieges_declenches.0.degats', 1)
+        ->assertJsonPath('resultat.pieges_declenches.0.faces', ['crane'])
+        ->assertJsonPath('resultat.pieges_declenches.0.touches', 1)
+        ->assertJsonPath('resultat.pieges_declenches.0.bloc_permanent', false)
         ->assertJsonPath('resultat.pieges_declenches.0.pv_body_apres', 7)
         ->assertJsonPath('resultat.pieges_declenches.0.immobilise', false);
 
+    $etat->refresh();
     expect($hero->fresh()->pv_body)->toBe(7)
-        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche');
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche')
+        // Le tour ENTIER se ferme (livret p. 14) : `a_joue` — pas seulement
+        // `a_deplace` — sinon le héros pourrait encore agir après le coup.
+        // C'est `a_joue` que `MenuMoteur::generer()` consulte pour décider
+        // qu'il n'y a plus rien à proposer ce tour-ci (§combat-et-tour).
+        ->and((bool) $etat->a_joue)->toBeTrue()
+        ->and((bool) $etat->a_deplace)->toBeTrue();
 
     // Le piège déclenché devient public dans EtatGroupe.carte ; les héros
     // exposent leur niveau (contrat).
@@ -225,13 +252,13 @@ it('déclenche un piège caché traversé : dégâts du catalogue, usage unique 
     ])->and($partage['entites'][0]['niveau'])->toBe(1);
 });
 
-it('arrête le déplacement sur une fosse cachée : immobilisé, la fosse persiste', function () {
+it('arrête le déplacement sur une fosse cachée : la fosse persiste, le tour se termine', function () {
     [, , $hero, $quete, $etat] = demarrerQueteAvecHeros();
 
     $saut = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
     poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Fosse', 'etat' => 'cache']]);
 
-    desFiges([3]); // 1d6 de déplacement (2 cases demandées, 4+3 disponibles)
+    desFiges([3]); // 1d6 de déplacement (2 cases demandées, 4+3 disponibles) — pas de dé de combat : la Fosse n'en lance pas
 
     $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'se_deplacer',
@@ -242,14 +269,20 @@ it('arrête le déplacement sur une fosse cachée : immobilisé, la fosse persis
         ->assertJsonPath('resultat.vers.x', $saut['fosse']['x'])
         ->assertJsonPath('resultat.vers.y', $saut['fosse']['y'])
         ->assertJsonPath('resultat.pieges_declenches.0.degats', 1)
-        ->assertJsonPath('resultat.pieges_declenches.0.immobilise', true);
+        ->assertJsonPath('resultat.pieges_declenches.0.immobilise', true)
+        ->assertJsonPath('resultat.pieges_declenches.0.bloc_permanent', false);
 
     $etat->refresh();
     expect($etat->position_x)->toBe($saut['fosse']['x'])
         ->and($etat->position_y)->toBe($saut['fosse']['y'])
         ->and($hero->fresh()->pv_body)->toBe(7)
         // Persistante : la fosse reste en jeu, désormais visible (`detecte`).
-        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte');
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte')
+        // « Their turn immediately ends » (livret p. 14, 2026-09-24) : la
+        // fosse ne se contentait QUE d'immobiliser le déplacement avant cette
+        // date — désormais le tour ENTIER se ferme, comme les deux autres
+        // pièges de sol (alignement demandé explicitement, René/coordinateur).
+        ->and((bool) $etat->a_joue)->toBeTrue();
 });
 
 it('révèle par la fouille les pièges cachés proches — jamais les lointains', function () {
@@ -338,17 +371,27 @@ it('déclenche le piège sur le désamorceur quand le jet échoue', function () 
     // ⚠ Le Nain « désamorce sans outils » (dos de carte) : UN dé, et seul le
     // bouclier noir (6) fait échouer. Ce n'est plus un jet de Body — lui
     // appliquer le jet ordinaire aurait vidé la mention de sa substance.
-    desFiges([6]);
+    // Puis le dé de combat DU PIÈGE (1, contrat 2026-09-24) : 1 = crâne. Et
+    // enfin le dé de MOUVEMENT DE BRUNHILDE : l'échec ferme TOUT le tour
+    // d'Albrecht (livret p. 14), donc c'est désormais SON tour qui commence
+    // dans la même requête (voir le commentaire du test précédent).
+    desFiges([6, 1, 4]);
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => "desamorcer_{$cible['x']}_{$cible['y']}"])
         ->assertStatus(202)
         ->assertJsonPath('resultat.desarme', false)
         ->assertJsonPath('resultat.declenchement.contexte', 'desamorcage_rate')
         ->assertJsonPath('resultat.declenchement.degats', 1)
+        ->assertJsonPath('resultat.declenchement.faces', ['crane'])
         ->assertJsonPath('resultat.declenchement.pv_body_apres', 7);
 
+    $etat->refresh();
     expect($hero->fresh()->pv_body)->toBe(7)
-        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche'); // usage unique consommé
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche') // usage unique consommé
+        // « Their turn immediately ends » (livret p. 14) : le désamorceur
+        // n'est jamais SUR la case du piège, mais son tour se ferme quand
+        // même — le déclenchement compte, pas seulement le fait d'y marcher.
+        ->and((bool) $etat->a_joue)->toBeTrue();
 });
 
 it('Désamorçage (nœud) épargne le déclenchement sur un jet raté', function () {
@@ -448,7 +491,12 @@ it('fait chuter le héros dans la fosse quand le franchissement échoue', functi
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
 
-    desFiges([4, 4, 4, 4]); // 0 crâne → échec → chute (effet de la fosse)
+    // 0 crâne → échec → chute (effet de la fosse, sans dé de combat propre),
+    // puis le dé de MOUVEMENT DE BRUNHILDE : la chute ferme TOUT le tour
+    // d'Albrecht (livret p. 14), donc c'est son tour à elle qui commence
+    // dans la même requête (voir le commentaire du premier test de ce fichier
+    // à consommer plusieurs dés dans la même requête).
+    desFiges([4, 4, 4, 4, 4]);
 
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => "franchir_{$saut['fosse']['x']}_{$saut['fosse']['y']}",
@@ -519,4 +567,225 @@ it('ne révèle PAS par la fouille un piège derrière une PORTE FERMÉE, même 
     $pieges = $quete->fresh()->carte->grille['pieges'];
     expect($pieges[0]['etat'])->toBe('detecte')
         ->and($pieges[1]['etat'])->toBe('cache');
+});
+
+/*
+ * LES TROIS PIÈGES DE SOL, ENFIN TELS QUE LE LIVRET LES DÉCRIT (2026-09-24).
+ *
+ * `AssembleurCarte::placerPieges()` posait LE PREMIER piège du catalogue pour
+ * CHAQUE case tirée — `Piege::orderBy('id')->value('id')`, soit la Fosse.
+ * Mesuré sur toutes les cartes en base : 6 pièges, 6 fosses. La Chute de
+ * blocs et le Piège à lances n'étaient JAMAIS placés, et même posée, la
+ * Chute de blocs n'aurait rien bloqué (`bloque_passage` sans lecteur).
+ */
+
+it('tire les TROIS types de pièges de sol sur un échantillon de cartes, jamais un piège de coffre', function () {
+    $assembleur = app(AssembleurCarte::class);
+    $gabarit = GabaritQuete::where('type_jalon', 'normale')->firstOrFail();
+
+    $noms = Piege::pluck('nom', 'id');
+    $piegesDeCoffre = ['Aiguille empoisonnée', 'Fiole de poison', 'Piège de coffre'];
+    $comptes = ['Fosse' => 0, 'Piège à lances' => 0, 'Chute de blocs' => 0];
+    $total = 0;
+
+    // 60 cartes au moins (consigne) — un nombre premier par carte pour ne
+    // jamais retomber sur la même graine que `PassageSecretTest`.
+    foreach (range(1, 60) as $i) {
+        $carte = $assembleur->assembler($gabarit, $i * 104729);
+
+        foreach ($carte['pieges'] as $piege) {
+            $nom = $noms[$piege['piege_id']] ?? null;
+
+            expect($nom)->not->toBeNull()
+                ->and(in_array($nom, $piegesDeCoffre, true))->toBeFalse(
+                    "Un piège de COFFRE ({$nom}) a été posé à l'assemblage — son cycle est la fouille du trésor, jamais la carte.",
+                );
+
+            $comptes[$nom] = ($comptes[$nom] ?? 0) + 1;
+            $total++;
+        }
+    }
+
+    expect($total)->toBeGreaterThanOrEqual(60)
+        ->and($comptes['Fosse'])->toBeGreaterThan(0)
+        ->and($comptes['Piège à lances'])->toBeGreaterThan(0)
+        ->and($comptes['Chute de blocs'])->toBeGreaterThan(0);
+});
+
+it('le tirage des pièges de sol est un registre testé dans les deux sens', function () {
+    // Sens 1 : le vivier de `placerPieges()` (tout piège dont l'effet n'a PAS
+    // `declencheur: ouverture_tresor`) contient EXACTEMENT les trois pièges de
+    // sol du livret — rien de plus. Un piège de coffre qui perdrait sa clé
+    // `declencheur` par erreur se retrouverait posé sur la carte, hors de son
+    // cycle (fouille du trésor).
+    $sol = Piege::query()
+        ->get()
+        ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
+        ->pluck('nom')
+        ->sort()
+        ->values()
+        ->all();
+
+    expect($sol)->toBe(['Chute de blocs', 'Fosse', 'Piège à lances']);
+
+    // Sens 2 : aucun des trois n'a, par erreur, un `declencheur` qui
+    // l'écarterait à tort du tirage de sol.
+    foreach (['Fosse', 'Piège à lances', 'Chute de blocs'] as $nom) {
+        expect(data_get(Piege::where('nom', $nom)->value('effet'), 'declencheur'))->toBeNull();
+    }
+});
+
+it('un BLOC PERMANENT bloque le passage ET la vue, lu par FabriqueGrille::pour()', function () {
+    // Test DÉCOUPLÉ du déclenchement (couvert par le test suivant) : ici on
+    // pose directement l'état `bloc` pour isoler la seule question « la
+    // boucle unique de FabriqueGrille lit-elle bien cette case ? ».
+    [, , , $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+    $saut = alignementFranchissable($quete, $x, $y); // deux cases alignées, libres
+    $bloc = $saut['fosse'];
+    $apres = $saut['reception'];
+
+    poserPieges($quete, [['x' => $bloc['x'], 'y' => $bloc['y'], 'nom' => 'Chute de blocs', 'etat' => MoteurPieges::ETAT_BLOC]]);
+
+    $grille = FabriqueGrille::pour($quete->fresh());
+
+    expect($grille->estTraversable($bloc['x'], $bloc['y']))->toBeFalse('le bloc doit bloquer le PASSAGE, comme un mur')
+        // Ligne de vue tracée D'UN CÔTÉ à L'AUTRE du bloc, aligné : la case du
+        // bloc est strictement ENTRE les deux extrémités, donc la coupe si
+        // elle est opaque — exactement le test déjà appliqué au mobilier haut
+        // et au mur de glace.
+        ->and($grille->ligneDeVue($x, $y, $apres['x'], $apres['y']))->toBeFalse('le bloc doit bloquer la VUE, comme un mur');
+});
+
+it('déclenche la Chute de blocs : 3 dés de combat sans défense, bloc permanent, le héros doit s\'écarter avant que son tour ne se termine', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+    $scene = alignementFranchissable($quete, $depart['x'], $depart['y']);
+    $bloc = $scene['fosse'];       // la case où tombe le bloc (1 pas)
+    $avancer = $scene['reception']; // la case suivante dans le même sens (2 pas) — libre par construction du scénario
+
+    poserPieges($quete, [['x' => $bloc['x'], 'y' => $bloc['y'], 'nom' => 'Chute de blocs', 'etat' => 'cache']]);
+
+    // ⚠ Le dé de déplacement d'Albrecht est déjà FIXÉ au démarrage de la
+    // quête (voir le premier test de ce fichier à consommer plusieurs dés
+    // dans la même requête) : la file ne sert donc qu'aux 3 dés de combat
+    // SANS DÉFENSE (contrat 2026-09-24) : 2 crânes (1, 2) + 1 bouclier noir
+    // (6) → 2 PV de dégâts. Albrecht garde la main après (il doit s'écarter),
+    // donc PAS de dé de Brunhilde ici — voir plus bas, à sa fermeture réelle.
+    desFiges([1, 2, 6]);
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $bloc,
+    ])->assertStatus(202);
+
+    $reponse->assertJsonPath('resultat.type', 'deplacement')
+        ->assertJsonPath('resultat.interrompu', true)
+        ->assertJsonPath('resultat.vers', $bloc)
+        ->assertJsonPath('resultat.pieges_declenches.0.piege.nom', 'Chute de blocs')
+        ->assertJsonPath('resultat.pieges_declenches.0.faces', ['crane', 'crane', 'bouclier_noir'])
+        ->assertJsonPath('resultat.pieges_declenches.0.touches', 2)
+        ->assertJsonPath('resultat.pieges_declenches.0.degats', 2)
+        ->assertJsonPath('resultat.pieges_declenches.0.bloc_permanent', true)
+        // La manette reçoit ces trois dés DÉJÀ mis en forme : ils vivent nichés
+        // dans `pieges_declenches`, et `des` restait `null` (vu en live, 2026-09-25).
+        ->assertJsonPath('des.atk', ['crane', 'crane', 'bouclier_noir']);
+
+    $etat->refresh();
+    expect($hero->fresh()->pv_body)->toBe(6)
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_BLOC)
+        // Le déplacement est fini (il est arrêté sur le bloc), mais le TOUR,
+        // lui, n'est PAS encore terminé : le héros doit d'abord choisir où
+        // s'écarter (livret p. 14) — à la différence de la fosse et du piège
+        // à lances, qui ferment le tour immédiatement.
+        ->and((bool) $etat->a_deplace)->toBeTrue()
+        ->and((bool) $etat->a_joue)->toBeFalse()
+        ->and($etat->piege_a_ecarter)->not->toBeNull();
+
+    $attente = $etat->piege_a_ecarter;
+    expect(['x' => $attente['x'], 'y' => $attente['y']])->toBe($bloc);
+
+    $cases = collect($attente['cases']);
+    expect($cases)->toHaveCount(2) // reculer + avancer, tous deux libres par construction du scénario
+        ->and($cases->firstWhere(fn ($c) => $c['sens'] === 'reculer'))->toBe(['x' => $depart['x'], 'y' => $depart['y'], 'sens' => 'reculer'])
+        ->and($cases->firstWhere(fn ($c) => $c['sens'] === 'avancer'))->toBe(['x' => $avancer['x'], 'y' => $avancer['y'], 'sens' => 'avancer']);
+
+    // Tant qu'il n'a pas choisi, le menu ne contient QUE `s_ecarter_du_bloc`
+    // — et c'est CETTE liste blanche (portée par l'option) que le résolveur
+    // revalide, pas une reconstruction depuis la colonne.
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id));
+    expect(collect($menu['menu']['options'])->pluck('id')->all())->toBe(['s_ecarter_du_bloc']);
+
+    $option = collect($menu['menu']['options'])->firstWhere('id', 's_ecarter_du_bloc');
+    expect($option['creneau'])->toBe('tour')
+        ->and(collect($option['parametres']['cases']))->toHaveCount(2);
+
+    // Une case HORS liste blanche est un 422 — le résolveur fait autorité.
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 's_ecarter_du_bloc',
+        'parametres' => ['x' => $depart['x'] + 37, 'y' => $depart['y'] + 41],
+    ])->assertStatus(422);
+
+    // Rien n'a bougé, rien n'est effacé après le refus.
+    $etat->refresh();
+    expect($etat->piege_a_ecarter)->not->toBeNull();
+
+    // RECULER : le choix ferme le tour ENTIER (livret p. 14) — c'est
+    // maintenant au tour de Brunhilde de recevoir son dé de mouvement, dans
+    // la même requête (`OrdreDuTour::estSonTour()`).
+    desFiges([4]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 's_ecarter_du_bloc',
+        'parametres' => $depart,
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.type', 's_ecarter_du_bloc')
+        ->assertJsonPath('resultat.sens', 'reculer')
+        ->assertJsonPath('resultat.vers', $depart);
+
+    $etat->refresh();
+    expect((int) $etat->position_x)->toBe($depart['x'])
+        ->and((int) $etat->position_y)->toBe($depart['y'])
+        ->and($etat->piege_a_ecarter)->toBeNull()
+        ->and((bool) $etat->a_joue)->toBeTrue();
+
+    // Le bloc reste sur la carte, publié à tous, dessiné comme un bloc de
+    // pierre (pas un piège caché) — et bloque toujours le passage.
+    $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    $piegePartage = collect($partage['carte']['pieges'])->firstWhere('x', $bloc['x']);
+    expect($piegePartage)->not->toBeNull()
+        ->and($piegePartage['etat'])->toBe('bloc')
+        ->and(FabriqueGrille::pour($quete->fresh())->estTraversable($bloc['x'], $bloc['y']))->toBeFalse();
+});
+
+it('le piège à lances disparaît (usage consommé) après s\'être déclenché', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $cible = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $cible['x'], 'y' => $cible['y'], 'nom' => 'Piège à lances', 'etat' => 'cache']]);
+
+    // Le dé de mouvement d'Albrecht est déjà fixé au démarrage de la quête —
+    // la file sert au dé de combat DU PIÈGE (6 = bouclier noir, 0 dégât) puis
+    // au dé de mouvement DE BRUNHILDE (le déclenchement ferme tout le tour
+    // d'Albrecht, livret p. 14 — voir le premier test de ce fichier).
+    desFiges([6, 4]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $cible,
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.pieges_declenches.0.touches', 0)
+        ->assertJsonPath('resultat.pieges_declenches.0.degats', 0);
+
+    // « there are no spear trap tiles » (livret p. 14) : une fois déclenché,
+    // il ne reste rien à désamorcer ni à franchir — `declenche`, à jamais.
+    $piege = $quete->fresh()->carte->grille['pieges'][0];
+    expect($piege['etat'])->toBe('declenche');
+
+    // Et il n'apparaît donc plus adjacent, offrant Désamorcer/Franchir.
+    expect(app(MoteurPieges::class)->detectesAdjacents($quete->fresh()->carte, $cible['x'], $cible['y']))->toBe([]);
 });

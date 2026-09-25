@@ -11,6 +11,7 @@ use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Partie\EquipementDepart;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -47,6 +48,11 @@ class GuideController extends Controller
                 // arme — les cinq qu'il manie sont nommées, pas déductibles
                 // d'un tag.
                 ->get(['nom', 'race', 'pv_body', 'pv_mind', 'attr_body', 'attr_mind', 'des_attaque', 'des_defense', 'deplacement_base', 'bonus_sac', 'tags_equipement', 'objets_autorises'])
+                // `depart` (2026-09-24) : l'attaque et la défense AVEC l'arme et
+                // l'armure de départ. Sans lui la page affichait la base nue —
+                // un barbare à 1 dé, alors que son épée large en lance 3 dès la
+                // création. Décidé ici, jamais recalculé côté front.
+                ->map(fn (ClasseHeros $c) => [...$c->toArray(), 'depart' => EquipementDepart::valeurs($c)])
                 ->values()
                 ->all(),
 

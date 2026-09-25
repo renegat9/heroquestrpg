@@ -478,7 +478,7 @@ que la ligne de stats d'un monstre. Figées une par une dans `ReglesDeClasseTest
 | **Barde** | **+1 dé de défense** tant qu'il ne porte ni armure métallique ni bouclier | `bonus_des_defense_sans_metal` (capacité innée, déjà câblée) |
 | **Chevalier** | Les armures **ne ralentissent pas** son mouvement | `Equipement::malusDeplacement()` |
 | **Druide** | Aucune **armure métallique** | `objets.metallique` + `Equipement::SANS_METAL` |
-| **Rogue** | Aucune armure métallique **ni bouclier** ; **commence avec la Bandoulière** | idem + `EQUIPEMENT_DEPART` |
+| **Rogue** | Aucune armure métallique **ni bouclier** ; **commence avec la Bandoulière** | idem + `EquipementDepart::PAR_CLASSE` |
 | **Moine** | Ni armure ni bouclier ; **cinq armes nommées** (dague, arbalète, hachette, épée courte, bâton) | `classes_heros.objets_autorises` |
 | **Magicien** | Ni armure ni arme large | déjà porté par ses tags |
 | **Warlock** | Uniquement ce qu'un **magicien** peut manier | tags alignés + sa baguette |

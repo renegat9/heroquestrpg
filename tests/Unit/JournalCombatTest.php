@@ -223,6 +223,219 @@ it('distingue « rien à prendre » de « rien pour vous »', function () {
         ->and($vide)->toContain('en vain');
 });
 
+describe('JournalCombat::desJetUnilateral() — jets à une seule volée (2026-09-24)', function () {
+    // ⚠ Les dés étaient CALCULÉS, PUBLIÉS, et DESSINÉS NULLE PART (René :
+    // « pour les sorts d'attaque avec un lancer de dés pour résister, on ne
+    // voit pas le lancer de dé »). Ces tests fixent la détection DIRECTEMENT,
+    // avant de vérifier qu'elle est bien câblée dans le fil (plus bas).
+
+    it('un dé rouge de résistance réussit sur 5 OU 6, jamais un crâne', function () {
+        $des = (new JournalCombat)->desJetUnilateral([
+            'des_resistance' => [1, 5, 6, 3], 'degats_annules' => 2,
+            'cible' => ['nom' => 'Golem'],
+        ]);
+
+        expect($des['atk'])->toBe([])
+            ->and($des['def'])->toBe([1, 5, 6, 3])
+            ->and($des['defensive'])->toBe([5, 6])
+            ->and($des['defenseur'])->toBe('Golem')
+            ->and($des['boucliers'])->toBe(2)
+            ->and($des['libelle_def'])->toBe('résiste');
+    });
+
+    it('la MÊME mécanique publiée sous `des_rouges` (Boule de Flammes du MJ) se dessine pareil', function () {
+        // « One rule, both sides » (docs/regles/sorts-dread.md) : le sort du MJ
+        // publie sa résistance sous un autre NOM que celui du héros, pas une
+        // autre RÈGLE.
+        $des = (new JournalCombat)->desJetUnilateral(['des_rouges' => [2, 6], 'cible' => ['nom' => 'Thora']]);
+
+        expect($des['def'])->toBe([2, 6])
+            ->and($des['defensive'])->toBe([5, 6]);
+    });
+
+    it('un jet de Mind réussit sur un crâne, le MÊME enum de faces que le combat', function () {
+        $des = (new JournalCombat)->desJetUnilateral([
+            'mind_cible' => 3, 'faces' => ['crane', 'bouclier_blanc'], 'succes' => 1,
+            'cible' => ['nom' => 'Golem'],
+        ]);
+
+        expect($des['def'])->toBe(['crane', 'bouclier_blanc'])
+            ->and($des['defensive'])->toBe('crane')
+            ->and($des['boucliers'])->toBe(1)
+            ->and($des['defenseur'])->toBe('Golem');
+    });
+
+    it('un jet de Mind IMMUNISÉ (Mind 0, faces vides) ne dessine RIEN', function () {
+        // Le test explicite du brief : « un jet de résistance nul (cible sans
+        // dés) ne dessine rien de vide ».
+        expect((new JournalCombat)->desJetUnilateral(['mind_cible' => 0, 'faces' => []]))->toBeNull();
+    });
+
+    it('un dé rouge sans dé lancé (tableau vide) ne dessine rien non plus', function () {
+        expect((new JournalCombat)->desJetUnilateral(['des_resistance' => [], 'cible' => ['nom' => 'Gobelin']]))
+            ->toBeNull();
+    });
+
+    it('un piège de sol ATTAQUE seul, sans défense en face', function () {
+        $des = (new JournalCombat)->desJetUnilateral([
+            'piege' => ['nom' => 'Chute de blocs'], 'faces' => ['crane', 'crane', 'bouclier_blanc'], 'touches' => 2,
+        ], 'Krogar');
+
+        expect($des['atk'])->toHaveCount(3)
+            ->and($des['def'])->toBe([])
+            ->and($des['touchante'])->toBe('crane')
+            ->and($des['attaquant'])->toBe('Chute de blocs')
+            ->and($des['defenseur'])->toBe('Krogar')
+            ->and($des['touches'])->toBe(2);
+    });
+
+    it('rend null quand aucune des trois formes n\'est publiée', function () {
+        expect((new JournalCombat)->desJetUnilateral(['type' => 'deplacement']))->toBeNull();
+    });
+});
+
+it('dessine les dés ROUGES d\'un sort de héros à dégâts fixes (Boule de Feu, Trait de Feu)', function () {
+    $l = lignes([
+        'type' => 'sort', 'sort' => ['nom' => 'Boule de Flammes'],
+        'degats_fixes' => 3, 'des_resistance' => [2, 5, 6], 'degats_annules' => 2,
+        'degats' => 1, 'cible' => ['nom' => 'Gargouille'],
+    ], 'Aldric');
+
+    expect($l[0]['des'])->not->toBeNull()
+        ->and($l[0]['des']['def'])->toBe([2, 5, 6])
+        ->and($l[0]['des']['defensive'])->toBe([5, 6])
+        ->and($l[0]['des']['defenseur'])->toBe('Gargouille');
+});
+
+it('ne dessine rien pour un sort à dés rouges dont la cible n\'a lancé aucun dé', function () {
+    $l = lignes([
+        'type' => 'sort', 'sort' => ['nom' => 'Trait de Feu'],
+        'degats_fixes' => 2, 'des_resistance' => [], 'degats_annules' => 0,
+        'degats' => 2, 'cible' => ['nom' => 'Gobelin'],
+    ], 'Aldric');
+
+    expect($l[0])->not->toHaveKey('des');
+});
+
+it('dessine le jet de Mind d\'un sort de héros à résistance jet_mind (Sommeil, Terreur)', function () {
+    $l = lignes([
+        'type' => 'sort', 'sort' => ['nom' => 'Sommeil'],
+        'cible' => ['nom' => 'Golem'], 'mind_cible' => 3,
+        'issue' => 'subit_effet', 'succes' => 1, 'difficulte' => 1,
+        'faces' => ['crane', 'bouclier_blanc', 'bouclier_noir'], 'effet_applique' => true,
+    ], 'Sylvara');
+
+    expect($l[0]['des']['def'])->toBe(['crane', 'bouclier_blanc', 'bouclier_noir'])
+        ->and($l[0]['des']['defensive'])->toBe('crane')
+        ->and($l[0]['des']['defenseur'])->toBe('Golem')
+        ->and($l[0]['des']['boucliers'])->toBe(1);
+});
+
+it('dessine le jet de Mind du sort du MJ contre un héros, AU MOMENT où il frappe', function () {
+    // ⚠ C'est le défaut nommé : `MoteurDread::sortDreadControle()` publiait déjà
+    // `faces`/`mind_cible` par victime, et seul `ruptureSortDread()` les lisait
+    // — APRÈS coup, pour BRISER la condition, jamais au moment où le sort prend.
+    $l = lignes([
+        'type' => 'sort_dread', 'sort' => 'Sommeil', 'condition' => 'Endormi',
+        'resultats' => [[
+            'cible' => ['personnage_id' => 9, 'nom' => 'Borin'],
+            'mind_cible' => 2, 'issue' => 'subit_effet', 'succes' => 0, 'difficulte' => 1,
+            'faces' => ['bouclier_blanc', 'bouclier_noir'],
+            'effet_applique' => true,
+        ]],
+    ], 'Le Gardien');
+
+    expect($l)->toHaveCount(1)
+        ->and($l[0]['texte'])->toBe('Borin subit Sommeil — Endormi')
+        ->and($l[0]['des']['def'])->toBe(['bouclier_blanc', 'bouclier_noir'])
+        ->and($l[0]['des']['defensive'])->toBe('crane')
+        ->and($l[0]['des']['defenseur'])->toBe('Borin');
+});
+
+it('dessine aussi le jet de Mind quand le héros RÉSISTE au sort du MJ', function () {
+    $l = lignes([
+        'type' => 'sort_dread', 'sort' => 'Terreur', 'condition' => 'Apeuré',
+        'resultats' => [[
+            'cible' => ['personnage_id' => 9, 'nom' => 'Grom'],
+            'mind_cible' => 4, 'issue' => 'resiste', 'succes' => 2, 'difficulte' => 1,
+            'faces' => ['crane', 'crane', 'bouclier_blanc', 'bouclier_noir'],
+            'effet_applique' => false,
+        ]],
+    ], 'Le Gardien');
+
+    expect($l[0]['texte'])->toBe('Grom résiste à Terreur')
+        ->and($l[0]['des']['boucliers'])->toBe(2);
+});
+
+it('dessine les dés rouges d\'une Boule de Flammes lancée par le MJ (`des_rouges`)', function () {
+    $l = lignes([
+        'type' => 'sort_dread', 'sort' => 'Boule de Flammes',
+        'resultats' => [[
+            'cible' => ['personnage_id' => 3, 'nom' => 'Thora'],
+            'degats' => 1, 'pv_body_apres' => 5, 'cible_tombee' => false,
+            'des_rouges' => [1, 5, 3], 'degats_bruts' => 3,
+        ]],
+    ], 'Le Gardien');
+
+    expect($l[0]['texte'])->toBe('Boule de Flammes frappe Thora (−1 PV)')
+        ->and($l[0]['des']['def'])->toBe([1, 5, 3])
+        ->and($l[0]['des']['defensive'])->toBe([5, 6]);
+});
+
+it('dessine le(s) dé(s) d\'un piège de sol — payload FABRIQUÉ, contrat § « Les trois pièges de sol »', function () {
+    // ⚠ `MoteurPieges` ne publie pas encore `faces`/`touches` au moment de ce
+    // test (un autre agent porte ce chantier) : la forme est fixée par le
+    // contrat, ce test la fabrique plutôt que d'attendre le jeu réel.
+    $unDe = lignes([
+        'type' => 'piege_declenche',
+        'piege' => ['nom' => 'Piège à lances'],
+        'personnage' => ['id' => 4, 'nom' => 'Krogar'],
+        'degats' => 1, 'tombe' => false,
+        'faces' => ['crane'], 'touches' => 1,
+    ], 'Krogar');
+
+    expect($unDe[0]['des']['atk'])->toBe(['crane'])
+        ->and($unDe[0]['des']['touchante'])->toBe('crane')
+        ->and($unDe[0]['des']['attaquant'])->toBe('Piège à lances')
+        ->and($unDe[0]['des']['defenseur'])->toBe('Krogar');
+
+    $troisDes = lignes([
+        'type' => 'piege_declenche',
+        'piege' => ['nom' => 'Chute de blocs'],
+        'personnage' => ['id' => 4, 'nom' => 'Krogar'],
+        'degats' => 2, 'tombe' => false,
+        'faces' => ['crane', 'crane', 'bouclier_blanc'], 'touches' => 2,
+    ], 'Krogar');
+
+    expect($troisDes[0]['des']['atk'])->toHaveCount(3)
+        ->and($troisDes[0]['des']['touches'])->toBe(2);
+});
+
+it('dessine aussi les dés d\'un piège NESTED dans un déplacement (chemin croisé)', function () {
+    $l = lignes([
+        'type' => 'deplacement',
+        'pieges_declenches' => [[
+            'type' => 'piege_declenche',
+            'piege' => ['nom' => 'Piège à lances'],
+            'personnage' => ['id' => 17, 'nom' => 'Krogar'],
+            'degats' => 1, 'faces' => ['crane'], 'touches' => 1,
+        ]],
+    ], 'Krogar');
+
+    expect($l[0]['des']['attaquant'])->toBe('Piège à lances');
+});
+
+it('ne dessine rien pour un piège SANS faces publiées (fosse — aucun dé lancé)', function () {
+    $l = lignes([
+        'type' => 'piege_declenche',
+        'piege' => ['nom' => 'Fosse'],
+        'personnage' => ['id' => 4, 'nom' => 'Krogar'],
+        'degats' => 1, 'tombe' => false, 'immobilise' => true,
+    ], 'Krogar');
+
+    expect($l[0])->not->toHaveKey('des');
+});
+
 it('distingue un levier forcé d\'un levier qui résiste', function () {
     // ⚠ Signalé par René en partie réelle (2026-09-11) : « on a un levier dans
     // un corridor qui est supposé ouvrir une porte dans la salle suivante mais

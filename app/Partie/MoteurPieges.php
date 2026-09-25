@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
@@ -29,10 +30,19 @@ use App\Support\Journal;
  * `declenche` (marché dessus, désamorçage raté, chute au franchissement).
  *
  * Choix MVP (questions ouvertes doc 10 §10, départ playtest) :
- *  - dégâts = effet.degats_pv_body du catalogue (1 partout) ;
- *  - une fosse (effet.franchissable) IMMOBILISE : le déplacement s'arrête
- *    sur sa case ; persistante, elle reste en jeu (`detecte`) après
- *    déclenchement — les pièges à usage unique passent à `declenche` ;
+ *  - dégâts DES TROIS PIÈGES DE SOL, sourcés livret de Zargon p. 14 (contrat
+ *    « Les trois pièges de sol, enfin tels que le livret les décrit »,
+ *    2026-09-24) : Fosse = `effet.degats_pv_body` fixe (1) ; Piège à lances
+ *    et Chute de blocs = `effet.des_combat` dés de combat (1 et 3), un crâne
+ *    = 1 PV de Body, SANS jet de défense ;
+ *  - « their turn immediately ends » sous les TROIS : un piège de sol qui se
+ *    déclenche ferme tout le tour du héros (voir `ResolveurTour::$finTourPiegeSol`),
+ *    pas seulement son déplacement ;
+ *  - une fosse (effet.franchissable) reste sautable une fois détectée : le
+ *    déclenchement caché, lui, arrête net (arrêt DUR) ;
+ *  - la Chute de blocs devient un `ETAT_BLOC` PERMANENT — le héros dessus
+ *    doit d'abord choisir où s'écarter (`casesEcart()`) avant que son tour
+ *    ne se ferme ;
  *  - la fouille réussie révèle les pièges cachés dans un RAYON de 3 cases
  *    (distance de Manhattan) autour du fouilleur ;
  *  - l'Œil du mineur (nœud nain) détecte les pièges ORTHOGONALEMENT
@@ -58,6 +68,16 @@ final class MoteurPieges
     public const ETAT_DECLENCHE = 'declenche';
 
     /**
+     * BLOC PERMANENT (Chute de blocs déclenchée, livret p. 14, 2026-09-24) :
+     * « the trap space is now a permanent block in the game ». DISTINCT de
+     * `ETAT_DECLENCHE` — un piège à lances déclenché est un piège DÉPENSÉ (rien
+     * sur la case), une chute de blocs déclenchée est un OBSTACLE, lu par la
+     * boucle unique de `FabriqueGrille::pour()` et dessiné comme un bloc de
+     * pierre, jamais comme un trou (`resources/js/components/carte/symboles.js`).
+     */
+    public const ETAT_BLOC = 'bloc';
+
+    /**
      * *Sens du piège* (Explorateur) — mécanique de la capacité de carte, et
      * l'exact contraire de l'Œil du mineur : elle AVERTIT sans révéler.
      */
@@ -74,11 +94,20 @@ final class MoteurPieges
 
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
-     * arrivée incluse) : un piège CACHÉ sur le chemin se déclenche. Une fosse
-     * (ou un héros tombé à 0 PV) interrompt le déplacement sur la case.
+     * arrivée incluse) : un piège CACHÉ sur le chemin se déclenche.
+     *
+     * ⚠ « Their turn immediately ends » (livret p. 14, 2026-09-24) vaut pour
+     * les TROIS pièges de sol, sans exception : l'arrêt est désormais TOUJOURS
+     * DUR (la course s'arrête net) dès qu'un piège caché se déclenche — avant
+     * cette date, seule la fosse (`immobilise`) ou une chute à 0 PV
+     * l'imposaient, et un piège à lances ou une chute de blocs laissait le
+     * héros continuer sa marche en pleine hémorragie.
      *
      * @param  list<array{x: int, y: int}>  $chemin  étapes SANS la case de départ
-     * @return array{arret: array{x: int, y: int}|null, declenchements: list<array<string, mixed>>}
+     * @param  array{x: int, y: int}  $depart  position du héros AVANT ce mouvement —
+     *         sert à calculer « reculer »/« avancer » si une Chute de blocs
+     *         se déclenche (voir `casesEcart()`)
+     * @return array{arret: array{x: int, y: int}|null, declenchements: list<array<string, mixed>>, attente_ecart: array{x: int, y: int, cases: list<array{x: int, y: int, sens: string}>}|null}
      */
     public function controlerChemin(
         Groupe $groupe,
@@ -86,27 +115,43 @@ final class MoteurPieges
         Personnage $personnage,
         EtatPersonnageQuete $etat,
         array $chemin,
+        array $depart,
     ): array {
         $declenchements = [];
         $detections = [];
         $aDetection = $this->possedeOeilDuMineur($personnage);
+        $provenance = $depart;
 
         foreach ($chemin as $case) {
             $x = (int) $case['x'];
             $y = (int) $case['y'];
 
-            // 1) Piège caché SUR la case traversée → déclenchement immédiat.
+            // 1) Piège caché SUR la case traversée → déclenchement immédiat,
+            //    et la course s'arrête TOUJOURS là (voir docblock ci-dessus).
             $index = $this->indexPiegeCache($carte, $x, $y);
             if ($index !== null) {
                 $payload = $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
                 $declenchements[] = $payload;
 
-                // Fosse = immobilisé (perd le reste de son déplacement) ; un héros
-                // tombé à 0 PV s'arrête aussi là où il tombe. Arrêt DUR : la
-                // course est terminée pour le tour.
-                if ($payload['immobilise'] || $payload['tombe']) {
-                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => true, 'declenchements' => $declenchements, 'detections' => $detections];
-                }
+                // CHUTE DE BLOCS : le héros ne choisit PAS encore de finir son
+                // tour — il doit d'abord s'écarter (livret p. 14). Pour les deux
+                // autres pièges, l'arrêt clôt directement le tour (le créneau
+                // effectif est forcé à 'tour' par le résolveur).
+                //
+                // ⚠ SAUF si le coup l'a mis à terre (`$etat->tombe`, posé par
+                // `declencher()` juste au-dessus) : un héros TOMBÉ ne choisit
+                // rien, il gît sur le bloc — son tour se ferme comme pour les
+                // deux autres pièges, pas de menu à un seul bouton pour un
+                // héros inconscient.
+                $attenteEcart = (! empty($payload['bloc_permanent']) && ! $etat->tombe)
+                    ? $this->casesEcart($carte, $personnage, $provenance, ['x' => $x, 'y' => $y])
+                    : null;
+
+                return [
+                    'arret' => ['x' => $x, 'y' => $y], 'dur' => true,
+                    'declenchements' => $declenchements, 'detections' => $detections,
+                    'attente_ecart' => $attenteEcart,
+                ];
             }
 
             // 2) Œil du mineur : entrer sur une case qui rend un piège caché
@@ -119,7 +164,7 @@ final class MoteurPieges
                 if ($reveles !== []) {
                     $detections = [...$detections, ...$reveles];
 
-                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections];
+                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'attente_ecart' => null];
                 }
             }
 
@@ -146,19 +191,78 @@ final class MoteurPieges
 
                     return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false,
                         'declenchements' => $declenchements, 'detections' => $detections,
-                        'alertes' => $alertes];
+                        'alertes' => $alertes, 'attente_ecart' => null];
                 }
             }
+
+            // Rien ne s'est déclenché sur cette case : elle devient la
+            // provenance du PAS SUIVANT — c'est elle que « reculer » visera si
+            // le pas suivant tombe sur une Chute de blocs.
+            $provenance = ['x' => $x, 'y' => $y];
         }
 
-        return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections];
+        return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'attente_ecart' => null];
     }
 
     /**
-     * Déclenche le piège d'index donné sur un héros : effet du catalogue
-     * (degats_pv_body), héros à 0 PV → tombe (cohérent avec le combat),
-     * usage unique → `declenche` définitif, fosse persistante → reste en jeu
-     * (`detecte` après déclenchement). Journal type action + narration en job.
+     * Cases où le héros peut s'écarter du BLOC PERMANENT tombé sous ses pieds
+     * (livret p. 14 : « the hero then decides to move ahead or move back to an
+     * empty square »). AU PLUS DEUX cases (René, 2026-09-24) :
+     *  - RECULER : la case qu'il vient de quitter pour entrer sur le bloc —
+     *    libre PAR CONSTRUCTION (il en est parti à l'instant, dans la MÊME
+     *    résolution de tour : rien d'autre n'a pu s'y glisser). La liste
+     *    n'est donc JAMAIS vide.
+     *  - AVANCER : la case suivante dans le sens déjà pris, seulement si elle
+     *    est libre ET praticable (`Grille::estTraversable()`, le MÊME test
+     *    que le résolveur applique déjà à la case de réception d'un saut de
+     *    fosse — un second calcul aurait été une seconde copie de cette
+     *    règle). Le livret laisse alors le héros s'isoler du groupe s'il le
+     *    choisit ; la manette l'en avertit (elle ne l'empêche pas).
+     *
+     * @param  array{x: int, y: int}  $provenance
+     * @param  array{x: int, y: int}  $bloc
+     * @return array{x: int, y: int, cases: list<array{x: int, y: int, sens: string}>}
+     */
+    private function casesEcart(Carte $carte, Personnage $personnage, array $provenance, array $bloc): array
+    {
+        $cases = [
+            ['x' => $provenance['x'], 'y' => $provenance['y'], 'sens' => 'reculer'],
+        ];
+
+        $dx = $bloc['x'] - $provenance['x'];
+        $dy = $bloc['y'] - $provenance['y'];
+
+        if (($dx !== 0 || $dy !== 0) && $carte->quete !== null) {
+            $avancer = ['x' => $bloc['x'] + $dx, 'y' => $bloc['y'] + $dy];
+
+            // Grille STRICTE (pas `franchitAllies`) : la case visée doit être
+            // réellement LIBRE pour qu'on puisse s'y arrêter — même exigence
+            // que la case de réception d'un saut de fosse
+            // (`ResolveurTour::resoudreFranchissement()`).
+            if (FabriqueGrille::pour($carte->quete, exceptPersonnageId: $personnage->id)
+                ->estTraversable($avancer['x'], $avancer['y'])) {
+                $cases[] = ['x' => $avancer['x'], 'y' => $avancer['y'], 'sens' => 'avancer'];
+            }
+        }
+
+        return ['x' => $bloc['x'], 'y' => $bloc['y'], 'cases' => $cases];
+    }
+
+    /**
+     * Déclenche le piège d'index donné sur un héros : effet du catalogue,
+     * héros à 0 PV → tombe (cohérent avec le combat), usage unique →
+     * `declenche` définitif, fosse persistante → reste en jeu (`detecte`
+     * après déclenchement), Chute de blocs → `ETAT_BLOC` (bloc permanent,
+     * livret p. 14). Journal type action + narration en job.
+     *
+     * ⚠ DEUX FORMES DE DÉGÂTS depuis le contrat du 2026-09-24 : `des_combat`
+     * (Piège à lances = 1, Chute de blocs = 3) lance ce nombre de dés de
+     * combat, un crâne = 1 PV de Body, SANS jet de défense — le piège n'en a
+     * jamais lancé un, la clé `sans_defense` serait donc décorative et n'existe
+     * pas. Sans `des_combat` (Fosse), l'ancien montant fixe `degats_pv_body`
+     * reste tel quel. Les faces ne sont publiées QUE quand un dé a réellement
+     * été lancé (`faces`/`touches`) — le fil et la scène de table les
+     * dessinent comme celles d'une attaque.
      *
      * @return array<string, mixed> payload journalisé
      */
@@ -184,7 +288,19 @@ final class MoteurPieges
             ];
         }
 
-        $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
+        $nbDesCombat = (int) data_get($piege?->effet, 'des_combat', 0);
+        $faces = null;
+        $touches = null;
+
+        if ($nbDesCombat > 0) {
+            $facesLancees = $this->des->desCombat($nbDesCombat);
+            $touches = count(array_filter($facesLancees, fn (FaceDeCombat $f) => $f->estCrane()));
+            $faces = array_map(fn (FaceDeCombat $f) => $f->value, $facesLancees);
+            $degats = $touches;
+        } else {
+            $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
+        }
+
         $subis = $this->degats->infligerAHeros(
             $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom],
         );
@@ -195,10 +311,19 @@ final class MoteurPieges
             $etat->update(['tombe' => true]); // C4 : occupe sa case, relevable
         }
 
-        // Persistant (fosse) : le piège reste en jeu, désormais visible de
-        // tous ; usage unique : consommé définitivement.
+        // BLOC PERMANENT (Chute de blocs) : ni persistant (la fosse reste
+        // `detecte`, sautable) ni simplement dépensé (`declenche`, la lance
+        // disparaît pour de bon) — un TROISIÈME sort, un obstacle qui reste.
+        // Persistant sinon (fosse) : le piège reste en jeu, désormais visible
+        // de tous ; usage unique sinon : consommé définitivement.
+        $blocPermanent = (bool) data_get($piege?->effet, 'bloc_permanent', false);
         $persistant = $piege?->usage === 'persistant';
-        $this->changerEtat($carte, $index, $persistant ? self::ETAT_DETECTE : self::ETAT_DECLENCHE);
+        $nouvelEtat = match (true) {
+            $blocPermanent => self::ETAT_BLOC,
+            $persistant => self::ETAT_DETECTE,
+            default => self::ETAT_DECLENCHE,
+        };
+        $this->changerEtat($carte, $index, $nouvelEtat);
 
         $payload = [
             'type' => 'piege_declenche',
@@ -213,7 +338,17 @@ final class MoteurPieges
             'pv_body_apres' => $pvApres,
             'tombe' => $tombe,
             'immobilise' => $this->estFosse($piege),
+            // Signale au RÉSOLVEUR (pas seulement à l'affichage) que la case
+            // vient de devenir un bloc permanent : c'est ce qui décide si le
+            // héros doit s'écarter avant que son tour ne se termine (voir
+            // `MoteurPieges::casesEcart()` / `ResolveurTour::resoudreDeplacement()`).
+            'bloc_permanent' => $blocPermanent,
         ];
+
+        if ($faces !== null) {
+            $payload['faces'] = $faces;
+            $payload['touches'] = $touches;
+        }
 
         Journal::ajouter($groupe, 'action', $payload, [
             'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
