@@ -51,7 +51,12 @@ export function getEcho() {
         echoInstance = new Echo({
             broadcaster: 'reverb',
             key,
-            wsHost: import.meta.env.VITE_REVERB_HOST ?? window.location.hostname,
+            // L'hôte QUI A SERVI LA PAGE, jamais l'IP compilée : Reverb tourne
+            // sur la même machine (port 8080), et `VITE_REVERB_HOST` figeait
+            // dans le bundle l'IP du réseau de la maison (192.168.2.97) — sur
+            // le Wi-Fi d'un ami, les pages s'ouvraient et le temps réel visait
+            // une adresse morte : aucun menu, table figée (2026-09-25).
+            wsHost: window.location.hostname,
             wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
             wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
             forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
