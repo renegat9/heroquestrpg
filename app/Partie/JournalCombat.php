@@ -104,6 +104,23 @@ final class JournalCombat
             }
         }
 
+        // Charges dépensées (`charges_depensees`, App\Partie\TamponCharges) : ce
+        // qu'il reste à l'objet, ou qu'il vient de se briser. Le fil n'en
+        // savait rien — l'arc de Sylvan affichait « 4 » avec 2 flèches, et
+        // « l'objet se brise » n'existait que dans l'historique (2026-09-25).
+        foreach ((array) ($resultat['charges_depensees'] ?? []) as $c) {
+            if (! is_array($c)) {
+                continue;
+            }
+
+            $qui = ($c['objet'] ?? 'Un objet').' de '.($c['personnage'] ?? 'un héros');
+            $n = (int) ($c['restantes'] ?? 0);
+
+            $lignes[] = $this->info(! empty($c['detruit'])
+                ? "{$qui} est épuisé et se brise"
+                : "{$qui} : {$n} utilisation".($n > 1 ? 's' : '').' restante'.($n > 1 ? 's' : '').' sur '.(int) ($c['max'] ?? 0));
+        }
+
         return $lignes;
     }
 
@@ -444,16 +461,7 @@ final class JournalCombat
     private function ligneType(array $a, string $acteurNom): array
     {
         return match ($a['type'] ?? null) {
-            'attaque' => [
-                ...$this->attaqueHeros($a, $acteurNom),
-                // L'arc de Vindication publiait `fleches_restantes` depuis sa
-                // création, et le fil ne le lisait pas : l'elfe tirait sans
-                // jamais savoir combien de flèches il lui restait (René,
-                // 2026-09-25). À 0, la ligne `objet_detruit` prend le relais.
-                ...(isset($a['fleches_restantes']) && (int) $a['fleches_restantes'] > 0
-                    ? [$this->info((int) $a['fleches_restantes'].' flèche'.((int) $a['fleches_restantes'] > 1 ? 's' : '').' restante'.((int) $a['fleches_restantes'] > 1 ? 's' : '').' à '.$acteurNom)]
-                    : []),
-            ],
+            'attaque' => $this->attaqueHeros($a, $acteurNom),
             // Techniques du Moine : le fil doit dire ce que le style vient de
             // faire, sinon un Feu dépensé ressemblerait à un tour perdu.
             'style' => [$this->info(($a['technique'] ?? 'Une technique').' — '.$acteurNom.' prend sa garde')],

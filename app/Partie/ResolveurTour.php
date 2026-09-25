@@ -267,6 +267,7 @@ final class ResolveurTour
         // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
         $this->annonces->vider();
+        app(TamponCharges::class)->vider();
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -511,6 +512,15 @@ final class ResolveurTour
 
         if ($declenches !== []) {
             $resultat['talents_declenches'] = $declenches;
+        }
+
+        // Charges dépensées (flèches, jetons de l'Orbe, Anneau de Feu…) : même
+        // vidage unique, pour que le fil dise ce qu'il reste — ou que l'objet
+        // s'est brisé, ce que seul l'historique savait.
+        $charges = app(TamponCharges::class)->vider();
+
+        if ($charges !== []) {
+            $resultat['charges_depensees'] = $charges;
         }
 
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.

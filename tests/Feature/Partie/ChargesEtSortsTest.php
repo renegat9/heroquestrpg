@@ -255,9 +255,10 @@ it('inflige 3 PV par flèche, sans jet d\'attaque ni défense', function () {
         ->assertJsonPath('resultat.cible_vaincue', false)
         ->assertJsonPath('resultat.fleches_restantes', 3);
 
-    // …et le fil le DIT : `fleches_restantes` était publié, jamais lu (2026-09-25).
+    // …et le fil le DIT (`charges_depensees`, 2026-09-25) : le sac affichait « 4 » pour toujours.
     $lignes = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Sylvan'))->pluck('texte');
-    expect($lignes->implode(' | '))->toContain('3 flèches restantes à Sylvan');
+    expect($lignes->implode(' | '))->toContain('Arc elfique de Vindication de ');
+    expect($lignes->implode(' | '))->toContain(': 3 utilisations restantes sur 4');
 
     expect((int) $ctx['instance']->fresh()->pv_body)->toBe(2)
         ->and($ctx['instance']->fresh()->etat)->toBe('actif')
@@ -296,9 +297,14 @@ it('se BRISE à la dernière flèche, et le fil le dit APRÈS le tir', function 
     $ctx['instance']->update(['pv_body' => 5, 'pv_body_max' => 5]);
     $ctx['arc']->update(['charges' => 1]); // la dernière flèche
 
-    tirer($ctx, 1)->assertStatus(202)
+    $reponse = tirer($ctx, 1)->assertStatus(202)
         ->assertJsonPath('resultat.degats', 3)
-        ->assertJsonPath('resultat.fleches_restantes', 0);
+        ->assertJsonPath('resultat.fleches_restantes', 0)
+        ->assertJsonPath('resultat.charges_depensees.0.detruit', true);
+
+    expect(collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Sylvan'))->pluck('texte')->implode(' | '))
+        ->toContain('Arc elfique de Vindication de ')
+        ->toContain('est épuisé et se brise');
 
     // « 4 flèches, après l'arc est détruit » : plus d'arc vide qui retomberait
     // sur des dés d'arme ordinaire.
@@ -350,10 +356,18 @@ it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
     desFiges(array_fill(0, 30, 4));
     [$sortId, $cible] = premierSortCiblable($ctx, $magicien);
 
-    $this->postJson('/api/groupes/table-1/choix', [
+    $reponse = $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
         'parametres' => ['cle' => "sort:{$sortId}", 'cible_id' => $cible['id'], 'cible_type' => $cible['type'] ?? 'monstre'],
     ])->assertStatus(202)->assertJsonPath('resultat.sort_preserve', 'anneau_de_sort');
+
+    // ⚠ FENÊTRE, pas CHARGE (René, 2026-09-25 : « faire attention entre les
+    // objets qui ont un nombre de charges permanent vs par quête pour la
+    // destruction »). L'anneau est « une fois par quête » : il se réarme à la
+    // quête suivante, il ne se brise JAMAIS, et le fil ne doit donc annoncer
+    // ni charge dépensée ni destruction.
+    expect($reponse->json('resultat.charges_depensees'))->toBeNull()
+        ->and(Inventaire::find($anneau->id))->not->toBeNull();
 
     $sort = $magicien->sorts()->wherePivot('sorts.id', $sortId)->firstOrFail();
 
@@ -378,6 +392,8 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
 
     $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
 
+    $filDeLAnneau = [];
+
     foreach ([1, 2] as $tour) {
         rearmerTour($ctx, $magicien);
         $magicien->sorts()->updateExistingPivot($boule->id, ['disponible' => true]);
@@ -385,13 +401,21 @@ it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function 
         GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
         desFiges(array_fill(0, 30, 1)); // que des crânes : sans l'anneau, ça fait mal
 
-        test()->postJson('/api/groupes/table-1/choix', [
+        $reponse = test()->postJson('/api/groupes/table-1/choix', [
             'option_id' => 'lancer_sort',
             'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros'],
         ])->assertStatus(202)
             ->assertJsonPath('resultat.immunite_degat', 'feu')
             ->assertJsonPath('resultat.degats', 0);
+
+        $filDeLAnneau[] = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), $magicien->nom))
+            ->pluck('texte')->implode(' | ');
     }
+
+    // Le FIL dit ce qu'il reste, puis que l'anneau se brise (2026-09-25) :
+    // « se brise » n'existait que dans l'historique, jamais à la table.
+    expect($filDeLAnneau[0])->toContain('Anneau de Feu de '.$magicien->nom.' : 1 utilisation restante sur 2')
+        ->and($filDeLAnneau[1])->toContain('Anneau de Feu de '.$magicien->nom.' est épuisé et se brise');
 
     // Deux sorts encaissés sans une égratignure, et l'anneau tombe en cendres :
     // détruit au dernier usage (René, 2026-09-16), ce que la carte dit mot pour

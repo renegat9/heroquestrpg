@@ -53,6 +53,10 @@ class AppServiceProvider extends ServiceProvider
         // L'ENTRÉE.
         $this->app->singleton(\App\Partie\AnnoncesTalents::class);
 
+        // Charges dépensées pendant la résolution (App\Partie\TamponCharges) :
+        // même patron, même raison de ne pas être `scoped`.
+        $this->app->singleton(\App\Partie\TamponCharges::class);
+
         // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
         // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
         // compteur de tentative) doit survivre entre l'annonce du contexte et

@@ -80,6 +80,7 @@ final class MoteurCharges
         }
 
         $ligne->update(['charges' => $restantes - 1]);
+        app(TamponCharges::class)->depense($ligne, $restantes - 1);
 
         // ⚠ `$differerDestruction` : l'appelant qui JOURNALISE son action juste
         // après (la flèche, l'anneau activé) détruit lui-même, ENSUITE, par
@@ -115,6 +116,7 @@ final class MoteurCharges
         $nom = $ligne->objet?->nom;
         $porteur = $ligne->personnage()->first();
 
+        app(TamponCharges::class)->detruit($ligne);
         $ligne->delete();
 
         $groupe = $porteur?->groupeActif;
