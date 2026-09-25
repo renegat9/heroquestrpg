@@ -230,7 +230,8 @@ class AuthController extends Controller
                                 ->map(fn ($l) => [
                                     'inventaire_id' => $l->id,
                                     'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
+                                    'avantages' => $this->avantagesDeLExemplaire($l),
+                                    'charges' => $this->chargesDeLExemplaire($l),
                                     'emplacement' => $l->emplacement,
                                     'bouclier' => (bool) ($l->objet->effet['incompatible_deux_mains'] ?? false),
                                     'deux_mains' => (bool) ($l->objet->effet['deux_mains'] ?? false),
@@ -247,7 +248,8 @@ class AuthController extends Controller
                             'armure' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'armure' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    'avantages' => $this->avantagesDeLExemplaire($l),
+                                    'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Slot propre depuis le 2026-08-08 : le casque se
@@ -257,14 +259,16 @@ class AuthController extends Controller
                             'casque' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'casque' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    'avantages' => $this->avantagesDeLExemplaire($l),
+                                    'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Talisman (artefact de classe) : cinquième slot.
                             'talisman' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'talisman' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    'avantages' => $this->avantagesDeLExemplaire($l),
+                                    'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             // Bottes : sixième slot (2026-09-04). Sans cette clé
@@ -274,7 +278,8 @@ class AuthController extends Controller
                             'bottes' => with(
                                 $p->inventaire->first(fn ($l) => $l->emplacement === 'bottes' && $l->objet !== null),
                                 fn ($l) => $l === null ? null : ['inventaire_id' => $l->id, 'nom' => $l->objet->nom,
-                                    'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet)]
+                                    'avantages' => $this->avantagesDeLExemplaire($l),
+                                    'charges' => $this->chargesDeLExemplaire($l)]
                                     + $this->detailForge($forge, $l, $peutForgerIci),
                             ),
                             'sac' => $p->inventaire
@@ -303,7 +308,8 @@ class AuthController extends Controller
                                         // Le vocabulaire d'affichage vit côté SERVEUR :
                                         // une table côté client dérive de la donnée
                                         // qu'elle décrit, et les talents l'ont déjà payé.
-                                        'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
+                                        'avantages' => $this->avantagesDeLExemplaire($l),
+                                        'charges' => $this->chargesDeLExemplaire($l),
                                         'quantite' => (int) $l->quantite,
                                         'equipable' => in_array($l->objet->emplacement, Equipement::SLOTS, true),
                                         // Emplacements POSSIBLES : deux pour une arme
@@ -358,7 +364,8 @@ class AuthController extends Controller
                                 // manette n'avait aucun moyen d'en tirer une
                                 // phrase, et une table de traduction côté client
                                 // dérive de la donnée qu'elle décrit.
-                                'avantages' => MotsClesEquipement::avantages((array) $l->objet->effet),
+                                'avantages' => $this->avantagesDeLExemplaire($l),
+                                'charges' => $this->chargesDeLExemplaire($l),
                                 // Trois potions officielles sont réservées au
                                 // Barbare, deux à l'Elfe. On BADGE, on ne filtre
                                 // pas : un héros a le droit de PORTER la potion
@@ -423,6 +430,34 @@ class AuthController extends Controller
      *
      * @return array{ameliorations: list<array<string, mixed>>, forgeable: bool, forge_catalogue: list<array<string, mixed>>}
      */
+    /**
+     * Ce que fait CET exemplaire : les avantages du catalogue, avec les charges
+     * qui lui restent — et, à part, `charges: {restantes, max}` pour le badge
+     * de la manette. Point de passage unique de toutes les lignes d'inventaire
+     * de `/moi` : le sac affichait le chiffre du catalogue, jamais le restant.
+     *
+     * @return list<string>
+     */
+    private function avantagesDeLExemplaire(Inventaire $ligne): array
+    {
+        return MotsClesEquipement::avantages(
+            (array) $ligne->objet?->effet,
+            app(\App\Partie\MoteurCharges::class)->restantes($ligne),
+        );
+    }
+
+    /**
+     * `{restantes, max}` pour un objet à charges, `null` sinon.
+     *
+     * @return array{restantes: int, max: int}|null
+     */
+    private function chargesDeLExemplaire(Inventaire $ligne): ?array
+    {
+        $restantes = app(\App\Partie\MoteurCharges::class)->restantes($ligne);
+
+        return $restantes === null ? null : ['restantes' => $restantes, 'max' => (int) $ligne->objet->effet['charges']];
+    }
+
     private function detailForge(Forge $forge, Inventaire $ligne, bool $forgeronDisponible): array
     {
         $forgeable = $forge->estForgeable($ligne, $forgeronDisponible);

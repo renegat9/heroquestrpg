@@ -119,7 +119,7 @@ const deborde = computed(() => {
         <div v-if="equipement.armes.length" v-for="a in equipement.armes" :key="`arme-${a.inventaire_id}`" class="item">
             <span class="ic"><MSym :n="a.bouclier ? 'shield' : 'swords'" /></span>
             <div>
-                <div class="nm">{{ a.nom }}</div>
+                <div class="nm">{{ a.nom }}<span v-if="a.charges" class="sac-charges" :title="`${a.charges.restantes} utilisation(s) restante(s) sur ${a.charges.max}`">{{ a.charges.restantes }}/{{ a.charges.max }}</span></div>
                 <div class="rar">{{ libelleMain(a) }}</div>
             </div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(a, 'Arme équipée', 'swords')"><MSym n="info" :size="18" /></button>
@@ -143,7 +143,7 @@ const deborde = computed(() => {
         <!-- Talisman (artefact de classe) : cinquième emplacement, cumulatif. -->
         <div v-if="equipement.talisman" class="item">
             <span class="ic"><MSym n="diamond" /></span>
-            <div><div class="nm">{{ equipement.talisman.nom }}</div><div class="rar">Talisman équipé</div></div>
+            <div><div class="nm">{{ equipement.talisman.nom }}<span v-if="equipement.talisman.charges" class="sac-charges" :title="`${equipement.talisman.charges.restantes} utilisation(s) restante(s) sur ${equipement.talisman.charges.max}`">{{ equipement.talisman.charges.restantes }}/{{ equipement.talisman.charges.max }}</span></div><div class="rar">Talisman équipé</div></div>
             <button class="sac-btn ghost det-ic" title="Voir le détail" @click="ouvrirDetail(equipement.talisman, 'Talisman équipé', 'diamond')"><MSym n="info" :size="18" /></button>
             <button v-if="auHub" class="sac-btn ghost" :disabled="equipEnCours" @click="emit('desequiper', equipement.talisman.inventaire_id)">Déséquiper</button>
         </div>
@@ -224,7 +224,7 @@ const deborde = computed(() => {
         <template v-for="it in equipement.sac" :key="it.inventaire_id">
             <div class="item">
                 <span class="ic"><MSym n="inventory_2" /></span>
-                <div><div class="nm">{{ it.nom }}</div><div class="rar" :class="'rar-' + rareteVersCle(it.rarete)">{{ RARETE_LABELS[rareteVersCle(it.rarete)] }}</div></div>
+                <div><div class="nm">{{ it.nom }}<span v-if="it.charges" class="sac-charges" :title="`${it.charges.restantes} utilisation(s) restante(s) sur ${it.charges.max}`">{{ it.charges.restantes }}/{{ it.charges.max }}</span></div><div class="rar" :class="'rar-' + rareteVersCle(it.rarete)">{{ RARETE_LABELS[rareteVersCle(it.rarete)] }}</div></div>
                 <button class="sac-btn ghost det-ic" title="Voir le détail"
                     @click="ouvrirDetail(it, RARETE_LABELS[rareteVersCle(it.rarete)] ?? '', 'inventory_2')"><MSym n="info" :size="18" /></button>
                 <button
@@ -297,6 +297,11 @@ const deborde = computed(() => {
     </template>
 
 <style scoped>
+/* Charges restantes de CET exemplaire (`charges: {restantes, max}`, décidé
+   par le serveur) : l'arc de Vindication affichait « 4 » pour toujours. */
+.sac-charges { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 99px;
+  font-size: 11px; font-weight: 700; line-height: 17px; vertical-align: 1px;
+  background: var(--stone-700); color: var(--torch, var(--ink-200)); }
 .sac-btn {
     margin-left: auto;
     padding: 7px 16px;

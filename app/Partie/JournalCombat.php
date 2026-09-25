@@ -444,7 +444,16 @@ final class JournalCombat
     private function ligneType(array $a, string $acteurNom): array
     {
         return match ($a['type'] ?? null) {
-            'attaque' => $this->attaqueHeros($a, $acteurNom),
+            'attaque' => [
+                ...$this->attaqueHeros($a, $acteurNom),
+                // L'arc de Vindication publiait `fleches_restantes` depuis sa
+                // création, et le fil ne le lisait pas : l'elfe tirait sans
+                // jamais savoir combien de flèches il lui restait (René,
+                // 2026-09-25). À 0, la ligne `objet_detruit` prend le relais.
+                ...(isset($a['fleches_restantes']) && (int) $a['fleches_restantes'] > 0
+                    ? [$this->info((int) $a['fleches_restantes'].' flèche'.((int) $a['fleches_restantes'] > 1 ? 's' : '').' restante'.((int) $a['fleches_restantes'] > 1 ? 's' : '').' à '.$acteurNom)]
+                    : []),
+            ],
             // Techniques du Moine : le fil doit dire ce que le style vient de
             // faire, sinon un Feu dépensé ressemblerait à un tour perdu.
             'style' => [$this->info(($a['technique'] ?? 'Une technique').' — '.$acteurNom.' prend sa garde')],

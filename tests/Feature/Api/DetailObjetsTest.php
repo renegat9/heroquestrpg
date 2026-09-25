@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesEquipement as K;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -118,6 +119,33 @@ it('publie le détail dans /moi, pour le sac ET pour ce qui est porté', functio
 
     $sac = collect($perso['equipement']['sac'])->firstWhere('nom', 'Potion de soin');
     expect($sac['avantages'])->not->toBeEmpty();
+});
+
+it('publie les charges RESTANTES de l\'exemplaire, pas celles du catalogue', function () {
+    // René, 2026-09-25 : l'arc de Vindication de Sylvan en avait 2, le sac
+    // affichait « 4 » — le chiffre du catalogue, jamais le restant.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Sylvan', 1);
+
+    $arc = Objet::where('nom', 'Arc elfique de Vindication')->firstOrFail();
+    Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $arc->id,
+        'quantite' => 1, 'emplacement' => 'sac', 'charges' => 2]);
+
+    $perso = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
+        ->firstWhere('id', $heros->id);
+    $ligne = collect($perso['equipement']['sac'])->firstWhere('nom', 'Arc elfique de Vindication');
+
+    expect($ligne['charges'])->toBe(['restantes' => 2, 'max' => 4])
+        ->and($ligne['avantages'])->toContain("2 utilisations restantes sur 4, puis l'objet se brise")
+        // Le catalogue, lui, décrit une pièce NEUVE et garde son « 4 ».
+        ->and(MotsClesEquipement::avantages((array) $arc->effet))->toContain("4 utilisations, puis l'objet se brise");
+
+    // Un objet sans charges n'en publie pas.
+    $epee = Objet::where('nom', 'Épée large')->firstOrFail();
+    Inventaire::create(['personnage_id' => $heros->id, 'objet_id' => $epee->id, 'quantite' => 1, 'emplacement' => 'sac']);
+    $perso = collect($this->getJson('/api/moi')->json('joueur.personnages'))->firstWhere('id', $heros->id);
+    expect(collect($perso['equipement']['sac'])->firstWhere('nom', 'Épée large')['charges'])->toBeNull();
 });
 
 it('dit ce que disent les CARTES d\'artefact, pas une approximation', function () {

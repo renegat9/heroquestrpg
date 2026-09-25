@@ -1052,11 +1052,26 @@ final class MotsClesEquipement
      * @param  array<string, mixed>  $effet
      * @return list<string>
      */
-    public static function avantages(array $effet): array
+    public static function avantages(array $effet, ?int $chargesRestantes = null): array
     {
         $lignes = [];
 
         foreach ($effet as $cle => $valeur) {
+            // `$chargesRestantes` : le restant de CET exemplaire
+            // (`MoteurCharges::restantes()`). Sans lui, le sac disait « 4
+            // utilisation(s) » pour toujours — l'arc de Sylvan en avait 2
+            // (René, 2026-09-25 : « je ne sais pas si le nombre devrait
+            // descendre »). Le catalogue et le marché, qui décrivent une pièce
+            // neuve, ne le passent pas.
+            if ($cle === self::CHARGES && $chargesRestantes !== null && is_numeric($valeur)) {
+                $lignes[] = self::accorder(
+                    sprintf('%d utilisation(s) restante(s) sur %d, puis l\'objet se brise', $chargesRestantes, (int) $valeur),
+                    $chargesRestantes,
+                );
+
+                continue;
+            }
+
             // ⚠ La seule valeur STRUCTURÉE du vocabulaire (`{des, noms}`) : le
             // gabarit générique n'en pouvait dire que « contre certaines
             // créatures », quand le livret — avec sa propre table, retirée le

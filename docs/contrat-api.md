@@ -1480,6 +1480,7 @@ au sac) :
 | `ameliorations` | `[{nom, avantages}]`, traduites par `MotsClesEquipement::avantages()` | un **fait sur l'objet**, visible par tous — même un joueur sans nain voit qu'une pièce est forgée |
 | `forgeable` | la **DÉCISION** : ce joueur peut-il forger CETTE pièce MAINTENANT | hub, forgeron actif lui appartenant, rareté ≠ `unique`, pas déjà améliorée — quatre ingrédients qu'un client recombinerait de travers |
 | `forge_catalogue` | `[{id, nom, prix, avantages}]` | **la liste blanche exacte** que `POST /forge` acceptera, même filtre `Forge::ameliorationsApplicables()` |
+| `charges` (2026-09-25) | `{restantes, max}` pour un objet à charges, `null` sinon ; et la ligne de charges d'`avantages` dit « 2 utilisations restantes sur 4 » | le restant de **CET exemplaire** (`MoteurCharges::restantes()`, `null` en base = neuf). Le sac affichait le chiffre du CATALOGUE — l'arc de Sylvan disait « 4 » avec 2 flèches. Le fil ajoute « N flèches restantes à X » après chaque tir de Vindication (`fleches_restantes`, publié depuis toujours, jamais lu) |
 
 ⚠ `App\Partie\Forge` est le **point de passage unique** entre le 422 réel
 d'`appliquer()` et la décision publiée : un test les confronte **dans les deux

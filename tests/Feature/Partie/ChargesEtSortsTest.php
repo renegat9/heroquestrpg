@@ -248,12 +248,16 @@ it('inflige 3 PV par flèche, sans jet d\'attaque ni défense', function () {
 
     // 1 = crâne, pas de bouclier noir : la flèche porte ses 3 PV, et la cible
     // en a 5 — elle tient. Plus de mort instantanée.
-    tirer($ctx, 1)->assertStatus(202)
+    $reponse = tirer($ctx, 1)->assertStatus(202)
         ->assertJsonPath('resultat.vindication', true)
         ->assertJsonPath('resultat.degats', 3)
         ->assertJsonPath('resultat.pv_body_apres', 2)
         ->assertJsonPath('resultat.cible_vaincue', false)
         ->assertJsonPath('resultat.fleches_restantes', 3);
+
+    // …et le fil le DIT : `fleches_restantes` était publié, jamais lu (2026-09-25).
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Sylvan'))->pluck('texte');
+    expect($lignes->implode(' | '))->toContain('3 flèches restantes à Sylvan');
 
     expect((int) $ctx['instance']->fresh()->pv_body)->toBe(2)
         ->and($ctx['instance']->fresh()->etat)->toBe('actif')
