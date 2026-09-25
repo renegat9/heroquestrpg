@@ -122,7 +122,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` (private) | `.narration.diffusee` | {texte, ambiance?, quete_id?, url?, sequence?} | table (joue `url` = vraie voix de narrateur si présente, sinon lit `texte` en Web Speech) — `sequence` ignorée si ≤ à la dernière affichée (anti-inversion) |
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
-| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info` ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes). ⚠ **Depuis le 2026-09-24, un jet peut être UNILATÉRAL** — un dé rouge de résistance, un jet de Mind, un piège de sol : SEULE la cible (ou le piège) lance, `atk`/`def` ne porte alors qu'UNE volée. `touchante`/`defensive` valent soit une face unique (`'crane'` — Mind, piège), soit un **ENSEMBLE** de faces gagnantes (`[5, 6]` — dé rouge, chaque 5 OU 6 compte) : le client compare une face à cet ensemble, il ne choisit jamais lequel gagne. Deux champs optionnels, `libelle_atk`/`libelle_def` (défaut `attaque`/`défend`), renomment le verbe de la ligne quand ce n'est pas une attaque (`résiste`) — décidés par le même formateur, jamais par le composant de dés. Point de passage unique des trois formes : `JournalCombat::desJetUnilateral()`, lu aussi par `SceneDeTable` pour `.table.scene` |
+| `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info\|talent` (`talent` : voir §« Un talent qui s'active tout seul se VOIT ») ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes). ⚠ **Depuis le 2026-09-24, un jet peut être UNILATÉRAL** — un dé rouge de résistance, un jet de Mind, un piège de sol : SEULE la cible (ou le piège) lance, `atk`/`def` ne porte alors qu'UNE volée. `touchante`/`defensive` valent soit une face unique (`'crane'` — Mind, piège), soit un **ENSEMBLE** de faces gagnantes (`[5, 6]` — dé rouge, chaque 5 OU 6 compte) : le client compare une face à cet ensemble, il ne choisit jamais lequel gagne. Deux champs optionnels, `libelle_atk`/`libelle_def` (défaut `attaque`/`défend`), renomment le verbe de la ligne quand ce n'est pas une attaque (`résiste`) — décidés par le même formateur, jamais par le composant de dés. Point de passage unique des trois formes : `JournalCombat::desJetUnilateral()`, lu aussi par `SceneDeTable` pour `.table.scene` |
 | `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
@@ -297,6 +297,71 @@ Le fil du combat et la scène de table les dessinent désormais **comme les dés
 d'une attaque** (même composant de dés, même ton), avec le nom de celui qui
 résiste. ⚠ **Aucun payload ne change** : les faces y étaient déjà. C'est un
 défaut de RENDU — « un payload muet est le même défaut qu'aucun payload ».
+
+### Un talent qui s'active tout seul se VOIT (2026-09-25)
+
+René : « on devrait afficher un popup quand un pouvoir s'active de manière
+passive ». Un effet automatique que rien n'annonce est injouable (règle dure) ;
+jusqu'ici la plupart des talents passifs jouaient **en silence** — une porte
+secrète apparaissait, un poison glissait, un dé raté était relancé, sans que le
+joueur sache que c'était SON talent.
+
+**Qui est concerné — liste fermée**, décidée avec René. Les mécaniques sont
+celles de `App\Engine\MotsClesTalent`, et le registre des talents annoncés est
+testé **dans les deux sens** (toute mécanique de la liste a un point
+d'annonce ; aucune annonce ne part d'une mécanique hors liste) :
+
+- *événement* : `detection_pieges_adjacents` (Œil du mineur),
+  `detection_portes_secretes` (Parler à la pierre, Lecture des lieux),
+  `alerte_pieges_adjacents` (Sens du piège), `bonus_des_defense` à condition
+  `premiere_attaque_du_combat` (Garde tenace, Refrain vaillant, Écorce, Esquive,
+  Garde haute), `resistance_condition` (Sang robuste, Sève tenace, Cicatrices),
+  `garde_sort_qui_tue` (Chant runique, Appel de la forêt), `resistance_degats_type`
+  (Chair impie), `inflige_condition_sur_touche` (Lame vénéneuse),
+  `bonus_des_attaque_flanc` (Frappe opportuniste), `ignore_terrain_entravant`
+  (Ronces complices), `bonus_or_tresor` (Chasseur de trésor),
+  `rarete_butin_amelioree` (Œil du prix) ;
+- *actifs qui partent seuls* : `relance_des_attaque_rates` (Coup puissant, Bras
+  d'acier, Coup sauvage), `attaque_supplementaire_apres_kill` (Sang qui bout,
+  Coup de grâce, Soif de sang), `annuler_effet_magique` (Contresort, Verbe
+  ancien), `repiocher_carte_piege` (Sixième sens).
+
+Les réactions **proposées** (Inébranlable, Parade au bouclier, Défi du
+chevalier, Représailles) n'en font pas partie : elles ont déjà leur offre sur
+`joueur.{id}`.
+
+**Payload moteur.** Toute action (héros, monstre, piège, fouille, déplacement…)
+dont la résolution a fait jouer un de ces talents porte
+`talents_declenches: [{personnage_id, heros, talent, mecanique, icone, effet}]` —
+`heros` le nom du porteur, `talent` le nom du nœud (`Competence.nom`), `icone`
+celle de `MotsClesTalent`, `effet` la phrase DÉCIDÉE par le serveur (« révèle
+une porte secrète », « relance 2 dés ratés », « résiste à Empoisonné »,
+« +25 pièces d'or »). Un seul collecteur côté serveur, point de passage
+unique : aucun site d'effet ne formate sa propre annonce.
+
+**Fil (`.combat.journal`).** Chaque entrée devient une ligne
+`{texte: "<talent> — <heros> : <effet>", ton: "talent", talent: {personnage_id,
+heros, nom, icone, effet}}`. `ton` gagne la valeur `talent`. C'est cette ligne
+qui porte le popup : elle part par le canal déjà diffusé à tous, y compris
+pendant la phase des monstres résolue dans la requête d'un autre joueur.
+
+**Popup.** À la réception d'une ligne `ton: "talent"` :
+- l'**écran de table** l'affiche pour tout héros (icône, nom du talent, héros,
+  effet), ~3,5 s, fermable ; plusieurs à la suite s'enchaînent en file ;
+- la **manette** ne l'affiche que pour SON héros (`personnage_id`), même forme.
+Aucune règle n'est redéduite côté client : le texte vient tel quel du serveur.
+
+**Modificateurs de jet (groupe 3) — `des.modificateurs`.** Les talents qui
+modifient un jet SANS événement propre (Frénésie et ses pairs sous la moitié des
+PV, Élan, Charge du destrier, Tir précis, Flèche perçante, défense contre les
+tirs, Bannière, Léger sur ses pieds, malus des monstres au contact, dégâts de
+sort, réduction de dégâts subis, +1 dé de Mind ciblé) ne déclenchent **pas** de
+popup — un popup à chaque coup serait du bruit. Le jet qu'ils ont modifié porte
+`modificateurs: [{source, valeur, sur}]` (`source` le nom du talent, `valeur`
+signé, `sur` ∈ `attaque|defense|degats|mind`), publié dans le résultat moteur
+et recopié par `JournalCombat` dans `des` (fil et `.table.scene`) ;
+`JetDes.vue` l'affiche sous la volée (« +1 Tir précis », « −1 Regard qui
+glace »).
 
 **Sort épargné — `sort_preserve` (2026-09-25).** Le résultat d'un `lancer_sort`
 porte `sort_preserve` quand le sort lancé **reste disponible** : `"anneau_de_sort"`

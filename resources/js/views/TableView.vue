@@ -5,6 +5,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import TalentPopup from '../components/ui/TalentPopup.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
 import ApercuSalle from '../components/carte/ApercuSalle.vue';
@@ -823,6 +824,9 @@ watch(() => store.state.clotureTerminee, (t) => {
             <p>{{ erreurChargement }}</p>
         </div>
         <div v-else class="table tex-stone tex-vignette" style="position: relative">
+            <!-- Un talent qui s'active tout seul se VOIT (2026-09-25) : la table
+                 l'affiche pour TOUT héros (pas de filtre), .combat.journal. -->
+            <TalentPopup :journal="journalTable" />
             <OuvertureQuete
                 v-if="carteOuverture"
                 :texte="ouverture ?? ''"
@@ -1236,6 +1240,8 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .evt-log li.t-degats, .table-screen .evt-log li.t-mort { color: var(--body-bright); }
 .table-screen .evt-log li.t-subit, .table-screen .evt-log li.t-chute { color: oklch(0.78 0.13 55); }
 .table-screen .evt-log li.t-pare, .table-screen .evt-log li.t-succes { color: oklch(0.8 0.13 150); }
+/* Talent qui s'active tout seul (2026-09-25) — même jeton doré que le popup. */
+.table-screen .evt-log li.t-talent { color: var(--gold, #c9a24a); font-weight: 700; }
 
 /* Fiche de stats d'une figure (clic sur l'ordre de jeu — C3). */
 .table-screen .stat-ov { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center;

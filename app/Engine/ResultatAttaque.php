@@ -32,6 +32,16 @@ final readonly class ResultatAttaque
         public bool $cibleTombee,
         public FaceDeCombat $faceTouchante = FaceDeCombat::Crane,
         public FaceDeCombat $faceDefensive = FaceDeCombat::BouclierBlanc,
+        // ⚠ COMBIEN de dés d'attaque ratés ont RÉELLEMENT été relancés par la
+        // passe « relance les ratés » de `Combat::resoudreAttaque()` — pas si
+        // la relance était OFFERTE (`relanceDesAttaqueRatee` peut valoir
+        // `PHP_INT_MAX` sans qu'aucun dé n'ait raté). C'est ce nombre, et lui
+        // seul, qui dit si `relance_des_attaque_rates` (Coup puissant, Bras
+        // d'acier, Coup sauvage) vient de JOUER — un talent qui ne joue pas
+        // n'émet pas de popup (docs/contrat-api.md §« Un talent qui s'active
+        // tout seul se VOIT »). Ne compte QUE cette passe, jamais la relance
+        // par FACE de la Serre du Corbeau, qui n'est pas ce talent.
+        public int $relancesAttaqueRatee = 0,
     ) {}
 
     /**
@@ -120,6 +130,7 @@ final readonly class ResultatAttaque
             cibleTombee: $apres === 0,
             faceTouchante: $this->faceTouchante,
             faceDefensive: $this->faceDefensive,
+            relancesAttaqueRatee: $this->relancesAttaqueRatee,
         );
     }
 
@@ -159,6 +170,7 @@ final readonly class ResultatAttaque
             cibleTombee: $apres === 0,
             faceTouchante: $this->faceTouchante,
             faceDefensive: $this->faceDefensive,
+            relancesAttaqueRatee: $this->relancesAttaqueRatee,
         );
     }
 
@@ -194,6 +206,7 @@ final readonly class ResultatAttaque
             cibleTombee: $apres === 0,
             faceTouchante: $this->faceTouchante,
             faceDefensive: $this->faceDefensive,
+            relancesAttaqueRatee: $this->relancesAttaqueRatee,
         );
     }
 }

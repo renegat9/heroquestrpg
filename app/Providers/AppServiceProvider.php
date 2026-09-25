@@ -37,6 +37,22 @@ class AppServiceProvider extends ServiceProvider
         // et le tampon serait toujours vide au moment de le vider.
         $this->app->singleton(TamponScenes::class);
 
+        // Collecteur des talents qui s'activent tout seuls (René, 2026-09-25) :
+        // même patron que TamponScenes ci-dessus — chaque site d'effet y
+        // dépose une annonce pendant `ResolveurTour::resoudre()`, le résolveur
+        // vide le tampon une seule fois dans `talents_declenches`. SINGLETON
+        // pour la même raison : deux instances et le tampon serait vide au
+        // moment de le lire.
+        // ⚠ Pas `scoped` : Laravel oublie les instances scopées au début de
+        // CHAQUE job, y compris un job synchrone lancé en pleine résolution —
+        // le résolveur garde alors l'ancienne instance, les sites d'effet en
+        // reçoivent une neuve, et l'annonce se perd (mesuré : 5 échecs sur 8).
+        // La fuite qu'on voulait éviter (les workers vivent des heures, une
+        // annonce laissée par un 422 servie au job suivant) est fermée
+        // autrement : `ResolveurTour::resoudre()` vide aussi le tampon À
+        // L'ENTRÉE.
+        $this->app->singleton(\App\Partie\AnnoncesTalents::class);
+
         // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
         // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
         // compteur de tentative) doit survivre entre l'annonce du contexte et

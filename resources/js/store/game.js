@@ -220,6 +220,10 @@ export function useGameStore() {
                 // d'historique — seul un overlay de 3 s montrait des dés, et
                 // uniquement ceux de SA propre action.
                 des: l?.des ?? null,
+                // Un talent qui s'active tout seul se VOIT (2026-09-25) : une
+                // ligne `ton: "talent"` porte `talent` — c'est ELLE, et elle
+                // seule, qui alimente le popup (TalentPopup.vue).
+                talent: l?.talent ?? null,
             }));
             // 24 et non 12 : le fil est devenu l'historique des jets, il lui
             // faut de quoi remonter au-delà du tour en cours.

@@ -163,6 +163,7 @@ final class MoteurDread
         private readonly MoteurSorts $sorts,
         private readonly MoteurDegats $degats,
         private readonly Talents $talents,
+        private readonly AnnoncesTalents $annonces,
     ) {}
 
     // ------------------------------------------------------------------
@@ -1751,7 +1752,9 @@ final class MoteurDread
             // `annuler_effet_magique` (Contresort du magicien et du warlock,
             // Verbe ancien du druide) : une SECONDE chance, jet de Mind
             // indépendant, qui annule l'effet magique avant qu'il ne soit posé.
-            if ($this->talents->a($personnage, 'annuler_effet_magique')) {
+            $noeudContresort = $this->talents->noeud($personnage, 'annuler_effet_magique');
+
+            if ($noeudContresort !== null) {
                 $mindHeros = $this->sorts->desResistanceMentale($personnage);
                 $jetContresort = (new SortMental($this->des))->resoudre($mindHeros);
                 $ligne['contresort'] = [
@@ -1760,6 +1763,13 @@ final class MoteurDread
                 ];
 
                 if ($ligne['contresort']['reussi']) {
+                    // Un talent qui s'active tout seul se VOIT (2026-09-25) :
+                    // sans cette annonce, la ligne générique du fil disait
+                    // « X résiste à <sort> » — vrai, mais indiscernable d'une
+                    // résistance de Mind ordinaire. Le joueur ne savait jamais
+                    // que Contresort venait de jouer sa SECONDE chance.
+                    $this->annonces->annoncer($personnage, $noeudContresort, 'annule un effet magique');
+
                     $ligne['effet_applique'] = false;
                     $resultats[] = $ligne;
 

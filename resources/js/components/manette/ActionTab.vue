@@ -330,7 +330,11 @@ const ICONE_JOURNAL = {
         <div ref="filDuCombat" class="cbt-lines">
             <div v-for="l in journal" :key="l.id" class="cbt-entree">
                 <div class="cbt-line" :class="`t-${l.ton}`">
-                    <MSym :n="ICONE_JOURNAL[l.ton] || 'chevron_right'" :size="15" fill />
+                    <!-- Un talent qui s'active tout seul se VOIT (2026-09-25) :
+                         son ICÔNE PROPRE (App\Engine\MotsClesTalent), pas celle
+                         générique du ton — c'est ce qui distingue « Œil du
+                         mineur » de « Contresort » d'un coup d'œil. -->
+                    <MSym :n="l.ton === 'talent' ? (l.talent?.icone || 'hub') : (ICONE_JOURNAL[l.ton] || 'chevron_right')" :size="15" fill />
                     <span>{{ l.texte }}</span>
                 </div>
                 <!-- Le jet qui a produit la ligne : c'est l'HISTORIQUE. Les dés
@@ -379,4 +383,7 @@ const ICONE_JOURNAL = {
 .cbt-line.t-tresor { color: oklch(0.85 0.14 90); font-weight: 700; }
 .cbt-line.t-echec,
 .cbt-line.t-pare   { color: var(--ink-500, oklch(0.6 0.02 70)); }
+/* Talent qui s'active tout seul (2026-09-25) — même jeton doré que le popup
+   (TalentPopup.vue) : un talent n'est ni un dégât ni un gain, sa propre teinte. */
+.cbt-line.t-talent { color: var(--gold, #c9a24a); font-weight: 700; }
 </style>

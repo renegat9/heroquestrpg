@@ -92,7 +92,48 @@ final class JournalCombat
             }
         }
 
+        // Un talent qui s'active tout seul se VOIT (2026-09-25) : `talents_declenches`
+        // vit au SOMMET du résultat (App\Partie\AnnoncesTalents couvre l'action
+        // du héros ET la phase des monstres qui a pu suivre dans le même appel
+        // à `resoudre()`), donc ces lignes s'ajoutent en dernier plutôt que
+        // d'être réparties par action — c'est la file du popup, pas l'ordre du
+        // fil, qui compte ici.
+        foreach ((array) ($resultat['talents_declenches'] ?? []) as $declenche) {
+            if (is_array($declenche)) {
+                $lignes[] = $this->ligneTalent($declenche);
+            }
+        }
+
         return $lignes;
+    }
+
+    /**
+     * Une entrée de `talents_declenches` → la ligne `ton: "talent"` du
+     * contrat (docs/contrat-api.md §« Un talent qui s'active tout seul se
+     * VOIT »). C'est cette ligne, et elle seule, qui porte le popup : la table
+     * l'affiche pour tout héros, la manette seulement pour le sien
+     * (`talent.personnage_id`).
+     *
+     * @param  array<string, mixed>  $declenche
+     * @return array{texte: string, ton: string, talent: array<string, mixed>}
+     */
+    private function ligneTalent(array $declenche): array
+    {
+        $heros = (string) ($declenche['heros'] ?? 'Un héros');
+        $talent = (string) ($declenche['talent'] ?? 'Un talent');
+        $effet = (string) ($declenche['effet'] ?? '');
+
+        return [
+            'texte' => "{$talent} — {$heros} : {$effet}",
+            'ton' => 'talent',
+            'talent' => [
+                'personnage_id' => (int) ($declenche['personnage_id'] ?? 0),
+                'heros' => $heros,
+                'nom' => $talent,
+                'icone' => (string) ($declenche['icone'] ?? 'hub'),
+                'effet' => $effet,
+            ],
+        ];
     }
 
     /**
@@ -187,7 +228,7 @@ final class JournalCombat
             default => $acteurNom,
         };
 
-        return [
+        return $this->avecModificateurs([
             'atk' => $atk,
             'def' => $def,
             'touchante' => (string) ($a['face_touchante'] ?? 'crane'),
@@ -196,7 +237,7 @@ final class JournalCombat
             'defenseur' => isset($a['cible']['nom']) ? (string) $a['cible']['nom'] : null,
             'touches' => isset($a['touches']) ? (int) $a['touches'] : null,
             'boucliers' => isset($a['boucliers']) ? (int) $a['boucliers'] : null,
-        ];
+        ], $a);
     }
 
     /**
@@ -235,7 +276,7 @@ final class JournalCombat
         $desRouges = array_values((array) ($a['des_resistance'] ?? $a['des_rouges'] ?? []));
 
         if ($desRouges !== []) {
-            return [
+            return $this->avecModificateurs([
                 'atk' => [],
                 'def' => $desRouges,
                 'touchante' => null,
@@ -245,7 +286,7 @@ final class JournalCombat
                 'touches' => null,
                 'boucliers' => isset($a['degats_annules']) ? (int) $a['degats_annules'] : null,
                 'libelle_def' => 'résiste',
-            ];
+            ], $a);
         }
 
         // Jet de MIND : `mind_cible` est le marqueur — présent même quand
@@ -258,7 +299,7 @@ final class JournalCombat
                 return null; // immunisé : aucun dé, rien à dessiner
             }
 
-            return [
+            return $this->avecModificateurs([
                 'atk' => [],
                 'def' => $faces,
                 'touchante' => null,
@@ -268,7 +309,7 @@ final class JournalCombat
                 'touches' => null,
                 'boucliers' => isset($a['succes']) ? (int) $a['succes'] : null,
                 'libelle_def' => 'résiste',
-            ];
+            ], $a);
         }
 
         // PIÈGE de sol : lui seul lance, sans défense en face — `faces` SANS
@@ -281,7 +322,7 @@ final class JournalCombat
                 return null;
             }
 
-            return [
+            return $this->avecModificateurs([
                 'atk' => $faces,
                 'def' => [],
                 'touchante' => 'crane',
@@ -290,10 +331,57 @@ final class JournalCombat
                 'defenseur' => $nomCible,
                 'touches' => (int) $a['touches'],
                 'boucliers' => null,
-            ];
+            ], $a);
+        }
+
+        // Un JET DE COMPÉTENCE de Mind (`ResolveurTour::resoudreJet()`) :
+        // `attribut`/`issue`/`faces`, sans `mind_cible` (qui ne marque QUE les
+        // sorts qui touchent une victime) ni `touches` (qui ne marque QUE les
+        // pièges de sol). Sans cette branche, `avantage_jet_mind` (« +1 dé de
+        // Mind ciblé ») modifiait un jet que le fil ne dessinait jamais — un
+        // modificateur publié et rendu nulle part est le même défaut qu'un
+        // payload muet. Le Body n'a pas ce talent : la garde reste sans risque.
+        if (($a['attribut'] ?? null) === 'mind' && array_key_exists('faces', $a) && array_key_exists('issue', $a)) {
+            $faces = array_values((array) $a['faces']);
+
+            if ($faces === []) {
+                return null;
+            }
+
+            return $this->avecModificateurs([
+                'atk' => [],
+                'def' => $faces,
+                'touchante' => null,
+                'defensive' => 'crane',
+                'attaquant' => null,
+                'defenseur' => $nomCible,
+                'touches' => null,
+                'boucliers' => ! empty($a['succes']) ? 1 : 0,
+                'libelle_def' => 'tente',
+            ], $a);
         }
 
         return null;
+    }
+
+    /**
+     * Colle `modificateurs` (groupe 3, `docs/contrat-api.md` §« Un talent qui
+     * s'active tout seul se VOIT ») sur un jet déjà mis en forme, QUAND le
+     * payload moteur en porte. Point de passage unique : les DEUX formes de jet
+     * (`desDuJet()` à deux camps, `desJetUnilateral()` à une volée) le
+     * traversent, jamais une recopie locale.
+     *
+     * @param  array<string, mixed>  $des
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function avecModificateurs(array $des, array $a): array
+    {
+        if (isset($a['modificateurs']) && is_array($a['modificateurs']) && $a['modificateurs'] !== []) {
+            $des['modificateurs'] = $a['modificateurs'];
+        }
+
+        return $des;
     }
 
     /**
@@ -377,11 +465,12 @@ final class JournalCombat
                 (((int) ($a['cibles'] ?? 0)) > 1 ? 's' : '').' au contact',
             )],
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
-            // Le déplacement est MUET par principe (le fil raconterait chaque
-            // pas). Une seule chose s'y dit : l'avertissement du *Sens du
-            // piège*. À la table, Zargon prévient à voix haute — tout le monde
-            // l'entend, mais aucune tuile n'est posée pour autant.
-            'deplacement' => $this->alertePiege($a, $acteurNom),
+            // Le déplacement reste MUET par principe (le fil raconterait
+            // chaque pas). L'avertissement de *Sens du piège* qui vivait ici
+            // (« X pressent 2 pièges tout près ») est CONVERGÉ vers le popup
+            // `talents_declenches` depuis le 2026-09-25 : la même information,
+            // annoncée deux fois, nommait le talent nulle part.
+            'deplacement' => [],
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
             'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
@@ -858,10 +947,16 @@ final class JournalCombat
     {
         $lignes = $this->lignesSort($a, $acteurNom);
 
-        // Un sort ÉPARGNÉ (Anneau de sort, talent qui garde le sort qui tue)
-        // restait allumé sur la manette sans que le fil dise pourquoi : un
-        // effet automatique que rien n'annonce est injouable (2026-09-25).
-        if (! empty($a['sort_preserve'])) {
+        // Un sort ÉPARGNÉ (Anneau de sort) restait allumé sur la manette sans
+        // que le fil dise pourquoi : un effet automatique que rien n'annonce
+        // est injouable (2026-09-25).
+        //
+        // ⚠ `sort_preserve === 'talent'` (garde_sort_qui_tue — Chant runique,
+        // Appel de la forêt) N'EST PLUS dit ici depuis que ce même message
+        // part comme popup `ton: talent` (`ResolveurTour::preserverSort()` →
+        // `AnnoncesTalents`) : les deux auraient annoncé deux fois la même
+        // chose. L'Anneau de sort n'est pas un talent, sa ligne reste seule ici.
+        if (! empty($a['sort_preserve']) && $a['sort_preserve'] !== 'talent') {
             $par = $a['sort_preserve_par'] ?? ($a['sort_preserve'] === 'anneau_de_sort' ? 'l\'Anneau de sort' : null);
             $lignes[] = $this->info(($a['sort']['nom'] ?? 'Le sort').' reste disponible'.($par !== null ? " ({$par})" : ''));
         }
@@ -925,26 +1020,6 @@ final class JournalCombat
         }
 
         return $lignes;
-    }
-
-    /**
-     * *Sens du piège* (Explorateur) : la seule ligne qu'un déplacement produise.
-     *
-     * @param  array<string, mixed>  $a
-     * @return list<array{texte: string, ton: string}>
-     */
-    private function alertePiege(array $a, string $acteurNom): array
-    {
-        $nombre = count($a['pieges_pressentis'] ?? []);
-
-        if ($nombre === 0) {
-            return [];
-        }
-
-        return [[
-            'texte' => "{$acteurNom} pressent {$nombre} piège".($nombre > 1 ? 's' : '').' tout près — il s\'arrête net',
-            'ton' => 'info',
-        ]];
     }
 
     /**

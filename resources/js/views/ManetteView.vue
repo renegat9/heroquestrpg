@@ -16,6 +16,7 @@ import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
+import TalentPopup from '../components/ui/TalentPopup.vue';
 import ReactionSheet from '../components/manette/ReactionSheet.vue';
 import CibleSheet from '../components/manette/CibleSheet.vue';
 import DeplacementSheet from '../components/manette/DeplacementSheet.vue';
@@ -1409,6 +1410,10 @@ const navItems = computed(() => (scene.value === 'marche'
                         :pending="reactionEnCours"
                         @repondre="repondreReaction"
                     />
+
+                    <!-- Un talent qui s'active tout seul se VOIT (2026-09-25) :
+                         la manette ne l'affiche que pour SON héros. -->
+                    <TalentPopup :journal="journalCombat" :filtro-personnage-id="monPersonnageId" />
 
                     <!-- Révélation du jet de dés (mode connecté) : tap pour fermer -->
                     <div v-if="desReveles" class="des-reveal" @click="desReveles = null">

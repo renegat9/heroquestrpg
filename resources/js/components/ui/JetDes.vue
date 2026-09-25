@@ -117,6 +117,17 @@ const motDefensive = computed(() => nomFace(props.jet.defensive ?? 'bouclier_bla
  * résistance plutôt qu'une attaque. */
 const libelleAtk = computed(() => props.jet.libelle_atk || 'attaque');
 const libelleDef = computed(() => props.jet.libelle_def || 'défend');
+
+/*
+ * MODIFICATEURS DE JET (groupe 3, docs/contrat-api.md §« Un talent qui
+ * s'active tout seul se VOIT », 2026-09-25) : les talents qui modifient un
+ * jet SANS événement propre (Tir précis, Regard qui glace, réduction de
+ * dégâts subis…) ne déclenchent pas de popup — un popup à chaque coup serait
+ * du bruit — mais le jet qu'ils ont modifié le dit sous la volée, sous la
+ * forme DÉJÀ DÉCIDÉE par le serveur (`{source, valeur, sur}`) : ce composant
+ * ne recalcule rien, il affiche le signe et le nom tels quels.
+ */
+const modificateurs = computed(() => props.jet.modificateurs ?? []);
 </script>
 
 <template>
@@ -163,6 +174,15 @@ const libelleDef = computed(() => props.jet.libelle_def || 'défend');
                 </span>
             </span>
             <span class="jd-somme">{{ compte(reussitesDefense, motDefensive) }}</span>
+        </div>
+
+        <div v-if="modificateurs.length" class="jd-mods">
+            <span
+                v-for="(m, i) in modificateurs"
+                :key="i"
+                class="jd-mod"
+                :class="{ malus: m.valeur < 0 }"
+            >{{ m.valeur < 0 ? '−' + Math.abs(m.valeur) : '+' + m.valeur }} {{ m.source }}</span>
         </div>
     </div>
 </template>
@@ -240,4 +260,23 @@ const libelleDef = computed(() => props.jet.libelle_def || 'défend');
     margin-left: auto;
 }
 .jet-des.compact .jd-somme { font-size: 10.5px; }
+
+/* Modificateurs de jet (groupe 3) : un chip par entrée, sous la volée — le
+   bonus reprend le vert de `.jd-somme`, le malus le rouge « body » déjà
+   employé pour le dé rouge de résistance ci-dessus (même jeton de couleur,
+   jamais une nouvelle teinte inventée pour l'occasion). */
+.jd-mods { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.jd-mod {
+    font-size: 10.5px; font-weight: 600; line-height: 1.4;
+    padding: 1px 6px; border-radius: 999px;
+    color: #86efac;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+}
+.jd-mod.malus {
+    color: var(--body-bright, #c9524a);
+    background: rgba(201, 82, 74, 0.12);
+    border-color: rgba(201, 82, 74, 0.32);
+}
+.jet-des.compact .jd-mod { font-size: 9.5px; padding: 0 5px; }
 </style>

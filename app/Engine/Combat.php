@@ -77,6 +77,16 @@ final class Combat
 
         $facesAttaque = $this->des->desCombat($desAttaque);
 
+        // ⚠ Compté AVANT la relance, sur la VOLÉE INITIALE : c'est le nombre
+        // de dés qui vont réellement changer de face, pas la fenêtre offerte
+        // (`$relanceDesAttaqueRatee` vaut souvent `PHP_INT_MAX`). Publié sur le
+        // résultat pour que l'appelant sache si `relance_des_attaque_rates`
+        // (Coup puissant, Bras d'acier, Coup sauvage) vient de JOUER — un
+        // talent qui ne joue pas n'émet pas de popup.
+        $relancesEffectuees = $relanceDesAttaqueRatee > 0
+            ? min($relanceDesAttaqueRatee, count(array_filter($facesAttaque, fn ($face) => $face !== $touchante)))
+            : 0;
+
         if ($relanceDesAttaqueRatee > 0) {
             $facesAttaque = $this->relancerRatees($facesAttaque, $touchante, $relanceDesAttaqueRatee);
         }
@@ -116,6 +126,7 @@ final class Combat
             cibleTombee: $pvBodyDefenseur > 0 && $pvBodyApres === 0,
             faceTouchante: $touchante,
             faceDefensive: $faceDefensive,
+            relancesAttaqueRatee: $relancesEffectuees,
         );
     }
 

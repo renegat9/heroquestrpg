@@ -419,8 +419,25 @@ it('garde_sort_qui_tue — le sort qui abat un monstre reste disponible, et le f
     expect(bouleDeFeuDisponible($ctx['heros']->fresh()))->toBeTrue();
 
     // Un effet automatique que rien n'annonce est injouable : le fil le dit.
-    $lignes = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Sylvaine'))->pluck('texte');
-    expect($lignes->implode(' | '))->toContain('Boule de Feu reste disponible (Chant runique)');
+    // ⚠ CONVERGÉ le 2026-09-25 (« Un talent qui s'active tout seul se VOIT ») :
+    // l'ancienne ligne `info` « Boule de Feu reste disponible (Chant runique) »
+    // est remplacée par la ligne `ton: talent` de `talents_declenches` — les
+    // deux auraient annoncé la même chose deux fois.
+    // ⚠ `heros` vient du PERSONNAGE réel du payload (Albrecht), jamais de
+    // l'acteur passé en paramètre à `depuisResultat()` (qui ne nomme que les
+    // lignes d'ATTAQUE) — publier la décision, pas la redériver.
+    $resultat = $reponse->json('resultat');
+    expect($resultat['talents_declenches'] ?? [])->toContain([
+        'personnage_id' => $ctx['heros']->id,
+        'heros' => 'Albrecht',
+        'talent' => 'Chant runique',
+        'mecanique' => 'garde_sort_qui_tue',
+        'icone' => 'autorenew',
+        'effet' => 'Boule de Feu reste disponible',
+    ]);
+
+    $lignes = collect(app(JournalCombat::class)->depuisResultat($resultat, 'Sylvaine'))->pluck('texte');
+    expect($lignes->implode(' | '))->toContain('Chant runique — Albrecht : Boule de Feu reste disponible');
 });
 
 it('garde_sort_qui_tue — un sort qui ne tue pas s\'épuise normalement', function () {

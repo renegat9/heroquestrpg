@@ -512,7 +512,10 @@ final class MotsClesTalent
         }
 
         if ($mecanique === 'inflige_condition_sur_touche') {
-            $nom = $effet['condition_nom'] ?? null;
+            // `condition_monstre`, la clé que LIT `ResolveurTour::frapper()` :
+            // l'affichage cherchait `condition_nom` (celle des résistances), et
+            // la fiche de Lame vénéneuse ne disait jamais « Ralenti ».
+            $nom = isset($effet['condition_monstre']) ? ucfirst((string) $effet['condition_monstre']) : null;
 
             return $nom === null ? $libelle : "inflige « {$nom} » au monstre touché";
         }

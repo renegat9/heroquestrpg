@@ -426,16 +426,37 @@ final class MoteurSorts
      */
     public function desDefenseHeros(Personnage $personnage): int
     {
+        return $this->desDefenseHerosDetail($personnage)['total'];
+    }
+
+    /**
+     * Le MÊME calcul que {@see self::desDefenseHeros()}, avec en plus le détail
+     * des modificateurs de TALENT qui l'ont composé — `docs/contrat-api.md`
+     * §« Un talent qui s'active tout seul se VOIT » (groupe 3, `des.modificateurs`).
+     *
+     * ⚠ Une SEULE forme, calculée là où le bonus est appliqué : `desDefenseHeros()`
+     * délègue ici plutôt que de dupliquer « Léger sur ses pieds » — les sept
+     * appelants qui ne veulent que le total gardent leur signature inchangée,
+     * et seul celui qui construit un payload de jet (`resoudreAttaqueMonstre()`)
+     * lit le détail.
+     *
+     * @return array{total: int, modificateurs: list<array{source: string, valeur: int, sur: string}>}
+     */
+    public function desDefenseHerosDetail(Personnage $personnage): array
+    {
         if ($this->defenseNulle($personnage)) {
-            return 0;
+            return ['total' => 0, 'modificateurs' => []];
         }
 
+        $modificateurs = [];
         $des = (int) $personnage->des_defense + $this->bonusDes($personnage, 'bonus_des_defense');
 
         $leger = app(CapacitesInnees::class)->noeud($personnage, 'bonus_des_defense_sans_metal');
 
         if ($leger !== null && ! app(Equipement::class)->porteMetalOuBouclier($personnage)) {
-            $des += (int) ($leger->effet['valeur'] ?? 1);
+            $valeur = (int) ($leger->effet['valeur'] ?? 1);
+            $des += $valeur;
+            $modificateurs[] = ['source' => $leger->nom, 'valeur' => $valeur, 'sur' => 'defense'];
         }
 
         // 4. PLAFOND d'une condition (`des_defense_max`) — *Choc Mental*
@@ -450,7 +471,7 @@ final class MoteurSorts
             $des = min($des, $plafond);
         }
 
-        return max(0, $des);
+        return ['total' => max(0, $des), 'modificateurs' => $modificateurs];
     }
 
     /**
@@ -525,6 +546,11 @@ final class MoteurSorts
         $talent = app(Talents::class)->noeud($personnage, 'resistance_degats_type');
 
         if ($talent !== null && ($talent->effet['type_degat'] ?? null) === $typeDegat) {
+            // Un talent qui s'active tout seul se VOIT (2026-09-25) : Chair
+            // impie annulait le feu sans qu'un magicien lançant sa Boule de
+            // Feu sache pourquoi elle n'avait fait aucun dégât.
+            app(AnnoncesTalents::class)->annoncer($personnage, $talent, "annule les dégâts de {$typeDegat}");
+
             return true;
         }
 

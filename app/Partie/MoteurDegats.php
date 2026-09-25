@@ -110,12 +110,30 @@ final class MoteurDegats
      */
     public function __construct(private readonly MoteurReactions $reactions) {}
 
+    /**
+     * Les modificateurs de TALENT du DERNIER appel à {@see self::infligerAHeros()}
+     * — `docs/contrat-api.md` §« Un talent qui s'active tout seul se VOIT »
+     * (groupe 3, `des.modificateurs`). Une seule case, jamais une pile : cette
+     * méthode est appelée puis relue SYNCHRONE par l'appelant, dans la même
+     * requête, avant le prochain coup — pas de concurrence à couvrir.
+     *
+     * @var list<array{source: string, valeur: int, sur: string}>
+     */
+    private array $dernierModificateurs = [];
+
+    /** @return list<array{source: string, valeur: int, sur: string}> */
+    public function dernierModificateurs(): array
+    {
+        return $this->dernierModificateurs;
+    }
+
     public function infligerAHeros(
         Personnage $heros,
         int $degats,
         string $source,
         array $contexte = [],
     ): int {
+        $this->dernierModificateurs = [];
         $degats = max(0, $degats);
 
         if ($degats === 0) {
@@ -144,7 +162,18 @@ final class MoteurDegats
         // un prix, et une armure qui protège de sa propre décision rendrait la
         // capacité gratuite. Même raison qui l'exclut des réactions.
         if ($retenus > 0 && $source !== self::SOURCE_SACRIFICE) {
-            $retenus = max(0, $retenus - app(Talents::class)->valeur($heros, 'reduction_degats'));
+            // ⚠ `valeur()` reste la SOMME de tous les nœuds qui portent la
+            // mécanique — la grille en autorise deux — et c'est elle qui doit
+            // rester la RÈGLE appliquée. `noeud()` ne sert qu'à NOMMER le
+            // modificateur : sur le cas réel (un seul porteur), les deux
+            // coïncident.
+            $valeurReduction = min($retenus, app(Talents::class)->valeur($heros, 'reduction_degats'));
+
+            if ($valeurReduction > 0) {
+                $retenus -= $valeurReduction;
+                $nom = app(Talents::class)->noeud($heros, 'reduction_degats')?->nom ?? 'Réduction de dégâts';
+                $this->dernierModificateurs[] = ['source' => $nom, 'valeur' => -$valeurReduction, 'sur' => 'degats'];
+            }
         }
 
         if ($retenus === 0) {

@@ -90,6 +90,7 @@ final class MoteurPieges
         private readonly CapacitesInnees $capacites,
         private readonly Talents $talents,
         private readonly BibliothequeNarration $narration,
+        private readonly AnnoncesTalents $annonces,
     ) {}
 
     /**
@@ -188,6 +189,19 @@ final class MoteurPieges
 
                 if ($alertes !== []) {
                     $this->capacites->consommer($personnage, $etat, self::MECANIQUE_ALERTE);
+
+                    // Un talent qui s'active tout seul se VOIT (2026-09-25) :
+                    // le fil disait « X pressent 2 pièges tout près » sans
+                    // jamais nommer Sens du piège — le joueur ne savait pas
+                    // POURQUOI son tour s'arrêtait là. Le popup le dit.
+                    $noeudAlerte = $this->capacites->noeud($personnage, self::MECANIQUE_ALERTE);
+
+                    if ($noeudAlerte !== null) {
+                        $nombreAlertes = count($alertes);
+                        $this->annonces->annoncer($personnage, $noeudAlerte, $nombreAlertes > 1
+                            ? "repère {$nombreAlertes} pièges cachés à proximité"
+                            : 'repère un piège caché à proximité');
+                    }
 
                     return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false,
                         'declenchements' => $declenchements, 'detections' => $detections,
@@ -560,13 +574,29 @@ final class MoteurPieges
             return [];
         }
 
-        return $this->reveler(
+        $reveles = $this->reveler(
             $groupe,
             $carte,
             $personnage,
             fn (array $entree) => abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) === 1,
             'oeil_du_mineur',
         );
+
+        // Un talent qui s'active tout seul se VOIT (2026-09-25) : sans cette
+        // annonce, un piège apparaissait sur la carte sans que le joueur sache
+        // que c'était l'Œil du mineur qui venait de le révéler.
+        if ($reveles !== []) {
+            $noeud = $this->talents->noeud($personnage, self::MECANIQUE_DETECTION);
+
+            if ($noeud !== null) {
+                $nombre = count($reveles);
+                $this->annonces->annoncer($personnage, $noeud, $nombre > 1
+                    ? "révèle {$nombre} pièges adjacents"
+                    : 'révèle un piège adjacent');
+            }
+        }
+
+        return $reveles;
     }
 
     /**

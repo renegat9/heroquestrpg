@@ -183,14 +183,26 @@ final class MoteurPortes
      */
     public function detecterSecretesAdjacentes(Groupe $groupe, Carte $carte, Personnage $personnage, int $x, int $y): array
     {
-        if (! app(Talents::class)->a($personnage, 'detection_portes_secretes')) {
+        $noeud = app(Talents::class)->noeud($personnage, 'detection_portes_secretes');
+
+        if ($noeud === null) {
             return [];
         }
 
-        return $this->revelerSecretes(
+        $reveles = $this->revelerSecretes(
             $groupe, $carte, $personnage,
             fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) === 1,
         );
+
+        // Un talent qui s'active tout seul se VOIT (2026-09-25).
+        if ($reveles !== []) {
+            $nombre = count($reveles);
+            app(AnnoncesTalents::class)->annoncer($personnage, $noeud, $nombre > 1
+                ? "révèle {$nombre} portes secrètes adjacentes"
+                : 'révèle une porte secrète adjacente');
+        }
+
+        return $reveles;
     }
 
     /**

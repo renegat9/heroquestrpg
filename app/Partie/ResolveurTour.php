@@ -13,6 +13,7 @@ use App\Engine\DureeEffet;
 use App\Engine\JetCompetence;
 use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
+use App\Engine\MotsClesTalent;
 use App\Engine\ReactionEffet;
 use App\Engine\RegainEffet;
 use App\Engine\ResultatAttaque;
@@ -185,6 +186,7 @@ final class ResolveurTour
         private readonly BibliothequeNarration $narration,
         private readonly DonObjet $donObjet,
         private readonly SeanceEchange $seanceEchange,
+        private readonly AnnoncesTalents $annonces,
     ) {}
 
     /**
@@ -261,6 +263,10 @@ final class ResolveurTour
         $this->mouvementsAnime = [];
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
+        // Tampon vidé À L'ENTRÉE aussi : une résolution précédente refusée en
+        // cours de route (422) n'a jamais atteint le vidage de la sortie, et ses
+        // annonces s'afficheraient sur l'action de quelqu'un d'autre.
+        $this->annonces->vider();
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
@@ -495,6 +501,17 @@ final class ResolveurTour
 
             return $resultat;
         });
+
+        // Un talent qui s'active tout seul se VOIT (2026-09-25) : point de
+        // vidage UNIQUE du collecteur, après la transaction — elle a joué
+        // l'action du héros ET la phase des monstres qui a pu suivre dans le
+        // MÊME appel. `talents_declenches` nourrit le popup (table + manette)
+        // via `JournalCombat`, qui le lit sur CE résultat.
+        $declenches = $this->annonces->vider();
+
+        if ($declenches !== []) {
+            $resultat['talents_declenches'] = $declenches;
+        }
 
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.
         // Animation case-par-case (table, E4) : les trajets de figurines partent
@@ -1359,6 +1376,13 @@ final class ResolveurTour
 
         if ($bonusFlanc > 0) {
             $this->capacites->consommer($personnage, $etat, 'bonus_des_attaque_flanc');
+
+            // Un talent qui s'active tout seul se VOIT (2026-09-25).
+            $noeudFlanc = $this->capacites->noeud($personnage, 'bonus_des_attaque_flanc');
+
+            if ($noeudFlanc !== null) {
+                $this->annonces->annoncer($personnage, $noeudFlanc, MotsClesTalent::avantage((array) $noeudFlanc->effet));
+            }
         }
 
         // ---- Talents de la GRILLE, lus par mécanique ------------------------
@@ -1586,6 +1610,50 @@ final class ResolveurTour
         // Une attaque réveille un monstre endormi (Sommeil, doc 02 §7).
         $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
 
+        // Modificateurs de jet SANS événement propre (groupe 3, 2026-09-25) :
+        // pas de popup — un popup à chaque coup serait du bruit —, mais le jet
+        // qu'ils ont modifié porte `modificateurs`, recopié par JournalCombat
+        // dans `des` et affiché par JetDes.vue sous la volée.
+        $modificateurs = [];
+
+        if ($bonusFrenesie > 0) {
+            $noeudFrenesie = $this->talents->noeud($personnage, 'bonus_des_attaque', ['condition' => 'pv_body_sous_moitie']);
+
+            if ($noeudFrenesie !== null) {
+                $modificateurs[] = ['source' => $noeudFrenesie->nom, 'valeur' => $bonusFrenesie, 'sur' => 'attaque'];
+            }
+        }
+
+        if ($bonusTirPrecis > 0) {
+            $noeudTirPrecis = $this->talents->noeud($personnage, 'bonus_des_attaque_distance');
+
+            if ($noeudTirPrecis !== null) {
+                $modificateurs[] = ['source' => $noeudTirPrecis->nom, 'valeur' => $bonusTirPrecis, 'sur' => 'attaque'];
+            }
+        }
+
+        if ($bonusTier > 0 && $noeudTier !== null) {
+            $modificateurs[] = ['source' => $noeudTier->nom, 'valeur' => $bonusTier, 'sur' => 'attaque'];
+        }
+
+        if ($bonusElan > 0 && $noeudElan !== null) {
+            $modificateurs[] = ['source' => $noeudElan->nom, 'valeur' => $bonusElan, 'sur' => 'attaque'];
+        }
+
+        // ⚠ `ignore_defense_monstre` a DEUX sources possibles (talent, buff
+        // d'arme) fondues par `max()` plus haut — on ne nomme le talent que
+        // s'il est bien LUI qui a fixé la valeur appliquée, jamais quand un
+        // buff plus généreux l'a dépassé (la Lame Fantôme n'est pas un talent).
+        $noeudIgnoreDefense = $this->talents->noeud($personnage, 'ignore_defense_monstre');
+
+        if ($noeudIgnoreDefense !== null) {
+            $valeurTalentIgnoreDefense = (int) ($noeudIgnoreDefense->effet['valeur'] ?? 0);
+
+            if ($valeurTalentIgnoreDefense > 0 && $valeurTalentIgnoreDefense === $desDefenseIgnores) {
+                $modificateurs[] = ['source' => $noeudIgnoreDefense->nom, 'valeur' => -$valeurTalentIgnoreDefense, 'sur' => 'defense'];
+            }
+        }
+
         $payload = [
             'type' => 'attaque',
             'bonus_des_attaque' => $bonusAttaque,
@@ -1615,10 +1683,26 @@ final class ResolveurTour
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_vaincue' => $resultat->pvBodyApres === 0,
             ...$resultat->pourJournal(),
+            ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
             // En dernier : l'appelant nomme sa frappe (option_id, libellé,
             // « furie »…) et doit pouvoir écraser les valeurs par défaut.
             ...$meta,
         ];
+
+        // `relance_des_attaque_rates` (Coup puissant, Bras d'acier, Coup
+        // sauvage) : actif qui part seul — un talent qui ne joue pas n'émet
+        // pas de popup, donc seulement quand un dé a RÉELLEMENT été relancé
+        // (voir `ResultatAttaque::$relancesAttaqueRatee`, jamais la simple
+        // possession du talent).
+        if ($resultat->relancesAttaqueRatee > 0) {
+            $noeudRelance = $this->talents->noeud($personnage, 'relance_des_attaque_rates');
+
+            if ($noeudRelance !== null) {
+                $n = $resultat->relancesAttaqueRatee;
+                $this->annonces->annoncer($personnage, $noeudRelance,
+                    $n > 1 ? "relance {$n} dés d'attaque ratés" : "relance {$n} dé d'attaque raté");
+            }
+        }
 
         // *Demonform* : « Regain this spell when you reduce a monster's Body
         // Points to zero » — c'est l'ABATTEUR qui recharge, pas le groupe.
@@ -1643,6 +1727,9 @@ final class ResolveurTour
                 $this->sorts->poserConditionMonstre($instance, $cle, is_int($duree) ? $duree : null);
                 $payload['condition_infligee'] = $cle;
                 $payload['condition_duree'] = $duree;
+
+                // Un talent qui s'active tout seul se VOIT (2026-09-25).
+                $this->annonces->annoncer($personnage, $noeudCondition, "inflige « {$cle} » au monstre touché");
             }
         }
 
@@ -1658,9 +1745,15 @@ final class ResolveurTour
         if ($resultat->pvBodyApres === 0
             && ! (bool) $etat->fresh()->attaque_supplementaire
             && $this->talents->disponible($personnage, $etat, 'attaque_supplementaire_apres_kill')) {
+            $noeudApresKill = $this->talents->noeud($personnage, 'attaque_supplementaire_apres_kill');
             $this->talents->consommer($personnage, $etat, 'attaque_supplementaire_apres_kill');
             $etat->update(['attaque_supplementaire' => true]);
             $payload['attaque_supplementaire'] = true;
+
+            // Un talent qui s'active tout seul se VOIT (2026-09-25).
+            if ($noeudApresKill !== null) {
+                $this->annonces->annoncer($personnage, $noeudApresKill, 'attaque de nouveau après avoir abattu sa cible');
+            }
         }
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -2658,10 +2751,6 @@ final class ResolveurTour
      */
     private function tronquerSurRacines(Quete $quete, array $chemin, ?Personnage $personnage = null): array
     {
-        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
-            return $chemin;
-        }
-
         $gardiens = $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true)
@@ -2677,9 +2766,27 @@ final class ResolveurTour
             $adjacent = $gardiens->contains(fn (InstanceMonstre $i) => abs((int) $i->position_x - (int) $case['x'])
                 + abs((int) $i->position_y - (int) $case['y']) === 1);
 
-            if ($adjacent) {
-                return array_slice($chemin, 0, $index + 1);
+            if (! $adjacent) {
+                continue;
             }
+
+            // `ignore_terrain_entravant` (Ronces complices, druide) : le
+            // porteur n'est jamais arrêté ICI — mais l'annonce ne part QUE
+            // si la troncature aurait vraiment eu lieu (une case avant la
+            // fin du chemin) : un talent qui ne joue pas n'émet pas de popup.
+            if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
+                if ($index < count($chemin) - 1) {
+                    $noeud = $this->talents->noeud($personnage, 'ignore_terrain_entravant');
+
+                    if ($noeud !== null) {
+                        $this->annonces->annoncer($personnage, $noeud, 'ignore les racines entravantes');
+                    }
+                }
+
+                return $chemin;
+            }
+
+            return array_slice($chemin, 0, $index + 1);
         }
 
         return $chemin;
@@ -2707,15 +2814,13 @@ final class ResolveurTour
      */
     private function tronquerSurChausseTrappes(Quete $quete, array $chemin, ?Personnage $personnage = null): array
     {
-        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
-            return $chemin;
-        }
-
         $tuiles = $this->chausseTrappes($quete);
 
         if ($tuiles === [] || count($chemin) < 2) {
             return $chemin;
         }
+
+        $ignoreTerrain = $personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant');
 
         foreach ($chemin as $index => $case) {
             if ($index === 0) {
@@ -2725,7 +2830,26 @@ final class ResolveurTour
             $piegee = array_filter($tuiles, fn (array $t) => (int) $t['x'] === (int) $case['x']
                 && (int) $t['y'] === (int) $case['y']);
 
-            if ($piegee === [] || $this->des->deCombat() === FaceDeCombat::BouclierBlanc) {
+            if ($piegee === []) {
+                continue;
+            }
+
+            // `ignore_terrain_entravant` (Ronces complices, druide) : le
+            // porteur ne lance JAMAIS le dé de la tuile — pas seulement « il
+            // le réussit toujours ». On annonce donc le risque évité, sans en
+            // rejouer l'issue (rejouer un dé qu'on n'a pas lancé déciderait
+            // du hasard d'un autre héros).
+            if ($ignoreTerrain) {
+                $noeud = $this->talents->noeud($personnage, 'ignore_terrain_entravant');
+
+                if ($noeud !== null) {
+                    $this->annonces->annoncer($personnage, $noeud, 'franchit une chausse-trappe sans y risquer de jet');
+                }
+
+                continue;
+            }
+
+            if ($this->des->deCombat() === FaceDeCombat::BouclierBlanc) {
                 continue;
             }
 
@@ -2841,13 +2965,11 @@ final class ResolveurTour
      */
     private function tronquerSurGlace(Quete $quete, array $chemin, ?Personnage $personnage = null): array
     {
-        if ($personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant')) {
-            return $chemin;
-        }
-
         if ($chemin === []) {
             return $chemin;
         }
+
+        $ignoreTerrain = $personnage !== null && $this->talents->a($personnage, 'ignore_terrain_entravant');
 
         foreach ($chemin as $index => $case) {
             $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
@@ -2894,6 +3016,20 @@ final class ResolveurTour
 
             if (($nbDes < 1 && ! $finTourInconditionnel) || ! $peutArreter) {
                 continue; // ne peut jamais arrêter le tour : pas la couture de cette méthode
+            }
+
+            // `ignore_terrain_entravant` (Ronces complices, druide) : le
+            // porteur ne lance JAMAIS le(s) dé(s) de cette tuile — rejouer
+            // l'issue qu'il évite déciderait du hasard d'un autre héros. On
+            // annonce le risque évité, sans le dé.
+            if ($ignoreTerrain) {
+                $noeud = $this->talents->noeud($personnage, 'ignore_terrain_entravant');
+
+                if ($noeud !== null) {
+                    $this->annonces->annoncer($personnage, $noeud, "franchit {$entree['nom']} sans y risquer de jet");
+                }
+
+                continue;
             }
 
             $issue = [];
@@ -3249,6 +3385,12 @@ final class ResolveurTour
             $payload['sort_preserve'] = 'talent';
             $payload['sort_preserve_par'] = $talent->nom;
 
+            // Un talent qui s'active tout seul se VOIT (2026-09-25) — remplace
+            // l'ancienne ligne « X reste disponible (Chant runique) » du fil,
+            // qui disait la même chose sans jamais devenir le popup du contrat.
+            $nomSort = $payload['sort']['nom'] ?? 'Le sort';
+            $this->annonces->annoncer($personnage, $talent, "{$nomSort} reste disponible");
+
             return true;
         }
 
@@ -3442,6 +3584,18 @@ final class ResolveurTour
             $resultat = (new JetCompetence($this->des))->resoudre($nbDes, $difficulte);
         }
 
+        // Modificateur de jet SANS événement propre (groupe 3, 2026-09-25) :
+        // pas de popup, le jet qu'il a modifié porte `modificateurs`.
+        $modificateursJet = [];
+
+        if ($bonusAvantage > 0) {
+            $noeudAvantage = $this->talents->noeud($personnage, 'avantage_jet_mind', ['contexte' => $contexte]);
+
+            if ($noeudAvantage !== null) {
+                $modificateursJet[] = ['source' => $noeudAvantage->nom, 'valeur' => $bonusAvantage, 'sur' => 'mind'];
+            }
+        }
+
         $payload = [
             ...($pierre !== null ? ['style' => $pierre] : []),
             ...($relance !== null ? ['jet_relance' => $relance] : []),
@@ -3455,6 +3609,7 @@ final class ResolveurTour
             'succes' => $resultat->succes,
             'issue' => $resultat->issue->value,
             'faces' => array_map(fn ($face) => $face->value, $resultat->faces),
+            ...($modificateursJet !== [] ? ['modificateurs' => $modificateursJet] : []),
         ];
 
         // Fouille de la zone RÉUSSIE (doc 14 §3.1) : un seul jet de Mind révèle
@@ -4430,6 +4585,17 @@ final class ResolveurTour
         // ses compagnons aussi (doc 02 §5, S3).
         $bonusDegatsSort = $lanceur === null ? 0 : $this->talents->valeur($lanceur, 'bonus_degats_sort');
 
+        // Modificateur de jet SANS événement propre (groupe 3, 2026-09-25) :
+        // pas de popup, mais le jet qu'il a modifié porte `modificateurs`.
+        $modificateursSort = [];
+        if ($bonusDegatsSort > 0 && $lanceur !== null) {
+            $noeudDegatsSort = $this->talents->noeud($lanceur, 'bonus_degats_sort');
+
+            if ($noeudDegatsSort !== null) {
+                $modificateursSort[] = ['source' => $noeudDegatsSort->nom, 'valeur' => $bonusDegatsSort, 'sur' => 'degats'];
+            }
+        }
+
         if ($cible['type'] === 'monstre') {
             /** @var InstanceMonstre $instance */
             $instance = $cible['monstre'];
@@ -4479,6 +4645,7 @@ final class ResolveurTour
                     'degats' => $reduction['degats'],
                     'pv_body_apres' => $pvApres,
                     'cible_vaincue' => $pvApres === 0,
+                    ...($modificateursSort !== [] ? ['modificateurs' => $modificateursSort] : []),
                 ];
             }
 
@@ -4512,6 +4679,7 @@ final class ResolveurTour
                 'pv_body_apres' => $resultat->pvBodyApres,
                 'cible_vaincue' => $resultat->pvBodyApres === 0,
                 ...$resultat->pourJournal(),
+                ...($modificateursSort !== [] ? ['modificateurs' => $modificateursSort] : []),
             ];
         }
 
@@ -6759,6 +6927,7 @@ final class ResolveurTour
         // pas de plafond de niveau), donc le talent finit par ne plus rien
         // ajouter à très haut niveau — c'est cohérent, pas un oubli.
         $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
+        $this->annoncerOeilDuPrix($personnage);
 
         // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
         // personne ici ne pourra boire (décision de René, 2026-08-17).
@@ -6778,8 +6947,14 @@ final class ResolveurTour
 
         if (($carte['issue'] ?? '') === 'piege'
             && $this->capacites->disponible($personnage, $etat, 'repiocher_carte_piege')) {
+            $noeudSixiemeSens = $this->capacites->noeud($personnage, 'repiocher_carte_piege');
             $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
             $ecartee = 'piege';
+
+            // Un talent qui s'active tout seul se VOIT (2026-09-25).
+            if ($noeudSixiemeSens !== null) {
+                $this->annonces->annoncer($personnage, $noeudSixiemeSens, 'repioche une carte de piège');
+            }
             // Niveau MOYEN du groupe : c'est lui qui incline les chances de rareté
             // (`RareteButin`). Moyenne des héros ENGAGÉS dans la quête, arrondie au
             // plus proche — un compagnon resté au hub ne pèse pas sur ce que le
@@ -6797,6 +6972,7 @@ final class ResolveurTour
             // pas de plafond de niveau), donc le talent finit par ne plus rien
             // ajouter à très haut niveau — c'est cohérent, pas un oubli.
             $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
+        $this->annoncerOeilDuPrix($personnage);
 
             // Maîtrises du groupe PRÉSENT : un meuble ne rend pas une potion que
             // personne ici ne pourra boire (décision de René, 2026-08-17).
@@ -6902,7 +7078,13 @@ final class ResolveurTour
             return [$carte, null];
         }
 
+        $noeud = $this->capacites->noeud($personnage, 'repiocher_carte_piege');
         $this->capacites->consommer($personnage, $etat, 'repiocher_carte_piege');
+
+        // Un talent qui s'active tout seul se VOIT (2026-09-25).
+        if ($noeud !== null) {
+            $this->annonces->annoncer($personnage, $noeud, 'repioche une carte de piège');
+        }
 
         return [$this->deck->piocher($quete), (string) $carte['issue']];
     }
@@ -7023,6 +7205,13 @@ final class ResolveurTour
 
             if ($bonus > 0) {
                 $payload['bonus_or_tresor'] = $bonus;
+
+                // Un talent qui s'active tout seul se VOIT (2026-09-25).
+                $noeudTresor = $this->capacites->noeud($personnage, 'bonus_or_tresor');
+
+                if ($noeudTresor !== null) {
+                    $this->annonces->annoncer($personnage, $noeudTresor, "+{$bonus} pièces d'or");
+                }
             }
         } elseif ($issue === 'potion' || $issue === 'artefact' || $issue === 'objet') {
             $payload = [...$payload, ...$this->remettreButin($carte, $personnage, $issue)];
@@ -7356,6 +7545,7 @@ final class ResolveurTour
 
         $niveauMoyen = (int) round($herosEngages->map(fn ($p) => (int) $p->niveau)->avg() ?: 1);
         $niveauMoyen += $this->talents->valeur($personnage, 'rarete_butin_amelioree');
+        $this->annoncerOeilDuPrix($personnage);
 
         $carte = $this->mobilier->tirerButin(
             $type, $niveauMoyen, $this->equipement->tagsAccessiblesAux($herosEngages),
@@ -8345,6 +8535,17 @@ final class ResolveurTour
 
             if ($bonusGardeTenace > 0) {
                 $cible->update(['garde_tenace_utilisee' => true]);
+
+                // Un talent qui s'active tout seul se VOIT (2026-09-25). Le
+                // NŒUD ne sert qu'à nommer l'annonce (`noeud()` rend le
+                // premier porteur) — la RÈGLE reste `valeur()`, sa somme.
+                $noeudGardeTenace = $this->talents->noeud(
+                    $personnage, 'bonus_des_defense', ['condition' => 'premiere_attaque_du_combat'],
+                );
+
+                if ($noeudGardeTenace !== null) {
+                    $this->annonces->annoncer($personnage, $noeudGardeTenace, MotsClesTalent::avantage((array) $noeudGardeTenace->effet));
+                }
             }
         }
 
@@ -8393,8 +8594,43 @@ final class ResolveurTour
         $bonusDesignation = $this->dread->bonusAttaqueContre($personnage);
 
         $volee = max(0, $desAttaque + $bonusFlanc + $bonusDesignation - $malusRegard);
-        $garde = $this->sorts->desDefenseHeros($personnage)
-            + $bonusGardeTenace + $bonusContreTir + $bonusBanniere;
+        $defenseDetail = $this->sorts->desDefenseHerosDetail($personnage);
+        $garde = $defenseDetail['total'] + $bonusGardeTenace + $bonusContreTir + $bonusBanniere;
+
+        // Modificateurs de jet SANS événement propre (groupe 3, 2026-09-25) :
+        // Léger sur ses pieds vient de `desDefenseHerosDetail()`, les autres se
+        // nomment ici car eux seuls savent qui les porte (le porteur, ou un
+        // voisin pour Bannière / Regard qui glace).
+        $modificateurs = $defenseDetail['modificateurs'];
+
+        if ($bonusContreTir > 0) {
+            $noeudContreTir = $this->talents->noeud($personnage, 'bonus_des_defense_contre_distance');
+
+            if ($noeudContreTir !== null) {
+                $modificateurs[] = ['source' => $noeudContreTir->nom, 'valeur' => $bonusContreTir, 'sur' => 'defense'];
+            }
+        }
+
+        if ($instance->quete !== null) {
+            foreach ($this->detailChezLesVoisins($instance->quete, $cible, 'bonus_des_defense_allie_adjacent') as $entree) {
+                $modificateurs[] = ['source' => $entree['nom'], 'valeur' => $entree['valeur'], 'sur' => 'defense'];
+            }
+        }
+
+        $noeudRegard = $this->talents->noeud($personnage, 'malus_des_monstre_adjacent');
+        if ($noeudRegard !== null) {
+            $valeurRegard = (int) ($noeudRegard->effet['valeur'] ?? 0);
+
+            if ($valeurRegard !== 0) {
+                $modificateurs[] = ['source' => $noeudRegard->nom, 'valeur' => -$valeurRegard, 'sur' => 'attaque'];
+            }
+        }
+
+        if ($instance->quete !== null) {
+            foreach ($this->detailChezLesVoisins($instance->quete, $cible, 'malus_des_monstre_adjacent') as $entree) {
+                $modificateurs[] = ['source' => $entree['nom'], 'valeur' => -$entree['valeur'], 'sur' => 'attaque'];
+            }
+        }
 
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $volee,
@@ -8415,6 +8651,12 @@ final class ResolveurTour
                 'des_defense' => $garde,
             ],
         );
+
+        // `reduction_degats` (Cuir tanné, Peau de fer, Rempart) : calculé À
+        // L'INTÉRIEUR de `infligerAHeros()`, seul endroit qui sait ce qui a
+        // RÉELLEMENT été retenu — jamais recalculé ici.
+        $modificateurs = [...$modificateurs, ...$this->degats->dernierModificateurs()];
+
         $this->sorts->reveillerHeros($personnage); // être attaqué réveille (Endormi)
 
         // Parade spectaculaire : 2 boucliers blancs rechargent *Inspiring Tale*
@@ -8497,6 +8739,7 @@ final class ResolveurTour
             // Les chemins de MoteurDread, eux, la publiaient déjà : une même
             // promesse tenue d'un côté et pas de l'autre.
             ...$resultat->pourJournal(),
+            ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -9398,7 +9641,39 @@ final class ResolveurTour
      */
     private function sommeChezLesVoisins(Quete $quete, EtatPersonnageQuete $cible, string $mecanique): int
     {
-        return (int) $quete->etatsPersonnages()
+        return (int) collect($this->detailChezLesVoisins($quete, $cible, $mecanique))->sum('valeur');
+    }
+
+    /**
+     * `rarete_butin_amelioree` (Œil du prix, explorateur) : un talent qui
+     * s'active tout seul se VOIT (2026-09-25). La mécanique décale TOUJOURS la
+     * table de butin d'un cran quand le fouilleur la porte — il n'y a pas de
+     * condition à vérifier, donc pas d'issue « n'a rien fait » à distinguer :
+     * elle joue à chaque fouille de ce héros. Trois sites de tirage appellent
+     * ce même point plutôt que de reformater l'annonce chacun à sa façon.
+     */
+    private function annoncerOeilDuPrix(Personnage $personnage): void
+    {
+        $noeud = $this->talents->noeud($personnage, 'rarete_butin_amelioree');
+
+        if ($noeud !== null) {
+            $this->annonces->annoncer($personnage, $noeud, 'tire un butin d\'une rareté supérieure');
+        }
+    }
+
+    /**
+     * Le MÊME calcul que {@see self::sommeChezLesVoisins()}, mais NOMMÉ —
+     * un talent porté par un VOISIN (Bannière, Regard qui glace…) doit pouvoir
+     * figurer dans `des.modificateurs` avec le nom de son porteur, pas
+     * seulement sa somme.
+     *
+     * @return list<array{nom: string, valeur: int}>
+     */
+    private function detailChezLesVoisins(Quete $quete, EtatPersonnageQuete $cible, string $mecanique): array
+    {
+        $detail = [];
+
+        foreach ($quete->etatsPersonnages()
             ->where('personnage_id', '!=', $cible->personnage_id)
             ->where('tombe', false)
             ->whereNotNull('position_x')
@@ -9406,10 +9681,21 @@ final class ResolveurTour
             ->get()
             ->filter(fn (EtatPersonnageQuete $voisin) => abs((int) $voisin->position_x - (int) $cible->position_x)
                     <= 1
-                && abs((int) $voisin->position_y - (int) $cible->position_y) <= 1)
-            ->sum(fn (EtatPersonnageQuete $voisin) => $voisin->personnage === null
-                ? 0
-                : $this->talents->valeur($voisin->personnage, $mecanique));
+                && abs((int) $voisin->position_y - (int) $cible->position_y) <= 1) as $voisin) {
+            if ($voisin->personnage === null) {
+                continue;
+            }
+
+            foreach ($this->talents->noeuds($voisin->personnage, $mecanique) as $noeud) {
+                $valeur = (int) ($noeud->effet['valeur'] ?? 0);
+
+                if ($valeur !== 0) {
+                    $detail[] = ['nom' => $noeud->nom, 'valeur' => $valeur];
+                }
+            }
+        }
+
+        return $detail;
     }
 
     private function cibleFlanqueeParUnHeros(Quete $quete, InstanceMonstre $instance, Personnage $attaquant): bool

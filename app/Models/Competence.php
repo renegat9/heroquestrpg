@@ -109,9 +109,34 @@ class Competence extends Model
      */
     public static function resisteA(Personnage $personnage, string $nomCondition): bool
     {
+        $noeud = self::noeudResistantA($personnage, $nomCondition);
+
+        if ($noeud === null) {
+            return false;
+        }
+
+        // Un talent qui s'active tout seul se VOIT (2026-09-25) : les QUATRE
+        // appelants de cette méthode (poison d'un sort, venin d'un monstre,
+        // sort de Dread, piège) traitent tous `true` comme « ne pose pas la
+        // condition » — c'est donc ICI, au seul endroit qui SAIT que la
+        // résistance a joué, que l'annonce part. Un site d'effet de plus
+        // n'aurait dupliqué que cette même décision.
+        app(\App\Partie\AnnoncesTalents::class)->annoncer($personnage, $noeud, "résiste à {$nomCondition}");
+
+        return true;
+    }
+
+    /**
+     * Le NŒUD qui fait résister `$personnage` à `$nomCondition`, ou `null`.
+     * Pendant lecture de {@see self::resisteA()}, séparé pour que l'appelant
+     * puisse nommer le talent (ex. l'annonce ci-dessus) sans reparcourir les
+     * compétences une seconde fois.
+     */
+    public static function noeudResistantA(Personnage $personnage, string $nomCondition): ?self
+    {
         return $personnage->competences()
-            ->get(['competences.id', 'competences.effet'])
-            ->contains(function (self $c) use ($nomCondition) {
+            ->get(['competences.id', 'competences.nom', 'competences.effet'])
+            ->first(function (self $c) use ($nomCondition) {
                 if (($c->effet['mecanique'] ?? null) !== 'resistance_condition') {
                     return false;
                 }
