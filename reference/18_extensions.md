@@ -1557,6 +1557,13 @@ exemple dans le livret de règles lui-même pour illustrer la mise en place.
 ⚠ **Les 9 quêtes restantes de First Light n'ont pas pu être dépouillées**
 faute de livret de quêtes accessible.
 
+> **Mise à jour 2026-09-27 — le livret de quêtes est en partie arrivé.**
+> René en a photographié les pages **6-7** (chapitre de règles) et **20-21**
+> (« Component Reference »). Ce qu'elles apportent est transcrit au §6
+> ci-dessous. Les §1 à §5, établis sur le seul livret de règles, restent
+> exacts **pour ce livret** : c'est le livret de quêtes qui porte les
+> nouveautés, pas lui.
+
 ### 1. Nouveaux héros jouables
 
 ⚠ **Aucun.** Les 4 héros de base (Barbare, Nain, Elfe, Magicien), avec une
@@ -1613,6 +1620,102 @@ line of sight and cannot be moved through.* »). *Coût :* option de
 configuration simple — un flag « le mobilier bloque la vue/le passage »
 appliqué globalement à la génération de carte et au calcul de ligne de
 vue, sans changer la structure des données existantes.
+
+### 6. Livret de quêtes — pages photographiées par René (2026-09-27)
+
+**Source :** deux scans du livret de quêtes physique, déposés par René dans le
+dossier Drive des sources officielles
+(`https://drive.google.com/drive/folders/1seESGzXRhVw7ijIPuRVisaE36BPPoJ53`) :
+`first_light_questbook_rules.pdf` (1 page PDF = pages imprimées **6 et 7**) et
+`component_reference.pdf` (2 pages PDF = pages imprimées **20 et 21**). Les
+citations `FL-Q p. N` renvoient au numéro imprimé. ⚠ Que les pages 20-21 soient
+bien de ce livret se déduit du dépôt commun et de la mise en page identique ;
+**aucune des deux pages ne porte le titre du livret**.
+
+#### 6.1 Règles (FL-Q p. 6-7)
+
+- **Bénédictions, malédictions et trésors** — effets accordés au fil des quêtes,
+  notés sur la fiche du héros (p. 6).
+  - *Oracle's Blessing* : au choix, demander à Zargon de **révéler une salle
+    derrière une porte fermée adjacente**, OU, après un jet d'Attaque, de Défense
+    ou de mouvement, **relancer TOUS les dés** en gardant obligatoirement le
+    second résultat. Disparaît après usage.
+  - *Oracle's Curse* : le jeton **Mark of Zargon** est posé sur la fiche du
+    héros. Une fois par quête, Zargon peut le prendre et forcer le héros à
+    **relancer tous les dés d'un jet**, puis **choisit** lequel des deux
+    résultats est gardé ; le jeton revient sur la fiche au début de chaque
+    quête. Levée : don de **800 po** à des œuvres charitables, entre deux
+    quêtes, lors du passage à l'armurerie.
+  - *Glyph Key Scroll* : à tout moment, sans action, **détruit un glyphe
+    magique découvert** ; sans effet sur les glyphes « dérangés par le
+    pillage ». Disparaît après usage. ⚠ La règle des glyphes eux-mêmes n'est
+    pas sur ces pages.
+  - *The Hearthkin Horn* : une action ; chaque héros place un squelette sur une
+    case de sa salle ou de son couloir. Chaque héros contrôle le sien, qui joue
+    après lui, **se défend sur les boucliers blancs** et quitte le jeu en fin
+    de quête. Le cor tombe en poussière après usage.
+    **Hearthkin Skeleton — Move 8 · Attack 2 · Defend 2 · Body 1 · Mind 0.**
+- **Début et fin de quête** (p. 6) : les héros ne partent pas toujours de
+  l'escalier en colimaçon. Des flèches **Enter / Exit** sur la carte de quête
+  marquent l'entrée et la sortie ; en début de quête, les héros s'alignent
+  devant la porte et demandent à Zargon de l'ouvrir.
+- **Large Monsters** (p. 6) : un monstre de 2 cases peut attaquer toute créature
+  sur les **10 cases** qui l'entourent (même règle qu'Ogre Horde, §5 de cette
+  boîte-là).
+- **Dread Spells** (p. 6) : un monstre peut lancer chaque sort qu'il connaît
+  **une fois par quête**, même si un autre monstre a déjà lancé ce sort.
+  Certains monstres ont des sorts **« at will »** : toujours disponibles, au
+  prix d'une action.
+- **Monsters Without Mind Points** (p. 7) : un sort qui affecte les Mind Points
+  (ex. Sleep) ne peut viser un monstre sans Mind (ex. Zombies).
+- **Unthreatened Movement** (p. 7) : sans monstre actif sur le plateau, chaque
+  dé rouge de mouvement peut être compté comme un **4** au lieu d'être lancé
+  (2 dés → 8 cases, 1 dé → 4 cases).
+- **Item Exchange** (p. 7) : un héros peut passer potion, artefact, arme ou tout
+  objet à un héros **adjacent**, si **aucun des deux n'est adjacent à un
+  monstre** ; échanges libres entre les quêtes.
+- **Double-Sided Gameboard** (p. 7) : le plateau a deux faces, la carte de quête
+  dit laquelle utiliser.
+- **Healing Hearth** (p. 7) : un héros qui devrait tirer une carte trésor dans
+  une salle **avec une cheminée** peut, à la place, **récupérer 1 Body Point**.
+- **Sly Storage** (p. 7) : le **premier** héros à tirer une carte trésor dans une
+  salle **avec une armoire** en tire **deux**, résolues dans l'ordre.
+- **Qwindrak the Warlock** (p. 7) : à chaque rencontre il prend une ou plusieurs
+  formes (*Synchroforms*) aux statistiques propres, lance toujours ses sorts
+  quelle que soit la forme ; vaincu, la forme quitte le plateau, les sorts
+  actifs cessent, et les notes de quête disent la suite (nouvelle forme à la
+  même place, vraie apparence, ou fuite).
+  - *Dragon Form* : les notes de quête indiquent combien de **tuiles Skull**
+    placer sous la figurine — elles marquent les Body Points déjà perdus par le
+    Dragon.
+  - *Draconic Flight* : le Dragon peut interrompre son mouvement pour agir puis
+    le finir, et **traverser des cases occupées** (sans y finir).
+  - ⚠ **Statistiques de Qwindrak et du Dragon non trouvées** : elles sont dans
+    les notes de quête, non photographiées.
+- *Tips for Zargon* (p. 7) : renvoie à « **A Message from Mentor** », p. 8
+  (non photographiée).
+
+#### 6.2 Component Reference (FL-Q p. 20-21)
+
+Nom, type et icône (symbole de carte + illustration) de 30 composants — **aucune
+règle, aucune emprise chiffrée** :
+
+- **Tuiles** : Blocked-square, Double blocked-square, Dungeon grate, Eye of
+  Mentor, Falling Block, Mark of Zargon, Pit trap, Secret door, Skull, Stairway
+  (trois illustrations d'escalier).
+- **Mobilier** : Alchemist's bench, Bookcase, Cupboard, Fireplace, Rack, Weapons
+  Rack, Sorcerer's table, Table, Throne, Tomb, Treasure chest (onze types, les
+  mêmes que la légende LQ p. 33 du jeu de base — voir `17_mobilier.md` §1).
+- **Porte** : Dungeon door.
+- **Monstres** : Abomination, Dread sorcerer, Dread warrior, Gargoyle, Goblin,
+  Mummy, Skeleton, Zombie. ⚠ L'**Orc** n'y figure pas, alors que la boîte en
+  contient 8 (p. 6 du livret de règles) ; la raison n'est pas donnée.
+
+Ce que la page 20-21 **ne dit pas** et qui reste ⚠ non trouvé : l'effet d'**Eye
+of Mentor** (peut-être lié à « A Message from Mentor », p. 8 — hypothèse non
+vérifiée) et de **Dungeon grate**, ainsi que l'emprise de la **Fireplace**, du
+**Rack** et de la **Sorcerer's table**. Mark of Zargon et Skull sont des
+**jetons**, pas des tuiles de carte (§6.1).
 
 ---
 
@@ -1973,7 +2076,7 @@ intégralement ce qu'elle fait.
 | Spirit Queen's Torment | 2023 | 1 (Barde)⚠ | 0 (variantes nommées seulement) | 4 tours au choix libre, dégâts convertis en Mind, résolution alternative de boss |
 | Jungles of Delthrak | 2024 | 2 (Explorateur confirmé, Berserker probable)⚠ | 9 (Blightcrawler, Blightweaver, Giant Ape, Goblin/Skeleton Archer, Raptor, Serpent, Skullblight, Spawnling) | 3 modes de difficulté/mort, campagne ramifiée, terrain destructible, jetons de dégât différé |
 | The Crypt of Perpetual Darkness | 2024/25 | 0 | 0 (variantes nommées seulement) | Piège d'acide permanent, monstre-piège auto-déclenché, obscurité magique pénalisante |
-| First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) | Aucune (coffret = reprint du jeu de base + 10 quêtes non publiées) |
+| First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak / Dragon ⚠ stats non trouvées | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |
 
 † Statistiques chiffrées de l'Abomination non trouvées dans Kellar's Keep
 lui-même ; confirmées comme faisant partie du bestiaire standard 2021 par

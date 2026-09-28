@@ -36,6 +36,15 @@ présentée comme telle dans le tableau §1, avec le niveau de confiance de chaq
 (mesure propre sur une icône identifiée par le texte d'une note, mesure propre sur une
 icône identifiée seulement par sa forme, ou aucune mesure disponible).
 
+**Ajout 2026-09-27 — FL-Q**, livret de quêtes de *First Light* (2024), scans de René
+(dossier Drive des sources officielles, `first_light_questbook_rules.pdf` = p. 6-7,
+`component_reference.pdf` = p. 20-21 ; transcription complète dans
+`18_extensions.md` §First Light §6). La « Component Reference » (p. 20-21) confirme
+les **onze mêmes types** de mobilier que la légende LQ p. 33, avec symbole de carte
+et illustration, mais **toujours sans emprise chiffrée**. La page 7 donne en revanche
+les deux premières **règles propres à un meuble** du système : la cheminée et
+l'armoire (voir leurs lignes au §1).
+
 ## 1. Inventaire du mobilier
 
 RB p. 4 donne l'inventaire de boîte, sous « GAME CONTENTS » : *« 15 furniture pieces:
@@ -64,9 +73,9 @@ cases) ; aucun ne dépasse ces deux gabarits sur les instances mesurées.
 | Table du sorcier | Table du sorcier | ⚠ non établi par le livret | ⚠ | Probable (meuble comme les autres) | Icône repérée (rectangle orné, motif de gemmes/fermoir) mais jamais isolée assez proprement dans les cartes examinées pour un comptage de cases fiable |
 | Bibliothèque | Bibliothèque | **2 cases (2×1)** | ⚠ idem | Oui | Icône identifiée par une note (LQ p. 27, Quête 12, note E : « *a magical staff hidden behind the bookcase* ») ; mesure propre sur cette même occurrence |
 | « Rack » (générique) | Portant | ⚠ non établi par le livret | ⚠ | Probable | Aucune occurrence isolée trouvée sur les cartes examinées ; la légende LQ p. 33 le distingue explicitement du « Weapons rack » (deux icônes différentes) — nature exacte non décrite en texte |
-| Cheminée | Cheminée / âtre | ⚠ non établi par le livret | ⚠ | Probable | Aucune occurrence trouvée sur les cartes examinées |
+| Cheminée | Cheminée / âtre | ⚠ non établi par le livret | ⚠ | Probable | Aucune occurrence trouvée sur les cartes examinées. **Règle sourcée (FL-Q p. 7, *Healing Hearth*)** : dans une salle avec une cheminée, un héros qui devrait tirer une carte trésor peut, à la place, récupérer 1 Body Point. L'emprise reste ⚠ non établie (le symbole FL-Q p. 20 est un rectangle allongé, sans grille) |
 | Râtelier d'armes | Râtelier d'armes | **2 cases (1×2)** | ⚠ idem | Oui | Mesuré **exactement à la position** que désigne LQ p. 5 (Quête 1, note A : « *the weapons on this weapons rack are chipped, rusted, and broken* ») — la mesure la mieux corroborée du tableau (texte + position + grille alignée) |
-| Armoire | Armoire | **2 cases (2×1)** | ⚠ idem | Oui | Icône identifiée par sa forme (rectangle uni, sans motif — correspond à la légende LQ p. 33) sur LQ p. 13 (Quête 5, salle D, deux exemplaires côte à côte) ; aucune note de quête n'y accroche ce nom dans cette instance |
+| Armoire | Armoire | **2 cases (2×1)** | ⚠ idem | Oui | Icône identifiée par sa forme (rectangle uni, sans motif — correspond à la légende LQ p. 33) sur LQ p. 13 (Quête 5, salle D, deux exemplaires côte à côte) ; aucune note de quête n'y accroche ce nom dans cette instance. **Règle sourcée (FL-Q p. 7, *Sly Storage*)** : dans une salle avec une armoire, le premier héros à tirer une carte trésor en tire deux, résolues dans l'ordre. ⚠ Elle parle du tirage **de salle** ; notre armoire a sa table propre, un tirage par héros (§3) — la réconciliation reste à trancher |
 
 **Lecture du tableau.** Huit des onze types (table, coffre, trône, établi
 d'alchimiste, tombeau, bibliothèque, râtelier d'armes, armoire) ont été mesurés
@@ -98,6 +107,13 @@ mis à part, où l'occupation exclusive ne s'applique pas. Sur les cartes de qu�
 l'icône est un large éventail de degrés incurvés occupant un angle entier de la salle
 de départ — visuellement sur plusieurs cases (2 à 3 selon les cartes examinées), mais
 **aucune emprise chiffrée n'est donnée par le livret** ; ⚠ non établi.
+
+*First Light* assouplit ce point (FL-Q p. 6) : « *The heroes do not always start and
+end their quests on the spiral stairway* » — des flèches **Enter / Exit** sur la carte
+de quête marquent l'entrée et la sortie, et en début de quête les héros s'alignent
+devant la porte et demandent à Zargon de l'ouvrir. La Component Reference (FL-Q
+p. 20) range le *Stairway* parmi les **tuiles**, avec trois illustrations
+distinctes ; toujours sans emprise chiffrée.
 
 ### Portes normales et portes secrètes
 
@@ -141,6 +157,10 @@ Deux notions distinctes, à ne pas confondre :
   planche-légende LQ p. 33, dessiné comme deux cases de blocage accolées — nom
   explicite (« double »), mais **aucune description en prose** dans les deux
   livrets ; ⚠ l'emprise à 2 cases se déduit du nom et du dessin, non d'un texte.
+  La Component Reference de *First Light* (FL-Q p. 20) liste les deux comme
+  **tuiles** distinctes (« Blocked-square », « Double blocked-square »), sans règle
+  supplémentaire. La même page liste aussi **Dungeon grate** et **Eye of Mentor**,
+  dont l'effet reste ⚠ non trouvé.
 - **Roche solide (« solid rock »)** : contrairement aux cases bloquées, ce n'est pas
   un pion révélé au fil de la partie mais une propriété **fixe et déjà visible** de la
   carte imprimée — « *Dark shaded areas on all quest maps are considered solid
