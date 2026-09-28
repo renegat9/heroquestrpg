@@ -552,6 +552,9 @@ export function entitesVersFigurines(entites, initiative) {
  *  glace publiés sans lecteur de rendu. */
 export const PIEGE_ETATS = {
     detecte: 'détecté',
+    // Fosse DÉCLENCHÉE (2026-09-27) : le trou reste, armé et sautable — mais
+    // plus jamais confondue avec un piège détecté intact.
+    fosse_ouverte: 'fosse ouverte',
     desarme: 'désarmé',
     declenche: 'déclenché',
     bloc: 'bloc de pierre',

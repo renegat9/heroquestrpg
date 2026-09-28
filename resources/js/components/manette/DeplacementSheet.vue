@@ -389,7 +389,7 @@ const casesTrajet = computed(() => {
 // dire tel quel à l'écran (« Fosse (detecte) ») met un identifiant de code sous
 // les yeux du joueur. Même table que celle de la légende, en plus court — une
 // ligne d'aperçu n'a pas la place d'une phrase.
-const ETATS_PIEGE = { detecte: 'détecté', desarme: 'désamorcé', declenche: 'déjà déclenché' };
+const ETATS_PIEGE = { detecte: 'détecté', fosse_ouverte: 'fosse ouverte', desarme: 'désamorcé', declenche: 'déjà déclenché' };
 const trajetPieges = computed(() => (apercu.value?.pieges ?? []).map((p) => ({
     ...p,
     libelle: ETATS_PIEGE[p.etat] ?? p.etat,

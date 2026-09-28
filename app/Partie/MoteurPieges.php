@@ -27,7 +27,8 @@ use App\Support\Journal;
  * (cartes.grille.pieges, posé par AssembleurCarte) : chaque entrée
  * {x, y, piege_id, etat} suit le cycle de vie doc 10 §2 :
  * `cache` → `detecte` (fouille réussie / Œil du mineur) → `desarme` /
- * `declenche` (marché dessus, désamorçage raté, chute au franchissement).
+ * `declenche` (marché dessus, désamorçage raté, chute au franchissement) —
+ * ou `fosse_ouverte` (Fosse déclenchée, 2026-09-27) / `bloc` (Chute de blocs).
  *
  * Choix MVP (questions ouvertes doc 10 §10, départ playtest) :
  *  - dégâts DES TROIS PIÈGES DE SOL, sourcés livret de Zargon p. 14 (contrat
@@ -38,8 +39,12 @@ use App\Support\Journal;
  *  - « their turn immediately ends » sous les TROIS : un piège de sol qui se
  *    déclenche ferme tout le tour du héros (voir `ResolveurTour::$finTourPiegeSol`),
  *    pas seulement son déplacement ;
- *  - une fosse (effet.franchissable) reste sautable une fois détectée : le
- *    déclenchement caché, lui, arrête net (arrêt DUR) ;
+ *  - un piège `effet.franchissable` (Fosse, et Chute de blocs tant qu'elle
+ *    n'est pas tombée — livret p. 14) se saute une fois détecté ;
+ *  - un piège DÉTECTÉ ne se foule plus gratuitement (René, 2026-09-27) : y
+ *    marcher le déclenche comme s'il était caché. Seuls le saut et le
+ *    désamorçage le passent indemne — le trajet, lui, le contourne quand un
+ *    détour est payable (`ResolveurTour::cheminDuHeros()`) ;
  *  - la Chute de blocs devient un `ETAT_BLOC` PERMANENT — le héros dessus
  *    doit d'abord choisir où s'écarter (`casesEcart()`) avant que son tour
  *    ne se ferme ;
@@ -66,6 +71,22 @@ final class MoteurPieges
     public const ETAT_DESARME = 'desarme';
 
     public const ETAT_DECLENCHE = 'declenche';
+
+    /**
+     * FOSSE OUVERTE (René, 2026-09-27) : une Fosse déclenchée. Le trou reste
+     * (livret p. 14) — elle demeure ARMÉE (y marcher la déclenche encore) et
+     * se SAUTE, mais ne se DÉSAMORCE plus (« non applicable une fois
+     * déclenchée », doc 16 §7.3). Elle repassait à `ETAT_DETECTE` : sur la
+     * carte, un trou déjà ouvert se lisait alors exactement comme un piège
+     * détecté intact, légende « désamorçable au contact » comprise.
+     */
+    public const ETAT_FOSSE_OUVERTE = 'fosse_ouverte';
+
+    /** États d'un piège qui se déclenche encore quand on marche dessus. */
+    public const ETATS_ARMES = [self::ETAT_CACHE, self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE];
+
+    /** États d'un piège ARMÉ que le groupe CONNAÎT : ceux qu'on saute, qu'on évite. */
+    public const ETATS_CONNUS_ARMES = [self::ETAT_DETECTE, self::ETAT_FOSSE_OUVERTE];
 
     /**
      * BLOC PERMANENT (Chute de blocs déclenchée, livret p. 14, 2026-09-24) :
@@ -95,7 +116,8 @@ final class MoteurPieges
 
     /**
      * Vérifie chaque case TRAVERSÉE par un déplacement de héros (chemin BFS,
-     * arrivée incluse) : un piège CACHÉ sur le chemin se déclenche.
+     * arrivée incluse) : un piège ARMÉ sur le chemin — caché, ou détecté et
+     * foulé sciemment (2026-09-27) — se déclenche.
      *
      * ⚠ « Their turn immediately ends » (livret p. 14, 2026-09-24) vaut pour
      * les TROIS pièges de sol, sans exception : l'arrêt est désormais TOUJOURS
@@ -127,12 +149,25 @@ final class MoteurPieges
             $x = (int) $case['x'];
             $y = (int) $case['y'];
 
-            // 1) Piège caché SUR la case traversée → déclenchement immédiat,
+            // 1) Piège ARMÉ SUR la case traversée → déclenchement immédiat,
             //    et la course s'arrête TOUJOURS là (voir docblock ci-dessus).
-            $index = $this->indexPiegeCache($carte, $x, $y);
+            //    Détecté compris (René, 2026-09-27) : sans quoi un piège connu
+            //    se foulait sans rien subir, et sauter ou désamorcer ne
+            //    servaient à rien.
+            $index = $this->indexPiegeArme($carte, $x, $y);
             if ($index !== null) {
                 $payload = $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
                 $declenchements[] = $payload;
+
+                // Forme démoniaque : « ignores pit traps » — le sol ne l'avale
+                // pas, il n'a donc aucune raison de s'arrêter. Sans cette
+                // ligne, une fosse DÉTECTÉE (persistante) l'aurait arrêté à
+                // chaque passage.
+                if (($payload['type'] ?? null) === 'piege_ignore') {
+                    $provenance = ['x' => $x, 'y' => $y];
+
+                    continue;
+                }
 
                 // CHUTE DE BLOCS : le héros ne choisit PAS encore de finir son
                 // tour — il doit d'abord s'écarter (livret p. 14). Pour les deux
@@ -237,7 +272,7 @@ final class MoteurPieges
      * @param  array{x: int, y: int}  $bloc
      * @return array{x: int, y: int, cases: list<array{x: int, y: int, sens: string}>}
      */
-    private function casesEcart(Carte $carte, Personnage $personnage, array $provenance, array $bloc): array
+    public function casesEcart(Carte $carte, Personnage $personnage, array $provenance, array $bloc): array
     {
         $cases = [
             ['x' => $provenance['x'], 'y' => $provenance['y'], 'sens' => 'reculer'],
@@ -265,8 +300,8 @@ final class MoteurPieges
     /**
      * Déclenche le piège d'index donné sur un héros : effet du catalogue,
      * héros à 0 PV → tombe (cohérent avec le combat), usage unique →
-     * `declenche` définitif, fosse persistante → reste en jeu (`detecte`
-     * après déclenchement), Chute de blocs → `ETAT_BLOC` (bloc permanent,
+     * `declenche` définitif, fosse persistante → reste en jeu
+     * (`fosse_ouverte`, distincte d'un piège détecté intact), Chute de blocs → `ETAT_BLOC` (bloc permanent,
      * livret p. 14). Journal type action + narration en job.
      *
      * ⚠ DEUX FORMES DE DÉGÂTS depuis le contrat du 2026-09-24 : `des_combat`
@@ -326,7 +361,7 @@ final class MoteurPieges
         }
 
         // BLOC PERMANENT (Chute de blocs) : ni persistant (la fosse reste
-        // `detecte`, sautable) ni simplement dépensé (`declenche`, la lance
+        // ouverte, `fosse_ouverte`, sautable) ni simplement dépensé (`declenche`, la lance
         // disparaît pour de bon) — un TROISIÈME sort, un obstacle qui reste.
         // Persistant sinon (fosse) : le piège reste en jeu, désormais visible
         // de tous ; usage unique sinon : consommé définitivement.
@@ -334,7 +369,7 @@ final class MoteurPieges
         $persistant = $piege?->usage === 'persistant';
         $nouvelEtat = match (true) {
             $blocPermanent => self::ETAT_BLOC,
-            $persistant => self::ETAT_DETECTE,
+            $persistant => self::ETAT_FOSSE_OUVERTE,
             default => self::ETAT_DECLENCHE,
         };
         $this->changerEtat($carte, $index, $nouvelEtat);
@@ -621,17 +656,18 @@ final class MoteurPieges
     }
 
     /**
-     * Pièges DÉTECTÉS orthogonalement adjacents à une position, avec leur
-     * modèle de catalogue — base des options de menu Désamorcer / Franchir.
+     * Pièges CONNUS et encore armés (détectés, ou fosses ouvertes)
+     * orthogonalement adjacents à une position, avec leur modèle de catalogue
+     * — base des options de menu Désamorcer (détectés seuls) / Franchir.
      *
-     * @return list<array{index: int, x: int, y: int, piege: Piege|null}>
+     * @return list<array{index: int, x: int, y: int, etat: string, piege: Piege|null}>
      */
     public function detectesAdjacents(Carte $carte, int $x, int $y): array
     {
         $adjacents = [];
 
         foreach ($carte->grille['pieges'] ?? [] as $index => $entree) {
-            if (($entree['etat'] ?? null) !== self::ETAT_DETECTE) {
+            if (! in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)) {
                 continue;
             }
             if (abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) !== 1) {
@@ -642,6 +678,9 @@ final class MoteurPieges
                 'index' => $index,
                 'x' => (int) $entree['x'],
                 'y' => (int) $entree['y'],
+                // Une fosse OUVERTE se saute mais ne se désamorce pas : le menu
+                // et le résolveur lisent cet état pour trier les deux gestes.
+                'etat' => (string) $entree['etat'],
                 'piege' => Piege::find($entree['piege_id']),
             ];
         }
@@ -750,8 +789,23 @@ final class MoteurPieges
         return $armes;
     }
 
-    /** Une fosse = piège franchissable du catalogue (PiegeSeeder). */
+    /**
+     * Une fosse = le piège de sol PERSISTANT du catalogue : « le trou reste »
+     * (livret p. 14). Ce n'est plus `franchissable` qui la désigne depuis que
+     * la Chute de blocs se saute aussi (2026-09-27) : Forme démoniaque, la
+     * Potion de dextérité et l'immobilisation parlent de la FOSSE seule.
+     */
     public function estFosse(?Piege $piege): bool
+    {
+        return $piege?->usage === 'persistant' && $this->estFranchissable($piege);
+    }
+
+    /**
+     * Se saute-t-il une fois détecté ? Fosse, et Chute de blocs tant qu'elle
+     * n'est pas tombée (livret p. 14, `reference/16_armurerie.md` §7.3) —
+     * jamais le Piège à lances, qui ne se désamorce que.
+     */
+    public function estFranchissable(?Piege $piege): bool
     {
         return isset($piege?->effet['franchissable']);
     }
@@ -823,11 +877,11 @@ final class MoteurPieges
         return $caches;
     }
 
-    /** Index du piège encore CACHÉ posé sur une case (null sinon). */
-    private function indexPiegeCache(Carte $carte, int $x, int $y): ?int
+    /** Index du piège encore ARMÉ (caché ou détecté) posé sur une case (null sinon). */
+    private function indexPiegeArme(Carte $carte, int $x, int $y): ?int
     {
         foreach ($carte->grille['pieges'] ?? [] as $index => $entree) {
-            if (($entree['etat'] ?? null) === self::ETAT_CACHE
+            if (in_array($entree['etat'] ?? null, self::ETATS_ARMES, true)
                 && (int) $entree['x'] === $x && (int) $entree['y'] === $y) {
                 return $index;
             }

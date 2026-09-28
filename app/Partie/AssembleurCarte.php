@@ -18,8 +18,8 @@ use RuntimeException;
  * Assemblage procédural de la carte d'une quête depuis la bibliothèque de
  * tuiles seedées (doc 06 §3) : salles posées sur une GRILLE 2D en ARBRE
  * BRANCHU (une salle peut avoir jusqu'à 4 embranchements), reliées par des
- * couloirs à 2 voies dont les JONCTIONS font 2 cases de large — fini la chaîne
- * gauche-droite (playtest F) et le goulot d'une case au seuil (test 2026-07-31).
+ * couloirs d'UNE ou DEUX voies (LR p. 11, tirées une sur deux — 2026-09-27)
+ * débouchant par un seuil d'une case — fini la chaîne gauche-droite (playtest F).
  *
  * Algorithme :
  *  1. nb de salles tiré dans [salles.min (plancher NB_SALLES_MIN=2), salles.max] ;
@@ -37,7 +37,8 @@ use RuntimeException;
  *     ce qui garantit des couloirs droits ;
  *  4. chaque tuile est peinte sur `cases` (ses propres cases « p » sont
  *     refermées en mur : les portes réelles sont percées par le générateur) ;
- *  5. pour chaque arête (parent, enfant) : un couloir à 2 voies, débouchant
+ *  5. pour chaque arête (parent, enfant) : un couloir à 1 ou 2 voies (tirage,
+ *     voir `creuserArete()`), débouchant
  *     par un SEUIL D'UNE SEULE CASE — une porte-arête par salle, soit 2 par
  *     jonction (décision de René, 2026-08-08 : le plateau n'a que des portes
  *     d'une case). Les seuils étaient larges de 2 cases pour qu'un tank ne
@@ -54,7 +55,8 @@ use RuntimeException;
  *     plus qu'UNE SEULE porte (pas 2) — « dans le jeu original il n'y en a
  *     pas » ; les vrais couloirs ne subsistent que pour les salles non-feuilles
  *     et celles que le chevauchement empêche d'accoler ;
- *  6. pièges (structure.pieges.min) posés au milieu des couloirs ;
+ *  6. pièges (structure.pieges.min) posés au milieu des couloirs ET en salle —
+ *     jamais de Chute de blocs dans un couloir à voie unique ;
  *  7. spawns : héros dans la salle 0 ; monstres en ROUND-ROBIN sur les autres
  *     salles (répartition — fini « tous dans la dernière pièce ») en
  *     commençant par la salle finale (boss/feuille posée en dernier), pour
@@ -71,14 +73,24 @@ final class AssembleurCarte
     public const LONGUEUR_COULOIR = 3;
 
     /**
-     * Largeur des couloirs en cases (correctifs F) : 2 = deux figurines de
-     * front. Les deux voies sont la ligne/colonne médiane et celle JUSTE AVANT.
-     * Elles portent chacune une porte-arête aux deux bouts, si bien que le
-     * SEUIL fait lui aussi 2 cases : le tank ne bouche plus le passage et le
-     * tireur derrière garde une ligne de vue. Repli à une case (voie parallèle
-     * en cul-de-sac) quand un intérieur de salle est trop mince.
+     * Largeur MAXIMALE des couloirs en cases (correctifs F) : 2 = deux
+     * figurines de front — la ligne/colonne médiane et celle JUSTE AVANT. Le
+     * seuil, lui, fait toujours UNE case (René, 2026-08-08).
+     *
+     * ⚠ Un couloir sur deux n'a plus qu'UNE voie (René, 2026-09-27 : « il est
+     * plutôt facile de contourner les trappes plutôt que de les désamorcer ou
+     * sauter par-dessus ») — le livret dit « one or two squares wide » (LR
+     * p. 11). Voir `CHANCE_VOIE_UNIQUE` et `creuserArete()`.
      */
     public const LARGEUR_COULOIR = 2;
+
+    /**
+     * Chance (sur 100) qu'un couloir n'ait qu'UNE voie (René, 2026-09-27). Un
+     * tirage par couloir, et pas « les couloirs piégés sont étroits » : ce
+     * serait un signal que les joueurs apprennent (« couloir étroit = piège »),
+     * le même défaut que « un couloir = un piège » corrigé dans `placerPieges()`.
+     */
+    public const CHANCE_VOIE_UNIQUE = 50;
 
     public const NB_SALLES_MIN = 2;
 
@@ -254,6 +266,10 @@ final class AssembleurCarte
         $portes = [];
         $aretesSortie = [];
         $milieuxCouloirs = [];
+        // Milieux des couloirs à VOIE UNIQUE (clé « x,y ») : une Chute de blocs
+        // y fermerait le passage à jamais, parfois vers la salle objectif
+        // (René, 2026-09-27) — `placerPieges()` ne l'y tire donc jamais.
+        $milieuxVoieUnique = [];
         // Index (dans `$portes`) de la porte PARENT de chaque arête — celle qui
         // porte la restriction et que `placerLeviers()` peut verrouiller. Une
         // jonction ORDINAIRE pousse 2 entrées (parent puis enfant), une jonction
@@ -270,9 +286,15 @@ final class AssembleurCarte
                 ? ['etat' => MoteurPortes::ETAT_SECRETE]
                 : $this->specPorte($portesSpec, $indexArete);
 
+            // ⚠ Tiré pour CHAQUE arête, mitoyenne comprise (où il ne change
+            // rien) : consommer le PRNG dans les deux branches garde la suite
+            // des nombres identique quelle que soit la géométrie — même règle
+            // que le tirage du passage secret.
+            $voieUnique = $suivant() % 100 < self::CHANCE_VOIE_UNIQUE;
+
             $resultat = $this->creuserArete(
                 $cases, $salles, $positionsGrille, $slotLargeur, $slotHauteur,
-                $arete, $spec,
+                $arete, $spec, $voieUnique,
             );
 
             $indexPorteParentParArete[$indexArete] = count($portes);
@@ -307,6 +329,10 @@ final class AssembleurCarte
             // dans la salle voisine, où un piège de couloir n'a rien à faire.
             if (empty($arete['mitoyenne'])) {
                 $milieuxCouloirs[] = $resultat['milieu'];
+
+                if ($voieUnique) {
+                    $milieuxVoieUnique["{$resultat['milieu']['x']},{$resultat['milieu']['y']}"] = true;
+                }
             }
         }
 
@@ -328,7 +354,7 @@ final class AssembleurCarte
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
         $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
-        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $cases, $salles, $leviers, $suivant);
+        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $leviers, $suivant);
         $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
@@ -946,8 +972,8 @@ final class AssembleurCarte
     }
 
     /**
-     * Creuse le couloir (2 voies) et perce UNE porte de chaque côté pour une
-     * arête (parent, enfant) de l'arbre. Les deux salles étant centrées dans
+     * Creuse le couloir (1 ou 2 voies) et perce UNE porte de chaque côté pour
+     * une arête (parent, enfant) de l'arbre. Les deux salles étant centrées dans
      * des slots uniformes, leur ligne (E/W) ou colonne (N/S) médiane de slot
      * coïncide : c'est elle qui porte les deux portes et la voie « rapide » du
      * couloir ; la voie parallèle (juste avant) reste un cul-de-sac SANS
@@ -971,6 +997,11 @@ final class AssembleurCarte
      * (`Grille::porteBloqueEntre()`) — inutile de la poser « ouverte », l'absence
      * suffit.
      *
+     * ⚠ **`$voieUnique` (René, 2026-09-27) : la voie parallèle n'est pas
+     * creusée.** Le couloir se réduit à la voie rapide, celle qui porte les
+     * portes et le `milieu` où tombe un piège : plus de contournement, il faut
+     * le sauter, le désamorcer ou le subir.
+     *
      * @param  list<list<string>>  $cases
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int, theme: string}>  $salles
      * @param  list<array{0: int, 1: int}>  $positionsGrille
@@ -986,6 +1017,7 @@ final class AssembleurCarte
         int $slotHauteur,
         array $arete,
         ?array $spec,
+        bool $voieUnique = false,
     ): array {
         $parent = $arete['parent'];
         $enfant = $arete['enfant'];
@@ -1014,7 +1046,7 @@ final class AssembleurCarte
             }
             // Voie parallèle (r-1) : elle élargit le COULOIR, jamais le seuil —
             // elle s'arrête donc avant les murs des salles (cf. SEUIL_UNE_CASE).
-            for ($cx = $xPorteGauche + 1; $cx <= $xPorteDroite - 1; $cx++) {
+            for ($cx = $xPorteGauche + 1; ! $voieUnique && $cx <= $xPorteDroite - 1; $cx++) {
                 $cases[$r - 1][$cx] = 's';
             }
 
@@ -1044,7 +1076,7 @@ final class AssembleurCarte
                 $cases[$cy][$c] = 's';
             }
             // Voie parallèle : élargit le COULOIR, jamais le seuil.
-            for ($cy = $yPorteHaut + 1; $cy <= $yPorteBas - 1; $cy++) {
+            for ($cy = $yPorteHaut + 1; ! $voieUnique && $cy <= $yPorteBas - 1; $cy++) {
                 $cases[$cy][$c - 1] = 's';
             }
 
@@ -1360,7 +1392,14 @@ final class AssembleurCarte
      * exclusions déjà faites pour le mobilier/les épreuves/le terrain.
      *
      * @param  array<string, mixed>  $structure
+     * ⚠ `$milieuxVoieUnique` (René, 2026-09-27) : dans un couloir d'UNE case,
+     * une Chute de blocs tombée ferme le passage à jamais — et sur une arête
+     * sans boucle, les salles au-delà, objectif compris. Le tirage y écarte
+     * donc la Chute de blocs (`bloc_permanent`) : Fosse ou Piège à lances
+     * seulement. En salle et en couloir double, rien ne change.
+     *
      * @param  list<array{x: int, y: int}>  $milieuxCouloirs
+     * @param  array<string, true>  $milieuxVoieUnique  clés « x,y »
      * @param  list<list<string>>  $cases
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
      * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
@@ -1369,6 +1408,7 @@ final class AssembleurCarte
     private function placerPieges(
         array $structure,
         array $milieuxCouloirs,
+        array $milieuxVoieUnique,
         array $cases,
         array $salles,
         array $leviers,
@@ -1437,9 +1477,16 @@ final class AssembleurCarte
             return [];
         }
 
+        $sansBloc = $piegesSol
+            ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'bloc_permanent', false))
+            ->values();
+
         $pieges = [];
         for ($i = 0; $i < $nbPieges; $i++) {
-            $piege = $piegesSol[$prng->suivant() % $piegesSol->count()];
+            $vivier = isset($milieuxVoieUnique["{$candidats[$i]['x']},{$candidats[$i]['y']}"]) && $sansBloc->isNotEmpty()
+                ? $sansBloc
+                : $piegesSol;
+            $piege = $vivier[$prng->suivant() % $vivier->count()];
 
             $pieges[] = [
                 'x' => $candidats[$i]['x'],

@@ -759,20 +759,48 @@ de DESSINER les dés du piège, comme ceux d'une attaque.
 
 Cycle : **caché** (placé à l'assemblage) → **détecté** (action Fouiller réussie
 sur la zone ; auto pour un héros adjacent possédant le nœud *Œil du mineur*) →
-**désamorcé** / **franchi** / **déclenché**. L'état des pièges vit dans la carte
+**désamorcé** / **franchi** / **déclenché** — ou, pour la Fosse, **fosse
+ouverte** (`fosse_ouverte`), et pour la Chute de blocs, **bloc** (`bloc`). L'état des pièges vit dans la carte
 de la quête.
 
-- **Déclenchement** : un héros qui entre sur la case d'un piège **caché**
-  (déplacement traversant inclus) le déclenche : effet du tableau ci-dessus, puis **fin du tour** du héros (livret p. 14) ;
+- **Déclenchement** : un héros qui entre sur la case d'un piège **caché OU
+  détecté** (déplacement traversant inclus) le déclenche : effet du tableau ci-dessus, puis **fin du tour** du héros (livret p. 14) ;
   `piege_a_lances`/`chute_de_blocs` à usage unique. Journal + narration.
+  ⚠ **Détecté compris depuis le 2026-09-27** (René : « il est plutôt facile de
+  contourner les trappes ») : un piège connu se foulait sans rien subir, ce qui
+  vidait le saut et le désamorçage. Le **trajet** (`deplacement/apercu` et la
+  résolution, même point de passage `ResolveurTour::cheminDuHeros()`) évite les
+  pièges détectés quand un détour est **payable** ; sinon il les traverse, et
+  l'aperçu les liste dans `pieges`. Viser la case d'un piège, c'est choisir d'y
+  marcher. Aucun champ ne change.
 - **Désamorcer** (option de menu si adjacent à un piège détecté) : jet de Body
   difficulté 1, réservé au Nain OU à un porteur de la Trousse à outils ; échec
   → le piège se déclenche sur le désamorceur (choix MVP, question ouverte n°3).
-- **Franchir une fosse détectée** (option de menu si adjacente) : jet de Body
-  difficulté 2 (départ playtest) ; échec = chute (effet de la fosse).
-- **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|desarme|declenche",
+- **Franchir un piège détecté franchissable** (`franchir_{x}_{y}`, option de
+  menu si adjacent) : la **Fosse**, et depuis le 2026-09-27 la **Chute de
+  blocs** tant qu'elle n'est pas tombée (livret p. 14, « sautée avant
+  déclenchement ») — jamais le Piège à lances. Jet de Body difficulté 2
+  (départ playtest) ; échec = le héros atterrit sur le piège et le déclenche.
+  Sur une Chute de blocs ratée il se retrouve **sur le bloc** : `piege_a_ecarter`
+  est posé et le menu ne contient plus que `s_ecarter_du_bloc`, comme après un
+  déclenchement en marchant.
+- **Couloirs** : une ou deux voies (LR p. 11), tirées **une sur deux** par
+  couloir (`AssembleurCarte::CHANCE_VOIE_UNIQUE`). Un couloir à voie unique ne
+  reçoit **jamais** de Chute de blocs : tombée, elle fermerait le passage à
+  jamais.
+- **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|fosse_ouverte|desarme|declenche|bloc",
   nom}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
   pas). EtatGroupe.entites héros gagne `niveau`.
+- **`fosse_ouverte`** (René, 2026-09-27 : « avoir un état différent sur la
+  carte pour identifier un piège détecté sans être déclenché ») : une Fosse
+  DÉCLENCHÉE ne repasse plus à `detecte`. Le trou reste (livret p. 14) mais il
+  ne se lit plus comme un piège intact : `detecte` veut désormais dire
+  **détecté et jamais déclenché**, sans exception. Une fosse ouverte reste
+  **armée** (y marcher la déclenche à nouveau) et **se saute**, mais **ne se
+  désamorce pas** (« non applicable une fois déclenchée — le trou reste »,
+  doc 16 §7.3) : le menu n'offre plus `desamorcer_{x}_{y}` sur elle. Les
+  quêtes déjà en cours gardent leurs fosses ouvertes sous `detecte` : rien ne
+  permet de les distinguer après coup.
 
 ## Mobilier (doc 17 — catalogue de référence, aucun nouvel endpoint)
 

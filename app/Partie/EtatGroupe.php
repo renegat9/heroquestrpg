@@ -602,6 +602,9 @@ final class EtatGroupe
         $connus = collect($carte->grille['pieges'] ?? [])
             ->filter(fn (array $entree) => in_array($entree['etat'] ?? null, [
                 MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+                // Fosse OUVERTE (2026-09-27) : un trou déjà déclenché, distinct
+                // d'un piège détecté intact — publiée sous son propre état.
+                MoteurPieges::ETAT_FOSSE_OUVERTE,
                 // Bloc permanent (Chute de blocs) : DOIT rester visible pour
                 // toujours, sinon la table et la manette dessineraient un
                 // passage libre là où le moteur bloque déjà le mouvement et la

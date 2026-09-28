@@ -276,8 +276,10 @@ it('arrête le déplacement sur une fosse cachée : la fosse persiste, le tour s
     expect($etat->position_x)->toBe($saut['fosse']['x'])
         ->and($etat->position_y)->toBe($saut['fosse']['y'])
         ->and($hero->fresh()->pv_body)->toBe(7)
-        // Persistante : la fosse reste en jeu, désormais visible (`detecte`).
-        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte')
+        // Persistante : la fosse reste en jeu, désormais visible — sous son
+        // PROPRE état, jamais `detecte` (René, 2026-09-27 : un trou ouvert ne
+        // doit pas se lire comme un piège détecté intact).
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_FOSSE_OUVERTE)
         // « Their turn immediately ends » (livret p. 14, 2026-09-24) : la
         // fosse ne se contentait QUE d'immobiliser le déplacement avant cette
         // date — désormais le tour ENTIER se ferme, comme les deux autres
@@ -511,7 +513,7 @@ it('fait chuter le héros dans la fosse quand le franchissement échoue', functi
     expect($etat->position_x)->toBe($saut['fosse']['x'])
         ->and($etat->position_y)->toBe($saut['fosse']['y'])
         ->and($hero->fresh()->pv_body)->toBe(7)
-        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte'); // persistante
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_FOSSE_OUVERTE); // persistante, ouverte
 });
 
 /** Pose une porte sur une arête, en remplaçant celles de l'assembleur. */
@@ -788,4 +790,139 @@ it('le piège à lances disparaît (usage consommé) après s\'être déclenché
 
     // Et il n'apparaît donc plus adjacent, offrant Désamorcer/Franchir.
     expect(app(MoteurPieges::class)->detectesAdjacents($quete->fresh()->carte, $cible['x'], $cible['y']))->toBe([]);
+});
+
+/*
+ * UN PIÈGE CONNU NE SE CONTOURNE PLUS GRATUITEMENT (René, 2026-09-27 : « il est
+ * plutôt facile de contourner les trappes plutôt que de les désamorcer ou sauter
+ * par-dessus »). Jusque-là `controlerChemin()` ne déclenchait que les pièges
+ * `cache` : un piège DÉTECTÉ se foulait sans rien subir, ce qui vidait de sens
+ * le saut et le désamorçage — dans un couloir d'une case comme ailleurs.
+ */
+
+it('déclenche un piège DÉTECTÉ sur lequel le héros marche sciemment', function () {
+    [, , $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $cible = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $cible['x'], 'y' => $cible['y'], 'nom' => 'Piège à lances', 'etat' => 'detecte']]);
+
+    // Dé de combat DU PIÈGE (2 = crâne), puis dé de mouvement de Brunhilde :
+    // le déclenchement ferme tout le tour d'Albrecht (livret p. 14).
+    desFiges([2, 4]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $cible,
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.interrompu', true)
+        ->assertJsonPath('resultat.pieges_declenches.0.piege.nom', 'Piège à lances')
+        ->assertJsonPath('resultat.pieges_declenches.0.degats', 1);
+
+    expect($hero->fresh()->pv_body)->toBe(7)
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('declenche')
+        ->and((bool) $etat->fresh()->a_joue)->toBeTrue();
+});
+
+it('fait CONTOURNER un piège connu par le trajet quand un détour est payable', function () {
+    [, , $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+
+    // Une ligne H → piège → arrivée, et la ligne parallèle libre à côté :
+    // le détour coûte 4 points au lieu de 2.
+    $scene = null;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        foreach ([[$dy, $dx], [-$dy, -$dx]] as [$px, $py]) {
+            $cases = [
+                'piege' => ['x' => $hx + $dx, 'y' => $hy + $dy],
+                'arrivee' => ['x' => $hx + 2 * $dx, 'y' => $hy + 2 * $dy],
+            ];
+            $libres = [
+                $cases['piege'], $cases['arrivee'],
+                ['x' => $hx + $px, 'y' => $hy + $py],
+                ['x' => $hx + $dx + $px, 'y' => $hy + $dy + $py],
+                ['x' => $hx + 2 * $dx + $px, 'y' => $hy + 2 * $dy + $py],
+            ];
+            if (collect($libres)->every(fn ($c) => caseQueteLibre($quete, $c['x'], $c['y']))) {
+                $scene = $cases;
+                break 2;
+            }
+        }
+    }
+    expect($scene)->not->toBeNull('scénario de test invalide : aucun détour libre autour du héros');
+
+    poserPieges($quete, [['x' => $scene['piege']['x'], 'y' => $scene['piege']['y'], 'nom' => 'Fosse', 'etat' => 'detecte']]);
+    $etat->update(['deplacement_tour' => 6]);
+
+    $apercu = $this->postJson('/api/groupes/table-1/deplacement/apercu', $scene['arrivee'])->assertOk();
+    expect($apercu->json('pieges'))->toBe([])
+        ->and($apercu->json('cout'))->toBe(4);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $scene['arrivee'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.pieges_declenches', [])
+        ->assertJsonPath('resultat.vers', $scene['arrivee']);
+
+    expect($hero->fresh()->pv_body)->toBe(8)
+        ->and($etat->fresh()->deplacement_restant)->toBe(2);
+});
+
+it('laisse sauter une Chute de blocs DÉTECTÉE (livret : sautée avant déclenchement), jamais un Piège à lances', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+    $saut = alignementFranchissable($quete, $depart['x'], $depart['y']);
+    poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Chute de blocs', 'etat' => 'detecte']]);
+    $etat->update(['deplacement_tour' => 6]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id');
+    expect($ids)->toContain("franchir_{$saut['fosse']['x']}_{$saut['fosse']['y']}");
+
+    // Saut RATÉ (aucun crâne sur 4 dés de Body), puis les 3 dés de la chute
+    // (boucliers noirs : 0 dégât). Le héros tombe SUR le bloc : il doit s'en
+    // écarter, exactement comme s'il l'avait déclenché en marchant.
+    desFiges([4, 4, 4, 4, 6, 6, 6]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => "franchir_{$saut['fosse']['x']}_{$saut['fosse']['y']}",
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.franchi', false)
+        ->assertJsonPath('resultat.declenchement.bloc_permanent', true);
+
+    $etat->refresh();
+    expect($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_BLOC)
+        ->and($etat->piege_a_ecarter)->not->toBeNull()
+        ->and(collect($etat->piege_a_ecarter['cases'])->firstWhere('sens', 'reculer'))
+        ->toBe(['x' => $depart['x'], 'y' => $depart['y'], 'sens' => 'reculer'])
+        // Le tour attend le choix d'écart : il n'est pas encore fermé.
+        ->and((bool) $etat->a_joue)->toBeFalse();
+
+    // Le Piège à lances, lui, ne se saute pas (livret p. 14 : désamorcer seulement).
+    poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Piège à lances', 'etat' => 'detecte']]);
+    $lances = Piege::where('nom', 'Piège à lances')->first();
+    expect(app(MoteurPieges::class)->estFranchissable($lances))->toBeFalse()
+        ->and(app(MoteurPieges::class)->estFosse(Piege::where('nom', 'Chute de blocs')->first()))->toBeFalse();
+});
+
+it('publie une fosse DÉCLENCHÉE sous son propre état : sautable, jamais désamorçable (René, 2026-09-27)', function () {
+    // Un Nain : s'il voyait « Désamorcer » sur une fosse ouverte, ce serait ici.
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'nain']);
+
+    $saut = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [['x' => $saut['fosse']['x'], 'y' => $saut['fosse']['y'], 'nom' => 'Fosse', 'etat' => MoteurPieges::ETAT_FOSSE_OUVERTE]]);
+    $etat->update(['deplacement_tour' => 6]);
+
+    // La carte partagée la montre sous son état — distincte d'un piège détecté intact.
+    $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    expect(collect($partage['carte']['pieges'])->pluck('etat')->all())->toBe([MoteurPieges::ETAT_FOSSE_OUVERTE]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
+    $ids = collect(Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu']['options'])->pluck('id');
+
+    expect($ids)->toContain("franchir_{$saut['fosse']['x']}_{$saut['fosse']['y']}")
+        ->and($ids)->not->toContain("desamorcer_{$saut['fosse']['x']}_{$saut['fosse']['y']}");
 });

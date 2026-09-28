@@ -33,7 +33,14 @@ class PiegeSeeder extends Seeder
             ['nom' => 'Piège à lances', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique',
                 'effet' => ['des_combat' => 1]],
             ['nom' => 'Chute de blocs', 'detectable' => true, 'desarmable' => 'partiel', 'usage' => 'unique',
-                'effet' => ['des_combat' => 3, 'bloc_permanent' => true]],
+                // `franchissable` (2026-09-27) : « peut être désamorcée/sautée
+                // AVANT déclenchement » (livret p. 14, doc 16 §7.3) — le même
+                // saut que la fosse. Voir la migration `chute_de_blocs_franchissable`.
+                'effet' => [
+                    'des_combat' => 3,
+                    'bloc_permanent' => true,
+                    'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
+                ]],
             // Deux pièges de MEUBLE (décision de René, 2026-08-17) : le tombeau
             // et l'établi de l'alchimiste peuvent mordre la main qui les fouille.
             //

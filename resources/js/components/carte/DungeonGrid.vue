@@ -182,7 +182,7 @@ const doors = computed(() => (props.carte.portes ?? [])
             :style="{ gridColumn: t.x + 1, gridRow: t.y + 1 }"
         >
             <div class="dg-trap" :class="t.etat" :title="t.titre ?? t.nom">
-                <MSym v-if="t.etat !== 'declenche'" :n="iconePiege(t)" fill />
+                <MSym v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte'" :n="iconePiege(t)" fill />
             </div>
         </div>
 
@@ -357,7 +357,7 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-cell.allie { background: oklch(0.55 0.14 260 / 0.5); display: grid; place-items: center; }
 .dg-cell.monstre { background: oklch(0.55 0.16 25 / 0.45); color: var(--danger, #e66); display: grid; place-items: center; }
 
-/* ---- pièges (detecte / desarme / declenche — contrat « Pièges ») ---- */
+/* ---- pièges (detecte / fosse_ouverte / desarme / declenche / bloc — contrat « Pièges ») ---- */
 .dg-trap-holder { position: relative; pointer-events: none; z-index: 2; }
 /* Épreuves : un LOSANGE doré, et surtout PAS un disque.
    ⚠ Au premier jet c'était un disque plein de 72 %, exactement la silhouette
@@ -378,13 +378,22 @@ const doors = computed(() => (props.carte.portes ?? [])
 
 .dg-trap { position: absolute; inset: 12%; border-radius: 5px; display: grid; place-items: center; }
 .dg-trap .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+/* DÉTECTÉ = jamais déclenché (René, 2026-09-27) : SEMI-TRANSPARENT — le piège
+   est encore sous le sol, on le devine ; le trou ouvert, lui, est plein. */
 .dg-trap.detecte { color: var(--warn, oklch(0.82 0.16 75)); background: oklch(0.78 0.15 75 / 0.13);
-  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); animation: dg-trappulse 2.2s ease-in-out infinite; }
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); animation: dg-trappulse 2.2s ease-in-out infinite;
+  opacity: 0.55; }
 @keyframes dg-trappulse { 50% { box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.95); } }
 .dg-trap.desarme { color: var(--ink-600); background: oklch(0.3 0.01 255 / 0.4);
   box-shadow: inset 0 0 0 1px oklch(0.4 0.01 255 / 0.5); opacity: 0.75; }
 .dg-trap.desarme::after { content: ""; position: absolute; left: 14%; right: 14%; top: 50%; height: 2px;
   background: var(--ink-500); transform: rotate(-24deg); border-radius: 2px; }
+/* FOSSE OUVERTE (2026-09-27) : le trou du plateau, OPAQUE, cerclé d'ambre —
+   il est toujours dangereux (y marcher fait tomber), à l'inverse du cratère
+   gris d'un piège dépensé juste en dessous. */
+.dg-trap.fosse_ouverte { inset: 6%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, oklch(0.06 0.01 255) 0 40%, oklch(0.24 0.045 40 / 0.9) 60%, transparent 76%);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.8), inset 0 0 10px oklch(0 0 0 / 0.85); }
 .dg-trap.declenche { inset: 6%; border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%);
   box-shadow: inset 0 0 10px oklch(0 0 0 / 0.85); }

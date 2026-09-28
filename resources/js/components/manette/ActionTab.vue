@@ -37,7 +37,7 @@ const props = defineProps({
 const emit = defineEmits(['choose']);
 
 /** Icône par type d'option du contrat (+ pièges doc 10 : désamorcer /
- *  franchir une fosse détectée — des jets de Body proposés en menu ;
+ *  sauter un piège détecté (fosse, chute de blocs) — des jets de Body proposés en menu ;
  *  + sorts doc 02 : sort / parchemin / concentration). */
 const ICONE_TYPE = {
     action: 'touch_app',

@@ -39,7 +39,7 @@ const ouvert = ref(false);
 // 2026-09-24) manquait aux DEUX copies : la première trouvée en capture
 // d'écran (le bloc de pierre n'apparaissait ni sur la carte ni dans cet
 // aperçu de salle), la seconde par grep une fois le défaut nommé.
-const PIEGE_ETATS = { detecte: 'détecté', desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre' };
+const PIEGE_ETATS = { detecte: 'détecté', fosse_ouverte: 'fosse ouverte', desarme: 'désarmé', declenche: 'déclenché', bloc: 'bloc de pierre' };
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
 const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
 

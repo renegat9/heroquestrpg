@@ -604,6 +604,46 @@ final class ResolveurTour
     }
 
     /**
+     * Le trajet qu'un héros EMPRUNTE vers une destination — point de passage
+     * UNIQUE de l'aperçu et de la résolution, pour que l'un montre exactement
+     * ce que l'autre parcourra.
+     *
+     * ⚠ Un piège DÉTECTÉ se déclenche désormais quand on le foule (René,
+     * 2026-09-27). Le joueur ne désigne qu'une destination : laisser Dijkstra
+     * choisir, à coût égal ou non, une route qui marche sur un piège connu
+     * l'aurait fait sauter sur un piège qu'il voyait. On cherche donc d'abord
+     * une route qui ÉVITE les pièges détectés, et on la retient si elle est
+     * payable ; sinon la route directe, qui les traverse — l'aperçu les
+     * signale alors (`piegesConnusSur()`). La destination elle-même n'est
+     * jamais évitée : viser la case d'un piège, c'est choisir d'y marcher.
+     *
+     * @return list<array{x: int, y: int}>|null
+     */
+    private function cheminDuHeros(Quete $quete, Personnage $personnage, Grille $grille, int $departX, int $departY, int $x, int $y, int $restant): ?array
+    {
+        $chemin = $grille->chemin($departX, $departY, $x, $y);
+
+        $connus = collect($quete->carte?->grille['pieges'] ?? [])
+            ->filter(fn (array $p) => in_array($p['etat'] ?? null, MoteurPieges::ETATS_CONNUS_ARMES, true)
+                && ! ((int) $p['x'] === $x && (int) $p['y'] === $y))
+            ->map(fn (array $p) => ['x' => (int) $p['x'], 'y' => (int) $p['y']])
+            ->values()
+            ->all();
+
+        if ($chemin === null || $chemin === [] || $this->piegesConnusSur($quete, $chemin) === []) {
+            return $chemin;
+        }
+
+        $evitement = $this->grilleDeplacement($quete, $personnage);
+        $evitement->obstruer($connus);
+        $detour = $evitement->chemin($departX, $departY, $x, $y);
+
+        return ($detour !== null && $detour !== [] && $evitement->coutChemin($detour) <= $restant)
+            ? $detour
+            : $chemin;
+    }
+
+    /**
      * APERÇU du trajet (René, 2026-09-17 : « que la figure utilise le vrai
      * chemin ») — `POST deplacement/apercu`, AVANT que le joueur ne valide.
      *
@@ -640,7 +680,7 @@ final class ResolveurTour
         }
 
         $grille = $this->grilleDeplacement($quete, $personnage);
-        $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
+        $chemin = $this->cheminDuHeros($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
 
         if ($chemin === null || $chemin === []) {
             return [...$vide, 'atteignable' => false, 'raison' => 'Destination inaccessible (mur, case occupée ou sur place).',
@@ -683,7 +723,8 @@ final class ResolveurTour
         $connus = collect($quete->carte?->grille['pieges'] ?? [])
             ->filter(fn (array $p) => isset($surLeChemin[((int) $p['x']).','.((int) $p['y'])])
                 && in_array($p['etat'] ?? null, [
-                    MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+                    MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_FOSSE_OUVERTE,
+                    MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
                 ], true));
 
         $noms = Piege::query()
@@ -759,7 +800,7 @@ final class ResolveurTour
         $traverseRoche = $this->sorts->traverseRoche($personnage);
 
         $grille = $this->grilleDeplacement($quete, $personnage);
-        $chemin = $grille->chemin((int) $etat->position_x, (int) $etat->position_y, $x, $y);
+        $chemin = $this->cheminDuHeros($quete, $personnage, $grille, (int) $etat->position_x, (int) $etat->position_y, $x, $y, $restant);
 
         if ($chemin === null || $chemin === []) {
             throw ValidationException::withMessages(['parametres' => 'Destination inaccessible (mur, case occupée ou sur place).']);
@@ -3713,6 +3754,12 @@ final class ResolveurTour
             ]);
         }
 
+        if ($cible['etat'] !== MoteurPieges::ETAT_DETECTE) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Une fosse ouverte ne se désamorce pas : il faut la sauter.',
+            ]);
+        }
+
         // ⚠ DEUX RÉSOLUTIONS, et c'est le dos des cartes qui les sépare (René,
         // 2026-08-22). Le Nain et l'Explorateur « désamorcent sans outils » et
         // n'échouent QUE sur un bouclier noir : un dé, une face perdante sur
@@ -3842,7 +3889,8 @@ final class ResolveurTour
     }
 
     /**
-     * Franchir une fosse DÉTECTÉE adjacente (doc 10 §4) : jet de Body
+     * Franchir un piège DÉTECTÉ franchissable adjacent — Fosse, ou Chute de
+     * blocs pas encore tombée (doc 10 §4, livret p. 14) : jet de Body
      * difficulté 2 (départ playtest) — succès : le héros atterrit de l'autre
      * côté (case libre exigée) ; échec : chute, effet de la fosse, le héros
      * reste sur sa case.
@@ -3871,9 +3919,9 @@ final class ResolveurTour
         // catalogue ne sont pas des fosses) ou qui sautent tout sans risque.
         $bottes = $this->bottesDeSaut($personnage, $etat, $option);
 
-        if ($bottes === null && ! $this->pieges->estFosse($cible['piege'])) {
+        if ($bottes === null && ! $this->pieges->estFranchissable($cible['piege'])) {
             throw ValidationException::withMessages([
-                'option_id' => 'Seule une fosse détectée peut être franchie.',
+                'option_id' => 'Ce piège ne se saute pas : il faut le désamorcer.',
             ]);
         }
 
@@ -3884,7 +3932,7 @@ final class ResolveurTour
 
         if ($restant < self::COUT_FRANCHISSEMENT) {
             throw ValidationException::withMessages([
-                'option_id' => 'Pas assez de déplacement restant pour sauter par-dessus la fosse.',
+                'option_id' => 'Pas assez de déplacement restant pour sauter par-dessus le piège.',
             ]);
         }
 
@@ -3944,7 +3992,10 @@ final class ResolveurTour
             // Potion de dextérité : « or guarantees one successful pit jump ».
             // Même traitement que le Dragon bondissant, et pour la même raison :
             // le jet reste visible, il cesse seulement de décider.
-            $dexterite = $this->sorts->aBuff($personnage, 'saut_fosse_automatique');
+            // ⚠ La FOSSE seule, comme le dit la carte : depuis que la Chute de
+            // blocs se saute aussi (2026-09-27), la potion ne doit pas s'y étendre.
+            $dexterite = $this->pieges->estFosse($cible['piege'])
+                && $this->sorts->aBuff($personnage, 'saut_fosse_automatique');
 
             if ($dragon !== null || $dexterite) {
                 $resultat = $resultat->force();
@@ -3984,9 +4035,11 @@ final class ResolveurTour
             $payload['vers'] = $arrivee;
             $payload['deplacement_restant'] = $restantApres;
         } else {
-            // Chute : le héros tombe DANS la fosse (effet du catalogue) et
-            // y reste — la fosse persistante demeure en jeu (doc 10 §5). La
-            // course s'arrête là : le mouvement du tour est terminé.
+            // Chute : le héros atterrit SUR le piège et le déclenche — la
+            // fosse persistante demeure en jeu (doc 10 §5), la Chute de blocs
+            // devient un bloc. La course s'arrête là : le mouvement est terminé.
+            $provenance = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
             $etat->update([
                 'position_x' => $cible['x'],
                 'position_y' => $cible['y'],
@@ -3994,17 +4047,28 @@ final class ResolveurTour
                 'a_deplace' => true,
             ]);
 
-            $payload['declenchement'] = $this->pieges->declencher(
+            $declenchement = $this->pieges->declencher(
                 $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'franchissement_rate',
             );
+            $payload['declenchement'] = $declenchement;
             $payload['vers'] = ['x' => $cible['x'], 'y' => $cible['y']];
             $payload['deplacement_restant'] = 0;
 
-            // « Their turn immediately ends » (livret p. 14) : cette branche
-            // ne franchit qu'une FOSSE (`estFosse()` plus haut refuse tout
-            // autre piège) — jamais de bloc permanent à écarter ici, seulement
-            // le tour qui se ferme.
-            $this->finTourPiegeSol = true;
+            // « Their turn immediately ends » (livret p. 14). Mais une Chute de
+            // blocs ratée laisse le héros DEBOUT SUR LE BLOC (2026-09-27, elle
+            // se saute désormais — et les Bottes de Lièvre sautaient déjà tout
+            // piège découvert) : il doit d'abord s'écarter, exactement comme
+            // après l'avoir déclenchée en marchant (`resoudreDeplacement()`).
+            // C'est ce choix qui fermera son tour.
+            if (! empty($declenchement['bloc_permanent']) && ! $etat->tombe) {
+                $etat->update([
+                    'piege_a_ecarter' => $this->pieges->casesEcart(
+                        $quete->carte, $personnage, $provenance, ['x' => $cible['x'], 'y' => $cible['y']],
+                    ),
+                ]);
+            } else {
+                $this->finTourPiegeSol = true;
+            }
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);

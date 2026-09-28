@@ -20,8 +20,8 @@ use Database\Seeders\TuileSeeder;
 /*
  * Carte 2D BRANCHUE (fini la chaîne gauche-droite, playtest F) : les salles
  * sont posées sur une grille en arbre (jusqu'à 4 embranchements par salle),
- * reliées par des couloirs à 2 voies, UNE SEULE porte par bord de salle (la
- * voie parallèle est un cul-de-sac sans porte — fini les deux portes
+ * reliées par des couloirs à 1 ou 2 voies, UNE SEULE porte par bord de salle
+ * (la voie parallèle est un cul-de-sac sans porte — fini les deux portes
  * adjacentes à chaque jonction), et les monstres sont répartis (round-robin)
  * sur toutes les salles au lieu de s'entasser dans la dernière.
  */
@@ -201,48 +201,109 @@ it('pose des portes-ARÊTES valides et distinctes (une porte ne prend pas de cas
     }
 });
 
-it('creuse chaque couloir sur 2 voies traversables (F)', function () {
-    $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), 42);
+/**
+ * La voie PARALLÈLE d'un couloir (entre ses deux portes, seuils exclus), ou
+ * `null` pour une jonction mitoyenne — qui n'a pas de couloir du tout.
+ *
+ * @param  array<string, mixed>  $carte
+ * @param  array<string, mixed>  $arete
+ * @return array{principale: list<string>, parallele: list<string>, cases: list<array{x: int, y: int}>}|null
+ */
+function voiesDuCouloir(array $carte, array $arete): ?array
+{
+    $ax = $arete['porte_a']['x'];
+    $ay = $arete['porte_a']['y'];
+    $bx = $arete['porte_b']['x'];
+    $by = $arete['porte_b']['y'];
 
-    expect($carte['aretes'])->not->toBeEmpty();
+    if (abs($ax - $bx) + abs($ay - $by) <= 1) {
+        return null;
+    }
 
-    foreach ($carte['aretes'] as $arete) {
-        $ax = $arete['porte_a']['x'];
-        $ay = $arete['porte_a']['y'];
-        $bx = $arete['porte_b']['x'];
-        $by = $arete['porte_b']['y'];
+    $principale = [];
+    $parallele = [];
+    $cases = [];
 
-        // Jonction MITOYENNE (salles mur contre mur) : pas de couloir du tout,
-        // juste un seuil — les deux portes sont à une case l'une de l'autre.
-        // Rien à vérifier ici, c'est le cas voulu.
-        if (abs($ax - $bx) + abs($ay - $by) <= 1) {
-            continue;
+    if ($ay === $by) {
+        [$min, $max] = $ax < $bx ? [$ax, $bx] : [$bx, $ax];
+        for ($x = $min; $x <= $max; $x++) {
+            $principale[] = $carte['cases'][$ay][$x];
+            $cases[] = ['x' => $x, 'y' => $ay];
         }
-
-        if ($ay === $by) {
-            // Arête horizontale : la voie principale (ligne ay) et la voie
-            // parallèle (ay-1) sont toutes deux traversables entre les portes.
-            [$xMin, $xMax] = $ax < $bx ? [$ax, $bx] : [$bx, $ax];
-            for ($x = $xMin; $x <= $xMax; $x++) {
-                expect(in_array($carte['cases'][$ay][$x], ['s', 'p'], true))->toBeTrue();
-            }
-            $voieParallele = array_slice($carte['cases'][$ay - 1], $xMin + 1, $xMax - $xMin - 1);
-            expect($voieParallele)->not->toBeEmpty()
-                ->and(array_unique($voieParallele))->toBe(['s']);
-        } else {
-            // Arête verticale : symétrique sur les colonnes.
-            [$yMin, $yMax] = $ay < $by ? [$ay, $by] : [$by, $ay];
-            for ($y = $yMin; $y <= $yMax; $y++) {
-                expect(in_array($carte['cases'][$y][$ax], ['s', 'p'], true))->toBeTrue();
-            }
-            $voieParallele = [];
-            for ($y = $yMin + 1; $y < $yMax; $y++) {
-                $voieParallele[] = $carte['cases'][$y][$ax - 1];
-            }
-            expect($voieParallele)->not->toBeEmpty()
-                ->and(array_unique($voieParallele))->toBe(['s']);
+        for ($x = $min + 1; $x < $max; $x++) {
+            $parallele[] = $carte['cases'][$ay - 1][$x];
+        }
+    } else {
+        [$min, $max] = $ay < $by ? [$ay, $by] : [$by, $ay];
+        for ($y = $min; $y <= $max; $y++) {
+            $principale[] = $carte['cases'][$y][$ax];
+            $cases[] = ['x' => $ax, 'y' => $y];
+        }
+        for ($y = $min + 1; $y < $max; $y++) {
+            $parallele[] = $carte['cases'][$y][$ax - 1];
         }
     }
+
+    return ['principale' => $principale, 'parallele' => $parallele, 'cases' => $cases];
+}
+
+it('creuse chaque couloir sur UNE ou DEUX voies, jamais une voie à moitié creusée (LR p. 11, René 2026-09-27)', function () {
+    $largeurs = ['unique' => 0, 'double' => 0];
+
+    foreach (range(1, 30) as $i) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $i * 7919);
+
+        foreach ($carte['aretes'] as $arete) {
+            $voies = voiesDuCouloir($carte, $arete);
+            if ($voies === null) {
+                continue; // mitoyenne : un seuil, pas de couloir
+            }
+
+            // La voie principale porte les portes : toujours traversable.
+            expect(array_diff($voies['principale'], ['s', 'p']))->toBe([]);
+
+            // La parallèle est entière ou absente — une moitié de voie serait
+            // une alcôve où contourner un piège quand même.
+            expect($voies['parallele'])->not->toBeEmpty()
+                ->and(count(array_unique($voies['parallele'])))->toBe(1);
+
+            $largeurs[$voies['parallele'][0] === 's' ? 'double' : 'unique']++;
+        }
+    }
+
+    // Les deux largeurs existent : ni tout étroit, ni l'ancien « toujours 2 ».
+    expect($largeurs['unique'])->toBeGreaterThan(0)
+        ->and($largeurs['double'])->toBeGreaterThan(0);
+});
+
+it('ne pose JAMAIS de Chute de blocs dans un couloir à voie unique : le donjon ne peut pas être coupé', function () {
+    $idBloc = \App\Models\Piege::where('nom', 'Chute de blocs')->value('id');
+    $piegesEnVoieUnique = 0;
+
+    foreach (range(1, 80) as $i) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $i * 104723);
+
+        $casesVoieUnique = [];
+        foreach ($carte['aretes'] as $arete) {
+            $voies = voiesDuCouloir($carte, $arete);
+            if ($voies !== null && $voies['parallele'][0] !== 's') {
+                foreach ($voies['cases'] as $c) {
+                    $casesVoieUnique["{$c['x']},{$c['y']}"] = true;
+                }
+            }
+        }
+
+        foreach ($carte['pieges'] as $piege) {
+            if (! isset($casesVoieUnique["{$piege['x']},{$piege['y']}"])) {
+                continue;
+            }
+            $piegesEnVoieUnique++;
+            expect($piege['piege_id'])->not->toBe($idBloc, "graine {$i} : Chute de blocs en couloir d'une case");
+        }
+    }
+
+    // Le test n'est pas vide : des pièges tombent bien dans ces couloirs.
+    expect($piegesEnVoieUnique)->toBeGreaterThan(0);
 });
 
 it('pose les portes inter-salles FERMÉES par défaut : elles barrent le passage (E2)', function () {

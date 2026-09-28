@@ -92,7 +92,14 @@ const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
 
 // États de piège réellement présents : « désamorcé » n'a rien à faire dans la
 // légende d'une carte où aucun piège ne l'est.
-const ETATS_PIEGE = { detecte: 'détecté — désamorçable au contact', desarme: 'désamorcé, inoffensif', declenche: 'déjà déclenché' };
+// ⚠ « détecté » veut dire JAMAIS DÉCLENCHÉ (2026-09-27) : une fosse déjà
+// ouverte a son propre état, et marcher sur un piège connu le déclenche.
+const ETATS_PIEGE = {
+    detecte: 'détecté, jamais déclenché — y marcher le déclenche ; à sauter ou désamorcer',
+    fosse_ouverte: 'fosse ouverte — y marcher fait tomber ; se saute, ne se désamorce plus',
+    desarme: 'désamorcé, inoffensif',
+    declenche: 'déjà déclenché',
+};
 // ⚠ Chaque état a son propre RENDU sur la carte (ambré clignotant, gris barré,
 // cratère). Les décrire en simple texte laissait le joueur relier lui-même la
 // phrase au dessin — c'est justement ce travail qu'une légende doit faire.
@@ -144,7 +151,7 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
                     <span>{{ p.nom }}</span>
                 </div>
                 <div v-for="[cle, texte] in etatsPiege" :key="cle" class="lg-ligne">
-                    <span class="lg-chip lg-piege" :class="cle"><MSym v-if="cle !== 'declenche'" n="warning" fill /></span>
+                    <span class="lg-chip lg-piege" :class="cle"><MSym v-if="cle !== 'declenche' && cle !== 'fosse_ouverte'" n="warning" fill /></span>
                     <span class="lg-etat">{{ texte }}</span>
                 </div>
             </section>
@@ -261,6 +268,10 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
   box-shadow: inset 0 0 0 1px oklch(0.4 0.01 255 / 0.5); opacity: 0.75; position: relative; }
 .lg-piege.desarme::after { content: ''; position: absolute; left: 12%; right: 12%; top: 50%; height: 2px;
   background: var(--ink-500); transform: rotate(-24deg); border-radius: 2px; }
+.lg-piege.detecte { opacity: 0.55; }
+.lg-piege.fosse_ouverte { border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, oklch(0.06 0.01 255) 0 40%, oklch(0.24 0.045 40 / 0.9) 60%, transparent 76%);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.8), inset 0 0 6px oklch(0 0 0 / 0.85); }
 .lg-piege.declenche { border-radius: 50%; box-shadow: inset 0 0 6px oklch(0 0 0 / 0.85);
   background: radial-gradient(circle at 50% 45%, oklch(0.08 0.01 255) 0 36%, oklch(0.24 0.045 40 / 0.85) 56%, transparent 74%); }
 .lg-etat { color: var(--ink-500); }

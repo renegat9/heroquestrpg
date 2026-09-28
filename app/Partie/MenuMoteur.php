@@ -1173,7 +1173,9 @@ final class MenuMoteur
                     ];
                 }
 
-                if ($this->pieges->estFosse($adjacent['piege'])) {
+                // Fosse, et Chute de blocs tant qu'elle n'est pas tombée
+                // (livret p. 14) — jamais le Piège à lances.
+                if ($this->pieges->estFranchissable($adjacent['piege'])) {
                     $options[] = [
                         'id' => "franchir_{$adjacent['x']}_{$adjacent['y']}",
                         'libelle' => "Sauter par-dessus {$nomPiege} — jet de Body",
@@ -1672,6 +1674,10 @@ final class MenuMoteur
             // Désamorcer un piège détecté (Nain / trousse à outils).
             if ($detectes !== [] && $this->pieges->peutDesamorcer($personnage)) {
                 foreach ($detectes as $adjacent) {
+                    // Une fosse OUVERTE ne se désamorce pas : le trou reste.
+                    if ($adjacent['etat'] !== MoteurPieges::ETAT_DETECTE) {
+                        continue;
+                    }
                     $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
                     $options[] = [
                         'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
