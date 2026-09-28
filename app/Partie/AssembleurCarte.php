@@ -354,7 +354,7 @@ final class AssembleurCarte
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
         $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
-        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $leviers, $suivant);
+        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $portes, $leviers, $suivant);
         $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
@@ -561,8 +561,8 @@ final class AssembleurCarte
             'grille' => $positions,
             'aretes' => [...$aretes, ...$supplementaires],
             // Remonté jusqu'à l'appelant : c'est lui qui tient le compteur de
-            // pitié, et il ne peut pas le déduire des arêtes — une liaison
-            // SUPPLÉMENTAIRE est secrète elle aussi, sans rien cacher.
+            // pitié ; il pourrait le déduire des arêtes secrètes, mais le
+            // booléen dit la DÉCISION plutôt que ses ingrédients.
             'passage_secret' => $passageSecret,
         ];
     }
@@ -791,7 +791,8 @@ final class AssembleurCarte
     }
 
     /**
-     * Rend UNE salle réellement tributaire d'une porte secrète (René, 2026-08-24).
+     * Rend UNE OU DEUX salles réellement tributaires d'une porte secrète
+     * (René, 2026-08-24 ; deux depuis le 2026-09-27).
      *
      * Jusqu'ici les portes secrètes ne vivaient que sur les liaisons
      * SUPPLÉMENTAIRES — des boucles ajoutées par-dessus l'arbre couvrant —, si
@@ -812,8 +813,12 @@ final class AssembleurCarte
      * assumé de René, salle-objectif et coffre d'artefact compris.
      *
      * ⚠ Trois garde-fous, et chacun a sa raison :
-     *  - **une seule** arête d'arbre secrète : une chaîne de passages cachés
-     *    transformerait l'exploration en ratissage ;
+     *  - **au plus deux** arêtes d'arbre secrètes (René, 2026-09-27 : « de 0 à
+     *    2 passages secrets par quête […] un aléatoire entre 1 et 2 », puis
+     *    « je ne tiens pas à ce que le 2e passage soit une boucle ») — c'était
+     *    UNE jusque-là. Jamais en chaîne : ce sont des FEUILLES (garde-fou
+     *    suivant), qui n'ont pas d'enfant, donc aucune salle cachée n'est
+     *    jamais derrière une autre ;
      *  - **jamais une arête sortant de la salle 0** : la partie commencerait par
      *    une fouille, avant d'avoir rien montré ;
      *  - **une FEUILLE de l'arbre seulement** : on cache une salle, pas une
@@ -824,8 +829,8 @@ final class AssembleurCarte
      * déclenchait presque jamais : le placement compact crée beaucoup
      * d'adjacences, `liaisonsSupplementaires()` en relie une bonne part, et la
      * feuille se retrouvait desservie par une boucle — donc pas cachée du tout.
-     * Mesuré avant correction : **5 donjons sur 40**. On sacrifie donc une
-     * boucle, jamais plus d'une.
+     * Mesuré avant correction : **5 donjons sur 40**. On sacrifie donc
+     * les boucles qui la desservent, pas davantage.
      *
      * ⚠ **UN DONJON SUR DEUX**, et c'est un dosage, pas un hasard subi (René,
      * 2026-08-27). Sans tirage, une feuille éligible existant toujours, la
@@ -885,15 +890,22 @@ final class AssembleurCarte
             return [$aretes, $supplementaires, false];
         }
 
-        $choisie = $eligibles[$suivant() % count($eligibles)];
-        $aretes[$choisie]['secrete'] = true;
-        $cachee = $aretes[$choisie]['enfant'];
+        // UN ou DEUX passages (René, 2026-09-27), sur des feuilles DISTINCTES —
+        // un seul quand le donjon n'en offre qu'une.
+        $nombre = 1 + $suivant() % 2;
+        $choisies = array_slice((new PrngLineaire($suivant()))->melanger($eligibles), 0, $nombre);
 
-        // La salle doit rester SEULE derrière son passage : toute boucle qui la
-        // rejoindrait annulerait le secret sans que rien ne le signale.
+        $cachees = [];
+        foreach ($choisies as $choisie) {
+            $aretes[$choisie]['secrete'] = true;
+            $cachees[] = $aretes[$choisie]['enfant'];
+        }
+
+        // Chaque salle doit rester SEULE derrière son passage : toute boucle
+        // qui la rejoindrait annulerait le secret sans que rien ne le signale.
         $supplementaires = array_values(array_filter(
             $supplementaires,
-            fn (array $l) => $l['parent'] !== $cachee && $l['enfant'] !== $cachee,
+            fn (array $l) => ! in_array($l['parent'], $cachees, true) && ! in_array($l['enfant'], $cachees, true),
         ));
 
         return [$aretes, $supplementaires, true];
@@ -908,9 +920,10 @@ final class AssembleurCarte
      * ouvrir**. « Fouiller la zone » révèle les portes secrètes ; sans liaison
      * cachée à trouver, l'action ne servait qu'aux pièges.
      *
-     * Une liaison sur deux environ est `secrete` : invisible tant qu'une fouille
-     * ne l'a pas révélée, elle récompense l'exploration par un raccourci — ou
-     * une porte de sortie quand une salle tourne mal.
+     * Elles sont toutes ORDINAIRES (René, 2026-09-27) : une boucle sur deux
+     * était secrète, la première toujours — d'où « au moins une porte secrète
+     * par carte », jamais zéro. Les passages secrets ne mènent plus qu'à des
+     * salles cachées (`secretiserUneAreteDArbre()`, 0 à 2 par quête).
      *
      * @param  array<int, array{0: int, 1: int}>  $positions
      * @param  array<string, int>  $occupees
@@ -961,12 +974,6 @@ final class AssembleurCarte
 
         $candidates = (new PrngLineaire($suivant()))->melanger($candidates);
         $retenues = array_slice($candidates, 0, $quota);
-
-        foreach ($retenues as $k => $liaison) {
-            // Une sur deux est secrète (alternance stricte : la composition est
-            // garantie, pas seulement probable — comme le deck de fouille).
-            $retenues[$k]['secrete'] = $k % 2 === 0;
-        }
 
         return array_values($retenues);
     }
@@ -1399,9 +1406,19 @@ final class AssembleurCarte
      * seulement. En salle et en couloir double, rien ne change.
      *
      * @param  list<array{x: int, y: int}>  $milieuxCouloirs
+     * ⚠ **Jamais sur une case de PORTE** (2026-09-27, trouvé par le test
+     * « jamais de Chute de blocs en voie unique ») : `interieur()` prend pour
+     * du sol de salle la case de mur que le couloir a PERCÉE — l'embrasure. Un
+     * piège s'y posait donc, sous une porte close (inoccupable, invisible), et
+     * une Chute de blocs y murait le seuil pour de bon, quelle que soit la
+     * largeur du couloir. Les deux cases de chaque porte sont écartées, comme
+     * le mobilier écarte déjà les seuils (`seuilsDeSalle()`).
+     *
      * @param  array<string, true>  $milieuxVoieUnique  clés « x,y »
      * @param  list<list<string>>  $cases
+     * @param  list<array<string, mixed>>  $portes
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array<string, mixed>>  $portes
      * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
      * @return list<array{x: int, y: int, piege_id: int|null, etat: string}>
      */
@@ -1411,6 +1428,7 @@ final class AssembleurCarte
         array $milieuxVoieUnique,
         array $cases,
         array $salles,
+        array $portes,
         array $leviers,
         \Closure $suivant,
     ): array {
@@ -1435,14 +1453,19 @@ final class AssembleurCarte
         // Garde-fou finaL : jamais dans la salle de départ, quelle que soit
         // l'origine du candidat. Un milieu de couloir peut y tomber quand une
         // salle mitoyenne a été rapprochée et a absorbé le couloir voisin.
-        // Ni sur la case d'un levier déjà posé.
+        // Ni sur la case d'un levier déjà posé, ni sur une case de porte.
         $depart = $salles[0] ?? null;
-        $casesLeviers = [];
+        $interdites = [];
         foreach ($leviers as $levier) {
-            $casesLeviers["{$levier['x']},{$levier['y']}"] = true;
+            $interdites["{$levier['x']},{$levier['y']}"] = true;
         }
-        $candidats = array_values(array_filter($candidats, function (array $c) use ($depart, $casesLeviers) {
-            if (isset($casesLeviers["{$c['x']},{$c['y']}"])) {
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+        $candidats = array_values(array_filter($candidats, function (array $c) use ($depart, $interdites) {
+            if (isset($interdites["{$c['x']},{$c['y']}"])) {
                 return false;
             }
 

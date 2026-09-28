@@ -287,29 +287,45 @@ it('arrête le déplacement sur une fosse cachée : la fosse persiste, le tour s
         ->and((bool) $etat->a_joue)->toBeTrue();
 });
 
-it('révèle par la fouille les pièges cachés proches — jamais les lointains', function () {
+it('révèle par la fouille TOUS les pièges cachés de la salle, même loin — jamais ceux d\'une autre zone', function () {
+    // René, 2026-09-27 : « la fouille de piège ou de passage secret se fait
+    // seulement dans la salle ou corridor actuel du joueur, sans tenir compte
+    // du line of sight ». Jusque-là : un rayon de 3 cases filtré par la vue.
     [, , , $quete, $etat] = demarrerQueteAvecHeros();
 
     $x = (int) $etat->position_x;
     $y = (int) $etat->position_y;
-    $proche = caseAdjacenteLibre($quete, $x, $y);
+    $grille = $quete->carte->grille;
+    $salle = $grille['salles'][App\Partie\Salles::indexDe($grille['salles'], $x, $y)];
 
-    // Une case traversable à plus de 3 cases (rayon de fouille) du fouilleur.
-    $cases = $quete->carte->grille['cases'];
-    $lointaine = null;
-    foreach ($cases as $cy => $ligne) {
-        foreach ($ligne as $cx => $case) {
-            if (in_array($case, ['s', 'p'], true) && abs($cx - $x) + abs($cy - $y) > 3) {
-                $lointaine = ['x' => $cx, 'y' => $cy];
+    // La case de sol de SA salle la plus éloignée du fouilleur.
+    $loin = null;
+    for ($cy = $salle['y'] + 1; $cy < $salle['y'] + $salle['hauteur'] - 1; $cy++) {
+        for ($cx = $salle['x'] + 1; $cx < $salle['x'] + $salle['largeur'] - 1; $cx++) {
+            if (caseQueteLibre($quete, $cx, $cy)
+                && ($loin === null || abs($cx - $x) + abs($cy - $y) > abs($loin['x'] - $x) + abs($loin['y'] - $y))) {
+                $loin = ['x' => $cx, 'y' => $cy];
+            }
+        }
+    }
+
+    // Une case de sol HORS de sa salle, juste derrière l'une de ses portes.
+    $dehors = null;
+    foreach ($grille['portes'] as $porte) {
+        foreach (App\Partie\Grille::casesPorte($porte) as $c) {
+            $dedans = $c['x'] >= $salle['x'] && $c['x'] < $salle['x'] + $salle['largeur']
+                && $c['y'] >= $salle['y'] && $c['y'] < $salle['y'] + $salle['hauteur'];
+            if (! $dedans && $grille['cases'][$c['y']][$c['x']] !== 'm') {
+                $dehors = $c;
                 break 2;
             }
         }
     }
-    expect($lointaine)->not->toBeNull();
+    expect($loin)->not->toBeNull()->and($dehors)->not->toBeNull();
 
     poserPieges($quete, [
-        ['x' => $proche['x'], 'y' => $proche['y'], 'nom' => 'Fosse', 'etat' => 'cache'],
-        ['x' => $lointaine['x'], 'y' => $lointaine['y'], 'nom' => 'Piège à lances', 'etat' => 'cache'],
+        ['x' => $loin['x'], 'y' => $loin['y'], 'nom' => 'Fosse', 'etat' => 'cache'],
+        ['x' => $dehors['x'], 'y' => $dehors['y'], 'nom' => 'Piège à lances', 'etat' => 'cache'],
     ]);
 
     desFiges([1, 4]); // Mind 2 dés : 1 crâne → réussite (difficulté 1)
@@ -320,11 +336,11 @@ it('révèle par la fouille les pièges cachés proches — jamais les lointains
         ->assertJsonPath('resultat.pieges_reveles.0.nom', 'Fosse')
         ->assertJsonCount(1, 'resultat.pieges_reveles');
 
-    // Seul le piège révélé apparaît dans l'état partagé : le lointain reste
+    // Seul le piège révélé apparaît dans l'état partagé : celui d'à côté reste
     // CACHÉ et n'y figure jamais (contrat).
     $partage = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     expect(collect($partage['carte']['pieges'])->map(fn ($p) => collect($p)->except('image_url')->all())->all())->toBe([
-        ['x' => $proche['x'], 'y' => $proche['y'], 'etat' => 'detecte', 'nom' => 'Fosse'],
+        ['x' => $loin['x'], 'y' => $loin['y'], 'etat' => 'detecte', 'nom' => 'Fosse'],
     ]);
 
     $pieges = $quete->fresh()->carte->grille['pieges'];
@@ -526,49 +542,35 @@ function poserPortePiege(Quete $quete, array $portes): void
     $quete->load('carte');
 }
 
-it('ne révèle PAS par la fouille un piège derrière une PORTE FERMÉE, même à une case', function () {
-    // Signalé par René EN PLEINE PARTIE le 2026-09-18 : « j'ai fait une
-    // fouille de piège et j'ai détecté un piège en arrière d'une porte
-    // fermée ». Le filtre de `MoteurPieges::revelerAutour()` était purement
-    // géométrique — un rayon de Manhattan, sans le moindre contrôle de
-    // cloison — si bien que la fouille voyait à travers murs et portes.
-    //
-    // ⚠ La couture existait vingt lignes plus bas dans le même fichier :
-    // `revelerEnVue()` (Potion de Vision) filtrait DÉJÀ sur
-    // `Grille::ligneDeVue()`, qui bloque sur les portes fermées depuis qu'une
-    // porte est une ARÊTE (F6). La fouille n'avait jamais reçu de grille : elle
-    // ne pouvait rien bloquer — et faisait gratuitement mieux qu'une carte
-    // payante dont c'est tout l'intérêt.
-    //
-    // ⚠ La situation est CONSTRUITE, pas cherchée sur la carte générée. Une
-    // première version balayait les cases à la recherche d'un angle mort et se
-    // SAUTAIT quand la carte n'en offrait aucun — un test sauté n'épingle rien,
-    // et c'est précisément ce cas-ci qu'il faut tenir.
+it('ignore la ligne de vue DANS la zone : un piège masqué par un meuble haut se révèle', function () {
+    // Historique : le 2026-09-18, René avait vu une fouille révéler un piège
+    // derrière une porte fermée — d'où une ligne de vue ajoutée au rayon. La
+    // ZONE (2026-09-27) règle ce cas autrement (derrière une porte, c'est une
+    // autre salle ou un couloir, voir le test précédent) et sans l'effet de
+    // bord : dans la pièce même, un meuble ou un coin ne cache plus rien.
     [, , , $quete, $etat] = demarrerQueteAvecHeros();
 
     $x = (int) $etat->position_x;
     $y = (int) $etat->position_y;
 
-    // Porte FERMÉE sur l'arête est du héros ; un piège juste derrière, et un
-    // autre au sud sans rien qui le cache. Les deux sont à UNE case, donc très
-    // largement dans le rayon de fouille : seule la vue les distingue.
-    poserPortePiege($quete, [['x' => $x, 'y' => $y, 'cote' => 'e', 'etat' => 'fermee']]);
-    poserPieges($quete, [
-        ['x' => $x, 'y' => $y + 1, 'nom' => 'Fosse', 'etat' => 'cache'],
-        ['x' => $x + 1, 'y' => $y, 'nom' => 'Piège à lances', 'etat' => 'cache'],
-    ]);
+    // Mur de roche fictif collé au héros (côté est), piège juste derrière :
+    // même salle, hors de vue.
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['cases'][$y][$x + 1] = 'm';
+    $carte->update(['grille' => $grille]);
+    $quete->load('carte');
+
+    poserPieges($quete, [['x' => $x + 2, 'y' => $y, 'nom' => 'Fosse', 'etat' => 'cache']]);
 
     desFiges([1, 4]); // Mind : réussite de la fouille
 
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
         ->assertStatus(202)
         ->assertJsonPath('resultat.issue', 'reussite')
-        ->assertJsonCount(1, 'resultat.pieges_reveles')
-        ->assertJsonPath('resultat.pieges_reveles.0.nom', 'Fosse');
+        ->assertJsonCount(1, 'resultat.pieges_reveles');
 
-    $pieges = $quete->fresh()->carte->grille['pieges'];
-    expect($pieges[0]['etat'])->toBe('detecte')
-        ->and($pieges[1]['etat'])->toBe('cache');
+    expect($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('detecte');
 });
 
 /*

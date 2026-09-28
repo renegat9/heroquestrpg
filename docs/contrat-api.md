@@ -1128,9 +1128,12 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   branche normale (`portes()`) et l'affiche comme une porte fermée, avec sa
   case d'embrasure de nouveau franchissable dès qu'elle s'ouvre.
 - **Fouiller la zone** (option `fouiller`, type `jet`, Mind difficulté 1) : un seul
-  jet réussi révèle dans le rayon de fouille les **pièges cachés** ET les **portes
-  secrètes** (qui deviennent des portes fermées, ouvrables). Echo : `pieges_reveles`,
-  `portes_revelees`.
+  jet réussi révèle les **pièges cachés** ET les **portes secrètes** (qui deviennent
+  des portes fermées, ouvrables) de la **salle ou du couloir** du fouilleur, en
+  entier — **sans rayon ni ligne de vue** (René, 2026-09-27 ; c'était un rayon de 3
+  cases filtré par la vue). Une porte en fait partie si l'une de ses deux cases y
+  tombe. `App\Partie\ZoneFouille` est le point de passage unique. Echo :
+  `pieges_reveles`, `portes_revelees` (forme inchangée).
 - **Verrous** (doc 14 §3.3) :
   - `cle` : option `ouvrir_porte` (id `ouvrir_porte_{x}_{y}`) au contact d'une porte
     verrouillée, offerte si le héros possède l'objet-clé → la porte s'ouvre (persistant) ;

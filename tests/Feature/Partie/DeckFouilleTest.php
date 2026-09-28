@@ -1034,7 +1034,10 @@ it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
     $sallesSecretes = 0;
 
     foreach (range(1, 25) as $graine) {
-        $carte = $assembleur->assembler($gabarit, $graine, 40);
+        // Chance 100 : depuis le 2026-09-27 une carte sans passage tiré n'a
+        // AUCUNE porte secrète (0 à 2 par quête) — à 40 %, l'échantillon
+        // retombait sous le seuil de preuve ci-dessous.
+        $carte = $assembleur->assembler($gabarit, $graine, 100);
         $fouille = $deck->construire($gabarit, $carte, $groupe, 1);
 
         $voisins = [];

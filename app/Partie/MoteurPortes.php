@@ -32,7 +32,6 @@ use App\Support\Journal;
 final class MoteurPortes
 {
     /** Rayon (Manhattan) d'une fouille de zone — aligné sur MoteurPieges. */
-    public const RAYON_FOUILLE = MoteurPieges::RAYON_FOUILLE;
 
     public const ETAT_OUVERTE = 'ouverte';
 
@@ -144,14 +143,17 @@ final class MoteurPortes
     }
 
     /**
-     * Fouille RÉUSSIE : révèle les portes SECRÈTES dans le rayon de fouille
-     * (Manhattan) autour du fouilleur — elles passent `revele:true` + FERMÉES.
-     * Trouver n'est pas franchir : il reste à les ouvrir.
+     * Fouille RÉUSSIE : révèle les portes SECRÈTES de la ZONE du fouilleur —
+     * sa salle ou son couloir, en entier, sans rayon ni ligne de vue (René,
+     * 2026-09-27, voir `ZoneFouille`) ; une porte en est si l'une de ses deux
+     * cases y tombe. Elles passent `revele:true` + FERMÉES. Trouver n'est pas
+     * franchir : il reste à les ouvrir.
      *
      * @return list<array{x: int, y: int}> portes révélées
      */
-    public function revelerSecretesAutour(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
+    public function revelerSecretesAutour(Groupe $groupe, Carte $carte, Personnage $personnage, ZoneFouille $zone): array
     {
+        // ⚠ Remplacé le 2026-09-27 par la ZONE (salle ou couloir) — historique :
         // ⚠ LIGNE DE VUE ajoutée le 2026-09-18, en même temps que celle de
         // `MoteurPieges::revelerAutour()` — MÊME défaut, MÊME ligne, dans la
         // jumelle appelée deux lignes plus loin par la fouille de zone. René
@@ -162,8 +164,7 @@ final class MoteurPortes
         // simplement jamais reçu de grille.
         return $this->revelerSecretes(
             $groupe, $carte, $personnage,
-            fn (array $porte) => abs((int) $porte['x'] - $x) + abs((int) $porte['y'] - $y) <= self::RAYON_FOUILLE
-                && $grille->ligneDeVue($x, $y, (int) $porte['x'], (int) $porte['y']),
+            fn (array $porte) => $zone->contientPorte($porte),
         );
     }
 

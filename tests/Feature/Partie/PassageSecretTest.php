@@ -77,7 +77,7 @@ it('la CHANCE pilote réellement le tirage : 0 % n\'en pose jamais, 100 % toujou
         ->and($poses(100))->toBe(20);
 });
 
-it('cache AU PLUS UNE salle, jamais la salle de départ, et environ une carte sur deux', function () {
+it('cache AU PLUS DEUX salles, jamais la salle de départ, et environ une carte sur deux', function () {
     $assembleur = app(AssembleurCarte::class);
     $gabarit = GabaritQuete::where('type_jalon', 'normale')->firstOrFail();
 
@@ -88,15 +88,15 @@ it('cache AU PLUS UNE salle, jamais la salle de départ, et environ une carte su
         $carte = $assembleur->assembler($gabarit, $i * 977, AssembleurCarte::CHANCE_PASSAGE_SECRET);
         $cachees = sallesCachees($carte);
 
-        // ⚠ Une chaîne de passages cachés transformerait l'exploration en
-        // ratissage : une salle au plus, toujours.
-        expect($cachees)->toBeLessThanOrEqual(1, "graine {$i} : {$cachees} salles cachées");
+        // Deux salles au plus (René, 2026-09-27 — c'était une), jamais en
+        // chaîne : ce sont des feuilles de l'arbre.
+        expect($cachees)->toBeLessThanOrEqual(2, "graine {$i} : {$cachees} salles cachées");
 
         // `passage_secret` doit dire la VÉRITÉ sur la carte rendue : c'est lui
         // que `DemarreurQuete` croit pour tenir le compteur de pitié.
-        expect($carte['passage_secret'])->toBe($cachees === 1, "graine {$i}");
+        expect($carte['passage_secret'])->toBe($cachees >= 1, "graine {$i}");
 
-        $avecPassage += $cachees;
+        $avecPassage += $cachees >= 1 ? 1 : 0;
     }
 
     // Autour de la moitié — une marge large, parce qu'on teste un dosage et non
@@ -144,7 +144,7 @@ it('DemarreurQuete tient le compteur sur le GROUPE, quête après quête', funct
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
     $quete = App\Models\Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $cachee = sallesCachees($quete->carte->grille) === 1;
+    $cachee = sallesCachees($quete->carte->grille) >= 1;
 
     // ⚠ Deux issues, une seule règle : réussi → retour à 50 ; sec → +10. C'est
     // l'écriture EN BASE qui compte, pas le tirage : la perdre remettrait la

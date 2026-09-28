@@ -609,7 +609,7 @@ it('offre un vivier de salles VARIÉ (le catalogue ne doit pas retomber à 3 for
     expect(Tuile::count())->toBe($avant);
 });
 
-it('cache AU PLUS UNE salle derrière une porte secrète, et jamais la première', function () {
+it('cache AU PLUS DEUX salles derrière une porte secrète, et jamais la première', function () {
     // ⚠ CE TEST A REMPLACÉ SON CONTRAIRE le 2026-08-24 (décision de René).
     //
     // Il exigeait auparavant qu'AUCUNE salle ne soit tributaire d'une porte
@@ -646,10 +646,10 @@ it('cache AU PLUS UNE salle derrière une porte secrète, et jamais la première
             }
         }
 
-        // Une SEULE salle au plus : une chaîne de passages cachés transformerait
-        // l'exploration en ratissage.
+        // DEUX salles au plus (René, 2026-09-27 — c'était une) : jamais en
+        // chaîne, ce sont des feuilles.
         expect(count($cachees))->toBeLessThanOrEqual(
-            1, "graine {$graine} : ".count($cachees).' salles derrière une porte secrète',
+            2, "graine {$graine} : ".count($cachees).' salles derrière une porte secrète',
         );
 
         // Et jamais la salle de départ ni une salle voisine immédiate de celle-ci :
@@ -751,22 +751,67 @@ it('ne pose qu\'UNE seule jonction par côté de salle, secrète comprise', func
     }
 });
 
-it('garantit AU MOINS une porte secrète par quête', function () {
-    // Exigence de René. Elle repose sur deux propriétés du placement :
-    //  · les salles sont posées de façon COMPACTE, donc l'arbre se replie et
-    //    laisse des paires de salles voisines mais non reliées ;
-    //  · le gabarit impose au moins 5 salles — en dessous, aucune boucle n'est
-    //    géométriquement possible (0 % à 3 salles, 59 % à 4).
-    // Casser l'une ou l'autre fait retomber la probabilité, sans rien casser
-    // d'autre : d'où ce test.
-    foreach ([42, 7717, 31337, 97, 555, 104729, 2024, 31, 777, 12345, 8, 999999] as $graine) {
-        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $graine);
+it('ne pose JAMAIS un piège sur une case de porte (embrasure comprise)', function () {
+    // Trouvé le 2026-09-27 : `interieur()` compte l'embrasure — la case de mur
+    // percée par le couloir — comme du sol de salle. Un piège s'y posait sous
+    // une porte close, et une Chute de blocs y murait le seuil.
+    foreach (range(1, 80) as $i) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $i * 104723);
 
-        $secretes = collect($carte['portes'])->where('etat', 'secrete')
-            ->pluck('jonction')->unique();
+        $casesPortes = [];
+        foreach ($carte['portes'] as $porte) {
+            foreach (Grille::casesPorte($porte) as $c) {
+                $casesPortes["{$c['x']},{$c['y']}"] = true;
+            }
+        }
 
-        expect($secretes->count())->toBeGreaterThanOrEqual(1, "graine {$graine} : aucune porte secrète");
+        foreach ($carte['pieges'] as $piege) {
+            expect(isset($casesPortes["{$piege['x']},{$piege['y']}"]))
+                ->toBeFalse("graine {$i} : piège sur la case de porte {$piege['x']},{$piege['y']}");
+        }
     }
+});
+
+it('pose 0 à 2 passages secrets, chacun vers une salle cachée — jamais une boucle (René, 2026-09-27)', function () {
+    // Remplace « garantit AU MOINS une porte secrète par quête » (exigence de
+    // René du 2026-08-24, levée par lui le 2026-09-27) : l'alternance des
+    // boucles en posait 1 à 3, jamais zéro. Désormais le tirage du passage
+    // secret (50 %, compteur de pitié) décide s'il y en a ; s'il y en a, c'est
+    // 1 ou 2, et chacun cache une salle — « je ne tiens pas à ce que le 2e
+    // passage soit une boucle ».
+    $comptes = [0 => 0, 1 => 0, 2 => 0];
+
+    foreach (range(1, 120) as $i) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $i * 7919);
+
+        $jonctions = collect($carte['portes'])->where('etat', 'secrete')->pluck('jonction')->unique();
+        $secretes = $jonctions->count();
+
+        expect($secretes)->toBeLessThanOrEqual(2, "graine {$i} : plus de 2 portes secrètes")
+            ->and($secretes > 0)->toBe((bool) $carte['passage_secret'], "graine {$i} : porte secrète et tirage en désaccord");
+
+        // Chaque passage cache une salle : sans lui, elle est hors d'atteinte.
+        $portes = array_map(function (array $p) {
+            $p['etat'] = ($p['etat'] ?? '') === 'secrete' ? 'secrete' : 'ouverte';
+
+            return $p;
+        }, $carte['portes']);
+        $grille = new Grille($carte['cases']);
+        $grille->definirPortes($portes);
+        $depart = $carte['spawn_heros'][0];
+        $cachees = collect($carte['salles'])
+            ->filter(fn ($s) => $grille->chemin($depart['x'], $depart['y'], $s['mediane_x'], $s['mediane_y']) === null)
+            ->count();
+
+        expect($cachees)->toBe($secretes, "graine {$i} : {$secretes} passage(s) pour {$cachees} salle(s) cachée(s)");
+
+        $comptes[$secretes]++;
+    }
+
+    // Les trois issues existent réellement.
+    expect($comptes[0])->toBeGreaterThan(0)
+        ->and($comptes[1])->toBeGreaterThan(0)
+        ->and($comptes[2])->toBeGreaterThan(0);
 });
 
 // ---------------------------------------------------------------------------
@@ -1234,4 +1279,34 @@ it('offre moins de MONSTRES dans une petite salle, jamais moins de place aux hé
 
     // Le test ne prouverait rien s'il n'avait croisé aucune petite salle.
     expect($petites)->toBeGreaterThan(10);
+});
+
+it('fouille la ZONE entière : une porte secrète se trouve depuis chacune des salles qu\'elle touche, jamais d\'ailleurs', function () {
+    // René, 2026-09-27 : la fouille couvre la salle ou le couloir du fouilleur,
+    // sans rayon ni ligne de vue (`ZoneFouille`). ⚠ Deux salles accolées
+    // PARTAGENT leur mur : la zone teste chaque rectangle, pas `indexDe()` qui
+    // rendrait la première — la porte serait introuvable depuis l'autre.
+    $verifiees = 0;
+
+    foreach (range(1, 30) as $i) {
+        $carte = app(AssembleurCarte::class)->assembler(gabaritNormal(), $i * 7919, 100);
+
+        foreach ($carte['portes'] as $porte) {
+            if (($porte['etat'] ?? '') !== 'secrete') {
+                continue;
+            }
+
+            foreach ($carte['salles'] as $s) {
+                $touche = collect(Grille::casesPorte($porte))->contains(fn ($c) => $c['x'] >= $s['x'] && $c['x'] < $s['x'] + $s['largeur']
+                    && $c['y'] >= $s['y'] && $c['y'] < $s['y'] + $s['hauteur']);
+
+                $zone = App\Partie\ZoneFouille::de($carte, $s['mediane_x'], $s['mediane_y']);
+
+                expect($zone->contientPorte($porte))->toBe($touche, "graine {$i} : zone de salle et porte secrète en désaccord");
+                $verifiees++;
+            }
+        }
+    }
+
+    expect($verifiees)->toBeGreaterThan(0);
 });

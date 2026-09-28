@@ -3664,23 +3664,15 @@ final class ResolveurTour
         ];
 
         // Fouille de la zone RÉUSSIE (doc 14 §3.1) : un seul jet de Mind révèle
-        // dans le rayon de fouille les pièges cachés (doc 10 §3) ET les portes
-        // secrètes (passées révélées + ouvertes).
+        // les pièges cachés (doc 10 §3) ET les portes secrètes de la salle ou
+        // du couloir du fouilleur, EN ENTIER, sans rayon ni ligne de vue (René,
+        // 2026-09-27 — voir `ZoneFouille`). Une seule zone pour les deux.
         if (in_array($option['id'], self::OPTIONS_FOUILLE_ZONE, true) && $resultat->estReussi()
             && $quete->carte !== null && $etat->position_x !== null) {
-            // ⚠ La grille est ce qui BLOQUE : sans elle, les deux révélations
-            // traversaient murs et portes closes (René, en partie, 2026-09-18).
-            // Une seule grille pour les deux, comme `balayerClairvoyance()`.
-            $grilleFouille = $this->grille($quete);
+            $zone = ZoneFouille::de((array) $quete->carte->grille, (int) $etat->position_x, (int) $etat->position_y);
 
-            $payload['pieges_reveles'] = $this->pieges->revelerAutour(
-                $groupe, $quete->carte, $personnage, $grilleFouille,
-                (int) $etat->position_x, (int) $etat->position_y,
-            );
-            $payload['portes_revelees'] = $this->portes->revelerSecretesAutour(
-                $groupe, $quete->carte, $personnage, $grilleFouille,
-                (int) $etat->position_x, (int) $etat->position_y,
-            );
+            $payload['pieges_reveles'] = $this->pieges->revelerAutour($groupe, $quete->carte, $personnage, $zone);
+            $payload['portes_revelees'] = $this->portes->revelerSecretesAutour($groupe, $quete->carte, $personnage, $zone);
         }
 
         // ÉPREUVE (2026-08-24) : la tentative est dépensée QUOI QU'IL ARRIVE —

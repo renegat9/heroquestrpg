@@ -48,15 +48,13 @@ use App\Support\Journal;
  *  - la Chute de blocs devient un `ETAT_BLOC` PERMANENT — le héros dessus
  *    doit d'abord choisir où s'écarter (`casesEcart()`) avant que son tour
  *    ne se ferme ;
- *  - la fouille réussie révèle les pièges cachés dans un RAYON de 3 cases
- *    (distance de Manhattan) autour du fouilleur ;
+ *  - la fouille réussie révèle les pièges cachés de la salle ou du couloir
+ *    du fouilleur, en entier (`ZoneFouille`, 2026-09-27) ;
  *  - l'Œil du mineur (nœud nain) détecte les pièges ORTHOGONALEMENT
  *    adjacents, à chaque début d'action et après chaque déplacement.
  */
 final class MoteurPieges
 {
-    /** Rayon (Manhattan) révélé par une fouille réussie — départ playtest. */
-    public const RAYON_FOUILLE = 3;
 
     /** Détection automatique des pièges adjacents (Œil du mineur, du nain). */
     public const MECANIQUE_DETECTION = 'detection_pieges_adjacents';
@@ -559,8 +557,14 @@ final class MoteurPieges
     }
 
     /**
-     * Fouille RÉUSSIE : révèle les pièges cachés dans un rayon de
-     * RAYON_FOUILLE cases (Manhattan) **ET EN VUE** du fouilleur.
+     * Fouille RÉUSSIE : révèle les pièges cachés de la ZONE du fouilleur — sa
+     * salle ou son couloir, EN ENTIER, sans rayon ni ligne de vue (René,
+     * 2026-09-27, voir `ZoneFouille`). L'historique ci-dessous explique d'où
+     * venaient le rayon et la vue ; la zone règle le cas « piège derrière une
+     * porte fermée » qui les avait motivés, puisque ce qui est derrière une
+     * porte appartient à une autre zone.
+     *
+     * — Historique (rayon RAYON_FOUILLE + vue, jusqu'au 2026-09-27) —
      *
      * ⚠ LA LIGNE DE VUE A ÉTÉ AJOUTÉE LE 2026-09-18, signalée en pleine partie
      * par René : « j'ai fait une fouille de piège et j'ai détecté un piège en
@@ -579,19 +583,19 @@ final class MoteurPieges
      * est de voir les pièges « within their line of sight ». Une fouille qui
      * traverse les cloisons faisait gratuitement mieux que la carte.
      *
-     * Le rayon est CONSERVÉ (doc 10 §3) : on ne fouille pas une salle entière
-     * d'un jet. Les deux conditions se cumulent — à portée, et visible.
+     * ⚠ La Potion de Vision (« within their line of sight ») garde, elle, la
+     * ligne de vue : `revelerEnVue()`. Elle voit à distance, d'une salle à
+     * l'autre ; la fouille couvre la pièce où l'on est, recoins compris.
      *
      * @return list<array{x: int, y: int, nom: string}> pièges révélés
      */
-    public function revelerAutour(Groupe $groupe, Carte $carte, Personnage $personnage, Grille $grille, int $x, int $y): array
+    public function revelerAutour(Groupe $groupe, Carte $carte, Personnage $personnage, ZoneFouille $zone): array
     {
         return $this->reveler(
             $groupe,
             $carte,
             $personnage,
-            fn (array $entree) => abs((int) $entree['x'] - $x) + abs((int) $entree['y'] - $y) <= self::RAYON_FOUILLE
-                && $grille->ligneDeVue($x, $y, (int) $entree['x'], (int) $entree['y']),
+            fn (array $entree) => $zone->contient((int) $entree['x'], (int) $entree['y']),
             'fouille',
         );
     }
