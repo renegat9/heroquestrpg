@@ -118,6 +118,19 @@ final class BibliothequeImages
             : null;
     }
 
+    /**
+     * ALLIÉ (2026-10-01) — le mercenaire du catalogue `mercenaires`. Aucune
+     * illustration jusque-là : la scène d'attaque d'un allié montrait le
+     * PORTRAIT DU HÉROS qui le contrôle sous le nom de l'allié (un loup qui
+     * mord, avec la tête du barbare).
+     */
+    public function urlMercenaire(?int $id, ?string $nom): ?string
+    {
+        return $id
+            ? $this->url($this->relatifCatalogue('mercenaires', $id, (string) $nom)) ?? $this->vignette('allie', $id)
+            : null;
+    }
+
     public function urlObjet(?int $id, ?string $nom): ?string
     {
         return $id

@@ -884,6 +884,9 @@ final class EtatGroupe
                 'pv_body' => (int) $a->pv_body,
                 'pv_body_max' => (int) $a->mercenaire->pv_body,
                 'animal' => (bool) $a->mercenaire->animal,
+                // Le jeton de carte l'affiche déjà quand il existe
+                // (`entitesVersFigurines` lit `image_url`) — 2026-10-01.
+                'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
             ])
             ->values()
             ->all();
@@ -911,6 +914,7 @@ final class EtatGroupe
                 'animal' => (bool) $a->mercenaire->animal,
                 'pv_body' => (int) $a->pv_body,
                 'pv_body_max' => (int) $a->mercenaire->pv_body,
+                'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
             ])
             ->values()
             ->all();

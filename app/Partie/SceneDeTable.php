@@ -265,7 +265,11 @@ final class SceneDeTable
             'titre' => "{$attaquant} attaque {$cibleNom}",
             'sous_titre' => $this->porteeLisible($a),
             'acteurs' => [
-                $this->acteurHeros($acteur, 'attaquant', $a['allie'] ?? null),
+                // Un ALLIÉ frappe sous SON image, pas sous celle du héros qui
+                // le contrôle (2026-10-01).
+                isset($a['mercenaire_id'])
+                    ? $this->acteurAllie((int) $a['mercenaire_id'], $attaquant, 'attaquant')
+                    : $this->acteurHeros($acteur, 'attaquant', $a['allie'] ?? null),
                 $this->acteurMonstre($instanceId, $cibleNom, 'defenseur'),
             ],
             'jet' => $this->jetDesDes($a, $attaquant, $cibleNom),
@@ -1138,6 +1142,23 @@ final class SceneDeTable
                 'courant' => (int) $personnage->pv_body,
                 'max' => (int) $personnage->pv_body_max,
             ],
+        ];
+    }
+
+    /**
+     * Un allié (mercenaire, animal, squelette Hearthkin…) — illustré par son
+     * entrée de catalogue. Pas de PV ici : la scène montre le coup, et les PV
+     * d'un allié vivent sur le panneau du groupe.
+     *
+     * @return array<string, mixed>
+     */
+    private function acteurAllie(int $mercenaireId, string $nom, string $role): array
+    {
+        return [
+            'role' => $role,
+            'nom' => $nom,
+            'image_url' => $this->images->urlMercenaire($mercenaireId, \App\Models\Mercenaire::find($mercenaireId)?->nom),
+            'pv' => null,
         ];
     }
 

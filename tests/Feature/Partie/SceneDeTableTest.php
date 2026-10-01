@@ -9,6 +9,7 @@ use App\Models\Carte;
 use App\Models\GabaritQuete;
 use App\Models\InstanceMonstre;
 use App\Models\Mobilier;
+use App\Models\Mercenaire;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -21,6 +22,7 @@ use App\Partie\TamponScenes;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MobilierSeeder;
+use Database\Seeders\MercenaireSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -102,6 +104,32 @@ it('monte une scène d\'attaque avec les deux portraits et la volée réelle', f
         // bouclier blanc pare pour un héros et rien du tout pour un monstre.
         ->and($scene['jet']['defensive'])->toBe('bouclier_noir')
         ->and($scene['jet']['atk'])->toHaveCount(3);
+});
+
+it('illustre un ALLIÉ qui attaque par SON image, jamais le portrait du héros qui le contrôle', function () {
+    // René, 2026-10-01 : « des illustrations pour les alliés quand ils font des
+    // actions ». La scène prenait `acteurHeros($acteur)` sous le nom de
+    // l'allié : un loup qui mord, avec la tête du nain.
+    $this->seed(MercenaireSeeder::class);
+    $loup = Mercenaire::where('nom', 'Loup')->firstOrFail();
+    $instance = sceneInstanceMonstre();
+    $heros = sceneHeros('Borin');
+
+    $scene = scenesDe([
+        'type' => 'attaque_allie',
+        'allie' => 'Loup',
+        'mercenaire_id' => $loup->id,
+        'portee' => 'corps_a_corps',
+        'cible' => ['instance_id' => $instance->id, 'nom' => 'Gobelin'],
+        'touches' => 1, 'boucliers' => 0, 'degats' => 1,
+    ], $heros)[0];
+
+    $attaquant = collect($scene['acteurs'])->firstWhere('role', 'attaquant');
+    $images = app(App\Partie\Images\BibliothequeImages::class);
+
+    expect($attaquant['nom'])->toBe('Loup')
+        ->and($attaquant['image_url'])->toBe($images->urlMercenaire($loup->id, 'Loup'))
+        ->and($attaquant['image_url'])->not->toBe($images->urlHeros($heros->id, $heros->classe));
 });
 
 it('nomme un coup paré autrement qu\'un coup manqué', function () {

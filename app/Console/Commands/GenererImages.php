@@ -10,6 +10,7 @@ use App\Models\ClasseHeros;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Epreuve;
+use App\Models\Mercenaire;
 use App\Models\Mobilier;
 use App\Models\Piege;
 use App\Models\Sort;
@@ -32,7 +33,7 @@ use Illuminate\Console\Command;
 final class GenererImages extends Command
 {
     protected $signature = 'images:generer
-        {--type=tous : classes|monstres|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|tous}
+        {--type=tous : classes|monstres|mercenaires|objets|pieges|epreuves|mobiliers|terrains|leviers|portes|sorts|tous}
         {--force : Régénère même les fichiers déjà présents}';
 
     protected $description = 'Génère les images du catalogue (Gemini image) dans public/images/catalogue';
@@ -130,6 +131,22 @@ final class GenererImages extends Command
                 'type' => 'monstres',
                 'rel' => $biblio->relatifCatalogue('monstres', $m->id, $m->nom_base),
                 'prompt' => $biblio->prompt('monstre', ['nom' => $m->nom_base, 'tier' => (string) $m->tier]),
+            ];
+        }
+
+        // Alliés (2026-10-01) : la DESCRIPTION du catalogue décrit l'allié —
+        // jamais rien d'inventé —, et un animal a son propre gabarit.
+        foreach (Mercenaire::all() as $m) {
+            $cibles[] = [
+                'type' => 'mercenaires',
+                'rel' => $biblio->relatifCatalogue('mercenaires', $m->id, $m->nom),
+                'prompt' => $biblio->prompt($m->animal ? 'mercenaire_animal' : 'mercenaire', [
+                    'nom' => $m->nom,
+                    // La seule ALLURE, avant le « : » ou le « ; » : la suite énonce des
+                    // RÈGLES (« sur deux points de vie »), que Gemini peignait en chiffres
+                    // sur l'armure de l'Estafier.
+                    'description' => trim((string) preg_split('/\s[:;]\s/u', (string) $m->description)[0]),
+                ]),
             ];
         }
 

@@ -10345,6 +10345,10 @@ final class ResolveurTour
         $payload = [
             'type' => 'attaque_allie',
             'allie' => $nom,
+            // Qui frappe, en catalogue : c'est ce que la scène de table lit
+            // pour l'ILLUSTRER (2026-10-01) — sans lui, elle prenait le
+            // portrait du héros qui contrôle l'allié.
+            'mercenaire_id' => (int) $allie->mercenaire_id,
             'portee' => $portee,
             'cible' => [
                 'instance_id' => $cible->id,

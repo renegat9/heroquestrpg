@@ -5,6 +5,7 @@
 // (or suffisant, un seul animal) est calculée ici depuis l'état vivant du groupe.
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
+import Vignette from '../ui/Vignette.vue';
 
 const props = defineProps({
     // Catalogue recrutable (GET /mercenaires).
@@ -43,7 +44,7 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
 
         <div v-for="m in catalogue" :key="m.id" class="recrut-carte" :class="{ off: !!blocage(m) }">
             <div class="recrut-tete">
-                <span class="recrut-ic"><MSym :n="TYPE_ICON[m.type] || 'swords'" /></span>
+                <span class="recrut-ic"><Vignette :src="m.image_url" :icon="TYPE_ICON[m.type] || 'swords'" /></span>
                 <div class="recrut-nom">
                     <div class="rn">{{ m.nom }}</div>
                     <div class="rt">{{ m.animal ? 'Compagnon animal' : 'Mercenaire' }}</div>
@@ -73,7 +74,7 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
         <template v-if="recrues.length">
             <div class="sect-title"><MSym n="diversity_3" :size="16" /> Alliés recrutés</div>
             <div v-for="r in recrues" :key="r.id" class="recrut-recrue">
-                <span class="recrut-ic"><MSym :n="TYPE_ICON[r.type] || 'swords'" /></span>
+                <span class="recrut-ic"><Vignette :src="r.image_url" :icon="TYPE_ICON[r.type] || 'swords'" /></span>
                 <div class="recrut-nom"><div class="rn">{{ r.nom }}</div></div>
                 <span class="recrut-pv"><MSym n="favorite" fill :size="13" /> {{ r.pv_body }}/{{ r.pv_body_max }}</span>
             </div>
@@ -100,10 +101,13 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
 .recrut-carte.off { opacity: 0.6; }
 .recrut-tete { display: flex; align-items: center; gap: 10px; }
 .recrut-ic {
-    display: grid; place-items: center; width: 34px; height: 34px; flex: none;
+    display: grid; place-items: center; width: 44px; height: 44px; flex: none; overflow: hidden;
     border-radius: 9px; background: var(--panel-3, oklch(0.28 0.02 70 / 0.5));
     color: var(--gold, #c9a24a);
 }
+/* L'illustration de l'allié (2026-10-01) remplit la pastille ; sans elle,
+   l'icône de type reste centrée comme avant. */
+.recrut-ic .vignette-img { width: 100%; height: 100%; object-fit: cover; }
 .recrut-nom { flex: 1; min-width: 0; }
 .recrut-nom .rn { font-weight: 700; font-size: 14px; }
 .recrut-nom .rt { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em; }

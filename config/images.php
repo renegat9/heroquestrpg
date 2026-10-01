@@ -23,6 +23,22 @@ return [
     'gabarits' => [
         'classe' => 'Portrait héroïque en buste d\'un {detail}, personnage de jeu de rôle fantasy. {style}',
         'monstre' => 'Figurine de monstre de donjon : {nom} (tier {tier}), créature menaçante en pied. {style}',
+        // ALLIÉ (2026-10-01, René : « des illustrations pour les alliés quand
+        // ils font des actions ») : mercenaire ou créature qui combat AUX CÔTÉS
+        // des héros. ⚠ Le prompt porte la DESCRIPTION du catalogue : avec le
+        // seul type, Gemini inventait l'équipement (l'Estafier « bretteur à
+        // deux haches » sortait avec un marteau et un bouclier).
+        // ⚠ La description mêle allure et RÈGLES (« la meilleure défense du
+        // jeu, sur deux points de vie ») : Gemini en a fait une incrustation
+        // « 2 HP » sur l'Estafier — d'où l'interdit explicite ci-dessous.
+        'mercenaire' => 'Mercenaire allié des héros, en pied dans un donjon : {nom}. {description} '
+            .'Illustration seule : aucune inscription, aucun chiffre, aucune interface. {style}',
+        // ⚠ Gabarit À PART pour les animaux : « en pied » et « compagnon
+        // d'aventure » faisaient du Croc-sabre — un fauve — un guerrier-tigre
+        // debout, massue au poing.
+        'mercenaire_animal' => 'Bête de combat apprivoisée, alliée des héros dans un donjon : {nom}. {description} '
+            .'Un animal sauvage, sur ses pattes, sans arme ni vêtement. '
+            .'Illustration seule : aucune inscription, aucun chiffre, aucune interface. {style}',
         'objet' => 'Icône d\'inventaire : {nom}, un objet de catégorie « {categorie} », objet seul présenté sur fond sombre. {style}',
         'piege' => 'Piège de donjon : {nom}, mécanisme dangereux dans un couloir de pierre. {style}',
         // ÉPREUVE (2026-08-24) : un élément de décor auquel on se MESURE, à

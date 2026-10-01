@@ -591,7 +591,7 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 
 | Méthode | URL | Corps | Effet |
 |---|---|---|---|
-| GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description}]` (group-agnostique, comme `/competences`) |
+| GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description, image_url}]` (group-agnostique, comme `/competences`) |
 | POST | /groupes/{identifiant}/mercenaires | {mercenaire_id} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, ou 2ᵉ compagnon animal) |
 
 ⚠ **Le Squelette Hearthkin (First Light, FL-Q p. 6, lot C) partage ce
@@ -622,10 +622,19 @@ client** à partir de l'état vivant : `EtatGroupe.groupe.or` + le bloc **hub**
 recrutement au hub, la table liste les renforts embauchés.
 
 Dans **EtatGroupe.entites** (en quête), un allié posé apparaît avec `type:'allie'`
-(`{id, nom, x, y, pv_body, pv_body_max, animal}`). **Au hub** (carte absente, donc
+(`{id, nom, x, y, pv_body, pv_body_max, animal, image_url}`). **Au hub** (carte absente, donc
 hors `entites`), les recrues actives sont exposées dans le préambule sous
 `groupe.mercenaires: [{id, mercenaire_id, nom, type, animal, pv_body,
-pv_body_max}]` (mis à jour en direct par `.groupe.etat` après un recrutement). La
+pv_body_max, image_url}]` (mis à jour en direct par `.groupe.etat` après un recrutement).
+
+**Illustration des alliés (René, 2026-10-01 : « des illustrations pour les
+alliés quand ils font des actions »).** `image_url` vient de
+`BibliothequeImages::urlMercenaire()` — `catalogue/mercenaires/{id}-{slug}`,
+emblème SVG `allie` (le buste du camp des héros) en repli, jamais `null` pour un
+allié. L'action `attaque_allie` porte désormais `mercenaire_id` : la scène de
+table (`scenes[].acteurs[]`) illustre l'attaquant par **son** image — elle
+montrait jusque-là le portrait du héros qui contrôle l'allié, sous le nom de
+l'allié. La
 résolution d'un tour de choix peut porter `resultat.tour_allies.actions`
 (déplacements/attaques alliées), en regard de `resultat.tour_monstres.actions`.
 

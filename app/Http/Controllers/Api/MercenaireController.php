@@ -56,6 +56,7 @@ class MercenaireController extends Controller
                     'pv_body' => (int) $m->pv_body,
                     'animal' => (bool) $m->animal,
                     'description' => $m->description,
+                    'image_url' => app(\App\Partie\Images\BibliothequeImages::class)->urlMercenaire($m->id, $m->nom),
                 ])
                 ->values()
                 ->all(),

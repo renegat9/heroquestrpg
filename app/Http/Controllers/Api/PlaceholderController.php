@@ -100,7 +100,9 @@ class PlaceholderController extends Controller
         // `classe` et `heros` partagent le même buste : une classe EST le
         // portrait générique de ses héros, c'est d'ailleurs vers elle que
         // retombe déjà un portrait individuel manquant.
-        $embleme = self::EMBLEMES[$type === 'classe' ? 'heros' : $type] ?? self::EMBLEMES['quete'];
+        // `allie` (2026-10-01) prend le même buste : un compagnon est une
+        // figure du camp des héros, jamais la silhouette cornue d'un monstre.
+        $embleme = self::EMBLEMES[in_array($type, ['classe', 'allie'], true) ? 'heros' : $type] ?? self::EMBLEMES['quete'];
 
         // Teinte dérivée de la graine : stable pour un sujet donné, différente
         // d'un sujet à l'autre. Bornée aux ambres et aux verts sourds — rester
