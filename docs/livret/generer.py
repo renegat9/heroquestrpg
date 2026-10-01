@@ -67,7 +67,7 @@ def j(v):
     except Exception:
         return {}
 
-TELEPHONE = re.compile(r'^(1[0-4]|3[0-3])-')
+TELEPHONE = re.compile(r'^(1[0-4]|3[0-3]|38)-')
 
 def _dimensions_png(nom):
     """(largeur, hauteur) lues dans l'IHDR du PNG d'origine — 8 octets d'en-tête,
@@ -652,6 +652,14 @@ ecrire('''
   déplacement : chez nous, la Défense seule — c'est un écart assumé.</p>
 </div>
 ''')
+ecrire('<div class="duo">' +
+       fig('38-manette-oracle', "Sur la manette, la bénédiction s'affiche parmi les conditions de "
+                                "la fiche, avec ce qu'elle permet.") +
+       fig('38-manette-oracle-maudit', "La malédiction, en rouge : Zargon forcera une relance, "
+                                       "une fois par quête.") +
+       '</div>')
+ecrire(fig('24-table-oracle', "À la table, le panneau du groupe porte les mêmes badges : l'œil "
+                              "doré d'Aldric, béni, et le cœur brisé de Sylvaine, maudite."))
 fin()
 
 # ================================================== 5. LE TOUR ============

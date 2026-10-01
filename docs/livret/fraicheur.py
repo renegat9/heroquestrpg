@@ -77,6 +77,14 @@ DEPENDANCES = {
     '12-manette-fiche': ['resources/js/components/manette/FicheTab.vue',
                          'resources/js/components/manette/PipsGauge.vue'],
     '13-manette-sac': ['resources/js/components/manette/SacTab.vue'],
+    # Le badge béni/maudit de l'Oracle (First Light, 2026-10-01) : peint par la
+    # fiche, mais la liste de badges est composée par le store (`badgesFigure`).
+    '38-manette-oracle': ['resources/js/components/manette/FicheTab.vue',
+                          'resources/js/store/game.js', 'resources/css/manette.css'],
+    '38-manette-oracle-maudit': ['resources/js/components/manette/FicheTab.vue',
+                                 'resources/js/store/game.js', 'resources/css/manette.css'],
+    '24-table-oracle': ['resources/js/components/table/GroupPanel.vue',
+                        'resources/js/store/game.js', 'resources/js/views/TableView.vue'],
     '14-manette-sorts': ['resources/js/components/manette/SpellsTab.vue',
                          'resources/js/components/manette/SpellInfoSheet.vue'],
     '15-manette-echange': ['resources/js/components/manette/EchangeSheet.vue'],
