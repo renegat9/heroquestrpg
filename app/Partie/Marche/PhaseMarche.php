@@ -16,6 +16,7 @@ use App\Models\Objet;
 use App\Models\Personnage;
 use App\Partie\Equipement;
 use App\Partie\EtatGroupe;
+use App\Partie\MoteurOracle;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\RangementObjet;
 use App\Partie\Talents;
@@ -335,6 +336,70 @@ final class PhaseMarche
         Journal::ajouter($groupe, 'systeme', ['action' => 'marche_annule']);
 
         broadcast(new MarcheFinalise($groupe, applique: false));
+    }
+
+    /** Don de 800 po, contre la Malédiction de l'Oracle. */
+    public const DON_LEVEE_MALEDICTION_ORACLE = 800;
+
+    /**
+     * LÈVE LA MALÉDICTION DE L'ORACLE (jeton Mark of Zargon, First Light
+     * FL-Q p. 6, lot C) : « a donation of 800 gold to charity, between
+     * quests, when visiting the armoury » — ici, au marché (c'est l'unique
+     * passage à l'armurerie du hub, `PhaseMarche`/`MarcheController`).
+     *
+     * ⚠ NOTRE arbitrage, écrit comme tel : la bourse débitée est la bourse
+     * COMMUNE (`groupes.or`), jamais la bourse personnelle du héros
+     * (`personnages.or`, purement cosmétique — la part reçue à la clôture).
+     * C'est ce que le marché débite déjà pour TOUT le reste (`appliquer()`,
+     * `$groupe->update(['or' => $total])`) : une seconde caisse pour ce seul
+     * don aurait été une règle de paiement inventée.
+     *
+     * ⚠ Immédiat, HORS du panier/de la confirmation multi-joueurs : ce n'est
+     * pas un achat qui entre en concurrence avec ceux des autres, rien à
+     * accorder entre plusieurs paniers — une transaction directe, comme le
+     * recrutement d'un allié (`MercenaireController::recruter()`).
+     *
+     * @return array<string, mixed>
+     */
+    public function leverMalediction(Groupe $groupe, Personnage $personnage, MoteurOracle $oracle): array
+    {
+        $this->phaseOuverte($groupe); // 422 si aucune phase marché n'est ouverte
+
+        if (! $oracle->maledictionActive($personnage)) {
+            throw ValidationException::withMessages([
+                'personnage_id' => "{$personnage->nom} ne porte pas la Malédiction de l'Oracle.",
+            ]);
+        }
+
+        return DB::transaction(function () use ($groupe, $personnage, $oracle) {
+            $groupe->refresh();
+
+            if ((int) $groupe->or < self::DON_LEVEE_MALEDICTION_ORACLE) {
+                $manque = self::DON_LEVEE_MALEDICTION_ORACLE - (int) $groupe->or;
+                throw ValidationException::withMessages([
+                    'or' => "Il manque {$manque} pièces d'or à la bourse commune pour ce don.",
+                ]);
+            }
+
+            $groupe->update(['or' => (int) $groupe->or - self::DON_LEVEE_MALEDICTION_ORACLE]);
+            $oracle->leverMalediction($personnage);
+
+            Journal::ajouter($groupe, 'systeme', [
+                'action' => 'malediction_oracle_levee',
+                'personnage_id' => $personnage->id,
+                'personnage' => $personnage->nom,
+                'don' => self::DON_LEVEE_MALEDICTION_ORACLE,
+            ]);
+
+            broadcast(new EtatGroupeDiffuse($groupe, $this->etatGroupe->payload($groupe->fresh())));
+
+            return [
+                'leve' => true,
+                'personnage_id' => $personnage->id,
+                'don' => self::DON_LEVEE_MALEDICTION_ORACLE,
+                'or' => (int) $groupe->fresh()->or,
+            ];
+        });
     }
 
     // ------------------------------------------------------------------

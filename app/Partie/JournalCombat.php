@@ -189,6 +189,22 @@ final class JournalCombat
             }
         }
 
+        // SLY STORAGE (FL-Q p. 7, First Light) : une armoire dans la salle
+        // fait tirer une SECONDE carte au premier fouilleur, résolue dans
+        // l'ordre — `carte_armoire` la porte, de la MÊME forme qu'une action
+        // `fouille_tresor` ordinaire (jusqu'à son propre piège imbriqué, si
+        // elle en est un). Un effet automatique que rien n'annonce est
+        // injouable : la ligne ci-dessous le dit avant de rendre la carte,
+        // par un appel RÉCURSIF plutôt que de dupliquer la lecture d'une
+        // carte de fouille.
+        if (is_array($a['carte_armoire'] ?? null)) {
+            $lignes[] = $this->info("Une armoire garnit la salle — {$acteurNom} tire une seconde carte");
+
+            foreach ($this->ligneAction($a['carte_armoire'], $acteurNom) as $ligne) {
+                $lignes[] = $ligne;
+            }
+        }
+
         // Les DÉS du jet, attachés à la ligne qui décrit le coup (la première :
         // les suivantes sont des conséquences — chute, piège imbriqué). C'est
         // ce qui donne l'HISTORIQUE : le fil garde ses jets, là où l'overlay de
@@ -240,7 +256,7 @@ final class JournalCombat
         // Qui frappe : le monstre a son propre nom, l'allié aussi ; sinon c'est
         // le héros qui agit. Qui encaisse : toujours `cible.nom`.
         $attaquant = match ($a['type'] ?? null) {
-            'attaque_monstre' => (string) ($a['monstre'] ?? 'Le monstre'),
+            'attaque_monstre', 'vol_draconique' => (string) ($a['monstre'] ?? 'Le monstre'),
             'attaque_allie' => (string) ($a['allie'] ?? 'Allié'),
             default => $acteurNom,
         };
@@ -499,6 +515,12 @@ final class JournalCombat
             // injouable.
             'equiper' => [$this->info("{$acteurNom} équipe ".($a['objet'] ?? 'un objet'))],
             'desequiper' => [$this->info("{$acteurNom} range ".($a['objet'] ?? 'un objet'))],
+            // ⚠ `usage_objet` TOMBAIT SUR `default` (eau bénite,
+            // chausse-trappes, bombe fumigène, et désormais le Cor des
+            // Hearthkin) : un effet automatique que rien n'annonce est
+            // injouable, la même faute qu'équiper/ranger ci-dessus, trouvée
+            // en câblant le Cor (lot First Light C, 2026-09-30).
+            'usage_objet' => $this->usageObjet($a, $acteurNom),
             // ÉCHANGER / JETER (doc 01 §7, 2026-09-17) : jeter est le seul
             // geste du jeu qui détruit de la valeur sans rien rendre — le fil
             // doit le dire aussi clairement que la confirmation le demande
@@ -553,6 +575,13 @@ final class JournalCombat
             // du plateau sans qu'aucune manette ne le dise, et un joueur
             // verrait un passage s'ouvrir de lui-même.
             'glace_dissipee' => [$this->glaceDissipee($a)],
+            // Draconic Flight (First Light, carte Dragon) : le déplacement
+            // traverse la mêlée avant de frapper — sans cette ligne, le
+            // Dragon se téléporterait au contact aux yeux du joueur, et le
+            // franchissement (la moitié de la carte qui EST portée) resterait
+            // un calcul muet, exactement le défaut que la Boule de Flammes du
+            // MJ a cessé d'être.
+            'vol_draconique' => $this->volDraconique($a),
             default => [],
         };
     }
@@ -865,12 +894,13 @@ final class JournalCombat
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
         $forge = $this->suffixeForge($a);
+        $oracle = $this->suffixeOracle($a);
 
         if (! empty($a['cible_vaincue'])) {
-            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}{$forge}", 'ton' => 'mort']];
+            return [['texte' => "{$attaquant} terrasse {$cible} !{$des}{$forge}{$oracle}", 'ton' => 'mort']];
         }
         if ($degats > 0) {
-            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}{$forge}", 'ton' => 'degats']];
+            return [['texte' => "{$attaquant} touche {$cible} (−{$degats} PV){$des}{$forge}{$oracle}", 'ton' => 'degats']];
         }
 
         // ⚠ MANQUÉ ≠ PARÉ. Le repli disait « pare » dans les deux cas, et un
@@ -878,8 +908,8 @@ final class JournalCombat
         // c'étaient ses propres dés qui échouaient (constaté en partie réelle
         // le 2026-08-13 : « Gobelin pare l'assaut de Borin · 0 crâne »).
         return (int) ($a['touches'] ?? 0) === 0
-            ? [['texte' => "{$attaquant} manque {$cible}{$des}{$forge}", 'ton' => 'echec']]
-            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}{$forge}", 'ton' => 'pare']];
+            ? [['texte' => "{$attaquant} manque {$cible}{$des}{$forge}{$oracle}", 'ton' => 'echec']]
+            : [['texte' => "{$cible} pare l'assaut de {$attaquant}{$des}{$forge}{$oracle}", 'ton' => 'pare']];
     }
 
     /**
@@ -905,6 +935,26 @@ final class JournalCombat
         }
 
         return $bouts === [] ? '' : ' · '.implode(' · ', $bouts);
+    }
+
+    /**
+     * MALÉDICTION DE L'ORACLE (First Light, FL-Q p. 6, lot C) : Zargon vient
+     * de forcer une relance complète de l'échange — un effet automatique que
+     * rien n'annonce est injouable, même règle que `suffixeForge()`
+     * ci-dessus. `null` (clé absente ou non appliquée) rend une chaîne vide.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function suffixeOracle(array $a): string
+    {
+        $detail = (array) ($a['malediction_oracle'] ?? []);
+
+        if ($detail === []) {
+            return '';
+        }
+
+        return ' · Zargon force une relance (Malédiction de l\'Oracle) — '
+            .($detail['garde'] === 'relance' ? 'le nouveau jet est gardé' : 'le jet d\'origine tient bon');
     }
 
     /**
@@ -939,16 +989,108 @@ final class JournalCombat
         $cible = $a['cible']['nom'] ?? 'un héros';
         $degats = (int) ($a['degats'] ?? 0);
         $des = $this->detailDes($a);
+        $oracle = $this->suffixeOracle($a);
 
         if ($degats <= 0) {
             // Même distinction côté monstre : un héros lisait « je pare »
             // quand la créature l'avait simplement manqué.
             return (int) ($a['touches'] ?? 0) === 0
-                ? [['texte' => "{$monstre} manque {$cible}{$des}", 'ton' => 'echec']]
-                : [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}", 'ton' => 'pare']];
+                ? [['texte' => "{$monstre} manque {$cible}{$des}{$oracle}", 'ton' => 'echec']]
+                : [['texte' => "{$cible} pare l'assaut de {$monstre}{$des}{$oracle}", 'ton' => 'pare']];
         }
 
-        $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV){$des}", 'ton' => 'subit']];
+        $lignes = [['texte' => "{$monstre} touche {$cible} (−{$degats} PV){$des}{$oracle}", 'ton' => 'subit']];
+        if (! empty($a['cible_tombee'])) {
+            $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Usage d'un objet qui n'est ni une attaque ni une potion (eau bénite,
+     * chausse-trappes, bombe fumigène, Cor des Hearthkin) — TOMBAIT SUR
+     * `default` jusqu'au lot First Light C : trouvé en câblant le Cor, dont
+     * le silence aurait fait disparaître des squelettes de la carte sans un
+     * mot. Couvre les quatre au passage, par la même règle.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function usageObjet(array $a, string $acteurNom): array
+    {
+        $nom = (string) ($a['objet'] ?? 'un objet');
+
+        if (isset($a['squelettes_invoques'])) {
+            return $this->corHearthkin($a, $acteurNom, $nom);
+        }
+
+        if (! empty($a['tuee'])) {
+            return [[
+                'texte' => "{$acteurNom} verse {$nom} sur ".($a['cible']['nom'] ?? 'la créature').' — elle se dissout',
+                'ton' => 'mort',
+            ]];
+        }
+
+        if (isset($a['case'])) {
+            return [['texte' => "{$acteurNom} pose {$nom}", 'ton' => 'info']];
+        }
+
+        if (! empty($a['enfume'])) {
+            return [['texte' => "{$acteurNom} enfume ".($a['cible']['nom'] ?? 'un monstre')." avec {$nom}", 'ton' => 'info']];
+        }
+
+        return [['texte' => "{$acteurNom} utilise {$nom}", 'ton' => 'info']];
+    }
+
+    /**
+     * COR DES HEARTHKIN (First Light, FL-Q p. 6) : nomme chaque héros servi,
+     * et dit que le cor est détruit — « the horn crumbles to dust ».
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function corHearthkin(array $a, string $acteurNom, string $nom): array
+    {
+        $noms = collect((array) ($a['squelettes_invoques'] ?? []))
+            ->pluck('personnage')->filter()->implode(', ');
+
+        return [[
+            'texte' => "{$acteurNom} souffle dans {$nom} : un Squelette Hearthkin se dresse pour chaque héros"
+                .($noms !== '' ? " ({$noms})" : '').' — le cor tombe en poussière',
+            'ton' => 'tresor',
+        ]];
+    }
+
+    /**
+     * Draconic Flight (First Light, carte Dragon) : déplacement qui traverse
+     * la mêlée, puis attaque — ou simple rapprochement si le recul sur case
+     * réellement libre l'a arrêté avant le contact (`cible` absente du
+     * payload, voir `MoteurDread::tentativeVolDraconique()`).
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function volDraconique(array $a): array
+    {
+        $monstre = $a['monstre'] ?? 'Le monstre';
+
+        if (! isset($a['cible'])) {
+            return [$this->info("{$monstre} fond en vol à travers la mêlée et se rapproche")];
+        }
+
+        $cible = $a['cible']['nom'] ?? 'un héros';
+        $degats = (int) ($a['degats'] ?? 0);
+        $des = $this->detailDes($a);
+        $intro = "{$monstre} fond en vol sur {$cible}, traversant la mêlée";
+
+        if ($degats <= 0) {
+            return (int) ($a['touches'] ?? 0) === 0
+                ? [['texte' => "{$intro} — et la manque{$des}", 'ton' => 'echec']]
+                : [['texte' => "{$cible} pare l'assaut du {$monstre}{$des}", 'ton' => 'pare']];
+        }
+
+        $lignes = [['texte' => "{$intro} (−{$degats} PV){$des}", 'ton' => 'subit']];
         if (! empty($a['cible_tombee'])) {
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
         }
@@ -1105,11 +1247,27 @@ final class JournalCombat
             'ton' => $reussi ? 'succes' : 'echec',
         ]];
 
+        // ORACLE (First Light, lot C) : la SEULE épreuve qui dit quelque
+        // chose sur l'ÉCHEC — les six autres n'ont rien à donner dans cette
+        // branche, donc le retour anticipé reste juste pour elles.
+        if (($a['oracle'] ?? null) === 'malediction') {
+            $lignes[] = [
+                'texte' => "{$nom} — Zargon pose la Malédiction de l'Oracle (Mark of Zargon) sur {$acteurNom}",
+                'ton' => 'echec',
+            ];
+
+            return $lignes;
+        }
+
         if (! $reussi) {
             return $lignes;
         }
 
         $gains = [];
+
+        if (($a['oracle'] ?? null) === 'benediction') {
+            $gains[] = "reçoit la Bénédiction de l'Oracle";
+        }
 
         if ((int) ($a['or'] ?? 0) > 0) {
             $gains[] = $a['or'].' pièces d\'or pour la bourse';

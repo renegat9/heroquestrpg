@@ -23,8 +23,9 @@ const erreurGlobale = ref('');
 
 onMounted(async () => {
     try {
-        const { joueur: moi, personnages: persos } = await api.moi();
+        const { joueur: moi, personnages: persos, boites_bestiaire: boites } = await api.moi();
         store.setJoueur(moi, persos ?? []);
+        boitesBestiaire.value = boites ?? [];
     } catch {
         // 401 = pas connecté, c'est normal ; les autres erreurs n'empêchent
         // pas d'afficher les onglets connexion/inscription.
@@ -196,6 +197,23 @@ const montrerCreerGroupe = ref({}); // { [perso.id]: bool }
 const nomGroupe = ref({});
 const themeGroupe = ref({});
 const longueurGroupe = ref({});
+// Bestiaire (contrat §Bestiaire automatique ou manuel, 2026-09-28) :
+// « automatique » = le tirage historique ; « manuel » = les boîtes cochées,
+// aucune = jeu de base seul. Libellés décidés côté serveur (`/moi`).
+const boitesBestiaire = ref([]);
+const modeBestiaire = ref({});   // { [perso.id]: 'auto' | 'manuel' }
+const boitesCochees = ref({});   // { [perso.id]: [id de boîte…] }
+const modesBestiaire = [
+    { v: 'auto', l: 'Automatique', sub: 'une extension tirée au sort' },
+    { v: 'manuel', l: 'Manuel', sub: 'je choisis les extensions' },
+];
+function basculerBoite(persoId, boite) {
+    const actuelles = boitesCochees.value[persoId] ?? [];
+    boitesCochees.value = {
+        ...boitesCochees.value,
+        [persoId]: actuelles.includes(boite) ? actuelles.filter((b) => b !== boite) : [...actuelles, boite],
+    };
+}
 const creerGroupeEnCours = ref({});
 const erreurCreerGroupe = ref({});
 
@@ -222,6 +240,10 @@ async function creerGroupe(perso) {
             theme: themeGroupe.value[perso.id] || 'Donjon classique',
             longueur: longueurGroupe.value[perso.id] || 'normale',
             personnage_id: perso.id,
+            // Absent = automatique ; une liste (vide comprise) = manuel.
+            ...(modeBestiaire.value[perso.id] === 'manuel'
+                ? { bestiaire_boites: boitesCochees.value[perso.id] ?? [] }
+                : {}),
         });
         const { joueur: moi, personnages: persos } = await api.moi();
         store.setJoueur(moi, persos ?? []);
@@ -511,6 +533,47 @@ function libelleClasse(classe) {
                                         />
                                         {{ l.l }} <span class="joueur-radio-sub">{{ l.sub }}</span>
                                     </label>
+                                </div>
+                                <label class="joueur-lbl">Bestiaire</label>
+                                <div class="joueur-radio-row">
+                                    <label
+                                        v-for="m in modesBestiaire"
+                                        :key="m.v"
+                                        class="joueur-radio"
+                                        :class="{ on: (modeBestiaire[perso.id] || 'auto') === m.v }"
+                                    >
+                                        <input
+                                            type="radio"
+                                            :name="`bestiaire-${perso.id}`"
+                                            :value="m.v"
+                                            :checked="(modeBestiaire[perso.id] || 'auto') === m.v"
+                                            @change="modeBestiaire = { ...modeBestiaire, [perso.id]: m.v }"
+                                        />
+                                        {{ m.l }} <span class="joueur-radio-sub">{{ m.sub }}</span>
+                                    </label>
+                                </div>
+                                <div v-if="modeBestiaire[perso.id] === 'manuel'" class="joueur-boites">
+                                    <label
+                                        v-for="b in boitesBestiaire"
+                                        :key="b.id"
+                                        class="joueur-boite"
+                                        :class="{ on: (boitesCochees[perso.id] ?? []).includes(b.id) }"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            :checked="(boitesCochees[perso.id] ?? []).includes(b.id)"
+                                            @change="basculerBoite(perso.id, b.id)"
+                                        />
+                                        {{ b.libelle }}
+                                    </label>
+                                    <p class="joueur-boites-note">
+                                        <template v-if="(boitesCochees[perso.id] ?? []).length === 0">
+                                            Aucune extension cochée : jeu de base seul.
+                                        </template>
+                                        <template v-else>
+                                            Jeu de base + extensions cochées — aucune autre n'apparaîtra.
+                                        </template>
+                                    </p>
                                 </div>
                                 <p v-if="erreurCreerGroupe[perso.id]" class="joueur-err">
                                     <MSym n="error" :size="14" /> {{ erreurCreerGroupe[perso.id] }}
@@ -928,6 +991,16 @@ function libelleClasse(classe) {
 .joueur-radio.on { border-color: var(--torch); color: var(--torch); background: oklch(0.76 0.155 65 / 0.08); }
 .joueur-radio input { display: none; }
 .joueur-radio-sub { font-size: 11px; color: var(--ink-600); margin-left: 2px; }
+
+/* Bestiaire manuel : une case par extension, même langage que les radios. */
+.joueur-boites { display: flex; flex-direction: column; gap: 6px; }
+.joueur-boite { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  color: var(--ink-400); padding: 7px 12px; border-radius: var(--r-md); border: var(--line);
+  background: var(--stone-850); cursor: pointer; transition: border-color .15s, color .15s; }
+.joueur-boite:hover { border-color: var(--torch); color: var(--ink-200); }
+.joueur-boite.on { border-color: var(--torch); color: var(--torch); background: oklch(0.76 0.155 65 / 0.08); }
+.joueur-boite input { accent-color: var(--torch); }
+.joueur-boites-note { margin: 0; font-size: 12px; color: var(--ink-500); }
 
 /* ---- sélecteur de classe ---- */
 /* 12 classes depuis le 2026-08-12 (4 historiques + 8 d'extension) : une grille

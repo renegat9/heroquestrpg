@@ -63,6 +63,11 @@ class EtatPersonnageQuete extends Model
         // même rythme que `styles_epuises` ci-dessus, même réarmement
         // (MoteurSorts::rythmerBuffsDeVue()). Voir App\Partie\Equipement.
         'capacites_combat',
+        // ORACLE (First Light, FL-Q p. 6) : le jeton Mark of Zargon est
+        // utilisable UNE FOIS PAR QUÊTE — revient à `false` tout seul puisque
+        // cette ligne est recréée à chaque démarrage de quête. Voir
+        // App\Partie\MoteurOracle.
+        'malediction_oracle_utilisee',
     ];
 
     /**
@@ -118,6 +123,7 @@ class EtatPersonnageQuete extends Model
             'bonus_sort_utilise' => 'boolean',
             'attaque_supplementaire' => 'boolean',
             'tour_supplementaire' => 'boolean',
+            'malediction_oracle_utilisee' => 'boolean',
             'deplacement_tour' => 'integer',
             'deplacement_restant' => 'integer',
             'detail_deplacement_tour' => 'array',

@@ -25,6 +25,10 @@ class Mercenaire extends Model
         'capacites',
         'prix',
         'animal',
+        // Le Squelette Hearthkin (First Light) partage ce catalogue sans
+        // jamais être recrutable au hub : `MercenaireController::catalogue()`
+        // l'exclut. Voir la migration `octroi_seul_sur_mercenaires`.
+        'octroi_seul',
         'description',
     ];
 
@@ -33,6 +37,7 @@ class Mercenaire extends Model
         return [
             'capacites' => 'array',
             'animal' => 'boolean',
+            'octroi_seul' => 'boolean',
         ];
     }
 

@@ -93,6 +93,25 @@ use Illuminate\Support\Facades\DB;
  *     monstre voit son mouvement stoppé net » — appliqué côté héros, dans
  *     ResolveurTour, là où les pièges tronquent déjà le chemin.
  *
+ * CAPACITÉS DE FIRST LIGHT (carte « Dragon », FL-Q p. 6-7 — doc 18 §6.1bis,
+ * portées le 2026-09-30) :
+ *   - vol_draconique : « Draconic Flight » — déplacement + attaque dans la
+ *     même action (`tentativeVolDraconique()`, même patron que `charge`),
+ *     mais la grille de cheminement traverse les FIGURES, jamais le mobilier
+ *     ni les murs (`Grille::autoriserFranchissementFigures()`, le mode déjà
+ *     écrit pour Patinage) — sans bonus d'attaque, la carte n'en donne
+ *     aucun. ⚠ Seule la traversée est portée : « interrompre son mouvement
+ *     pour agir puis le finir » suppose un tour fractionné qu'aucun lecteur
+ *     ne consulterait — dette NOMMÉE, `docs/plan-first-light.md` §3 ;
+ *   - sort_a_volonte : capacité PARAMÉTRÉE (`['sort' => 'Boule de
+ *     Flammes']`) — le sort qu'elle nomme échappe au compteur `usages_dread`
+ *     pour CETTE instance SEULE (`sortAVolonte()`), chaque lancer coûtant
+ *     toujours l'action du tour. Contrairement à `USAGES_BASE` (le Spectre,
+ *     dont la carte dit aussi « à volonté » mais reste bridé à 1/rencontre —
+ *     divergence assumée), la carte du Dragon ne dit QUE « at will », sans
+ *     réserve : c'est la seule créature du catalogue à l'avoir au pied de
+ *     la lettre.
+ *
  * DÉCISION DE SORT (choisirSort) — priorités, premier match gagne, sur les
  * seuls héros EN VUE :
  *   1. Tempête de feu si ≥ 2 héros DANS SA ZONE (case du lanceur + 4
@@ -302,12 +321,30 @@ final class MoteurDread
         //    encore à la Fuite (on ne se sauve pas d'un ennemi au prétexte
         //    qu'un mur le masque) et à la Charge (qui a besoin d'un chemin, pas
         //    d'une ligne de vue).
-        if ($this->repertoireSorts($instance->monstre) !== [] && $this->usagesRestants($instance, $quete) > 0) {
+        //
+        //    ⚠ « À VOLONTÉ » (First Light, carte Dragon) — `sortAVolonte()`
+        //    nomme le SEUL sort de CETTE instance qui échappe au compteur. La
+        //    porte s'ouvre donc aussi à 0 usage restant, mais seulement si le
+        //    sort choisi EST celui-là : sans ce second verrou, un lanceur qui
+        //    aurait à la fois un sort à volonté et un répertoire plus large
+        //    continuerait de lancer n'importe lequel une fois le compteur à
+        //    sec.
+        $sortAVolonte = $this->sortAVolonte($instance);
+        $usagesRestants = $this->usagesRestants($instance, $quete);
+
+        if ($this->repertoireSorts($instance->monstre) !== [] && ($usagesRestants > 0 || $sortAVolonte !== null)) {
             $enVue = $this->ciblesEnVue($quete, $instance, $cibles);
             $sortChoisi = $this->choisirSort($groupe, $quete, $instance, $cibles, $enVue);
 
+            if ($usagesRestants <= 0 && $sortChoisi?->nom !== $sortAVolonte) {
+                $sortChoisi = null; // compteur à sec, et ce n'est pas le sort gratuit
+            }
+
             if ($sortChoisi !== null) {
-                $this->consommerUsage($instance, $quete);
+                if ($sortChoisi->nom !== $sortAVolonte) {
+                    $this->consommerUsage($instance, $quete);
+                }
+
                 $actions[] = $this->lancerSortDread($groupe, $quete, $instance, $sortChoisi, $cibles, $enVue, $acteur);
 
                 return $this->fusionnerActions($actions);
@@ -339,6 +376,20 @@ final class MoteurDread
 
             if ($charge !== null) {
                 $actions[] = $charge;
+
+                return $this->fusionnerActions($actions);
+            }
+        }
+
+        // 5. Capacité vol_draconique (Draconic Flight, First Light) : même
+        //    idée que la Charge, mais le chemin traverse les FIGURES — un
+        //    héros interposé n'arrête plus le Dragon là où il arrêterait tout
+        //    autre monstre, y compris un chargeur.
+        if ($this->aCapacite($instance, 'vol_draconique') && $cibles->isNotEmpty()) {
+            $vol = $this->tentativeVolDraconique($groupe, $quete, $instance, $cibles, $acteur);
+
+            if ($vol !== null) {
+                $actions[] = $vol;
 
                 return $this->fusionnerActions($actions);
             }
@@ -565,6 +616,24 @@ final class MoteurDread
         $capacites = (array) ($instance->monstre->capacites ?? []);
 
         return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites);
+    }
+
+    /**
+     * Le nom du sort déclaré « à volonté » pour CETTE instance, ou `null`.
+     *
+     * Capacité paramétrée (`['sort_a_volonte' => ['sort' => 'Boule de
+     * Flammes']]`), lue au même point de passage que `aCapacite()`. Ne
+     * concerne QUE la créature qui la porte — ce n'est pas une propriété du
+     * sort lui-même (un Garde-mage qui connaîtrait aussi Boule de Flammes
+     * resterait soumis au compteur `usages_dread` comme toute autre
+     * créature).
+     */
+    public function sortAVolonte(InstanceMonstre $instance): ?string
+    {
+        $capacites = (array) ($instance->monstre->capacites ?? []);
+        $parametre = $capacites['sort_a_volonte'] ?? null;
+
+        return is_array($parametre) && is_string($parametre['sort'] ?? null) ? $parametre['sort'] : null;
     }
 
     /**
@@ -3301,6 +3370,159 @@ final class MoteurDread
             'vers' => ['x' => $instance->position_x, 'y' => $instance->position_y],
             'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'des_attaque' => (int) $instance->monstre->attaque + 1,
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $subis,
+            'pv_body_apres' => (int) $personnage->pv_body,
+            'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
+            ...$resultat->pourJournal(),
+        ];
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    // ------------------------------------------------------------------
+    // Capacité Draconic Flight (First Light, carte Dragon)
+    // ------------------------------------------------------------------
+
+    /**
+     * **Draconic Flight** (FL-Q p. 7, carte « Dragon » — doc 18 §6.1bis) :
+     * « le Dragon peut interrompre son mouvement pour agir puis le finir, et
+     * traverser des cases occupées (sans y finir) ».
+     *
+     * ⚠ Seule la TRAVERSÉE est portée. « Interrompre son mouvement pour agir
+     * puis le finir » suppose un tour de monstre FRACTIONNÉ, que rien dans
+     * `ResolveurTour` (un moteur par ROUND) ne consulte — lui donner un
+     * lecteur pour cette seule carte serait exactement la clé décorative que
+     * ce projet traque : une règle promise et jamais vraiment jouée. C'est une
+     * dette NOMMÉE (`docs/plan-first-light.md` §3), pas un oubli.
+     *
+     * Même patron que `tentativeCharge()` (déplacement puis attaque dans la
+     * même action de monstre), à deux différences : la grille de cheminement
+     * est celle du Patinage (`Grille::autoriserFranchissementFigures()` — les
+     * FIGURES ne bloquent plus le TRAJET, le mobilier et les murs si, comme
+     * sur la carte : « des cases occupées », jamais « des murs » ni « du
+     * mobilier ») ; et il n'y a pas de bonus d'attaque, la carte n'en donne
+     * aucun.
+     *
+     * ⚠ « sans y finir » est tenu par `derniereCaseFranchissable()` — le même
+     * recul que le Patinage emploie déjà : la grille de cheminement a effacé
+     * l'occupation pour trouver un PASSAGE, elle ne doit jamais décider d'une
+     * ARRIVÉE. Si le recul retombe avant la case adjacente à la cible visée,
+     * le Dragon progresse sans frapper ce tour-ci — jamais à travers une
+     * figure sur laquelle il se serait arrêté.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles  héros debout (pas de ligne de vue requise, comme la Charge)
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null null si déjà au contact, ou hors de portée même en traversant
+     */
+    private function tentativeVolDraconique(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        Collection $cibles,
+        array $acteur,
+    ): ?array {
+        $nomMonstre = $instance->nomAffiche();
+        $grilleReelle = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+
+        foreach ($cibles as $cible) {
+            if ($grilleReelle->sontAdjacentes(
+                (int) $instance->position_x, (int) $instance->position_y,
+                (int) $cible->position_x, (int) $cible->position_y,
+            )) {
+                return null; // déjà au contact : rien à traverser
+            }
+        }
+
+        $vol = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $vol->autoriserFranchissementFigures();
+
+        $meilleure = null;
+
+        foreach ($cibles as $cible) {
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $cx = (int) $cible->position_x + $dx;
+                $cy = (int) $cible->position_y + $dy;
+                $chemin = $vol->chemin(
+                    (int) $instance->position_x, (int) $instance->position_y,
+                    $cx, $cy,
+                );
+
+                // ⚠ Budget en POINTS, pas en cases — même raison que la
+                // Charge depuis la Rivière Gelée : `coutChemin()` est ce que
+                // le déplacement du catalogue autorise réellement.
+                $cout = $chemin === null ? null : $vol->coutChemin($chemin);
+
+                if ($chemin !== null && $cout <= (int) $instance->monstre->deplacement) {
+                    if ($meilleure === null || $cout < $vol->coutChemin($meilleure[1])) {
+                        $meilleure = [$cible, $chemin];
+                    }
+                }
+            }
+        }
+
+        if ($meilleure === null) {
+            return null; // hors de portée même en traversant
+        }
+
+        [$cible, $chemin] = $meilleure;
+        $depart = ['x' => (int) $instance->position_x, 'y' => (int) $instance->position_y];
+        $arrivee = $chemin === [] ? $depart : $this->derniereCaseFranchissable($quete, $instance, $chemin);
+
+        if ($arrivee === null) {
+            return null; // aucune case réellement libre sur tout le trajet : pas de progrès
+        }
+
+        $instance->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+
+        $grilleApres = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $auContact = $grilleApres->sontAdjacentes(
+            (int) $arrivee['x'], (int) $arrivee['y'], (int) $cible->position_x, (int) $cible->position_y,
+        );
+
+        if (! $auContact) {
+            // Le recul sur case réellement libre l'a arrêté avant le contact :
+            // il se rapproche, sans frapper ce tour — jamais à travers une
+            // figure sur laquelle il se serait arrêté.
+            $payload = [
+                'type' => 'vol_draconique',
+                'instance_id' => (int) $instance->id,
+                'monstre' => $nomMonstre,
+                'depart' => $depart,
+                'vers' => ['x' => $arrivee['x'], 'y' => $arrivee['y']],
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        $personnage = $cible->personnage;
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: $instance->attaqueEffective(),
+            desDefense: $this->sorts->desDefenseHeros($personnage),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $personnage->pv_body,
+        );
+
+        $subis = $this->degats->infligerAHeros(
+            $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
+            ['monstre' => $nomMonstre, 'vol_draconique' => true, 'instance_id' => (int) $instance->id],
+        );
+        $this->sorts->reveillerHeros($personnage);
+
+        if ((int) $personnage->pv_body === 0 && $subis > 0) {
+            $cible->update(['tombe' => true]);
+        }
+
+        $payload = [
+            'type' => 'vol_draconique',
+            'instance_id' => (int) $instance->id,
+            'monstre' => $nomMonstre,
+            'depart' => $depart,
+            'vers' => ['x' => $arrivee['x'], 'y' => $arrivee['y']],
+            'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $subis,

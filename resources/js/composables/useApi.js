@@ -122,7 +122,12 @@ export function useApi() {
          */
         moi: async () => {
             const r = await request('GET', '/moi');
-            return { joueur: r?.joueur ?? null, personnages: r?.joueur?.personnages ?? [] };
+            return {
+                joueur: r?.joueur ?? null,
+                personnages: r?.joueur?.personnages ?? [],
+                // Boîtes du bestiaire MANUEL, libellés décidés côté serveur.
+                boites_bestiaire: r?.boites_bestiaire ?? [],
+            };
         },
 
         // ---- personnages du roster ----

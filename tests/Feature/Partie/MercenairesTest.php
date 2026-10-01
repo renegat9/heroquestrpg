@@ -41,7 +41,9 @@ it('expose le catalogue recrutable via GET /mercenaires', function () {
 
     $catalogue = $this->getJson('/api/mercenaires')->assertOk()->json('mercenaires');
 
-    expect($catalogue)->toHaveCount(Mercenaire::count());
+    // ⚠ Le Squelette Hearthkin (First Light, lot C) partage ce catalogue
+    // sans jamais y figurer — `octroi_seul`, voir `MercenaireController::catalogue()`.
+    expect($catalogue)->toHaveCount(Mercenaire::where('octroi_seul', false)->count());
     $premier = $catalogue[0];
     // Trié par prix croissant + bloc de stats complet.
     expect($premier['prix'])->toBeLessThanOrEqual($catalogue[count($catalogue) - 1]['prix']);
@@ -258,7 +260,9 @@ it('donne aux alliés officiels leur Mind et leurs capacités de carte', functio
     // à la peur et au sommeil sans que personne l'ait décidé.
     $allies = Mercenaire::all()->keyBy('nom');
 
-    expect($allies)->toHaveCount(8, 'les 5 mercenaires humains et les 3 compagnons animaux');
+    // 8 (5 mercenaires humains + 3 compagnons animaux) + le Squelette
+    // Hearthkin (First Light, lot C) : même catalogue, jamais recrutable.
+    expect($allies)->toHaveCount(9, 'les 5 mercenaires humains, les 3 compagnons animaux et le Squelette Hearthkin');
 
     expect((int) $allies['Ogre mercenaire']->pv_mind)->toBe(1)
         ->and((int) $allies['Éclaireur']->pv_mind)->toBe(2);

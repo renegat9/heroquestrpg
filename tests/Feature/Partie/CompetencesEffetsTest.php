@@ -74,6 +74,10 @@ it('Pas léger (+1 déplacement) augmente l\'allonce exposée au menu de tour', 
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
 
+    // Table MENACÉE : ce test lit un VRAI d6 (`desFiges()`), pas la valeur
+    // fixe d'*Unthreatened Movement* (FL-Q p. 7).
+    menacerQuete($quete);
+
     // Force un nouveau tour « vierge » pour que le d6 d'allonce soit relancé.
     $etat->update(['deplacement_tour' => null, 'a_joue' => false]);
     desFiges([3]); // d6 figé à 3

@@ -1084,3 +1084,179 @@ it('garantit qu\'un passage secret mène TOUJOURS à un coffre', function () {
     // Le test ne prouverait rien s'il n'avait vu aucun passage secret.
     expect($sallesSecretes)->toBeGreaterThan(20);
 });
+
+// ---------------------------------------------------------------------------
+// SLY STORAGE (FL-Q p. 7, First Light, 2026-09-30) — une armoire dans la
+// salle fait tirer DEUX cartes au premier fouilleur, résolues dans l'ordre.
+// ---------------------------------------------------------------------------
+
+/** Pose une Armoire (mobilier) dans `$salle`, sans toucher au reste de la grille. */
+function poserArmoireDansSalle(Quete $quete, int $salle): void
+{
+    $armoire = Mobilier::where('nom', 'Armoire')->firstOrFail();
+    $grille = $quete->carte->grille;
+    $grille['mobilier'][] = ['mobilier_id' => $armoire->id, 'x' => 0, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => $salle];
+    $quete->carte->update(['grille' => $grille]);
+}
+
+/** Une salle qui n'est NI le départ NI le coffre de l'artefact — fouille « ordinaire ». */
+function salleOrdinaire(Quete $quete): int
+{
+    return (int) collect(array_keys($quete->carte->grille['salles']))
+        ->first(fn ($s) => (int) $s !== 0 && (int) $s !== (int) $quete->salle_artefact);
+}
+
+it('Sly Storage : le PREMIER fouilleur d\'une salle avec une armoire tire DEUX cartes, résolues dans l\'ordre', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    $salle = salleOrdinaire($quete);
+    poserArmoireDansSalle($quete, $salle);
+
+    // Deux cartes CONNUES, dans l'ordre : trésor (99 po) PUIS potion.
+    // `empilerCarteFouille` POUSSE en tête : on empile la SECONDE carte
+    // d'abord, pour que la PREMIÈRE pose finisse au sommet du paquet.
+    $potion = Objet::where('nom', 'Potion de soin')->firstOrFail();
+    empilerCarteFouille($quete->fresh(), ['issue' => 'potion', 'objet_id' => $potion->id]);
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 99]);
+
+    deplacerVersSalle($quete->fresh(), $etat, $salle);
+    $resultat = fouiller();
+
+    expect($resultat['issue'])->toBe('tresor')
+        ->and($resultat['or'])->toBe(99)
+        ->and($resultat['armoire'])->toBeTrue()
+        ->and($resultat['carte_armoire']['issue'])->toBe('potion')
+        ->and($resultat['carte_armoire']['objet']['nom'] ?? null)->toBe($potion->nom)
+        ->and($resultat['carte_armoire']['type'])->toBe('fouille_tresor');
+
+    // Une seule fouille enregistrée pour ce héros : la seconde carte de
+    // l'armoire n'a pas consommé une entrée `tresors_fouilles` de plus — ce
+    // n'est pas une seconde fouille du héros, c'est le meuble qui en rend une
+    // de plus pour le MÊME geste.
+    $faites = $quete->fresh()->fouillesFaites();
+    expect(count(array_filter($faites, fn ($e) => $e === "{$salle}:{$hero->id}" || str_starts_with((string) $e, "{$salle}:{$hero->id}#"))))
+        ->toBe(1);
+
+    // Le fil de combat ET la scène de table disent POURQUOI il y a deux cartes.
+    $lignes = app(App\Partie\JournalCombat::class)->depuisResultat($resultat, $hero->nom);
+    $texte = collect($lignes)->pluck('texte')->implode(' | ');
+    expect($texte)->toContain('armoire')->and($texte)->toContain('seconde carte')
+        ->and($texte)->toContain((string) $potion->nom);
+
+    $scenes = app(App\Partie\SceneDeTable::class)->depuisResultat($resultat, $hero->fresh());
+    expect($scenes)->toHaveCount(2)
+        ->and($scenes[0]['sous_titre'])->toBe('Une armoire — deux cartes')
+        ->and($scenes[1]['sous_titre'])->toBe('Armoire — seconde carte');
+});
+
+it('Sly Storage : ne s\'applique PAS au second fouilleur de la même salle — seul le premier en profite', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    $salle = salleOrdinaire($quete);
+    poserArmoireDansSalle($quete, $salle);
+
+    // Les DEUX cartes du premier fouilleur sont fixées : la seconde (celle de
+    // l'armoire) était tirée au hasard, et un monstre errant apparu dans la
+    // salle interdisait ensuite la fouille au second héros (« pas de fouille
+    // de trésor si un monstre est visible ») — test instable, 1 fois sur 3.
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 5]);
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 10]);
+    deplacerVersSalle($quete->fresh(), $etat, $salle);
+    $premier = fouiller();
+    expect($premier['armoire'] ?? false)->toBeTrue();
+
+    // Le second héros fouille la MÊME salle (chacun sa propre fouille) : pas
+    // de deuxième bonus, l'armoire n'a déjà servi qu'au premier.
+    $etat->refresh();
+    $etat->update(['a_joue' => true]);
+    $second = Personnage::where('nom', 'Brunhilde')->firstOrFail();
+    $etatSecond = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $second->id)->firstOrFail();
+    deplacerVersSalle($quete->fresh(), $etatSecond, $salle);
+
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 11]);
+    $resultatSecond = test()->actingAs(JoueurAuthentifiable::where('identifiant', 'bob')->firstOrFail(), 'joueur')
+        ->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)
+        ->json('resultat');
+
+    expect($resultatSecond['armoire'] ?? false)->toBeFalse()
+        ->and($resultatSecond)->not->toHaveKey('carte_armoire')
+        ->and($resultatSecond['or'])->toBe(11);
+});
+
+it('Sly Storage : « résolues dans l\'ordre » tient même si la PREMIÈRE carte est un piège qui ferme le tour', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    $salle = salleOrdinaire($quete);
+    poserArmoireDansSalle($quete, $salle);
+
+    // 1re carte : un piège (ferme le tour du héros). 2e carte : de l'or — qui
+    // doit être rendu malgré tout, l'armoire n'étant pas un second geste du
+    // héros mais l'effet du meuble sur la MÊME fouille.
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 42]);
+    empilerCarteFouille($quete->fresh(), ['issue' => 'piege']);
+
+    deplacerVersSalle($quete->fresh(), $etat, $salle);
+    $pvAvant = (int) $hero->fresh()->pv_body;
+    $resultat = fouiller();
+
+    expect($resultat['issue'])->toBe('piege')
+        ->and($resultat['declenchement']['type'] ?? null)->toBe('piege_declenche')
+        ->and($resultat['armoire'])->toBeTrue()
+        ->and($resultat['carte_armoire']['issue'])->toBe('tresor')
+        ->and($resultat['carte_armoire']['or'])->toBe(42)
+        // Le piège a bien fermé le tour du héros — effet inchangé.
+        ->and($etat->fresh()->a_joue)->toBeTrue();
+
+    // L'or de la seconde carte est bien au pot commun, piège ou pas.
+    expect((int) $groupe->fresh()->or)->toBeGreaterThanOrEqual(42);
+
+    $lignes = app(App\Partie\JournalCombat::class)->depuisResultat($resultat, $hero->nom);
+    $texte = collect($lignes)->pluck('texte')->implode(' | ');
+    expect($texte)->toContain('armoire')->and($texte)->toContain('seconde carte');
+});
+
+it('Sly Storage : une armoire DÉTRUITE ne rend plus de seconde carte', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    $salle = salleOrdinaire($quete);
+    poserArmoireDansSalle($quete, $salle);
+
+    // Marque l'armoire détruite — même drapeau que `MoteurMobilier::detruire()`.
+    $grille = $quete->fresh()->carte->grille;
+    $index = array_key_last($grille['mobilier']);
+    $grille['mobilier'][$index]['detruit'] = true;
+    $quete->carte->update(['grille' => $grille]);
+
+    empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 7]);
+    deplacerVersSalle($quete->fresh(), $etat, $salle);
+    $resultat = fouiller();
+
+    expect($resultat['armoire'] ?? false)->toBeFalse()
+        ->and($resultat)->not->toHaveKey('carte_armoire');
+});
+
+it('Sly Storage : une salle-coffre avec une armoire rend le coffre sur la 1re carte, le deck ordinaire sur la 2e', function () {
+    [$alice, $groupe, $hero, $quete, $etat] = demarrerFouille();
+
+    // Coffre ORDINAIRE (derrière une porte secrète), distinct de la salle
+    // artefact — même patron que le test « ne paie le coffre de salle qu'UNE
+    // FOIS » plus haut.
+    $salle = salleOrdinaire($quete);
+    $quete->update(['salles_coffre' => [$salle]]);
+    poserArmoireDansSalle($quete->fresh(), $salle);
+
+    empilerCarteFouille($quete->fresh(), ['issue' => 'potion', 'objet_id' => Objet::where('nom', 'Potion de soin')->firstOrFail()->id]);
+
+    deplacerVersSalle($quete->fresh(), $etat, $salle);
+    $resultat = fouiller();
+
+    // 1re carte : le coffre (jamais vide — or ou potion, `coffre: true`).
+    expect($resultat['coffre'] ?? false)->toBeTrue()
+        ->and($resultat['armoire'])->toBeTrue();
+
+    // 2e carte : JAMAIS une seconde fois le coffre — il vient d'être marqué
+    // plein par la ligne du dessus, avant que la seconde carte ne soit tirée.
+    expect($resultat['carte_armoire']['coffre'] ?? false)->toBeFalse();
+});

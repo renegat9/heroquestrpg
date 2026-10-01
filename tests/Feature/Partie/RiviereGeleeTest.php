@@ -12,6 +12,7 @@ use App\Models\Terrain;
 use App\Partie\FabriqueGrille;
 use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\TerrainSeeder;
 use Illuminate\Validation\ValidationException;
 
@@ -40,13 +41,18 @@ use Illuminate\Validation\ValidationException;
  */
 
 beforeEach(function () {
-    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class]);
+    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, MonstreSeeder::class]);
 });
 
 function idRiviereGelee(): int
 {
     return (int) Terrain::where('nom', 'Rivière gelée')->value('id');
 }
+
+// `menacerAvecMonstreFactice()` (tests/Pest.php) pose la table MENACÉE :
+// *Unthreatened Movement* (FL-Q p. 7, First Light) compterait sinon le d6
+// pour 4 au lieu de lire `desFiges()`, ce que les deux tests de budget exact
+// (plus bas) ne peuvent pas tolérer.
 
 /**
  * Quête + carte construites À LA MAIN (pas de génération procédurale), avec
@@ -158,6 +164,7 @@ it('traverser 3 cases de Rivière gelée coûte 6 points de déplacement, pas 3'
         herosAttrs: ['deplacement_base' => 5],
     );
     $pvAvant = (int) $scene['heros']->pv_body;
+    menacerAvecMonstreFactice($scene['quete']);
 
     desFiges(array_fill(0, 40, 1));
 
@@ -206,6 +213,7 @@ it('le résolveur refuse d\'entrer sur la rivière avec 1 seul point restant —
         // base 0 + d6 = 1 → exactement 1 point, un de moins que le coût (2).
         herosAttrs: ['deplacement_base' => 0],
     );
+    menacerAvecMonstreFactice($scene['quete']);
 
     desFiges(array_fill(0, 40, 1));
 

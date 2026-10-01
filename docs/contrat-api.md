@@ -17,8 +17,8 @@ Routes protégées par middleware `auth` sauf connexion.
 | POST | /api/connexion | {identifiant} | {joueur} (nom seul, sans mot de passe) |
 | GET | /api/guide | — | **PUBLIC** — compendium de référence : {classes (chacune avec **`depart: {arme, pieces[], des_attaque, des_defense}`** — l'attaque et la défense **avec l'équipement de départ**, décidées par le serveur (`EquipementDepart::valeurs()`, mêmes règles que `recalculerCombat()`), à côté des `des_attaque`/`des_defense` de base à mains nues, 2026-09-24), competences, monstres, objets, sorts, pieges, **cartes**} (catalogues seedés, effets bruts mis en forme côté front). `cartes` = les **trois** paquets sources (`config/cartes.php`, **69 cartes** : `equipement` 20 + `potions` 15, photos du matériel officiel Hasbro, + `artefacts` 34) : `{cle, libelle, source, url, cartes: [{carte, nom, paquet, porte, texte, manque}]}` — provenance de chaque pièce ET liste des cartes du plateau **pas encore jouables**, chacune avec la mécanique qui lui manque. Page /guide, ouverte depuis l'accueil sans compte. |
 | POST | /api/deconnexion | — | 204 |
-| GET | /api/moi | — | {joueur, personnages: [...]} |
-| POST | /api/groupes | {nom, theme, longueur, ton} | {groupe} + dispatch squelette |
+| GET | /api/moi | — | {joueur, personnages: [...], boites_bestiaire: [{id, libelle}]} |
+| POST | /api/groupes | {nom, theme, longueur, ton, bestiaire_boites?} | {groupe} + dispatch squelette — `bestiaire_boites` : voir §Bestiaire automatique ou manuel |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} ou {nom, classe} | {personnage} (rejoint le groupe) |
 | GET | /api/groupes/{identifiant}/etat | — | **EtatGroupe** (voir ci-dessous) |
 | POST | /api/groupes/{identifiant}/quetes | — | {quete} — démarre la quête suivante (assemble carte, spawn monstres, initiative) |
@@ -33,7 +33,8 @@ Routes protégées par middleware `auth` sauf connexion.
 {
   "groupe": {"identifiant": "...", "nom": "...", "phase": "hub|quete", "or": 0, "etat": "en_cours",
              "theme": "Cryptes maudites sous la cité|null",
-             "theme_bestiaire": "horreur_des_glaces", "theme_bestiaire_libelle": "The Frozen Horror",
+             "theme_bestiaire": "horreur_des_glaces|null", "theme_bestiaire_libelle": "The Frozen Horror",
+             "bestiaire_mode": "auto|manuel", "bestiaire_boites": ["horreur_des_glaces"],
              "prets": [{"personnage_id": 1, "pret": false}],
              "mercenaires": [{"id": 3, "mercenaire_id": 2, "nom": "...", "type": "archer",
                               "animal": false, "pv_body": 1, "pv_body_max": 1}],
@@ -83,6 +84,37 @@ d'exposer le `null` brut d'une campagne antérieure à cette colonne.
 serveur** (`DemarreurQuete::LIBELLES_BOITES`) : le client n'a jamais à
 traduire un identifiant de boîte, même règle que `objectif_libelle`.
 
+### Bestiaire automatique ou manuel (René, 2026-09-28)
+
+« J'aimerais une option automatique (comme actuellement) ou manuelle
+(sélection possible d'une ou plusieurs extensions, et si aucune sélection,
+système de base seulement). » Choisi **à la création du groupe**, figé pour la
+campagne.
+
+- **Automatique** — `bestiaire_boites` absent ou `null` au `POST /api/groupes`.
+  Comportement historique : une boîte tirée par rotation à la première quête
+  (`groupes.theme_bestiaire`), qui est une **préférence** (boss final et
+  quelques « forts ») sur le bestiaire commun, jamais un filtre.
+- **Manuel** — `bestiaire_boites` est une liste (vide comprise) d'identifiants
+  de `DemarreurQuete::BOITES_THEMATIQUES` ; toute autre valeur → 422. C'est un
+  **filtre** : n'apparaissent que les créatures du jeu de base (`boite =
+  base`), les nôtres (`boite = null` — Troll, Champion, Seigneur, sorciers
+  nommés : sans eux le jeu de base n'a ni sous-boss ni boss) et celles des
+  boîtes cochées — rencontres, boss, monstre errant compris. Parmi elles, les
+  boîtes cochées gardent la **préférence** pour le boss et les forts. **Aucune
+  case cochée = HeroQuest Game System seul.** Terrain, équipement de glace et
+  artefacts « boîtés » suivent les boîtes cochées.
+  ⚠ L'invocation et la ponte (Dread, *spawn*) gardent la créature nommée sur
+  la carte du lanceur : le lanceur n'est là que si sa boîte l'est.
+- `GET /api/moi` publie `boites_bestiaire: [{id, libelle}]` — les boîtes
+  proposables, libellés **décidés côté serveur** (noms officiels).
+- `EtatGroupe.groupe` : `bestiaire_mode` (`auto|manuel`), `bestiaire_boites`
+  (en auto : la boîte tirée, ou `[]` avant la première quête ; en manuel : la
+  sélection), `theme_bestiaire` (la boîte tirée en auto, **`null` en manuel**)
+  et `theme_bestiaire_libelle`, toujours présent : en manuel « HeroQuest Game
+  System », suivi des boîtes cochées (« HeroQuest Game System + Jungles of
+  Delthrak »). `App\Partie\BestiaireGroupe` est le point de passage unique.
+
 `groupe.prets` et `groupe.mercenaires` ne sont présents **qu'en phase hub**
 (statuts « prêt » des héros actifs ; alliés déjà recrutés — voir §Alliés).
 `quete`/`carte`/`entites`/`initiative` sont `null`/`[]` en phase hub —
@@ -123,7 +155,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` | `.bark.diffuse` | {profil, evenement: "attaque\|touche\|rate\|mort", nom, texte?, url?} | table (joue `url` si présente, sinon lit `texte` en TTS) |
 | `joueur.{id}` (privé) | `.reaction.proposee` | {groupe, reaction: {personnage_id, sort, description, source, degats, expire_dans}} | **manette du joueur concerné** — réaction HORS TOUR (Dark Wings, Twisting Torrent) proposée pendant la phase des monstres. Voir §Réactions hors tour |
 | `groupe.{identifiant}` | `.combat.journal` | {lignes: [{texte, ton, des?}], sequence} | **manettes** — fil mécanique du tour (attaques, dégâts, chutes, tour des monstres/alliés, résultat de fouille) dérivé du résultat moteur, **aucun LLM** : comble le « combat instantané » où seule la table avait un retour (barks). `ton` ∈ `degats\|mort\|subit\|chute\|pare\|succes\|echec\|info\|talent` (`talent` : voir §« Un talent qui s'active tout seul se VOIT ») ; `sequence` (max `Evenement.sequence`) sert de garde-fou anti-rediffusion ; lot ignoré si `sequence` ≤ au dernier appliqué. **`des`** (optionnel) porte le JET qui a produit la ligne — `{atk[], def[], touchante, defensive, attaquant, defenseur, touches, boucliers}` — et sert d'HISTORIQUE : le fil garde ses jets, y compris **ceux des monstres** (l'overlay de la manette ne révélait que sa propre action, 3 s). ⚠ `touchante`/`defensive` sont la **face gagnante de chaque volée**, publiée par le moteur et jamais redéduite côté client : un bouclier blanc pare pour un héros et **rien** pour un monstre, un crâne touche **sauf** contre un éthéré (`bouclier_noir`). Absent quand aucun dé n'a été lancé (dégâts fixes). ⚠ **Depuis le 2026-09-24, un jet peut être UNILATÉRAL** — un dé rouge de résistance, un jet de Mind, un piège de sol : SEULE la cible (ou le piège) lance, `atk`/`def` ne porte alors qu'UNE volée. `touchante`/`defensive` valent soit une face unique (`'crane'` — Mind, piège), soit un **ENSEMBLE** de faces gagnantes (`[5, 6]` — dé rouge, chaque 5 OU 6 compte) : le client compare une face à cet ensemble, il ne choisit jamais lequel gagne. Deux champs optionnels, `libelle_atk`/`libelle_def` (défaut `attaque`/`défend`), renomment le verbe de la ligne quand ce n'est pas une attaque (`résiste`) — décidés par le même formateur, jamais par le composant de dés. Point de passage unique des trois formes : `JournalCombat::desJetUnilateral()`, lu aussi par `SceneDeTable` pour `.table.scene` |
-| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
+| `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par, sans_menace}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. `sans_menace` (2026-09-30, voir §« Unthreatened Movement » plus bas) dit que le dé **comptait 4 sans être lancé**, faute de monstre actif révélé sur le plateau. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
 | `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
@@ -156,6 +188,37 @@ tour, **lancée une seule fois par tour et mémorisée** (doc 03 §3 : base + 1d
 manette affiche le dé puis une mini-carte tappable des cases accessibles ; le
 choix part en `POST choix {option_id: "se_deplacer", parametres: {x, y}}`, que le
 moteur revalide contre `portee` (réservé re-lancé en repli si absent).
+
+#### Unthreatened Movement — sans menace, le dé compte 4 (FL-Q p. 7, First Light, 2026-09-30)
+
+⚠ **« without an active monster on the board, each red die for movement
+counts as a 4 instead of being rolled » (2 dés → 8, 1 dé → 4).** Chez nous
+(base + UN SEUL d6, écart assumé) : sans **monstre actif révélé** n'importe où
+sur le plateau de la quête (`Quete::monstreActifRevele()`, même filtre que
+l'ambiance sonore de la table), le dé — et celui des *Bottes elfiques* — n'est
+**pas lancé** : sa valeur est directement `4` (`App\Engine\Deplacement::VALEUR_SANS_MENACE`).
+`App\Models\Quete::monstreActifRevele()` est le **seul** point de passage de
+cette question, lu par `MenuMoteur::deplacementDuTour()` **et** le repli de
+`ResolveurTour::resoudreDeplacement()`.
+
+`{..., sans_menace}` rejoint `de_annule`/`de_annule_par` dans `parametres` de
+l'option `se_deplacer`, dans `detail_deplacement_tour` (colonne, §2.16), et
+dans `deplacement.sans_menace` de la scène de table (§ ci-dessus,
+`.table.scene`) — **la DÉCISION, publiée déjà prise**, jamais recalculée côté
+client (`docs/regles/front-manette-et-table.md`).
+
+⚠ **Indépendant de `de_annule`, jamais en conflit avec lui** : un dé annulé
+(Armure de plates) reste annulé, menacé ou pas — `sans_menace` ne remplace que
+le JET, `de_annule` décide seul si la valeur (fixe ou lancée) compte dans le
+total. Les deux clés peuvent donc être vraies en même temps sans rien dire
+d'incohérent : le dé vaut 4, et ne compte pas.
+
+⚠ **Conséquences mesurées, assumées plutôt que corrigées en douce** :
+*Évanescence* ne se rompt jamais sur un dé « sans menace » (4 < le seuil de
+rupture, 5) — cohérent, pas un bug ; et l'usure des *Bottes elfiques* sur « dés
+identiques » (`MotsClesEquipement::USURE_SUR_DES_IDENTIQUES`) est **désactivée**
+quand `sansMenace` est vrai, parce que deux dés fixés à 4 seraient *toujours*
+identiques là où la carte parle d'un coup de chance sur un jet réel.
 
 #### Le malus d'armure se VOIT sur le dé (2026-09-24)
 
@@ -502,6 +565,7 @@ transaction. Le MJ IA choisit le profil de lieu ; sans LLM, profil `bourg`.
 | PUT | /groupes/{identifiant}/marche/panier | {achats:[{objet_id,quantite}], ventes:[{inventaire_id}]} | remplace le panier du joueur, annule sa confirmation |
 | POST | /groupes/{identifiant}/marche/confirmation | — | confirme ; si tous confirmés → application + clôture |
 | DELETE | /groupes/{identifiant}/marche | — | annule la phase (rien appliqué) — **membre OU table** |
+| POST | /groupes/{identifiant}/marche/lever-malediction | {personnage_id} | don de 800 po (bourse COMMUNE) qui lève la Malédiction de l'Oracle d'un héros (First Light, lot C) — **membre**, 422 si le héros n'est pas maudit ou si l'or manque. Immédiat, HORS du panier : `{leve, personnage_id, don, or}` + broadcast `.groupe.etat` |
 
 **EtatMarche** : `{profil, multiplicateur, inventaire: [{objet_id, nom, categorie,
 rarete, prix, stock}], paniers: [{joueur_id, pseudo, achats: [...], ventes: [...],
@@ -529,6 +593,21 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 |---|---|---|---|
 | GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description}]` (group-agnostique, comme `/competences`) |
 | POST | /groupes/{identifiant}/mercenaires | {mercenaire_id} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, ou 2ᵉ compagnon animal) |
+
+⚠ **Le Squelette Hearthkin (First Light, FL-Q p. 6, lot C) partage ce
+catalogue SANS jamais y figurer** (`mercenaires.octroi_seul`). Il n'existe
+que par l'action du Cor des Hearthkin (`POST .../choix {option_id:
+"utiliser_objet", parametres: {cle: "objet:{id}"}}`, catégorie `outil`,
+`rarete: unique`) : une action, aucune cible — chaque héros DEBOUT de la
+quête (pas celui qui a soufflé seul) place un squelette **Move 8 · Attack 2
+· Defend 2 · Body 1 · Mind 0** sur une case de SA propre salle ou de son
+couloir ; `recruteur_personnage_id` dit qui le contrôle. Le cor se brise
+(perdu à l'usage, redevient trouvable). Deux divergences NOMMÉES avec la
+carte : il joue dans la MÊME phase alliée que les autres (jamais « juste
+après son porteur »), et comme tout allié de ce projet il n'est jamais la
+cible d'une attaque de monstre (« hors périmètre v1 », voir ci-dessus) —
+`defense` existe sur sa fiche sans lecteur, comme pour tout mercenaire.
+`POST /groupes/{identifiant}/mercenaires` avec son id répond 422.
 
 PNJ **scriptés** (hors roster), **consommés en fin de quête** (purgés à la
 victoire comme à l'échec). Au démarrage de quête ils sont instanciés sur les
@@ -586,18 +665,24 @@ officielles la réclament — *Dark Wings* (Warlock, « Reduce that damage to
 zero ») et *Twisting Torrent* (Moine, « cancel that damage »), toutes deux
 déclenchées **quand leur porteur encaisse**, donc pendant le tour d'un monstre.
 
-**Cinq actions** de réaction existent aujourd'hui (`App\Engine\ReactionEffet`),
+**Huit actions** de réaction existent aujourd'hui (`App\Engine\ReactionEffet`),
 et la proposition porte laquelle dans `action` — le libellé du bouton en
-dépend, « annuler les dégâts » étant faux pour trois d'entre elles :
+dépend, « annuler les dégâts » étant faux pour la plupart d'entre elles :
 
 | `action` | Carte | Ce qu'elle fait |
 |---|---|---|
 | `annule_degats` | *Dark Wings*, *Twisting Torrent* | rend les PV du coup |
-| `plancher_pv` | *Inébranlable* (Chevalier) | les PV tombent à **1**, pas au-dessus — proposée **seulement** sur un coup mortel |
+| `plancher_pv` | *Inébranlable* (Chevalier), *Cendres du Phénix* | les PV tombent à **1**, pas au-dessus — proposée **seulement** sur un coup mortel ; côté artefact, un dé de 5-6 détruit la pièce (`de_artefact`, `artefact_perdu`) |
 | `annule_degats_voisin` | *Parade au bouclier* (Chevalier) | annule le coup d'un héros **au contact** : la proposition va au PROTECTEUR, les PV rendus à la victime (`victime_id`) |
 | `riposte` | *Représailles* (Berserker) | **n'annule rien** : le Berserker encaisse et attaque aussitôt le monstre (`instance_id`), adjacence revérifiée à la résolution |
 | `defi_errant` | *Défi du chevalier* | détourne sur soi le monstre errant qui vient de surgir : il se place au contact et frappe immédiatement |
 | `soin_urgence` | — (potion / sort du héros) | le héros vient de **tomber** : il dépense une potion ou un sort de soin pour rester debout |
+| `relance_attaque` | *Bouclier de l'Aube* (artefact, 2026-09-16) | rend les PV puis force le MONSTRE à relancer TOUTE sa volée d'attaque, défense rejouée — « en mieux comme en pire » (`des_attaque`/`des_defense` du `contexte` de la proposition) |
+| `reflet_sort` | *Bâton Ancien* (artefact, 2026-09-16) | renvoie un sort de Dread (dégâts compris, et les sorts de CONTRÔLE sans dégât via `MoteurDread::sortDreadControle()`) au lanceur et à sa salle ; le porteur et ses compagnons y sont immunisés |
+| `relance_benediction_oracle` | **Bénédiction de l'Oracle**, option (b) (First Light, FL-Q p. 6, lot C 2026-09-30) | rend les PV puis rejoue TOUT le jet de Défense avec des dés neufs — le nouveau résultat remplace l'ancien SANS CHOIX (« keeping the second result obligatorily », un gamble, pas une relance du meilleur) ; la Bénédiction se consomme qu'elle serve ou non. ⚠ SCOPÉ à la Défense — Attaque et Mouvement sont des dettes nommées, voir `docs/regles/artefacts.md` |
+
+⚠ `relance_attaque` et `reflet_sort` existaient déjà (2026-09-16) mais étaient
+absentes de ce tableau — corrigé au passage du lot First Light C.
 
 ⚠ `defi_errant` a un **déclencheur à part** (`errant_revele`) : c'est la seule
 réaction qui ne parte pas d'un coup encaissé, mais d'une carte de fouille qui
@@ -662,8 +747,9 @@ morte.
 héros debout concluait le round en `echouee` avant que le téléphone ait sonné :
 la potion arrivait sur une quête déjà perdue. Le verdict de fin de round est
 désormais **suspendu** tant qu'une proposition capable de relever quelqu'un
-attend — `annule_degats`, `plancher_pv`, `annule_degats_voisin`, `soin_urgence`
-(ni `riposte` ni `defi_errant` : ils frappent, ils ne relèvent personne). La
+attend — `annule_degats`, `plancher_pv`, `annule_degats_voisin`, `soin_urgence`,
+`relance_attaque`, `reflet_sort`, `relance_benediction_oracle` (ni `riposte` ni
+`defi_errant` : ils frappent, ils ne relèvent personne). La
 quête reste `en_cours`, tout le monde à terre, et c'est la **réponse** qui
 tranche : accepter la relève, refuser prononce le TPK.
 
@@ -865,9 +951,13 @@ parleur*, *Méditation*, *Cartographe* — ne se déclenchaient **jamais** en pa
   relance (`relance_jet_mind_rate`).
 - **Une tentative par héros**, réussie ou non (`tentee_par`) : le prix réel est le
   créneau d'ACTION, et les compagnons gardent la leur.
-- Six effets, vocabulaire fermé `App\Engine\MotsClesEpreuve` (registre vérifié
+- Sept effets, vocabulaire fermé `App\Engine\MotsClesEpreuve` (registre vérifié
   dans les deux sens, lecteur déclaré confronté à son fichier) : `or`, `objet`,
-  `parchemin`, `soin_groupe`, `retire_condition`, `desarme_pieges_salle`.
+  `parchemin`, `soin_groupe`, `retire_condition`, `desarme_pieges_salle`, et
+  depuis le lot First Light C (2026-09-30) `oracle` — la SEULE qui paie sur
+  l'ÉCHEC autant que sur la réussite (Bénédiction / Malédiction de l'Oracle,
+  voir §entites[].benediction_oracle plus bas) : `resultat.oracle` vaut
+  `"benediction"` ou `"malediction"` selon l'issue du jet.
 - `epreuves.exige_placement` est une **précondition de POSE**, distincte de
   l'effet : l'*Autel fêlé* ne se pose que dans une salle contenant un piège.
 
@@ -1144,6 +1234,15 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     réussi, il ouvre la/les porte(s) liée(s) par `verrou.levier_id` et révèle ce qu'il y
     a derrière. ⚠ Coûte le créneau d'**action** depuis le 2026-08-24 (c'était une
     interaction gratuite), et se **retente** sans limite.
+- **Bénédiction de l'Oracle, option (a)** (First Light, FL-Q p. 6, lot C
+  2026-09-30) : option `oracle_salle` (id `oracle_salle_{x}_{y}_{cote}`),
+  offerte **à la place** de — et en plus de — `ouvrir_porte` sur n'importe
+  quelle porte fermée adjacente (close OU verrouillée, sans la clé) si le
+  héros porte `benediction_oracle`. `App\Partie\MoteurPortes::ouvrir()` n'est
+  **jamais appelé** : la porte reste close, seule la salle derrière se révèle
+  (même `revelerDerriere()`/`sallesAdjacentesPorte()` que toute ouverture).
+  Interaction LIBRE (notre arbitrage), dépense la Bénédiction. Réponse
+  `{type: "oracle_salle", porte, salles_revelees, benediction_oracle: false}`.
 - **Fouiller — trésor** (option `fouiller_tresor`, type `fouille_tresor`) : action
   SÉPARÉE, offerte dans une **salle « vide »** (rencontres nettoyées) **non encore
   fouillée**. On **pioche une carte de fouille**, à la HeroQuest : le deck est bâti
@@ -1164,6 +1263,24 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   `deck_vide` (deck épuisé → rétrogradé en `rien`), `coffre`, `sac_deborde`
   (l'objet a été remis **au-delà** de la capacité du sac — cf. ci-dessous),
   `objet_indisponible` (carte pointant un objet absent du catalogue).
+
+  **Sly Storage** (FL-Q p. 7, First Light, 2026-09-30) : la salle a une
+  **armoire** (`mobiliers` « Armoire », encore debout — ni détruite) et c'est
+  le **premier** héros du groupe à y fouiller un trésor (`quetes.tresors_fouilles`
+  encore vide pour cette salle, lu AVANT de l'y inscrire) → il tire **DEUX**
+  cartes, résolues dans l'ordre. Le payload porte `armoire: true` sur la carte
+  principale et `carte_armoire` (la seconde carte, de la **même forme** qu'un
+  payload `fouille_tresor`, y compris son propre `declenchement` si elle est un
+  piège). ⚠ La seconde carte **ne marque pas** une seconde entrée de
+  `tresors_fouilles` — ce n'est pas une seconde fouille du héros, c'est le
+  meuble qui en rend une de plus pour le même geste ; elle ne peut non plus
+  **jamais** retomber sur le coffre désigné de la quête (déjà épuisé par la
+  première lecture de `coffrePlein()`), toujours sur le deck ordinaire. ⚠ «
+  Résolues dans l'ordre » n'admet aucune exception : la seconde se tire même si
+  la première est un piège (qui ferme déjà le tour du héros) ou un monstre
+  errant — rien dans le texte ne la conditionne à l'issue de la première.
+  `JournalCombat`/`SceneDeTable` l'annoncent (ligne dédiée + scène « Armoire —
+  seconde carte ») : un effet automatique que rien n'annonce est injouable.
 
   Le monstre errant ne survient **que** par cette action (jamais par « Fouiller la zone »).
 - **Coffre à artefact** : chaque quête désigne **une** salle — la plus profonde dans
@@ -1799,6 +1916,22 @@ par cible) ; Régénération (+1 PV Body au début de son tour, plafonné) ;
 Résistance magique (+2 dés de défense contre les sorts de dégâts des héros) ;
 Charge (si hors contact et joignable : déplacement + attaque à +1 dé).
 
+⚠ **First Light — carte Dragon** (2026-09-30, docs/plan-first-light.md) :
+`vol_draconique` (*Draconic Flight* — même patron que Charge, déplacement +
+attaque dans la même action, mais le CHEMIN traverse les FIGURES, jamais le
+mobilier ni les murs, et sans bonus d'attaque). Payload : `{type:
+"vol_draconique", instance_id, monstre, depart, vers, cible?, touches?,
+boucliers?, degats?, pv_body_apres?, cible_tombee?}` — `cible` **absente**
+quand le Dragon s'est seulement rapproché sans atteindre le contact (recul sur
+la dernière case réellement libre du trajet, jamais une case occupée). Seule la
+traversée est portée : « interrompre son mouvement pour agir puis le finir »
+reste une dette nommée (aucun lecteur, tour de monstre non fractionné).
+`sort_a_volonte` (capacité PARAMÉTRÉE, `{sort: "Boule de Flammes"}`) : ce sort
+échappe au compteur `usages_dread` pour l'instance qui la porte — chaque lancer
+coûte toujours l'action du tour, et le payload reste `{type: "sort_dread",
+...}` sans changement de forme. Divergence assumée : le Spectre, dont la carte
+dit aussi « at will », reste bridé à `USAGES_BASE` — ce lot ne le touche pas.
+
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états ;
 un héros `endormi`/`commande` voit son menu remplacé par un message d'état.
@@ -1843,6 +1976,19 @@ pas retirer « Se déplacer » à un héros qui franchirait un monstre bloquant 
 (traversable, jamais une destination) quand `franchit_figures` vaut vrai pour
 CE héros, au lieu de toujours l'exclure du parcours.
 
+⚠ **`entites[].benediction_oracle` / `malediction_oracle`** (héros seulement,
+First Light FL-Q p. 6, lot C 2026-09-30) — mêmes champs sur `GET /api/moi`
+(`personnages[].benediction_oracle/malediction_oracle`). Deux états DURABLES
+de l'Oracle : la Bénédiction (au choix, une fois : révéler une salle derrière
+une porte fermée adjacente sans l'ouvrir — `type: "oracle_salle"`, interaction
+libre — OU relancer tout un jet de Défense, réaction hors tour, voir
+`RELANCE_BENEDICTION_ORACLE` plus bas) et la Malédiction (jeton Mark of
+Zargon ; le moteur, jamais l'IA, force une relance à la première occasion
+éligible de la quête et garde le résultat le pire pour le héros — annoncé en
+suffixe sur `attaque`/`attaque_monstre`, `malediction_oracle:
+{degats_original, degats_relance, garde}`). Levée par `POST
+/groupes/{id}/marche/lever-malediction`, voir §Phase marché.
+
 ## Modèle de session : Narrateur (table) vs Joueur (compte)
 
 Deux rôles d'entrée distincts (doc 11 §7).
@@ -1867,7 +2013,7 @@ C'est la condition pour qu'une partie soit jouable/reprenable.
 | POST | /api/connexion | {identifiant} | (existant) — nom seul |
 | GET | /api/moi | — | {joueur, personnages: [...]} — chaque perso : `disponible` (pas de groupe), et si engagé `groupe: {identifiant, nom, phase, narrateur_actif}` ; `attribut_body/attribut_mind/des_attaque/des_defense` (fiche perso, invariants hors quête) ; `equipement: {armes: [{inventaire_id, nom, emplacement, bouclier}…], casque, armure, talisman: {inventaire_id, nom}\|null, sac: [{inventaire_id, nom, categorie, rarete, quantite, equipable}], capacite, occupation, maitrises: [tag…]}` (chaque pièce équipée porte son `inventaire_id` pour déséquiper ; `equipable` = objet du sac montable dans un slot — voir §Équipement) |
 | POST | /api/personnages | {nom, classe, elements?} | crée un perso du roster (libre) |
-| POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé |
+| POST | /api/groupes | {nom, theme, longueur, ton?, personnage_id, bestiaire_boites?} | crée un groupe DEPUIS un perso LIBRE du joueur (le perso le rejoint comme fondateur) ; 422 si perso déjà engagé ; `bestiaire_boites` absent/`null` = automatique, liste (vide comprise) = manuel — voir §Bestiaire automatique ou manuel |
 | POST | /api/groupes/{identifiant}/joueurs | {personnage_id} | rejoint par code avec un perso libre (existant, + accepte {nom,classe}) |
 
 Le `personnages[].groupe.narrateur_actif` (bool) pilote le bouton « Reprendre »

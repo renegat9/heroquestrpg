@@ -94,13 +94,6 @@ final class ReactionEffet
      */
     public const SOIN_URGENCE = 'soin_urgence';
 
-    /** @return list<string> */
-    public static function actionsToutes(): array
-    {
-        return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
-            self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE];
-    }
-
     /**
      * Actions dont l'acceptation peut REMETTRE UN HÉROS DEBOUT — et qui, tant
      * qu'elles attendent une réponse, SUSPENDENT le verdict de TPK.
@@ -143,6 +136,26 @@ final class ReactionEffet
      */
     public const REFLET_SORT = 'reflet_sort';
 
+    /**
+     * *Bénédiction de l'Oracle*, option (b) (First Light, FL-Q p. 6) : « after
+     * an Attack or Defense roll, reroll ALL dice, keeping the second result »
+     * — un gamble, jamais un choix du meilleur des deux. SCOPÉ à la DÉFENSE
+     * (le héros encaisse une attaque de monstre) : c'est le seul des deux cas
+     * de la carte qui arrive déjà HORS TOUR dans ce moteur (l'attaque du
+     * héros se résout, elle, dans SA propre requête — rejouer un monstre déjà
+     * vaincu après coup exigerait de défaire des effets en cascade — butin,
+     * regain de sort sur mise à mort, fermeture de salle — pour lesquels ce
+     * projet n'a aucune couture d'annulation ; dette NOMMÉE, voir
+     * `docs/regles/artefacts.md`). Le mouvement reste hors périmètre pour la
+     * même raison que CLAUDE.md demande de nommer plutôt que d'omettre : le
+     * d6 de déplacement est tiré UNE SEULE FOIS par tour, en cache de menu
+     * (`MenuMoteur::deplacementDuTour()`), pas au fil d'une résolution de
+     * combat — un second chantier, pas une extension de celui-ci.
+     * Lecteur : `MoteurReactions` (`deposerRelanceBenedictionOracle()`,
+     * `relancerBenedictionOracle()`).
+     */
+    public const RELANCE_BENEDICTION_ORACLE = 'relance_benediction_oracle';
+
     public const ACTIONS_RELEVANTES = [
         self::ANNULE_DEGATS,
         self::PLANCHER_PV,
@@ -153,6 +166,9 @@ final class ReactionEffet
         // pendant qu'une offre pouvait encore l'annuler.
         self::RELANCE_ATTAQUE,
         self::REFLET_SORT,
+        // La Bénédiction de l'Oracle rejoue tout l'échange : le nouveau jet
+        // peut tout aussi bien relever un héros que l'achever.
+        self::RELANCE_BENEDICTION_ORACLE,
     ];
 
     /** @return list<string> */
@@ -165,6 +181,14 @@ final class ReactionEffet
     public static function actions(): array
     {
         return [self::ANNULE_DEGATS];
+    }
+
+    /** @return list<string> */
+    public static function actionsToutes(): array
+    {
+        return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
+            self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE,
+            self::RELANCE_ATTAQUE, self::REFLET_SORT, self::RELANCE_BENEDICTION_ORACLE];
     }
 
     /**

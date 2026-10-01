@@ -6,7 +6,7 @@ use App\Models\Epreuve;
 use Illuminate\Database\Seeder;
 
 /**
- * Les 7 ÉPREUVES du catalogue — des ancrages posés sur la carte du donjon
+ * Les 8 ÉPREUVES du catalogue (7 + l'Oracle, lot First Light C) — des ancrages posés sur la carte du donjon
  * auxquels un héros à leur contact peut tenter un jet d'attribut (doc 01 §5,
  * bonus d'attribut des talents).
  *
@@ -90,6 +90,20 @@ class EpreuveSeeder extends Seeder
                 'attribut' => 'body',
                 'difficulte' => 3,
                 'effet' => ['mecanique' => 'objet'],
+            ],
+            // ORACLE (First Light, FL-Q p. 6, lot C, 2026-09-30) : l'unique
+            // épreuve qui paie dans les DEUX branches, voir
+            // `App\Engine\MotsClesEpreuve::MECANIQUES['oracle']` et
+            // `ResolveurTour::epreuveOracle()`. Attribut MIND, contexte et
+            // difficulté sont NOTRE arbitrage — le livret ne donne ni l'un ni
+            // l'autre, seulement les deux effets qui suivent le jet.
+            [
+                'nom' => 'L\'Oracle de Zargon',
+                'description' => "Une présence froide s'éveille dans la pierre et vous jauge ; affronter son jugement, d'un jet de Mind, attire soit sa faveur, soit sa marque.",
+                'attribut' => 'mind',
+                'difficulte' => 3,
+                'contexte' => 'social_peur',
+                'effet' => ['mecanique' => 'oracle'],
             ],
         ];
 

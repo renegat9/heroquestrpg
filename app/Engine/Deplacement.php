@@ -29,9 +29,20 @@ use App\Engine\Des\LanceurDes;
  *
  * Les monstres ont un déplacement FIXE (doc 09 §1) : ils n'utilisent pas
  * cette classe — leur valeur de catalogue est appliquée telle quelle.
+ *
+ * `$sansMenace` (FL-Q p. 7, First Light, 2026-09-30 — *Unthreatened
+ * Movement* : « without an active monster on the board, each red die for
+ * movement counts as a 4 instead of being rolled ») : aucun jet, chaque dé
+ * (le socle ET ceux des Bottes elfiques — toujours « un dé de mouvement ») vaut
+ * directement `VALEUR_SANS_MENACE`. Le JEU DE BASE suit son propre écart
+ * (base de classe + 1d6, pas deux dés sans base), déjà assumé ailleurs — ce
+ * n'en ajoute pas un second, la substitution porte sur LE dé qu'on lance ici.
  */
 final class Deplacement
 {
+    /** FL-Q p. 7 : la valeur fixe d'un dé de mouvement non menacé. */
+    public const VALEUR_SANS_MENACE = 4;
+
     public function __construct(private readonly LanceurDes $des) {}
 
     /**
@@ -49,9 +60,18 @@ final class Deplacement
      * héros en Plate Mail ET aux Bottes elfiques (cas rare, non sourcé) perd
      * donc les DEUX dés — la carte ne distingue pas « le premier dé » d'« un
      * dé en plus », et une exception non sourcée serait une règle inventée.
+     *
+     * ⚠ `$sansMenace` et `$deAnnule` sont INDÉPENDANTS : un dé annulé reste
+     * annulé, menace ou pas — `$sansMenace` ne fait que remplacer le JET par
+     * une valeur fixe, `$deAnnule` décide seul si cette valeur (fixe ou
+     * lancée) compte dans `$total`.
      */
-    public function calculer(int $base, bool $deAnnule = false, int $desSupplementaires = 0): ResultatDeplacement
-    {
+    public function calculer(
+        int $base,
+        bool $deAnnule = false,
+        int $desSupplementaires = 0,
+        bool $sansMenace = false,
+    ): ResultatDeplacement {
         if ($base < 0) {
             throw new \InvalidArgumentException("Base de déplacement invalide : {$base}.");
         }
@@ -59,7 +79,7 @@ final class Deplacement
         $des = [];
 
         for ($i = 0; $i <= max(0, $desSupplementaires); $i++) {
-            $des[] = $this->des->d6();
+            $des[] = $sansMenace ? self::VALEUR_SANS_MENACE : $this->des->d6();
         }
 
         return new ResultatDeplacement(
@@ -68,6 +88,7 @@ final class Deplacement
             total: $deAnnule ? max(1, $base) : max(1, $base + array_sum($des)),
             deAnnule: $deAnnule,
             des: $des,
+            sansMenace: $sansMenace,
         );
     }
 }

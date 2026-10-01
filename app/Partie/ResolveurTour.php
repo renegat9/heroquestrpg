@@ -25,6 +25,7 @@ use App\Events\EtatGroupeDiffuse;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Events\SceneTable as SceneTableEvent;
+use App\Models\Carte;
 use App\Models\Condition;
 use App\Models\Epreuve;
 use App\Models\EtatPersonnageQuete;
@@ -33,6 +34,7 @@ use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
+use App\Models\Mercenaire;
 use App\Models\Mobilier;
 use App\Models\Monstre;
 use App\Models\Objet;
@@ -187,6 +189,7 @@ final class ResolveurTour
         private readonly DonObjet $donObjet,
         private readonly SeanceEchange $seanceEchange,
         private readonly AnnoncesTalents $annonces,
+        private readonly MoteurOracle $oracle,
     ) {}
 
     /**
@@ -408,6 +411,7 @@ final class ResolveurTour
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -775,8 +779,11 @@ final class ResolveurTour
         // point de passage que `MenuMoteur::deplacementDuTour()` — sous peine
         // que ce repli recalcule un total que le menu n'a pas annoncé.
         $base = (int) $personnage->deplacement_base + $this->equipement->bonusDeplacementActif($personnage, $quete);
+        // UNTHREATENED MOVEMENT (FL-Q p. 7) : même prédicat que le menu
+        // (`Quete::monstreActifRevele()`) — ce repli ne doit jamais annoncer
+        // un total que `MenuMoteur::deplacementDuTour()` n'aurait pas donné.
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage))
+            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage), sansMenace: ! $quete->monstreActifRevele())
             ->total;
         // ⚠ Face RÉELLE d'abord (colonne persistée par le menu), jamais
         // reconstituée par soustraction — même défaut, même correctif que
@@ -1618,6 +1625,20 @@ final class ResolveurTour
                 relanceFaceMaximum: $relanceFace['nombre'],
             );
 
+        // MALÉDICTION DE L'ORACLE (First Light, FL-Q p. 6, lot C) : Zargon,
+        // MOTEUR et non IA, force une fois par quête la relance COMPLÈTE de
+        // l'échange et garde le résultat le pire pour le héros — ici, le
+        // moins de dégâts infligés au monstre. Inséré AVANT tout
+        // post-traitement (Perforante, force glaciale) : ces bonus
+        // s'appliquent au résultat RETENU, exactement comme ils l'auraient
+        // fait sur un jet ordinaire.
+        $maledictionOracle = $this->oracle->appliquerSiMaudit(
+            $resultat, false, $desAttaqueEffectifs,
+            max(0, $instance->defenseEffective() - $desDefenseIgnores),
+            $personnage, $etat, $this->des,
+        );
+        $resultat = $maledictionOracle['resultat'];
+
         // Perforante (Forge) : « Annule 1 bouclier de la défense de la
         // cible » — sur les boucliers RÉELLEMENT obtenus, jamais un dé de
         // défense en moins avant le jet (`$desDefenseIgnores`, plus haut).
@@ -1724,6 +1745,9 @@ final class ResolveurTour
             'portee' => $tirADistance ? 'distance' : 'corps_a_corps',
             'cible_etheree' => $ethere,
             'des_attaque_effectifs' => $desAttaqueEffectifs,
+            // Malédiction de l'Oracle : `null` tant qu'elle n'a pas joué —
+            // un effet automatique que rien n'annonce est injouable.
+            'malediction_oracle' => $maledictionOracle['detail'],
             'cible' => [
                 'instance_id' => $instance->id,
                 'nom' => $instance->nomAffiche(),
@@ -3676,19 +3700,19 @@ final class ResolveurTour
         }
 
         // ÉPREUVE (2026-08-24) : la tentative est dépensée QUOI QU'IL ARRIVE —
-        // une par héros —, et l'effet ne s'applique qu'à la réussite. C'est le
-        // créneau d'action qui fait le prix, pas un nombre d'essais.
+        // une par héros —, et l'effet ne s'applique qu'à la réussite — SAUF
+        // l'Oracle (lot C), qui en produit un dans les deux cas : c'est
+        // pourquoi `$succes` est désormais passé à `resoudreEpreuve()` plutôt
+        // que de garder l'appel entier derrière `estReussi()`.
         if (isset($option['parametres']['epreuve']) && $quete->carte !== null) {
             $index = (int) $option['parametres']['epreuve'];
             $this->epreuves->marquerTentee($quete->carte, $index, (int) $personnage->id);
 
             $payload['epreuve'] = $option['parametres']['nom'] ?? null;
 
-            if ($resultat->estReussi()) {
-                $payload = [...$payload, ...$this->resoudreEpreuve(
-                    $groupe, $quete->fresh()->load('carte'), $personnage, $etat, $index,
-                )];
-            }
+            $payload = [...$payload, ...$this->resoudreEpreuve(
+                $groupe, $quete->fresh()->load('carte'), $personnage, $etat, $index, $resultat->estReussi(),
+            )];
         }
 
         // MOBILIER FRACASSÉ : même règle de tentative, et la pièce cesse de
@@ -5893,6 +5917,71 @@ final class ResolveurTour
     }
 
     /**
+     * BÉNÉDICTION DE L'ORACLE, option (a) (First Light, FL-Q p. 6) :
+     * « ask Zargon to reveal a room behind a closed adjacent door » — SANS
+     * l'ouvrir. Même porte que `resoudreOuvrirPorte()` ci-dessus (close OU
+     * verrouillée, peu importe : l'Oracle ne force rien, il montre), mais
+     * `$this->portes->ouvrir()` n'est JAMAIS appelé — c'est tout l'écart avec
+     * une ouverture réelle. `revelerDerriere()`/`sallesAdjacentesPorte()` sont
+     * le même point de passage que toute autre révélation de salle (doc
+     * « every door-opening path reveals the room »), même si ici aucune porte
+     * ne change d'état.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreOracleSalle(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        if (! $this->oracle->benedictionDisponible($personnage)) {
+            throw ValidationException::withMessages(['option_id' => "La Bénédiction de l'Oracle n'est plus disponible."]);
+        }
+
+        $x = (int) data_get($option, 'parametres.porte.x', -1);
+        $y = (int) data_get($option, 'parametres.porte.y', -1);
+        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+
+        $cible = $quete->carte === null ? null
+            : $this->portes->porteFermeeAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($cible === null
+            || (int) $cible['porte']['x'] !== $x
+            || (int) $cible['porte']['y'] !== $y
+            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte fermée adjacente à cette position.']);
+        }
+
+        $avant = $quete->sallesDecouvertes();
+
+        foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
+            $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
+        }
+
+        $sallesRevelees = array_values(array_diff($quete->fresh()->sallesDecouvertes(), $avant));
+
+        $this->oracle->consommerBenediction($personnage);
+
+        $payload = [
+            'type' => 'oracle_salle',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+            'salles_revelees' => $sallesRevelees,
+            'benediction_oracle' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * Génie, second mode : « ouvre une porte AU CHOIX » (Kellar's Keep p. 15).
      *
      * Aucune adjacence requise — c'est tout l'intérêt : ouvrir à distance une
@@ -6636,6 +6725,8 @@ final class ResolveurTour
             $payload += $this->poserChausseTrappes($quete, $personnage, $etat);
         } elseif (! empty($effet['enfume_monstre_adjacent'])) {
             $payload += $this->enfumerMonstre($groupe, $quete, $etat, $cibleId);
+        } elseif (! empty($effet['invoque_squelettes_hearthkin'])) {
+            $payload += $this->resoudreCorHearthkin($groupe, $quete);
         } elseif ($ligne->objet?->categorie === 'consommable') {
             // ⚠ `MoteurPotions` reste L'AUTORITÉ — restrictions de classe,
             // `une_par_tour`, relève sur soin, décrément de la pile. On lui
@@ -6807,6 +6898,111 @@ final class ResolveurTour
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
             'enfume' => true,
         ];
+    }
+
+    /**
+     * COR DES HEARTHKIN (First Light, FL-Q p. 6) : « each hero places a
+     * Hearthkin Skeleton on a square within their room or corridor ». Un
+     * Squelette par héros DEBOUT de la quête, chacun dans SA propre zone —
+     * jamais seulement celle du souffleur, la carte parle de CHAQUE héros.
+     *
+     * Réutilise le patron des alliés recrutés (`App\Models\GroupeMercenaire`,
+     * `recruteur_personnage_id` = le héros qui contrôle ce squelette-ci) :
+     * purge déjà acquise en fin/échec de quête (`ResolveurTour::donjonNettoye()`
+     * / `terminerQuete()`), rien à ajouter là. Les DEUX divergences avec le
+     * texte de la carte sont nommées sur `App\Engine\MotsClesEquipement::INVOQUE_SQUELETTES_HEARTHKIN`.
+     *
+     * ⚠ Un héros TOMBÉ ne pose rien (NOTRE arbitrage) : un héros à terre ne
+     * joue aucun tour, un allié qu'il « contrôlerait » sans jamais pouvoir le
+     * faire jouer n'aurait aucun sens. ⚠ Un héros sans zone libre (salle ou
+     * couloir saturé) n'en reçoit tout simplement pas — mieux qu'un échec dur
+     * sur un geste dont le texte ne prévoit aucune condition.
+     *
+     * @return array<string, mixed>
+     */
+    private function resoudreCorHearthkin(Groupe $groupe, Quete $quete): array
+    {
+        $squelette = Mercenaire::where('nom', 'Squelette Hearthkin')->first();
+        $carte = $quete->carte;
+
+        if ($squelette === null || $carte === null) {
+            return ['squelettes_invoques' => []];
+        }
+
+        $grille = $this->grille($quete);
+        $prises = [];
+        $invoques = [];
+
+        foreach ($quete->etatsPersonnages()->where('tombe', false)->whereNotNull('position_x')->with('personnage')->get() as $etatHeros) {
+            $heros = $etatHeros->personnage;
+
+            if ($heros === null) {
+                continue;
+            }
+
+            $case = $this->caseLibrePourSquelette(
+                $carte, $grille, (int) $etatHeros->position_x, (int) $etatHeros->position_y, $prises,
+            );
+
+            if ($case === null) {
+                continue; // zone saturée : ce héros n'a nulle part où poser le sien
+            }
+
+            $allie = GroupeMercenaire::create([
+                'groupe_id' => $groupe->id,
+                'mercenaire_id' => $squelette->id,
+                'recruteur_personnage_id' => $heros->id,
+                'pv_body' => (int) $squelette->pv_body,
+                'position_x' => $case['x'],
+                'position_y' => $case['y'],
+                'etat' => 'actif',
+            ]);
+
+            $invoques[] = [
+                'personnage_id' => $heros->id,
+                'personnage' => $heros->nom,
+                'allie_id' => $allie->id,
+                'x' => $case['x'],
+                'y' => $case['y'],
+            ];
+        }
+
+        return ['squelettes_invoques' => $invoques];
+    }
+
+    /**
+     * Une case LIBRE de la zone (salle ou couloir, `ZoneFouille` — même
+     * notion que « Fouiller la zone », déjà « the room or corridor you are
+     * in ») qui contient `($hx, $hy)`. `$prises` est tenue PAR L'APPELANT à
+     * travers tous les héros du même appel : la `Grille` prise au début de
+     * `resoudreCorHearthkin()` ne voit aucun des squelettes posés dans la
+     * même boucle, donc rien d'autre n'empêcherait deux héros de la même
+     * salle de se voir attribuer la même case.
+     *
+     * @param  array<string, true>  &$prises  clés « x,y » déjà attribuées
+     * @return array{x: int, y: int}|null
+     */
+    private function caseLibrePourSquelette(Carte $carte, Grille $grille, int $hx, int $hy, array &$prises): ?array
+    {
+        $zone = ZoneFouille::de((array) $carte->grille, $hx, $hy);
+        $largeur = (int) ($carte->grille['largeur'] ?? 0);
+        $hauteur = (int) ($carte->grille['hauteur'] ?? 0);
+
+        for ($y = 0; $y < $hauteur; $y++) {
+            for ($x = 0; $x < $largeur; $x++) {
+                $cle = "{$x},{$y}";
+
+                if (isset($prises[$cle]) || ! $zone->contient($x, $y) || ! $grille->estTraversable($x, $y)) {
+                    continue;
+                }
+
+                $prises[$cle] = true;
+
+                return ['x' => $x, 'y' => $y];
+            }
+        }
+
+        return null;
     }
 
     private function resoudreActionnerLevier(
@@ -7085,6 +7281,18 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
         }
 
+        // SLY STORAGE (FL-Q p. 7, First Light) : « le PREMIER héros à tirer
+        // une carte trésor dans une salle AVEC UNE ARMOIRE en tire DEUX,
+        // résolues dans l'ordre. » « Premier » se lit sur l'état durable
+        // EXISTANT (§2.16 — jamais une colonne neuve pour ça) : aucune
+        // fouille de trésor n'est encore enregistrée pour cette salle, par
+        // QUI QUE CE SOIT — `tresorsFouilles()` le dit déjà, et il faut
+        // l'interroger AVANT que la ligne du dessous n'y inscrive la nôtre.
+        $premierDeLaSalle = ! in_array($salle, $quete->tresorsFouilles(), true);
+        $carteQuete = $quete->carte;
+        $armoire = $premierDeLaSalle && $carteQuete !== null
+            && $this->mobilier->salleContientType($carteQuete, $salle, 'Armoire');
+
         // Interrogé AVANT de marquer : `marquerTresorFouille` inscrit la salle
         // dans la liste dont `coffrePlein` se déduit.
         $coffre = $quete->coffrePlein($salle);
@@ -7112,6 +7320,56 @@ final class ResolveurTour
         }
 
         $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+
+        if ($armoire) {
+            // DEUXIÈME CARTE, résolue dans l'ordre. ⚠ Elle ne consomme PAS une
+            // seconde entrée de `tresors_fouilles` : ce n'est pas une seconde
+            // fouille du héros (Fouineur/`fouille_supplementaire` compterait
+            // alors le bonus de l'armoire comme l'une de ses fouilles
+            // supplémentaires), c'est le MEUBLE qui rend une carte de plus
+            // pour le même geste — déjà marqué ci-dessus.
+            //
+            // ⚠ Le coffre de la quête, s'il y en avait un ici, est déjà
+            // épuisé : `coffrePlein()` a été lu avant que `marquerTresorFouille()`
+            // n'inscrive la salle, donc un second appel le trouverait faux de
+            // toute façon — la seconde carte de l'armoire vient donc TOUJOURS
+            // du deck ordinaire, jamais une seconde fois du coffre désigné (un
+            // passage secret ou la salle du boss ne doivent pas payer double
+            // parce qu'ils tombent aussi sur une armoire).
+            //
+            // ⚠ « Résolues dans l'ordre » ne connaît pas d'exception dans le
+            // texte : si la PREMIÈRE carte est un piège — qui ferme déjà le
+            // tour du héros, `a_joue` posé dans `declencherEphemere()` — ou un
+            // monstre errant, la seconde se tire quand même. Rien ne la
+            // conditionne à l'issue de la première : c'est l'armoire qui rend
+            // deux cartes, pas le héros qui agit deux fois.
+            [$carteArmoire, $ecarteeArmoire] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
+
+            // ⚠ PAS `'armoire' => true` ici : ce drapeau dit « cette carte a
+            // DÉCLENCHÉ le bonus » (lu par `SceneDeTable::fouille()` pour le
+            // sous-titre de la PREMIÈRE scène) — la seconde carte, elle, EST
+            // le bonus, son identité ressort déjà de `carte_armoire`.
+            $enteteArmoire = [
+                'type' => 'fouille_tresor',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'salle' => $salle,
+            ];
+
+            if ($ecarteeArmoire !== null) {
+                $enteteArmoire['carte_ecartee'] = $ecarteeArmoire;
+            }
+
+            // Un effet automatique que rien n'annonce est injouable : le
+            // payload porte `armoire` sur la carte PRINCIPALE (le pourquoi) et
+            // `carte_armoire` (la seconde carte, résolue au grand complet) —
+            // `JournalCombat`/`SceneDeTable` les lisent pour l'annoncer sur la
+            // manette ET la table.
+            $payload['armoire'] = true;
+            $payload['carte_armoire'] = $this->appliquerButin(
+                $carteArmoire, $enteteArmoire, $groupe, $quete, $personnage, $etat,
+            );
+        }
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -7446,6 +7704,7 @@ final class ResolveurTour
         Personnage $personnage,
         EtatPersonnageQuete $etat,
         int $index,
+        bool $succes,
     ): array {
         $entree = ($quete->carte->grille['epreuves'] ?? [])[$index] ?? null;
 
@@ -7461,8 +7720,22 @@ final class ResolveurTour
 
         $effet = (array) $type->effet;
         $valeur = (int) ($effet['valeur'] ?? 0);
+        $mecanique = (string) ($effet['mecanique'] ?? '');
 
-        return match ((string) ($effet['mecanique'] ?? '')) {
+        // ⚠ L'ORACLE est la SEULE des sept mécaniques à produire un effet sur
+        // L'ÉCHEC autant que sur la réussite (Bénédiction / Malédiction) —
+        // voir `App\Engine\MotsClesEpreuve::MECANIQUES['oracle']`. Elle sort
+        // donc du `match` ci-dessous, qui reste gardé par `$succes` pour les
+        // six autres, exactement comme avant ce lot.
+        if ($mecanique === 'oracle') {
+            return $this->epreuveOracle($personnage, $succes);
+        }
+
+        if (! $succes) {
+            return [];
+        }
+
+        return match ($mecanique) {
             'or' => $this->epreuveOr($groupe, $valeur),
             'objet' => $this->epreuveObjet($personnage, ['consommable']),
             'parchemin' => $this->epreuveObjet($personnage, ['parchemin']),
@@ -7471,6 +7744,30 @@ final class ResolveurTour
             'desarme_pieges_salle' => $this->epreuveDesarmeSalle($quete, (int) ($entree['salle'] ?? -1)),
             default => [],
         };
+    }
+
+    /**
+     * L'ÉPREUVE DE L'ORACLE (First Light, FL-Q p. 6, lot C) : réussie →
+     * Bénédiction de l'Oracle, ratée → Malédiction de l'Oracle (jeton Mark of
+     * Zargon). Les deux sont des états DURABLES écrits par `MoteurOracle`,
+     * jamais recalculés ici.
+     *
+     * ⚠ NOTRE arbitrage, écrit comme tel (la carte ne le précise pas) :
+     * l'attribut testé est MIND, contexte `social_peur` (faire face au
+     * jugement de l'Oracle), difficulté 3 — un jet plus dur que la moyenne
+     * des épreuves, à la mesure de l'enjeu (bénédiction OU malédiction).
+     */
+    private function epreuveOracle(Personnage $personnage, bool $succes): array
+    {
+        if ($succes) {
+            $this->oracle->accorderBenediction($personnage);
+
+            return ['oracle' => 'benediction'];
+        }
+
+        $this->oracle->accorderMalediction($personnage);
+
+        return ['oracle' => 'malediction'];
     }
 
     /** Or versé à la bourse COMMUNE, comme tout l'or du jeu (M3). */
@@ -7739,12 +8036,17 @@ final class ResolveurTour
         // Toujours le MÊME monstre pour une quête donnée — « le monstre errant
         // de la quête » du plateau : le moins cher du bestiaire de base, choix
         // déterministe.
+        //
+        // ⚠ Bestiaire MANUEL (2026-09-28) : jamais une boîte non cochée — le
+        // moins cher du bestiaire AUTORISÉ, pas du catalogue entier.
+        $bestiaire = BestiaireGroupe::duGroupe($quete->groupe);
         $monstre = Monstre::query()
             ->where('tier', 'base')
             ->where('cout', '>', 0)
             ->orderBy('cout')
             ->orderBy('id')
-            ->first();
+            ->get()
+            ->first(fn (Monstre $m) => $bestiaire->autorise($m->boite));
 
         if ($monstre === null) {
             return null;
@@ -8705,6 +9007,17 @@ final class ResolveurTour
             pvBodyDefenseur: (int) $personnage->pv_body,
         );
 
+        // MALÉDICTION DE L'ORACLE (First Light, FL-Q p. 6, lot C) : Zargon
+        // force, à la première occasion éligible de la quête, la relance
+        // COMPLÈTE de cet échange et garde le résultat le pire pour le héros
+        // — ici, le plus de dégâts subis. AVANT `infligerAHeros()` : la
+        // réaction hors tour (Dark Wings, Bouclier de l'Aube, Bénédiction de
+        // l'Oracle…) doit voir le jet DÉJÀ maudit, jamais l'inverse.
+        $maledictionOracle = $this->oracle->appliquerSiMaudit(
+            $resultat, true, $volee, $garde, $personnage, $cible, $this->des,
+        );
+        $resultat = $maledictionOracle['resultat'];
+
         $subis = $this->degats->infligerAHeros(
             $personnage, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE,
             // `instance_id` : *Représailles* (Berserker) rend le coup à CE
@@ -8790,6 +9103,7 @@ final class ResolveurTour
             'repli' => $repli,
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
+            'malediction_oracle' => $maledictionOracle['detail'],
             'degats' => $subis,
             'pv_body_apres' => (int) $personnage->pv_body,
             'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
@@ -9144,7 +9458,11 @@ final class ResolveurTour
             // une pièce du sac à chaque geste — la suite est FINIE et
             // DÉCROISSANTE, se répéter est le but voulu, pas la faille que le
             // levier avait ouverte.
-            'ouvrir_porte', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter' => 'interaction',
+            // `oracle_salle` REJOINT cette liste (lot First Light C) : NOTRE
+            // arbitrage — demander à l'Oracle de révéler une salle derrière
+            // une porte fermée, sans l'ouvrir, est la même interaction LIBRE
+            // qu'ouvrir cette même porte à la main, pas une action dépensée.
+            'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —

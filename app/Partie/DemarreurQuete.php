@@ -182,10 +182,13 @@ final class DemarreurQuete
         // recalculé à chaque quête changerait de modulo SOUS une campagne EN
         // COURS — passant de la jungle à la banquise entre deux portes, ce que
         // `themeBestiaire()` interdit déjà en commentaire pour le boss final.
-        if ($groupe->theme_bestiaire === null) {
+        //
+        // ⚠ Bestiaire MANUEL (2026-09-28) : rien à tirer, les boîtes ont été
+        // cochées à la création — `theme_bestiaire` reste `null`.
+        if ($groupe->theme_bestiaire === null && $groupe->boites_bestiaire === null) {
             $groupe->update(['theme_bestiaire' => $this->themeBestiaire((int) $groupe->id)]);
         }
-        $theme = $groupe->theme_bestiaire;
+        $bestiaire = BestiaireGroupe::duGroupe($groupe);
 
         // Deck de fouille + coffre à artefact : bâtis DEDANS l'assemblage,
         // via la fermeture ci-dessous, PAS après (René, 2026-09-18 — la
@@ -203,7 +206,7 @@ final class DemarreurQuete
         // (`$fouille`) pour la suite de cette méthode.
         $fouille = null;
         $carte = $this->assembleur->assembler(
-            $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance, $theme,
+            $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance, $bestiaire,
             function (array $cartePartielle) use ($gabarit, $groupe, $positionArc, &$fouille): array {
                 $fouille = $this->deck->construire($gabarit, $cartePartielle, $groupe, $positionArc);
 
@@ -219,7 +222,7 @@ final class DemarreurQuete
             : min(100, $chance + AssembleurCarte::PALIER_PASSAGE_SECRET)]);
         $budget = $this->budgetRencontres($groupe, $positionArc, $typeJalon);
         $monstres = $this->acheterMonstres(
-            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $theme,
+            $gabarit->structure ?? [], $budget, count($carte['spawn_monstres']), $positionArc, (int) $groupe->id, $bestiaire,
         );
 
         if (count($carte['spawn_heros']) < $heros->count()) {
@@ -517,6 +520,12 @@ final class DemarreurQuete
         // colonne, une campagne en cours serait passée de la jungle à la banquise
         // entre deux quêtes.
         'horreur_des_glaces',
+        // Ajoutée le 2026-09-30 (René) : même raison, modulo 5 → 6, même garde-fou
+        // (la colonne figée protège toute campagne déjà en cours). Boss :
+        // le Dragon (`MonstreSeeder`, `grande_taille`, `vol_draconique`,
+        // `sort_a_volonte`) — voir `database/seeders/GabaritQueteSeeder.php`
+        // (`rencontre_finale.creatures`) pour la rencontre finale.
+        'first_light',
     ];
 
     /**
@@ -619,6 +628,11 @@ final class DemarreurQuete
         'jungles_delthrak' => 'Jungles of Delthrak',
         // reference/18_extensions.md ligne 504 : « The Frozen Horror »
         'horreur_des_glaces' => 'The Frozen Horror',
+        // reference/18_extensions.md ligne 1536 : « First Light (2024) » —
+        // l'année fait partie du TITRE de section imprimé par René dans le
+        // document, jamais de la boîte elle-même (aucune autre entrée ne
+        // porte son année, et Hasbro ne date pas le nom sur la boîte).
+        'first_light' => 'First Light',
     ];
 
     /**
@@ -713,26 +727,25 @@ final class DemarreurQuete
      * d'ennemis faibles + quelques ennemis forts » (config `jeu.rencontres`).
      *
      * @param  array<string, mixed>  $structure
-     * @param  ?string  $theme  thème FIGÉ du groupe (`themeBestiaireDuGroupe()`),
-     *                          transmis par l'appelant — repli sur
-     *                          `themeBestiaire($graineGroupe)` quand absent
-     *                          (appel direct en test, `$graineGroupe` sert
-     *                          alors lui-même de graine de thème comme avant
-     *                          cette colonne).
+     * @param  ?BestiaireGroupe  $bestiaire  bestiaire du groupe (automatique ou
+     *                          manuel, `BestiaireGroupe::duGroupe()`), transmis
+     *                          par l'appelant — repli sur la rotation
+     *                          automatique de `$graineGroupe` quand absent
+     *                          (appel direct en test par réflexion).
      * @return list<Monstre>
      */
-    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?string $theme = null): array
+    private function acheterMonstres(array $structure, int $budget, int $maxSpawns, int $positionArc, int $graineGroupe = 0, ?BestiaireGroupe $bestiaire = null): array
     {
         $achats = [];
         $restant = $budget;
         // ⚠ Une SEULE résolution du thème pour toute la méthode — le pool du
         // boss final et le tri des monstres « forts » lisaient jusqu'ici
         // chacun leur propre `themeBestiaire($graineGroupe)`, deux appels pour
-        // la même valeur. `$theme` (déjà résolu par l'appelant depuis la
-        // colonne figée du groupe) prévaut ; le repli ne sert qu'aux deux
+        // la même valeur. `$bestiaire` (déjà résolu par l'appelant depuis le
+        // groupe) prévaut ; le repli ne sert qu'aux deux
         // tests qui invoquent cette méthode directement par réflexion avec un
         // simple entier.
-        $theme ??= $this->themeBestiaire($graineGroupe);
+        $bestiaire ??= BestiaireGroupe::auto($this->themeBestiaire($graineGroupe));
 
         $tierFinal = data_get($structure, 'rencontre_finale.tier');
         if (is_string($tierFinal)) {
@@ -776,7 +789,11 @@ final class DemarreurQuete
                     ->where(function ($q) use ($pool, $creatures) {
                         $q->whereIn('archetype_lanceur', $pool)->orWhereIn('nom_base', $creatures);
                     })
-                    ->orderBy('id')->get();
+                    ->orderBy('id')->get()
+                    // Bestiaire MANUEL : un FILTRE, avant toute préférence —
+                    // une boîte non cochée n'entre jamais (2026-09-28).
+                    ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boite))
+                    ->values();
 
                 // ⚠ ROTATION, pas tirage — et la distinction est celle que le
                 // projet fait déjà entre `salle_artefact` et le deck de fouille.
@@ -797,7 +814,7 @@ final class DemarreurQuete
                 // le pool entier. Une préférence, pas un filtre — c'est ce qui
                 // permet à une boîte pauvre en boss (la Horde ogre n'a que des
                 // brutes) de rester jouable.
-                $duTheme = $candidats->where('boite', $theme)->values();
+                $duTheme = $candidats->filter(fn (Monstre $m) => $bestiaire->contient($m->boite))->values();
                 $candidats = $duTheme->isNotEmpty() ? $duTheme : $candidats;
 
                 $final = $candidats->isEmpty()
@@ -809,7 +826,8 @@ final class DemarreurQuete
             // créature de ce palier → leader de coût du tier, le comportement
             // d'origine. Une donnée de référence absente ne doit jamais empêcher
             // une quête de démarrer.
-            $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->first();
+            $final ??= Monstre::query()->where('tier', $tierFinal)->orderByDesc('cout')->orderBy('id')->get()
+                ->first(fn (Monstre $m) => $bestiaire->autorise($m->boite));
 
             if ($final !== null) {
                 $achats[] = $final;
@@ -823,7 +841,9 @@ final class DemarreurQuete
             ?? config('jeu.rencontres.seuil_cout_fort', 3));
         /** @var Collection<int, Monstre> $base */
         $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
-            ->orderBy('cout')->orderBy('id')->get();
+            ->orderBy('cout')->orderBy('id')->get()
+            ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boite))
+            ->values();
         $faibles = $base->filter(fn (Monstre $m) => (int) $m->cout <= $seuil)->values();       // coût croissant
 
         // ⚠ Les QUELQUES forts viennent du thème quand il en propose, la MASSE
@@ -833,7 +853,7 @@ final class DemarreurQuete
         // un donjon de Gremlins (la boîte des glaces n'a qu'une créature de tier
         // base) ; ne rien filtrer du tout ne montrait jamais la signature.
         $forts = $base->filter(fn (Monstre $m) => (int) $m->cout > $seuil)
-            ->sortByDesc(fn (Monstre $m) => [$m->boite === $theme ? 1 : 0, (int) $m->cout])
+            ->sortByDesc(fn (Monstre $m) => [$bestiaire->contient($m->boite) ? 1 : 0, (int) $m->cout])
             ->values();
 
         // Aucun « faible » défini (seuil mal réglé / bestiaire atypique) : tout le

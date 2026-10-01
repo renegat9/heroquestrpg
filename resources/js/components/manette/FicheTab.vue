@@ -23,6 +23,8 @@ defineProps({
 });
 
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
+// Icône PROPRE au badge quand il en porte une (Oracle, rejetons), sinon celle du type.
+const iconeBadge = (c) => c.ic || condIcon(c.t);
 
 /* ⚠ Icône seulement : le STATUT et son LIBELLÉ viennent du serveur
    (`Talents::STATUTS`). Le client n'en déduit rien — il ne sait pas ce qu'est
@@ -98,8 +100,8 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
         <div class="sect-title" style="margin-top: 18px"><MSym n="emergency_heat" :size="16" /> Conditions</div>
         <div v-if="hero.conds.length" class="badges">
             <span v-for="(c, i) in hero.conds" :key="i" class="badge" :class="'b-' + c.t">
-                <MSym :n="condIcon(c.t)" fill :size="16" />
-                {{ c.l }} <span class="dur">{{ c.d }}t</span>
+                <MSym :n="iconeBadge(c)" fill :size="16" />
+                {{ c.l }} <span v-if="c.d != null" class="dur">{{ c.d }}t</span>
             </span>
         </div>
         <div v-else class="empty-note" style="padding: 12px">Aucune condition active.</div>

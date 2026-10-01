@@ -450,6 +450,30 @@ export function badgesFigure(entite) {
     const badges = conditionsVersBadges(entite?.conditions);
     const jetons = Number(entite?.jetons_rejeton ?? 0);
 
+    // ORACLE (First Light, lot C 2026-09-30) : deux états DURABLES du héros,
+    // publiés en booléens (`entites[].benediction_oracle/malediction_oracle`).
+    // Ils s'annonçaient dans le fil au moment où ils tombaient, puis plus rien :
+    // un joueur béni ou maudit n'avait aucun rappel entre deux actions. Pas de
+    // durée en tours — ils durent jusqu'à l'usage (ou la levée au marché).
+    if (entite?.malediction_oracle) {
+        badges.unshift({
+            nom: 'malediction_oracle',
+            t: 'curse',
+            l: 'Maudit par l\'Oracle — Zargon forcera une relance, une fois par quête',
+            ic: 'heart_broken',
+            d: null,
+        });
+    }
+    if (entite?.benediction_oracle) {
+        badges.unshift({
+            nom: 'benediction_oracle',
+            t: 'buff',
+            l: 'Béni par l\'Oracle — une révélation ou une relance de défense',
+            ic: 'visibility',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',
@@ -614,7 +638,9 @@ export function entitesVersGroupe(entites, initiative) {
             img: e.image_url ?? null,
             body: [e.tombe ? 0 : e.pv_body, e.pv_body_max],
             mind: [e.pv_mind, e.pv_mind_max],
-            conds: conditionsVersBadges(e.conditions),
+            // `badgesFigure`, pas `conditionsVersBadges` : la table montre ce que
+            // montre la manette (jetons de rejeton, Oracle) — une seule liste.
+            conds: badgesFigure(e),
             acting: estCourant(e, initiative),
             low: !e.tombe && e.pv_body > 0 && e.pv_body * 4 <= e.pv_body_max,
         }));

@@ -13,6 +13,7 @@ use App\Models\Quete;
 use App\Models\Terrain;
 use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\TerrainSeeder;
 
@@ -25,10 +26,16 @@ use Database\Seeders\TerrainSeeder;
  * passage (`MenuMoteur::deplacementDuTour()`, `ResolveurTour::resoudreDeplacement()`
  * / `tronquerSurGlace()`) — ce fichier le prouve EN JEU, via le résolveur, la
  * seule autorité que ce projet reconnaisse sur ce qui est réellement permis.
+ *
+ * `MonstreSeeder` + `menacerAvecMonstreFactice()` (tests/Pest.php) : ces
+ * scènes sont construites À LA MAIN, sans aucun monstre — sans ce geste,
+ * *Unthreatened Movement* (FL-Q p. 7, First Light) compterait le d6 pour 4 au
+ * lieu de lire `desFiges()`, ce que les totaux exacts mesurés ici ne peuvent
+ * pas tolérer.
  */
 
 beforeEach(function () {
-    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, ObjetSeeder::class]);
+    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, ObjetSeeder::class, MonstreSeeder::class]);
 });
 
 /**
@@ -148,6 +155,7 @@ it("ajoute 2 cases au socle de déplacement quand la quête est THÉMÉE horreur
         theme: 'horreur_des_glaces',
     );
     poserPourSnowshoes($scene['heros'], 'Raquettes de Vitesse', 'bottes');
+    menacerAvecMonstreFactice($scene['quete']); // table menacée : le d6 ci-dessous doit rester CONTRÔLÉ
 
     // d6 = 1 : sans les raquettes, socle 4 + 1 = 5 points. Avec elles, 7.
     desFiges(array_fill(0, 20, 1));
@@ -167,6 +175,7 @@ it("n'ajoute RIEN hors d'une quête glacée — la carte le dit, « seulement da
         theme: 'jungles_delthrak',
     );
     poserPourSnowshoes($scene['heros'], 'Raquettes de Vitesse', 'bottes');
+    menacerAvecMonstreFactice($scene['quete']);
 
     desFiges(array_fill(0, 20, 1));
 
@@ -184,6 +193,7 @@ it('ne donne rien à un héros qui ne les porte pas, même en quête glacée', f
         herosPos: ['x' => 0, 'y' => 0],
         theme: 'horreur_des_glaces',
     );
+    menacerAvecMonstreFactice($scene['quete']);
 
     desFiges(array_fill(0, 20, 1));
 

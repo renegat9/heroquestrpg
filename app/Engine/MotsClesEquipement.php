@@ -786,6 +786,31 @@ final class MotsClesEquipement
      */
     public const REFLET_SORT_DREAD = 'reflet_sort_dread';
 
+    /**
+     * *The Hearthkin Horn* (First Light, FL-Q p. 6) : « each hero places a
+     * Hearthkin Skeleton on a square within their room or corridor ». Une
+     * action, tous les héros debout de la quête à la fois, jamais une cible.
+     *
+     * ⚠ DEUX divergences ASSUMÉES, nommées (jamais une clé décorative) :
+     *  - « plays right after the hero that placed it » — nos alliés jouent
+     *    tous ensemble dans UNE phase commune, `ResolveurTour::phaseAllies()`
+     *    (fin de round, avant les monstres) : réordonner le tour pour ce seul
+     *    artefact serait une réécriture bien plus large que le patron d'allié
+     *    qu'on réutilise (consigne explicite du lot : « réutilise ce
+     *    système »).
+     *  - « defends on white shields » : AUCUN allié de ce moteur n'est jamais
+     *    la cible d'une attaque de monstre — `ResolveurTour::phaseMonstres()`
+     *    ne cible que `etatsPersonnages()`, et son propre commentaire le dit :
+     *    « le ciblage des alliés PAR les monstres est hors périmètre v1 ».
+     *    Étendre l'IA des monstres aux alliés est un chantier à part, non
+     *    ouvert ici ; `defense` existe déjà sur CHAQUE mercenaire du
+     *    catalogue sans qu'aucun ne s'en serve, le Squelette n'aggrave rien
+     *    de neuf.
+     * Lecteurs : `MenuMoteur::objetsDeMateriel()` (l'offre, gratuite en
+     * créneau ACTION) et `ResolveurTour::resoudreCorHearthkin()` (la pose).
+     */
+    public const INVOQUE_SQUELETTES_HEARTHKIN = 'invoque_squelettes_hearthkin';
+
     // ------------------------------------------------------------------- ---
 
     /**
@@ -877,6 +902,7 @@ final class MotsClesEquipement
         self::CONTROLE_MONSTRES,
         self::RELANCE_ATTAQUE_MONSTRE,
         self::REFLET_SORT_DREAD,
+        self::INVOQUE_SQUELETTES_HEARTHKIN,
     ];
 
     /**
@@ -945,6 +971,7 @@ final class MotsClesEquipement
         self::DEGATS_SAUF_BOUCLIER_NOIR => 'Chaque flèche inflige %s PV, sauf si la cible tire un bouclier noir',
         'tue_creatures' => 'Tue instantanément : %s',
         'controle_monstres' => 'Enrôle une créature',
+        self::INVOQUE_SQUELETTES_HEARTHKIN => 'Un Squelette Hearthkin apparaît pour chaque héros — le cor se brise',
         // --- Forge du Nain
         self::ANNULE_BOUCLIERS_DEFENSE => 'Annule %s bouclier(s) de la défense de la cible',
         self::RELANCE_DE_ATTAQUE_RATE => 'Relance %s dé(s) d\'attaque raté(s) — une fois par combat',

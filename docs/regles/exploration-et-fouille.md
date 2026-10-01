@@ -59,6 +59,43 @@ porte secrète dans **19 cas sur 40** — c'est exactement le cas de la quête 9
 ci-dessus, et c'est pourquoi une porte secrète non trouvée peut coûter la quête
 entière et non un bonus.
 
+**Sly Storage — une armoire dans la salle fait tirer DEUX cartes** (FL-Q p. 7,
+First Light, 2026-09-30 : « the first hero to draw a treasure card in a room
+with a cupboard draws two, resolved in order »). `App\Partie\MoteurMobilier::salleContientType()`
+dit si la salle courante porte un meuble « Armoire » encore debout (ni
+détruit) — point de passage unique, réutilisable par toute règle qui se
+déclenche par la PRÉSENCE d'un meuble plutôt que par son adjacence, à la
+différence de `fouillablesAdjacents()`/`destructiblesAdjacents()` qui sont
+géométriques. « Premier héros » se lit sur l'état durable EXISTANT, jamais une
+colonne neuve (§2.16) : `Quete::tresorsFouilles()` dit déjà si la salle a reçu
+au moins une fouille de trésor, et c'est interrogé AVANT que la fouille en
+cours n'y soit elle-même inscrite.
+⚠ **La seconde carte n'inscrit PAS une seconde entrée de `tresors_fouilles`** :
+ce n'est pas une seconde fouille du héros — Fouineur (`fouille_supplementaire`,
+Explorateur) compterait alors le bonus de l'armoire comme l'une de ses
+fouilles supplémentaires — c'est le MEUBLE qui rend une carte de plus pour le
+même geste.
+⚠ **La seconde carte ne retombe jamais sur le coffre désigné** : `coffrePlein()`
+a été lu une seule fois, avant que `marquerTresorFouille()` n'inscrive la
+salle ; un second appel le trouverait déjà faux. Une salle à la fois coffre ET
+armoire (ça arrive — le mobilier ordinaire se tire par-dessus la garantie de
+coffre) rend donc son artefact/or de coffre sur la PREMIÈRE carte, et une carte
+de deck ordinaire sur la seconde — jamais le coffre deux fois.
+⚠ **« Résolues dans l'ordre » n'admet aucune exception, y compris quand la
+première carte est un piège ou un monstre errant.** Un piège de carte ferme
+déjà le tour du héros (`a_joue` posé dans `MoteurPieges::declencherEphemere()`),
+mais ce n'est pas le héros qui agit une seconde fois : l'armoire rend sa
+seconde carte dans le MÊME geste de fouille, donc elle se tire quand même — le
+texte ne la conditionne à rien. Même chose pour un monstre errant : il surgit,
+et la seconde carte se tire tout de suite après.
+⚠ **Un effet automatique que rien n'annonce est injouable** : le payload porte
+`armoire: true` sur la carte principale et `carte_armoire` (la seconde, de la
+même forme qu'un `fouille_tresor` normal) ; `JournalCombat::ligneAction()` et
+`SceneDeTable::depuisAction()` se RAPPELLENT eux-mêmes sur `carte_armoire` —
+même patron que `declenchement`/`pieges_declenches` pour un piège imbriqué —
+pour que la manette ET la table disent qu'une seconde carte est tombée, et
+pourquoi.
+
 ⚠ **Faut-il un SECOND passage secret quand le premier tombe sur la salle objectif ?**
 (René, 2026-09-12). La crainte est fondée : `sallesACoffre()` part de
 `[$salleArtefact]` puis ajoute la plus profonde salle de chaque jonction secrète —

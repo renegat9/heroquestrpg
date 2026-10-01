@@ -1393,6 +1393,7 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .b-poison { color: var(--cond-poison); background: oklch(0.68 0.165 145/0.14); }
 .table-screen .b-buff { color: var(--cond-buff); background: oklch(0.8 0.13 90/0.14); }
 .table-screen .b-burn { color: var(--cond-burn); background: oklch(0.64 0.19 45/0.14); }
+.table-screen .b-curse { color: var(--danger); background: oklch(0.55 0.2 25/0.14); }
 .table-screen .pv-line { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
 .table-screen .pv-line .lab { width: 38px; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; }
 .table-screen .pv-line .pips { display: flex; gap: 2px; flex: 1; }

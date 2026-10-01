@@ -12,6 +12,11 @@ use Illuminate\Database\Seeder;
  * Cinq mercenaires humains et TROIS compagnons animaux (Loup, Croc-sabre,
  * Raptor), tous sourcés sur carte. La règle « un seul animal par groupe »
  * s'applique aux trois derniers.
+ *
+ * ⚠ NEUVIÈME ligne depuis le 2026-09-30 (First Light, lot C) : le Squelette
+ * Hearthkin partage ce catalogue (même bloc de stats, même table
+ * `groupe_mercenaires`, même purge de fin de quête) mais `octroi_seul: true`
+ * — il n'est jamais recrutable au hub, voir `MercenaireController::catalogue()`.
  */
 class MercenaireSeeder extends Seeder
 {
@@ -79,6 +84,19 @@ class MercenaireSeeder extends Seeder
                 'deplacement' => 8, 'attaque' => 2, 'defense' => 2, 'pv_body' => 3, 'pv_mind' => 3, 'prix' => 100, 'animal' => true,
                 'capacites' => ['attaque_diagonale', 'tacticien'],
                 'description' => 'Mordeur fuyant : il se déplace avant ET après son attaque.'],
+
+            // ---- SQUELETTE HEARTHKIN (First Light, FL-Q p. 6, lot C 2026-09-30) —
+            // « Hearthkin Skeleton — Move 8 · Attack 2 · Defend 2 · Body 1 ·
+            // Mind 0. » `octroi_seul: true` : jamais recruté au hub contre de
+            // l'or — il n'existe que par l'action du Cor des Hearthkin, en
+            // quête (`ResolveurTour::resoudreCorHearthkin()`), un par héros
+            // debout. `prix` reste 0 pour la même raison que `prix_base` sur
+            // l'objet : aucune carte n'en donne un, et `octroi_seul` empêche
+            // de toute façon ce chiffre d'atteindre un achat réel.
+            ['nom' => 'Squelette Hearthkin', 'type' => 'squelette_hearthkin',
+                'deplacement' => 8, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true,
+                'description' => 'Un squelette dressé par le Cor des Hearthkin ; il quitte le jeu en fin de quête.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

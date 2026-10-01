@@ -10,6 +10,7 @@ use App\Models\Groupe;
 use App\Models\Joueur;
 use App\Partie\Marche\PhaseMarche;
 use App\Partie\Marche\ProfilMarche;
+use App\Partie\MoteurOracle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -105,6 +106,35 @@ class MarcheController extends Controller
         $this->marche->annuler($groupe);
 
         return response()->noContent();
+    }
+
+    /**
+     * POST /api/groupes/{identifiant}/marche/lever-malediction
+     * {personnage_id} — don de 800 po à des œuvres charitables qui lève la
+     * Malédiction de l'Oracle (Mark of Zargon, First Light FL-Q p. 6, lot C)
+     * pesant sur un héros du groupe. La bourse débitée est celle de TOUT le
+     * marché, la bourse commune — voir `PhaseMarche::leverMalediction()`.
+     */
+    public function leverMalediction(Request $request, string $identifiant, MoteurOracle $oracle): JsonResponse
+    {
+        [$groupe, ] = $this->groupeEtJoueurMembre($identifiant);
+
+        $donnees = $request->validate([
+            'personnage_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        // N'IMPORTE QUEL héros du groupe, pas seulement ceux du joueur qui
+        // demande : c'est la bourse COMMUNE qui paie, et lever la malédiction
+        // d'un compagnon est une décision de groupe, pas un geste personnel.
+        $personnage = $groupe->personnages()->whereKey($donnees['personnage_id'])->first();
+
+        if ($personnage === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => "Ce héros n'est pas dans ce groupe.",
+            ]);
+        }
+
+        return response()->json($this->marche->leverMalediction($groupe, $personnage, $oracle));
     }
 
     /**

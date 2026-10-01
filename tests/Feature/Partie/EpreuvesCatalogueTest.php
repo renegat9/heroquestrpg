@@ -90,10 +90,10 @@ function carteAvecEpreuves(array $epreuvesPosees): array
     return [$groupe, $quete, $carte];
 }
 
-it('sème les 7 épreuves, chacune avec une description JOUEUR lisible', function () {
+it('sème les 8 épreuves (7 + l\'Oracle), chacune avec une description JOUEUR lisible', function () {
     $epreuves = Epreuve::all();
 
-    expect($epreuves)->toHaveCount(7);
+    expect($epreuves)->toHaveCount(8);
 
     foreach ($epreuves as $epreuve) {
         expect(mb_strlen((string) $epreuve->description))->toBeGreaterThanOrEqual(

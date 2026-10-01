@@ -20,3 +20,38 @@
 
 
 ⚠ **The movement die is rolled on the hero's OWN turn, not at the start of the round** (René, 2026-09-16: « un popup pour afficher le dé de déplacement au début d'un tour de joueur »). Menus are regenerated for **every** active hero after each choice, and `MenuMoteur::deplacementDuTour()` rolled whenever `deplacement_tour` was null — so all four dice fell together on the round's first menu, and a scene "at the start of a player's turn" had no instant to belong to. The roll now also requires `OrdreDuTour::estSonTour()`, and the column stays the uniqueness guard: a menu recomputed mid-turn neither re-rolls nor re-announces. Players see no difference on the phone (a hero whose turn has not come gets no playable menu anyway), and the two effects read off that roll become *more* faithful — *Évanescence* breaks and *Bottes elfiques* wear on the turn they belong to. ⚠ **Who plays now is one rule**, `App\Partie\OrdreDuTour`: it lived in `ChoixController::estSonTour()` and `ResolveurTour::verifierInitiative()`, whose docblock *assumed* the copy; the roll would have been the third. ⚠ Five tests fed exactly the dice of the action they measured, and the NEXT hero's movement roll now draws from that same fixed queue when their turn begins — each got one commented extra die, not a looser queue.
+
+**Unthreatened Movement — sans monstre actif révélé, le dé compte 4** (FL-Q
+p. 7, First Light, 2026-09-30, décision de René). Le livret : « without an
+active monster on the board, each red die for movement counts as a 4 instead
+of being rolled ». `App\Models\Quete::monstreActifRevele()` est le **seul**
+calcul de la menace (même filtre que `EtatGroupe::sceneAmbiance()`, qui
+retombe sur « exploration » dans exactement ce cas — un monstre dormant
+derrière une porte jamais ouverte n'en est pas une) : aucun second calcul,
+lu par `MenuMoteur::deplacementDuTour()` **et** le repli de
+`ResolveurTour::resoudreDeplacement()` — « quelle est la valeur du dé ce
+tour » reste un point de passage unique.
+`App\Engine\Deplacement::calculer($base, $deAnnule, $desSupplementaires, $sansMenace)`
+ne lance alors AUCUN dé : chaque dé de mouvement (le socle ET celui des
+*Bottes elfiques* — toujours « un dé de mouvement ») vaut directement
+`VALEUR_SANS_MENACE` (4), littéralement comme le dit le livret — pas un jet
+qu'on ignorerait après coup.
+⚠ **Indépendant de `deAnnule`, jamais en conflit** : un dé annulé (Armure de
+plates, Raquettes) reste annulé, menacé ou pas — `sansMenace` ne remplace que
+le JET, `deAnnule` décide seul si la valeur (fixe ou lancée) compte dans le
+total.
+⚠ **Deux conséquences mesurées et assumées, pas corrigées en douce.**
+*Évanescence* lit `$jet->de >= 5` pour se rompre : un dé fixé à 4 ne la rompt
+jamais tant que la table n'est pas menacée — cohérent avec « le sort tient
+tant que personne ne voit le héros », pas un oubli. Les *Bottes elfiques*
+s'usent sur un coup de chance — deux dés identiques sur un jet RÉEL (1 sur 6,
+arbitrage de René du 2026-09-03) ; sans menace, les deux dés valent 4 PAR
+CONSTRUCTION, donc toujours « identiques » — `MenuMoteur::userSurDesIdentiques()`
+exclut donc explicitement ce cas (`$jet->sansMenace`), une pièce ne doit pas
+s'user à chaque tour sans monstre juste parce que la règle lui a évité un
+jet.
+⚠ **Annoncé partout où le dé se montre** : `sans_menace` voyage dans
+`parametres` de l'option `se_deplacer`, dans `detail_deplacement_tour`
+(colonne, jamais un cache) et dans `deplacement.sans_menace` de la scène de
+table — DÉCISION publiée par le serveur, jamais recalculée côté client
+(`DeplacementSheet.vue`, `SceneDeTable::deplacement()`).

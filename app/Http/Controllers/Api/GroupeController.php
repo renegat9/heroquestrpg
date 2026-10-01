@@ -73,6 +73,11 @@ class GroupeController extends Controller
             'ton' => ['nullable', 'array'],
             // Perso fondateur (contrat §Joueur) : doit être libre et appartenir au joueur.
             'personnage_id' => ['nullable', 'integer'],
+            // Bestiaire (contrat §Bestiaire automatique ou manuel, 2026-09-28) :
+            // absent/null = automatique ; une liste, VIDE COMPRISE = manuel
+            // (vide = HeroQuest Game System seul). Seules les boîtes ACTIVES.
+            'bestiaire_boites' => ['nullable', 'array'],
+            'bestiaire_boites.*' => ['string', 'distinct', Rule::in(DemarreurQuete::BOITES_THEMATIQUES)],
         ]);
 
         [$min, $max] = self::QUETES_PAR_LONGUEUR[$donnees['longueur']];
@@ -105,6 +110,11 @@ class GroupeController extends Controller
             'longueur' => $donnees['longueur'],
             'nb_quetes_total' => random_int($min, $max),
             'ton' => $donnees['ton'] ?? null,
+            // `array_key_exists`, pas `??` : une liste VIDE est un choix (jeu
+            // de base seul), distinct de l'absence (automatique).
+            'boites_bestiaire' => array_key_exists('bestiaire_boites', $donnees) && $donnees['bestiaire_boites'] !== null
+                ? array_values($donnees['bestiaire_boites'])
+                : null,
         ]);
 
         // Le perso fondateur rejoint le groupe (pivot + or au pot).

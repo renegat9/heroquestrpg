@@ -127,18 +127,14 @@ final class AssembleurCarte
      *                                    cachée derrière une porte secrète —
      *                                    le compteur de pitié du groupe, qui
      *                                    monte tant qu'aucune n'est tombée
-     * @param  ?string  $themeBestiaire  boîte d'extension FIGÉE du groupe
-     *                                   (`groupes.theme_bestiaire`, phase 6a),
-     *                                   PAS recalculée ici — filtre la couche
-     *                                   TERRAIN (doc 18 §4) exactement comme
-     *                                   `DemarreurQuete::acheterMonstres()`
-     *                                   filtre déjà les monstres : un terrain
-     *                                   dont `boite` ne vaut ni `null` ni ce
-     *                                   thème n'est jamais posé. `null` ici
-     *                                   (thème inconnu de l'appelant, ex. les
-     *                                   tests) ne pose QUE les terrains
-     *                                   `boite = null` — fail open, jamais
-     *                                   une erreur.
+     * @param  ?BestiaireGroupe  $bestiaire  bestiaire du groupe (automatique
+     *                                   ou manuel, `BestiaireGroupe`) — filtre
+     *                                   la couche TERRAIN (doc 18 §4) : un
+     *                                   terrain dont `boite` n'est ni `null` ni
+     *                                   un thème de la campagne n'est jamais
+     *                                   posé. `null` (les tests) ne pose QUE
+     *                                   les terrains `boite = null` — fail
+     *                                   open, jamais une erreur.
      * @param  ?\Closure  $sallesACoffre  `(array{salles: list<...>, aretes:
      *                                   list<...>, portes: list<...>}): list<int>`
      *                                   — désigne les salles qui DOIVENT
@@ -165,7 +161,7 @@ final class AssembleurCarte
      *                                   appelants existants) ne garantit rien,
      *                                   comportement inchangé.
      */
-    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET, ?string $themeBestiaire = null, ?\Closure $sallesACoffre = null): array
+    public function assembler(GabaritQuete $gabarit, int $graine = 0, int $chancePassageSecret = self::CHANCE_PASSAGE_SECRET, ?BestiaireGroupe $bestiaire = null, ?\Closure $sallesACoffre = null): array
     {
         $structure = $gabarit->structure ?? [];
         $suivant = $this->creerPRNG($graine);
@@ -367,7 +363,7 @@ final class AssembleurCarte
         // épreuves pour la même raison qu'elles sont posées après le mobilier
         // — ne jamais atterrir sous une couche déjà posée, où elle serait soit
         // invisible, soit contradictoire (quel effet gagne ?).
-        $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $themeBestiaire);
+        $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $bestiaire);
 
         return [
             'largeur' => $largeur,
@@ -2164,11 +2160,13 @@ final class AssembleurCarte
      * @param  list<array{x: int, y: int}>  $pieges
      * @param  list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>  $mobilier
      * @param  list<array{x: int, y: int, epreuve_id: int, salle: int, tentee_par: list<int>}>  $epreuves
-     * @param  ?string  $theme  boîte FIGÉE du groupe (`groupes.theme_bestiaire`,
-     *                          phase 6a) — filtre le catalogue AVANT tout tirage :
+     * @param  ?BestiaireGroupe  $bestiaire  bestiaire du groupe (`BestiaireGroupe`,
+     *                          auto ou manuel — 2026-09-28 ; avant : la boîte
+     *                          FIGÉE `groupes.theme_bestiaire` seule)
+     *                          — filtre le catalogue AVANT tout tirage :
      *                          seuls les terrains dont `boite` vaut `null`
      *                          (« convient à tout thème », même lecture que
-     *                          `monstres.boite`) OU ce thème exactement restent
+     *                          `monstres.boite`) OU un thème de la campagne restent
      *                          candidats. `null` ici (thème inconnu) ne garde
      *                          que les terrains `boite = null` — fail open,
      *                          jamais d'erreur. C'est ce qui empêche une
@@ -2192,10 +2190,12 @@ final class AssembleurCarte
         array $mobilier,
         array $epreuves,
         \Closure $suivant,
-        ?string $theme = null,
+        ?BestiaireGroupe $bestiaire = null,
     ): array {
+        // Un terrain « boîté » ne se pose que si sa boîte est un THÈME de la
+        // campagne (tirée en auto, cochée en manuel) ; `null` partout.
         $catalogue = Terrain::query()->orderBy('id')->get()
-            ->filter(fn (Terrain $t) => $t->boite === null || $t->boite === $theme)
+            ->filter(fn (Terrain $t) => $t->boite === null || ($bestiaire?->contient($t->boite) ?? false))
             ->values();
 
         if ($catalogue->isEmpty()) {

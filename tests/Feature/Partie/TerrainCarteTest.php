@@ -70,7 +70,7 @@ function gabaritAvecStructureTerrain(GabaritQuete $base, array $ajout): GabaritQ
 function queteAvecCarteTerrainAssemblee(GabaritQuete $gabarit, int $graine, ?string $theme = null): array
 {
     $groupe = creerGroupe('table-terrain-'.$graine.'-'.uniqid());
-    $carteAssemblee = app(AssembleurCarte::class)->assembler($gabarit, $graine, chancePassageSecret: AssembleurCarte::CHANCE_PASSAGE_SECRET, themeBestiaire: $theme);
+    $carteAssemblee = app(AssembleurCarte::class)->assembler($gabarit, $graine, chancePassageSecret: AssembleurCarte::CHANCE_PASSAGE_SECRET, bestiaire: $theme === null ? null : App\Partie\BestiaireGroupe::auto($theme));
 
     return [$groupe, $carteAssemblee];
 }

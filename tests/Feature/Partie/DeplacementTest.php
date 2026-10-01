@@ -210,6 +210,11 @@ it('Armure de plates : le héros perd le d6 de déplacement, avance de sa base',
         'quantite' => 1,
     ]);
 
+    // Un monstre actif RÉVÉLÉ : cette table est MENACÉE, donc le d6 est bien
+    // lancé (Unthreatened Movement, FL-Q p. 7, ne doit pas interférer avec le
+    // cas que ce test mesure — l'armure, pas l'absence de monstre).
+    $quete->instancesMonstres()->first()?->update(['revele' => true]);
+
     $etat->update(['deplacement_tour' => null, 'detail_deplacement_tour' => null, 'a_joue' => false]);
     desFiges([6]); // base 4, d6 6 LANCÉ mais ANNULÉ → 4 cases
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);

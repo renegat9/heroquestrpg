@@ -266,6 +266,17 @@ return [
             // 2026-09-06 (`DemarreurQuete::BOITES_THEMATIQUES`) : l'objet joue
             // réellement en jeu, pas seulement au catalogue.
             ['carte' => 'Snowshoes of Speed', 'paquet' => 'Frozen Horror', 'objet' => 'Raquettes de Vitesse'],
+
+            // « Cor des Hearthkin » / The Hearthkin Horn (First Light, FL-Q
+            // p. 6, lot C 2026-09-30) : SOURCE DIFFÉRENTE des 59 cartes
+            // photographiées — ce n'est pas une carte d'objet du paquet
+            // Hasbro, mais un effet de RÈGLE du livret de quêtes First Light
+            // — même raison de rester dans CETTE section que le Fire Ring
+            // juste au-dessus (fonctionnellement un artefact : `rarete:
+            // unique`, tiré des coffres, jamais acheté). Décision de René :
+            // rejoint le pool d'artefacts plutôt que de rester une note de
+            // quête que le donjon généré n'a pas.
+            ['carte' => 'The Hearthkin Horn', 'paquet' => 'First Light', 'objet' => 'Cor des Hearthkin'],
         ],
     ],
 

@@ -143,6 +143,20 @@ class ObjetSeeder extends Seeder
             // Esprits — aucun tag « mort-vivant » n'est inventé sur le bestiaire.
             ['nom' => 'Eau bénite', 'categorie' => 'outil', 'prix_base' => 400, 'emplacement' => 'consommable',
                 'effet' => ['tue_creatures' => ['Squelette', 'Zombie', 'Momie']]],
+            // COR DES HEARTHKIN (First Light, FL-Q p. 6, lot C 2026-09-30) :
+            // « each hero places a Hearthkin Skeleton on a square within
+            // their room or corridor […] the horn crumbles to dust ». Même
+            // famille que l'Eau bénite/les Chausse-trappes juste au-dessus :
+            // un `outil` CONSOMMABLE, perdu à l'usage.
+            // ⚠ `prix_base: 0` est délibéré, PAS une supposition : ce n'est
+            // pas une carte d'équipement avec un prix imprimé, c'est un effet
+            // du livret de QUÊTE — rien à sourcer. L'objet est de surcroît
+            // `rarete: unique` : jamais acheté, jamais vendu
+            // (`PhaseMarche::REFUS_VENTE_UNIQUE`), donc ce chiffre ne nourrit
+            // jamais une transaction réelle.
+            ['nom' => 'Cor des Hearthkin', 'categorie' => 'outil', 'rarete' => 'unique', 'prix_base' => 0,
+                'emplacement' => 'consommable',
+                'effet' => ['invoque_squelettes_hearthkin' => true]],
 
             // ⚠ CIBLE ADJACENTE (René, 2026-09-11, en jouant) : « lorsqu'on
             // utilise une potion, il faudrait pouvoir cibler le joueur actuel

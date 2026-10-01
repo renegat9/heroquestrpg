@@ -143,7 +143,7 @@ it('expose la provenance des cartes, portées et non portées', function () {
     expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins', 'dread']);
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
-    expect($cartes)->toHaveCount(118); // 20 + 15 + 35 + 19 + 29
+    expect($cartes)->toHaveCount(119); // 20 + 15 + 36 + 19 + 29 — artefacts : +1 Cor des Hearthkin (First Light, 2026-09-30)
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

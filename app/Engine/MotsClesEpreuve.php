@@ -94,6 +94,22 @@ final class MotsClesEpreuve
             'lecteur' => 'App\Partie\MoteurPieges::desarmerSalle()',
             'libelle' => 'désarme tous les pièges encore actifs de la salle',
         ],
+
+        // ⚠ L'ORACLE (First Light, FL-Q p. 6, lot C) ne ressemble à AUCUNE des
+        // six mécaniques ci-dessus : les six payent SEULEMENT à la réussite
+        // (`ResolveurTour::resoudreEpreuve()` ne les appelait que si
+        // `$resultat->estReussi()`) ; l'Oracle, lui, produit un effet dans les
+        // DEUX branches — une Bénédiction à la réussite, une Malédiction
+        // (jeton Mark of Zargon) à l'échec. C'est la SEULE raison pour
+        // laquelle `resoudreEpreuve()` reçoit désormais le `$succes` du jet en
+        // paramètre plutôt que de rester gardé par l'appelant. `libelle` ne
+        // peut donc pas être une phrase unique — voir `ResolveurTour::epreuveOracle()`
+        // et `JournalCombat::epreuve()`, qui lisent `$succes` pour choisir
+        // laquelle des deux annoncer.
+        'oracle' => [
+            'lecteur' => 'App\Partie\ResolveurTour::epreuveOracle()',
+            'libelle' => 'bénédiction de l\'Oracle (réussite) ou malédiction de l\'Oracle (échec)',
+        ],
     ];
 
     /**

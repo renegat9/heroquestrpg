@@ -77,7 +77,13 @@ const depAriaLabel = computed(() => {
     if (!d) return '';
     const base = 'Dés : ' + d.des.join(', ');
 
-    return d.de_annule ? base + ' — ne compte pas (' + d.de_annule_par + ')' : base;
+    if (d.de_annule) return base + ' — ne compte pas (' + d.de_annule_par + ')';
+    // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION déjà publiée par le
+    // serveur (`sans_menace`) — ce composant ne fait que la dire aussi au
+    // lecteur d'écran, comme il le fait déjà pour un dé annulé.
+    if (d.sans_menace) return base + ' — aucun monstre actif, compté 4 au lieu d\'être lancé';
+
+    return base;
 });
 </script>
 

@@ -186,7 +186,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
     // dans « consommable » auraient pu être semées inertes sans qu'un seul test
     // s'en aperçoive.
     $utilesOutils = ['permet_desamorcage', 'tue_creatures', 'pose_chausse_trappes',
-        'enfume_monstre_adjacent', 'compte_comme_arme'];
+        'enfume_monstre_adjacent', 'compte_comme_arme',
+        // Cor des Hearthkin (First Light, lot C) : n'ouvre aucune action de
+        // combat, mais invoque bel et bien quelque chose — la même logique
+        // que `activable` plus haut, par un autre chemin.
+        'invoque_squelettes_hearthkin'];
 
     foreach (Objet::where('categorie', 'outil')->get() as $outil) {
         expect(array_intersect($utilesOutils, array_keys((array) $outil->effet)))

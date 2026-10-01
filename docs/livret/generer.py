@@ -370,8 +370,13 @@ ecrire('''
 <h3>Monter le groupe</h3>
 <ol>
   <li>Un joueur <strong>crée le groupe</strong> depuis un personnage libre : il en devient le
-      fondateur, choisit un <strong>thème</strong> (registre fantasy) et une
-      <strong>longueur de campagne</strong>. Le code du groupe apparaît.</li>
+      fondateur, choisit un <strong>thème</strong> (registre fantasy), une
+      <strong>longueur de campagne</strong> et le <strong>bestiaire</strong> :
+      <em>automatique</em> (une extension tirée au sort à la première quête, qui colore le
+      boss et quelques monstres forts) ou <em>manuel</em> (il coche les extensions voulues ;
+      seules celles-là, le jeu de base et les créatures propres au jeu apparaîtront —
+      aucune case cochée, c'est le jeu de base seul). Le choix vaut pour toute la campagne.
+      Le code du groupe apparaît.</li>
   <li>Les autres <strong>rejoignent par ce code</strong>, chacun avec un personnage libre de
       son roster. Un personnage ne figure qu'une fois dans un groupe.</li>
   <li>Le narrateur <strong>ouvre la table</strong> avec le même code.</li>
@@ -619,6 +624,7 @@ GAIN_EPR = {
     'retire_condition': lambda v: "retire une condition au héros",
     'soin_groupe': lambda v: f"rend {v} PV de Body à tout le groupe",
     'objet': lambda v: "une pièce d'équipement",
+    'oracle': lambda v: "réussi : la Bénédiction de l'Oracle · raté : sa Malédiction",
 }
 for x in sorted(EPR, key=lambda z: (z['attribut'], z['difficulte'])):
     ef = j(x['effet'])
@@ -628,6 +634,24 @@ for x in sorted(EPR, key=lambda z: (z['attribut'], z['difficulte'])):
            f'<td class="nom">{e(x["nom"])}</td><td class="n">{x["attribut"].capitalize()}</td>'
            f'<td class="n">{x["difficulte"]}</td><td>{gain}</td></tr>')
 ecrire('</tbody></table>')
+ecrire('''
+<div class="encadre">
+  <h4>L'Oracle de Zargon (First Light)</h4>
+  <p>La seule épreuve qui coûte quelque chose quand on la rate. Les deux états restent sur la
+  fiche du héros d'une quête à l'autre, et s'affichent en badge sur la manette et à la table.</p>
+  <ul>
+    <li><strong>Bénédiction</strong> — à utiliser <em>une</em> fois, au choix : révéler la
+        salle derrière une porte fermée adjacente sans l'ouvrir (geste libre), ou, après un jet
+        de <strong>Défense</strong>, le relancer en entier et garder le second résultat.</li>
+    <li><strong>Malédiction</strong> — une fois par quête, Zargon force la relance d'un jet de
+        Défense et <strong>garde le pire</strong> pour le héros. Elle se lève au marché, entre
+        deux quêtes, par un don de <strong>800 pièces d'or</strong> prises sur la bourse
+        commune.</li>
+  </ul>
+  <p>Le livret de <em>First Light</em> autorise aussi la relance sur un jet d'Attaque ou de
+  déplacement : chez nous, la Défense seule — c'est un écart assumé.</p>
+</div>
+''')
 fin()
 
 # ================================================== 5. LE TOUR ============
@@ -645,6 +669,9 @@ qu'ils font.</p>
 <strong>orthogonales</strong> — jamais en diagonale. On ne traverse pas une figurine, ni un
 meuble. Le dé est lancé une fois par tour et le reste du déplacement peut être fractionné
 autour de l'action.</p>
+<p><strong>Sans menace, le dé vaut 4.</strong> Tant qu'aucun monstre actif n'est révélé sur
+la carte, le d6 n'est pas lancé : il compte 4 (règle de <em>First Light</em>). Le dé affiché
+le dit — « sans menace ». Dès qu'un monstre apparaît, on relance pour de vrai.</p>
 
 <h3>L'Armure de plates fait perdre le dé</h3>
 <p>La carte officielle 2021 est nette : « +2 dés de défense, mais <strong>1 seul dé rouge de
@@ -1120,7 +1147,12 @@ groupe a réellement découvert. <strong>Ouvrir une porte révèle la salle enti
 monstres</strong>, comme au plateau — et c'est vrai de tous les chemins : la porte poussée à la
 main, celle qu'un levier débloque, celle qu'un gardien vaincu libère.</p>
 <p>Un passage secret non découvert est peint comme de la <strong>roche ordinaire</strong> :
-rien ne le distingue d'un mur tant qu'on ne l'a pas cherché.</p>
+rien ne le distingue d'un mur tant qu'on ne l'a pas cherché. Une quête en compte <strong>de
+zéro à deux</strong>, et chacun cache une salle entière — jamais un simple raccourci. Une
+quête sur deux environ n'en a aucun : fouiller les murs n'est pas toujours payant.</p>
+<p>Les couloirs font <strong>une ou deux cases de large</strong>, comme au plateau. Dans un
+couloir d'une case, un piège ne se contourne pas : il faut le sauter, le désamorcer ou le
+subir — et on s'y bat en file indienne.</p>
 ''')
 ecrire('<h4>Les portes</h4><div class="vignettes" style="grid-template-columns:repeat(4,1fr)">')
 for f, lib in (('fermee', 'Fermée — à ouvrir'), ('ouverte', 'Ouverte'),
@@ -1216,6 +1248,10 @@ lances, et <strong>six monstres errants</strong>, de loin la carte la plus fréq
 Une fouille par héros <strong>et par salle</strong> — le premier qui cherche ne referme pas la
 pièce pour les autres, chacun tire la sienne. Le butin va au fouilleur ; l'or va au pot commun.
 Une carte piège <strong>termine le tour</strong>.</p>
+<p><strong>L'armoire donne une seconde carte.</strong> Le <em>premier</em> héros à fouiller le
+trésor d'une salle qui contient une armoire tire <strong>deux cartes</strong>, résolues dans
+l'ordre — même si la première est un piège ou un monstre errant (règle de
+<em>First Light</em>). Les suivants n'en tirent qu'une.</p>
 ''')
 ecrire(fig('75-scene-fouille',
            "Ce qu'une fouille trouve arrive avec ce que l'objet fait : une épée large, trois dés "
@@ -1262,6 +1298,13 @@ CHOIX_ART = ['Fléau des Orques', 'Lame des Esprits', 'Dague de jet magique', 'A
 table_objets([o for n in CHOIX_ART for o in ARTEFACTS if o['nom'] == n], colonne_prix=False)
 ecrire('''
 <div class="encadre">
+  <h4>Le Cor des Hearthkin</h4>
+  <p>Un artefact de <em>First Light</em>, qu'un coffre désigné peut verser. Une action pour en
+  sonner : <strong>chaque héros debout</strong> reçoit un squelette allié (Dépl. 8 · Att. 2 ·
+  Déf. 2 · Body 1 · Mind 0) posé dans sa salle ou son couloir. Les squelettes jouent avec les
+  autres alliés et quittent le jeu à la fin de la quête ; le cor tombe en poussière.</p>
+</div>
+<div class="encadre">
   <h4>Deux artefacts n'appartiennent qu'à une boîte</h4>
   <p>Les <strong>Raquettes de Vitesse</strong> et l'<strong>Anneau de Chaleur</strong> ne sortent
   que dans une campagne au thème <strong>« Horreur des Glaces »</strong> — c'est la seule où le
@@ -1278,10 +1321,16 @@ chapitre(12, 'Les pièges',
 ecrire('''
 <p>Un piège est <strong>caché</strong> par défaut, et il en existe <strong>trois sur le
 sol</strong> — la Fosse, le Piège à lances et la Chute de blocs — tirés au hasard à chaque
-pose, jamais toujours le même. L'action <strong>Fouiller</strong> révèle ceux de la zone ; le
-nain qui a pris le talent <em>Œil du mineur</em> détecte automatiquement ceux qui sont
-adjacents. Une fois détecté, on peut le <strong>désamorcer</strong>, <strong>franchir</strong>
-une Fosse, ou l'ignorer à ses risques.</p>
+pose, jamais toujours le même. L'action <strong>Fouiller</strong> révèle ceux de <strong>la
+salle ou du couloir où l'on se tient, en entier</strong> — même au fond de la pièce ou
+derrière un meuble, mais jamais au-delà d'une porte. Le nain qui a pris le talent <em>Œil du
+mineur</em> détecte automatiquement ceux qui sont adjacents.</p>
+<p>Un piège détecté <strong>n'est pas désarmé</strong> : y marcher le déclenche comme s'il
+était caché. On le <strong>désamorce</strong>, on le <strong>saute</strong> (la Fosse, et la
+Chute de blocs tant qu'elle n'est pas tombée — jamais le Piège à lances), ou on le contourne :
+le trajet l'évite tout seul quand un détour tient dans le déplacement. Sur la carte, un piège
+détecté est <strong>semi-transparent</strong> ; une <strong>fosse déjà ouverte</strong> est un
+trou cerclé d'ambre — on peut encore y tomber et la sauter, mais plus la désamorcer.</p>
 <p>Désamorcer demande un <strong>jet de Body</strong>, ou une <strong>trousse à outils</strong>.
 Mais le <strong>nain</strong> et l'<strong>explorateur</strong> désamorcent
 <strong>sans outils</strong>, et par une résolution qui leur est propre : un seul dé, et seul un
@@ -1356,6 +1405,7 @@ LIB_CAP = {
  's_accroche': "s'accroche", 'racines_entravantes': 'racines entravantes',
  'tacticien': 'bouge avant ET après son attaque', 'venimeux': 'venimeux',
  'choix_attaque': 'choisit son attaque', 'spawn': 'fait surgir des rejetons',
+ 'vol_draconique': 'vole par-dessus les figures', 'sort_a_volonte': 'un sort à volonté',
 }
 def capacites_de(m):
     """`capacites` est tantôt une liste de mots, tantôt un objet dont les clés
@@ -1373,11 +1423,12 @@ def capacites_de(m):
 LIB_BOITE = {'base': 'Boîte de base', 'horreur_des_glaces': 'Horreur des Glaces',
              'horde_ogre': 'Horde des Ogres', 'mage_du_miroir': 'Mage du Miroir',
              'dread_moon': 'Lune du Dread', 'jungles_delthrak': 'Jungles de Delthrak',
+             'first_light': 'First Light',
              None: 'Élites du donjon'}
 MON = CAT['monstres']
 
 chapitre(13, 'Le bestiaire',
-         "Quarante et une créatures — et un maître du jeu qui les rebaptise sans jamais "
+         f"{len(MON)} créatures — et un maître du jeu qui les rebaptise sans jamais "
          "toucher à leurs chiffres.")
 ecrire('''
 <p>Chaque monstre est un <strong>bloc défini</strong> : déplacement, dés d'attaque, dés de
@@ -1421,7 +1472,11 @@ ecrire('''
 <p>C'est la magie de l'adversaire, et elle suit exactement les mêmes règles de résolution que
 celle des héros — <strong>c'est le Mind des héros qui sert de bouclier</strong>. Elle est
 répartie sur tout l'arc : les sorts mineurs aux sous-boss, les plus vilains au boss final.
-Un boss ne les lance pas à volonté : chaque rencontre a son compte d'usages.</p>
+Un boss ne les lance pas à volonté : chaque rencontre a son compte d'usages — sauf le
+<strong>Dragon</strong> de <em>First Light</em>, dont la carte dit qu'il lance la Boule de
+Flammes <em>at will</em> : il peut la cracher à chaque tour, au prix de son action. Il occupe
+deux cases et <strong>vole par-dessus les figures</strong> (jamais par-dessus un meuble) pour
+atteindre sa proie.</p>
 ''')
 ecrire(fig('05-guide-bestiaire', "Le bestiaire du guide intégré, avec les blocs de statistiques "
                                  "sourcés et les traits d'extension."))
@@ -1547,6 +1602,7 @@ ecrire('''
 
 <section><h4>Un tour</h4><ul>
   <li>Déplacement = <strong>base + 1d6</strong>, orthogonal</li>
+  <li>Aucun monstre révélé : le d6 vaut <strong>4</strong></li>
   <li><strong>Une</strong> action, avant ou après</li>
   <li>Une seule attaque, sauf capacité</li>
   <li>Pas d'attaque d'opportunité</li>
@@ -1581,14 +1637,17 @@ ecrire('''
   <li>Le paquet tourne, il ne s'épuise pas</li>
   <li>Carte piège = le tour s'arrête</li>
   <li>Artefact : <strong>uniquement</strong> dans un coffre désigné</li>
-  <li>Un passage secret mène toujours à un coffre</li>
+  <li>0 à 2 passages secrets par quête, chacun vers un coffre</li>
+  <li>Armoire : le 1<sup>er</sup> fouilleur de la salle tire 2 cartes</li>
 </ul></section>
 
 <section><h4>Pièges</h4><ul>
   <li>Cachés jusqu'à la fouille</li>
   <li>Nain et explorateur : désamorcent <strong>sans outils</strong> (seul un bouclier noir échoue)</li>
   <li>Les autres : jet de Body, ou trousse à outils</li>
-  <li>Fosse détectée : franchissable (Body, difficulté 2)</li>
+  <li>Fouiller : toute la salle ou tout le couloir, jamais au-delà d'une porte</li>
+  <li>Piège détecté : marcher dessus le déclenche</li>
+  <li>Fosse et Chute de blocs détectées : franchissables (Body, difficulté 2)</li>
 </ul></section>
 
 <section><h4>Le groupe</h4><ul>

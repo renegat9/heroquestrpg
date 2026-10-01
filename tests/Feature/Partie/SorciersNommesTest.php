@@ -83,10 +83,12 @@ it('donne au Nécromancien son propre répertoire (invocation + contrôle)', fun
 
 it('retombe sur la liste sorts_dread propre quand aucun archétype n\'est défini', function () {
     // ⚠ Le CHAMPION depuis le 2026-09-04, plus le Seigneur : celui-ci a reçu un
-    // archétype pour entrer dans le pool de rencontre finale. Le Champion reste
-    // donc le seul porteur EN PRODUCTION du repli de `repertoireSorts()`, et
-    // c'est délibéré — une branche que plus aucune donnée n'emprunte est une
-    // branche dont on ne sait plus si elle marche.
+    // archétype pour entrer dans le pool de rencontre finale. Le Champion garde
+    // donc sa liste brute — et depuis le 2026-09-30, le Dragon de First Light
+    // la porte aussi (sa carte ne nomme qu'UN sort, pas un répertoire de
+    // sorcier nommé) : le repli de `repertoireSorts()` a donc deux porteurs en
+    // production, pas zéro — c'est ce qui compte, une branche que plus aucune
+    // donnée n'emprunte est une branche dont on ne sait plus si elle marche.
     $sorts = repertoireDe('Champion');
 
     expect($sorts)

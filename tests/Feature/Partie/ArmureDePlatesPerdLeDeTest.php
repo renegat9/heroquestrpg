@@ -78,6 +78,10 @@ function demarrerPourAnnulation(string $classe = 'nain'): array
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
 
+    // Table MENACÉE : ce fichier teste `deAnnule`, pas *Unthreatened Movement*
+    // (FL-Q p. 7) — sans ça, le dé fixé par `desFiges()` ne serait jamais lu.
+    menacerQuete($quete);
+
     // Tour « vierge » : le prochain appel au menu relance le dé du tour.
     $etat->update(['deplacement_tour' => null, 'detail_deplacement_tour' => null, 'a_joue' => false]);
 
@@ -187,6 +191,7 @@ it('le détail persisté survit à une régénération du menu dans le même tou
     expect($second['parametres'])->toBe($premier['parametres'])
         ->and($etat->fresh()->detail_deplacement_tour)->toBe([
             'base' => 4, 'des' => [6], 'de_annule' => true, 'de_annule_par' => 'Armure de plates',
+            'sans_menace' => false,
         ]);
 });
 

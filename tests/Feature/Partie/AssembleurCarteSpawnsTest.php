@@ -132,7 +132,7 @@ it('ne fait JAMAIS apparaître un monstre sur une case occupée par le décor', 
     $spawnsVus = 0;
 
     foreach (range(1, 40) as $graine) {
-        $carte = $assembleur->assembler($gabarit, $graine, 40, 'horreur_des_glaces');
+        $carte = $assembleur->assembler($gabarit, $graine, 40, App\Partie\BestiaireGroupe::auto('horreur_des_glaces'));
         $cartesVues++;
 
         $occupe = [];

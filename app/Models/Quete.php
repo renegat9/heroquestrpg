@@ -359,6 +359,25 @@ class Quete extends Model
             ->exists();
     }
 
+    /**
+     * Y a-t-il, n'importe où sur le plateau de cette quête, un monstre ACTIF
+     * ET RÉVÉLÉ ?
+     *
+     * C'est la « menace » dont dépend *Unthreatened Movement* (FL-Q p. 7,
+     * First Light, 2026-09-30) : sans elle, chaque dé rouge de mouvement
+     * compte 4 au lieu d'être lancé (`App\Engine\Deplacement::calculer()`,
+     * seul appelé par `MenuMoteur::deplacementDuTour()`). Même filtre que
+     * l'ambiance sonore de la table (`EtatGroupe::sceneAmbiance()`, qui
+     * retombe sur « exploration » dans exactement ce cas) : un monstre
+     * dormant derrière une porte jamais ouverte n'est pas une menace, un
+     * monstre actif mais pas encore révélé non plus — c'est la même
+     * distinction, pas une seconde définition du mot.
+     */
+    public function monstreActifRevele(): bool
+    {
+        return $this->instancesMonstres()->where('etat', 'actif')->where('revele', true)->exists();
+    }
+
     public function groupe(): BelongsTo
     {
         return $this->belongsTo(Groupe::class, 'groupe_id');

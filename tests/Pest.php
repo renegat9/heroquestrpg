@@ -268,6 +268,41 @@ function empilerCarteFouille(Quete $quete, array $carte): void
 }
 
 /**
+ * Révèle tous les monstres ACTIFS de la quête : la table est MENACÉE.
+ *
+ * Un test de déplacement qui lance un VRAI d6 (`desFiges()`) et vérifie sa
+ * face doit l'appeler — sans ça, *Unthreatened Movement* (FL-Q p. 7, First
+ * Light, 2026-09-30 : sans monstre actif révélé, le dé compte 4 au lieu
+ * d'être lancé) rend la face fixée, et plus lue dans la pioche de test. Même
+ * geste qu'au premier pas de `demarrerQueteAvecMonstre()`, nommé ici pour les
+ * tests qui n'ont besoin que de la menace, pas d'un monstre au contact.
+ */
+function menacerQuete(Quete $quete): void
+{
+    $quete->instancesMonstres()->update(['revele' => true]);
+}
+
+/**
+ * Même besoin, pour une quête de test construite À LA MAIN (`Quete::create()`
+ * direct, sans `AssembleurCarte`) et qui ne pose donc AUCUN monstre du tout —
+ * `menacerQuete()` n'aurait rien à mettre à jour. Pose une instance minimale,
+ * actif + révélé, sans position (sans incidence sur la question posée).
+ * Demande `Database\Seeders\MonstreSeeder` dans le `beforeEach` appelant, pour
+ * qu'au moins un bloc de stats existe à référencer.
+ */
+function menacerAvecMonstreFactice(Quete $quete): void
+{
+    InstanceMonstre::create([
+        'quete_id' => $quete->id,
+        'monstre_id' => Monstre::query()->firstOrFail()->id,
+        'pv_body' => 1,
+        'pv_mind' => 1,
+        'etat' => 'actif',
+        'revele' => true,
+    ]);
+}
+
+/**
  * Désigne la salle-coffre (celle qui abrite l'artefact) et l'arme qu'elle
  * contient. `$objetId = null` force le repli en or.
  */

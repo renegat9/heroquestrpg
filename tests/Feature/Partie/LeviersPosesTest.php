@@ -264,7 +264,7 @@ it('pose les leviers À L\'IDENTIQUE quel que soit le thème du groupe — ils n
     $themes = [null, 'dread_moon', 'horde_ogre', 'horreur_des_glaces'];
 
     foreach ($themes as $theme) {
-        $leviers = $assembleur->assembler($gabarit, $graine, AssembleurCarte::CHANCE_PASSAGE_SECRET, $theme)['leviers'];
+        $leviers = $assembleur->assembler($gabarit, $graine, AssembleurCarte::CHANCE_PASSAGE_SECRET, $theme === null ? null : App\Partie\BestiaireGroupe::auto($theme))['leviers'];
         expect($leviers)->toBe($reference, 'thème « '.($theme ?? 'null')." » a changé la pose des leviers — ils ne sont pourtant pas thématiques (arbitrage René, 2026-09-06)");
     }
 });

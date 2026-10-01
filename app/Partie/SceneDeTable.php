@@ -86,7 +86,7 @@ final class SceneDeTable
     {
         $instanceId = (int) ($a['instance_id'] ?? 0);
 
-        if ($instanceId > 0 && in_array($a['type'] ?? null, ['attaque_monstre', 'deplacement_monstre'], true)) {
+        if ($instanceId > 0 && in_array($a['type'] ?? null, ['attaque_monstre', 'deplacement_monstre', 'vol_draconique'], true)) {
             return 'monstre:'.$instanceId;
         }
 
@@ -193,6 +193,18 @@ final class SceneDeTable
             }
         }
 
+        // SLY STORAGE (FL-Q p. 7, First Light) : la seconde carte de
+        // l'armoire (`carte_armoire`) est sa PROPRE scène, à la suite de la
+        // première — même appel récursif que `JournalCombat::ligneAction()`,
+        // pour qu'un piège imbriqué dans CETTE carte-là obtienne lui aussi sa
+        // scène sans dupliquer la lecture.
+        if (is_array($a['carte_armoire'] ?? null)) {
+            foreach ($this->depuisAction($a['carte_armoire'], $acteur) as $scene) {
+                $scene['sous_titre'] ??= 'Armoire — seconde carte';
+                $scenes[] = $scene;
+            }
+        }
+
         return $scenes;
     }
 
@@ -218,6 +230,12 @@ final class SceneDeTable
             // la table ne montrait RIEN — le même défaut, le même correctif,
             // que le fil de combat (`JournalCombat::sortDread()`).
             'sort_dread' => $this->sortDread($a),
+            // Draconic Flight (First Light) : une attaque de monstre comme une
+            // autre une fois au contact — `attaqueDuMonstre()` lit la même
+            // forme de payload (`instance_id`, `cible`, `degats`…). Sans
+            // `cible` (le Dragon s'est seulement rapproché), elle rend `null`
+            // et la table reste muette, exactement comme un déplacement seul.
+            'vol_draconique' => $this->attaqueDuMonstre($a),
             default => null,
         };
     }
@@ -402,7 +420,15 @@ final class SceneDeTable
         return [
             'genre' => 'fouille',
             'titre' => $acteur->nom.' fouille',
-            'sous_titre' => $a['coffre'] ?? false ? 'Un coffre' : null,
+            // SLY STORAGE (FL-Q p. 7) : l'armoire de la salle fait tirer une
+            // seconde carte — affichée ci-dessous dans sa propre scène
+            // (`carte_armoire`), mais celle-ci doit déjà dire POURQUOI il y en
+            // a deux.
+            'sous_titre' => match (true) {
+                (bool) ($a['coffre'] ?? false) => 'Un coffre',
+                (bool) ($a['armoire'] ?? false) => 'Une armoire — deux cartes',
+                default => null,
+            },
             'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
             'jet' => null,
             'deplacement' => null,
@@ -966,6 +992,9 @@ final class SceneDeTable
     {
         $deAnnule = (bool) ($d['de_annule'] ?? false);
         $deAnnulePar = $d['de_annule_par'] ?? null;
+        // UNTHREATENED MOVEMENT (FL-Q p. 7, First Light) : DÉCISION du
+        // serveur, jamais recalculée ici — seulement mise en phrase.
+        $sansMenace = (bool) ($d['sans_menace'] ?? false);
 
         // ⚠ Chaque nombre NOMMÉ : « 3 + 5 = 8 » ne disait pas lequel était le
         // dé (constaté sur la première capture en partie réelle).
@@ -979,7 +1008,8 @@ final class SceneDeTable
         // perdre le d6, elle ne retranche pas un chiffre de son résultat
         // (contrat, 2026-09-24 : « pas de chiffre négatif »).
         if (! $deAnnule) {
-            $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des']);
+            $termes[] = (count($d['des']) > 1 ? 'dés ' : 'dé ').implode(' + ', $d['des'])
+                .($sansMenace ? ' (sans menace : compté 4)' : '');
         }
 
         $calcul = implode(' + ', $termes);
@@ -1011,7 +1041,11 @@ final class SceneDeTable
             // « Au tour d'Aldric », pas « de Aldric » (vu sur la capture réelle).
             // Voyelles seulement : devant un h, l'élision dépend du prénom.
             'titre' => (preg_match('/^[aeiouyàâäéèêëîïôöùûü]/iu', (string) $heros->nom) ? "Au tour d'" : 'Au tour de ').$heros->nom,
-            'sous_titre' => count($d['des']) > 1 ? 'Jet de déplacement — '.count($d['des']).' dés' : 'Jet de déplacement',
+            'sous_titre' => match (true) {
+                $sansMenace => 'Sans monstre actif — dé compté 4',
+                count($d['des']) > 1 => 'Jet de déplacement — '.count($d['des']).' dés',
+                default => 'Jet de déplacement',
+            },
             'acteurs' => [$this->acteurHeros($heros, 'acteur')],
             'jet' => null,
             'deplacement' => [
@@ -1021,6 +1055,9 @@ final class SceneDeTable
                 // d'ici, jamais recalculés par le composant Vue.
                 'de_annule' => $deAnnule,
                 'de_annule_par' => $deAnnule ? $deAnnulePar : null,
+                // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION publiée, jamais
+                // recalculée côté client.
+                'sans_menace' => $sansMenace,
             ],
             'figure' => null, // le tour commence : aucune marche à attendre
             'objets' => [],

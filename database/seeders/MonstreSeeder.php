@@ -88,8 +88,12 @@ class MonstreSeeder extends Seeder
             // ⚠ Son répertoire est passé en ARCHÉTYPE le 2026-09-04 : le pool de
             // rencontre finale se déclare en archétypes, et un boss qui n'en
             // porte pas ne peut plus être tiré du tout. Le Champion, lui, garde
-            // sa liste brute — il reste le seul porteur en production du repli
-            // de `repertoireSorts()`.
+            // sa liste brute : c'était jusqu'au 2026-09-30 le seul porteur en
+            // production du repli de `repertoireSorts()`. Le Dragon de First
+            // Light (plus bas) l'a rejoint — sa carte ne nomme QU'UN sort, pas
+            // un répertoire de sorcier, et lui fabriquer un archétype pour une
+            // seule entrée aurait été la donnée décorative inverse : un
+            // registre rempli pour la forme plutôt que pour un besoin réel.
             ['nom_base' => 'Seigneur', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 10, 'pv_mind' => 5,
                 'tier' => 'boss', 'boite' => null, 'cout' => 20,
                 'capacites' => ['invocation', 'frappe_de_zone'],
@@ -298,6 +302,38 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
                 'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile'], 'sorts_dread' => []],
+
+            // ---- First Light (2024) ----
+            // Source : carte de monstre « Dragon » photographiée par René
+            // (2026-09-30), © 2024 Hasbro — reference/18_extensions.md §6.1bis.
+            // Texte intégral de la carte : « The dragon uses Draconic Flight
+            // and may cast Ball of Flame at will. »
+            //  - grande_taille : la figurine occupe 2 cases (photo de la
+            //    figurine + symbole de carte ovale 2 cases de large, FL-Q
+            //    p. 9) — même emprise que l'Ogre et tous les autres grands
+            //    monstres du catalogue (`['l' => 1, 'h' => 2]`, purement
+            //    géométrique, `AssembleurCarte`/`FabriqueGrille` ne
+            //    distinguent pas largeur et hauteur).
+            //  - sorts_dread : liste BRUTE et non un archétype — la carte ne
+            //    nomme qu'UN sort, pas un répertoire de sorcier nommé (voir
+            //    le commentaire du Champion, plus haut).
+            //  - capacites : `sort_a_volonte` (Boule de Flammes sans compteur
+            //    d'usage, pour ce monstre SEUL — René, 2026-09-30,
+            //    `MoteurDread::sortAVolonte()`) et `vol_draconique`
+            //    (Draconic Flight — traversée des figures en approche,
+            //    `MoteurDread::tentativeVolDraconique()`, FL-Q p. 7).
+            //  - cout : NOTRE valeur (aucune carte ne chiffre un budget de
+            //    rencontre). Mesurée comme les autres bosses
+            //    (`docs/regles/bestiaire-et-rencontres.md` — attaques d'un
+            //    héros à 3 dés pour l'abattre : Body / (1.5 − Défense/6)) en
+            //    interpolant entre les deux SEULES créatures qui partagent sa
+            //    Défense (5) : Seigneur (Body 10, cout 20, 15 attaques) et
+            //    Ogre commandant (Body 6, cout 15, 9 attaques). Le Dragon
+            //    (Body 7, 10.5 attaques) tombe à 15 + 1.25×(7−6) ≈ 16.
+            ['nom_base' => 'Dragon', 'deplacement' => 10, 'attaque' => 5, 'defense' => 5, 'pv_body' => 7, 'pv_mind' => 6,
+                'tier' => 'boss', 'boite' => 'first_light', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['vol_draconique', 'sort_a_volonte' => ['sort' => 'Boule de Flammes']],
+                'sorts_dread' => ['Boule de Flammes']],
         ];
 
         foreach ($monstres as $monstre) {

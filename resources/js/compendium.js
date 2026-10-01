@@ -145,6 +145,11 @@ const CAPACITES = {
     racines_entravantes: 'Racines entravantes (stoppe net)',
     spawn: 'Engendre des rejetons',
     ethere: 'Éthéré (touché seulement sur bouclier noir)',
+    etreinte: 'Étreinte (dégâts automatiques tant qu\'il tient)',
+    vol_objet: 'Vole un objet puis s\'enfuit',
+    // First Light, carte Dragon (2026-09-30).
+    vol_draconique: 'Vol draconique (traverse les figures, jamais le mobilier)',
+    sort_a_volonte: 'Sort à volonté (sans limite d\'usage)',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */

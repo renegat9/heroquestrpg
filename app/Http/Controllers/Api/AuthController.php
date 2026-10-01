@@ -11,6 +11,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\PersonnageHistorique;
+use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\Forge;
 use App\Partie\Images\BibliothequeImages;
@@ -101,7 +102,16 @@ class AuthController extends Controller
     /** GET /api/moi — profil du joueur connecté (reprise / reconnexion). */
     public function moi(): JsonResponse
     {
-        return response()->json(['joueur' => $this->profil()]);
+        return response()->json([
+            'joueur' => $this->profil(),
+            // Boîtes proposables au bestiaire MANUEL (contrat §Bestiaire
+            // automatique ou manuel, 2026-09-28) — libellés officiels DÉCIDÉS
+            // ici : la manette ne traduit jamais un identifiant de boîte.
+            'boites_bestiaire' => array_map(fn (string $b) => [
+                'id' => $b,
+                'libelle' => app(DemarreurQuete::class)->libelleBoiteBestiaire($b),
+            ], DemarreurQuete::BOITES_THEMATIQUES),
+        ]);
     }
 
     /**
@@ -116,7 +126,10 @@ class AuthController extends Controller
             ->with(['competences:competences.id,competences.nom,competences.effet', 'sorts', 'groupeActif', 'inventaire.objet'])
             ->get(['id', 'nom', 'classe', 'niveau', 'groupe_actif_id', 'or',
                 'pv_body', 'pv_body_max', 'pv_mind', 'pv_mind_max',
-                'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense']);
+                'attribut_body', 'attribut_mind', 'des_attaque', 'des_defense',
+                // ORACLE (First Light, FL-Q p. 6, lot C) : durables, visibles
+                // hors quête comme en quête — exactement comme `or`.
+                'benediction_oracle', 'malediction_oracle']);
 
         // `supprimable` (DELETE /personnages/{id}, contrat) : « jamais joué »
         // se lit sur DEUX tables — en UNE requête chacune sur tout le roster,
@@ -195,6 +208,13 @@ class AuthController extends Controller
                         // Bourse PERSONNELLE persistante (part reçue à la clôture) :
                         // invisible jusqu'ici (ni roster ni fiche n'avaient `or`).
                         'or' => (int) $p->or,
+                        // ORACLE (First Light, FL-Q p. 6, lot C) : la
+                        // Bénédiction et la Malédiction sont DURABLES, le
+                        // joueur doit pouvoir les voir même hors quête (hub,
+                        // pour savoir s'il reste à lever la Malédiction au
+                        // marché).
+                        'benediction_oracle' => (bool) $p->benediction_oracle,
+                        'malediction_oracle' => (bool) $p->malediction_oracle,
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         // ⚠ Point de passage UNIQUE. Cette ligne portait sa
                         // propre copie de la formule, et la copie ignorait

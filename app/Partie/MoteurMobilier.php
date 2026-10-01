@@ -377,6 +377,46 @@ final class MoteurMobilier
         $carte->update(['grille' => $grille]);
     }
 
+    /**
+     * Cette salle contient-elle un meuble de ce TYPE, encore debout (ni
+     * détruit) ?
+     *
+     * Point de passage pour toute règle qui se déclenche par la PRÉSENCE d'un
+     * meuble dans la salle plutôt que par son adjacence — *Sly Storage*
+     * (FL-Q p. 7, First Light) est la première : « la salle avec une armoire »
+     * est un fait sur la SALLE, pas un meuble qu'on fouille soi-même, donc ni
+     * `fouillablesAdjacents()` ni `destructiblesAdjacents()` (tous deux
+     * géométriques, centrés sur le héros) ne répondent à la question.
+     *
+     * ⚠ Une pièce `detruit` ne compte plus : une armoire mise en pièces
+     * n'offre plus de double tirage, exactement comme elle ne bloque plus la
+     * vue ni le passage (`detruire()`).
+     */
+    public function salleContientType(Carte $carte, int $salle, string $nom): bool
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return false;
+        }
+
+        $idsDuType = Mobilier::query()->where('nom', $nom)->pluck('id')->all();
+
+        if ($idsDuType === []) {
+            return false;
+        }
+
+        foreach ($entrees as $entree) {
+            if ((int) ($entree['salle'] ?? -1) === $salle
+                && in_array((int) ($entree['mobilier_id'] ?? 0), $idsDuType, true)
+                && ! self::estDetruite($entree)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function adjacentAEmprise(array $entree, int $x, int $y): bool
     {
         $ox = (int) $entree['x'];

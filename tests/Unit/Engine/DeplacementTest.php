@@ -71,3 +71,43 @@ describe('Deplacement — l\'Armure de plates FAIT PERDRE LE DÉ (René, 2026-09
             ->and($resultat->deAnnule)->toBeFalse();
     });
 });
+
+describe('Deplacement — Unthreatened Movement (FL-Q p. 7, First Light, 2026-09-30)', function () {
+    it('compte le dé pour 4 SANS le lancer, quand la table n\'est pas menacée', function () {
+        // La pioche ne doit JAMAIS être consommée : « instead of being
+        // rolled » veut dire qu'aucun jet n'a lieu.
+        $lanceur = new LanceurDeterministe([1, 1, 1]);
+        $resultat = (new Deplacement($lanceur))->calculer(base: 5, sansMenace: true);
+
+        expect($resultat->de)->toBe(4)
+            ->and($resultat->des)->toBe([4])
+            ->and($resultat->total)->toBe(9)
+            ->and($resultat->sansMenace)->toBeTrue()
+            ->and($lanceur->valeursRestantes())->toBe(3); // AUCUN dé consommé
+    });
+
+    it('vaut 4 sur CHAQUE dé, y compris le second des Bottes elfiques', function () {
+        $lanceur = new LanceurDeterministe([]);
+        $resultat = (new Deplacement($lanceur))->calculer(base: 5, sansMenace: true, desSupplementaires: 1);
+
+        expect($resultat->des)->toBe([4, 4])
+            ->and($resultat->total)->toBe(13); // 5 + 4 + 4
+    });
+
+    it('reste dominé par deAnnule : un dé annulé ne compte toujours pas, menace ou pas', function () {
+        $resultat = (new Deplacement(new LanceurDeterministe([])))
+            ->calculer(base: 4, deAnnule: true, sansMenace: true);
+
+        expect($resultat->total)->toBe(4)   // la base SEULE
+            ->and($resultat->de)->toBe(4)   // la valeur fixe reste publiée
+            ->and($resultat->deAnnule)->toBeTrue()
+            ->and($resultat->sansMenace)->toBeTrue();
+    });
+
+    it('menacée (par défaut), le dé est bien lancé comme avant', function () {
+        $resultat = (new Deplacement(new LanceurDeterministe([2])))->calculer(base: 5);
+
+        expect($resultat->de)->toBe(2)
+            ->and($resultat->sansMenace)->toBeFalse();
+    });
+});

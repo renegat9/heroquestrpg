@@ -239,7 +239,15 @@ class GabaritQueteSeeder extends Seeder
                         ],
                         // Les deux bosses sans répertoire : ils frappent, c'est
                         // tout, et c'est une lecture du combat final aussi.
-                        'creatures' => ['Ogre commandant', 'Seigneur ogre'],
+                        // ⚠ Le DRAGON (First Light, 2026-09-30) les rejoint : il
+                        // a bien UN sort (Boule de Flammes, à volonté), mais pas
+                        // de répertoire de sorcier nommé — sa carte ne porte
+                        // qu'une seule capacité magique, pas un `archetype_lanceur`
+                        // (voir le commentaire du Champion dans `MonstreSeeder`).
+                        // Nommé en CRÉATURE, il entre dans le pool au même titre
+                        // que les deux autres plutôt que par un archétype fabriqué
+                        // pour une seule entrée.
+                        'creatures' => ['Ogre commandant', 'Seigneur ogre', 'Dragon'],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'epreuves' => ['min' => 1, 'max' => 2],

@@ -561,7 +561,8 @@ final class Equipement
             return 0;
         }
 
-        return app(DemarreurQuete::class)->themeBestiaireDuGroupe($quete->groupe) === 'horreur_des_glaces'
+        // Auto : la boîte tirée ; manuel : une boîte cochée (2026-09-28).
+        return BestiaireGroupe::duGroupe($quete->groupe)->contient('horreur_des_glaces')
             ? $bonus
             : 0;
     }

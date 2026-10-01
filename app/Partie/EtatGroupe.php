@@ -69,7 +69,9 @@ final class EtatGroupe
         // `null` sur une campagne antérieure à cette colonne — et le libellé
         // est déjà DÉCIDÉ ici : le client ne traduit jamais un identifiant de
         // boîte (`DemarreurQuete::LIBELLES_BOITES`, seule source du texte).
-        $themeBestiaire = app(DemarreurQuete::class)->themeBestiaireDuGroupe($groupe);
+        // Bestiaire AUTO ou MANUEL (2026-09-28) : `BestiaireGroupe`, point de
+        // passage unique — le libellé en sort déjà rédigé.
+        $bestiaire = BestiaireGroupe::duGroupe($groupe);
         $preambuleGroupe = [
             'id' => $groupe->id,
             'identifiant' => $groupe->identifiant,
@@ -85,8 +87,12 @@ final class EtatGroupe
             // Boîte de BESTIAIRE, FIGÉE pour toute la campagne — l'identifiant
             // ET son libellé lisible, les deux décidés ici, jamais par le
             // client.
-            'theme_bestiaire' => $themeBestiaire,
-            'theme_bestiaire_libelle' => app(DemarreurQuete::class)->libelleBoiteBestiaire($themeBestiaire),
+            // `null` en MANUEL : aucune boîte tirée, les cochées sont dans
+            // `bestiaire_boites`.
+            'theme_bestiaire' => $bestiaire->estManuel() ? null : ($bestiaire->boites[0] ?? null),
+            'theme_bestiaire_libelle' => $bestiaire->libelle(),
+            'bestiaire_mode' => $bestiaire->mode,
+            'bestiaire_boites' => $bestiaire->boites,
             // Scène sonore courante (boucle d'ambiance jouée par la table).
             'ambiance' => $this->sceneAmbiance($groupe, $queteCourante),
             // Illustration du lieu de repos (hub) — générée en arrière-plan
@@ -1016,6 +1022,12 @@ final class EtatGroupe
                     // moment perdrait sinon la proposition — et avec elle le
                     // pouvoir du joueur — sans qu'aucun écran ne le dise.
                     'reaction_en_attente' => $etat?->reaction_en_attente,
+                    // ORACLE (First Light, FL-Q p. 6, lot C) : deux états
+                    // DURABLES du héros, pas de la quête — un compagnon
+                    // maudit ou béni le reste d'une quête à l'autre, la table
+                    // doit pouvoir le voir comme toute autre condition.
+                    'benediction_oracle' => (bool) $p->benediction_oracle,
+                    'malediction_oracle' => (bool) $p->malediction_oracle,
                     'conditions' => $this->conditionsHeros($p),
                 ];
             })

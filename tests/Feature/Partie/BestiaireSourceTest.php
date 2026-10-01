@@ -140,6 +140,28 @@ it('déclare ses DIVERGENCES de stat, une par une, avec leur raison', function (
     }
 });
 
+it('porte le Dragon de First Light exactement comme sa carte', function () {
+    // Source : carte de monstre « Dragon » photographiée par René
+    // (2026-09-30), © 2024 Hasbro — reference/18_extensions.md §6.1bis.
+    // « Move 10 · Attack 5 dés · Defend 5 dés · Body 7 · Mind 6. »
+    $dragon = Monstre::where('nom_base', 'Dragon')->firstOrFail();
+
+    expect(statsDe('Dragon'))->toBe([10, 5, 5, 7, 6])
+        ->and($dragon->tier)->toBe('boss')
+        ->and($dragon->boite)->toBe('first_light')
+        ->and($dragon->emprise())->toBe(['l' => 1, 'h' => 2], 'Dragon : grand monstre, 2 cases');
+
+    // « The dragon uses Draconic Flight and may cast Ball of Flame at
+    // will. » — un seul sort, pas un répertoire de sorcier nommé (voir le
+    // commentaire du Champion dans MonstreSeeder), et ce sort échappe au
+    // compteur d'usages POUR CE MONSTRE SEUL.
+    expect($dragon->archetype_lanceur)->toBeNull()
+        ->and($dragon->sorts_dread)->toBe(['Boule de Flammes'])
+        ->and(app(App\Partie\MoteurDread::class)->sortAVolonte(
+            tap(new App\Models\InstanceMonstre, fn ($i) => $i->setRelation('monstre', $dragon)),
+        ))->toBe('Boule de Flammes');
+});
+
 it('donne aux créatures à distance leur attaque de tir ET leur malus au contact', function () {
     // « Attack 4 (1 si adjacent) » : deux valeurs distinctes, pas une.
     foreach (['Archer elfe' => 4, 'Gobelin archer' => 2, 'Archer squelette' => 2] as $nom => $tir) {
@@ -166,7 +188,12 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // Yéti (`ResolveurTour::resoudreAttaqueMonstre()`/`jouerMonstre()`/
         // `saignerParConditions()`) et le vol du Gremlin des glaces
         // (`MoteurDread::voler()`).
-        'etreinte', 'vol_objet'];
+        'etreinte', 'vol_objet',
+        // First Light (carte Dragon, 2026-09-30) : `vol_draconique` (Draconic
+        // Flight — `MoteurDread::tentativeVolDraconique()`) et `sort_a_volonte`
+        // (Boule de Flammes sans compteur d'usage pour ce monstre seul —
+        // `MoteurDread::sortAVolonte()`).
+        'vol_draconique', 'sort_a_volonte'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(

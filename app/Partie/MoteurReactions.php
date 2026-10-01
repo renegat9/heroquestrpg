@@ -49,6 +49,7 @@ final class MoteurReactions
     public function __construct(
         private readonly CapacitesInnees $capacites,
         private readonly StylesElementaires $styles,
+        private readonly MoteurOracle $oracle,
     ) {}
 
     /**
@@ -131,6 +132,19 @@ final class MoteurReactions
         // relance peut ramener le coup à zéro, mais elle peut aussi le refaire.
         if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
             && $this->deposerRelanceAttaque($etat, $heros, $degats, $source, $contexte)) {
+            return;
+        }
+
+        // BÉNÉDICTION DE L'ORACLE, option (b) (First Light, FL-Q p. 6, lot C) :
+        // « after a Defense roll, reroll ALL dice, keeping the second result
+        // obligatorily ». Même famille que *Bouclier de l'Aube* juste
+        // au-dessus — rejouer l'échange avec des dés neufs, en mieux comme en
+        // pire — et donc la même place dans l'ordre : après le reflet qui
+        // annule tout, avant les planchers qui ne laissent qu'1 PV.
+        // ⚠ SCOPÉ à la DÉFENSE (voir `ReactionEffet::RELANCE_BENEDICTION_ORACLE`
+        // pour la raison) : l'Attaque et le Mouvement restent une dette NOMMÉE.
+        if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
+            && $this->deposerRelanceBenedictionOracle($etat, $heros, $degats, $source, $contexte)) {
             return;
         }
 
@@ -366,6 +380,39 @@ final class MoteurReactions
             ],
             $degats, $source, $contexte,
         );
+    }
+
+    /**
+     * BÉNÉDICTION DE L'ORACLE, option (b) (First Light, FL-Q p. 6, lot C).
+     *
+     * ⚠ Contrairement à `deposerRelanceAttaque()` ci-dessus, ce n'est PAS un
+     * objet porté : `benediction_oracle` est un état du héros lui-même, donc
+     * aucun passage par `deposerChezLePorteur()` (qui cherche une PIÈCE chez
+     * N'IMPORTE QUI de la quête) — seule la VICTIME peut l'invoquer, sur
+     * SON propre jet de Défense.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    private function deposerRelanceBenedictionOracle(
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): bool {
+        if (! $victime->benediction_oracle
+            || empty($contexte['instance_id']) || ! isset($contexte['des_attaque'])) {
+            return false;
+        }
+
+        $this->deposer($etat, $victime, $victime, [
+            'action' => ReactionEffet::RELANCE_BENEDICTION_ORACLE,
+            'nom' => "Bénédiction de l'Oracle",
+            'description' => "Relance TOUS les dés de ce jet de Défense. Le nouveau jet remplace l'ancien, "
+                ."en mieux comme en pire — et la Bénédiction disparaît, qu'elle serve ou non.",
+        ], $degats, $source, $contexte);
+
+        return true;
     }
 
     /**
@@ -787,6 +834,14 @@ final class MoteurReactions
             return $this->refleterLeSort($groupe, $heros, $etat, $victime, $etatVictime, $attente);
         }
 
+        // BÉNÉDICTION DE L'ORACLE : même famille — rejoue l'échange, garde le
+        // nouveau résultat SANS CHOISIR (« keeping the second result
+        // obligatorily »), là où `relancerLaVolee()` ci-dessus répond à une
+        // carte qui dit la même chose (« en mieux comme en pire »).
+        if ($action === ReactionEffet::RELANCE_BENEDICTION_ORACLE) {
+            return $this->relancerBenedictionOracle($groupe, $heros, $etat, $victime, $etatVictime, $attente);
+        }
+
         // ⚠ Le compte rendu du jet de destruction est mis DE CÔTÉ et fusionné
         // plus bas, une fois `$payload` construit. Il était fusionné ici, sur
         // une variable pas encore définie : `null + array` est un TypeError, et
@@ -936,6 +991,76 @@ final class MoteurReactions
             'degats_annules' => $rendus,
             'degats_relance' => $subis,
             'pv_body_apres' => (int) $victime->fresh()->pv_body,
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+        $this->reprendreVerdictDeChute($groupe);
+
+        return $payload;
+    }
+
+    /**
+     * BÉNÉDICTION DE L'ORACLE, option (b) (First Light, FL-Q p. 6, lot C) :
+     * même geste que `relancerLaVolee()` ci-dessus (défait le coup, rejoue
+     * l'échange avec des dés neufs, réapplique via `MoteurDegats` pour que
+     * les réductions de talent et les réactions restent ouvertes) — la seule
+     * différence est la ressource dépensée : la Bénédiction elle-même,
+     * jamais une charge d'objet, et TOUJOURS, qu'elle serve ou non (« keeping
+     * the second result obligatorily » — un gamble, pas un choix du
+     * meilleur).
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function relancerBenedictionOracle(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        ?EtatPersonnageQuete $etatVictime,
+        array $attente,
+    ): array {
+        $contexte = (array) ($attente['contexte'] ?? []);
+        $rendus = $this->defaireLeCoup($victime, $etatVictime, (int) ($attente['degats'] ?? 0));
+
+        // ⚠ Consommée sur `$victime`, PAS sur `$heros` (René aurait pu les
+        // confondre : cette réaction n'est jamais offerte à un voisin, les
+        // deux désignent toujours le même héros) : `resoudre()` a RE-TROUVÉ
+        // la victime par un `Personnage::find()` séparé de `$heros` — deux
+        // instances PHP de la même ligne. Consommer sur `$heros` laissait
+        // `$victime` encore « bénie » en mémoire, et l'appel à
+        // `infligerAHeros()` ci-dessous — qui REÇOIT `$victime` — rouvrait
+        // donc la même offre une seconde fois sur le même coup.
+        $this->oracle->consommerBenediction($victime);
+
+        $resultat = (new Combat(app(LanceurDes::class)))->resoudreAttaque(
+            desAttaque: max(0, (int) ($contexte['des_attaque'] ?? 0)),
+            desDefense: max(0, (int) ($contexte['des_defense'] ?? 0)),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $victime->fresh()->pv_body,
+        );
+
+        $subis = app(MoteurDegats::class)->infligerAHeros(
+            $victime, $resultat->degats, (string) ($attente['source'] ?? MoteurDegats::SOURCE_ATTAQUE_MONSTRE),
+            [...$contexte, 'relance' => true, 'relance_oracle' => true],
+        );
+
+        if ((int) $victime->fresh()->pv_body === 0 && $subis > 0) {
+            $etatVictime?->update(['tombe' => true]);
+        }
+
+        $payload = [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $victime->nom,
+            'nom' => $attente['nom'] ?? "Bénédiction de l'Oracle",
+            'action' => ReactionEffet::RELANCE_BENEDICTION_ORACLE,
+            'active' => true,
+            'degats_annules' => $rendus,
+            'degats_relance' => $subis,
+            'pv_body_apres' => (int) $victime->fresh()->pv_body,
+            'benediction_oracle' => false,
             ...$resultat->pourJournal(),
         ];
 

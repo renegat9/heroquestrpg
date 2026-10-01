@@ -173,6 +173,8 @@
 .b-poison { color: var(--cond-poison); background: oklch(0.68 0.165 145 / 0.12); }
 .b-buff   { color: var(--cond-buff);   background: oklch(0.80 0.130 90 / 0.13); }
 .b-burn   { color: var(--cond-burn);   background: oklch(0.64 0.190 45 / 0.13); }
+/* Malédiction de l'Oracle (First Light) : un rouge de sang, distinct de la brûlure. */
+.b-curse  { color: var(--danger);      background: oklch(0.55 0.200 25 / 0.13); }
 
 /* ---- Sac / inventaire ---- */
 .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }

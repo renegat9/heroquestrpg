@@ -16,6 +16,7 @@ use App\Partie\MenuMoteur;
 use App\Partie\MoteurDread;
 use App\Partie\ResolveurTour;
 use Database\Seeders\GabaritQueteSeeder;
+use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\SortDreadSeeder;
 use Database\Seeders\TerrainSeeder;
@@ -44,7 +45,7 @@ use Database\Seeders\TerrainSeeder;
  */
 
 beforeEach(function () {
-    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, SortDreadSeeder::class, ObjetSeeder::class]);
+    $this->seed([GabaritQueteSeeder::class, TerrainSeeder::class, SortDreadSeeder::class, ObjetSeeder::class, MonstreSeeder::class]);
 });
 
 // ---------------------------------------------------------------------
@@ -422,6 +423,7 @@ it("ne blesse PAS sur la Rivière gelée quand le dé ne tombe pas sur bouclier 
         ],
     );
     $pvAvant = (int) $scene['heros']->pv_body;
+    menacerAvecMonstreFactice($scene['quete']); // table menacée : le d6 ci-dessous doit rester CONTRÔLÉ
 
     // Crâne (3) partout : base 4 + 3 = 7 points, EXACTEMENT le coût du trajet
     // (3 cases à 1 + 2 cases à 2 = 7) — et aucun jet ne tombe sur bouclier

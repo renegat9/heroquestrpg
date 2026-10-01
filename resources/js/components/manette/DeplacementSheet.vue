@@ -27,6 +27,12 @@ const props = defineProps({
     // que le serveur a décidé.
     deAnnule: { type: Boolean, default: false },
     deAnnulePar: { type: [String, null], default: null },
+    // UNTHREATENED MOVEMENT (FL-Q p. 7, First Light, 2026-09-30) : DÉCISION
+    // serveur (`Quete::monstreActifRevele()`, `Deplacement::calculer()`) —
+    // sans monstre actif révélé sur le plateau, le dé COMPTE 4 au lieu
+    // d'être lancé. Ce composant ne recalcule rien, il affiche ce que le
+    // serveur a déjà décidé — même règle que `deAnnule` juste au-dessus.
+    sansMenace: { type: Boolean, default: false },
     // MOBILITÉ DE COMBAT (Rogue) / Voile de Brume : publié par `EtatGroupe`
     // (`entites[].franchit_figures`, calculé par
     // `MoteurSorts::mobiliteCombatDisponible()`) — la DÉCISION serveur, pas
@@ -528,7 +534,7 @@ onMounted(async () => {
                 </div>
                 <div class="dep-detail" v-if="de != null">
                     {{ base }}
-                    <span v-if="!deAnnule">+ dé {{ de }}</span>
+                    <span v-if="!deAnnule">+ dé {{ de }}<template v-if="sansMenace"> (sans menace)</template></span>
                     <!-- Dé ANNULÉ (Armure de plates) : montré, rayé, jamais
                          caché — le joueur voit ce qu'il aurait eu. Discret :
                          une INFORMATION, pas une alerte (même ton que le
@@ -550,6 +556,13 @@ onMounted(async () => {
                  suit. -->
             <p v-if="deAnnule" class="dep-de-note">
                 <MSym n="shield" :size="14" /> {{ deAnnulePar }} — le dé ne compte pas
+            </p>
+            <!-- UNTHREATENED MOVEMENT (FL-Q p. 7) : même emplacement que la
+                 note ci-dessus, pour la même raison — un effet automatique
+                 que rien n'annonce est injouable. Les deux ne cohabitent
+                 jamais (un dé annulé n'a plus de valeur à commenter). -->
+            <p v-else-if="sansMenace" class="dep-de-note">
+                <MSym n="casino" :size="14" /> Aucun monstre actif — le dé compte 4 au lieu d'être lancé
             </p>
 
             <!-- CHUTE DE BLOCS — avertissement du livret p. 14 : « the hero

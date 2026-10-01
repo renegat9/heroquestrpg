@@ -37,6 +37,10 @@ class MercenaireController extends Controller
     {
         return response()->json([
             'mercenaires' => Mercenaire::query()
+                // Le Squelette Hearthkin (First Light, lot C) partage ce
+                // catalogue sans jamais être recrutable au hub — il n'existe
+                // que par l'action du Cor des Hearthkin, en quête.
+                ->where('octroi_seul', false)
                 ->orderBy('prix')
                 ->get()
                 ->map(fn (Mercenaire $m) => [
@@ -89,6 +93,16 @@ class MercenaireController extends Controller
         }
 
         $mercenaire = Mercenaire::findOrFail($donnees['mercenaire_id']);
+
+        // Le Squelette Hearthkin n'est jamais affiché dans ce catalogue —
+        // revalidé ici au cas où un client enverrait son id directement, la
+        // même défense que « le menu ne propose jamais ce que le résolveur
+        // refusera » lue dans l'autre sens.
+        if ($mercenaire->octroi_seul) {
+            throw ValidationException::withMessages([
+                'mercenaire_id' => "« {$mercenaire->nom} » ne se recrute pas : il n'existe que par son propre effet.",
+            ]);
+        }
 
         if ((int) $groupe->or < (int) $mercenaire->prix) {
             throw ValidationException::withMessages([

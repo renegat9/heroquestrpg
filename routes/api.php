@@ -175,6 +175,9 @@ Route::middleware('auth:joueur')->group(function () {
     // (ouvrir / annuler : routes table-OU-membre plus haut.)
     Route::put('/groupes/{identifiant}/marche/panier', [MarcheController::class, 'panier']);
     Route::post('/groupes/{identifiant}/marche/confirmation', [MarcheController::class, 'confirmer']);
+    // Oracle (First Light, lot C) : don de 800 po qui lève la Malédiction
+    // d'un héros — transaction directe, hors du panier/de la confirmation.
+    Route::post('/groupes/{identifiant}/marche/lever-malediction', [MarcheController::class, 'leverMalediction']);
 
     // Snapshots (contrat, doc 12 §4) : liste des points de reprise du moteur
     // (debut_quete / nouveau_tour). (POST reprise : route membre-OU-table plus haut.)

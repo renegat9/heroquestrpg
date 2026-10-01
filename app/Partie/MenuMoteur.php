@@ -487,6 +487,20 @@ final class MenuMoteur
                 ];
             }
 
+            // COR DES HEARTHKIN (First Light, FL-Q p. 6) : « each hero places
+            // a Hearthkin Skeleton […] ». Une action, aucune cible — tous les
+            // héros debout de la quête en profitent d'un seul geste.
+            if (! empty($effet['invoque_squelettes_hearthkin'])) {
+                $entrees[] = [
+                    'cle' => "objet:{$ligne->id}",
+                    'inventaire_id' => $ligne->id,
+                    'nom' => $objet->nom,
+                    'detail' => 'Souffler dans le cor — un Squelette Hearthkin par héros',
+                    'cout' => 'action',
+                    'quantite' => (int) $ligne->quantite,
+                ];
+            }
+
             if (! empty($effet['enfume_monstre_adjacent'])) {
                 $cibles = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
                     ->with('monstre')->get()
@@ -703,7 +717,10 @@ final class MenuMoteur
         $base = (int) $personnage->deplacement_base;
 
         if ($etat === null) {
-            return ['base' => $base, 'de' => null, 'des' => [], 'de_annule' => false, 'de_annule_par' => null, 'total' => $base];
+            return [
+                'base' => $base, 'de' => null, 'des' => [], 'de_annule' => false, 'de_annule_par' => null,
+                'total' => $base, 'sans_menace' => false,
+            ];
         }
 
         // ⚠ AU TOUR DU HÉROS, et plus au début du round (2026-09-16). Les menus
@@ -748,10 +765,20 @@ final class MenuMoteur
             $deAnnule = $this->equipement->deDeplacementAnnule($personnage);
             $deAnnulePar = $this->equipement->sourceDeDeplacementAnnule($personnage);
 
+            // UNTHREATENED MOVEMENT (FL-Q p. 7, First Light, 2026-09-30) :
+            // sans monstre actif révélé n'importe où sur le plateau de la
+            // quête, chaque dé de mouvement compte 4 au lieu d'être lancé.
+            // `Quete::monstreActifRevele()` est le SEUL calcul de la menace
+            // (même filtre que `EtatGroupe::sceneAmbiance()`) — ce point de
+            // passage unique («le dé de ce tour ») est celui que lit aussi le
+            // repli de `ResolveurTour::resoudreDeplacement()`.
+            $sansMenace = $etat->quete !== null && ! $etat->quete->monstreActifRevele();
+
             $jet = (new Deplacement($this->des))->calculer(
                 $base + $bonusRaquettes,
                 $deAnnule,
                 (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
+                $sansMenace,
             );
 
             // Détail RÉEL du jet, persisté au lancer — une colonne, jamais un
@@ -768,6 +795,7 @@ final class MenuMoteur
                     'des' => $jet->des,
                     'de_annule' => $jet->deAnnule,
                     'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
+                    'sans_menace' => $jet->sansMenace,
                 ],
             ]);
 
@@ -804,6 +832,9 @@ final class MenuMoteur
                 'des' => array_values(array_filter([$total > $base ? $total - $base : null])),
                 'de_annule' => false,
                 'de_annule_par' => null,
+                // Jamais rétroactif : une ligne antérieure à cette colonne ne
+                // peut pas dire si la table était menacée au moment du jet.
+                'sans_menace' => false,
             ];
         }
 
@@ -814,6 +845,7 @@ final class MenuMoteur
             'de_annule' => (bool) $detail['de_annule'],
             'de_annule_par' => $detail['de_annule_par'] ?? null,
             'total' => $total,
+            'sans_menace' => (bool) ($detail['sans_menace'] ?? false),
         ];
     }
 
@@ -879,6 +911,9 @@ final class MenuMoteur
                     'bonus_equipement' => $bonusEquipement,
                     'de_annule' => $jet->deAnnule,
                     'de_annule_par' => $jet->deAnnule ? $deAnnulePar : null,
+                    // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION publiée par
+                    // le serveur, jamais recalculée par la table.
+                    'sans_menace' => $jet->sansMenace,
                     'total_jet' => $jet->total,
                     'multiplicateur' => $portee['multiplicateur'],
                     'bonus_potion' => $portee['bonus'],
@@ -915,8 +950,13 @@ final class MenuMoteur
     ): void {
         $effet = (array) ($ligne?->objet?->effet ?? []);
 
+        // UNTHREATENED MOVEMENT (FL-Q p. 7) : sans menace, les deux dés valent
+        // 4 par construction — « identiques » à chaque tour, pas une fois sur
+        // six. L'usure lit un COUP DE CHANCE sur un jet réel ; un dé qui n'a
+        // jamais été lancé ne peut pas en être un.
         if ($ligne === null
             || empty($effet[MotsClesEquipement::USURE_SUR_DES_IDENTIQUES])
+            || $jet->sansMenace
             || count($jet->des) < 2
             || count(array_unique($jet->des)) !== 1) {
             return;
@@ -1130,6 +1170,10 @@ final class MenuMoteur
                     'des' => $portee['des'],                 // toutes les faces (2 avec les Bottes elfiques)
                     'de_annule' => $portee['de_annule'],      // DÉCISION : le d6 ne compte pas ce tour
                     'de_annule_par' => $portee['de_annule_par'], // nom de la pièce qui l'annule, null si le dé compte
+                    // UNTHREATENED MOVEMENT (FL-Q p. 7) : DÉCISION déjà prise
+                    // par le serveur — « sans menace, le dé compte 4 » — le
+                    // client ne la recalcule jamais (règle du projet).
+                    'sans_menace' => $portee['sans_menace'],
                     'portee' => $porteeEffective,    // cases restantes ce tour
                 ],
             ];
@@ -1919,6 +1963,25 @@ final class MenuMoteur
                         'id' => "ouvrir_porte_{$p['x']}_{$p['y']}_{$cote}",
                         'libelle' => $avecCle ? 'Ouvrir la porte (clé)' : 'Ouvrir la porte',
                         'type' => 'ouvrir_porte',
+                        'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                    ];
+                }
+
+                // BÉNÉDICTION DE L'ORACLE, option (a) (First Light, FL-Q p. 6) :
+                // « ask Zargon to reveal a room behind a closed adjacent door »
+                // — SANS l'ouvrir, qu'elle soit simplement close OU verrouillée
+                // (c'est tout l'intérêt : regarder sans la clé). NOTRE
+                // arbitrage, écrit comme tel : une INTERACTION LIBRE comme
+                // `ouvrir_porte` elle-même — la carte ne dit pas que demander à
+                // l'Oracle coûte l'action, et une ressource déjà rare (gagnée
+                // une fois par épreuve réussie) n'a pas à concurrencer le
+                // combat pour exister.
+                if ((bool) $personnage->benediction_oracle) {
+                    $cote = (string) ($p['cote'] ?? 'e');
+                    $options[] = [
+                        'id' => "oracle_salle_{$p['x']}_{$p['y']}_{$cote}",
+                        'libelle' => "Bénédiction de l'Oracle — révéler la salle",
+                        'type' => 'oracle_salle',
                         'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
                     ];
                 }

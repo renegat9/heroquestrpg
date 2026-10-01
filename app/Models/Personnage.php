@@ -31,6 +31,11 @@ class Personnage extends Model
         'des_defense',
         'deplacement_base',
         'or',
+        // ORACLE (First Light, FL-Q p. 6, lot C) : deux états DURABLES, qui
+        // suivent le héros d'une quête à l'autre — voir la migration
+        // `oracle_benediction_malediction_sur_personnages`.
+        'benediction_oracle',
+        'malediction_oracle',
     ];
 
     /**
@@ -78,6 +83,17 @@ class Personnage extends Model
                 app(MoteurSorts::class)->regagnerSorts($personnage, RegainEffet::BODY_AU_MAX);
             }
         });
+    }
+
+    protected function casts(): array
+    {
+        return [
+            // ORACLE (First Light, lot C) : durables, jamais relus comme des
+            // entiers 0/1 — le même piège que toute colonne booléenne non
+            // castée dans ce projet.
+            'benediction_oracle' => 'boolean',
+            'malediction_oracle' => 'boolean',
+        ];
     }
 
     /** Propriétaire (roster). */

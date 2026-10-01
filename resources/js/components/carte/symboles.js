@@ -6,7 +6,7 @@
 // l'autorité d'une légende. Ici, ajouter une icône la fait apparaître aux deux
 // endroits, ou à aucun.
 //
-// ⚠ Chaque table a un REPLI générique : un catalogue s'étend (7 épreuves
+// ⚠ Chaque table a un REPLI générique : un catalogue s'étend (8 épreuves
 // aujourd'hui, davantage demain), et une entrée non listée doit rendre une
 // icône neutre plutôt que le nom du glyphe en toutes lettres — Material Symbols
 // affiche sa ligature telle quelle quand le nom est inconnu.
@@ -52,6 +52,9 @@ export const EPREUVE_ICONES = {
     'Crâne accusateur': 'skull',
     'Dalle descellée': 'layers',
     'Mécanisme gripé': 'settings',
+    // Oracle (First Light, lot C) : un œil qui juge — bénédiction ou
+    // malédiction selon le jet, jamais un gain neutre comme les sept autres.
+    "L'Oracle de Zargon": 'visibility',
 };
 export const EPREUVE_ICONE_DEFAUT = 'front_hand';
 

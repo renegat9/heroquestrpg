@@ -648,7 +648,10 @@ it('annonce le début du tour avec le dé et le calcul du déplacement', functio
         ->and($scene['sous_titre'])->toBe('Jet de déplacement')
         ->and($scene['acteurs'])->toHaveCount(1)
         ->and($scene['jet'])->toBeNull()
-        ->and($scene['deplacement'])->toBe(['des' => [4], 'calcul' => 'base 5 + dé 4 = 9', 'de_annule' => false, 'de_annule_par' => null])
+        ->and($scene['deplacement'])->toBe([
+            'des' => [4], 'calcul' => 'base 5 + dé 4 = 9', 'de_annule' => false, 'de_annule_par' => null,
+            'sans_menace' => false,
+        ])
         ->and($scene['issue'])->toBe(['ton' => 'info', 'libelle' => '9 cases ce tour']);
 });
 

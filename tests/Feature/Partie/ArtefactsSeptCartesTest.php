@@ -297,6 +297,13 @@ it('ajoute un second dé de déplacement à l\'elfe, et s\'use quand les deux to
     $bottes = porterArtefact($elfe, 'Bottes elfiques');
     $base = (int) $elfe->fresh()->deplacement_base;
 
+    // Table MENACÉE : ce test lit deux VRAIS d6 (`desFiges()`) pour prouver
+    // l'addition puis l'usure sur un double — sans ça, *Unthreatened Movement*
+    // (FL-Q p. 7, First Light) compterait chaque dé pour 4 et ne lirait rien
+    // de la pioche (et les deux vaudraient alors toujours 4 : une usure
+    // garantie, pas la preuve d'un double au hasard).
+    menacerQuete($quete);
+
     // ⚠ Le lancement de la quête a DÉJÀ généré un menu, donc déjà lancé le dé
     // du tour — avant que les bottes ne soient chaussées. On rouvre le tour,
     // sans quoi on mesurerait le jet d'un elfe pieds nus.

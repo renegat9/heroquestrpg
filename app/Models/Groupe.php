@@ -30,6 +30,10 @@ class Groupe extends Model
         // DemarreurQuete::themeBestiaireDuGroupe(), qui retombe alors sur le
         // calcul historique plutôt que de traiter `null` comme une erreur.
         'theme_bestiaire',
+        // Bestiaire MANUEL (2026-09-28) : boîtes cochées à la création, liste
+        // vide = jeu de base seul ; `null` = automatique. Lire via
+        // App\Partie\BestiaireGroupe::duGroupe(), jamais brut.
+        'boites_bestiaire',
         'etat',
         'phase',
         'quete_courante_id',
@@ -40,6 +44,7 @@ class Groupe extends Model
         return [
             'plan_campagne' => 'array',
             'ton' => 'array',
+            'boites_bestiaire' => 'array',
         ];
     }
 

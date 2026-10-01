@@ -1367,6 +1367,7 @@ const navItems = computed(() => (scene.value === 'marche'
                         :base="feuilleOption.option.parametres?.base ?? 0"
                         :de-annule="feuilleOption.option.parametres?.de_annule ?? false"
                         :de-annule-par="feuilleOption.option.parametres?.de_annule_par ?? null"
+                        :sans-menace="feuilleOption.option.parametres?.sans_menace ?? false"
                         :franchit-figures="monEntite?.franchit_figures === true"
                         :groupe="groupe"
                         :cases-ecart="feuilleOption.option.type === 's_ecarter_du_bloc'

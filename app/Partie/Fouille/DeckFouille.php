@@ -11,6 +11,7 @@ use App\Models\Objet;
 use App\Models\Quete;
 use App\Partie\Aleatoire\PrngLineaire;
 use App\Partie\AssembleurCarte;
+use App\Partie\BestiaireGroupe;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
 use App\Partie\MoteurPortes;
@@ -463,7 +464,8 @@ final class DeckFouille
 
         $possedes = Inventaire::query()->whereIn('personnage_id', $idsHeros)->pluck('objet_id');
 
-        $theme = app(DemarreurQuete::class)->themeBestiaireDuGroupe($groupe);
+        // Auto : la boîte tirée ; manuel : les boîtes cochées (2026-09-28).
+        $boitesDuTheme = BestiaireGroupe::duGroupe($groupe)->boites;
 
         // Un artefact que personne ici ne pourra porter est du BUTIN MORT : un
         // groupe sans elfe perdait son unique artefact de quête sur des
@@ -495,7 +497,7 @@ final class DeckFouille
             // Boîté et hors thème → butin mort garanti (Raquettes de Vitesse
             // hors `horreur_des_glaces`) : écarté ici, avant même le filtre de
             // classe, comme `boite = null` reste éligible dans TOUTE campagne.
-            ->where(fn ($q) => $q->whereNull('boite')->orWhere('boite', $theme))
+            ->where(fn ($q) => $q->whereNull('boite')->orWhereIn('boite', $boitesDuTheme))
             ->orderBy('id')
             ->get()
             ->filter(fn (Objet $o) => $equipement->utilisableParUnDeCesHeros($o, $actifs))
