@@ -1690,10 +1690,85 @@ bien de ce livret se déduit du dépôt commun et de la mise en page identique ;
     Dragon.
   - *Draconic Flight* : le Dragon peut interrompre son mouvement pour agir puis
     le finir, et **traverser des cases occupées** (sans y finir).
-  - ⚠ **Statistiques de Qwindrak et du Dragon non trouvées** : elles sont dans
-    les notes de quête, non photographiées.
+  - **Qwindrak the Warlock — Move 6 · Attack 3 dés · Defend 6 dés · Body 3 ·
+    Mind 6.** Source : photo de René (2026-09-30), notes de quête du livret
+    First Light — tableau intitulé « *Qwindrak the Warlock* » ; ⚠ numéro de
+    page et nom de la quête **non visibles** sur la photo. Le texte qui
+    précède le tableau décrit la confrontation finale :
+    - les monstres listés par la quête sont affrontés tour à tour (« shuffle
+      the [deck] … deal a new faceup monster card » à chaque monstre vaincu,
+      jusqu'au dernier — ⚠ début de phrase et mots du milieu illisibles sur la
+      photo, reflet) ;
+    - le dernier vaincu, Qwindrak prend sa **forme de Dragon** et souffle la
+      **flamme du Dread** : chaque héros **dans la même salle** que lui lance
+      **un dé rouge** ; sur **3 ou moins**, il perd **1 Body Point** ;
+    - la forme de Dragon vaincue, la bataille est finie et les héros ont gagné.
+  - **Dragon — Move 10 · Attack 5 dés · Defend 5 dés · Body 7 · Mind 6.**
+    Source : photo de René (2026-09-30), **carte de monstre** « *Dragon* »,
+    © 2024 Hasbro (First Light). Texte de la carte, intégral : « *The dragon
+    uses Draconic Flight and may cast Ball of Flame at will.* »
+    - *Draconic Flight* : règle du livret de quêtes p. 7, ci-dessus.
+    - *Ball of Flame* : la carte de sort Dread du jeu de base (`09_bestiaire.md` l. 119, notre
+      « Boule de Flammes ») ; **« at will »** = toujours disponible, au prix
+      d'une action (FL-Q p. 6, *Dread Spells*, ci-dessus) — à l'opposé du
+      « une fois par quête » des autres sorts de monstre.
+    - ⚠ **Taille de la figurine non trouvée** : ni la carte ni les pages
+      photographiées ne disent si le Dragon est un *Large Monster* (2 cases,
+      FL-Q p. 6). Ne pas le supposer.
+    - ⚠ **Combien de tuiles Skull** placer sous lui à l'apparition (*Dragon
+      Form*, Body déjà perdus) : fixé par les notes de quête, non trouvé.
+    - La **flamme du Dread** de la confrontation finale (un dé rouge par héros
+      de la salle, 1 Body sur 3 ou moins) est une règle de la QUÊTE (notes de
+      quête, ci-dessus), pas de la carte : elle ne suit pas le Dragon ailleurs.
+  - Les autres **Synchroforms** de Qwindrak ne sont pas chiffrées.
+  - *Première fouille de trésor* (même page) : texte à lire, purement narratif
+    — l'œuf du SeerScale éclot, **Alousen**, fille d'Ethlarin, « la dernière
+    du SeerScale », remercie les héros et s'envole. Aucun effet de jeu.
 - *Tips for Zargon* (p. 7) : renvoie à « **A Message from Mentor** », p. 8
   (non photographiée).
+
+#### 6.1bis Pages 8, 9 et 11 (FL-Q) — scan de René, 2026-09-30
+
+**Source :** `first_light_questbook_rules_part2.pdf` (Drive des sources
+officielles, 3 pages PDF = pages imprimées **8**, **9** et **11** ; p. 8 sans
+numéro visible, déduite de l'ordre).
+
+- **p. 8 — « A Message from Mentor »** : texte narratif uniquement (Zargon
+  ancien apprenti de Mentor, la Reine-sorcière **Kessandria**, **Sir Ragnar**,
+  l'orc **Ulag**). Aucune règle.
+- **p. 9 — « Quest Map Guide »** :
+  - couleurs des symboles de carte : **rouge** = pièges et mystères que les
+    héros peuvent détecter en fouillant ; **vert clair** = pièges et dangers
+    qu'ils ne peuvent **ni voir ni détecter** en fouillant ; **bleu** =
+    éléments à interaction propre décrite dans les notes ; **vert foncé** =
+    symboles de monstres ;
+  - une note précédée d'une **lettre capitale** renvoie à la même lettre sur
+    la carte ; un terme en *italique* = un objet à carte du pack ; un monstre
+    à majuscule = une carte de monstre ; un texte « entre guillemets » est lu
+    aux héros ;
+  - symboles de monstres : Dragon, Gargoyle, Dread Warrior, Zombie, Goblin,
+    Abomination, Mummy, Skeleton, Dread Sorcerer, Orc. ⚠ Le symbole du
+    **Dragon est un ovale de 2 cases de large** — recoupe la photo de la
+    figurine (René, 2026-09-30) : le Dragon est un **grand monstre**.
+- **p. 11 — Quête 1, « The Border Fort of In-Gulden »** : carte complète
+  (flèches **ENTER**/**EXIT**, tuiles Skull) et notes. Ce sont des
+  **événements propres à cette quête**, non des règles générales :
+  - *Ambushed Scouts* : chaque tuile Skull est un éclaireur tombé, sans effet
+    sur le mouvement ; une action pour fouiller un éclaireur **adjacent** :
+    1 dé rouge — 1-2 rien, 3-4 **15 po**, 5-6 **40 po** ; la première fouille
+    révèle aussi une note (« …is a traitor and seeks the Night Egg ») ;
+    la tuile est retirée après fouille ;
+  - Sir Ragnar donne au groupe deux *Potions of Healing* au départ ;
+  - **A** : passé le dernier héros, le plafond s'effondre — tuile double
+    case bloquée sur les cases A, l'escalier retiré (pas de retour) ;
+  - **B** : premier à fouiller le trésor, **200 po** et un *Wizard's Staff* ;
+  - **C** : ouvrir l'une de ces portes ouvre **toutes** les portes C et place
+    les monstres ;
+  - **D** : le capitaine du Dread **Sha-Del** ; premier à fouiller, **300 po**
+    et une note ensanglantée (l'armée de Kessandria cherche **Qwindrak** à
+    Tuel-Vor) ; la note trouvée, la quête est accomplie et les héros peuvent
+    sortir ;
+  - **monstre errant de la quête : Goblin**.
 
 #### 6.2 Component Reference (FL-Q p. 20-21)
 
@@ -2076,7 +2151,7 @@ intégralement ce qu'elle fait.
 | Spirit Queen's Torment | 2023 | 1 (Barde)⚠ | 0 (variantes nommées seulement) | 4 tours au choix libre, dégâts convertis en Mind, résolution alternative de boss |
 | Jungles of Delthrak | 2024 | 2 (Explorateur confirmé, Berserker probable)⚠ | 9 (Blightcrawler, Blightweaver, Giant Ape, Goblin/Skeleton Archer, Raptor, Serpent, Skullblight, Spawnling) | 3 modes de difficulté/mort, campagne ramifiée, terrain destructible, jetons de dégât différé |
 | The Crypt of Perpetual Darkness | 2024/25 | 0 | 0 (variantes nommées seulement) | Piège d'acide permanent, monstre-piège auto-déclenché, obscurité magique pénalisante |
-| First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak / Dragon ⚠ stats non trouvées | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |
+| First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak the Warlock (Move 6 · Att 3 · Déf 6 · Body 3 · Mind 6) ; Dragon (Move 10 · Att 5 · Déf 5 · Body 7 · Mind 6, Draconic Flight, Ball of Flame à volonté) | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |
 
 † Statistiques chiffrées de l'Abomination non trouvées dans Kellar's Keep
 lui-même ; confirmées comme faisant partie du bestiaire standard 2021 par
