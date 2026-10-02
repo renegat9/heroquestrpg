@@ -10227,6 +10227,14 @@ final class ResolveurTour
         }
 
         // Mêlée : rejoindre le monstre le plus proche (case adjacente à l'emprise).
+        //
+        // ⚠ Grille de DÉPLACEMENT qui franchit les héros et les autres alliés
+        // (2026-10-01, test en jeu) : sans elle, un héros posté dans un couloir
+        // d'UNE case entre l'allié et le monstre le laissait immobile, round
+        // après round (`allie_immobile`), alors qu'un héros, lui, traverse la
+        // case d'un compagnon. Les monstres et les meubles bloquent toujours ;
+        // la case d'ARRÊT est revérifiée plus bas (jamais sur une figure).
+        $grilleMvt = $this->grille($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
         $meilleure = null; // [InstanceMonstre, chemin]
         foreach ($monstres as $m) {
             $e = $m->monstre->emprise();
@@ -10238,7 +10246,7 @@ final class ResolveurTour
 
             foreach ($grille->cellulesEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']) as $cell) {
                 foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                    $chemin = $grille->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
+                    $chemin = $grilleMvt->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
                     if ($chemin !== null && ($meilleure === null || count($chemin) < count($meilleure[1]))) {
                         $meilleure = [$m, $chemin];
                     }
@@ -10259,7 +10267,14 @@ final class ResolveurTour
             // première case dépasse le budget) là où `min(...)` ne le pouvait
             // jamais : l'allié reste alors immobile plutôt que de lire l'index
             // -1 de `$chemin`.
-            $pas = $grille->pasAffordables($chemin, (int) $merc->deplacement);
+            $pas = $grilleMvt->pasAffordables($chemin, (int) $merc->deplacement);
+
+            // Traverser n'est pas s'arrêter : on recule jusqu'à la dernière
+            // case LIBRE du trajet payable (la case visée peut être celle d'un
+            // héros, quand c'est la seule qui touche le monstre).
+            while ($pas > 0 && $grilleMvt->estOccupeeParFigure((int) $chemin[$pas - 1]['x'], (int) $chemin[$pas - 1]['y'])) {
+                $pas--;
+            }
 
             if ($pas > 0) {
                 $arrivee = $chemin[$pas - 1];
@@ -10347,8 +10362,10 @@ final class ResolveurTour
             'allie' => $nom,
             // Qui frappe, en catalogue : c'est ce que la scène de table lit
             // pour l'ILLUSTRER (2026-10-01) — sans lui, elle prenait le
-            // portrait du héros qui contrôle l'allié.
+            // portrait du héros qui contrôle l'allié. `allie_id` lui donne SES
+            // PV (la recrue, pas la fiche de catalogue).
             'mercenaire_id' => (int) $allie->mercenaire_id,
+            'allie_id' => (int) $allie->id,
             'portee' => $portee,
             'cible' => [
                 'instance_id' => $cible->id,
@@ -10359,6 +10376,10 @@ final class ResolveurTour
             'degats' => $resultat->degats,
             'pv_body_apres' => $resultat->pvBodyApres,
             'cible_vaincue' => $resultat->pvBodyApres === 0,
+            // Les faces réellement lancées (test en jeu, 2026-10-01) : la scène
+            // d'un allié n'affichait AUCUN dé, quand le fil disait « 1 crâne ».
+            // Même forme qu'une attaque de monstre (`MoteurDread`).
+            ...$resultat->pourJournal(),
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);

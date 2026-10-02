@@ -268,7 +268,7 @@ final class SceneDeTable
                 // Un ALLIÉ frappe sous SON image, pas sous celle du héros qui
                 // le contrôle (2026-10-01).
                 isset($a['mercenaire_id'])
-                    ? $this->acteurAllie((int) $a['mercenaire_id'], $attaquant, 'attaquant')
+                    ? $this->acteurAllie((int) $a['mercenaire_id'], $attaquant, 'attaquant', (int) ($a['allie_id'] ?? 0))
                     : $this->acteurHeros($acteur, 'attaquant', $a['allie'] ?? null),
                 $this->acteurMonstre($instanceId, $cibleNom, 'defenseur'),
             ],
@@ -1147,18 +1147,25 @@ final class SceneDeTable
 
     /**
      * Un allié (mercenaire, animal, squelette Hearthkin…) — illustré par son
-     * entrée de catalogue. Pas de PV ici : la scène montre le coup, et les PV
-     * d'un allié vivent sur le panneau du groupe.
+     * entrée de catalogue, avec les PV de LA RECRUE (`allie_id`). ⚠ Ils
+     * restaient vides au premier jet, au motif qu'ils « vivaient sur le
+     * panneau du groupe » : faux, ce panneau ne liste que les héros — la
+     * table ne montrait les PV d'un allié NULLE PART (test en jeu, 2026-10-01).
      *
      * @return array<string, mixed>
      */
-    private function acteurAllie(int $mercenaireId, string $nom, string $role): array
+    private function acteurAllie(int $mercenaireId, string $nom, string $role, int $allieId = 0): array
     {
+        $recrue = $allieId > 0 ? \App\Models\GroupeMercenaire::with('mercenaire')->find($allieId) : null;
+
         return [
             'role' => $role,
             'nom' => $nom,
             'image_url' => $this->images->urlMercenaire($mercenaireId, \App\Models\Mercenaire::find($mercenaireId)?->nom),
-            'pv' => null,
+            'pv' => $recrue === null ? null : [
+                'courant' => (int) $recrue->pv_body,
+                'max' => (int) $recrue->mercenaire->pv_body,
+            ],
         ];
     }
 

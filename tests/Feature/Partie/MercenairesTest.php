@@ -294,3 +294,108 @@ it('laisse un allié DIAGONAL frapper une cible que l\'orthogonal n\'atteint pas
         ->and($grille->sontAdjacentes(2, 2, 4, 4, true))->toBeFalse()
         ->and($grille->sontAdjacentes(2, 2, 2, 4, true))->toBeFalse();
 });
+
+/** Quête démarrée avec UN allié recruté (Fauchard) et un seul monstre actif. */
+function queteAvecAllie(): array
+{
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    test()->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);
+    $instance->update(['revele' => true]);
+
+    return [$groupe, $quete, $heros, $groupe->fresh()->mercenaires()->first(), $instance->fresh()];
+}
+
+it('montre les alliés dans l\'initiative, entre les héros et les monstres — l\'ordre réel du round', function () {
+    // René, 2026-10-01 : « ne devrait-on pas voir les alliés dans la barre
+    // d'initiative ». Ils jouaient déjà après les héros et avant les monstres
+    // (`jouerFinDeRound()`), mais l'initiative publiée les taisait.
+    [, , , $allie, $instance] = queteAvecAllie();
+
+    $initiative = collect($this->getJson('/api/groupes/table-1/etat')->assertOk()->json('initiative'));
+
+    expect($initiative->pluck('entite')->all())->toBe(['heros', 'allie', 'monstre'])
+        ->and($initiative[1]['id'])->toBe($allie->id)
+        ->and($initiative[1]['nom'])->toBe('Fauchard')
+        ->and($initiative[2]['id'])->toBe($instance->id);
+
+    // Portrait de chaque unité (René, 2026-10-01 : « afficher le portrait des
+    // unités avec leur nom en dessous ») — le même que sa figurine de carte.
+    $entites = collect($this->getJson('/api/groupes/table-1/etat')->json('entites'));
+    foreach ($initiative as $entree) {
+        $type = $entree['entite'] === 'allie' ? 'allie' : $entree['entite'];
+        $figurine = $entites->first(fn ($e) => $e['type'] === $type && $e['id'] === $entree['id']);
+
+        expect($entree['image_url'])->toBeString()->not->toBe('')
+            ->and($entree['image_url'])->toBe($figurine['image_url']);
+    }
+});
+
+it('publie les DÉS et les PV d\'un allié qui attaque, pour sa scène de table', function () {
+    [, $quete, , $allie, $instance] = queteAvecAllie();
+    $contact = caseAdjacenteLibre($quete, (int) $allie->position_x, (int) $allie->position_y);
+    $instance->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+
+    desFiges(array_fill(0, 80, 4));
+
+    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_allies.actions'))
+        ->firstWhere('type', 'attaque_allie');
+
+    expect($attaque)->not->toBeNull()
+        ->and($attaque['allie_id'])->toBe($allie->id)
+        ->and($attaque['faces_attaque'])->not->toBeEmpty()
+        ->and($attaque)->toHaveKeys(['faces_defense', 'face_touchante', 'face_defensive']);
+
+    $scene = app(App\Partie\SceneDeTable::class)->depuisResultat($attaque, App\Models\Personnage::firstOrFail())[0];
+    $acteur = collect($scene['acteurs'])->firstWhere('role', 'attaquant');
+
+    expect($acteur['pv'])->toBe(['courant' => (int) $allie->fresh()->pv_body, 'max' => (int) $allie->mercenaire->pv_body])
+        ->and($scene['jet']['atk'])->not->toBeEmpty();
+});
+
+it('fait TRAVERSER un héros à l\'allié dans un couloir d\'une case — il ne reste plus immobile', function () {
+    // Test en jeu du 2026-10-01 : Aldric posté dans le couloir d'une case
+    // entre le loup et le squelette, le loup est resté `allie_immobile` trois
+    // rounds de suite. Un héros traverse la case d'un compagnon ; un allié
+    // le peut désormais aussi — sans jamais s'y arrêter.
+    [, $quete, $heros, $allie, $instance] = queteAvecAllie();
+
+    // Un couloir d'une case, ligne y = 1 : allié (1,1), héros (2,1), monstre (6,1).
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['cases'] = array_fill(0, 3, array_fill(0, 10, 'm'));
+    for ($x = 1; $x <= 8; $x++) {
+        $grille['cases'][1][$x] = 's';
+    }
+    foreach (['portes', 'mobilier', 'pieges', 'leviers', 'epreuves', 'terrain', 'glace', 'salles'] as $couche) {
+        $grille[$couche] = [];
+    }
+    $carte->update(['grille' => $grille]);
+
+    $allie->update(['position_x' => 1, 'position_y' => 1]);
+    EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)
+        ->update(['position_x' => 2, 'position_y' => 1]);
+    $instance->update(['position_x' => 6, 'position_y' => 1]);
+
+    desFiges(array_fill(0, 80, 4));
+
+    $actions = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_allies.actions'));
+
+    // Le Fauchard (Move 7) passe par la case du héros jusqu'au contact (5,1).
+    expect($actions->pluck('type')->all())->not->toContain('allie_immobile')
+        ->and($actions->firstWhere('type', 'attaque_allie'))->not->toBeNull();
+
+    $allie->refresh();
+    expect([(int) $allie->position_x, (int) $allie->position_y])->toBe([5, 1]);
+});

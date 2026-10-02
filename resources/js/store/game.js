@@ -526,7 +526,10 @@ export function acteurCourant(initiative) {
 export function estCourant(entite, initiative) {
     const cur = acteurCourant(initiative);
     if (!cur) return false;
-    const type = entite.type === 'heros' ? 'heros' : 'monstre';
+    // `allie` est un type d'initiative à part entière depuis le 2026-10-01 :
+    // le ranger sous `monstre` aurait pu désigner un allié et un monstre de
+    // même id comme le même acteur.
+    const type = entite.type === 'heros' || entite.type === 'allie' ? entite.type : 'monstre';
     return cur.entite === type && cur.id === entite.id;
 }
 
@@ -651,8 +654,14 @@ export function initiativeVersBarre(initiative) {
     const cur = acteurCourant(initiative);
     return (initiative ?? []).map((o) => ({
         l: labelCourt(o.nom),
+        // Portrait + nom complet sous le jeton (René, 2026-10-01) — le
+        // portrait vient du serveur (le même que la figurine de la carte).
+        nom: o.nom ?? '?',
+        img: o.image_url ?? null,
         cur: o === cur,
         foe: o.entite === 'monstre',
+        // Allié (2026-10-01) : vert, la couleur de son jeton sur la carte.
+        ally: o.entite === 'allie',
         // id + type : cliquer un jeton d'initiative ouvre la fiche de stats de
         // la figure (table, C3) — résolue depuis EtatGroupe.entites.
         id: o.id,
@@ -687,7 +696,10 @@ export function statsFigure(item, entites) {
 
 /** initiative (contrat) → InitMini de la manette [{k, foe}] (+ jeton courant). */
 export function initiativeVersMini(initiative) {
-    return (initiative ?? []).map((o) => ({ k: labelCourt(o.nom), foe: o.entite === 'monstre' }));
+    return (initiative ?? []).map((o) => ({
+        k: labelCourt(o.nom), foe: o.entite === 'monstre', ally: o.entite === 'allie',
+        nom: o.nom ?? '?', img: o.image_url ?? null,
+    }));
 }
 
 /* =========================================================================

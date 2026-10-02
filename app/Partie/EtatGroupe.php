@@ -884,6 +884,10 @@ final class EtatGroupe
                 'pv_body' => (int) $a->pv_body,
                 'pv_body_max' => (int) $a->mercenaire->pv_body,
                 'animal' => (bool) $a->mercenaire->animal,
+                // Dés de la fiche de stats, ouverte depuis la barre
+                // d'initiative (2026-10-01) — comme pour un héros ou un monstre.
+                'des_attaque' => (int) $a->mercenaire->attaque,
+                'des_defense' => (int) $a->mercenaire->defense,
                 // Le jeton de carte l'affiche déjà quand il existe
                 // (`entitesVersFigurines` lit `image_url`) — 2026-10-01.
                 'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
@@ -1137,7 +1141,7 @@ final class EtatGroupe
     /**
      * Ordre du tour figé (C1) : héros par ordre d'initiative, monstres après.
      *
-     * @return list<array{entite: string, id: int, nom: string, a_joue: bool, tombe: bool}>
+     * @return list<array{entite: string, id: int, nom: string, a_joue: bool, tombe: bool, image_url: string}>
      */
     private function initiative(Groupe $groupe, Quete $quete): array
     {
@@ -1155,6 +1159,8 @@ final class EtatGroupe
                 // Un héros tombé est sauté par le moteur (verifierInitiative) :
                 // le client en a besoin pour désigner le VRAI acteur courant.
                 'tombe' => (bool) ($etats->get($p->id)?->tombe ?? false),
+                // Portrait (2026-10-01) : le même que sa figurine sur la carte.
+                'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
             ]);
 
         $monstres = $quete->instancesMonstres()
@@ -1169,9 +1175,30 @@ final class EtatGroupe
                 'nom' => $i->nomAffiche(),
                 'a_joue' => false, // les monstres jouent en bloc après les héros (C2)
                 'tombe' => false,
+                'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
             ]);
 
-        return [...$heros->values()->all(), ...$monstres->values()->all()];
+        // ALLIÉS (2026-10-01, René : « ne devrait-on pas voir les alliés dans
+        // la barre d'initiative ») : ils jouent APRÈS les héros et AVANT les
+        // monstres (`ResolveurTour::jouerFinDeRound()`), en bloc — la barre
+        // les taisait, si bien qu'un loup frappait à un moment que rien
+        // n'annonçait. Même filtre que `allies()` : posés et actifs.
+        $allies = $groupe->mercenaires()
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (GroupeMercenaire $a) => [
+                'entite' => 'allie',
+                'id' => $a->id,
+                'nom' => $a->mercenaire->nom,
+                'a_joue' => false, // jouent en bloc après les héros, comme les monstres
+                'tombe' => false,
+                'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
+            ]);
+
+        return [...$heros->values()->all(), ...$allies->values()->all(), ...$monstres->values()->all()];
     }
 
     /**

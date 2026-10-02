@@ -1221,9 +1221,19 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .init { display: flex; align-items: center; gap: 10px; margin: 0 auto; }
 .table-screen .init .ttl { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-500); font-weight: 700; margin-right: 4px; }
 .table-screen .tok { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px;
-  background: var(--stone-800); border: 2px solid var(--stone-600); color: var(--ink-300); position: relative; transition: all .3s; }
-.table-screen .tok.cur { border-color: var(--torch); background: var(--torch); color: var(--stone-950); box-shadow: var(--glow-torch); transform: scale(1.14); }
-.table-screen .tok.foe { border-color: var(--body); color: var(--body-bright); }
+  background: var(--stone-800); border: 2px solid var(--stone-600); color: var(--ink-300); position: relative; transition: all .3s;
+  overflow: hidden; }
+/* Portrait (2026-10-01) : il remplit le cercle, la bordure dit le camp. */
+.table-screen .tok .vignette-img { width: 100%; height: 100%; object-fit: cover; }
+.table-screen .init-nom { max-width: 84px; font-size: 11px; font-weight: 600; line-height: 1.1; color: var(--ink-400);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-screen .init-unite.cur .tok { border-color: var(--torch); border-width: 3px; box-shadow: var(--glow-torch); transform: scale(1.14); }
+.table-screen .init-unite.cur .init-nom { color: var(--torch); font-weight: 800; margin-top: 4px; }
+.table-screen .init-unite.foe .tok { border-color: var(--body); color: var(--body-bright); }
+.table-screen .init-unite.foe .init-nom { color: var(--body-bright); }
+/* Allié : le vert de son jeton sur la carte (`.fig.ally`). */
+.table-screen .init-unite.ally .tok { border-color: oklch(0.7 0.13 155); color: oklch(0.82 0.13 152); }
+.table-screen .init-unite.ally .init-nom { color: oklch(0.82 0.13 152); }
 .table-screen .init .arrow { color: var(--ink-700); }
 
 /* Fil des événements mécaniques (dés, dégâts, morts…) — C1/C2 : overlay discret

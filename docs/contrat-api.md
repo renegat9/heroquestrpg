@@ -55,7 +55,7 @@ Routes protégées par middleware `auth` sauf connexion.
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif"}
   ],
-  "initiative": [{"entite": "heros|monstre", "id": 1, "nom": "...", "a_joue": false, "tombe": false}],
+  "initiative": [{"entite": "heros|allie|monstre", "id": 1, "nom": "...", "a_joue": false, "tombe": false, "image_url": "/images/..."}],
   "narration": "dernier texte du MJ",
   "narration_sequence": 42,
   "mj_reflechit": false
@@ -131,6 +131,19 @@ piège déclenché par un déplacement est lui aussi décrit (narration `piege_d
 l'écran de prologue de la table ; `auto` est vrai tant qu'aucune quête n'a eu lieu
 (ouverture automatique au lancement). `url` = vraie voix de narrateur si générée,
 sinon `null` → lecture Web Speech. Absent si aucun squelette de campagne.
+
+**Les alliés figurent dans l'initiative** (René, 2026-10-01 : « ne devrait-on
+pas voir les alliés dans la barre d'initiative ») : l'ordre publié suit l'ordre
+RÉEL du round — héros (un par un), puis **alliés** posés (`entite: "allie"`,
+`id` = `groupe_mercenaires.id`, jouent en bloc, `a_joue: false`), puis
+monstres révélés. Ils jouaient déjà là (`ResolveurTour::jouerFinDeRound()` :
+`phaseAllies()` avant `phaseMonstres()`), mais la barre ne les montrait jamais.
+
+`initiative[].image_url` (René, 2026-10-01 : « afficher le portrait des unités
+avec leur nom en dessous ») : le MÊME portrait que la figurine de la carte —
+`urlHeros()`, `urlMercenaire()`, `urlMonstre()` (portrait habillé de
+l'instance, sinon catalogue, sinon emblème) — jamais `null`. La barre de la
+table et celle de la manette affichent le portrait, le nom en dessous.
 
 `initiative[].tombe` (héros uniquement ; toujours `false` pour un monstre) :
 un héros **tombé** est SAUTÉ par le moteur (`verifierInitiative`) — l'acteur
@@ -622,7 +635,8 @@ client** à partir de l'état vivant : `EtatGroupe.groupe.or` + le bloc **hub**
 recrutement au hub, la table liste les renforts embauchés.
 
 Dans **EtatGroupe.entites** (en quête), un allié posé apparaît avec `type:'allie'`
-(`{id, nom, x, y, pv_body, pv_body_max, animal, image_url}`). **Au hub** (carte absente, donc
+(`{id, nom, x, y, pv_body, pv_body_max, animal, image_url, des_attaque, des_defense}` —
+les dés pour la fiche de stats ouverte depuis la barre d'initiative). **Au hub** (carte absente, donc
 hors `entites`), les recrues actives sont exposées dans le préambule sous
 `groupe.mercenaires: [{id, mercenaire_id, nom, type, animal, pv_body,
 pv_body_max, image_url}]` (mis à jour en direct par `.groupe.etat` après un recrutement).
@@ -631,10 +645,19 @@ pv_body_max, image_url}]` (mis à jour en direct par `.groupe.etat` après un re
 alliés quand ils font des actions »).** `image_url` vient de
 `BibliothequeImages::urlMercenaire()` — `catalogue/mercenaires/{id}-{slug}`,
 emblème SVG `allie` (le buste du camp des héros) en repli, jamais `null` pour un
-allié. L'action `attaque_allie` porte désormais `mercenaire_id` : la scène de
-table (`scenes[].acteurs[]`) illustre l'attaquant par **son** image — elle
-montrait jusque-là le portrait du héros qui contrôle l'allié, sous le nom de
-l'allié. La
+allié. L'action `attaque_allie` porte désormais `mercenaire_id` et `allie_id`
+(`groupe_mercenaires.id`) : la scène de table (`scenes[].acteurs[]`) illustre
+l'attaquant par **son** image, avec **ses** PV — elle montrait jusque-là le
+portrait du héros qui contrôle l'allié, sous le nom de l'allié. Elle porte aussi
+les **faces des dés** (`faces_attaque`, `faces_defense`, `face_touchante`,
+`face_defensive`, `ResultatAttaque::pourJournal()`, comme une attaque de
+monstre) : la scène d'un allié n'affichait aucun dé.
+
+**Un allié traverse les héros et les autres alliés** (2026-10-01) — pas les
+monstres, pas les meubles —, sans jamais s'arrêter sur une case occupée. Dans
+un couloir d'une case, un héros posté entre lui et le monstre le laissait
+**immobile** (`allie_immobile`) trois rounds de suite (test en jeu) : il
+s'approche désormais aussi loin que la route le permet. La
 résolution d'un tour de choix peut porter `resultat.tour_allies.actions`
 (déplacements/attaques alliées), en regard de `resultat.tour_monstres.actions`.
 
