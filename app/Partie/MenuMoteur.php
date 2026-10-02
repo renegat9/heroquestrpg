@@ -1743,7 +1743,39 @@ final class MenuMoteur
                     if ($adjacent['etat'] !== MoteurPieges::ETAT_DETECTE) {
                         continue;
                     }
+
+                    // FOSSE DES TÉNÈBRES (Against the Ogre Horde p. 5) :
+                    // « Pits of darkness cannot be disarmed » — `desarmable`
+                    // (colonne jusque-là lue seulement par GuideController)
+                    // devient ici une vraie garde : jamais d'option sur un
+                    // piège qui en vaut `'non'`.
+                    if (($adjacent['piege']?->desarmable ?? 'oui') === 'non') {
+                        continue;
+                    }
+
                     $nomPiege = $adjacent['piege']?->nom ?? 'Piège';
+
+                    // LAME BALANÇOIRE (p. 5) : procédure de désamorçage PROPRE
+                    // à ce piège, lue sur `effet.desarmage_special` — jamais le
+                    // jet de Body de la trousse ordinaire. `nain` réussit
+                    // automatiquement (« may automatically disarm […] once it
+                    // has been discovered »), tout autre héros habilité lance
+                    // UN SEUL dé de combat (voir
+                    // `ResolveurTour::resoudreDesamorcage()`).
+                    if (data_get($adjacent['piege']?->effet, 'desarmage_special') === MoteurPieges::DESARMAGE_LAME_BALANCIERE) {
+                        $automatique = $personnage->classe === 'nain';
+                        $options[] = [
+                            'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
+                            'libelle' => $automatique
+                                ? "Désamorcer {$nomPiege} (automatique — Nain)"
+                                : "Désamorcer {$nomPiege} — 1 dé de combat (bouclier = réussite, crâne = déclenche)",
+                            'type' => 'desamorcage',
+                            'parametres' => ['piege' => ['x' => $adjacent['x'], 'y' => $adjacent['y']]],
+                        ];
+
+                        continue;
+                    }
+
                     $options[] = [
                         'id' => "desamorcer_{$adjacent['x']}_{$adjacent['y']}",
                         'libelle' => "Désamorcer {$nomPiege} — jet de Body",
@@ -2060,6 +2092,34 @@ final class MenuMoteur
                         'jet' => ['attribut' => 'body', 'difficulte' => $difficulte],
                         'parametres' => ['levier' => ['x' => $levier['x'], 'y' => $levier['y'], 'levier_id' => $levier['levier_id']]],
                     ];
+                }
+
+                // PORTE DE PIERRE (Against the Ogre Horde p. 4) : « a hero
+                // rolls their base Attack dice. If the roll includes two
+                // skulls, the door swings open. […] the wizard rolls 1
+                // Attack die, and therefore cannot open a stone doorway. »
+                // ⚠ « base » = `personnage->des_attaque`, la valeur à MAINS
+                // NUES de la classe (`ClasseHerosSeeder`), JAMAIS l'arme — la
+                // même colonne que `resoudreDetacherRejetons()` emploie déjà
+                // pour un jet hors combat. Le menu n'offre l'option QU'à qui
+                // lance au moins `MoteurPortes::DES_MINIMUM_PORTE_PIERRE` dés
+                // (« le menu n'offre pas ce que le résolveur refuse ») : un
+                // magicien seul devant cette porte ne voit RIEN à faire ici
+                // — elle reste visible sur la carte, juste hors de sa portée.
+                $portePierre = $this->portes->porteDePierreAdjacente($quete->carte, $px, $py);
+                if ($portePierre !== null) {
+                    $desBase = (int) $personnage->des_attaque;
+
+                    if ($desBase >= MoteurPortes::DES_MINIMUM_PORTE_PIERRE) {
+                        $p = $portePierre['porte'];
+                        $cote = (string) ($p['cote'] ?? 'e');
+                        $options[] = [
+                            'id' => "forcer_porte_pierre_{$p['x']}_{$p['y']}_{$cote}",
+                            'libelle' => "Pousser la porte de pierre — {$desBase} dés d'attaque (2 crânes requis)",
+                            'type' => 'forcer_porte_pierre',
+                            'parametres' => ['porte' => ['x' => (int) $p['x'], 'y' => (int) $p['y'], 'cote' => $cote]],
+                        ];
+                    }
                 }
 
                 // MOBILIER DESTRUCTIBLE — l'obstacle qu'on fracasse (2026-08-24).

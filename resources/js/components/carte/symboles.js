@@ -30,6 +30,16 @@ export const PIEGE_ICONES = {
     'Piège de coffre': 'lock',
     'Aiguille empoisonnée': 'vaccines',
     'Fiole de poison': 'coronavirus',
+    // Against the Ogre Horde (lot B, 2026-10-02) : `content_cut` lit comme une
+    // lame, distinct de la flèche du Piège à lances et du danger de chute de
+    // la Chute de blocs — même silhouette de FAMILLE (carré), la zone de
+    // 3 cases se dessine en plus (voir `DungeonGrid.vue`, `.dg-trap-zone`).
+    'Lame balançoire': 'content_cut',
+    // `nightlight` (la lune) dit « ténèbres » plutôt que de reprendre la
+    // flèche de la Fosse ordinaire, qu'elle imite pourtant mécaniquement :
+    // visuellement proche suffit, identique aurait confondu les deux sur une
+    // carte qui mêlerait les deux thèmes.
+    'Fosse des ténèbres': 'nightlight',
 };
 export const PIEGE_ICONE_DEFAUT = 'warning';
 
@@ -68,6 +78,10 @@ export const MOBILIER_ICONES = {
     'Bibliothèque': 'menu_book',
     "Râtelier d'armes": 'swords',
     'Armoire': 'door_sliding',
+    // Against the Ogre Horde (lot B, 2026-10-02) : une caisse, comme le
+    // Coffre, mais une icône distincte pour ne pas laisser croire qu'elle
+    // paie le coffre de la quête.
+    'Caisse de ravitaillement': 'package_2',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

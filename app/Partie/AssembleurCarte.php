@@ -308,6 +308,9 @@ final class AssembleurCarte
                     continue;
                 }
                 $porte['jonction'] = $indexArete;
+                // Propage le drapeau de boucle de l'arête à SA porte — voir
+                // `liaisonsSupplementaires()` et `marquerPortesDePierre()`.
+                $porte['boucle'] = ! empty($arete['boucle']);
                 $portes[] = $porte;
             }
             $aretesSortie[] = [
@@ -334,6 +337,14 @@ final class AssembleurCarte
 
         $portes = $this->devoilerSecretesEnConflit($portes);
 
+        // PORTE DE PIERRE (Against the Ogre Horde, lot B) : AVANT
+        // `placerLeviers()` à dessein, même si les deux ne peuvent jamais se
+        // disputer la même porte (un levier ne verrouille qu'une arête de
+        // L'ARBRE, une porte de pierre qu'une arête de BOUCLE — voir
+        // `marquerPortesDePierre()`) : garder l'ordre des couches lisible de
+        // haut en bas.
+        $portes = $this->marquerPortesDePierre($portes, $suivant, $bestiaire);
+
         // Salles à garantir un coffre (2026-09-18, brief coffre) : appelé ICI
         // — $salles/$aretesSortie/$portes ont exactement la forme que porte le
         // carte final pour ces trois clés, et ne bougent plus ensuite (locker
@@ -350,8 +361,17 @@ final class AssembleurCarte
         // atterrir dessus (même raison que les seuils), et placerPieges() en
         // reçoit donc la liste ci-dessous.
         $leviers = $this->placerLeviers($structure, $cases, $salles, $portes, $n, $indexPorteParentParArete, $suivant);
-        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $portes, $leviers, $suivant);
-        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir);
+        $pieges = $this->placerPieges($structure, $milieuxCouloirs, $milieuxVoieUnique, $cases, $salles, $portes, $leviers, $suivant, $bestiaire);
+
+        // LAME BALANÇOIRE (Against the Ogre Horde, lot B) : à PART du tirage
+        // générique ci-dessus — c'est le premier piège à PLUSIEURS cases, sa
+        // zone doit être validée (axe, bornes de la salle, plancher de cases
+        // jouables) avant d'être posée, ce qu'une case tirée au hasard dans
+        // `placerPieges()` ne sait pas faire. Reçoit `$pieges` déjà posés pour
+        // ne jamais chevaucher une case qu'ils occupent déjà.
+        $pieges = [...$pieges, ...$this->placerLameBalanciere($cases, $salles, $portes, $leviers, $pieges, $suivant, $bestiaire)];
+
+        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
         // une épreuve doit savoir quelles salles contiennent un piège (l'Autel
@@ -605,6 +625,81 @@ final class AssembleurCarte
                     break;
                 }
             }
+        }
+
+        return $portes;
+    }
+
+    /**
+     * PORTE DE PIERRE (Against the Ogre Horde, livret F9528 p. 4, lot B) :
+     * « Stone doorways are large slabs of rock that must be pushed out of the
+     * way using brute force […]. To open one of these doors, a hero rolls
+     * their base Attack dice. If the roll result includes two skulls, the
+     * heavy stone door swings open. Once […] opened, it remains open for the
+     * remainder of the quest. […] the wizard rolls 1 Attack die, and
+     * therefore cannot open a stone doorway. »
+     *
+     * Un ÉTAT DE PORTE de plus, pas une couche neuve : `verrou.type = 'pierre'`
+     * sur une entrée `portes[]` ordinaire (même modèle que `cle`/`levier`/
+     * `monstres_vaincus`), lu par `MoteurPortes` et résolu par
+     * `ResolveurTour::resoudreForcerPortePierre()`. « Reste ouverte jusqu'à la
+     * fin de la quête » retombe GRATUITEMENT sur l'état persistant existant
+     * (`MoteurPortes::ouvrir()`), comme toute autre porte.
+     *
+     * ⚠ **Placement — jamais le seul chemin vers l'objectif** (brief lot B,
+     * `docs/regles/carte-donjon.md` §2.12 ter « connected is not playable »,
+     * étendu ici à « forçable »). Un héros dont la base est sous 2 dés (le
+     * magicien, 1 dé) ne peut JAMAIS forcer une porte de pierre : si on en
+     * posait une sur une arête de l'ARBRE COUVRANT, un groupe réduit à ce
+     * seul magicien resterait bloqué à jamais devant l'unique chemin. La
+     * règle retenue l'exclut PAR CONSTRUCTION plutôt que par un calcul de
+     * connexité a posteriori : une porte de pierre ne se pose QUE sur une
+     * arête de BOUCLE (`liaisonsSupplementaires()`, drapeau `boucle` propagé
+     * jusqu'à `portes[]` dans `assembler()`) — par définition, les deux
+     * salles qu'elle relie sont DÉJÀ connectées par l'arbre couvrant, donc la
+     * bloquer ne peut jamais couper la seule route. Au plus UNE porte de
+     * pierre par carte (fréquence non sourcée par le livret — décision de
+     * portage, volontairement conservatrice).
+     *
+     * @param  list<array<string, mixed>>  $portes
+     * @return list<array<string, mixed>>
+     */
+    private function marquerPortesDePierre(array $portes, \Closure $suivant, ?BestiaireGroupe $bestiaire): array
+    {
+        $prng = new PrngLineaire($suivant());
+
+        // Boîte : composant de la boîte Against the Ogre Horde, jamais posé
+        // hors de ce thème (même lecture que `Terrain::boite` ci-dessus).
+        if (! ($bestiaire?->contient('horde_ogre') ?? false)) {
+            return $portes;
+        }
+
+        // Candidates : toutes les portes d'une arête de BOUCLE, ordinaires
+        // (fermées, sans verrou déjà posé) — jamais une secrète (les boucles
+        // ne le sont jamais, voir `liaisonsSupplementaires()`), groupées par
+        // jonction pour que les DEUX bouts d'un même passage soient marqués
+        // ensemble (chacun restant forçable indépendamment depuis son côté —
+        // même asymétrie que `MoteurPortes::ouvrir()`, qui n'ouvre jamais que
+        // le seuil poussé).
+        $jonctions = [];
+        foreach ($portes as $idx => $porte) {
+            if (empty($porte['boucle'])
+                || ($porte['etat'] ?? MoteurPortes::ETAT_OUVERTE) !== MoteurPortes::ETAT_FERMEE
+                || ($porte['verrou']['type'] ?? null) !== null) {
+                continue;
+            }
+            $jonctions[(int) ($porte['jonction'] ?? -1)][] = $idx;
+        }
+
+        if ($jonctions === []) {
+            return $portes; // aucune boucle disponible sur cette carte : aucune porte de pierre
+        }
+
+        $cles = array_keys($jonctions);
+        $choisie = $cles[$prng->suivant() % count($cles)];
+
+        foreach ($jonctions[$choisie] as $idx) {
+            $portes[$idx]['verrou'] = ['type' => MoteurPortes::VERROU_PIERRE];
         }
 
         return $portes;
@@ -955,7 +1050,18 @@ final class AssembleurCarte
                     continue;
                 }
                 $reliees[$cle] = true;
-                $candidates[] = ['parent' => $i, 'enfant' => $voisin, 'direction' => $nom];
+                // `boucle: true` — ce drapeau suit l'arête jusque dans
+                // `portes[]` (voir `assembler()`) : c'est lui qui permet à
+                // `marquerPortesDePierre()` de ne JAMAIS poser une porte de
+                // pierre sur une arête de l'ARBRE COUVRANT. Une liaison
+                // supplémentaire relie deux salles déjà connectées PAR
+                // l'arbre — la bloquer ne peut donc jamais couper le seul
+                // chemin vers l'objectif, quel que soit le groupe (même un
+                // magicien seul, qui ne peut jamais forcer une porte de
+                // pierre). C'est la garantie « never the only way forward »
+                // obtenue PAR CONSTRUCTION plutôt que par un calcul de
+                // connexité a posteriori.
+                $candidates[] = ['parent' => $i, 'enfant' => $voisin, 'direction' => $nom, 'boucle' => true];
             }
         }
 
@@ -1427,6 +1533,7 @@ final class AssembleurCarte
         array $portes,
         array $leviers,
         \Closure $suivant,
+        ?BestiaireGroupe $bestiaire = null,
     ): array {
         // Cases de salle éligibles : tout l'intérieur SAUF la salle de départ.
         $enSalle = [];
@@ -1485,11 +1592,19 @@ final class AssembleurCarte
         // Pièges DE SOL uniquement — jamais un piège de coffre/meuble
         // (`effet.declencheur === 'ouverture_tresor'`, doc 10 §5) : celui-là
         // se tire à la fouille du trésor (`MoteurPieges::declencherEphemere()`),
-        // pas à l'assemblage de la carte.
+        // pas à l'assemblage de la carte. ⚠ Ni un piège à ZONE
+        // (`effet.zone_lames`, Lame balançoire) — il a besoin d'une validation
+        // géométrique (axe, bornes de la salle, plancher de cases jouables)
+        // que ce tirage par case isolée ne sait pas faire ; voir
+        // `placerLameBalanciere()`, appelé séparément par `assembler()`. Et
+        // boîte : un piège `boite` n'entre dans ce vivier QUE si le thème de
+        // bestiaire du groupe l'inclut (même lecture que `Terrain::boite`).
         $piegesSol = Piege::query()
             ->orderBy('id')
             ->get()
             ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
+            ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            ->filter(fn (Piege $p) => $p->boite === null || ($bestiaire?->contient($p->boite) ?? false))
             ->values();
 
         if ($piegesSol->isEmpty()) {
@@ -1516,6 +1631,158 @@ final class AssembleurCarte
         }
 
         return $pieges;
+    }
+
+    /**
+     * LAME BALANÇOIRE (Against the Ogre Horde, livret F9528 p. 4-5, lot B) —
+     * voir `MoteurPieges::declencherZone()` pour la résolution. Posée à PART
+     * de `placerPieges()` : c'est le premier piège DU JEU à occuper plusieurs
+     * cases (`effet.zone_lames`), et sa zone doit être validée géométriquement
+     * — jamais un simple tirage de case isolée.
+     *
+     * ⚠ **PORTAGE** : le livret ne donne le gabarit exact de la zone de lame
+     * que sur le plan imprimé d'une quête précise (un dessin, pas un texte) —
+     * nos donjons sont générés, pas imprimés. On retient une ligne de 3
+     * cases centrée sur la case dorée de déclenchement (`effet.zone_lames`
+     * du catalogue, vertical par défaut), posée sur l'axe — horizontal OU
+     * vertical — qui tient dans LA MÊME salle au moment du tirage. C'est une
+     * décision de jeu, pas une valeur sourcée ; ce que le livret source (le
+     * nombre de dés et le fonctionnement en zone) vit dans `PiegeSeeder`.
+     *
+     * Jamais en salle de départ, jamais sur un seuil/levier/piège déjà posé,
+     * et jamais si la pose ferait tomber la salle sous
+     * `CASES_JOUABLES_MINIMUM` cases libres (§2.12 ter, « connected is not
+     * playable » étendu à « une zone de lame ne doit jamais couvrir le
+     * plancher de cases jouables d'une salle, ni a fortiori l'unique passage
+     * d'un couloir — elle n'est donc JAMAIS posée en couloir du tout, seule
+     * une salle a la place de l'accueillir correctement »). Si aucune salle
+     * n'offre de pose valide, on renonce PUREMENT ET SIMPLEMENT (comme toute
+     * autre couche) : au plus UNE lame balançoire par carte.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array<string, mixed>>  $portes
+     * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
+     * @param  list<array{x: int, y: int, piege_id: int, etat: string}>  $pieges  déjà posés par placerPieges()
+     * @return list<array{x: int, y: int, piege_id: int, etat: string, zone: list<array{x: int, y: int}>}>
+     */
+    private function placerLameBalanciere(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        \Closure $suivant,
+        ?BestiaireGroupe $bestiaire,
+    ): array {
+        $prng = new PrngLineaire($suivant());
+
+        // Boîte : jamais hors du thème Against the Ogre Horde.
+        if (! ($bestiaire?->contient('horde_ogre') ?? false)) {
+            return [];
+        }
+
+        $catalogue = Piege::query()->get()
+            ->first(fn (Piege $p) => is_array($p->effet) && isset($p->effet['zone_lames'])
+                && ($p->boite === null || $bestiaire->contient($p->boite)));
+
+        if ($catalogue === null) {
+            return [];
+        }
+
+        $formeVerticale = (array) $catalogue->effet['zone_lames'];
+
+        // Cases interdites : seuils, leviers, pièges déjà posés (+ leur zone,
+        // par prudence si cette méthode était un jour appelée deux fois).
+        $interdites = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+        foreach ($leviers as $levier) {
+            $interdites["{$levier['x']},{$levier['y']}"] = true;
+        }
+        foreach ($pieges as $piege) {
+            $interdites["{$piege['x']},{$piege['y']}"] = true;
+            foreach ((array) ($piege['zone'] ?? []) as $z) {
+                $interdites[((int) $z['x']).','.((int) $z['y'])] = true;
+            }
+        }
+
+        // Pool global (salle, case) mélangé — jamais la salle 0, même raison
+        // que tout le reste : subi au tour 1, pas joué.
+        $pool = [];
+        $interieurParSalle = [];
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+            $interieurParSalle[$i] = $this->interieur($cases, $salle);
+            foreach ($interieurParSalle[$i] as $position) {
+                if (isset($interdites["{$position['x']},{$position['y']}"])) {
+                    continue;
+                }
+                $pool[] = [...$position, 'salle' => $i];
+            }
+        }
+
+        if ($pool === []) {
+            return [];
+        }
+
+        $pool = $prng->melanger($pool);
+
+        foreach ($pool as $candidat) {
+            $i = (int) $candidat['salle'];
+            $libresAvant = count(array_filter(
+                $interieurParSalle[$i],
+                fn (array $p) => ! isset($interdites["{$p['x']},{$p['y']}"]),
+            ));
+
+            // Deux orientations tentées pour CE candidat (vertical, puis
+            // horizontal) — un seul tirage PRNG choisit l'ordre, pas chacune
+            // des deux tentatives : la suite reste indépendante du nombre de
+            // candidats essayés avant de réussir.
+            $ordres = $prng->suivant() % 2 === 0
+                ? [$formeVerticale, $this->transposerForme($formeVerticale)]
+                : [$this->transposerForme($formeVerticale), $formeVerticale];
+
+            foreach ($ordres as $forme) {
+                $zone = array_map(fn (array $offset) => [
+                    'x' => $candidat['x'] + $offset[0], 'y' => $candidat['y'] + $offset[1],
+                ], $forme);
+
+                $valide = $libresAvant - count($zone) >= self::CASES_JOUABLES_MINIMUM;
+
+                foreach ($zone as $z) {
+                    $cle = "{$z['x']},{$z['y']}";
+                    if (isset($interdites[$cle])
+                        || ! in_array($z, $interieurParSalle[$i], true)) {
+                        $valide = false;
+                        break;
+                    }
+                }
+
+                if ($valide) {
+                    return [[
+                        'x' => $candidat['x'], 'y' => $candidat['y'],
+                        'piege_id' => $catalogue->id, 'etat' => 'cache',
+                        'zone' => array_values($zone),
+                    ]];
+                }
+            }
+        }
+
+        // Aucune salle n'offre de pose valide : on renonce, comme toute autre
+        // couche — jamais de lame balançoire forcée.
+        return [];
+    }
+
+    /** Transpose une forme relative (échange dx/dy) : vertical ↔ horizontal. */
+    private function transposerForme(array $forme): array
+    {
+        return array_map(fn (array $offset) => [$offset[1], $offset[0]], $forme);
     }
 
     /**
@@ -1586,6 +1853,10 @@ final class AssembleurCarte
         }
         foreach ($pieges as $piege) {
             $interdites["{$piege['x']},{$piege['y']}"] = true;
+
+            foreach ((array) ($piege['zone'] ?? []) as $z) {
+                $interdites[((int) $z['x']).','.((int) $z['y'])] = true;
+            }
         }
         foreach ($mobilier as $meuble) {
             for ($dx = 0; $dx < (int) ($meuble['l'] ?? 1); $dx++) {
@@ -1723,9 +1994,15 @@ final class AssembleurCarte
      *                                             ne soit appelée.
      * @return list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>
      */
-    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = []): array
+    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = [], ?BestiaireGroupe $bestiaire = null): array
     {
-        $catalogue = Mobilier::query()->orderBy('id')->get();
+        // Boîte : une pièce de mobilier `boite` (ex. la Caisse de
+        // ravitaillement, `horde_ogre`) n'entre dans le catalogue QUE si le
+        // thème de bestiaire du groupe l'inclut — même lecture que
+        // `Terrain::boite` / `Piege::boite` ci-dessus.
+        $catalogue = Mobilier::query()->orderBy('id')->get()
+            ->filter(fn (Mobilier $m) => $m->boite === null || ($bestiaire?->contient($m->boite) ?? false))
+            ->values();
 
         if ($catalogue->isEmpty()) {
             return [];
@@ -1757,6 +2034,14 @@ final class AssembleurCarte
         }
         foreach ($pieges as $piege) {
             $interdites["{$piege['x']},{$piege['y']}"] = true;
+
+            // Lame balançoire (Against the Ogre Horde) : sa ZONE entière,
+            // pas seulement sa case de déclenchement — un meuble posé sur une
+            // case de lame la rendrait invisible et indéclenchable, même
+            // raison que la case du piège lui-même.
+            foreach ((array) ($piege['zone'] ?? []) as $z) {
+                $interdites[((int) $z['x']).','.((int) $z['y'])] = true;
+            }
         }
 
         $mobilier = [];
@@ -2218,6 +2503,10 @@ final class AssembleurCarte
         }
         foreach ($pieges as $piege) {
             $interdites["{$piege['x']},{$piege['y']}"] = true;
+
+            foreach ((array) ($piege['zone'] ?? []) as $z) {
+                $interdites[((int) $z['x']).','.((int) $z['y'])] = true;
+            }
         }
         foreach ($mobilier as $meuble) {
             for ($dx = 0; $dx < (int) ($meuble['l'] ?? 1); $dx++) {
@@ -2808,9 +3097,23 @@ final class AssembleurCarte
             }
         }
 
-        foreach ([$pieges, $leviers, $epreuves, $terrain] as $couche) {
+        foreach ([$leviers, $epreuves, $terrain] as $couche) {
             foreach ($couche as $e) {
                 $pris[((int) $e['x']).','.((int) $e['y'])] = true;
+            }
+        }
+
+        // Pièges : leur case de déclenchement, ET — Lame balançoire — la
+        // ZONE qu'elle balaie (`effet.zone_lames`, voir `placerLameBalanciere()`).
+        // Sans cette seconde boucle, un monstre pourrait apparaître (ou un
+        // meuble se poser, si cette couche tournait après) SUR une case de
+        // lame : §2.12 bis/ter veulent un spawn sur case VIDE, pas sur un
+        // piège qu'on ne voit tout simplement pas depuis ce recensement.
+        foreach ($pieges as $e) {
+            $pris[((int) $e['x']).','.((int) $e['y'])] = true;
+
+            foreach ((array) ($e['zone'] ?? []) as $z) {
+                $pris[((int) $z['x']).','.((int) $z['y'])] = true;
             }
         }
 

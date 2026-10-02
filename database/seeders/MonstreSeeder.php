@@ -14,35 +14,113 @@ class MonstreSeeder extends Seeder
 {
     public function run(): void
     {
+        // ----- Bestiaire de base : les 8 CARTES MONSTRE -----
+        //
+        // Aligné le 2026-08-09 sur `sjeng-monsters.pdf` (Ye Olde Inn). C'est
+        // la première fois que ces valeurs sont SOURCÉES : le doc 16 §4
+        // portait « ⚠ non trouvé » sur toute la table, parce que le tableau
+        // chiffré des monstres vit sur l'écran du MJ, un carton jamais
+        // numérisé. Deux recoupements indépendants confirment le paquet :
+        //   - la momie à 3 dés d'attaque, déduite de « It rolls 4 Attack
+        //     dice INSTEAD OF 3 » (livret de quêtes p. 5) ;
+        //   - squelette / zombie / momie à Mind 0, ce qui explique enfin
+        //     « Sleep may not be used against mummies, zombies, or
+        //     skeletons » (livret de règles p. 8) — Mind 0 = pas de jet.
+        //
+        // ⚠ CONSÉQUENCE D'ÉQUILIBRAGE : au plateau, TOUT monstre de base a
+        // **1 seul point de Body**. On en donnait 2 ou 3 aux plus costauds.
+        // Un gobelin et une gargouille tombent donc désormais du même coup
+        // réussi — c'est le design du jeu (les héros encaissent, les
+        // monstres non), et c'est ce qui rend les paliers sous_boss/boss
+        // lisibles. Les `cout` sont réajustés en conséquence : ils ne
+        // dépendaient plus des vraies stats.
+        //
+        // ⚠ Gobelin, Squelette et Orque sont extraits en VARIABLES (et non
+        // laissés comme les cinq autres, de simples lignes du tableau) : leur
+        // variante À DISTANCE générique (Q6, Against the Ogre Horde p. 8, bloc
+        // plus bas) en est DÉRIVÉE — jamais recopiée à la main une deuxième
+        // fois. C'est le défaut que ce lot corrige : avant lui, « Gobelin
+        // archer » et « Archer squelette » portaient des nombres identiques à
+        // leur base, tapés deux fois dans ce même fichier.
+        $gobelin = ['nom_base' => 'Gobelin', 'deplacement' => 10, 'attaque' => 2, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
+            'tier' => 'base', 'boite' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []];
+        $squelette = ['nom_base' => 'Squelette', 'deplacement' => 6, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
+            'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []];
+        $orque = ['nom_base' => 'Orque', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
+            'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []];
+
+        /**
+         * Variante À DISTANCE générique (Q6, René 2026-10-02 : « allons-y
+         * générique »). Against the Ogre Horde p. 8, verbatim : « When Zargon
+         * has the option to place a monster on the board, they may place a
+         * standard monster or a ranged version of that same monster type (in
+         * this quest pack, that means skeletons, orcs, and goblins). A ranged
+         * monster rolls Attack dice equal to their standard attack score
+         * against any non-adjacent target in their line of sight. If their
+         * target is adjacent, they roll 1 Attack die. »
+         *
+         * UN SEUL point de passage pour la formule : déplacement/défense/Body/
+         * Mind COPIÉS du monstre de base (identiques, comme les deux variantes
+         * déjà en jeu le montraient déjà), `attaque` ramenée à 1 (contact) et
+         * `attaque_distance` = l'attaque STANDARD du monstre de base (tir). Le
+         * lien est déclaré par `variante_distance_de` (nom_base du monstre
+         * standard), lu par `DemarreurQuete::variantesDistanceParBase()` —
+         * c'est ce lien, pas une convention de nommage, qui fait d'une entrée
+         * une variante.
+         *
+         * ⚠ `boite: null`, volontairement. La règle du livret commence par
+         * « in this quest pack », mais son mécanisme (« Zargon may place a
+         * standard monster or a ranged version ») ne dépend d'aucune règle
+         * propre à la boîte Ogre Horde — c'est un remplacement générique à la
+         * pose, comme on ferait au plateau avec n'importe quel figurine. René
+         * a tranché Q6 dans ce sens : une règle utilisable par TOUS les
+         * thèmes plutôt qu'un trait de boîte. Les deux variantes déjà seedées
+         * (Gobelin archer, Archer squelette) étaient jusqu'ici rangées dans
+         * `jungles_delthrak` — un vestige du premier portage (2026-08-10, avant
+         * que la question des boîtes ne se pose), jamais un choix de règle —
+         * et en sortent ici pour rejoindre nos propres blocs de stats
+         * (Champion, Seigneur…), disponibles dans toute campagne.
+         *
+         * `cout` : aucune carte ne chiffre de budget de rencontre pour cette
+         * variante (comme tout `cout` du bestiaire, c'est une valeur à nous).
+         * Les deux variantes déjà en jeu gardent leur valeur (2 chacune), pour
+         * ne pas rééquilibrer une rencontre qui tourne déjà ; l'Orque archer
+         * est alignée sur le Gobelin archer (+1 sur le coût de son monstre de
+         * base). ⚠ Incohérence préexistante et non corrigée ici : l'Archer
+         * squelette n'a jamais porté cette prime (coût = celui du Squelette) —
+         * un rééquilibrage séparé, hors du périmètre de ce lot.
+         */
+        $varianteDistance = function (array $base, string $nomVariante, int $coutVariante): array {
+            return [
+                'nom_base' => $nomVariante,
+                'deplacement' => $base['deplacement'],
+                'attaque' => 1,
+                'portee' => 'distance',
+                'attaque_distance' => $base['attaque'],
+                'defense' => $base['defense'],
+                'pv_body' => $base['pv_body'],
+                'pv_mind' => $base['pv_mind'],
+                'tier' => $base['tier'],
+                'boite' => null,
+                'cout' => $coutVariante,
+                'variante_distance_de' => $base['nom_base'],
+                'capacites' => [],
+                'sorts_dread' => [],
+            ];
+        };
+
+        $gobelinArcher = $varianteDistance($gobelin, 'Gobelin archer', 2);
+        $archerSquelette = $varianteDistance($squelette, 'Archer squelette', 2);
+        // Nouveau (lot B, Against the Ogre Horde) : l'Orque archer, troisième
+        // et dernière variante nommée par le livret p. 8.
+        $orqueArcher = $varianteDistance($orque, 'Orque archer', 3);
+
         $monstres = [
-            // ----- Bestiaire de base : les 8 CARTES MONSTRE -----
-            //
-            // Aligné le 2026-08-09 sur `sjeng-monsters.pdf` (Ye Olde Inn). C'est
-            // la première fois que ces valeurs sont SOURCÉES : le doc 16 §4
-            // portait « ⚠ non trouvé » sur toute la table, parce que le tableau
-            // chiffré des monstres vit sur l'écran du MJ, un carton jamais
-            // numérisé. Deux recoupements indépendants confirment le paquet :
-            //   - la momie à 3 dés d'attaque, déduite de « It rolls 4 Attack
-            //     dice INSTEAD OF 3 » (livret de quêtes p. 5) ;
-            //   - squelette / zombie / momie à Mind 0, ce qui explique enfin
-            //     « Sleep may not be used against mummies, zombies, or
-            //     skeletons » (livret de règles p. 8) — Mind 0 = pas de jet.
-            //
-            // ⚠ CONSÉQUENCE D'ÉQUILIBRAGE : au plateau, TOUT monstre de base a
-            // **1 seul point de Body**. On en donnait 2 ou 3 aux plus costauds.
-            // Un gobelin et une gargouille tombent donc désormais du même coup
-            // réussi — c'est le design du jeu (les héros encaissent, les
-            // monstres non), et c'est ce qui rend les paliers sous_boss/boss
-            // lisibles. Les `cout` sont réajustés en conséquence : ils ne
-            // dépendaient plus des vraies stats.
-            ['nom_base' => 'Gobelin', 'deplacement' => 10, 'attaque' => 2, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 1, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Squelette', 'deplacement' => 6, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+            $gobelin,
+            $squelette,
             ['nom_base' => 'Zombie', 'deplacement' => 4, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Orque', 'deplacement' => 8, 'attaque' => 3, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 2,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
+            $orque,
             ['nom_base' => 'Fimir', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 3,
                 'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 0,
@@ -51,6 +129,11 @@ class MonstreSeeder extends Seeder
                 'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
                 'tier' => 'base', 'boite' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+
+            // ----- Variantes À DISTANCE génériques (Q6) -----
+            $gobelinArcher,
+            $archerSquelette,
+            $orqueArcher,
 
             // Troll (carte « Cave Troll ») : la seule créature du paquet dont
             // le texte NOMME le feu — « Trolls may choose to regenerate 1 Body
@@ -121,15 +204,6 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9,
                 'capacites' => ['choix_attaque' => ['seuil' => 2, 'massive_des_bonus' => 2, 'double_nombre' => 2]],
                 'sorts_dread' => []],
-
-            // ----- Monstre à distance (3.4) -----
-            // `portee` distance + `attaque_distance` (dés en tir) ; au contact il
-            // perd un dé (attaque corps-à-corps moindre). Exige la ligne de vue.
-            // Aligné sur la fiche officielle de *Jungles of Delthrak* (doc 18) :
-            // « Attack 2 (1 adj.) » — 2 dés en tir, 1 seul au contact.
-            ['nom_base' => 'Gobelin archer', 'deplacement' => 10, 'attaque' => 1, 'defense' => 1, 'pv_body' => 1, 'pv_mind' => 1,
-                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
-                'capacites' => [], 'sorts_dread' => []],
 
             // ----- Grande figurine multi-cases (3.9) -----
             // `grande_taille` : emprise 1×2 (deux cases). Adjacence/ligne de vue/
@@ -255,6 +329,10 @@ class MonstreSeeder extends Seeder
                 'archetype_lanceur' => 'horreur_glacee'],
 
             // ---- Against the Ogre Horde (doc 18) ----
+            // ⚠ L'Orque archer (variante à distance, Q6, p. 8) n'est PAS ici :
+            // elle est générique (`boite: null`) et définie en tête de
+            // méthode, avec Gobelin archer et Archer squelette — voir
+            // `$orqueArcher` plus haut.
             ['nom_base' => 'Ogre guerrier', 'deplacement' => 6, 'attaque' => 5, 'defense' => 4, 'pv_body' => 5, 'pv_mind' => 1,
                 'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 10, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => [], 'sorts_dread' => []],
@@ -278,9 +356,6 @@ class MonstreSeeder extends Seeder
             // par René le 2026-08-10).
             ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 0, 'defense' => 0, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'capacites' => ['agile', 's_accroche'], 'sorts_dread' => []],
-            ['nom_base' => 'Archer squelette', 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'portee' => 'distance', 'attaque_distance' => 2,
-                'capacites' => [], 'sorts_dread' => []],
             // Monster Chart des Jungles of Delthrak p. 47 : « Sorts *Channel
             // Dread*, *Creeping Grasp* ». Il ne frappe presque pas (2 dés,
             // 1 PV) — il entrave, et laisse les autres faire le travail.

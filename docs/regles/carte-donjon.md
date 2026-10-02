@@ -333,3 +333,120 @@ désormais. **Un état de piège ajouté se cherche dans les trois listes, pas
 une seule** — c'est la même classe de défaut, un cran plus loin, que « le
 rendu se déplace de l'arête vers la case » avait déjà payée pour les portes ;
 la leçon ne s'est pas généralisée toute seule d'un vocabulaire à l'autre.
+
+## Against the Ogre Horde — lot B, les éléments de carte (livret F9528 p. 4-5, 2026-10-02)
+
+**`pieges.boite` / `mobiliers.boite`, une colonne de plus** (migration
+`boite_pieges_et_mobiliers`) : même sémantique que `terrains.boite`
+(`null` = toutes les boîtes, une valeur réserve l'entrée au thème de
+bestiaire du groupe). `AssembleurCarte` la lit **au même point de passage**
+que `Terrain::boite` (`$bestiaire?->contient($x->boite)`), jamais une
+seconde fois — une Lame balançoire ou une Caisse de ravitaillement posée sur
+une carte sans ce thème serait exactement le défaut que `terrains.boite`
+corrigeait pour *The Frozen Horror*.
+
+**Porte de pierre** (*Stone Doorway*, p. 4) : « a hero rolls their base
+Attack dice. If the roll result includes two skulls, the heavy stone door
+swings open. Once […] opened, it remains open for the remainder of the
+quest. […] the wizard rolls 1 Attack die, and therefore cannot open a stone
+doorway. » Un ÉTAT DE PORTE de plus (`verrou.type = MoteurPortes::VERROU_PIERRE`
+sur une entrée `fermee` ordinaire, même modèle que `cle`/`levier`/
+`monstres_vaincus`), jamais une couche neuve. « Base » se lit
+`personnages.des_attaque` — la valeur à MAINS NUES de la classe
+(`ClasseHerosSeeder`), jamais l'arme en main — et le menu n'offre
+`forcer_porte_pierre` qu'à qui en lance au moins 2 (`MoteurPortes::DES_MINIMUM_PORTE_PIERRE`),
+« le menu n'offre pas ce que le résolveur refuse ».
+
+⚠ **Placement — jamais le seul chemin vers l'objectif.** Un groupe réduit à
+un seul magicien (1 dé) ne peut JAMAIS forcer une porte de pierre : en poser
+une sur une arête de l'ARBRE COUVRANT risquerait de sceller la seule route
+vers l'objectif pour un tel groupe. La règle retenue l'exclut PAR
+CONSTRUCTION plutôt que par un calcul de connexité a posteriori :
+`AssembleurCarte::marquerPortesDePierre()` ne pose une porte de pierre que
+sur une arête de BOUCLE (`liaisonsSupplementaires()`, drapeau `boucle`
+propagé de l'arête à sa porte dans `assembler()`) — par définition, les deux
+salles qu'une boucle relie sont DÉJÀ connectées par l'arbre, donc la bloquer
+ne peut jamais couper la seule route. Au plus UNE porte de pierre par carte
+(fréquence non sourcée par le livret — décision de portage, volontairement
+conservatrice). Les deux portes d'une même jonction (seuil à deux voies) sont
+marquées ensemble, mais restent forçables indépendamment depuis chaque côté —
+même asymétrie que `MoteurPortes::ouvrir()`, qui n'ouvre jamais que le seuil
+poussé.
+
+**Lame balançoire** (*Swinging Blade Trap*, p. 4-5) : « triggers if a hero
+moves onto a square with the gold overlay […]. A huge blade swings down […],
+slicing any heroes on one of the squares marked with a white or red blade
+symbol. Zargon rolls 2 Attack dice, and any affected heroes roll Defend dice
+as normal. » Le PREMIER piège du jeu à occuper PLUSIEURS cases : une entrée
+`pieges[]` ordinaire gagne un champ `zone: [{x,y}, ...]` (posé par
+`AssembleurCarte::placerLameBalanciere()`, jamais par `placerPieges()` — son
+vivier l'exclut explicitement via `effet.zone_lames`, une case tirée au
+hasard ne sachant pas valider une géométrie). `MoteurPieges::declencherZone()`
+est le SECOND producteur de dégâts de piège, à côté de `declencher()` :
+il frappe CHAQUE héros actuellement sur une case de la zone avec sa propre
+défense, jamais un seul (sans défense, comme le Piège à lances/la Chute de
+blocs). Le piège reste ARMÉ après coup — rien dans le texte ne limite son
+usage — donc aucun changement d'état n'est écrit.
+
+⚠ **Piège latent évité : le déclencheur n'a pas encore sa position en base**
+au moment où `controlerChemin()` appelle `declencherZone()` — `resoudreDeplacement()`
+n'écrit l'arrêt qu'APRÈS. Lire sa colonne lui aurait fait manquer SA PROPRE
+lame. `declencherZone()` prend donc un `$positionDeclencheur` explicite,
+réservé à ce chemin (`null` pour un désamorçage raté, où le désamorceur agit
+depuis une case ADJACENTE et sa colonne est déjà exacte).
+
+⚠ **PORTAGE : la forme de la zone n'est pas sourcée.** Le livret ne la donne
+que sur le plan imprimé d'une quête précise (un dessin, jamais un texte) —
+nos donjons sont générés, pas imprimés. `effet.zone_lames` du catalogue pose
+une ligne RELATIVE de 3 cases (verticale par défaut), que `placerLameBalanciere()`
+oriente (horizontale ou verticale, tirée au PRNG) selon ce qui tient dans la
+salle — jamais en couloir, jamais sous `CASES_JOUABLES_MINIMUM` cases
+libres (§2.12 ter, « connected is not playable » étendu à « une zone de
+lame ne doit jamais couvrir le plancher de cases jouables d'une salle »).
+Si aucune salle n'offre de pose valide, on renonce : au plus une lame par
+carte.
+
+**Désamorçage de la lame — une procédure DÉDIÉE** (`effet.desarmage_special
+= 'lame_balanciere'`, lu par `MenuMoteur::generer()` pour le libellé et
+`ResolveurTour::resoudreDesamorcageLameBalanciere()` pour la résolution) :
+« The dwarf may automatically disarm a swinging blade trap once it has been
+discovered » — succès GARANTI, aucun dé, à la différence du désamorçage
+« sans outils » (Nain/Explorateur, un dé, échec sur bouclier noir seulement)
+qui reste la règle pour TOUS LES AUTRES pièges. « Any other hero with a tool
+kit may attempt to disarm […] roll one combat die. If they roll a shield,
+they successfully disarm the trap. If they roll a skull, the trap is
+immediately triggered. » — UN SEUL dé de COMBAT, jamais un `JetCompetence`.
+⚠ Échec = déclenchement de la ZONE ENTIÈRE, SANS EXCEPTION : le texte ne
+connaît pas le nœud « Désamorçage » qui adoucit l'échec sur les autres
+pièges.
+
+**Fosse des ténèbres** (*Pit of Darkness*, p. 5) : variante de la Fosse —
+même cycle, même `franchissable` (jet de Body pour sauter une fois
+détectée) — sauf deux points, sourcés : « Pits of darkness cannot be
+disarmed » (`desarmable: 'non'` au catalogue, désormais une vraie garde lue
+par `MenuMoteur::generer()` ET revérifiée par `ResolveurTour::resoudreDesamorcage()`
+— l'option n'apparaît jamais et le résolveur la refuserait de toute façon),
+et des dégâts de chute selon l'ARMURE PORTÉE au moment de la chute plutôt
+qu'un montant fixe : « Heroes wearing no armor or only non-metal armor take
+1 Body Point […]. Heroes wearing metal armor take 2 […], unless they're
+wearing plate mail, in which case they take 3. » `effet.degats_selon_armure`
+(lu par `MoteurPieges::declencher()`) consulte `Equipement::porteArmureDePlates()`
+/`porteArmureMetallique()` — deux méthodes NEUVES, distinctes de
+`porteMetalOuBouclier()` (qui compte aussi le bouclier, une lecture que le
+texte de CETTE chute ne veut pas : « wearing metal ARMOR »). Les Brassards
+(cuir, errata B1, 2026-10-01) comptent donc pour 1, pas 2.
+
+⚠ **PORTAGE : `deplacement_sans_d6` réutilisé pour une seconde raison.**
+Aucun marqueur dédié n'existe au catalogue pour « c'est la plate » (ni nom,
+ni tag) ; `deplacement_sans_d6` est la SEULE pièce à le porter
+(`ObjetSeeder`, commentaire « SEUL dé »), donc un marqueur fonctionnellement
+unique à l'Armure de plates — une décision de portage, documentée plutôt que
+silencieuse.
+
+⚠ **Climb-out, un cas déjà couvert par simplification.** « A hero may climb
+out of a pit of darkness on their next turn if there is a free square on any
+one side » : notre Fosse n'a jamais modélisé de héros littéralement « coincé »
+dans le trou — tomber coûte des PV et le tour se termine (livret p. 14), mais
+rien n'empêche mécaniquement le héros d'agir normalement au tour suivant.
+La Fosse des ténèbres hérite de cette même simplification ; la nuance du
+livret y est donc triviale chez nous, pas un gap introduit par ce travail.

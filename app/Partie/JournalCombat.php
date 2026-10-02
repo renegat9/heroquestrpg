@@ -541,6 +541,16 @@ final class JournalCombat
             'attaque_monstre' => $this->attaqueMonstre($a),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
             'actionner_levier' => $this->levier($a, $acteurNom),
+            // PORTE DE PIERRE (Against the Ogre Horde p. 4) : un effet
+            // automatique (le jet de crânes) que rien n'annonçait serait
+            // injouable — surtout l'ÉCHEC, qui ne laisse AUCUNE trace sur la
+            // carte (la porte reste fermée, identique à avant le jet).
+            'forcer_porte_pierre' => [[
+                'texte' => ! empty($a['reussi'])
+                    ? "{$acteurNom} force la porte de pierre — {$a['cranes']} crâne(s), elle s'ouvre !"
+                    : "{$acteurNom} pousse la porte de pierre — {$a['cranes']} crâne(s), elle ne cède pas",
+                'ton' => ! empty($a['reussi']) ? 'succes' : 'echec',
+            ]],
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
             'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
             'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
@@ -1404,6 +1414,13 @@ final class JournalCombat
                 'texte' => ($a['monstre']['nom'] ?? 'Un monstre').' surgit du coffre !',
                 'ton' => 'subit',
             ]],
+            // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : butin
+            // FIXE au premier chercheur, 4 potions d'un coup — distinct de
+            // `objet` (une seule pièce, tirée au hasard dans une table).
+            'caisse_ravitaillement' => [[
+                'texte' => "{$acteurNom} ouvre la caisse de ravitaillement : 4 Potions de guérison !",
+                'ton' => 'tresor',
+            ]],
             'piege' => [],
             // ⚠ « En vain » n'est vrai QUE si rien n'était à prendre. Deux cas
             // distincts s'y cachaient : un meuble dont le butin existait mais
@@ -1424,6 +1441,14 @@ final class JournalCombat
             $lignes[] = $this->info('Sac plein : '.($a['objet']['nom'] ?? 'l\'objet').' déborde — à équiper ou à écouler au marché');
         }
 
+        // Caisse de ravitaillement : 4 lignes d'inventaire d'un coup, le sac
+        // peut déborder sur N'IMPORTE LAQUELLE — même règle que ci-dessus,
+        // appliquée à chacune plutôt qu'à un `objet` unique.
+        $debordes = count(array_filter((array) ($a['objets'] ?? []), fn ($o) => ! empty($o['sac_deborde'])));
+        if ($debordes > 0) {
+            $lignes[] = $this->info("Sac plein : {$debordes} potion(s) débordent — à équiper ou à écouler au marché");
+        }
+
         return $lignes;
     }
 
@@ -1436,6 +1461,31 @@ final class JournalCombat
      */
     private function piegeDeclenche(array $a, string $acteurNom): array
     {
+        // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : plusieurs cibles,
+        // chacune avec SA PROPRE défense — forme distincte de celle, à cible
+        // unique et sans défense, des deux autres pièges de sol. Un effet
+        // automatique que rien n'annonce est injouable, et « rien » couvrirait
+        // ICI potentiellement plusieurs héros d'un coup : chacun a sa ligne.
+        if (! empty($a['zone'])) {
+            $piege = $a['piege']['nom'] ?? 'La lame balançoire';
+            $lignes = [['texte' => "{$piege} balaie la zone !", 'ton' => 'subit']];
+
+            foreach ((array) ($a['cibles'] ?? []) as $cible) {
+                $nomCible = $cible['personnage']['nom'] ?? 'Un héros';
+                $degats = (int) ($cible['degats'] ?? 0);
+
+                $lignes[] = $degats > 0
+                    ? ['texte' => "{$nomCible} encaisse −{$degats} PV", 'ton' => ! empty($cible['tombe']) ? 'chute' : 'degats']
+                    : $this->info("{$nomCible} pare le coup");
+            }
+
+            if (($a['cibles'] ?? []) === []) {
+                $lignes[] = $this->info('La zone était vide — personne touché');
+            }
+
+            return $lignes;
+        }
+
         $nom = $a['personnage']['nom'] ?? $acteurNom;
         $piege = $a['piege']['nom'] ?? 'Un piège';
         $degats = (int) ($a['degats'] ?? 0);

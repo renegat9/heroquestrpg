@@ -490,6 +490,23 @@ final class DemarreurQuete
     public const RATIO_COUT_ETHERE = 2.0;
 
     /**
+     * Variante À DISTANCE générique (Against the Ogre Horde p. 8, Q6 — René
+     * 2026-10-02 : « allons-y générique ») : « Zargon may place a standard
+     * monster or a ranged version of that same monster type ». Le livret ne
+     * chiffre AUCUNE proportion — c'est une décision de portage, pas une
+     * lecture : UN emplacement sur `RATIO_VARIANTE_DISTANCE` d'un monstre de
+     * base qui a une variante déclarée (`monstres.variante_distance_de`)
+     * devient sa version à distance.
+     *
+     * ⚠ Par ROTATION déterministe (graine groupe + position d'arc + rang
+     * d'achat de ce monstre dans la rencontre), JAMAIS par `random_int` —
+     * même discipline que le choix du boss (`($graineGroupe + $positionArc) %
+     * count`, plus haut) : une rencontre est un PLACEMENT, elle doit rester
+     * identique si la quête est recommencée ou reprise depuis un snapshot.
+     */
+    public const RATIO_VARIANTE_DISTANCE = 3;
+
+    /**
      * Les boîtes d'extension entre lesquelles tourne le THÈME d'une campagne
      * (René, 2026-09-04 : « une bonne diversité selon le thème »).
      *
@@ -668,6 +685,62 @@ final class DemarreurQuete
     }
 
     /**
+     * Monstres de base ayant une variante À DISTANCE déclarée (Q6), filtrés
+     * par ce que CE bestiaire autorise (`BestiaireGroupe::autorise()`) et
+     * indexés par le nom_base du monstre STANDARD — c'est la clé de lecture
+     * de `substituerVarianteDistance()`.
+     *
+     * ⚠ Les variantes sont `boite: null` (génériques, disponibles dans tout
+     * thème) donc `autorise()` les laisse toujours passer ; le filtre reste
+     * ici pour ne jamais dépendre d'une hypothèse sur leur `boite` future.
+     *
+     * @return Collection<string, Monstre>
+     */
+    private function variantesDistanceParBase(BestiaireGroupe $bestiaire): Collection
+    {
+        return Monstre::query()->whereNotNull('variante_distance_de')->get()
+            ->filter(fn (Monstre $v) => $bestiaire->autorise($v->boite))
+            ->keyBy('variante_distance_de');
+    }
+
+    /**
+     * Substitue, par ROTATION déterministe, un monstre STANDARD par sa
+     * variante À DISTANCE déclarée — un emplacement sur
+     * `RATIO_VARIANTE_DISTANCE` (voir sa doc). Rend `$standard` inchangé si :
+     * il n'a pas de variante, la rotation ne tombe pas sur ce rang, ou la
+     * variante est trop chère pour le budget restant (`$restant`) — jamais de
+     * dépassement de budget au nom d'une substitution.
+     *
+     * `$occurrences` est un compteur PAR NOM DE BASE, incrémenté à chaque
+     * appel pour ce nom : c'est le rang qui entre dans la rotation, exactement
+     * comme `$positionArc` le fait pour le boss plus haut.
+     *
+     * @param  array<string, int>  $occurrences  passé par référence, monte à chaque appel
+     */
+    private function substituerVarianteDistance(
+        Monstre $standard,
+        Collection $variantes,
+        int $graineGroupe,
+        int $positionArc,
+        array &$occurrences,
+        int $restant,
+    ): Monstre {
+        $variante = $variantes->get($standard->nom_base);
+        if ($variante === null) {
+            return $standard;
+        }
+
+        $occurrences[$standard->nom_base] = ($occurrences[$standard->nom_base] ?? -1) + 1;
+        $rang = $graineGroupe + $positionArc + $occurrences[$standard->nom_base];
+
+        if ($rang % self::RATIO_VARIANTE_DISTANCE !== 0) {
+            return $standard;
+        }
+
+        return $this->coutEffectif($variante) <= $restant ? $variante : $standard;
+    }
+
+    /**
      * Budget de rencontres en points de `cout` du bestiaire (doc 06 §2) :
      * score de puissance × escalade d'arc (+15 %/quête) × facteur de jalon.
      */
@@ -834,7 +907,16 @@ final class DemarreurQuete
         $seuil = (int) ($this->parametres()?->rencontres_seuil_cout_fort
             ?? config('jeu.rencontres.seuil_cout_fort', 3));
         /** @var Collection<int, Monstre> $base */
+        // ⚠ `whereNull('variante_distance_de')` (Q6) : une variante à distance
+        // n'entre PAS dans ce pool comme un monstre de plus — elle ne joue
+        // qu'en SUBSTITUTION de son monstre standard (`substituerVarianteDistance()`,
+        // plus bas), exactement comme le livret le décrit (« Zargon may place
+        // a standard monster OR a ranged version »). Sans cette exclusion, les
+        // deux auraient coexisté comme deux entrées indépendantes du
+        // round-robin — un Gobelin ET un Gobelin archer auraient pu être
+        // achetés dans la MÊME rencontre, ce qu'aucune carte ne décrit.
         $base = Monstre::query()->where('tier', 'base')->where('cout', '>', 0)
+            ->whereNull('variante_distance_de')
             ->orderBy('cout')->orderBy('id')->get()
             ->filter(fn (Monstre $m) => $bestiaire->autorise($m->boite))
             ->values();
@@ -882,15 +964,26 @@ final class DemarreurQuete
         // 2) La MASSE de faibles : round-robin sur les faibles (un peu de variété)
         //    tant que budget et emplacements le permettent → beaucoup d'ennemis
         //    individuellement peu dangereux.
+        //
+        // ⚠ C'est ICI, et seulement ici, qu'une variante À DISTANCE (Q6) peut
+        // remplacer son monstre standard : Gobelin/Squelette/Orque sont tous
+        // de tier `base` et sous le seuil « fort » par défaut, donc achetés
+        // dans CETTE masse — jamais dans les « forts » ni la rencontre finale,
+        // qu'aucune variante ne couvre.
+        $varianteParBase = $this->variantesDistanceParBase($bestiaire);
+        $occurrencesVariante = [];
+
         $n = $faibles->count();
         $curseur = 0;
         while ($n > 0 && count($achats) < $maxSpawns) {
             $achete = false;
             for ($k = 0; $k < $n; $k++) {
-                $m = $faibles[($curseur + $k) % $n];
-                if ($this->coutEffectif($m) <= $restant) {
-                    $achats[] = $m;
-                    $restant -= $this->coutEffectif($m);
+                $candidat = $this->substituerVarianteDistance(
+                    $faibles[($curseur + $k) % $n], $varianteParBase, $graineGroupe, $positionArc, $occurrencesVariante, $restant,
+                );
+                if ($this->coutEffectif($candidat) <= $restant) {
+                    $achats[] = $candidat;
+                    $restant -= $this->coutEffectif($candidat);
                     $curseur = ($curseur + $k + 1) % $n;
                     $achete = true;
                     break;

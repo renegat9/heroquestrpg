@@ -14,6 +14,10 @@ class Piege extends Model
         'desarmable',
         'usage',
         'effet',
+        // `null` = toutes les boîtes (migration `boite_pieges_et_mobiliers`,
+        // même convention que `Terrain::boite`) ; une valeur réserve le
+        // piège au thème de bestiaire correspondant (ex. `horde_ogre`).
+        'boite',
     ];
 
     protected function casts(): array

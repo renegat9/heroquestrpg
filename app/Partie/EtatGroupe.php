@@ -633,6 +633,15 @@ final class EtatGroupe
                 'etat' => (string) $entree['etat'],
                 'nom' => $noms[$entree['piege_id']] ?? 'Piège',
                 'image_url' => $biblio->urlPiege($entree['piege_id'] ?? null, $noms[$entree['piege_id']] ?? 'Piège'),
+                // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : les cases
+                // de la zone, publiées UNIQUEMENT une fois le piège lui-même
+                // connu (même garde que `$connus` ci-dessus) — jamais avant,
+                // sinon la zone d'un piège encore CACHÉ trahirait sa présence
+                // avant toute fouille.
+                ...(isset($entree['zone']) ? ['zone' => array_map(
+                    fn (array $z) => ['x' => (int) $z['x'], 'y' => (int) $z['y']],
+                    (array) $entree['zone'],
+                )] : []),
             ])
             ->values()
             ->all();

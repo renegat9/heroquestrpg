@@ -142,6 +142,30 @@ class MobilierSeeder extends Seeder
                     ['issue' => 'tresor', 'poids' => 2, 'or' => [15, 40]],
                     ['issue' => 'rien', 'poids' => 4],
                 ]]],
+
+            // ===== Against the Ogre Horde (livret F9528 p. 5, lot B) =====
+            // CAISSE DE RAVITAILLEMENT (« Supply Crate ») : « The first hero
+            // to search for treasure in a room containing one of these chests
+            // will find 4 Potions of Healing. » — un butin FIXE au premier
+            // chercheur, pas une table pondérée : `fouillable => false`
+            // (aucune action « Fouiller : Caisse de ravitaillement » à son
+            // contact, le livret ne décrit que la fouille DE SALLE) et
+            // `effet.fouille` absent. `ResolveurTour::resoudreFouilleTresor()`
+            // la détecte par `MoteurMobilier::salleContientType()` — même
+            // point de passage que « Sly Storage » (l'Armoire de First Light,
+            // `docs/regles/exploration-et-fouille.md`) — et remplace le
+            // tirage normal par 4× *Potion de guérison* (`soin_pv_body_de: 6`,
+            // « roll 1 red die », ObjetSeeder) quand c'est la PREMIÈRE fouille
+            // de trésor de cette salle.
+            //
+            // ⚠ PORTAGE : aucun livret ne chiffre l'emprise au sol de cette
+            // caisse (elle n'apparaît que sur les plans de quête imprimés, que
+            // nous ne reprenons pas — donjons générés). Faute de mesure
+            // indépendante (la règle de `MobilierSeeder`, doc 17 §1, est de ne
+            // JAMAIS inventer une emprise), on reprend celle du *Coffre* —
+            // 1×1, difficulté de destruction 2 — par analogie fonctionnelle
+            // (c'est un coffre) plutôt que par mesure. Boîte `horde_ogre`.
+            ['nom' => 'Caisse de ravitaillement', 'nom_anglais' => 'Supply crate', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => false, 'bloque_vue' => false, 'boite' => 'horde_ogre'],
         ];
 
         // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.

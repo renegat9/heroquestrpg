@@ -614,6 +614,10 @@ export function piegesVersMarqueurs(carte) {
             etat: p.etat,
             nom: p.nom ?? 'Piège',
             titre: `${p.nom ?? 'Piège'} — ${PIEGE_ETATS[p.etat]}`,
+            // LAME BALANÇOIRE (Against the Ogre Horde) : les cases de sa zone,
+            // quand le piège en porte une — passées telles quelles, DungeonGrid
+            // les dessine en plus du marqueur principal.
+            ...(p.zone ? { zone: p.zone } : {}),
         }));
 }
 

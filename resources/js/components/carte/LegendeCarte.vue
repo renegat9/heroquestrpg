@@ -113,6 +113,12 @@ const PORTES = [
     ['secrete', 'Passage secret révélé par une fouille'],
 ];
 const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? []).some((p) => p.etat === etat)));
+
+// PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : `etat` reste `fermee`
+// (ouvrable à main nue ailleurs), seul `verrou === 'pierre'` la distingue —
+// sans cette ligne dédiée elle se lirait, à tort, comme une porte fermée
+// ORDINAIRE dans la légende générique ci-dessus.
+const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.verrou === 'pierre'));
 </script>
 
 <template>
@@ -140,6 +146,10 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
                 <div class="lg-sous">Portes</div>
                 <div v-for="[etat, texte] in portes" :key="etat" class="lg-ligne">
                     <span class="lg-chip lg-porte" :class="etat" /><span>{{ texte }}</span>
+                </div>
+                <div v-if="portePierre" class="lg-ligne">
+                    <span class="lg-chip lg-porte pierre" />
+                    <span>Porte de pierre — un héros lançant ≥ 2 dés d'attaque de base peut la forcer (2 crânes)</span>
                 </div>
             </section>
 
@@ -260,6 +270,7 @@ const portes = computed(() => PORTES.filter(([etat]) => (props.carte?.portes ?? 
 .lg-porte.ouverte { background: none; box-shadow: inset 0 0 0 1px #f0d79a; }
 .lg-porte.verrouillee { background: linear-gradient(90deg, #b98a3a, #6a4a1c); }
 .lg-porte.secrete { background: linear-gradient(90deg, #b18ad8, #5b3f7a); }
+.lg-porte.pierre { background: linear-gradient(90deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
 
 .lg-piege { border-radius: 4px; color: var(--warn, oklch(0.82 0.16 75));
   background: oklch(0.78 0.15 75 / 0.14); box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.55); }

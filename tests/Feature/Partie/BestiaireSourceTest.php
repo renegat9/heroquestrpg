@@ -164,13 +164,55 @@ it('porte le Dragon de First Light exactement comme sa carte', function () {
 
 it('donne aux créatures à distance leur attaque de tir ET leur malus au contact', function () {
     // « Attack 4 (1 si adjacent) » : deux valeurs distinctes, pas une.
-    foreach (['Archer elfe' => 4, 'Gobelin archer' => 2, 'Archer squelette' => 2] as $nom => $tir) {
+    // L'Orque archer (Against the Ogre Horde p. 8, Q6) a rejoint les deux
+    // archers de Jungles le 2026-10-02.
+    foreach (['Archer elfe' => 4, 'Gobelin archer' => 2, 'Archer squelette' => 2, 'Orque archer' => 3] as $nom => $tir) {
         $m = Monstre::where('nom_base', $nom)->firstOrFail();
 
         expect($m->portee)->toBe('distance', "{$nom} : portée")
             ->and((int) $m->attaque_distance)->toBe($tir, "{$nom} : dés en tir")
             ->and((int) $m->attaque)->toBeLessThan($tir, "{$nom} : doit perdre des dés au contact");
     }
+});
+
+it('dérive la variante À DISTANCE générique (Q6) de son monstre de base, pour tout thème', function () {
+    // Against the Ogre Horde p. 8, verbatim : « Zargon may place a standard
+    // monster or a ranged version of that same monster type (in this quest
+    // pack, that means skeletons, orcs, and goblins). A ranged monster rolls
+    // Attack dice equal to their standard attack score against any
+    // non-adjacent target in their line of sight. If their target is
+    // adjacent, they roll 1 Attack die. »
+    $liens = [
+        'Gobelin archer' => 'Gobelin',
+        'Archer squelette' => 'Squelette',
+        'Orque archer' => 'Orque',
+    ];
+
+    foreach ($liens as $nomVariante => $nomBase) {
+        $variante = Monstre::where('nom_base', $nomVariante)->firstOrFail();
+        $base = Monstre::where('nom_base', $nomBase)->firstOrFail();
+
+        // Le LIEN est déclaré, pas déduit d'une convention de nommage.
+        expect($variante->variante_distance_de)->toBe($nomBase, "{$nomVariante} : lien vers sa base")
+            ->and($variante->estVarianteDistance())->toBeTrue()
+            // La FORMULE : même déplacement/défense/Body/Mind que la base…
+            ->and($variante->deplacement)->toBe($base->deplacement, "{$nomVariante} : déplacement")
+            ->and($variante->defense)->toBe($base->defense, "{$nomVariante} : défense")
+            ->and($variante->pv_body)->toBe($base->pv_body, "{$nomVariante} : Body")
+            ->and($variante->pv_mind)->toBe($base->pv_mind, "{$nomVariante} : Mind")
+            // …1 SEUL dé au contact…
+            ->and((int) $variante->attaque)->toBe(1, "{$nomVariante} : attaque au contact")
+            // …et les dés d'attaque STANDARD de la base, à distance.
+            ->and((int) $variante->attaque_distance)->toBe((int) $base->attaque, "{$nomVariante} : attaque à distance = attaque standard de la base");
+
+        // GÉNÉRIQUE (Q6, René 2026-10-02) : `boite: null`, utilisable dans
+        // TOUS les thèmes — jamais réservée à Jungles of Delthrak ni à Against
+        // the Ogre Horde, qui ne fait qu'illustrer la règle.
+        expect($variante->boite)->toBeNull("{$nomVariante} : doit être générique (boite null)");
+    }
+
+    // Le monstre de base lui-même n'est PAS une variante.
+    expect(Monstre::where('nom_base', 'Orque')->firstOrFail()->estVarianteDistance())->toBeFalse();
 });
 
 it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {

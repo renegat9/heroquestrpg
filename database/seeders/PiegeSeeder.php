@@ -87,6 +87,66 @@ class PiegeSeeder extends Seeder
                         ['condition_appliquee' => 'Empoisonné'],
                     ],
                 ]],
+
+            // ===== Against the Ogre Horde (livret F9528 p. 4-5, lot B) =====
+            // Boîte `horde_ogre` (migration `boite_pieges_et_mobiliers`) : ces
+            // deux pièges ne sont posés que sur une carte dont le thème de
+            // bestiaire du groupe inclut cette boîte (`AssembleurCarte`, même
+            // lecture que `Terrain::boite`).
+
+            // LAME BALANÇOIRE (« Swinging Blade Trap », p. 4-5) : « triggers
+            // if a hero moves onto a square with the gold overlay […]. A huge
+            // blade swings down […], slicing any heroes on one of the squares
+            // marked with a white or red blade symbol. Zargon rolls 2 Attack
+            // dice, and any affected heroes roll Defend dice as normal. » —
+            // PREMIER piège à PLUSIEURS cases : `MoteurPieges::declencherZone()`
+            // frappe CHAQUE héros présent sur une case de `effet.zone_lames`
+            // (dés d'attaque PLEIN contre défense normale, à la différence du
+            // Piège à lances/Chute de blocs qui ne lancent jamais de défense).
+            //
+            // ⚠ PORTAGE : le livret ne donne le gabarit exact de la zone que
+            // sur le plan imprimé d'une quête précise, que nous ne reprenons
+            // pas (donjons générés). `zone_lames` est une forme RELATIVE à la
+            // case dorée de déclenchement — une ligne de 3 cases — posée par
+            // `AssembleurCarte::placerLameBalanciere()` sur l'axe (horizontal
+            // OU vertical) qui tient dans la salle au moment du tirage. C'est
+            // une décision de jeu, pas une valeur sourcée : le nombre de dés
+            // (2) et le fonctionnement (zone + défense normale), eux, SONT
+            // sourcés p. 4-5.
+            //
+            // `desarmage_special` (lu par `ResolveurTour::resoudreDesamorcage()`)
+            // nomme la procédure propre à CE piège : « The dwarf may
+            // automatically disarm […] once it has been discovered. Any other
+            // hero with a tool kit may attempt to disarm […] roll one combat
+            // die. If they roll a shield, they successfully disarm the trap.
+            // If they roll a skull, the trap is immediately triggered. » — un
+            // DÉ DE COMBAT, jamais le jet de Body de la trousse ordinaire.
+            ['nom' => 'Lame balançoire', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'persistant', 'boite' => 'horde_ogre',
+                'effet' => [
+                    'des_attaque_zone' => 2,
+                    'zone_lames' => [[0, -1], [0, 0], [0, 1]],
+                    'desarmage_special' => 'lame_balanciere',
+                ]],
+
+            // FOSSE DES TÉNÈBRES (« Pit of Darkness », p. 5) : « works in the
+            // same way as a normal pit trap […] except: Pits of darkness
+            // cannot be disarmed, but heroes can jump over them […]. If a
+            // hero crossing […] rolls a skull, they plunge […]. Heroes
+            // wearing no armor or only non-metal armor take 1 Body Point […].
+            // Heroes wearing metal armor take 2 […], unless they're wearing
+            // plate mail, in which case they take 3. » Variante de la Fosse :
+            // même `franchissable` (jet de Body pour sauter, comme la Fosse
+            // ordinaire — le livret ne change que le désamorçage et les
+            // dégâts), `desarmable => 'non'` (lu par `MenuMoteur::generer()` —
+            // l'option « Désamorcer » ne doit JAMAIS être proposée),
+            // `degats_selon_armure` (lu par `MoteurPieges::declencher()`, qui
+            // consulte `Equipement::porteArmureDePlates()`/`porteArmureMetallique()`
+            // AU MOMENT de la chute) remplace `degats_pv_body`.
+            ['nom' => 'Fosse des ténèbres', 'detectable' => true, 'desarmable' => 'non', 'usage' => 'persistant', 'boite' => 'horde_ogre',
+                'effet' => [
+                    'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
+                    'degats_selon_armure' => true,
+                ]],
         ];
 
         foreach ($pieges as $piege) {

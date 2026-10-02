@@ -83,6 +83,10 @@ const ICONE_TYPE = {
     fouiller: 'search',
     concentration: 'self_improvement',
     ouvrir_porte: 'door_open',
+    // PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : sans entrée ici,
+    // tombait sur `touch_app` comme tant d'autres avant elle (voir les notes
+    // ci-dessus, même défaut à chaque type neuf oublié).
+    forcer_porte_pierre: 'construction',
     actionner_levier: 'toggle_on',
     // ⚠ `equiper` PARTAGEAIT `swords` avec `attaque` juste au-dessus dans ce
     // même menu — capture `combat-apres-haut.png` (2026-09-18) : « Attaquer »

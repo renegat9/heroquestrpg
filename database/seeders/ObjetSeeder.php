@@ -38,6 +38,72 @@ class ObjetSeeder extends Seeder
 {
     public function run(): void
     {
+        // Épée longue et Hache de bataille sont extraites en VARIABLES (et non
+        // laissées comme simples lignes du tableau ci-dessous) : les armes EN
+        // OS d'Against the Ogre Horde (p. 8, plus bas) en sont DÉRIVÉES — même
+        // `effet`/`tag_equipement`/`des_attaque`, jamais retapés une seconde
+        // fois. C'est la même discipline que les variantes à distance du
+        // bestiaire (`MonstreSeeder`) : un déclin de la base, lu une fois.
+        $epeeLongue = ['nom' => 'Épée longue', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
+            'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]];
+        $hacheDeBataille = ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
+            'effet' => ['des_attaque' => 4, 'deux_mains' => true]];
+
+        /**
+         * Arme EN OS (lot B, Against the Ogre Horde p. 8, verbatim) : « Weapons
+         * made of bone are identical to weapons of the same name found in the
+         * armory, but bone weapons have no gold coin value and cannot be
+         * bought or sold. » Le livret en nomme deux : la hache de bataille en
+         * os (table de trésor du tournoi, p. 13) et l'épée longue en os
+         * (quête 4, note C).
+         *
+         * DÉRIVÉE de l'arme ordinaire : `effet` et `tag_equipement` COPIÉS du
+         * même tableau php que l'arme de base (jamais retapés), seuls `nom`,
+         * `prix_base` (0, « no gold coin value »), `rarete` et `metallique`
+         * changent. Le lien est déclaré par `os_de` (le `nom` de l'arme de
+         * base), lu par aucun code de RÉSOLUTION — nul besoin, puisque
+         * `effet`/`tag_equipement` sont déjà identiques en base — seulement
+         * par les tests et par `GuideController` (provenance affichée).
+         *
+         * ⚠ `metallique: false` — l'os n'est PAS un métal (`docs/regles/
+         * equipement-et-armurerie.md`) : la Rouille (carte de Dread) ne le
+         * rouille pas, et un Druide/Rogue/Barde qui raisonne sur `metallique`
+         * traite la copie en os comme SA PROPRE pièce, pas comme l'originale.
+         *
+         * ⚠ `rarete: 'unique'` plutôt qu'une clé neuve « invendable » :
+         * « cannot be bought or sold » EST déjà la règle d'un artefact chez
+         * nous — `PhaseMarche::ouvrir()` exclut `rarete = 'unique'` de l'étal
+         * (jamais achetable), et `PhaseMarche::REFUS_VENTE_UNIQUE` refuse déjà
+         * sa revente (jamais vendable), la Forge s'y refuse déjà aussi
+         * (`Forge::ameliorer()`/`retirer()`). Inventer un second mécanisme qui
+         * ferait la même chose serait la clé décorative que ce projet évite :
+         * on réutilise le lecteur existant plutôt que d'en écrire un autre.
+         * Conséquence choisie et assumée : une arme en os devient un
+         * CANDIDAT du coffre à artefact de fin de donjon
+         * (`DeckFouille::choisirArtefact()`, filtré `boite: 'horde_ogre'`
+         * comme les Raquettes de Vitesse le sont à `horreur_des_glaces`) —
+         * c'est le seul endroit du jeu procédural où elle peut apparaître,
+         * faute d'étal de marchand ou de table de butin de mobilier à qui la
+         * confier (voir le commentaire au fil du texte, plus bas).
+         */
+        $armeEnOs = function (array $base, string $nomOs): array {
+            return [
+                'nom' => $nomOs,
+                'categorie' => 'arme',
+                'metallique' => false,
+                'rarete' => 'unique',
+                'prix_base' => 0,
+                'emplacement' => $base['emplacement'],
+                'tag_equipement' => $base['tag_equipement'],
+                'boite' => 'horde_ogre',
+                'os_de' => $base['nom'],
+                'effet' => $base['effet'],
+            ];
+        };
+
+        $hacheDeBatailleEnOs = $armeEnOs($hacheDeBataille, 'Hache de bataille en os');
+        $epeeLongueEnOs = $armeEnOs($epeeLongue, 'Épée longue en os');
+
         $objets = [
             // ----- Armes : les 10 cartes officielles, par prix croissant -----
             //
@@ -107,8 +173,7 @@ class ObjetSeeder extends Seeder
             // Longsword : l'une des deux seules armes que le livret OFFICIEL
             // nomme comme frappant en diagonale (« like the staff and the
             // longsword », p. 14). Une main : elle se combine au bouclier.
-            ['nom' => 'Épée longue', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
-                'effet' => ['des_attaque' => 3, 'attaque_diagonale' => true]],
+            $epeeLongue,
             ['nom' => 'Arbalète', 'categorie' => 'arme', 'prix_base' => 350, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_distance',
                 // « You may fire at any monster that you can see. However, you
                 // cannot fire at a monster that is adjacent to you. » — les deux
@@ -117,8 +182,7 @@ class ObjetSeeder extends Seeder
                 'effet' => ['des_attaque' => 3, 'portee' => 'distance', 'inutilisable_adjacent' => true]],
             // La hache de bataille N'EST PAS une arme longue : sa carte dit
             // seulement « You may not use a shield when using this weapon ».
-            ['nom' => 'Hache de bataille', 'categorie' => 'arme', 'metallique' => true, 'prix_base' => 450, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_deux_mains',
-                'effet' => ['des_attaque' => 4, 'deux_mains' => true]],
+            $hacheDeBataille,
 
             // ----- Matériel : les 4 cartes qui ne sont ni arme ni armure -----
             //
@@ -650,6 +714,16 @@ class ObjetSeeder extends Seeder
             // — grillant au passage la seule récompense d'artefact de la quête.
             ['nom' => 'Raquettes de Vitesse', 'categorie' => 'armure', 'rarete' => 'unique', 'prix_base' => 700, 'emplacement' => 'bottes', 'boite' => 'horreur_des_glaces',
                 'effet' => ['bonus_deplacement_porte' => 2, 'annule_glace_glissante' => true]],
+
+            // « Bone Battleaxe » / « Bone Longsword » (Against the Ogre Horde
+            // p. 8, p. 13, quête 4 note C) : voir `$armeEnOs` en tête de
+            // méthode pour la dérivation et la justification de `rarete:
+            // 'unique'`. Même `effet`/`tag_equipement` que leur arme
+            // ordinaire — un barbare qui trouve la hache en os combat
+            // exactement comme avec la hache normale, seuls le prix et le
+            // matériau changent.
+            $hacheDeBatailleEnOs,
+            $epeeLongueEnOs,
 
             // ----- Armures (6 cartes) -----
             //

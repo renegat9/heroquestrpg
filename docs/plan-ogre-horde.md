@@ -97,6 +97,56 @@ ou trous :
 | **Double porte** | Composant, sans règle propre | Rendu seulement (emprise de 2 cases) ; pas de règle à inventer. ⚠ Nos portes font une case : ce point attend la décision « murs en arêtes » (`docs/plan-murs-en-aretes.md`) |
 | **Archers** | « Zargon may place a standard monster **or** a ranged version of that same monster type » (squelettes, orques, gobelins) | Ajouter l'**Orque archer** (M8, A3 en tir / 1 au contact, D2, B1, Mi2, selon la règle p. 8). Décider de la boîte des archers (question Q6) |
 
+**Fait (2026-10-02, catalogue uniquement — map restant à l'autre agent du lot B)** :
+- **Archers / Q6** : réglée « générique ». `monstres.variante_distance_de` nomme
+  le monstre standard dont une ligne est la variante ; `MonstreSeeder` DÉRIVE
+  `deplacement`/`defense`/`pv_body`/`pv_mind` (identiques à la base),
+  `attaque: 1` et `attaque_distance` (= attaque standard de la base) du MÊME
+  tableau php que la base, jamais retapés. L'**Orque archer** rejoint Gobelin
+  archer et Archer squelette, et les trois passent `boite: null` (généralistes,
+  disponibles dans tout thème) — ils sortent de `jungles_delthrak`, qui n'était
+  qu'un vestige du premier portage. `DemarreurQuete::acheterMonstres()` EXCLUT
+  les variantes du pool normal des monstres « faibles » (elles n'entrent qu'en
+  SUBSTITUTION, jamais comme entrée indépendante) et `substituerVarianteDistance()`
+  décide, par rotation déterministe sur `(graine groupe + position d'arc + rang
+  d'achat)`, si un emplacement devient la variante — `RATIO_VARIANTE_DISTANCE =
+  3` (un sur trois), décision de portage faute de proportion donnée par le
+  livret. Détails et citation complète : `docs/regles/bestiaire-et-rencontres.md`.
+- **Armes en os** : DÉRIVÉES de leur arme ordinaire (`ObjetSeeder`, même
+  tableau php que « Hache de bataille »/« Épée longue »), `objets.os_de`
+  déclare le lien. Pas de nouveau drapeau d'invendabilité : `rarete: 'unique'`
+  suffit — c'est déjà la règle d'un artefact (hors étal, revente refusée,
+  inforgeable), et ça fait de l'arme en os un candidat du coffre de fin de
+  donjon (`DeckFouille::choisirArtefact()`, `boite: 'horde_ogre'`, même patron
+  que les Raquettes de Vitesse). `metallique: false` (l'os n'est pas un métal).
+  Détails : `docs/regles/equipement-et-armurerie.md`.
+- Restent à l'autre agent du lot B : porte de pierre, lame balancière, fosse
+  des ténèbres, caisse de ravitaillement, double porte (map/mobilier/pièges).
+
+**Fait (2026-10-02, map/mobilier/pièges)** :
+- **Porte de pierre** : nouvel état de verrou (`MoteurPortes::VERROU_PIERRE`)
+  sur une porte `fermee` ordinaire, résolu par
+  `ResolveurTour::resoudreForcerPortePierre()` (dés d'attaque DE BASE,
+  2 crânes requis, persistant). Posée UNIQUEMENT sur une arête de BOUCLE
+  (`AssembleurCarte::marquerPortesDePierre()`) — jamais le seul chemin vers
+  l'objectif, par construction, et testé comme tel.
+- **Lame balançoire** : premier piège à ZONE (`effet.zone_lames`,
+  `AssembleurCarte::placerLameBalanciere()`, `MoteurPieges::declencherZone()`),
+  désamorçage dédié (Nain automatique / 1 dé de combat pour les autres).
+- **Fosse des ténèbres** : variante de la Fosse, dégâts selon l'armure
+  (`Equipement::porteArmureDePlates()`/`porteArmureMetallique()`, neuves),
+  jamais désamorçable.
+- **Caisse de ravitaillement** : mobilier `horde_ogre`, 4 Potions de
+  guérison au premier chercheur de la salle (`MoteurMobilier::salleContientType()`,
+  même point de passage que Sly Storage). Emprise 1×1 non sourcée, décision
+  de portage par analogie au Coffre.
+- **Double porte** : toujours sans règle propre (rendu seulement, attend
+  « murs en arêtes ») — rien à faire ici, confirmé.
+- Migration `boite_pieges_et_mobiliers` (nullable, additive). Thème gating
+  testé dans les deux sens (`tests/Feature/Partie/OgreHordeCarteTest.php`).
+  Détails et citations complètes : `docs/regles/carte-donjon.md` §Against the
+  Ogre Horde, `docs/regles/exploration-et-fouille.md` (caisse).
+
 ### Lot C — Ennemis à plusieurs phases et personnages nommés (p. 6, 21-37)
 
 **Mécanique générique** (p. 6) : « Some powerful foes adopt **new

@@ -618,25 +618,40 @@ it('tire les TROIS types de pièges de sol sur un échantillon de cartes, jamais
 
 it('le tirage des pièges de sol est un registre testé dans les deux sens', function () {
     // Sens 1 : le vivier de `placerPieges()` (tout piège dont l'effet n'a PAS
-    // `declencheur: ouverture_tresor`) contient EXACTEMENT les trois pièges de
+    // `declencheur: ouverture_tresor`) contient EXACTEMENT les pièges de
     // sol du livret — rien de plus. Un piège de coffre qui perdrait sa clé
     // `declencheur` par erreur se retrouverait posé sur la carte, hors de son
     // cycle (fouille du trésor).
+    //
+    // ⚠ Depuis Against the Ogre Horde (lot B, 2026-10-02), deux pièges de sol
+    // supplémentaires existent dans le CATALOGUE — « Fosse des ténèbres » (une
+    // variante de la Fosse) et « Lame balançoire » (un piège à ZONE) — mais
+    // tous deux portent `boite: 'horde_ogre'` : ils n'entrent JAMAIS dans ce
+    // vivier pour un groupe sans ce thème (filtrée par `AssembleurCarte::placerPieges()`,
+    // AssembleurCarteOgreHordeTest le vérifie côté placement). La « Lame
+    // balançoire » en est de toute façon EXCLUE pour une seconde raison : elle
+    // porte `effet.zone_lames`, donc elle n'est posée QUE par
+    // `placerLameBalanciere()`, jamais par le tirage par case isolée ici.
     $sol = Piege::query()
         ->get()
         ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
+        ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
         ->pluck('nom')
         ->sort()
         ->values()
         ->all();
 
-    expect($sol)->toBe(['Chute de blocs', 'Fosse', 'Piège à lances']);
+    expect($sol)->toBe(['Chute de blocs', 'Fosse', 'Fosse des ténèbres', 'Piège à lances']);
 
-    // Sens 2 : aucun des trois n'a, par erreur, un `declencheur` qui
+    // Sens 2 : aucun des quatre n'a, par erreur, un `declencheur` qui
     // l'écarterait à tort du tirage de sol.
-    foreach (['Fosse', 'Piège à lances', 'Chute de blocs'] as $nom) {
+    foreach (['Fosse', 'Piège à lances', 'Chute de blocs', 'Fosse des ténèbres'] as $nom) {
         expect(data_get(Piege::where('nom', $nom)->value('effet'), 'declencheur'))->toBeNull();
     }
+
+    // Et la Lame balançoire, elle, porte bien `zone_lames` — c'est ce qui la
+    // retire du vivier générique ci-dessus.
+    expect(data_get(Piege::where('nom', 'Lame balançoire')->value('effet'), 'zone_lames'))->not->toBeNull();
 });
 
 it('un BLOC PERMANENT bloque le passage ET la vue, lu par FabriqueGrille::pour()', function () {

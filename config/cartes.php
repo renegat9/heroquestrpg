@@ -277,6 +277,17 @@ return [
             // rejoint le pool d'artefacts plutôt que de rester une note de
             // quête que le donjon généré n'a pas.
             ['carte' => 'The Hearthkin Horn', 'paquet' => 'First Light', 'objet' => 'Cor des Hearthkin'],
+
+            // « Bone Battleaxe » / « Bone Longsword » (Against the Ogre Horde
+            // p. 8, p. 13, quête 4 note C, lot B 2026-10-02) : MÊME raison que
+            // le Cor des Hearthkin juste au-dessus — source = livret de
+            // quêtes, pas les 59 photos, mais fonctionnellement des artefacts
+            // (`rarete: unique`, prix 0, jamais achetées ni vendues, tirées du
+            // coffre de fin de donjon). « Weapons made of bone are identical
+            // to weapons of the same name found in the armory, but bone
+            // weapons have no gold coin value and cannot be bought or sold. »
+            ['carte' => 'Bone Battleaxe', 'paquet' => 'Against the Ogre Horde', 'objet' => 'Hache de bataille en os'],
+            ['carte' => 'Bone Longsword', 'paquet' => 'Against the Ogre Horde', 'objet' => 'Épée longue en os'],
         ],
     ],
 

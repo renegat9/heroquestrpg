@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Combat;
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
+use App\Engine\TypeFigurine;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
 use App\Models\Carte;
@@ -97,6 +99,17 @@ final class MoteurPieges
     public const ETAT_BLOC = 'bloc';
 
     /**
+     * `effet.desarmage_special` de la LAME BALANÇOIRE (Against the Ogre
+     * Horde p. 5) : procédure de désamorçage PROPRE à ce piège, lue par
+     * `MenuMoteur::generer()` (libellé) et `ResolveurTour::resoudreDesamorcage()`
+     * (résolution) — jamais le jet de Body de la trousse ordinaire des autres
+     * pièges. Le Nain réussit automatiquement ; tout autre héros habilité
+     * lance UN SEUL dé de combat (bouclier = succès, crâne = déclenchement
+     * immédiat de la zone entière).
+     */
+    public const DESARMAGE_LAME_BALANCIERE = 'lame_balanciere';
+
+    /**
      * *Sens du piège* (Explorateur) — mécanique de la capacité de carte, et
      * l'exact contraire de l'Œil du mineur : elle AVERTIT sans révéler.
      */
@@ -110,6 +123,7 @@ final class MoteurPieges
         private readonly Talents $talents,
         private readonly BibliothequeNarration $narration,
         private readonly AnnoncesTalents $annonces,
+        private readonly Equipement $equipement,
     ) {}
 
     /**
@@ -154,7 +168,15 @@ final class MoteurPieges
             //    servaient à rien.
             $index = $this->indexPiegeArme($carte, $x, $y);
             if ($index !== null) {
-                $payload = $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
+                // LAME BALANÇOIRE : une entrée à ZONE se résout par
+                // `declencherZone()` (plusieurs cibles, défense normale),
+                // jamais `declencher()` (une seule victime, jamais de
+                // défense) — la forme de l'entrée (`zone` posée par
+                // `AssembleurCarte::placerLameBalanciere()`) le dit sans
+                // requête supplémentaire au catalogue.
+                $payload = isset($carte->grille['pieges'][$index]['zone'])
+                    ? $this->declencherZone($groupe, $carte, $index, $personnage, $etat, 'deplacement', ['x' => $x, 'y' => $y])
+                    : $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
                 $declenchements[] = $payload;
 
                 // Forme démoniaque : « ignores pit traps » — le sol ne l'avale
@@ -344,6 +366,16 @@ final class MoteurPieges
             $touches = count(array_filter($facesLancees, fn (FaceDeCombat $f) => $f->estCrane()));
             $faces = array_map(fn (FaceDeCombat $f) => $f->value, $facesLancees);
             $degats = $touches;
+        } elseif ((bool) data_get($piege?->effet, 'degats_selon_armure', false)) {
+            // FOSSE DES TÉNÈBRES (Against the Ogre Horde p. 5) : « Heroes
+            // wearing no armor or only non-metal armor take 1 Body Point of
+            // damage. Heroes wearing metal armor take 2 Body Points of
+            // damage, unless they're wearing plate mail, in which case they
+            // take 3. » Dégâts fixes mais dépendants de l'ARMURE portée AU
+            // MOMENT de la chute — ni dé, ni jet de défense, comme la Fosse
+            // ordinaire.
+            $degats = $this->equipement->porteArmureDePlates($personnage) ? 3
+                : ($this->equipement->porteArmureMetallique($personnage) ? 2 : 1);
         } else {
             $degats = (int) data_get($piege?->effet, 'degats_pv_body', 1);
         }
@@ -402,6 +434,134 @@ final class MoteurPieges
         ]);
 
         $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
+
+        return $payload;
+    }
+
+    /**
+     * LAME BALANÇOIRE (Against the Ogre Horde, livret F9528 p. 4-5) — SECOND
+     * producteur de dégâts de piège, à côté de `declencher()` ci-dessus :
+     * « Zargon rolls 2 Attack dice, and any affected heroes roll Defend dice
+     * as normal. » Frappe TOUS les héros actuellement sur une case de la
+     * ZONE (`effet.zone_lames`, posée par `AssembleurCarte::placerLameBalanciere()`),
+     * chacun avec SA PROPRE défense — à la différence du Piège à lances et
+     * de la Chute de blocs, qui ne lancent JAMAIS de défense.
+     *
+     * ⚠ Le piège reste ARMÉ après ce déclenchement : rien dans le texte ne
+     * limite son usage, à la différence de la Fosse (persistante mais
+     * `fosse_ouverte`) ou du Piège à lances (`declenche`, dépensé). Aucun
+     * changement d'état n'est donc écrit ici — l'appelant (`controlerChemin()`,
+     * `ResolveurTour::resoudreDesamorcage()` en cas d'échec) garde l'entrée
+     * telle quelle.
+     *
+     * @param  int  $index  index de l'entrée dans `carte.grille.pieges`
+     * @param  Personnage  $personnage  le héros qui a DÉCLENCHÉ la lame
+     *         (marché sur la case dorée, ou raté son désamorçage) — journalisé
+     *         comme acteur et utilisé pour la narration, MÊME s'il n'est pas
+     *         forcément parmi les cibles touchées (le désamorceur agit depuis
+     *         une case adjacente à la zone, pas forcément dedans).
+     * @param  array{x: int, y: int}|null  $positionDeclencheur  SEULEMENT
+     *         quand `$personnage` vient de MARCHER sur le déclencheur : sa
+     *         colonne `position_x`/`position_y` n'est pas encore à jour à cet
+     *         instant (`ResolveurTour::resoudreDeplacement()` écrit l'arrêt
+     *         SEULEMENT APRÈS que `controlerChemin()` — qui appelle cette
+     *         méthode — soit revenu), donc lire sa colonne lui ferait manquer
+     *         sa PROPRE lame. `null` pour un désamorçage raté : le
+     *         désamorceur agit depuis une case ADJACENTE, sa colonne EST déjà
+     *         sa vraie position, et la forcer sur la case du piège l'aurait
+     *         compté à tort comme une cible.
+     * @return array<string, mixed> payload journalisé
+     */
+    public function declencherZone(
+        Groupe $groupe,
+        Carte $carte,
+        int $index,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $contexte,
+        ?array $positionDeclencheur = null,
+    ): array {
+        $entree = $carte->grille['pieges'][$index];
+        $piege = Piege::find($entree['piege_id']);
+        $nbDesAttaque = max(1, (int) data_get($piege?->effet, 'des_attaque_zone', 2));
+        $zone = (array) ($entree['zone'] ?? []);
+        $quete = $etat->quete;
+
+        $cibles = $quete === null ? collect() : $quete->etatsPersonnages()
+            ->whereNotNull('position_x')
+            ->with('personnage')
+            ->get()
+            ->map(fn (EtatPersonnageQuete $e) => [
+                'etat' => $e,
+                'x' => ($positionDeclencheur !== null && (int) $e->personnage_id === (int) $personnage->id)
+                    ? (int) $positionDeclencheur['x'] : (int) $e->position_x,
+                'y' => ($positionDeclencheur !== null && (int) $e->personnage_id === (int) $personnage->id)
+                    ? (int) $positionDeclencheur['y'] : (int) $e->position_y,
+            ])
+            ->filter(fn (array $p) => $p['etat']->personnage !== null && collect($zone)
+                ->contains(fn (array $z) => (int) $z['x'] === $p['x'] && (int) $z['y'] === $p['y']))
+            ->map(fn (array $p) => $p['etat'])
+            ->values();
+
+        $resultats = [];
+
+        foreach ($cibles as $cibleEtat) {
+            $cible = $cibleEtat->personnage;
+
+            $garde = $this->sorts->desDefenseHerosDetail($cible)['total'];
+            $resultat = (new Combat($this->des))->resoudreAttaque(
+                desAttaque: $nbDesAttaque,
+                desDefense: $garde,
+                typeDefenseur: TypeFigurine::Heros,
+                pvBodyDefenseur: (int) $cible->pv_body,
+            );
+
+            $subis = $this->degats->infligerAHeros(
+                $cible, $resultat->degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom],
+            );
+            $pvApres = (int) $cible->pv_body;
+            $tombe = $pvApres === 0 && $subis > 0;
+
+            if ($tombe) {
+                $cibleEtat->update(['tombe' => true]);
+            }
+
+            $resultats[] = [
+                'personnage' => ['id' => $cible->id, 'nom' => $cible->nom],
+                'des_attaque' => $nbDesAttaque,
+                'des_defense' => $garde,
+                'faces_attaque' => array_map(fn (FaceDeCombat $f) => $f->value, $resultat->facesAttaque),
+                'faces_defense' => array_map(fn (FaceDeCombat $f) => $f->value, $resultat->facesDefense),
+                'degats' => $resultat->degats,
+                'pv_body_apres' => $pvApres,
+                'tombe' => $tombe,
+            ];
+        }
+
+        // Le DÉCLENCHEUR garde une entrée mémoire à jour (une de ses propres
+        // chutes a pu être écrite via `$cibleEtat` ci-dessus, un objet DIFFÉRENT
+        // en mémoire de `$etat`) : sans ce rafraîchissement, l'appelant
+        // (`controlerChemin()`) lirait un `$etat->tombe` périmé.
+        $etat->refresh();
+
+        $payload = [
+            'type' => 'piege_declenche',
+            'contexte' => $contexte,
+            'zone' => true,
+            'piege' => [
+                'nom' => $piege?->nom ?? 'Piège',
+                'x' => (int) $entree['x'],
+                'y' => (int) $entree['y'],
+            ],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'cibles' => $resultats,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        $this->narrerPiegeDeclenche($groupe, $quete, $personnage);
 
         return $payload;
     }

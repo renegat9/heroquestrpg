@@ -411,6 +411,7 @@ final class ResolveurTour
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
+                'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'actionner_levier' => $this->resoudreActionnerLevier($groupe, $quete, $etat, $option, $acteur),
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -3815,6 +3816,17 @@ final class ResolveurTour
             ]);
         }
 
+        // LAME BALANÇOIRE (Against the Ogre Horde p. 5) : procédure PROPRE à
+        // ce piège, jamais le jet de Body ni le dé « sans outils » ci-dessous.
+        // « The dwarf may automatically disarm a swinging blade trap once it
+        // has been discovered. Any other hero with a tool kit may attempt to
+        // disarm […] roll one combat die. If they roll a shield, they
+        // successfully disarm the trap. If they roll a skull, the trap is
+        // immediately triggered. »
+        if (data_get($cible['piege']?->effet, 'desarmage_special') === MoteurPieges::DESARMAGE_LAME_BALANCIERE) {
+            return $this->resoudreDesamorcageLameBalanciere($groupe, $quete, $personnage, $etat, $cible, $option, $acteur);
+        }
+
         // ⚠ DEUX RÉSOLUTIONS, et c'est le dos des cartes qui les sépare (René,
         // 2026-08-22). Le Nain et l'Explorateur « désamorcent sans outils » et
         // n'échouent QUE sur un bouclier noir : un dé, une face perdante sur
@@ -3873,6 +3885,93 @@ final class ResolveurTour
             // adjacente), donc jamais de bloc à écarter ici — juste le tour
             // qui se ferme, comme pour les deux autres chemins de
             // déclenchement (voir `$finTourPiegeSol`).
+            $this->finTourPiegeSol = true;
+        }
+
+        Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * LAME BALANÇOIRE (Against the Ogre Horde p. 5) — procédure de
+     * désamorçage dédiée, appelée par `resoudreDesamorcage()` ci-dessus.
+     *
+     * « The dwarf may automatically disarm a swinging blade trap once it has
+     * been discovered » : succès garanti, AUCUN dé — à la différence du
+     * désamorçage « sans outils » (nain/explorateur, un dé, échec sur
+     * bouclier noir seulement) qui reste la règle pour TOUS LES AUTRES
+     * pièges. « Any other hero with a tool kit may attempt to disarm […] roll
+     * one combat die. If they roll a shield, they successfully disarm the
+     * trap. If they roll a skull, the trap is immediately triggered. » — un
+     * SEUL dé de COMBAT, jamais un `JetCompetence` (ni Body, ni difficulté :
+     * la carte ne connaît que crâne/bouclier).
+     *
+     * ⚠ Échec = déclenchement IMMÉDIAT ET SANS EXCEPTION (le texte ne connaît
+     * pas de talent qui l'adoucirait, à la différence de la règle maison
+     * « Désamorçage » qui épargne les AUTRES pièges) : `declencherZone()`
+     * frappe TOUS les héros actuellement sur la zone, pas seulement le
+     * désamorceur — la lame balaie qui qu'elle balaie, qu'il s'y trouve ou
+     * non.
+     *
+     * @param  array{index: int, x: int, y: int, etat: string, piege: ?\App\Models\Piege}  $cible
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDesamorcageLameBalanciere(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $cible,
+        array $option,
+        array $acteur,
+    ): array {
+        $automatique = $personnage->classe === 'nain';
+
+        if ($automatique) {
+            $this->pieges->changerEtat($quete->carte, $cible['index'], MoteurPieges::ETAT_DESARME);
+
+            $payload = [
+                'type' => 'desamorcage',
+                'option_id' => $option['id'],
+                'libelle' => $option['libelle'] ?? null,
+                'piege' => ['nom' => $cible['piege']?->nom ?? 'Piège', 'x' => $cible['x'], 'y' => $cible['y']],
+                'succes' => true,
+                'desarme' => true,
+                'methode' => 'nain_automatique',
+            ];
+
+            Journal::ajouter($groupe, 'jet', $payload, $acteur);
+
+            return $payload;
+        }
+
+        $face = FaceDeCombat::depuisD6($this->des->d6());
+        $reussi = ! $face->estCrane();
+
+        $payload = [
+            'type' => 'desamorcage',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'piege' => ['nom' => $cible['piege']?->nom ?? 'Piège', 'x' => $cible['x'], 'y' => $cible['y']],
+            'succes' => $reussi,
+            'desarme' => $reussi,
+            'methode' => 'trousse_de_combat',
+            'face' => $face->value,
+        ];
+
+        if ($reussi) {
+            $this->pieges->changerEtat($quete->carte, $cible['index'], MoteurPieges::ETAT_DESARME);
+        } else {
+            $payload['declenchement'] = $this->pieges->declencherZone(
+                $groupe, $quete->carte, $cible['index'], $personnage, $etat, 'desamorcage_rate',
+            );
+
+            // « Their turn immediately ends » (même convention que les trois
+            // pièges de sol, livret p. 14) : le désamorceur n'est pas
+            // forcément DANS la zone, mais c'est bien SON tour qui se ferme.
             $this->finTourPiegeSol = true;
         }
 
@@ -5965,6 +6064,88 @@ final class ResolveurTour
     }
 
     /**
+     * PORTE DE PIERRE (Against the Ogre Horde p. 4, lot B) : « a hero rolls
+     * their base Attack dice. If the roll result includes two skulls, the
+     * heavy stone door swings open. Once […] opened, it remains open for the
+     * remainder of the quest. » « the wizard rolls 1 Attack die, and
+     * therefore cannot open a stone doorway. »
+     *
+     * ⚠ « base Attack dice » = `personnage->des_attaque`, la valeur à MAINS
+     * NUES de la classe (`ClasseHerosSeeder`) — JAMAIS l'arme en main, à la
+     * différence de `frapper()`. `MenuMoteur::generer()` n'offre déjà
+     * l'option qu'à qui atteint `MoteurPortes::DES_MINIMUM_PORTE_PIERRE` dés ;
+     * le contrôle ici est la même garde, côté résolveur (« le menu n'offre
+     * pas ce que le résolveur refuse », et l'inverse tient aussi).
+     *
+     * Un échec NE DÉTRUIT rien et ne pose aucune condition : la porte reste
+     * simplement fermée, retentable à un tour suivant — le livret ne décrit
+     * aucune pénalité d'échec, à la différence d'un désamorçage raté.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreForcerPortePierre(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $x = (int) data_get($option, 'parametres.porte.x', -1);
+        $y = (int) data_get($option, 'parametres.porte.y', -1);
+        $cote = (string) data_get($option, 'parametres.porte.cote', 'e');
+
+        $cible = $quete->carte === null ? null
+            : $this->portes->porteDePierreAdjacente($quete->carte, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($cible === null
+            || (int) $cible['porte']['x'] !== $x
+            || (int) $cible['porte']['y'] !== $y
+            || (string) ($cible['porte']['cote'] ?? 'e') !== $cote) {
+            throw ValidationException::withMessages(['option_id' => 'Aucune porte de pierre adjacente à forcer.']);
+        }
+
+        $desBase = (int) $personnage->des_attaque;
+
+        if ($desBase < MoteurPortes::DES_MINIMUM_PORTE_PIERRE) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Il faut au moins '.MoteurPortes::DES_MINIMUM_PORTE_PIERRE." dés d'attaque de base pour forcer une porte de pierre.",
+            ]);
+        }
+
+        $faces = $this->des->desCombat($desBase);
+        $cranes = count(array_filter($faces, fn (FaceDeCombat $f) => $f->estCrane()));
+        $reussi = $cranes >= 2;
+
+        if ($reussi) {
+            $this->portes->ouvrir($groupe, $quete->carte, $cible['index'], 'porte_pierre_forcee', $acteur);
+
+            // Comme toute ouverture de porte : la salle derrière se révèle
+            // (monstres compris), jamais en attendant qu'un héros y entre.
+            foreach ($this->sallesAdjacentesPorte($quete, $cible['porte']) as $salleAdjacente) {
+                $this->revelerSalle($groupe, $quete, $salleAdjacente, $personnage);
+            }
+        }
+
+        $payload = [
+            'type' => 'forcer_porte_pierre',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'porte' => ['x' => $x, 'y' => $y, 'cote' => $cote],
+            'des_lances' => $desBase,
+            'faces' => array_map(fn (FaceDeCombat $f) => $f->value, $faces),
+            'cranes' => $cranes,
+            'reussi' => $reussi,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * BÉNÉDICTION DE L'ORACLE, option (a) (First Light, FL-Q p. 6) :
      * « ask Zargon to reveal a room behind a closed adjacent door » — SANS
      * l'ouvrir. Même porte que `resoudreOuvrirPorte()` ci-dessus (close OU
@@ -7341,6 +7522,17 @@ final class ResolveurTour
         $armoire = $premierDeLaSalle && $carteQuete !== null
             && $this->mobilier->salleContientType($carteQuete, $salle, 'Armoire');
 
+        // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : « The
+        // first hero to search for treasure in a room containing one of
+        // these chests will find 4 Potions of Healing. » Même point de
+        // passage que Sly Storage juste au-dessus (`salleContientType()`,
+        // « premier » lu sur l'état durable EXISTANT, AVANT que la ligne du
+        // dessous n'y inscrive la nôtre) — mais un butin FIXE qui REMPLACE le
+        // tirage normal, pas une carte de plus : le livret ne décrit qu'une
+        // trouvaille garantie, jamais un second tirage du deck.
+        $caisse = $premierDeLaSalle && $carteQuete !== null
+            && $this->mobilier->salleContientType($carteQuete, $salle, 'Caisse de ravitaillement');
+
         // Interrogé AVANT de marquer : `marquerTresorFouille` inscrit la salle
         // dans la liste dont `coffrePlein` se déduit.
         $coffre = $quete->coffrePlein($salle);
@@ -7357,17 +7549,35 @@ final class ResolveurTour
             'salle' => $salle,
         ];
 
-        if ($coffre) {
+        if ($caisse) {
+            // ⚠ PRIORITÉ sur un coffre désigné de la même salle (cas rare,
+            // jamais les deux rôles à la fois dans ce qu'on a mesuré) :
+            // empiler les deux récompenses inventerait une règle que le
+            // livret ne source pas — la caisse est la plus spécifique des
+            // deux ici, elle l'emporte. `coffrePlein()` reste INTERROGÉ ci-
+            // dessus mais son tirage n'est jamais consommé : la salle garde
+            // son coffre pour une page future si la caisse est un jour
+            // détruite/retirée sans que la BD soit repensée.
+            $potion = Objet::where('nom', 'Potion de guérison')->first();
+            $objets = [];
+
+            for ($i = 0; $i < 4; $i++) {
+                $objets[] = $this->remettreButin(['objet_id' => $potion?->id ?? 0], $personnage, 'objet');
+            }
+
+            $payload = [...$entete, 'issue' => 'caisse_ravitaillement', 'caisse_ravitaillement' => true, 'objets' => $objets];
+        } elseif ($coffre) {
             $carte = $this->deck->carteCoffre($quete, $salle);
+            $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
         } else {
             [$carte, $ecartee] = $this->piocherAvecSixiemeSens($quete, $personnage, $etat);
 
             if ($ecartee !== null) {
                 $entete['carte_ecartee'] = $ecartee;
             }
-        }
 
-        $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+            $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
+        }
 
         if ($armoire) {
             // DEUXIÈME CARTE, résolue dans l'ordre. ⚠ Elle ne consomme PAS une

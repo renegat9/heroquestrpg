@@ -45,6 +45,10 @@ class Mobilier extends Model
         // (`App\Partie\DifficulteBody`) s'applique à la génération du menu.
         'difficulte_destruction',
         'effet',
+        // `null` = toutes les boîtes (migration `boite_pieges_et_mobiliers`,
+        // même convention que `Terrain::boite`) ; une valeur réserve la
+        // pièce au thème de bestiaire correspondant (ex. `horde_ogre`).
+        'boite',
     ];
 
     protected function casts(): array

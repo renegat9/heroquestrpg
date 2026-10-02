@@ -17,6 +17,9 @@ class Objet extends Model
         'emplacement',
         // Maîtrise requise pour ÉQUIPER la pièce (doc 01 §7) ; null = aucune.
         'tag_equipement',
+        // Lien DÉCLARÉ vers l'arme ordinaire dont cette ligne est la copie en
+        // OS (Against the Ogre Horde p. 8) — son `nom` ; null = pas une copie.
+        'os_de',
         'effet',
         // Boîte d'extension qui rend seule cet effet UTILE (2026-09-24,
         // `DeckFouille::choisirArtefact()`) ; null = utilisable dans toute

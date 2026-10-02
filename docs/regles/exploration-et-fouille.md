@@ -122,3 +122,26 @@ que les joueurs apprennent (2026-08-27) ; `groupes.chance_passage_secret` compte
 **s'il y en a eu un**, pas combien, et deux passages rendraient « placé » ambigu ; et
 le tirage consomme un pas de PRNG **dans les deux branches** pour que deux donjons de
 même graine restent identiques — un second tirage conditionnel casserait ça.
+
+**Caisse de ravitaillement** (*Supply Crate*, Against the Ogre Horde p. 5,
+lot B, 2026-10-02) : « The first hero to search for treasure in a room
+containing one of these chests will find 4 Potions of Healing. » Même point
+de passage que Sly Storage ci-dessus — `MoteurMobilier::salleContientType()`,
+« premier » lu sur `tresorsFouilles()` AVANT la même inscription — mais un
+butin FIXE qui **REMPLACE** le tirage normal, jamais une carte EN PLUS :
+le livret ne décrit qu'une trouvaille garantie, pas un second tirage du deck
+comme l'armoire. `ResolveurTour::resoudreFouilleTresor()` pose `issue:
+'caisse_ravitaillement'` et verse 4× *Potion de guérison* (`soin_pv_body_de:
+6`, « roll 1 red die », confirmée avant usage) d'un coup, une ligne
+d'inventaire par potion (`sac_deborde` peut s'y poser sur n'importe
+laquelle). ⚠ Si la même salle est AUSSI un coffre désigné de la quête, la
+caisse l'emporte (décision assumée, cas non sourcé par le livret) : le
+coffre n'est jamais consommé et reste disponible tel quel pour une future
+page de règle qui voudrait les faire coexister.
+
+⚠ **PORTAGE : l'emprise au sol n'est pas sourcée.** Le livret ne chiffre
+cette caisse que sur les plans de quête imprimés (non repris — donjons
+générés) ; faute de mesure indépendante (règle de `MobilierSeeder`, doc 17
+§1 : ne jamais inventer une emprise), `Caisse de ravitaillement` reprend
+celle du *Coffre* — 1×1, difficulté de destruction 2 — par analogie
+fonctionnelle (c'est un coffre) plutôt que par mesure.

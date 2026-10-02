@@ -27,6 +27,11 @@ class Monstre extends Model
         'capacites',
         'sorts_dread',
         'archetype_lanceur',
+        // Lien DÉCLARÉ vers le monstre standard dont ce monstre est la
+        // variante à distance (Q6, Against the Ogre Horde p. 8) — nom_base de
+        // la cible, jamais null + une convention de nommage. `null` = ce
+        // monstre n'est pas une variante.
+        'variante_distance_de',
     ];
 
     protected function casts(): array
@@ -71,5 +76,11 @@ class Monstre extends Model
     public function immuniseMental(): bool
     {
         return $this->pv_mind === 0;
+    }
+
+    /** Ce monstre est-il une variante À DISTANCE d'un monstre standard (Q6) ? */
+    public function estVarianteDistance(): bool
+    {
+        return $this->variante_distance_de !== null;
     }
 }

@@ -917,8 +917,10 @@ de la quête.
   reçoit **jamais** de Chute de blocs : tombée, elle fermerait le passage à
   jamais.
 - **EtatGroupe.carte** gagne `pieges: [{x, y, etat: "detecte|fosse_ouverte|desarme|declenche|bloc",
-  nom}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
-  pas). EtatGroupe.entites héros gagne `niveau`.
+  nom, zone?: [{x, y}]}]` — les pièges **cachés n'y figurent jamais** (la table ne les montre
+  pas). EtatGroupe.entites héros gagne `niveau`. `zone` (Lame balançoire
+  seulement, voir plus bas) n'est publié que sous les **mêmes règles de
+  brouillard et de fouille** que `x`/`y` — une zone non détectée reste absente.
 - **`fosse_ouverte`** (René, 2026-09-27 : « avoir un état différent sur la
   carte pour identifier un piège détecté sans être déclenché ») : une Fosse
   DÉCLENCHÉE ne repasse plus à `detecte`. Le trou reste (livret p. 14) mais il
@@ -929,6 +931,55 @@ de la quête.
   doc 16 §7.3) : le menu n'offre plus `desamorcer_{x}_{y}` sur elle. Les
   quêtes déjà en cours gardent leurs fosses ouvertes sous `detecte` : rien ne
   permet de les distinguer après coup.
+
+### Against the Ogre Horde — la Lame balançoire et la Fosse des ténèbres (livret F9528 p. 4-5, lot B, 2026-10-02)
+
+Deux pièges `boite: "horde_ogre"` — posés sur la carte **seulement** si le
+thème de bestiaire du groupe inclut cette boîte, même lecture que
+`Terrain::boite` (§Symboles de la carte et légende).
+
+**Lame balançoire** (*Swinging Blade Trap*, p. 4-5) : le PREMIER piège du jeu
+à occuper **plusieurs cases**. Une case de déclenchement (« gold overlay »)
+et une **zone** de 3 cases (la case de déclenchement incluse), ligne
+horizontale ou verticale selon ce que la salle offre au tirage — forme non
+sourcée par le livret (porté sur un plan imprimé que les donjons générés ne
+reprennent pas), décision de jeu documentée dans `AssembleurCarte::placerLameBalanciere()`.
+Jamais posée en couloir, jamais sous le plancher de cases jouables
+(`CASES_JOUABLES_MINIMUM`, §2.12 ter). Au plus une par carte.
+- Détection : identique aux autres pièges de sol, « Fouiller la zone » sur la
+  salle qui contient la case de déclenchement (la zone y est forcément
+  entière, par construction).
+- Déclenchement (marcher sur la case dorée, OU échec de désamorçage) : **2
+  dés d'attaque** de Zargon contre **chaque héros présent sur une case de la
+  zone**, qui se défend normalement (`desDefenseHerosDetail`) — à la
+  différence du Piège à lances/Chute de blocs, qui ne lancent **jamais** de
+  défense. Payload : `{type: "piege_declenche", zone: true, piege, personnage
+  (le déclencheur), cibles: [{personnage, des_attaque, des_defense,
+  faces_attaque, faces_defense, degats, pv_body_apres, tombe}, ...]}`. ⚠ Reste
+  **armée** après (rien ne limite son usage dans le texte) : aucun changement
+  d'état n'est écrit, contrairement à la Fosse ou au Piège à lances.
+- Désamorçage — procédure **dédiée**, jamais le jet de Body ordinaire : le
+  **Nain réussit automatiquement**, sans aucun dé (`{methode:
+  "nain_automatique", succes: true}`) ; tout autre héros habilité (Nain,
+  Explorateur, Trousse à outils, nœud *Désamorçage*) lance **UN SEUL dé de
+  combat** — bouclier (blanc ou noir) = désarmée, crâne = **la zone entière se
+  déclenche aussitôt** (`{methode: "trousse_de_combat", face, declenchement}`,
+  sans exception du nœud « Désamorçage » qui adoucit l'échec sur les autres
+  pièges — le texte ne connaît ici aucune exception).
+- `EtatGroupe.carte.pieges[]` gagne `zone: [{x, y}]` sur cette seule entrée,
+  publiée **seulement** une fois le piège lui-même connu (même garde que les
+  autres pièges — un piège caché ne publie jamais sa zone non plus).
+
+**Fosse des ténèbres** (*Pit of Darkness*, p. 5) : variante de la Fosse — même
+cycle, même `franchissable` (jet de Body pour sauter une fois détectée), mais
+:
+- **jamais désamorçable** (`desarmable: "non"` — colonne existante, désormais
+  lue par `MenuMoteur::generer()` : l'option `desamorcer_{x}_{y}` n'apparaît
+  **jamais** sur elle) ;
+- dégâts de chute **selon l'armure portée au moment de la chute**, et non
+  plus 1 PV fixe : 1 PV (aucune armure, ou non métallique), 2 PV (armure
+  métallique), 3 PV (Armure de plates). Le payload `piege_declenche` est
+  inchangé dans sa forme (`degats`), seule la **valeur** varie.
 
 ## Mobilier (doc 17 — catalogue de référence, aucun nouvel endpoint)
 
@@ -1275,7 +1326,26 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
     levier (`cartes.grille.leviers`) → **jet de Body** (difficulté du levier, plafonnée) ;
     réussi, il ouvre la/les porte(s) liée(s) par `verrou.levier_id` et révèle ce qu'il y
     a derrière. ⚠ Coûte le créneau d'**action** depuis le 2026-08-24 (c'était une
-    interaction gratuite), et se **retente** sans limite.
+    interaction gratuite), et se **retente** sans limite ;
+  - `pierre` (Against the Ogre Horde p. 4, lot B, 2026-10-02) : option
+    `forcer_porte_pierre` (id `forcer_porte_pierre_{x}_{y}_{cote}`), offerte
+    au contact d'une porte de pierre **uniquement si le héros lance au moins
+    2 dés d'attaque DE BASE** (`personnage.des_attaque`, valeur à mains nues
+    de la classe — JAMAIS l'arme en main ; un magicien, 1 dé, ne voit jamais
+    cette option). Coûte le créneau d'**action**. Résolution : le héros lance
+    ses dés d'attaque de base comme des dés de combat ; **2 crânes ou plus**
+    ouvrent la porte **pour de bon** (persistant, comme toute autre porte) ;
+    sinon rien ne change, retentable à un tour suivant. Réponse
+    `{type: "forcer_porte_pierre", porte, des_lances, faces, cranes, reussi}`.
+    ⚠ **Posée UNIQUEMENT sur une arête de BOUCLE** de la carte (jamais
+    l'arbre couvrant) — par construction, les deux salles qu'elle relie sont
+    déjà connectées autrement, donc une porte de pierre ne peut **jamais**
+    être le seul chemin vers l'objectif, quel que soit le groupe. Au plus une
+    par carte, et seulement si le thème de bestiaire du groupe inclut
+    `horde_ogre`. `EtatGroupe.carte.portes[]` publie `verrou: "pierre"` comme
+    tout autre type de verrou (§Symboles de la carte et légende) — aucune
+    illustration dédiée, elle reste une porte `fermee` ordinaire tant qu'elle
+    n'est pas ouverte.
 - **Bénédiction de l'Oracle, option (a)** (First Light, FL-Q p. 6, lot C
   2026-09-30) : option `oracle_salle` (id `oracle_salle_{x}_{y}_{cote}`),
   offerte **à la place** de — et en plus de — `ouvrir_porte` sur n'importe
@@ -1323,6 +1393,20 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   errant — rien dans le texte ne la conditionne à l'issue de la première.
   `JournalCombat`/`SceneDeTable` l'annoncent (ligne dédiée + scène « Armoire —
   seconde carte ») : un effet automatique que rien n'annonce est injouable.
+
+  **Caisse de ravitaillement** (Against the Ogre Horde p. 5, lot B,
+  2026-10-02) : la salle a une **Caisse de ravitaillement** (`mobiliers`,
+  boîte `horde_ogre`) encore debout et c'est le **premier** héros du groupe à
+  y fouiller un trésor (même garde « premier » que Sly Storage ci-dessus,
+  interrogée AVANT la même inscription dans `tresors_fouilles`) → `issue`
+  devient `caisse_ravitaillement` et **REMPLACE** le tirage normal (jamais un
+  second tirage comme l'armoire : le livret ne décrit qu'une trouvaille
+  garantie) par **4× Potion de guérison** d'un coup, une par ligne
+  d'inventaire. Payload : `{issue: "caisse_ravitaillement",
+  caisse_ravitaillement: true, objets: [{objet, sac_deborde?}, ×4]}`. ⚠ Si la
+  même salle est AUSSI un coffre désigné de la quête, la caisse **l'emporte**
+  (décision assumée, cas non sourcé par le livret) — le coffre n'est jamais
+  consommé et reste disponible tel quel.
 
   Le monstre errant ne survient **que** par cette action (jamais par « Fouiller la zone »).
 - **Coffre à artefact** : chaque quête désigne **une** salle — la plus profonde dans

@@ -42,6 +42,28 @@ final class MoteurPortes
 
     public const ETAT_SECRETE = 'secrete';
 
+    /**
+     * PORTE DE PIERRE (Against the Ogre Horde, livret F9528 p. 4, lot B) :
+     * `verrou.type` sur une entrée `fermee` ordinaire — même modèle que
+     * `cle`/`levier`/`monstres_vaincus` — jamais ouvrable à main nue
+     * (`ouvrableAMain()` l'exclut déjà, aucun verrou `cle` ne correspond).
+     * Résolue par `ResolveurTour::resoudreForcerPortePierre()` : « a hero
+     * rolls their base Attack dice. If the roll result includes two skulls,
+     * the heavy stone door swings open. » Posée UNIQUEMENT sur une arête de
+     * BOUCLE par `AssembleurCarte::marquerPortesDePierre()` — jamais le seul
+     * chemin vers l'objectif, par construction.
+     */
+    public const VERROU_PIERRE = 'pierre';
+
+    /**
+     * « The wizard rolls 1 Attack die, and therefore cannot open a stone
+     * doorway. » Nombre minimum de dés d'attaque DE BASE (`des_attaque`,
+     * valeur à mains nues de la classe — jamais l'arme) pour que le menu
+     * propose la tentative (« le menu n'offre pas ce que le résolveur
+     * refuse ») et pour que le résolveur l'accepte.
+     */
+    public const DES_MINIMUM_PORTE_PIERRE = 2;
+
     /** Une porte close sans verrou s'ouvre à la main, sans clé ni levier (E2). */
     public function ouvrableAMain(array $porte): bool
     {
@@ -122,6 +144,38 @@ final class MoteurPortes
         }
 
         return $reponse;
+    }
+
+    /**
+     * Porte DE PIERRE (`verrou.type === VERROU_PIERRE`), non encore ouverte,
+     * orthogonalement adjacente à l'embrasure — même géométrie que
+     * `porteFermeeAdjacente()`, mais un scan DÉDIÉ plutôt qu'un filtre
+     * supplémentaire sur celle-ci : une porte de pierre n'est jamais
+     * `ouvrableAMain()` ni à clé, la mêler à la logique de priorité de
+     * `porteFermeeAdjacente()` (« la première ouvrable l'emporte ») n'aurait
+     * rien apporté et aurait compliqué une méthode déjà dense.
+     *
+     * @return array{index: int, porte: array<string, mixed>}|null
+     */
+    public function porteDePierreAdjacente(Carte $carte, int $x, int $y): ?array
+    {
+        $salles = (array) ($carte->grille['salles'] ?? []);
+
+        foreach ($this->portes($carte) as $index => $porte) {
+            if (($porte['etat'] ?? self::ETAT_OUVERTE) === self::ETAT_OUVERTE) {
+                continue;
+            }
+            if (($porte['verrou']['type'] ?? null) !== self::VERROU_PIERRE) {
+                continue;
+            }
+
+            $embrasure = Grille::caseEmbrasure($porte, $salles);
+            if (abs($embrasure['x'] - $x) + abs($embrasure['y'] - $y) === 1) {
+                return ['index' => $index, 'porte' => $porte];
+            }
+        }
+
+        return null;
     }
 
     /** Leviers orthogonalement adjacents à (x, y). @return list<array{x: int, y: int, levier_id: string}> */

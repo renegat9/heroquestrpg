@@ -106,6 +106,15 @@ const titreTerrain = (x, y) => {
     return t.cout_deplacement > 1 ? `${t.nom} (coûte ${t.cout_deplacement} points de déplacement)` : t.nom;
 };
 
+// LAME BALANÇOIRE (Against the Ogre Horde) : les cases de sa ZONE autres que
+// la case de déclenchement elle-même (qui porte déjà son propre marqueur
+// `.dg-trap` ci-dessus) — un simple surlignage, pas une seconde icône pleine,
+// pour que la lecture reste « un danger, une zone qui s'étend », jamais trois
+// pièges distincts.
+const zoneCells = computed(() => props.traps.flatMap((t) => (t.zone ?? [])
+    .filter((z) => z.x !== t.x || z.y !== t.y)
+    .map((z) => ({ ...z, etat: t.etat, titre: t.titre ?? t.nom }))));
+
 const cells = computed(() => {
     const out = [];
     const w = props.carte.largeur ?? 0;
@@ -120,7 +129,13 @@ const cells = computed(() => {
 
 
 const PORTE_ETATS = { ouverte: 'ouverte', fermee: 'fermée', verrouillee: 'verrouillée', secrete: 'secrète' };
-const PORTE_VERROUS = { cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner' };
+const PORTE_VERROUS = {
+    cle: 'clé requise', monstres_vaincus: 'gardien à vaincre', levier: 'levier à actionner',
+    // Against the Ogre Horde (p. 4, lot B) : aucune illustration dédiée — la
+    // porte reste un battant `fermee` ordinaire tant qu'elle n'est pas
+    // ouverte, seul ce libellé au survol la distingue.
+    pierre: 'porte de pierre — 2 crânes',
+};
 
 // Portes (René, 2026-09-11 : « la porte doit être centrale à sa case,
 // bloquant l'entrée dans sa case tant qu'elle n'est pas ouverte »). Chaque
@@ -153,6 +168,11 @@ const doors = computed(() => (props.carte.portes ?? [])
             cote: p.cote === 's' ? 's' : 'e', // arête EST ('e') ou SUD ('s') — oriente le glyphe
             etat: p.etat,
             cadenas: p.etat === 'verrouillee',
+            // PORTE DE PIERRE (Against the Ogre Horde p. 4) : `fermee` au sens
+            // de l'état (librement ouvrable à main nue ailleurs), mais PAS ici
+            // — verrou === 'pierre' la distingue, et mérite sa propre teinte
+            // plutôt que de se confondre avec une porte ordinaire.
+            pierre: p.verrou === 'pierre',
             titre: `Porte ${PORTE_ETATS[p.etat]}${verrou ? ` — ${verrou}` : ''}`,
         };
     }));
@@ -185,6 +205,17 @@ const doors = computed(() => (props.carte.portes ?? [])
                 <MSym v-if="t.etat !== 'declenche' && t.etat !== 'fosse_ouverte'" :n="iconePiege(t)" fill />
             </div>
         </div>
+
+        <!-- Lame balançoire : le reste de sa zone, en surlignage léger — pas un
+             second marqueur plein, pour ne jamais se lire comme un second piège. -->
+        <div
+            v-for="(z, i) in zoneCells"
+            :key="`tz-${z.x}-${z.y}-${i}`"
+            class="dg-trap-zone"
+            :class="z.etat"
+            :style="{ gridColumn: z.x + 1, gridRow: z.y + 1 }"
+            :title="z.titre"
+        />
 
         <!-- épreuves : marqueur au-dessus de la case, comme les pièges, mais
              d'une autre couleur ET d'une autre icône. Confondre les deux serait
@@ -260,8 +291,9 @@ const doors = computed(() => (props.carte.portes ?? [])
             class="dg-door-holder"
             :style="{ gridColumn: d.x + 1, gridRow: d.y + 1 }"
         >
-            <div class="dg-door" :class="[`cote-${d.cote}`, d.etat]" :title="d.titre">
+            <div class="dg-door" :class="[`cote-${d.cote}`, d.etat, { pierre: d.pierre && d.etat !== 'ouverte' }]" :title="d.titre">
                 <MSym v-if="d.cadenas" n="lock" fill class="dg-door-lock" />
+                <MSym v-else-if="d.pierre && d.etat !== 'ouverte'" n="construction" fill class="dg-door-lock" />
             </div>
         </div>
 
@@ -409,6 +441,16 @@ const doors = computed(() => (props.carte.portes ?? [])
   box-shadow: inset 0 0 0 1px oklch(0.58 0.008 255 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);
   color: oklch(0.86 0.005 255); }
 
+/* LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : le reste de sa zone — un
+   simple SURLIGNAGE semi-transparent, jamais une icône pleine : trois icônes
+   identiques côte à côte se liraient comme trois pièges distincts, alors que
+   c'est UN SEUL mécanisme qui balaie trois cases. Même teinte « danger » que
+   `.dg-trap.detecte` pour rester dans le même langage visuel. */
+.dg-trap-zone { pointer-events: none; z-index: 1; margin: 6%;
+  background: oklch(0.78 0.15 75 / 0.16);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.45); border-radius: 3px; }
+.dg-trap-zone.fosse_ouverte, .dg-trap-zone.declenche, .dg-trap-zone.bloc { display: none; }
+
 /* ---- leviers : octogone bleu, une troisième silhouette. Les figurines sont
    RONDES, l'épreuve est un LOSANGE doré ; le levier ne doit donc être ni l'un
    ni l'autre. Il ne s'estompe jamais : contrairement à l'épreuve, le forcer est
@@ -467,6 +509,14 @@ const doors = computed(() => (props.carte.portes ?? [])
 .dg-door.cote-s { inset: 24% 8%; }
 
 .dg-door.verrouillee { background: linear-gradient(150deg, #b98a3a, #6a4a1c); }
+
+/* PORTE DE PIERRE (Against the Ogre Horde p. 4) : un gris de roche plutôt que
+   le bois/métal doré des autres battants — ni `verrouillee` (pas de clé, pas
+   de cadenas) ni une couleur neuve par état : juste une teinte pierre sur
+   l'état `fermee` existant. Redevient une porte `ouverte` ordinaire une fois
+   forcée (persistant, comme toute autre porte) — ce modificateur ne s'applique
+   donc plus, voir le `v-if` du template. */
+.dg-door.pierre { background: linear-gradient(150deg, oklch(0.55 0.01 255), oklch(0.32 0.01 255)); }
 
 /* Ouverte : le battant s'efface, un simple cadre marque encore l'embrasure —
    la case elle-même redevient un sol ordinaire, praticable et transparente

@@ -222,6 +222,10 @@ final class SceneDeTable
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
             'actionner_levier' => $this->levier($a, $acteur),
+            // PORTE DE PIERRE (Against the Ogre Horde p. 4) : même raison que
+            // `desamorcage` ci-dessus — un échec ne laisse AUCUNE trace sur la
+            // carte (porte toujours fermée), la scène est la SEULE annonce.
+            'forcer_porte_pierre' => $this->portePierre($a, $acteur),
             'potion' => $this->potion($a, $acteur),
             'sort', 'parchemin' => $this->sort($a, $acteur),
             // ⚠ `sort_dread` N'AVAIT AUCUN CAS ICI (retombait sur `default`) :
@@ -329,6 +333,41 @@ final class SceneDeTable
         }
 
         $nomPiege = (string) ($a['piege']['nom'] ?? 'Piège');
+
+        // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : PLUSIEURS cibles,
+        // chacune avec sa propre défense — `$a['personnage']` n'est ici que le
+        // DÉCLENCHEUR (pas forcément touché), les victimes sont dans
+        // `cibles`. Scène dédiée plutôt que de forcer cette forme dans le
+        // rendu à cible unique ci-dessous.
+        if (! empty($a['zone'])) {
+            $cibles = (array) ($a['cibles'] ?? []);
+            $totalDegats = array_sum(array_map(fn ($c) => (int) ($c['degats'] ?? 0), $cibles));
+            $tombes = array_filter($cibles, fn ($c) => ! empty($c['tombe']));
+
+            return [
+                'genre' => 'piege',
+                'titre' => "{$nomPiege} !",
+                'sous_titre' => $cibles === [] ? 'La zone était vide' : count($cibles).' héros touché(s)',
+                'acteurs' => array_values(array_filter(array_map(
+                    fn ($c) => ($p = Personnage::find((int) ($c['personnage']['id'] ?? 0))) !== null
+                        ? $this->acteurHeros($p, 'acteur') : null,
+                    $cibles,
+                ))),
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [[
+                    'nom' => $nomPiege,
+                    'image_url' => $this->imagePiege($nomPiege),
+                    'detail' => $cibles === [] ? 'personne touché' : "{$totalDegats} PV de dégâts cumulés",
+                ]],
+                'issue' => [
+                    'ton' => $tombes !== [] ? 'mort' : ($totalDegats > 0 ? 'degats' : 'info'),
+                    'libelle' => $tombes !== [] ? count($tombes).' héros tombé(s)' : ($totalDegats > 0 ? "−{$totalDegats} PV au total" : 'aucun dégât'),
+                ],
+            ];
+        }
+
         $victimeId = (int) ($a['personnage']['id'] ?? 0);
         $victime = $victimeId > 0 ? Personnage::find($victimeId) : null;
         $victime ??= $acteur;
@@ -402,6 +441,25 @@ final class SceneDeTable
             }
         }
 
+        // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : 4 Potions
+        // de guérison d'un coup (`objets`, pas un `objet` singulier) — un
+        // butin fixe, jamais un tirage, donc jamais d'issue muette possible.
+        if ($issue === 'caisse_ravitaillement') {
+            $potion = Objet::where('nom', 'Potion de guérison')->first();
+
+            if ($potion !== null) {
+                $objets[] = [
+                    'nom' => '4× '.$potion->nom,
+                    'image_url' => $this->images->urlObjet($potion->id, $potion->nom)
+                        ?? $this->images->vignette('objet', $potion->id),
+                    'detail' => $this->effetsLisibles($potion),
+                ];
+            }
+
+            $libelle = 'la caisse de ravitaillement livre 4 potions';
+            $ton = 'tresor';
+        }
+
         if ($issue === 'tresor' && ($or = (int) ($a['or'] ?? 0)) > 0) {
             $libelle = "{$or} pièces d'or";
             $ton = 'tresor';
@@ -450,6 +508,37 @@ final class SceneDeTable
      */
     private function jet(array $a, Personnage $acteur): ?array
     {
+        // LAME BALANÇOIRE (Against the Ogre Horde p. 5) : ni jet de Body ni
+        // `difficulte` — le Nain réussit sans dé, les autres lancent UN SEUL
+        // dé de combat. Le format générique ci-dessous ne sait rendre QUE les
+        // jets à `difficulte`, d'où un rendu dédié — sans lui la table
+        // resterait muette sur l'échec (celui qui DÉCLENCHE la lame).
+        if (in_array($a['methode'] ?? null, ['nain_automatique', 'trousse_de_combat'], true)) {
+            $nomPiege = (string) ($a['piege']['nom'] ?? 'Piège');
+            $reussi = ! empty($a['succes']);
+
+            return [
+                'genre' => 'jet',
+                'titre' => $acteur->nom.' — désamorçage de '.$nomPiege,
+                'sous_titre' => $a['methode'] === 'nain_automatique'
+                    ? 'Savoir-faire du Nain — automatique'
+                    : 'Un seul dé de combat ('.($a['face'] ?? '?').')',
+                'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [[
+                    'nom' => $nomPiege,
+                    'image_url' => $this->imagePiege($nomPiege),
+                    'detail' => $reussi ? 'désamorcé' : 'déclenché !',
+                ]],
+                'issue' => [
+                    'ton' => $reussi ? 'tresor' : 'echec',
+                    'libelle' => $reussi ? 'désamorcé' : 'la lame se déclenche',
+                ],
+            ];
+        }
+
         $jet = (array) ($a['jet'] ?? []);
         $succes = (int) ($jet['succes'] ?? $a['succes'] ?? 0);
         $difficulte = (int) ($jet['difficulte'] ?? $a['difficulte'] ?? 0);
@@ -638,6 +727,39 @@ final class SceneDeTable
                 ? ['ton' => 'tresor', 'libelle' => $ouvertes > 0
                     ? $ouvertes.' porte'.($ouvertes > 1 ? 's' : '').' s\'ouvre'.($ouvertes > 1 ? 'nt' : '')
                     : 'le passage était déjà ouvert']
+                : ['ton' => 'echec', 'libelle' => 'sans succès — on peut réessayer'],
+        ];
+    }
+
+    /**
+     * PORTE DE PIERRE (Against the Ogre Horde p. 4) : « a hero rolls their
+     * base Attack dice. If the roll includes two skulls, the door swings
+     * open. » Un échec ne change RIEN sur la carte (la porte reste fermée,
+     * identique à avant le jet) — cette scène est donc la seule trace que le
+     * jet a seulement eu lieu.
+     *
+     * @param  array<string, mixed>  $a
+     */
+    private function portePierre(array $a, Personnage $acteur): array
+    {
+        $reussi = ! empty($a['reussi']);
+        $cranes = (int) ($a['cranes'] ?? 0);
+
+        return [
+            'genre' => 'jet',
+            'titre' => $acteur->nom.' force la porte de pierre',
+            'sous_titre' => "{$cranes} crâne(s) sur ".((int) ($a['des_lances'] ?? 0)).' dés — 2 requis',
+            'acteurs' => [$this->acteurHeros($acteur, 'acteur')],
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [[
+                'nom' => 'Porte de pierre',
+                'image_url' => $this->images->urlPorte($reussi ? 'ouverte' : 'fermee'),
+                'detail' => $reussi ? 'ouverte — restera ouverte toute la quête' : 'elle ne cède pas',
+            ]],
+            'issue' => $reussi
+                ? ['ton' => 'tresor', 'libelle' => 'la porte s\'ouvre en grand']
                 : ['ton' => 'echec', 'libelle' => 'sans succès — on peut réessayer'],
         ];
     }

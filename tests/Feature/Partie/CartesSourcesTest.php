@@ -46,10 +46,12 @@ it('recense exactement les trois sources, sans doublon de carte', function () {
     // recensé ici, d'où 35.
     expect((array) config('cartes.equipement.cartes'))->toHaveCount(20)
         ->and((array) config('cartes.potions.cartes'))->toHaveCount(15)
-        // 35 + le Cor des Hearthkin (First Light, lot C, 2026-09-30) : SOURCE
-        // DIFFÉRENTE (livret de quêtes, pas une carte des 59 photos), mais
-        // fonctionnellement un artefact — même section que le Fire Ring.
-        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(36)
+        // 35 + le Cor des Hearthkin (First Light, lot C, 2026-09-30) + les
+        // deux armes en os d'Against the Ogre Horde (lot B, 2026-10-02) :
+        // SOURCE DIFFÉRENTE à chaque fois (livret de quêtes, pas une carte des
+        // 59 photos), mais fonctionnellement des artefacts — même section que
+        // le Fire Ring.
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(38)
         // Les parchemins DÉRIVENT d'un sort et n'ont pas de ligne `objets` :
         // ils vivent dans leur propre section, hors des contrôles qui suivent.
         ->and((array) config('cartes.parchemins.cartes'))->toHaveCount(19);
@@ -160,7 +162,9 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // même où elles ont été écrites — `docs/regles/artefacts.md`).
         // ⚠ Une de plus le 2026-09-30 (lot First Light C) : le Cor des
         // Hearthkin, sourcé par le livret de quêtes et non par les 59 photos.
-        ->and($portees('artefacts'))->toBe(35)
+        // ⚠ Deux de plus le 2026-10-02 (lot B, Against the Ogre Horde) : la
+        // hache de bataille et l'épée longue en os, mêmes raisons.
+        ->and($portees('artefacts'))->toBe(37)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

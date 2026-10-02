@@ -975,6 +975,46 @@ final class Equipement
                 || $ligne->objet?->tag_equipement === 'bouclier');
     }
 
+    /**
+     * Le héros porte-t-il une ARMURE métallique — SANS compter le bouclier ?
+     *
+     * Against the Ogre Horde, Fosse des ténèbres (p. 5) : « Heroes wearing
+     * metal armor take 2 Body Points […] ». Le texte ne parle que de
+     * l'ARMURE — à la différence du dé de défense du Barde
+     * (`porteMetalOuBouclier()` ci-dessus), qui compte aussi le bouclier.
+     * Même lecture de `objets.metallique` : les Brassards (cuir, errata B1,
+     * 2026-10-01) n'en sont pas.
+     */
+    public function porteArmureMetallique(Personnage $personnage): bool
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->contains(fn ($ligne) => (bool) $ligne->objet?->metallique && $ligne->objet?->categorie === 'armure');
+    }
+
+    /**
+     * Le héros porte-t-il l'Armure de plates ?
+     *
+     * Against the Ogre Horde, Fosse des ténèbres (p. 5) : « unless they're
+     * wearing plate mail, in which case they take 3 Body Points ». Aucun
+     * marqueur dédié n'existe dans le catalogue pour « c'est la plate » (ni
+     * nom, ni tag) — `MotsClesEquipement::DEPLACEMENT_SANS_D6` est RÉUTILISÉ
+     * ici pour une SECONDE raison : c'est la SEULE pièce du catalogue à le
+     * porter (`ObjetSeeder`, commentaire « SEUL dé »), donc un marqueur
+     * fonctionnellement unique à l'Armure de plates. Décision de portage,
+     * documentée plutôt que silencieuse.
+     */
+    public function porteArmureDePlates(Personnage $personnage): bool
+    {
+        return $personnage->inventaire()
+            ->whereIn('emplacement', self::SLOTS)
+            ->with('objet')
+            ->get()
+            ->contains(fn ($ligne) => (bool) (($ligne->objet?->effet ?? [])[MotsClesEquipement::DEPLACEMENT_SANS_D6] ?? false));
+    }
+
     public function valeurEffetPorte(Personnage $personnage, string $cle): int
     {
         return (int) $personnage->inventaire()
