@@ -200,6 +200,19 @@ export function useApi() {
         testerVoixNarrateur: (voixChoisie) =>
             request('POST', '/parametres/test-voix', { voix: voixChoisie || null }),
 
+        // ---- page Système (état des services externes/internes — PUBLIC,
+        // même statut que /api/parametres : voir docs/contrat-api.md « Système ») ----
+
+        /** GET /api/systeme → EtatSysteme (services, consommation, avertissements). */
+        getSysteme: () => request('GET', '/systeme'),
+
+        /**
+         * POST /api/systeme/tester {service} → {ok, service, duree_ms, extrait|erreur}.
+         * Test de connectivité RÉEL et PAYANT d'UN service, déclenché par le joueur.
+         * 422 pour gemini_tts/gemini_image (quota protégé) ou sans clé serveur.
+         */
+        testerSysteme: (service) => request('POST', '/systeme/tester', { service }),
+
         // ---- groupes / campagne ----
 
         /**

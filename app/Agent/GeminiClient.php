@@ -216,6 +216,7 @@ final class GeminiClient implements ClientLLM
                     ->withHeaders(['x-goog-api-key' => $cle])
                     ->post($url, $corps);
             } catch (ConnectionException $e) {
+                SanteServices::signalerEchec('gemini_texte', 0, null);
                 throw new AppelLlmException('Gemini injoignable : '.$e->getMessage(), previous: $e);
             }
 
@@ -235,12 +236,15 @@ final class GeminiClient implements ClientLLM
         }
 
         if ($reponse->failed()) {
+            SanteServices::signalerEchec('gemini_texte', $reponse->status(), $reponse->body());
             throw new AppelLlmException(sprintf(
                 'API Gemini %d : %s',
                 $reponse->status(),
                 $reponse->json('error.message') ?? mb_substr($reponse->body(), 0, 500),
             ));
         }
+
+        SanteServices::signalerSucces('gemini_texte');
 
         $jsonReponse = $reponse->json();
         if ($jsonReponse === null) {

@@ -8,6 +8,7 @@ import ManetteView from '../views/ManetteView.vue';
 import MonteeNiveauView from '../views/MonteeNiveauView.vue';
 import ClotureCampagneView from '../views/ClotureCampagneView.vue';
 import GuideView from '../views/GuideView.vue';
+import SystemeView from '../views/SystemeView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -23,6 +24,9 @@ const router = createRouter({
 
         // ---- guide / compendium (public, données de référence) ----
         { path: '/guide', name: 'guide', component: GuideView },
+
+        // ---- page Système (public, état des services — voir docs/contrat-api.md) ----
+        { path: '/systeme', name: 'systeme', component: SystemeView },
 
         // ---- écrans de jeu ----
         { path: '/table/:groupe', name: 'table', component: TableView, props: true },

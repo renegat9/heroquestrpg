@@ -2225,6 +2225,124 @@ d'**embeddings** (Voyage vs repli lexical, `bible_semantique`) reste
 volontairement non éditable : les deux ont des dimensions vectorielles
 différentes, en changer casserait la collection Qdrant existante.
 
+## Système (état des services — René, 2026-10-02)
+
+Page **Système** (`/systeme`), liée depuis l'écran Narrateur et depuis le
+panneau Réglages : « voir l'état des services externes, s'il y a toujours du
+crédit disponible et que le service fonctionne ». **PUBLIC**, exactement
+comme `/api/parametres` et `/api/guide` — aucune autorisation, aucune clé API
+jamais renvoyée.
+
+⚠ **Aucun fournisseur (Anthropic, Gemini, Voyage) n'expose le crédit prépayé
+restant** — vérifié dans leur documentation officielle (2026-10-02) : pas
+d'endpoint de solde ; l'API Admin d'Anthropic (coûts historiques) exige une
+clé admin distincte, hors de portée d'un compte individuel, et ne donnerait de
+toute façon qu'un historique de coûts, jamais un solde. Le `credit` de chaque
+service est donc toujours une **INFÉRENCE**, jamais une lecture — construite
+depuis (1) la classification de l'issue du **dernier appel réel** au service
+(`App\Agent\SanteServices`), (2) un **test payant explicite** que le joueur
+déclenche lui-même (`POST /api/systeme/tester`), (3) notre propre télémétrie
+de tokens (`consommation_ia`). Chaque verdict porte son `explication` en
+toutes lettres — jamais maquillé en certitude (même hard rule que « le serveur
+publie la décision » : c'est aussi vrai d'un aveu d'incertitude).
+
+| Méthode | Route | Corps | Réponse |
+|---|---|---|---|
+| GET | /api/systeme | — | **PUBLIC** — **EtatSysteme** (voir ci-dessous). Sondes automatiques GRATUITES, mises en cache **~60 s** côté serveur (page ouverte + rafraîchie toutes les 30 s par le front sans marteler les fournisseurs). |
+| POST | /api/systeme/tester | {service: "anthropic"\|"gemini_texte"\|"gemini_tts"\|"gemini_image"\|"voyage"} | **PUBLIC** — test de connectivité **RÉEL et PAYANT** (quelques jetons), un service à la fois, déclenché explicitement par le joueur (jamais automatique). Réponse 200 : `{ok: true, service, duree_ms, extrait}` ou `{ok: false, service, duree_ms, erreur}`. **422** pour `gemini_tts`/`gemini_image` : aucun appel bon marché n'existe pour une simple vérification côté TTS (quota ~100 requêtes/jour partagé par toute la table — utiliser « Écouter » dans Réglages, déjà mis en cache) ni côté image ; **422** aussi si le fournisseur demandé n'a pas de clé serveur. Le résultat retague l'entrée `SanteServices` du service en `source: "test"` plutôt que `"dernier_appel"`. |
+
+**EtatSysteme** :
+```json
+{
+  "genere_a": "2026-10-02T10:00:00+00:00",
+  "services": [
+    {
+      "id": "anthropic", "libelle": "Anthropic (Claude)", "famille": "externe",
+      "etat": "ok", "detail": "Clé valide, API joignable (sonde gratuite GET /v1/models — ne mesure pas le crédit).",
+      "latence_ms": 180,
+      "derniere_reussite": "2026-10-02T09:58:00+00:00",
+      "dernier_echec": null,
+      "credit": {"etat": "ok", "source": "dernier_appel", "explication": "Dernier appel réel réussi — aucun signal d'épuisement. Aucun fournisseur n'expose de solde réel : vérifiez la console pour le crédit exact."},
+      "console_url": "https://console.anthropic.com/settings/billing"
+    }
+  ],
+  "consommation": { "...": "ConsommationIa::agregat() — voir §Paramètres globaux" },
+  "avertissements": ["Worker « queue » : exécute un code plus ancien que le code actuel — redémarrer : docker compose restart queue queue-jeu."]
+}
+```
+
+Chaque entrée de `services` :
+
+- `id` : `anthropic` · `gemini_texte` · `gemini_tts` · `gemini_image` · `voyage`
+  · `qdrant` · `mariadb` · `reverb` · `queue_queue` · `queue_queue-jeu` ·
+  `backups`. `famille` : `externe` (les 5 premiers) ou `interne` (les 6 derniers).
+- `etat` : `ok` · `degrade` · `panne` · `non_configure` · `inconnu`. **Décidé
+  côté serveur** (hard rule) : le front affiche le badge, il ne recalcule
+  jamais le verdict depuis `credit`/`dernier_echec`. `non_configure` ≠ `panne`
+  — jouer sans clé API est un mode **supporté** (narration scriptée, pas de
+  RAG, icônes à la place des illustrations), phrasé neutre, jamais en rouge
+  alarmant.
+- `detail` : une phrase humaine en français — jamais un code d'erreur brut.
+- `credit.etat` : `ok` · `epuise` · `quota_atteint` · `inconnu`. `credit.source` :
+  `dernier_appel` (un appel de JEU a tranché), `test` (le joueur a cliqué
+  « Tester »), ou `aucune` (rien d'observé depuis le dernier redémarrage du
+  cache). Un crédit `epuise` fait passer l'`etat` du service à `panne` même
+  si la sonde gratuite de connectivité répond — la sonde ne consomme pas de
+  crédit, elle ne peut donc jamais le mesurer elle-même.
+- `dernier_echec.message` est **tronqué (300 car.) et ne contient jamais la
+  clé API** — les clients l'envoient en en-tête, jamais dans le corps, donc
+  aucun corps d'erreur fournisseur ne peut la reproduire ; de toute façon
+  jamais recopiée telle quelle sans être passée par la classification.
+- Services internes (`qdrant`/`mariadb`/`reverb`/`queue_*`/`backups`) :
+  `credit` vaut systématiquement `{etat: "inconnu", source: "aucune",
+  explication: "Service interne, sans notion de crédit."}` — présent pour que
+  le front n'ait pas de cas particulier à coder, jamais affiché comme un
+  manque.
+
+**Classification de l'issue d'un appel** (`App\Agent\SanteServices::classer()`)
+— catégories : `credit_epuise` · `quota_atteint` (quota JOURNALIER — Gemini
+`RESOURCE_EXHAUSTED` avec une métrique de quota « par jour », ou un 429 sans
+métrique identifiable) · `limite_debit` (429 transitoire) · `cle_invalide`
+(401/403, `API_KEY_INVALID`) · `indisponible` (5xx/529/réseau/timeout) ·
+`autre`. **Seule la forme Anthropic est un contrat fournisseur sourcé**
+(`error.type` explicite, doc officielle) : la distinction quota-journalier vs
+débit-transitoire chez Gemini (tous deux des 429) est une **heuristique**, pas
+une garantie Google — documentée comme telle dans le code, avec repli sur
+`limite_debit` (le cas le plus fréquent) quand la métrique n'est pas
+identifiable.
+
+**Détection du worker qui exécute un code périmé** (`queue_queue` /
+`queue_queue-jeu`) — le défaut qui a figé un playtest entier le 2026-08-05
+(CLAUDE.md §Commands) : `queue`/`queue-jeu` chargent les classes PHP une
+seule fois au démarrage, donc une modification de code sans redémarrage les
+laisse tourner contre un schéma/comportement qu'ils ne connaissent pas, sans
+qu'aucune erreur ne le signale. Chaque worker publie, au plus une fois par
+minute (`Illuminate\Queue\Events\Looping`, `App\Agent\SanteFileAttente`), un
+battement `{queue, pid, demarre_a, version_code, vu_a}` où `version_code` est
+la mtime la plus récente sous `app/` + `config/`, figée UNE FOIS à son
+démarrage. Le contrôleur recalcule la même empreinte à CHAQUE requête (le
+conteneur `app`, lui, relit le code en direct) et compare : une différence
+affiche « Redémarrer queue / queue-jeu : ils exécutent l'ancien code », une
+absence de battement depuis plus de 5 min affiche « aucun worker vu depuis
+N min ».
+
+**Sauvegardes** : plus récent dossier sous `backups/` (vu depuis le conteneur
+`app`, bind-monté — le même chemin que `./image-tools/sauvegarder.sh` écrit
+depuis l'hôte) ; `degrade` au-delà de 7 jours, `panne` si le dossier existe
+mais est vide, `inconnu` avec une phrase explicite si `backups/` n'est pas
+visible depuis ce conteneur — jamais de donnée inventée (No demo mode).
+
+`consommation` réutilise tel quel `ConsommationIa::agregat()` (voir
+§Paramètres globaux ci-dessus) — **tokens uniquement, jamais de prix en
+dollars** : le projet ne détient aucune grille tarifaire sourcée pour les
+trois fournisseurs, et inventer un prix violerait la hard rule « ne jamais
+seeder une valeur que les sources ne donnent pas ».
+
+`avertissements` est une liste de phrases prêtes à afficher en bandeau,
+calculée depuis `services` (un service en `panne`, ou un crédit `epuise` sur
+un service par ailleurs joignable) — encore une décision prise côté serveur,
+pas recalculée par le front depuis la liste des services.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu

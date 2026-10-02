@@ -76,14 +76,18 @@ class AnthropicClient implements ClientLLM
      * Appel texte libre (résumés de clôture, etc.).
      *
      * @param  list<array{role: string, content: mixed}>  $messages
+     * @param  int|null  $maxTokens  plafond de CET appel (ex. 1 pour le test de
+     *                               connectivité `POST /api/systeme/tester`, qui
+     *                               ne veut payer pour aucun jeton de sortie) ;
+     *                               défaut : la chaîne habituelle (config instance → .env).
      *
      * @throws AppelLlmException
      */
-    public function genererTexte(string $system, array $messages, ?string $model = null): string
+    public function genererTexte(string $system, array $messages, ?string $model = null, ?int $maxTokens = null): string
     {
         $reponse = $this->appeler([
             'model' => $model ?? $this->modeleParDefaut(),
-            'max_tokens' => $this->maxTokens ?? (int) config('services.anthropic.max_tokens', 4096),
+            'max_tokens' => $maxTokens ?? $this->maxTokens ?? (int) config('services.anthropic.max_tokens', 4096),
             'system' => $system,
             'messages' => $messages,
         ]);
@@ -134,16 +138,20 @@ class AnthropicClient implements ClientLLM
                 }, throw: false)
                 ->post($base.'/v1/messages', $corps);
         } catch (ConnectionException $e) {
+            SanteServices::signalerEchec('anthropic', 0, null, origine: 'jeu');
             throw new AppelLlmException('Connexion à l\'API Anthropic impossible : '.$e->getMessage(), previous: $e);
         }
 
         if ($reponse->failed()) {
+            SanteServices::signalerEchec('anthropic', $reponse->status(), $reponse->body());
             throw new AppelLlmException(sprintf(
                 'API Anthropic %d : %s',
                 $reponse->status(),
                 $reponse->json('error.message') ?? mb_substr($reponse->body(), 0, 500),
             ));
         }
+
+        SanteServices::signalerSucces('anthropic');
 
         $json = $reponse->json() ?? throw new AppelLlmException('Réponse Anthropic non-JSON.');
 

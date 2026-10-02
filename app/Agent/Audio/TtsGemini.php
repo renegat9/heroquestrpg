@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Agent\Audio;
 
 use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\SanteServices;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -81,6 +82,7 @@ final class TtsGemini
                     ->withHeaders(['x-goog-api-key' => $this->cle()])
                     ->post($url, $corps);
             } catch (ConnectionException $e) {
+                SanteServices::signalerEchec('gemini_tts', 0, null);
                 throw new AppelLlmException('Gemini TTS injoignable : '.$e->getMessage(), previous: $e);
             }
 
@@ -98,8 +100,11 @@ final class TtsGemini
         }
 
         if ($reponse->failed()) {
+            SanteServices::signalerEchec('gemini_tts', $reponse->status(), $reponse->body());
             throw new AppelLlmException("Gemini TTS a répondu {$reponse->status()} : ".$reponse->body());
         }
+
+        SanteServices::signalerSucces('gemini_tts');
 
         $b64 = $reponse->json('candidates.0.content.parts.0.inlineData.data');
 

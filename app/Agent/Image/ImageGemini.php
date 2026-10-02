@@ -6,6 +6,7 @@ namespace App\Agent\Image;
 
 use App\Agent\Audio\TtsGemini;
 use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\SanteServices;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -74,6 +75,7 @@ final class ImageGemini
                     ->withHeaders(['x-goog-api-key' => $this->cle()])
                     ->post($url, $corps);
             } catch (ConnectionException $e) {
+                SanteServices::signalerEchec('gemini_image', 0, null);
                 throw new AppelLlmException('Gemini Image injoignable : '.$e->getMessage(), previous: $e);
             }
 
@@ -93,12 +95,15 @@ final class ImageGemini
         }
 
         if ($reponse->failed()) {
+            SanteServices::signalerEchec('gemini_image', $reponse->status(), $reponse->body());
             throw new AppelLlmException(sprintf(
                 'API Gemini Image %d : %s',
                 $reponse->status(),
                 $reponse->json('error.message') ?? mb_substr($reponse->body(), 0, 300),
             ));
         }
+
+        SanteServices::signalerSucces('gemini_image');
 
         foreach ((array) $reponse->json('candidates.0.content.parts', []) as $part) {
             $b64 = $part['inlineData']['data'] ?? null;

@@ -89,6 +89,9 @@ async function entrerTable() {
             </div>
         </div>
 
+        <RouterLink to="/systeme" class="narreur-systeme" title="Système (état des services)">
+            <MSym n="monitor_heart" />
+        </RouterLink>
         <button class="narreur-parametres" type="button" title="Réglages" @click="parametresOuverts = true">
             <MSym n="settings" />
         </button>
@@ -152,10 +155,14 @@ async function entrerTable() {
 
 /* Bouton « Réglages » (MJ IA + audio), accessible avant même l'ouverture d'une
    table — même traitement visuel circulaire que les boutons flottants de
-   TableView.vue (ex. .ambiance-muet). */
-.narreur-parametres { position: fixed; top: 18px; right: 18px; z-index: 5;
+   TableView.vue (ex. .ambiance-muet). « Système » (état des services) juste
+   à côté, même traitement. */
+.narreur-parametres, .narreur-systeme { position: fixed; top: 18px; z-index: 5;
   display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px;
   border: var(--line); background: var(--stone-850); color: var(--ink-200);
-  cursor: pointer; box-shadow: var(--sh-2); transition: color .15s, border-color .15s; }
-.narreur-parametres:hover { color: var(--parch-100); border-color: var(--torch); }
+  cursor: pointer; box-shadow: var(--sh-2); transition: color .15s, border-color .15s;
+  text-decoration: none; }
+.narreur-parametres:hover, .narreur-systeme:hover { color: var(--parch-100); border-color: var(--torch); }
+.narreur-parametres { right: 18px; }
+.narreur-systeme { right: 72px; }
 </style>

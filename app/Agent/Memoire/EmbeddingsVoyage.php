@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Agent\Memoire;
 
 use App\Agent\Exceptions\AppelLlmException;
+use App\Agent\SanteServices;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -29,21 +31,29 @@ final class EmbeddingsVoyage implements Embeddings
 
     public function vecteur(string $texte, bool $requete = false): array
     {
-        $reponse = Http::withToken((string) config('services.voyage.api_key'))
-            ->timeout((int) config('services.voyage.timeout', 30))
-            ->retry(2, 500, throw: false)
-            ->post(rtrim((string) config('services.voyage.base_url', 'https://api.voyageai.com'), '/').'/v1/embeddings', [
-                'input' => [$texte],
-                'model' => (string) config('services.voyage.model', 'voyage-3.5'),
-                'input_type' => $requete ? 'query' : 'document',
-                'output_dimension' => $this->dimension(),
-            ]);
+        try {
+            $reponse = Http::withToken((string) config('services.voyage.api_key'))
+                ->timeout((int) config('services.voyage.timeout', 30))
+                ->retry(2, 500, throw: false)
+                ->post(rtrim((string) config('services.voyage.base_url', 'https://api.voyageai.com'), '/').'/v1/embeddings', [
+                    'input' => [$texte],
+                    'model' => (string) config('services.voyage.model', 'voyage-3.5'),
+                    'input_type' => $requete ? 'query' : 'document',
+                    'output_dimension' => $this->dimension(),
+                ]);
+        } catch (ConnectionException $e) {
+            SanteServices::signalerEchec('voyage', 0, null);
+            throw new AppelLlmException('Connexion à Voyage AI impossible : '.$e->getMessage(), previous: $e);
+        }
 
         if ($reponse->failed()) {
+            SanteServices::signalerEchec('voyage', $reponse->status(), $reponse->body());
             throw new AppelLlmException(
                 "Appel Voyage AI échoué ({$reponse->status()}) : ".mb_substr($reponse->body(), 0, 300)
             );
         }
+
+        SanteServices::signalerSucces('voyage');
 
         $vecteur = $reponse->json('data.0.embedding');
 

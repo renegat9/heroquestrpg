@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\MercenaireController;
 use App\Http\Controllers\Api\ParametresController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\SortsElfiquesController;
+use App\Http\Controllers\Api\SystemeController;
 use App\Http\Controllers\Api\TableController;
 use App\Http\Controllers\Api\VoteController;
 use App\Http\Controllers\Api\ReactionController;
@@ -63,6 +64,11 @@ Route::get('/parametres', [ParametresController::class, 'index']);
 Route::put('/parametres', [ParametresController::class, 'mettreAJour']);
 Route::post('/parametres/test', [ParametresController::class, 'tester']);
 Route::post('/parametres/test-voix', [ParametresController::class, 'testerVoix']);
+
+// Page Système (état des services externes/internes, René 2026-10-02) —
+// PUBLIC comme /api/parametres : voir docs/contrat-api.md « Système ».
+Route::get('/systeme', [SystemeController::class, 'index']);
+Route::post('/systeme/tester', [SystemeController::class, 'tester']);
 
 // Lectures accessibles au joueur membre OU à la session de table (contrat
 // §Autorisations) — hors auth:joueur pour permettre l'accès table sans compte.

@@ -50,3 +50,43 @@ qu'on ne regardait jamais : c'est la raison d'être du point de passage unique, 
 un détail de style. Verrouillé par `HabillageMonstresTest` (« relance la séquence
 d'ouverture même quand l'appel d'habillage échoue »), vérifié en le confrontant au
 code fautif — il échoue dessus.
+
+**The Système page admits what it cannot know** (René, 2026-10-02 — `GET /api/systeme`,
+`App\Agent\SanteServices`, `SystemeController`). No provider in this stack —
+Anthropic, Gemini, Voyage — exposes a balance endpoint; Anthropic's own Admin
+API gives historical cost, needs an admin key this project doesn't hold, and
+still isn't a balance. So "is there credit left" is never read, only
+**inferred**, from three sources the page names explicitly: the classified
+outcome of the last real call (`SanteServices::classer()` — `credit_epuise` /
+`quota_atteint` / `limite_debit` / `cle_invalide` / `indisponible`; only
+Anthropic's `error.type` is a sourced contract, Gemini's daily-quota-vs-
+transient-429 split is a documented *heuristic* on `quotaMetric`, defaulting to
+the more common `limite_debit` when it can't tell), an explicit paid test the
+player triggers (`POST /api/systeme/tester`, refused for `gemini_tts`/
+`gemini_image` on purpose — their free daily quota is shared by the whole
+table, never worth burning on a status check), and our own token telemetry
+(`ConsommationIa::agregat()`, tokens only — no dollar figure, because no
+sourced price table exists for any of the three providers, same rule as doc
+16's armoury prices). A free, uncached-cost probe (`GET /v1/models` for
+Anthropic, `GET /v1beta/models` for Gemini) only proves the key is valid and
+the service reachable — **never** that credit remains, since it spends none;
+that's why a service can show `ok` on the probe and still flip to `panne` the
+moment its last REAL call comes back `credit_epuise`. Every verdict carries
+its `explication` in plain French rather than a bare enum, the same rule as
+the menu never minting an option the engine didn't produce.
+
+**Stale queue workers get their own heartbeat, not a guess.** The 2026-08-05
+playtest freeze (`queue`/`queue-jeu` loading classes once at boot, then
+running old code against a migrated schema — see CLAUDE.md §Commands) had no
+visible signal anywhere. `App\Agent\SanteFileAttente` closes that gap:
+`Illuminate\Queue\Events\Looping` (fired every iteration of `queue:work`,
+never in `app` nor a synchronous job) lets each worker record, at most once a
+minute, `{queue, pid, demarre_a, version_code, vu_a}` — `version_code` is the
+newest mtime under `app/` + `config/`, frozen once at that worker's boot. The
+controller recomputes the same fingerprint fresh on every request (`app`
+re-reads the bind mount live) and compares: a mismatch means "redémarrer
+queue queue-jeu" in plain words, not a diff a player has to interpret. A
+worker whose string identifies it (`temps-reel,default` for `queue`,
+`temps-reel` for `queue-jeu`, taken straight from docker-compose's `--queue`
+flags) hasn't phoned home in 5 minutes shows "aucun worker vu", not a silent
+`ok`.

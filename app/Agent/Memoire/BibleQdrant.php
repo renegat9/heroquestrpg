@@ -211,6 +211,32 @@ class BibleQdrant
         return array_map(intval(...), array_keys($ids));
     }
 
+    /**
+     * Info de santé de la collection — sonde LIBRE (GET /collections/{nom},
+     * aucune recherche ni embedding) pour la page Système (GET /api/systeme,
+     * René 2026-10-02) : jamais utilisée en jeu.
+     *
+     * @return array{existe: bool, statut: string|null, points: int|null}
+     */
+    public function infoSante(): array
+    {
+        $reponse = $this->http()->get('/collections/'.$this->collection());
+
+        if ($reponse->status() === 404) {
+            return ['existe' => false, 'statut' => null, 'points' => null];
+        }
+
+        if ($reponse->failed()) {
+            throw new RuntimeException("Qdrant : lecture de la collection refusée ({$reponse->status()}).");
+        }
+
+        return [
+            'existe' => true,
+            'statut' => $reponse->json('result.status'),
+            'points' => (int) $reponse->json('result.points_count', 0),
+        ];
+    }
+
     private function http(): PendingRequest
     {
         $host = $this->host ?? (string) config('services.qdrant.host', 'qdrant');

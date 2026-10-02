@@ -231,6 +231,9 @@ async function enregistrer() {
                 <div class="parametres-orn"><MSym n="settings" fill /></div>
                 <h2 class="parametres-titre">Réglages</h2>
                 <p class="parametres-sous">MJ IA, illustrations, voix du narrateur, équilibrage des rencontres — et l'audio de cet appareil.</p>
+                <RouterLink to="/systeme" class="parametres-lien-systeme">
+                    <MSym n="monitor_heart" :size="14" /> Voir l'état des services (crédit, pannes, workers…)
+                </RouterLink>
             </div>
 
             <div v-if="chargement" class="parametres-charge">
@@ -710,6 +713,9 @@ async function enregistrer() {
 .parametres-titre { font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--parch-100);
     letter-spacing: 0.02em; margin: 0; }
 .parametres-sous { font-size: 13px; color: var(--ink-500); margin: 0; max-width: 46ch; }
+.parametres-lien-systeme { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px;
+    font-size: 12px; font-weight: 700; color: var(--ink-500); text-decoration: none; }
+.parametres-lien-systeme:hover { color: var(--torch); }
 
 .parametres-charge { display: flex; align-items: center; gap: 10px; color: var(--ink-500); font-size: 14px; padding: 6px 0; }
 .parametres-charge .msym { color: var(--torch); }

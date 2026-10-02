@@ -6,6 +6,7 @@ use App\Agent\AnthropicClient;
 use App\Agent\ClientLLM;
 use App\Agent\ClientLLMAvecRepli;
 use App\Agent\GeminiClient;
+use App\Agent\SanteFileAttente;
 use App\Agent\TraceurConsommation;
 use App\Agent\Memoire\Embeddings;
 use App\Agent\Memoire\EmbeddingsNuls;
@@ -146,6 +147,15 @@ class AppServiceProvider extends ServiceProvider
         // Les effets qui exigent un CHOIX du joueur passent par
         // App\Partie\MoteurReactions, qui propose puis défait le coup.
         Event::listen(ImageMiroir::class);
+
+        // Battement de cœur des workers de file (App\Agent\SanteFileAttente) :
+        // `Looping` ne se déclenche QUE dans la boucle `queue:work` (jamais
+        // dans `app` ni dans un job synchrone), donc cet écouteur enregistré
+        // partout est sans effet ailleurs qu'en worker. Voir la page Système
+        // (GET /api/systeme) — détection du worker qui exécute un code périmé.
+        Event::listen(function (\Illuminate\Queue\Events\Looping $evenement): void {
+            SanteFileAttente::enregistrerBattement((string) $evenement->queue);
+        });
 
         $this->interdireLesCommandesDestructrices();
     }
