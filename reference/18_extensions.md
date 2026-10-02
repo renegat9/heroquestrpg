@@ -310,15 +310,17 @@ page** — l'extraction texte brute désalignait les colonnes du tableau.
 
 ### 1. Nouveaux héros jouables
 
-⚠ **Aucune classe de héros jouable identifiée avec certitude.** La liste de
-contenu (p. 2-3) mentionne un miniature « **Druid Hero** » et 3 « **Wolf** »
-au milieu des figurines de monstres, mais aucune fiche de personnage, jet
-d'attaque/défense, Body/Mind ou capacité n'apparaît nulle part ailleurs
-dans le livret de quêtes — ni pour le druide, ni pour les loups. ⚠ Non
-trouvé dans le livret : probablement des figurines utilisées comme PNJ du
-tournoi (adversaires) plutôt que des héros incarnables, mais impossible de
-le confirmer sans la fiche cartonnée correspondante (même limite que pour
-l'armurerie — composant hors PDF).
+**Le Druide est le héros de cette boîte** — la liste de contenu (p. 3) nomme
+une figurine « **Druid Hero** », et le héros existe chez nous (classe `druide`,
+fiche et sorts sourcés sur le Mythic Tier, §HasLab Mythic Tier). ⚠ Corrigé le
+2026-10-02 (lot A, `docs/plan-ogre-horde.md`) : cette section affirmait
+« aucune classe identifiée ». Sa carte de personnage et ses cartes de sort ne
+sont **pas dans le livret** (cartes physiques, « 29 game cards », p. 3) : on
+présume qu'elles reprennent le Mythic Tier, sans l'avoir vérifié.
+
+Les **3 loups** (p. 3) sont les **alliés animaux** de la boîte (p. 9), et non
+des adversaires — même carte que notre *Loup* (`MercenaireSeeder`, © 2023) ?
+⚠ non vérifié, la carte de cette boîte n'est pas photographiée.
 
 ### 2. Nouveaux monstres
 
@@ -371,7 +373,39 @@ roster du tournoi.
   Body 1 · Mind 4** ; connaît *Mind Lock* et *Mind Burst*, 5 cartes de
   chaque (Ogre Horde, p. 37).
 - **Ekur, l'Ogre Lord** (boss final, quête 9) — utilise les stats « Ogre
-  Lord » du tableau ci-dessus.
+  Lord » du tableau ci-dessus. **Tograk** (quête 6) est un Ogre Commander.
+- **Spawn of the Pit** (quête 1, dernière vague du tournoi ; exemple de la
+  règle *Multi-Phase Enemies*, p. 6) — monstre à **deux phases** :
+  - *Spawn of the Pit* — Attack 4 · Defend 3 · Move 6 · Body 4 · Mind 3
+  - *Spawn of the Pit — Enraged* — Attack 5 · Defend 1 · Move 10 · Body 6 ·
+    Mind 1 (adoptée quand la première phase tombe à 0 Body, la figurine
+    restant sur le plateau).
+- **Guardian Effigy** (quête 4, note D) — Attack 3 · Defend 5 · Move 0 ·
+  Body 2 · Mind 0 ; effigie d'orque **immobile** gardant la porte de fer :
+  chaque tour, une boule de feu à **3 dés d'attaque** sur un héros en ligne
+  de vue ; **immunisée à tous les effets de sort** (p. 27).
+- **Nexrael**, apprenti Sorcier du Dread (quête 6, note D) — Attack 3 ·
+  Defend 4 · Move 8 · Body 1 · Mind 5 ; *Mind Burst*, réserve de 4 cartes
+  (p. 31).
+- **Festral**, Sorcier du Dread (quête 8) — Attack 4 · Defend 5 · Move 6 ·
+  Body 3 · Mind 8 ; *Mind Burst*, *Mind Lock* et *Dominate*, 3 cartes de
+  chaque ; ses Guerriers du Dread de garde lancent 5 dés d'attaque et 5 de
+  défense (p. 35).
+
+Blocs de stats **relus visuellement** sur le rendu PNG des pages le
+2026-10-02 (l'extraction texte mélange les colonnes). Paliers arrêtés par
+René (`docs/plan-ogre-horde.md` Q7) : boss Gruzbella et Festral ; sous-boss
+Doralf, Spawn of the Pit, Xenloth et l'Effigie ; Nexrael au palier que
+mesurera son `cout`.
+
+⚠ **Capacités des ogres — DE NOUS, pas du livret.** Le livret ne donne aux
+quatre ogres **aucune** capacité (p. 41 : stats seules). Notre `charge`
+(Commandant), et `frappe_de_zone` + `resistance_magique` (Seigneur) sont des
+mécaniques du moteur que nous leur avons attribuées. Leurs cartes de monstre
+(physiques) n'ont été trouvées nulle part en ligne (recherche du 2026-10-02 :
+Hasbro, Ye Olde Inn, BoardGameGeek — les seules transcriptions complètes
+visent la version 1990 de Games Workshop/MB). René, Q5 : on les garde, et on
+ne les présente pas comme sourcées.
 
 Grande figurine : les Ogres (Warrior/Champion/Commander/Lord) occupent
 vraisemblablement 2 cases comme dans le jeu de base (règle générique
@@ -399,7 +433,11 @@ explicitement pour chaque profil dans ce livret.
     (mouvement + action, y compris attaquer d'autres héros).
   - *Mind Burst* — même jet en opposition ; la différence de crânes
     inflige des dégâts de **Mind Points** au perdant de l'opposition (peut
-    donc blesser le lanceur si le défenseur fait mieux).
+    donc blesser le lanceur si le défenseur fait mieux). Exemple du livret
+    (p. 10) : un Sorcier à 5 Mind contre le magicien à 6, et « the Dread
+    Sorcerer takes 2 Mind Points of damage ». ⚠ C'est le **premier
+    producteur de dégâts de Mind côté MONSTRE** : il donne enfin une raison
+    d'étendre l'état de choc aux monstres (« every creature »).
 - ⚠ Coûts et détails des cartes Mercenaire ogre et Allié animal (voir
   mécaniques ci-dessous) non trouvés dans le texte — probablement sur des
   cartes physiques hors PDF.
