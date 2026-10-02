@@ -463,14 +463,27 @@ armure de plates), **Supply Crate**, **Throne**, **Double-door** (×2),
   *Coût :* même famille que les mercenaires — entité liée à un héros, tour
   scindé (deux « demi-tours » liés), condition d'apparition liée à la
   taille du groupe.
-- **Points de Mind à 0 = état de choc** : un Mind Point tombé à 0 réduit le
-  personnage à 1 dé de mouvement rouge, 1 dé d'attaque, 2 dés de défense —
-  **sans que l'équipement/les armes/artefacts n'augmentent plus ces dés**
-  tant que l'état persiste ; les sorts type *Sleep* n'ont aucun effet sur
-  les monstres sans Mind Points (ex. squelettes). *Coût :* le moteur suit
-  déjà les Mind Points, mais pas d'état dérivé « choc » qui plafonne
-  temporairement les dés effectifs indépendamment de l'équipement — nouvelle
-  couche de calcul entre équipement et jet final.
+- **Points de Mind à 0 = état de choc** — **PORTÉ le 2026-10-01** (René, qui
+  revient sur l'arbitrage du 2026-09-06 : « un héros à 0 Mind tombe »).
+  Citation vérifiée, *Against the Ogre Horde* p. 9 (Hasbro PDF F9528, confirmée
+  applicable à **toute créature** — héros, monstre, allié) : « When a creature
+  reaches 0 Mind Points, they go into shock. While at 0 Mind Points, they can
+  only roll one red movement die, 1 Attack die, and 2 Defend dice. (Armor,
+  weapons, and artifacts do not increase the Attack or Defend dice while a
+  hero is at 0 Mind Points.) The creature's Attack and Defend dice can be
+  temporarily increased by some spells and spell scrolls. Additional Mind
+  Points gained from certain artifacts may be lost. If the creature later
+  restores Mind Points, they are no longer in shock and can roll dice as
+  normal. A creature cannot go below 0 Mind Points. » État DÉRIVÉ
+  (`Personnage::estEnChoc()`, pas une colonne), plafonné au moment du jet
+  (`ResolveurTour::frapper()`, `MoteurSorts::desDefenseHerosDetail()`,
+  `MenuMoteur::deplacementDuTour()`) — voir `docs/regles/sorts-dread.md`.
+  ⚠ Portée SEULEMENT pour les HÉROS : aucun chemin ne réduit le Mind d'un
+  monstre ou d'un allié (`GroupeMercenaire`) à ce jour, donc rien n'y lit
+  `estEnChoc()` — pas de clé décorative, mais le point d'extension est nommé
+  ici pour le jour où un producteur Mind côté monstre/allié apparaîtra. Les
+  sorts type *Sleep* qui n'ont aucun effet sur les monstres sans Mind Points
+  (ex. squelettes) restent une dette séparée, non couverte par ce lot.
 - **World's End Tournament (mode de jeu séparé, quêtes 1-3)** : bataille par
   équipes (Challenger = héros + alliés, Defender = monstres) avec un
   système de **rounds d'activation** alterné (chaque camp active un membre

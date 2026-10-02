@@ -195,6 +195,59 @@ it('le détail persisté survit à une régénération du menu dans le même tou
         ]);
 });
 
+// ------------------------------------------------------------------
+// ÉTAT DE CHOC (René, 2026-10-01) : « can only roll one red movement
+// die » lit EXACTEMENT la même décision que l'Armure de plates — voir
+// docs/regles/sorts-dread.md et Deplacement.php. Ces tests vivent ICI,
+// sur le même harnais, pour prouver que c'est UNE seule lecture.
+// ------------------------------------------------------------------
+
+it('ÉTAT DE CHOC : un héros à 0 Mind perd aussi son d6 de mouvement, sans armure', function () {
+    ['alice' => $alice, 'groupe' => $groupe, 'hero' => $hero, 'etat' => $etat] = demarrerPourAnnulation();
+    $hero->update(['pv_mind' => 0]);
+
+    desFiges([6]);
+
+    $dep = optionDeplacementAnnulation($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    expect($dep['parametres']['base'])->toBe(4)
+        ->and($dep['parametres']['de'])->toBe(6)        // lancé quand même
+        ->and($dep['parametres']['de_annule'])->toBeTrue()
+        ->and($dep['parametres']['de_annule_par'])->toBe('État de choc')
+        ->and($dep['parametres']['portee'])->toBe(4)    // la base seule
+        ->and((int) $etat->fresh()->deplacement_tour)->toBe(4);
+});
+
+it('ÉTAT DE CHOC + Armure de plates : les DEUX sources sont nommées, le dé ne compte qu\'une fois', function () {
+    ['alice' => $alice, 'groupe' => $groupe, 'hero' => $hero, 'etat' => $etat] = demarrerPourAnnulation();
+    equiperArmurePourAnnulation($hero, 'Armure de plates');
+    $hero->update(['pv_mind' => 0]);
+
+    desFiges([6]);
+
+    $dep = optionDeplacementAnnulation($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    expect($dep['parametres']['de_annule'])->toBeTrue()
+        ->and($dep['parametres']['de_annule_par'])->toBe('Armure de plates + État de choc')
+        ->and($dep['parametres']['portee'])->toBe(4);
+});
+
+it('ÉTAT DE CHOC touche TOUTE créature, y compris le Chevalier que seule l\'armure épargne', function () {
+    ['alice' => $alice, 'groupe' => $groupe, 'hero' => $hero, 'etat' => $etat] = demarrerPourAnnulation('chevalier');
+    equiperArmurePourAnnulation($hero, 'Armure de plates');
+    $hero->update(['pv_mind' => 0]);
+
+    desFiges([6]);
+
+    $dep = optionDeplacementAnnulation($groupe->id, (int) $alice->id, (int) $hero->id);
+
+    // Le Chevalier échappe au malus D'ARMURE (son exemption de classe), mais
+    // pas au choc — « applies to every creature » (Hasbro).
+    expect($dep['parametres']['de_annule'])->toBeTrue()
+        ->and($dep['parametres']['de_annule_par'])->toBe('État de choc')
+        ->and($dep['parametres']['portee'])->toBe(4);
+});
+
 it('confronte `de_annule` à ce que Deplacement::calculer() fait réellement — dans les deux sens', function () {
     ['alice' => $alice, 'groupe' => $groupe, 'hero' => $hero, 'etat' => $etat] = demarrerPourAnnulation();
     equiperArmurePourAnnulation($hero, 'Armure de plates');

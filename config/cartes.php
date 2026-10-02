@@ -409,11 +409,15 @@ return [
             ['carte' => 'Mind Blast', 'paquet' => 'Dread Moon', 'sort_dread' => 'Choc Mental'],
             ['carte' => 'Dreadlights', 'paquet' => 'Dread Moon', 'sort_dread' => "Feux de l'Effroi"],
             ['carte' => 'Creeping Grasp', 'paquet' => 'Delthrak', 'sort_dread' => 'Étreinte des Ronces'],
-            // ⚠ Porté le 2026-09-06 SANS son « état de choc » : la carte délègue
-            // cette règle à une section du livret Frozen Horror que nous n'avons
-            // pas. Ce qui est tenu — le jet à 1 dé par point de Mind POSSÉDÉ
-            // (la jauge, pas l'attribut), et la chute à 0 Mind — l'est
-            // entièrement ; l'état de choc reste une dette ÉCRITE, pas un oubli.
+            // Porté le 2026-09-06 SANS son « état de choc » — la carte déléguait
+            // cette règle à une section du livret Frozen Horror que le projet
+            // n'avait pas. Dette PAYÉE le 2026-10-01 : la compilation d'erratas
+            // 2021 cite *Against the Ogre Horde* p. 9, confirmée par Hasbro
+            // applicable à toute créature (`Personnage::estEnChoc()`). Le jet à
+            // 1 dé par point de Mind POSSÉDÉ (la jauge, pas l'attribut) reste
+            // inchangé ; la chute à 0 Mind, elle, est RETIRÉE — René revient sur
+            // son arbitrage du 2026-09-06, 0 Mind met en choc, ça ne fait plus
+            // tomber.
             ['carte' => 'Mind Freeze', 'paquet' => 'Frozen Horror', 'sort_dread' => "Gel de l'Esprit"],
 
             // ---- Invocation ----

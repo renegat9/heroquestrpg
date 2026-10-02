@@ -744,8 +744,12 @@ final class JournalCombat
             $r = $resultats[0];
             $cible = $r['cible']['nom'] ?? 'un héros';
 
-            if (! empty($r['cible_tombee'])) {
-                return [['texte' => "{$nom} vide l'esprit de {$cible} — il s'effondre !", 'ton' => 'chute']];
+            // ⚠ `entre_en_choc`, PLUS `cible_tombee` (René, 2026-10-01) : 0
+            // Mind met en ÉTAT DE CHOC, il ne fait plus tomber — le héros
+            // reste debout, juste réduit à 1 dé d'attaque / 2 de défense /
+            // sans d6 de mouvement tant que l'esprit reste vide.
+            if (! empty($r['entre_en_choc'])) {
+                return [['texte' => "{$nom} vide l'esprit de {$cible} — il entre en état de choc !", 'ton' => 'chute']];
             }
 
             return [[
@@ -1135,6 +1139,14 @@ final class JournalCombat
 
         if (! empty($a['cible_vaincue'])) {
             return [['texte' => "{$acteurNom} foudroie {$cible} d'un {$nom} !{$des}", 'ton' => 'mort']];
+        }
+
+        // ÉTAT DE CHOC LEVÉ (René, 2026-10-01) : Récupération Psychique (et
+        // tout futur sort qui restaure le Mind) peut sortir un allié du choc —
+        // « if the creature later restores Mind Points, they are no longer in
+        // shock ». Un effet automatique que rien n'annonce est injouable.
+        if (! empty($a['choc_leve']) && $cible !== null) {
+            return [['texte' => "{$acteurNom} lance {$nom} sur {$cible} — l'état de choc se lève", 'ton' => 'succes']];
         }
 
         $degats = (int) ($a['degats'] ?? 0);

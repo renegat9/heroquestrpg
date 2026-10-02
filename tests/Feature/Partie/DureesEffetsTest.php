@@ -81,7 +81,10 @@ it('nomme exactement sept mots-clés, et les distingue d\'un décompte de tours'
     // du Barbare des cartes officielles (« as long as there are monsters in
     // sight »). ⚠ Il ne se confond pas avec `fin_du_combat` : celui-ci
     // raisonne sur la quête entière, celui-là sur la LIGNE DE VUE du porteur.
-    expect(DureeEffet::toutes())->toHaveCount(7)
+    // Le huitième, `prochain_deplacement` (errata 2021 B4, 2026-10-01) : « the
+    // next time they move » ne tombe pas à la fin d'un tour passé sans bouger.
+    expect(DureeEffet::toutes())->toHaveCount(8)
+        ->and(DureeEffet::estMotCle('prochain_deplacement'))->toBeTrue()
         ->and(DureeEffet::estMotCle('plus_de_monstre_en_vue'))->toBeTrue()
         ->and(DureeEffet::estMotCle('prochaine_defense'))->toBeTrue()
         ->and(DureeEffet::estMotCle('un_combat'))->toBeFalse()   // ancienne orthographe
@@ -257,4 +260,45 @@ it('expose le bonus des buffs dans l\'état, pour que le joueur le VOIE', functi
         ->and($entite()['bonus_des_attaque'])->toBe(0)
         // La BASE ne bouge pas : le bonus est temporaire, il s'affiche à part.
         ->and($entite()['des_defense'])->toBe((int) $hero->des_defense);
+});
+
+it('garde « prochain_deplacement » à un tour fini sans bouger, et le dépense au premier pas', function () {
+    // Errata 2021 B4 (2026-10-01) — Vent Véloce et Potion de vitesse : « the
+    // next time they move ». En `ce_tour`, un tour terminé sur place les
+    // effaçait sans qu'ils aient servi.
+    ['alice' => $alice, 'heros' => $heros, 'quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat]
+        = demarrerQueteAvecMonstre('Gobelin');
+    $gobelin->update(['etat' => 'vaincu']);
+
+    buffPotion($heros, 'Potion de vitesse');
+    $sorts = app(MoteurSorts::class);
+
+    // La fin de tour explicite expire `ce_tour` — et rien d'autre.
+    $sorts->expirerBuffs($heros->fresh(), DureeEffet::CE_TOUR);
+    expect($sorts->multiplicateurDeplacement($heros->fresh()))->toBe(2);
+
+    // Une case libre à 3 pas sur un axe dégagé : hors de portée d'un jet de 2,
+    // à portée du même jet doublé.
+    $hx = (int) $etat->position_x;
+    $hy = (int) $etat->position_y;
+    $cible = null;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        if (caseQueteLibre($quete->fresh(), $hx + $dx, $hy + $dy)
+            && caseQueteLibre($quete->fresh(), $hx + 2 * $dx, $hy + 2 * $dy)
+            && caseQueteLibre($quete->fresh(), $hx + 3 * $dx, $hy + 3 * $dy)) {
+            $cible = ['x' => $hx + 3 * $dx, 'y' => $hy + 3 * $dy];
+            break;
+        }
+    }
+    expect($cible)->not->toBeNull('aucun axe dégagé autour du héros — scénario invalide');
+
+    $etat->update(['deplacement_tour' => 2, 'deplacement_restant' => null, 'a_deplace' => false]);
+
+    $this->actingAs($alice, 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $cible,
+    ])->assertStatus(202);
+
+    expect([(int) $etat->fresh()->position_x, (int) $etat->fresh()->position_y])->toBe([$cible['x'], $cible['y']])
+        ->and($sorts->multiplicateurDeplacement($heros->fresh()))->toBe(1);
 });

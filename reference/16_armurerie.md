@@ -134,7 +134,7 @@ et les voici.
 | **Potion of Magic** | 2023 | 400 | récupère **jusqu'à 3 sorts** lancés pendant cette quête |
 | **Potion of Recall** | 2023 | 400 | **Elfe seul** — récupère **un** sort lancé plus tôt dans la quête |
 | **Potion of Rejuvenation** | 2022 | 500 | **jusqu'à 6** PV de Body perdus, lance 1 dé rouge ; jamais au-dessus du total de départ |
-| **Potion of Restoration** | 2022 | 500 | rend **1 PV de Body et 1 PV de Mind** |
+| **Potion of Restoration** | 2022 | ~~500~~ **300** | rend **1 PV de Body et 1 PV de Mind**. ⚠ La carte photographiée (© 2022, *Kellar's Keep* / *Witch Lord*) dit 500 ; Hasbro l'a **réimprimée à 300** dans le paquet *Alchemy* de *Rise of the Dread Moon* (compilation d'errata Ye Olde Inn, `docs/plan-errata-2021.md` C3). René retient la réimpression le 2026-10-01 — ⚠ la carte *Dread Moon* elle-même n'est pas encore photographiée |
 | **Potion of Speed** | 2021 | 200 | **deux fois plus de dés** au prochain mouvement. Carte défaussée |
 | **Potion of Superior Restoration** | 2023 | 800 | ramène Body **et** Mind au niveau du **début de la quête**. Guérit aussi un héros changé en loup-garou |
 | **Potion of Vision** | 2023 | 500 | **Elfe seul** — voit **toutes** les portes secrètes et les pièges ordinaires en ligne de vue, jusqu'à ce que l'Elfe subisse **au moins 1 PV** de dégâts |

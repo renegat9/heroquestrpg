@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Des\LanceurDes;
+use App\Engine\DureeEffet;
 use App\Models\Condition;
 use App\Models\Inventaire;
 use App\Models\Personnage;
@@ -96,6 +97,14 @@ class MoteurPotions
 
         $applique = [];
 
+        // ÉTAT DE CHOC (René, 2026-10-01) : capturé AVANT toute branche
+        // susceptible de faire remonter `pv_mind`, pour savoir si CETTE
+        // gorgée vient de lever le choc (0 → positif) — « if the creature
+        // later restores Mind Points, they are no longer in shock » —, quel
+        // que soit le chemin emprunté plus bas (soin fixe ou Restauration
+        // supérieure).
+        $avantChoc = (int) $buveur->pv_mind;
+
         // Soin Body / Mind — plafonné au maximum du héros. Tout ce qui suit
         // porte sur $buveur : c'est LUI qui encaisse l'effet, jamais le
         // porteur qui a sorti la fiole du sac.
@@ -129,6 +138,12 @@ class MoteurPotions
             $applique['soin_pv_mind'] = (int) $buveur->pv_mind_max - (int) $buveur->pv_mind;
             $buveur->pv_body = (int) $buveur->pv_body_max;
             $buveur->pv_mind = (int) $buveur->pv_mind_max;
+        }
+
+        if ($avantChoc === 0 && (int) $buveur->pv_mind_max > 0 && (int) $buveur->pv_mind > 0) {
+            // Un effet automatique que rien n'annonce est injouable : le fil
+            // doit dire que le choc se lève, pas seulement que le Mind remonte.
+            $applique['choc_leve'] = true;
         }
 
         $buveur->save();
@@ -213,6 +228,11 @@ class MoteurPotions
             $restant = (int) $etat->deplacement_restant * (int) $effet['deplacement_multiplie'];
             $etat->update(['deplacement_restant' => $restant]);
             $applique['deplacement_restant'] = $restant;
+
+            // …et le buff tombe aussitôt : CE mouvement-ci était « le
+            // prochain ». Sa durée `prochain_deplacement` (errata 2021 B4) le
+            // laisserait sinon doubler AUSSI le mouvement du tour suivant.
+            $this->sorts->expirerBuffs($buveur, DureeEffet::PROCHAIN_DEPLACEMENT);
         }
 
         // Marque la potion « une par tour » comme bue. Compteur partagé avec les

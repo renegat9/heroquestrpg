@@ -64,6 +64,26 @@ final class DureeEffet
     public const PROCHAIN_TOUR = 'prochain_tour';
 
     /**
+     * Jusqu'au prochain DÉPLACEMENT du porteur — « enables that hero to roll
+     * twice as many red dice as normal THE NEXT TIME THEY MOVE » (*Swift Wind*,
+     * et la *Potion of Speed* : « next movement »).
+     *
+     * ⚠ Ce n'est PAS `CE_TOUR` (errata 2021 B4, 2026-10-01) : un porteur qui
+     * finit son tour SANS avoir bougé — le lanceur qui se cible lui-même après
+     * avoir marché, le buveur qui choisit de rester sur place — perdait le
+     * bonus, là où la carte le lui garde jusqu'à ce qu'il bouge. Le
+     * déclencheur est le PREMIER usage du mouvement du tour, celui qui ouvre
+     * la réserve de cases (`ResolveurTour::pointsDeplacement()`), jamais un
+     * simple aperçu de trajet.
+     *
+     * ⚠ *Traverser la Pierre* et la *Potion de dextérité* disent aussi « next
+     * movement » mais restent en `CE_TOUR` : leur effet doit durer TOUT le
+     * mouvement (la roche jugée en fin de tour, le saut de fosse en cours de
+     * route), pas s'éteindre au premier pas.
+     */
+    public const PROCHAIN_DEPLACEMENT = 'prochain_deplacement';
+
+    /**
      * Jusqu'à ce qu'il ne reste plus aucun monstre ENGAGÉ — ni vaincu, ni
      * encore dormant derrière une porte close (décision de René, 2026-08-06).
      *
@@ -102,6 +122,7 @@ final class DureeEffet
             self::PREMIER_DEGAT_SUBI,
             self::CE_TOUR,
             self::PROCHAIN_TOUR,
+            self::PROCHAIN_DEPLACEMENT,
             self::FIN_DU_COMBAT,
             self::PLUS_DE_MONSTRE_EN_VUE,
         ];

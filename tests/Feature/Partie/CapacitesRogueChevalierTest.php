@@ -72,6 +72,26 @@ it('AMBIDEXTRIE offre une frappe de plus après un coup de dague', function () {
     expect(collect($menu['options'])->pluck('id'))->toContain('attaquer');
 });
 
+it('AMBIDEXTRIE reconnaît une DAGUE artefact, sans Bandoulière', function () {
+    // Errata 2021 B2 (2026-10-01) : la *Lame Fantôme* est une dague (Avalon
+    // Hill). L'Ambidextrie comparait le NOM de l'arme en main — « Dague » — et
+    // l'artefact lui restait invisible tant qu'aucune Bandoulière ne traînait
+    // dans le sac.
+    $ctx = demarrerQueteAvecMonstre('Gargouille', ['classe' => 'rogue']);
+    armerLaMainDe($ctx['heros'], 'Lame Fantôme');
+
+    expect($ctx['heros']->inventaire()->whereHas('objet', fn ($q) => $q->where('nom', 'Bandoulière'))->exists())
+        ->toBeFalse('le scénario exige un Rogue SANS bandoulière');
+
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $ctx['heros']->id);
+    desFiges(array_fill(0, 40, 4));
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer',
+        'parametres' => ['cible_id' => $ctx['instance']->id],
+    ])->assertStatus(202)->assertJsonPath('resultat.ambidextrie', true);
+});
+
 it('AMBIDEXTRIE ne se déclenche pas à la hache, ni deux fois dans le tour', function () {
     $ctx = demarrerQueteAvecMonstre('Gargouille', ['classe' => 'rogue']);
     armerLaMainDe($ctx['heros'], 'Hachette'); // ni dague ni épée courte

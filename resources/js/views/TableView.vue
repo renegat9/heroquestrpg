@@ -1108,6 +1108,11 @@ watch(() => store.state.clotureTerminee, (t) => {
                     <div v-if="figureInspectee.jetons_rejeton > 0" class="stat-conds">
                         <span class="stat-cond stat-rejetons">Rejetons accrochés ×{{ figureInspectee.jetons_rejeton }}</span>
                     </div>
+                    <!-- ÉTAT DE CHOC (René 2026-10-01) : DÉRIVÉ de pv_mind, pas une
+                         conditions[] — badge à part, comme les rejetons ci-dessus. -->
+                    <div v-if="figureInspectee.en_choc" class="stat-conds">
+                        <span class="stat-cond stat-choc">En état de choc</span>
+                    </div>
                     <div v-if="figureInspectee.conditions?.length" class="stat-conds">
                         <span v-for="(c, i) in figureInspectee.conditions" :key="i" class="stat-cond">{{ c.nom }}</span>
                     </div>

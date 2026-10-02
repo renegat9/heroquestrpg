@@ -782,8 +782,12 @@ final class ResolveurTour
         // UNTHREATENED MOVEMENT (FL-Q p. 7) : même prédicat que le menu
         // (`Quete::monstreActifRevele()`) — ce repli ne doit jamais annoncer
         // un total que `MenuMoteur::deplacementDuTour()` n'aurait pas donné.
+        // ⚠ ÉTAT DE CHOC : la même UNION que `MenuMoteur::deplacementDuTour()`
+        // (« can only roll one red movement die », AtOH p. 9) — sans elle, ce
+        // repli rendait son d6 à un héros en choc dont le menu n'avait pas
+        // mémorisé le jet.
         $totalTour = $etat->deplacement_tour ?? (new Deplacement($this->des))
-            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage), sansMenace: ! $quete->monstreActifRevele())
+            ->calculer($base, $this->equipement->deDeplacementAnnule($personnage) || $personnage->estEnChoc(), sansMenace: ! $quete->monstreActifRevele())
             ->total;
         // ⚠ Face RÉELLE d'abord (colonne persistée par le menu), jamais
         // reconstituée par soustraction — même défaut, même correctif que
@@ -1103,8 +1107,15 @@ final class ResolveurTour
         // portée réelle du héros retombait à sa valeur normale au moment de
         // valider — un calcul de portée dupliqué côté aperçu aurait, lui,
         // dérivé au premier changement de règle (la faute maison).
-        if ($multiplicateur > 1 && $consommer) {
-            $this->sorts->consommerBuffs($personnage, 'deplacement_multiplie');
+        //
+        // ⚠ Le buff tombe par sa DURÉE (`prochain_deplacement`, errata 2021
+        // B4), et non plus par sa clé : c'est ici, à l'ouverture de la réserve
+        // de cases, que le porteur « se déplace » pour la première fois du
+        // tour. `consommerBuffs('deplacement_multiplie')` faisait la même chose
+        // pour le seul Vent Véloce — mais tant que le buff portait `ce_tour`,
+        // un tour fini sans bouger l'effaçait quand même.
+        if ($consommer) {
+            $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAIN_DEPLACEMENT);
         }
 
         // Potion de dextérité : « adds 5 movement squares to your next dice
@@ -1316,11 +1327,13 @@ final class ResolveurTour
      * riposte hors tour n'ouvre pas de seconde attaque, il n'y aurait pas de tour
      * pour la jouer.
      *
-     * ⚠ Divergence assumée : la seconde frappe se fait avec l'arme ÉQUIPÉE, pas
-     * avec une dague de main gauche. Nos dés d'attaque viennent de l'arme
-     * principale, et une arme en second emplacement est précisément ce que le
-     * projet ne porte pas (`objets.emplacement` est une valeur unique, doc 16
-     * §2.2). L'écart vaut 1 dé, et seulement à l'épée courte.
+     * La seconde frappe se fait avec l'arme ÉQUIPÉE, pas avec une dague de main
+     * gauche — et ce n'est PAS une divergence : Avalon Hill a tranché que la
+     * capacité s'utilise avec une seule arme, sans Bandoulière ni seconde
+     * dague, « les deux attaques étant faites avec la même arme (comme le
+     * Fléau des Orques) » (compilation d'errata Ye Olde Inn, errata 2021 B3,
+     * 2026-10-01). On l'avait écrit comme un écart de 1 dé à l'épée courte ;
+     * c'est la règle.
      */
     private function ambidextrie(Personnage $personnage, EtatPersonnageQuete $etat, ?Objet $arme): bool
     {
@@ -1331,12 +1344,17 @@ final class ResolveurTour
         // C'est ici que la carte compte — la capacité du Rogue exige nommément
         // une dague, et le porteur en a virtuellement une, même s'il tient
         // autre chose en main.
+        //
+        // ⚠ L'arme EN MAIN se reconnaît par `estArmeDeType()` (errata 2021
+        // B2) : la *Lame Fantôme* est une dague, le *Fléau des Orques* une épée
+        // courte — sans Bandoulière, un Rogue qui les tient y a droit aussi.
+        $armeNommee = array_filter($armes, fn (string $nom) => $this->equipement->estArmeDeType($arme, $nom)) !== [];
         $armeeParLaCarte = $arme !== null
-            && ! in_array($arme->nom, $armes, true)
+            && ! $armeNommee
             && array_filter($armes, fn (string $nom) => $this->equipement->compteCommeArme($personnage, $nom)) !== [];
 
         if ($noeud === null || $arme === null
-            || (! in_array($arme->nom, $armes, true) && ! $armeeParLaCarte)
+            || (! $armeNommee && ! $armeeParLaCarte)
             || ! $this->capacites->disponible($personnage, $etat, 'attaque_supplementaire_arme')) {
             return false;
         }
@@ -1513,9 +1531,30 @@ final class ResolveurTour
                 - $this->equipement->desAttaqueAvec($personnage, $mainDroite);
         }
 
-        $desAttaqueEffectifs = max(0, max($desArme, $desArmeContre)
-            + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
-            + $bonusTier + $bonusElan + $desBonus);
+        // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René 2026-10-01) :
+        // « can only roll [...] 1 Attack [...] die. Armor, weapons, and
+        // artifacts do not increase the Attack [...] dice while a hero is at
+        // 0 Mind Points. The creature's Attack [...] dice can be temporarily
+        // increased by some spells and spell scrolls. » Un héros en choc
+        // ignore donc la classe, l'arme (+ Forge, + artefact), ET les talents
+        // passifs — `$desArme`, `$desArmeContre`, `$bonusFrenesie`,
+        // `$bonusTirPrecis`, `$bonusFlanc`, `$bonusTier`, `$bonusElan` et
+        // `$desBonus` (Furie, Force de la Montagne : des dés gagnés par une
+        // CAPACITÉ active, pas un sort) sont tous écartés — seul
+        // `$bonusAttaque`, qui ne lit QUE les buffs de sort
+        // (`MoteurSorts::bonusDes()`), traverse le plafond, exactement ce que
+        // « some spells and spell scrolls » excepte.
+        //
+        // ⚠ Lu ICI, au moment du jet, jamais sur une colonne : `pv_mind` varie
+        // en cours de quête sans jamais redéclencher `Equipement::recalculerCombat()`
+        // (qui ne tourne qu'à l'équipement), donc le plafond ne peut pas être
+        // figé sur `des_attaque` — `Personnage::estEnChoc()` est le seul
+        // point de passage correct.
+        $desAttaqueEffectifs = $personnage->estEnChoc()
+            ? max(0, 1 + $bonusAttaque)
+            : max(0, max($desArme, $desArmeContre)
+                + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
+                + $bonusTier + $bonusElan + $desBonus);
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -5261,8 +5300,10 @@ final class ResolveurTour
         // (`MoteurDegats::infligerMindAHeros()`) a désormais un appelant réel —
         // Gel de l'Esprit (`MoteurDread::sortDreadMind()`) — donc ce parchemin
         // rend bien autre chose que 0 dès qu'un héros a subi une perte de Mind
-        // en quête, exactement comme la branche Mind de `resoudreRelever()` et
-        // la moitié Mind de la Restauration supérieure.
+        // en quête, exactement comme la moitié Mind de la Restauration
+        // supérieure. ⚠ PLUS « comme la branche Mind de `resoudreRelever()` »
+        // (texte retiré le 2026-10-01) : cette branche a disparu le même jour
+        // que la chute à 0 Mind — « relever » ne soigne plus que le Body.
         if (! empty($effet[self::EFFET_RESTAURE_PV_MIND])) {
             $cible = $this->cibleSort($quete, $option, $parametres);
             /** @var Personnage $heros */
@@ -5275,6 +5316,12 @@ final class ResolveurTour
                 'cible' => ['type' => 'heros', 'personnage_id' => $heros->id, 'nom' => $heros->nom],
                 'soin_pv_mind' => (int) $heros->pv_mind_max - $avant,
                 'pv_mind_apres' => (int) $heros->pv_mind_max,
+                // ÉTAT DE CHOC (René, 2026-10-01) : « if the creature later
+                // restores Mind Points, they are no longer in shock ». Un
+                // effet automatique que rien n'annonce est injouable — le fil
+                // doit dire que le choc se lève, pas seulement que le Mind
+                // remonte.
+                'choc_leve' => $avant === 0 && (int) $heros->pv_mind_max > 0,
             ];
         }
 
@@ -5804,8 +5851,7 @@ final class ResolveurTour
             ]);
         }
 
-        // Debout à 1 POINT — Body ou Mind, celui qui est à zéro (décision de
-        // René, 2026-08-06).
+        // Debout à 1 POINT de Body (décision de René, 2026-08-06).
         //
         // ⚠ INTENTION, à ne pas « corriger » une troisième fois. Cette valeur a
         // déjà fait l'aller-retour : 1 PV → moitié des PV max (pour casser la
@@ -5816,17 +5862,19 @@ final class ResolveurTour
         // combat, repartir à 1 point ne boucle sur rien — rien ne frappe.
         // Relever au milieu d'une mêlée reste possible, et reste un pari.
         //
-        // Les deux jauges sont traitées, pas seulement Body : c'est celle qui
-        // est tombée à zéro qui remonte. ⚠ Aucun chemin ne réduit `pv_mind`
-        // d'un héros aujourd'hui (seuls des soins l'augmentent), la branche
-        // Mind est donc correcte mais dormante — elle le restera tant qu'un
-        // effet ne saura pas entamer l'esprit.
+        // ⚠ BODY SEULEMENT depuis le 2026-10-01 (René REVIENT sur son
+        // arbitrage du 2026-09-06). Cette méthode soignait aussi le Mind à 1
+        // point quand il était à zéro — une branche que son propre commentaire
+        // qualifiait de « correcte mais dormante », écrite en PRÉVISION du jour
+        // où 0 Mind ferait tomber. Ce jour est venu ET reparti : 0 Mind met
+        // désormais en ÉTAT DE CHOC (`Personnage::estEnChoc()`), qui ne fait
+        // plus tomber — `tombe` ne peut donc plus valoir `true` pour cette
+        // seule raison, et « relever » n'a plus de jauge d'esprit à soigner.
+        // Un héros relevé ici qui reste à 0 Mind reste EN CHOC, debout : seul
+        // un vrai soin de Mind (potion, sort) lève le choc, jamais ce geste.
         $soins = [];
         if ((int) $cible->personnage->pv_body <= 0) {
             $soins['pv_body'] = 1;
-        }
-        if ((int) $cible->personnage->pv_mind <= 0) {
-            $soins['pv_mind'] = 1;
         }
         // ⚠ Tombé SANS jauge à zéro : on le remet debout, POINT — surtout pas
         // « pv_body = 1 ». Un héros peut être à terre avec des PV positifs (il
@@ -8442,14 +8490,17 @@ final class ResolveurTour
      * Idempotent : appelable autant de fois qu'on veut, il ne referme pas une
      * quête déjà close.
      *
-     * ⚠ Compte déjà le MIND (arbitrage de René, 2026-09-06 : un héros à 0 Mind
-     * tombe, comme à 0 Body) SANS ligne à ajouter ici — la condition ne lit que
-     * la colonne `tombe`, jamais `pv_body` directement, et
-     * `MoteurDegats::infligerMindAHeros()` pose désormais `tombe => true` à 0
-     * Mind exactement comme les ~14 sites Body le font. Un groupe entier tombé
-     * d'esprit est donc déjà un TPK par construction ; c'est la même
-     * discipline que `EtatPersonnageQuete::booted()` applique à la narration
-     * de la chute, observée sur la colonne plutôt que câblée par appelant.
+     * ⚠ NE compte PLUS le MIND (René, 2026-10-01, qui revient sur l'arbitrage
+     * du 2026-09-06 : « un héros à 0 Mind tombe »). 0 Mind met désormais en
+     * ÉTAT DE CHOC (`Personnage::estEnChoc()`, *Against the Ogre Horde* p. 9),
+     * pas à terre : `MoteurDegats::infligerMindAHeros()` ne pose plus
+     * `tombe => true`. Cette méthode ne lit toujours QUE la colonne `tombe` —
+     * elle n'a donc eu AUCUNE ligne à retirer pour suivre le changement, la
+     * même discipline que `EtatPersonnageQuete::booted()` applique à la
+     * narration de la chute, observée sur la colonne plutôt que câblée par
+     * appelant. Conséquence assumée : un groupe entièrement EN CHOC (debout,
+     * 1 dé d'attaque chacun) n'est plus un TPK — il reste `debout`, et doit se
+     * sortir du pétrin en jouant, comme la carte le prévoit.
      */
     public function verdictDeChute(Groupe $groupe, Quete $quete): string
     {

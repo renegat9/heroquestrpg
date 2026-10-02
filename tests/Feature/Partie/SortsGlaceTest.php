@@ -218,7 +218,7 @@ it('un bouclier blanc laisse 1 Mind, et le héros reste debout', function () {
         ->and($scene['etatHeros']->fresh()->tombe)->toBeFalse();
 });
 
-it('AUCUN bouclier blanc met le Mind à ZÉRO et fait TOMBER le héros', function () {
+it('AUCUN bouclier blanc met le Mind à ZÉRO et met le héros en ÉTAT DE CHOC (plus de chute depuis le 2026-10-01)', function () {
     $scene = sceneGlace(
         [['m', 's', 's', 'm']],
         herosPos: ['x' => 2, 'y' => 0], instancePos: ['x' => 1, 'y' => 0],
@@ -231,8 +231,12 @@ it('AUCUN bouclier blanc met le Mind à ZÉRO et fait TOMBER le héros', functio
     $sort = actionGlace(jouerTourGlace($scene, [1, 2, 3]), "Gel de l'Esprit");
 
     expect($sort['resultats'][0]['bouclier_blanc'])->toBeFalse()
+        ->and($sort['resultats'][0]['entre_en_choc'])->toBeTrue()
         ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(0)
-        ->and($scene['etatHeros']->fresh()->tombe)->toBeTrue();
+        // ⚠ René REVIENT le 2026-10-01 sur son arbitrage du 2026-09-06 : 0
+        // Mind met en ÉTAT DE CHOC (AtOH p. 9), ça ne fait plus tomber.
+        ->and($scene['etatHeros']->fresh()->tombe)->toBeFalse()
+        ->and($scene['heros']->fresh()->estEnChoc())->toBeTrue();
 });
 
 it("est réellement CHOISI par choisirSort() (via jouerTourDread, le vrai point d'entrée)", function () {
@@ -334,7 +338,9 @@ it('à zéro jeton, l\'Orbe Céleste ne protège plus de rien', function () {
     expect($sort['resultats'][0]['mind_absorbe'])->toBe(0)
         ->and($sort['resultats'][0]['degats_mind'])->toBe(3)
         ->and((int) $scene['heros']->fresh()->pv_mind)->toBe(0)
-        ->and($scene['etatHeros']->fresh()->tombe)->toBeTrue()
+        // ÉTAT DE CHOC, pas une chute (René, 2026-10-01).
+        ->and($scene['etatHeros']->fresh()->tombe)->toBeFalse()
+        ->and($scene['heros']->fresh()->estEnChoc())->toBeTrue()
         // Rien ne l'a dépensée ici : aucune charge n'a été consommée.
         ->and($orbe->fresh())->not->toBeNull();
 });

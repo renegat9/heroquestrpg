@@ -215,8 +215,12 @@ final class MoteurDegats
      * de poison qui traverserait le hub ferait rendre à la Plume des PV perdus
      * dans un donjon précédent.
      *
-     * Rend l'état relu — `infligerMindAHeros()` s'en resert pour poser `tombe`
-     * sans reproduire la même requête juste après.
+     * Rend l'état relu — `infligerAHeros()` n'en a pas besoin aujourd'hui,
+     * mais le signe est bon marché et un futur appelant (un autre producteur
+     * de dégâts) pourrait vouloir l'état sans reproduire la requête juste
+     * après. `infligerMindAHeros()` ne pose plus `tombe` dessus depuis que
+     * 0 Mind met en ÉTAT DE CHOC (`Personnage::estEnChoc()`) plutôt que de
+     * faire tomber (René, 2026-10-01).
      */
     private function memoriser(Personnage $heros, string $source, int $subis): ?EtatPersonnageQuete
     {
@@ -274,15 +278,20 @@ final class MoteurDegats
      * les deux jauges, et la Plume anti-poison rendrait des PV de Body pour des
      * points d'esprit perdus.
      *
-     * **Chute** (arbitrage de René, 2026-09-06) : un héros à 0 Mind tombe,
-     * exactement comme à 0 Body — c'est la symétrie que `ResolveurTour::resoudreRelever()`
-     * anticipe déjà (il traite les deux jauges depuis le début, en la
-     * qualifiant lui-même de « correcte mais dormante »). ⚠ Contrairement à la
-     * branche Body, où chacun des ~14 appelants pose `tombe` lui-même après
-     * avoir relu `pv_body` (marqué `// C4`), on le fait ICI, au centre : Gel
-     * de l'Esprit reste le SEUL appelant réel à ce jour, donc rien n'impose
-     * d'éclater cette responsabilité entre plusieurs sites — et la
-     * centraliser évite de l'oublier au premier autre producteur qui arrivera.
+     * **ÉTAT DE CHOC, pas une chute** (René, 2026-10-01, qui REVIENT sur son
+     * arbitrage du 2026-09-06 : « un héros à 0 Mind tombe »). La compilation
+     * d'erratas 2021 cite *Against the Ogre Horde* p. 9, confirmée par Hasbro
+     * applicable à « every creature » : « When a creature reaches 0 Mind
+     * Points, they go into shock. While at 0 Mind Points, they can only roll
+     * one red movement die, 1 Attack die, and 2 Defend dice. [...] If the
+     * creature later restores Mind Points, they are no longer in shock. »
+     * Rien à écrire ICI pour ça : `Personnage::estEnChoc()` est un état
+     * DÉRIVÉ de `pv_mind`, jamais une colonne — poser `tombe = true` est
+     * donc supprimé, pas remplacé par un autre `update()`. Le plafond de dés
+     * et le déplacement sans d6 sont câblés à leurs propres points de passage
+     * (`ResolveurTour::frapper()`, `MoteurSorts::desDefenseHerosDetail()`,
+     * `MenuMoteur::deplacementDuTour()`), qui appellent `estEnChoc()` au
+     * moment du jet plutôt que de lire une colonne figée au moment du coup.
      *
      * ⚠ `Personnage::booted()` N'est PAS étendu au Mind : `premier_degat_subi`
      * nomme le premier dégât SUBI dans un vocabulaire où le dégât est
@@ -312,11 +321,7 @@ final class MoteurDegats
             return 0;
         }
 
-        $etat = $this->memoriser($heros, $source, $subis);
-
-        if ((int) $heros->pv_mind === 0) {
-            $etat?->update(['tombe' => true]); // C4 — symétrique du Body, jauge Mind
-        }
+        $this->memoriser($heros, $source, $subis);
 
         return $subis;
     }

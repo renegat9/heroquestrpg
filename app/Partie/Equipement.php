@@ -598,8 +598,12 @@ final class Equipement
         // d'armes n'a pas à les interdire.
         $liste = $classe?->objets_autorises;
 
+        //
+        // ⚠ Par `estArmeDeType()` et non par nom brut (errata 2021 B2) : le
+        // *Fléau des Orques* est une épée courte, la *Lame Fantôme* et la
+        // *Serre du Corbeau* des dagues — le Moine les manie à ce titre.
         if (is_array($liste) && $liste !== [] && filled($objet->tag_equipement)) {
-            return in_array($objet->nom, $liste, true);
+            return array_filter($liste, fn (string $nom) => $this->estArmeDeType($objet, $nom)) !== [];
         }
 
         // ⚠ ARMURE MÉTALLIQUE — une matière, pas un poids. Les tags disent
@@ -738,6 +742,21 @@ final class Equipement
      * sont les règles qui exigent une dague : l'Ambidextrie, et la fermeture
      * des techniques mains nues.
      */
+    /**
+     * Cette pièce EST-ELLE l'arme de base nommée ? Elle-même (« Dague »), ou un
+     * artefact qui en est une (`est_une`, errata 2021 B2 : *Fléau des Orques*
+     * = épée courte, *Lame Fantôme* et *Serre du Corbeau* = dague).
+     *
+     * Point de passage UNIQUE des règles qui nomment une arme : comparer
+     * `$objet->nom` sur place, comme le faisaient l'Ambidextrie et la liste du
+     * Moine, rendait chaque artefact invisible à ces règles.
+     */
+    public function estArmeDeType(?Objet $objet, string $nomArme): bool
+    {
+        return $objet !== null
+            && ($objet->nom === $nomArme || ($objet->effet[MotsClesEquipement::EST_UNE] ?? null) === $nomArme);
+    }
+
     public function compteCommeArme(Personnage $personnage, string $nomArme): bool
     {
         return $personnage->inventaire()->with('objet')->get()
@@ -926,10 +945,10 @@ final class Equipement
      * Le héros porte-t-il du MÉTAL (armure) ou un bouclier ?
      *
      * Carte du Barde : « when you are wearing no "metal" armor and carrying no
-     * shield you have 1 extra defend die ». Le métal se reconnaît au tag de
-     * maîtrise — `armure_legere` et `armure_lourde` sont les deux familles
-     * d'armure du catalogue, la cape et les brassards du magicien
-     * (`armure_magicien`) n'en sont pas.
+     * shield you have 1 extra defend die ». Le métal se lit dans la colonne
+     * `objets.metallique` (voir ci-dessous) : les Brassards — « hardened
+     * LEATHER bracers » — et la Cape du Magicien n'en sont pas, et laissent
+     * donc son dé au Barde (errata 2021 B1, 2026-10-01).
      */
     public function porteMetalOuBouclier(Personnage $personnage): bool
     {

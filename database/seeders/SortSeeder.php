@@ -122,9 +122,11 @@ class SortSeeder extends Seeder
                 // encore joué, l'allié déjà joué (son buff traverse le round et
                 // couvre son prochain tour). Le seul écart : un porteur qui
                 // termine son tour SANS bouger perd le sort, là où la carte le
-                // lui garderait. Le combler demanderait un septième mot-clé de
-                // durée (`prochain_deplacement`) et son déclencheur — à faire
-                // seulement s'il gêne en jeu, pas par principe.
+                // lui garderait. ⚠ Le mot-clé `prochain_deplacement` existe
+                // depuis le 2026-10-01 (Vent Véloce, errata 2021 B4), mais il ne
+                // convient PAS ici : il tombe au PREMIER pas, alors que ce mode
+                // doit tenir tout le mouvement et jusqu'au jugement de la roche
+                // en fin de tour.
                 //
                 // ⚠ Rien d'autre à câbler, et c'est ce qui rend le changement
                 // sûr : `traverseRoche()` lit le buff SUR SON PORTEUR, et
@@ -149,7 +151,9 @@ class SortSeeder extends Seeder
             ['element' => 'air', 'nom' => 'Génie', 'type' => 'degats', 'difficulte_parchemin' => 3,
                 'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true, 'ouvre_porte' => true]],
             ['element' => 'air', 'nom' => 'Vent Véloce', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
-                'effet' => ['cible' => 'heros', 'deplacement_multiplie' => 2, 'duree' => 'ce_tour']],
+                // « the next time they move » : `prochain_deplacement`, et non
+                // plus `ce_tour` — errata 2021 B4 (2026-10-01).
+                'effet' => ['cible' => 'heros', 'deplacement_multiplie' => 2, 'duree' => 'prochain_deplacement']],
             ['element' => 'air', 'nom' => 'Tempête', 'type' => 'mental', 'difficulte_parchemin' => 3,
                 // « Un monstre choisi passe son prochain tour » (Kellar's Keep
                 // p. 15, reference/18_extensions.md §3) : MONO-cible — il n'a

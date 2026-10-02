@@ -195,4 +195,28 @@ class Personnage extends Model
     {
         return $this->hasMany(EtatPersonnageQuete::class, 'personnage_id');
     }
+
+    /**
+     * ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, Hasbro, confirmé applicable
+     * à « every creature » ; René, 2026-10-01, qui REVIENT sur son arbitrage du
+     * 2026-09-06 — 0 Mind ne fait plus TOMBER, il met en CHOC) : « When a
+     * creature reaches 0 Mind Points, they go into shock. »
+     *
+     * État DÉRIVÉ, jamais une colonne ni un cache (règle consolidée du
+     * projet) : la jauge `pv_mind` est déjà en base, c'est elle qui fait foi.
+     * `pv_mind_max > 0` écarte un personnage mal initialisé (0/0) d'un choc
+     * permanent qu'aucune carte ne décrit.
+     *
+     * Point de passage UNIQUE : `Equipement::recalculerCombat()` ne le lit
+     * PAS (il est reconstruit à l'ÉQUIPEMENT, pas à chaque perte de Mind — le
+     * plafond se lit donc au MOMENT du jet, pas sur la colonne), mais
+     * `ResolveurTour::frapper()`, `MoteurSorts::desDefenseHerosDetail()`,
+     * `MenuMoteur::deplacementDuTour()` et `EtatGroupe` appellent tous CETTE
+     * méthode plutôt que de comparer `pv_mind === 0` chacun à sa façon — la
+     * même discipline que `Salles::indexDe()` impose au reste du projet.
+     */
+    public function estEnChoc(): bool
+    {
+        return (int) $this->pv_mind_max > 0 && (int) $this->pv_mind <= 0;
+    }
 }

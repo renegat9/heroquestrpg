@@ -39,7 +39,7 @@ jusqu'à la prochaine défense », faute de mot pour le dire.
 
 ## 2. Le vocabulaire
 
-**Sept** mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
+**Huit** mots-clés. Toute autre valeur textuelle est un bug de catalogue ; un
 **entier** reste valide et signifie tout autre chose (§3).
 
 | mot-clé | prend fin… | exemples |
@@ -47,7 +47,8 @@ jusqu'à la prochaine défense », faute de mot pour le dire.
 | `prochaine_attaque` | quand le porteur **attaque** (quel que soit le résultat) | Courage, Potion de force |
 | `prochaine_defense` | quand le porteur **se défend** (le jet, qu'il encaisse ou non) | Potion de défense |
 | `premier_degat_subi` | au premier dégât **réellement encaissé** — parer sans rien perdre ne le consomme pas | Peau de Pierre |
-| `ce_tour` | à la **fin du tour du porteur** | Vent Véloce |
+| `ce_tour` | à la **fin du tour du porteur** | Traverser la Pierre, Potion de dextérité |
+| `prochain_deplacement` | au **premier déplacement** du porteur — pas à la fin de son tour s'il n'a pas bougé (errata 2021 B4, 2026-10-01) | Vent Véloce, Potion de vitesse |
 | `prochain_tour` | au **début du prochain tour du porteur** | Voile de Brume |
 | `fin_du_combat` | quand **plus aucun monstre n'est engagé** (actif ET révélé) | Image double, Peau de Pierre |
 | `plus_de_monstre_en_vue` | quand **aucun monstre n'est en LIGNE DE VUE du porteur** | Potion de rage guerrière, Potion de peau de givre |
@@ -146,6 +147,7 @@ compteur » : la condition attend un déclencheur ou un retrait explicite.
 | `premier_degat_subi` | observateur `Personnage::booted()` — toute BAISSE de `pv_body`, quelle qu'en soit la source (monstre, piège, Dread, tir ami) |
 | `ce_tour` | `ResolveurTour::marquerCreneau()`, créneau `tour` |
 | `prochain_tour` | fin de round, après la phase des monstres |
+| `prochain_deplacement` | `ResolveurTour::pointsDeplacement()`, à l'ouverture de la réserve de cases (jamais l'aperçu) ; `MoteurPotions` si la potion est bue en plein mouvement |
 | `fin_du_combat` | `ResolveurTour::verifierFinDuCombat()` |
 
 La durée est **relue sur la source** du buff (`sort:{Nom}` / `potion:{Nom}`) au

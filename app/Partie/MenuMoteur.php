@@ -762,8 +762,29 @@ final class MenuMoteur
             // `Equipement::detailDeDeplacementAnnule()`, jamais d'une seconde
             // recherche qui pourrait nommer une armure dont l'effet vient
             // d'être annulé (Chevalier, Allégée).
-            $deAnnule = $this->equipement->deDeplacementAnnule($personnage);
-            $deAnnulePar = $this->equipement->sourceDeDeplacementAnnule($personnage);
+            $deAnnuleEquipement = $this->equipement->deDeplacementAnnule($personnage);
+            $sourceEquipement = $this->equipement->sourceDeDeplacementAnnule($personnage);
+
+            // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René 2026-10-01) :
+            // « can only roll one red movement die. » Chez nous (base de
+            // classe + UN SEUL d6, écart assumé du projet), « un seul dé » se
+            // lit EXACTEMENT comme la Plate Mail — le d6 ne compte plus, le
+            // porteur avance de sa base : `deplacement_sans_d6`/`$deAnnule`
+            // est la SEULE lecture de cette phrase dans le projet, jamais une
+            // seconde interprétation.
+            //
+            // ⚠ UNION, pas une délégation à `detailDeDeplacementAnnule()` :
+            // cette méthode exempte le CHEVALIER (« les armures ne nuisent pas
+            // à son mouvement ») — une exemption de classe propre au MALUS
+            // D'ARMURE. Le choc, lui, « applies to every creature » (confirmé
+            // Hasbro) : un Chevalier en choc perd son dé comme n'importe qui.
+            $enChoc = $personnage->estEnChoc();
+            $deAnnule = $deAnnuleEquipement || $enChoc;
+            $deAnnulePar = match (true) {
+                $enChoc && $deAnnuleEquipement => "{$sourceEquipement} + État de choc",
+                $enChoc => 'État de choc',
+                default => $sourceEquipement,
+            };
 
             // UNTHREATENED MOVEMENT (FL-Q p. 7, First Light, 2026-09-30) :
             // sans monstre actif révélé n'importe où sur le plateau de la

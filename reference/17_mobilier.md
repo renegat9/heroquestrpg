@@ -322,6 +322,20 @@ et non une lecture** : aucune des deux sources ne traite jamais la ligne de vue 
 mobilier, ni même son emprise au sol en toutes lettres (§1). Ne pas le présenter comme
 sourcé dans un futur écrit qui citerait ce document.
 
+**Mise à jour du 2026-10-01 — deux sources existent désormais, et elles se
+contredisent** (`docs/plan-errata-2021.md` B3/C2) :
+- **Passage** : Hasbro a confirmé officiellement que le mobilier est
+  **infranchissable** (compilation d'errata Ye Olde Inn, *Rulebook p. 12, Hero
+  Movement*). Notre `bloque_mouvement = true` partout est donc **sourcé**.
+- **Vue** : la même compilation rapporte qu'Hasbro a confirmé que le mobilier **ne
+  bloque PAS** la ligne de vue, et First Light p. 8 le redit : « *In the original
+  HeroQuest, furniture was used for atmosphere – it didn't obstruct movement or line
+  of sight* » — puis propose une **règle optionnelle** où **tout** le mobilier bloque
+  vue et passage (doc 18 §First Light 5).
+- **Chez nous** : ni l'une ni l'autre. Le partage par hauteur est **maintenu par
+  René le 2026-10-01** en connaissance des deux sources — c'est une **divergence
+  nommée**, plus une zone d'ombre. Ne pas l'« aligner » en croyant corriger un bug.
+
 ### Une fouille par héros et par salle
 
 « A room may be searched by all four heroes, but each individual hero may only search

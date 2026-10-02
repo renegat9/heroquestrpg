@@ -264,7 +264,7 @@ it('Sommeil PREND toujours, et se rompt sur un 6 à l\'ouverture du tour', funct
     // spell is broken. »
     // ⚠ Notre Sommeil était un `jet_mind` AU LANCER : il pouvait rater d'emblée
     // et, une fois posé, ne se levait jamais tout seul.
-    $ctx = lanceurAvecSort('Sommeil', herosAttrs: ['attribut_mind' => 1]);
+    $ctx = lanceurAvecSort('Sommeil', herosAttrs: ['attribut_mind' => 1, 'pv_mind_max' => 1, 'pv_mind' => 1]);
     ['heros' => $heros] = $ctx;
 
     // 1 = rupture immédiate ratée ; 6 = rupture de l'ouverture du tour, réussie.
@@ -285,8 +285,21 @@ it('Sommeil PREND toujours, et se rompt sur un 6 à l\'ouverture du tour', funct
     expect($heros->fresh()->conditions()->where('nom', 'Endormi')->exists())->toBeFalse();
 });
 
+it('la rupture lance un dé par point de Mind ACTUEL, pas par point d\'attribut', function () {
+    // Errata 2021 C4 (René, 2026-10-01) : « 1 red die for each of their MIND
+    // POINTS » — *Mind Blast* dit « currently have ». Un magicien à l'attribut 4
+    // dont l'esprit est tombé à 2 ne lance plus que 2 dés.
+    $ctx = lanceurAvecSort('Sommeil', herosAttrs: ['attribut_mind' => 4, 'pv_mind_max' => 4, 'pv_mind' => 4]);
+    // Le départ de quête remet la jauge au maximum : l'esprit s'entame APRÈS.
+    $ctx['heros']->update(['pv_mind' => 2]);
+
+    $sort = actionDuSort(tourDreadAvec($ctx, [1, 1, 1, 1]), 'Sommeil');
+
+    expect($sort['resultats'][0]['rupture_immediate']['faces'])->toHaveCount(2);
+});
+
 it('Sommeil tient tant qu\'aucun 6 ne tombe', function () {
-    $ctx = lanceurAvecSort('Sommeil', herosAttrs: ['attribut_mind' => 1]);
+    $ctx = lanceurAvecSort('Sommeil', herosAttrs: ['attribut_mind' => 1, 'pv_mind_max' => 1, 'pv_mind' => 1]);
     ['heros' => $heros] = $ctx;
 
     tourDreadAvec($ctx, [1, 1]);
@@ -319,7 +332,7 @@ it('Tourmente fait SAUTER le tour suivant, sans aucun jet', function () {
 
 it("Nuée d'Effroi paralyse TOUS les héros de la salle", function () {
     // « This spell paralyzes ALL heroes located in the same room or corridor. »
-    $ctx = lanceurAvecSort("Nuée d'Effroi", herosAttrs: ['attribut_mind' => 1]);
+    $ctx = lanceurAvecSort("Nuée d'Effroi", herosAttrs: ['attribut_mind' => 1, 'pv_mind_max' => 1, 'pv_mind' => 1]);
     ['quete' => $quete, 'heros' => $heros] = $ctx;
 
     // Aucun 6 : ni la rupture immédiate, ni celle de l'ouverture ne libèrent.
@@ -334,7 +347,7 @@ it("Nuée d'Effroi paralyse TOUS les héros de la salle", function () {
 it('Choc Mental PLAFONNE la défense à 1 dé (et non à zéro)', function () {
     // « The hero DEFENDS WITH 1 COMBAT DIE. » Toute la différence avec la Nuée
     // d'Effroi, qui, elle, supprime la défense.
-    $ctx = lanceurAvecSort('Choc Mental', herosAttrs: ['attribut_mind' => 1]);
+    $ctx = lanceurAvecSort('Choc Mental', herosAttrs: ['attribut_mind' => 1, 'pv_mind_max' => 1, 'pv_mind' => 1]);
     ['heros' => $heros] = $ctx;
 
     tourDreadAvec($ctx, [1, 1]);
@@ -354,7 +367,7 @@ it("Feux de l'Effroi donne +1 dé aux monstres et se rompt sur 5-6, à UN dé", 
     // ⚠ Seule carte dont la rupture ne se joue PAS sur le Mind : un
     // `rupture_6_par_mind` déguisé rendrait le sort presque inébranlable pour un
     // barbare (Mind 1) et trivial pour un magicien.
-    $ctx = lanceurAvecSort("Feux de l'Effroi", herosAttrs: ['attribut_mind' => 4]);
+    $ctx = lanceurAvecSort("Feux de l'Effroi", herosAttrs: ['attribut_mind' => 4, 'pv_mind_max' => 4, 'pv_mind' => 4]);
     ['heros' => $heros] = $ctx;
 
     // 4 = rupture immédiate ratée (seuil 5). UN seul dé, malgré Mind 4.

@@ -954,8 +954,15 @@ final class EtatGroupe
                     'pv_mind_max' => (int) $p->pv_mind_max,
                     // Dés d'attaque / défense (équipement + talents inclus) : panneau
                     // de stats au clic sur l'ordre de jeu (table, C3).
-                    'des_attaque' => (int) $p->des_attaque,
-                    'des_defense' => (int) $p->des_defense,
+                    //
+                    // ⚠ ÉTAT DE CHOC (René 2026-10-01) : ces deux colonnes NE
+                    // VALENT PLUS rien pendant le choc (« armor, weapons, and
+                    // artifacts do not increase the dice »), donc les publier
+                    // telles quelles mentirait sur ce que le résolveur va
+                    // réellement lancer — la même règle que `attaque_supplementaire`
+                    // : le serveur publie la DÉCISION, pas les ingrédients.
+                    'des_attaque' => $p->estEnChoc() ? 1 : (int) $p->des_attaque,
+                    'des_defense' => $p->estEnChoc() ? 2 : (int) $p->des_defense,
                     // …et le BONUS TEMPORAIRE des buffs actifs, relu sur l'effet
                     // du sort/de la potion source. Les colonnes ci-dessus ne
                     // portent que l'équipement et les talents : Peau de Pierre,
@@ -969,6 +976,15 @@ final class EtatGroupe
                     'attribut_body' => (int) $p->attribut_body,
                     'attribut_mind' => (int) $p->attribut_mind,
                     'tombe' => (bool) ($etat?->tombe ?? false),
+                    // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René
+                    // 2026-10-01) : DÉRIVÉ de `pv_mind`, jamais une colonne
+                    // (`Personnage::estEnChoc()`, point de passage unique) —
+                    // publié ici pour que le badge survive un rechargement de
+                    // manette même si la ligne de fil qui l'a déclenché a
+                    // défilé. ⚠ DISTINCT de `tombe` depuis ce même jour : un
+                    // héros en choc reste DEBOUT, il joue juste avec 1 dé
+                    // d'attaque / 2 de défense / sans d6 de mouvement.
+                    'en_choc' => $p->estEnChoc(),
                     // Créneaux du tour (doc 03 §28) : la manette en a besoin pour
                     // GRISER une option dont le créneau vient d'être consommé.
                     // Sans eux, elle affichait un menu périmé et le joueur

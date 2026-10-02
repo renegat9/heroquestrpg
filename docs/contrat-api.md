@@ -51,7 +51,7 @@ Routes protégées par middleware `auth` sauf connexion.
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
-     "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false},
+     "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif"}
   ],
@@ -289,6 +289,16 @@ lit `de_annule`, il ne regarde ni la classe ni la forge.
 ⚠ Le changement de la ligne de catalogue existante passe par une **migration**
 (jamais un re-seed destructeur), et l'arbitrage de `reference/16_armurerie.md`
 est réécrit pour dire quelle source fait foi.
+
+⚠ **L'ÉTAT DE CHOC (René, 2026-10-01) lit EXACTEMENT la même décision**, sans
+être une troisième exemption à écrire : « one red movement die » (AtOH p. 9)
+se lit comme la Plate Mail, via le même `$deAnnule` de `App\Engine\Deplacement`
+— une seule interprétation de cette phrase dans tout le projet. Mais c'est une
+UNION, jamais une délégation à `Equipement::detailDeDeplacementAnnule()` : le
+Chevalier et Allégée exemptent le MALUS D'ARMURE, pas le choc, qui « applies to
+every creature » — un Chevalier en choc perd son dé comme n'importe qui.
+`de_annule_par` nomme les deux sources si elles coïncident (`"Armure de
+plates + État de choc"`).
 
 #### Aperçu du trajet (2026-09-17)
 
@@ -2020,6 +2030,25 @@ Zargon ; le moteur, jamais l'IA, force une relance à la première occasion
 suffixe sur `attaque`/`attaque_monstre`, `malediction_oracle:
 {degats_original, degats_relance, garde}`). Levée par `POST
 /groupes/{id}/marche/lever-malediction`, voir §Phase marché.
+
+⚠ **`entites[].en_choc`** (héros seulement, *Against the Ogre Horde* p. 9,
+Hasbro, confirmée applicable à toute créature ; René, 2026-10-01, qui REVIENT
+sur son arbitrage du 2026-09-06 — 0 Mind ne fait plus TOMBER, il met en CHOC).
+DÉRIVÉ de `pv_mind` (`Personnage::estEnChoc()` : `pv_mind === 0` avec
+`pv_mind_max > 0`), **jamais** une colonne ni une entrée de `conditions[]` —
+publié pour qu'un client rechargé affiche le badge sans avoir à re-dériver la
+règle, la même raison que `benediction_oracle` ci-dessus. ⚠ DISTINCT de
+`tombe` : un héros en choc reste **debout** — il joue, mais `des_attaque` et
+`des_defense` ci-dessus (§`entites[]` heros) publient déjà les valeurs
+PLAFONNÉES (1 / 2, « armor, weapons, and artifacts do not increase the dice
+while a hero is at 0 Mind Points ») plutôt que les colonnes brutes, et le
+déplacement du tour (`deplacement.de_annule` / `de_annule_par`, voir
+§Déplacement) peut valoir `"État de choc"` — composé avec l'Armure de plates
+si les deux s'appliquent (`"Armure de plates + État de choc"`), parce que le
+choc touche **toute** créature, y compris le Chevalier que le seul malus
+d'armure exempte. Un buff de SORT (`bonus_des_attaque`/`bonus_des_defense`)
+continue de s'ajouter par-dessus le plafond — « can be temporarily increased
+by some spells » — jamais un objet ou une potion.
 
 ## Modèle de session : Narrateur (table) vs Joueur (compte)
 

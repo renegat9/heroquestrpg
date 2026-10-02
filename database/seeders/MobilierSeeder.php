@@ -12,17 +12,19 @@ use Illuminate\Database\Seeder;
  * n'ont aucune mesure indépendante et resteraient une invention si on les
  * codait.
  *
- * `bloque_mouvement` = true partout (inchangé) : voir le commentaire de la
- * migration `create_mobiliers_table` pour la convention retenue (aucun
- * livret ne dit noir sur blanc qu'un héros ne peut pas se tenir sur la case
- * d'un meuble — doc 17 §3 — c'est un choix de portage).
+ * `bloque_mouvement` = true partout (inchangé), et SOURCÉ depuis le
+ * 2026-10-01 : Hasbro a confirmé officiellement que le mobilier est
+ * infranchissable (compilation d'errata Ye Olde Inn, doc 17 §3). Le livret de
+ * règles, lui, ne le dit toujours pas en toutes lettres.
  *
- * `bloque_vue` : ⚠ DÉCISION DE PORTAGE, pas une donnée sourcée. Aucun des
- * deux livrets officiels ne traite JAMAIS de la ligne de vue du mobilier —
- * doc 17 §3 a déjà établi qu'ils ne disent même pas qu'un meuble bloque le
- * PASSAGE, alors la vue... Le critère retenu ici est la hauteur physique de
- * la pièce : un meuble HAUT (à hauteur d'yeux ou plus) coupe la vue comme un
- * mur ; un meuble BAS (hauteur de table) laisse voir par-dessus.
+ * `bloque_vue` : ⚠ DIVERGENCE NOMMÉE, pas une donnée sourcée. Les sources
+ * existent depuis First Light et elles disent autre chose : au jeu de base le
+ * mobilier ne bloque PAS la vue (Hasbro, et First Light p. 8 : « it didn't
+ * obstruct movement or line of sight »), et la règle OPTIONNELLE de First
+ * Light le fait bloquer EN ENTIER. René a maintenu le partage par hauteur le
+ * 2026-10-01 en connaissance des deux (errata 2021 C2) : un meuble HAUT (à
+ * hauteur d'yeux ou plus) coupe la vue comme un mur ; un meuble BAS (hauteur
+ * de table) laisse voir par-dessus.
  *   - true  : Bibliothèque, Râtelier d'armes, Armoire — mobilier vertical,
  *     dressé contre un mur, qui dépasse largement la taille d'un héros.
  *   - false : Table, Coffre, Trône, Établi d'alchimiste, Tombeau — mobilier

@@ -246,7 +246,8 @@ class ObjetSeeder extends Seeder
             // « The sword Orcs Bane allows you to roll two combat dice in
             // attack. You may attack TWICE if you are fighting Orcs. »
             ['nom' => 'Fléau des Orques', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_courante',
-                'effet' => ['des_attaque' => 2, 'attaque_double_contre' => ['Orque']]],
+                // `est_une` : « c'est une épée courte » (Avalon Hill, errata 2021 B2).
+                'effet' => ['des_attaque' => 2, 'attaque_double_contre' => ['Orque'], 'est_une' => 'Épée courte']],
             // « Spirit Blade allows you to roll three combat dice in attack OR
             // four dice in attack against undead creatures such as Skeletons,
             // Zombies and Mummies. » — les trois noms sont ceux de la carte,
@@ -304,7 +305,8 @@ class ObjetSeeder extends Seeder
             // La valeur 99 dit « toute la défense » : le résolveur retranche, et
             // `max(0, …)` plafonne — la carte ne laisse aucun dé à la cible.
             ['nom' => 'Lame Fantôme', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 900, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
-                'effet' => ['des_attaque' => 1,
+                // `est_une` : « c'est une dague » (Avalon Hill, errata 2021 B2).
+                'effet' => ['des_attaque' => 1, 'est_une' => 'Dague',
                     'activable' => true, 'cible' => 'soi', 'cout' => 'gratuit', 'frequence' => 'une_fois_par_quete',
                     'ignore_defense_monstre' => 99, 'duree' => 'prochaine_attaque',
                     'condition_appliquee' => 'Perce-armure']],
@@ -512,7 +514,8 @@ class ObjetSeeder extends Seeder
             // aurait mis un bouton « perdre définitivement cet artefact » dans
             // le menu, sur la foi d'une ressemblance de catégorie.
             ['nom' => 'Serre du Corbeau', 'categorie' => 'arme', 'rarete' => 'unique', 'prix_base' => 800, 'emplacement' => 'arme_principale', 'tag_equipement' => 'arme_legere',
-                'effet' => ['des_attaque' => 2,
+                // `est_une` : « when using THIS DAGGER » (errata 2021 B2).
+                'effet' => ['des_attaque' => 2, 'est_une' => 'Dague',
                     'relance_des_attaque_sur_face' => ['face' => 'bouclier_noir', 'nombre' => 1]]],
 
             // « To jump over one discovered trap per turn, roll anything but a
@@ -676,7 +679,12 @@ class ObjetSeeder extends Seeder
             // `armure_magicien` — les Brassards seraient restés réservés au
             // magicien sur les bases existantes, et ouverts à tous sur les
             // neuves. Constaté au re-seed du 2026-08-15.
-            ['nom' => 'Brassards', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
+            //
+            // ⚠ CUIR, pas métal : « These HARDENED LEATHER bracers ». Les
+            // marquer `metallique` (2026-08-22) les fermait au Druide et au
+            // Rogue et coûtait son dé au Barde — corrigé par migration le
+            // 2026-10-01 (`brassards_en_cuir`, errata 2021 B1).
+            ['nom' => 'Brassards', 'categorie' => 'armure', 'metallique' => false, 'prix_base' => 550, 'emplacement' => 'armure', 'tag_equipement' => null,
                 'effet' => ['des_defense' => 1]],
             // Carte OFFICIELLE 2021 : « +2 dés de défense, mais 1 seul dé
             // rouge de mouvement » (René, 2026-09-24 — remplace la valeur
@@ -720,7 +728,8 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Potion de soin mineur', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 2, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de vitesse', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable',
-                'effet' => ['deplacement_multiplie' => 2, 'duree' => 'ce_tour', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
+                // « next movement » : `prochain_deplacement` (errata 2021 B4).
+                'effet' => ['deplacement_multiplie' => 2, 'duree' => 'prochain_deplacement', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de force glaciale', 'categorie' => 'consommable', 'prix_base' => 200, 'emplacement' => 'consommable', 'tag_equipement' => 'potion_barbare',
                 'effet' => ['multiplicateur_degats' => 2, 'duree' => 'prochaine_attaque', 'condition_appliquee' => 'Renforcé', 'cible' => 'heros_adjacent']],
             ['nom' => 'Antidote au venin', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable',
@@ -748,7 +757,9 @@ class ObjetSeeder extends Seeder
                 'effet' => ['soin_pv_body_de' => 6, 'cible' => 'heros_adjacent']],
             ['nom' => 'Potion de régénération', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body_de' => 6, 'cible' => 'heros_adjacent']],
-            ['nom' => 'Potion de restauration', 'categorie' => 'consommable', 'prix_base' => 500, 'emplacement' => 'consommable',
+            // 300 et non 500 : réimpression *Rise of the Dread Moon* (Alchemy),
+            // retenue par René le 2026-10-01 — doc 16 §2.1bis, errata 2021 C3.
+            ['nom' => 'Potion de restauration', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable',
                 'effet' => ['soin_pv_body' => 1, 'soin_pv_mind' => 1, 'cible' => 'heros_adjacent']],
             // Explicitement citée par René comme exemple de ce qui « a du
             // sens » donnée à un voisin — Elfe seulement, comme Rappel.

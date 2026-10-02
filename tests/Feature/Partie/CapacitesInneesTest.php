@@ -174,6 +174,23 @@ it('LÉGER SUR SES PIEDS donne un dé de défense — et le retire sous le méta
     expect($sorts->desDefenseHeros($barde->fresh()))->toBe($base);
 });
 
+it('LÉGER SUR SES PIEDS survit aux Brassards, qui sont de cuir', function () {
+    // « These HARDENED LEATHER bracers » — errata 2021 B1 (2026-10-01). Marqués
+    // métalliques par erreur, ils coûtaient au Barde le dé que sa carte lui
+    // promet précisément quand il renonce au métal.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $barde = creerHeros($alice, $groupe, 'Lyr', 1, ['classe' => 'barde']);
+    $base = (int) $barde->des_defense;
+
+    Inventaire::create([
+        'personnage_id' => $barde->id, 'objet_id' => Objet::where('nom', 'Brassards')->firstOrFail()->id,
+        'quantite' => 1, 'emplacement' => 'armure',
+    ]);
+
+    expect(app(MoteurSorts::class)->desDefenseHeros($barde->fresh()))->toBe($base + 1);
+});
+
 it('donne à chaque classe le mouvement de sa RACE, plus un trait d\'agilité', function () {
     // ⚠ Ce socle est ENTIÈREMENT de nous — les cartes ne donnent que « 2 dés
     // rouges », sans base. Il n'y a donc rien à sourcer, seulement une

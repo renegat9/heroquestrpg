@@ -2179,13 +2179,16 @@ final class MoteurDread
      * Mind restant, ou zéro), pas un nombre de points à retirer : c'est
      * pourquoi le sort calcule d'abord la PERTE (`avant − cible`) avant
      * d'appeler `MoteurDegats::infligerMindAHeros()`, seul producteur de la
-     * jauge — il pose déjà `tombe` à 0 Mind, ce lecteur ne le refait pas.
+     * jauge.
      *
-     * ⚠ L'« état de choc » de la carte est une DETTE NOMMÉE (section du
-     * livret Frozen Horror que le projet n'a pas) — non inventée. Ce qui EST
-     * porté : Mind à zéro fait tomber le héros, la symétrie que
-     * `MoteurDegats::infligerMindAHeros()` porte déjà depuis la phase 1 du
-     * plan (arbitrage de René, 2026-09-06).
+     * ⚠ L'« état de choc » de la carte N'EST PLUS une dette (portée le
+     * 2026-10-01, *Against the Ogre Horde* p. 9, confirmée par Hasbro
+     * applicable à toute créature) : un héros réduit à 0 Mind n'y tombe plus
+     * (René REVIENT sur son arbitrage du 2026-09-06), il entre en CHOC —
+     * `Personnage::estEnChoc()`, lu au moment du jet par `ResolveurTour::frapper()`,
+     * `MoteurSorts::desDefenseHerosDetail()` et `MenuMoteur::deplacementDuTour()`.
+     * Ce lecteur-ci n'a rien de plus à faire que de laisser la jauge
+     * redescendre : le plafond de dés n'est pas une affaire de ce sort.
      *
      * ⚠ ORBE CÉLESTE (Sky Orb) : `MoteurSorts::absorbePartielDegatMind()`
      * grignote la PERTE avant qu'elle n'atteigne `infligerMindAHeros()` — un
@@ -2247,7 +2250,11 @@ final class MoteurDread
                 // injouable — le joueur doit voir POURQUOI il a perdu moins que
                 // le jet ne le disait.
                 'mind_absorbe' => $absorbe,
-                'cible_tombee' => (int) $personnage->pv_mind === 0 && $subis > 0,
+                // ⚠ `entre_en_choc`, PLUS `cible_tombee` (René, 2026-10-01) :
+                // 0 Mind met en état de choc, ça ne fait plus tomber — cette
+                // clé est lue par `JournalCombat::sortDread()` au lieu de la
+                // branche générique « s'effondre ! ».
+                'entre_en_choc' => (int) $personnage->pv_mind === 0 && $subis > 0,
             ]],
         ];
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -2261,8 +2268,9 @@ final class MoteurDread
      * `attribut_mind` — la carte dit « per Mind Point POSSESSED », c'est-à-
      * dire la jauge, et confondre les deux ferait résister moins bien un
      * héros déjà entamé par ses propres soins, une règle que personne n'a
-     * écrite. Un héros à 0 Mind est déjà tombé : le geler ne dirait rien de
-     * plus, `null` l'exclut du calcul comme de la cible.
+     * écrite. Un héros à 0 Mind est déjà EN CHOC — « a creature cannot go
+     * below 0 Mind Points » — le geler ne dirait rien de plus, `null` l'exclut
+     * du calcul comme de la cible.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $enVue
      */

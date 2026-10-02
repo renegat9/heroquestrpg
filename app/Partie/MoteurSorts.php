@@ -64,7 +64,8 @@ use Illuminate\Validation\ValidationException;
  *    ENGAGÉ (actif ET révélé), et non plus « fin de quête » comme au MVP ;
  *  - Voile de Brume (condition Caché)  : `prochain_tour` — couvre la phase des
  *    monstres, ce qui est tout l'intérêt d'une protection ;
- *  - Vent Véloce (deplacement_multiplie): `ce_tour`.
+ *  - Vent Véloce (deplacement_multiplie): `prochain_deplacement` (errata
+ *    2021 B4 — `ce_tour` le perdait si le porteur ne bougeait pas).
  *
  * CONDITIONS DES MONSTRES : il n'existe pas de pivot conditions pour les
  * instances de monstres (et pas de nouvelle migration) — elles vivent dans
@@ -449,9 +450,24 @@ final class MoteurSorts
         }
 
         $modificateurs = [];
-        $des = (int) $personnage->des_defense + $this->bonusDes($personnage, 'bonus_des_defense');
 
-        $leger = app(CapacitesInnees::class)->noeud($personnage, 'bonus_des_defense_sans_metal');
+        // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René 2026-10-01) :
+        // « can only roll [...] 2 Defend dice. Armor, weapons, and artifacts
+        // do not increase the [...] Defend dice while a hero is at 0 Mind
+        // Points. The creature's [...] Defend dice can be temporarily
+        // increased by some spells and spell scrolls. » La BASE devient 2,
+        // en écartant `des_defense` (classe + arme/bouclier + Forge +
+        // artefact + talents passifs permanents qui l'alimentent) — mais le
+        // buff de sort (`bonusDes`) continue de s'ajouter, exactement ce que
+        // « some spells and spell scrolls » excepte. Lu ICI, au moment du
+        // jet (`Personnage::estEnChoc()`), jamais sur la colonne : `pv_mind`
+        // varie en quête sans jamais redéclencher `recalculerCombat()`.
+        $enChoc = $personnage->estEnChoc();
+        $des = ($enChoc ? 2 : (int) $personnage->des_defense) + $this->bonusDes($personnage, 'bonus_des_defense');
+
+        // « Léger sur ses pieds » (Barde) est un talent PASSIF : la carte de
+        // choc l'écarte au même titre que le reste de l'équipement/des talents.
+        $leger = $enChoc ? null : app(CapacitesInnees::class)->noeud($personnage, 'bonus_des_defense_sans_metal');
 
         if ($leger !== null && ! app(Equipement::class)->porteMetalOuBouclier($personnage)) {
             $valeur = (int) ($leger->effet['valeur'] ?? 1);
@@ -1647,8 +1663,19 @@ final class MoteurSorts
 
         // *Dreadlights* : un seul dé, 5 ou 6. Les quatre autres : un dé par
         // point de Mind, et seul le 6 libère.
+        //
+        // ⚠ Les points de Mind ACTUELS — la jauge `pv_mind`, pas l'attribut
+        // d'épreuve `attribut_mind` (errata 2021 C4, René 2026-10-01). Les
+        // cartes disent « 1 red die for each of their MIND POINTS », *Mind
+        // Blast* précise « currently have », et *Against the Ogre Horde* p. 10
+        // le redit : « combat dice equal to their Mind Points ». Lire
+        // l'attribut (3-4) était sans conséquence tant que personne ne perdait
+        // de Mind ; depuis *Gel de l'Esprit*, un esprit entamé se libère moins
+        // bien — et un héros en état de choc (0 Mind) ne se libère plus seul.
+        // C'est la même lecture que le côté monstre (`tenterRupture()` lit
+        // `instances_monstres.pv_mind`).
         $unDe = $resistance === MotsClesSortDread::RESISTANCE_RUPTURE_5_6;
-        $nb = $unDe ? 1 : max(0, (int) $personnage->attribut_mind);
+        $nb = $unDe ? 1 : max(0, (int) $personnage->pv_mind);
         $seuil = $unDe ? 5 : 6;
 
         $lanceur = app(LanceurDes::class);

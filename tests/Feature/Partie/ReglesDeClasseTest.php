@@ -48,6 +48,13 @@ dataset('accès équipement', [
     'moine : rapière refusée' => ['moine', 'Rapière', false],
     'moine : armure refusée' => ['moine', 'Cotte de mailles', false],
     'moine : bouclier refusé' => ['moine', 'Bouclier', false],
+    // Les artefacts qui SONT une arme de sa liste (errata 2021 B2, Avalon
+    // Hill : Orc's Bane = épée courte, Phantom Blade = dague ; Raven's Talon
+    // « this dagger »).
+    'moine : Fléau des Orques (épée courte)' => ['moine', 'Fléau des Orques', true],
+    'moine : Lame Fantôme (dague)' => ['moine', 'Lame Fantôme', true],
+    'moine : Serre du Corbeau (dague)' => ['moine', 'Serre du Corbeau', true],
+    'moine : Lame des Esprits refusée' => ['moine', 'Lame des Esprits', false],
 
     // Rogue — ni armure métallique ni bouclier.
     'rogue : cotte refusée' => ['rogue', 'Cotte de mailles', false],
@@ -59,6 +66,11 @@ dataset('accès équipement', [
     // nomment séparément, et le Druide n'a que la première interdiction.
     'druide : cotte refusée' => ['druide', 'Cotte de mailles', false],
     'druide : bouclier gardé' => ['druide', 'Bouclier', true],
+
+    // Brassards — « hardened LEATHER bracers » : pas de métal, donc ouverts
+    // aux deux classes qui le refusent (errata 2021 B1, 2026-10-01).
+    'druide : brassards de cuir' => ['druide', 'Brassards', true],
+    'rogue : brassards de cuir' => ['rogue', 'Brassards', true],
 
     // Berserker — n'utilise pas d'arme à distance.
     'berserker : arbalète refusée' => ['berserker', 'Arbalète', false],
@@ -77,7 +89,10 @@ it('applique les restrictions d’équipement du dos des cartes', function (stri
 it('marque comme métallique toute pièce de métal — protections ET armes', function () {
     $metal = Objet::where('metallique', true)->pluck('nom')->all();
 
-    expect($metal)->toContain('Cotte de mailles', 'Armure de plates', 'Casque', 'Brassards')
+    expect($metal)->toContain('Cotte de mailles', 'Armure de plates', 'Casque')
+        // ⚠ Les BRASSARDS n'en sont pas : « these hardened LEATHER bracers ».
+        // Ce test les y figeait depuis le 2026-08-22 (errata 2021 B1).
+        ->not->toContain('Brassards')
         // ⚠ L'artefact aussi : l'Armure de Borin est de la plate (rappel de René).
         ->toContain('Armure de Borin')
         // ⚠ Les ARMES depuis le 2026-09-04 : la carte de Dread *Rust* a besoin

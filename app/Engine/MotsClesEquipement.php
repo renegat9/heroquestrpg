@@ -452,6 +452,26 @@ final class MotsClesEquipement
      */
     public const COMPTE_COMME_ARME = 'compte_comme_arme';
 
+    /**
+     * Cette arme EST une arme de base nommée — *Fléau des Orques* est une épée
+     * courte, *Lame Fantôme* une dague (confirmations officielles d'Avalon
+     * Hill rapportées par la compilation d'errata Ye Olde Inn), *Serre du
+     * Corbeau* aussi (sa carte : « when using THIS DAGGER »). Errata 2021 B2,
+     * 2026-10-01.
+     *
+     * Ce que ça change : les règles qui NOMMENT une arme la reconnaissent sous
+     * son nom d'artefact — l'Ambidextrie du Rogue (« with a shortsword or
+     * dagger ») et la liste blanche du Moine (« dagger, crossbow, handaxe,
+     * shortsword, staff »). Aucun dé, aucune autre règle : le nom de catalogue
+     * reste celui de l'artefact.
+     *
+     * ⚠ Ce n'est PAS `COMPTE_COMME_ARME` : la Bandoulière compte depuis le SAC
+     * (« always considered to be armed »), une arme `est_une` ne compte que
+     * pour ELLE-MÊME, là où une règle examine l'arme en main.
+     * Lecteur : `Equipement::estArmeDeType()`.
+     */
+    public const EST_UNE = 'est_une';
+
     // ----------------------------------------------------------- CONSOMMABLES
 
     /** Soin d'un montant FIXE de PV Body (potion de marché). `MoteurPotions`. */
@@ -876,6 +896,7 @@ final class MotsClesEquipement
         self::POSE_CHAUSSE_TRAPPES,
         self::ENFUME_MONSTRE_ADJACENT,
         self::COMPTE_COMME_ARME,
+        self::EST_UNE,
         self::SOIN_PV_BODY,
         self::SOIN_PV_BODY_DE,
         self::SOIN_PV_MIND,
@@ -986,6 +1007,7 @@ final class MotsClesEquipement
         self::INUTILISABLE_ADJACENT => 'Inutilisable au contact',
         self::DEPLACEMENT_SANS_D6 => 'Le dé de déplacement ne compte pas : avance de sa base seule',
         'compte_comme_arme' => 'Compte comme : %s',
+        self::EST_UNE => 'Arme de type : %s',
 
         // --- Déplacement
         'bonus_deplacement' => '+%s de déplacement',
@@ -1201,6 +1223,7 @@ final class MotsClesEquipement
         'fin_du_combat' => 'fin du combat',
         'prochain_tour' => 'prochain tour',
         'ce_tour' => 'ce tour',
+        'prochain_deplacement' => 'prochain déplacement',
         'rupture_6_par_mind' => 'jet de rupture (un 6 libère)',
         'gratuit' => 'gratuit',
         'action' => "l'action du tour",

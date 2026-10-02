@@ -64,7 +64,7 @@ it('propose et résout « relever » un allié tombé adjacent (sacrifie le tour
         ->and((bool) $eG->fresh()->a_joue)->toBeTrue();    // Grimnar a sacrifié son tour
 });
 
-it('relève la jauge tombée à ZÉRO : Mind si c\'est le Mind qui est vide', function () {
+it('« relever » soigne le BODY seulement — le Mind/l\'état de choc ne tombe plus, et ce geste ne le lève pas (René, 2026-10-01)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $grimnar = creerHeros($alice, $groupe, 'Grimnar', 1, ['classe' => 'barbare']);
@@ -79,10 +79,12 @@ it('relève la jauge tombée à ZÉRO : Mind si c\'est le Mind qui est vide', fu
     EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $khazra->id)
         ->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'tombe' => true]);
 
-    // Corps intact, ESPRIT vidé. ⚠ Aucun effet ne réduit `pv_mind` d'un héros
-    // aujourd'hui : la branche est correcte mais dormante, et ce test est ce
-    // qui la garde vivante le jour où un effet saura entamer l'esprit.
-    $khazra->update(['pv_body' => 3, 'pv_mind' => 0]);
+    // Tombé au CORPS (0 Body) ET en ÉTAT DE CHOC (0 Mind) en même temps —
+    // deux choses distinctes depuis le 2026-10-01. ⚠ La branche Mind de
+    // `resoudreRelever()` a été RETIRÉE le même jour : elle n'existait que
+    // parce que 0 Mind faisait tomber, et ce n'est plus vrai (*Against the
+    // Ogre Horde* p. 9 — « they go into shock », pas une chute).
+    $khazra->update(['pv_body' => 0, 'pv_mind' => 0]);
 
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $grimnar->id);
     $menu = Cache::get(GenererMenu::cleMenu($groupe->id, (int) $alice->id))['menu'];
@@ -91,11 +93,16 @@ it('relève la jauge tombée à ZÉRO : Mind si c\'est le Mind qui est vide', fu
     test()->actingAs($alice, 'joueur')
         ->postJson('/api/groupes/table-1/choix', ['option_id' => $relever['id']])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.jauges_relevees', ['pv_mind']);
+        ->assertJsonPath('resultat.jauges_relevees', ['pv_body']);
 
-    // Le Mind remonte à 1 ; le Body, qui n'était pas à zéro, n'est pas touché.
-    expect((int) $khazra->fresh()->pv_mind)->toBe(1)
-        ->and((int) $khazra->fresh()->pv_body)->toBe(3);
+    // Le Body remonte à 1 point et Khazra se relève ; le Mind, lui, RESTE à
+    // zéro — « relever » n'est plus un soin d'esprit, seul un vrai soin de
+    // Mind (potion, sort) lève le choc.
+    expect((int) $khazra->fresh()->pv_body)->toBe(1)
+        ->and((int) $khazra->fresh()->pv_mind)->toBe(0)
+        ->and($khazra->fresh()->estEnChoc())->toBeTrue()
+        ->and((bool) EtatPersonnageQuete::where('quete_id', $quete->id)
+            ->where('personnage_id', $khazra->id)->first()->tombe)->toBeFalse();
 });
 
 it('ne RETIRE jamais de PV à un tombé qui en a encore (potion bue à terre)', function () {

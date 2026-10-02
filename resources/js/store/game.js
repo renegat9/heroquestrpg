@@ -474,6 +474,21 @@ export function badgesFigure(entite) {
         });
     }
 
+    // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René 2026-10-01) : DÉRIVÉ
+    // de pv_mind côté serveur (`Personnage::estEnChoc()`), jamais une
+    // `conditions[]` — publié en booléen (`entites[].en_choc`) comme
+    // benediction/malediction_oracle, pour la même raison : un badge qui ne
+    // dépend d'aucune ligne du fil qui vient de défiler.
+    if (entite?.en_choc) {
+        badges.unshift({
+            nom: 'en_choc',
+            t: 'fear',
+            l: 'En état de choc — 1 dé d\'attaque, 2 de défense, aucun d6 de mouvement',
+            ic: 'psychology',
+            d: null,
+        });
+    }
+
     if (jetons > 0) {
         badges.unshift({
             nom: 'rejetons',
@@ -691,6 +706,10 @@ export function statsFigure(item, entites) {
         attribut_body: e.attribut_body ?? null,
         attribut_mind: e.attribut_mind ?? null,
         conditions: e.conditions ?? [],
+        // ÉTAT DE CHOC (René 2026-10-01) : héros seulement (`entites[].en_choc`,
+        // dérivé de pv_mind côté serveur) — `des_attaque`/`des_defense`
+        // ci-dessus sont déjà les valeurs PLAFONNÉES (1/2) le temps du choc.
+        en_choc: !!e.en_choc,
     };
 }
 

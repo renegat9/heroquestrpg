@@ -844,6 +844,10 @@ final class SceneDeTable
                     'detail' => null,
                 ]],
                 'issue' => match (true) {
+                    // Gel de l'Esprit (René, 2026-10-01) : 0 Mind met en ÉTAT
+                    // DE CHOC, ça ne fait plus tomber — clé DISTINCTE de
+                    // `cible_tombee`, qui reste vraie pour un Body à zéro.
+                    ! empty($r['entre_en_choc']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} entre en état de choc"],
                     ! empty($r['cible_tombee']) => ['ton' => 'chute', 'libelle' => "{$cibleNom} s'effondre"],
                     (int) ($r['degats'] ?? 0) > 0 => ['ton' => 'subit', 'libelle' => '−'.(int) $r['degats'].' PV'],
                     array_key_exists('effet_applique', $r) => empty($r['effet_applique'])

@@ -122,7 +122,7 @@ it('ne propose AUCUNE réaction hors tour sur un dégât de Mind, même à 0 PV 
         ->and($etat->fresh()->reaction_en_attente)->toBeNull();
 });
 
-it('fait TOMBER le héros à 0 Mind — symétrique de la chute à 0 Body (arbitrage de René, 2026-09-06)', function () {
+it('ne fait PLUS tomber le héros à 0 Mind — il entre en ÉTAT DE CHOC (René REVIENT le 2026-10-01 sur son arbitrage du 2026-09-06)', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $heros = $ctx['heros'];
     $etat = $ctx['etatHeros'];
@@ -133,15 +133,18 @@ it('fait TOMBER le héros à 0 Mind — symétrique de la chute à 0 Body (arbit
         $heros, (int) $heros->pv_mind, MoteurDegats::SOURCE_SORT_DREAD_MIND,
     );
 
+    // *Against the Ogre Horde* p. 9 : « they go into shock », pas « ils
+    // tombent » — le héros reste DEBOUT.
     expect((int) $heros->fresh()->pv_mind)->toBe(0)
-        ->and($etat->fresh()->tombe)->toBeTrue();
+        ->and($etat->fresh()->tombe)->toBeFalse()
+        ->and($heros->fresh()->estEnChoc())->toBeTrue();
 
-    // `verdictDeChute()` ne lit QUE la colonne `tombe`, jamais `pv_body`
-    // directement (voir son docblock) : un groupe entier tombé d'esprit est
-    // donc déjà un TPK par construction, sans qu'une ligne y ait été ajoutée.
+    // `verdictDeChute()` ne lit QUE la colonne `tombe` : un groupe entier à 0
+    // Mind n'est donc PLUS un TPK — il reste `debout`, et doit jouer avec 1
+    // dé d'attaque / 2 de défense pour s'en sortir (voir `EtatDeChocTest.php`).
     $verdict = app(App\Partie\ResolveurTour::class)->verdictDeChute($ctx['groupe']->fresh(), $ctx['quete']->fresh());
 
-    expect($verdict)->toBe('tpk');
+    expect($verdict)->toBe('debout');
 });
 
 it('RÉVEILLE LE LECTEUR DORMANT : Récupération Psychique rend autre chose que 0 après un dégât de Mind', function () {
