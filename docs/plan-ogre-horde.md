@@ -12,6 +12,18 @@
 > texte mélange les colonnes). Les numéros ci-dessous sont les **pages
 > imprimées**.
 
+## Décisions de René (2026-10-02)
+
+| # | Décision | Conséquence dans les lots |
+|---|---|---|
+| **Q1** Tournoi | **Plan dédié** : `docs/plan-tournoi-worlds-end.md`, avec ses propres questions TQ1-TQ5 | Le lot F devient ce plan |
+| **Q2** Allié animal | **Proposé au début d'une campagne** dont le groupe compte **moins de 4 joueurs** | Lot E. ⚠ Interprétation à confirmer à l'implémentation : proposé **une fois**, à la création du groupe, **gratuitement** (comme au livret, « at no cost »), et il accompagne le groupe pendant **toute la campagne**, faute de quoi « au début d'une campagne » n'aurait pas de sens. Il garde notre règle d'un animal par groupe et reste joué par le moteur (le contrôle par le joueur n'a pas été demandé) |
+| **Q3** Mercenaire ogre | **Même fonctionnement que les autres alliés** : pas de reconduction à moitié prix | Rien à faire : `MercenaireSeeder` et le hub le traitent déjà ainsi. La règle du livret est écartée par cette phrase |
+| **Q4** *Dominate* | **Oui** : le moteur joue le héros dominé pendant un tour | Lot D, en dernier |
+| **Q5** Capacités des ogres | Recherche faite (Hasbro, Ye Olde Inn, BoardGameGeek, annonces) : **aucun texte des cartes 2023 en ligne**. Les seules transcriptions complètes visent la version 1990 (Games Workshop/MB). Conformément à la consigne, **on n'y touche plus** | `charge`, `frappe_de_zone` et `resistance_magique` restent, mais sont notés comme **capacités DE NOUS** dans `reference/18` (lot A) : le livret n'en donne aucune |
+| **Q6** Archers | **Générique** : une règle « variante à distance » utilisable par tous les thèmes | Lot B |
+| **Q7** Paliers | **Confirmé** : boss Gruzbella et Festral ; sous-boss Doralf, Spawn of the Pit, Xenloth et l'Effigie ; Nexrael au palier que mesurera son `cout` | Lot C |
+
 ## 0. Ce que le livret contient, et ce qu'il ne contient pas
 
 **Le livret porte** : les règles de la boîte (p. 4-16), dix quêtes (p. 21-39),
