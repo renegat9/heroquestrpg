@@ -189,6 +189,11 @@ it('laisse le NARRATEUR (session de table, sans compte) démarrer la quête', fu
 it('remet les héros à plein PV au démarrage de CHAQUE quête suivante (P2, doc 01 §13)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe(nbQuetes: 2);
+    // ⚠ Plan SANS sous-boss, posé exprès (2026-10-02) : sans plan, le repli de
+    // `JalonsCampagne` met désormais un sous-boss en quête 1 — sa victoire fait
+    // monter d'un niveau, et un niveau pair rend +1 PV de Body au barbare. Ce
+    // test vérifie l'ABSENCE de repos au hub, pas la montée de niveau.
+    $groupe->update(['plan_campagne' => ['jalons' => [['position' => 2, 'type' => 'boss_final']]]]);
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();

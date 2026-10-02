@@ -108,7 +108,7 @@ phase. »
 |---|---|---|---|
 | **Gruzbella Hammerhand** (q. 3) | Confiante 4/6/5/5/4 → Déterminée 5/5/7/5/4 → Imprudente 6/1/8/5/4 | 3 capacités, **une fois chacune**, sans action : *Break* (met fin à un sort actif sur elle), *Resilience* (ignore tous les dégâts d'une attaque), *Deflect* (redirige l'attaque qui la vise vers un héros dans ses 10 cases). Vaincue, elle s'incline et paie **1000 po** | **Boss** de la boîte (aujourd'hui « pauvre en boss » : le Seigneur ogre est seul). ⚠ Elle n'est pas maléfique (p. 2) : une défaite **sans mort** se raconte bien (duel d'honneur) |
 | **Spawn of the Pit** (q. 1) | 4/3/6/4/3 → *Enraged* 5/1/10/6/1 | 2 phases | Sous-boss |
-| **Doralf**, pit fighter ogre (q. 2) | 6/5/6/7/3 | — | Sous-boss |
+| **Doralf**, pit fighter ogre (q. 2) | 6/5/6/7/3 | — | **Sous-boss** (René, 2026-10-02) — sa résistance (~10,5 attaques de héros) est celle d'un boss, mais il n'a aucune capacité : une brute très dure |
 | **Guardian Effigy** (q. 4) | 3/5/0/2/0 | Immobile ; chaque tour, une boule de feu à 3 dés sur un héros en vue ; **immunisée à tous les sorts** | Tourelle de salle : une créature à `deplacement` 0, une attaque à distance, et l'immunité aux sorts (à vérifier dans le vocabulaire) |
 | **Ekur**, Seigneur ogre (q. 9) | stats du tableau p. 41 | — | Nom d'habillage du `Seigneur ogre` (l'IA renomme déjà) |
 | **Tograk**, Commandant ogre (q. 6) | stats du tableau | — | Idem |
@@ -202,6 +202,8 @@ Les dix quêtes sont des donjons **imprimés** et nous n'en jouons aucun. Leurs
 | **Q5** | Les capacités de nos ogres (`charge`, `frappe_de_zone`, `resistance_magique`) : photos des **cartes de monstre** pour les sourcer, ou divergence nommée ? | Demander les photos, avec celles des autres cartes de la boîte (§5) |
 | **Q6** | Les archers (gobelin, orque, squelette) : boîte `jungles_delthrak` seulement, ou aussi `horde_ogre` ? `monstres.boite` n'a qu'une valeur | Une règle générique « variante à distance » (p. 8) plutôt qu'une boîte : les deux thèmes y puisent |
 | **Q7** | Gruzbella **boss** de la boîte, Doralf et le Spawn **sous-boss**, les trois sorciers comme lanceurs de Dread du thème ? | Oui : c'est ce qui donne une identité à la boîte, aujourd'hui quatre ogres sans magie |
+
+**Q7 — en partie tranchée (René, 2026-10-02)** : **Doralf est sous-boss**. Le reste suit la mesure de résistance de `cout` (nombre d'attaques de héros à 3 dés pour l'abattre) : **boss** Gruzbella (~21, comme le Seigneur ogre) et Festral (lanceur, comme l'Archimage elfe) ; **sous-boss** Spawn of the Pit (~8,5), Xenloth, l'Effigie gardienne (~3) ; Nexrael au palier que son `cout` mesuré lui donnera. ⚠ Une campagne n'a qu'**un** boss (dernière quête) mais jusqu'à **quatre** sous-boss (`JalonsCampagne::nbSousBossAttendu()`) : ce sont les sous-boss qui donnent sa couleur à un arc ogre.
 
 ## 5. Sources à demander (photos des cartes)
 

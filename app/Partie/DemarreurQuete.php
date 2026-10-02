@@ -447,20 +447,14 @@ final class DemarreurQuete
     }
 
     /**
-     * Type du jalon courant : squelette de campagne si présent, sinon
-     * boss_final à la dernière quête de l'arc, normale ailleurs.
+     * Type du jalon courant — `JalonsCampagne`, point de passage unique : le
+     * squelette de campagne s'il existe, sinon la MÊME cadence de sous-boss
+     * que celle exigée de l'IA (le repli ne plaçait que le boss final, si
+     * bien qu'une campagne sans clé d'API n'avait aucun sous-boss).
      */
     private function typeJalon(Groupe $groupe, int $positionArc): string
     {
-        foreach ($groupe->plan_campagne['jalons'] ?? [] as $jalon) {
-            if ((int) ($jalon['position'] ?? 0) === $positionArc) {
-                return in_array($jalon['type'] ?? null, ['sous_boss', 'boss_final'], true)
-                    ? $jalon['type']
-                    : 'normale';
-            }
-        }
-
-        return $positionArc >= (int) $groupe->nb_quetes_total ? 'boss_final' : 'normale';
+        return app(JalonsCampagne::class)->type($groupe, $positionArc);
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Agent\Skills;
 
+use App\Partie\JalonsCampagne;
+
 /**
  * Skill « squelette de campagne » (doc 06 §2, génération en deux temps, Q10).
  *
@@ -89,7 +91,7 @@ class SqueletteCampagne extends Skill
     protected function prompt(array $contexte): array
     {
         $nbQuetes = (int) ($contexte['groupe']['nb_quetes_total'] ?? 1);
-        $nbSousBoss = $this->nbSousBossAttendu($nbQuetes);
+        $nbSousBoss = JalonsCampagne::nbSousBossAttendu($nbQuetes);
 
         $system = $this->consignesCommunes($contexte)."\n\n".<<<TXT
         Tâche : générer le SQUELETTE de la campagne (génération en deux temps — ici
@@ -142,20 +144,5 @@ class SqueletteCampagne extends Skill
         }
 
         return $erreurs;
-    }
-
-    /**
-     * Cadence indicative des sous-boss selon la longueur (doc 06 §4,
-     * table à ajuster en playtest).
-     */
-    private function nbSousBossAttendu(int $nbQuetes): int
-    {
-        return match (true) {
-            $nbQuetes <= 1 => 0,
-            $nbQuetes <= 5 => 1,
-            $nbQuetes <= 10 => 2,
-            $nbQuetes <= 15 => 3,
-            default => 4,
-        };
     }
 }

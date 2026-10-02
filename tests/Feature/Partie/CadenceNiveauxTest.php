@@ -48,7 +48,7 @@ it('amène dans la fourchette 5-8 toute campagne qui a assez de quêtes pour ça
     $cadence = new CadenceNiveaux;
 
     // (quêtes, sous-boss) — les cinq longueurs de `GroupeController`, prises à
-    // leurs deux bornes, avec la cadence de `SqueletteCampagne::nbSousBossAttendu()`.
+    // leurs deux bornes, avec la cadence de `JalonsCampagne::nbSousBossAttendu()`.
     $arcs = [
         [5, 1],              // courte, borne haute — celle de René
         [7, 2], [10, 2],     // normale
@@ -127,16 +127,17 @@ it('est STABLE : c\'est un placement, jamais un tirage', function () {
         ->toBe($cadence->positionsMajeures($groupe));
 });
 
-it('retombe sur la dernière quête quand aucun plan de campagne n\'est écrit', function () {
-    // ⚠ Même repli que `DemarreurQuete::typeJalon()`. Les deux DOIVENT
-    // répondre pareil : sinon une position compterait comme jalon d'un côté et
-    // comme quête ordinaire de l'autre, et la dernière quête donnerait deux
-    // niveaux.
+it('écarte les jalons du REPLI quand aucun plan de campagne n\'est écrit', function () {
+    // ⚠ Même repli que `DemarreurQuete::typeJalon()` — désormais le même
+    // OBJET, `JalonsCampagne`. Sans plan, une campagne de 5 quêtes a son
+    // sous-boss en 3 et son boss en 5 (2026-10-02) : aucune des deux ne doit
+    // porter en plus un objectif majeur, sinon elle donnerait deux niveaux.
     $cadence = new CadenceNiveaux;
     $groupe = new Groupe(['nb_quetes_total' => 5, 'plan_campagne' => null]);
 
-    expect($cadence->positionsMajeures($groupe))->not->toContain(5)
-        ->and($cadence->estMajeure($groupe, 5))->toBeFalse();
+    expect($cadence->positionsMajeures($groupe))->not->toContain(5)->not->toContain(3)
+        ->and($cadence->estMajeure($groupe, 5))->toBeFalse()
+        ->and($cadence->estMajeure($groupe, 3))->toBeFalse();
 });
 
 it('ne donne rien à une campagne d\'une seule quête', function () {

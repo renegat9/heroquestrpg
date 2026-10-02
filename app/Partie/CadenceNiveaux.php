@@ -121,31 +121,15 @@ final class CadenceNiveaux
      * Positions déjà occupées par un jalon de `MonteeNiveau` — elles montent
      * déjà d'un niveau, et une quête ne doit jamais en donner deux.
      *
-     * ⚠ Même lecture que `DemarreurQuete::typeJalon()`, y compris son repli :
-     * sans plan de campagne, seule la dernière quête est un jalon. Les deux
-     * doivent répondre pareil, sinon une position compterait comme jalon ici
-     * et comme quête ordinaire là.
+     * ⚠ `JalonsCampagne`, le MÊME point de passage que
+     * `DemarreurQuete::typeJalon()`. Ce fichier en tenait une copie, repli
+     * compris, qu'un commentaire demandait de garder synchrone ; elle est
+     * tombée le jour où le repli a appris à placer des sous-boss (2026-10-02).
      *
      * @return list<int>
      */
     private function positionsJalons(Groupe $groupe, int $total): array
     {
-        $positions = [];
-
-        foreach ((array) data_get($groupe->plan_campagne, 'jalons', []) as $jalon) {
-            if (in_array($jalon['type'] ?? null, MonteeNiveau::JALONS, true)) {
-                $position = (int) ($jalon['position'] ?? 0);
-
-                if ($position >= 1 && $position <= $total) {
-                    $positions[] = $position;
-                }
-            }
-        }
-
-        if ($positions === [] && $total >= 1) {
-            $positions[] = $total;
-        }
-
-        return array_values(array_unique($positions));
+        return app(JalonsCampagne::class)->positions($groupe);
     }
 }
