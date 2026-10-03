@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -402,8 +403,34 @@ class SystemeController extends Controller
         try {
             DB::select('select 1');
             $latence = (int) round((microtime(true) - $depart) * 1000);
-            $etat = 'ok';
-            $detail = 'Connexion et requête de test en ordre.';
+
+            // ⚠ « Répond » n'est pas « contient la partie » (2026-10-03). Après
+            // un redémarrage de WSL, MariaDB est reparti sur un dossier vide
+            // (dossiers partagés pas encore montés) et a créé une base VIERGE :
+            // `select 1` passait, la page disait « opérationnel », et la vraie
+            // base était invisible. On regarde donc le CONTENU.
+            if (! Schema::hasTable('groupes') || ! Schema::hasTable('personnages')) {
+                $etat = 'panne';
+                $detail = 'Base VIDE : aucune table de jeu. Dossiers partagés non montés (redémarrage de WSL/Docker ?) — '
+                    .'« docker compose up -d --force-recreate », jamais « down -v ». Vos données sont sur le disque, pas dans cette base.';
+            } else {
+                $comptes = [
+                    'groupes' => DB::table('groupes')->count(),
+                    'personnages' => DB::table('personnages')->count(),
+                    'joueurs' => DB::table('joueurs')->count(),
+                ];
+                $sauvegarde = $this->derniereSauvegarde();
+                $groupesSauves = $sauvegarde['lignes'][0] ?? null;
+
+                if ($comptes['groupes'] === 0 && $groupesSauves !== null && $groupesSauves > 0) {
+                    $etat = 'panne';
+                    $detail = "La dernière sauvegarde ({$sauvegarde['nom']}) contenait {$groupesSauves} groupe(s), la base n'en a AUCUN : "
+                        .'base remplacée par une vierge ? Ne sauvegardez pas, ne jouez pas — vérifiez les dossiers partagés.';
+                } else {
+                    $etat = 'ok';
+                    $detail = "En ordre — {$comptes['groupes']} groupe(s), {$comptes['personnages']} personnage(s), {$comptes['joueurs']} joueur(s).";
+                }
+            }
         } catch (Throwable $e) {
             $latence = (int) round((microtime(true) - $depart) * 1000);
             $etat = 'panne';
@@ -487,34 +514,65 @@ class SystemeController extends Controller
     /** @return array<string, mixed> */
     private function serviceBackups(): array
     {
-        $dossier = base_path('backups');
+        $dossier = (string) config('systeme.dossier_sauvegardes', base_path('backups'));
 
         if (! is_dir($dossier)) {
             return $this->serviceInterneSimple('backups', 'Sauvegardes', 'inconnu',
                 "Dossier « backups/ » introuvable depuis ce conteneur ({$dossier}) — impossible de vérifier l'âge de la dernière sauvegarde depuis l'API ; utilisez image-tools/sauvegarder.sh --lister.", null);
         }
 
-        $plusRecent = null;
-        foreach (scandir($dossier) ?: [] as $nom) {
-            if ($nom === '.' || $nom === '..') {
-                continue;
-            }
-            $mtime = @filemtime($dossier.'/'.$nom);
-            if ($mtime !== false && ($plusRecent === null || $mtime > $plusRecent['mtime'])) {
-                $plusRecent = ['nom' => $nom, 'mtime' => $mtime];
-            }
-        }
+        $derniere = $this->derniereSauvegarde();
 
-        if ($plusRecent === null) {
+        if ($derniere === null) {
             return $this->serviceInterneSimple('backups', 'Sauvegardes', 'panne',
                 "« backups/ » existe mais est vide — aucune sauvegarde n'a jamais été prise (image-tools/sauvegarder.sh).", null);
         }
 
-        $ageJours = (int) floor((time() - $plusRecent['mtime']) / 86400);
-        $etat = $ageJours > 7 ? 'degrade' : 'ok';
-        $detail = "Dernière sauvegarde « {$plusRecent['nom']} », il y a {$ageJours} jour(s) (chemin vu depuis ce conteneur : {$dossier}).";
+        $ageJours = (int) floor((time() - $derniere['mtime']) / 86400);
+        $quand = Carbon::createFromTimestamp($derniere['mtime'])->toIso8601String();
 
-        return $this->serviceInterneSimple('backups', 'Sauvegardes', $etat, $detail, null, Carbon::createFromTimestamp($plusRecent['mtime'])->toIso8601String());
+        // ⚠ Une sauvegarde SANS manifeste est une sauvegarde interrompue : c'est
+        // la forme exacte de celle prise sur la base vide du 2026-10-03 (le
+        // comptage a échoué avant l'écriture du manifeste). Son âge ne dit rien.
+        if ($derniere['lignes'] === null) {
+            return $this->serviceInterneSimple('backups', 'Sauvegardes', 'panne',
+                "Dernière sauvegarde « {$derniere['nom']} » INCOMPLÈTE (sans manifeste) — probablement prise sur une base vide. Ne la restaurez pas.",
+                null, $quand);
+        }
+
+        [$g, $p, $j] = $derniere['lignes'] + [0, 0, 0];
+        $etat = $ageJours > 7 ? 'degrade' : 'ok';
+        $detail = "Dernière sauvegarde « {$derniere['nom']} », il y a {$ageJours} jour(s) — {$g} groupe(s), {$p} personnage(s), {$j} joueur(s).";
+
+        return $this->serviceInterneSimple('backups', 'Sauvegardes', $etat, $detail, null, $quand);
+    }
+
+    /**
+     * La sauvegarde la plus récente (dossiers nommés AAAA-MM-JJ-HHMM, triés par
+     * nom) et ses comptes `lignes=` lus dans MANIFEST.txt — `null` si le
+     * manifeste manque. Lecture seule, aucune décompression du dump.
+     *
+     * @return array{nom: string, mtime: int, lignes: ?list<int>}|null
+     */
+    private function derniereSauvegarde(): ?array
+    {
+        $dossier = (string) config('systeme.dossier_sauvegardes', base_path('backups'));
+        $noms = array_values(array_filter(scandir($dossier) ?: [], fn ($n) => $n[0] !== '.' && is_dir("{$dossier}/{$n}")));
+
+        if ($noms === []) {
+            return null;
+        }
+
+        sort($noms);
+        $nom = end($noms);
+        $manifeste = @file_get_contents("{$dossier}/{$nom}/MANIFEST.txt");
+        $lignes = null;
+
+        if (is_string($manifeste) && preg_match('/^lignes=(.+)$/m', $manifeste, $m)) {
+            $lignes = array_map('intval', preg_split('/\s+/', trim($m[1])) ?: []);
+        }
+
+        return ['nom' => $nom, 'mtime' => (int) @filemtime("{$dossier}/{$nom}"), 'lignes' => $lignes];
     }
 
     // -------------------------------------------------------------------

@@ -17,6 +17,11 @@ use Illuminate\Support\Facades\Http;
  */
 beforeEach(function () {
     Cache::flush();
+    // Jamais le VRAI `backups/` (le dépôt est partagé avec le conteneur de
+    // test) : un dossier temporaire vide par défaut, que les tests remplissent.
+    $vide = sys_get_temp_dir().'/hq-sauvegardes-vide-'.uniqid();
+    mkdir($vide);
+    config(['systeme.dossier_sauvegardes' => $vide]);
 
     // Baseline déterministe pour les 3 clés serveur (même règle que ParametresTest).
     config([
@@ -215,4 +220,78 @@ it('la réponse est mise en cache ~60s : un second appel ne re-sonde pas les fou
 
     $this->getJson('/api/systeme')->assertOk();
     expect(count(Http::recorded()))->toBe($apresPremierAppel); // aucune sonde HTTP supplémentaire : servi du cache
+});
+
+// ---------------------------------------------------------------------------
+// Base VIDE et sauvegarde vide (2026-10-03) : après un redémarrage de WSL,
+// MariaDB est reparti sur une base vierge, la page disait « opérationnel »
+// parce que `select 1` répondait, et une sauvegarde vide a été prise.
+// ⚠ Les tests travaillent sur un dossier de sauvegardes TEMPORAIRE — jamais le
+// vrai `backups/`, que le dépôt partage avec le conteneur de test.
+// ---------------------------------------------------------------------------
+
+function dossierSauvegardesTemporaire(array $sauvegardes): string
+{
+    $racine = sys_get_temp_dir().'/hq-sauvegardes-'.uniqid();
+    mkdir($racine);
+    foreach ($sauvegardes as $nom => $manifeste) {
+        mkdir("{$racine}/{$nom}");
+        if ($manifeste !== null) {
+            file_put_contents("{$racine}/{$nom}/MANIFEST.txt", "{$nom}\nlignes={$manifeste}\n");
+        }
+    }
+    config(['systeme.dossier_sauvegardes' => $racine]);
+
+    return $racine;
+}
+
+function serviceSysteme(string $id): array
+{
+    return collect(test()->getJson('/api/systeme')->assertOk()->json('services'))->firstWhere('id', $id);
+}
+
+it('MariaDB qui répond mais SANS tables de jeu est en PANNE, pas opérationnel', function () {
+    dossierSauvegardesTemporaire(['2026-10-02-1850' => "3\t9\t4"]);
+    Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+    Illuminate\Support\Facades\Schema::drop('groupes');
+
+    $mariadb = serviceSysteme('mariadb');
+
+    expect($mariadb['etat'])->toBe('panne')
+        ->and($mariadb['detail'])->toContain('Base VIDE')
+        ->and($mariadb['detail'])->toContain('force-recreate');
+});
+
+it('MariaDB sans AUCUN groupe alors que la dernière sauvegarde en avait est en PANNE', function () {
+    dossierSauvegardesTemporaire(['2026-10-02-1850' => "3\t9\t4"]);
+
+    $mariadb = serviceSysteme('mariadb');
+
+    expect($mariadb['etat'])->toBe('panne')
+        ->and($mariadb['detail'])->toContain('3 groupe(s)');
+});
+
+it('MariaDB vide et AUCUNE sauvegarde de groupes (installation neuve) reste ok', function () {
+    dossierSauvegardesTemporaire(['2026-10-02-1850' => "0\t0\t0"]);
+
+    expect(serviceSysteme('mariadb')['etat'])->toBe('ok');
+});
+
+it('une dernière sauvegarde SANS manifeste (interrompue) est en PANNE, même récente', function () {
+    dossierSauvegardesTemporaire(['2026-10-02-1850' => "3\t9\t4", '2026-10-03-0024' => null]);
+
+    $sauvegardes = serviceSysteme('backups');
+
+    expect($sauvegardes['etat'])->toBe('panne')
+        ->and($sauvegardes['detail'])->toContain('2026-10-03-0024')
+        ->and($sauvegardes['detail'])->toContain('INCOMPLÈTE');
+});
+
+it('une sauvegarde complète affiche ses comptes', function () {
+    dossierSauvegardesTemporaire(['2026-10-03-0836' => "3\t9\t4"]);
+
+    $sauvegardes = serviceSysteme('backups');
+
+    expect($sauvegardes['etat'])->toBe('ok')
+        ->and($sauvegardes['detail'])->toContain('3 groupe(s), 9 personnage(s), 4 joueur(s)');
 });

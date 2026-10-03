@@ -149,6 +149,15 @@ comparing row counts — a backup never read back is not a backup.
 `browser-shots/campagne/preparer.sh` now calls it first: the moment a harness campaign is
 about to write to the real DB is exactly when the net is wanted.
 
+**After a WSL/Docker restart, check the containers SEE the data** (2026-10-03). The
+containers came back before the shared folders were mounted: `app` saw an empty code
+folder and MariaDB started on an empty dir, creating a blank base — the real data was
+untouched on disk, but the site was dead and `sauvegarder.sh` saved the EMPTY base. Fix:
+`docker compose up -d --force-recreate` (never `down -v`). `sauvegarder.sh` now **refuses**
+a base with no tables, or with 0 groups when the previous backup had some
+(`HQ_SAUVEGARDE_BASE_VIDE=1` to force a deliberate purge), before any rotation; the
+Système page (`/systeme`) flags both cases and an incomplete backup (no manifest).
+
 ⚠ **`migrate:fresh`, `migrate:refresh`, `migrate:reset` and `db:wipe` are REFUSED**
 while the DB holds a group or a character (`AppServiceProvider::interdireLesCommandesDestructrices()`).
 `APP_ENV` is `local`, so Laravel's own confirmation **never fired** — those four commands

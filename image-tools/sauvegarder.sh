@@ -89,6 +89,35 @@ fi
 docker compose ps --status running --services 2>/dev/null | grep -qx mariadb \
   || { rouge "Le conteneur mariadb ne tourne pas — 'docker compose up -d' d'abord."; exit 1; }
 
+# ---- GARDE-FOUS : jamais de sauvegarde d'une base VIDE (2026-10-03) --------
+# La nuit du 2026-10-02, WSL a redémarré et les conteneurs sont repartis avant
+# que les dossiers partagés soient montés : MariaDB a démarré sur un dossier
+# vide et créé une base vierge. Ce script l'a SAUVEGARDÉE sans broncher (0
+# table) — et la rotation des 10 dernières aurait fini, à quelques passages
+# de plus, par effacer les bonnes. On vérifie AVANT de créer le dossier, donc
+# avant toute rotation.
+TABLES="$(docker compose exec -T mariadb sh -c \
+  "MYSQL_PWD='$MDP_ROOT' mariadb -uroot -N -B -e \
+   \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$BASE'\"" 2>/dev/null || echo 0)"
+if [ "${TABLES:-0}" -lt 10 ]; then
+  rouge "✗ REFUS : la base '$BASE' n'a que ${TABLES:-0} table(s) — base vide, ou dossiers partagés"
+  rouge "  non montés (redémarrage de WSL/Docker ?). Rien n'est sauvegardé, aucune rotation."
+  rouge "  Réparer : docker compose up -d --force-recreate   (JAMAIS 'down -v')"
+  exit 2
+fi
+
+LIGNES_AVANT="$(compter 2>/dev/null || true)"
+PRECEDENTE="$(ls -1d "$DEST"/*/ 2>/dev/null | sort | tail -1 || true)"
+GROUPES_AVANT="$(grep -m1 '^lignes=' "${PRECEDENTE}MANIFEST.txt" 2>/dev/null | cut -d= -f2 | cut -f1 || true)"
+GROUPES_MAINTENANT="$(echo "$LIGNES_AVANT" | cut -f1)"
+if [ "${GROUPES_AVANT:-0}" -gt 0 ] 2>/dev/null && [ "${GROUPES_MAINTENANT:-0}" = "0" ] \
+   && [ "${HQ_SAUVEGARDE_BASE_VIDE:-0}" != "1" ]; then
+  rouge "✗ REFUS : la sauvegarde précédente ($(basename "$PRECEDENTE")) contenait $GROUPES_AVANT groupe(s),"
+  rouge "  la base n'en a plus AUCUN. C'est la signature d'une base remplacée par une vierge."
+  rouge "  Si c'est voulu (purge assumée) : HQ_SAUVEGARDE_BASE_VIDE=1 $0"
+  exit 3
+fi
+
 HORO="$(date +%Y-%m-%d-%H%M)"
 DOSSIER="$DEST/$HORO"
 mkdir -p "$DOSSIER"
