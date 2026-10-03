@@ -61,7 +61,11 @@ final class GenererImages extends Command
 
             $fichier = public_path("images/{$cible['rel']}");
 
-            if (! $force && is_file($fichier)) {
+            // ⚠ « Déjà présente » = le PNG OU son jumeau .webp (2026-10-03). Le
+            // dépôt ne suit que les .webp : sur une copie fraîche, tester le seul
+            // PNG faisait tout régénérer — 251 appels Gemini payés, et les images
+            // versionnées écrasées par d'autres, différentes.
+            if (! $force && (is_file($fichier) || is_file(preg_replace('/\.png$/i', '.webp', $fichier)))) {
                 $ignores++;
 
                 continue;

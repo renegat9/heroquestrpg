@@ -243,3 +243,35 @@ it('sans support WebP, la conversion échoue en silence et le PNG reste servi', 
     expect($conv->jumeler($png))->toBe($conv->disponible() && is_file(public_path('images/dyn/quete/4243.webp')))
         ->and(is_file($png))->toBeTrue(); // le PNG survit dans tous les cas
 });
+
+it('ne régénère RIEN quand seul le jumeau .webp existe (copie fraîche du dépôt)', function () {
+    // 2026-10-03 : le dépôt ne suit que les .webp. La commande ne testait que le
+    // PNG : sur une copie fraîche, elle aurait tout régénéré — appels Gemini
+    // payés, et images versionnées écrasées par d'autres, différentes.
+    $racine = publicJetable();
+    config()->set('services.gemini.api_key', 'cle-test');
+    Http::fake([
+        'generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [
+                ['inlineData' => ['mimeType' => 'image/png', 'data' => base64_encode('PNGBYTES')]],
+            ]]]],
+        ]),
+    ]);
+    espionWebp();
+
+    // Une première passe pose les PNG des portes…
+    $this->artisan('images:generer', ['--type' => 'portes', '--force' => true])->assertSuccessful();
+    $pngs = glob($racine.'/images/catalogue/portes/*.png');
+    expect($pngs)->not->toBeEmpty();
+
+    // …qu'on remplace par leurs seuls jumeaux .webp, comme dans un clone.
+    foreach ($pngs as $png) {
+        rename($png, preg_replace('/\.png$/', '.webp', $png));
+    }
+
+    Http::fake(); // plus aucune requête ne doit partir
+    $this->artisan('images:generer', ['--type' => 'portes'])->assertSuccessful();
+
+    Http::assertNothingSent();
+    expect(glob($racine.'/images/catalogue/portes/*.png'))->toBeEmpty();
+});
