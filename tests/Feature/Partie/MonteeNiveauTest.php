@@ -391,8 +391,8 @@ it('fait monter d\'un niveau une quête ORDINAIRE dont l\'objectif majeur est ac
     expect($quete->type_jalon)->toBe('normale')
         ->and($quete->objectif_majeur)->toBeTrue();
 
-    // Objectif « atteindre_et_recuperer » : le coffre du fond a été fouillé.
-    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+    // Objectif « atteindre_et_recuperer » : le coffre du fond a été OUVERT (au contact, 2026-10-02).
+    $quete->update(['coffres_ouverts' => [(int) $quete->salle_artefact]]);
 
     $resultat = acheverLaQuete($groupe);
 
@@ -431,7 +431,7 @@ it('journalise LEQUEL des trois déclencheurs a joué', function () {
 
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
-    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+    $quete->update(['coffres_ouverts' => [(int) $quete->salle_artefact]]);
 
     acheverLaQuete($groupe);
 
@@ -463,7 +463,7 @@ it('PUBLIE l\'objectif et son verdict dans l\'état du groupe, pour l\'écran du
         ->and($avant['objectif_accompli'])->toBeFalse()
         ->and($avant['objectif_majeur'])->toBeTrue();
 
-    $quete->update(['tresors_fouilles' => [(int) $quete->salle_artefact]]);
+    $quete->update(['coffres_ouverts' => [(int) $quete->salle_artefact]]);
 
     $apres = app(EtatGroupe::class)->payload($groupe->fresh())['quete'];
 

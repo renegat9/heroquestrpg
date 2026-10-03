@@ -255,6 +255,7 @@ final class DemarreurQuete
                 'salle_artefact' => $fouille['salle_artefact'],
                 'artefact_objet_id' => $fouille['artefact_objet_id'],
                 'salles_coffre' => $fouille['salles_coffre'],
+                'coffres_ouverts' => [],
             ]);
 
             Carte::create([

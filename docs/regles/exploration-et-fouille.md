@@ -4,6 +4,8 @@
 > vigueur** — pas un document daté comme `docs/plan-*.md` / `docs/verdict-*.md`.
 > Index : `CLAUDE.md` §« Règles établies ».
 
+**Chests and the supply crate are searched AT CONTACT, never by searching the room** (René, 2026-10-02: « Je veux que la recherche de coffre ou de caisse se fassent seulement quand on est adjacent et non quand on cherche la salle »). "Fouiller — trésor" draws from the deck and nothing else; the designated chest's reward (artefact, gold, potion — `DeckFouille::carteCoffre()`) is taken by "Fouiller : Coffre" on a chest **of that room**, once for the group, and replaces that chest's ordinary table — the quest's chest IS that chest. The crate gives its 4 potions to the first hero who opens it, then is empty. ⚠ The opened state could no longer be **derived** from `tresors_fouilles` (a room searched no longer means a chest opened): it has its own column, `quetes.coffres_ouverts`, saved in snapshots, and `objectifAccompli('atteindre_et_recuperer')` reads it. ⚠ One fallback, deliberately kept: a designated room with **no physical chest at all** (furniture placement can refuse a piece to keep the floor playable) still pays its chest on the room search — otherwise "atteindre et récupérer" could become impossible. Older paragraphs below that speak of the room search paying the chest describe the rule before this date.
+
 **Searching & artefacts.** "Fouiller — trésor" draws a **search card** from a per-quest deck (`quetes.deck_fouille`, built at quest start from `gabarits_quete.structure.deck_fouille`, drawn **without replacement**). The composition mirrors the **board game's treasure deck**: 2 gems (35 gp), 2×25, 2×15, 2 jewels (50 gp), 2 pit traps, 2 arrow traps, 3 healing potions, one each of heroism/strength/defence, and **6 wandering monsters** — the commonest card by far, and they have **no cap**: since every card returns under the deck, a budget would have turned the deck's most frequent card into a blank. Each quest always summons the *same* creature (cheapest base-tier), the board's "quest wandering monster". Issues: `tresor` · `potion` · `artefact` · `errant` · `piege` · `rien`. Cards go **back under the deck** after being drawn, so it cycles instead of running out — with one search per hero per room, a 6-room dungeon at 4 players yields up to 24 draws, exactly the deck size. **One search per hero per room** (`Quete::aFouille()`, entries stored as `"{salle}:{personnage}"`): the first searcher no longer closes the room for everyone, each hero draws their own card as on the board. Loot goes to the **searcher** — gold to the common purse. Two healing items on purpose: the **Fiole de soin** found in the deck heals **1d6** (`soin_pv_body_de`, `unique` so it never reaches a stall), while the **Potion de soin** bought at market heals a fixed amount. A trap card **ends the turn** (`a_joue`), and the **Potion d'héroïsme** grants a *second attack* this turn (`etat.attaque_supplementaire`, same pattern as the magicien's Réserve arcanique) — not extra dice, since attack comes from the weapon here. Each card is self-contained (`{issue, or?, objet_id?}`), so drawing consumes **no die**. The deck is **reshuffled at every build AND at every snapshot restore** (`random_int` seed — never derived from the group, René's call 2026-08-05): it used to be seeded on `crc32("{identifiant}:{positionArc}:fouille")`, so a "Recommencer la quête" or a post-TPK reprise replayed the *same draw in the same order* and handed the group an ordered list of its own treasures, traps and wandering monsters. Restoring keeps the **composition** (the deck cycles, no card is ever lost) and re-rolls the **order**; `salle_artefact` / `salles_coffre` / `artefact_objet_id` stay pinned — those are map-bound *placements*, not draws, and re-rolling them would move the chest under the party's feet or grant a second unique weapon. Separately, one designated room — the **deepest** in the corridor tree (`quetes.salle_artefact`) — holds **at most one** `unique` weapon (`quetes.artefact_objet_id`); it consumes no card, and the hero who searches it gets the item. No unique weapon left (uniqueness is **per group**) → the chest pays `or_coffre` instead. Artefacts are **never** purchasable, sellable or forgeable. A full bag does **not** block the reward: the item is handed over in overflow with `sac_deborde: true` (refusing it would lose it forever), and `/moi` exposes `equipement.capacite`/`occupation` so the controller can show it.
 
 **Retreating is now possible — and it is the only way out of a losing fight** (`VoteGroupe::TYPE_RETRAITE`, René's call 2026-08-21). `quitter_donjon` only ever said "we're done, let's go home": it is offered solely once the objective is met or the dungeon emptied. A party that was *losing* could therefore neither win nor leave — seen in a real campaign with two heroes down, two fragile survivors and the boss standing: the only mechanical exit was to fall entirely. `battre_en_retraite` has **no condition at all**, and that is the point — retreating must stay possible at the worst moment, or it is not a retreat.
@@ -124,20 +126,14 @@ le tirage consomme un pas de PRNG **dans les deux branches** pour que deux donjo
 même graine restent identiques — un second tirage conditionnel casserait ça.
 
 **Caisse de ravitaillement** (*Supply Crate*, Against the Ogre Horde p. 5,
-lot B, 2026-10-02) : « The first hero to search for treasure in a room
-containing one of these chests will find 4 Potions of Healing. » Même point
-de passage que Sly Storage ci-dessus — `MoteurMobilier::salleContientType()`,
-« premier » lu sur `tresorsFouilles()` AVANT la même inscription — mais un
-butin FIXE qui **REMPLACE** le tirage normal, jamais une carte EN PLUS :
-le livret ne décrit qu'une trouvaille garantie, pas un second tirage du deck
-comme l'armoire. `ResolveurTour::resoudreFouilleTresor()` pose `issue:
-'caisse_ravitaillement'` et verse 4× *Potion de guérison* (`soin_pv_body_de:
-6`, « roll 1 red die », confirmée avant usage) d'un coup, une ligne
-d'inventaire par potion (`sac_deborde` peut s'y poser sur n'importe
-laquelle). ⚠ Si la même salle est AUSSI un coffre désigné de la quête, la
-caisse l'emporte (décision assumée, cas non sourcé par le livret) : le
-coffre n'est jamais consommé et reste disponible tel quel pour une future
-page de règle qui voudrait les faire coexister.
+lot B) : « The first hero to search for treasure in a room containing one of
+these chests will find 4 Potions of Healing. » Fouillée **au contact**
+depuis le 2026-10-02 (René) : `ResolveurTour::resoudreFouilleMobilier()`
+verse 4× *Potion de guérison* (`soin_pv_body_de: 6`, « roll 1 red die ») au
+premier qui l'ouvre — « premier » lu sur `fouille_par` du meuble AVANT de
+l'inscrire —, une caisse vide (`caisse_vide`) aux suivants. Un butin FIXE,
+jamais un tirage. Caisse et coffre peuvent partager une salle (René : « ça
+me dérange pas ») : ce sont deux meubles, deux fouilles au contact.
 
 ⚠ **PORTAGE : l'emprise au sol n'est pas sourcée.** Le livret ne chiffre
 cette caisse que sur les plans de quête imprimés (non repris — donjons

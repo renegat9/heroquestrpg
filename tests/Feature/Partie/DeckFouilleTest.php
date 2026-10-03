@@ -150,6 +150,49 @@ function deplacerVersSalle(Quete $quete, EtatPersonnageQuete $etat, int $salle):
     );
 }
 
+/**
+ * Ouvre le COFFRE de la salle `$salle`, AU CONTACT (René, 2026-10-02 : le
+ * coffre ne se fouille plus en fouillant la salle). Le héros est posé sur une
+ * case libre adjacente à un coffre de cette salle, son action rendue, le menu
+ * régénéré, puis « Fouiller : Coffre ». Une salle SANS coffre physique paie
+ * encore son coffre à la fouille de salle (repli) : c'est alors elle qu'on joue.
+ */
+function fouillerLeCoffre(Quete $quete, EtatPersonnageQuete $etat, int $salle): array
+{
+    $quete = $quete->fresh();
+    deplacerVersSalle($quete, $etat, $salle);
+
+    $idCoffre = Mobilier::where('nom', 'Coffre')->value('id');
+    $index = collect((array) $quete->carte->grille['mobilier'])
+        ->search(fn ($m) => (int) ($m['mobilier_id'] ?? 0) === (int) $idCoffre && (int) ($m['salle'] ?? -1) === $salle);
+
+    if ($index === false) {
+        return fouiller();
+    }
+
+    $m = $quete->carte->grille['mobilier'][$index];
+    $case = null;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        if (caseQueteLibre($quete, (int) $m['x'] + $dx, (int) $m['y'] + $dy)) {
+            $case = ['x' => (int) $m['x'] + $dx, 'y' => (int) $m['y'] + $dy];
+            break;
+        }
+    }
+    expect($case)->not->toBeNull('coffre sans case libre adjacente');
+
+    $etat->refresh();
+    $etat->update(['position_x' => $case['x'], 'position_y' => $case['y']]);
+    GenererMenu::dispatchSync(
+        $quete->groupe_id,
+        (int) Personnage::findOrFail($etat->personnage_id)->joueur_id,
+        (int) $etat->personnage_id,
+    );
+
+    return test()->postJson('/api/groupes/table-1/choix', ['option_id' => "fouiller_mobilier_{$index}"])
+        ->assertStatus(202)
+        ->json('resultat');
+}
+
 // ---------------------------------------------------------------------------
 // Construction du deck
 // ---------------------------------------------------------------------------
@@ -296,8 +339,7 @@ it('remet l\'artefact au fouilleur du coffre SANS consommer de carte du deck', f
     $arme = Objet::findOrFail($quete->artefact_objet_id);
     $deckAvant = count($quete->deckFouille());
 
-    deplacerVersSalle($quete, $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     expect($resultat['issue'])->toBe('artefact')
         ->and($resultat['coffre'])->toBeTrue()
@@ -315,6 +357,10 @@ it('ne donne qu\'UN SEUL artefact, même en fouillant toutes les salles', functi
     foreach (array_keys($quete->carte->grille['salles']) as $salle) {
         deplacerVersSalle($quete->fresh(), $etat, (int) $salle);
         fouiller();
+
+        if ($quete->fresh()->estSalleCoffre((int) $salle)) {
+            fouillerLeCoffre($quete, $etat, (int) $salle);
+        }
     }
 
     // Les ARMES uniques : la fiole de soin du deck est aussi `unique` (hors
@@ -394,8 +440,7 @@ it('verse `or_coffre` quand aucune arme unique n\'est disponible', function () {
     $salle = (int) $quete->salle_artefact;
     poserCoffreArtefact($quete, $salle, null); // toutes les uniques déjà trouvées
 
-    deplacerVersSalle($quete->fresh(), $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     expect($resultat['issue'])->toBe('tresor')
         ->and($resultat['coffre'])->toBeTrue()
@@ -418,8 +463,7 @@ it('remet l\'artefact MÊME sac plein, en dépassement signalé', function () {
     $salle = (int) $quete->salle_artefact;
     $arme = Objet::findOrFail($quete->artefact_objet_id);
 
-    deplacerVersSalle($quete, $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     // Refuser l'objet le perdrait à jamais : on le remet et on le signale.
     expect($resultat['issue'])->toBe('artefact')
@@ -474,8 +518,7 @@ it('ne remet PAS deux fois l\'artefact quand un second héros fouille la même s
     $salle = (int) $quete->salle_artefact;
     $arme = Objet::findOrFail($quete->artefact_objet_id);
 
-    deplacerVersSalle($quete, $etat, $salle);
-    expect(fouiller()['issue'])->toBe('artefact');
+    expect(fouillerLeCoffre($quete, $etat, $salle)['issue'])->toBe('artefact');
 
     // La fouille est « une par héros et par salle » : le compagnon peut fouiller
     // le MÊME coffre. L'unicité étant par groupe (elle n'était vérifiée qu'à la
@@ -595,8 +638,7 @@ it('rend l\'artefact re-trouvable UNE SEULE FOIS après une reprise en début de
     $salle = (int) $quete->salle_artefact;
     $arme = Objet::findOrFail($quete->artefact_objet_id);
 
-    deplacerVersSalle($quete, $etat, $salle);
-    fouiller();
+    fouillerLeCoffre($quete, $etat, $salle);
     expect(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $arme->id)->count())->toBe(1);
 
     app(Sauvegarde::class)->redemarrerQuete($groupe->fresh());
@@ -604,14 +646,37 @@ it('rend l\'artefact re-trouvable UNE SEULE FOIS après une reprise en début de
     // L'inventaire est purgé par la restauration : l'artefact redevient à
     // prendre, dans la même salle, en un seul exemplaire.
     $quete = $quete->fresh();
-    expect($quete->tresorsFouilles())->toBeEmpty()
+    expect($quete->coffresOuverts())->toBeEmpty()
         ->and((int) $quete->salle_artefact)->toBe($salle);
 
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
-    deplacerVersSalle($quete, $etat, $salle);
-    fouiller();
+    fouillerLeCoffre($quete, $etat, $salle);
 
     expect(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $arme->id)->count())->toBe(1);
+});
+
+it('rouvre le coffre après « Recommencer la quête » même depuis un instantané d\'AVANT coffres_ouverts', function () {
+    // René, 2026-10-03 : « si on recommence la quête du début, tout reset car
+    // les items ne seront plus dans l'inventaire des joueurs ». Un instantané
+    // pris avant la migration n'a pas `coffres_ouverts` : sans le déduire, le
+    // coffre restait OUVERT pendant que l'artefact quittait le sac — perdu.
+    [, $groupe, $hero, $quete, $etat] = demarrerFouille();
+    $salle = (int) $quete->salle_artefact;
+    $arme = Objet::findOrFail($quete->artefact_objet_id);
+
+    // Instantané de début de quête « ancien format » : sans la clé.
+    $snapshot = $groupe->snapshots()->latest('id')->firstOrFail();
+    $etatSnap = $snapshot->etat;
+    unset($etatSnap['quete']['coffres_ouverts']);
+    $snapshot->update(['etat' => $etatSnap]);
+
+    fouillerLeCoffre($quete, $etat, $salle);
+    expect($quete->fresh()->coffresOuverts())->toContain($salle);
+
+    app(Sauvegarde::class)->redemarrerQuete($groupe->fresh());
+
+    expect($quete->fresh()->coffresOuverts())->toBeEmpty()
+        ->and(Inventaire::where('personnage_id', $hero->id)->where('objet_id', $arme->id)->exists())->toBeFalse();
 });
 
 // ---------------------------------------------------------------------------
@@ -858,7 +923,10 @@ it('donne à CHAQUE meuble sa table de butin, avec une chance de ne rien trouver
     // SA table, et chaque table doit pouvoir ne rien donner.
     $mm = app(MoteurMobilier::class);
 
-    foreach (Mobilier::where('fouillable', true)->get() as $type) {
+    // ⚠ La Caisse de ravitaillement n'a PAS de table, par mécanisme : son butin
+    // est FIXE (4 Potions de guérison au premier qui l'ouvre, livret Against
+    // the Ogre Horde p. 5) — `ResolveurTour::resoudreFouilleMobilier()`.
+    foreach (Mobilier::where('fouillable', true)->where('nom', '!=', 'Caisse de ravitaillement')->get() as $type) {
         $table = (array) ($type->effet['fouille'] ?? []);
 
         expect($table)->not->toBeEmpty("{$type->nom} : fouillable sans table de butin.");
@@ -1119,8 +1187,7 @@ it('Sly Storage : le PREMIER fouilleur d\'une salle avec une armoire tire DEUX c
     empilerCarteFouille($quete->fresh(), ['issue' => 'potion', 'objet_id' => $potion->id]);
     empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 99]);
 
-    deplacerVersSalle($quete->fresh(), $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     expect($resultat['issue'])->toBe('tresor')
         ->and($resultat['or'])->toBe(99)
@@ -1230,8 +1297,7 @@ it('Sly Storage : une armoire DÉTRUITE ne rend plus de seconde carte', function
     $quete->carte->update(['grille' => $grille]);
 
     empilerCarteFouille($quete->fresh(), ['issue' => 'tresor', 'or' => 7]);
-    deplacerVersSalle($quete->fresh(), $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     expect($resultat['armoire'] ?? false)->toBeFalse()
         ->and($resultat)->not->toHaveKey('carte_armoire');
@@ -1249,8 +1315,7 @@ it('Sly Storage : une salle-coffre avec une armoire rend le coffre sur la 1re ca
 
     empilerCarteFouille($quete->fresh(), ['issue' => 'potion', 'objet_id' => Objet::where('nom', 'Potion de soin')->firstOrFail()->id]);
 
-    deplacerVersSalle($quete->fresh(), $etat, $salle);
-    $resultat = fouiller();
+    $resultat = fouillerLeCoffre($quete, $etat, $salle);
 
     // 1re carte : le coffre (jamais vide — or ou potion, `coffre: true`).
     expect($resultat['coffre'] ?? false)->toBeTrue()

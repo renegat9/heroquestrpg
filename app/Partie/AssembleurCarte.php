@@ -677,10 +677,13 @@ final class AssembleurCarte
         // Candidates : toutes les portes d'une arête de BOUCLE, ordinaires
         // (fermées, sans verrou déjà posé) — jamais une secrète (les boucles
         // ne le sont jamais, voir `liaisonsSupplementaires()`), groupées par
-        // jonction pour que les DEUX bouts d'un même passage soient marqués
-        // ensemble (chacun restant forçable indépendamment depuis son côté —
-        // même asymétrie que `MoteurPortes::ouvrir()`, qui n'ouvre jamais que
-        // le seuil poussé).
+        // jonction.
+        //
+        // ⚠ UN SEUL bout du passage devient de pierre (René, 2026-10-03 : « On
+        // va garder 1 porte en pierre seulement et non les deux »). On
+        // marquait les deux portes de la jonction : il fallait pousser deux
+        // dalles pour un même passage, là où le livret ne parle que d'UNE
+        // porte.
         $jonctions = [];
         foreach ($portes as $idx => $porte) {
             if (empty($porte['boucle'])
@@ -698,9 +701,9 @@ final class AssembleurCarte
         $cles = array_keys($jonctions);
         $choisie = $cles[$prng->suivant() % count($cles)];
 
-        foreach ($jonctions[$choisie] as $idx) {
-            $portes[$idx]['verrou'] = ['type' => MoteurPortes::VERROU_PIERRE];
-        }
+        $bouts = $jonctions[$choisie];
+        $idx = $bouts[$prng->suivant() % count($bouts)];
+        $portes[$idx]['verrou'] = ['type' => MoteurPortes::VERROU_PIERRE];
 
         return $portes;
     }

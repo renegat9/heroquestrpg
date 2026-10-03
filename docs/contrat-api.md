@@ -1394,19 +1394,25 @@ en roche (ci-dessous) identiquement tant qu'elle n'est pas trouvée.
   `JournalCombat`/`SceneDeTable` l'annoncent (ligne dédiée + scène « Armoire —
   seconde carte ») : un effet automatique que rien n'annonce est injouable.
 
-  **Caisse de ravitaillement** (Against the Ogre Horde p. 5, lot B,
-  2026-10-02) : la salle a une **Caisse de ravitaillement** (`mobiliers`,
-  boîte `horde_ogre`) encore debout et c'est le **premier** héros du groupe à
-  y fouiller un trésor (même garde « premier » que Sly Storage ci-dessus,
-  interrogée AVANT la même inscription dans `tresors_fouilles`) → `issue`
-  devient `caisse_ravitaillement` et **REMPLACE** le tirage normal (jamais un
-  second tirage comme l'armoire : le livret ne décrit qu'une trouvaille
-  garantie) par **4× Potion de guérison** d'un coup, une par ligne
-  d'inventaire. Payload : `{issue: "caisse_ravitaillement",
-  caisse_ravitaillement: true, objets: [{objet, sac_deborde?}, ×4]}`. ⚠ Si la
-  même salle est AUSSI un coffre désigné de la quête, la caisse **l'emporte**
-  (décision assumée, cas non sourcé par le livret) — le coffre n'est jamais
-  consommé et reste disponible tel quel.
+  **Coffres et caisse : AU CONTACT, plus à la fouille de salle** (René,
+  2026-10-02). « Fouiller — trésor » ne paie plus le coffre désigné ni la
+  caisse : on les fouille par l'action **« Fouiller : Coffre »** /
+  **« Fouiller : Caisse de ravitaillement »** (`type: fouille_mobilier`),
+  offerte seulement quand le héros est adjacent au meuble.
+  - **Coffre** dans une salle à coffre désigné (salle du fond, passages
+    secrets) encore plein → la récompense du coffre de la quête (artefact,
+    or ou potion de `carteCoffre()`) REMPLACE la table ordinaire du coffre ;
+    payload `{type: "fouille_mobilier", mobilier: "Coffre", coffre_quete:
+    true, issue, …}`. Une seule fois pour le groupe : `quetes.coffres_ouverts`
+    (nouvel état durable, restauré par les snapshots).
+  - **Caisse de ravitaillement** (Against the Ogre Horde p. 5, boîte
+    `horde_ogre`) → au PREMIER qui l'ouvre : `{issue: "caisse_ravitaillement",
+    caisse_ravitaillement: true, objets: [{objet, sac_deborde?}, ×4]}`
+    (4× Potion de guérison) ; aux suivants : `{issue: "rien", caisse_vide:
+    true}`.
+  - ⚠ Repli : une salle à coffre désigné SANS aucun coffre physique (pose
+    refusée par le plancher de cases jouables) paie encore son coffre à la
+    fouille de salle — sinon « atteindre et récupérer » serait impossible.
 
   Le monstre errant ne survient **que** par cette action (jamais par « Fouiller la zone »).
 - **Coffre à artefact** : chaque quête désigne **une** salle — la plus profonde dans

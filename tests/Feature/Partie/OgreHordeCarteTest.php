@@ -127,16 +127,43 @@ function equiperArmureOgre(Personnage $heros, string $nomObjet): Inventaire
     ]);
 }
 
-function poserCaisseDeRavitaillement(Quete $quete, int $salle): void
+function poserMeubleOgre(Quete $quete, string $nom, int $x, int $y, int $salle): int
 {
     $carte = $quete->carte;
     $grille = $carte->grille;
-    $caisse = Mobilier::where('nom', 'Caisse de ravitaillement')->firstOrFail();
-    $grille['mobilier'] = [[
-        'mobilier_id' => $caisse->id, 'x' => 0, 'y' => 0, 'l' => 1, 'h' => 1, 'salle' => $salle,
+    $grille['mobilier'] = [...((array) ($grille['mobilier'] ?? [])), [
+        'mobilier_id' => Mobilier::where('nom', $nom)->firstOrFail()->id,
+        'x' => $x, 'y' => $y, 'l' => 1, 'h' => 1, 'salle' => $salle,
     ]];
     $carte->update(['grille' => $grille]);
     $quete->load('carte');
+
+    return count($grille['mobilier']) - 1;
+}
+
+/** Pose une pièce de mobilier sur une case libre ADJACENTE au héros, dans sa salle. */
+function poserMeubleAuContact(Quete $quete, EtatPersonnageQuete $etat, string $nom): int
+{
+    $salle = (int) \App\Partie\Salles::indexDe(
+        $quete->carte->grille['salles'], (int) $etat->position_x, (int) $etat->position_y,
+    );
+    // Un meuble posé en table de test remplace tout le mobilier généré :
+    // aucun autre coffre de la salle ne doit interférer avec le scénario.
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['mobilier'] = [];
+    $carte->update(['grille' => $grille]);
+    $quete->load('carte');
+
+    $c = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
+    $index = poserMeubleOgre($quete, $nom, $c['x'], $c['y'], $salle);
+
+    // Le contrôleur refuse une option absente du DERNIER menu : on le régénère
+    // maintenant que le meuble est là, comme le ferait le jeu.
+    $heros = Personnage::findOrFail($etat->personnage_id);
+    GenererMenu::dispatchSync($quete->groupe_id, (int) $heros->joueur_id, (int) $heros->id);
+
+    return $index;
 }
 
 // ===================================================================
@@ -413,44 +440,121 @@ it('dégâts de chute de la fosse des ténèbres : 1 PV sans armure, 2 PV en arm
 // CAISSE DE RAVITAILLEMENT (livret p. 5)
 // ===================================================================
 
-it('la caisse de ravitaillement donne 4 Potions de guérison au PREMIER chercheur, et un tirage normal ensuite', function () {
-    [$alice, $groupe, $a, $b, , $quete, $etatA, $bob] = demarrerQueteATroisHeros();
-    $salle = (int) \App\Partie\Salles::indexDe(
-        $quete->carte->grille['salles'], (int) $etatA->position_x, (int) $etatA->position_y,
-    );
-    poserCaisseDeRavitaillement($quete, $salle);
+it('la caisse se fouille AU CONTACT : 4 Potions de guérison au premier qui l\'ouvre', function () {
+    // René, 2026-10-02 : « Je veux que la recherche de coffre ou de caisse se
+    // fassent seulement quand on est adjacent et non quand on cherche la salle. »
+    [, , $a, , , $quete, $etatA] = demarrerQueteATroisHeros();
+    $index = poserMeubleAuContact($quete, $etatA, 'Caisse de ravitaillement');
 
-    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "fouiller_mobilier_{$index}"])
         ->assertStatus(202)
-        ->assertJsonPath('resultat.issue', 'caisse_ravitaillement')
-        ->assertJsonPath('resultat.caisse_ravitaillement', true);
+        ->assertJsonPath('resultat.type', 'fouille_mobilier')
+        ->assertJsonPath('resultat.issue', 'caisse_ravitaillement');
 
-    $objets = collect($reponse->json('resultat.objets'));
-    expect($objets)->toHaveCount(4)
-        ->and($objets->pluck('objet.nom')->unique()->all())->toBe(['Potion de guérison']);
+    expect($reponse->json('resultat.objets'))->toHaveCount(4)
+        ->and(Inventaire::where('personnage_id', $a->id)
+            ->where('objet_id', Objet::where('nom', 'Potion de guérison')->value('id'))->sum('quantite'))->toBe(4);
+});
+
+it('la fouille de SALLE ne rend jamais les potions de la caisse', function () {
+    [, , $a, , , $quete, $etatA] = demarrerQueteATroisHeros();
+    poserMeubleAuContact($quete, $etatA, 'Caisse de ravitaillement');
+    empilerCarteFouille($quete, ['issue' => 'rien']);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.issue', 'rien');
 
     expect(Inventaire::where('personnage_id', $a->id)
-        ->where('objet_id', Objet::where('nom', 'Potion de guérison')->value('id'))
-        ->sum('quantite'))->toBeGreaterThanOrEqual(4);
+        ->where('objet_id', Objet::where('nom', 'Potion de guérison')->value('id'))->sum('quantite'))->toBe(0);
+});
 
-    // Le SECOND chercheur de la même salle ne retombe plus sur la caisse —
-    // carte empilée connue pour un tirage déterministe.
-    empilerCarteFouille($quete, ['issue' => 'rien']);
-    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202); // referme le tour d'Albrecht sans agir une seconde fois
+it('la caisse est VIDE pour le second héros qui l\'ouvre', function () {
+    [, $groupe, $a, $b, , $quete, $etatA, $bob] = demarrerQueteATroisHeros();
+    $index = poserMeubleAuContact($quete, $etatA, 'Caisse de ravitaillement');
 
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "fouiller_mobilier_{$index}"])
+        ->assertStatus(202)->assertJsonPath('resultat.issue', 'caisse_ravitaillement');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    // Brunhilde rejoint la case d'Albrecht, au contact de la même caisse.
     $etatB = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $b->id)->firstOrFail();
-    expect($etatB->position_x)->not->toBeNull();
+    $etatA->refresh();
+    $etatA->update(['position_x' => (int) $etatA->position_x, 'position_y' => (int) $etatA->position_y]);
+    $c = (array) $quete->fresh()->carte->grille['mobilier'][$index];
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $x = (int) $c['x'] + $dx;
+        $y = (int) $c['y'] + $dy;
+        if (($x !== (int) $etatA->position_x || $y !== (int) $etatA->position_y) && caseQueteLibre($quete->fresh(), $x, $y)) {
+            $etatB->update(['position_x' => $x, 'position_y' => $y]);
+            break;
+        }
+    }
 
-    // Brunhilde agit par une requête SÉPARÉE : la session de test reste celle
-    // d'Alice tant que rien ne la change — il faut `actingAs` le joueur de
-    // Bob explicitement (même raison que le tuple étendu de
-    // `demarrerQueteATroisHeros()`).
     test()->actingAs($bob, 'joueur');
     GenererMenu::dispatchSync($groupe->id, (int) $bob->id, (int) $b->id);
 
-    $reponseB = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
-        ->assertStatus(202);
-    expect($reponseB->json('resultat.issue'))->not->toBe('caisse_ravitaillement');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "fouiller_mobilier_{$index}"])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.issue', 'rien')
+        ->assertJsonPath('resultat.caisse_vide', true);
+});
+
+it('le coffre DÉSIGNÉ paie au contact, et plus jamais à la fouille de salle', function () {
+    [, , $a, , , $quete, $etatA] = demarrerQueteATroisHeros();
+    $salle = (int) \App\Partie\Salles::indexDe(
+        $quete->carte->grille['salles'], (int) $etatA->position_x, (int) $etatA->position_y,
+    );
+    $artefact = Objet::where('nom', 'Lame des Esprits')->value('id');
+    $index = poserMeubleAuContact($quete, $etatA, 'Coffre');
+    poserCoffreArtefact($quete, $salle, $artefact);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "fouiller_mobilier_{$index}"])
+        ->assertStatus(202)
+        ->assertJsonPath('resultat.type', 'fouille_mobilier')
+        ->assertJsonPath('resultat.coffre_quete', true)
+        ->assertJsonPath('resultat.issue', 'artefact');
+
+    expect(Inventaire::where('personnage_id', $a->id)->where('objet_id', $artefact)->exists())->toBeTrue()
+        ->and($quete->fresh()->coffresOuverts())->toContain($salle)
+        ->and($quete->fresh()->coffrePlein($salle))->toBeFalse();
+});
+
+it('la fouille de SALLE ne paie pas le coffre désigné quand un coffre physique est là', function () {
+    [, , $a, , , $quete, $etatA] = demarrerQueteATroisHeros();
+    $salle = (int) \App\Partie\Salles::indexDe(
+        $quete->carte->grille['salles'], (int) $etatA->position_x, (int) $etatA->position_y,
+    );
+    $artefact = Objet::where('nom', 'Lame des Esprits')->value('id');
+    poserMeubleAuContact($quete, $etatA, 'Coffre');
+    poserCoffreArtefact($quete, $salle, $artefact);
+
+    empilerCarteFouille($quete, ['issue' => 'rien']);
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)->assertJsonPath('resultat.issue', 'rien');
+
+    expect(Inventaire::where('personnage_id', $a->id)->where('objet_id', $artefact)->exists())->toBeFalse()
+        ->and($quete->fresh()->coffrePlein($salle))->toBeTrue();
+});
+
+it('REPLI : une salle à coffre désigné SANS coffre physique paie encore à la fouille de salle', function () {
+    // Sinon « atteindre et récupérer » deviendrait impossible quand la pose du
+    // mobilier a refusé le coffre (plancher de cases jouables).
+    [, , $a, , , $quete, $etatA] = demarrerQueteATroisHeros();
+    $salle = (int) \App\Partie\Salles::indexDe(
+        $quete->carte->grille['salles'], (int) $etatA->position_x, (int) $etatA->position_y,
+    );
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    $grille['mobilier'] = [];
+    $carte->update(['grille' => $grille]);
+    $artefact = Objet::where('nom', 'Lame des Esprits')->value('id');
+    poserCoffreArtefact($quete->fresh(), $salle, $artefact);
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller_tresor'])
+        ->assertStatus(202)->assertJsonPath('resultat.issue', 'artefact');
+
+    expect($quete->fresh()->coffresOuverts())->toContain($salle);
 });
 
 // ===================================================================
@@ -517,6 +621,11 @@ it('les quatre éléments Against the Ogre Horde APPARAISSENT quand le thème du
                 expect((int) $porte['jonction'])->toBeGreaterThanOrEqual($nombreSalles - 1);
             }
         }
+
+        // UNE seule porte de pierre par carte — jamais les deux bouts d'un même
+        // passage (René, 2026-10-03 : « 1 porte en pierre seulement »).
+        expect(collect($carte['portes'])->filter(fn ($p) => ($p['verrou']['type'] ?? null) === 'pierre')->count())
+            ->toBeLessThanOrEqual(1);
     }
 
     expect($vus)->toBe(['Lame balançoire' => true, 'Fosse des ténèbres' => true, 'Caisse de ravitaillement' => true, 'pierre' => true]);

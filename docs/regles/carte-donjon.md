@@ -368,10 +368,11 @@ propagé de l'arête à sa porte dans `assembler()`) — par définition, les de
 salles qu'une boucle relie sont DÉJÀ connectées par l'arbre, donc la bloquer
 ne peut jamais couper la seule route. Au plus UNE porte de pierre par carte
 (fréquence non sourcée par le livret — décision de portage, volontairement
-conservatrice). Les deux portes d'une même jonction (seuil à deux voies) sont
-marquées ensemble, mais restent forçables indépendamment depuis chaque côté —
-même asymétrie que `MoteurPortes::ouvrir()`, qui n'ouvre jamais que le seuil
-poussé.
+conservatrice). ⚠ **UN seul bout du passage** est de pierre (René,
+2026-10-03 : « On va garder 1 porte en pierre seulement et non les deux ») :
+on marquait les deux portes de la jonction, et il fallait pousser deux dalles
+pour un même passage, là où le livret ne parle que d'une porte. L'autre bout
+reste une porte ordinaire.
 
 **Lame balançoire** (*Swinging Blade Trap*, p. 4-5) : « triggers if a hero
 moves onto a square with the gold overlay […]. A huge blade swings down […],

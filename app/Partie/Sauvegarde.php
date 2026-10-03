@@ -334,6 +334,7 @@ final class Sauvegarde
                 'deck_fouille' => $quete->deckFouille(),
                 'salle_artefact' => $quete->salle_artefact,
                 'salles_coffre' => $quete->sallesCoffre(),
+                'coffres_ouverts' => $quete->coffresOuverts(),
                 'artefact_objet_id' => $quete->artefact_objet_id,
                 // Récits pré-générés : PLACEMENT, pas tirage — ils sont
                 // restaurés tels quels. Les régénérer à chaque reprise
@@ -493,10 +494,27 @@ final class Sauvegarde
         $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
         $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'artefact_objet_id', 'recits'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }
+        }
+
+        // `coffres_ouverts` (2026-10-02) manque aux instantanés pris AVANT son
+        // existence. Le laisser tel quel garderait ouverts, après « Recommencer
+        // la quête », des coffres dont l'inventaire restauré ne contient plus
+        // le butin — l'artefact serait perdu. On le DÉDUIT alors de l'instantané
+        // lui-même, comme l'a fait la migration : une salle à coffre fouillée à
+        // ce moment-là avait vu son coffre ouvert.
+        if (! array_key_exists('coffres_ouverts', $quete)) {
+            $fouillees = array_map(fn ($e) => (int) explode(':', (string) $e)[0], $champs['tresors_fouilles']);
+            $coffres = array_map('intval', (array) ($quete['salles_coffre'] ?? []));
+
+            if (($quete['salle_artefact'] ?? null) !== null) {
+                $coffres[] = (int) $quete['salle_artefact'];
+            }
+
+            $champs['coffres_ouverts'] = array_values(array_unique(array_intersect($coffres, $fouillees)));
         }
 
         // …mais le deck est REMÉLANGÉ (décision de René, 2026-08-05). Le

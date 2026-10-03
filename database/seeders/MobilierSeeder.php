@@ -147,16 +147,12 @@ class MobilierSeeder extends Seeder
             // CAISSE DE RAVITAILLEMENT (« Supply Crate ») : « The first hero
             // to search for treasure in a room containing one of these chests
             // will find 4 Potions of Healing. » — un butin FIXE au premier
-            // chercheur, pas une table pondérée : `fouillable => false`
-            // (aucune action « Fouiller : Caisse de ravitaillement » à son
-            // contact, le livret ne décrit que la fouille DE SALLE) et
-            // `effet.fouille` absent. `ResolveurTour::resoudreFouilleTresor()`
-            // la détecte par `MoteurMobilier::salleContientType()` — même
-            // point de passage que « Sly Storage » (l'Armoire de First Light,
-            // `docs/regles/exploration-et-fouille.md`) — et remplace le
-            // tirage normal par 4× *Potion de guérison* (`soin_pv_body_de: 6`,
-            // « roll 1 red die », ObjetSeeder) quand c'est la PREMIÈRE fouille
-            // de trésor de cette salle.
+            // chercheur, pas une table pondérée (`effet.fouille` absent).
+            // ⚠ FOUILLÉE AU CONTACT depuis le 2026-10-02 (René : « seulement
+            // quand on est adjacent et non quand on cherche la salle ») :
+            // `fouillable => true`, et `ResolveurTour::resoudreFouilleMobilier()`
+            // rend 4× *Potion de guérison* (`soin_pv_body_de: 6`, « roll 1 red
+            // die ») au PREMIER qui l'ouvre, une caisse vide aux suivants.
             //
             // ⚠ PORTAGE : aucun livret ne chiffre l'emprise au sol de cette
             // caisse (elle n'apparaît que sur les plans de quête imprimés, que
@@ -165,7 +161,7 @@ class MobilierSeeder extends Seeder
             // JAMAIS inventer une emprise), on reprend celle du *Coffre* —
             // 1×1, difficulté de destruction 2 — par analogie fonctionnelle
             // (c'est un coffre) plutôt que par mesure. Boîte `horde_ogre`.
-            ['nom' => 'Caisse de ravitaillement', 'nom_anglais' => 'Supply crate', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => false, 'bloque_vue' => false, 'boite' => 'horde_ogre'],
+            ['nom' => 'Caisse de ravitaillement', 'nom_anglais' => 'Supply crate', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false, 'boite' => 'horde_ogre'],
         ];
 
         // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.

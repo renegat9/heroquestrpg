@@ -7392,7 +7392,59 @@ final class ResolveurTour
             ]);
         }
 
+        // « Premier » lu AVANT de marquer : personne n'a encore fouillé ce meuble.
+        $premierAuMeuble = (array) ($meuble['entree']['fouille_par'] ?? []) === [];
+        $salleMeuble = (int) ($meuble['entree']['salle'] ?? -1);
+
         $this->mobilier->marquerFouille($carteQuete, $index, (int) $personnage->id);
+
+        $entete = [
+            'type' => 'fouille_mobilier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => $meuble['nom'],
+        ];
+
+        // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : « The first
+        // hero to search for treasure in a room containing one of these chests
+        // will find 4 Potions of Healing. » AU CONTACT depuis le 2026-10-02
+        // (René) — le premier qui l'ouvre prend les 4 potions, les suivants la
+        // trouvent vide. Butin FIXE : pas de table, pas de tirage.
+        if ($meuble['nom'] === 'Caisse de ravitaillement') {
+            if (! $premierAuMeuble) {
+                $payload = $this->appliquerButin(['issue' => 'rien'], $entete + ['caisse_vide' => true], $groupe, $quete, $personnage, $etat, duDeck: false);
+            } else {
+                $potion = Objet::where('nom', 'Potion de guérison')->first();
+                $objets = [];
+
+                for ($i = 0; $i < 4; $i++) {
+                    $objets[] = $this->remettreButin(['objet_id' => $potion?->id ?? 0], $personnage, 'objet');
+                }
+
+                $payload = [...$entete, 'issue' => 'caisse_ravitaillement', 'caisse_ravitaillement' => true, 'objets' => $objets];
+            }
+
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
+        // COFFRE DÉSIGNÉ (salle du fond, passages secrets — `DeckFouille`) :
+        // c'est en fouillant un COFFRE de cette salle, au contact, qu'on prend
+        // sa récompense (René, 2026-10-02), une seule fois pour le groupe
+        // (`coffres_ouverts`). Elle REMPLACE la table ordinaire du coffre : le
+        // coffre de la quête EST ce coffre-là.
+        if ($meuble['nom'] === 'Coffre' && $salleMeuble >= 0 && $quete->coffrePlein($salleMeuble)) {
+            $quete->marquerCoffreOuvert($salleMeuble);
+            $payload = $this->appliquerButin(
+                $this->deck->carteCoffre($quete, $salleMeuble), $entete + ['coffre_quete' => true],
+                $groupe, $quete, $personnage, $etat,
+            );
+
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
 
         // TABLE PROPRE AU MEUBLE (`mobiliers.effet.fouille`), depuis le
         // 2026-08-17 — et non plus une carte du deck de la quête.
@@ -7472,13 +7524,6 @@ final class ResolveurTour
             $carte = $this->mobilier->tirerButin($meuble['type'], $niveauMoyen, $tagsAccessibles);
         }
 
-        $entete = [
-            'type' => 'fouille_mobilier',
-            'option_id' => $option['id'],
-            'libelle' => $option['libelle'] ?? null,
-            'mobilier' => $meuble['nom'],
-        ];
-
         if ($ecartee !== null) {
             $entete['carte_ecartee'] = $ecartee;
         }
@@ -7522,20 +7567,15 @@ final class ResolveurTour
         $armoire = $premierDeLaSalle && $carteQuete !== null
             && $this->mobilier->salleContientType($carteQuete, $salle, 'Armoire');
 
-        // CAISSE DE RAVITAILLEMENT (Against the Ogre Horde p. 5) : « The
-        // first hero to search for treasure in a room containing one of
-        // these chests will find 4 Potions of Healing. » Même point de
-        // passage que Sly Storage juste au-dessus (`salleContientType()`,
-        // « premier » lu sur l'état durable EXISTANT, AVANT que la ligne du
-        // dessous n'y inscrive la nôtre) — mais un butin FIXE qui REMPLACE le
-        // tirage normal, pas une carte de plus : le livret ne décrit qu'une
-        // trouvaille garantie, jamais un second tirage du deck.
-        $caisse = $premierDeLaSalle && $carteQuete !== null
-            && $this->mobilier->salleContientType($carteQuete, $salle, 'Caisse de ravitaillement');
-
-        // Interrogé AVANT de marquer : `marquerTresorFouille` inscrit la salle
-        // dans la liste dont `coffrePlein` se déduit.
-        $coffre = $quete->coffrePlein($salle);
+        // COFFRE et CAISSE se fouillent AU CONTACT depuis le 2026-10-02 (René :
+        // « seulement quand on est adjacent et non quand on cherche la salle »)
+        // — `resoudreFouilleMobilier()`. La fouille de SALLE ne paie donc plus
+        // le coffre désigné… SAUF si la salle n'a aucun coffre physique à
+        // fouiller : la pose du mobilier peut refuser une pièce (plancher de
+        // cases jouables), et une salle du fond sans coffre rendrait
+        // l'objectif « atteindre et récupérer » impossible à remplir.
+        $coffre = $quete->coffrePlein($salle)
+            && ($carteQuete === null || ! $this->mobilier->salleContientType($carteQuete, $salle, 'Coffre'));
         $quete->marquerTresorFouille($salle, (int) $personnage->id);
 
         // Un coffre ne consomme aucune carte du deck : son butin est un bonus
@@ -7549,24 +7589,8 @@ final class ResolveurTour
             'salle' => $salle,
         ];
 
-        if ($caisse) {
-            // ⚠ PRIORITÉ sur un coffre désigné de la même salle (cas rare,
-            // jamais les deux rôles à la fois dans ce qu'on a mesuré) :
-            // empiler les deux récompenses inventerait une règle que le
-            // livret ne source pas — la caisse est la plus spécifique des
-            // deux ici, elle l'emporte. `coffrePlein()` reste INTERROGÉ ci-
-            // dessus mais son tirage n'est jamais consommé : la salle garde
-            // son coffre pour une page future si la caisse est un jour
-            // détruite/retirée sans que la BD soit repensée.
-            $potion = Objet::where('nom', 'Potion de guérison')->first();
-            $objets = [];
-
-            for ($i = 0; $i < 4; $i++) {
-                $objets[] = $this->remettreButin(['objet_id' => $potion?->id ?? 0], $personnage, 'objet');
-            }
-
-            $payload = [...$entete, 'issue' => 'caisse_ravitaillement', 'caisse_ravitaillement' => true, 'objets' => $objets];
-        } elseif ($coffre) {
+        if ($coffre) {
+            $quete->marquerCoffreOuvert($salle);
             $carte = $this->deck->carteCoffre($quete, $salle);
             $payload = $this->appliquerButin($carte, $entete, $groupe, $quete, $personnage, $etat);
         } else {

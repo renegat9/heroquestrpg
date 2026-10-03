@@ -26,6 +26,7 @@ class Quete extends Model
         'deck_fouille',
         'salle_artefact',
         'salles_coffre',
+        'coffres_ouverts',
         'artefact_objet_id',
         'etat',
         'or_initial',
@@ -50,6 +51,7 @@ class Quete extends Model
             // Salles à coffre : la plus profonde (artefact) + celles situées
             // derrière une porte secrète.
             'salles_coffre' => 'array',
+            'coffres_ouverts' => 'array',
         ];
     }
 
@@ -274,16 +276,31 @@ class Quete extends Model
      * même butin : à quatre, un coffre payait quatre fois (vérifié en base sur
      * une partie réelle — même potion rendue à chaque appel).
      *
-     * Dérivé de `tresors_fouilles` plutôt que d'un nouveau marqueur : une salle
-     * déjà fouillée par QUI QUE CE SOIT a vu son coffre ouvert. Aucune colonne
-     * en plus, et l'état suit les snapshots tout seul.
-     *
-     * ⚠ À interroger AVANT `marquerTresorFouille()`, qui inscrit justement la
-     * salle dans cette liste.
+     * Lu sur `coffres_ouverts` depuis le 2026-10-02 : le coffre se fouille AU
+     * CONTACT (René : « seulement quand on est adjacent et non quand on cherche
+     * la salle »), si bien que fouiller la salle n'ouvre plus son coffre — l'état
+     * ne peut plus se déduire de `tresors_fouilles` comme avant.
      */
     public function coffrePlein(int $salle): bool
     {
-        return $this->estSalleCoffre($salle) && ! in_array($salle, $this->tresorsFouilles(), true);
+        return $this->estSalleCoffre($salle) && ! in_array($salle, $this->coffresOuverts(), true);
+    }
+
+    /** @return list<int> salles dont le coffre désigné a été ouvert */
+    public function coffresOuverts(): array
+    {
+        return array_values(array_map('intval', (array) ($this->coffres_ouverts ?? [])));
+    }
+
+    /** Marque le coffre désigné de cette salle comme ouvert. Idempotent. */
+    public function marquerCoffreOuvert(int $salle): void
+    {
+        $ouverts = $this->coffresOuverts();
+
+        if (! in_array($salle, $ouverts, true)) {
+            $ouverts[] = $salle;
+            $this->update(['coffres_ouverts' => array_values($ouverts)]);
+        }
     }
 
     /** Cette salle est-elle le coffre désigné (celui qui abrite l'artefact) ? */
@@ -310,9 +327,10 @@ class Quete extends Model
             'vaincre_sous_boss' => $this->bossAbattu('sous_boss'),
             'vaincre_boss_final' => $this->bossAbattu('boss'),
             // « Atteindre et récupérer » : le coffre désigné du fond a été
-            // fouillé — c'est lui qui porte l'artefact de la quête.
+            // OUVERT — c'est lui qui porte l'artefact de la quête (au contact
+            // depuis le 2026-10-02, d'où `coffresOuverts()`).
             'atteindre_et_recuperer' => $this->salle_artefact !== null
-                && in_array((int) $this->salle_artefact, $this->tresorsFouilles(), true),
+                && in_array((int) $this->salle_artefact, $this->coffresOuverts(), true),
             default => true,
         };
     }
