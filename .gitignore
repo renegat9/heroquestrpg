@@ -38,8 +38,13 @@ browser-shots/*.png
 /public/audio/narration
 /public/audio/ambiance
 
-# images générées (catalogue + dynamiques — régénérables, hors dépôt)
-/public/images
+# images générées : les .webp du catalogue et des images dynamiques sont suivis
+# ⚠ Depuis le 2026-10-03 (René : « commit toutes les images du jeu sauf celles
+# générées pour les quêtes ») : les jumeaux .webp — ce que le jeu affiche — sont
+# suivis ; les PNG d'origine (≈ 30× plus lourds, 316 Mo pour le catalogue)
+# restent hors dépôt, comme les illustrations propres à chaque quête.
+/public/images/**/*.png
+/public/images/dyn/quete/
 
 # artefacts Windows (flux ADS de fichiers téléchargés) — bruit, hors dépôt
 *:Zone.Identifier
