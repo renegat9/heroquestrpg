@@ -23,6 +23,7 @@
 | **AQ7** | Le héros dédié à l'arène est créé **niveau 1** | Pas de niveau au choix. ⚠ Lu comme « commence au niveau 1 » : s'il doit **monter** avec les victoires d'arène (ma recommandation) ou rester au niveau 1, c'est à confirmer au lot A6b |
 | **AQ8** | Formation des équipes : **un écran dédié**, conçu par Claude | §7 bis |
 | **AQ9** | ~~Cible de Zargon en PvPvE~~ | Sans objet : PvPvE retiré |
+| **Règles** | Alignement sur le livret (René, 2026-10-04, après relecture des p. 12-17) | Trois écarts du plan corrigés : difficulté jamais au-dessus des héros, table de trésor 2d6 rendue, alliés dans l'équipe Challenger (§4, §2). Trois points du tournoi fixés comme au livret : activation du premier qui appuie, trophées face cachée, mort = hors jeu |
 
 ## 1. La contrainte, et pourquoi elle est difficile
 
@@ -75,6 +76,20 @@ porte son `id`. L'étanchéité tient par construction, pas par vigilance.
 - **Ce qui n'est jamais copié** : l'or, l'appartenance au groupe de campagne,
   la bénédiction et la malédiction de l'Oracle (ce sont des états de
   campagne, et la malédiction se lève contre de l'or au marché).
+- **Alliés** (livret p. 12 : « *Heroes **and allies** make up the Challenger
+  team* ») : chaque joueur peut engager **un** allié, choisi dans le
+  catalogue des alliés (mercenaires et compagnons, `MercenaireSeeder`), sans
+  coût. Il n'y a rien à copier : un allié n'appartient pas au héros, il est
+  engagé par un groupe, pour une quête. Il naît dans le groupe d'arène et
+  disparaît avec lui. Il compte dans la **puissance** du Challenger (1 + ses
+  dés d'attaque, même règle qu'un héros). Les ennemis qu'il abat ne sont
+  crédités à personne dans les statistiques.
+  - ⚠ Prérequis moteur : aujourd'hui **les monstres ne ciblent jamais un
+    allié** (`ResolveurTour::phaseAllies()`, « hors périmètre v1 »). Dans
+    l'arène, un allié est un membre de l'équipe : les monstres doivent pouvoir
+    le viser, et il se défend avec les boucliers **blancs**, comme un héros
+    (errata 2021, confirmé par Hasbro). C'est aussi le prédicat d'adversaire
+    unique du lot A9. Le lot A4 en dépend.
 - **Héros dédié à l'arène** (AQ1) : un vrai personnage du roster du joueur,
   créé pour l'arène (classe, nom, portrait) et marqué
   `personnages.mode = 'arene'`. Il n'entre **jamais** en campagne : il n'est
@@ -167,10 +182,10 @@ le vérifie : un combat d'arène complet n'affiche que des noms du catalogue.
 | Lot du tournoi | Repris tel quel | Adaptation au mode arène |
 |---|---|---|
 | T1 arène fixe | oui | — |
-| T2 activation alternée | oui | — |
-| T3 puissance d'équipe et roster | oui | Le joueur peut **choisir la difficulté** : puissance du Defender = celle des héros, ±N |
-| T4 trophées | oui | — |
-| T5 combattant seul, mort, trésor 2d6 | combattant seul et mort : oui | **Trésor** : supprimé ou purement d'honneur (il n'y a rien à rapporter, §5) |
+| T2 activation alternée | oui | Côté héros, active **le premier joueur qui appuie** parmi ceux qui n'ont pas joué : « *activate any one hero* » |
+| T3 puissance d'équipe et roster | oui | Difficulté au choix, mais **jamais au-dessus des héros** : puissance du Defender **égale ou inférieure** à celle du Challenger (« *must be less than or equal to* », p. 14). La puissance compte la meilleure attaque, **sort compris** (le Génie vaut 6, exemple du livret), et les **alliés** |
+| T4 trophées | oui | **Face cachée**, révélés au ramassage, comme au plateau |
+| T5 combattant seul, mort, trésor 2d6 | oui, **tout** | **Mort** : la copie est hors jeu jusqu'à la fin du combat, ses objets restent au sol et se ramassent en passant à côté. **Trésor** : la table 2d6 du livret (p. 13) telle quelle — les pièges blessent la copie, la **hache de bataille en os** sert jusqu'à la fin du combat, l'or est trouvé. Tout disparaît avec la copie : rien ne sort de l'arène, l'or n'est noté qu'au palmarès |
 | T6 vagues, Doralf, Gruzbella | oui | Ils deviennent des **défis** au choix : « trois vagues », « champions de World's End », « Gruzbella » |
 | T7 écrans | oui | Plus un bandeau permanent « Arène — rien ne compte pour la campagne » |
 
@@ -255,7 +270,8 @@ formes, selon le mode.
   arrivée, et celle du Defender composé en face.
 - Chaque joueur, sur sa manette : rejoint avec le code, choisit son
   combattant (la copie d'un de ses héros de campagne, un de ses héros
-  d'arène, ou « créer un héros d'arène », niveau 1), puis « prêt ».
+  d'arène, ou « créer un héros d'arène », niveau 1), éventuellement **un
+  allié** du catalogue, puis « prêt ».
 - Un joueur engage un seul combattant, et un même héros ne peut pas avoir
   deux copies dans le même combat.
 
@@ -287,7 +303,7 @@ formes, selon le mode.
 | **A1** | **Doublures et test d'étanchéité** : colonne, création, suppression, roster, empreinte | — (**à faire en premier**) |
 | **A2** | Groupe d'arène : `groupes.mode`, `estArene()`, fermeture testée de chaque étape de campagne (§3), purge à double verrou, `arene:nettoyer` | A1 |
 | **A3** | Composition par puissance et défis (T3, T6), difficulté choisie | A0 |
-| **A4** | Trophées, combattant seul, mort (T4, T5) | A0 |
+| **A4** | Trophées face cachée, combattant seul, mort, table de trésor 2d6 (T4, T5) ; **alliés** dans l'équipe Challenger, visés par les monstres, défense aux boucliers blancs | A0 |
 | **A5** | Écrans : accueil, choix du défi, manette, résultat | A2, A3 |
 | **A6** | Palmarès et statistiques par héros (combats, victoires, ennemis vaincus par nom de catalogue) | A5 |
 | **A6b** | Héros dédié à l'arène : création, refus en campagne, niveau (AQ7) | A1 |
