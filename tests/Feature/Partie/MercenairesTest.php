@@ -399,3 +399,143 @@ it('fait TRAVERSER un héros à l\'allié dans un couloir d\'une case — il ne 
     $allie->refresh();
     expect([(int) $allie->position_x, (int) $allie->position_y])->toBe([5, 1]);
 });
+
+// ---------------------------------------------------------------------------
+// Les MONSTRES attaquent les alliés (René, 2026-10-04 : « Corrige le fait que
+// les ennemis n'attaquent pas les alliés »). Jusque-là, un allié frappait sans
+// jamais être frappé.
+// ---------------------------------------------------------------------------
+
+/** Pose le monstre au contact de l'allié, sur une case qui ne touche PAS le héros. */
+function monstreContreAllieSeul(Quete $quete, EtatPersonnageQuete $etatHeros, $allie, $instance): void
+{
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $x = (int) $allie->position_x + $dx;
+        $y = (int) $allie->position_y + $dy;
+        $loinDuHeros = abs($x - (int) $etatHeros->position_x) + abs($y - (int) $etatHeros->position_y) > 1;
+
+        if ($loinDuHeros && caseQueteLibre($quete->fresh(), $x, $y)) {
+            $instance->update(['position_x' => $x, 'position_y' => $y]);
+
+            return;
+        }
+    }
+
+    // Le héros est collé à l'allié de tous côtés : on l'éloigne.
+    $etatHeros->update(['position_x' => null, 'position_y' => null]);
+    $c = caseAdjacenteLibre($quete->fresh(), (int) $allie->position_x, (int) $allie->position_y);
+    $instance->update(['position_x' => $c['x'], 'position_y' => $c['y']]);
+}
+
+it('un monstre au contact d\'un ALLIÉ seul l\'attaque, et l\'allié se défend aux boucliers BLANCS', function () {
+    [, $quete, $heros, $allie, $instance] = queteAvecAllie();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    // Un monstre de MÊLÉE : un archer tire sur la cible la plus FAIBLE, ce
+    // qui est une autre règle (couverte ci-dessous).
+    $instance->update(['pv_body' => 20, 'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id')]);
+    $instance->refresh()->load('monstre'); // survit à l'allié, qui joue avant lui
+    monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
+
+    // Que des 5 : un bouclier BLANC — il pare pour un héros (et un allié), pas
+    // pour un monstre. Le monstre ne marque aucun crâne, l'allié pare tout.
+    desFiges(array_fill(0, 120, 5));
+
+    $actions = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_monstres.actions'));
+    $attaque = $actions->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque)->not->toBeNull()
+        ->and($attaque['cible']['type'])->toBe('allie')
+        ->and($attaque['cible']['allie_id'])->toBe($allie->id)
+        ->and($attaque['degats'])->toBe(0)
+        ->and((int) $allie->fresh()->pv_body)->toBe((int) $allie->pv_body);
+});
+
+it('un allié à 0 PV est VAINCU, quitte la carte, et le journal l\'annonce', function () {
+    [$groupe, $quete, $heros, $allie, $instance] = queteAvecAllie();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    // Un monstre de MÊLÉE : un archer tire sur la cible la plus FAIBLE, ce
+    // qui est une autre règle (couverte ci-dessous).
+    $instance->update(['pv_body' => 20, 'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id')]);
+    $instance->refresh()->load('monstre');
+    $allie->update(['pv_body' => 1]);
+    monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
+
+    // Que des 1 : des crânes partout — l'allié ne pare rien.
+    desFiges(array_fill(0, 120, 1));
+
+    $resultat = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat');
+    $attaque = collect($resultat['tour_monstres']['actions'] ?? [])->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque['allie_vaincu'])->toBeTrue();
+
+    $allie->refresh();
+    expect($allie->etat)->toBe('vaincu')
+        ->and($allie->position_x)->toBeNull();
+
+    $lignes = app(App\Partie\JournalCombat::class)->depuisResultat($resultat, 'Albrecht');
+    expect(collect($lignes)->pluck('texte')->implode(' | '))->toContain('quitte le combat');
+
+    // Il n'apparaît plus dans l'état publié.
+    expect(collect(app(App\Partie\EtatGroupe::class)->payload($groupe->fresh())['groupe']['mercenaires'] ?? [])
+        ->pluck('id')->all())->not->toContain($allie->id);
+});
+
+it('héros ET allié au contact : le monstre garde le HÉROS pour cible (rien ne change sans allié plus proche)', function () {
+    [, $quete, $heros, $allie, $instance] = queteAvecAllie();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    // Un monstre de MÊLÉE : un archer tire sur la cible la plus FAIBLE, ce
+    // qui est une autre règle (couverte ci-dessous).
+    $instance->update(['pv_body' => 20, 'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id')]);
+    $instance->refresh()->load('monstre');
+
+    // Le monstre au contact du héros, l'allié collé au monstre de l'autre côté.
+    $c = caseAdjacenteLibre($quete->fresh(), (int) $etatHeros->position_x, (int) $etatHeros->position_y);
+    $instance->update(['position_x' => $c['x'], 'position_y' => $c['y']]);
+    $a = caseAdjacenteLibre($quete->fresh(), $c['x'], $c['y']);
+    $allie->update(['position_x' => $a['x'], 'position_y' => $a['y']]);
+
+    desFiges(array_fill(0, 120, 5));
+
+    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque['cible']['personnage_id'] ?? null)->toBe($heros->id);
+});
+
+it('la scène de table d\'un allié frappé montre l\'allié en défenseur, avec ses PV', function () {
+    [, $quete, $heros, $allie, $instance] = queteAvecAllie();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    // Un monstre de MÊLÉE : un archer tire sur la cible la plus FAIBLE, ce
+    // qui est une autre règle (couverte ci-dessous).
+    $instance->update(['pv_body' => 20, 'monstre_id' => App\Models\Monstre::where('nom_base', 'Orque')->value('id')]);
+    $instance->refresh()->load('monstre');
+    monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
+    desFiges(array_fill(0, 120, 5));
+
+    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+
+    $scene = app(App\Partie\SceneDeTable::class)->depuisResultat($attaque, App\Models\Personnage::firstOrFail())[0];
+    $defenseur = collect($scene['acteurs'])->firstWhere('role', 'defenseur');
+
+    expect($scene['genre'])->toBe('attaque')
+        ->and($defenseur)->not->toBeNull()
+        ->and($defenseur['pv']['courant'])->toBe((int) $allie->fresh()->pv_body);
+});
+
+it('un ARCHER vise l\'allié s\'il est la cible la plus faible en vue — même règle que pour les héros', function () {
+    [, $quete, $heros, $allie, $instance] = queteAvecAllie();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    $instance->update(['pv_body' => 20, 'monstre_id' => App\Models\Monstre::where('nom_base', 'Archer squelette')->value('id')]);
+    $instance->refresh()->load('monstre');
+    $allie->update(['pv_body' => 1]); // plus faible que le héros (8 PV)
+    monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
+    desFiges(array_fill(0, 120, 5));
+
+    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+
+    expect($attaque['cible']['type'] ?? null)->toBe('allie');
+});

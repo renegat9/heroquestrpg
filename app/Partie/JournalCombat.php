@@ -1018,6 +1018,12 @@ final class JournalCombat
             $lignes[] = ['texte' => "{$cible} s'effondre !", 'ton' => 'chute'];
         }
 
+        // Un ALLIÉ vaincu quitte la carte (2026-10-04) : sans cette ligne, sa
+        // figurine disparaîtrait sans un mot.
+        if (! empty($a['allie_vaincu'])) {
+            $lignes[] = ['texte' => "{$cible} tombe et quitte le combat !", 'ton' => 'mort'];
+        }
+
         return $lignes;
     }
 

@@ -84,7 +84,9 @@ porte son `id`. L'étanchéité tient par construction, pas par vigilance.
   disparaît avec lui. Il compte dans la **puissance** du Challenger (1 + ses
   dés d'attaque, même règle qu'un héros). Les ennemis qu'il abat ne sont
   crédités à personne dans les statistiques.
-  - ⚠ Prérequis moteur : aujourd'hui **les monstres ne ciblent jamais un
+  - ✅ **Fait le 2026-10-04** (en campagne aussi) : les monstres visent les
+    alliés — `docs/regles/combat-et-tour.md`. Ce qui suit est l'état d'avant.
+    Prérequis moteur : aujourd'hui **les monstres ne ciblent jamais un
     allié** (`ResolveurTour::phaseAllies()`, « hors périmètre v1 »). Dans
     l'arène, un allié est un membre de l'équipe : les monstres doivent pouvoir
     le viser, et il se défend avec les boucliers **blancs**, comme un héros

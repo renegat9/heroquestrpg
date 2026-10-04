@@ -55,3 +55,10 @@ jet.
 (colonne, jamais un cache) et dans `deplacement.sans_menace` de la scène de
 table — DÉCISION publiée par le serveur, jamais recalculée côté client
 (`DeplacementSheet.vue`, `SceneDeTable::deplacement()`).
+
+**Les monstres attaquent les alliés** (René, 2026-10-04 : « Corrige le fait que les ennemis n'attaquent pas les alliés »). Jusque-là, `jouerMonstre()` ne voyait que des héros (« hors périmètre v1 ») : un loup ou un fauchard frappait sans jamais être frappé, ce qui en faisait des figures invulnérables. Le livret les range pourtant dans l'équipe des héros (« *Heroes and allies make up the Challenger team* », Against the Ogre Horde p. 12). Désormais :
+- **Cible** : la figure **la plus proche**, héros ou allié — mais à distance **égale**, le héros reste la cible, pour que rien ne change dans un groupe sans allié. Un **archer** vise la plus **faible** en vue, allié compris : c'est sa règle, appliquée à tous. `ResolveurTour::alliesCiblables()` est l'unique liste des alliés visables (actifs et posés).
+- **Défense** : les dés de l'allié, aux boucliers **blancs** comme un héros (errata 2021, Hasbro : « allies may defend like any other Hero »), via `Combat::resoudreAttaque(typeDefenseur: Heros)` — sans les talents des héros, qu'un allié n'a pas (`resoudreAttaqueMonstreSurAllie()`).
+- **À 0 PV** : l'allié est `vaincu` et **quitte la carte** (sa case se libère, comme un monstre vaincu ; un héros tombé, lui, garde la sienne). Annoncé par le journal (« … tombe et quitte le combat ») et par la scène de table, où il figure en défenseur.
+- La phase des monstres ne s'arrête plus quand tous les héros sont hors de vue ou tombés s'il reste un allié à frapper.
+- ⚠ **Limite nommée** : les capacités spéciales (étreinte du Yéti, frappe de zone, choix tactique de l'ours, vol du gremlin, accroche du rejeton) et les sorts de Dread visent encore les **seuls héros**. Les étendre demande, pour chacune, la question « qu'est-ce que ça fait à un allié ? » — l'étreinte d'un allié n'a par exemple aucun support (les conditions vivent sur `personnage_conditions`). À faire carte par carte, pas d'un bloc.

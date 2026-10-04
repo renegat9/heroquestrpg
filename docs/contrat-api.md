@@ -663,6 +663,19 @@ les **faces des dés** (`faces_attaque`, `faces_defense`, `face_touchante`,
 `face_defensive`, `ResultatAttaque::pourJournal()`, comme une attaque de
 monstre) : la scène d'un allié n'affichait aucun dé.
 
+**Les monstres attaquent les alliés (René, 2026-10-04).** Un monstre vise la
+figure **la plus proche**, héros ou allié (à distance égale, le héros) ; un
+archer, la plus **faible** en vue, allié compris. L'attaque sur un allié est
+une action `attaque_monstre` dont la `cible` porte `{type: "allie",
+allie_id, mercenaire_id, nom}` au lieu de `personnage_id`, plus
+`pv_body_apres` et **`allie_vaincu`** (bool) : à 0 PV, l'allié passe
+`vaincu`, quitte la carte et disparaît de `groupe.mercenaires` et de
+`initiative`. L'allié se défend avec **ses** dés aux boucliers **blancs**,
+comme un héros (errata 2021). La scène de table le montre en `defenseur`,
+avec son image et ses PV. ⚠ Les capacités spéciales (étreinte, frappe de
+zone, choix tactique, vol, accroche) et les sorts de Dread visent encore les
+**seuls héros** — limite nommée.
+
 **Un allié traverse les héros et les autres alliés** (2026-10-01) — pas les
 monstres, pas les meubles —, sans jamais s'arrêter sur une case occupée. Dans
 un couloir d'une case, un héros posté entre lui et le monstre le laissait

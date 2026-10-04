@@ -6618,9 +6618,9 @@ final class ResolveurTour
      * `frapperEntreMonstres()`, écrit pour la baguette et déjà éprouvé.
      *
      * ⚠ Un sbire n'attaque JAMAIS un autre sbire : ils sont du même camp ce
-     * tour-ci. Les monstres, eux, continuent de ne viser que les héros — le
-     * ciblage des alliés par Zargon est hors périmètre depuis la v1, et les
-     * squelettes enrôlés héritent de cette règle plutôt que d'en inventer une.
+     * tour-ci. ⚠ Les monstres visent les HÉROS et les ALLIÉS recrutés depuis
+     * le 2026-10-04 (`alliesCiblables()`) — mais pas un sbire enrôlé : c'est
+     * un monstre du catalogue, qu'aucune règle ne range parmi les alliés.
      *
      * ⚠ `controle_agi` est posé même quand le sbire n'a rien pu faire : la
      * marque dit « ce round est joué », pas « ce coup a porté ».
@@ -8510,8 +8510,8 @@ final class ResolveurTour
                 ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
                 ->values();
 
-            if ($cibles->isEmpty()) {
-                break; // plus personne debout (ou tout le monde est caché)
+            if ($cibles->isEmpty() && $this->alliesCiblables($quete)->isEmpty()) {
+                break; // plus personne debout (ou tout le monde est caché), allié compris
             }
 
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
@@ -8987,13 +8987,20 @@ final class ResolveurTour
             return $vol;
         }
 
-        // Héros le plus proche : plus court chemin vers une case adjacente
-        // (sa propre case si déjà au contact).
-        $meilleure = null; // [etat héros, chemin]
-        foreach ($cibles as $cible) {
+        // Figure la plus proche — HÉROS OU ALLIÉ (René, 2026-10-04 : « Corrige
+        // le fait que les ennemis n'attaquent pas les alliés ») : plus court
+        // chemin vers une case adjacente (sa propre case si déjà au contact).
+        // Les héros d'abord, puis les alliés : à distance ÉGALE, le héros reste
+        // la cible — seul un allié strictement plus proche détourne le monstre.
+        // C'est le comportement d'avant pour tout groupe sans allié.
+        $meilleure = null; // [etat héros | GroupeMercenaire, chemin]
+        foreach ([...$cibles->all(), ...$this->alliesCiblables($quete)->all()] as $cible) {
             if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y)) {
-                $meilleure = [$cible, []];
-                break;
+                if ($meilleure === null || $meilleure[1] !== []) {
+                    $meilleure = [$cible, []];
+                }
+
+                continue;
             }
 
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
@@ -9001,7 +9008,7 @@ final class ResolveurTour
                 $cy = (int) $cible->position_y + $dy;
                 $chemin = $grille->chemin((int) $instance->position_x, (int) $instance->position_y, $cx, $cy);
 
-                if ($chemin !== null && ($meilleure === null || count($chemin) < count($meilleure[1]))) {
+                if ($chemin !== null && ($meilleure === null || ($meilleure[1] !== [] && count($chemin) < count($meilleure[1])))) {
                     $meilleure = [$cible, $chemin];
                 }
             }
@@ -9131,6 +9138,15 @@ final class ResolveurTour
             Journal::ajouter($groupe, 'action', $payload, $acteur);
 
             return $payload;
+        }
+
+        // La cible est un ALLIÉ : attaque simple, sa propre défense. Les
+        // capacités ci-dessous (frappe de zone, choix tactique) raisonnent sur
+        // des HÉROS et le restent — limite nommée, docs/regles/combat-et-tour.md.
+        if ($cible instanceof GroupeMercenaire) {
+            return $this->resoudreAttaqueMonstreSurAllie(
+                $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+            );
         }
 
         // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
@@ -9657,8 +9673,10 @@ final class ResolveurTour
         // Ligne de TIR (doc 03 §36) : une figure interposée (héros OU monstre)
         // coupe la vue — un archer ne tire pas sur un héros caché DERRIÈRE
         // d'autres figures. `$grille` porte déjà l'occupation (FabriqueGrille).
-        $visibles = $cibles->filter(fn (EtatPersonnageQuete $c) => $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true)
-        )->values();
+        // Les ALLIÉS sont des cibles comme les héros (2026-10-04).
+        $visibles = collect([...$cibles->all(), ...$this->alliesCiblables($instance->quete)->all()])
+            ->filter(fn ($c) => $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true))
+            ->values();
 
         if ($visibles->isEmpty()) {
             return null; // pas de ligne de tir → l'appelant fera approcher le monstre
@@ -9674,8 +9692,8 @@ final class ResolveurTour
         // comparaison — toujours positifs, donc un ordre arbitraire, sans la moindre
         // erreur. Même défaut que celui corrigé dans `MoteurDread` le 2026-09-02 :
         // l'archer visait le héros ROBUSTE en ignorant celui à 1 PV.
-        $cible = $visibles->sortBy(fn (EtatPersonnageQuete $c) => [
-            (int) $c->personnage->pv_body,
+        $cible = $visibles->sortBy(fn ($c) => [
+            (int) ($c instanceof GroupeMercenaire ? $c->pv_body : $c->personnage->pv_body),
             $grille->distance($ix, $iy, (int) $c->position_x, (int) $c->position_y) ?? PHP_INT_MAX,
         ])->first();
 
@@ -9687,10 +9705,105 @@ final class ResolveurTour
             ? $instance->attaqueEffective()
             : ($instance->attaqueDistanceEffective() ?? $instance->attaqueEffective());
 
+        if ($cible instanceof GroupeMercenaire) {
+            return $this->resoudreAttaqueMonstreSurAllie(
+                $groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
+                $adjacent ? 'corps_a_corps' : 'distance',
+            );
+        }
+
         return $this->resoudreAttaqueMonstre(
             $groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
             $adjacent ? 'corps_a_corps' : 'distance',
         );
+    }
+
+    /**
+     * Alliés que les monstres peuvent viser : actifs et posés sur la carte.
+     *
+     * ⚠ Ils ne l'étaient JAMAIS jusqu'au 2026-10-04 (`phaseAllies()` : « le
+     * ciblage des alliés PAR les monstres est hors périmètre v1 ») — un allié
+     * frappait sans jamais être frappé. Le livret les met dans l'équipe des
+     * héros (« Heroes and allies make up the Challenger team », Against the
+     * Ogre Horde p. 12), et René l'a demandé.
+     *
+     * @return \Illuminate\Support\Collection<int, GroupeMercenaire>
+     */
+    private function alliesCiblables(?Quete $quete): \Illuminate\Support\Collection
+    {
+        if ($quete === null) {
+            return collect();
+        }
+
+        return GroupeMercenaire::where('groupe_id', $quete->groupe_id)
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Un monstre frappe un ALLIÉ (2026-10-04). Le moteur seul, comme contre un
+     * héros, mais sans les talents qui n'appartiennent qu'aux héros (Garde
+     * tenace, Bannière…) : l'allié se défend avec SES dés, aux boucliers
+     * BLANCS comme un héros — errata 2021, confirmé par Hasbro (« Allies may
+     * defend like any other Hero »). À 0 PV, il est vaincu et quitte la carte.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueMonstreSurAllie(
+        Groupe $groupe,
+        InstanceMonstre $instance,
+        GroupeMercenaire $allie,
+        int $desAttaque,
+        array $acteur,
+        string $nomMonstre,
+        string $portee = 'corps_a_corps',
+    ): array {
+        $stats = $allie->mercenaire;
+
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: max(0, $desAttaque),
+            desDefense: (int) ($stats?->defense ?? 0),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $allie->pv_body,
+        );
+
+        $vaincu = $resultat->pvBodyApres === 0;
+        $allie->update([
+            'pv_body' => $resultat->pvBodyApres,
+            'etat' => $vaincu ? 'vaincu' : 'actif',
+            // Un allié vaincu QUITTE la carte : sa case se libère, comme celle
+            // d'un monstre vaincu. Un héros tombé, lui, occupe la sienne.
+            'position_x' => $vaincu ? null : $allie->position_x,
+            'position_y' => $vaincu ? null : $allie->position_y,
+        ]);
+
+        $payload = [
+            'type' => 'attaque_monstre',
+            'id' => $instance->id,
+            'instance_id' => $instance->id,
+            'monstre' => $nomMonstre,
+            'portee' => $portee,
+            'cible' => [
+                'type' => 'allie',
+                'allie_id' => (int) $allie->id,
+                'mercenaire_id' => (int) $allie->mercenaire_id,
+                'nom' => (string) ($stats?->nom ?? 'Allié'),
+            ],
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $resultat->degats,
+            'pv_body_apres' => $resultat->pvBodyApres,
+            'allie_vaincu' => $vaincu,
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
     }
 
     /**
@@ -10431,8 +10544,8 @@ final class ResolveurTour
     /**
      * Phase des alliés scriptés (3.5) : chaque allié actif joue comme un
      * « monstre allié » ciblant les MONSTRES (révélés). PNJ scripté, hors
-     * initiative héros. NB : le ciblage des alliés PAR les monstres est hors
-     * périmètre v1 — `jouerMonstre` continue de ne viser que les héros.
+     * initiative héros. Les monstres, eux, visent les alliés depuis le
+     * 2026-10-04 (`alliesCiblables()`, `resoudreAttaqueMonstreSurAllie()`).
      *
      * @return array{actions: list<array<string, mixed>>}
      */

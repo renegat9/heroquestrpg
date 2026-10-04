@@ -295,6 +295,28 @@ final class SceneDeTable
         $instanceId = (int) ($a['instance_id'] ?? 0);
         $cibleId = (int) ($a['cible']['personnage_id'] ?? 0);
 
+        // Un monstre frappe un ALLIÉ (2026-10-04) : même scène, l'allié en
+        // défenseur avec SON portrait et ses PV.
+        if ($instanceId > 0 && ($a['cible']['type'] ?? null) === 'allie') {
+            $monstre = (string) ($a['monstre'] ?? 'Le monstre');
+            $cibleNom = (string) ($a['cible']['nom'] ?? 'un allié');
+
+            return [
+                'genre' => 'attaque',
+                'titre' => "{$monstre} attaque {$cibleNom}",
+                'sous_titre' => $this->porteeLisible($a),
+                'acteurs' => [
+                    $this->acteurMonstre($instanceId, $monstre, 'attaquant'),
+                    $this->acteurAllie((int) ($a['cible']['mercenaire_id'] ?? 0), $cibleNom, 'defenseur', (int) ($a['cible']['allie_id'] ?? 0)),
+                ],
+                'jet' => $this->jetDesDes($a, $monstre, $cibleNom),
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [],
+                'issue' => $this->issueDuCoup($a, (int) ($a['degats'] ?? 0), $cibleNom, vaincue: ! empty($a['allie_vaincu']), heros: true),
+            ];
+        }
+
         if ($instanceId === 0 || $cibleId === 0) {
             return null;
         }
