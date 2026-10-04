@@ -16,7 +16,7 @@
 
 | # | Décision | Conséquence dans les lots |
 |---|---|---|
-| **Q1** Tournoi | **Plan dédié** : `docs/plan-tournoi-worlds-end.md`, avec ses propres questions TQ1-TQ5 | Le lot F devient ce plan |
+| **Q1** Tournoi | **Plan dédié** : `docs/plan-tournoi-worlds-end.md`. ⚠ Puis (2026-10-04) : **pas de tournoi en campagne** — il devient le moteur du **mode Arène** (`docs/plan-mode-arene.md`) | Le lot F passe au plan de l'arène |
 | **Q2** Allié animal | **Proposé au début d'une campagne** dont le groupe compte **moins de 4 joueurs** | Lot E. ⚠ Interprétation à confirmer à l'implémentation : proposé **une fois**, à la création du groupe, **gratuitement** (comme au livret, « at no cost »), et il accompagne le groupe pendant **toute la campagne**, faute de quoi « au début d'une campagne » n'aurait pas de sens. Il garde notre règle d'un animal par groupe et reste joué par le moteur (le contrôle par le joueur n'a pas été demandé) |
 | **Q3** Mercenaire ogre | **Même fonctionnement que les autres alliés** : pas de reconduction à moitié prix | Rien à faire : `MercenaireSeeder` et le hub le traitent déjà ainsi. La règle du livret est écartée par cette phrase |
 | **Q4** *Dominate* | **Oui** : le moteur joue le héros dominé pendant un tour | Lot D, en dernier |

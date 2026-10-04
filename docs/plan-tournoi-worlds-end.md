@@ -6,6 +6,17 @@
 > et quêtes 1 à 3 (p. 21-25). Les blocs de stats ont été relus sur le rendu
 > PNG des pages.
 
+## ⚠ Décision du 2026-10-04 — ce plan sert l'ARÈNE, pas la campagne
+
+René (AQ6 de `docs/plan-mode-arene.md`) : **pas de tournoi dans la campagne**.
+La forme A (une quête de l'arc) et ses quêtes T6 en campagne sont abandonnées.
+Ce document reste la référence des **règles** du tournoi (§1) et de son
+**moteur de combat** (lots T1 à T5 : arène fixe, activation alternée,
+puissance d'équipe, trophées, combattant seul), que le **mode Arène**
+réutilise tel quel. Les vagues, Doralf et Gruzbella y deviennent des défis
+d'arène. TQ1 et TQ2 sont tranchées par ce choix ; TQ3 à TQ5 se reposent dans
+le plan de l'arène.
+
 ## 1. Ce que le tournoi est, au plateau
 
 Les trois premières quêtes de la boîte se jouent dans le hall du tournoi de
@@ -159,9 +170,10 @@ campagne d'agents (`campagne-agents`) en arène clôt T2 et T6.
 
 ## 6. Ce qui reste hors du plan, par choix écrit
 
-- La **variante monstres contre monstres** (p. 16) : elle n'a pas de héros,
-  donc pas de joueurs. C'est un mode spectateur sans place dans un jeu dont
-  les joueurs sont des héros.
+- ~~La **variante monstres contre monstres** (p. 16)~~ — **réintégrée le
+  2026-10-04** dans le mode Arène (`docs/plan-mode-arene.md`, AQ3) : chaque
+  équipe de monstres y est **dirigée par des joueurs**, ce qui lève l'objection
+  « pas de joueurs » de la première version de ce plan.
 - La règle **« Zargon modifie un tournoi raté »** (p. 13) : notre moteur
   compose déjà l'adversaire à la puissance. Un tournoi raté se rejoue avec
   « Recommencer la quête », qui recompose.
