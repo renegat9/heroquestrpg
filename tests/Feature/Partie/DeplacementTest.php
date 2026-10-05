@@ -480,6 +480,8 @@ it('diffuse aussi le trajet du MONSTRE, pour qu\'il ne se téléporte pas sur la
     // verrouillée — et c'est la moitié monstre qu'on regarde à la table.
     ['groupe' => $groupe, 'quete' => $quete, 'instance' => $instance, 'etatHeros' => $etatHeros, 'alice' => $alice]
         = demarrerQueteAvecMonstre('Gobelin');
+    placerHerosSurAxeDegage($quete->fresh(), $etatHeros);
+    $etatHeros->refresh();
 
     // Éloigner le monstre : au contact il frappe sans bouger, et il n'y a alors
     // aucun trajet à animer — la situation ne se teste pas toute seule.

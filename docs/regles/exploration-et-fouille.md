@@ -210,3 +210,40 @@ monstres dormants (`Salles::indexDe()`) : un marqueur visible sur une carte
 encore noire serait le brouillard contourné par la porte de derrière. Une
 fois libéré, il quitte ce flux et rejoint `EtatGroupe::allies()` comme
 n'importe quel allié.
+
+**On ne quitte le donjon QUE par l'escalier d'entrée, et la mission
+« secourir » devient une vraie EXTRACTION** (chantier escalier-entrée,
+2026-10-05, René : « ça clarifierait la réussite de la mission d'extraction
+où l'allié temporaire doit être retourné à l'entrée pour finir »).
+`AssembleurCarte` pose désormais un escalier 2×2 traversable dans la salle de
+départ de chaque quête (→ `docs/regles/carte-donjon.md`). Deux conséquences :
+
+1. `quitter_donjon` (`MenuMoteur`, `VoteGroupe::TYPE_SORTIE`) n'est plus
+   offert n'importe où dans le donjon : il faut que **ce héros** se tienne
+   sur une case de l'escalier, **en plus** des conditions déjà en vigueur
+   (objectif accompli ou donjon vidé, pas de vote déjà ouvert). Le vote lui-même
+   ne change pas — majorité simple, le groupe sort ensemble quand il passe,
+   quelle que soit la position des AUTRES membres au moment du vote.
+   `ResolveurTour::resoudreQuitterDonjon()` re-valide la même garde (422 « Il
+   faut se tenir sur l'escalier pour quitter le donjon. ») — le menu ne doit
+   jamais être le seul rempart.
+   ⚠ **`battre_en_retraite` reste SANS AUCUNE condition** (René, 2026-08-21,
+   rappelé explicitement le 2026-10-05) : l'escalier ne s'applique QU'À
+   `quitter_donjon`, jamais à la retraite — décrocher doit rester possible au
+   pire moment, loin de l'escalier, sans quoi ce n'est plus une retraite.
+2. `Quete::captifLibereEtVivant()` — et donc `objectifAccompli('secourir')` —
+   exige désormais que le captif libéré et vivant se tienne **sur
+   l'escalier**, pas seulement qu'il ait été libéré. C'est le choix du livret
+   qu'on avait écarté le 2026-10-04 faute d'escalier à viser (« la sortie
+   elle-même suit le vote ordinaire ») : Gothar doit être **escorté** (Frozen
+   Horror p. 19), et l'escalier est désormais le point d'arrivée concret de
+   cette escorte. `objectif_libelle` dit « … et le ramener vivant à
+   l'escalier. » plutôt que « … à la sortie. ».
+
+⚠ **Repli écrit et testé pour les cartes déjà assemblées SANS escalier**
+(campagnes EN COURS dans la vraie base, `tests/Feature/Partie/EscalierTest.php`) :
+`Carte::casesEscalier()` rend `[]` quand la couche est absente, et les DEUX
+lecteurs ci-dessus retombent alors sur le comportement d'avant — sortie
+possible n'importe où, mission accomplie dès la seule libération. Jamais une
+migration rétroactive sur une carte déjà générée ; jamais une quête en cours
+rendue impossible à terminer.

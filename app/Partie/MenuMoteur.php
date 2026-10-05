@@ -2330,6 +2330,22 @@ final class MenuMoteur
             // qu'être enfermé à vie.
             || ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
 
+        // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « on
+        // ne quitte le donjon QUE par l'escalier »). `quitter_donjon` n'est
+        // plus offert n'importe où : il faut que CE héros se tienne sur une
+        // case de l'escalier — le repère du plateau d'origine, posé par
+        // `AssembleurCarte` dans la salle 0. Décision publiée côté serveur
+        // (l'option est présente ou non) : le client n'a rien à recalculer.
+        //
+        // ⚠ REPLI (décision 5 du plan) : une carte assemblée AVANT ce chantier
+        // (campagne EN COURS dans la vraie base) ne porte pas la couche
+        // `escalier` — `casesEscalier()` rend alors `[]`, et on retombe sur le
+        // comportement d'avant plutôt que de rendre une quête en cours
+        // impossible à terminer.
+        $escalier = $quete->carte?->casesEscalier() ?? [];
+        $surEscalier = $escalier === []
+            || ($quete->carte?->surEscalier($etat?->position_x, $etat?->position_y) ?? false);
+
         // ⚠ Ni l'une ni l'autre tant qu'un VOTE est ouvert : les deux en
         // ouvrent un, et le résolveur refuse le second par un 422 « Un vote est
         // déjà en cours ». Constaté en partie réelle le 2026-08-30 — le menu
@@ -2340,7 +2356,7 @@ final class MenuMoteur
         // résolveur refusera.
         $voteOuvert = VoteGroupe::enCours($quete->groupe_id);
 
-        if (! $aJoue && $peutSortir && ! $voteOuvert) {
+        if (! $aJoue && $peutSortir && $surEscalier && ! $voteOuvert) {
             $options[] = [
                 'id' => 'quitter_donjon',
                 'libelle' => 'Quitter le donjon — proposer au groupe',

@@ -15,7 +15,8 @@ import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
-    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, BLOC_ICONE, icone,
+    MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, BLOC_ICONE,
+    ESCALIER_ICONE, icone,
 } from './symboles.js';
 // ⚠ Le MÊME lecteur que le bandeau d'initiative et que le liseré doré de la
 // figurine : une seconde lecture, écrite ici, finirait par désigner un autre
@@ -147,6 +148,22 @@ const leviers = computed(() => (props.carte?.leviers ?? [])
         detail: `jet de Body, difficulté ${l.difficulte ?? 2}`,
     })));
 
+// ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) : présent dans
+// l'aperçu dès que son emprise 2×2 touche la salle courante — absent
+// (`null`) sur une carte assemblée avant ce chantier.
+const escalier = computed(() => {
+    const e = props.carte?.escalier;
+    if (! e || ! salle.value) { return null; }
+
+    for (let dy = 0; dy < e.h; dy++) {
+        for (let dx = 0; dx < e.l; dx++) {
+            if (ici(e.x + dx, e.y + dy)) { return e; }
+        }
+    }
+
+    return null;
+});
+
 // Issues : une porte appartient à la salle si l'UNE de ses deux cases y tombe.
 // Une porte est une arête entre deux cases, elle est donc toujours à cheval.
 const issues = computed(() => (props.carte?.portes ?? [])
@@ -245,6 +262,17 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
                     <div v-for="l in leviers" :key="l.cle" class="ap-ligne">
                         <Vignette class="ap-img" :src="l.img" :icon="l.ic" fill />
                         <span class="ap-txt"><b>{{ l.nom }}</b><small>{{ l.detail }}</small></span>
+                    </div>
+                </section>
+
+                <section v-if="escalier" class="ap-sect">
+                    <div class="ap-sous">Escalier d'entrée</div>
+                    <div class="ap-ligne">
+                        <Vignette class="ap-img" :icon="ESCALIER_ICONE" fill />
+                        <span class="ap-txt">
+                            <b>Escalier</b>
+                            <small>On commence et on finit la quête ici — « Quitter le donjon » n'est proposé qu'à son contact</small>
+                        </span>
                     </div>
                 </section>
 

@@ -423,6 +423,12 @@ final class EtatGroupe
             // que les leviers l'ont été le 2026-08-27 : elle bloquait le
             // mouvement côté moteur sans être dessinée nulle part.
             'glace' => $this->glace($carte, $cases),
+            // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) : le
+            // repère du plateau d'origine — toujours dans la salle de départ,
+            // donc toujours visible en pratique, mais filtré par le MÊME
+            // brouillard que les autres couches par pure CONSTANCE plutôt que
+            // par nécessité. `null` sur une carte assemblée AVANT ce chantier.
+            'escalier' => $this->escalier($carte, $cases),
             'portes' => $portes,
         ];
     }
@@ -796,6 +802,36 @@ final class EtatGroupe
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Escalier d'entrée (chantier escalier-entrée, 2026-10-05) : `null`
+     * absente/vide (carte sans la couche, ou entièrement sous le brouillard —
+     * en pratique jamais, la salle 0 est toujours découverte).
+     *
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
+     * @return array{x: int, y: int, l: int, h: int}|null
+     */
+    private function escalier(Carte $carte, array $cases): ?array
+    {
+        $bloc = $carte->grille['escalier'] ?? null;
+
+        if (! is_array($bloc) || ! isset($bloc['x'], $bloc['y'])) {
+            return null;
+        }
+
+        $l = (int) ($bloc['l'] ?? 1);
+        $h = (int) ($bloc['h'] ?? 1);
+
+        for ($dy = 0; $dy < $h; $dy++) {
+            for ($dx = 0; $dx < $l; $dx++) {
+                if (($cases[(int) $bloc['y'] + $dy][(int) $bloc['x'] + $dx] ?? 'b') !== 'b') {
+                    return ['x' => (int) $bloc['x'], 'y' => (int) $bloc['y'], 'l' => $l, 'h' => $h];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

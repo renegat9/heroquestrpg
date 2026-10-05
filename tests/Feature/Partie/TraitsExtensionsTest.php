@@ -95,6 +95,8 @@ it('ouvre le chemin au mobilier ET aux figures, sans ouvrir les murs', function 
 it('arrête le héros SUR la première case adjacente au gardien', function () {
     $ctx = demarrerQueteAvecMonstre('Crâne putride');
     $etat = $ctx['etatHeros'];
+    placerHerosSurAxeDegage($ctx['quete']->fresh(), $etat);
+    $etat->refresh();
     $hx = (int) $etat->position_x;
     $hy = (int) $etat->position_y;
 

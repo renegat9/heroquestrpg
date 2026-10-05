@@ -364,3 +364,43 @@ function donnerTalent(Personnage $personnage, string $nom): Competence
 
     return $noeud;
 }
+
+/**
+ * Place le héros sur une case de la SALLE DE DÉPART d'où part un axe droit de
+ * `$longueur` cases libres, et rend cet axe. Les scénarios qui ont besoin d'une
+ * ligne droite dégagée (déplacement doublé, monstre à éloigner, gardien sur le
+ * trajet) ne doivent pas dépendre de la case où le groupe apparaît : depuis
+ * 2026-10-05 il apparaît SUR l'escalier, au centre de la salle, où une petite
+ * salle n'offre plus 3 cases droites. Balayage ligne par ligne : déterministe.
+ *
+ * @return array{dx: int, dy: int}
+ */
+function placerHerosSurAxeDegage(Quete $quete, EtatPersonnageQuete $etat, int $longueur = 3): array
+{
+    $salle = $quete->carte->grille['salles'][0];
+    $etat->update(['position_x' => null, 'position_y' => null]);
+    $quete->refresh();
+
+    for ($y = (int) $salle['y'] + 1; $y < (int) $salle['y'] + (int) $salle['hauteur'] - 1; $y++) {
+        for ($x = (int) $salle['x'] + 1; $x < (int) $salle['x'] + (int) $salle['largeur'] - 1; $x++) {
+            if (! caseQueteLibre($quete, $x, $y)) {
+                continue;
+            }
+
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $libre = true;
+                for ($i = 1; $i <= $longueur && $libre; $i++) {
+                    $libre = caseQueteLibre($quete, $x + $i * $dx, $y + $i * $dy);
+                }
+
+                if ($libre) {
+                    $etat->update(['position_x' => $x, 'position_y' => $y]);
+
+                    return ['dx' => $dx, 'dy' => $dy];
+                }
+            }
+        }
+    }
+
+    throw new RuntimeException('Aucune case de la salle de départ n\'offre un axe dégagé — scénario invalide.');
+}

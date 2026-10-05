@@ -18,7 +18,7 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -59,6 +59,11 @@ const props = defineProps({
      *  comme une teinte de terrain : c'est un obstacle qui barre la case, et
      *  il était jusqu'ici dessiné NULLE PART alors qu'il bloque le mouvement. */
     ice: { type: Array, default: () => [] },
+    /** Escalier d'entrée (chantier escalier-entrée, 2026-10-05) : `{x, y, l,
+     *  h}` ou `null`. Posé une seule fois dans la salle de départ — TOUJOURS
+     *  traversable, aucun des deux drapeaux du mobilier ne s'applique, donc un
+     *  rendu dédié plutôt qu'une réutilisation de `furniture`. */
+    stairs: { type: Object, default: null },
     /** Anime le déplacement des enfants (FLIP sur les figurines) — table. */
     animate: { type: Boolean, default: false },
 });
@@ -249,6 +254,20 @@ const doors = computed(() => (props.carte.portes ?? [])
         >
             <div class="dg-furn" :class="{ 'non-bloquant': !f.bloque_mouvement }" :title="f.titre ?? f.nom">
                 <MSym :n="iconeMeuble(f)" fill />
+            </div>
+        </div>
+
+        <!-- escalier d'entrée (chantier escalier-entrée, 2026-10-05) : TRAVERSABLE,
+             donc pas un bloc plein comme le mobilier/la glace — une teinte dorée
+             discrète sur son emprise 2×2, avec une icône centrée, pour qu'on la
+             distingue sans jamais la lire comme un obstacle. -->
+        <div
+            v-if="stairs"
+            class="dg-stairs-holder"
+            :style="{ gridColumn: `${stairs.x + 1} / span ${stairs.l}`, gridRow: `${stairs.y + 1} / span ${stairs.h}` }"
+        >
+            <div class="dg-stairs" title="Escalier d'entrée — on commence et on finit la quête ici">
+                <MSym :n="ESCALIER_ICONE" fill />
             </div>
         </div>
 
@@ -473,6 +492,18 @@ const doors = computed(() => (props.carte.portes ?? [])
   color: oklch(0.85 0.05 70); }
 .dg-furn .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 .dg-furn.non-bloquant { opacity: 0.6; box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.3); }
+
+/* ---- escalier d'entrée (chantier escalier-entrée, 2026-10-05) : TRAVERSABLE,
+   donc une teinte discrète sur toute l'emprise 2×2 — pas un bloc plein comme
+   le mobilier bloquant ou la glace, qui disent tous deux « on ne passe pas
+   par là ». Une pastille dorée centrée porte l'icône, assez petite pour
+   laisser voir les héros qui s'y tiennent (au départ comme à l'extraction). */
+.dg-stairs-holder { position: relative; pointer-events: none; z-index: 1; }
+.dg-stairs { position: absolute; inset: 4%; border-radius: 6px; display: grid; place-items: center;
+  background: oklch(0.6 0.03 85 / 0.14);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
+.dg-stairs .msym { font-size: calc(var(--dg-icone) * 1.6); color: oklch(0.82 0.13 80);
+  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
 
 /* ---- murs de glace (doc 18 §4) : MÊME silhouette que le mobilier bloquant
    (bloc plein occupant la case) et une palette glacée — le joueur doit lire

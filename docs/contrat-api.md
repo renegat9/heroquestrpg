@@ -47,6 +47,7 @@ Routes protégées par middleware `auth` sauf connexion.
             "objectif_majeur": false,
             "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
+            "escalier": {"x": 2, "y": 2, "l": 2, "h": 2},
             "portes": [{"x": 4, "y": 3, "cote": "e|s", "etat": "fermee|ouverte|verrouillee|secrete",
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
@@ -755,9 +756,12 @@ il devient un **allié ordinaire** (`groupe_mercenaires.etat` passe de
 désormais comme n'importe quel allié (§ ci-dessus) — plus jamais sous
 `type: "captif"` dans `entites`, il bascule sous `type: "allie"`.
 
-`quete.objectif_accompli` vaut `true` dès qu'il est **libéré et vivant**
-(la sortie elle-même suit le vote ordinaire, comme tout autre objectif) ;
-`false` tant qu'il est captif. **S'il meurt** (un monstre l'achève après
+`quete.objectif_accompli` vaut `true` dès qu'il est **libéré, vivant, ET
+ramené à l'escalier d'entrée** (chantier escalier-entrée, 2026-10-05 —
+§« Escalier d'entrée et sortie du donjon » plus bas ; la sortie DU DONJON
+elle-même suit ensuite le vote ordinaire, comme tout autre objectif) ;
+`false` tant qu'il est captif, ou libéré mais pas encore à l'escalier.
+**S'il meurt** (un monstre l'achève après
 libération — les sorts de Dread visent encore les seuls héros), la quête
 **échoue immédiatement**, même verdict et même cérémonie qu'un TPK (retour
 au hub, alliés consommés, snapshots conservés pour `/reprise`) : « escort the
@@ -769,6 +773,50 @@ de bestiaire (Gothar peut apparaître habillé par l'IA dans un donjon d'un
 autre thème que *The Frozen Horror*) — à resserrer si une seconde fiche
 sourcée (le Prospecteur, la Princesse Millandriel) rend la généralisation
 payante. → `docs/regles/combat-et-tour.md`, `docs/regles/exploration-et-fouille.md`
+
+### Escalier d'entrée et sortie du donjon (2026-10-05)
+
+Chaque quête pose désormais un **escalier en colimaçon 2×2** dans sa salle de
+départ (salle 0) — le repère du plateau d'origine, posé par
+`AssembleurCarte::placerEscalier()` sur un bloc de sol intérieur, hors case de
+porte, le plus proche du centre de la salle. **TRAVERSABLE** (on s'y tient,
+contrairement au mobilier bloquant ou à un mur de glace) : il ne retire
+aucune case libre à la salle — « connecté n'est pas jouable » tenu PAR
+CONSTRUCTION. Toujours visible (la salle 0 est tenue pour découverte dès le
+départ).
+
+- **EtatGroupe.carte** gagne `escalier: {x, y, l: 2, h: 2} | null` — `null`
+  sur une carte assemblée AVANT ce chantier (campagne EN COURS dans la vraie
+  base), ou en repli défensif si la salle de départ ne contenait aucun bloc
+  2×2 valide (jamais atteint avec le plancher actuel des tuiles, 2×3 minimum).
+- **On ne quitte le donjon QUE par l'escalier** : `quitter_donjon` n'est
+  offert qu'à un héros **sur une case de l'escalier**, en plus des conditions
+  déjà en vigueur (objectif accompli ou donjon vidé, pas de vote ouvert). Le
+  vote reste celui d'aujourd'hui (majorité simple) ; le groupe sort ensemble
+  dès qu'il passe, quelle que soit la position des autres membres. Décision
+  publiée côté serveur — l'option est présente ou non, le client ne
+  recalcule rien — et re-validée par `ResolveurTour::resoudreQuitterDonjon()`
+  (422 « Il faut se tenir sur l'escalier pour quitter le donjon. »).
+- **`battre_en_retraite` reste SANS AUCUNE condition** (René, 2026-08-21,
+  inchangé) : décrocher doit rester possible au pire moment, loin de
+  l'escalier.
+- **Mission « secourir » = extraction, pas seulement libération**
+  (§ ci-dessus) : `Quete::captifLibereEtVivant()` exige désormais que le
+  captif libéré et vivant se tienne **sur l'escalier** — généralise
+  « escort » (Frozen Horror p. 19) à une vraie extraction plutôt qu'à la
+  seule libération. `objectif_libelle` dit « … et le ramener vivant à
+  l'escalier. ».
+- ⚠ **Repli écrit et testé pour les cartes déjà assemblées SANS cette
+  couche** (campagnes EN COURS dans la vraie base) : `Carte::casesEscalier()`
+  rend `[]`, et chaque lecteur (`MenuMoteur`, `ResolveurTour`,
+  `Quete::captifLibereEtVivant()`) retombe alors sur le comportement d'avant
+  (sortie possible n'importe où, mission accomplie dès la libération seule)
+  — jamais une quête en cours rendue impossible à terminer.
+- Rendu : silhouette DÉDIÉE, une teinte dorée discrète sur l'emprise 2×2 — pas
+  un bloc plein comme le mobilier ou la glace, puisque l'escalier se
+  traverse. `ESCALIER_ICONE` (`'stairs'`) dans `symboles.js`, lue par
+  `DungeonGrid` (table ET manette, prop `stairs`), par `LegendeCarte` et par
+  `ApercuSalle` (section dédiée quand il touche la salle du héros actif).
 
 **Un allié traverse les héros et les autres alliés** (2026-10-01) — pas les
 monstres, pas les meubles —, sans jamais s'arrêter sur une case occupée. Dans

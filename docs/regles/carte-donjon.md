@@ -454,3 +454,47 @@ dans le trou — tomber coûte des PV et le tour se termine (livret p. 14), mais
 rien n'empêche mécaniquement le héros d'agir normalement au tour suivant.
 La Fosse des ténèbres hérite de cette même simplification ; la nuance du
 livret y est donc triviale chez nous, pas un gap introduit par ce travail.
+
+**Un escalier d'entrée dans chaque salle de départ, et la sortie passe
+désormais PAR LUI** (chantier escalier-entrée, 2026-10-05, René : « il
+faudrait ajouter un escalier ou une porte d'entrée pour chaque quête et ça
+clarifierait la réussite de la mission d'extraction »). `AssembleurCarte::placerEscalier()`
+pose un bloc **2×2** (comme sur le plateau) dans la salle 0, sur un bloc de
+sol intérieur hors case de porte, le plus proche du centre de la salle —
+géométrique, sans tirage PRNG, puisque rien d'autre n'est jamais posé dans la
+salle 0. ⚠ **TRAVERSABLE**, à la différence de toutes les couches qui le
+précèdent (mobilier, terrain, glace) : on s'y TIENT, donc il ne retire aucune
+case libre — « connecté n'est pas jouable » (§2.12 ter) tenu PAR CONSTRUCTION
+plutôt que vérifié après coup. Il ne bloque ni le mouvement ni la vue et ne
+coûte rien à traverser : `FabriqueGrille::pour()` n'a donc rien à en lire,
+seul le moteur de MENU (`MenuMoteur`) et l'objectif de la mission « secourir »
+(`Quete::captifLibereEtVivant()`, voir `docs/regles/exploration-et-fouille.md`)
+le consultent, via `Carte::casesEscalier()`/`surEscalier()` — point de passage
+unique de « cette case est-elle l'escalier ? », pour ne pas répéter l'erreur
+de `Grille::caseEmbrasure()` qu'on corrigeait déjà deux fois.
+
+**Le groupe démarre SUR l'escalier** (René, 2026-10-05 : « on devrait faire
+commencer les joueurs sur l'escalier ou adjacent si plus que 4
+joueurs/alliés »). `AssembleurCarte::spawnsDepuisEscalier()` met les quatre
+marches en tête de `spawn_heros`, puis le reste de la salle du plus proche au
+plus loin (distance de Tchebychev : la diagonale du bloc compte comme
+adjacente) ; héros puis alliés prennent les places dans cet ordre
+(`DemarreurQuete`). ⚠ L'espacement de `spawnsHeros()` (verdict §2.12 : ne
+jamais encercler un héros par ses compagnons au tour 1) ne vaut plus pour ces
+quatre premiers, et c'est sans danger : un héros traverse la case d'un autre
+(`franchitAllies`), il ne lui faut qu'une case d'arrivée libre.
+
+⚠ **Repli pour les cartes assemblées AVANT ce chantier** (campagnes EN COURS
+dans la vraie base) : `grille['escalier']` y est absente, `casesEscalier()`
+rend `[]`, et chaque lecteur retombe sur le comportement d'avant plutôt que de
+rendre une quête en cours impossible à terminer — jamais une migration
+rétroactive sur une carte déjà générée, même précaution que §2.12 ter pour le
+mobilier.
+
+Rendu : silhouette DÉDIÉE (teinte dorée discrète sur l'emprise 2×2, pas un
+bloc plein — l'escalier se traverse, à la différence du mobilier bloquant ou
+d'un mur de glace qui disent tous deux « on ne passe pas par là »).
+`ESCALIER_ICONE` (`'stairs'`) dans `symboles.js`, lue par `DungeonGrid` (table
+ET manette, prop `stairs`) et par `LegendeCarte` — même patron que le levier
+et le mur de glace (un seul motif, pas de table de catalogue : l'escalier
+n'est pas une entité seedée).

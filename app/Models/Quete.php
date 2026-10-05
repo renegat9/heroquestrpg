@@ -336,12 +336,14 @@ class Quete extends Model
             // depuis le 2026-10-02, d'où `coffresOuverts()`).
             'atteindre_et_recuperer' => $this->salle_artefact !== null
                 && in_array((int) $this->salle_artefact, $this->coffresOuverts(), true),
-            // MISSION « SECOURIR » (chantier 3b, 2026-10-04 — Gothar, Frozen
-            // Horror p. 19 : « escort » ; le Prospecteur et la Princesse
-            // Millandriel, même gabarit) : accompli dès que le captif est
-            // LIBÉRÉ (il a rejoint le groupe comme allié) ET encore VIVANT —
-            // la vraie sortie passe ensuite par le vote de sortie ordinaire,
-            // exactement comme les autres objectifs. S'il est mort (`vaincu`),
+            // MISSION « SECOURIR » (chantier 3b, 2026-10-04, étendu par le
+            // chantier escalier-entrée du 2026-10-05 — Gothar, Frozen Horror
+            // p. 19 : « escort » ; le Prospecteur et la Princesse Millandriel,
+            // même gabarit) : accompli quand le captif est LIBÉRÉ (il a
+            // rejoint le groupe comme allié), encore VIVANT, ET ramené à
+            // l'ESCALIER d'entrée — l'extraction, pas la seule libération (la
+            // vraie SORTIE du donjon passe ensuite par le vote ordinaire,
+            // exactement comme les autres objectifs). S'il est mort (`vaincu`),
             // ce n'est jamais « accompli » : voir {@see self::captifPerdu()},
             // qui échoue la quête sur-le-champ plutôt que d'attendre ce test.
             'secourir' => $this->captifLibereEtVivant(),
@@ -361,14 +363,33 @@ class Quete extends Model
 
     /**
      * Libéré (il a rejoint le groupe comme allié, `etat: 'actif'`) ET
-     * toujours vivant. `true` si cette quête n'a pas de captif désigné — un
-     * gabarit sans mission de sauvetage ne doit jamais sembler en échouer une.
+     * toujours vivant ET ramené à l'ESCALIER d'entrée (chantier
+     * escalier-entrée, 2026-10-05 — généralise « escort » de Gothar, Frozen
+     * Horror p. 19, à une vraie extraction plutôt qu'à la seule libération).
+     * `true` si cette quête n'a pas de captif désigné — un gabarit sans
+     * mission de sauvetage ne doit jamais sembler en échouer une.
+     *
+     * ⚠ REPLI (décision 5 du plan) : une carte assemblée AVANT ce chantier
+     * (campagne EN COURS) ne porte pas la couche `escalier` —
+     * `Carte::casesEscalier()` rend alors `[]`, et l'ancien critère
+     * (libération seule) s'applique, comme avant.
      */
     public function captifLibereEtVivant(): bool
     {
         $captif = $this->captif;
 
-        return $captif === null || $captif->etat === 'actif';
+        if ($captif === null) {
+            return true;
+        }
+
+        if ($captif->etat !== 'actif') {
+            return false;
+        }
+
+        $escalier = $this->carte?->casesEscalier() ?? [];
+
+        return $escalier === []
+            || ($this->carte?->surEscalier($captif->position_x, $captif->position_y) ?? false);
     }
 
     /**
@@ -413,11 +434,15 @@ class Quete extends Model
             'vaincre_boss_final' => 'Trouver le maître de ce donjon et le mettre à terre.',
             'atteindre_et_recuperer' => 'Atteindre la salle la plus profonde et en ramener ce qu’elle garde.',
             'quitter_donjon' => 'Ressortir vivants.',
-            // Mission « secourir » (chantier 3b) : le nom du captif quand il
-            // est déjà connu (l'IA peut l'avoir habillé), sinon générique —
-            // jamais un libellé muet qui dirait seulement « quelqu'un ».
+            // Mission « secourir » (chantier 3b, texte adapté par le chantier
+            // escalier-entrée du 2026-10-05) : le nom du captif quand il est
+            // déjà connu (l'IA peut l'avoir habillé), sinon générique — jamais
+            // un libellé muet qui dirait seulement « quelqu'un ». « L'escalier »,
+            // pas « la sortie » : c'est lui, précisément, qu'il faut atteindre
+            // (voir `captifLibereEtVivant()`), la sortie du donjon suit ensuite
+            // le vote ordinaire.
             'secourir' => 'Retrouver '.($this->captif?->mercenaire?->nom ?? 'le captif')
-                .' et le ramener vivant à la sortie.',
+                .' et le ramener vivant à l\'escalier.',
             default => null,
         };
     }

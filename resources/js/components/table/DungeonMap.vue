@@ -207,7 +207,7 @@ function finGeste(e, permettreTap) {
         @pointerup="(e) => finGeste(e, true)"
         @pointercancel="(e) => finGeste(e, false)"
     >
-        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :grid-style="gridStyle" animate>
+        <DungeonGrid :carte="carte" :traps="traps" :furniture="furniture" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :stairs="carte.escalier ?? null" :grid-style="gridStyle" animate>
             <!-- Figurines (héros / monstres / alliés) — enfants directs de la
                  grille : FLIP de glissement case-par-case, fondu à la mort.
                  `data-fig-*` : seule façon pour `debutGeste()` de savoir, au

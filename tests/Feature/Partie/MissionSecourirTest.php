@@ -65,7 +65,7 @@ it('Gothar n\'est jamais recrutable au hub', function () {
  * pose Gothar (captif) adjacent au héros, dans sa salle de départ (déjà
  * découverte).
  *
- * @return array{0: \App\Models\Groupe, 1: Quete, 2: \App\Models\Personnage, 3: GroupeMercenaire}
+ * @return array{0: \App\Models\Groupe, 1: Quete, 2: \App\Models\Personnage, 3: GroupeMercenaire, 4: \App\Auth\JoueurAuthentifiable}
  */
 function queteAvecCaptif(): array
 {
@@ -104,7 +104,7 @@ function queteAvecCaptif(): array
     // de test, pas par le mécanisme lui-même.
     \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
 
-    return [$groupe, $quete, $heros, $captif->fresh()];
+    return [$groupe, $quete, $heros, $captif->fresh(), $alice];
 }
 
 it('publie le captif sur la carte (salle découverte), et l\'objectif n\'est pas accompli', function () {
@@ -157,7 +157,7 @@ it('reste CACHÉ tant que sa salle n\'est pas découverte, et réapparaît une f
     expect(collect($etat['entites'])->firstWhere('type', 'captif'))->not->toBeNull();
 });
 
-it('un héros au contact libère le captif : il devient un allié qu\'il contrôle, l\'objectif est accompli', function () {
+it('un héros au contact libère le captif : il devient un allié qu\'il contrôle, mais l\'objectif attend l\'escalier', function () {
     [$groupe, $quete, $heros, $captif] = queteAvecCaptif();
 
     $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu');
@@ -174,14 +174,74 @@ it('un héros au contact libère le captif : il devient un allié qu\'il contrô
     expect($captif->etat)->toBe('actif')
         ->and($captif->recruteur_personnage_id)->toBe($heros->id);
 
+    // ESCALIER D'ENTRÉE (2026-10-05) : libéré n'est plus accompli tant que le
+    // captif n'est pas sur l'escalier — la mission « secourir » est une
+    // EXTRACTION (Frozen Horror p. 19 : « escort »). On le place d'abord sur
+    // une case de la salle 0 GARANTIE hors escalier (plutôt que de supposer
+    // que sa position adjacente au héros, choisie plus haut, n'y tombe pas
+    // par coïncidence géométrique).
     $quete->refresh();
-    expect($quete->objectifAccompli())->toBeTrue();
+    $salle0 = $quete->carte->grille['salles'][0];
+    $casesEscalier = collect($quete->carte->casesEscalier())->map(fn (array $c) => "{$c['x']},{$c['y']}")->all();
+    $horsEscalier = null;
+    for ($y = (int) $salle0['y'] + 1; $y < (int) $salle0['y'] + (int) $salle0['hauteur'] - 1 && $horsEscalier === null; $y++) {
+        for ($x = (int) $salle0['x'] + 1; $x < (int) $salle0['x'] + (int) $salle0['largeur'] - 1; $x++) {
+            if (! in_array("{$x},{$y}", $casesEscalier, true)) {
+                $horsEscalier = ['x' => $x, 'y' => $y];
+
+                break;
+            }
+        }
+    }
+    expect($horsEscalier)->not->toBeNull();
+    $captif->update(['position_x' => $horsEscalier['x'], 'position_y' => $horsEscalier['y']]);
+
+    expect($quete->fresh()->objectifAccompli())->toBeFalse();
 
     // Il a basculé de `captif` à `allie` dans l'état publié.
     $etat = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
     expect(collect($etat['entites'])->firstWhere('type', 'captif'))->toBeNull();
     $allieEntite = collect($etat['entites'])->firstWhere('type', 'allie');
     expect($allieEntite)->not->toBeNull()->and($allieEntite['id'])->toBe($captif->id);
+
+    // Ramené à l'escalier : l'objectif s'accomplit.
+    $escalier = $quete->carte->casesEscalier();
+    expect($escalier)->not->toBe([]);
+    $captif->update(['position_x' => $escalier[0]['x'], 'position_y' => $escalier[0]['y']]);
+
+    expect($quete->fresh()->objectifAccompli())->toBeTrue();
+});
+
+it('REPLI : sur une carte sans la couche escalier, la libération seule accomplit la mission', function () {
+    [, $quete, , $captif] = queteAvecCaptif();
+
+    // Simule une carte assemblée AVANT le chantier escalier-entrée (campagne
+    // EN COURS dans la vraie base) : la couche n'existe pas du tout.
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    unset($grille['escalier']);
+    $carte->update(['grille' => $grille]);
+
+    $captif->update(['etat' => 'actif']);
+
+    expect($quete->fresh()->objectifAccompli())->toBeTrue();
+});
+
+it('REPLI : sur une carte sans la couche escalier, « quitter le donjon » est offert n\'importe où', function () {
+    [$groupe, $quete, $heros, , $alice] = queteAvecCaptif();
+
+    $carte = $quete->carte;
+    $grille = $carte->grille;
+    unset($grille['escalier']);
+    $carte->update(['grille' => $grille]);
+
+    // Donjon vidé : le filet anti-blocage suffit à ouvrir `quitter_donjon`,
+    // peu importe où se trouve le héros.
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json('menu');
+    expect(collect($menu['options'])->pluck('id'))->toContain('quitter_donjon');
 });
 
 it('refuse de libérer un captif hors de contact', function () {

@@ -108,6 +108,7 @@ final class AssembleurCarte
      *   mobilier: list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>,
      *   epreuves: list<array{x: int, y: int, epreuve_id: int, salle: int, tentee_par: list<int>}>,
      *   terrain: list<array{x: int, y: int, terrain_id: int, paire_id?: string}>,
+     *   escalier: array{x: int, y: int, l: int, h: int}|null,
      *   spawn_heros: list<array{x: int, y: int}>,
      *   spawn_monstres: list<array{x: int, y: int}>,
      *   aretes: list<array{a: int, b: int, porte_a: array{x: int, y: int}, porte_b: array{x: int, y: int}}>
@@ -385,6 +386,14 @@ final class AssembleurCarte
         // invisible, soit contradictoire (quel effet gagne ?).
         $terrain = $this->placerTerrains($structure, $cases, $salles, $portes, $leviers, $pieges, $mobilier, $epreuves, $suivant, $bestiaire);
 
+        // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « il
+        // faudrait ajouter un escalier ou une porte d'entrée pour chaque
+        // quête »). Contrairement aux cinq couches ci-dessus, il vit TOUJOURS
+        // dans la salle 0 (départ) — où rien d'autre n'est jamais posé — et ne
+        // dépend donc d'aucune d'elles ; sa position est purement géométrique
+        // (aucun tirage PRNG consommé).
+        $escalier = $this->placerEscalier($cases, $salles[0], $portes);
+
         return [
             'largeur' => $largeur,
             'hauteur' => $hauteur,
@@ -435,7 +444,14 @@ final class AssembleurCarte
             // case de glace en COULOIR n'a pas d'index à porter, le brouillard
             // dérive la visibilité des coordonnées, pas d'un index.
             'terrain' => $terrain,
-            'spawn_heros' => array_slice($this->spawnsHeros($cases, $salles[0], $portes), 0, self::MAX_SPAWNS_HEROS),
+            // ESCALIER D'ENTRÉE (2026-10-05) : le repère du plateau d'origine
+            // — la quête COMMENCE et FINIT à l'escalier. `null` seulement en
+            // repli défensif (salle 0 sans bloc 2×2 valide, voir
+            // `placerEscalier()`) ; les lecteurs (`Carte::casesEscalier()`,
+            // `MenuMoteur`, `Quete::captifLibereEtVivant()`) traitent ce cas
+            // EXACTEMENT comme une carte assemblée avant ce chantier.
+            'escalier' => $escalier,
+            'spawn_heros' => array_slice($this->spawnsDepuisEscalier($this->spawnsHeros($cases, $salles[0], $portes), $escalier), 0, self::MAX_SPAWNS_HEROS),
             'spawn_monstres' => $this->spawnsMonstres($cases, $salles, $this->casesDuDecor(
                 $salles, $portes, $mobilier, $pieges, $leviers, $epreuves, $terrain,
             ), $suivant),
@@ -2750,6 +2766,155 @@ final class AssembleurCarte
         }
 
         return $tuiles;
+    }
+
+    /**
+     * ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « il
+     * faudrait ajouter un escalier ou une porte d'entrée pour chaque quête et
+     * ça clarifierait la réussite de la mission d'extraction »). Le repère du
+     * plateau d'origine : la quête COMMENCE et FINIT à l'escalier.
+     *
+     * **2×2 comme sur le plateau**, mais TRAVERSABLE — on s'y tient, donc il
+     * ne retire AUCUNE case libre à la salle (« connecté n'est pas jouable »
+     * tenu PAR CONSTRUCTION : aucune case n'est perdue, contrairement au
+     * mobilier ou au terrain). Toujours dans la salle de DÉPART (salle 0),
+     * toujours visible (elle est tenue pour découverte dès le départ,
+     * `Quete::sallesDecouvertes()`).
+     *
+     * Choisi comme un bloc 2×2 de sol intérieur, hors case de porte (même
+     * filtre que `spawnsHeros()` ci-dessous), le plus PROCHE du centre de la
+     * salle (`mediane_x`/`mediane_y`) — à égalité, l'ordre de balayage
+     * décide, donc déterministe SANS consommer le PRNG : contrairement au
+     * passage secret ou au terrain, sa position ne dépend d'aucun tirage,
+     * seulement de la géométrie de la salle (qui ne change jamais pour une
+     * même tuile).
+     *
+     * `null` si la salle ne contient aucun bloc 2×2 valide — garde défensive,
+     * jamais atteinte avec le plancher actuel des tuiles (2×3 minimum depuis
+     * le 2026-09-12), qui en contient toujours un. Les lecteurs
+     * (`Carte::casesEscalier()`, `MenuMoteur`, `Quete::captifLibereEtVivant()`)
+     * traitent `null` EXACTEMENT comme une carte assemblée avant ce
+     * chantier : repli sur le comportement d'avant (sortie possible n'importe
+     * où, mission « secourir » accomplie dès la libération) — jamais une
+     * quête en cours rendue impossible à terminer.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  array{x: int, y: int, largeur: int, hauteur: int, mediane_x: int, mediane_y: int}  $salle
+     * @param  list<array{x: int, y: int, cote?: string}>  $portes
+     * @return array{x: int, y: int, l: int, h: int}|null
+     */
+    private function placerEscalier(array $cases, array $salle, array $portes): ?array
+    {
+        $interieur = $this->interieur($cases, $salle);
+
+        $casesPorte = [];
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $c) {
+                $casesPorte["{$c['x']},{$c['y']}"] = true;
+            }
+        }
+
+        $libres = [];
+        foreach ($interieur as $p) {
+            if (! isset($casesPorte["{$p['x']},{$p['y']}"])) {
+                $libres["{$p['x']},{$p['y']}"] = true;
+            }
+        }
+
+        $meilleur = null;
+        $meilleureDistance = null;
+
+        foreach ($interieur as $p) {
+            $x = (int) $p['x'];
+            $y = (int) $p['y'];
+
+            if (! isset($libres["{$x},{$y}"], $libres[($x + 1).",{$y}"], $libres["{$x},".($y + 1)], $libres[($x + 1).','.($y + 1)])) {
+                continue;
+            }
+
+            $dx = $x - (int) $salle['mediane_x'];
+            $dy = $y - (int) $salle['mediane_y'];
+            $distance = $dx * $dx + $dy * $dy;
+
+            if ($meilleureDistance === null || $distance < $meilleureDistance) {
+                $meilleur = ['x' => $x, 'y' => $y, 'l' => 2, 'h' => 2];
+                $meilleureDistance = $distance;
+            }
+        }
+
+        return $meilleur;
+    }
+
+    /**
+     * Le groupe DÉMARRE sur l'escalier (René, 2026-10-05 : « faire commencer les
+     * joueurs sur l'escalier, ou adjacent si plus que 4 joueurs/alliés »).
+     *
+     * Les places sont attribuées dans l'ordre de la liste (héros, puis alliés —
+     * `DemarreurQuete`) : on met donc les quatre cases de l'escalier en tête, puis
+     * le reste des spawns de la salle, du plus PROCHE de l'escalier au plus loin
+     * (distance de Tchebychev — une case en diagonale du bloc est « adjacente »).
+     * Tri stable : à distance égale, l'ordre de `spawnsHeros()` (cases les mieux
+     * connectées d'abord) départage.
+     *
+     * ⚠ Cela annule l'ESPACEMENT de `spawnsHeros()` pour les quatre premiers :
+     * il évitait qu'un héros soit encerclé par ses compagnons au tour 1 (verdict
+     * §2.12). Ce risque a disparu depuis qu'un héros TRAVERSE la case d'un autre
+     * (« on peut traverser la case d'un autre héros », `FabriqueGrille::pour()`,
+     * `franchitAllies`) : il lui faut une case d'arrivée libre, plus un couloir.
+     *
+     * Sans escalier (repli défensif de `placerEscalier()`), la liste est rendue
+     * telle quelle.
+     *
+     * @param  list<array{x: int, y: int}>  $spawns
+     * @param  array{x: int, y: int, l: int, h: int}|null  $escalier
+     * @return list<array{x: int, y: int}>
+     */
+    private function spawnsDepuisEscalier(array $spawns, ?array $escalier): array
+    {
+        if ($escalier === null) {
+            return $spawns;
+        }
+
+        $marches = [];
+        for ($dy = 0; $dy < $escalier['h']; $dy++) {
+            for ($dx = 0; $dx < $escalier['l']; $dx++) {
+                $marches[] = ['x' => $escalier['x'] + $dx, 'y' => $escalier['y'] + $dy];
+            }
+        }
+
+        $surMarche = fn (array $p) => $p['x'] >= $escalier['x'] && $p['x'] < $escalier['x'] + $escalier['l']
+            && $p['y'] >= $escalier['y'] && $p['y'] < $escalier['y'] + $escalier['h'];
+
+        $distance = fn (array $p) => max(
+            max(0, $escalier['x'] - $p['x'], $p['x'] - ($escalier['x'] + $escalier['l'] - 1)),
+            max(0, $escalier['y'] - $p['y'], $p['y'] - ($escalier['y'] + $escalier['h'] - 1)),
+        );
+
+        // Les marches dans l'ordre de `spawnsHeros()` — la mieux connectée
+        // d'abord, pour que le PREMIER héros garde le plus d'issues (même
+        // raison que §2.12) ; toute marche absente des spawns (case de porte,
+        // impossible par construction de `placerEscalier()`) ferme la liste.
+        $tete = [];
+        $reste = [];
+        foreach (array_values($spawns) as $i => $p) {
+            $p = ['x' => (int) $p['x'], 'y' => (int) $p['y']];
+
+            if ($surMarche($p)) {
+                $tete[] = $p;
+            } else {
+                $reste[] = ['p' => $p, 'd' => $distance($p), 'i' => $i];
+            }
+        }
+
+        foreach ($marches as $m) {
+            if (! in_array($m, $tete, true)) {
+                $tete[] = $m;
+            }
+        }
+
+        usort($reste, fn (array $a, array $b) => [$a['d'], $a['i']] <=> [$b['d'], $b['i']]);
+
+        return [...$tete, ...array_column($reste, 'p')];
     }
 
     /**

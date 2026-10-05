@@ -27,7 +27,7 @@ import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -70,6 +70,11 @@ const meubles = computed(() => parNom(props.carte?.mobilier).map((m) => ({
 })));
 
 const leviers = computed(() => (props.carte?.leviers ?? []).length);
+
+// ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) : `null` sur une
+// carte assemblée avant ce chantier (campagne en cours) — la légende ne
+// décrit alors rien de plus, exactement comme pour un levier absent.
+const escalier = computed(() => props.carte?.escalier ?? null);
 
 // Murs de glace posés en cours de quête (doc 18 §4) : on annonce aussi COMBIEN
 // de crânes le plus entamé a déjà encaissés — un mur qu'on frappe sans voir
@@ -188,6 +193,14 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 </div>
             </section>
 
+            <section v-if="escalier" class="lg-sect">
+                <div class="lg-sous">Escalier d'entrée</div>
+                <div class="lg-ligne">
+                    <span class="lg-chip lg-escalier"><MSym :n="ESCALIER_ICONE" fill /></span>
+                    <span>On commence et on finit la quête ici — « Quitter le donjon » n'est proposé qu'à son contact</span>
+                </div>
+            </section>
+
             <section v-if="glace" class="lg-sect">
                 <div class="lg-sous">Murs de glace</div>
                 <div class="lg-ligne">
@@ -292,6 +305,9 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-epreuve .msym { transform: rotate(-45deg); }
 .lg-levier { color: var(--stone-950); background: oklch(0.72 0.13 235);
   clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%); }
+/* Escalier : même pastille dorée discrète que `.dg-stairs` dans DungeonGrid.vue. */
+.lg-escalier { border-radius: 4px; color: oklch(0.82 0.13 80); background: oklch(0.6 0.03 85 / 0.22);
+  box-shadow: inset 0 0 0 1.5px oklch(0.78 0.14 80 / 0.5); }
 .lg-meuble { border-radius: 3px; color: oklch(0.85 0.05 70);
   background: linear-gradient(150deg, oklch(0.32 0.05 55), oklch(0.22 0.045 50));
   box-shadow: inset 0 0 0 1px oklch(0.5 0.06 55 / 0.55); }

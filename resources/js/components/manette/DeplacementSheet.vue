@@ -607,7 +607,7 @@ onMounted(async () => {
 
             <div class="dep-carte">
                 <div ref="grilleRef" class="dep-scroll" @scroll.passive="mesurer">
-                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
+                <DungeonGrid :carte="carte" :traps="carte.pieges ?? []" :furniture="carte.mobilier ?? []" :trials="carte.epreuves ?? []" :levers="carte.leviers ?? []" :terrain="carte.terrain ?? []" :ice="carte.glace ?? []" :stairs="carte.escalier ?? null" :cell-class="surcouche" :grid-style="gridStyle" @cell="toucher">
                     <template #cell="{ x, y }">
                         <MSym v-if="surcouche(x, y) === 'depart'" n="person" :size="14" fill />
                         <MSym v-else-if="surcouche(x, y) === 'monstre'" n="pets" :size="13" fill />

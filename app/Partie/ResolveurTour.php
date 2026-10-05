@@ -421,7 +421,7 @@ final class ResolveurTour
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
-                'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $option, $acteur),
+                'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
                 'desequiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: false),
@@ -10359,13 +10359,27 @@ final class ResolveurTour
         ));
     }
 
-    private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, array $option, array $acteur): array
+    private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
         $vide = ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
 
         if (! $quete->objectifAccompli() && ! $vide) {
             throw ValidationException::withMessages([
                 'option_id' => 'Vous n\'avez pas encore accompli ce pourquoi vous êtes venus.',
+            ]);
+        }
+
+        // ESCALIER D'ENTRÉE (2026-10-05) : re-validation serveur, miroir de la
+        // garde posée dans `MenuMoteur` — « le menu ne propose jamais ce que
+        // le résolveur refusera », mais l'inverse tient aussi : le résolveur
+        // ne doit jamais faire confiance au seul fait que le menu l'ait
+        // affiché. Repli IDENTIQUE sur une carte sans la couche `escalier`
+        // (campagne EN COURS) : aucune exigence de position.
+        $escalier = $quete->carte?->casesEscalier() ?? [];
+
+        if ($escalier !== [] && ! ($quete->carte?->surEscalier($etat?->position_x, $etat?->position_y) ?? false)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Il faut se tenir sur l\'escalier pour quitter le donjon.',
             ]);
         }
 

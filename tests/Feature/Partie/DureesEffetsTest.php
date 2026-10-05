@@ -269,6 +269,8 @@ it('garde « prochain_deplacement » à un tour fini sans bouger, et le dépense
     ['alice' => $alice, 'heros' => $heros, 'quete' => $quete, 'instance' => $gobelin, 'etatHeros' => $etat]
         = demarrerQueteAvecMonstre('Gobelin');
     $gobelin->update(['etat' => 'vaincu']);
+    placerHerosSurAxeDegage($quete->fresh(), $etat);
+    $etat->refresh();
 
     buffPotion($heros, 'Potion de vitesse');
     $sorts = app(MoteurSorts::class);

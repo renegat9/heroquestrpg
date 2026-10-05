@@ -140,4 +140,17 @@ export const TERRAIN_TEINTES = {
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 
+/**
+ * ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) — le repère du
+ * plateau d'origine : chaque quête commence et finit à son escalier, posé
+ * 2×2 dans la salle de départ.
+ *
+ * ⚠ Il n'est PAS un objet posé SUR la case comme les cinq familles
+ * ci-dessus : comme le terrain, on s'y TIENT — mais à la différence du
+ * terrain (une simple teinte, sans rien de plus à repérer), il faut pouvoir
+ * le localiser d'un coup d'œil pour savoir où sortir. Un seul motif, pas de
+ * table — comme le levier et le mur de glace.
+ */
+export const ESCALIER_ICONE = 'stairs';
+
 export const icone = (table, nom, defaut) => table[nom] ?? defaut;

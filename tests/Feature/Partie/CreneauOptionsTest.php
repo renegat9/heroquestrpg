@@ -96,6 +96,12 @@ it('« quitter le donjon » (sortie) sort en `interaction`', function () {
     // « Quitter le donjon », même sans objectif accompli.
     $ctx['instance']->update(['etat' => 'vaincu']);
 
+    // ESCALIER D'ENTRÉE (2026-10-05) : `quitter_donjon` n'est plus offert
+    // n'importe où — on amène le héros sur l'escalier avant de vérifier son
+    // `creneau`.
+    $escalier = $ctx['quete']->fresh()->carte->casesEscalier()[0];
+    $ctx['etatHeros']->update(['position_x' => $escalier['x'], 'position_y' => $escalier['y']]);
+
     $menu = menuAvecCreneaux($ctx['groupe'], $ctx['heros']);
     $option = collect($menu['options'])->firstWhere('type', 'sortie');
 

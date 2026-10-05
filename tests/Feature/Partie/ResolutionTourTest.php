@@ -381,6 +381,12 @@ it('ROUVRE le tour après le dernier monstre : terminer son tour ne fige pas le 
 
     expect((bool) $etat->a_joue)->toBeFalse('le tour ne s\'est pas rouvert : le groupe est figé');
 
+    // ESCALIER D'ENTRÉE (2026-10-05) : `quitter_donjon` n'est plus offert
+    // n'importe où — on amène le héros sur l'escalier avant de vérifier qu'il
+    // peut proposer la sortie.
+    $escalier = $quete->fresh()->carte->casesEscalier()[0];
+    $etat->update(['position_x' => $escalier['x'], 'position_y' => $escalier['y']]);
+
     // Et le menu doit de nouveau proposer de rentrer, sans quoi la quête ne
     // pourrait plus jamais se clore.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
@@ -419,6 +425,12 @@ it('laisse le groupe fouiller après le dernier monstre, et sort par un VOTE', f
 
     expect($groupe->fresh()->phase)->toBe('quete')
         ->and($quete->fresh()->etat)->toBe('en_cours');
+
+    // ESCALIER D'ENTRÉE (2026-10-05) : `quitter_donjon` n'est plus offert
+    // n'importe où — on amène le héros sur l'escalier avant de vérifier qu'il
+    // peut proposer la sortie.
+    $escalier = $quete->fresh()->carte->casesEscalier()[0];
+    $etat->update(['position_x' => $escalier['x'], 'position_y' => $escalier['y']]);
 
     // Le menu propose désormais de rentrer.
     GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $hero->id);
