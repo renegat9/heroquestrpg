@@ -35,6 +35,12 @@ class MenuPropose implements ShouldBroadcast
         public readonly int $groupeId,
         public readonly int $personnageId,
         public readonly array $menu,
+        // ALLIÉ JOUÉ PAR SON JOUEUR (2026-10-04, chantier 3a) : non-null
+        // quand ce menu est le tour de l'allié contrôlé par ce héros, pas le
+        // sien — c'est ce qui permet à la manette d'annoncer « Tour de
+        // l'allié » (`menu.situation` le dit déjà en toutes lettres, cette
+        // valeur ne fait que le confirmer mécaniquement pour le front).
+        public readonly ?int $allieId = null,
     ) {}
 
     public function broadcastOn(): PrivateChannel
@@ -62,6 +68,7 @@ class MenuPropose implements ShouldBroadcast
             'menu' => $this->menu,
             'groupe_id' => $this->groupeId,
             'personnage_id' => $this->personnageId,
+            'allie_id' => $this->allieId,
         ];
     }
 }

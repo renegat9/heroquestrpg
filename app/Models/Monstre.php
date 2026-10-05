@@ -32,6 +32,12 @@ class Monstre extends Model
         // la cible, jamais null + une convention de nommage. `null` = ce
         // monstre n'est pas une variante.
         'variante_distance_de',
+        // MONSTRE À PHASES (chantier 2026-10-04, Ogre Horde p. 6) : nom_base de
+        // la phase SUIVANTE, même patron que `variante_distance_de`. `null` =
+        // dernière phase (ou monstre ordinaire) — c'est ce qui dit au point de
+        // passage unique qu'il doit vraiment mourir plutôt qu'adopter une
+        // nouvelle statistique.
+        'phase_suivante',
     ];
 
     protected function casts(): array
@@ -82,5 +88,28 @@ class Monstre extends Model
     public function estVarianteDistance(): bool
     {
         return $this->variante_distance_de !== null;
+    }
+
+    /**
+     * Ce bloc de stats a-t-il une phase SUIVANTE (chantier 2026-10-04) ? Une
+     * chaîne de phases (Gruzbella, Spawn of the Pit, Gretzl) se termine par une
+     * ligne qui rend `false` ici — c'est elle qui meurt pour de vrai.
+     */
+    public function aPhaseSuivante(): bool
+    {
+        return $this->phase_suivante !== null;
+    }
+
+    /**
+     * Le bloc de stats de la phase suivante, ou `null` si la colonne est vide
+     * OU si elle nomme une ligne absente du catalogue (donnée de seeder
+     * incohérente — mieux vaut une mort normale qu'une exception en pleine
+     * résolution de combat).
+     */
+    public function monstrePhaseSuivante(): ?self
+    {
+        return $this->phase_suivante === null
+            ? null
+            : self::where('nom_base', $this->phase_suivante)->first();
     }
 }

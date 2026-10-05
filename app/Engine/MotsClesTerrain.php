@@ -131,6 +131,23 @@ final class MotsClesTerrain
             'libelle' => 'téléporte vers son autre extrémité',
         ],
 
+        // Rivière gelée (2026-10-04) — « Monsters suffer neither movement
+        // penalties nor damage from the icy river » (Frozen Horror p. 6) : un
+        // monstre ne paie pas `cout_deplacement`. Les dégâts, eux, ne sont
+        // appelés que dans le déplacement du HÉROS (`saignerSurRiviere()`).
+        'ignore_par_monstres' => [
+            'lecteur' => 'App\Partie\FabriqueGrille::pour()',
+            'libelle' => 'les monstres la traversent sans pénalité',
+        ],
+
+        // Glissière de glace (2026-10-04) — « Monsters cannot move onto ice
+        // slide squares » (Frozen Horror p. 5) : obstacle dans toute grille
+        // bâtie pour un monstre, jamais pour un héros.
+        'interdit_aux_monstres' => [
+            'lecteur' => 'App\Partie\FabriqueGrille::pour()',
+            'libelle' => 'interdite aux monstres',
+        ],
+
         // Chambre forte de glace, Rivière gelée (2026-09-10) — NATURE du
         // dégât (`App\Engine\TypeDegat`), lue AVANT d'infliger : sans elle,
         // aucune pièce d'`immunite_degat` (Anneau de Chaleur) ne pourrait

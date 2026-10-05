@@ -417,6 +417,106 @@ final class MoteurMobilier
         return false;
     }
 
+    /**
+     * Meubles ATTAQUABLES AU COMBAT (PV + défense, 2026-10-04) — la TROISIÈME
+     * voie de destruction, après la fouille et le jet de Body : un meuble
+     * qu'on frappe comme un monstre jusqu'à épuiser ses PV (Crystal Cluster de
+     * *Jungles of Delthrak*, Haut Autel et Coffres du Dread de *Wizards of
+     * Morcar* — toutes sourcées « attacked in the normal way »/« as a
+     * monster »).
+     *
+     * ⚠ PAS de garde « une tentative par héros » ici, à la différence de
+     * `destructiblesAdjacents()` : un monstre se refrappe sans limite tant
+     * qu'il tient debout, et c'est exactement ce que ces sources décrivent —
+     * un coup qui ne suffit pas laisse le meuble ENTAMÉ, pas fermé à qui vient
+     * de frapper.
+     *
+     * @return list<array{index: int, entree: array<string, mixed>, nom: string, type: Mobilier}>
+     */
+    public function attaquablesAdjacents(Carte $carte, int $x, int $y): array
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Mobilier::query()
+            ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
+            ->whereNotNull('pv_body')
+            ->get(['id', 'nom', 'pv_body', 'defense_dice', 'effet'])
+            ->keyBy('id');
+
+        $trouves = [];
+
+        foreach ($entrees as $index => $entree) {
+            $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
+
+            if ($type === null || self::estDetruite($entree)) {
+                continue;
+            }
+
+            if ($this->adjacentAEmprise($entree, $x, $y)) {
+                $trouves[] = [
+                    'index' => (int) $index,
+                    'entree' => $entree,
+                    'nom' => (string) $type->nom,
+                    'type' => $type,
+                ];
+            }
+        }
+
+        return $trouves;
+    }
+
+    /**
+     * PV restants d'un meuble attaquable — initialisés aux PV du CATALOGUE
+     * tant qu'aucun coup n'a encore été porté (`pv_restants` absent de
+     * l'entrée). Même patron que `estDetruite()` : l'état de PARTIE vit dans
+     * la grille, le catalogue reste la donnée de référence.
+     *
+     * @param  array<string, mixed>  $entree
+     */
+    public static function pvRestants(array $entree, Mobilier $type): int
+    {
+        return array_key_exists('pv_restants', $entree)
+            ? (int) $entree['pv_restants']
+            : (int) $type->pv_body;
+    }
+
+    /**
+     * Inflige `$degats` au meuble d'index `$index`, et le détruit à 0 PV —
+     * `detruire()` pose le MÊME drapeau `detruit` que le jet de Body, lu par
+     * la boucle UNIQUE de `FabriqueGrille::pour()` : la pièce cesse de bloquer
+     * mouvement ET vue d'un seul geste, quelle que soit la voie qui l'a
+     * détruite.
+     *
+     * @return array{pv_restants: int, detruit: bool}
+     */
+    public function infligerDegats(Carte $carte, int $index, int $degats): array
+    {
+        $grille = $carte->grille;
+        $entree = $grille['mobilier'][$index] ?? null;
+
+        if ($entree === null) {
+            return ['pv_restants' => 0, 'detruit' => true];
+        }
+
+        $type = Mobilier::find((int) ($entree['mobilier_id'] ?? 0));
+        $avant = $type === null ? 0 : self::pvRestants($entree, $type);
+        $apres = max(0, $avant - max(0, $degats));
+
+        $grille['mobilier'][$index]['pv_restants'] = $apres;
+
+        if ($apres <= 0) {
+            $grille['mobilier'][$index]['detruit'] = true;
+        }
+
+        $carte->update(['grille' => $grille]);
+
+        return ['pv_restants' => $apres, 'detruit' => $apres <= 0];
+    }
+
     private function adjacentAEmprise(array $entree, int $x, int $y): bool
     {
         $ox = (int) $entree['x'];

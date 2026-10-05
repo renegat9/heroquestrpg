@@ -400,7 +400,7 @@ au joueur une règle absente est pire que se taire.
 **Plus aucun sort ne s'appuie dessus** — et la vérification a montré que la
 dette n'en était pas une : c'étaient deux **erreurs de donnée**. Le texte
 officiel dit « **un monstre choisi** passe son prochain tour » pour Tempête
-(Kellar's Keep p. 15) : elle n'a jamais été un sort de zone. Et il ne parle
+(Kellar's Keep p. 28-29) : elle n'a jamais été un sort de zone. Et il ne parle
 d'aucune invocation pour Génie — « ouvre une porte au choix **ou** attaque avec
 5 dés de combat ». Les deux clés ont donc été corrigées à la source, comme
 `attaque_second_rang` avant elles.

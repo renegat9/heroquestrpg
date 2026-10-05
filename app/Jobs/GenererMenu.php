@@ -6,10 +6,12 @@ namespace App\Jobs;
 
 use App\Events\MenuPropose;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Sort;
 use App\Partie\MenuMoteur;
+use App\Partie\OrdreDuTour;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
@@ -60,15 +62,41 @@ class GenererMenu implements ShouldQueue
         return "partie:menu:{$groupeId}:{$joueurId}";
     }
 
-    public function handle(MenuMoteur $menuMoteur): void
+    public function handle(MenuMoteur $menuMoteur, OrdreDuTour $ordreDuTour): void
     {
         $groupe = Groupe::findOrFail($this->groupeId);
         $personnage = $this->personnage($groupe);
 
+        // ALLIÉ JOUÉ PAR SON JOUEUR (2026-10-04, chantier 3a) : si c'est au
+        // tour de l'allié que CE héros contrôle (son propre tour vient de
+        // finir), c'est CE menu — un second menu sur la MÊME manette, jamais
+        // une phase à part — qui est publié ici, pas le menu du héros.
+        $allie = $groupe->phase === 'quete' ? $this->allieEnAttenteDe($groupe, $personnage, $ordreDuTour) : null;
+
         // Menu 100 % moteur (bascule 2026-08-18) : plus d'enrichissement IA à
         // tenter, plus de repli à prévoir ici — MenuMoteur::generer() EST déjà
         // le menu final.
-        $this->publier($groupe, $personnage, $menuMoteur->generer($groupe, $personnage));
+        $menu = $allie !== null
+            ? $menuMoteur->genererMenuAllie($groupe, $groupe->queteCourante, $allie)
+            : $menuMoteur->generer($groupe, $personnage);
+
+        $this->publier($groupe, $personnage, $menu, $allie?->id);
+    }
+
+    /**
+     * L'allié dont c'est le tour, s'il est contrôlé par CE héros — null sinon
+     * (ce n'est le tour de personne, ou c'est le tour du héros lui-même, ou
+     * celui de l'allié d'un AUTRE héros de ce même groupe).
+     */
+    private function allieEnAttenteDe(Groupe $groupe, Personnage $personnage, OrdreDuTour $ordreDuTour): ?GroupeMercenaire
+    {
+        $acteur = $ordreDuTour->acteurActif($groupe);
+
+        if ($acteur === null || $acteur['type'] !== 'allie' || $acteur['personnage_id'] !== $personnage->id) {
+            return null;
+        }
+
+        return GroupeMercenaire::find($acteur['allie_id']);
     }
 
     /**
@@ -124,17 +152,25 @@ class GenererMenu implements ShouldQueue
      * sur le canal privé du joueur.
      *
      * @param  array<string, mixed>  $menu
+     * @param  int|null  $allieId  non-null quand ce menu est le TOUR DE
+     *                             L'ALLIÉ contrôlé par ce héros (chantier 3a) :
+     *                             c'est alors `ChoixController::choisir()` qui
+     *                             route la réponse vers
+     *                             `ResolveurTour::resoudreTourAllie()` plutôt
+     *                             que vers le héros — la SEULE chose qui
+     *                             distingue les deux tours sur cette manette.
      */
-    private function publier(Groupe $groupe, Personnage $personnage, array $menu): void
+    private function publier(Groupe $groupe, Personnage $personnage, array $menu, ?int $allieId = null): void
     {
         $menu = $this->avecImmuniteMentale($menu);
 
         Cache::put(self::cleMenu($groupe->id, $this->joueurId), [
             'personnage_id' => $personnage->id,
+            'allie_id' => $allieId,
             'menu' => $menu,
         ], now()->addMinutes(self::TTL_MENU_MINUTES));
 
-        broadcast(new MenuPropose($this->joueurId, $groupe->id, $personnage->id, $menu));
+        broadcast(new MenuPropose($this->joueurId, $groupe->id, $personnage->id, $menu, $allieId));
     }
 
     /**

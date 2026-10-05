@@ -170,6 +170,14 @@ function demarrerQueteAvecMonstre(string $nomMonstre, array $herosAttrs = []): a
     $instance->update([
         'monstre_id' => $catalogue->id,
         'pv_body' => $catalogue->pv_body,
+        // `pv_body_max` suit — sans lui, l'instance garde le PV max du
+        // monstre d'ORIGINE que ce helper vient de remplacer (adapté à la
+        // taille du groupe par `DemarreurQuete::pvAdapte()`, potentiellement
+        // très différent du catalogue qu'on vient d'y poser). Un monstre à
+        // PHASES (chantier 2026-10-04) s'en sert pour garder le MÊME ratio
+        // à travers un changement de phase — un test qui le laisse à sa
+        // valeur d'origine ferait dériver ce ratio dès le premier appel.
+        'pv_body_max' => $catalogue->pv_body,
         'pv_mind' => $catalogue->pv_mind,
         'etat' => 'actif',
         'elite' => false,

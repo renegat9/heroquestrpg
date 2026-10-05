@@ -15,6 +15,7 @@ use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
+use App\Models\Mercenaire;
 use App\Models\Monstre;
 use App\Models\Parametre;
 use App\Models\Quete;
@@ -161,7 +162,7 @@ final class DemarreurQuete
 
         $positionArc = (int) $groupe->quetes()->count() + 1;
         $typeJalon = $this->typeJalon($groupe, $positionArc);
-        $gabarit = $this->choisirGabarit($typeJalon);
+        $gabarit = $this->choisirGabarit($typeJalon, $groupe, $positionArc);
         // Graine de carte stable par (groupe, quête) : cartes différentes d'une
         // campagne/quête à l'autre, reproductible pour une même quête.
         // COMPTEUR DE PITIÉ du passage secret (René, 2026-08-27) : 50 % de base,
@@ -334,6 +335,39 @@ final class DemarreurQuete
                 $slot++;
             }
 
+            // CAPTIF À SECOURIR (gabarit « secourir », chantier 3b,
+            // 2026-10-04) : posé DANS la salle-artefact — même salle qu'un
+            // coffre ordinaire, déjà calculée par `DeckFouille::construire()`
+            // AVANT que cet objectif existe (`salleDuBoss() ?? salleLaPlus
+            // Profonde()`) — jamais une seconde case choisie ici, une seule
+            // règle pour désigner « la » salle qui compte. `etat: 'captif'` :
+            // ni joué, ni contrôlé, tant qu'un héros ne l'a pas LIBÉRÉ
+            // (`MenuMoteur` option `liberer_captif`,
+            // `ResolveurTour::resoudreLibererCaptif()`).
+            if (data_get($gabarit->structure, 'objectif') === 'secourir' && $fouille['salle_artefact'] !== null) {
+                $captifMercenaire = Mercenaire::where('captif', true)->inRandomOrder()->first();
+                $salle = (array) data_get($carte, "salles.{$fouille['salle_artefact']}");
+                $case = $captifMercenaire === null ? null : $this->caseLibreDansSalle($carte, $salle);
+
+                if ($captifMercenaire !== null && $case !== null) {
+                    $captif = GroupeMercenaire::create([
+                        'groupe_id' => $groupe->id,
+                        'mercenaire_id' => $captifMercenaire->id,
+                        'recruteur_personnage_id' => null,
+                        'pv_body' => $captifMercenaire->pv_body,
+                        'position_x' => $case['x'],
+                        'position_y' => $case['y'],
+                        'etat' => 'captif',
+                    ]);
+
+                    $quete->update(['captif_mercenaire_id' => $captif->id]);
+                }
+                // ⚠ Aucun captif sourcé disponible, ou salle sans case libre :
+                // la quête reste jouable — `Quete::objectifAccompli()` tient
+                // « secourir » pour accompli quand `captif` est null (voir son
+                // docblock), jamais une mission silencieusement impossible.
+            }
+
             $groupe->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
 
             return $quete;
@@ -464,11 +498,86 @@ final class DemarreurQuete
      *
      * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
      */
-    private function choisirGabarit(string $typeJalon): GabaritQuete
+    /**
+     * Un emplacement de quête « normale » sur
+     * `RATIO_SECOURIR` devient une mission « secourir » (chantier 3b,
+     * 2026-10-04) — jamais plus, et jamais si aucun profil de captif SOURCÉ
+     * n'existe au catalogue (Gothar aujourd'hui ; cf. `MercenaireSeeder`) :
+     * un gabarit sans contenu à poser serait une mission muette. Rotation
+     * déterministe (graine du groupe + position d'arc), jamais `random_int`
+     * — même discipline que `substituerVarianteDistance()` : une quête
+     * recommencée ou reprise depuis un snapshot doit retrouver le MÊME
+     * gabarit, pas en tirer un autre.
+     *
+     * ⚠ Simplification NOMMÉE : aucun filtre par thème de bestiaire ici (à la
+     * différence des monstres/terrains). Gothar vient de *The Frozen Horror*,
+     * mais rien n'empêche aujourd'hui une mission de sauvetage de tomber dans
+     * un thème différent — l'IA l'habille (nom, récit) sans toucher au bloc
+     * de stats, donc rien ne ROMPT, mais la couleur de boîte peut être
+     * incohérente avec le thème tiré. À resserrer avec un filtre
+     * `BestiaireGroupe::contient()` si une seconde occurrence sourcée
+     * (le Prospecteur, la Princesse Millandriel) rend la généralisation
+     * payante — cf. docs/regles/combat-et-tour.md.
+     */
+    private const RATIO_SECOURIR = 4;
+
+    private function choisirGabarit(string $typeJalon, Groupe $groupe, int $positionArc): GabaritQuete
     {
-        return GabaritQuete::query()->where('type_jalon', $typeJalon)->orderBy('id')->first()
-            ?? GabaritQuete::query()->orderBy('id')->first()
-            ?? throw new RuntimeException('Aucun gabarit de quête en base — seeder les gabarits avant de démarrer.');
+        $candidats = GabaritQuete::query()->where('type_jalon', $typeJalon)->orderBy('id')->get();
+
+        if ($candidats->isEmpty()) {
+            $candidats = GabaritQuete::query()->orderBy('id')->get();
+        }
+
+        if ($candidats->isEmpty()) {
+            throw new RuntimeException('Aucun gabarit de quête en base — seeder les gabarits avant de démarrer.');
+        }
+
+        $secourirs = $candidats->filter(fn (GabaritQuete $g) => data_get($g->structure, 'objectif') === 'secourir');
+        $autres = $candidats->filter(fn (GabaritQuete $g) => data_get($g->structure, 'objectif') !== 'secourir');
+
+        if ($secourirs->isNotEmpty() && Mercenaire::where('captif', true)->exists()
+            && (crc32($groupe->identifiant) + $positionArc) % self::RATIO_SECOURIR === 0) {
+            return $secourirs->first();
+        }
+
+        return $autres->first() ?? $candidats->first();
+    }
+
+    /**
+     * Une case de SOL de la salle donnée, libre de toute figure de DÉPART
+     * (héros ou monstre) — balayage déterministe ligne par ligne, jamais un
+     * tirage au hasard : la même carte assemblée rend toujours la même case
+     * (reprise, « Recommencer la quête »). `null` si la salle est inconnue ou
+     * entièrement occupée — le captif de la mission « secourir » reste alors
+     * simplement non posé, voir l'appelant.
+     *
+     * @param  array<string, mixed>  $carte
+     * @param  array<string, mixed>  $salle  {x, y, largeur, hauteur}
+     * @return array{x: int, y: int}|null
+     */
+    private function caseLibreDansSalle(array $carte, array $salle): ?array
+    {
+        if ($salle === [] || ! isset($salle['x'], $salle['y'], $salle['largeur'], $salle['hauteur'])) {
+            return null;
+        }
+
+        $cases = (array) data_get($carte, 'cases', []);
+        $occupees = [];
+
+        foreach ([...(array) ($carte['spawn_heros'] ?? []), ...(array) ($carte['spawn_monstres'] ?? [])] as $p) {
+            $occupees[$p['x'].','.$p['y']] = true;
+        }
+
+        for ($y = (int) $salle['y']; $y < (int) $salle['y'] + (int) $salle['hauteur']; $y++) {
+            for ($x = (int) $salle['x']; $x < (int) $salle['x'] + (int) $salle['largeur']; $x++) {
+                if (($cases[$y][$x] ?? null) === 's' && ! isset($occupees["{$x},{$y}"])) {
+                    return ['x' => $x, 'y' => $y];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -556,21 +665,36 @@ final class DemarreurQuete
      * @var array<string, string>
      */
     public const BOITES_INCOMPLETES = [
-        // ⚠ VIDE depuis le 2026-09-06. `horreur_des_glaces` en est sortie quand
-        // les cinq règles qu'elle nommait ont été portées : les trois sorts de
-        // son boss (Gel de l'Esprit, Mur de Glace, Patinage — ses SIX sorts
-        // fixes sont désormais tous là), l'étreinte du Yéti et le vol du
-        // Gremlin. Son équipement reste écarté, mais il l'était déjà sur ses
-        // propres mérites : sept cartes de glace restent des dettes NOMMÉES
-        // dans `config/cartes.php`, ce qui n'a jamais empêché une boîte de
-        // tourner — le thème et le boss sont ce qui était retiré, pas le
-        // matériel de trésor.
+        // ⚠ `horreur_des_glaces` est sortie d'ici le 2026-09-06, quand les cinq
+        // règles qu'elle nommait ont été portées : les trois sorts de son boss
+        // (Gel de l'Esprit, Mur de Glace, Patinage — ses SIX sorts fixes sont
+        // désormais tous là), l'étreinte du Yéti et le vol du Gremlin. Son
+        // équipement reste écarté, mais il l'était déjà sur ses propres
+        // mérites : sept cartes de glace restent des dettes NOMMÉES dans
+        // `config/cartes.php`, ce qui n'a jamais empêché une boîte de tourner
+        // — le thème et le boss sont ce qui était retiré, pas le matériel de
+        // trésor.
         //
         // Le dispositif RESTE en place, et c'est voulu : une boîte se retire
         // par une phrase écrite qui dit POURQUOI, jamais par une absence
         // silencieuse de la liste ci-dessus. `SorciersNommesTest` vérifie les
         // deux sens — rien de désactivé ne peut être offert en thème, rien
         // d'offert ne peut être désactivé.
+        //
+        // `prophecy_telor` (chantier monstre à phases, 2026-10-04) : seul le
+        // Sorcier du Dread générique (sous-boss, répertoire limité par
+        // palier) est semé pour cette boîte — son BOSS sourcé, Fellmarak le
+        // Roi Sorcier, ne meurt pas normalement (il fuit en quête 12, meurt
+        // par tirage aléatoire en quête 13 — `docs/regles/bestiaire-et-
+        // rencontres.md`) et n'a aucun des deux mécanismes construit. Semer
+        // le thème sans boss jouable referait l'erreur déjà nommée pour
+        // l'Horreur des Glaces : « un boss final à moitié écrit n'a rien à
+        // faire en tête d'affiche » — ici, un boss qui n'a MÊME PAS de mort
+        // ordinaire.
+        'prophecy_telor' => 'Fellmarak (son seul boss sourcé) ne meurt pas '
+            .'normalement — il fuit en quête 12, meurt par tirage aléatoire '
+            .'en quête 13 — et aucun des deux mécanismes n\'est construit ; '
+            .'le Sorcier du Dread générique reste seedé comme sous-boss.',
     ];
 
     /**

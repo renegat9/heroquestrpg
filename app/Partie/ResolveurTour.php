@@ -410,6 +410,10 @@ final class ResolveurTour
                 'liberer_entraves' => $this->resoudreLiberationEntraves($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // MISSION « SECOURIR » (chantier 3b, 2026-10-04) : un héros au
+                // contact d'un captif NON ENCORE libéré le libère — il devient
+                // un allié `'actif'` contrôlé par CE héros (chantier 3a).
+                'liberer_captif' => $this->resoudreLibererCaptif($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'ouvrir_porte' => $this->resoudreOuvrirPorte($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'forcer_porte_pierre' => $this->resoudreForcerPortePierre($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'oracle_salle' => $this->resoudreOracleSalle($groupe, $quete, $personnage, $etat, $option, $acteur),
@@ -431,6 +435,10 @@ final class ResolveurTour
                 // de héros pour l'atteindre — dette nommée par l'agent qui l'a
                 // écrite, soldée ici.
                 'briser_glace' => $this->resoudreBriserGlace($groupe, $quete, $personnage, $option, $acteur),
+                // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : la pièce se
+                // frappe au combat jusqu'à épuiser ses PV, comme un monstre —
+                // voir `MenuMoteur` (option `attaquer_mobilier_{index}`).
+                'attaquer_mobilier' => $this->resoudreAttaqueMobilier($groupe, $quete, $personnage, $option, $acteur),
                 // CHUTE DE BLOCS (livret p. 14) : le SEUL choix qu'un héros
                 // debout sur le bloc peut encore faire — voir
                 // `MenuMoteur::generer()`, qui n'offre plus que cette option
@@ -488,11 +496,15 @@ final class ResolveurTour
             // round se boucle d'abord, le drapeau se pose ensuite. Voir
             // `ouvrirNouveauTour()` — c'était un gel silencieux et définitif.
             //
-            // Tous les héros ont joué (ou sont tombés) → phase des monstres (C2).
-            $enAttente = $quete->etatsPersonnages()
-                ->where('a_joue', false)
-                ->where('tombe', false)
-                ->exists();
+            // Tous les héros ont joué (ou sont tombés) ET tous les alliés
+            // qu'ils contrôlent aussi (chantier 3a, 2026-10-04 : un allié joue
+            // DANS le tour de son héros, jamais une phase à part) → phase des
+            // monstres (C2). `acteurActif()` est le MÊME point de passage que
+            // celui qui décide, côté menu, à qui revient la main : un héros
+            // dont l'allié n'a pas encore joué compte encore comme « en
+            // attente », sans quoi la phase des monstres s'ouvrirait avant que
+            // ce second menu n'ait jamais été proposé.
+            $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
 
             if (! $enAttente) {
                 $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
@@ -1586,25 +1598,30 @@ final class ResolveurTour
             $arretee = $face === FaceDeCombat::BouclierNoir;
             $pvAvant = (int) $instance->pv_body;
             $degats = $arretee ? 0 : min($pvAvant, (int) ($fleche->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0));
-            $pvApres = $pvAvant - $degats;
 
-            $instance->update([
-                'pv_body' => $pvApres,
-                'etat' => $pvApres <= 0 ? 'vaincu' : 'actif',
+            // UNIQUE point de passage de la mort d'un monstre — un monstre à
+            // PHASES n'y meurt pas, il adopte la forme suivante.
+            $resultatMort = $this->degats->infligerAMonstre($instance, $degats, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
+                'arme' => 'Arc elfique de Vindication',
             ]);
+            $pvApres = $resultatMort['pv_body'];
 
-            $payload = $this->payloadVindication($meta, $instance, $face, $degats, $pvApres, $fleche);
+            $payload = $this->payloadVindication($meta, $instance, $face, $resultatMort['degats'], $pvApres, $fleche);
+            $payload['changement_phase'] = $resultatMort['changement_phase'];
+            $payload['reaction_monstre'] = $resultatMort['reaction'];
+            $payload['reddition_monstre'] = $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null;
 
             $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
             $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
             Journal::ajouter($groupe, 'combat', $payload, $acteur);
             $this->charges->detruireSiEpuise($fleche);
 
-            // Une flèche arrêtée est un
-            // raté, une flèche qui blesse sans abattre est une touche.
+            // Une flèche arrêtée est un raté, une flèche qui blesse sans
+            // abattre (ou qui déclenche un changement de phase) est une
+            // touche — seule la mort pour de vrai reste « mort ».
             $this->diffuserBark($groupe, $instance, match (true) {
                 $arretee => 'rate',
-                $pvApres <= 0 => 'mort',
+                $resultatMort['vaincu'] => 'mort',
                 default => 'touche',
             });
 
@@ -1714,10 +1731,12 @@ final class ResolveurTour
         // clé d'effet ne savait pas distinguer.
         $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
 
-        $instance->update([
-            'pv_body' => $resultat->pvBodyApres,
-            'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-        ]);
+        // UNIQUE point de passage de la mort d'un monstre — un monstre à
+        // PHASES n'y meurt pas, il adopte la forme suivante.
+        $resultatMort = $this->degats->infligerAMonstre(
+            $instance, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_HEROS,
+            ['arme' => $armePrincipale?->nom],
+        );
 
         // Une attaque réveille un monstre endormi (Sommeil, doc 02 §7).
         $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
@@ -1795,8 +1814,14 @@ final class ResolveurTour
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_vaincue' => $resultat->pvBodyApres === 0,
+            'pv_body_apres' => $resultatMort['pv_body'],
+            'cible_vaincue' => $resultatMort['vaincu'],
+            // Changement de phase (chantier 2026-10-04) : `null` tant qu'elle
+            // n'a pas changé de forme — un effet automatique que rien
+            // n'annonce est injouable.
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
             ...$resultat->pourJournal(),
             ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
             // En dernier : l'appelant nomme sa frappe (option_id, libellé,
@@ -1821,7 +1846,10 @@ final class ResolveurTour
 
         // *Demonform* : « Regain this spell when you reduce a monster's Body
         // Points to zero » — c'est l'ABATTEUR qui recharge, pas le groupe.
-        if ($resultat->pvBodyApres === 0) {
+        // ⚠ Le coup qui ouvre un CHANGEMENT DE PHASE compte aussi : c'est bien
+        // ce coup-là qui a amené le Body à zéro, même si le monstre à phases
+        // ne meurt pas pour autant (`infligerAMonstre()`, 2026-10-04).
+        if ($resultatMort['vaincu'] || $resultatMort['changement_phase'] !== null) {
             $this->sorts->regagnerSorts($personnage, RegainEffet::MONSTRE_VAINCU);
         }
 
@@ -1857,7 +1885,7 @@ final class ResolveurTour
         // grâce, rogue) : abattre la cible rouvre le créneau d'action. Une fois
         // par tour — sans le compteur, une chaîne de mises à mort donnerait un
         // tour infini, exactement le trou qu'avait `bonus_des_attaque_flanc`.
-        if ($resultat->pvBodyApres === 0
+        if ($resultatMort['vaincu']
             && ! (bool) $etat->fresh()->attaque_supplementaire
             && $this->talents->disponible($personnage, $etat, 'attaque_supplementaire_apres_kill')) {
             $noeudApresKill = $this->talents->noeud($personnage, 'attaque_supplementaire_apres_kill');
@@ -1874,8 +1902,11 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         // Bark d'ambiance du monstre touché (mort / blessé / paré), best-effort.
+        // ⚠ `$resultat->degats` (le coup RÉELLEMENT porté par les dés), pas
+        // `$resultatMort['degats']` : une Résilience qui absorbe le coup laisse
+        // ce dernier à 0 sans que l'attaque ait raté au jet.
         $this->diffuserBark($groupe, $instance,
-            $resultat->pvBodyApres === 0 ? 'mort' : ($resultat->degats > 0 ? 'touche' : 'rate'));
+            $resultatMort['vaincu'] ? 'mort' : ($resultat->degats > 0 ? 'touche' : 'rate'));
 
         if ($lancer) {
             $payload['lancer'] = $this->consommerArmeLancee($personnage, $ligneArme);
@@ -1941,27 +1972,30 @@ final class ResolveurTour
         }
 
         $degats = (int) $instance->degat_differe;
-        $restants = max(0, (int) $instance->pv_body - $degats);
 
-        $instance->update([
-            'pv_body' => $restants,
-            'etat' => $restants === 0 ? 'vaincu' : 'actif',
-            'degat_differe' => null,
+        // UNIQUE point de passage de la mort d'un monstre — un monstre à
+        // PHASES n'y meurt pas, il adopte la forme suivante.
+        $resultatMort = $this->degats->infligerAMonstre($instance, $degats, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
+            'technique' => 'Toucher du Brasier',
         ]);
+        $instance->update(['degat_differe' => null]);
 
         $payload = [
             'type' => 'braise',
             'monstre' => $instance->nomAffiche(),
             'degats' => $degats,
-            'pv_body_apres' => $restants,
-            'vaincu' => $restants === 0,
+            'pv_body_apres' => $resultatMort['pv_body'],
+            'vaincu' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, [
             'type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche(),
         ]);
 
-        $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+        $this->diffuserBark($groupe, $instance, $resultatMort['vaincu'] ? 'mort' : 'touche');
 
         return $payload;
     }
@@ -2114,21 +2148,24 @@ final class ResolveurTour
 
         foreach ($this->casesDuRayon($quete, (int) $etat->position_x, (int) $etat->position_y, $direction) as $case) {
             foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
-                $restants = max(0, (int) $instance->pv_body - $degats);
-                $instance->update([
-                    'pv_body' => $restants,
-                    'etat' => $restants === 0 ? 'vaincu' : 'actif',
-                ]);
+                // UNIQUE point de passage de la mort d'un monstre — un
+                // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
+                $resultatMort = $this->degats->infligerAMonstre(
+                    $instance, $degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $source],
+                );
 
                 $touches[] = [
                     'type' => 'monstre',
                     'instance_id' => $instance->id,
                     'nom' => $instance->nomAffiche(),
                     'degats' => $degats,
-                    'vaincu' => $restants === 0,
+                    'vaincu' => $resultatMort['vaincu'],
+                    'changement_phase' => $resultatMort['changement_phase'],
+                    'reaction_monstre' => $resultatMort['reaction'],
+                    'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
                 ];
 
-                $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+                $this->diffuserBark($groupe, $instance, $resultatMort['vaincu'] ? 'mort' : 'touche');
             }
 
             if (! $touchesLesHeros) {
@@ -2257,18 +2294,24 @@ final class ResolveurTour
 
         $immediat = (int) ($source['effet']['immediat'] ?? 1);
         $differe = (int) ($source['effet']['differe'] ?? 2);
-        $restants = max(0, (int) $instance->pv_body - $immediat);
+
+        // UNIQUE point de passage de la mort d'un monstre — un monstre à
+        // PHASES n'y meurt pas, il adopte la forme suivante (et reste donc
+        // une cible valide pour la braise).
+        $resultatMort = $this->degats->infligerAMonstre($instance, $immediat, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
+            'technique' => $source['nom'] ?? 'Toucher du Brasier',
+        ]);
 
         $instance->update([
-            'pv_body' => $restants,
-            'etat' => $restants === 0 ? 'vaincu' : 'actif',
-            // La braise ne s'allume que sur une créature encore debout : la
-            // poser sur un mort la ferait tomber dans le vide.
-            'degat_differe' => $restants === 0 ? null : $differe,
+            // La braise ne s'allume que sur une créature encore VIVANTE : la
+            // poser sur un cadavre la ferait tomber dans le vide. Une
+            // créature qui vient de changer de phase reste une cible valide
+            // — « toujours le même monstre ».
+            'degat_differe' => $resultatMort['vaincu'] ? null : $differe,
         ]);
 
         $this->styles->depenser($personnage, $etat, $source);
-        $this->diffuserBark($groupe, $instance, $restants === 0 ? 'mort' : 'touche');
+        $this->diffuserBark($groupe, $instance, $resultatMort['vaincu'] ? 'mort' : 'touche');
 
         $payload = [
             'type' => 'degat_differe',
@@ -2277,8 +2320,11 @@ final class ResolveurTour
             'technique' => $source['nom'],
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
             'degats' => $immediat,
-            'differe' => $restants === 0 ? 0 : $differe,
-            'cible_vaincue' => $restants === 0,
+            'differe' => $resultatMort['vaincu'] ? 0 : $differe,
+            'cible_vaincue' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -4859,8 +4905,11 @@ final class ResolveurTour
                     (int) data_get($sort->effet, 'des_resistance', 0) + $bonusResistance,
                 );
 
-                $pvApres = max(0, (int) $instance->pv_body - $reduction['degats']);
-                $instance->update(['pv_body' => $pvApres, 'etat' => $pvApres === 0 ? 'vaincu' : 'actif']);
+                // UNIQUE point de passage de la mort d'un monstre — un
+                // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
+                $resultatMort = $this->degats->infligerAMonstre(
+                    $instance, $reduction['degats'], MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $sort->nom],
+                );
                 $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
 
                 return [
@@ -4871,8 +4920,11 @@ final class ResolveurTour
                     'des_resistance' => $reduction['faces'],
                     'degats_annules' => $reduction['annules'],
                     'degats' => $reduction['degats'],
-                    'pv_body_apres' => $pvApres,
-                    'cible_vaincue' => $pvApres === 0,
+                    'pv_body_apres' => $resultatMort['pv_body'],
+                    'cible_vaincue' => $resultatMort['vaincu'],
+                    'changement_phase' => $resultatMort['changement_phase'],
+                    'reaction_monstre' => $resultatMort['reaction'],
+                    'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
                     ...($modificateursSort !== [] ? ['modificateurs' => $modificateursSort] : []),
                 ];
             }
@@ -4884,10 +4936,11 @@ final class ResolveurTour
                 pvBodyDefenseur: (int) $instance->pv_body,
             )->avecDegatsAjoutes($bonusDegatsSort);
 
-            $instance->update([
-                'pv_body' => $resultat->pvBodyApres,
-                'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-            ]);
+            // UNIQUE point de passage de la mort d'un monstre — un monstre à
+            // PHASES n'y meurt pas, il adopte la forme suivante.
+            $resultatMort = $this->degats->infligerAMonstre(
+                $instance, $resultat->degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $sort->nom],
+            );
 
             // Être attaqué réveille un monstre endormi (doc 02 §7).
             $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
@@ -4904,8 +4957,11 @@ final class ResolveurTour
                 'touches' => $resultat->touches,
                 'boucliers' => $resultat->boucliers,
                 'degats' => $resultat->degats,
-                'pv_body_apres' => $resultat->pvBodyApres,
-                'cible_vaincue' => $resultat->pvBodyApres === 0,
+                'pv_body_apres' => $resultatMort['pv_body'],
+                'cible_vaincue' => $resultatMort['vaincu'],
+                'changement_phase' => $resultatMort['changement_phase'],
+                'reaction_monstre' => $resultatMort['reaction'],
+                'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
                 ...$resultat->pourJournal(),
                 ...($modificateursSort !== [] ? ['modificateurs' => $modificateursSort] : []),
             ];
@@ -5904,6 +5960,92 @@ final class ResolveurTour
     }
 
     /**
+     * Attaque un meuble à PV/défense (2026-10-04) — Crystal Cluster (*Jungles
+     * of Delthrak*, « can be destroyed as a monster […] with 6 Body Points »,
+     * « cannot defend »), Haut Autel et Coffres du Dread (*Wizards of
+     * Morcar*, « may be attacked using normal combat », « rolls 6 Defend
+     * dice »). TROISIÈME voie de destruction du mobilier, après la fouille et
+     * le jet de Body de `resoudreJet()` — celle-ci se retente SANS LIMITE,
+     * exactement comme on refrapperait un monstre qui tient encore debout.
+     *
+     * ⚠ Dés d'attaque = `personnage->des_attaque`, la COLONNE qui porte déjà
+     * la classe, l'arme en main, la Forge et les talents passifs (même
+     * référence que `frapper()` documente pour le dual-wielding) — PAS les
+     * bonus CONDITIONNELS de `frapper()` (Furie, flanquement, Élan…) : tous
+     * supposent un adversaire qui riposte ou une tactique de meute, et aucune
+     * source de ce meuble n'évoque leur emploi contre lui. En état de CHOC
+     * (0 PV de Mind), le héros tombe au même plancher de 1 dé qu'au combat
+     * ordinaire (`Personnage::estEnChoc()`) — un meuble ne lui rend pas sa
+     * lucidité.
+     *
+     * ⚠ Défend comme un HÉROS (boucliers BLANCS), pas comme un monstre : c'est
+     * la SEULE couleur que les sources de ce chantier précisent (« Barriers
+     * defend […] by counting the white shields scored », G1504 p. 10) — rien
+     * dans le Haut Autel ni les Coffres du Dread ne la contredit, et le
+     * Crystal Cluster n'a de toute façon aucun dé à lancer.
+     *
+     * ⚠ « Ce que la destruction déclenche » s'arrête ICI à la carte (la pièce
+     * cesse de bloquer mouvement et vue, `FabriqueGrille::pour()`) et au
+     * journal — un déclenchement de QUÊTE (le sorcier qui jaillit du Coffre du
+     * Dread, la quête gagnée à la chute du Haut Autel) est un fait de gabarit,
+     * hors du périmètre générique de ce lecteur.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueMobilier(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        array $option,
+        array $acteur,
+    ): array {
+        $index = (int) ($option['parametres']['mobilier'] ?? -1);
+        $entree = ($quete->carte->grille['mobilier'] ?? [])[$index] ?? null;
+        $type = $entree === null ? null : Mobilier::find((int) ($entree['mobilier_id'] ?? 0));
+
+        if ($type === null || $type->pv_body === null || MoteurMobilier::estDetruite($entree)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Ce meuble n\'est plus là, ou ne se détruit pas au combat.',
+            ]);
+        }
+
+        $pvAvant = MoteurMobilier::pvRestants($entree, $type);
+
+        $desAttaque = $personnage->estEnChoc() ? 1 : max(0, (int) $personnage->des_attaque);
+
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: $desAttaque,
+            desDefense: (int) ($type->defense_dice ?? 0),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: $pvAvant,
+        );
+
+        $etatMeuble = $this->mobilier->infligerDegats($quete->carte, $index, $resultat->degats);
+
+        $payload = [
+            'type' => 'attaque_mobilier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => $type->nom,
+            'des_attaque' => $desAttaque,
+            'des_defense' => (int) ($type->defense_dice ?? 0),
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $resultat->degats,
+            'pv_body_avant' => $pvAvant,
+            'pv_body_apres' => $etatMeuble['pv_restants'],
+            'detruit' => $etatMeuble['detruit'],
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * Relever un allié TOMBÉ adjacent (doc 03 §48 : relevable par un allié) :
      * le héros sacrifie son tour, l'allié se remet debout à 1 PV de Body et
      * libère sa case. Empêche le blocage d'un couloir par une figure tombée.
@@ -6211,7 +6353,7 @@ final class ResolveurTour
     }
 
     /**
-     * Génie, second mode : « ouvre une porte AU CHOIX » (Kellar's Keep p. 15).
+     * Génie, second mode : « ouvre une porte AU CHOIX » (Kellar's Keep p. 28-29).
      *
      * Aucune adjacence requise — c'est tout l'intérêt : ouvrir à distance une
      * porte que des figures bloquent, ou dégager un passage sans traverser la
@@ -6740,10 +6882,12 @@ final class ResolveurTour
             pvBodyDefenseur: (int) $cible->pv_body,
         );
 
-        $cible->update([
-            'pv_body' => $resultat->pvBodyApres,
-            'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-        ]);
+        // UNIQUE point de passage de la mort d'un monstre — un monstre à
+        // PHASES n'y meurt pas, il adopte la forme suivante.
+        $resultatMort = $this->degats->infligerAMonstre(
+            $cible, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE_SUR_MONSTRE,
+            ['sbire' => $sbire->nomAffiche()],
+        );
 
         // Se faire frapper réveille, quel que soit le camp du frappeur.
         $this->sorts->retirerConditionMonstre($cible, MoteurSorts::MONSTRE_ENDORMI);
@@ -6755,8 +6899,11 @@ final class ResolveurTour
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_vaincue' => $resultat->pvBodyApres === 0,
+            'pv_body_apres' => $resultatMort['pv_body'],
+            'cible_vaincue' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
         ];
     }
 
@@ -6806,18 +6953,23 @@ final class ResolveurTour
                     pvBodyDefenseur: (int) $victime->pv_body,
                 );
 
-                $victime->update([
-                    'pv_body' => $resultat->pvBodyApres,
-                    'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-                ]);
+                // UNIQUE point de passage de la mort d'un monstre — un
+                // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
+                $resultatMort = $this->degats->infligerAMonstre(
+                    $victime, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_MONSTRE_SUR_MONSTRE,
+                    ['reflet' => 'Bâton Ancien', 'lanceur' => $lanceur->nomAffiche()],
+                );
                 $this->sorts->retirerConditionMonstre($victime, MoteurSorts::MONSTRE_ENDORMI);
 
                 $effets[] = [
                     'instance_id' => (int) $victime->id,
                     'nom' => $victime->nomAffiche(),
                     'degats' => $resultat->degats,
-                    'pv_body_apres' => $resultat->pvBodyApres,
-                    'vaincu' => $resultat->pvBodyApres === 0,
+                    'pv_body_apres' => $resultatMort['pv_body'],
+                    'vaincu' => $resultatMort['vaincu'],
+                    'changement_phase' => $resultatMort['changement_phase'],
+                    'reaction_monstre' => $resultatMort['reaction'],
+                    'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
                 ];
 
                 continue;
@@ -7060,12 +7212,22 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => 'Cette créature n\'est pas en vue.']);
         }
 
-        $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
-        $this->diffuserBark($groupe, $instance, 'mort');
+        // UNIQUE point de passage de la mort d'un monstre — même « mise à
+        // mort instantanée » qu'une carte peut nommer passe par lui : aucun
+        // monstre à phases du catalogue n'est mort-vivant aujourd'hui, mais
+        // rien ne garantit que ça reste vrai demain, et deux implémentations
+        // de la mort d'un monstre sont le défaut que ce chantier corrige.
+        $resultatMort = $this->degats->infligerAMonstre(
+            $instance, (int) $instance->pv_body, MoteurDegats::SOURCE_EAU_BENITE,
+        );
+        $this->diffuserBark($groupe, $instance, $resultatMort['vaincu'] ? 'mort' : 'touche');
 
         return [
             'cible' => ['instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
-            'tuee' => true,
+            'tuee' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
         ];
     }
 
@@ -8470,10 +8632,10 @@ final class ResolveurTour
         // Le drapeau se pose donc à la FIN, une fois le round régulièrement
         // bouclé — un donjon vide se joue encore : on fouille, on ouvre les
         // portes qui restent, et c'est un vote qui clôt la quête.
-        $enAttente = $quete->etatsPersonnages()
-            ->where('a_joue', false)
-            ->where('tombe', false)
-            ->exists();
+        //
+        // ⚠ Même garde ALLIÉE que dans `resoudre()` (chantier 3a) :
+        // `acteurActif()`, pas seulement les héros.
+        $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
 
         if (! $enAttente) {
             $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
@@ -8659,6 +8821,16 @@ final class ResolveurTour
             'capacites_tour' => null,
         ]);
 
+        // Même remise à zéro pour les ALLIÉS joués par leur joueur (chantier
+        // 3a, 2026-10-04) : un allié a ses deux créneaux, comme un héros —
+        // sans quoi il ne jouerait plus jamais après son premier round.
+        // `etat = 'captif'` est délibérément EXCLU : un captif non libéré
+        // n'a pas de tour à ouvrir.
+        GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false]);
+
         // Fin de round, APRÈS la phase des monstres : c'est le début du prochain
         // tour des héros. Les effets `prochain_tour` (Voile de Brume) expirent
         // donc ici — ils ont couvert la phase des monstres, ce qui est tout leur
@@ -8762,14 +8934,33 @@ final class ResolveurTour
         // Tous les héros tombés → quête échouée, retour au hub : le groupe
         // vote recharger (POST reprise) ou abandonner (doc 05 §6) — les
         // snapshots de la quête sont CONSERVÉS pour la reprise.
-        $quete->update(['etat' => 'echouee']);
-        Journal::ajouter($groupe, 'systeme', ['action' => 'quete_echouee', 'quete_id' => $quete->id]);
-        $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
-
-        // Alliés (3.5) consommés même en cas d'échec de la quête.
-        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+        $this->echouerQuete($groupe, $quete);
 
         return self::CHUTE_TPK;
+    }
+
+    /**
+     * Échoue la quête EN COURS : retour au hub, alliés (3.5) consommés comme
+     * à la victoire — les snapshots sont CONSERVÉS pour la reprise (doc 05
+     * §6). Point de passage UNIQUE, qu'on échoue sur un TPK ({@see
+     * self::verdictDeChute()}) ou sur la perte du captif d'une mission
+     * « secourir » ({@see self::echouerSiCaptifPerdu()}) : deux causes, une
+     * seule cérémonie de fin.
+     */
+    private function echouerQuete(Groupe $groupe, Quete $quete, ?string $cause = null): void
+    {
+        $quete->update(['etat' => 'echouee']);
+
+        $payload = ['action' => 'quete_echouee', 'quete_id' => $quete->id];
+
+        if ($cause !== null) {
+            $payload['cause'] = $cause;
+        }
+
+        Journal::ajouter($groupe, 'systeme', $payload);
+        $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+
+        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
     }
 
     /**
@@ -8950,7 +9141,7 @@ final class ResolveurTour
                 $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
             }
 
-            $tir = $this->tirerSiCibleEnVue($groupe, $instance, $cibles, $grille, $acteur, $nomMonstre);
+            $tir = $this->tirerSiCibleEnVue($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre);
 
             if ($tir !== null) {
                 return $tir;
@@ -9046,8 +9237,14 @@ final class ResolveurTour
             // monstre : on lui repique sa position en tête, puis on la retire,
             // pour que `tronquerSurChausseTrappes()` voie bien une « entrée »
             // sur chaque case et n'ignore pas la première.
-            $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
-            $chemin = array_slice($tronque, 1);
+            //
+            // ⚠ Sauf l'ÉTHÉRÉ : « Ethereal monsters are unaffected by all
+            // traps, including caltrops placed by heroes » (Dread Moon p. 6,
+            // répété p. 36) — `docs/plan-correctifs-2026-10-04.md` C1.
+            if (! $this->dread->aCapacite($instance, 'ethere')) {
+                $tronque = $this->tronquerSurChausseTrappes($quete, [$departMonstre, ...$chemin]);
+                $chemin = array_slice($tronque, 1);
+            }
 
             // ⚠ POINTS de déplacement, pas nombre de cases (doc 18 §4, Rivière
             // Gelée) : `min(deplacement, count($chemin))` confondait les deux
@@ -9145,7 +9342,7 @@ final class ResolveurTour
         // des HÉROS et le restent — limite nommée, docs/regles/combat-et-tour.md.
         if ($cible instanceof GroupeMercenaire) {
             return $this->resoudreAttaqueMonstreSurAllie(
-                $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+                $groupe, $quete, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
             );
         }
 
@@ -9159,11 +9356,10 @@ final class ResolveurTour
             }
         }
 
-        // Capacité à choix tactique (3.7) : selon les PV de la cible, attaque
-        // massive unique OU double attaque — décision 100 % mécanique (jamais LLM).
-        $choixTactique = $instance->monstre->capacites['choix_attaque'] ?? null;
-        if (is_array($choixTactique)) {
-            return $this->attaqueChoixTactique($groupe, $instance, $cible, $choixTactique, $acteur, $nomMonstre);
+        // Deux attaques par tour (Ours polaire de guerre, Frozen Horror p. 37) —
+        // décision 100 % mécanique (jamais LLM).
+        if ($this->dread->aCapacite($instance, 'deux_attaques')) {
+            return $this->deuxAttaques($groupe, $instance, $cible, $cibles, $acteur, $nomMonstre);
         }
 
         // Attaque simple du héros adjacent — moteur seul.
@@ -9432,52 +9628,59 @@ final class ResolveurTour
     }
 
     /**
-     * Attaque à choix tactique (3.7) : un monstre doté de la capacité
-     * `choix_attaque` frappe en MODE MASSIF (une attaque unique à dés bonifiés)
-     * tant que la cible a beaucoup de PV (> seuil), sinon en DOUBLE ATTAQUE (deux
-     * attaques normales, interrompues si la cible tombe). Règle 100 % mécanique,
-     * paramétrée par la capacité — aucune décision confiée au LLM (C2, doc 08 §5).
+     * DEUX ATTAQUES par tour — « The Polar Warbear attacks once with its mighty
+     * paw and once with its spiked mace. Two attacks can be made against one
+     * opponent or one attack can be made against each of two different
+     * opponents » (The Frozen Horror, p. 37 ; `docs/plan-correctifs-2026-10-04.md`
+     * C4). Remplace `choix_attaque`, une mécanique DE NOUS (coup massif / double
+     * selon les PV) que la carte ne connaît pas.
      *
-     * @param  array<string, mixed>  $choix
+     * ⚠ UN SEUL jet de défense par héros : « A hero attacked by a monster with
+     * multiple attacks (such as the Polar Warbear), however, gets only 1 defend
+     * roll against that monster per turn, no matter how many of the monster's
+     * attacks are directed at the hero » (p. 9). Deux attaques de N dés contre
+     * une défense valent EXACTEMENT une attaque de 2N dés contre une défense
+     * (les dés sont indépendants) : c'est ainsi qu'on les résout.
+     *
+     * La carte laisse la répartition au MJ ; c'est donc le MOTEUR qui la tient,
+     * par une règle fixe : un AUTRE héros debout au contact → une attaque sur
+     * chacun ; sinon les deux sur la cible, en un seul jet. Jamais le LLM.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    private function attaqueChoixTactique(
+    private function deuxAttaques(
         Groupe $groupe,
         InstanceMonstre $instance,
         EtatPersonnageQuete $cible,
-        array $choix,
+        Collection $cibles,
         array $acteur,
         string $nomMonstre,
     ): array {
-        $seuil = (int) ($choix['seuil'] ?? 2);
-        $personnage = $cible->personnage;
+        $seconde = $cibles->first(fn (EtatPersonnageQuete $c) => $c->id !== $cible->id
+            && ! $c->tombe
+            && $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y));
 
-        // Cible robuste → coup massif unique (dés d'attaque bonifiés).
-        if ((int) $personnage->pv_body > $seuil) {
-            $bonus = (int) ($choix['massive_des_bonus'] ?? 2);
-            $payload = $this->resoudreAttaqueMonstre(
-                $groupe, $instance, $cible, $instance->attaqueEffective() + $bonus, $acteur, $nomMonstre,
+        if ($seconde === null) {
+            $action = $this->resoudreAttaqueMonstre(
+                $groupe, $instance, $cible, 2 * $instance->attaqueEffective(), $acteur, $nomMonstre,
             );
-            $payload['mode'] = 'massive';
+            $action['mode'] = 'deux_attaques';
+            $action['repartition'] = 'une_cible';
 
-            return $payload;
+            return $action;
         }
 
-        // Cible affaiblie → plusieurs attaques normales, stoppées si elle tombe.
-        $nombre = max(2, (int) ($choix['double_nombre'] ?? 2));
         $actions = [];
 
-        for ($coup = 1; $coup <= $nombre; $coup++) {
-            if ($cible->tombe || (int) $personnage->pv_body <= 0) {
-                break;
-            }
-
+        foreach ([$cible, $seconde] as $coup => $visee) {
             $action = $this->resoudreAttaqueMonstre(
-                $groupe, $instance, $cible, $instance->attaqueEffective(), $acteur, $nomMonstre,
+                $groupe, $instance, $visee, $instance->attaqueEffective(), $acteur, $nomMonstre,
             );
-            $action['mode'] = 'double';
-            $action['coup'] = $coup;
+            $action['mode'] = 'deux_attaques';
+            $action['repartition'] = 'deux_cibles';
+            $action['coup'] = $coup + 1;
             $actions[] = $action;
         }
 
@@ -9661,6 +9864,7 @@ final class ResolveurTour
      */
     private function tirerSiCibleEnVue(
         Groupe $groupe,
+        Quete $quete,
         InstanceMonstre $instance,
         Collection $cibles,
         Grille $grille,
@@ -9674,7 +9878,7 @@ final class ResolveurTour
         // coupe la vue — un archer ne tire pas sur un héros caché DERRIÈRE
         // d'autres figures. `$grille` porte déjà l'occupation (FabriqueGrille).
         // Les ALLIÉS sont des cibles comme les héros (2026-10-04).
-        $visibles = collect([...$cibles->all(), ...$this->alliesCiblables($instance->quete)->all()])
+        $visibles = collect([...$cibles->all(), ...$this->alliesCiblables($quete)->all()])
             ->filter(fn ($c) => $grille->ligneDeVue($ix, $iy, (int) $c->position_x, (int) $c->position_y, figuresBloquent: true))
             ->values();
 
@@ -9707,7 +9911,7 @@ final class ResolveurTour
 
         if ($cible instanceof GroupeMercenaire) {
             return $this->resoudreAttaqueMonstreSurAllie(
-                $groupe, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
+                $groupe, $quete, $instance, $cible, $desAttaque, $acteur, $nomMonstre,
                 $adjacent ? 'corps_a_corps' : 'distance',
             );
         }
@@ -9755,6 +9959,7 @@ final class ResolveurTour
      */
     private function resoudreAttaqueMonstreSurAllie(
         Groupe $groupe,
+        Quete $quete,
         InstanceMonstre $instance,
         GroupeMercenaire $allie,
         int $desAttaque,
@@ -9803,7 +10008,42 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
+        // MISSION « SECOURIR » (chantier 3b, 2026-10-04) — Gothar, Frozen
+        // Horror p. 19 : si le héros qui l'escorte meurt, il est « capturé »
+        // automatiquement. Généralisé : le captif désigné de CETTE quête
+        // (quelle que soit sa cause de mort — ici un coup de monstre, les
+        // sorts de Dread visent encore les seuls héros) FAIT ÉCHOUER la
+        // quête sur-le-champ, exactement comme un TPK — jamais un échec
+        // silencieux découvert seulement au vote de sortie.
+        if ($vaincu) {
+            // ⚠ L'OBJET `$quete` REÇU EN PARAMÈTRE, jamais `$instance->quete`
+            // (une relation rechargerait une AUTRE instance du modèle) :
+            // `echouerQuete()` mute `$quete->etat` en mémoire, et c'est CE
+            // MÊME objet que `phaseMonstres()`/`ouvrirNouveauTour()`
+            // continuent de lire juste après — une seconde instance resterait
+            // bloquée sur `'en_cours'` et `verdictDeChute()` tenterait un
+            // snapshot sur un groupe qui n'a déjà plus de quête courante
+            // (trouvé en test : `RuntimeException: Snapshot impossible`).
+            $this->echouerSiCaptifPerdu($groupe, $quete, $allie);
+        }
+
         return $payload;
+    }
+
+    /**
+     * L'allié qui vient de tomber est-il LE captif de cette quête (mission
+     * « secourir ») ? Alors la quête échoue immédiatement — même verdict
+     * qu'un TPK, même point de passage (`Quete::objectifAccompli()` ne
+     * l'aurait jamais vu, un allié vaincu étant simplement retiré du groupe).
+     */
+    private function echouerSiCaptifPerdu(Groupe $groupe, ?Quete $quete, GroupeMercenaire $allie): void
+    {
+        if ($quete === null || $quete->etat !== 'en_cours'
+            || (int) ($quete->captif_mercenaire_id ?? 0) !== (int) $allie->id) {
+            return;
+        }
+
+        $this->echouerQuete($groupe, $quete, 'captif_perdu');
     }
 
     /**
@@ -9865,7 +10105,10 @@ final class ResolveurTour
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
             // exactement comme relever un compagnon ou se concentrer.
-            'concentration', 'relever', 'attente', 's_ecarter_du_bloc' => 'tour',
+            // `liberer_captif` REJOINT cette liste (chantier 3b, 2026-10-04) :
+            // libérer un captif n'est pas un geste qu'on fait en passant, même
+            // traitement que relever un compagnon tombé.
+            'concentration', 'relever', 'attente', 's_ecarter_du_bloc', 'liberer_captif' => 'tour',
             default => 'action',
         };
     }
@@ -10511,21 +10754,20 @@ final class ResolveurTour
     }
 
     /**
-     * Fin de round (tous les héros ont joué) : phase ALLIÉE dédiée (3.5) — les
-     * alliés scriptés jouent AVANT les monstres, HORS initiative des héros —
-     * puis (s'il reste des monstres) la phase des monstres. Les alliés ayant pu
-     * vaincre le dernier monstre, la victoire est revérifiée entre les deux.
+     * Fin de round (tous les héros ont joué, ET tous les alliés qu'ils
+     * contrôlent — chantier 3a) : la phase des monstres (s'il en reste).
+     *
+     * ⚠ Il n'y a PLUS de phase alliée dédiée ici depuis le 2026-10-04 : un
+     * allié joue DANS le tour du héros qui le contrôle
+     * ({@see OrdreDuTour::acteurActif()}, {@see self::resoudreTourAllie()}),
+     * donc par construction, au moment où cette méthode est appelée (plus
+     * aucun acteur en attente), tout allié éligible a déjà joué.
      *
      * @param  array<string, mixed>  $resultat
      * @return array<string, mixed>
      */
     private function jouerFinDeRound(array $resultat, Groupe $groupe, Quete $quete): array
     {
-        $allies = $this->phaseAllies($groupe, $quete);
-        if ($allies['actions'] !== []) {
-            $resultat['tour_allies'] = $allies;
-        }
-
         // Plus aucun monstre : pas de phase de monstres à jouer — mais le tour
         // suivant doit quand même S'OUVRIR, sans quoi personne ne rejoue jamais
         // et le groupe reste enfermé dans un donjon vide (voir
@@ -10542,202 +10784,24 @@ final class ResolveurTour
     }
 
     /**
-     * Phase des alliés scriptés (3.5) : chaque allié actif joue comme un
-     * « monstre allié » ciblant les MONSTRES (révélés). PNJ scripté, hors
-     * initiative héros. Les monstres, eux, visent les alliés depuis le
-     * 2026-10-04 (`alliesCiblables()`, `resoudreAttaqueMonstreSurAllie()`).
-     *
-     * @return array{actions: list<array<string, mixed>>}
-     */
-    private function phaseAllies(Groupe $groupe, Quete $quete): array
-    {
-        $actions = [];
-
-        $allies = GroupeMercenaire::where('groupe_id', $quete->groupe_id)
-            ->where('etat', 'actif')
-            ->whereNotNull('position_x')
-            ->with('mercenaire')
-            ->orderBy('id')
-            ->get();
-
-        foreach ($allies as $allie) {
-            $monstres = $quete->instancesMonstres()
-                ->where('etat', 'actif')->where('revele', true)
-                ->whereNotNull('position_x')->with('monstre')->get();
-
-            if ($monstres->isEmpty()) {
-                break; // plus rien à combattre
-            }
-
-            $action = $this->jouerAllie($groupe, $quete, $allie, $monstres);
-            if ($action !== null) {
-                $actions[] = $action;
-            }
-        }
-
-        if ($actions !== []) {
-            // Un allié a pu vaincre un gardien → portes « monstres_vaincus ».
-            $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
-        }
-
-        return ['actions' => $actions];
-    }
-
-    /**
-     * Tour d'un allié : tire à distance sur le monstre visible le plus faible
-     * (allié à distance avec ligne de vue) ; sinon rejoint le monstre le plus
-     * proche (emprise comprise) puis frappe au contact. 100 % moteur.
-     *
-     * @param  \Illuminate\Support\Collection<int, InstanceMonstre>  $monstres
-     * @return array<string, mixed>|null
-     */
-    private function jouerAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, $monstres): ?array
-    {
-        // « This mercenary can attack diagonally » (Fauchard, Loup, Croc-sabre,
-        // Raptor). N'ouvre QUE le test d'attaque : le déplacement d'un allié
-        // reste orthogonal, comme celui de tout le monde.
-        $diagonales = in_array('attaque_diagonale', (array) ($allie->mercenaire?->capacites ?? []), true);
-        $merc = $allie->mercenaire;
-        $nom = $merc->nom;
-        $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
-        $grille = $this->grille($quete, exceptMercenaireId: $allie->id);
-        $ax = (int) $allie->position_x;
-        $ay = (int) $allie->position_y;
-
-        // Allié à distance : tirer sur le monstre VISIBLE le plus faible — même
-        // règle que l'archer ennemi : une figure interposée coupe la ligne de tir.
-        if ($merc->aDistance()) {
-            $visibles = $monstres->filter(function (InstanceMonstre $m) use ($grille, $ax, $ay) {
-                $e = $m->monstre->emprise();
-
-                return $grille->ligneDeVueEmprise($ax, $ay, (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], figuresBloquent: true);
-            })->values();
-
-            if ($visibles->isNotEmpty()) {
-                $cible = $visibles->sortBy(fn (InstanceMonstre $m) => (int) $m->pv_body)->first();
-                $e = $cible->monstre->emprise();
-                $adjacent = $grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales);
-                $des = $adjacent ? (int) $merc->attaque : (int) ($merc->attaque_distance ?? $merc->attaque);
-
-                return $this->resoudreAttaqueAllie($groupe, $allie, $cible, $des, $adjacent ? 'corps_a_corps' : 'distance', $acteur, $nom);
-            }
-            // Pas de ligne de tir → se rapproche comme un combattant de mêlée.
-        }
-
-        // Mêlée : rejoindre le monstre le plus proche (case adjacente à l'emprise).
-        //
-        // ⚠ Grille de DÉPLACEMENT qui franchit les héros et les autres alliés
-        // (2026-10-01, test en jeu) : sans elle, un héros posté dans un couloir
-        // d'UNE case entre l'allié et le monstre le laissait immobile, round
-        // après round (`allie_immobile`), alors qu'un héros, lui, traverse la
-        // case d'un compagnon. Les monstres et les meubles bloquent toujours ;
-        // la case d'ARRÊT est revérifiée plus bas (jamais sur une figure).
-        $grilleMvt = $this->grille($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
-        $meilleure = null; // [InstanceMonstre, chemin]
-        foreach ($monstres as $m) {
-            $e = $m->monstre->emprise();
-
-            if ($grille->adjacenteAEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales)) {
-                $meilleure = [$m, []];
-                break;
-            }
-
-            foreach ($grille->cellulesEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']) as $cell) {
-                foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-                    $chemin = $grilleMvt->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
-                    if ($chemin !== null && ($meilleure === null || count($chemin) < count($meilleure[1]))) {
-                        $meilleure = [$m, $chemin];
-                    }
-                }
-            }
-        }
-
-        if ($meilleure === null) {
-            return ['type' => 'allie_immobile', 'allie' => $nom]; // aucun monstre joignable
-        }
-
-        [$cible, $chemin] = $meilleure;
-
-        if ($chemin !== []) {
-            // ⚠ POINTS, pas cases (doc 18 §4, Rivière Gelée) — voir le même
-            // correctif sur le déplacement des monstres, `jouerMonstre()`
-            // ci-dessus. `pasAffordables()` peut désormais rendre 0 (la toute
-            // première case dépasse le budget) là où `min(...)` ne le pouvait
-            // jamais : l'allié reste alors immobile plutôt que de lire l'index
-            // -1 de `$chemin`.
-            $pas = $grilleMvt->pasAffordables($chemin, (int) $merc->deplacement);
-
-            // Traverser n'est pas s'arrêter : on recule jusqu'à la dernière
-            // case LIBRE du trajet payable (la case visée peut être celle d'un
-            // héros, quand c'est la seule qui touche le monstre).
-            while ($pas > 0 && $grilleMvt->estOccupeeParFigure((int) $chemin[$pas - 1]['x'], (int) $chemin[$pas - 1]['y'])) {
-                $pas--;
-            }
-
-            if ($pas > 0) {
-                $arrivee = $chemin[$pas - 1];
-                $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
-                $ax = (int) $arrivee['x'];
-                $ay = (int) $arrivee['y'];
-            }
-        }
-
-        $e = $cible->monstre->emprise();
-        if ($grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales)) {
-            $attaque = $this->resoudreAttaqueAllie($groupe, $allie, $cible, (int) $merc->attaque, 'corps_a_corps', $acteur, $nom);
-
-            // « Move before and after an attack » (Raptor) : c'est le second
-            // mouvement du `tacticien`, déjà écrit pour les monstres. Une
-            // PERMISSION, pas une obligation — on en fait un décrochage, comme
-            // pour eux : rester au contact ne gagnerait rien à bouger deux fois.
-            if (in_array('tacticien', (array) ($merc->capacites ?? []), true)) {
-                $attaque['repli'] = $this->replierAllie($allie, $grille);
-            }
-
-            return $attaque;
-        }
-
-        $payload = ['type' => 'deplacement_allie', 'allie' => $nom, 'vers' => ['x' => $ax, 'y' => $ay]];
-        Journal::ajouter($groupe, 'action', $payload, $acteur);
-
-        return $payload;
-    }
-
-    /**
      * Une attaque d'un allié contre un monstre (le défenseur est un monstre :
      * boucliers NOIRS, défense effective élite comprise). Met à jour les PV du
      * monstre, le réveille, journalise.
      *
+     * ⚠ Avant le 2026-10-04 (chantier 3a), seule appelante : l'ancien pilotage
+     * 100 % moteur de l'allié (choix automatique de la cible). Elle est
+     * désormais appelée par {@see self::resoudreTourAllie()}, avec une cible
+     * choisie par le JOUEUR plutôt que par le moteur — sa mécanique de combat
+     * elle-même, inchangée.
+     *
+     * ⚠ **Limite nommée** : le second mouvement du Raptor (« move before and
+     * after an attack », capacité `tacticien`) n'a plus de lecteur — le menu
+     * d'un allié n'offre qu'UN déplacement et UNE attaque par tour, comme un
+     * héros. À reconstruire si un Raptor rejoué le réclame.
+     *
      * @param  array<string, mixed>  $acteur
      * @return array<string, mixed>
      */
-    /**
-     * Décrochage d'un allié `tacticien` : il se retire du contact après avoir
-     * frappé. Rend la case d'arrivée, ou null s'il n'a nulle part où aller.
-     *
-     * @return array{x: int, y: int}|null
-     */
-    private function replierAllie(GroupeMercenaire $allie, Grille $grille): ?array
-    {
-        $ax = (int) $allie->position_x;
-        $ay = (int) $allie->position_y;
-
-        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
-            $x = $ax + $dx;
-            $y = $ay + $dy;
-
-            // Même primitive que `replierTacticien` côté monstre : une case
-            // traversable, donc ni mur, ni meuble, ni figure.
-            if ($grille->estTraversable($x, $y)) {
-                $allie->update(['position_x' => $x, 'position_y' => $y]);
-
-                return ['x' => $x, 'y' => $y];
-            }
-        }
-
-        return null;
-    }
-
     private function resoudreAttaqueAllie(Groupe $groupe, GroupeMercenaire $allie, InstanceMonstre $cible, int $desAttaque, string $portee, array $acteur, string $nom): array
     {
         $resultat = (new Combat($this->des))->resoudreAttaque(
@@ -10747,10 +10811,13 @@ final class ResolveurTour
             pvBodyDefenseur: (int) $cible->pv_body,
         );
 
-        $cible->update([
-            'pv_body' => $resultat->pvBodyApres,
-            'etat' => $resultat->pvBodyApres === 0 ? 'vaincu' : 'actif',
-        ]);
+        // UNIQUE point de passage de la mort d'un monstre — un monstre à
+        // PHASES n'y meurt pas, il adopte la forme suivante. Même chemin
+        // qu'un héros : un allié qui abat Gretzl la fait passer à sa forme
+        // suivante exactement de la même façon.
+        $resultatMort = $this->degats->infligerAMonstre(
+            $cible, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_ALLIE, ['allie' => $nom],
+        );
 
         // Être attaqué réveille un monstre endormi (cohérent avec les héros).
         $this->sorts->retirerConditionMonstre($cible, MoteurSorts::MONSTRE_ENDORMI);
@@ -10772,8 +10839,11 @@ final class ResolveurTour
             'touches' => $resultat->touches,
             'boucliers' => $resultat->boucliers,
             'degats' => $resultat->degats,
-            'pv_body_apres' => $resultat->pvBodyApres,
-            'cible_vaincue' => $resultat->pvBodyApres === 0,
+            'pv_body_apres' => $resultatMort['pv_body'],
+            'cible_vaincue' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
             // Les faces réellement lancées (test en jeu, 2026-10-01) : la scène
             // d'un allié n'affichait AUCUN dé, quand le fil disait « 1 crâne ».
             // Même forme qu'une attaque de monstre (`MoteurDread`).
@@ -10781,6 +10851,244 @@ final class ResolveurTour
         ];
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * MISSION « SECOURIR » (chantier 3b, 2026-10-04) — un héros au contact
+     * libère le captif désigné par `parametres.allie_id` : il devient un
+     * allié `'actif'` contrôlé par CE héros, pour le reste de la quête
+     * (chantier 3a — il jouera désormais dans le tour de son libérateur).
+     * `a_joue` est posé à `true` pour CE round : il ne joue pas le round même
+     * où il vient d'être libéré, {@see ResolveurTour::ouvrirNouveauTour()}
+     * l'ouvre au round suivant, exactement comme tout ce qui apparaît en
+     * cours de round (voir le Squelette Hearthkin).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreLibererCaptif(Groupe $groupe, Quete $quete, Personnage $personnage, array $option, array $parametres, array $acteur): array
+    {
+        $allieId = (int) ($option['parametres']['allie_id'] ?? $parametres['allie_id'] ?? 0);
+        $captif = GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('id', $allieId)
+            ->where('etat', 'captif')
+            ->first();
+
+        if ($captif === null || $captif->position_x === null) {
+            throw ValidationException::withMessages(['option_id' => 'Ce captif n\'est plus là.']);
+        }
+
+        $this->verifierContactCaptif($quete, $personnage, $captif);
+
+        $captif->update([
+            'etat' => 'actif',
+            'recruteur_personnage_id' => $personnage->id,
+            'a_deplace' => true, 'a_agi' => true, 'a_joue' => true,
+        ]);
+
+        $payload = [
+            'type' => 'captif_libere',
+            'personnage' => $personnage->nom,
+            'allie' => $captif->mercenaire?->nom ?? 'Allié',
+            'allie_id' => $captif->id,
+            'mercenaire_id' => $captif->mercenaire_id,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /** Le captif est-il adjacent (orthogonal) au héros qui tente de le libérer ? */
+    private function verifierContactCaptif(Quete $quete, Personnage $personnage, GroupeMercenaire $captif): void
+    {
+        $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
+
+        if ($etat === null || $etat->position_x === null) {
+            throw ValidationException::withMessages(['option_id' => 'Position inconnue.']);
+        }
+
+        $contact = abs((int) $etat->position_x - (int) $captif->position_x)
+            + abs((int) $etat->position_y - (int) $captif->position_y) === 1;
+
+        if (! $contact) {
+            throw ValidationException::withMessages(['option_id' => 'Ce captif n\'est pas à ton contact.']);
+        }
+    }
+
+    /**
+     * Tour d'un ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) — reçu
+     * depuis la manette du héros qui le contrôle (`ChoixController::choisir()`
+     * route ici dès que le dernier menu du joueur porte un `allie_id`, à la
+     * place du grand `match` de {@see self::resoudre()}). Revalide l'acteur
+     * actif ({@see OrdreDuTour::acteurActif()}) : le résolveur reste seul juge
+     * de ce qu'il accepte, le menu n'étant qu'une proposition.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    public function resoudreTourAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $option, array $parametres): array
+    {
+        if (app(OrdreDuTour::class)->allieActifId($groupe) !== (int) $allie->id) {
+            throw ValidationException::withMessages(['option_id' => 'Ce n\'est pas le tour de cet allié.']);
+        }
+
+        return DB::transaction(function () use ($groupe, $quete, $allie, $option, $parametres) {
+            $nom = $allie->mercenaire?->nom ?? 'Allié';
+            $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom];
+
+            $resultat = match ($option['type'] ?? null) {
+                'attaque' => $this->resoudreAttaqueDAllie($groupe, $quete, $allie, $parametres, $acteur, $nom),
+                'deplacement_allie' => $this->resoudreDeplacementDAllie($groupe, $quete, $allie, $parametres, $nom),
+                default => $this->resoudreAttenteAllie($groupe, $allie, $nom),
+            };
+
+            $this->revelerDerriere($groupe, $quete, $this->portes->ouvrirParMonstresVaincus($groupe, $quete));
+            $this->verifierFinDuCombat($quete);
+
+            // ⚠ MÊME garde que `resoudre()`/`apresActionHeros()` : tant qu'un
+            // acteur — héros OU un autre allié qu'il contrôle — attend encore,
+            // la phase des monstres ne s'ouvre pas. Sans elle, le tour d'un
+            // allié qui n'est pas le DERNIER acteur du round ouvrirait quand
+            // même la phase des monstres — exactement l'inverse de « juste
+            // après le héros qui le contrôle, avant le suivant ».
+            $enAttente = app(OrdreDuTour::class)->acteurActif($groupe) !== null;
+
+            if (! $enAttente) {
+                $resultat = $this->jouerFinDeRound($resultat, $groupe, $quete);
+                $this->verifierFinDuCombat($quete);
+            }
+
+            if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
+                return $this->donjonNettoye($resultat, $quete);
+            }
+
+            return $resultat;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueDAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $parametres, array $acteur, string $nom): array
+    {
+        $merc = $allie->mercenaire;
+        $cibleId = (int) ($parametres['cible_id'] ?? 0);
+        $cible = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNotNull('position_x')->with('monstre')->find($cibleId);
+
+        if ($cible === null || $merc === null || $allie->position_x === null) {
+            throw ValidationException::withMessages(['parametres.cible_id' => 'Cible illégale.']);
+        }
+
+        $diagonales = in_array('attaque_diagonale', (array) ($merc->capacites ?? []), true);
+        $grille = $this->grille($quete, exceptMercenaireId: $allie->id);
+        $ax = (int) $allie->position_x;
+        $ay = (int) $allie->position_y;
+        $e = $cible->monstre->emprise();
+        $adjacent = $grille->adjacenteAEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales);
+
+        if (! $adjacent) {
+            $visible = $merc->aDistance() && $grille->ligneDeVueEmprise(
+                $ax, $ay, (int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h'], figuresBloquent: true,
+            );
+
+            if (! $visible) {
+                throw ValidationException::withMessages(['parametres.cible_id' => 'Cette cible est hors de portée.']);
+            }
+        }
+
+        $des = $adjacent ? (int) $merc->attaque : (int) ($merc->attaque_distance ?? $merc->attaque);
+        $resultat = $this->resoudreAttaqueAllie($groupe, $allie, $cible, $des, $adjacent ? 'corps_a_corps' : 'distance', $acteur, $nom);
+
+        $allie->update(['a_agi' => true]);
+
+        return $resultat;
+    }
+
+    /**
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function resoudreDeplacementDAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie, array $parametres, string $nom): array
+    {
+        $cle = (string) ($parametres['cle'] ?? '');
+
+        if (! str_starts_with($cle, 'vers:') || $allie->position_x === null) {
+            throw ValidationException::withMessages(['parametres.cle' => 'Destination illégale.']);
+        }
+
+        $cibleId = (int) substr($cle, 5);
+        $cible = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNotNull('position_x')->with('monstre')->find($cibleId);
+
+        if ($cible === null) {
+            throw ValidationException::withMessages(['parametres.cle' => 'Destination illégale.']);
+        }
+
+        $grille = $this->grille($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+        $ax = (int) $allie->position_x;
+        $ay = (int) $allie->position_y;
+        $e = $cible->monstre->emprise();
+
+        $meilleur = null;
+        foreach ($grille->cellulesEmprise((int) $cible->position_x, (int) $cible->position_y, $e['l'], $e['h']) as $cell) {
+            foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                $chemin = $grille->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
+
+                if ($chemin !== null && ($meilleur === null || count($chemin) < count($meilleur))) {
+                    $meilleur = $chemin;
+                }
+            }
+        }
+
+        if ($meilleur === null) {
+            throw ValidationException::withMessages(['parametres.cle' => 'Destination illégale.']);
+        }
+
+        $pas = $grille->pasAffordables($meilleur, (int) $allie->mercenaire->deplacement);
+
+        // Traverser n'est pas s'arrêter (comme hier, pilotage moteur) : on
+        // recule jusqu'à la dernière case LIBRE du trajet payable.
+        while ($pas > 0 && $grille->estOccupeeParFigure((int) $meilleur[$pas - 1]['x'], (int) $meilleur[$pas - 1]['y'])) {
+            $pas--;
+        }
+
+        $arrivee = ['x' => $ax, 'y' => $ay];
+
+        if ($pas > 0) {
+            $arrivee = $meilleur[$pas - 1];
+            $arrivee = ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']];
+        }
+
+        $allie->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y'], 'a_deplace' => true]);
+
+        $payload = [
+            'type' => 'deplacement_allie',
+            'allie' => $nom,
+            'allie_id' => (int) $allie->id,
+            'vers' => $arrivee,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom]);
+
+        return $payload;
+    }
+
+    /** @return array<string, mixed> */
+    private function resoudreAttenteAllie(Groupe $groupe, GroupeMercenaire $allie, string $nom): array
+    {
+        $allie->update(['a_deplace' => true, 'a_agi' => true, 'a_joue' => true]);
+
+        $payload = ['type' => 'attente_allie', 'allie' => $nom, 'allie_id' => (int) $allie->id];
+        Journal::ajouter($groupe, 'action', $payload, ['type' => 'allie', 'id' => $allie->id, 'nom' => $nom]);
 
         return $payload;
     }

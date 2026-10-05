@@ -102,6 +102,61 @@ class GabaritQueteSeeder extends Seeder
                 ],
             ],
             [
+                // MISSION « SECOURIR » (chantier 3b, 2026-10-04 — généralise
+                // Gothar, Frozen Horror quête 3, p. 19 : « escort the
+                // Barbarian… If the Barbarian dies, Gothar is automatically
+                // captured » — même famille que le Prospecteur et la
+                // Princesse Millandriel de *The Mage of the Mirror*).
+                //
+                // Reprend la structure d'« Exploration simple » — le captif
+                // est posé dans la salle-ARTEFACT (`DeckFouille::construire()`,
+                // la salle la plus profonde du graphe quand il n'y a pas de
+                // boss à viser), le même emplacement qu'un coffre à artefact
+                // ordinaire, jamais une seconde case choisie à part —
+                // `App\Partie\DemarreurQuete::demarrer()` lit `objectif:
+                // 'secourir'` pour y poser le captif au lieu du coffre.
+                'nom' => 'Mission de sauvetage',
+                'type_jalon' => 'normale',
+                'structure' => [
+                    'objectif' => 'secourir',
+                    // Pas de troisième déclencheur de montée de niveau : une
+                    // mission de sauvetage est un contenu additionnel, pas le
+                    // jalon qui structure l'arc — contrairement à
+                    // « Exploration simple », dont René a fait le porteur de
+                    // ce rôle (doc 01 §5).
+                    'objectif_majeur' => false,
+                    'salles' => ['min' => 5, 'max' => 8],
+                    'jalons' => ['entree', 'obstacle_median', 'salle_objectif'],
+                    'points_decision' => [
+                        ['apres' => 'entree', 'branches' => 2],
+                    ],
+                    'budget_rencontres' => ['base' => 6, 'par_salle' => true],
+                    'deck_fouille' => [
+                        'cartes' => [
+                            'gemme' => 2,
+                            'or_25' => 2,
+                            'or_15' => 2,
+                            'bijoux' => 2,
+                            'piege_trou' => 2,
+                            'piege_fleches' => 2,
+                            'potion_soin' => 3,
+                            'potion_heroisme' => 1,
+                            'potion_force' => 1,
+                            'potion_defense' => 1,
+                            'errant' => 6,
+                        ],
+                        'or' => 25,
+                        'or_coffre' => 90,
+                        'potions' => ['Potion de soin', 'Potion de soin mineur'],
+                    ],
+                    'pieges' => ['min' => 1, 'max' => 2],
+                    'epreuves' => ['min' => 1, 'max' => 2],
+                    'terrains' => ['min' => 1, 'max' => 2, 'tunnels' => ['min' => 0, 'max' => 1]],
+                    'leviers' => ['min' => 0, 'max' => 1],
+                    'butin' => ['or_base' => 50],
+                ],
+            ],
+            [
                 'nom' => 'Antre du sous-boss',
                 'type_jalon' => 'sous_boss',
                 'structure' => [
@@ -148,16 +203,30 @@ class GabaritQueteSeeder extends Seeder
                     'rencontre_finale' => [
                         'tier' => 'sous_boss',
                         'escorte_budget' => 4,
-                        'archetypes' => ['chaman_orque', 'garde_magus'],
+                        // SORCIER DU DREAD (Prophecy of Telor, chantier monstre
+                        // à phases 2026-10-04) les rejoint : sous-boss générique
+                        // à répertoire limité (Q3, Telor) — son archétype se
+                        // déclare complet, le filtre par palier fait le reste.
+                        'archetypes' => ['chaman_orque', 'garde_magus', 'sorcier_dread_telor'],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
                         // C'est là que vit la diversité du sous-boss : la
                         // régénération du Troll, la double attaque de l'Ours, le
                         // venin et la ponte des créatures de Delthrak.
+                        //
+                        // ⚠ Doralf et Spawn of the Pit (Against the Ogre Horde,
+                        // chantier monstre à phases 2026-10-04) les rejoignent.
+                        // Seule la PREMIÈRE phase de Spawn of the Pit est nommée
+                        // ici : sa forme « déchaînée » n'est accessible que par
+                        // transformation en jeu (`monstres.phase_suivante`),
+                        // jamais achetée directement — sans quoi la rencontre
+                        // pourrait démarrer DÉJÀ dans sa seconde forme, ce que
+                        // sa carte ne permet pas.
                         'creatures' => [
                             'Troll', 'Champion', 'Ours polaire de guerre', 'Yéti', 'Ogre',
                             'Ogre guerrier', 'Ogre champion', 'Loup géant',
                             'Rampant putride', 'Serpent géant', 'Singe géant',
+                            'Doralf', 'Spawn of the Pit',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
@@ -236,9 +305,16 @@ class GabaritQueteSeeder extends Seeder
                         'archetypes' => [
                             'seigneur_du_chaos', 'necromancien', 'maitre_tempetes',
                             'spectre_effroi', 'archimage_elfe', 'horreur_glacee',
+                            // GRETZL LA PORTE-FLÉAU (Jungles of Delthrak, chantier
+                            // monstre à phases 2026-10-04) : premier boss du thème
+                            // `jungles_delthrak`, resté sans boss depuis le premier
+                            // portage. Seule sa PREMIÈRE phase est nommée — ses
+                            // formes « Demonspider »/« Demonape » ne s'atteignent
+                            // qu'en jeu, par `monstres.phase_suivante`.
+                            'gretzl_porte_fleau',
                         ],
-                        // Les deux bosses sans répertoire : ils frappent, c'est
-                        // tout, et c'est une lecture du combat final aussi.
+                        // Les bosses sans répertoire : ils frappent, c'est tout,
+                        // et c'est une lecture du combat final aussi.
                         // ⚠ Le DRAGON (First Light, 2026-09-30) les rejoint : il
                         // a bien UN sort (Boule de Flammes, à volonté), mais pas
                         // de répertoire de sorcier nommé — sa carte ne porte
@@ -247,7 +323,16 @@ class GabaritQueteSeeder extends Seeder
                         // Nommé en CRÉATURE, il entre dans le pool au même titre
                         // que les deux autres plutôt que par un archétype fabriqué
                         // pour une seule entrée.
-                        'creatures' => ['Ogre commandant', 'Seigneur ogre', 'Dragon'],
+                        //
+                        // ⚠ GRUZBELLA HAMMERHAND et SIR RAGNAR (chantier monstre à
+                        // phases 2026-10-04) le rejoignent, même raison : ni l'une
+                        // ni l'autre n'a de répertoire de sorts. Seule la première
+                        // phase de Gruzbella est nommée, même garde-fou que
+                        // Spawn of the Pit ci-dessus (le jalon sous-boss).
+                        'creatures' => [
+                            'Ogre commandant', 'Seigneur ogre', 'Dragon',
+                            'Gruzbella Hammerhand', 'Sir Ragnar',
+                        ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 4],
                     'epreuves' => ['min' => 1, 'max' => 2],

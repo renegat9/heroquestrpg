@@ -30,6 +30,11 @@ class Quete extends Model
         'artefact_objet_id',
         'etat',
         'or_initial',
+        // Mission « secourir » (chantier 3b, 2026-10-04) : LE captif de cette
+        // quête, posé à l'assemblage — état durable, jamais recalculé (deux
+        // captifs sur la carte n'arriveraient jamais, mais la colonne dit
+        // SANS AMBIGUÏTÉ lequel compte pour l'objectif).
+        'captif_mercenaire_id',
     ];
 
     protected function casts(): array
@@ -331,8 +336,52 @@ class Quete extends Model
             // depuis le 2026-10-02, d'où `coffresOuverts()`).
             'atteindre_et_recuperer' => $this->salle_artefact !== null
                 && in_array((int) $this->salle_artefact, $this->coffresOuverts(), true),
+            // MISSION « SECOURIR » (chantier 3b, 2026-10-04 — Gothar, Frozen
+            // Horror p. 19 : « escort » ; le Prospecteur et la Princesse
+            // Millandriel, même gabarit) : accompli dès que le captif est
+            // LIBÉRÉ (il a rejoint le groupe comme allié) ET encore VIVANT —
+            // la vraie sortie passe ensuite par le vote de sortie ordinaire,
+            // exactement comme les autres objectifs. S'il est mort (`vaincu`),
+            // ce n'est jamais « accompli » : voir {@see self::captifPerdu()},
+            // qui échoue la quête sur-le-champ plutôt que d'attendre ce test.
+            'secourir' => $this->captifLibereEtVivant(),
             default => true,
         };
+    }
+
+    /**
+     * Le captif de cette quête (mission « secourir ») — null hors de ce
+     * gabarit, ou si aucun n'a pu être posé (aucun profil sourcé disponible
+     * pour le catalogue au moment de l'assemblage).
+     */
+    public function captif(): BelongsTo
+    {
+        return $this->belongsTo(GroupeMercenaire::class, 'captif_mercenaire_id');
+    }
+
+    /**
+     * Libéré (il a rejoint le groupe comme allié, `etat: 'actif'`) ET
+     * toujours vivant. `true` si cette quête n'a pas de captif désigné — un
+     * gabarit sans mission de sauvetage ne doit jamais sembler en échouer une.
+     */
+    public function captifLibereEtVivant(): bool
+    {
+        $captif = $this->captif;
+
+        return $captif === null || $captif->etat === 'actif';
+    }
+
+    /**
+     * Le captif a-t-il péri (0 PV, `etat: 'vaincu'`) ? C'est ce qui fait
+     * ÉCHOUER la quête, aussi sûrement qu'un TPK — le lecteur qui l'applique
+     * est `ResolveurTour::verifierEchecCaptif()`, appelé après toute attaque
+     * de monstre contre un allié.
+     */
+    public function captifPerdu(): bool
+    {
+        $captif = $this->captif;
+
+        return $captif !== null && $captif->etat === 'vaincu';
     }
 
     /**
@@ -364,6 +413,11 @@ class Quete extends Model
             'vaincre_boss_final' => 'Trouver le maître de ce donjon et le mettre à terre.',
             'atteindre_et_recuperer' => 'Atteindre la salle la plus profonde et en ramener ce qu’elle garde.',
             'quitter_donjon' => 'Ressortir vivants.',
+            // Mission « secourir » (chantier 3b) : le nom du captif quand il
+            // est déjà connu (l'IA peut l'avoir habillé), sinon générique —
+            // jamais un libellé muet qui dirait seulement « quelqu'un ».
+            'secourir' => 'Retrouver '.($this->captif?->mercenaire?->nom ?? 'le captif')
+                .' et le ramener vivant à la sortie.',
             default => null,
         };
     }

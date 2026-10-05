@@ -74,7 +74,9 @@ const ici = (x, y) => salle.value !== null && dans(salle.value, x, y);
 const figures = computed(() => {
     if (! salle.value) { return []; }
 
-    const rang = { heros: 0, allie: 1, monstre: 2 };
+    // CAPTIF (mission « secourir », chantier 3b) : rang propre, entre les
+    // alliés et les monstres — ni l'un ni l'autre tant qu'il n'est pas libéré.
+    const rang = { heros: 0, allie: 1, captif: 2, monstre: 3 };
 
     return (props.entites ?? [])
         .filter((e) => ici(e.x, e.y))
@@ -84,7 +86,8 @@ const figures = computed(() => {
             cle: `${e.type}-${e.id}`,
             nom: e.nom,
             img: e.image_url ?? null,
-            ic: e.type === 'heros' ? 'person' : (e.type === 'allie' ? 'handshake' : 'sentiment_very_dissatisfied'),
+            ic: e.type === 'heros' ? 'person'
+                : (e.type === 'captif' ? 'lock_person' : (e.type === 'allie' ? 'handshake' : 'sentiment_very_dissatisfied')),
             classe: e.type,
             // Le nom de CATALOGUE d'un monstre habillé par l'IA : « Le Noyé de
             // Gorrim » ne dit pas qu'on a un gobelin en face.
@@ -301,6 +304,8 @@ const vide = computed(() => figures.value.length <= 1 && meubles.value.length ==
 .ap-ligne.heros .ap-img { box-shadow: 0 0 0 2px var(--gold); }
 .ap-ligne.monstre .ap-img { box-shadow: 0 0 0 2px oklch(0.55 0.16 25 / 0.9); }
 .ap-ligne.allie .ap-img { box-shadow: 0 0 0 2px oklch(0.55 0.14 260 / 0.9); }
+/* captif d'une mission « secourir » (chantier 3b) : ambre, comme sur la table. */
+.ap-ligne.captif .ap-img { box-shadow: 0 0 0 2px oklch(0.7 0.14 80 / 0.9); }
 
 .ap-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ap-txt b { color: var(--ink-100); font-size: 15.5px; font-weight: 700;

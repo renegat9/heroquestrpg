@@ -141,3 +141,72 @@ générés) ; faute de mesure indépendante (règle de `MobilierSeeder`, doc 17
 §1 : ne jamais inventer une emprise), `Caisse de ravitaillement` reprend
 celle du *Coffre* — 1×1, difficulté de destruction 2 — par analogie
 fonctionnelle (c'est un coffre) plutôt que par mesure.
+
+**Mission « secourir » — un nouveau type d'objectif de quête** (chantier 3b,
+2026-10-04 : généralise Gothar, *The Frozen Horror* quête 3, p. 19 — « *Any
+monsters encountered attack only the Barbarian, as they are under orders to
+capture Gothar alive. If the Barbarian dies, Gothar is automatically
+captured.* » — même famille que le Prospecteur et la Princesse Millandriel
+de *The Mage of the Mirror*, quêtes 4 et 10). `gabarits_quetes.structure.objectif
+= 'secourir'` (gabarit « Mission de sauvetage », `GabaritQueteSeeder`,
+`type_jalon: 'normale'`) : un **captif** sourcé (Gothar — Move 6 · Attack 1 ·
+Defend 2 · Body 2 · Mind 4, Frozen Horror p. 19/37) est posé, à l'assemblage,
+dans la **salle-artefact** — la MÊME salle qu'un coffre ordinaire
+(`DeckFouille::construire()` : `salleDuBoss() ?? salleLaPlusProfonde()`),
+jamais une seconde case choisie à part. Il existe comme une ligne
+`groupe_mercenaires` dès le départ, `etat: 'captif'` — ni joué, ni contrôlé,
+exactement comme un meuble, jusqu'à ce qu'un héros à son contact le LIBÈRE
+(`MenuMoteur` option `liberer_captif`, créneau `tour` comme relever un
+compagnon) : il devient alors un allié `'actif'` ordinaire, contrôlé par ce
+héros — joué désormais par SON joueur, chantier 3a,
+`docs/regles/combat-et-tour.md`.
+
+⚠ **Un seul profil sourcé aujourd'hui.** Le Prospecteur et la Princesse
+Millandriel (*The Mage of the Mirror*, quêtes 4 et 10) partagent le même
+gabarit mais **n'ont aucun bloc de stats sourcé** dans les livrets dépouillés
+à ce jour (ni dans le texte de quête, ni sur une carte photographiée) —
+`⚠ non trouvé` plutôt qu'un chiffre inventé (CLAUDE.md, « ne jamais seeder
+une valeur que les livrets ne sourcent pas »). `mercenaires.captif = true`
+nomme le vocabulaire fermé ; `MercenaireSeeder` ne porte que Gothar. Le
+tirage (`DemarreurQuete::choisirGabarit()`) rotera automatiquement sur eux,
+sans câblage supplémentaire, le jour où une photo de carte ou une relecture
+du livret donne leurs Move/Attack/Defend/Body/Mind.
+
+**Condition de victoire et d'échec** (`Quete::objectifAccompli()`,
+`captifLibereEtVivant()`, `captifPerdu()` — point de passage unique, lu
+partout où un objectif l'est : bannière de table/manette, `quitter_donjon`,
+montée de niveau, fin de quête) : accompli dès que le captif est **libéré ET
+vivant** — la sortie elle-même suit ensuite le vote ordinaire, comme tout
+autre objectif, choix le plus fidèle au livret parmi les deux lus
+(« escort » jusqu'à la sortie, ou « nettoyer la salle » à défaut — Gothar ne
+nomme que l'escorte, retenue ici). **S'il meurt** une fois libéré (un
+monstre l'achève — les sorts de Dread visent encore les seuls héros, limite
+déjà nommée), la quête **échoue immédiatement** —
+`ResolveurTour::echouerSiCaptifPerdu()`/`echouerQuete()`, le MÊME point de
+passage et la MÊME cérémonie qu'un TPK (retour au hub, alliés consommés,
+snapshots conservés pour `/reprise`) : généralise « if the Barbarian dies,
+Gothar is automatically captured » à toute mort du captif désigné
+(`quetes.captif_mercenaire_id`, état durable, jamais en cache — la colonne
+dit SANS AMBIGUÏTÉ lequel des alliés recrutés compte pour l'objectif). Un
+gabarit SANS captif désigné (aucun profil sourcé disponible, ou salle sans
+case libre à l'assemblage) tient l'objectif pour accompli d'emblée — même
+prudence que tout objectif inconnu : jamais une mission silencieusement
+impossible à remplir.
+
+⚠ **Simplification nommée : pas de filtre par thème de bestiaire.** Le
+tirage du gabarit (`DemarreurQuete::choisirGabarit()`, rotation
+déterministe graine-groupe + position d'arc, `RATIO_SECOURIR = 4`, jamais si
+`Mercenaire::where('captif', true)` est vide) ne vérifie pas que le thème de
+la campagne est *The Frozen Horror* — Gothar peut apparaître, habillé par
+l'IA, dans un donjon d'un autre thème. Rien ne ROMPT (le captif reste jouable
+quel que soit le décor), mais la couleur de boîte peut être incohérente.
+Scopé d'abord, comme le patron de ce projet le veut : à resserrer avec
+`BestiaireGroupe::contient()` si une seconde fiche sourcée rend la
+généralisation payante.
+
+Visible sur la carte comme une entité `type: 'captif'` (`EtatGroupe::captifs()`)
+— **caché tant que sa salle n'est pas découverte**, même garde que les
+monstres dormants (`Salles::indexDe()`) : un marqueur visible sur une carte
+encore noire serait le brouillard contourné par la porte de derrière. Une
+fois libéré, il quitte ce flux et rejoint `EtatGroupe::allies()` comme
+n'importe quel allié.

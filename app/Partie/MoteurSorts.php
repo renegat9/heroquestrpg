@@ -810,7 +810,7 @@ final class MoteurSorts
             );
 
             // Sorts à DEUX modes (Génie : « ouvre une porte au choix OU attaque
-            // avec 5 dés » — Kellar's Keep p. 15). Une entrée par porte connue :
+            // avec 5 dés » — Kellar's Keep p. 28-29). Une entrée par porte connue :
             // c'est ce second mode qui gonflait le plus le menu.
             if ($disponible) {
                 foreach ($this->entreesPorteAuChoix($quete, $sort, $lanceur) as $entree) {

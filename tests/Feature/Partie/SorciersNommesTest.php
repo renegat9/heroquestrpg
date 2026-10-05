@@ -133,8 +133,19 @@ it('remplit un POOL d\'archétypes dans chaque gabarit à rencontre finale', fun
         $desactivees = Monstre::whereIn('boite', array_keys(DemarreurQuete::BOITES_INCOMPLETES))
             ->pluck('nom_base')->all();
 
+        // ⚠ Une PHASE qui n'est pas la première d'une chaîne a aussi le droit
+        // d'être inatteignable À L'ACHAT (chantier monstre à phases,
+        // 2026-10-04) : Gruzbella Déterminée/Imprudente, Spawn of the Pit
+        // déchaîné, Demonspider/Demonape ne s'atteignent qu'EN JEU, par
+        // `monstres.phase_suivante` — jamais achetées directement, sans quoi
+        // une rencontre pourrait démarrer déjà transformée. C'est un choix
+        // écrit (la colonne elle-même), pas un effet de bord : toute ligne
+        // nommée par le `phase_suivante` D'UNE AUTRE ligne est exemptée.
+        $phasesSuivantes = Monstre::whereNotNull('phase_suivante')->pluck('phase_suivante')->all();
+
         $orphelins = Monstre::where('tier', $tier)->pluck('nom_base')
-            ->reject(fn ($n) => in_array($n, $atteignables, true) || in_array($n, $desactivees, true))
+            ->reject(fn ($n) => in_array($n, $atteignables, true) || in_array($n, $desactivees, true)
+                || in_array($n, $phasesSuivantes, true))
             ->values()->all();
 
         expect($orphelins)->toBe([],

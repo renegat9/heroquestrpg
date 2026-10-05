@@ -82,6 +82,13 @@ export const MOBILIER_ICONES = {
     // Coffre, mais une icône distincte pour ne pas laisser croire qu'elle
     // paie le coffre de la quête.
     'Caisse de ravitaillement': 'package_2',
+    // Mobilier ATTAQUABLE (PV + défense, 2026-10-04) — Jungles of Delthrak et
+    // Wizards of Morcar. Trois icônes distinctes des meubles ordinaires
+    // ci-dessus : un losange (cristal), un temple (autel), un cadenas (coffre
+    // scellé) — rien qui se confonde avec `Coffre`/`Trône`.
+    'Amas de cristal': 'diamond',
+    'Haut Autel': 'temple_buddhist',
+    'Coffre du Dread': 'lock',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

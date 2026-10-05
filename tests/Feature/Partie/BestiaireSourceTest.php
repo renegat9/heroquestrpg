@@ -86,7 +86,7 @@ it('porte les créatures d\'extension telles que les livrets les chiffrent', fun
         // The Mage of the Mirror
         'Guerrier elfe' => [6, 4, 3, 3, 2],
         'Loup géant' => [9, 6, 3, 5, 1],
-        // Sinestra, l'archemage (boss final, quête 9 — p. 30). ⚠ Mind 9 : la
+        // Sinestra, l'archemage (boss final, quête 9 — p. 33). ⚠ Mind 9 : la
         // plus haute valeur du bestiaire, et c'est la fiche qui le dit.
         'Archimage elfe' => [8, 4, 4, 4, 9],
         'Ogre' => [4, 6, 4, 5, 2],
@@ -221,7 +221,7 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
     // extensions qu'on ne sait pas porter (Agile, Venomous, Spawn…) sont donc
     // ABSENTS du seeder, et documentés en reference/16 §4.6.
     $implementees = ['invocation', 'frappe_de_zone', 'regeneration',
-        'resistance_magique', 'charge', 'choix_attaque', 'vol', 'peur',
+        'resistance_magique', 'charge', 'deux_attaques', 'vol', 'peur',
         // Mots-clés de Jungles of Delthrak, portés le 2026-08-10…
         'agile', 'venimeux', 'tacticien', 'racines_entravantes', 'spawn', 's_accroche',
         // …et l'éthéré de Rise of the Dread Moon.
@@ -235,7 +235,16 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // Flight — `MoteurDread::tentativeVolDraconique()`) et `sort_a_volonte`
         // (Boule de Flammes sans compteur d'usage pour ce monstre seul —
         // `MoteurDread::sortAVolonte()`).
-        'vol_draconique', 'sort_a_volonte'];
+        'vol_draconique', 'sort_a_volonte',
+        // MONSTRE À PHASES (chantier transverse 2026-10-04, Against the Ogre
+        // Horde p. 6) : `increvable_une_fois` (Sir Ragnar — « the first time
+        // […] reduced to 0, instead reduced to 1 »), `reactions_defense`
+        // (Resilience/Demon Wings — `ignore_degats_attaque`, UNIQUE mécanique
+        // portée de cette famille pour l'instant) et `recompense_reddition`
+        // (Gruzbella vaincue : « elle s'incline » et paie 1000 po au lieu de
+        // mourir). Les trois sont lues à l'UNIQUE point de passage de la mort
+        // d'un monstre, `MoteurDegats::infligerAMonstre()`.
+        'increvable_une_fois', 'reactions_defense', 'recompense_reddition'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(
@@ -249,6 +258,168 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         ->all();
 
     expect($inconnues)->toBe([], 'capacité(s) sans lecteur : '.implode(', ', $inconnues));
+});
+
+it('n\'accorde à l\'intérieur de `reactions_defense` que des mécaniques que le moteur applique', function () {
+    // Même registre, un niveau plus bas : `reactions_defense` elle-même est
+    // déclarée ci-dessus, mais rien n'empêchait d'y glisser un troisième nom
+    // (« annule_sort », « redirige_attaque ») sans lecteur — EXACTEMENT le
+    // défaut que ce fichier traque pour `capacites` elle-même. Seule
+    // `ignore_degats_attaque` est lue par `MoteurDegats::infligerAMonstre()`
+    // aujourd'hui (Break/Dispel/Deflect restent nommées, absentes du
+    // catalogue — voir `docs/regles/bestiaire-et-rencontres.md`).
+    $implementees = ['ignore_degats_attaque'];
+
+    $inconnues = collect(Monstre::all())
+        ->flatMap(fn (Monstre $m) => (array) data_get($m->capacites, 'reactions_defense', []))
+        ->unique()
+        ->reject(fn ($c) => in_array($c, $implementees, true))
+        ->values()
+        ->all();
+
+    expect($inconnues)->toBe([], 'mécanique(s) réactive(s) sans lecteur : '.implode(', ', $inconnues));
+});
+
+it('chaîne un monstre à PHASES sans trou, et termine la chaîne', function () {
+    // Registre testé DANS LES DEUX SENS (hard rule) : tout `phase_suivante`
+    // déclaré nomme une ligne qui EXISTE, et toute chaîne se termine (pas de
+    // boucle, pas de maillon qui pointe vers du vide).
+    $phases = Monstre::whereNotNull('phase_suivante')->pluck('phase_suivante', 'nom_base');
+
+    foreach ($phases as $nomBase => $suivante) {
+        expect(Monstre::where('nom_base', $suivante)->exists())
+            ->toBeTrue("{$nomBase} : sa phase suivante « {$suivante} » n'existe pas au catalogue.");
+    }
+
+    // Chaque chaîne connue se termine en un nombre BORNÉ d'étapes (3 au plus,
+    // Gretzl/Gruzbella) — une boucle infinie planterait ce test, jamais le jeu.
+    foreach (['Gruzbella Hammerhand', 'Spawn of the Pit', 'Gretzl la Porte-Fléau'] as $debut) {
+        $nom = $debut;
+        $vus = [];
+
+        for ($i = 0; $i < 5; $i++) {
+            expect(in_array($nom, $vus, true))->toBeFalse("{$debut} : la chaîne de phases boucle sur {$nom}.");
+            $vus[] = $nom;
+            $nom = Monstre::where('nom_base', $nom)->firstOrFail()->phase_suivante;
+
+            if ($nom === null) {
+                break;
+            }
+        }
+
+        expect($nom)->toBeNull("{$debut} : la chaîne de phases ne se termine jamais.");
+    }
+});
+
+it('porte les stats de Gruzbella Hammerhand EXACTEMENT comme ses trois phases (Ogre Horde p. 21)', function () {
+    // « Confiante 4/6/5/5/4 → Déterminée 5/5/7/5/4 → Imprudente 6/1/8/5/4 »
+    // (A/D/M/B/Mi) — Body et Mind identiques aux trois phases, seules
+    // l'Attaque, la Défense et le Déplacement bougent.
+    expect(statsDe('Gruzbella Hammerhand'))->toBe([5, 4, 6, 5, 4])
+        ->and(statsDe('Gruzbella Déterminée'))->toBe([7, 5, 5, 5, 4])
+        ->and(statsDe('Gruzbella Imprudente'))->toBe([8, 6, 1, 5, 4]);
+
+    expect(Monstre::where('nom_base', 'Gruzbella Hammerhand')->firstOrFail()->phase_suivante)
+        ->toBe('Gruzbella Déterminée')
+        ->and(Monstre::where('nom_base', 'Gruzbella Déterminée')->firstOrFail()->phase_suivante)
+        ->toBe('Gruzbella Imprudente')
+        ->and(Monstre::where('nom_base', 'Gruzbella Imprudente')->firstOrFail()->phase_suivante)
+        ->toBeNull();
+
+    // Vaincue, elle s'incline : 1000 po, jamais une vraie mort — DÉCLARÉE
+    // SEULEMENT sur la DERNIÈRE phase (c'est là, et seulement là, qu'elle est
+    // lue par le point de passage unique).
+    expect(Monstre::where('nom_base', 'Gruzbella Imprudente')->firstOrFail()->capacites['recompense_reddition'] ?? null)
+        ->toBe(['or' => 1000]);
+});
+
+it('porte les stats de Spawn of the Pit EXACTEMENT comme ses deux phases (Ogre Horde p. 21)', function () {
+    // « 4/3/6/4/3 → Enraged 5/1/10/6/1 » (A/D/M/B/Mi).
+    expect(statsDe('Spawn of the Pit'))->toBe([6, 4, 3, 4, 3])
+        ->and(statsDe('Spawn of the Pit déchaîné'))->toBe([10, 5, 1, 6, 1]);
+
+    expect(Monstre::where('nom_base', 'Spawn of the Pit')->firstOrFail()->phase_suivante)
+        ->toBe('Spawn of the Pit déchaîné');
+});
+
+it('porte les stats de Gretzl la Porte-Fléau EXACTEMENT comme ses trois phases (Jungles of Delthrak q. 12A)', function () {
+    // « Phase 1 M6 A4 D3 B5 Mi6 ; Demonspider M8 A5 D4 B4 Mi3 (Agile,
+    // Venomous) ; Demonape M8 A6 D2 B6 Mi1 (Agile) ».
+    expect(statsDe('Gretzl la Porte-Fléau'))->toBe([6, 4, 3, 5, 6])
+        ->and(statsDe('Demonspider'))->toBe([8, 5, 4, 4, 3])
+        ->and(statsDe('Demonape'))->toBe([8, 6, 2, 6, 1]);
+
+    $demonspider = Monstre::where('nom_base', 'Demonspider')->firstOrFail();
+    expect(in_array('agile', $demonspider->capacites, true))->toBeTrue()
+        ->and(in_array('venimeux', $demonspider->capacites, true))->toBeTrue();
+
+    $demonape = Monstre::where('nom_base', 'Demonape')->firstOrFail();
+    expect(in_array('agile', $demonape->capacites, true))->toBeTrue();
+
+    // Le répertoire (3 sorts déjà semés) et la défense réactive restent les
+    // MÊMES dans les trois phases — « toujours le même monstre ».
+    foreach (['Gretzl la Porte-Fléau', 'Demonspider', 'Demonape'] as $nom) {
+        $m = Monstre::where('nom_base', $nom)->firstOrFail();
+        expect($m->archetype_lanceur)->toBe('gretzl_porte_fleau', "{$nom} : archétype de sorts")
+            ->and(in_array('ignore_degats_attaque', (array) ($m->capacites['reactions_defense'] ?? []), true))
+            ->toBeTrue("{$nom} : Demon Wings");
+    }
+});
+
+it('donne au Sorcier du Dread (Prophecy of Telor) le répertoire limité par son palier', function () {
+    $sorcier = Monstre::where('nom_base', 'Sorcier du Dread')->firstOrFail();
+
+    expect($sorcier->tier)->toBe('sous_boss')
+        ->and($sorcier->archetype_lanceur)->toBe('sorcier_dread_telor');
+
+    // Le CATALOGUE déclare les cinq sorts des deux apparitions — c'est le
+    // filtre par palier de `MoteurDread::sortsDisponibles()`, pas le
+    // catalogue, qui retire les deux sorts `boss` pour un sous-boss.
+    expect(config('archetypes_lanceurs.sorcier_dread_telor.sorts'))->toBe([
+        'Boule de Flammes', 'Tourmente', 'Frayeur', 'Nuée d\'Effroi', 'Commandement',
+    ]);
+});
+
+it('donne à Sir Ragnar `increvable_une_fois`, sans jamais le déclarer `phases`', function () {
+    // Sa carte ne change PAS de statistiques : elle ne meurt pas une
+    // première fois, point. `phase_suivante` doit donc rester `null`.
+    $ragnar = Monstre::where('nom_base', 'Sir Ragnar')->firstOrFail();
+
+    expect($ragnar->phase_suivante)->toBeNull()
+        ->and(in_array('increvable_une_fois', $ragnar->capacites, true))->toBeTrue()
+        ->and($ragnar->tier)->toBe('boss');
+});
+
+it('tire Gretzl comme boss du thème Jungles of Delthrak', function () {
+    // Vérifie l'intégration au générateur (chantier 2026-10-04) : le pool de
+    // rencontre finale du gabarit « Confrontation finale » nomme son
+    // archétype, son `boite` la range bien dans le thème, et son archétype
+    // est bien le SEUL candidat de ce thème — la rotation déterministe de
+    // `DemarreurQuete::acheterMonstres()` n'a donc aucun autre tirage
+    // possible dès que le thème d'une campagne est `jungles_delthrak`.
+    $this->seed([\Database\Seeders\GabaritQueteSeeder::class]);
+
+    $gabarit = \App\Models\GabaritQuete::where('nom', 'Confrontation finale')->firstOrFail();
+    $pool = (array) data_get($gabarit->structure, 'rencontre_finale.archetypes', []);
+
+    expect($pool)->toContain('gretzl_porte_fleau');
+
+    $gretzl = Monstre::where('nom_base', 'Gretzl la Porte-Fléau')->firstOrFail();
+    expect($gretzl->boite)->toBe('jungles_delthrak')
+        ->and($gretzl->tier)->toBe('boss');
+
+    // Aucun AUTRE candidat `boss` de ce thème n'existe encore (§1.3 du plan
+    // Delthrak : « actif, mais SANS boss ») — Gretzl (ses trois PHASES,
+    // toutes de tier `boss`/`boite jungles_delthrak`) est donc le seul nom
+    // que la rotation d'`acheterMonstres()` peut jamais tirer pour ce thème.
+    $sesPhases = ['Gretzl la Porte-Fléau', 'Demonspider', 'Demonape'];
+    $autresBossDuTheme = Monstre::where('tier', 'boss')
+        ->where('boite', 'jungles_delthrak')
+        ->whereNotIn('nom_base', $sesPhases)
+        ->count();
+
+    expect($autresBossDuTheme)->toBe(0);
+    expect(\App\Partie\DemarreurQuete::BOITES_THEMATIQUES)->toContain('jungles_delthrak');
 });
 
 it('donne à chaque créature de Jungles le trait que son livret lui prête', function () {
@@ -297,4 +468,12 @@ it('interdit au palier `base` la créature ENDURANTE — celle qu\'on ne peut pa
     $minSousBoss = (int) Monstre::where('tier', 'sous_boss')->min('cout');
 
     expect($maxBase)->toBeLessThan($minSousBoss, 'les paliers se chevauchent en coût');
+});
+
+it("donne leurs 2 cases à l'Ogre ET au Loup géant de The Mage of the Mirror", function () {
+    // Le livret nomme le Loup géant grande figurine ; l'Ogre garde aussi ses
+    // 2 cases (René, 2026-10-04 — `docs/plan-correctifs-2026-10-04.md` C3).
+    foreach (['Ogre', 'Loup géant'] as $nom) {
+        expect(Monstre::where('nom_base', $nom)->firstOrFail()->grandeTaille())->toBeTrue($nom);
+    }
 });

@@ -29,6 +29,13 @@ class InstanceMonstre extends Model
         'usages_dread',
         'invocation_dread_utilisee',
         'fuite_dread_utilisee',
+        // Capacités réactives à usage unique déjà dépensées cette RENCONTRE
+        // (chantier monstre à phases, 2026-10-04) : `increvable_une_fois`
+        // (Sir Ragnar) et chaque entrée de `monstres.capacites.reactions_defense`
+        // (Resilience/Demon Wings…). Liste de noms, jamais réinitialisée par un
+        // changement de phase — seule une nouvelle rencontre la réarme
+        // ({@see \App\Partie\MoteurDread::reinitialiserUsagesInstance()}).
+        'capacites_reactives_utilisees',
         // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
         // fin du PROCHAIN tour de la créature, puis s'éteignent.
         'degat_differe',
@@ -55,6 +62,7 @@ class InstanceMonstre extends Model
             'degat_differe' => 'integer',
             'controle_par' => 'integer',
             'controle_agi' => 'boolean',
+            'capacites_reactives_utilisees' => 'array',
         ];
     }
 
@@ -137,6 +145,70 @@ class InstanceMonstre extends Model
         $des = (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
 
         return $this->apresConditions($des, 'defense');
+    }
+
+    /**
+     * Le monstre porte-t-il `$capacite` (`monstres.capacites`, déclarée en LISTE
+     * ou en MAP quand elle porte des paramètres) ?
+     *
+     * ⚠ Déménagée ici depuis `MoteurDread::aCapacite()` le 2026-10-04 : le
+     * nouveau point de passage unique de la mort d'un monstre
+     * ({@see \App\Partie\MoteurDegats::infligerAMonstre()}) doit pouvoir lire
+     * `increvable_une_fois`/`phase_suivante`/`recompense_reddition` SANS
+     * dépendre de `MoteurDread` — qui, lui, dépend déjà de `MoteurDegats`
+     * (il lui délègue les dégâts aux héros). Une dépendance circulaire entre
+     * les deux services aurait bloqué le conteneur. `MoteurDread::aCapacite()`
+     * reste en place pour ses quinze appelants, réduite à un simple relais.
+     */
+    public function aCapacite(string $capacite): bool
+    {
+        $capacites = (array) ($this->monstre->capacites ?? []);
+
+        return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites);
+    }
+
+    /**
+     * La valeur d'une capacité PARAMÉTRÉE (`['recompense_reddition' => ['or'
+     * => 1000]]`), ou `null` si elle n'est pas déclarée — même lecture que
+     * `MoteurDread::sortAVolonte()`, généralisée à n'importe quelle clé.
+     */
+    public function capaciteParametree(string $capacite): mixed
+    {
+        $capacites = (array) ($this->monstre->capacites ?? []);
+
+        return $capacites[$capacite] ?? null;
+    }
+
+    /**
+     * Une mécanique RÉACTIVE à usage unique (`increvable_une_fois`, ou l'une
+     * des entrées de `capacites.reactions_defense`) est-elle encore
+     * disponible pour CETTE instance, cette rencontre ?
+     *
+     * Les deux familles partagent le même compteur
+     * (`capacites_reactives_utilisees`) : qu'il s'agisse d'un drapeau simple
+     * ou d'une liste, la question posée est identique — « ce nom a-t-il déjà
+     * été dépensé ? ».
+     */
+    public function reactionDisponible(string $mecanique): bool
+    {
+        if ($mecanique !== 'increvable_une_fois'
+            && ! in_array($mecanique, (array) $this->capaciteParametree('reactions_defense'), true)) {
+            return false;
+        }
+
+        if ($mecanique === 'increvable_une_fois' && ! $this->aCapacite('increvable_une_fois')) {
+            return false;
+        }
+
+        return ! in_array($mecanique, (array) ($this->capacites_reactives_utilisees ?? []), true);
+    }
+
+    /** Marque `$mecanique` dépensée pour le reste de la rencontre. */
+    public function consommerReaction(string $mecanique): void
+    {
+        $utilisees = (array) ($this->capacites_reactives_utilisees ?? []);
+        $utilisees[] = $mecanique;
+        $this->update(['capacites_reactives_utilisees' => array_values(array_unique($utilisees))]);
     }
 
     /**

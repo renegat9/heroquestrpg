@@ -205,7 +205,69 @@ final class SceneDeTable
             }
         }
 
+        // MONSTRE À PHASES (chantier 2026-10-04) : même raison que les pièges
+        // imbriqués ci-dessus — n'importe quel TYPE d'action (attaque de
+        // héros, d'allié, sort, reflet de sort) peut amener une instance à
+        // 0 Body, et `scenePrincipale()` ne sait raconter que « touché »/
+        // « vaincu » pour SON propre type. Une scène SUPPLÉMENTAIRE, au-dessus
+        // de tous les types, pour que la table annonce la forme qui suit —
+        // jamais ses nouveaux dés (« Zargon, do not reveal… », Ogre Horde p. 6).
+        if (is_array($a['changement_phase'] ?? null)) {
+            $scenes[] = $this->changementPhase($a['changement_phase']);
+        }
+
+        if (is_string($a['reaction_monstre'] ?? null)) {
+            $scenes[] = $this->reactionMonstre($a['reaction_monstre']);
+        }
+
+        if (is_array($a['reddition_monstre'] ?? null)) {
+            $scenes[] = $this->redditionMonstre((int) ($a['reddition_monstre']['or'] ?? 0));
+        }
+
         return $scenes;
+    }
+
+    /**
+     * @param  array{avant: string, apres: string}  $changement
+     * @return array<string, mixed>
+     */
+    private function changementPhase(array $changement): array
+    {
+        $avant = (string) ($changement['avant'] ?? 'La créature');
+        $apres = (string) ($changement['apres'] ?? 'une autre forme');
+
+        return [
+            'genre' => 'transformation',
+            'titre' => "{$avant} se transforme",
+            'sous_titre' => 'adopte de nouvelles statistiques',
+            'issue' => ['ton' => 'info', 'libelle' => "devient {$apres} !"],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function reactionMonstre(string $mecanique): array
+    {
+        return [
+            'genre' => 'reaction',
+            'titre' => 'Défense réactive',
+            'sous_titre' => 'à usage unique pour toute la rencontre',
+            'issue' => ['ton' => 'info', 'libelle' => match ($mecanique) {
+                'ignore_degats_attaque' => 'le coup est intégralement ignoré',
+                'increvable_une_fois' => 'tient debout à 1 PV',
+                default => $mecanique,
+            }],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function redditionMonstre(int $or): array
+    {
+        return [
+            'genre' => 'tresor',
+            'titre' => 'Reddition',
+            'sous_titre' => 'vaincue, elle s\'incline plutôt que de mourir',
+            'issue' => ['ton' => 'tresor', 'libelle' => "{$or} po rejoignent le trésor du groupe"],
+        ];
     }
 
     /**
@@ -240,6 +302,11 @@ final class SceneDeTable
             // `cible` (le Dragon s'est seulement rapproché), elle rend `null`
             // et la table reste muette, exactement comme un déplacement seul.
             'vol_draconique' => $this->attaqueDuMonstre($a),
+            // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : même genre
+            // `attaque` qu'un coup porté à un monstre — Crystal Cluster, Haut
+            // Autel, Coffre du Dread se détruisent au combat, pas sur un jet
+            // de Body (`jet` ci-dessus, qui couvre `detruire_mobilier_*`).
+            'attaque_mobilier' => $this->attaqueMobilier($a, $acteur),
             default => null,
         };
     }
@@ -339,6 +406,65 @@ final class SceneDeTable
             'figure' => null,
             'objets' => [],
             'issue' => $this->issueDuCoup($a, $degats, $cibleNom, vaincue: ! empty($a['cible_tombee']), heros: true),
+        ];
+    }
+
+    /**
+     * Héros contre un MEUBLE à PV/défense (2026-10-04) — même forme de scène
+     * qu'une attaque de monstre (`jetDesDes()`/`issueDuCoup()` lisent
+     * exactement le même payload), avec le meuble en défenseur plutôt qu'une
+     * instance de monstre : pas d'`InstanceMonstre`, son image et ses PV
+     * viennent du CATALOGUE (`Mobilier`) et de la grille de la carte.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>|null
+     */
+    private function attaqueMobilier(array $a, Personnage $acteur): ?array
+    {
+        $nomMeuble = (string) ($a['mobilier'] ?? '');
+
+        if ($nomMeuble === '') {
+            return null;
+        }
+
+        $degats = (int) ($a['degats'] ?? 0);
+
+        return [
+            'genre' => 'attaque',
+            'titre' => "{$acteur->nom} attaque {$nomMeuble}",
+            'sous_titre' => null,
+            'acteurs' => [
+                $this->acteurHeros($acteur, 'attaquant'),
+                $this->acteurMobilier($nomMeuble, (int) ($a['pv_body_apres'] ?? 0), 'defenseur'),
+            ],
+            'jet' => $this->jetDesDes($a, $acteur->nom, $nomMeuble),
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [],
+            'issue' => $this->issueDuCoup($a, $degats, $nomMeuble, vaincue: ! empty($a['detruit'])),
+        ];
+    }
+
+    /**
+     * Un meuble à PV/défense, illustré par son entrée de CATALOGUE — il n'a
+     * pas d'instance comme un monstre, `pv.max` vient donc de `mobiliers.pv_body`
+     * plutôt que d'une colonne d'instance qui n'existe pas.
+     *
+     * @return array<string, mixed>
+     */
+    private function acteurMobilier(string $nom, int $pvCourant, string $role): array
+    {
+        $type = Mobilier::where('nom', $nom)->first();
+
+        return [
+            'role' => $role,
+            'nom' => $nom,
+            'image_url' => $this->images->urlMobilier($type?->id, $nom)
+                ?? $this->images->vignette('mobilier', $type?->id ?? 0),
+            'pv' => [
+                'courant' => $pvCourant,
+                'max' => (int) ($type?->pv_body ?? $pvCourant),
+            ],
         ];
     }
 

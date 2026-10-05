@@ -28,6 +28,9 @@ const state = reactive({
     etat: null,
     /** Dernier menu personnel ({contexte, options}) reçu sur joueur.{id}. */
     menu: null,
+    /** Non-null quand `menu` ci-dessus est le tour de l'allié contrôlé par
+     *  mon héros (chantier 3a, 2026-10-04), pas le mien. */
+    menuAllieId: null,
     /** Choix envoyé, en attente du prochain .groupe.etat (boutons désactivés). */
     menuEnAttente: false,
     /** Texte de narration courant du MJ. */
@@ -148,14 +151,20 @@ export function useGameStore() {
             // boutons trop tôt → re-taps accumulés. Le verrou tombe seulement sur
             // setMenu (mon prochain menu) ou viderMenu (mon tour est fini).
         },
-        /** Nouveau menu personnel (.menu.propose sur joueur.{id}). */
-        setMenu(menu) {
+        /** Nouveau menu personnel (.menu.propose sur joueur.{id}).
+         *  `allieId` (chantier 3a, 2026-10-04) : non-null quand CE menu est le
+         *  tour de l'allié contrôlé par mon héros, pas le mien — voir
+         *  `creneauxDuTour` dans ManetteView.vue, qui ne doit JAMAIS appliquer
+         *  mes propres créneaux (a_deplace/a_agi) aux boutons d'un allié. */
+        setMenu(menu, allieId = null) {
             state.menu = menu;
+            state.menuAllieId = allieId ?? null;
             state.menuEnAttente = false;
         },
         /** Retire le menu courant (ex. mon tour est fini : il devient périmé). */
         viderMenu() {
             state.menu = null;
+            state.menuAllieId = null;
             state.menuEnAttente = false;
         },
         /** Le choix est parti (202) : boutons gelés jusqu'à MON prochain menu
@@ -563,15 +572,19 @@ export function entitesVersFigurines(entites, initiative) {
             // Un monstre ENRÔLÉ (Baguette d'Os) se lit comme un allié tant que
             // dure son tour : sans ça la table verrait un ennemi rouge frapper
             // ses propres congénères, sans rien pour l'expliquer.
-            k: e.type === 'heros' ? 'hero' : ((e.type === 'allie' || e.controle_par) ? 'ally' : 'foe'),
+            // CAPTIF (mission « secourir », chantier 3b, 2026-10-04) : ni
+            // allié ni ennemi tant qu'il n'est pas libéré — sa propre teinte
+            // (`.fig.captif`, TableView.vue), jamais confondu avec un monstre.
+            k: e.type === 'heros' ? 'hero'
+                : (e.type === 'captif' ? 'captif' : ((e.type === 'allie' || e.controle_par) ? 'ally' : 'foe')),
             l: labelCourt(e.nom),
             ic: e.type === 'heros'
                 ? classeDe(e)?.ic
-                : ((e.type === 'allie' || e.controle_par)
+                : (e.type === 'captif' ? 'lock_person' : ((e.type === 'allie' || e.controle_par)
                     ? (e.animal ? 'pets' : 'handshake')
-                    : 'sentiment_very_dissatisfied'),
+                    : 'sentiment_very_dissatisfied')),
             img: e.image_url ?? null,
-            hp: (e.type === 'monstre' || e.type === 'allie') ? e.pv_body : undefined,
+            hp: (e.type === 'monstre' || e.type === 'allie' || e.type === 'captif') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
             elite: e.type === 'monstre' ? !!e.elite : false,
             cond: conditionDeJeton(e.conditions),

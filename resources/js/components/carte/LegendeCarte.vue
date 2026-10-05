@@ -140,6 +140,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 <div class="lg-ligne"><span class="lg-chip lg-fig heros" /><span>Héros — cerclé d'or quand c'est son tour</span></div>
                 <div class="lg-ligne"><span class="lg-chip lg-fig monstre" /><span>Monstre révélé</span></div>
                 <div class="lg-ligne"><span class="lg-chip lg-fig allie" /><span>Allié (mercenaire, créature enrôlée)</span></div>
+                <div class="lg-ligne"><span class="lg-chip lg-fig captif" /><span>Captif — à libérer au contact (mission « secourir »)</span></div>
             </section>
 
             <section v-if="portes.length" class="lg-sect">
@@ -264,6 +265,7 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-fig.heros { background: oklch(0.45 0.06 255); box-shadow: 0 0 0 2px var(--gold); }
 .lg-fig.monstre { background: oklch(0.55 0.16 25 / 0.85); }
 .lg-fig.allie { background: oklch(0.55 0.14 260 / 0.85); }
+.lg-fig.captif { background: oklch(0.78 0.13 80 / 0.9); }
 
 .lg-porte { height: 5px; margin-top: 8px; border-radius: 2px;
   background: linear-gradient(90deg, #d8a23a, #7a531d); }

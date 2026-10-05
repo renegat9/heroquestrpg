@@ -87,7 +87,7 @@ onMounted(async () => {
                 '.prets.maj': (e) => store.appliquerPrets(e),
             }),
             souscrireJoueur(joueur.id, {
-                '.menu.propose': (e) => store.setMenu(e.menu),
+                '.menu.propose': (e) => store.setMenu(e.menu, e.allie_id),
                 // Réaction hors tour : arrive PENDANT le tour d'un monstre,
                 // donc en dehors de toute boucle de menu.
                 '.reaction.proposee': (e) => { reactionProposee.value = e?.reaction ?? null; },
@@ -95,7 +95,7 @@ onMounted(async () => {
         );
         // Rattrapage du menu courant : à la reconnexion, on a raté le
         // `.menu.propose` déjà émis — on le récupère (régénéré si c'est notre tour).
-        api.getMenu(props.groupe).then((r) => { if (r?.menu) store.setMenu(r.menu); }).catch(() => {});
+        api.getMenu(props.groupe).then((r) => { if (r?.menu) store.setMenu(r.menu, r.allie_id); }).catch(() => {});
 
         // Rattrapage : phase marché, vote ou clôture déjà en cours (reconnexion).
         api.getMarche(props.groupe).then((m) => store.appliquerMarche(m)).catch(() => {});
@@ -162,6 +162,14 @@ const monEntite = computed(() => {
    début du tour suivant, AVANT le nouveau .menu.propose). ---- */
 watch(() => store.state.etat, () => {
     if (!monEntite.value || !store.state.menu) return;
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : `a_joue` du HÉROS
+    // passe à `true` dès que SON tour finit, mais c'est alors souvent le tour
+    // de l'allié qu'il contrôle qui commence, sur CETTE MÊME manette — un
+    // menu parfaitement valide que ce filet ne doit pas effacer. Sans ce
+    // garde, le menu de l'allié se faisait périmer par le tout premier
+    // `.groupe.etat` suivant (il s'en produit un à chaque action, y compris
+    // pendant le tour de l'allié lui-même), rendant les boutons inatteignables.
+    if (store.state.menuAllieId) return;
     const moi = (store.state.etat?.initiative ?? [])
         .find((o) => o.entite === 'heros' && o.id === monEntite.value.id);
     if (moi?.a_joue) store.viderMenu();
@@ -177,7 +185,7 @@ watch(() => store.state.menuEnAttente, (gele) => {
     if (!gele) return;
     veilleVerrou = setTimeout(() => {
         api.getMenu(props.groupe)
-            .then((r) => { r?.menu ? store.setMenu(r.menu) : store.viderMenu(); })
+            .then((r) => { r?.menu ? store.setMenu(r.menu, r.allie_id) : store.viderMenu(); })
             .catch(() => store.annulerChoixEnAttente());
     }, 15000);
 });
@@ -412,6 +420,13 @@ const menuStore = computed(() => store.state.menu);
    (sinon : « tu reprendras la main »). */
 const cestMonTour = computed(() => {
     if (!monEntite.value) return false;
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : sa présence SUFFIT
+    // — le serveur ne publie `allie_id` sur CETTE manette que lorsque c'est
+    // le tour de l'allié que mon héros contrôle (`OrdreDuTour::acteurActif()`
+    // l'a déjà vérifié avant de construire ce menu). `initiative[]` ne porte
+    // pas qui contrôle quel allié : le re-dériver ici serait justement le
+    // miroir que ce projet interdit.
+    if (store.state.menuAllieId) return true;
     const cur = acteurCourant(store.state.etat?.initiative);
     return !!(cur && cur.entite === 'heros' && cur.id === monEntite.value.id);
 });
@@ -429,6 +444,14 @@ const boutonsGeles = computed(() => menuEnAttente.value || (thinking.value && !d
    griser une option dont le créneau vient d'être consommé, plutôt que de laisser
    le joueur cliquer un menu périmé et récolter un 422. */
 const creneauxDuTour = computed(() => {
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : mes propres
+    // créneaux (a_deplace/a_agi) ne disent RIEN de ceux de l'allié que je
+    // contrôle — ses options sont déjà, et seulement, celles que le serveur
+    // juge légales (`MenuMoteur::genererMenuAllie()`). Les lui appliquer les
+    // grisait à tort dès que j'avais moi-même fini d'agir, ce qui est
+    // justement LE moment où son tour commence.
+    if (store.state.menuAllieId) return null;
+
     const e = monEntite.value;
     if (!e || typeof e.a_agi !== 'boolean') return null; // serveur plus ancien
 
@@ -565,6 +588,12 @@ const LISTES = {
     // qu'on retrouve en sortant de la séance (même convention que
     // `liste.retour` pour un 3e niveau de ciblage : « Retour aux sorts », etc.).
     echanger: { cle: 'allies', titre: 'Échanger avec qui ?', retour: 'Retour aux alliés' },
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : le déplacement de
+    // l'allié n'a pas de mini-carte dédiée — une poignée de destinations
+    // (une par monstre approchable, « Approcher X »), la liste générique
+    // suffit. `attaquer_allie`, lui, porte `type: 'attaque'` et retombe donc
+    // directement sur `frameCible` plus bas, sans entrée ici.
+    se_deplacer_allie: { cle: 'destinations', titre: 'Où déplacer l\'allié ?', retour: 'Retour aux actions' },
 };
 
 function choisirOption(choix) {

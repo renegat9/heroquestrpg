@@ -152,6 +152,38 @@ return [
         ],
     ],
 
+    'gretzl_porte_fleau' => [
+        'porteur' => 'Gretzl la Porte-Fléau (ses trois phases — docs/plan-delthrak.md lot A)',
+        // Jungles of Delthrak, quête 12A (boss final) : « Creeping Grasp,
+        // Channel Dread, Fear », identiques dans les trois phases — rien dans
+        // le livret ne dit qu'elle désapprend un sort en changeant de forme.
+        // Les trois sorts sont déjà semés (SortDreadSeeder).
+        'sorts' => [
+            'Étreinte des Ronces',
+            'Canaliser l\'Effroi',
+            'Frayeur',
+        ],
+    ],
+
+    'sorcier_dread_telor' => [
+        'porteur' => 'Sorcier du Dread (Prophecy of Telor, q. 7 et q. 9)',
+        // Les CINQ sorts cités dans les deux apparitions de la carte —
+        // Boule de Flammes, Tourmente, Frayeur (palier `base`/`sous_boss`),
+        // Nuée d'Effroi, Commandement (palier `boss`). Le monstre qui porte
+        // CET archétype est de tier `sous_boss` (Q3, docs/plan-telor.md) :
+        // `MoteurDread::sortsDisponibles()` retire déjà les deux sorts `boss`
+        // à l'exécution, exactement comme il le fait pour le Chamane Gobelin
+        // ci-dessous — le répertoire se déclare COMPLET, c'est le palier qui
+        // décide ce qu'il en tire.
+        'sorts' => [
+            'Boule de Flammes',
+            'Tourmente',
+            'Frayeur',
+            'Nuée d\'Effroi',
+            'Commandement',
+        ],
+    ],
+
     // ------------------------------------------------------------------
     // Archétypes DE NOUS — aucune carte ne les décrit ; seuls leurs sorts
     // sont sourcés. Ils existaient avant le passage aux cartes officielles

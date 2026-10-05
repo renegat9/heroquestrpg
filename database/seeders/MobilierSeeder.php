@@ -162,6 +162,65 @@ class MobilierSeeder extends Seeder
             // 1×1, difficulté de destruction 2 — par analogie fonctionnelle
             // (c'est un coffre) plutôt que par mesure. Boîte `horde_ogre`.
             ['nom' => 'Caisse de ravitaillement', 'nom_anglais' => 'Supply crate', 'largeur' => 1, 'hauteur' => 1, 'difficulte_destruction' => 2, 'fouillable' => true, 'bloque_vue' => false, 'boite' => 'horde_ogre'],
+
+            // ===== Jungles of Delthrak (livret F9907 p. 4-5, lot C/D) =====
+            // AMAS DE CRISTAL (« Crystal Cluster ») : « These crystals radiate
+            // Dread energy. […] The crystal cluster can be attacked; it has
+            // 6 Body Points and cannot defend. If destroyed, remove the
+            // cluster from the gameboard. The crystal cluster blocks line of
+            // sight. » Troisième voie de destruction (`pv_body`/`defense_dice`,
+            // 2026-10-04) : pas de jet de Body (`difficulte_destruction` reste
+            // `null`, aucune source n'en décrit un), on l'épuise au combat —
+            // `defense_dice = 0` est la valeur même de « cannot defend », pas
+            // une absence.
+            // ⚠ Partage le socle « Basin » avec *Pool of Water* et *Bonfire*
+            // (même page) — René a tranché Q5 pour trois ENTRÉES distinctes de
+            // catalogue plutôt qu'un sélecteur d'effet. Seule celle-ci entre
+            // dans ce chantier : les deux autres ne sont PAS détruites au
+            // combat (une fouille alternative qui soigne, un franchissement
+            // qui blesse au passage) et réclament chacune un mot-clé de
+            // TERRAIN inédit (« ne jamais finir son tour ici », « jet au
+            // franchissement sans bloquer ») — un chantier séparé, nommé ici
+            // plutôt qu'omis, voir le rapport du chantier.
+            // ⚠ Emprise NON mesurée indépendamment (aucun livret ne la
+            // chiffre) : 1×1 par analogie avec les autres pièces de décor de
+            // cette taille — même repli que la Caisse de ravitaillement
+            // ci-dessus, pas une mesure.
+            ['nom' => 'Amas de cristal', 'nom_anglais' => 'Crystal Cluster', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 6, 'defense_dice' => 0, 'boite' => 'jungles_delthrak'],
+
+            // ===== Wizards of Morcar (livret G1504 p. 2-3/35/39, lot A) =====
+            // HAUT AUTEL (« High Altar ») : « The High Altar may be attacked
+            // using normal combat and has 6 Body Points. It rolls four dice
+            // when defending. » Objectif de la quête 10 dans le livret ; chez
+            // nous, dressing procédural du thème `wizards_of_morcar` — même
+            // divergence déjà acceptée pour les monstres « sous-boss » d'autres
+            // boîtes (on ne rejoue pas les quêtes nommées du livret).
+            // ⚠ `bloque_vue` : ⚠ non trouvé — aucune des deux pages ne
+            // mentionne la ligne de vue (contrairement au Crystal Cluster, qui
+            // la précise explicitement dans un sens ou l'autre) ; `false` par
+            // défaut, comme le Coffre/Trône/Tombeau (mobilier bas), jamais une
+            // supposition.
+            ['nom' => 'Haut Autel', 'nom_anglais' => 'High Altar', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => false, 'pv_body' => 6, 'defense_dice' => 4, 'boite' => 'wizards_of_morcar'],
+
+            // COFFRE DU DREAD (« Dread Chest ») : « These are the Dread
+            // Chests. They have 1 Body Point and can be attacked but take no
+            // damage from fire. They roll 6 Defend dice. Once destroyed, the
+            // matching Sorcerer lurches to life. »
+            // ⚠ L'immunité au feu N'EST PAS câblée : aucune arme du catalogue
+            // ne porte de `type_degat` (seuls les SORTS en portent un), donc
+            // rien ne produirait jamais un dégât de feu contre ce meuble par
+            // ce lecteur — une clé `immunite_degat` ici serait un lecteur SANS
+            // PRODUCTEUR, la faute que ce projet nomme et évite. Nommé plutôt
+            // qu'omis ; à câbler le jour où une arme/un sort de feu peut viser
+            // du mobilier.
+            // ⚠ « Once destroyed, the matching Sorcerer lurches to life » est
+            // un déclenchement de GABARIT DE QUÊTE (hors périmètre de ce
+            // chantier, qui ne porte que le meuble générique) — nommé, pas
+            // oublié.
+            ['nom' => 'Coffre du Dread', 'nom_anglais' => 'Dread Chest', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => false, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
         ];
 
         // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.
@@ -185,6 +244,11 @@ class MobilierSeeder extends Seeder
                     // tomber de la mise à jour rendrait une valeur ancienne
                     // survivante à un re-semis qui voulait justement l'effacer.
                     'difficulte_destruction' => $mobilier['difficulte_destruction'] ?? null,
+                    // Même garde, même raison, pour la troisième voie de
+                    // destruction (2026-10-04) : `null` = ne se détruit pas au
+                    // combat.
+                    'pv_body' => $mobilier['pv_body'] ?? null,
+                    'defense_dice' => $mobilier['defense_dice'] ?? null,
                 ],
             );
         }

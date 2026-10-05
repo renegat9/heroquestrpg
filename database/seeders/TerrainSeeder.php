@@ -89,6 +89,8 @@ class TerrainSeeder extends Seeder
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
                 'effet' => [
                     'sens_unique' => true,
+                    // « Monsters cannot move onto ice slide squares » (p. 5).
+                    'interdit_aux_monstres' => true,
                     'fin_tour' => true,
                     'jet_des_combat' => 1,
                     'sur' => ['bouclier_blanc' => ['degats_pv_body' => 1]],
@@ -113,6 +115,9 @@ class TerrainSeeder extends Seeder
                     'jet_des_combat' => 1,
                     'sur' => ['bouclier_blanc' => ['degats_pv_body' => 1]],
                     'type_degat' => 'froid',
+                    // « Monsters suffer neither movement penalties nor damage
+                    // from the icy river » (p. 6).
+                    'ignore_par_monstres' => true,
                 ],
             ],
             // Tunnel de glace (Ice Tunnels) — « paires de téléportation, très

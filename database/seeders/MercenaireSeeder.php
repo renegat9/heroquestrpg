@@ -17,6 +17,11 @@ use Illuminate\Database\Seeder;
  * Hearthkin partage ce catalogue (même bloc de stats, même table
  * `groupe_mercenaires`, même purge de fin de quête) mais `octroi_seul: true`
  * — il n'est jamais recrutable au hub, voir `MercenaireController::catalogue()`.
+ *
+ * ⚠ DIXIÈME ligne depuis le 2026-10-04 (chantier 3b, mission « secourir ») :
+ * Gothar, captif de *The Frozen Horror* — `octroi_seul: true` (même garde)
+ * ET `captif: true` (jamais joué comme un mercenaire ordinaire : posé
+ * `etat: 'captif'` par `DemarreurQuete`, il attend d'être LIBÉRÉ en jeu).
  */
 class MercenaireSeeder extends Seeder
 {
@@ -97,6 +102,31 @@ class MercenaireSeeder extends Seeder
                 'deplacement' => 8, 'attaque' => 2, 'defense' => 2, 'pv_body' => 1, 'pv_mind' => 0, 'prix' => 0,
                 'animal' => false, 'octroi_seul' => true,
                 'description' => 'Un squelette dressé par le Cor des Hearthkin ; il quitte le jeu en fin de quête.'],
+
+            // ---- GOTHAR — captif de la mission « secourir » (The Frozen
+            // Horror, quête 3, p. 19/37, chantier 3b 2026-10-04) —
+            // « Gothar — Move 6 · Attack 1 · Defend 2 · Body 2 · Mind 4 ».
+            // Jamais recruté au hub (`octroi_seul`, même garde que le
+            // Squelette Hearthkin) : posé sur la carte par `DemarreurQuete`
+            // quand le gabarit tiré est « Mission de sauvetage »
+            // (`structure.objectif = 'secourir'`), `groupe_mercenaires.etat`
+            // démarrant à `'captif'` plutôt que `'actif'` — un héros au
+            // contact doit encore le LIBÉRER avant qu'il ne joue.
+            //
+            // ⚠ Le Prospecteur et la Princesse Millandriel (*The Mage of the
+            // Mirror*, quêtes 4 et 10 — même gabarit « libérer un captif »,
+            // `docs/plan-mage-du-miroir.md` §3 lot E) N'ONT PAS de bloc de
+            // stats sourcé dans les livrets dépouillés à ce jour : `⚠ non
+            // trouvé` plutôt qu'un chiffre inventé (CLAUDE.md, « ne jamais
+            // seeder une valeur que les livrets ne sourcent pas »). Ils
+            // rejoindront cette liste — et la rotation de `DemarreurQuete`
+            // les tirera automatiquement, sans autre câblage — le jour où
+            // une photo de carte ou une relecture du livret donne leurs
+            // Move/Attack/Defend/Body/Mind.
+            ['nom' => 'Gothar', 'type' => 'captif_gothar',
+                'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 4, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true,
+                'description' => 'Un barbare captif, prisonnier du donjon — à libérer et à ramener vivant à la sortie.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

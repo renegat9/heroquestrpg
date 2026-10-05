@@ -92,14 +92,14 @@ Keep, p. 2) :
 - *Potion of Battle* — 200 po — permet de relancer une fois les dés
   d'attaque après un mauvais jet.
 
-**Artefacts** (Kellar's Keep, p. 15) :
+**Artefacts** (Kellar's Keep, p. 28-29 ; page 15 du PDF) :
 - *Fire Ring* — protège des 2 prochains sorts de feu Dread subis, puis disparaît.
 - *Magical Throwing Dagger* — inflige toujours 1 Body Point à un monstre visible
   quand elle est lancée (le monstre ne défend pas) ; perdue une fois lancée.
   (2 exemplaires trouvables, quête 2.)
 
 **8 parchemins de sort** (utilisables par n'importe quel héros qui les
-trouve, tirés au hasard, à usage unique — Kellar's Keep, p. 15) :
+trouve, tirés au hasard, à usage unique — Kellar's Keep, p. 28-29) :
 *Heal Body* (soigne jusqu'à 4 Body Points), *Tempest* (un monstre choisi
 passe son prochain tour), *Ball of flame* (2 Body Points de dégâts, réduits
 de 1 par 5/6 obtenu sur 2 dés rouges lancés par le monstre), *Courage*
@@ -297,7 +297,7 @@ tuiles fosses, 6 cases bloquées.
 
 ---
 
-## Against the Ogre Horde (2023, réédité 2024)
+## Against the Ogre Horde (2024 ; annoncé en 2023)
 
 **Source :** livret de quêtes unique, réf. F9528
 (`F9528UU00_527014_HeroQuest_OGRE_HORDE_I.indd`), 44 pages PDF / pages
@@ -665,9 +665,9 @@ Entrance**.
   plusieurs monstres distincts défend une fois par monstre attaquant, mais
   un monstre à attaques multiples (ex. Polar Warbear) ne provoque qu'**un
   seul** jet de défense quel que soit son nombre d'attaques (Frozen Horror,
-  p. 11). *Coût :* règle de clarification pure — s'assurer que
-  `MoteurCombat` regroupe bien les multi-attaques d'un même monstre en une
-  résolution de défense.
+  p. 9). ✅ Portée le 2026-10-04 avec la capacité `deux_attaques` de l'Ours
+  (`ResolveurTour::deuxAttaques()` : sur une seule cible, une volée de 2×N dés
+  contre un jet de défense).
 - **Piège « Wandering Monster »**, **Stalactite Trap**, **Swinging Axe
   Trap** : trois pièges sans tuile physique, gérés uniquement par le texte
   de quête. *Coût :* négligeable, ce sont des variantes de pièges déjà
@@ -749,19 +749,19 @@ adjacente en ligne de vue, 1 seul dé si la cible est adjacente.
 **Adversaires nommés :**
 - **High Alchemist** (quête 5) — Move 8 · Attack 3 · Defend 3 · Body 4 ·
   Mind 4 ; connaît *mind blast, restore Dread, summon wolves, werewolf's
-  curse* (Mage of the Mirror, p. 22).
+  curse* (Mage of the Mirror, p. 23).
 - **Tormuk** le nécromancien (quête 6) — Move 8 · Attack 4 · Defend 4 ·
   Body 6 · Mind 6 ; connaît *command, mirror magic, mind blast,
   reanimation, summon wolves, werewolf's curse* ; tient 2 archers elfes
   envoûtés qui rejoignent les héros une fois les autres monstres de la
-  salle tués (Mage of the Mirror, p. 24).
+  salle tués (Mage of the Mirror, p. 25).
 - **Sinestra**, l'archemage (boss final, quête 9) — Move 8 · Attack 4 ·
   Defend 4 · Body 4 · **Mind 9** ; connaît *dispel, firestorm, mind blast,
   mirror magic, reanimation, restore Dread, summon wolves, werewolf's
-  curse* (Mage of the Mirror, p. 30).
+  curse* (Mage of the Mirror, p. 33).
 - **Gargouille lanceuse de sorts** (quête 8, non nommée) — stats de
   gargouille standard mais connaît *command* et *firestorm* (Mage of the
-  Mirror, p. 28).
+  Mirror, p. 29, note C).
 
 Grande figurine : non précisé explicitement pour ces profils.
 
@@ -950,11 +950,10 @@ Lunar Charm), **Trap Doors**, **Lunar Charm** (jeton clé de quête), **Rack
   jamais dans une zone non découverte, jamais pour finir sur une case
   occupée), insensibles à tous les pièges y compris les caltrops posés par
   un héros ; une attaque de héros ne les touche que sur un **bouclier
-  noir** (au lieu d'un crâne), sauf via sort ou artefact. *Coût :*
-  changement profond du modèle de collision (déplacement traversant
-  murs/entités) et de la table de résolution de touche (condition de
-  succès différente selon le type de monstre ciblé) — deux extensions
-  orthogonales du moteur de mouvement et de combat.
+  noir** (au lieu d'un crâne), sauf via sort ou artefact. ✅ **Porté**
+  (capacité `ethere` : `Grille::autoriserEthere()` pour le déplacement,
+  `ResolveurTour::frapper()` pour la touche ; l'immunité aux chausse-trappes
+  a été corrigée le 2026-10-04, `docs/plan-correctifs-2026-10-04.md` C1).
 - **Empowerment Dread Moon** (flag par quête) : tous les monstres
   lancent un dé d'attaque supplémentaire. *Coût :* trivial, un modificateur
   de quête appliqué à la résolution d'attaque de tous les monstres.
@@ -1081,6 +1080,9 @@ base (*Elixir of Life*, *Ring of Fortitude*, *Rod of Telekinesis*,
 multiples** apparaissent, une variante inédite : *Heal Body* (3 usages
 avant de tomber en poussière), *Lightning Bolt* (3 usages), *Water of
 Healing* (2 usages) — au lieu de l'usage unique standard.
+S'y ajoute un parchemin **ordinaire** (usage unique) : *Rock Skin*, trouvé
+sur le bureau de Telor (quête 8, note F) — ajouté le 2026-10-04, la section
+l'omettait.
 
 ### 4. Nouveau mobilier, nouvelles tuiles
 
@@ -1109,8 +1111,9 @@ boîtes précédentes plutôt que d'en introduire de nouvelles.
   « inconscient récupérable » distinct de la mort, déjà partiellement
   couvert par le concept de KO à 0 Mind Point dans d'autres boîtes, mais
   ici c'est 0 **Body** Points qui déclenche l'inconscience plutôt que la
-  mort — changerait une règle fondamentale du moteur (mort à 0 Body) pour
-  un seul héros marqué.
+  mort. ⚠ Corrigé le 2026-10-04 : ce n'est **pas** une règle neuve chez
+  nous — tout héros à 0 Body est déjà `tombe` (relevable, distinct de la
+  mort ; `docs/regles/vocabulaires-effets.md`, `verdictDeChute()`).
 - **Condition de défaite alternative (Rise of Fellmarak)** : si le porteur
   est inconscient et que tous les autres héros sont morts, la quête se
   termine en défaite scriptée plutôt que par un TPK classique. *Coût :*
@@ -1167,17 +1170,20 @@ comme un cinquième héros disponible pour toute la campagne (Spirit Queen's
 Torment, p. 4 : « *Players may choose to play the bard hero for this quest
 book* »).
 ⚠ **Aucune fiche chiffrée** (dés d'attaque/défense de base, Body, Mind,
-déplacement) dans le livret de quêtes — comme pour l'Abomination de
-Kellar's Keep, ces valeurs vivent sur une carte de personnage cartonnée
-absente du PDF.
-Éléments confirmés par le livret : équipé d'une **Rapière** (arme trouvée
-en jeu, cf. liste d'objets p. 34 — *pas* listée nommément mais le
-mécanisme suivant s'y réfère), et d'une règle de **remplacement posthume**
+déplacement) dans le livret de quêtes — ces valeurs vivent sur une carte de
+personnage cartonnée absente du PDF. ✅ Obtenue depuis (scan de René,
+2026-08-11 : **A2 D2 B5 M4**, Mythic Tier) : le Barde est jouable —
+`reference/01_personnages.md` §4bis et §HasLab Mythic Tier ci-dessous.
+Éléments confirmés par le livret : une règle de **remplacement posthume**
 propre à cette boîte : si personne ne joue le Barde et qu'un héros meurt,
 le Barde apparaît dans la salle du défunt, son joueur récupère les objets
 du mort, et le Barde ne peut pas agir le tour de son apparition ; ce
 remplacement ne peut se produire **qu'une seule fois** par campagne
 (Spirit Queen's Torment, p. 4).
+⚠ Corrigé le 2026-10-04 : cette section disait le Barde « équipé d'une
+**Rapière** » d'après le livret (« liste d'objets p. 34 »). Le mot *rapier*
+n'apparaît sur **aucune** des 19 pages du PDF G0053 : la rapière vient de la
+source tierce ci-dessous et de la carte transcrite (§HasLab Mythic Tier).
 « (source tierce, à confirmer) » — un blog de compte-rendu de partie
 (bloodandspectacles.blogspot.com) décrit en plus, sans chiffres
 officiels : une Rapière à **2 dés d'attaque, utilisable en diagonale**, et
@@ -1199,7 +1205,8 @@ bestiaire de base, plus deux adversaires nommés avec stats inline :
   gargouille ; stats d'un Dread Warrior avec **6 Body Points** ; connaît
   *Command, Fear, Lightning Bolt, Firestorm*, peut en lancer **deux par
   tour** ; combat à **résolution alternative** (voir mécaniques).
-- **Statues de pierre animées** (quêtes 10 et 13) — tous les monstres
+- **Statues de pierre animées** (quête 10 ; la quête 13 porte une règle
+  de fournaise sans rapport) — tous les monstres
   d'une quête gagnent **+1 dé de défense** (sauf la Gargouille, qui garde
   ses stats normales).
 
@@ -1311,11 +1318,11 @@ These heroes can replace one of the four HeroQuest Game System heroes* »
   le texte de quête lui-même (contrairement à l'Explorateur) — inféré par
   analogie de contenu.
 
-⚠ **Aucune fiche chiffrée** pour ces deux classes (dés d'attaque/défense,
-Body, Mind, déplacement, équipement de départ, capacités spéciales) dans
-le livret de quêtes — vivent sur des cartes de personnage cartonnées hors
-PDF, même limite que pour le Barde de Spirit Queen's Torment et
-l'Abomination de Kellar's Keep.
+⚠ **Aucune fiche chiffrée** pour ces deux classes dans le livret de
+quêtes — elles vivent sur des cartes de personnage cartonnées hors PDF.
+✅ Obtenues depuis (scan de René, 2026-08-11 : Explorateur **A2 D2 B5 M5**,
+Berserker **A3 D2 B7 M2**) : les deux classes sont jouables —
+`reference/01_personnages.md` §4bis et le tableau de synthèse en fin de fichier.
 
 ### 2. Nouveaux monstres
 
@@ -2186,6 +2193,241 @@ intégralement ce qu'elle fait.
 
 ---
 
+## Wizards of Morcar (2025)
+
+**Source :** livret de quêtes unique, réf. G1504
+(`heroquest-wizards-of-morcar-quest-pack-requires-heroquest-game-system`),
+44 pages imprimées / 23 pages PDF, entièrement extrait, © 2025 Hasbro
+(impression du 15/07/2025). **Réédition étendue d'une extension existante** :
+le livret le dit noir sur blanc, « *This quest book contains five exciting
+quests that were not in the original version of Wizards of Morcar. If you
+want to play the original quests only, play quests 3, 4, 5, 6, and 9 in
+sequence* » (p. 6) — les cinq quêtes d'origine sont 3/4/5/6/9, les cinq
+nouvelles sont 1/2/7/8/10 (7 et 8 forment une « Double Quest » unique,
+*The Dread Shrine of Eiretash* / *Halls of the Dead*). 64 cartes de jeu,
+27 figurines, 39 pièces cartonnées. Tous les blocs de stats ci-dessous ont
+été **relus sur le rendu PNG** des pages 8-9 (mercenaires) et 40-41 (tableau
+des monstres) — l'extraction texte y désalignait les colonnes (ex. le
+Arbalétrier ressortait en texte comme « 2 2 3 3 6 » alors que la carte lit
+Mouvement 6 / Attaque 3 / Défense 3 / Corps 2 / Esprit 2).
+
+### 1. Nouveaux héros jouables
+
+⚠ **Aucune nouvelle classe.** Le **Magicien** inclus dans la boîte est une
+réimpression : « *Their statistics are the same as the Wizard in the
+HeroQuest Game System and can be used to replace that hero if the player
+prefers* » (p. 10).
+
+**Sir Ragnar** — PNJ récurrent, pas une classe à la création : traître
+retourné en allié au fil de la campagne. Quête 2 : « *Ragnar cannot be
+killed in this quest (he always has at least one Body Point left)* »
+(p. 19). Quêtes 7-8 : « *Players choose who will control Ragnar. He moves
+and acts just like a hero. He may open doors, search for treasure, secret
+doors, and traps, and attempt to disarm traps* » (p. 35) — un héros
+temporaire, contrôlé par un joueur. ⚠ **Aucun bloc de stats chiffré pour
+Ragnar nulle part dans le livret** — il n'apparaît pas au tableau des
+monstres (p. 41, 8 entrées seulement) ; vit sur sa carte, non incluse au
+PDF.
+
+### 2. Nouveaux monstres
+
+**Tableau des monstres officiel** (« Monsters », p. 41, relu sur PNG) :
+
+| Monstre | Move | Attack | Defend | Body | Mind | Lore |
+|---|---|---|---|---|---|---|
+| Storm Master | 6 | 4 | 6 | 5 | 7 | commandant des éléments, a sacrifié sa raison |
+| Orc Warcaster | 7 | 5 | 5 | 5 | 7 | commandante aguerrie, forte influence magique sur ses orques |
+| Necromancer | 6 | 4 | 6 | 4 | 7 | sorcier tordu, expérimente sur les morts-vivants |
+| High Mage | 5 | 5 | 5 | 4 | 8 | maîtrise redoutable des forces du Dread |
+| Artificer | 6 | 4+2* | 3 | 5 | 8 | artisane magique, imprègne ses objets |
+| Dreadshifters | 5 | 4 | 3 | 2 | 4 | se déguise en objet du quotidien, bondit par surprise |
+| Golems | 5 | 4 | 5 | 3 | 0 | serviteur de pierre, loyauté inébranlable |
+| Minotaur | 7 | 4 | 5 | 6 | 4 | enfermé dans un labyrinthe souterrain, rage mesurée |
+
+*(\* tant que le sort *Hammer of Ruin* est actif sur l'Artificer.)*
+
+**Les cinq Sorciers du Dread nommés** (« Evil Sorcerers », p. 10) — lieutenants
+de Morcar, correspondant à cinq des huit lignes ci-dessus : **Fanrax the
+Malicious** (Necromancer), **Zanrath, High Mage of Sarako** (High Mage),
+**Boroush, the Storm Master** (Storm Master), **Nyashak, Orc Warcaster of the
+Northern Clan** (Orc Warcaster), et **la Gardienne/Keeper** (Artificer,
+antagoniste finale). « *Each Sorcerer may cast one spell per turn instead of
+attacking. Each spell may only be used once per quest. At the beginning of a
+new quest, each Sorcerer in that quest starts with a full set of six spells*»
+(p. 10) — six sorts chacun, propres à chaque sorcier (« *only they may use
+it* »), aucun nommé sauf les effets génériques de plateau (Murs magiques,
+Éclair, Séisme — §5). ⚠ **Les 30 cartes de sort (5 × 6) ne sont pas dans le
+PDF** — seuls trois effets de plateau sont décrits en toutes lettres.
+
+**Statistiques alternatives, SCRIPTÉES par quête** (pas des entrées de
+catalogue, des redéfinitions ponctuelles) : Guerriers du Dread d'élite de la
+garde de Zanrath, quête 3, p. 24 (M7 A5 D5 B3 Mi3) ; squelettes « créations
+spéciales » de Fanrax, quête 4, p. 26 (M6 A3 D3 B1 Mi0) ; orques d'élite de la
+garde de Nyashak, quête 6, p. 30 (M8 A4 D3 B1 Mi2, arc : 2 dés à distance) ;
+squelettes « constructions de fer », quête 10, p. 38 (M6 A3 D3 B1 Mi0) ;
+les quatre corps « réveillés » des sorciers avant leur forme véritable,
+quêtes 7-8, p. 34 (M6 A4 D4 B2 Mi5, sans sort).
+
+**Capacité générique — Ambush** (p. 6) : un monstre à embuscade (les
+Dreadshifters de cette boîte) est posé sur le plateau comme l'objet qu'il
+imite (porte ou coffre). Quatre déclencheurs de révélation : un héros entre
+dans l'une des 8 cases autour → remplacé par la figurine, agit aussitôt ; un
+héros fouille les pièges de la salle → révélé ; un héros fouille le trésor
+→ le mobilier est retiré, le monstre posé adjacent et attaque **aussitôt**
+(un jet d'attaque immédiat, hors tour) ; au tour du MJ, tous les embusqués
+encore cachés sont révélés et jouent normalement.
+
+**Minotaure nommé — Brak-Fellorn** (quêtes 7-8, p. 33) : stats = ligne
+Minotaur du tableau (7/4/5/6/4). « *Any wound that would reduce him to less
+than 1 Body Point is ignored. He may be killed once his heart is
+destroyed* » — cœur caché dans un labyrinthe séparé (tuiles Tunnel, §4),
+détruit par une action d'un héros adjacent au coffre qui le contient ; une
+fois le cœur détruit, il meurt normalement au prochain coup fatal.
+
+**Golems, note de quête (p. 19)** : « *When these Golems defend, one black
+shield rolled blocks all hits* » — règle PONCTUELLE à une quête (des statues
+de gardien), pas une capacité générale du Golem (dont le tableau p. 41 donne
+Defend 5 dés standard).
+
+### 3. Nouveaux objets, artefacts, sorts
+
+**Boutique de l'Alchimiste** (p. 2) : *Potion of Fire Resistance* (300 po,
+immunité à la prochaine attaque de feu magique, sort ou piège), *Potion of
+Magical Aptitude* (400 po, lancer 2 sorts connus au lieu d'1 pendant ce
+tour), *Potion of Healing* (500 po, 1 dé rouge de Body), *Potion of Magic
+Resistance* (300 po, annule les effets du prochain sort à dégâts lancé sur
+le buveur).
+
+**Trois nouveaux répertoires de sorts de héros**, noms seulement : *Spells of
+Protection*, *Spells of Detection*, *Spells of Darkness* — remplacent un
+répertoire existant d'un lanceur (l'Elfe garde le sien, le Magicien les
+trois siens). ⚠ Aucun texte de carte.
+
+**Trois artefacts nommés par le texte de quête**, jamais statués : *Urdyn the
+Unmaker* (quête 3, salle E, p. 24), *Drakehide Cuirass* (quête 5, trésor de
+Boroush, p. 28), *Elixir of Life* (quête 2, salle C, p. 18 — « *if this is
+already owned by a hero, find 2 Potions of Healing instead* »). ⚠ Aucun
+texte de carte pour les trois.
+
+**Huit cartes de trésor** ajoutées au deck de base, plus une carte « Nothing!»
+optionnelle (p. 6) — ⚠ aucun texte, seul le nombre est donné.
+
+**Règle « Unearth an Artifact »** (p. 6) : tirage d'un artefact non déjà
+possédé par un héros **et n'appartenant pas à cette extension** — les trois
+artefacts ci-dessus en sont donc explicitement exclus, trouvables seulement
+par leur note de quête nommée.
+
+### 4. Nouveau mobilier, nouvelles tuiles
+
+**Murs magiques** (*Wall of Ice / Wall of Flame / Wall of Stone*, sorts, p.
+10-11) : « *This barrier may be placed across two squares on the gameboard
+to form a solid, impassable wall that will remain on the board until it is
+destroyed* […] *Barriers defend with 6 Defend dice* […] *If the wall takes 1
+Body Point or more of damage, it is destroyed* » — **1 point de vie**, posé
+sur une ARÊTE de deux cases (pas une case), détruit par n'importe quel dégât.
+
+**Tuile Éclair** (*Lightning Strike*, p. 10-11) : ligne droite depuis le
+sorcier, touche tout ce qui est aligné jusqu'au premier mur ou mur magique
+rencontré (qui annule le sort et celui-ci en même temps si un Séisme le
+percute, p. 12).
+
+**Tuile Séisme** (*Earthquake*, p. 12) : 6 cases liées entre elles, chacune
+jouant comme une fosse ; on ne sort qu'en grimpant sur une case dégagée
+adjacente à la zone ; si la zone rencontre un mur donnant sur une salle/un
+couloir jouable, **le mur est BRISÉ** (jeton de mur brisé posé, salle non
+explorée révélée aussitôt) — sinon rien ne se passe.
+
+**Tuiles Tunnel** (p. 12-13, détaillées aussi p. 33) : passages souterrains
+liant deux points du plateau. Entrer dans un tunnel téléporte sur une case
+libre adjacente au tunnel apparié ; dans la quête-labyrinthe (7-8), on lance
+2 dés rouges et choisit l'un des deux résultats pour viser le tunnel numéroté
+correspondant.
+
+**Tuile Voile d'ombre** (*Cloak of Shadows*) : zone qui gêne la vue, liée à
+un sort de héros (texte sur la carte, non trouvé).
+
+**Pièges magiques** : voir §5. **Tuiles de clé** (argent/or), **tuile de mur
+brisé**, **tuile Autel/Coffre-cœur** (recto-verso), **tuile Laboratoire de
+l'Artificier** — composants de plateau, pas de règle propre.
+
+**Coffres renforcés** (« *Reinforced Chests* », tous les coffres de cette
+boîte, p. 6) : le butin n'est trouvé que la première fois qu'un héros
+**adjacent au coffre** fouille la salle ; un héros qui fouille sans être
+adjacent tire une carte de trésor ordinaire à la place. La salle reste
+fouillable une seule fois par héros, comme d'habitude.
+
+**Coffres du Dread** (quêtes 7-8, p. 34) : 1 point de vie, 6 dés de défense,
+**immunisés au feu**, leur destruction libère le sorcier correspondant.
+
+**Haut Autel** (objectif final, quête 10, p. 39) : pas un monstre — 6 points
+de vie, 4 dés de défense, attaqué au combat normal ; sa destruction termine
+la quête et la campagne.
+
+### 5. Nouvelles mécaniques de règle
+
+- **Trois pièges magiques** (p. 2, détaillés p. 7 et 12) : jamais trouvables
+  à la fouille, à usage unique. *Fireburst* : un héros termine son tour dans
+  la salle → jeton posé → explose au DÉBUT du tour suivant du MJ (3 dés
+  d'attaque de feu sur tous, héros et monstres, dans la salle) ; désamorcé
+  si un héros présent défausse un sort *Tempest* ou tout sort d'Eau.
+  *Hurricane* : en couloir, franchir la case marquée « X » repousse tous les
+  personnages du couloir de 8 cases en arrière (ou jusqu'au premier mur/
+  piège rencontré). *Teleport* : finir son mouvement sur la case « A »
+  téléporte sur la case « B » ailleurs sur le plateau, et désoriente (fin de
+  tour immédiate).
+- **Statut de Gardien (« Warden ») et mercenaires** (p. 8-9, dès la quête 2
+  terminée) : jusqu'à **4 mercenaires par héros**, quatre types — *Crossbowman*
+  (M6 A3 D3 B2 Mi2, 75 po, tir à distance), *Halberdier* (M6 A3 D3 B2 Mi2,
+  75 po, attaque en diagonale), *Scout* (M9 A2 D3 B2 Mi2, 50 po, désamorce
+  comme le Nain), *Swordsman* (M5 A4 D5 B2 Mi2, 100 po) — relus sur PNG
+  (p. 8-9). **Entretien de 10 po par quête** par mercenaire survivant, sinon
+  il quitte le groupe et doit être réengagé plein tarif ; seul le Scout
+  fouille/désamorce, aucun ne fouille le trésor ni n'utilise d'objet.
+- **Faveurs de Hopekins Rest** (« Boons of Heroism », p. 22-23, dès Gardien) :
+  au début de chaque quête, un héros visite UN lieu parmi neuf et reçoit sa
+  faveur, une seule à la fois. Cinq accordent une **compétence de héros
+  inédite** (noms seulement, aucun texte de carte) : *Dead Eye*, *Weapon
+  Expert*, *Healing Hands*, *Hold the Line*, *Peacekeeper*. Les quatre autres
+  sont mécaniques et sourcées en toutes lettres : engager un mercenaire
+  gratuitement, +2 points de vie de Body maximum, +1 Potion de guérison
+  (cumulable), un répertoire de sorts supplémentaire pour un lanceur. Après
+  la quête 10, la récompense passe à 2 faveurs par quête, choisies parmi 2
+  lieux.
+- **Don d'objet en quête** (« Passing Items », p. 6) : un héros peut tendre
+  une potion, un artefact, une arme ou tout autre objet à un allié sur une
+  case adjacente, à condition qu'aucun des deux ne soit adjacent à un
+  monstre.
+- Monstres à 0 point d'Esprit immunisés aux sorts mentaux, Grands monstres,
+  Déplacement non menacé (4 cases par dé sans monstre actif), portes
+  d'entrée/sortie fléchées : formulations identiques aux autres boîtes 2021+,
+  déjà couvertes ailleurs dans ce document.
+- **Statut « insubmersible » récurrent** : Sir Ragnar (quête 2, ne peut pas
+  mourir), la Gardienne (ne tombe jamais sous un certain seuil avant la
+  scène scriptée de sa disparition), Brak-Fellorn (immunisé sous 1 PV tant
+  que son cœur, caché ailleurs sur la carte, n'est pas détruit) — un même
+  patron scripté trois fois : un gabarit de quête fige un plancher de PV ou
+  une condition tierce avant d'autoriser la mort.
+- **Quête 1, embranchement de dialogue** (p. 16) : arrêter Krothgar ou non
+  mène à deux scènes différentes, convergeant sur le même objectif (vaincre
+  les mercenaires, atteindre la sortie) — de la couleur narrative, pas une
+  vraie divergence de chemin.
+
+### 6. Les dix quêtes (résumé)
+
+| # | Titre | Antagoniste / objectif | Neuf (N) / Originale (O) |
+|---|---|---|---|
+| 1 | In Service to Gold | mercenaires de la Guilde (combat de diversion) | N |
+| 2 | The Mercenary Captain | Sir Ragnar (retournement scripté) | N |
+| 3 | Tower of the High Mage | **Zanrath** | O |
+| 4 | Crypt of the Necromancer | **Fanrax** | O |
+| 5 | Eyrie of the Storm Master | **Boroush** | O |
+| 6 | Lair of the Warcaster | **Nyashak** | O |
+| 7-8 | The Dread Shrine of Eiretash / Halls of the Dead | Brak-Fellorn puis les 4 sorciers ressuscités (double quête, ressources non restaurées entre les deux) | N/O |
+| 9 | The Final Conflict | les 4 sorciers, formes finales | O |
+| 10 | High Altar of the Dread Shrine | la Gardienne, Brak-Fellorn reborn, le Haut Autel | N |
+
+---
+
 ## Tableau de synthèse
 
 | Boîte | Année | Héros jouables | Monstres neufs (types) | Mécaniques neuves majeures |
@@ -2203,6 +2445,7 @@ intégralement ce qu'elle fait.
 | Jungles of Delthrak | 2024 | 2 (Explorateur confirmé, Berserker probable)⚠ | 9 (Blightcrawler, Blightweaver, Giant Ape, Goblin/Skeleton Archer, Raptor, Serpent, Skullblight, Spawnling) | 3 modes de difficulté/mort, campagne ramifiée, terrain destructible, jetons de dégât différé |
 | The Crypt of Perpetual Darkness | 2024/25 | 0 | 0 (variantes nommées seulement) | Piège d'acide permanent, monstre-piège auto-déclenché, obscurité magique pénalisante |
 | First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak the Warlock (Move 6 · Att 3 · Déf 6 · Body 3 · Mind 6) ; Dragon (Move 10 · Att 5 · Déf 5 · Body 7 · Mind 6, Draconic Flight, Ball of Flame à volonté) | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |
+| Wizards of Morcar | 2025 | 0 (réimpression du Magicien) ⚠ Sir Ragnar, allié nommé jouable 2 quêtes, non chiffré | 8 (Storm Master, Orc Warcaster, Necromancer, High Mage, Artificer, Dreadshifters, Golems, Minotaur) dont 5 Sorciers du Dread nommés | Murs magiques destructibles (1 PV, arête de 2 cases), 3 pièges magiques non fouillables, statut de Gardien + mercenaires à entretien, faveurs de Hopekins Rest (compétences inédites), coffres renforcés (fouille à l'adjacence) |
 
 † Statistiques chiffrées de l'Abomination non trouvées dans Kellar's Keep
 lui-même ; confirmées comme faisant partie du bestiaire standard 2021 par

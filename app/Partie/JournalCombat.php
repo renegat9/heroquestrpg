@@ -205,6 +205,32 @@ final class JournalCombat
             }
         }
 
+        // MONSTRE À PHASES (chantier 2026-10-04) : trois annonces AUTOMATIQUES
+        // qu'aucun type d'action ne connaît — un héros, un allié, un sort ou un
+        // reflet de sort peuvent tous amener une instance à 0 Body, et
+        // `ligneType()` ne sait dire que « touché »/« vaincu ». Vérifiées ICI,
+        // au-dessus de TOUS les types d'action, exactement comme les pièges
+        // imbriqués plus haut — un effet automatique que rien n'annonce est
+        // injouable (même règle, trois lignes plus bas dans ce fichier).
+        if (is_array($a['changement_phase'] ?? null)) {
+            $avant = (string) ($a['changement_phase']['avant'] ?? 'La créature');
+            $apres = (string) ($a['changement_phase']['apres'] ?? 'une autre forme');
+            $lignes[] = $this->info("{$avant} vacille — et se relève sous une autre forme : {$apres} !");
+        }
+
+        if (is_string($a['reaction_monstre'] ?? null)) {
+            $lignes[] = $this->info(match ($a['reaction_monstre']) {
+                'ignore_degats_attaque' => 'La créature ignore intégralement le coup — une défense à usage unique vient de jouer',
+                'increvable_une_fois' => 'La créature s\'effondre… et tient debout à 1 PV, une seule fois',
+                default => 'La créature active une défense à usage unique',
+            });
+        }
+
+        if (is_array($a['reddition_monstre'] ?? null)) {
+            $or = (int) ($a['reddition_monstre']['or'] ?? 0);
+            $lignes[] = $this->info("Vaincue, la créature s'incline plutôt que de mourir — {$or} po rejoignent le trésor du groupe");
+        }
+
         // Les DÉS du jet, attachés à la ligne qui décrit le coup (la première :
         // les suivantes sont des conséquences — chute, piège imbriqué). C'est
         // ce qui donne l'HISTORIQUE : le fil garde ses jets, là où l'overlay de
@@ -539,6 +565,11 @@ final class JournalCombat
             'jeter' => [$this->info("{$acteurNom} jette ".($a['objet'] ?? 'un objet').' — définitif')],
             'attaque_allie' => $this->attaqueOffensive($a['allie'] ?? 'Allié', $a),
             'attaque_monstre' => $this->attaqueMonstre($a),
+            // MOBILIER ATTAQUABLE (PV + défense, 2026-10-04) : Crystal
+            // Cluster, Haut Autel, Coffre du Dread — un effet automatique
+            // (les PV qui tombent) que rien n'annonçait serait injouable,
+            // exactement la faute que ce fichier corrige partout ailleurs.
+            'attaque_mobilier' => $this->attaqueMobilier($a, $acteurNom),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteurNom),
             'actionner_levier' => $this->levier($a, $acteurNom),
             // PORTE DE PIERRE (Against the Ogre Horde p. 4) : un effet
@@ -1025,6 +1056,35 @@ final class JournalCombat
         }
 
         return $lignes;
+    }
+
+    /**
+     * Attaque d'un héros contre un MEUBLE à PV/défense (2026-10-04) — Crystal
+     * Cluster, Haut Autel, Coffre du Dread. Même détail de dés que
+     * `attaqueOffensive()` (`detailDes()`), un ton distinct pour la
+     * destruction d'un OBJET plutôt que la mort d'une créature.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function attaqueMobilier(array $a, string $acteurNom): array
+    {
+        $meuble = (string) ($a['mobilier'] ?? 'le meuble');
+        $degats = (int) ($a['degats'] ?? 0);
+        $des = $this->detailDes($a);
+
+        if (! empty($a['detruit'])) {
+            return [['texte' => "{$acteurNom} détruit {$meuble} !{$des}", 'ton' => 'mort']];
+        }
+
+        if ($degats > 0) {
+            return [['texte' => "{$acteurNom} ébrèche {$meuble} (−{$degats} PV){$des}", 'ton' => 'degats']];
+        }
+
+        // Même distinction que `attaqueOffensive()` : manqué ≠ paré.
+        return (int) ($a['touches'] ?? 0) === 0
+            ? [['texte' => "{$acteurNom} manque {$meuble}{$des}", 'ton' => 'echec']]
+            : [['texte' => "{$meuble} résiste à l'assaut de {$acteurNom}{$des}", 'ton' => 'pare']];
     }
 
     /**

@@ -6,7 +6,10 @@ namespace App\Partie;
 
 use App\Events\HerosVaSubirDegats;
 use App\Models\EtatPersonnageQuete;
+use App\Models\InstanceMonstre;
+use App\Models\Monstre;
 use App\Models\Personnage;
+use App\Support\Journal;
 
 /**
  * Point de passage UNIQUE des dégâts infligés à un HÉROS.
@@ -31,6 +34,19 @@ use App\Models\Personnage;
  * d'esprit, PAS un paramètre `$jauge` sur celle du Body : les deux jauges ne
  * partagent ni leurs réactions, ni leur réduction, ni leur mémoire — voir son
  * docblock pour ce qu'elle reprend et ce qu'elle laisse délibérément de côté.
+ *
+ * `infligerAMonstre()` (2026-10-04) est une TROISIÈME méthode sœur, pour les
+ * dégâts à un MONSTRE — même raison de famille que `infligerMindAHeros()` :
+ * aucune réaction hors tour, aucune réduction de talent (un monstre n'a ni
+ * l'un ni l'autre), mais elle existe pour une toute autre règle, propre aux
+ * monstres : DOUZE endroits (`ResolveurTour`, `MoteurDread`) décidaient
+ * chacun pour leur compte si une instance à 0 Body devait porter `etat:
+ * vaincu` — exactement le défaut que ce fichier corrige pour les héros depuis
+ * 2026-09-xx, mais côté monstre. Un monstre À PHASES (Against the Ogre Horde
+ * p. 6 : « adopt new statistics […] still considered the same monster »)
+ * n'y meurt pas : il change de forme. `infligerAMonstre()` est l'UNIQUE point
+ * de passage qui le sait, quel que soit le coup qui l'amène à 0 — attaque de
+ * héros, sort, allié, reflet de sort, eau bénite, attaque d'un autre monstre.
  *
  * Voir `reference/19_mots_cles_effets.md` §Regain et §Dégâts.
  */
@@ -96,6 +112,28 @@ final class MoteurDegats
      * Body pour des points d'esprit perdus.
      */
     public const SOURCE_SORT_DREAD_MIND = 'sort_dread_mind';
+
+    // ------------------------------------------------------------------
+    // Sources des dégâts à un MONSTRE (infligerAMonstre(), 2026-10-04) —
+    // purement INFORMATIVES (le journal des réactions/phases les cite), aucune
+    // ne pilote de logique : contrairement aux sources ci-dessus, rien ici ne
+    // dépend de QUI a frappé pour décider d'une réduction ou d'une réaction.
+    // ------------------------------------------------------------------
+
+    /** Un héros (ou son arme lancée) frappe un monstre au contact ou à distance. */
+    public const SOURCE_ATTAQUE_HEROS = 'attaque_heros';
+
+    /** Un sort de HÉROS blesse un monstre (cible directe ou collatérale d'une zone). */
+    public const SOURCE_SORT_HEROS = 'sort_heros';
+
+    /** Un allié (mercenaire, animal) frappe un monstre. */
+    public const SOURCE_ATTAQUE_ALLIE = 'attaque_allie';
+
+    /** Un monstre (sbire dominé, reflet de sort) en frappe un autre. */
+    public const SOURCE_ATTAQUE_MONSTRE_SUR_MONSTRE = 'attaque_monstre_sur_monstre';
+
+    /** Eau bénite — tue instantanément un mort-vivant (doc 16 §10). */
+    public const SOURCE_EAU_BENITE = 'eau_benite';
 
     /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
@@ -324,5 +362,292 @@ final class MoteurDegats
         $this->memoriser($heros, $source, $subis);
 
         return $subis;
+    }
+
+    /**
+     * Applique `$degats` au Body d'un MONSTRE et rend ce qui s'est RÉELLEMENT
+     * passé — l'UNIQUE point de passage par lequel un monstre peut mourir,
+     * quel que soit le chemin de dégâts (attaque de héros, sort de héros ou
+     * de Dread, allié, reflet de sort, eau bénite, un monstre qui en frappe un
+     * autre). Voir le docblock de la classe pour pourquoi il existe.
+     *
+     * À 0 Body (ou moins), dans cet ORDRE — chacun scopé à CETTE rencontre
+     * (`instances_monstres.capacites_reactives_utilisees`), jamais remis à
+     * zéro par un simple changement de phase :
+     *
+     *  1. **Résilience** (`reactions_defense` contient `ignore_degats_attaque`
+     *     — Gruzbella/*Resilience*, Gretzl/*Demon Wings*) : encore
+     *     disponible, le coup entier est ignoré. Politique de PORTAGE
+     *     délibérée (aucune carte ne dit QUAND Zargon doit la jouer, et rien
+     *     dans ce projet ne lui fait choisir une mécanique) : elle ne se
+     *     déclenche JAMAIS avant le coup qui achèverait sinon la phase
+     *     courante — jamais gaspillée sur une égratignure.
+     *  2. **Increvable une fois** (`increvable_une_fois` — Sir Ragnar, Rise
+     *     of the Dread Moon p. 31 : « The first time […] reduced to 0, they
+     *     are instead reduced to 1 ») : plancher à 1, une fois.
+     *  3. **Phases** (`monstres.phase_suivante` déclaré sur la ligne de
+     *     catalogue COURANTE) : adopte la statistique suivante — nouveau
+     *     `monstre_id`, Body ET Mind pleins de la nouvelle phase, tout le
+     *     reste de l'instance (position, conditions, habillage, usages déjà
+     *     dépensés) inchangé, puisque « still considered the same monster ».
+     *     Annoncé par un évènement de journal DÉDIÉ, en plus du retour —
+     *     garanti même si un futur appelant oublie de le relayer dans son
+     *     propre payload.
+     *  4. **Mort réelle** (dernière phase, ou monstre ordinaire) :
+     *     `recompense_reddition` (Gruzbella vaincue « s'incline et paie
+     *     1000 po », jamais une vraie mort) crédite le groupe avant de poser
+     *     `etat: vaincu`.
+     *
+     * ⚠ Ce que cette méthode NE FAIT PAS, et pourquoi, comme pour
+     * `infligerMindAHeros()` : pas de `HerosVaSubirDegats` (aucune carte de
+     * héros ne réagit à un coup porté à un monstre), pas de
+     * `Talents::valeur('reduction_degats')` (un monstre n'en porte pas), pas
+     * de `memoriser()` (`degats_subis` est un compteur de HÉROS, lu par la
+     * Plume anti-poison — un monstre n'a pas d'inventaire à soigner).
+     *
+     * @param  array<string, mixed>  $contexte
+     * @return array{degats: int, pv_body: int, pv_body_max: int, etat: string,
+     *     vaincu: bool, changement_phase: array{avant: string, apres: string}|null,
+     *     reaction: string|null, survie_increvable: bool, reddition: bool, or_gagne: int}
+     */
+    public function infligerAMonstre(
+        InstanceMonstre $instance,
+        int $degats,
+        string $source,
+        array $contexte = [],
+    ): array {
+        $degats = max(0, $degats);
+        $avant = (int) $instance->pv_body;
+        $apres = max(0, $avant - $degats);
+
+        $neutre = fn (int $degatsRetenus): array => [
+            'degats' => $degatsRetenus,
+            'pv_body' => (int) $instance->pv_body,
+            'pv_body_max' => $instance->pvBodyMax(),
+            'etat' => $instance->etat,
+            'vaincu' => $instance->etat === 'vaincu',
+            'changement_phase' => null,
+            'reaction' => null,
+            'survie_increvable' => false,
+            'reddition' => false,
+            'or_gagne' => 0,
+        ];
+
+        if ($degats === 0 || $apres > 0) {
+            if ($apres !== $avant) {
+                $instance->update(['pv_body' => $apres, 'etat' => 'actif']);
+            }
+
+            return $neutre($avant - $apres);
+        }
+
+        // Le coup achèverait la phase courante (ou tuerait un monstre
+        // ordinaire) — politique de secours, dans l'ORDRE documenté plus haut.
+
+        if ($instance->reactionDisponible('ignore_degats_attaque')) {
+            $instance->consommerReaction('ignore_degats_attaque');
+            $this->journaliserDefenseMonstre($instance, 'ignore_degats_attaque', $source, $contexte);
+
+            return [
+                'degats' => 0,
+                'pv_body' => (int) $instance->pv_body,
+                'pv_body_max' => $instance->pvBodyMax(),
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => null,
+                'reaction' => 'ignore_degats_attaque',
+                'survie_increvable' => false,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
+        if ($instance->reactionDisponible('increvable_une_fois')) {
+            $instance->consommerReaction('increvable_une_fois');
+            $instance->update(['pv_body' => 1, 'etat' => 'actif']);
+            $this->journaliserDefenseMonstre($instance, 'increvable_une_fois', $source, $contexte);
+
+            return [
+                'degats' => $avant - 1,
+                'pv_body' => 1,
+                'pv_body_max' => $instance->pvBodyMax(),
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => null,
+                'reaction' => null,
+                'survie_increvable' => true,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
+        $prochaine = $instance->monstre->monstrePhaseSuivante();
+
+        if ($prochaine !== null) {
+            $nomAvant = $instance->monstre->nom_base;
+            $nouveauMax = $this->pvMaxPhaseSuivante($instance, $prochaine);
+
+            $instance->update([
+                'monstre_id' => $prochaine->id,
+                'pv_body' => $nouveauMax,
+                'pv_body_max' => $nouveauMax,
+                'pv_mind' => (int) $prochaine->pv_mind,
+                'etat' => 'actif',
+            ]);
+            // La relation `monstre` reste en cache sur l'instance tant qu'on ne
+            // la force pas à relire — sans ce rafraîchissement, l'appelant qui
+            // relit `$instance->attaqueEffective()` juste après verrait encore
+            // les dés de l'ANCIENNE phase.
+            $instance->setRelation('monstre', $prochaine);
+
+            $this->journaliserChangementPhase($instance, $nomAvant, $prochaine->nom_base);
+
+            return [
+                'degats' => $avant,
+                'pv_body' => $nouveauMax,
+                'pv_body_max' => $nouveauMax,
+                'etat' => 'actif',
+                'vaincu' => false,
+                'changement_phase' => ['avant' => $nomAvant, 'apres' => $prochaine->nom_base],
+                'reaction' => null,
+                'survie_increvable' => false,
+                'reddition' => false,
+                'or_gagne' => 0,
+            ];
+        }
+
+        // Mort réelle — dernière phase, ou monstre qui n'en a aucune.
+        $reddition = $instance->capaciteParametree('recompense_reddition');
+        $orGagne = 0;
+
+        if (is_array($reddition) && (int) ($reddition['or'] ?? 0) > 0) {
+            $orGagne = (int) $reddition['or'];
+            $groupe = $instance->quete?->groupe;
+
+            if ($groupe !== null) {
+                $groupe->update(['or' => (int) $groupe->or + $orGagne]);
+            }
+
+            $this->journaliserReddition($instance, $orGagne);
+        }
+
+        $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
+
+        return [
+            'degats' => $avant,
+            'pv_body' => 0,
+            'pv_body_max' => $instance->pvBodyMax(),
+            'etat' => 'vaincu',
+            'vaincu' => true,
+            'changement_phase' => null,
+            'reaction' => null,
+            'survie_increvable' => false,
+            'reddition' => $orGagne > 0,
+            'or_gagne' => $orGagne,
+        ];
+    }
+
+    /**
+     * Bonus de Body élite appliqué à une NOUVELLE phase — même valeur que
+     * `InstanceMonstre::BONUS_ELITE`, dupliquée en constante plutôt
+     * qu'importée : les deux classes ne partagent aujourd'hui aucune
+     * dépendance l'une vers l'autre, et il ne s'agit que d'un entier (1) fixé
+     * par la règle 3.6, pas d'une donnée qui pourrait diverger.
+     */
+    private const BONUS_ELITE_PHASE = 1;
+
+    /**
+     * Le Body MAX de la phase suivante — à la même ÉCHELLE que la phase
+     * courante, pas la valeur BRUTE du catalogue.
+     *
+     * `DemarreurQuete::pvAdapte()` ajuste le Body d'un boss/sous-boss à la
+     * taille du groupe au PLACEMENT (`pv_catalogue × nb_héros /
+     * taille_reference`, plancher 40 %) — une seule fois, jamais revisité
+     * depuis. Sans ce calcul, Gruzbella posée devant un duo (Body adapté à 3
+     * sur sa première phase, catalogue 5) RETROUVERAIT le Body catalogue
+     * PLEIN de sa forme suivante au premier changement de phase — un boss
+     * adouci pour un petit groupe durcirait soudain, EN PLEIN COMBAT, sans
+     * qu'aucune règle ne le demande.
+     *
+     * On retrouve le ratio déjà appliqué (Body max actuel ÷ Body catalogue
+     * actuel, bonus élite mis à part) et on le réapplique à la nouvelle
+     * phase — ce qui restitue exactement `pvAdapte()` pour un monstre non
+     * élite, et reste cohérent pour les trois phases de Gruzbella (Body 5
+     * identique partout, donc un ratio de 1).
+     */
+    private function pvMaxPhaseSuivante(InstanceMonstre $instance, Monstre $prochaine): int
+    {
+        $bonusElite = $instance->elite ? self::BONUS_ELITE_PHASE : 0;
+        $maxActuelSansElite = max(1, $instance->pvBodyMax() - $bonusElite);
+        $catalogueActuel = max(1, (int) $instance->monstre->pv_body);
+        $ratio = $maxActuelSansElite / $catalogueActuel;
+
+        return max(1, (int) round((int) $prochaine->pv_body * $ratio)) + $bonusElite;
+    }
+
+    /**
+     * Annonce un CHANGEMENT DE PHASE — journal dédié, garanti même si
+     * l'appelant oublie de relayer `changement_phase` dans son propre
+     * payload. « Zargon, do not reveal the second set of statistics » (Ogre
+     * Horde p. 6) : le texte nomme la créature et sa nouvelle forme, jamais
+     * ses dés.
+     */
+    private function journaliserChangementPhase(InstanceMonstre $instance, string $nomAvant, string $nomApres): void
+    {
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe === null) {
+            return;
+        }
+
+        Journal::ajouter($groupe, 'combat', [
+            'type' => 'changement_phase',
+            'instance_id' => (int) $instance->id,
+            'nom' => $instance->nomAffiche(),
+            'changement_phase' => ['avant' => $nomAvant, 'apres' => $nomApres],
+        ]);
+    }
+
+    /**
+     * Annonce une DÉFENSE RÉACTIVE consommée (Résilience/Demon Wings,
+     * Increvable une fois) — même raison qu'une capacité automatique de
+     * héros : un effet que rien n'annonce est injouable.
+     */
+    private function journaliserDefenseMonstre(
+        InstanceMonstre $instance,
+        string $mecanique,
+        string $source,
+        array $contexte,
+    ): void {
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe === null) {
+            return;
+        }
+
+        Journal::ajouter($groupe, 'combat', [
+            'type' => 'reaction_monstre',
+            'instance_id' => (int) $instance->id,
+            'nom' => $instance->nomAffiche(),
+            'mecanique' => $mecanique,
+            'source_degats' => $source,
+        ] + (isset($contexte['sort']) ? ['sort' => $contexte['sort']] : []));
+    }
+
+    /** Annonce une REDDITION (Gruzbella) — une mort qui n'en est pas une. */
+    private function journaliserReddition(InstanceMonstre $instance, int $or): void
+    {
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe === null) {
+            return;
+        }
+
+        Journal::ajouter($groupe, 'combat', [
+            'type' => 'reddition',
+            'instance_id' => (int) $instance->id,
+            'nom' => $instance->nomAffiche(),
+            'or_gagne' => $or,
+        ]);
     }
 }

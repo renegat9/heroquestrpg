@@ -196,13 +196,14 @@ class MonstreSeeder extends Seeder
                 'tier' => 'boss', 'boite' => null, 'cout' => 17,
                 'capacites' => [], 'sorts_dread' => [], 'archetype_lanceur' => 'maitre_tempetes'],
 
-            // ----- Monstre à choix tactique (3.7) -----
-            // `choix_attaque` : cible robuste (PV > seuil) → coup massif unique
-            // (dés +massive_des_bonus) ; cible affaiblie → double_nombre attaques.
-            // Décision 100 % moteur (ResolveurTour). `cout` sous le leader sous_boss.
+            // ----- Deux attaques par tour (Frozen Horror p. 37) -----
+            // `deux_attaques` : « attacks once with its mighty paw and once with
+            // its spiked mace » — sur une cible, ou une sur chacune de deux.
+            // Remplace `choix_attaque` (mécanique de nous, 2026-10-04). Décision
+            // 100 % moteur (`ResolveurTour::deuxAttaques()`). `cout` sous le leader sous_boss.
             ['nom_base' => 'Ours polaire de guerre', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 6, 'pv_mind' => 2,
                 'tier' => 'sous_boss', 'boite' => 'horreur_des_glaces', 'cout' => 9,
-                'capacites' => ['choix_attaque' => ['seuil' => 2, 'massive_des_bonus' => 2, 'double_nombre' => 2]],
+                'capacites' => ['deux_attaques'],
                 'sorts_dread' => []],
 
             // ----- Grande figurine multi-cases (3.9) -----
@@ -279,6 +280,35 @@ class MonstreSeeder extends Seeder
                 'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 17, 'capacites' => ['ethere'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_effroi'],
 
+            // SIR RAGNAR (boss, quête 9, p. 31 — docs/plan-dread-moon.md lot I,
+            // porté AVEC Ogre Horde comme René l'a tranché le 2026-10-04).
+            // Stats relues M/A/D/B/Mi : 5/5/5/4/4 (même ordre que Magrian/
+            // l'Ombre du Dread ci-dessus — confirmé par recoupement : « 9/6/4/5/5 »
+            // de Magrian donne M9 A6 D4 B5 Mi5, exactement les valeurs DÉJÀ
+            // seedées de l'Ombre du Dread avant divergence assumée de Défense).
+            // Règle propre, verbatim : « The first time Sir Ragnar's Body
+            // Points are reduced to 0, they are instead reduced to 1 » — PAS
+            // le mot-clé `phases` (aucune nouvelle statistique, aucune
+            // deuxième forme) : une capacité `increvable_une_fois`, lue au
+            // MÊME point de passage unique que les phases
+            // (`MoteurDegats::infligerAMonstre()`), une fois pour toute la
+            // rencontre.
+            ['nom_base' => 'Sir Ragnar', 'deplacement' => 5, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'dread_moon', 'cout' => 14, 'capacites' => ['increvable_une_fois'], 'sorts_dread' => []],
+
+            // ⚠ Magrian, le Dread Wraith (boss final, quête 10, p. 33) reste
+            // NON semée comme créature nommée distincte : ses QUATRE
+            // capacités à usage unique sans action (*Terror*, *Consume
+            // Magic*, *Reflection*, *Shift Reality*) dépassent le vocabulaire
+            // `reactions_defense` construit ici pour Gruzbella/Gretzl
+            // (`ignore_degats_attaque` seul) — *Reflection* redirige un coup
+            // APRÈS l'avoir subi, *Shift Reality* lance un sort en DÉBUT de
+            // tour : deux mécaniques sans point de passage encore construit.
+            // L'« Ombre du Dread » ci-dessus reste son habillage, exactement
+            // comme avant ce chantier (`docs/plan-dread-moon.md` lot I le dit
+            // explicitement : « Magrian redevient un sous-boss nommé » une
+            // fois CES patrons-là construits, pas celui des phases).
+
             // ---- The Mage of the Mirror (doc 18) ----
             // L'archer elfe est la seconde créature à distance du bestiaire :
             // « Attack 4 (1 si adjacent) ».
@@ -288,7 +318,10 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Guerrier elfe', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 3, 'pv_mind' => 2,
                 'tier' => 'base', 'boite' => 'mage_du_miroir', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
             ['nom_base' => 'Loup géant', 'deplacement' => 9, 'attaque' => 6, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 1,
-                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 11, 'capacites' => ['charge'], 'sorts_dread' => []],
+                // `grande_taille` : le livret nomme le Loup géant grande figurine ;
+                // l'Ogre garde aussi ses 2 cases (René, 2026-10-04).
+                'tier' => 'sous_boss', 'boite' => 'mage_du_miroir', 'cout' => 11, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['charge'], 'sorts_dread' => []],
             // ⚠ Le lanceur de l'*Invocation de loups* (René, 2026-09-04 : « on
             // devrait créer un boss elfique qui utiliserait Invocation de
             // loups »). Il n'a pas fallu l'inventer : c'est **Sinestra,
@@ -347,6 +380,75 @@ class MonstreSeeder extends Seeder
                 'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 22, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['frappe_de_zone', 'resistance_magique'], 'sorts_dread' => []],
 
+            // Doralf, pit fighter ogre (q. 2, Against the Ogre Horde p. 21) —
+            // M6 A5 D6 B7 Mi3 (ordre de lecture du plan : A/D/M/B/Mi). Tier
+            // SOUS-BOSS (Q7, René 2026-10-02) malgré une résistance de boss
+            // (~10,5 attaques de héros à 3 dés pour l'abattre) : « il n'a
+            // AUCUNE capacité, une brute très dure » — d'où un `cout` au
+            // sommet du palier sous-boss plutôt qu'au niveau d'un boss.
+            ['nom_base' => 'Doralf', 'deplacement' => 6, 'attaque' => 6, 'defense' => 5, 'pv_body' => 7, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 13, 'capacites' => [], 'sorts_dread' => []],
+
+            // MONSTRE À PHASES (chantier transverse 2026-10-04, lot C,
+            // Against the Ogre Horde p. 6 et 21) : « Some powerful foes adopt
+            // new statistics as the heroes battle them […] still considered
+            // the same monster for game effects such as spells. » À 0 Body,
+            // l'instance adopte la ligne nommée par `phase_suivante` au lieu
+            // de mourir — lu par l'UNIQUE point de passage,
+            // `MoteurDegats::infligerAMonstre()`. `null` = dernière phase.
+            //
+            // GRUZBELLA HAMMERHAND (q. 3, p. 21), BOSS de la boîte — jusqu'ici
+            // « pauvre en boss », n'ayant que le Seigneur ogre. 3 formes,
+            // stats relues A/D/M/B/Mi : Confiante 4/6/5/5/4 → Déterminée
+            // 5/5/7/5/4 → Imprudente 6/1/8/5/4 (Body et Mind inchangés, seule
+            // la fougue grimpe et la garde tombe). `reactions_defense` :
+            // SEULE *Resilience* (« ignore tous les dégâts d'une attaque »,
+            // une fois pour toute la rencontre) est portée — *Break* (« met
+            // fin à un sort actif sur elle ») et *Deflect* (« redirige
+            // l'attaque vers un héros dans ses 10 cases ») attendent un
+            // patron non construit ici (interception du ciblage / de la pose
+            // de condition sur toute la rencontre plutôt qu'au seul point de
+            // passage de la mort) — DÉLIBÉRÉMENT absentes plutôt que
+            // déclarées sans lecteur. Vaincue (dernière phase à 0 Body),
+            // « elle s'incline » : `recompense_reddition` crédite 1000 po au
+            // groupe au lieu d'une mort — ELLE N'EST PAS maléfique (p. 2).
+            // `cout` : somme des attaques-à-3-dés par phase (10 + 7,5 + 3,75
+            // ≈ 21,25), arrondie au niveau du Seigneur ogre (22) dont elle
+            // partage la résistance totale.
+            ['nom_base' => 'Gruzbella Hammerhand', 'deplacement' => 5, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Déterminée'],
+            ['nom_base' => 'Gruzbella Déterminée', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'sorts_dread' => [], 'phase_suivante' => 'Gruzbella Imprudente'],
+            ['nom_base' => 'Gruzbella Imprudente', 'deplacement' => 8, 'attaque' => 6, 'defense' => 1, 'pv_body' => 5, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'horde_ogre', 'cout' => 23,
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque'], 'recompense_reddition' => ['or' => 1000]],
+                'sorts_dread' => [], 'phase_suivante' => null],
+
+            // SPAWN OF THE PIT (q. 1, p. 21), SOUS-BOSS (Q7). 2 formes, stats
+            // relues A/D/M/B/Mi : 4/3/6/4/3 → Enraged 5/1/10/6/1. Aucune
+            // capacité réactive sourcée pour ce monstre (le livret n'en donne
+            // aucune, contrairement à Gruzbella) — seules les phases.
+            ['nom_base' => 'Spawn of the Pit', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 4, 'pv_mind' => 3,
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 12, 'capacites' => [], 'sorts_dread' => [],
+                'phase_suivante' => 'Spawn of the Pit déchaîné'],
+            ['nom_base' => 'Spawn of the Pit déchaîné', 'deplacement' => 10, 'attaque' => 5, 'defense' => 1, 'pv_body' => 6, 'pv_mind' => 1,
+                'tier' => 'sous_boss', 'boite' => 'horde_ogre', 'cout' => 12, 'capacites' => [], 'sorts_dread' => [],
+                'phase_suivante' => null],
+
+            // ⚠ Guardian Effigy (q. 4, p. 27 — stats A3 D5 M0 B2 Mi0 déjà
+            // relevées en lot A du plan Ogre Horde) reste NON semée ici :
+            // « immobile, boule de feu à 3 dés sur un héros en vue chaque
+            // tour, immunisée à tous les sorts » est un patron de TOURELLE
+            // (déplacement 0 + attaque à distance automatique + immunité
+            // totale aux sorts) qu'aucun lecteur du moteur ne construit
+            // aujourd'hui — nommé plutôt que deviné, comme demandé (René,
+            // 2026-10-04). Un sous-boss de plus sans ce patron serait une
+            // brute ordinaire qui ne bougerait jamais, pas l'Effigie.
+
             // ---- Jungles of Delthrak (doc 18) ----
             // Attaque 0 au livret : le rejeton ne frappe pas, il S'ACCROCHE.
             // Son tour adjacent à un héros le convertit en JETON sur sa fiche —
@@ -377,6 +479,56 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Singe géant', 'deplacement' => 8, 'attaque' => 4, 'defense' => 3, 'pv_body' => 7, 'pv_mind' => 5,
                 'tier' => 'sous_boss', 'boite' => 'jungles_delthrak', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['agile'], 'sorts_dread' => []],
+
+            // GRETZL LA PORTE-FLÉAU (q. 12A, boss final — docs/plan-delthrak.md
+            // lot A, reference/18_extensions.md l. 1376-1385) : PREMIER boss
+            // du thème `jungles_delthrak`, resté « actif mais sans boss »
+            // depuis le premier portage (2026-08-10). MONSTRE À PHASES (même
+            // mécanisme que Gruzbella plus haut, chantier transverse
+            // 2026-10-04) — 3 formes, stats relues M/A/D/B/Mi : Phase 1 M6 A4
+            // D3 B5 Mi6 ; Phase 2 « Demonspider » M8 A5 D4 B4 Mi3 (Agile,
+            // Venimeux) ; Phase 3 « Demonape » M8 A6 D2 B6 Mi1 (Agile).
+            // ⚠ L'astérisque sur l'Attaque des trois phases EST sourcé et
+            // résolu (reference/18, note de bas de tableau) : « tir à
+            // distance possible en ligne de vue », aux MÊMES dés que
+            // l'attaque de contact — ni un malus de portée (contrairement à
+            // l'Archer elfe) ni une seconde valeur. NON porté ici : décider
+            // au tour d'un monstre entre contact et distance, à dés
+            // identiques, demanderait de toucher la sélection de cible du
+            // tour monstre (`MoteurDread`), hors du périmètre de ce chantier
+            // — nommé plutôt que deviné, même traitement que Deflect/Break.
+            //
+            // Sorts (archétype `gretzl_porte_fleau`, config/archetypes_lanceurs.php),
+            // identiques dans les trois phases — rien ne dit qu'elle désapprend
+            // un sort en changeant de forme : Étreinte des Ronces, Canaliser
+            // l'Effroi, Frayeur, TOUS déjà semés (SortDreadSeeder).
+            //
+            // `reactions_defense` : *Demon Wings* (« ignore tous les dégâts
+            // d'une attaque », `ignore_degats_attaque`) est portée, dans les
+            // TROIS phases — « toujours le même monstre » pour ses capacités
+            // aussi. *Dispel* (« annule un sort la ciblant ») reste absente
+            // ici, même raison que *Break* chez Gruzbella (interception de la
+            // pose de condition sur toute une rencontre : patron non construit,
+            // nommé plutôt que deviné).
+            //
+            // `cout` : somme des attaques-à-3-dés par phase (5 + 4,8 + 5,14
+            // ≈ 14,9), interpolée comme le Dragon (First Light) entre les
+            // bosses existants plutôt qu'inventée au hasard.
+            ['nom_base' => 'Gretzl la Porte-Fléau', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 6,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
+                'phase_suivante' => 'Demonspider'],
+            ['nom_base' => 'Demonspider', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'capacites' => ['agile', 'venimeux', 'reactions_defense' => ['ignore_degats_attaque']],
+                'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
+                'phase_suivante' => 'Demonape'],
+            ['nom_base' => 'Demonape', 'deplacement' => 8, 'attaque' => 6, 'defense' => 2, 'pv_body' => 6, 'pv_mind' => 1,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
+                'capacites' => ['agile', 'reactions_defense' => ['ignore_degats_attaque']],
+                'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
+                'phase_suivante' => null],
 
             // ---- First Light (2024) ----
             // Source : carte de monstre « Dragon » photographiée par René
@@ -409,6 +561,40 @@ class MonstreSeeder extends Seeder
                 'tier' => 'boss', 'boite' => 'first_light', 'cout' => 16, 'grande_taille' => ['l' => 1, 'h' => 2],
                 'capacites' => ['vol_draconique', 'sort_a_volonte' => ['sort' => 'Boule de Flammes']],
                 'sorts_dread' => ['Boule de Flammes']],
+
+            // ---- Prophecy of Telor (docs/plan-telor.md lot E) ----
+            // SORCIER DU DREAD — monstre GÉNÉRIQUE (deux apparitions, q. 7 et
+            // q. 9, mêmes stats CONFIRMÉES identiques sur le rendu PNG des
+            // deux pages). Stats relues M/A/D/B/Mi : 8/4/4/3/4. Tier SOUS_BOSS
+            // (Q3, René) — un répertoire qui porte malgré tout DEUX sorts de
+            // palier `boss` (Nuée d'Effroi, Commandement) : l'archétype se
+            // déclare COMPLET (les cinq sorts des deux quêtes : Boule de
+            // Flammes, Tourmente, Frayeur, Nuée d'Effroi, Commandement, TOUS
+            // déjà semés), et c'est le FILTRE PAR PALIER de
+            // `MoteurDread::sortsDisponibles()` qui retire silencieusement les
+            // deux sorts `boss` pour une créature `sous_boss` — exactement le
+            // même mécanisme qui réduit déjà le répertoire du Chamane Gobelin.
+            // Rien à construire : pure donnée, le palier existant suffit.
+            // `cout` : même profil de résistance que le Garde-mage (Body 3,
+            // Défense 4 → 3,6 attaques-à-3-dés), même valeur.
+            ['nom_base' => 'Sorcier du Dread', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'prophecy_telor', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
+                'archetype_lanceur' => 'sorcier_dread_telor'],
+
+            // ⚠ Fellmarak, le Roi Sorcier (boss, seul boss chiffré du livret,
+            // Q3) reste NON semé. Sa règle sourcée dit qu'il NE MEURT PAS
+            // normalement : quête 12, « Fellmarak cannot be killed […] he
+            // screams and flees » (il FUIT, la quête continue sans lui) ;
+            // quête 13, sa fin dépend d'un tirage aléatoire dans une pioche de
+            // sorts de Dread réduite (« Zargon's Flame », capacité nommée
+            // `mort_sur_tirage`, scopée à cette seule rencontre, Telor Q6).
+            // NI L'UN NI L'AUTRE n'est le mot-clé `phases` de ce chantier — et
+            // aucun des deux n'est construit : le semer comme un boss
+            // ORDINAIRE le ferait mourir à 0 Body comme n'importe quel autre,
+            // ce que sa propre carte interdit. Semer un boss qui contredit sa
+            // fiche serait la clé décorative inverse (une STAT sourcée, un
+            // COMPORTEMENT qui la trahit) — laissé de côté, nommé plutôt que
+            // deviné, en attendant un passage dédié à ces deux mécanismes.
         ];
 
         foreach ($monstres as $monstre) {

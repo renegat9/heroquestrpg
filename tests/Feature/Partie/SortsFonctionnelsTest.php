@@ -203,7 +203,7 @@ it('recense explicitement les mots dont la mécanique n\'existe pas', function (
 
     // …mais AUCUN sort ne doit plus s'appuyer dessus. Tempête portait
     // `monstres_zone` alors que le texte officiel dit « un monstre choisi »
-    // (Kellar's Keep p. 15) : la dette était en réalité une erreur de donnée.
+    // (Kellar's Keep p. 28-29) : la dette était en réalité une erreur de donnée.
     foreach (Sort::all() as $sort) {
         foreach ((array) $sort->effet as $cle => $valeur) {
             expect(MotsClesSort::estNonImplemente($cle))

@@ -85,11 +85,32 @@ class MercenaireController extends Controller
 
         $donnees = $request->validate([
             'mercenaire_id' => ['required', 'integer', 'min:1'],
+            // QUI le contrôlera en quête (chantier 3a, 2026-10-04 : « un
+            // allié est TOUJOURS joué par son joueur ») — optionnel, le
+            // PREMIER héros actif de ce joueur par défaut, même patron que
+            // `achats[].personnage_id` au marché.
+            'personnage_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         if ($groupe->phase !== 'hub') {
             throw ValidationException::withMessages([
                 'groupe' => 'Le recrutement n\'est possible qu\'au hub, entre deux quêtes.',
+            ]);
+        }
+
+        $mesHeros = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->where('joueur_id', $joueur?->id)
+            ->orderBy('personnages.id')
+            ->get();
+
+        $recruteur = isset($donnees['personnage_id'])
+            ? $mesHeros->firstWhere('id', $donnees['personnage_id'])
+            : $mesHeros->first();
+
+        if ($recruteur === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => 'Ce héros n\'est pas un de vos héros actifs de ce groupe.',
             ]);
         }
 
@@ -119,12 +140,13 @@ class MercenaireController extends Controller
             ]);
         }
 
-        $recrue = DB::transaction(function () use ($groupe, $mercenaire) {
+        $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur) {
             $groupe->decrement('or', (int) $mercenaire->prix);
 
             return GroupeMercenaire::create([
                 'groupe_id' => $groupe->id,
                 'mercenaire_id' => $mercenaire->id,
+                'recruteur_personnage_id' => $recruteur->id,
                 'pv_body' => (int) $mercenaire->pv_body,
                 'etat' => 'actif',
             ]);
@@ -134,6 +156,7 @@ class MercenaireController extends Controller
             'action' => 'mercenaire_recrute',
             'mercenaire' => $mercenaire->nom,
             'prix' => (int) $mercenaire->prix,
+            'recruteur_personnage_id' => $recruteur->id,
         ]);
 
         broadcast(new EtatGroupeDiffuse($groupe, $etatGroupe->payload($groupe->fresh())));
@@ -144,6 +167,7 @@ class MercenaireController extends Controller
                 'nom' => $mercenaire->nom,
                 'type' => $mercenaire->type,
                 'animal' => (bool) $mercenaire->animal,
+                'recruteur_personnage_id' => $recruteur->id,
             ],
             'or' => (int) $groupe->fresh()->or,
         ], 201);

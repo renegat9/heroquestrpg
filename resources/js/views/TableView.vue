@@ -1363,6 +1363,9 @@ watch(() => store.state.clotureTerminee, (t) => {
 .table-screen .fig.foe { background: linear-gradient(160deg, var(--body-bright), var(--ember-deep)); color: var(--parch-100); border-color: oklch(0.7 0.18 28); }
 /* allié recruté (3.5) : teinte verte amicale, distincte des héros et ennemis */
 .table-screen .fig.ally { background: linear-gradient(160deg, oklch(0.7 0.13 155), oklch(0.5 0.12 158)); color: var(--parch-100); border-color: oklch(0.8 0.14 150); }
+/* captif d'une mission « secourir » (chantier 3b, 2026-10-04) : ni ami ni
+   ennemi tant qu'il n'est pas libéré — teinte ambre, distincte des deux. */
+.table-screen .fig.captif { background: linear-gradient(160deg, oklch(0.78 0.13 80), oklch(0.6 0.13 70)); color: var(--stone-950); border-color: oklch(0.85 0.15 85); }
 .table-screen .fig.cur { box-shadow: var(--glow-torch), var(--sh-2); border-color: var(--torch); }
 /* §2.1 — l'ancien `animation: figpulse` animait un box-shadow : chaque frame
    repeignait l'arbre entier (59 s de style+layout sur 60 s mesurées). Le halo

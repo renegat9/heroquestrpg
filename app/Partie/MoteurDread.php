@@ -221,6 +221,15 @@ final class MoteurDread
             default => $this->repertoireSorts($instance->monstre) === [] ? 0 : self::USAGES_BASE,
         };
 
+        // Capacités réactives à usage unique du monstre à phases
+        // (increvable_une_fois, reactions_defense) : réarmées à CHAQUE
+        // placement — une nouvelle rencontre, jamais un changement de phase
+        // (voir la migration qui ajoute la colonne) — qu'il ait ou non un
+        // répertoire de sorts. Hors du `if ($usages === 0) return` qui suit :
+        // sans lui, un monstre de tier `base` qui porterait un jour l'une de
+        // ces capacités resterait muet, sa réinitialisation jamais atteinte.
+        $instance->update(['capacites_reactives_utilisees' => []]);
+
         if ($usages === 0) {
             return;
         }
@@ -610,12 +619,16 @@ final class MoteurDread
      * comme avant, rendait toute capacité paramétrée invisible à ce test —
      * c'est le piège dans lequel `spawn` était déjà tombé, et `pondre()` le
      * contournait avec un `data_get()` de son côté.
+     *
+     * ⚠ RELAIS depuis le 2026-10-04 : la lecture elle-même vit maintenant sur
+     * {@see InstanceMonstre::aCapacite()}, pour que `MoteurDegats::infligerAMonstre()`
+     * (le point de passage unique de la mort d'un monstre) puisse la lire sans
+     * dépendre de CE service — qui, lui, dépend déjà de `MoteurDegats` pour les
+     * dégâts aux héros. Les quinze appelants existants n'ont rien à changer.
      */
     public function aCapacite(InstanceMonstre $instance, string $capacite): bool
     {
-        $capacites = (array) ($instance->monstre->capacites ?? []);
-
-        return in_array($capacite, $capacites, true) || array_key_exists($capacite, $capacites);
+        return $instance->aCapacite($capacite);
     }
 
     /**
@@ -1705,11 +1718,13 @@ final class MoteurDread
     /**
      * Un sort de zone blesse aussi les MONSTRES qui s'y tiennent.
      *
-     * ⚠ Passe par `InstanceMonstre` directement et non par `MoteurDegats`, qui
-     * n'existe que pour les héros (c'est lui qui ouvre les réactions et lit les
-     * réductions de talent — un monstre n'a ni l'un ni l'autre). Le feu marque
-     * la créature comme brûlée, exactement comme un sort de héros : le troll
-     * cesse de régénérer, quelle que soit la main qui a allumé la flamme.
+     * ⚠ Passe par `MoteurDegats::infligerAMonstre()` depuis le 2026-10-04 (le
+     * point de passage UNIQUE de la mort d'un monstre, que CE chemin-ci aurait
+     * autrement contourné en silence) — mais PAS par `infligerAHeros()`, qui
+     * n'existe que pour les héros (réactions hors tour, réductions de talent :
+     * un monstre n'a ni l'un ni l'autre). Le feu marque la créature comme
+     * brûlée, exactement comme un sort de héros : le troll cesse de régénérer,
+     * quelle que soit la main qui a allumé la flamme.
      *
      * @return array<string, mixed>
      */
@@ -1719,15 +1734,17 @@ final class MoteurDread
             $monstre->update(['brule' => true]);
         }
 
-        $avant = (int) $monstre->pv_body;
-        $apres = max(0, $avant - max(0, $degats));
-
-        $monstre->update(['pv_body' => $apres] + ($apres === 0 ? ['etat' => 'vaincu'] : []));
+        $resultatMort = $this->degats->infligerAMonstre(
+            $monstre, max(0, $degats), MoteurDegats::SOURCE_SORT_DREAD,
+        );
 
         return [
-            'degats' => $avant - $apres,
-            'pv_body_apres' => $apres,
-            'vaincu' => $apres === 0,
+            'degats' => $resultatMort['degats'],
+            'pv_body_apres' => $resultatMort['pv_body'],
+            'vaincu' => $resultatMort['vaincu'],
+            'changement_phase' => $resultatMort['changement_phase'],
+            'reaction_monstre' => $resultatMort['reaction'],
+            'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
         ];
     }
 

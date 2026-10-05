@@ -14,6 +14,7 @@ use App\Models\Carte;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Objet;
@@ -1736,6 +1737,29 @@ final class MenuMoteur
                 ];
             }
 
+            // LIBÉRER UN CAPTIF (mission « secourir », 2026-10-04, chantier 3b) :
+            // un héros au contact d'un captif NON ENCORE libéré peut le libérer
+            // — il devient un allié contrôlé par CE héros pour le reste de la
+            // quête (chantier 3a, `ResolveurTour::resoudreLibererCaptif()`).
+            // Sacrifie le tour, comme relever un compagnon tombé : libérer
+            // quelqu'un n'est pas un geste qu'on fait en passant.
+            $captifs = GroupeMercenaire::where('groupe_id', $groupe->id)
+                ->where('etat', 'captif')
+                ->whereNotNull('position_x')
+                ->with('mercenaire')
+                ->get()
+                ->filter(fn (GroupeMercenaire $c) => abs((int) $c->position_x - (int) $etat->position_x)
+                    + abs((int) $c->position_y - (int) $etat->position_y) === 1);
+
+            foreach ($captifs as $captif) {
+                $options[] = [
+                    'id' => "liberer_{$captif->id}",
+                    'libelle' => "Libérer {$captif->mercenaire?->nom}",
+                    'type' => 'liberer_captif',
+                    'parametres' => ['allie_id' => (int) $captif->id],
+                ];
+            }
+
             // Désamorcer un piège détecté (Nain / trousse à outils).
             if ($detectes !== [] && $this->pieges->peutDesamorcer($personnage)) {
                 foreach ($detectes as $adjacent) {
@@ -2138,6 +2162,23 @@ final class MenuMoteur
                     ];
                 }
 
+                // MOBILIER ATTAQUABLE — la TROISIÈME voie, au COMBAT (2026-10-04).
+                // Crystal Cluster (Delthrak, 6 PV, « cannot defend »), Haut Autel
+                // et Coffres du Dread (Morcar, « attacked in the normal way ») :
+                // on frappe comme un monstre, pas de tentative limitée par héros
+                // — un coup qui ne suffit pas laisse le meuble ENTAMÉ, retentable
+                // au tour suivant comme à celui-ci par un autre héros.
+                foreach ($this->mobilier->attaquablesAdjacents($quete->carte, $px, $py) as $meuble) {
+                    $pvRestants = MoteurMobilier::pvRestants($meuble['entree'], $meuble['type']);
+
+                    $options[] = [
+                        'id' => "attaquer_mobilier_{$meuble['index']}",
+                        'libelle' => "Attaquer : {$meuble['nom']} ({$pvRestants} PV)",
+                        'type' => 'attaquer_mobilier',
+                        'parametres' => ['mobilier' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
+                }
+
                 // MUR DE GLACE (Ice Wall, plan glace phase 2) — l'option qui
                 // manquait à `MoteurDread::endommagerMurDeGlace()` : écrite,
                 // testée directement, mais aucune case n'était atteignable
@@ -2351,6 +2392,125 @@ final class MenuMoteur
         return [
             'situation' => $aJoue ? 'Tour terminé — au tour des autres héros.' : 'Vous progressez dans le donjon.',
             'options' => $this->avecCreneaux($options),
+        ];
+    }
+
+    /**
+     * Menu d'un ALLIÉ JOUÉ PAR SON JOUEUR (2026-10-04, chantier 3a) — second
+     * menu reçu par la manette du héros qui le contrôle, juste après le sien
+     * ({@see OrdreDuTour::acteurActif()}). Déplacement et attaque SEULEMENT —
+     * « ni porte ni potion » (Ogre Horde p. 9) — avec les MÊMES règles que le
+     * moteur appliquait hier tout seul (`ResolveurTour::jouerAllie()`,
+     * conservée pour mémoire) : cible adjacente ou visible en ligne de mire
+     * pour un allié à distance, sinon le chemin le plus court vers un
+     * ennemi — sauf que c'est désormais le JOUEUR qui choisit QUEL ennemi,
+     * pas le moteur.
+     *
+     * @return array<string, mixed>
+     */
+    public function genererMenuAllie(Groupe $groupe, Quete $quete, GroupeMercenaire $allie): array
+    {
+        $merc = $allie->mercenaire;
+        $nom = $merc?->nom ?? 'Allié';
+        $options = [];
+
+        if ($merc !== null && $allie->position_x !== null) {
+            $ax = (int) $allie->position_x;
+            $ay = (int) $allie->position_y;
+            $diagonales = in_array('attaque_diagonale', (array) ($merc->capacites ?? []), true);
+            $grille = FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id);
+
+            $monstres = $quete->instancesMonstres()
+                ->where('etat', 'actif')->where('revele', true)
+                ->whereNotNull('position_x')->with('monstre')->get();
+
+            // Cibles attaquables SANS bouger : adjacentes (emprise comprise),
+            // ou à distance en ligne de vue dégagée pour un allié à distance —
+            // même garde que `ciblesPourArme()` côté héros.
+            $cibles = [];
+            foreach ($monstres as $m) {
+                $e = $m->monstre->emprise();
+                $adjacent = $grille->adjacenteAEmprise(
+                    (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], $ax, $ay, $diagonales,
+                );
+                $visible = ! $adjacent && $merc->aDistance() && $grille->ligneDeVueEmprise(
+                    $ax, $ay, (int) $m->position_x, (int) $m->position_y, $e['l'], $e['h'], figuresBloquent: true,
+                );
+
+                if ($adjacent || $visible) {
+                    $cibles[] = [
+                        'id' => $m->id,
+                        'type' => 'monstre',
+                        'nom' => $m->nomAffiche(),
+                        'nom_base' => $m->monstre->nom_base,
+                        'distance' => ! $adjacent,
+                    ];
+                }
+            }
+
+            if (! $allie->a_agi && $cibles !== []) {
+                $options[] = [
+                    'id' => 'attaquer_allie',
+                    'libelle' => "Attaquer avec {$nom}",
+                    'type' => 'attaque',
+                    'parametres' => ['cibles' => $cibles],
+                ];
+            }
+
+            // Déplacement : UNE destination par monstre qui n'est pas déjà
+            // attaquable sans bouger — « approcher X », plutôt que la liste
+            // de toutes les cases atteignables (même esprit que le pilotage
+            // d'hier : rejoindre un ennemi précis, mais désormais choisi par
+            // le joueur, pas deviné par le moteur).
+            if (! $allie->a_deplace) {
+                $cibleIds = array_column($cibles, 'id');
+                $grilleMvt = FabriqueGrille::pour($quete, exceptMercenaireId: $allie->id, franchitAllies: true);
+                $destinations = [];
+
+                foreach ($monstres as $m) {
+                    if (in_array($m->id, $cibleIds, true)) {
+                        continue; // déjà attaquable sans bouger
+                    }
+
+                    $e = $m->monstre->emprise();
+                    $meilleur = null;
+
+                    foreach ($grille->cellulesEmprise((int) $m->position_x, (int) $m->position_y, $e['l'], $e['h']) as $cell) {
+                        foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+                            $chemin = $grilleMvt->chemin($ax, $ay, $cell['x'] + $dx, $cell['y'] + $dy);
+
+                            if ($chemin !== null && ($meilleur === null || count($chemin) < count($meilleur))) {
+                                $meilleur = $chemin;
+                            }
+                        }
+                    }
+
+                    if ($meilleur !== null) {
+                        $destinations[] = ['cle' => "vers:{$m->id}", 'nom' => 'Approcher '.$m->nomAffiche()];
+                    }
+                }
+
+                if ($destinations !== []) {
+                    $options[] = [
+                        'id' => 'se_deplacer_allie',
+                        'libelle' => "Déplacer {$nom}",
+                        'type' => 'deplacement_allie',
+                        'parametres' => ['destinations' => $destinations],
+                    ];
+                }
+            }
+        }
+
+        $options[] = [
+            'id' => 'attendre_allie',
+            'libelle' => "Terminer le tour de {$nom}",
+            'type' => 'attente_allie',
+        ];
+
+        return [
+            'situation' => "C'est le tour de {$nom}, votre allié — vous le contrôlez (ni porte, ni potion).",
+            'allie_id' => $allie->id,
+            'options' => $options,
         ];
     }
 }

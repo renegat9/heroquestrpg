@@ -25,7 +25,7 @@ Routes protégées par middleware `auth` sauf connexion.
 | PUT | /api/groupes/{identifiant}/ordre | {ordre:[personnage_id,…]} | réordonne l'ordre du tour (ordre_initiative) — **HUB seulement**, permutation exacte des héros actifs, **membre OU table** ; rediffuse `.prets.maj` réordonné |
 | POST | /api/groupes/{identifiant}/choix | {option_id, parametres?} | 202 — le moteur résout, l'état et la narration arrivent par Reverb |
 | POST | /api/groupes/{identifiant}/deplacement/apercu | {x, y} | {atteignable, raison?, chemin: [{x,y}], cout, restant, restant_apres, pieges: [{x,y,nom,etat}]} — **le trajet EXACT** que le héros parcourrait, AVANT de valider (voir §Aperçu du trajet) |
-| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros) |
+| GET | /api/groupes/{identifiant}/menu | — | {menu, personnage_id, allie_id} \| {menu: null} — rattrapage du menu courant (régénéré si c'est le tour du héros, OU de l'allié qu'il contrôle — chantier 3a, `allie_id` alors non-null) |
 
 ## EtatGroupe (GET etat + broadcast `.groupe.etat`)
 
@@ -41,7 +41,7 @@ Routes protégées par middleware `auth` sauf connexion.
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours",
-            "objectif": "atteindre_et_recuperer|vaincre_sous_boss|vaincre_boss_final|quitter_donjon|null",
+            "objectif": "atteindre_et_recuperer|vaincre_sous_boss|vaincre_boss_final|quitter_donjon|secourir|null",
             "objectif_libelle": "phrase sans vocabulaire de jeu | null",
             "objectif_accompli": true,
             "objectif_majeur": false,
@@ -53,7 +53,9 @@ Routes protégées par middleware `auth` sauf connexion.
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
      "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
-     "pv_body": 2, "pv_body_max": 2, "etat": "actif"}
+     "pv_body": 2, "pv_body_max": 2, "etat": "actif"},
+    {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
+     "pv_body": 2, "pv_body_max": 2, "image_url": "/images/..."}
   ],
   "initiative": [{"entite": "heros|allie|monstre", "id": 1, "nom": "...", "a_joue": false, "tombe": false, "image_url": "/images/..."}],
   "narration": "dernier texte du MJ",
@@ -171,7 +173,7 @@ avant celle du coup fatal qui a provoqué le TPK).
 | `groupe.{identifiant}` | `.table.scene` | {sequence, genre, titre, sous_titre?, acteurs: [{role, nom, image_url, pv?}], jet?, deplacement?, figure?, objets: [{nom, image_url, detail?}], issue: {ton, libelle}} | **écran de table SEUL** — la SCÈNE illustrée de l'événement qui vient d'être résolu : portraits de l'attaquant et du défendeur, volée de dés, objet trouvé, piège déclenché, contenu d'une salle révélée. Émise en synchrone par le résolveur depuis le **même résultat moteur** que `.combat.journal`, sans LLM. ⚠ Le journal APLATIT ce résultat en texte : les identités y meurent, donc aucune image ne peut plus y être résolue — d'où un événement PARALLÈLE plutôt qu'une ligne enrichie (une ligne de journal est un résumé destiné à défiler, lu aussi par les manettes). `genre` ∈ `attaque\|jet\|piege\|fouille\|salle\|sort\|chute\|objet\|deplacement\|reaction` (`SceneDeTable::GENRES`, testé dans les deux sens). **`deplacement`** (2026-09-16) annonce le **début du tour d'un héros** : son portrait et le jet de déplacement **du tour**, `deplacement: {des: [int], calcul, de_annule, de_annule_par, sans_menace}` — `des` les faces réellement tombées (deux avec les Bottes elfiques), `calcul` la phrase DÉCIDÉE par le serveur (« 5 + 4 = 9 cases », dé annulé par l'armure, Raquettes, Vent Véloce et potion compris), identique à la `portee` de l'option `se_deplacer`. `de_annule`/`de_annule_par` (2026-09-24, voir §« L'Armure de plates FAIT PERDRE LE DÉ » plus bas) sont ce qui laisse la table barrer le dé d'un ✕ — `de_annule_par` vaut `null` dès que le dé compte. `sans_menace` (2026-09-30, voir §« Unthreatened Movement » plus bas) dit que le dé **comptait 4 sans être lancé**, faute de monstre actif révélé sur le plateau. ⚠ Cette phrase a porté `malus`/`malus_source` quelques heures, le temps que René tranche que la plate retire le dé entier plutôt que deux cases : si un lecteur les cherche encore, il cherche une forme abandonnée. `deplacement` vaut `null` sur tous les autres genres, comme `jet` hors d'un coup. ⚠ Le dé est lancé **au tour du héros**, plus au début du round pour tous : c'est ce qui fait partir la scène au bon moment, et une fois seulement — la garde est la colonne `deplacement_tour`, pas un cache. ⚠ **Toutes les `image_url` sont RÉSOLUES CÔTÉ SERVEUR** (`BibliothequeImages`, repli jusqu'à l'emblème SVG) : jamais un identifiant que le client devrait joindre, jamais un cadre vide — les scènes marchent sans clé d'IA. `jet` reprend exactement la forme de `des` ci-dessus. `sequence` est **le même compteur que le journal** (anti-inversion) ; ⚠ elle ne passe PAS par le garde de `.narration.diffusee`, qui choisit un texte de bandeau et n'a pas à décider si une image s'affiche. **`figure`** (`heros:{id}`\|`monstre:{id}`, même clé que les `mouvements` de l'état, sinon `null`) veut dire **« cette figurine vient de marcher : attends la fin de son trajet »** — publiée SEULEMENT si elle a marché dans la même résolution (`ResolveurTour::figuresEnMarche()`). La table n'affiche la scène qu'une fois ce trajet joué, et garde l'ordre d'arrivée (la tête de file bloque les suivantes) : le coup d'un monstre ne s'affiche plus pendant qu'il marche encore vers sa cible. ⚠ Elle attend le trajet **même s'il n'est pas encore arrivé** (3 s au plus) : la scène, petit message, précède couramment l'état qui porte les trajets, gros message publié par l'autre worker — mesuré, 756 ms d'avance. **`reaction`** (2026-09-17) : la réaction hors tour ACCEPTÉE depuis une manette (`POST reaction`), souvent pendant le tour d'un monstre, qui ne s'arrête pas pendant que le joueur réfléchit — portraits de celui qui réagit et de celui qu'il protège, l'artefact et son dé de perte le cas échéant ; une riposte (*Représailles*) réutilise la scène d'`attaque`, nom de la réaction en sous-titre. ⚠ La scène ne retarde JAMAIS l'offre de réaction : celle-ci part sur `joueur.{id}` à l'instant de l'attaque, avec son compte à rebours. ⚠ L'écran de table les **enchaîne dans l'ordre d'arrivée** (une file, et non plus une seule place d'attente qui écrasait la précédente : une chute suivie d'un début de tour perdait la chute), et une scène arrivée pendant la carte d'ouverture ou le prologue **attend** qu'ils se ferment au lieu de s'écouler dessous. **La DURÉE n'est pas dans le payload** : le retour à la carte se fait au clic sur l'écran du narrateur, ou après un délai réglé dans ses paramètres (défaut 5 s, préférence d'APPAREIL comme le volume, persistée en `localStorage`) |
 | `groupe.{identifiant}` | `.groupe.etat` | EtatGroupe + `mouvements?` | table + manettes. **`mouvements`** (diffusion seule, jamais dans `GET /etat`) : `[{type: heros\|monstre, id, depart: {x, y}, chemin: [{x, y}]}]`, les trajets de la résolution qui a produit cet état, que la table rejoue case par case AVANT de poser les positions finales. ⚠ **Dans le même message que l'état** depuis le 2026-09-17 : ils partaient dans un `.mouvement.anime` séparé « juste avant », mais la file `temps-reel` a DEUX workers et l'ordre de publication n'était pas garanti. ⚠ La table **tient toutes les figurines du lot sur leur case de départ dès réception**, puis les fait marcher une à une : tenue une seule à la fois, la suivante sautait à l'arrivée pendant que la première marchait, puis revenait au départ pour refaire le trajet (mesuré, deux gobelins). La caméra ne suit pas le héros actif tant que des monstres marchent |
 | `groupe.{identifiant}` | `.mj.reflechit` | {actif} | table + manettes |
-| `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}} | manette du joueur |
+| `joueur.{id}` (private) | `.menu.propose` | {menu: {contexte, options: [{id, libelle, type: "action|dialogue|jet|attaque|deplacement", parametres}]}, groupe_id, personnage_id, allie_id} | manette du joueur — `allie_id` non-null (chantier 3a) : c'est le tour de l'allié contrôlé par ce héros, pas le sien |
 
 Un tour de héros = **deux créneaux** (doc 03 §28) : un **déplacement** et une
 **action**, jouables **dans n'importe quel ordre et entrelacés** — agir n'annule
@@ -615,7 +617,7 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 | Méthode | URL | Corps | Effet |
 |---|---|---|---|
 | GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description, image_url}]` (group-agnostique, comme `/competences`) |
-| POST | /groupes/{identifiant}/mercenaires | {mercenaire_id} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, ou 2ᵉ compagnon animal) |
+| POST | /groupes/{identifiant}/mercenaires | {mercenaire_id, personnage_id?} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, or insuffisant, 2ᵉ compagnon animal, ou `personnage_id` hors des héros actifs DE CE JOUEUR) — `personnage_id` désigne qui le CONTRÔLERA en quête (chantier 3a) ; absent, le PREMIER héros actif de ce joueur, même patron que `achats[].personnage_id` au marché |
 
 ⚠ **Le Squelette Hearthkin (First Light, FL-Q p. 6, lot C) partage ce
 catalogue SANS jamais y figurer** (`mercenaires.octroi_seul`). Il n'existe
@@ -625,19 +627,67 @@ que par l'action du Cor des Hearthkin (`POST .../choix {option_id:
 quête (pas celui qui a soufflé seul) place un squelette **Move 8 · Attack 2
 · Defend 2 · Body 1 · Mind 0** sur une case de SA propre salle ou de son
 couloir ; `recruteur_personnage_id` dit qui le contrôle. Le cor se brise
-(perdu à l'usage, redevient trouvable). Deux divergences NOMMÉES avec la
-carte : il joue dans la MÊME phase alliée que les autres (jamais « juste
-après son porteur »), et comme tout allié de ce projet il n'est jamais la
-cible d'une attaque de monstre (« hors périmètre v1 », voir ci-dessus) —
-`defense` existe sur sa fiche sans lecteur, comme pour tout mercenaire.
-`POST /groupes/{identifiant}/mercenaires` avec son id répond 422.
+(perdu à l'usage, redevient trouvable). Depuis le 2026-10-04 (chantier 3a,
+ci-dessous) il joue comme n'importe quel allié, **dans le tour du héros qui
+le contrôle** — la divergence « phase alliée commune, jamais juste après son
+porteur » notée ici avant cette date est **close**. Reste nommée : comme
+tout allié de ce projet il n'est jamais la cible d'une attaque de monstre
+(« hors périmètre v1 », voir ci-dessus) — `defense` existe sur sa fiche sans
+lecteur, comme pour tout mercenaire. `POST /groupes/{identifiant}/mercenaires`
+avec son id répond 422.
 
 PNJ **scriptés** (hors roster), **consommés en fin de quête** (purgés à la
 victoire comme à l'échec). Au démarrage de quête ils sont instanciés sur les
-cases de spawn restantes, à côté des héros. Ils jouent en **phase dédiée**, juste
-AVANT les monstres et **hors initiative des héros** : ils ciblent les monstres
-(tir avec ligne de vue pour un allié à distance, sinon corps-à-corps). Réponse :
+cases de spawn restantes, à côté des héros. Réponse :
 `{recrue:{id,nom,type,animal}, or}` ; broadcast `.groupe.etat`.
+
+### Un allié est joué par SON JOUEUR (chantier 3a, 2026-10-04)
+
+**Décision de René, qui remplace la « phase alliée dédiée » décrite plus
+haut dans les versions antérieures de ce document** : un allié (mercenaire,
+compagnon animal, ou captif libéré — §« Mission "secourir" » ci-dessous) ne
+joue plus dans une phase à part après tous les héros. Il joue **dans le tour
+du héros qui le contrôle** (`recruteur_personnage_id`), **juste après lui**,
+depuis **la manette de ce même joueur** — un SECOND menu, pas un second
+personnage : `GET /menu` et `.menu.propose` restent la même route et le même
+événement, sur le canal `joueur.{id}` du CONTRÔLEUR, mais quand c'est le tour
+de son allié la réponse porte en plus `allie_id` (non-null) à côté de
+`personnage_id` (qui reste l'identité du HÉROS, pour l'auth — c'est toujours
+sa manette). Le menu de l'allié n'a que deux familles d'options — **ni porte
+ni potion** (Ogre Horde p. 9) — avec les cibles/destinations légales déjà
+décidées par le serveur, jamais recalculées côté client :
+- `type: "deplacement_allie"` (id `se_deplacer_allie`) : `parametres.destinations`
+  = `[{cle: "vers:{instance_id}", nom: "Approcher <monstre>"}]`, une entrée
+  par monstre que l'allié peut rejoindre — pas une case libre, un ADVERSAIRE à
+  approcher (même esprit que son ancien pilotage automatique, mais choisi
+  par le joueur). `POST /choix {option_id: "se_deplacer_allie", parametres:
+  {cle}}`.
+- `type: "attaque"` (id `attaquer_allie`) : `parametres.cibles` = la même
+  forme qu'une cible de héros (`{id, type: "monstre", nom, nom_base,
+  distance}`) — adjacentes, ou visibles en ligne de mire pour un allié à
+  distance. `POST /choix {option_id: "attaquer_allie", parametres:
+  {cible_id, cible_type: "monstre"}}`.
+- `type: "attente_allie"` (id `attendre_allie`) : termine son tour sans agir.
+
+Chaque option consomme son créneau comme un héros (`a_deplace`/`a_agi` sur
+`groupe_mercenaires`), et son tour ne se termine que sur `attendre_allie` —
+jusque-là, un second appel peut encore déplacer PUIS attaquer. Le résultat
+d'un tour d'allié a la MÊME forme qu'avant (`type: "attaque_allie"` /
+`"deplacement_allie"` / `"attente_allie"`, `allie_id`, `mercenaire_id`) —
+mais il n'est plus NICHÉ sous `resultat.tour_allies.actions` : c'est
+désormais le résultat **top-level** d'un `POST /choix` à part entière, celui
+de l'allié. ⚠ **`resultat.tour_allies` a disparu** avec la phase dédiée ;
+`resultat.tour_monstres.actions` reste (la phase des monstres, elle, n'a pas
+changé).
+
+⚠ **Contrôleur TOMBÉ : décision nommée, jamais un allié qui bloque le
+tour.** Le serveur ne suit la présence d'aucun JOUEUR (seul le narrateur a un
+heartbeat, `table:active:{id}`) — « absent » n'est donc observable, pour
+cette règle, qu'à travers « tombé » (0 PV Body). Un héros tombé est sauté par
+l'ordre d'initiative (`OrdreDuTour::acteurActif()`), **lui et l'allié qu'il
+contrôle** : l'allié n'agit pas ce round (il attend), jamais un transfert de
+contrôle à un autre joueur. Dès que son héros se relève, l'allié reprend son
+tour normal au round suivant, juste après lui. → `docs/regles/combat-et-tour.md`
 
 Le front calcule la disponibilité (or suffisant, animal déjà pris) **côté
 client** à partir de l'état vivant : `EtatGroupe.groupe.or` + le bloc **hub**
@@ -663,6 +713,14 @@ les **faces des dés** (`faces_attaque`, `faces_defense`, `face_touchante`,
 `face_defensive`, `ResultatAttaque::pourJournal()`, comme une attaque de
 monstre) : la scène d'un allié n'affichait aucun dé.
 
+**Deux attaques par tour (Ours polaire de guerre, 2026-10-04).** Une
+`attaque_monstre` peut porter `mode: "deux_attaques"` et `repartition` :
+`"une_cible"` = **une seule** action dont la volée compte le **double** des dés
+d'attaque contre **un** jet de défense (« only 1 defend roll against that monster
+per turn », Frozen Horror p. 9) ; `"deux_cibles"` = **deux** actions (`coup` 1
+et 2) dans un `actions_composites`, une par héros au contact. Remplace
+`mode: "massive" | "double"` (capacité `choix_attaque`, retirée).
+
 **Les monstres attaquent les alliés (René, 2026-10-04).** Un monstre vise la
 figure **la plus proche**, héros ou allié (à distance égale, le héros) ; un
 archer, la plus **faible** en vue, allié compris. L'attaque sur un allié est
@@ -676,13 +734,51 @@ avec son image et ses PV. ⚠ Les capacités spéciales (étreinte, frappe de
 zone, choix tactique, vol, accroche) et les sorts de Dread visent encore les
 **seuls héros** — limite nommée.
 
+### Mission « secourir » (chantier 3b, 2026-10-04)
+
+Nouveau type d'objectif de quête (`quete.objectif = "secourir"`, voir
+§« Objectif de quête » plus haut) : un **captif** sourcé (Gothar, *The Frozen
+Horror* p. 19/37 — le Prospecteur et la Princesse Millandriel de *The Mage of
+the Mirror* suivront quand leur profil sera sourcé) est posé dans la
+salle-objectif de la quête à l'assemblage, comme un coffre. Il apparaît dans
+`EtatGroupe.entites` avec `type: "captif"` (`{id, nom, x, y, pv_body,
+pv_body_max, image_url}` — pas de dés d'attaque/défense, il ne se bat pas),
+**caché tant que sa salle n'est pas découverte** (même garde que les
+monstres dormants). `quete.objectif_libelle` nomme le captif dès qu'il est
+posé (« Retrouver Gothar et le ramener vivant à la sortie. »).
+
+Un héros à son contact voit l'option `type: "liberer_captif"` (id
+`liberer_{allie_id}`, `parametres.allie_id`) — sacrifie le tour, comme
+relever un compagnon. `POST /choix {option_id: "liberer_{id}"}` le libère :
+il devient un **allié ordinaire** (`groupe_mercenaires.etat` passe de
+`"captif"` à `"actif"`, `recruteur_personnage_id` = ce héros) et rejoue
+désormais comme n'importe quel allié (§ ci-dessus) — plus jamais sous
+`type: "captif"` dans `entites`, il bascule sous `type: "allie"`.
+
+`quete.objectif_accompli` vaut `true` dès qu'il est **libéré et vivant**
+(la sortie elle-même suit le vote ordinaire, comme tout autre objectif) ;
+`false` tant qu'il est captif. **S'il meurt** (un monstre l'achève après
+libération — les sorts de Dread visent encore les seuls héros), la quête
+**échoue immédiatement**, même verdict et même cérémonie qu'un TPK (retour
+au hub, alliés consommés, snapshots conservés pour `/reprise`) : « escort the
+Barbarian… If the Barbarian dies, Gothar is automatically captured » (Frozen
+Horror p. 19), généralisé à toute mort du captif désigné.
+
+⚠ **Simplification nommée** : la mission n'est pas encore filtrée par thème
+de bestiaire (Gothar peut apparaître habillé par l'IA dans un donjon d'un
+autre thème que *The Frozen Horror*) — à resserrer si une seconde fiche
+sourcée (le Prospecteur, la Princesse Millandriel) rend la généralisation
+payante. → `docs/regles/combat-et-tour.md`, `docs/regles/exploration-et-fouille.md`
+
 **Un allié traverse les héros et les autres alliés** (2026-10-01) — pas les
 monstres, pas les meubles —, sans jamais s'arrêter sur une case occupée. Dans
 un couloir d'une case, un héros posté entre lui et le monstre le laissait
 **immobile** (`allie_immobile`) trois rounds de suite (test en jeu) : il
-s'approche désormais aussi loin que la route le permet. La
-résolution d'un tour de choix peut porter `resultat.tour_allies.actions`
-(déplacements/attaques alliées), en regard de `resultat.tour_monstres.actions`.
+s'approche désormais aussi loin que la route le permet — ou, depuis le
+2026-10-04, c'est le JOUEUR qui choisit vers quel adversaire approcher
+(`se_deplacer_allie` ci-dessus) ; `allie_immobile` ne peut plus survenir
+(aucun monstre atteignable → aucune destination proposée, jamais une option
+que le résolveur refuserait).
 
 `EtatGroupe` porte aussi **`journal_combat`** : les 24 dernières lignes de la
 quête en cours, **rejouées depuis les événements** par le même formateur que la
@@ -1215,6 +1311,29 @@ achète *Colosse*, il descend quand le costaud s'en va.
   difficulté `mobiliers.difficulte_destruction` (⚠ `null` = **indestructible**).
   La pièce cesse de bloquer mouvement ET vue ; si elle était **fouillable**, elle
   rend **une dernière fouille** à son destructeur, même déjà vidée par le groupe.
+- **Attaquer un meuble** (2026-10-04, PAS un jet de Body — ce n'est PAS le même
+  bullet que ci-dessus) — option `attaquer_mobilier_{index}`, type
+  `attaquer_mobilier`, offerte quand `mobiliers.pv_body` n'est pas `null`
+  (Crystal Cluster, Haut Autel, Coffre du Dread). Troisième voie de
+  destruction : le meuble s'épuise **au combat**, comme un monstre — pas de
+  tentative limitée par héros, retentable sans limite tant qu'il tient encore.
+  Dés d'attaque = `personnage.des_attaque` (la classe/l'arme/les talents
+  passifs, PAS les bonus conditionnels — Furie, flanquement… —, qu'aucune
+  source de ce meuble n'évoque) ; dés de défense = `mobiliers.defense_dice`
+  (`0` est une vraie valeur : le Crystal Cluster « cannot defend ») ; le meuble
+  défend avec les boucliers **BLANCS** (seule couleur sourcée pour ce
+  mécanisme, G1504 p. 10 — « counting the white shields scored »). Réponse
+  `{type: "attaque_mobilier", mobilier, des_attaque, des_defense, touches,
+  boucliers, degats, pv_body_avant, pv_body_apres, detruit, faces_attaque,
+  faces_defense, face_touchante, face_defensive}` — même forme qu'une attaque
+  de monstre, journalisée (`JournalCombat::attaqueMobilier()`) et mise en
+  scène à la table (`SceneDeTable::attaqueMobilier()`) comme un combat
+  ordinaire, le meuble en défenseur. ⚠ **S'arrête à la carte** : la pièce
+  cesse de bloquer mouvement et vue (`FabriqueGrille::pour()`, la boucle
+  UNIQUE) et disparaît de `EtatGroupe.carte.mobilier[]` comme une pièce
+  fracassée ; un déclenchement de GABARIT DE QUÊTE (le sorcier qui jaillit du
+  Coffre du Dread, la quête gagnée à la chute du Haut Autel) est hors du
+  périmètre de ce lecteur générique.
 - **Forcer un levier** — l'option `actionner_levier` demande désormais un **jet de
   Body** (difficulté du levier, 1-3) et **coûte le créneau d'ACTION** : ce n'est
   plus une interaction gratuite. ⚠ **Retentable sans limite**, contrairement aux
@@ -1222,11 +1341,15 @@ achète *Colosse*, il descend quand le costaud s'en va.
   se sceller.
 
 - **EtatGroupe.carte** gagne `mobilier: [{x, y, l, h, nom, bloque_mouvement,
-  bloque_vue}]` — l'ancre `(x, y)` est le coin haut-gauche de l'emprise (l×h),
-  même convention que `cellulesEmprise()`. Contrairement aux pièges, un
-  meuble n'a pas d'état « caché » : il est simplement soumis au même
-  **brouillard de guerre** que le reste de la salle (une salle non découverte
-  n'expose aucun de ses meubles).
+  bloque_vue, pv_body, defense_dice, pv_restants}]` — l'ancre `(x, y)` est le
+  coin haut-gauche de l'emprise (l×h), même convention que `cellulesEmprise()`.
+  Contrairement aux pièges, un meuble n'a pas d'état « caché » : il est
+  simplement soumis au même **brouillard de guerre** que le reste de la salle
+  (une salle non découverte n'expose aucun de ses meubles).
+  ⚠ `pv_body`/`defense_dice`/`pv_restants` (2026-10-04) sont `null` pour un
+  meuble ORDINAIRE (pas une barre de vie qu'il n'a pas) ; pour un meuble
+  attaquable, `pv_restants` est la DÉCISION publiée par le serveur (déjà
+  décomptée des coups portés), jamais à recalculer côté client.
 - `fouillable` (catalogue) **n'est lu par aucun système aujourd'hui** — la
   fouille du mobilier est un chantier séparé (doc 17 §4) : `DeckFouille`
   raisonne en salle, pas en case, et le piège de coffre impose un ordre
@@ -2446,10 +2569,51 @@ calculée depuis `services` (un service en `panne`, ou un crédit `epuise` sur
 un service par ailleurs joignable) — encore une décision prise côté serveur,
 pas recalculée par le front depuis la liste des services.
 
+### Monstre à phases — trois champs ajoutés à TOUTE action qui blesse un monstre (chantier transverse 2026-10-04)
+
+**Contrat ajouté avant le payload**, comme la hard rule l'exige. Un monstre
+« à phases » (*Against the Ogre Horde* p. 6 : « adopt new statistics […]
+still considered the same monster ») n'est pas tué à 0 Body : il adopte la
+forme suivante. `MoteurDegats::infligerAMonstre()` — le point de passage
+UNIQUE par lequel un monstre peut mourir, quel que soit le chemin de dégâts
+(attaque de héros, sort, allié, reflet de sort d'un monstre sur un autre, Eau
+bénite) — publie la DÉCISION déjà prise, jamais les ingrédients : trois
+champs s'ajoutent au payload de **toute** action qui blesse un monstre
+(`attaque`, `attaque_allie`, `sort`, `sort_dread`, `braise`, `degat_differe`,
+`frapper_entre_monstres`…), toujours présents (même `null`/`false`), comme
+`cible_vaincue` à côté d'eux :
+
+- **`changement_phase`** : `null`, ou `{avant, apres}` — les deux `nom_base`
+  de catalogue (celui de la phase qui vient de finir, celui qu'elle adopte).
+  ⚠ Jamais publié en avance : le client ne connaît la forme suivante qu'au
+  moment où elle vient de jouer (secret de Zargon — « ne pas révéler le
+  second jeu de statistiques »). Rendu : une ligne de journal (`ton: "info"`)
+  et une scène de table dédiée (`genre: "transformation"`), au-dessus de
+  n'importe quel type d'action — jamais une spécificité par type, le même
+  patron que les pièges imbriqués (`declenchement`/`pieges_declenches`).
+- **`reaction_monstre`** : `null`, ou le nom de la mécanique réactive à usage
+  unique qui vient de jouer (`"ignore_degats_attaque"` — Resilience/Demon
+  Wings, `"increvable_une_fois"` — Sir Ragnar). Consomme le coup entier (le
+  monstre ne subit RIEN) sans changer de phase ni mourir.
+- **`reddition_monstre`** : `null`, ou `{or}` — une dernière phase qui porte
+  `recompense_reddition` (Gruzbella, vaincue elle s'incline et paie plutôt
+  que de mourir) crédite le groupe et le dit, plutôt que de laisser
+  `cible_vaincue: true` se lire comme une mort ordinaire.
+
+Rendu identique manette/table, **sans aucun nouveau code front** : `info`
+est un `ton` déjà stylé (`ActionTab.vue`, `ICONE_JOURNAL`), et une scène de
+table sans `genre` connu retombe sur l'icône par défaut (`SceneEvenement.vue`,
+`ICONE_GENRE[...] ?? 'bolt'`) — ajouter une forme de scène ne demande donc
+pas de toucher l'icône tant qu'une entrée dédiée n'est pas jugée utile.
+
 ## Garanties
 
 - **Le moteur fait autorité** : `choix` valide l'option contre le dernier menu
   proposé + l'état ; option illégale → 422.
+- **Un monstre ne meurt qu'à UN endroit** : `MoteurDegats::infligerAMonstre()`
+  (chantier 2026-10-04) décide seul si 0 Body veut dire « vaincu » ou « adopte
+  sa phase suivante », quel que soit le chemin de dégâts. Voir §Monstre à
+  phases ci-dessus.
 - **Cible = active ET révélée** : une attaque comme un sort n'aboutit que sur un
   monstre `actif` **et** `revele` (le menu moteur ne propose d'attaque que sur
   un monstre révélé, et `ResolveurTour` revérifie à la résolution). Un monstre

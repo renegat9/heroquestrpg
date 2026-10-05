@@ -99,9 +99,9 @@ Adaptés de HeroQuest à notre système. Dégâts exprimés en **dés de combat*
 ### Air — mobilité / puissance
 | Sort | Effet |
 |---|---|
-| **Génie** | **DEUX modes au choix** (texte officiel, Kellar's Keep p. 15) : une **attaque à 5 dés** à distance, **ou** **ouvrir une porte au choix** — sans adjacence ni clé, ce qui dégage un passage bloqué par des figures. Le menu propose une option par porte fermée d'une salle découverte. Aucune invocation persistante n'est attestée : `invocation_ephemere` retiré (2026-08-06). |
+| **Génie** | **DEUX modes au choix** (texte officiel, Kellar's Keep p. 28-29) : une **attaque à 5 dés** à distance, **ou** **ouvrir une porte au choix** — sans adjacence ni clé, ce qui dégage un passage bloqué par des figures. Le menu propose une option par porte fermée d'une salle découverte. Aucune invocation persistante n'est attestée : `invocation_ephemere` retiré (2026-08-06). |
 | **Vent Véloce** | **Double le déplacement** d'un héros ce tour (total base + 1d6, ×2). |
-| **Tempête** | **UN monstre choisi passe son prochain tour** (ni déplacement ni attaque), **sans aucun jet de résistance** — la carte officielle (doc 16 §3bis) n'en prévoit pas, et le `jet_mind` que nous exigions était de notre invention : il rendait le sort d'autant plus faible que la cible était coriace, alors qu'un boss est précisément ce qu'on veut ralentir. Retiré le 2026-09-02. Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 15). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
+| **Tempête** | **UN monstre choisi passe son prochain tour** (ni déplacement ni attaque), **sans aucun jet de résistance** — la carte officielle (doc 16 §3bis) n'en prévoit pas, et le `jet_mind` que nous exigions était de notre invention : il rendait le sort d'autant plus faible que la cible était coriace, alors qu'un boss est précisément ce qu'on veut ralentir. Retiré le 2026-09-02. Corrigé le 2026-08-06 sur le texte officiel : « un monstre choisi passe son prochain tour » (Kellar's Keep p. 28-29). On lisait auparavant « les monstres ciblés » (sort de zone jamais implémenté) et « ne peuvent pas attaquer » (le monstre avançait quand même). |
 
 ---
 

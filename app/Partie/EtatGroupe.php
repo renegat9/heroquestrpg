@@ -180,7 +180,10 @@ final class EtatGroupe
                 'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('quete', $quete->id),
             ],
             'carte' => $this->carte($quete),
-            'entites' => $quete === null ? [] : [...$this->heros($groupe, $quete), ...$this->allies($groupe), ...$this->monstres($quete)],
+            'entites' => $quete === null ? [] : [
+                ...$this->heros($groupe, $quete), ...$this->allies($groupe),
+                ...$this->captifs($quete), ...$this->monstres($quete),
+            ],
             'initiative' => $quete === null ? [] : $this->initiative($groupe, $quete),
             'narration' => $derniereNarration['texte'] ?? null,
             // Séquence de la dernière narration (Evenement.sequence) : sert au
@@ -294,7 +297,7 @@ final class EtatGroupe
      * AVANT le brouillard — indiscernable de n'importe quel mur, sans plus
      * rien à publier pour le dire.
      *
-     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, glace: list<array{x: int, y: int, cranes: int}>, portes: list<array{x: int, y: int, etat: string}>}|null
+     * @return array{largeur: int, hauteur: int, cases: list<list<string>>, pieges: list<array{x: int, y: int, etat: string, nom: string}>, mobilier: list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool, pv_body: ?int, defense_dice: ?int, pv_restants: ?int}>, terrain: list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string}>, glace: list<array{x: int, y: int, cranes: int}>, portes: list<array{x: int, y: int, etat: string}>}|null
      */
     private function carte(?Quete $quete): ?array
     {
@@ -655,7 +658,7 @@ final class EtatGroupe
      * `b` (contrat, même principe que le filtre `portes` juste au-dessus).
      *
      * @param  list<int>  $decouvertes
-     * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool}>
+     * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool, pv_body: ?int, defense_dice: ?int, pv_restants: ?int}>
      */
     private function mobilier(Carte $carte, array $decouvertes): array
     {
@@ -668,7 +671,7 @@ final class EtatGroupe
 
         $catalogue = Mobilier::query()
             ->whereIn('id', $visibles->pluck('mobilier_id')->filter()->unique())
-            ->get(['id', 'nom', 'bloque_mouvement', 'bloque_vue'])
+            ->get(['id', 'nom', 'bloque_mouvement', 'bloque_vue', 'pv_body', 'defense_dice'])
             ->keyBy('id');
 
         return $visibles
@@ -686,6 +689,16 @@ final class EtatGroupe
                     // bloque les deux. Ne jamais les refusionner en un seul champ.
                     'bloque_mouvement' => $type?->bloque_mouvement ?? true,
                     'bloque_vue' => $type?->bloque_vue ?? false,
+                    // PV/défense (2026-10-04, décision publiée par le serveur
+                    // plutôt que « disponible »/« non » re-dérivé côté client) :
+                    // `null` = ce meuble ne se détruit pas au combat. `pv_restants`
+                    // n'apparaît qu'aux côtés d'un `pv_body` non nul — un meuble
+                    // ORDINAIRE ne porte pas une barre de vie qu'il n'a pas.
+                    'pv_body' => $type?->pv_body,
+                    'defense_dice' => $type?->defense_dice,
+                    'pv_restants' => $type !== null && $type->pv_body !== null
+                        ? MoteurMobilier::pvRestants($entree, $type)
+                        : null,
                     // Le mobilier était la seule couche de la carte sans
                     // illustration publiée (2026-08-27), alors qu'une pièce se
                     // fouille et se fracasse comme un piège se désamorce.
@@ -900,6 +913,47 @@ final class EtatGroupe
                 // Le jeton de carte l'affiche déjà quand il existe
                 // (`entitesVersFigurines` lit `image_url`) — 2026-10-01.
                 'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Le captif d'une mission « secourir » (chantier 3b, 2026-10-04), tant
+     * qu'il n'est PAS encore libéré (`etat: 'captif'` — une fois libéré, il
+     * devient un allié ordinaire et {@see self::allies()} le rend). Caché
+     * tant que sa SALLE n'est pas découverte — même garde que les monstres
+     * dormants (`Salles::indexDe()`, point de passage unique) : sans elle, un
+     * marqueur visible sur une carte encore noire serait le brouillard
+     * contourné par la porte de derrière.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function captifs(Quete $quete): array
+    {
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $decouvertes = $quete->sallesDecouvertes();
+
+        return GroupeMercenaire::where('groupe_id', $quete->groupe_id)
+            ->where('etat', 'captif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get()
+            ->filter(function (GroupeMercenaire $c) use ($salles, $decouvertes) {
+                $salle = Salles::indexDe($salles, (int) $c->position_x, (int) $c->position_y);
+
+                return $salle !== null && in_array($salle, $decouvertes, true);
+            })
+            ->map(fn (GroupeMercenaire $c) => [
+                'type' => 'captif',
+                'id' => $c->id,
+                'nom' => $c->mercenaire->nom,
+                'x' => $c->position_x,
+                'y' => $c->position_y,
+                'pv_body' => (int) $c->pv_body,
+                'pv_body_max' => (int) $c->mercenaire->pv_body,
+                'image_url' => app(BibliothequeImages::class)->urlMercenaire($c->mercenaire_id, $c->mercenaire->nom),
             ])
             ->values()
             ->all();
@@ -1164,7 +1218,10 @@ final class EtatGroupe
     }
 
     /**
-     * Ordre du tour figé (C1) : héros par ordre d'initiative, monstres après.
+     * Ordre du tour figé (C1) : héros par ordre d'initiative — chacun
+     * immédiatement suivi de l'allié ou des alliés qu'il contrôle (chantier
+     * 3a, 2026-10-04 : un allié joue DANS le tour de son héros, jamais une
+     * phase à part) —, monstres après.
      *
      * @return list<array{entite: string, id: int, nom: string, a_joue: bool, tombe: bool, image_url: string}>
      */
@@ -1172,11 +1229,28 @@ final class EtatGroupe
     {
         $etats = $quete->etatsPersonnages()->get()->keyBy('personnage_id');
 
-        $heros = $groupe->personnages()
+        // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : chaque allié
+        // suit IMMÉDIATEMENT le héros qui le contrôle, jamais regroupés après
+        // tous les héros — la barre doit montrer le MÊME ordre que
+        // `OrdreDuTour::acteurActif()`, sans quoi elle raconterait un tour qui
+        // n'est plus celui qu'on joue. `a_joue` est désormais le SIEN
+        // (`groupe_mercenaires.a_joue`), pas un figement « en bloc » comme au
+        // temps de la phase alliée automatique.
+        $alliesParHeros = GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('etat', 'actif')
+            ->whereNotNull('position_x')
+            ->with('mercenaire')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('recruteur_personnage_id');
+
+        $heros = collect();
+
+        foreach ($groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
-            ->get()
-            ->map(fn (Personnage $p) => [
+            ->get() as $p) {
+            $heros->push([
                 'entite' => 'heros',
                 'id' => $p->id,
                 'nom' => $p->nom,
@@ -1187,6 +1261,18 @@ final class EtatGroupe
                 // Portrait (2026-10-01) : le même que sa figurine sur la carte.
                 'image_url' => app(BibliothequeImages::class)->urlHeros($p->id, $p->classe),
             ]);
+
+            foreach ($alliesParHeros->get($p->id, collect()) as $allie) {
+                $heros->push([
+                    'entite' => 'allie',
+                    'id' => $allie->id,
+                    'nom' => $allie->mercenaire->nom,
+                    'a_joue' => (bool) $allie->a_joue,
+                    'tombe' => false,
+                    'image_url' => app(BibliothequeImages::class)->urlMercenaire($allie->mercenaire_id, $allie->mercenaire->nom),
+                ]);
+            }
+        }
 
         $monstres = $quete->instancesMonstres()
             ->where('etat', 'actif')
@@ -1203,27 +1289,7 @@ final class EtatGroupe
                 'image_url' => app(BibliothequeImages::class)->urlMonstre($i->id, $i->monstre_id, $i->monstre->nom_base),
             ]);
 
-        // ALLIÉS (2026-10-01, René : « ne devrait-on pas voir les alliés dans
-        // la barre d'initiative ») : ils jouent APRÈS les héros et AVANT les
-        // monstres (`ResolveurTour::jouerFinDeRound()`), en bloc — la barre
-        // les taisait, si bien qu'un loup frappait à un moment que rien
-        // n'annonçait. Même filtre que `allies()` : posés et actifs.
-        $allies = $groupe->mercenaires()
-            ->where('etat', 'actif')
-            ->whereNotNull('position_x')
-            ->with('mercenaire')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (GroupeMercenaire $a) => [
-                'entite' => 'allie',
-                'id' => $a->id,
-                'nom' => $a->mercenaire->nom,
-                'a_joue' => false, // jouent en bloc après les héros, comme les monstres
-                'tombe' => false,
-                'image_url' => app(BibliothequeImages::class)->urlMercenaire($a->mercenaire_id, $a->mercenaire->nom),
-            ]);
-
-        return [...$heros->values()->all(), ...$allies->values()->all(), ...$monstres->values()->all()];
+        return [...$heros->values()->all(), ...$monstres->values()->all()];
     }
 
     /**

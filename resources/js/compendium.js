@@ -134,7 +134,7 @@ const CAPACITES = {
     charge: 'Charge',
     invocation: 'Invocation',
     frappe_de_zone: 'Frappe de zone',
-    choix_attaque: 'Attaque massive (au choix)',
+    deux_attaques: 'Deux attaques (une ou deux cibles)',
     vol: 'Vol',
     peur: 'Peur',
     regeneration: 'Régénération',

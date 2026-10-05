@@ -20,8 +20,14 @@ use Illuminate\Support\Facades\Http;
 
 /*
  * Alliés — mercenaires + compagnon animal (Phase 2, 3.5) : recrutement au hub
- * sur la bourse commune, instanciation au démarrage de quête, phase alliée
- * dédiée (hors initiative héros), consommation en fin de quête.
+ * sur la bourse commune, instanciation au démarrage de quête, consommation en
+ * fin de quête. Depuis le 2026-10-04 (chantier 3a, « un allié est TOUJOURS
+ * joué par son joueur »), il n'y a plus de phase alliée dédiée : l'allié joue
+ * DANS le tour du héros qui le contrôle (`recruteur_personnage_id`), juste
+ * après lui, via un second menu sur SA MANETTE — voir
+ * `tests/Feature/Partie/AllieJoueParSonJoueurTest.php` pour ce mécanisme en
+ * détail (créneaux, destinations, contrôleur tombé) et
+ * `tests/Feature/Partie/MissionSecourirTest.php` pour la mission « secourir ».
  */
 
 beforeEach(function () {
@@ -152,7 +158,11 @@ it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', fun
         ->and($allieEntite['nom'])->toBe('Fauchard');
 });
 
-it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', function () {
+it('joue l\'allié dans le tour de son joueur : un menu propose d\'attaquer un monstre adjacent', function () {
+    // Chantier 3a (2026-10-04, René : « un allié est TOUJOURS joué par son
+    // joueur ») — remplace l'ancienne phase alliée automatique. Le héros
+    // termine son tour ('attendre'), et c'est alors SA MANETTE qui reçoit le
+    // second menu, celui de l'allié qu'il contrôle.
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
@@ -165,6 +175,8 @@ it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', fu
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
     $allie = $groupe->fresh()->mercenaires()->first();
+    // Recruté par Albrecht, le seul héros du groupe (défaut du contrôleur).
+    expect($allie->recruteur_personnage_id)->not->toBeNull();
     $ax = (int) $allie->position_x;
     $ay = (int) $allie->position_y;
 
@@ -178,12 +190,34 @@ it('fait jouer l\'allié en phase dédiée : il attaque un monstre adjacent', fu
     // Dés généreux (peu importe les dégâts) : on vérifie que l'allié AGIT.
     desFiges(array_fill(0, 80, 4));
 
-    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    // Le héros termine son tour : la phase des monstres n'est PAS encore
+    // ouverte, l'allié n'a pas encore joué (chantier 3a).
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    $actionsAllies = collect($reponse->json('resultat.tour_allies.actions'));
-    expect($actionsAllies->isNotEmpty())->toBeTrue()
-        ->and($actionsAllies->contains(fn ($a) => ($a['type'] ?? null) === 'attaque_allie'))->toBeTrue();
+    // Le menu de l'allié est désormais en cache sur LA MÊME manette
+    // (queue sync en test) : rattrapage.
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json();
+    expect($menu['allie_id'])->toBe($allie->id)
+        ->and(collect($menu['menu']['options'])->pluck('id')->all())->toContain('attaquer_allie');
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer_allie',
+        'parametres' => ['cible_id' => $instance->id, 'cible_type' => 'monstre'],
+    ])->assertStatus(202);
+
+    expect($reponse->json('resultat.type'))->toBe('attaque_allie')
+        ->and($reponse->json('resultat.allie_id'))->toBe($allie->id);
 });
+
+/**
+ * Termine le tour de l'allié EN ATTENTE sur la manette du groupe 'table-1' —
+ * la case par défaut d'une suite qui veut juste atteindre la phase des
+ * monstres sans exercer le déplacement/l'attaque de l'allié lui-même.
+ */
+function terminerTourAllie(): \Illuminate\Testing\TestResponse
+{
+    return test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre_allie']);
+}
 
 it('restaure le mercenaire payé à la reprise après un TPK', function () {
     $alice = connecterJoueur('alice');
@@ -211,6 +245,9 @@ it('restaure le mercenaire payé à la reprise après un TPK', function () {
 
     desFiges(array_fill(0, 80, 1)); // crânes partout : le monstre touche, rien n'est paré
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    // L'allié joue dans le tour d'Albrecht (chantier 3a) : la phase des
+    // monstres — et le TPK qu'elle scelle — n'arrive qu'après son tour.
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre_allie'])->assertStatus(202);
 
     // Quête échouée, retour au hub, allié PURGÉ à l'échec.
     expect($quete->fresh()->etat)->toBe('echouee')
@@ -261,8 +298,12 @@ it('donne aux alliés officiels leur Mind et leurs capacités de carte', functio
     $allies = Mercenaire::all()->keyBy('nom');
 
     // 8 (5 mercenaires humains + 3 compagnons animaux) + le Squelette
-    // Hearthkin (First Light, lot C) : même catalogue, jamais recrutable.
-    expect($allies)->toHaveCount(9, 'les 5 mercenaires humains, les 3 compagnons animaux et le Squelette Hearthkin');
+    // Hearthkin (First Light, lot C) + Gothar (captif, Frozen Horror,
+    // chantier 3b 2026-10-04) : même catalogue, ni l'un ni l'autre jamais
+    // recrutable au hub.
+    expect($allies)->toHaveCount(10, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et Gothar');
+    expect((bool) $allies['Gothar']->captif)->toBeTrue()
+        ->and((bool) $allies['Gothar']->octroi_seul)->toBeTrue();
 
     expect((int) $allies['Ogre mercenaire']->pv_mind)->toBe(1)
         ->and((int) $allies['Éclaireur']->pv_mind)->toBe(2);
@@ -347,11 +388,14 @@ it('publie les DÉS et les PV d\'un allié qui attaque, pour sa scène de table'
 
     desFiges(array_fill(0, 80, 4));
 
-    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_allies.actions'))
-        ->firstWhere('type', 'attaque_allie');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
-    expect($attaque)->not->toBeNull()
+    $attaque = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'attaquer_allie',
+        'parametres' => ['cible_id' => $instance->id, 'cible_type' => 'monstre'],
+    ])->assertStatus(202)->json('resultat');
+
+    expect($attaque['type'])->toBe('attaque_allie')
         ->and($attaque['allie_id'])->toBe($allie->id)
         ->and($attaque['faces_attaque'])->not->toBeEmpty()
         ->and($attaque)->toHaveKeys(['faces_defense', 'face_touchante', 'face_defensive']);
@@ -363,11 +407,12 @@ it('publie les DÉS et les PV d\'un allié qui attaque, pour sa scène de table'
         ->and($scene['jet']['atk'])->not->toBeEmpty();
 });
 
-it('fait TRAVERSER un héros à l\'allié dans un couloir d\'une case — il ne reste plus immobile', function () {
-    // Test en jeu du 2026-10-01 : Aldric posté dans le couloir d'une case
-    // entre le loup et le squelette, le loup est resté `allie_immobile` trois
-    // rounds de suite. Un héros traverse la case d'un compagnon ; un allié
-    // le peut désormais aussi — sans jamais s'y arrêter.
+it('déplace l\'allié VERS un monstre choisi, en TRAVERSANT un héros dans un couloir d\'une case', function () {
+    // Remplace le test « il ne reste plus allie_immobile » de l'ancien
+    // pilotage automatique — chantier 3a : c'est désormais le JOUEUR qui
+    // choisit la destination (`se_deplacer_allie`), le moteur calcule le
+    // chemin avec les mêmes règles qu'avant (franchit un compagnon, jamais
+    // un monstre ni un meuble).
     [, $quete, $heros, $allie, $instance] = queteAvecAllie();
 
     // Un couloir d'une case, ligne y = 1 : allié (1,1), héros (2,1), monstre (6,1).
@@ -389,15 +434,31 @@ it('fait TRAVERSER un héros à l\'allié dans un couloir d\'une case — il ne 
 
     desFiges(array_fill(0, 80, 4));
 
-    $actions = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_allies.actions'));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+
+    // Le menu de l'allié ne propose qu'« Approcher » le monstre (pas de
+    // cible attaquable sans bouger) : une seule destination.
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json();
+    expect($menu['allie_id'])->toBe($allie->id);
+    $destinations = collect($menu['menu']['options'])->firstWhere('id', 'se_deplacer_allie')['parametres']['destinations'];
+    expect($destinations)->toHaveCount(1)
+        ->and($destinations[0]['cle'])->toBe("vers:{$instance->id}");
+
+    $deplacement = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer_allie',
+        'parametres' => ['cle' => $destinations[0]['cle']],
+    ])->assertStatus(202)->json('resultat');
 
     // Le Fauchard (Move 7) passe par la case du héros jusqu'au contact (5,1).
-    expect($actions->pluck('type')->all())->not->toContain('allie_immobile')
-        ->and($actions->firstWhere('type', 'attaque_allie'))->not->toBeNull();
+    expect($deplacement['type'])->toBe('deplacement_allie')
+        ->and($deplacement['vers'])->toBe(['x' => 5, 'y' => 1]);
 
     $allie->refresh();
     expect([(int) $allie->position_x, (int) $allie->position_y])->toBe([5, 1]);
+
+    // Désormais adjacent : le menu de l'allié propose l'attaque.
+    $menu = $this->getJson('/api/groupes/table-1/menu')->assertOk()->json();
+    expect(collect($menu['menu']['options'])->pluck('id')->all())->toContain('attaquer_allie');
 });
 
 // ---------------------------------------------------------------------------
@@ -440,8 +501,10 @@ it('un monstre au contact d\'un ALLIÉ seul l\'attaque, et l\'allié se défend 
     // pour un monstre. Le monstre ne marque aucun crâne, l'allié pare tout.
     desFiges(array_fill(0, 120, 5));
 
-    $actions = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_monstres.actions'));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    // L'allié attend (chantier 3a) : la phase des monstres ne s'ouvre que
+    // quand lui aussi a joué son tour.
+    $actions = collect(terminerTourAllie()->assertStatus(202)->json('resultat.tour_monstres.actions'));
     $attaque = $actions->firstWhere('type', 'attaque_monstre');
 
     expect($attaque)->not->toBeNull()
@@ -464,8 +527,8 @@ it('un allié à 0 PV est VAINCU, quitte la carte, et le journal l\'annonce', fu
     // Que des 1 : des crânes partout — l'allié ne pare rien.
     desFiges(array_fill(0, 120, 1));
 
-    $resultat = $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $resultat = terminerTourAllie()->assertStatus(202)->json('resultat');
     $attaque = collect($resultat['tour_monstres']['actions'] ?? [])->firstWhere('type', 'attaque_monstre');
 
     expect($attaque['allie_vaincu'])->toBeTrue();
@@ -498,8 +561,9 @@ it('héros ET allié au contact : le monstre garde le HÉROS pour cible (rien ne
 
     desFiges(array_fill(0, 120, 5));
 
-    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $attaque = collect(terminerTourAllie()->assertStatus(202)->json('resultat.tour_monstres.actions'))
+        ->firstWhere('type', 'attaque_monstre');
 
     expect($attaque['cible']['personnage_id'] ?? null)->toBe($heros->id);
 });
@@ -514,8 +578,9 @@ it('la scène de table d\'un allié frappé montre l\'allié en défenseur, avec
     monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
     desFiges(array_fill(0, 120, 5));
 
-    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $attaque = collect(terminerTourAllie()->assertStatus(202)->json('resultat.tour_monstres.actions'))
+        ->firstWhere('type', 'attaque_monstre');
 
     $scene = app(App\Partie\SceneDeTable::class)->depuisResultat($attaque, App\Models\Personnage::firstOrFail())[0];
     $defenseur = collect($scene['acteurs'])->firstWhere('role', 'defenseur');
@@ -534,8 +599,9 @@ it('un ARCHER vise l\'allié s\'il est la cible la plus faible en vue — même 
     monstreContreAllieSeul($quete, $etatHeros, $allie, $instance);
     desFiges(array_fill(0, 120, 5));
 
-    $attaque = collect($this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
-        ->assertStatus(202)->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $attaque = collect(terminerTourAllie()->assertStatus(202)->json('resultat.tour_monstres.actions'))
+        ->firstWhere('type', 'attaque_monstre');
 
     expect($attaque['cible']['type'] ?? null)->toBe('allie');
 });

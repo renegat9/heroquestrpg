@@ -450,6 +450,35 @@ it('expose le coût de déplacement de la Rivière gelée sur la Grille, et le f
         ->and($grille->coutChemin($grille->chemin(0, 0, 4, 0)))->toBe(5);
 });
 
+// « Monsters suffer neither movement penalties nor damage from the icy river »,
+// « Monsters cannot move onto ice slide squares » (Frozen Horror p. 5-6) —
+// `docs/plan-correctifs-2026-10-04.md` C2. Une grille bâtie pour un MONSTRE
+// (`exceptInstanceId`) l'applique ; celle d'un héros reste inchangée.
+it('épargne au monstre le coût de la Rivière gelée, jamais au héros', function () {
+    $riviere = Terrain::where('nom', 'Rivière gelée')->firstOrFail();
+    $quete = queteAvecCarteEtTerrain([array_fill(0, 5, 's')], [['x' => 2, 'y' => 0, 'terrain_id' => $riviere->id]]);
+
+    $heros = FabriqueGrille::pour($quete);
+    $monstre = FabriqueGrille::pour($quete, exceptInstanceId: PHP_INT_MAX);
+
+    expect($heros->coutChemin($heros->chemin(0, 0, 4, 0)))->toBe(5)
+        ->and($monstre->coutDeplacement(2, 0))->toBe(1)
+        ->and($monstre->coutChemin($monstre->chemin(0, 0, 4, 0)))->toBe(4);
+});
+
+it('interdit la Glissière de glace au monstre, jamais au héros', function () {
+    $glissiere = Terrain::where('nom', 'Glissière de glace')->firstOrFail();
+    $quete = queteAvecCarteEtTerrain([array_fill(0, 5, 's')], [['x' => 2, 'y' => 0, 'terrain_id' => $glissiere->id]]);
+
+    $heros = FabriqueGrille::pour($quete);
+    $monstre = FabriqueGrille::pour($quete, exceptInstanceId: PHP_INT_MAX);
+
+    expect($heros->estTraversable(2, 0))->toBeTrue()
+        ->and($monstre->estTraversable(2, 0))->toBeFalse()
+        // Couloir d'une rangée : la glissière coupe le seul passage du monstre.
+        ->and($monstre->chemin(0, 0, 4, 0))->toBeNull();
+});
+
 // ---------------------------------------------------------------------
 // 6. Publication — EtatGroupe, filtrée par le brouillard
 // ---------------------------------------------------------------------

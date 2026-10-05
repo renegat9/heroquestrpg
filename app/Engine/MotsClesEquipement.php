@@ -811,21 +811,19 @@ final class MotsClesEquipement
      * Hearthkin Skeleton on a square within their room or corridor ». Une
      * action, tous les héros debout de la quête à la fois, jamais une cible.
      *
-     * ⚠ DEUX divergences ASSUMÉES, nommées (jamais une clé décorative) :
-     *  - « plays right after the hero that placed it » — nos alliés jouent
-     *    tous ensemble dans UNE phase commune, `ResolveurTour::phaseAllies()`
-     *    (fin de round, avant les monstres) : réordonner le tour pour ce seul
-     *    artefact serait une réécriture bien plus large que le patron d'allié
-     *    qu'on réutilise (consigne explicite du lot : « réutilise ce
-     *    système »).
-     *  - « defends on white shields » : AUCUN allié de ce moteur n'est jamais
-     *    la cible d'une attaque de monstre — `ResolveurTour::phaseMonstres()`
-     *    ne cible que `etatsPersonnages()`, et son propre commentaire le dit :
-     *    « le ciblage des alliés PAR les monstres est hors périmètre v1 ».
-     *    Étendre l'IA des monstres aux alliés est un chantier à part, non
-     *    ouvert ici ; `defense` existe déjà sur CHAQUE mercenaire du
-     *    catalogue sans qu'aucun ne s'en serve, le Squelette n'aggrave rien
-     *    de neuf.
+     * ⚠ Les DEUX divergences notées ici jusqu'au 2026-10-04 sont CLOSES par
+     * le chantier 3a (« un allié est TOUJOURS joué par son joueur ») et la
+     * correction du même jour « les monstres attaquent les alliés » :
+     *  - « plays right after the hero that placed it » — tenu : le Squelette
+     *    joue désormais, comme tout allié, DANS le tour du héros qui le
+     *    contrôle (`recruteur_personnage_id`, posé ici même par
+     *    `ResolveurTour::resoudreCorHearthkin()`), via
+     *    `OrdreDuTour::acteurActif()` / `MenuMoteur::genererMenuAllie()` —
+     *    plus de phase alliée commune à part.
+     *  - « defends on white shields » : tenu aussi — un monstre cible
+     *    désormais la figure la plus proche, héros OU allié
+     *    (`ResolveurTour::alliesCiblables()`), et se défend aux boucliers
+     *    blancs comme un héros (`resoudreAttaqueMonstreSurAllie()`).
      * Lecteurs : `MenuMoteur::objetsDeMateriel()` (l'offre, gratuite en
      * créneau ACTION) et `ResolveurTour::resoudreCorHearthkin()` (la pose).
      */

@@ -150,6 +150,14 @@ final class FabriqueGrille
             }
         }
 
+        // CAPTIF (mission « secourir », 2026-10-04) : une figure posée sur la
+        // carte avant sa libération. Il n'est d'aucun camp tant qu'on ne l'a
+        // pas libéré — ni traversable par un héros, ni par un monstre — et
+        // personne ne doit pouvoir finir sur sa case (on le libère AU CONTACT).
+        foreach (GroupeMercenaire::where('groupe_id', $quete->groupe_id)->where('etat', 'captif')->whereNotNull('position_x')->get() as $captif) {
+            $occupees[] = ['x' => (int) $captif->position_x, 'y' => (int) $captif->position_y];
+        }
+
         // Mobilier (doc 17) : troisième couche de la carte (AssembleurCarte),
         // au même niveau que `leviers`/`pieges`. SEULE boucle d'occupation ET
         // d'opacité du mobilier dans tout le moteur — n'en ouvrir aucune autre
@@ -206,8 +214,19 @@ final class FabriqueGrille
         if ($terrain !== []) {
             $typesTerrain = Terrain::query()
                 ->whereIn('id', array_values(array_unique(array_column($terrain, 'terrain_id'))))
-                ->get(['id', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue'])
+                ->get(['id', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue', 'effet'])
                 ->keyBy('id');
+
+            // ⚠ QUI BOUGE, encore une fois dit par `except*` (cf. plus haut) :
+            // une grille bâtie pour un MONSTRE retire la figure de ce monstre.
+            // Le livret immunise les monstres à la glace — « Monsters suffer
+            // neither movement penalties nor damage from the icy river », « Monsters
+            // cannot move onto ice slide squares » (Frozen Horror p. 5-6) —, et
+            // c'est ICI, seule boucle du terrain, que la règle se lit
+            // (`docs/plan-correctifs-2026-10-04.md` C2). Les DÉGÂTS et la fin de
+            // tour du terrain ne sont appelés que dans le déplacement du héros :
+            // cette moitié de la carte était déjà tenue par construction.
+            $pourMonstre = $exceptInstanceId !== null;
 
             foreach ($terrain as $entree) {
                 $type = $typesTerrain->get($entree['terrain_id'] ?? null);
@@ -217,18 +236,18 @@ final class FabriqueGrille
 
                 $case = ['x' => (int) $entree['x'], 'y' => (int) $entree['y']];
 
-                if ($type->bloque_mouvement) {
+                $effetTerrain = (array) ($type->effet ?? []);
+
+                if ($type->bloque_mouvement || ($pourMonstre && ! empty($effetTerrain['interdit_aux_monstres']))) {
                     $obstacles[] = $case;
                 }
                 if ($type->bloque_vue) {
                     $opaques[] = $case;
                 }
-                // Le coût de déplacement (Rivière Gelée = 2) est posé sur la
-                // grille dès cette phase pour que la donnée existe, mais
-                // AUCUNE BFS ne le lit encore — voir Grille::distance()/
-                // chemin()/casesAtteignables() : un autre agent les rend
-                // pondérées.
-                if ($type->cout_deplacement !== 1) {
+                // Coût de déplacement (Rivière Gelée = 2), lu par le parcours
+                // pondéré (`Grille::parcoursPondere()`). Un monstre ne le paie
+                // pas quand la tuile porte `ignore_par_monstres`.
+                if ($type->cout_deplacement !== 1 && ! ($pourMonstre && ! empty($effetTerrain['ignore_par_monstres']))) {
                     $couts[] = [...$case, 'cout' => (int) $type->cout_deplacement];
                 }
             }

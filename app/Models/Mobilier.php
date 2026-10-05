@@ -25,6 +25,16 @@ use Illuminate\Database\Eloquent\Model;
  * pièce FOUILLABLE détruite rend une dernière fouille à son destructeur, même
  * si tout le groupe l'avait déjà vidée : c'est le troc, on ouvre le passage et
  * on rafle le fond, mais plus personne ne la fouillera.
+ *
+ * `pv_body` / `defense_dice` (2026-10-04) ouvrent la TROISIÈME voie : on
+ * épuise le meuble AU COMBAT, comme un monstre (Crystal Cluster de *Jungles of
+ * Delthrak*, Haut Autel et Coffres du Dread de *Wizards of Morcar*) — pas de
+ * tentative limitée par héros, on le retente sans limite, un coup qui ne
+ * suffit pas laisse le meuble entamé. ⚠ `null` = INDESTRUCTIBLE par cette
+ * voie, pas « non renseigné » ; `defense_dice` à `0` est une vraie valeur (le
+ * Crystal Cluster « cannot defend »), distincte de `null`. Les PV COURANTS
+ * vivent dans `cartes.grille.mobilier[i].pv_restants` (jamais une colonne ici
+ * — c'est un état de PARTIE, le catalogue reste une donnée de référence).
  */
 class Mobilier extends Model
 {
@@ -44,6 +54,11 @@ class Mobilier extends Model
         // sarcophage de pierre. Et c'est la difficulté BRUTE — le plafond
         // (`App\Partie\DifficulteBody`) s'applique à la génération du menu.
         'difficulte_destruction',
+        // PV de Body et dés de défense pour la détruire AU COMBAT (2026-10-04),
+        // comme un monstre — voir le docblock de la classe. `null` = pas de
+        // destruction par cette voie.
+        'pv_body',
+        'defense_dice',
         'effet',
         // `null` = toutes les boîtes (migration `boite_pieges_et_mobiliers`,
         // même convention que `Terrain::boite`) ; une valeur réserve la
@@ -59,6 +74,8 @@ class Mobilier extends Model
             'bloque_vue' => 'boolean',
             'fouillable' => 'boolean',
             'difficulte_destruction' => 'integer',
+            'pv_body' => 'integer',
+            'defense_dice' => 'integer',
             'effet' => 'array',
         ];
     }

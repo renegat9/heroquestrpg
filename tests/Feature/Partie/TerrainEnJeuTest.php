@@ -738,3 +738,59 @@ it('brise un Mur de Glace à 5 crânes cumulés, ni avant, et rend le déplaceme
         ->and(FabriqueGrille::pour($scene['quete']->fresh())->estTraversable(1, 0))
         ->toBeTrue('le déplacement redevient possible par là');
 });
+
+// =======================================================================
+// Chausse-trappes × monstre éthéré — `docs/plan-correctifs-2026-10-04.md` C1
+// =======================================================================
+
+/**
+ * Couloir d'une rangée, héros en x=0, un Squelette (6 cases) en x=7 et des
+ * chausse-trappes en x=4 : sans elles, il finit au contact (x=1). Le scène
+ * passe par la même `sceneTerrainGlace()` que le reste du fichier — la
+ * couche `chausse_trappes` est posée à la main, comme le fait l'objet.
+ */
+function sceneChausseTrappesMonstre(bool $ethere): array
+{
+    $scene = sceneTerrainGlace([array_fill(0, 8, 's')], herosPos: ['x' => 0, 'y' => 0]);
+
+    $carte = $scene['quete']->carte;
+    $grille = (array) $carte->grille;
+    $grille['chausse_trappes'] = [['x' => 4, 'y' => 0, 'pose_par' => (int) $scene['heros']->id]];
+    $carte->update(['grille' => $grille]);
+
+    $catalogue = App\Models\Monstre::where('nom_base', 'Squelette')->firstOrFail();
+    if ($ethere) {
+        $catalogue->update(['capacites' => ['ethere']]);
+    }
+
+    $instance = App\Models\InstanceMonstre::create([
+        'quete_id' => $scene['quete']->id,
+        'monstre_id' => $catalogue->id,
+        'pv_body' => $catalogue->pv_body, 'pv_body_max' => $catalogue->pv_body, 'pv_mind' => $catalogue->pv_mind,
+        'position_x' => 7, 'position_y' => 0,
+        'etat' => 'actif', 'revele' => true,
+    ]);
+
+    // Crânes partout : le dé des chausse-trappes ARRÊTE (seul le bouclier
+    // blanc laisse passer) — c'est ce qui rend le témoin observable.
+    desFiges(array_fill(0, 80, 1));
+
+    app(ResolveurTour::class)->resoudre(
+        $scene['groupe']->fresh(), $scene['heros'],
+        ['id' => 'attendre', 'libelle' => 'Terminer le tour', 'type' => 'attente'], [],
+    );
+
+    return [...$scene, 'instance' => $instance->fresh()];
+}
+
+it("arrête un monstre ordinaire sur les chausse-trappes (témoin)", function () {
+    $scene = sceneChausseTrappesMonstre(ethere: false);
+
+    expect((int) $scene['instance']->position_x)->toBe(4);
+});
+
+it("laisse un monstre ÉTHÉRÉ ignorer les chausse-trappes — « unaffected by all traps, including caltrops » (Dread Moon p. 6)", function () {
+    $scene = sceneChausseTrappesMonstre(ethere: true);
+
+    expect((int) $scene['instance']->position_x)->toBe(1);
+});

@@ -47,6 +47,10 @@ const ICONE_TYPE = {
     fouille_mobilier: 'inventory_2',
     jet: 'casino',
     attaque: 'swords',
+    // Mobilier attaquable (PV + défense, 2026-10-04) : même glyphe que
+    // `attaque`, c'est un coup de combat — distinct de `jet` (fracasser un
+    // meuble sur un jet de Body, un dé, pas une volée de dés de combat).
+    attaquer_mobilier: 'swords',
     // Frappe balayée (Frénésie sanguinaire) : sans cible à choisir, elle part
     // au clic — l'icône doit dire que ça tourne sur soi-même.
     attaque_balayee: 'cyclone',
@@ -116,6 +120,13 @@ const ICONE_TYPE = {
     // ajoutant le voisin du dessus.
     soin_allie: 'healing',
     detacher_rejetons: 'pest_control',
+    // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) — `attaquer_allie`
+    // porte `type: 'attaque'` et partage déjà `swords` ci-dessus.
+    deplacement_allie: 'directions_walk',
+    attente_allie: 'hourglass_bottom',
+    // MISSION « SECOURIR » (chantier 3b, même date) : une main qui ouvre une
+    // cage, distincte de `liberer_entraves` (les ronces, un sécateur).
+    liberer_captif: 'lock_open',
 };
 
 /** Élément d'une option type "sort" : porté par l'option ou retrouvé

@@ -13,6 +13,7 @@ use App\Jobs\GenererMenu;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Evenement;
 use App\Models\Groupe;
+use App\Models\GroupeMercenaire;
 use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -139,6 +140,18 @@ class ChoixController extends Controller
             ]);
         }
 
+        // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) : ce menu n'est
+        // pas celui du héros, mais celui de l'allié qu'il contrôle — un
+        // SECOND menu sur la MÊME manette, {@see App\Jobs\GenererMenu}. Route
+        // vers `ResolveurTour::resoudreTourAllie()` plutôt que vers le grand
+        // `match` du héros.
+        if (($dernierMenu['allie_id'] ?? null) !== null) {
+            return $this->choisirPourAllie(
+                $groupe, (int) $dernierMenu['allie_id'], $option, $donnees['parametres'] ?? [],
+                $resolveur, $journalCombat, $scenesDeTable, $cleMenu,
+            );
+        }
+
         $personnage = $this->personnageLegal($groupe, (int) $joueur->id, (int) $dernierMenu['personnage_id']);
         $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
@@ -258,6 +271,82 @@ class ChoixController extends Controller
     }
 
     /**
+     * Le tour d'un ALLIÉ joué par son joueur (chantier 3a, 2026-10-04) —
+     * reprend le squelette de {@see self::choisir()} (journal du choix,
+     * journal de combat, scènes de table, menus suivants) mais route vers
+     * {@see ResolveurTour::resoudreTourAllie()} au lieu du grand `match` du
+     * héros. Pas de narration IA : un tour d'allié est purement mécanique
+     * (déplacement/attaque), exactement comme un tour de monstre.
+     *
+     * @param  array<string, mixed>  $option  option DU DERNIER MENU (déjà validée contre le cache)
+     * @param  array<string, mixed>  $parametres  paramètres envoyés par le client
+     */
+    private function choisirPourAllie(
+        Groupe $groupe,
+        int $allieId,
+        array $option,
+        array $parametres,
+        ResolveurTour $resolveur,
+        JournalCombat $journalCombat,
+        SceneDeTable $scenesDeTable,
+        string $cleMenu,
+    ): JsonResponse {
+        $allie = GroupeMercenaire::where('groupe_id', $groupe->id)->where('id', $allieId)->first();
+        $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
+
+        if ($allie === null || $quete === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Ce tour d\'allié n\'est plus valide — la quête a changé.',
+            ]);
+        }
+
+        $nomAllie = $allie->mercenaire?->nom ?? 'Allié';
+        $acteur = ['type' => 'allie', 'id' => $allie->id, 'nom' => $nomAllie];
+
+        Journal::ajouter($groupe, 'choix', [
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'type' => $option['type'] ?? null,
+        ], $acteur);
+
+        $resultat = $resolveur->resoudreTourAllie($groupe, $quete, $allie, $option, $parametres);
+
+        $sequence = (int) Evenement::query()->where('groupe_id', $groupe->id)->max('sequence');
+
+        // Le contrôleur du captif/allié reste le meilleur acteur « nominal »
+        // pour une scène — exactement le comportement d'hier (la phase alliée
+        // automatique passait déjà le HÉROS dont le tour avait déclenché la
+        // phase, jamais l'allié lui-même) : `SceneDeTable` lit `mercenaire_id`/
+        // `allie_id` du PAYLOAD pour l'illustrer avec SON image, pas celle du
+        // contrôleur — voir `attaqueDuGroupe()`.
+        $controleur = $allie->recruteur;
+
+        $lignes = $journalCombat->depuisResultat($resultat, $nomAllie);
+        if ($lignes !== []) {
+            broadcast(new JournalCombatDiffuse($groupe, $lignes, $sequence));
+        }
+
+        if ($controleur !== null) {
+            foreach ($scenesDeTable->depuisResultat($resultat, $controleur, $resolveur->figuresEnMarche()) as $scene) {
+                broadcast(new SceneTable($groupe, $scene, $sequence));
+            }
+        }
+
+        app(TamponScenes::class)->vider($resolveur->figuresEnMarche());
+
+        Cache::forget($cleMenu);
+
+        foreach ($groupe->fresh()->personnages()->wherePivot('actif', true)->get() as $heros) {
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+        }
+
+        return response()->json([
+            'resultat' => $resultat,
+            'des' => $this->desUnilateraux($resultat),
+        ], 202);
+    }
+
+    /**
      * Le jet unilatéral de l'action, au sommet du résultat (sort) OU niché
      * dans le piège que le héros a déclenché en marchant (`declenchement`,
      * `pieges_declenches[]`, forme du contrat). Sans cette seconde lecture, la
@@ -302,13 +391,19 @@ class ChoixController extends Controller
                 ->where('joueur_id', $joueur->id)
                 ->first();
 
-            $etat = $hero === null ? null : EtatPersonnageQuete::query()
-                ->where('quete_id', $groupe->quete_courante_id)
-                ->where('personnage_id', $hero->id)
-                ->first();
-
-            $peutAgir = $etat !== null && ! $etat->a_joue && ! $etat->tombe
-                && $this->estSonTour($groupe, $hero->id);
+            // ⚠ ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a, 2026-10-04) :
+            // `OrdreDuTour::acteurActif()` dit QUI a la main, héros OU
+            // l'allié qu'il contrôle — les DEUX cas rendent ce rattrapage
+            // légitime pour CE héros (c'est le même `personnage_id` dans les
+            // deux cas, `GenererMenu` publiant le tour de l'allié sous la clé
+            // du héros qui le contrôle). Avant ce chantier, ce test ne
+            // couvrait que le premier cas (`estSonTour()` seul) : un héros qui
+            // venait de finir son tour alors que son allié devait encore jouer
+            // voyait son menu d'allié EFFACÉ au moindre rechargement du
+            // téléphone — exactement l'anti-patron que ce rattrapage existe
+            // pour chasser ailleurs.
+            $acteur = $hero === null ? null : app(OrdreDuTour::class)->acteurActif($groupe);
+            $peutAgir = $acteur !== null && (int) $acteur['personnage_id'] === (int) $hero->id;
 
             // ⚠ La garde vaut aussi pour le menu DÉJÀ EN CACHE, et c'est ce que
             // la première version ratait : un menu mis en cache avant que le
@@ -341,7 +436,15 @@ class ChoixController extends Controller
         }
 
         return is_array($cache)
-            ? response()->json(['menu' => $cache['menu'], 'personnage_id' => $cache['personnage_id']])
+            ? response()->json([
+                'menu' => $cache['menu'],
+                'personnage_id' => $cache['personnage_id'],
+                // ALLIÉ JOUÉ PAR SON JOUEUR (chantier 3a) : non-null quand ce
+                // rattrapage sert le tour de l'allié contrôlé par ce héros —
+                // absent des menus plus anciens déjà en cache, donc le client
+                // doit tolérer sa non-présence (contrat).
+                'allie_id' => $cache['allie_id'] ?? null,
+            ])
             : response()->json(['menu' => null]);
     }
 
