@@ -326,3 +326,8 @@ effets automatiques annoncés. Pest sur une **copie sqlite jetable** ;
 le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 `jungles_delthrak`, une fois le lot A fait, est ce qui trouvera ce que les
 tests ne trouvent pas — comme pour Ogre Horde.
+
+> **Mise à jour 2026-10-05 (René)** : les six artefacts ne sont PAS à
+> photographier — leurs cartes sont reproduites dans le livret, p. 50
+> (« Treasure and Artifact Reference »). Transcrits dans
+> `reference/18_extensions.md` § Jungles of Delthrak, « Artefacts TRANSCRITS ».

@@ -36,12 +36,17 @@ double 9-10 (p. 12-33), la conclusion et la référence d'artefacts (p. 34-35),
 le tableau des monstres (p. 37), la planche de symboles pour quêtes maison
 (p. 39).
 
-**Il ne porte PAS les 35 cartes de jeu** (p. 3 : « 35 game cards ») : cartes
-de monstre, les 6 artefacts nommés, le parchemin *Treasure Without Doom*, et
-surtout les **8 cartes de sort elfique** elles-mêmes (le livret ne donne que
-la règle de sélection « 3 sur 8 », jamais le texte des huit sorts — ceux-ci
-viennent d'ailleurs : voir §1, ils sont déjà au catalogue depuis le portage
-général des sorts, doc 02 §6).
+**Il ne porte PAS les cartes de monstre** ni les **8 cartes de sort
+elfique** elles-mêmes (le livret ne donne que la règle de sélection
+« 3 sur 8 », jamais le texte des huit sorts — ceux-ci viennent d'ailleurs :
+voir §1, ils sont déjà au catalogue depuis le portage général des sorts,
+doc 02 §6). ⚠ Corrigé le 2026-10-05 : contrairement à ce que cette ligne
+affirmait jusqu'ici, les **6 artefacts nommés et le parchemin *Treasure
+Without Doom*** (part des « 35 game cards », p. 3) sont bien dans le
+livret — reproduits en intégralité page 35, rubrique « Artifact Reference »
+(texte extrait vide sur cette page, d'où l'erreur initiale ; relu sur le
+rendu PNG). Transcrits mot pour mot dans `reference/18_extensions.md` §The
+Mage of the Mirror.
 
 **Contenu physique (p. 2-3)** : 2 portes plastique, 4 portcullis (grilles de
 fer), 2 trappes de téléportation, miroirs + supports, mur et salle du
@@ -297,3 +302,18 @@ Chaque lot suit l'ordre maison : vocabulaire fermé → lecteur → test EN JEU 
 données, registres testés dans les deux sens, `sauvegarder.sh` avant toute
 migration, aucune purge de `groupes`/`personnages`/`joueurs`, redémarrer
 `queue` et `queue-jeu` après le PHP.
+
+> **Mise à jour 2026-10-05 (René)** : la *Potion d'Aconit* est photographiée
+> et transcrite (`reference/18_extensions.md` § The Mage of the Mirror) ; le
+> Prospecteur et la Princesse Millandriel sont des TUILES sans carte —
+> portés comme captifs « escortés » (`docs/plan-chantiers-transverses-2026-10-04.md`).
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image. Retiré de la
+> liste des photos à demander : les **6 artefacts nommés et le parchemin
+> *Treasure Without Doom*** — faussement donnés pour absents du livret en
+> §0 (texte extrait vide sur la page « Artifact Reference », p. 35 ; carte
+> en fait reproduite en intégralité, transcrite dans `reference/18`).
+> Confirmé toujours réellement à demander : les 4 cartes de monstre (Q1) et
+> les 8 cartes de sort elfique (§5), introuvables en texte comme en image
+> dans ce livret.

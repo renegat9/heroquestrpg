@@ -296,3 +296,12 @@ effets automatiques annoncés. Pest sur une **copie sqlite jetable** ;
 `sauvegarder.sh` avant toute migration ; **aucune purge de
 `groupes`/`personnages`/`joueurs`, aucune commande qui écrit sur la vraie
 base** ; redémarrer `queue` et `queue-jeu` après le PHP.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image. Rien à
+> corriger : ce plan avait déjà identifié correctement (§0, §1) que la page
+> « Artifact and Equipment Reference » (p. 27) imprime son texte en clair
+> (pas d'image sans OCR comme sur d'autres boîtes) et que les 2 artefacts
+> propres (*Crown of Shadows*, *Dragon Spear*) comme le reste (*Ring of
+> Return* et l'équipement réemployé) sont déjà sourcés sans photo. Liste de
+> photos (§5) inchangée.

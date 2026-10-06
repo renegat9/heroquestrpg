@@ -275,3 +275,10 @@ Conclusion : **viable comme thème UNIQUEMENT après le lot D**, avec son
 propre tour de paliers (sur le modèle Q7 d'Ogre Horde) — pas un simple
 ajout de `BOITES_THEMATIQUES`, une décision à part entière à documenter si
 et quand René la demande.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image, ainsi que la
+> page « Artifact Reference » (p. 29, déjà bien citée). Rien à corriger :
+> les 5 artefacts et 5 parchemins de sort y sont bien paraphrasés avec la
+> bonne page (confirmé §1 : « aucune erreur trouvée… sur les 5 artefacts »).
+> Rien à retirer de la liste de photos (§5).

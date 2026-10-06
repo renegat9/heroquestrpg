@@ -43,11 +43,15 @@ héros du jeu de base (Kellar's Keep, p. 4).
 ### 2. Nouveaux monstres
 
 - **Abomination** — nouveau type de monstre (3 figurines dans la boîte),
-  absent du bestiaire de base. ⚠ Aucune statistique chiffrée (Move/Attack
-  /Defend/Body/Mind) n'apparaît dans le livret de quêtes : le texte renvoie
-  au « monster chart » du jeu de base sans le reproduire (Kellar's Keep,
-  p. 4, 8, 14). Probable fiche cartonnée absente du PDF, comme pour
-  l'armurerie.
+  absent du bestiaire de base *sourcé par ce livret-ci* (⚠ corrigé le
+  2026-10-05 : elle appartient en réalité au bestiaire standard de la
+  réédition 2021 elle-même — voir §Composition physique, plus haut dans ce
+  fichier, et §6 Tableau de synthèse). Aucune statistique chiffrée
+  (Move/Attack/Defend/Body/Mind) n'apparaît dans CE livret de quêtes : le
+  texte renvoie au « monster chart » du jeu de base sans le reproduire
+  (Kellar's Keep, p. 4, 8, 14). René a depuis scanné la carte « Abomination »
+  elle-même (© 2021, `reference/20_cartes_monstres.md`) : 6/3/3/2/3, aucune
+  capacité — semée dans `MonstreSeeder` (`tier => 'base'`, `boite => 'base'`).
 - **Squelettes des rois nains** (variante nommée, quête 5 « Hall of the
   Dwarven Kings ») — seul monstre de cette boîte avec un tableau de stats
   explicite dans le texte : **Move 6 · Attack 3 · Defend 4 · Body 2 ·
@@ -342,10 +346,12 @@ mais avec des variantes propres à ce mode pour les autres — Zombie **Move
 5** notamment, contre 6 dans notre catalogue actuel — donc à ne pas prendre
 comme remplacement, seulement comme référence de tournoi séparée
 (Move/Mind/Defend/Body/Attack) : Squelette 6/0/2/1/2, Zombie 5/0/3/1/2,
-Momie 4/0/4/2/3, **Abomination 6/3/3/2/3** (première fois que ce monstre de
-Kellar's Keep obtient des stats chiffrées dans un livret officiel — à
-recouper prudemment, source = table de tournoi et non un monster chart
-standard), Guerrier du Chaos (Dread Warrior) 7/3/4/3/4, Gargouille 6/4/5/3/4.
+Momie 4/0/4/2/3, **Abomination 6/3/3/2/3** (première fois, dans CE livret-ci,
+que ce monstre de Kellar's Keep obtenait des stats chiffrées dans un livret
+officiel — ⚠ **recoupé le 2026-10-05** : la carte « Abomination » elle-même
+(© 2021, `reference/20_cartes_monstres.md`) donne EXACTEMENT le même chiffre,
+cette fois sans réserve de prudence — table de tournoi et carte s'accordent),
+Guerrier du Chaos (Dread Warrior) 7/3/4/3/4, Gargouille 6/4/5/3/4.
 
 **Versions à distance (Ranged)** — nouvelle variante générique : Zargon
 peut placer un squelette, un orque ou un gobelin « à distance » à la place
@@ -638,10 +644,66 @@ contraire (Frozen Horror, p. 3) :
 - *Potion of Frost Skin* (300 po, Barbare seul) — +2 dés de défense tant
   qu'un monstre reste en ligne de vue.
 
-**3 artefacts nommés** : *Amulet of the North*, *Ring of Warmth*,
-*Snowshoes of Speed* (effets détaillés sur cartes non capturées en texte).
-**6 parchemins de sort non nommés**, tirés au hasard, utilisables par tout
-héros, usage unique (Frozen Horror, p. 11).
+**4 artefacts nommés** : *Amulet of the North*, *Ring of Warmth*,
+*Armband of Ice*, *Snowshoes of Speed*. **6 parchemins de sort**, tirés au
+hasard, utilisables par tout héros, usage unique (Frozen Horror, p. 11) —
+⚠ Corrigé le 2026-10-05 : cette ligne disait « 3 artefacts... effets
+détaillés sur cartes non capturées en texte » et « 6 parchemins non
+nommés ». C'est inexact sur les deux points : il y a un **4ᵉ artefact**
+(*Armband of Ice*, absent de `config/cartes.php` — à ajouter, voir
+ci-dessous), et les 6 parchemins sont en fait **nommés et décrits en toutes
+lettres** — texte extrait vide sur cette page (illustrations), d'où
+l'erreur de lecture initiale. Les dix cartes sont reproduites en
+intégralité dans le livret, page 35 (« Artifact Reference », page 18 du
+PDF), relues sur le rendu PNG — voir transcription ci-dessous.
+
+### Artefacts et parchemins TRANSCRITS — « Artifact Reference » (livret p. 35)
+
+- **Amulet of the North** — « *This ancient magical item was made for
+  Barbarian kings centuries ago. It may be worn only by a Barbarian. While
+  worn, it adds 2 Body Points and 1 Mind Point to the Barbarian's totals.* »
+- **Ring of Warmth** — « *This artifact grants its wearer immunity to the
+  Chill spell, as well as to the effects of ice vaults and icy rivers.* »
+- **Armband of Ice** — « *This powerful item grants its wearer immunity to
+  Mind Freeze and Chill spells, plus immunity to damage from ice vaults and
+  icy rivers for as long as it is worn. It also reduces the damage from an
+  Ice Storm spell by 1 point for the armband wearer only.* » ⚠ Absent de
+  `config/cartes.php` — les trois autres artefacts de cette page y sont
+  (Amulette du Nord, Anneau de Chaleur, Raquettes de Vitesse), pas celui-ci.
+- **Snowshoes of Speed** — « *These magical snowshoes add 2 squares to a
+  hero's movement, and they also negate the effects of slippery ice for as
+  long as they are worn. These can be used only on quests in cold, icy
+  regions.* »
+- **Spell Scroll — Chill** — « *This spell causes 1 Body Point of damage to
+  any monster adjacent to the spellcaster (though not diagonally adjacent).
+  The victim cannot defend against the attack. Scroll crumbles to dust once
+  used.* »
+- **Spell Scroll — Ice Storm** — « *This spell creates a blizzard of ice
+  that affects an area 2 squares wide by 2 squares long. Each monster and
+  hero in that area is attacked separately by the spellcaster with 3 combat
+  dice. There is no chance to defend. Cannot be used in corridors. Scroll
+  crumbles to dust once used.* »
+- **Spell Scroll — Ice Bridge** — « *This spell creates a permanent bridge
+  of Magic Ice tiles that enables heroes to cross over any pit, trap,
+  chasm, crevasse, or icy square. Scroll crumbles to dust once used.* »
+- **Spell Scroll — Psychic Recovery** — « *This spell restores all lost
+  Mind Points to the spellcaster or any one hero the spellcaster chooses.
+  Scroll crumbles to dust once used.* »
+- **Spell Scroll — Skate** — « *This spell enables the spellcaster to move
+  quickly through icy caverns and corridors. The spellcaster adds 6 to
+  their red dice movement roll and may pass through monsters and heroes
+  during movement. The spell lasts only one turn. Scroll crumbles to dust
+  once used.* »
+- **Spell Scroll — Warmth** — « *This spell bestows a healing warmth on the
+  spellcaster or any one hero the spellcaster chooses. The warmth restores
+  up to 3 lost Body Points. Scroll crumbles to dust once used.* »
+
+→ chez nous : les 6 parchemins recoupent déjà le mécanisme générique
+(dérivés des sorts, `config/cartes.php:296-311` — *Chill*/*Ice Storm* sont
+des sorts du thème glace, *Psychic Recovery*≈Soin de l'Esprit, *Warmth*≈Soin
+du Corps ; *Ice Bridge* et *Skate* recoupent des effets de terrain déjà
+portés), rien à changer. Seul vrai trou : **Armband of Ice** n'a pas
+d'entrée catalogue.
 
 ### 4. Nouveau mobilier, nouvelles tuiles
 
@@ -844,6 +906,72 @@ malédiction de loup-garou), **Prospector** et **Princess Millandriel**
 
 ---
 
+### Artefacts et parchemin TRANSCRITS — « Artifact Reference » (livret p. 35)
+
+⚠ Corrigé le 2026-10-05 : `docs/plan-mage-du-miroir.md` §0 affirmait que le
+livret « ne porte PAS... les 6 artefacts nommés, le parchemin *Treasure
+Without Doom* ». C'est faux — les sept cartes sont **reproduites en
+intégralité dans le livret lui-même**, page 35 (page 18 du PDF, rubrique
+« Artifact Reference »), relues sur le rendu PNG (texte extrait vide sur
+cette page : illustrations non-OCRisables, d'où l'erreur du premier passage).
+
+- **Ancient Staff** — « *This magical staff enables the Elf to reflect any
+  monster's spell back at the spellcaster. The spellcaster and all other
+  monsters in the same room suffer the full effects of the spell, while the
+  Elf and their companions are immune to the effects. The staff works only
+  5 times, then it becomes useless.* »
+- **Bone Wand** — « *This artifact enables any hero to control all skeletons
+  in one room for one turn. They can move them and make them attack during
+  this turn. The hero can make the skeletons attack each other or any other
+  monsters in the room. The Bone Wand works only once per quest.* »
+- **Elven Boots** — « *These boots grant the Elf an extra red die for
+  movement. The Elf can roll 3 dice for movement either before or after
+  taking an action. The boots wear out if the Elf rolls identical numbers on
+  any 3 dice.* »
+- **Elven Bow of Vindication** — « *Only an Elf may use this bow. An arrow
+  fired from this bow hits and instantly kills any one monster within the
+  Elf's line of sight, unless the monster rolls a black shield on 1 combat
+  die. There are only 4 arrows with this bow and the bow is rendered useless
+  once all of these arrows have been fired. This card can be used only in
+  the Mage of the Mirror quest pack.* »
+- **Elven Bracers** — « *These metallic wrist bands have magical powers. When
+  placed on the Elf's wrists, these glowing artifacts greatly enhance the
+  Elf's physical and mental abilities. The bracers add 2 extra Body Points
+  and 1 extra Mind Point to the Elf's total. They can be worn only by the
+  Elf.* »
+- **Sky Orb** — « *The hero who possesses this orb may use it to absorb a
+  total of 4 Mind Points of damage. Each time the hero would normally suffer
+  the loss of 1 Mind Point, they instead hand Zargon one of the blue Sky Orb
+  tokens and suffer no Mind Point damage. When all 4 tokens have been handed
+  to Zargon, the Sky Orb is rendered useless.* »
+- **Spell Scroll** — *Treasure Without Doom* — « *This spell scroll enables a
+  hero to pick cards from the treasure deck, ignoring all wandering monster
+  and hazard cards, until they pick a card showing gold, a potion, gems, or
+  jewels. Alternatively, it can be used to open one chest without harm,
+  disarming any trap on the chest. The scroll crumbles to dust after it is
+  used.* »
+
+→ chez nous : les sept sont déjà portées (`config/cartes.php:149-150,
+181-183, 204, 330` — Brassards elfiques, Arc elfique de Vindication, Bâton
+Ancien, Baguette d'Os, Bottes elfiques, Orbe Céleste, Trésor sans Péril) ;
+cette transcription ne fait que fermer la source manquante, rien à changer
+côté catalogue.
+
+---
+
+### Carte TRANSCRITE — Potion d'Aconit (photo de René, 2026-10-05)
+
+Source : photo de la carte physique (© 2023 Hasbro), rangée dans
+`~/heroquest-livrets/drive/photos-2026-10-05/wolfsbane_potion.jpg`. C'est le
+remède à la malédiction du loup-garou (§ ci-dessus) ; aucune entrée au
+catalogue à ce jour, aucun prix imprimé.
+
+- **Wolfsbane Potion** — « *This potion may be used by any hero suffering
+  from the werewolf's curse. It cures the hero. The potion may be used only
+  once. Do not return this card to the deck.* »
+  → chez nous : rien — attend la malédiction elle-même
+  (`docs/plan-mage-du-miroir.md` lot B).
+
 ## Rise of the Dread Moon (2022/2023)
 
 **Source :** livret de quêtes unique, réf. F6646, 40 pages imprimées / 21
@@ -1024,6 +1152,33 @@ Lunar Charm), **Trap Doors**, **Lunar Charm** (jeton clé de quête), **Rack
   (ressource non-monétaire) à gérer.
 
 ---
+
+### Cartes TRANSCRITES — réactifs d'alchimie (photos de René, 2026-10-05)
+
+Source : photos des cartes physiques (© 2023 Hasbro), rangées dans
+`~/heroquest-livrets/drive/photos-2026-10-05/`. Trois cartes du paquet
+d'alchimie (artisanat de potions, `docs/plan-dread-moon.md` lot G) ; aucune
+n'est au catalogue à ce jour.
+
+- **Sacred Plant** — « *Elven healers have been using this plant medicinally
+  for centuries. Consume at any time to restore 1 lost Mind Point. Do not
+  return this card to the deck until the end of the quest.* » En gras :
+  « ***Use as a reagent to craft 1x Potion of Restoration or 1x Holy
+  Water.*** »
+- **Mysterious Flower** — « *You uncover a rare and lovely elven plant that
+  you know to be edible. Consume at any time to restore 1 lost Body Point. Do
+  not return this card to the deck until the end of the quest.* » En gras :
+  « ***Use as a reagent to craft 1x Potion of Dexterity or 1x Potion of
+  Defense.*** »
+- **Unidentified Ingredient** — « *A mysterious essence ground into fine
+  powder. Use to craft potions. Do not return this card to the deck until
+  the end of the quest.* » En gras : « ***Use as a reagent to craft 1x random
+  potion by drawing one card from the alchemy deck.*** »
+
+→ chez nous : les deux premiers sont aussi des **consommables** (1 Mind /
+1 Body) portables sans l'artisanat ; le troisième n'a de sens qu'avec le
+paquet d'alchimie. ⚠ Le reste du paquet (les potions d'alchimie elles-mêmes,
+dont *Potion of Defense*) n'est pas encore photographié.
 
 ## Prophecy of Telor (2023)
 
@@ -1228,6 +1383,13 @@ sont les « artefacts élémentaires »** (terre/eau/air/feu), un par tour
 boire l'une des 3 potions trouvées sur une table tire au sort son effet
 via 1 dé de combat — bouclier blanc = soigne 1d6 Body, crâne = effet
 *Potion of Battle*, bouclier noir = perd 1 Body Point.
+
+**4 trouvailles citées sans texte de carte** (*Rabbit Boots* q. 4/6,
+*Dust of Disappearance* q. 4/6, *Anti-Poison Quill* q. 2, parchemin *Fire
+of Wrath* q. 7) — ⚠ Corrigé le 2026-10-05 : ce ne sont pas des cartes
+manquantes, ce sont les **mêmes cartes physiques** que *Return of the
+Witch Lord* (texte intégral déjà transcrit ci-dessus § Return of the Witch
+Lord), simplement réutilisées ici sans être réimprimées.
 
 ### 4. Nouveau mobilier, nouvelles tuiles
 
@@ -1477,6 +1639,48 @@ tiles**, **Stranger tiles**.
   tour.
 
 ---
+
+### Artefacts TRANSCRITS — « Treasure and Artifact Reference » (livret p. 50)
+
+⚠ Corrigé le 2026-10-05 (René) : le plan de cette boîte donnait les six
+artefacts comme « à photographier ». Leurs cartes sont **reproduites dans le
+livret lui-même**, page 50 (page 26 du PDF), relue sur le rendu PNG.
+
+- **Emberwrought Diadem** — « *This ancient circlet is inset with a fiery red
+  gem. It raises your maximum Body Points by 1 and grants you 1 additional
+  Defend die. May not be combined with the helmet.* »
+- **Bracers of the Wild** — « *Armor—These magical leather bracers grant you
+  1 additional Defend die. While wearing these bracers, you move unaffected
+  through squares containing furniture and hindering terrain. You may also add
+  2 squares to your movement roll. May be combined with the helmet and/or
+  shield.* »
+- **Fangwarden Armlet** — « *Use this magical armlet to call forth a Raptor
+  animal ally. If the Raptor is defeated, the armlet's power goes dormant. Its
+  power replenishes if the hero completes two quests without its assistance.
+  This artifact may only be used once per quest.* »
+- **The Sapphire Skull** — « *This legendary relic is crafted from precious
+  cobalt gemstone. It imbues you with poise and assurance. While wielding this
+  artifact, roll 2 Attack dice against any one monster in your line of
+  sight.* »
+- **Girdle of Might** — « *This enchanted girdle grants you 1 additional
+  Attack die on all non-ranged weapon attacks. May not be used by the
+  wizard.* »
+- **Emerald Heart of Delthrak** — « *This rare gemstone is prized by
+  Delthrak's inhabitants and can be sold for 75 gold coins.* » (trésor-valeur)
+- **Ancient Dwarven Relic** — « *You discover one of Delthrak's forgotten
+  treasures! This piece of elegant dwarven artistry is worth 50 gold coins.* »
+  (trésor-valeur)
+
+Même page : la boîte réutilise ces cartes du jeu de base — *Battleaxe,
+Borin's Armor, Chainmail, Crossbow, Elixir of Life, Fortune's Longsword, Holy
+Water, Longsword, Phantom Blade, Ring of Fortitude, Shield, Wizard's Staff*.
+
+→ chez nous : aucun de ces six artefacts n'est au catalogue. Presque tous
+tombent sur des mots-clés existants (dé de défense, Body max, dé d'attaque
+au contact, déplacement, franchissement du mobilier/terrain — le talent
+`ignore_terrain_entravant` existe) ; l'*Armlet* appelle un **allié animal**
+(Raptor) avec une recharge sur deux quêtes, à porter avec les alliés joués
+par leur joueur.
 
 ## The Crypt of Perpetual Darkness (2024/2025, Joe Manganiello's)
 
@@ -2229,6 +2433,12 @@ Ragnar nulle part dans le livret** — il n'apparaît pas au tableau des
 monstres (p. 41, 8 entrées seulement) ; vit sur sa carte, non incluse au
 PDF.
 
+⚠ **Corrigé le 2026-10-05** : la carte de Sir Ragnar a été reçue et transcrite
+(§Wizards of Morcar — cartes TRANSCRITES, §5) — **M7 A3 D5 B6 Mi2**, aucun
+texte de capacité propre (bloc de stats pur). Le reste du paragraphe
+ci-dessus reste exact : la carte n'est toujours pas dans le PDF du livret,
+c'est la numérisation de René qui l'apporte.
+
 ### 2. Nouveaux monstres
 
 **Tableau des monstres officiel** (« Monsters », p. 41, relu sur PNG) :
@@ -2325,6 +2535,31 @@ to form a solid, impassable wall that will remain on the board until it is
 destroyed* […] *Barriers defend with 6 Defend dice* […] *If the wall takes 1
 Body Point or more of damage, it is destroyed* » — **1 point de vie**, posé
 sur une ARÊTE de deux cases (pas une case), détruit par n'importe quel dégât.
+
+⚠ **Corrigé le 2026-10-05** : la carte confirme mot pour mot l'arête de DEUX
+cases ci-dessus (« *covers two 2 squares* », relu sur les trois cartes de
+mur — §Wizards of Morcar — cartes TRANSCRITES). **René a cependant décidé
+le 2026-10-04** (`docs/plan-chantiers-transverses-2026-10-04.md`), avant
+réception de ces cartes, que **chez nous les Murs magiques occupent UNE
+SEULE case** (meuble d'une case, pas une arête) — ils n'attendent donc plus
+`docs/plan-murs-en-aretes.md` et passent par le lecteur générique « mobilier
+à PV/défense » (chantier 1, déjà construit, cf. `Haut Autel`/`Coffre du
+Dread` déjà seedés dans `MobilierSeeder` sous `boite: 'wizards_of_morcar'`).
+C'est une divergence ASSUMÉE du livret, pas une erreur de lecture : la carte
+dit deux cases, le jeu en fait une. Les trois murs ne sont PAS un seul sort
+commun aux cinq sorciers : *Wall of Ice* est un sort du **Storm Master**
+(Boroush), *Wall of Flame* un sort du **High Mage** (Zanrath) — tous deux
+dans les 30 cartes de Sorcier du Dread, §Wizards of Morcar — cartes
+TRANSCRITES — et *Wall of Stone* est au contraire un **sort de héros**, dans
+le répertoire *Spells of Protection* (« *You create a magical wall of
+stone…* », phrasé à la première personne, contrairement aux deux murs du
+Dread phrasés « *The Spellcaster…* »). Le carton *Magic Reference Chart* de
+la boîte réunit bien les trois sous une seule règle générique (miniature
+posée, 1 PV, 6 dés de défense), ce qui explique le texte groupé du livret de
+quêtes — mais aucun des cinq Sorciers ne porte *Wall of Stone* : ⚠ cette
+incohérence apparente (le livret nomme les trois murs au même paragraphe
+« Spell Special Effects ») n'est pas résolue plus loin, faute d'accès au
+texte complet des p. 10-11 au-delà de ce qui est cité ici.
 
 **Tuile Éclair** (*Lightning Strike*, p. 10-11) : ligne droite depuis le
 sorcier, touche tout ce qui est aligné jusqu'au premier mur ou mur magique
@@ -2428,6 +2663,205 @@ la quête et la campagne.
 
 ---
 
+## Wizards of Morcar — cartes TRANSCRITES (2026-10-05)
+
+Complète le §Wizards of Morcar (2025) ci-dessus, qui n'avait que le livret de
+quêtes. **Source** : les 63 cartes de la boîte rendues en PNG HD
+(`drive/wizards-of-morcar/rendu/`, une image = une carte, fournies par René
+le 2026-10-05) + le carton *Magic Reference Chart* (identique à la p. 10 du
+livret) — **64 fichiers**, toutes les cartes © 2026 Hasbro (un an après le
+livret de quêtes © 2025 : réédition en deux temps). Chaque carte lue
+individuellement et intégralement à l'outil Read, **relue une seconde fois
+systématiquement** après une première passe où plusieurs lots avaient été
+perdus par la limite de requêtes média sans message d'erreur explicite —
+**aucune carte illisible**. Recoupées avec `database/seeders/SortSeeder.php`,
+`SortDreadSeeder.php`, `MonstreSeeder.php`, `MercenaireSeeder.php`,
+`ObjetSeeder.php`, `config/cartes.php`, `App\Engine\MotsCles*`.
+
+### 1. Les cinq Sorciers du Dread — 30 sorts (6 par sorcier)
+
+Confirme le livret mot pour mot (p. 10 : « *each Sorcerer in that quest
+starts with a full set of six spells* ») — **chaque sorcier a exactement
+6 sorts**, aucun nom ne se recoupe d'un sorcier à l'autre. Recoupement avec
+le tableau des monstres (§Wizards of Morcar 2025, §2) : *Hammer of Ruin*
+(ci-dessous) EST le sort qui explique la ligne « Artificer … Attack 4+2\* »
+du tableau officiel — confirmé mot pour mot.
+
+#### Storm Master — Boroush (p. 41 du livret : M6 A4 D6 B5 Mi7)
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Lightning Strike** | « The Spellcaster channels the power of a lightning storm in a straight, orthogonal line of 6 squares. Use the lightning storm tile to determine who is hit. Anyone hit must defend normally against 3 combat dice. Resolve each attack separately. » | Zone rayon EXISTE (`MotsClesSortDread::ZONE_RAYON`, lue par `MoteurDread::meilleurRayon()`, déjà exploitée par notre « Éclair de Chaos ») — portage direct, il suffit de fixer `des_degats` à 3 au lieu de dégâts fixes. |
+| **Wall of Ice** | « The Spellcaster creates a magical wall of ice which covers two squares unoccupied by figures. The wall has 1 Body Point and rolls 6 Defend dice. Discard when the wall is destroyed. » | Voir §2 ci-dessous — mobilier à PV/défense (chantier 1, déjà construit, `pv_body`/`defense_dice`), UNE case chez nous (décision René 2026-10-04) contre deux sur la carte. |
+| **Thieving Wind** | « This spell must be targeted at one hero. The hero loses one piece of equipment chosen at random. Discard after use. » | Rien d'équivalent : `vol_objet` existe (Gremlin des glaces) mais c'est une capacité de monstre AU CONTACT, jamais un sort à portée illimitée qui retire un équipement choisi au hasard. Nouveau mot-clé de sort Dread à écrire. |
+| **Hurricane** | « The Spellcaster must cast this spell on a character they can see who is in a straight line in front of them. That character is then forced back in a straight line of squares until they hit a wall, another figure, fall down a pit trap or trigger another trap. Discard after use. » | Recul forcé existe (`MoteurPieges`, Chute de blocs, `['sens' => 'reculer']`) mais c'est un PIÈGE, pas un sort, et sans la limite de 8 cases du piège homonyme du carton (§9) — carte de sort et piège partagent le nom mais pas le texte, à ne pas confondre en les portant. |
+| **Earthquake** | « The Spellcaster splits the ground asunder in a straight, orthogonal line of 6 squares. Lay the Earthquake piece on the board to determine who is affected. All those caught will suffer 1 Body Point of damage as if they had fallen into a pit trap. Discard after use. » | Dégâts « comme une fosse » = piège `Fosse` existant (`PiegeSeeder`), zone rayon pour le ciblage — portage direct. À distinguer de la tuile Séisme du livret (§Wizards of Morcar 2025, §4 : 6 cases liées, brise les murs), un composant de plateau plus élaboré, probablement une variante scénarisée propre à une quête plutôt que ce sort générique. |
+| **Blinding Sleet** | « The Spellcaster fills a room with blinding sleet. Characters in that room may not move, make ranged attacks or cast spells until the start of Zargon's next turn. Those characters can only attack and defend against adjacent enemies. Discard after use. » | Rien d'équivalent : nos debuffs de zone (Nuée d'Effroi : `Paralysé`, `RESISTANCE_RUPTURE_PAR_MIND`) bloquent tout, celui-ci bloque juste mouvement/tir/sorts en laissant le corps-à-corps intact — nouvelle condition à écrire si porté (ni `Paralysé`, ni `Ralenti` ne couvrent cette nuance). |
+
+#### Necromancer — Fanrax the Malicious (p. 41 : M6 A4 D6 B4 Mi7)
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Summon Mummy** | « This spell summons a mummy. Place a mummy in any square adjacent to the Spellcaster. Discard after use. » | `Mot::TYPE_INVOCATION` existe déjà (« Invocation de morts-vivants », table à d6) — ce sort-ci est plus simple (1 momie fixe, adjacente) : portage immédiat, pas de nouveau mot-clé. |
+| **Skulls of Doom** | « The Spellcaster hurls a magical skull at any opponent they can see. The skull explodes into a fireball. Roll 2 Attack dice. The target may defend normally. Discard after use. » | Motif identique à notre « Boule de Flammes » (degats_fixes/des_degats, defense_applicable, type_degat feu) — portage direct avec `des_degats: 2`. |
+| **Raise the Dead** | « Cast this spell after a monster has been killed (no action required). The monster is replaced with a skeleton which can move and attack immediately. Discard after use. » | **Sort RÉACTIF, sans coût d'action** — rien de comparable : tous nos `SortDread::TYPE_*` sont lancés comme une action du tour du sorcier (`MoteurDread::tourSorcier()`). Un sort qui se déclenche HORS tour, sur la mort d'un monstre, est un nouveau point d'accroche (même famille que `MoteurReactions::proposer()`, mais côté MJ). |
+| **Fear** | « This spell causes a target to become so fearful that they may only use 1 Attack die. The spell can be broken by the target on a future turn by rolling 1 red die for each of their Mind Points. They must roll a 6 to break the spell. Discard once the spell is broken. » | Rupture « 1 dé rouge par Mind, besoin d'un 6 » = **exactement** `Mot::RESISTANCE_RUPTURE_PAR_MIND` (`rupture_6_par_mind`), déjà lu par `MoteurDread`. Il manque seulement la condition « plafonné à 1 dé d'attaque » — proche de `Ralenti` (Ralentissement) sans en être une copie exacte (celle-ci touche le déplacement, pas l'attaque). |
+| **Death Bolt** | « Hurl this spell at one target within the Spellcaster's line of site to cause them to instantly lose 1 Body point. Discard after use. » | Dégât fixe non résistable = même motif que « Morsure de Froid » (`degats_fixes: 1`, `defense_applicable: false`), mais à distance au lieu d'au contact — portage direct avec `zone` changée. |
+| **Call Skeletons** | « This spell summons up to 2 skeletons that appear immediately anywhere within sight of the Spellcaster. Discard after use. » | Même famille que « Invocation de morts-vivants » (`TYPE_INVOCATION`), plus simple (nombre fixe, pas de table à d6) — portage direct. |
+
+#### High Mage — Zanrath, High Mage of Sarako (p. 41 : M5 A5 D5 B4 Mi8)
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Wall of Flame** | « Cast this spell to create a magical wall of flame which covers two 2 squares not occupied by figures within the Spellcaster's line of sight. The wall has 1 Body Point and rolls 6 Defend dice. Discard when the wall is destroyed. » | Voir §2 — même mécanique que Wall of Ice, deuxième des trois murs. |
+| **Strands of Binding** | « Cast this spell to fire magical tendrils from the Spellcaster's fingertips. They entangle one target who may not move or attack until the tendrils are destroyed. Tendrils have 1 Body point and roll 4 Defend dice. The target may defend against other attacks. Discard when the tendrils are destroyed. » | Famille « entité possédant ses propres PV/défense qu'un héros doit détruire pour se libérer », le MÊME patron que les Murs et les Coffres du Dread (chantier 1, mobilier à PV/défense) — mais appliqué à une IMMOBILISATION de figure plutôt qu'à un obstacle de case. Different de « Étreinte des Ronces » (résistance par jet de combat, pas de PV propres à détruire) : un sous-cas neuf du même patron générique. |
+| **Rust** | « This spell causes any one piece of metal equipment to decay to the point of uselessness. It is not effective against artifacts. Remove the affected equipment from play. Discard after use. » | Notre « Rouille » (`SortDreadSeeder`) détruit TOUS les emplacements métalliques (`arme_principale`, `arme_secondaire`, `casque`) d'un coup, `epargne_artefacts: true` déjà partagé — cette carte-ci ne vise qu'UNE seule pièce choisie. Même `detruit.metallique`/`epargne_artefacts`, portée différente : à cadrer comme une variante « ciblée » plutôt qu'un nouveau mot-clé. |
+| **Possess** | « The Spellcaster may cast this spell on one figure to affect it with a frightening terror. Zargon will move this figure on its next turn. The affected figure may not attack or cast spells. Discard after use. » | **Rien d'équivalent** : aucun mot-clé ne donne au MJ le contrôle du DÉPLACEMENT d'un héros sur son propre tour suivant. Capacité entièrement nouvelle — poserait une question de principe (« Le serveur publie la décision » : le déplacement imposé devrait être calculé et publié, jamais laissé au hasard côté client). |
+| **Escape** | « The Spellcaster may disappear and instantly teleport to a secret destination known only to Zargon. This space is marked on the quest map. Discard after use. » | **Mot pour mot** notre « Fuite » (`SortDreadSeeder`, `teleportation: MoteurDread::FUITE_CASE_ELOIGNEE`) — déjà noté dans la section 2025 que nos donjons procéduraux n'ont pas de case marquée, d'où le choix de la case libre la plus éloignée. Rien à changer. |
+| **Unlearn** | « The Spellcaster may pick one spell caster and force them to discard 1 spell card at random. The spell is removed from play for the duration of the quest. Discard after use. » | **Doublon exact de nom** avec la carte héros *Unlearn* du répertoire *Spells of Protection* (§3) — même effet, simple changement de perspective de phrase (« The Spellcaster may… » vs « You may… »). Rien chez nous ne force un lanceur à défausser un sort connu : nouveau mot-clé (anti-magie), à écrire une fois pour les deux decks. |
+
+#### Orc Warcaster — Nyashak, Orc Warcaster of the Northern Clan (p. 41 : M7 A5 D5 B5 Mi7)
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Call Orcs** | « The Spellcaster places up to 2 Orcs on spaces they can see. The Orcs may be taken from those not in play or from anywhere on the board. They may move and attack immediately unless they have already done so this turn. Discard after use. » | Même famille que « Invocation d'orques » (`TYPE_INVOCATION`, table à d6) mais SANS tirage aléatoire (nombre fixe, 2) et avec la possibilité de RÉUTILISER un orque déjà sur le plateau — nuance absente de nos invocations actuelles (qui créent toujours de nouvelles instances). |
+| **Call Goblins** | « The Spellcaster places up to 4 Goblins on spaces they can see. The Goblins may be taken from those not in play or from anywhere on the board. They may move and attack immediately unless they have already done so this turn. Discard after use. » | Même remarque que Call Orcs, nombre 4 au lieu de 2. |
+| **Spirit of Vengeance** | « This spell allows the Spellcaster to send an invisible spirit to attack any one character on the board. The spirit attacks once with 4 Attack dice. The character attacked defends as normal. The spirit then vanishes. Discard after use. » | Attaque sans ligne de vue déclarée (« any one character on the board ») : aucun de nos sorts à dégâts n'ignore la ligne de vue du lanceur — nuance neuve si portée telle quelle. Mécaniquement sinon : simple jet d'attaque à dégâts (`des_degats: 4`, `defense_applicable: true`), motif déjà connu. |
+| **Shield of Protection** | « This spell allows the spellcaster and all Orcs in the same room to roll 1 extra combat die in defense until the start of spellcaster's next turn. May only be cast in a room. Discard after use. » | Buff de zone « salle entière » existe pour les héros (Conte inspirant, Chant de guérison — `zone: salle_du_lanceur`/`heros_en_vue`) mais aucun équivalent côté monstres aujourd'hui (nos buffs monstres sont individuels : `bonus_lanceurs_adjacents`). Nouveau : buff de défense de ZONE pour une faction de monstres. |
+| **Sharpen Blades** | « This spell allows all Orcs in the same room as the Spellcaster to roll an extra Attack die for this turn only. May only be cast in a room. Discard after use. » | Même nouveauté que Shield of Protection, côté attaque. |
+| **Orc Berserker** | « The Sorcerer chooses an Orc they can see to be filled with immense strength and vigor. The Orc moves and attacks twice on this turn only. This spell may not be cast on an Orc that has already moved or attacked. Discard after use. » | Rien chez nous ne donne un second tour complet (déplacement + attaque) à un AUTRE monstre — notre « Arrêt du temps » (sort de héros) donne un tour supplémentaire à SOI, jamais à une tierce figure. Nouvelle mécanique si portée. |
+
+#### Artificer — the Keeper (p. 41 : M6 A4+2\* D3 B5 Mi8)
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Beseech Dread Powers!** | « The spellcaster may immediately cast this spell in response to being reduced to 0 body points. Roll 1 red die. 1-2 Ignored. 3-5 Place a Gargoyle in the spellcaster's space. 6 The air chills. Each hero in the same room or corridor loses 2 body points. Discard after use. » | Même FAMILLE que `increvable_une_fois` (réaction à 0 PV, un seul point de passage `MoteurDegats::infligerAMonstre()`) mais un résultat complètement différent (table à d6, pas une survie) — bon candidat pour étendre ce même point de passage plutôt qu'en ouvrir un second. |
+| **Scrolls of Morcar** | « The Spellcaster keeps this spell face up and places 3 shadow tokens on it. When the Spellcaster takes any amount of damage, remove 1 shadow token instead. The spell is broken after the last shadow token is removed. Discard after use. » | Bouclier à « charges » qui absorbe N coups quel que soit leur montant — proche de `immunite_degat` + `charges` (Anneau de Feu) mais celui-ci bloque TOUT dégât (pas une seule nature) pendant 3 coups : nuance à nommer (`absorbe_coups` plutôt que `immunite_degat`). |
+| **Hammer of Ruin** | « The Spellcaster keeps this spell face up and may roll 2 extra combat dice when attacking. If an attack from the spellcaster does not result in the enemy losing at least 1 Body Point, the spell is broken. Discard after use. » | **C'est ce sort qui produit la ligne « Attack 4+2\* » du tableau des monstres** (§Wizards of Morcar 2025, §2) — confirmé mot pour mot. Buff d'attaque persistant à condition de résultat (se brise sur un coup manqué) : rien d'identique chez nous (nos buffs persistants expirent sur durée/déclencheur, jamais sur un ÉCHEC du porteur lui-même). |
+| **Leach Life** | « The Spellcaster rolls 1 red die for each other figure in the same room or corridor. If the roll is equal to or greater than a target's Mind Points, they lose 1 Body Point and the Spellcaster recovers 1 Body Point. Discard after use. » | Vol de vie (inflige + soigne le lanceur du même montant) : rien d'équivalent dans nos sorts Dread (nos soins Dread, « Apaisement »/« Restauration de l'Effroi », ne sont jamais couplés à un dégât infligé). Nouveau motif. |
+| **Conjure Golem** | « This spell conjures up a fearsome creature of stone that's dead set on protecting its creator. The Spellcaster places a Golem on a space they can see. Discard after use. » | Même famille que les invocations existantes (`TYPE_INVOCATION`), Golem à seeder (§Wizards of Morcar 2025, §2, M5 A4 D5 B3 Mi0, aucune ligne au catalogue aujourd'hui). |
+| **Summon Dreadshifter** | « Once a normal object, now a creature of nightmares. The Spellcaster places a Dreadshifter on a space they can see. Discard after use. » | Même famille, Dreadshifter à seeder (capacité `embuscade`/Ambush, §5 ci-dessous, non encore portée). |
+
+### 2. Murs magiques — qui les lance, et une incohérence apparente du livret
+
+Détail déjà corrigé dans la section 2025 ci-dessus (⚠ Corrigé le
+2026-10-05). Synthèse : **Wall of Ice** est un sort du **Storm Master**
+(Boroush), **Wall of Flame** un sort du **High Mage** (Zanrath) — les deux
+dans les 30 cartes transcrites §1. **Wall of Stone**, en revanche, n'est
+PAS un sort de Sorcier du Dread : c'est une carte du répertoire de HÉROS
+*Spells of Protection* (§3 ci-dessous), phrasée à la première personne
+(« *You create…* ») contre « *The Spellcaster creates…* » pour les deux
+murs du Dread. Les trois partagent la même règle générique sur le carton
+*Magic Reference Chart* (§9), ce qui explique pourquoi le livret de quêtes
+les cite ensemble au même paragraphe — mais seuls DEUX des trois profitent
+réellement à un camp « adverse » ; le troisième est un outil défensif de
+héros. Chez nous : mobilier à une case (`pv_body: 1`, `defense_dice: 6`),
+lecteur déjà construit (chantier 1), aucun des trois n'est encore seedé.
+
+### 3. Trois répertoires de sorts de héros — TRANSCRITS
+
+Résout le ⚠ « Aucun texte de carte » de la section 2025, §3 : les trois
+répertoires ont chacun exactement **3 sorts**.
+
+#### Spells of Protection
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Wall of Stone** | « You create a magical wall of stone which covers 2 squares not occupied by figures. The wall has 1 Body Point and 6 Defend dice. Discard when the wall is destroyed. » | Voir §2 — troisième mur, côté héros. Mobilier à PV/défense, lecteur déjà construit. |
+| **Invisibility** | « Casting this spell makes you invisible until the start of your next turn. While invisible, you may not attack. You cannot be attacked and are immune to all spells. Discard after use. » | **Rien d'équivalent** : aucun mot-clé `invisible`/`invisibilite` n'existe dans `MotsClesSort`/`MotsClesEquipement` (le seul hit sur « invisible » dans le code est un commentaire sans rapport dans `Combat.php`). Notre plus proche parent est « Évanescence » (condition `Évanescent`, effet non chiffré ailleurs dans ce document) ou « Image double » (`image_miroir`) — aucun des deux ne couvre « ne peut être ni ciblé par une attaque, ni par un sort ». Nouvelle condition à écrire. |
+| **Unlearn** | « You may pick one spell caster and force them to discard one spell card at random. The spell is removed from play for the duration of the Quest. Discard after use. » | Doublon de nom avec la carte Dread du High Mage (§1) — voir la note là-bas. |
+
+#### Spells of Detection
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Treasure Horde** | « You may cast this spell instead of drawing a treasure card to draw 3 treasure cards. You may shuffle any of the drawn cards back into the treasure deck and keep the rest. Discard after use. » | Rien d'équivalent sur `DeckFouille` : piocher plusieurs cartes de trésor et choisir lesquelles garder n'a pas de lecteur aujourd'hui. Nouveau. |
+| **Future Sight** | « This spell may be cast at any time and does not take an action. You may re-roll all dice for any one attack, defense or movement roll. Discard after use. » | Proche de `relance_des_attaque` (Potion de bataille) mais BIEN plus large : celui-ci relance TOUS les dés (pas seulement les ratés), sur attaque, défense OU déplacement, et ne coûte aucune action. Nouvelle variante à nommer séparément (`relance_totale` ?), pas une simple extension de l'existant. |
+| **Clairvoyance** | « You may ask Zargon to lay out the contents of one room anywhere on the board. If the room is empty, you may not try again. Discard after use. » | Rien d'équivalent : révéler le contenu d'une salle non explorée, à distance, sans s'y rendre. Nouveau — à cadrer avec « le serveur publie la décision » (quel contenu montrer sans révéler toute la carte au client). |
+
+#### Spells of Darkness
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Cloak of Shadows** | « This spell summons a patch of darkness. Place the Cloak of Shadows tile on the gameboard. Heroes and monsters on the tile may not attack or be attacked. The darkness blocks line of sight into and through it. Place 3 shadow tokens on this card. At the start of the spellcaster's turn, remove a shadow token. The spell ends after the last shadow token is removed. Discard this card. » | Résout le ⚠ de la section 2025, §4 (« Tuile Voile d'ombre… non trouvé ») : texte intégral désormais connu. `bloque_vue` existe déjà comme mot-clé de terrain/mobilier (`FabriqueGrille`) mais jamais pour une zone TEMPORAIRE posée par un sort de héros avec un compteur de jetons qui décroît — motif proche de « Mur de Glace » (compteur de crânes qui décroît, couche dédiée `carte.grille`) à réutiliser plutôt qu'à dupliquer. |
+| **Chains of Darkness** | « You may cast this spell on one monster you can see. That monster may not move or attack until the start of your next turn. They may defend or cast spells. Discard after use. » | Ni `Paralysé`, ni `Ralenti`, ni `Étourdi` ne couvrent exactement « ne peut ni bouger ni attaquer, mais peut se défendre et lancer des sorts » — nuance de condition neuve. |
+| **Arrows of the Night** | « This spell fires magical bolts at any monster you can see. Roll 2 Attack dice. The target defends with as many dice as they have Mind Points. Monsters with 0 Mind points may not roll defense. Discard after use. » | Défense = nombre de dés d'Esprit, et monstres à 0 Esprit ne défendent pas du tout : motif proche de notre `SortMental` (monstres à 0 Mind immunisés aux sorts MENTAUX) mais appliqué ici à un sort de DÉGÂTS, avec une défense variable inédite (`des_resistance` égal au Mind de la cible, pas une valeur fixe). Nouveau. |
+
+### 4. Mercenaires — les 4 cartes CONFIRMENT le catalogue
+
+Relues individuellement, les 4 cartes de mercenaires de cette boîte
+égalent, valeur par valeur, `database/seeders/MercenaireSeeder.php` — rien
+à porter, la section 2025 §1 du plan (`docs/plan-wizards-of-morcar.md`)
+avait raison sur la seule foi du texte du livret, la carte confirme.
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Swordsman** | Stats M5 A4 D5 B2 Mi2, prix 100 po, aucune capacité spéciale sur la carte. | = **Estafier** (`MercenaireSeeder`, M5 A4 D5 B2 Mi2, 100 po) — exact. |
+| **Scout** | Stats M9 A2 D3 B2 Mi2, prix 50 po. « *Dwarf-like ability to remove traps.* » | = **Éclaireur** (M9 A2 D3 B2 Mi2, 50 po, `permet_desamorcage`) — exact. |
+| **Halberdier** | Stats M6 A3 D3 B2 Mi2, prix 75 po. « *Can make diagonal attacks.* » | = **Fauchard** (M6 A3 D3 B2 Mi2, 75 po) — exact. |
+| **Crossbowman** | Stats M6 A3 D3 B2 Mi2, prix 75 po. « *Wields a crossbow.* » | = **Arbalétrier** (M6 A3 D3 B2 Mi2, 75 po, à distance) — exact. |
+
+### 5. Ennemis hors sorciers — Sir Ragnar, Dreadshifter, Golem, Minotaure
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Sir Ragnar** | Stats M7 A3 D5 B6 Mi2, aucun texte de capacité sur la carte (bloc de stats pur, comme une fiche de héros). | ⚠ **Collision de nom** : `MonstreSeeder` porte DÉJÀ un « Sir Ragnar » — celui de *Rise of the Dread Moon* (`boite: 'dread_moon'`, tier boss, M5 A5 D5 B4 Mi4, `increvable_une_fois`, cout 14), un PERSONNAGE DIFFÉRENT (boss monstre, pas un allié jouable). Pas de conflit technique (`Monstre.nom_base` et `Mercenaire.nom` sont deux tables distinctes) mais une collision NARRATIVE réelle entre deux boîtes Hasbro. Celui de Morcar suit exactement le gabarit « captif » déjà construit (`Mercenaire::captif`, chantier 3b, cf. Gothar) : stats désormais connues, portable, à nommer distinctement (ex. « Sir Ragnar (Wizards of Morcar) ») pour éviter toute confusion de narration. |
+| **Dreadshifter** | Stats M5 A4 D3 B2 Mi4 (= ligne du tableau officiel, exact). « *Dreadshifters in this expansion pack appear to be either a chest or a door. Place this monster onto the board as the object it appears to be. The first time a hero moves into the 8 squares surrounding this object, replace it with the corresponding Ambush monster miniature. It may move and attack immediately.* » | Déclencheur de la carte = SOUS-ENSEMBLE du texte du livret (§Wizards of Morcar 2025, §2, capacité *Ambush*, 4 déclencheurs) : la carte ne documente QUE le déclencheur « un héros entre dans les 8 cases alentour », le livret ajoute fouille de pièges/trésor et tour du MJ. Pas une contradiction, deux niveaux de détail. Rien de comparable au catalogue (`embuscade` reste à écrire, §Wizards of Morcar 2025 §5/lot C). |
+| **Golem** | Stats M5 A4 D5 B3 Mi0 (= ligne du tableau officiel, exact), aucune capacité sur la carte. | Pas de divergence avec la note de quête p. 19 (« un bouclier noir bloque tout ») déjà documentée comme règle PONCTUELLE à une quête, pas une capacité générale — confirmé, le Golem générique n'a rien de spécial. |
+| **Minotaur** | Stats M7 A4 D5 B6 Mi4 (= ligne du tableau officiel, exact). « *In addition to their own turn, a minotaur may immediately roll 2 Attack dice against a hero who ends their turn in one of the 10 spaces surrounding it. A minotaur may not gore if they are incapacitated.* » (capacité nommée **Gore**) | **Rien d'équivalent** : aucune réaction « hors tour, déclenchée par la fin du tour adjacent D'UN HÉROS » n'existe au catalogue (nos réactions existantes se déclenchent sur une attaque ou un dégât subi, jamais sur le simple fait de terminer son tour à portée). Nouvelle mécanique de monstre si porté. |
+
+### 6. Artefacts — 2 des 3 cartes nommées par le texte de quête
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Urdyn the Unmaker** | Arme, 2 dés d'attaque de combat normal, 4 dés contre un Dreadshifter ou un Golem spécifiquement. | ⚠ Rien d'équivalent : aucun artefact actuel ne porte un bonus CONDITIONNÉ au TYPE de monstre adverse (nos bonus conditionnels existent `au_contact`, jamais `type_monstre_cible`). Nouveau mot-clé si porté — et nécessite d'abord que Golem/Dreadshifter existent au catalogue. |
+| **Drakehide Cuirass** | Armure non métallique, +1 dé de défense, fixe le déplacement à 8 cases (au lieu de lancer les dés), cumulable avec casque/bouclier, explicitement interdite au Magicien. | Le déplacement FIXE (au lieu d'un jet) n'a pas d'équivalent — nos classes ont toutes `deplacement_base + 1d6`, jamais un artefact qui REMPLACE le jet par une valeur fixe. Nouveau. |
+| **Elixir of Life** | ⚠ Toujours **non trouvée** — absente des 2 cartes d'artefact rendues. Seul le texte de quête (p. 18 : « *if this is already owned by a hero, find 2 Potions of Healing instead* ») en parle. | Sans changement depuis la section 2025 — René n'a pas cette carte en photo. |
+
+### 7. Faveurs de Hopekins Rest — les 5 compétences, TRANSCRITES
+
+Résout le ⚠ de la section 2025, §5 (noms seulement). Les 5 cartes sont des
+**compétences de héros** au format talent (une icône, un texte d'effet
+permanent une fois acquis).
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Peacekeeper** | « Keep track of the number of monsters you reduce to 0 Body Points for each quest. For your service, the Realm rewards you with 25 gold coins per monster defeated the end of that quest. » | Rien d'équivalent : aucune récompense en or indexée sur le nombre de monstres vaincus PAR UN HÉROS SPÉCIFIQUE pendant la quête — nos récompenses d'or sont actuellement globales au groupe. Nouveau. |
+| **Hold the Line** | « Each time a monster on Zargon's turn moves away from the 8 spaces immediately surrounding you, roll a combat die. If you roll a skull, inflict 1 Body Point of damage on the retreating monster. » | Famille des réactions hors tour (`MoteurReactions`) mais déclenchée par le DÉPART d'un monstre d'une case adjacente plutôt qu'une attaque reçue — nouveau déclencheur, aucun équivalent « attaque d'opportunité sur repli » au catalogue. |
+| **Deadeye** | « Monster and heroes do not block your line of sight when attacking or casting spells. » | Lève le blocage de ligne de vue par les FIGURES (héros/monstres, pas les murs/meubles) pour attaquer ou lancer un sort — nuance absente de `Grille::ligneDeVue()` aujourd'hui (nos monstres/héros bloquent la vue comme tout obstacle ; seul `Voile de Brume`/`franchit_figures` lève un blocage de MOUVEMENT, pas de VISÉE). Nouveau. |
+| **Weapon Expert** | « Select a type of weapon (e.g., battleaxe, longsword, or crossbow) when you acquire this Boon. When attacking with a weapon of that type, roll 1 additional Attack dice. » | Même famille que les tags de maîtrise déjà portés par certaines classes (ex. `arme_warlock`, `arme_elfe`) mais choisi PAR LE JOUEUR à l'acquisition plutôt que figé par classe — nouveau mécanisme de sélection, portable sur le même seam de bonus d'attaque. |
+| **Healing Hands** | « If a hero adjacent to you is reduced to 0 Body points, you may allow them to use one of your available healing potions instead of their own. » | Partage de ressource entre héros adjacents au moment critique (0 PV) — proche en esprit de « Passing Items » (don d'objet entre héros adjacents, déjà couvert par `SeanceEchange`) mais déclenché AUTOMATIQUEMENT à 0 PV plutôt que par une action volontaire. Nuance à traiter. |
+
+### 8. Trésors — les 8 cartes + « Nothing! », TRANSCRITES
+
+9 images pour 8 types de cartes (*Magical Trap* existe en 2 exemplaires
+dans le paquet). Résout le ⚠ de la section 2025, §3.
+
+| Carte | Citation | → chez nous |
+|---|---|---|
+| **Magical Trap** (×2 exemplaires) | « As you are searching the room, you set off a Fireburst trap. » (renvoie au piège magique *Fireburst* du carton, §9) | Résultat de fouille qui déclenche un piège SANS qu'aucun piège n'ait été physiquement posé — notre `DeckFouille` n'a pas d'équivalent « mauvaise pioche = piège ». Dépend du piège *Fireburst* (§9, non porté). |
+| **Poison** | Jet de 1 dé de combat ; sur un crâne, perte de 1 PV de Body, sinon rien. | Proche du motif `PiegeSeeder` « Aiguille empoisonnée »/« Fiole de poison » (résistance par jet simple) — portable sur le même seam côté trésor plutôt que piège. |
+| **Potion of Alchemy** | Transforme l'équipement du porteur en or : défausse une carte d'équipement, gagne 100 po. | Rien d'équivalent : aucune conversion objet → or au catalogue actuel. Nouveau. |
+| **Potion of Charm** | Entre deux quêtes, engager jusqu'à 3 mercenaires à 25 po de moins chacun. | Remise ponctuelle sur le recrutement — nouveau, à cadrer avec le système d'entretien des mercenaires (§Wizards of Morcar 2025, §5, lot D). |
+| **Potion of Magical Aptitude** | Lancer 2 sorts connus au lieu d'un pendant ce tour. | Confirme le texte déjà cité §Wizards of Morcar 2025 §3 — rien au vocabulaire de sort ne permet un second lancer dans le même tour aujourd'hui (lot F du plan). |
+| **Potion of Magic Resistance** | Ignore les effets du PROCHAIN sort à dégâts lancé sur le buveur. | Aucun mot-clé « annule le prochain sort subi » au catalogue des conditions/effets — nouveau (lot F). |
+| **Potion of Fire Resistance** | Complètement épargné par la prochaine attaque de feu magique, sort ou piège *Fireburst*. | `immunite_degat: 'feu'` existe déjà (Anneau de Feu) — portage immédiat avec `charges: 1`, consommé à l'usage comme toute potion. |
+| **Nothing!** | « Despite a thorough search, you find nothing. » | Déjà couvert par notre deck de fouille (résultat « rien trouvé » existant). |
+
+### 9. Carton *Magic Reference Chart*
+
+Identique à la p. 10 du livret. Regroupe les règles génériques partagées
+par plusieurs cartes plutôt que de les répéter : « *Wall of Ice. Wall of
+Flame. Wall of Stone.* » (1 PV, 6 dés de défense, pose sur 2 cases libres —
+règle commune aux trois murs du §2, quel que soit leur lanceur), le piège
+*Fireburst* (jeton posé, explose au tour suivant du MJ, 3 dés d'attaque de
+feu sur toute la salle), le piège *Hurricane Trap* (recul forcé de 8 cases
+en couloir), le piège *Teleport Trap* (téléportation case A → case B,
+désoriente). Rien ici ne contredit la section 2025, §5 (lot B, pièges
+magiques) — le carton confirme simplement les trois pièges déjà cités.
+
+---
+
 ## Tableau de synthèse
 
 | Boîte | Année | Héros jouables | Monstres neufs (types) | Mécaniques neuves majeures |
@@ -2445,12 +2879,15 @@ la quête et la campagne.
 | Jungles of Delthrak | 2024 | 2 (Explorateur confirmé, Berserker probable)⚠ | 9 (Blightcrawler, Blightweaver, Giant Ape, Goblin/Skeleton Archer, Raptor, Serpent, Skullblight, Spawnling) | 3 modes de difficulté/mort, campagne ramifiée, terrain destructible, jetons de dégât différé |
 | The Crypt of Perpetual Darkness | 2024/25 | 0 | 0 (variantes nommées seulement) | Piège d'acide permanent, monstre-piège auto-déclenché, obscurité magique pénalisante |
 | First Light | 2024 | 0 | 0 (reprise intégrale du bestiaire de base) + Qwindrak the Warlock (Move 6 · Att 3 · Déf 6 · Body 3 · Mind 6) ; Dragon (Move 10 · Att 5 · Déf 5 · Body 7 · Mind 6, Draconic Flight, Ball of Flame à volonté) | Livret de règles : aucune. Livret de quêtes (scan p. 6-7, §6) : Oracle (bénédiction/malédiction), cor des Hearthkin, Healing Hearth, Sly Storage, sorts Dread 1×/quête par monstre, entrée/sortie fléchées |
-| Wizards of Morcar | 2025 | 0 (réimpression du Magicien) ⚠ Sir Ragnar, allié nommé jouable 2 quêtes, non chiffré | 8 (Storm Master, Orc Warcaster, Necromancer, High Mage, Artificer, Dreadshifters, Golems, Minotaur) dont 5 Sorciers du Dread nommés | Murs magiques destructibles (1 PV, arête de 2 cases), 3 pièges magiques non fouillables, statut de Gardien + mercenaires à entretien, faveurs de Hopekins Rest (compétences inédites), coffres renforcés (fouille à l'adjacence) |
+| Wizards of Morcar | 2025 | 0 (réimpression du Magicien) ⚠ Sir Ragnar, allié nommé jouable 2 quêtes, stats désormais connues (carte, 2026-10-05) | 8 (Storm Master, Orc Warcaster, Necromancer, High Mage, Artificer, Dreadshifters, Golems, Minotaur) dont 5 Sorciers du Dread nommés, 30 sorts transcrits | Murs magiques destructibles (1 PV, carte = arête de 2 cases ⚠ corrigé le 2026-10-05 : UNE case chez nous, décision René 2026-10-04), 3 pièges magiques non fouillables, statut de Gardien + mercenaires à entretien (4 cartes confirmées identiques au catalogue), faveurs de Hopekins Rest (5 compétences transcrites), coffres renforcés (fouille à l'adjacence), 3 répertoires de sorts de héros transcrits (Protection/Détection/Ténèbres) |
 
 † Statistiques chiffrées de l'Abomination non trouvées dans Kellar's Keep
 lui-même ; confirmées comme faisant partie du bestiaire standard 2021 par
-le contenu de boîte de *First Light*, chiffrées uniquement (à prendre avec
-prudence) par la table de tournoi d'*Against the Ogre Horde*.
+le contenu de boîte de *First Light*, chiffrées par la table de tournoi
+d'*Against the Ogre Horde* (6/3/3/2/3). ⚠ **Sourcée sans réserve depuis le
+2026-10-05** : carte « Abomination » elle-même (© 2021,
+`reference/20_cartes_monstres.md`) — même chiffre, aucune capacité. Semée
+dans `MonstreSeeder` (`tier => 'base'`, `boite => 'base'`).
 ‡ Contenu mentionne un miniature « Druid Hero » : **c'est bien un héros
 jouable**, dont la carte de personnage est publiée avec cette boîte (voir
 §HasLab Mythic Tier). Le livret de quêtes n'en dit rien, d'où le « 0 » de

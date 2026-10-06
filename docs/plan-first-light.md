@@ -36,3 +36,15 @@
 - **A — Dragon et boîte First Light** : `MonstreSeeder`, `GabaritQueteSeeder` (rencontre finale), `DemarreurQuete::BOITES_THEMATIQUES` / `LIBELLES_BOITES`, `MoteurDread` (à volonté, vol draconique), registres et tests.
 - **B — Règles de salle** : *Sly Storage* (fouille trésor), déplacement sans menace (`MenuMoteur::deplacementDuTour()`).
 - **C — Oracle et Cor** : épreuve Oracle (bénédiction, malédiction *Mark of Zargon*, levée à 800 po au marché), artefact *Hearthkin Horn* et ses squelettes alliés.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF **G0978** (livret de règles,
+> distinct du livret de quêtes photographié) relues à l'image. Rien de
+> neuf : la dernière page utile (p. 20-21, « Component Reference ») est la
+> **même table** que celle déjà photographiée et transcrite en
+> `reference/18_extensions.md` §6.2 — accessible directement dans ce PDF
+> (texte extrait complet, noms + types ; seule la colonne « Map Symbol /
+> Art » reste une icône non-OCRisable). Aucune carte de sort/objet/artefact
+> reproduite ailleurs dans ce PDF : il réutilise le jeu de base à
+> l'identique (§3 ci-dessus). Rien à retirer de la liste de photos — ce
+> plan n'en tenait pas.

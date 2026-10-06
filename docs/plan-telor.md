@@ -246,3 +246,11 @@ jetable** ; `sauvegarder.sh` avant toute migration ; aucune purge de
 `groupes`/`personnages`/`joueurs` ; redémarrer `queue` et `queue-jeu` après
 le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 `prophecy_telor` clôt les lots B à E.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image. La page
+> « Artifact Reference » (p. 35) ne liste que des cartes RÉUTILISÉES du
+> jeu de base (*Elixir of Life, Ring of Fortitude, Rod of Telekinesis,
+> Talisman of Lore*), aucun texte de carte caché — cohérent avec §3
+> (« aucun nouvel artefact nommé »). Rien à corriger, rien à retirer de la
+> liste de photos.

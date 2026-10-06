@@ -18,6 +18,68 @@
 > Cette boîte n'avait **jamais été dépouillée** avant ce travail : il n'existe
 > aucun autre plan ni aucune section `reference/18` antérieurs à mentionner.
 
+> ## Cartes reçues le 2026-10-05
+>
+> René a scanné les **63 cartes** de la boîte + le carton *Magic Reference
+> Chart* (64 fichiers), toutes lues et transcrites dans
+> `reference/18_extensions.md` §**Wizards of Morcar — cartes TRANSCRITES
+> (2026-10-05)**. Résumé lot par lot (lots du §3 ci-dessous) :
+>
+> - **Lot A (murs destructibles)** — **déjà construit** entre-temps
+>   (`docs/plan-chantiers-transverses-2026-10-04.md`, chantier 1, commit
+>   « Mobilier attaquable ») : `Haut Autel` et `Coffre du Dread` sont déjà
+>   dans `MobilierSeeder` (`boite: 'wizards_of_morcar'`). Les cartes
+>   confirment le texte des Murs magiques mot pour mot (arête de DEUX cases,
+>   1 PV, 6 dés de défense) mais **René avait déjà tranché le 2026-10-04,
+>   avant de les voir, qu'ils occupent UNE case chez nous** — une divergence
+>   assumée, pas une lecture en attente. Nouveau : **Wall of Ice** est un
+>   sort du **Storm Master**, **Wall of Flame** un sort du **High Mage** —
+>   mais **Wall of Stone est un sort de HÉROS** (*Spells of Protection*), pas
+>   un troisième sort de Sorcier du Dread. Ne reste plus qu'à seeder les
+>   trois comme mobilier d'une case et à les relier à leurs sorts respectifs.
+> - **Lot B (pièges magiques)** — le carton confirme *Fireburst*/*Hurricane
+>   Trap*/*Teleport Trap* mot pour mot, rien de nouveau ; `detectable: false`
+>   reste à introduire au vocabulaire.
+> - **Lot C (*Ambush*/Dreadshifter)** — stats confirmées (M5 A4 D3 B2 Mi4,
+>   = tableau officiel) et texte de capacité obtenu, mais **plus étroit** que
+>   le livret : la carte ne documente qu'UN déclencheur (entrée dans les 8
+>   cases alentour) sur les quatre du livret. Prêt à seeder dès que
+>   `embuscade` existe.
+> - **Lot D (statut de Gardien + entretien)** — rien de neuf : les 4 cartes
+>   de mercenaires confirment nos stats à l'identique, Q1 reste entière.
+> - **Lot E (faveurs de Hopekins Rest)** — **débloqué** : les 5 compétences
+>   sont transcrites mot pour mot (Peacekeeper = or par monstre vaincu, Hold
+>   the Line = attaque d'opportunité sur repli, Deadeye = les figures ne
+>   bloquent plus la ligne de vue, Weapon Expert = bonus sur un type d'arme
+>   choisi à l'acquisition, Healing Hands = partage de potion de soin à 0 PV
+>   entre héros adjacents). Q2 n'attend plus les photos.
+> - **Lot F (potions)** — les 3 potions attendues sont transcrites
+>   (*Fire Resistance*, *Magical Aptitude*, *Magic Resistance*), **plus deux
+>   non prévues au plan** : *Potion of Alchemy* (équipement → 100 po) et
+>   *Potion of Charm* (rabais de recrutement de mercenaires) — à ajouter au
+>   lot.
+> - **Lot G (coffres renforcés)** — aucune carte dédiée (c'est une règle, pas
+>   un objet) ; rien de neuf.
+> - **Lot H (gabarits de quête)** — **Sir Ragnar a maintenant des stats**
+>   (M7 A3 D5 B6 Mi2, carte sans texte de capacité). Combiné à la décision
+>   transverse du 2026-10-04 (mission « secourir » générique), Q3 est
+>   **résolue dans un sens différent de la recommandation d'origine** : ni
+>   « écarté » ni laissé en l'état, Sir Ragnar est maintenant **portable**
+>   via le même gabarit que Gothar (`Mercenaire::captif`). ⚠ Collision de nom
+>   à gérer : `MonstreSeeder` porte déjà un « Sir Ragnar » différent (boss de
+>   *Rise of the Dread Moon*, M5 A5 D5 B4 Mi4) — tables distinctes
+>   (`monstres` vs `mercenaires`), pas de conflit technique, mais à nommer
+>   distinctement pour la narration.
+> - **Hors plan d'origine, débloqué en bloc** : les **30 cartes de sort des
+>   cinq Sorciers du Dread** (6 chacun, aucune n'était connue) et les **9
+>   sorts des trois répertoires de héros** (*Spells of Protection/
+>   Detection/Darkness*, 3 chacun) sont intégralement transcrits. Ça change
+>   la réponse à Q5 (thème de bestiaire) — voir §4 ci-dessous.
+>
+> Détail carte par carte, citations et « chez nous » : voir la section
+> source. Ne change rien à la section 0-3 et 6 ci-dessous (dates et
+> structure d'origine conservées) ; §4 et §5 sont mis à jour en conséquence.
+
 ## 0. Ce que le livret contient, et ce qu'il ne contient pas
 
 **Le livret porte** : les règles de la boîte (p. 2-13), le guide de symboles
@@ -206,25 +268,50 @@ meuble », simple à brancher sur le seam existant.
 | **Q4** | Le lecteur « mobilier destructible avec PV/défense » (lot A) sert Wizards of Morcar (3 usages), Jungles of Delthrak (Crystal Cluster) ET relancerait potentiellement *Ice Wall* de la boîte de glace désactivée : construire une fois, générique, tout de suite ? | Oui — c'est la seule pièce qui débloque trois boîtes à la fois, le meilleur rapport effort/couverture du rapport |
 | **Q5** | Cette boîte devient-elle un THÈME de bestiaire (`BOITES_THEMATIQUES`) ? Elle a 5 lanceurs nommés mais SEULEMENT 2 sorts sourcés par sorcier (les 3 génériques de plateau) sur 6 — les répertoires individuels sont ⚠ non trouvés | Pas avant les photos des 30 cartes de sort : un thème à sorciers muets (seulement Murs/Éclair/Séisme) serait plus pauvre que le fond commun actuel |
 
+### Questions reformulées — cartes reçues le 2026-10-05
+
+Les photos du §Cartes reçues ci-dessus tranchent ou déplacent trois des
+cinq questions d'origine ; les deux autres restent entières.
+
+| # | État au 2026-10-05 |
+|---|---|
+| **Q1** | **Toujours ouverte, inchangée.** Les cartes de mercenaires confirment les stats mais ne disent rien du modèle Gardien/entretien — c'est une règle du LIVRET (p. 8-9), pas une carte. Décision de René toujours attendue. |
+| **Q2** | **Plus bloquée par l'absence de cartes** — les 5 compétences sont transcrites mot pour mot (`reference/18_extensions.md` §7). La question devient concrète : *Peacekeeper* (or par monstre vaincu en quête), *Hold the Line* (attaque d'opportunité sur un monstre qui recule), *Deadeye* (les figures ne bloquent plus la ligne de vue pour attaquer/lancer un sort), *Weapon Expert* (bonus sur un type d'arme choisi à l'acquisition — PAS figé par classe, contrairement aux tags de maîtrise actuels), *Healing Hands* (partage automatique de potion de soin à 0 PV). Aucune des 5 n'est un simple doublon d'un nœud de talent existant : à trancher — système à part ou nouvelles feuilles de l'arbre — avec le texte réel en main cette fois. |
+| **Q3** | **Résolue, mais pas comme prévu.** La recommandation d'origine (« écarté ») est dépassée par la décision transverse du 2026-10-04 : un allié temporaire générique (« mission secourir ») existe désormais, et la carte de Sir Ragnar (M7 A3 D5 B6 Mi2, aucun texte de capacité) suffit à le porter par le même gabarit que Gothar. Reste à nommer : ⚠ collision avec le « Sir Ragnar » déjà seedé comme monstre boss de *Rise of the Dread Moon* (table différente, pas de conflit technique, mais à distinguer clairement dans la narration et le nom catalogue, ex. `Sir Ragnar (captif)` ou `Sir Ragnar — Garde mercenaire`). |
+| **Q4** | **Tranchée par René le 2026-10-04, et déjà construite** (chantiers-transverses, commit « Mobilier attaquable ») — oui, lecteur générique construit une fois ; `Haut Autel` et `Coffre du Dread` sont déjà dans `MobilierSeeder`. Les Murs magiques restent à seeder (mobilier d'UNE case, décision déjà prise, plus besoin de `plan-murs-en-aretes.md`). |
+| **Q5** | **Rouverte, en sens inverse de la recommandation d'origine.** Les 30 cartes de sort sont connues (6 par sorcier, aucun sorcier muet) et les 9 sorts de héros aussi — l'objection d'origine (« sorciers à 2 sorts sur 6 ») ne tient plus. Nouvelle question à trancher avec René : vu le volume de nouveaux mots-clés que ces 30+9 sorts réclament (sort réactif sans action — *Raise the Dead* —, contrôle du déplacement d'un héros par le MJ — *Possess* —, bouclier à jetons absorbant N coups — *Scrolls of Morcar* —, buff de zone pour une faction de monstres — *Shield of Protection*/*Sharpen Blades* —, etc.), le thème `wizards_of_morcar` est-il à construire d'un coup ou par vagues (walls + 1-2 sorciers d'abord) ? |
+
 ## 5. Sources à demander (photos des cartes)
 
-Les **64 cartes** de la boîte, en priorité :
-- les 5×6 cartes de sort des Sorciers du Dread (Fanrax/Zanrath/Boroush/
-  Nyashak/la Gardienne) — sans elles, aucun thème `wizards_of_morcar`
-  possible (Q5) ;
-- les 5 cartes de compétence de Hopekins Rest (*Dead Eye*, *Weapon Expert*,
-  *Healing Hands*, *Hold the Line*, *Peacekeeper*) ;
-- les 3 répertoires de sorts de héros (Protection/Détection/Ténèbres) ;
-- les 3 cartes d'artefact (*Urdyn the Unmaker*, *Drakehide Cuirass*, *Elixir
-  of Life*) ;
-- la carte de Sir Ragnar (stats, si jamais jouée) ;
-- les 8 cartes de trésor ajoutées et la carte « Nothing! » ;
-- les 4 cartes de mercenaire de CETTE boîte, pour confirmer qu'elles sont
-  bien identiques au paquet déjà semé (`MercenaireSeeder`, § 1) plutôt que de
-  le supposer sur la seule concordance des chiffres imprimés.
+**Mise à jour 2026-10-05 — reçues.** Les 63 cartes + le carton *Magic
+Reference Chart* sont intégralement lus et transcrits
+(`reference/18_extensions.md` §Wizards of Morcar — cartes TRANSCRITES).
+Statut de chaque élément demandé dans la version d'origine de cette liste :
 
-En attendant, le livret suffit aux lots A (hors Murs magiques, qui attendent
-aussi `plan-murs-en-aretes.md`), B, C, F (potions), et G.
+- ✅ les 5×6 cartes de sort des Sorciers du Dread — **reçues et transcrites**
+  (30/30) ;
+- ✅ les 5 cartes de compétence de Hopekins Rest — **reçues et transcrites**
+  (5/5) ;
+- ✅ les 3 répertoires de sorts de héros (Protection/Détection/Ténèbres) —
+  **reçus et transcrits** (9/9) ;
+- ⚠ les 3 cartes d'artefact : **2 sur 3 reçues** (*Urdyn the Unmaker*,
+  *Drakehide Cuirass*) — **`Elixir of Life` reste non trouvée**, absente du
+  paquet de cartes rendu ; seul le texte de quête (p. 18) en parle encore ;
+- ✅ la carte de Sir Ragnar — **reçue** (M7 A3 D5 B6 Mi2, aucun texte de
+  capacité propre) ;
+- ✅ les 8 cartes de trésor ajoutées + la carte « Nothing! » — **reçues**
+  (9 images, *Magical Trap* en double exemplaire) ;
+- ✅ les 4 cartes de mercenaire de cette boîte — **reçues, confirment à
+  l'identique** `MercenaireSeeder` ;
+- ✅ *(hors liste d'origine)* les 4 cartes des ennemis hors sorciers
+  (Dreadshifter, Golem, Minotaure) — **reçues**, stats = tableau officiel
+  déjà cité section 2025.
+
+**Ne reste à demander que la carte `Elixir of Life`** — tout le reste de la
+liste d'origine est soldé. Le livret ne suffisait plus à rien bloquer :
+les lots A (hors l'arête, tranchée par René sans attendre les cartes), B, C,
+F et G étaient déjà couverts par le texte seul ; ce sont désormais **D et E**
+qui peuvent avancer avec le texte réel des cartes plutôt que des noms.
 
 ## 6. Ordre proposé
 
@@ -249,3 +336,9 @@ effets automatiques annoncés. Pest sur une **copie sqlite jetable** ;
 `sauvegarder.sh` avant toute migration ; aucune purge de
 `groupes`/`personnages`/`joueurs` ; redémarrer `queue` et `queue-jeu` après
 le PHP.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image — déjà largement
+> couvertes par la relecture du jour (Magic Reference Chart, mercenaires,
+> sorts, artefacts, faveurs, trésors, voir `reference/18_extensions.md`
+> § Wizards of Morcar — cartes TRANSCRITES). Rien à ajouter ni à retirer.

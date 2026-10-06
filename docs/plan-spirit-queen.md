@@ -235,21 +235,28 @@ Comme pour Telor, très peu de dette photo — l'essentiel est sourcé inline :
 - la carte du **Barde** publiée avec CETTE boîte, pour vérifier qu'elle ne
   diverge pas de la fiche Mythic Tier déjà transcrite (2026-08-11), et
   confirmer ou infirmer l'arme de départ (correction §2.1 : le livret ne
-  la nomme pas) ;
-- les 3 objets EXPLICITEMENT décrits comme des cartes propres à cette
-  boîte sans effet donné dans le texte : ***Rabbit Boots***, ***Dust of
-  Disappearance*** (q. 4, 6 — « Italicized terms [...] reference items with
-  corresponding cards found in this quest pack »), et ***Anti-Poison
-  Quill*** (q. 2) — aucun effet n'est décrit nulle part dans les 19 pages,
-  seul le nom est donné en trouvaille ;
-- le parchemin ***Fire of Wrath*** (q. 7, p. 19) : nom cité une seule fois
-  comme trouvaille, aucun texte d'effet, absent de notre catalogue de
-  sorts sous toute forme — ⚠ candidat non trouvé, pas un sort déjà porté
-  sous un autre nom (vérifié).
+  la nomme pas).
+
+⚠ Corrigé le 2026-10-05 : les 3 objets listés ici jusqu'à aujourd'hui comme
+« sans effet donné dans le texte » (***Rabbit Boots***, ***Dust of
+Disappearance***, ***Anti-Poison Quill***) et le parchemin ***Fire of
+Wrath*** ne manquent PAS de source — ce sont les **mêmes cartes physiques**
+que *Return of the Witch Lord* (2021/22, F4193), dont le texte intégral est
+déjà transcrit dans `reference/18_extensions.md` §Return of the Witch Lord
+(« Artifact Reference », p. 29) : *Rabbit Boots* (saut de piège, 1 dé de
+combat, échoue sur bouclier noir), *Dust of Disappearance* (passage à
+travers les monstres au tour suivant, usage unique), *Anti-Poison Quill*
+(restaure les Body perdus au poison si utilisée immédiatement, usage
+unique), *Fire of Wrath* (1 Body Point de dégâts sauf 5/6 sur 1 dé rouge).
+Les quatre sont déjà marquées portées dans `config/cartes.php` (Bottes de
+Lièvre, Poudre d'Invisibilité, Plume anti-poison, Trait de Feu — voir
+`docs/plan-witch-lord.md` §1). **Aucune photo à demander pour ces quatre** ;
+ce livret (Spirit Queen's Torment) ne fait que les RÉUTILISER sans les
+réimprimer, exactement comme il réutilise les 13 cartes d'« Artifact
+Reference » (p. 34) listées en §0.
 
 Rien d'autre ne bloque : les lots C à I sont sourcés entièrement par le
-livret, à l'exception des trois divergences nommées ci-dessus, qui
-resteront `⚠ non trouvé` dans `config/cartes.php` jusqu'à une photo.
+livret.
 
 ## 6. Ordre proposé
 
@@ -281,3 +288,12 @@ jetable** ; `sauvegarder.sh` avant toute migration ; aucune purge de
 `groupes`/`personnages`/`joueurs` ; redémarrer `queue` et `queue-jeu` après
 le PHP. Une campagne d'agents (`campagne-agents`) sur le thème
 `spirit_queen` clôt les lots C, D, F et G.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image (p. 34 « Artifact
+> Reference » confirmée pure liste des 13 cartes réutilisées, aucun texte de
+> carte caché). Retiré de la liste des photos à demander (§5) : *Rabbit
+> Boots*, *Dust of Disappearance*, *Anti-Poison Quill*, *Fire of Wrath* —
+> déjà sourcés mot pour mot via le livret *Return of the Witch Lord*
+> (mêmes cartes physiques, réutilisées sans réimpression ici) et déjà
+> portés dans `config/cartes.php`.

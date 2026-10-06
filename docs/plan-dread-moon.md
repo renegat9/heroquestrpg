@@ -341,3 +341,8 @@ avant toute migration ; **aucune purge de `groupes`/`personnages`/`joueurs`,
 aucune commande qui écrit sur la vraie base** ; redémarrer `queue` et
 `queue-jeu` après le PHP. Une campagne d'agents (`campagne-agents`) sur le
 thème `dread_moon` clôt les lots C à H.
+
+> **Mise à jour 2026-10-05 (René)** : trois réactifs du paquet d'alchimie
+> sont photographiés et transcrits (*Sacred Plant*, *Mysterious Flower*,
+> *Unidentified Ingredient* — `reference/18_extensions.md` § Rise of the Dread
+> Moon). Le reste du paquet (les potions d'alchimie) reste à photographier.

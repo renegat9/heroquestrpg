@@ -303,3 +303,10 @@ effets automatiques annoncés. Pest sur une **copie sqlite jetable** ;
 le PHP. Une campagne d'agents (`campagne-agents`) sur le thème `horde_ogre`
 clôt les lots B à D : c'est elle qui trouve ce que les tests ne trouvent
 pas.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image. Aucune page
+> « Artifact/Treasure Reference » dans ce livret (confirmé par recherche du
+> mot « Artifact » sur les 44 pages : zéro occurrence) — cohérent avec
+> §3 qui ne cite que *Bone Weapons* et le *Supply Crate*, rien d'autre à
+> transcrire. Rien à retirer de la liste de photos.

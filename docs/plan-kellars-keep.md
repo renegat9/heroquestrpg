@@ -56,7 +56,7 @@ jamais la source primaire du catalogue. Rien de ce tableau n'est à faire.
 | 8 Spell Scrolls (p. 28-29) : Heal Body, Tempest, Ball of flame, Courage, Fire of wrath, Sleep, Rock skin, Genie | Les 8 existent comme SORTS DE HÉROS au catalogue officiel (doc 16 §3bis), avec `difficulte_parchemin` posé → un parchemin est automatiquement DÉRIVÉ de chaque sort (`ObjetSeeder` §parchemins, doc 02 §6) : **Soin du Corps**, **Tourmente**→vérifier(le nom exact porté est `Tempête`, élément air), **Boule de Feu**, **Courage**, **Trait de Feu**, **Sommeil**, **Peau de Pierre**, **Génie**. Les 8 scrolls du livret sont donc déjà jouables comme parchemins trouvables, sans un octet de code |
 | État de choc à 0 Mind (« dead forever unless Elixir of Life », p. 25) | **Divergence assumée, déjà tranchée** : `Personnage::estEnChoc()` (2026-10-01) fait qu'un héros à 0 Mind entre en ÉTAT DE CHOC plutôt que de mourir — arbitrage pris sur la compilation d'erratas 2021 citant *Against the Ogre Horde* p. 9 (« every creature »), qui **écrase** la règle 2021 plus ancienne de cette boîte. Voir Q1 |
 | Mind 0 → sorts mentaux sans effet | `App\Engine\SortMental` |
-| Abomination | **Délibérément non semée** : `MonstreSeeder` porte un commentaire explicite (« Kellar's Keep : l'Abomination n'est PAS semée. Ses stats ne sont chiffrées dans aucun livret… On ne sème pas une valeur qu'aucune source n'assume ») — voir §2 et Q5, rien à changer sans photo |
+| Abomination | ⚠ **Corrigé le 2026-10-05** : René a scanné la carte « Abomination » (© 2021, `reference/20_cartes_monstres.md`) — 6/3/3/2/3, pas de capacité. Elle est désormais semée dans `MonstreSeeder` (`tier => 'base'`, `boite => 'base'`, comme les 7 autres monstres de base — LR p. 4 la compte dans le MÊME inventaire). Voir §2 et Q5, qui documentaient l'attente d'une photo : elle est arrivée |
 
 Rien de la boutique, des artefacts ou des parchemins n'est donc un LOT de
 travail pour cette boîte : c'est un constat, pas un chantier.
@@ -100,13 +100,14 @@ travail pour cette boîte : c'est un constat, pas un chantier.
    Body de départ, échec = fin de tour) ; quête 9 « The East Gate » note D,
    p. 24 (porte du Grand Portail, 2 dés rouges ≤ Mind ACTUEL, le nain ne
    lance qu'1 dé).
-6. **À ajouter** : le tableau de synthèse (fin de fichier) donne
-   « Statistiques chiffrées de l'Abomination non trouvées dans Kellar's
-   Keep lui-même […] chiffrées uniquement (à prendre avec prudence) par la
-   table de tournoi d'Against the Ogre Horde ». C'est exact et vérifié
-   (`reference/18_extensions.md` L338-348 : **6/3/3/2/3** en
-   Move/Attack/Defend/Body/Mind) — rien à corriger, mais ce plan s'appuie
-   dessus pour Q5 et ne doit pas être lu comme une source différente.
+6. ⚠ **Périmé, corrigé le 2026-10-05** : le tableau de synthèse (fin de
+   fichier) donnait « Statistiques chiffrées de l'Abomination non trouvées
+   dans Kellar's Keep lui-même […] chiffrées uniquement (à prendre avec
+   prudence) par la table de tournoi d'Against the Ogre Horde ». Ce n'est
+   plus l'état des sources : René a scanné la carte « Abomination » (© 2021,
+   `reference/20_cartes_monstres.md`) — 6/3/3/2/3, identique au chiffre de
+   la table de tournoi mais sourcé directement cette fois, sans la mise en
+   garde de prudence. Elle est désormais semée (voir §1).
 
 ## 3. Les règles à porter, sourcées — par lots
 
@@ -182,7 +183,7 @@ Voir Q2.
 | **Q2** | Monstre métamorphe : construire maintenant (tirage aléatoire jusqu'à répétition), ou attendre que le lot « phases » d'Against the Ogre Horde pose le branchement « 0 Body ne tue pas » qu'il réutiliserait entièrement ? | Attendre — éviter DEUX implémentations de « ne pas retirer à 0 Body » |
 | **Q3** | Rocher roulant (Kellar's Keep) et Death Mist (Witch Lord) : une seule mécanique « danger mobile autonome » partagée, ou deux pièces séparées ? | Une seule — même famille, même coût d'implémentation, deux habillages |
 | **Q4** | Portes secrètes contrôlées par le MJ : limiter à une embuscade scriptée sur rencontre nommée (petit scope), ou un vrai troisième état de porte générique (gros scope, tension avec le modèle « porte secrète = trouvée par fouille ») ? | Scope réduit — l'embuscade scriptée couvre l'usage réel du livret (3 portes, 1 quête) sans toucher au modèle général |
-| **Q5** | Abomination : toujours aucune source primaire. Le SEUL chiffre existant (6/3/3/2/3) vient d'une table de tournoi d'une AUTRE boîte, explicitly « à prendre avec prudence » par sa propre source. Semer avec ce chiffre et une mention de provenance, ou continuer d'attendre une photo de carte ? | Continuer d'attendre — c'est déjà la décision actuelle du code, et la règle « non trouvé bat une estimation » s'applique particulièrement bien ici vu la mise en garde de la source elle-même |
+| **Q5** | ⚠ **Répondue le 2026-10-05** : Abomination : toujours aucune source primaire. Le SEUL chiffre existant (6/3/3/2/3) vient d'une table de tournoi d'une AUTRE boîte, explicitly « à prendre avec prudence » par sa propre source. Semer avec ce chiffre et une mention de provenance, ou continuer d'attendre une photo de carte ? | La photo est arrivée : carte « Abomination » (© 2021) scannée par René, `reference/20_cartes_monstres.md` — 6/3/3/2/3, même chiffre, désormais sourcé sans réserve. Semée dans `MonstreSeeder` |
 | **Q6** | Les 4 cartes manquantes du compte « 14 game cards » (10 trouvées) : probablement des cartes de rappel des monstres rencontrés. Prioritaire dans la demande de photos ? | Oui, en même temps que les cartes de monstre (aucune des 3 figurines, gobelin/orc/abomination, n'a de carte stats dans CE livret) |
 
 ## 5. Sources à demander (photos des cartes)
@@ -261,3 +262,11 @@ Conclusion : **pas un candidat solide à court terme**, contrairement à
 Witch Lord. Le préalable n'est pas un simple lot technique mais une
 **photo de carte** (l'Abomination) hors du contrôle du projet — à
 documenter comme une attente, pas un refus.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image, ainsi que la
+> page « Artifact Reference » (p. 28-29, déjà bien citée). Rien à corriger :
+> les 2 artefacts et 8 parchemins de sort y sont bien paraphrasés avec la
+> bonne page, et §5 ne demande en photo que ce que le livret ne porte
+> vraiment pas (monstres, les 4 cartes non comptées). Rien à retirer de la
+> liste de photos.

@@ -22,8 +22,9 @@
 > rallumé la boîte comme thème. Ici : un **audit de ce qui reste** après ce
 > plan — et il reste nettement moins qu'annoncé dans le brief initial : la
 > relecture complète du livret montre que les **mercenaires**, les
-> **potions**, les **3 artefacts nommés** et le **répertoire de sorts du
-> boss** sont déjà intégralement portés. Ce qui reste : la **quête double
+> **potions**, 3 des 4 **artefacts nommés** et le **répertoire de sorts du
+> boss** sont déjà intégralement portés (le 4ᵉ artefact, *Armband of Ice*,
+> manque — voir mise à jour du 2026-10-05 ci-dessous). Ce qui reste : la **quête double
 > liée (9 & 10)**, deux **divergences de fidélité non déclarées** trouvées en
 > relisant le livret en entier (immunité des monstres au terrain, mécanique
 > de l'Ours polaire), et des **corrections de citation** dans `reference/18`.
@@ -35,12 +36,16 @@ règles de la boîte (p. 8-11), dix quêtes — 3 solos + 5 de groupe + 1 quête
 double 9-10 (p. 12-33), la conclusion (p. 34-35), le tableau des monstres et
 des mercenaires (p. 37), la planche de symboles pour quêtes maison (p. 39).
 
-**Il ne porte PAS les 35 cartes de jeu** (p. 2 : « 35 game cards ») : cartes
-de monstre, de mercenaire, les 3 artefacts nommés et les 6 parchemins de
-sort non nommés. Pour les potions et les stats de monstre/mercenaire, le
-**texte du livret suffit** (il les chiffre en toutes lettres, p. 2 et p. 37)
-— seuls les 3 artefacts nommés dépendraient en théorie de leur carte, mais
-ils sont **déjà portés** par une autre source (§1).
+**Il ne porte PAS les cartes de monstre ni de mercenaire** (stats
+chiffrées en toutes lettres p. 2 et p. 37, donc sans conséquence). ⚠ Corrigé
+le 2026-10-05 : contrairement à ce que cette ligne affirmait jusqu'ici, les
+**4 artefacts nommés et les 6 parchemins de sort** (part des « 35 game
+cards », p. 2) sont bien dans le livret — reproduits en intégralité page
+35, rubrique « Artifact Reference » (texte extrait vide sur cette page,
+d'où l'erreur initiale ; relu sur le rendu PNG). Transcrits mot pour mot
+dans `reference/18_extensions.md` §The Frozen Horror. Au passage : il y a
+**4** artefacts nommés, pas 3 — *Armband of Ice* manquait du compte
+précédent et de `config/cartes.php`.
 
 **Contenu physique (p. 2-3)** : 2 portes plastique, 3 planches de tuiles
 cartonnées, bloc de fiches de personnage, 12 figurines de mercenaires (4
@@ -59,8 +64,8 @@ Glaces).
 | **Mind à 0 = état de choc** (p. 9, cité en entier ci-dessous §2) | `Personnage::estEnChoc()` | porté par `docs/plan-errata-2021.md` C1 (2026-10-01), qui est **revenu** sur l'arbitrage « chute » du 2026-09-06 — `docs/plan-glace-et-degats-mind.md` §5.1 est donc **périmé** sur ce point précis |
 | **4 types de mercenaires de la boîte** (p. 37 : Crossbowman 75po, Halberdier 75po, Scout 50po, Swordsman 100po) | `MercenaireSeeder` : Arbalétrier (75po), Fauchard (75po), Éclaireur (50po), Estafier (100po) — **stats identiques, M/A/D/B/Mi et prix au point près** | `database/seeders/MercenaireSeeder.php:39-59` ; voir §1bis |
 | **4 potions de la boutique** (p. 2) | `config/cartes.php` → `potions`, « Toutes portées » | `config/cartes.php:90-113` (Potion de rage guerrière, de régénération, de force glaciale, de peau de givre) |
-| **3 artefacts nommés** (Amulet of the North, Ring of Warmth, Snowshoes of Speed) | `config/cartes.php` → `artefacts`, section « Portés » | `config/cartes.php:144` (Amulette du Nord), et portés au plan glace (Anneau de Chaleur, Raquettes de Vitesse) |
-| 6 parchemins non nommés, tirage aléatoire, utilisables par tout héros | Couvert par le mécanisme générique de parchemins (19 cartes dérivées des sorts) | `config/cartes.php:296-311` — rien de spécifique à sourcer, le livret ne nomme aucun des six |
+| **3 des 4 artefacts nommés** (Amulet of the North, Ring of Warmth, Snowshoes of Speed) | `config/cartes.php` → `artefacts`, section « Portés » | `config/cartes.php:144` (Amulette du Nord), et portés au plan glace (Anneau de Chaleur, Raquettes de Vitesse) — ⚠ le **4ᵉ**, *Armband of Ice*, manque toujours du catalogue (corrigé le 2026-10-05, voir `reference/18`) |
+| 6 parchemins NOMMÉS (*Chill, Ice Storm, Ice Bridge, Psychic Recovery, Skate, Warmth*), tirage aléatoire, utilisables par tout héros | Couvert par le mécanisme générique de parchemins (19 cartes dérivées des sorts) | `config/cartes.php:296-311` — ⚠ corrigé le 2026-10-05 : le livret les nomme et les décrit en toutes lettres p. 35 (texte extrait vide sur cette page lors du premier passage, d'où l'erreur « non nommés ») ; rien à changer côté catalogue, les effets recoupent déjà des sorts/terrains portés |
 | Krag, Vilor, Kelvinos, Gothar — stats nommées | Citées et sourcées dans `reference/18_extensions.md` | confirmées ce jour contre le rendu, voir §2 |
 
 ### 1bis. Les mercenaires de la boîte sont déjà portés — et c'est confirmé croisé
@@ -187,13 +192,14 @@ Horror seul).
 
 ## 5. Sources à demander (photos des cartes)
 
-Les **35 cartes** de la boîte — en priorité basse, puisque §1 montre que
-l'essentiel est déjà sourcé autrement :
+Les cartes de monstre et de mercenaire — en priorité basse, puisque §1
+montre que l'essentiel est déjà sourcé autrement :
 - les cartes des 4 monstres et des 4 mercenaires, pour confirmer si elles
   portent des capacités au-delà du texte déjà capturé (notamment l'Ours
-  polaire, Q1) ;
-- les 6 parchemins non nommés — sans objet : notre mécanisme générique de
-  parchemins ne demande pas de les nommer individuellement.
+  polaire, Q1).
+
+Plus besoin de photo pour les artefacts/parchemins (§0, corrigé le
+2026-10-05) : les 10 cartes sont dans le livret lui-même, p. 35.
 
 ## 6. Ordre proposé
 
@@ -211,3 +217,14 @@ Chaque lot suit l'ordre maison : vocabulaire fermé → lecteur → test EN JEU 
 données, registres testés dans les deux sens, `sauvegarder.sh` avant toute
 migration, aucune purge de `groupes`/`personnages`/`joueurs`, redémarrer
 `queue` et `queue-jeu` après le PHP.
+
+> **Mise à jour 2026-10-05 — vérification des annexes du livret** : les
+> 4 premières et 4 dernières pages du PDF relues à l'image. Retiré de la
+> liste des photos à demander : les **4 artefacts nommés et les 6
+> parchemins de sort** — faussement donnés pour absents du livret (texte
+> extrait vide sur la page « Artifact Reference », p. 35 ; carte en fait
+> reproduite en intégralité, transcrite dans `reference/18`). Cette
+> relecture a aussi trouvé un **4ᵉ artefact** (*Armband of Ice*) qu'aucune
+> version précédente de ce plan ne comptait, et qui manque encore de
+> `config/cartes.php`. Toujours à demander : les cartes de monstre et de
+> mercenaire (Q1, capacités éventuelles au-delà du texte).
