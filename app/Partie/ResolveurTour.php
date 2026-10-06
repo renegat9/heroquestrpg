@@ -8831,6 +8831,19 @@ final class ResolveurTour
             ->whereNotNull('position_x')
             ->update(['a_joue' => false, 'a_deplace' => false, 'a_agi' => false]);
 
+        // CAPTIFS PORTÉS (mode escorté, chantier « captifs-jetons »,
+        // 2026-10-05) — REPRIS si leur porteur est tombé ce round, qu'il
+        // vienne de tomber pendant SON tour (trap, terrain, tir ami — déjà
+        // résolu avant que ce round ne se referme) ou pendant la phase des
+        // monstres qui vient de finir ({@see self::reprendreCaptifsPortes()}
+        // pour le détail de la règle et du point de passage). Les payloads
+        // REMONTENT dans `$actions`, même geste que `ouvrirTourDesHeros()`
+        // juste en dessous — un effet automatique que rien n'annonce est
+        // injouable.
+        foreach ($this->reprendreCaptifsPortes($groupe, $quete) as $repris) {
+            $actions[] = $repris;
+        }
+
         // Fin de round, APRÈS la phase des monstres : c'est le début du prochain
         // tour des héros. Les effets `prochain_tour` (Voile de Brume) expirent
         // donc ici — ils ont couvert la phase des monstres, ce qui est tout leur
@@ -9159,6 +9172,23 @@ final class ResolveurTour
             $grille->autoriserFranchissement();
         }
 
+        // Attaque en DIAGONALE (Assassin, Rise of the Dread Moon — carte
+        // scannée, reference/20_cartes_monstres.md : « Each Assassin may
+        // attack diagonally. ») : le mot-clé `attaque_diagonale` avait déjà
+        // deux lecteurs — les armes longues (`effet['attaque_diagonale']`,
+        // `ResolveurTour::frapper()`) et les mercenaires (`merc->capacites`,
+        // `resoudreAttaqueDAllie()`) — jamais un monstre. Troisième lecteur,
+        // MÊME mot-clé, pas une copie de la règle : calculé UNE FOIS ici et
+        // réinjecté à chaque appel de `heroAuContact()` qui décide de
+        // l'adjacence d'attaque de CETTE instance, plus bas dans cette même
+        // méthode. ⚠ Ne couvre QUE cette méthode : aucun monstre sourcé ne
+        // cumule aujourd'hui `attaque_diagonale` avec `portee: distance`
+        // (`tirerSiCibleEnVue()`) ni avec `deux_attaques` (`deuxAttaques()`,
+        // qui cherche sa SECONDE cible dans une méthode séparée) — les deux
+        // restent donc sur l'ancien contact orthogonal, nommé plutôt que
+        // deviné plutôt que de faire voyager ce booléen sans besoin réel.
+        $diagonalesMonstre = $this->dread->aCapacite($instance, 'attaque_diagonale');
+
         // Le rejeton s'accroche plutôt que de frapper : sa fiche porte Attaque 0,
         // sa menace est le jeton qu'il dépose sur la fiche du héros.
         $accroche = $this->dread->accrocher($groupe, $instance, $cibles, $acteur);
@@ -9186,7 +9216,7 @@ final class ResolveurTour
         // C'est le comportement d'avant pour tout groupe sans allié.
         $meilleure = null; // [etat héros | GroupeMercenaire, chemin]
         foreach ([...$cibles->all(), ...$this->alliesCiblables($quete)->all()] as $cible) {
-            if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y)) {
+            if ($this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre)) {
                 if ($meilleure === null || $meilleure[1] !== []) {
                     $meilleure = [$cible, []];
                 }
@@ -9321,7 +9351,7 @@ final class ResolveurTour
             ];
         }
 
-        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y);
+        $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
 
         if (! $adjacent) {
             $payload = [
@@ -9348,7 +9378,7 @@ final class ResolveurTour
 
         // Frappe de zone (capacité) : si plusieurs héros adjacents, tous sont touchés.
         if ($this->dread->aCapacite($instance, 'frappe_de_zone')) {
-            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) => $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y)
+            $adjacents = $cibles->filter(fn (EtatPersonnageQuete $c) => $this->heroAuContact($instance, (int) $c->position_x, (int) $c->position_y, $diagonalesMonstre)
             )->values();
 
             if ($adjacents->count() >= 2) {
@@ -10787,7 +10817,16 @@ final class ResolveurTour
         // et le groupe reste enfermé dans un donjon vide (voir
         // `ouvrirNouveauTour()`).
         if (! $quete->instancesMonstres()->where('etat', 'actif')->exists()) {
-            $this->ouvrirNouveauTour($groupe, $quete);
+            // ⚠ `$actions` capturé même SANS monstre : un héros peut tomber
+            // sur SON PROPRE tour (piège, terrain, tir ami) et porter un
+            // captif escorté — la reprise que `ouvrirNouveauTour()` déclenche
+            // ne doit pas se perdre faute de `tour_monstres` pour la porter.
+            $actions = [];
+            $this->ouvrirNouveauTour($groupe, $quete, $actions);
+
+            if ($actions !== []) {
+                $resultat['captifs_repris'] = $actions;
+            }
 
             return $this->donjonNettoye($resultat, $quete);
         }
@@ -10870,14 +10909,26 @@ final class ResolveurTour
     }
 
     /**
-     * MISSION « SECOURIR » (chantier 3b, 2026-10-04) — un héros au contact
-     * libère le captif désigné par `parametres.allie_id` : il devient un
-     * allié `'actif'` contrôlé par CE héros, pour le reste de la quête
-     * (chantier 3a — il jouera désormais dans le tour de son libérateur).
-     * `a_joue` est posé à `true` pour CE round : il ne joue pas le round même
-     * où il vient d'être libéré, {@see ResolveurTour::ouvrirNouveauTour()}
-     * l'ouvre au round suivant, exactement comme tout ce qui apparaît en
-     * cours de round (voir le Squelette Hearthkin).
+     * MISSION « SECOURIR » (chantier 3b, 2026-10-04, DEUX MODES depuis le
+     * chantier « captifs-jetons » du 2026-10-05) — un héros au contact
+     * libère le captif désigné par `parametres.allie_id`. Ce qu'il devient
+     * dépend du PROFIL (`mercenaire.mode_captif`, vocabulaire fermé, lu ICI
+     * et nulle part ailleurs — {@see \App\Models\Mercenaire}) :
+     *  - **figurine** (Gothar) : `etat` passe à `'actif'`, allié ordinaire
+     *    contrôlé par CE héros, pour le reste de la quête (chantier 3a — il
+     *    jouera dans le tour de son libérateur).
+     *  - **escorté** (le Prospecteur, la Princesse Millandriel) : `etat`
+     *    passe à `'porte'` — PORTÉ par ce héros, jamais une figurine.
+     *    `position_x`/`position_y` ne sont PLUS JAMAIS réécrits : ils
+     *    restent la case d'origine, relue si le porteur tombe (voir
+     *    {@see self::reprendreCaptifsPortes()}).
+     *
+     * `a_joue` est posé à `true` pour CE round dans les deux cas : il ne
+     * joue pas le round même où il vient d'être libéré — pour le mode
+     * figurine {@see ResolveurTour::ouvrirNouveauTour()} l'ouvre au round
+     * suivant (comme le Squelette Hearthkin) ; le mode escorté, lui, n'a
+     * simplement jamais de tour à ouvrir, ces colonnes restent inertes pour
+     * lui.
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $parametres
@@ -10890,6 +10941,7 @@ final class ResolveurTour
         $captif = GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where('id', $allieId)
             ->where('etat', 'captif')
+            ->with('mercenaire')
             ->first();
 
         if ($captif === null || $captif->position_x === null) {
@@ -10898,8 +10950,10 @@ final class ResolveurTour
 
         $this->verifierContactCaptif($quete, $personnage, $captif);
 
+        $escorte = $captif->mercenaire?->estCaptifEscorte() ?? false;
+
         $captif->update([
-            'etat' => 'actif',
+            'etat' => $escorte ? 'porte' : 'actif',
             'recruteur_personnage_id' => $personnage->id,
             'a_deplace' => true, 'a_agi' => true, 'a_joue' => true,
         ]);
@@ -10910,11 +10964,72 @@ final class ResolveurTour
             'allie' => $captif->mercenaire?->nom ?? 'Allié',
             'allie_id' => $captif->id,
             'mercenaire_id' => $captif->mercenaire_id,
+            // MODE (chantier « captifs-jetons », 2026-10-05) : le client ne
+            // doit pas deviner depuis `allie_id` ce que la libération vient
+            // de produire — la DÉCISION est publiée ici, comme partout.
+            'mode' => $escorte ? 'escorte' : 'figurine',
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
+    }
+
+    /**
+     * MISSION « SECOURIR », mode ESCORTÉ (chantier « captifs-jetons »,
+     * 2026-10-05) — un captif PORTÉ (`etat: 'porte'`) est REPRIS si le héros
+     * qui le porte est tombé : « monsters take the prospector to room D »
+     * (*The Mage of the Mirror* p. 23), généralisée à toute chute du
+     * porteur, quelle qu'en soit la cause. Il redevient `'captif'` sur sa
+     * case d'ORIGINE (jamais déplacée depuis sa pose — un porté ne bouge
+     * jamais sur la grille) : à libérer de nouveau, jamais un échec de
+     * quête, exactement la demande de René.
+     *
+     * Point de passage UNIQUE, appelé depuis `ouvrirNouveauTour()` — le
+     * MÊME round-boundary que `verdictDeChute()` (TPK) juste au-dessus :
+     * ni l'une ni l'autre de ces deux vérités ne se lit coup par coup, les
+     * deux se referment quand le round se referme (voir le docblock
+     * d'appel). ⚠ Effet automatique, donc ANNONCÉ — journal ET payload — à
+     * l'instar de tout ce que cette méthode entoure dans `$actions`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function reprendreCaptifsPortes(Groupe $groupe, Quete $quete): array
+    {
+        $payloads = [];
+
+        $portes = GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('etat', 'porte')
+            ->whereNotNull('recruteur_personnage_id')
+            ->with('mercenaire', 'recruteur')
+            ->get();
+
+        foreach ($portes as $captif) {
+            $porteur = $quete->etatsPersonnages()
+                ->where('personnage_id', $captif->recruteur_personnage_id)
+                ->first();
+
+            if ($porteur === null || ! $porteur->tombe) {
+                continue; // toujours porté, debout : rien à faire
+            }
+
+            $nomPorteur = $captif->recruteur?->nom ?? 'son porteur';
+
+            $captif->update(['etat' => 'captif', 'recruteur_personnage_id' => null]);
+
+            $payload = [
+                'type' => 'captif_repris',
+                'personnage' => $nomPorteur,
+                'allie' => $captif->mercenaire?->nom ?? 'Allié',
+                'allie_id' => $captif->id,
+                'mercenaire_id' => $captif->mercenaire_id,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload);
+            $payloads[] = $payload;
+        }
+
+        return $payloads;
     }
 
     /** Le captif est-il adjacent (orthogonal) au héros qui tente de le libérer ? */

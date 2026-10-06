@@ -36,8 +36,25 @@ class Mercenaire extends Model
         // aussi (même garde que le Squelette Hearthkin, une seconde raison
         // d'exister pour la même colonne).
         'captif',
+        // MODE du captif (chantier « captifs-jetons », 2026-10-05) —
+        // vocabulaire fermé à DEUX valeurs, lu UNE SEULE FOIS, par
+        // `ResolveurTour::resoudreLibererCaptif()` :
+        //  - `self::MODE_CAPTIF_FIGURINE` (Gothar, Frozen Horror p. 19/37,
+        //    bloc de stats sourcé) : libéré, il devient un allié `'actif'`
+        //    ordinaire — figurine, tour, relevable, attaquable.
+        //  - `self::MODE_CAPTIF_ESCORTE` (le Prospecteur, la Princesse
+        //    Millandriel, *The Mage of the Mirror* p. 4 : tuile SANS carte,
+        //    « acts as an ally and is controlled by the hero who finds
+        //    him/her ») : libéré, il est PORTÉ par le héros libérateur
+        //    (`etat: 'porte'`) — aucune stat, aucun tour, aucune figurine.
+        'mode_captif',
         'description',
     ];
+
+    /** Vocabulaire fermé de `mode_captif` — voir le docblock de `$fillable`. */
+    public const MODE_CAPTIF_FIGURINE = 'figurine';
+
+    public const MODE_CAPTIF_ESCORTE = 'escorte';
 
     protected function casts(): array
     {
@@ -47,6 +64,12 @@ class Mercenaire extends Model
             'octroi_seul' => 'boolean',
             'captif' => 'boolean',
         ];
+    }
+
+    /** Ce captif est-il du mode ESCORTÉ (porté, sans figurine ni stats) ? */
+    public function estCaptifEscorte(): bool
+    {
+        return $this->mode_captif === self::MODE_CAPTIF_ESCORTE;
     }
 
     public function instances(): HasMany

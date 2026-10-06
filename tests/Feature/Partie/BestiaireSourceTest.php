@@ -10,8 +10,13 @@ use Database\Seeders\MonstreSeeder;
  *
  * Trois origines, et elles ne doivent pas se mélanger :
  *
- *  1. les **8 monstres de base**, dont les stats viennent des cartes monstre
- *     (`sjeng-monsters.pdf`) et sont recoupées par deux passages des livrets ;
+ *  1. les **8 monstres de base + l'Abomination**, dont les stats viennent
+ *     désormais des CARTES OFFICIELLES scannées par René
+ *     (`reference/20_cartes_monstres.md`, 2026-10-05) — « Valeurs des
+ *     cartes, partout ». `sjeng-monsters.pdf` (Ye Olde Inn) les avait sourcées
+ *     en premier le 2026-08-09 et reste confirmé sur 3/8 (Gobelin, Squelette,
+ *     Orque) ; les cartes CORRIGENT les 4 autres (Zombie, Momie, Guerrier du
+ *     Chaos, Gargouille) et ajoutent l'Abomination, jusque-là `⚠ non trouvé` ;
  *  2. les **créatures d'extension**, dont les stats viennent des LIVRETS
  *     officiels via `reference/18_extensions.md` — meilleure source que les
  *     cartes de fans, qui divergent sur plusieurs valeurs ;
@@ -33,43 +38,42 @@ function statsDe(string $nom): array
     return [$m->deplacement, $m->attaque, $m->defense, $m->pv_body, $m->pv_mind];
 }
 
-it('porte les 8 monstres de base exactement comme leurs cartes', function () {
+it('porte les 8 monstres de base + l\'Abomination exactement comme leurs cartes officielles (reference/20, scans de René 2026-10-05)', function () {
+    // Décision de René, 2026-10-05 : « Valeurs des cartes, partout ». Confirme
+    // Gobelin/Squelette/Orque contre `sjeng-monsters.pdf`, CORRIGE Zombie/
+    // Momie/Guerrier du Chaos/Gargouille, et ajoute l'Abomination — monstre
+    // de la boîte de BASE (LR p. 4), plus `⚠ non trouvé`.
     $cartes = [
         'Gobelin' => [10, 2, 1, 1, 1],
         'Squelette' => [6, 2, 2, 1, 0],
-        'Zombie' => [4, 2, 3, 1, 0],
+        'Zombie' => [5, 2, 3, 1, 0],             // carte : Déplacement 5 (était 4)
         'Orque' => [8, 3, 2, 1, 2],
-        'Fimir' => [6, 3, 3, 1, 3],
-        'Momie' => [4, 3, 4, 1, 0],
-        'Guerrier du Chaos' => [6, 3, 4, 1, 3],
-        'Gargouille' => [6, 4, 4, 1, 4],
+        'Fimir' => [6, 3, 3, 1, 3],               // nom 1989, pas de carte 2021
+        'Momie' => [4, 3, 4, 2, 0],               // carte : Body 2 (était 1)
+        'Guerrier du Chaos' => [7, 4, 4, 3, 3],   // carte : Déplacement 7/Attaque 4/Body 3 (était 6/3/1)
+        'Gargouille' => [6, 4, 5, 3, 4],          // carte : Défense 5/Body 3 (était 4/1)
+        'Abomination' => [6, 3, 3, 2, 3],         // carte, jusque-là absente du catalogue
     ];
 
     foreach ($cartes as $nom => $attendu) {
         expect(statsDe($nom))->toBe($attendu, "{$nom} : bloc de stats");
     }
+
+    $abomination = Monstre::where('nom_base', 'Abomination')->firstOrFail();
+    expect($abomination->tier)->toBe('base')
+        ->and($abomination->boite)->toBe('base', 'Abomination : monstre de la boîte de base, comme les 7 autres')
+        ->and((array) $abomination->capacites)->toBe([], 'Abomination : aucun texte de capacité sur la carte');
 });
 
-it('donne 1 SEUL point de Body à tout monstre de base, comme au plateau', function () {
-    // C'est le cœur du design : les héros encaissent (4 à 8 Body), la piétaille
-    // tombe d'un coup réussi. On donnait 2 ou 3 aux plus costauds, ce qui
-    // écrasait la lisibilité des paliers sous_boss/boss.
-    //
-    // Plus d'exception : le Troll y a séjourné un jour, et un test de jeu a
-    // montré qu'un monstre à 3 PV dans un palier où tout le monde en a 1
-    // transforme la première rencontre en anéantissement (2026-08-10).
-    $trop = Monstre::where('tier', 'base')
-        ->where('pv_body', '>', 1)
-        ->pluck('nom_base')
-        ->all();
-
-    // Les créatures d'extension du palier `base` sont, elles, plus robustes :
-    // leurs fiches officielles le disent (Archer elfe 3 Body, Raptor 2…).
-    $extensions = ['Gremlin des glaces', 'Archer elfe', 'Guerrier elfe', 'Assassin',
-        'Raptor', 'Crâne putride'];
-
-    expect(array_values(array_diff($trop, $extensions)))->toBe([]);
-});
+// ⚠ PRINCIPE ABANDONNÉ le 2026-10-05 (René) : il y avait ici un test
+// « donne 1 SEUL point de Body à tout monstre de base, comme au plateau ».
+// Les cartes officielles le contredisent directement — Momie 2, Guerrier du
+// Chaos 3, Gargouille 3 — donc ce n'était pas une règle du plateau, c'était ce
+// qu'un PDF de fan à 1 Body partout laissait croire. Voir
+// `docs/regles/bestiaire-et-rencontres.md` pour ce qui remplace ce garde-fou
+// (le `cout`, pas le tier) et le test ci-dessous, qui porte la même intention
+// — ne jamais remettre dans le tas des « faibles » un monstre trop endurant
+// pour y figurer plusieurs fois — par le mécanisme qui existe réellement.
 
 it('porte les créatures d\'extension telles que les livrets les chiffrent', function () {
     // Valeurs de reference/18_extensions.md, tirées des livrets Hasbro. Quand
@@ -244,7 +248,12 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // (Gruzbella vaincue : « elle s'incline » et paie 1000 po au lieu de
         // mourir). Les trois sont lues à l'UNIQUE point de passage de la mort
         // d'un monstre, `MoteurDegats::infligerAMonstre()`.
-        'increvable_une_fois', 'reactions_defense', 'recompense_reddition'];
+        'increvable_une_fois', 'reactions_defense', 'recompense_reddition',
+        // Assassin (Rise of the Dread Moon, carte scannée 2026-10-05, « Each
+        // Assassin may attack diagonally. ») : troisième lecteur du mot-clé
+        // déjà porté pour les armes longues et les mercenaires —
+        // `ResolveurTour::jouerMonstre()` (`$diagonalesMonstre`).
+        'attaque_diagonale'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(
@@ -427,7 +436,9 @@ it('donne à chaque créature de Jungles le trait que son livret lui prête', fu
     // tacticien restent dehors, faute de mécanique — reference/16 §4.6.
     $traits = [
         // Attaque 0 : il ne frappe pas, il s'accroche (jeton sur la fiche).
-        'Rejeton putride' => ['agile', 's_accroche'],
+        // `venimeux` ajouté le 2026-10-05 (carte « Spawnling », « Venomous.
+        // Agile. ») — inerte en pratique (Attaque 0), cité quand même.
+        'Rejeton putride' => ['agile', 's_accroche', 'venimeux'],
         'Crâne putride' => ['racines_entravantes'],
         'Raptor' => ['tacticien'],
         'Rampant putride' => ['agile', 'venimeux'],
@@ -444,26 +455,43 @@ it('donne à chaque créature de Jungles le trait que son livret lui prête', fu
     }
 });
 
-it('interdit au palier `base` la créature ENDURANTE — celle qu\'on ne peut pas tuer', function () {
+it('route au budget de rencontre, plutôt que d\'interdire le palier, la créature `base` ENDURANTE', function () {
     // Ce qui a fait un anéantissement le 2026-08-10 n'est pas la puissance de
     // frappe : c'est l'ENDURANCE. Le Troll cumulait 3 PV et 4 dés de défense
-    // dans un palier où tout le monde a 1 PV — un barbare lui arrachait 0,98 PV
-    // par attaque là où il tue n'importe quel autre monstre de base d'un coup,
-    // pendant que le troll rendait 1,40 PV par coup.
+    // dans un palier où tout le monde avait 1 PV — un barbare lui arrachait
+    // 0,98 PV par attaque là où il tuait n'importe quel autre monstre de base
+    // d'un coup, pendant que le troll rendait 1,40 PV par coup. Le garde-fou
+    // posé ce jour-là était un INTERDIT : aucun monstre `base` à la fois
+    // Body ≥ 3 ET Défense ≥ 4.
     //
-    // À l'inverse, l'Assassin frappe à 5 dés et c'est très bien : avec 2 PV et
-    // 3 dés de défense, il meurt en deux coups. Une brute de verre est un
-    // danger jouable ; une brute qui encaisse est un sous-boss déguisé, et le
-    // budget de rencontre la lâche sur des héros de niveau 1 sans talent.
+    // ⚠ PRINCIPE ABANDONNÉ le 2026-10-05 : les cartes officielles donnent
+    // exactement ce profil à deux monstres de base SOURCÉS (Guerrier du Chaos
+    // 3/4, Gargouille 3/5) — l'interdit contredirait la carte elle-même. La
+    // vraie protection n'était jamais le plafond de Body : c'est le `cout`,
+    // mesuré par attaques-à-3-dés pour abattre
+    // (`docs/regles/bestiaire-et-rencontres.md`), qui route un monstre
+    // devenu coûteux vers les « forts » du budget de rencontre
+    // (`DemarreurQuete::acheterMonstres()`, seuil `seuil_cout_fort`) —
+    // achetés UN SEUL à la fois, jamais mass-achetés dans le tas des
+    // « faibles » comme le Troll l'avait été. C'est EXACTEMENT ainsi que
+    // l'Assassin (cout 6) est déjà protégé depuis Rise of the Dread Moon.
+    $seuil = (int) config('jeu.rencontres.seuil_cout_fort', 3);
+
     $endurants = Monstre::where('tier', 'base')
         ->where('pv_body', '>=', 3)
         ->where('defense', '>=', 4)
-        ->pluck('nom_base')
-        ->all();
+        ->get();
 
-    expect($endurants)->toBe([], 'créature(s) trop endurantes pour le palier base : '.implode(', ', $endurants));
+    expect($endurants)->not->toBeEmpty('scénario de test périmé : plus aucun monstre `base` endurant à router');
 
-    // …et le coût le plus cher du palier reste sous celui du palier au-dessus.
+    foreach ($endurants as $m) {
+        expect((int) $m->cout)->toBeGreaterThan($seuil, "{$m->nom_base} : endurant mais pas routé vers les « forts » (cout {$m->cout} <= seuil {$seuil})");
+    }
+
+    // …et le coût le plus cher du palier reste sous celui du palier au-dessus
+    // (tient encore avec les cartes officielles — Gargouille à 7, Garde-mage/
+    // Sorcier du Dread à 8 : à surveiller, pas à figer en dur si une future
+    // carte le fait basculer).
     $maxBase = (int) Monstre::where('tier', 'base')->max('cout');
     $minSousBoss = (int) Monstre::where('tier', 'sous_boss')->min('cout');
 
@@ -476,4 +504,23 @@ it("donne leurs 2 cases à l'Ogre ET au Loup géant de The Mage of the Mirror", 
     foreach (['Ogre', 'Loup géant'] as $nom) {
         expect(Monstre::where('nom_base', $nom)->firstOrFail()->grandeTaille())->toBeTrue($nom);
     }
+});
+
+it('donne à l\'Assassin `attaque_diagonale`, le seul monstre à porter ce mot-clé', function () {
+    // Carte « Assassin » (Rise of the Dread Moon, p15, © 2023, scan de René
+    // 2026-10-05) : « Each Assassin may attack diagonally. » Le comportement
+    // EN JEU (un Assassin en diagonale attaque, un Gobelin en diagonale non)
+    // est testé par `AttaqueDiagonaleMonstreTest` — ce test-ci verrouille
+    // seulement le CATALOGUE : la capacité est déclarée au bon endroit et
+    // nulle part ailleurs par accident.
+    $assassin = Monstre::where('nom_base', 'Assassin')->firstOrFail();
+    expect(in_array('attaque_diagonale', (array) $assassin->capacites, true))->toBeTrue();
+
+    $autres = Monstre::where('nom_base', '!=', 'Assassin')
+        ->get()
+        ->filter(fn (Monstre $m) => in_array('attaque_diagonale', (array) $m->capacites, true))
+        ->pluck('nom_base')
+        ->all();
+
+    expect($autres)->toBe([], 'monstre(s) inattendu(s) avec `attaque_diagonale` : '.implode(', ', $autres));
 });

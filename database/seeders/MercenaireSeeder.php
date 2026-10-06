@@ -22,6 +22,26 @@ use Illuminate\Database\Seeder;
  * Gothar, captif de *The Frozen Horror* — `octroi_seul: true` (même garde)
  * ET `captif: true` (jamais joué comme un mercenaire ordinaire : posé
  * `etat: 'captif'` par `DemarreurQuete`, il attend d'être LIBÉRÉ en jeu).
+ * `mode_captif: 'figurine'` (explicite, même si c'est la valeur par défaut) :
+ * une fois libéré il devient un allié ordinaire, comme n'importe quel autre.
+ *
+ * ⚠ ONZIÈME et DOUZIÈME lignes depuis le 2026-10-05 (chantier
+ * « captifs-jetons », René : « Le Prospecteur et la Princesse Millandriel…
+ * nouveau mode de captif escorté »). *The Mage of the Mirror* (livret F7539
+ * p. 4) les décrit comme des TUILES SANS CARTE — « This tile represents the
+ * old prospector who acts as an ally and is controlled by the hero who
+ * finds him » / « Princess Millandriel[l]… acts as an ally and is
+ * controlled by the hero who finds her » — AUCUN Move/Attack/Defend/Body/
+ * Mind nulle part dans le livret (ni texte de quête p. 7-33, ni carte : ils
+ * n'en ont pas). `deplacement`/`attaque`/`defense`/`pv_body`/`pv_mind`/`prix`
+ * valent donc `0` : pas une valeur SOURCÉE (CLAUDE.md, « ne jamais seeder
+ * une valeur que les livrets ne sourcent pas »), une COLONNE jamais lue pour
+ * ce mode — `mode_captif: 'escorte'` fait sortir ces deux lignes de tout
+ * calcul de combat avant qu'elles n'y entrent (aucune figurine, aucun tour,
+ * aucune cible). `octroi_seul: true` ET `captif: true`, même garde que
+ * Gothar. Recapture à sa case d'origine si le porteur tombe : « monsters
+ * take the prospector to room D » (p. 23, quête 4) — généralisée à
+ * Millandriel (même description de tuile, même mode).
  */
 class MercenaireSeeder extends Seeder
 {
@@ -113,20 +133,25 @@ class MercenaireSeeder extends Seeder
             // démarrant à `'captif'` plutôt que `'actif'` — un héros au
             // contact doit encore le LIBÉRER avant qu'il ne joue.
             //
-            // ⚠ Le Prospecteur et la Princesse Millandriel (*The Mage of the
-            // Mirror*, quêtes 4 et 10 — même gabarit « libérer un captif »,
-            // `docs/plan-mage-du-miroir.md` §3 lot E) N'ONT PAS de bloc de
-            // stats sourcé dans les livrets dépouillés à ce jour : `⚠ non
-            // trouvé` plutôt qu'un chiffre inventé (CLAUDE.md, « ne jamais
-            // seeder une valeur que les livrets ne sourcent pas »). Ils
-            // rejoindront cette liste — et la rotation de `DemarreurQuete`
-            // les tirera automatiquement, sans autre câblage — le jour où
-            // une photo de carte ou une relecture du livret donne leurs
-            // Move/Attack/Defend/Body/Mind.
             ['nom' => 'Gothar', 'type' => 'captif_gothar',
                 'deplacement' => 6, 'attaque' => 1, 'defense' => 2, 'pv_body' => 2, 'pv_mind' => 4, 'prix' => 0,
-                'animal' => false, 'octroi_seul' => true, 'captif' => true,
-                'description' => 'Un barbare captif, prisonnier du donjon — à libérer et à ramener vivant à la sortie.'],
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
+                'description' => 'Un barbare captif, prisonnier du donjon — à libérer et à ramener vivant à l\'escalier.'],
+
+            // ---- LE PROSPECTEUR et LA PRINCESSE MILLANDRIEL — captifs
+            // ESCORTÉS de *The Mage of the Mirror* (F7539 p. 4, quêtes 4 et
+            // 10, chantier « captifs-jetons » 2026-10-05). Tuiles SANS
+            // carte : aucune stat à sourcer, voir le docblock de classe —
+            // `mode_captif: 'escorte'` fait de ce `0` partout une colonne
+            // ignorée plutôt qu'une valeur inventée.
+            ['nom' => 'Le Prospecteur', 'type' => 'captif_prospecteur',
+                'deplacement' => 0, 'attaque' => 0, 'defense' => 0, 'pv_body' => 0, 'pv_mind' => 0, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'escorte',
+                'description' => 'Le vieux prospecteur, seul à savoir reconnaître le lunarium véritable — à libérer et porter jusqu\'à l\'escalier.'],
+            ['nom' => 'Princesse Millandriel', 'type' => 'captif_millandriel',
+                'deplacement' => 0, 'attaque' => 0, 'defense' => 0, 'pv_body' => 0, 'pv_mind' => 0, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'escorte',
+                'description' => 'La fille captive de la reine Terrellia — à libérer et porter jusqu\'à l\'escalier.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

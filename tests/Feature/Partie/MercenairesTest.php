@@ -298,10 +298,11 @@ it('donne aux alliés officiels leur Mind et leurs capacités de carte', functio
     $allies = Mercenaire::all()->keyBy('nom');
 
     // 8 (5 mercenaires humains + 3 compagnons animaux) + le Squelette
-    // Hearthkin (First Light, lot C) + Gothar (captif, Frozen Horror,
-    // chantier 3b 2026-10-04) : même catalogue, ni l'un ni l'autre jamais
-    // recrutable au hub.
-    expect($allies)->toHaveCount(10, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et Gothar');
+    // Hearthkin (First Light, lot C) + Gothar, le Prospecteur et la
+    // Princesse Millandriel (les trois captifs de la mission « secourir »,
+    // chantier 3b 2026-10-04 puis « captifs-jetons » 2026-10-05) : même
+    // catalogue, aucun des quatre jamais recrutable au hub.
+    expect($allies)->toHaveCount(12, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et les trois captifs');
     expect((bool) $allies['Gothar']->captif)->toBeTrue()
         ->and((bool) $allies['Gothar']->octroi_seul)->toBeTrue();
 

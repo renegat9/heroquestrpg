@@ -85,6 +85,14 @@ function poserPorteAdjacenteZeroLlm(Quete $quete, array $salle0, int $x, int $y)
             continue;
         }
 
+        // Jamais de porte sur l'escalier d'entrée (2026-10-05) : le générateur
+        // ne l'y pose jamais (`AssembleurCarte::placerEscalier()` évite les
+        // cases de porte), et le groupe démarre désormais SUR l'escalier — la
+        // première arête libre autour du héros tombait donc sur une marche.
+        if ($quete->carte->surEscalier($x + $dx, $y + $dy) || $quete->carte->surEscalier($x, $y)) {
+            continue;
+        }
+
         $porte = ['x' => $x + $ox, 'y' => $y + $oy, 'cote' => $cote, 'etat' => 'fermee'];
 
         $carte = $quete->carte;

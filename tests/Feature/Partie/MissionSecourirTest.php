@@ -311,3 +311,273 @@ it("la case du captif n'est franchissable par personne avant sa libération", fu
     expect($pourHeros->estTraversable((int) $captif->position_x, (int) $captif->position_y))->toBeFalse()
         ->and($pourMonstre->estTraversable((int) $captif->position_x, (int) $captif->position_y))->toBeFalse();
 });
+
+/*
+ * ======================================================================
+ * MODE ESCORTÉ (chantier « captifs-jetons », 2026-10-05) — le Prospecteur
+ * et la Princesse Millandriel : « acts as an ally and is controlled by the
+ * hero who finds him/her » (Mage of the Mirror p. 4), SANS bloc de stats.
+ * Libéré, il n'est jamais une figurine : il est PORTÉ par le héros
+ * libérateur (`etat: 'porte'`) ; si ce porteur tombe, il est REPRIS
+ * (`etat` → `'captif'`, sur sa case d'origine) — jamais un échec de quête.
+ * ======================================================================
+ */
+
+/*
+ * Registre testé DANS LES DEUX SENS (CLAUDE.md) : `mode_captif` est un
+ * vocabulaire fermé à deux valeurs — chaque profil `captif: true` en
+ * déclare EXACTEMENT une, et c'est la bonne (jamais une troisième valeur qui
+ * ne dirait rien à `resoudreLibererCaptif()`, jamais un profil qui
+ * resterait sur le défaut implicite sans l'avoir voulu).
+ */
+it('mode_captif est déclaré pour chaque profil de captif, sans valeur décorative', function () {
+    $profils = Mercenaire::where('captif', true)->get()->keyBy('nom');
+
+    expect($profils->keys()->all())->toEqualCanonicalizing(['Gothar', 'Le Prospecteur', 'Princesse Millandriel'])
+        ->and($profils['Gothar']->mode_captif)->toBe('figurine')
+        ->and($profils['Le Prospecteur']->mode_captif)->toBe('escorte')
+        ->and($profils['Princesse Millandriel']->mode_captif)->toBe('escorte');
+
+    foreach ($profils as $profil) {
+        expect($profil->mode_captif)->toBeIn(['figurine', 'escorte']);
+    }
+});
+
+it('Le Prospecteur et la Princesse Millandriel ne sont jamais recrutables au hub', function () {
+    $alice = connecterJoueur('alice');
+    $catalogue = $this->getJson('/api/mercenaires')->assertOk()->json('mercenaires');
+    expect(collect($catalogue)->pluck('nom')->all())
+        ->not->toContain('Le Prospecteur')
+        ->not->toContain('Princesse Millandriel');
+
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 5000]);
+
+    $prospecteur = Mercenaire::where('nom', 'Le Prospecteur')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $prospecteur->id])
+        ->assertStatus(422);
+});
+
+/**
+ * Comme `queteAvecCaptif()`, mais avec un captif en mode ESCORTÉ (« Le
+ * Prospecteur » par défaut) plutôt que Gothar (mode figurine).
+ *
+ * @return array{0: \App\Models\Groupe, 1: Quete, 2: \App\Models\Personnage, 3: GroupeMercenaire, 4: \App\Auth\JoueurAuthentifiable}
+ */
+function queteAvecCaptifEscorte(string $nomCaptif = 'Le Prospecteur'): array
+{
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $groupe->refresh();
+    $quete = Quete::findOrFail($groupe->quete_courante_id);
+
+    $gabaritSecourir = GabaritQuete::where('nom', 'Mission de sauvetage')->firstOrFail();
+    $quete->update(['gabarit_id' => $gabaritSecourir->id]);
+
+    $captifMercenaire = Mercenaire::where('nom', $nomCaptif)->firstOrFail();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    $case = caseAdjacenteLibre($quete, (int) $etatHeros->position_x, (int) $etatHeros->position_y);
+
+    $captif = GroupeMercenaire::create([
+        'groupe_id' => $groupe->id,
+        'mercenaire_id' => $captifMercenaire->id,
+        'pv_body' => (int) $captifMercenaire->pv_body,
+        'position_x' => $case['x'],
+        'position_y' => $case['y'],
+        'etat' => 'captif',
+    ]);
+    $quete->update(['captif_mercenaire_id' => $captif->id]);
+
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    return [$groupe, $quete, $heros, $captif->fresh(), $alice];
+}
+
+it('un héros au contact libère un captif ESCORTÉ : il est PORTÉ (pas une figurine), et se voit sur sa fiche', function () {
+    [$groupe, $quete, $heros, $captif] = queteAvecCaptifEscorte();
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+        ->assertStatus(202);
+
+    expect($reponse->json('resultat.type'))->toBe('captif_libere')
+        ->and($reponse->json('resultat.allie'))->toBe('Le Prospecteur')
+        ->and($reponse->json('resultat.mode'))->toBe('escorte');
+
+    $captif->refresh();
+    expect($captif->etat)->toBe('porte')
+        ->and($captif->recruteur_personnage_id)->toBe($heros->id);
+
+    $etat = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    // Jamais une figurine : ni `captif`, ni `allie` dans les entités.
+    expect(collect($etat['entites'])->firstWhere('type', 'captif'))->toBeNull();
+    expect(collect($etat['entites'])->where('type', 'allie')->pluck('id')->all())->not->toContain($captif->id);
+
+    // Il se voit sur le HÉROS qui le porte.
+    $heroEntite = collect($etat['entites'])->firstWhere('id', $heros->id);
+    expect($heroEntite['type'])->toBe('heros')
+        ->and($heroEntite['captif_porte'])->not->toBeNull()
+        ->and($heroEntite['captif_porte']['nom'])->toBe('Le Prospecteur')
+        ->and($heroEntite['captif_porte']['id'])->toBe($captif->id);
+});
+
+it('mode ESCORTÉ : l\'objectif attend que le PORTEUR (pas le captif) atteigne l\'escalier', function () {
+    [$groupe, $quete, $heros, $captif] = queteAvecCaptifEscorte();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])->assertStatus(202);
+    $captif->refresh();
+    $quete->refresh();
+
+    $escalier = $quete->carte->casesEscalier();
+    expect($escalier)->not->toBe([]);
+    $casesEscalier = collect($escalier)->map(fn (array $c) => "{$c['x']},{$c['y']}")->all();
+
+    // ⚠ Le héros démarre près des marches (chantier escalier-entrée,
+    // 2026-10-05 : les héros apparaissent SUR ou À CÔTÉ de l'escalier), et le
+    // captif a été posé adjacent à CETTE position — on ne peut donc supposer
+    // ni l'un ni l'autre déjà loin. On rassemble toutes les cases de la
+    // salle 0 GARANTIES hors escalier, et on y place le héros ET le captif
+    // sur deux cases DISTINCTES — même précaution que le test équivalent du
+    // mode figurine, doublée ici (deux figures à écarter, pas une).
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    $salle0 = $quete->carte->grille['salles'][0];
+    $horsEscalier = [];
+    for ($y = (int) $salle0['y'] + 1; $y < (int) $salle0['y'] + (int) $salle0['hauteur'] - 1; $y++) {
+        for ($x = (int) $salle0['x'] + 1; $x < (int) $salle0['x'] + (int) $salle0['largeur'] - 1; $x++) {
+            if (! in_array("{$x},{$y}", $casesEscalier, true)) {
+                $horsEscalier[] = ['x' => $x, 'y' => $y];
+            }
+        }
+    }
+    expect(count($horsEscalier))->toBeGreaterThanOrEqual(2);
+    $captif->update(['position_x' => $horsEscalier[0]['x'], 'position_y' => $horsEscalier[0]['y']]);
+    $etatHeros->update(['position_x' => $horsEscalier[1]['x'], 'position_y' => $horsEscalier[1]['y']]);
+
+    expect($quete->fresh()->objectifAccompli())->toBeFalse();
+
+    // La case du captif reste SA CASE D'ORIGINE (jamais réécrite) : elle ne
+    // bouge pas, même si elle ne tombe pas sur l'escalier par coïncidence.
+    $surEscalier = collect($escalier)->contains(fn ($c) => $c['x'] === $captif->position_x && $c['y'] === $captif->position_y);
+    expect($surEscalier)->toBeFalse();
+
+    // Le héros (le PORTEUR) rejoint l'escalier : l'objectif s'accomplit même
+    // si la case du captif, elle, n'a pas bougé d'un pouce.
+    $etatHeros->update(['position_x' => $escalier[0]['x'], 'position_y' => $escalier[0]['y']]);
+
+    expect($quete->fresh()->objectifAccompli())->toBeTrue();
+});
+
+it('mode ESCORTÉ : si le porteur tombe, le captif est REPRIS — jamais un échec de quête', function () {
+    // DEUX héros : si le porteur tombe seul au monde, c'est un TPK ordinaire
+    // (règle à part, inchangée) — pas ce qu'on teste ici. Le second héros
+    // doit être DEBOUT et avoir déjà joué, pour que le round se referme dans
+    // la MÊME réponse que la libération du premier.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $second = creerHeros($alice, $groupe, 'Brunehilde', 2);
+    $groupe->update(['or' => 500]);
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $groupe->refresh();
+    $quete = Quete::findOrFail($groupe->quete_courante_id);
+
+    $gabaritSecourir = GabaritQuete::where('nom', 'Mission de sauvetage')->firstOrFail();
+    $quete->update(['gabarit_id' => $gabaritSecourir->id]);
+
+    $prospecteur = Mercenaire::where('nom', 'Le Prospecteur')->firstOrFail();
+    $etatHeros = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $heros->id)->firstOrFail();
+    $etatSecond = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $second->id)->firstOrFail();
+
+    // Le second héros a déjà joué ce round (immobile, loin — sans incidence
+    // sur le ciblage du monstre : les héros sont parcourus dans l'ordre
+    // d'initiative, Albrecht avant Brunehilde, et `jouerMonstre()` retient le
+    // PREMIER contact trouvé sans jamais le remplacer par un second).
+    $etatSecond->update(['a_joue' => true, 'a_deplace' => true, 'a_agi' => true]);
+
+    $case = caseAdjacenteLibre($quete, (int) $etatHeros->position_x, (int) $etatHeros->position_y);
+    $captif = GroupeMercenaire::create([
+        'groupe_id' => $groupe->id,
+        'mercenaire_id' => $prospecteur->id,
+        'pv_body' => (int) $prospecteur->pv_body,
+        'position_x' => $case['x'],
+        'position_y' => $case['y'],
+        'etat' => 'captif',
+    ]);
+    $quete->update(['captif_mercenaire_id' => $captif->id]);
+    \App\Jobs\GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $heros->id);
+
+    $positionOrigineX = $captif->position_x;
+    $positionOrigineY = $captif->position_y;
+
+    // Albrecht fragile (1 PV), un monstre robuste posté à SON contact —
+    // adjacent dès que son tour se terminera (libérer un captif sacrifie le
+    // tour, exactement comme relever un compagnon).
+    $heros->update(['pv_body' => 1]);
+    $instance = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($instance->id)->update(['etat' => 'vaincu']);
+    // ⚠ `caseAdjacenteLibre()` ignore les CAPTIFS (`tests/Pest.php`,
+    // `caseQueteLibre()` ne regarde que héros/monstres) : le captif, encore
+    // non libéré, occupe déjà UNE des quatre cases adjacentes au héros —
+    // on l'exclut explicitement plutôt que de risquer d'y superposer le
+    // monstre.
+    $contact = null;
+    foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
+        $cx = (int) $etatHeros->position_x + $dx;
+        $cy = (int) $etatHeros->position_y + $dy;
+        if (($cx === $captif->position_x && $cy === $captif->position_y)
+            || ! caseQueteLibre($quete, $cx, $cy)) {
+            continue;
+        }
+        $contact = ['x' => $cx, 'y' => $cy];
+
+        break;
+    }
+    expect($contact)->not->toBeNull();
+    $instance->update(['position_x' => $contact['x'], 'position_y' => $contact['y'], 'revele' => true, 'pv_body' => 20]);
+
+    // Des crânes partout : le monstre touche Albrecht, qui ne pare rien.
+    desFiges(array_fill(0, 80, 1));
+
+    // Libérer ferme le tour d'Albrecht ; Brunehilde ayant déjà joué, plus
+    // aucun acteur n'attend — la phase des monstres s'ouvre dans CETTE MÊME
+    // réponse, et avec elle `ouvrirNouveauTour()`, le point de passage
+    // unique qui détecte la chute du porteur.
+    $reponse = $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])
+        ->assertStatus(202);
+
+    $attaque = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'attaque_monstre');
+    expect($attaque)->not->toBeNull()
+        ->and($attaque['pv_body_apres'])->toBe(0);
+
+    $etatHeros->refresh();
+    expect($etatHeros->tombe)->toBeTrue();
+
+    $repris = collect($reponse->json('resultat.tour_monstres.actions'))->firstWhere('type', 'captif_repris');
+    expect($repris)->not->toBeNull()
+        ->and($repris['allie'])->toBe('Le Prospecteur')
+        ->and($repris['allie_id'])->toBe($captif->id)
+        ->and($repris['personnage'])->toBe('Albrecht');
+
+    $captif->refresh();
+    expect($captif->etat)->toBe('captif')
+        ->and($captif->recruteur_personnage_id)->toBeNull()
+        ->and($captif->position_x)->toBe($positionOrigineX)
+        ->and($captif->position_y)->toBe($positionOrigineY);
+
+    // JAMAIS un échec de quête (contrairement à Gothar, mode figurine) —
+    // Brunehilde est toujours debout, ce n'est pas un TPK.
+    $quete->refresh();
+    $groupe->refresh();
+    expect($quete->etat)->toBe('en_cours')
+        ->and($groupe->phase)->toBe('quete');
+
+    // Il est de nouveau un captif « ordinaire » : visible, et libérable.
+    $etat = $this->getJson('/api/groupes/table-1/etat')->assertOk()->json();
+    $entiteCaptif = collect($etat['entites'])->firstWhere('type', 'captif');
+    expect($entiteCaptif)->not->toBeNull()->and($entiteCaptif['id'])->toBe($captif->id);
+});

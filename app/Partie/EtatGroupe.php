@@ -1030,12 +1030,25 @@ final class EtatGroupe
     {
         $etats = $quete->etatsPersonnages()->get()->keyBy('personnage_id');
 
+        // CAPTIF PORTÉ (mode escorté, chantier « captifs-jetons »,
+        // 2026-10-05) : le Prospecteur / la Princesse Millandriel n'ont pas
+        // de case propre une fois libérés (`etat: 'porte'`) — « le captif
+        // porté se voit sur la fiche/le jeton du héros qui le porte » (plan)
+        // n'a donc qu'un seul endroit où se brancher, celui du PORTEUR.
+        $captifsPortes = GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where('etat', 'porte')
+            ->whereNotNull('recruteur_personnage_id')
+            ->with('mercenaire')
+            ->get()
+            ->keyBy('recruteur_personnage_id');
+
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
             ->get()
-            ->map(function (Personnage $p) use ($etats) {
+            ->map(function (Personnage $p) use ($etats, $captifsPortes) {
                 $etat = $etats->get($p->id);
+                $porte = $captifsPortes->get($p->id);
 
                 return [
                     'type' => 'heros',
@@ -1152,6 +1165,16 @@ final class EtatGroupe
                     'benediction_oracle' => (bool) $p->benediction_oracle,
                     'malediction_oracle' => (bool) $p->malediction_oracle,
                     'conditions' => $this->conditionsHeros($p),
+                    // CAPTIF PORTÉ (mode escorté) — `null` tant qu'il n'en
+                    // porte aucun. `image_url` même source que `type:'captif'`/
+                    // `type:'allie'` : un captif escorté n'a pas de figure
+                    // propre, mais garde SON image, jamais celle du héros.
+                    'captif_porte' => $porte === null ? null : [
+                        'id' => $porte->id,
+                        'nom' => $porte->mercenaire?->nom ?? 'Captif',
+                        'image_url' => app(BibliothequeImages::class)
+                            ->urlMercenaire($porte->mercenaire_id, $porte->mercenaire?->nom ?? 'Captif'),
+                    ],
                 ];
             })
             ->values()

@@ -20,8 +20,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * `etat` porte aussi `'captif'` depuis le chantier 3b (mission « secourir ») :
  * posé sur la carte à l'assemblage, ni joué ni contrôlé, jusqu'à ce qu'un
- * héros au contact le LIBÈRE (`resoudreLibererCaptif()`) — il devient alors
- * un allié `'actif'` ordinaire, contrôlé par ce héros.
+ * héros au contact le LIBÈRE (`resoudreLibererCaptif()`). Ce qu'il devient
+ * alors dépend de `mercenaire.mode_captif` (chantier « captifs-jetons »,
+ * 2026-10-05) :
+ *  - `figurine` (Gothar) : `etat` passe à `'actif'` — un allié ordinaire,
+ *    contrôlé par ce héros, rejoué comme n'importe quel autre (chantier 3a).
+ *  - `escorte` (le Prospecteur, la Princesse Millandriel) : `etat` passe à
+ *    `'porte'` — PORTÉ par le héros libérateur (`recruteur_personnage_id`),
+ *    jamais une figurine : aucun tour, aucune cible pour les monstres,
+ *    `position_x`/`position_y` ne bougent plus JAMAIS (ils restent la case
+ *    d'ORIGINE). Si le porteur tombe, il est REPRIS — `etat` revient à
+ *    `'captif'` sur cette même case ({@see
+ *    \App\Partie\ResolveurTour::reprendreCaptifsPortes()}). `'porte'` est
+ *    délibérément exclu de tout ce qui filtre `etat: 'actif'` (figure sur la
+ *    carte, ciblage des monstres, ordre du tour) ou `etat: 'captif'`
+ *    (occupation de la case, option « libérer ») : aucun garde-fou de plus à
+ *    écrire, l'exclusion est déjà la valeur de la colonne.
  */
 class GroupeMercenaire extends Model
 {

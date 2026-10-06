@@ -86,3 +86,10 @@ Un nouveau type d'objectif de quête (`GabaritQueteSeeder`, lu par
 3. Suite Pest complète, puis seeders + migrations sur la vraie base après
    `./image-tools/sauvegarder.sh`, `docker compose restart queue queue-jeu`.
 4. Une campagne d'agents (`campagne-agents`) pour valider en jeu réel.
+
+## Décisions de René du 2026-10-05 (cartes de Wizards of Morcar et cartes de monstre reçues)
+
+| Sujet | Décision |
+|---|---|
+| **Captifs-jetons** | Le Prospecteur et la Princesse Millandriel (*The Mage of the Mirror*) sont des **tuiles sans carte** (« acts as an ally and is controlled by the hero who finds him », p. 4) : nouveau mode de captif **escorté** — le héros libérateur le porte (aucune figurine, aucune stat) ; mission accomplie quand **ce héros** atteint l'escalier ; s'il **tombe**, le captif est repris et retourne dans sa cellule (« monsters take the prospector to room D », p. 23), à aller rechercher. Gothar reste un captif-figurine (carte), dont la mort échoue la quête. |
+| **Murs magiques** | La carte *Wall of Stone* dit « covers **2 squares** not occupied by figures » : deux **cases**, pas une arête. **Retour à 2 cases** (annule le « une case » du 2026-10-04, pris quand on croyait le mur posé sur une arête). Bâtis sur le mobilier attaquable (1 PV, 6 dés de défense). *Wall of Ice* : Storm Master ; *Wall of Flame* : High Mage ; *Wall of Stone* : sort de héros (Spells of Protection). Sources : `reference/18_extensions.md` § Wizards of Morcar — cartes TRANSCRITES. |

@@ -161,16 +161,45 @@ compagnon) : il devient alors un allié `'actif'` ordinaire, contrôlé par ce
 héros — joué désormais par SON joueur, chantier 3a,
 `docs/regles/combat-et-tour.md`.
 
-⚠ **Un seul profil sourcé aujourd'hui.** Le Prospecteur et la Princesse
-Millandriel (*The Mage of the Mirror*, quêtes 4 et 10) partagent le même
-gabarit mais **n'ont aucun bloc de stats sourcé** dans les livrets dépouillés
-à ce jour (ni dans le texte de quête, ni sur une carte photographiée) —
-`⚠ non trouvé` plutôt qu'un chiffre inventé (CLAUDE.md, « ne jamais seeder
-une valeur que les livrets ne sourcent pas »). `mercenaires.captif = true`
-nomme le vocabulaire fermé ; `MercenaireSeeder` ne porte que Gothar. Le
-tirage (`DemarreurQuete::choisirGabarit()`) rotera automatiquement sur eux,
-sans câblage supplémentaire, le jour où une photo de carte ou une relecture
-du livret donne leurs Move/Attack/Defend/Body/Mind.
+**DEUX MODES depuis le chantier « captifs-jetons » (2026-10-05, décision de
+René) : `mercenaires.mode_captif` — vocabulaire fermé à deux valeurs, lu
+UNE SEULE FOIS, par `ResolveurTour::resoudreLibererCaptif()` (le reste du
+moteur distingue les deux modes sur la seule valeur de `groupe_mercenaires.
+etat`, jamais une seconde lecture de la colonne).**
+
+- `'figurine'` (Gothar — Move 6 · Attack 1 · Defend 2 · Body 2 · Mind 4,
+  Frozen Horror p. 19/37) : libéré, `etat` passe à `'actif'` — un allié
+  ordinaire, contrôlé par son libérateur, qui se déplace case par case
+  jusqu'à l'escalier.
+- `'escorte'` (le Prospecteur, la Princesse Millandriel — *The Mage of the
+  Mirror* p. 4 : « This tile represents the old prospector who acts as an
+  ally and is controlled by the hero who finds him » / « Princess
+  Millandriel[l]… acts as an ally and is controlled by the hero who finds
+  her » — AUCUN bloc de stats dans tout le livret, ce sont des tuiles SANS
+  carte) : libéré, `etat` passe à `'porte'` — il est PORTÉ par le héros
+  libérateur, jamais une figurine : aucun tour, aucune case propre sur la
+  grille, aucune cible pour les monstres. `position_x`/`position_y` ne sont
+  plus jamais réécrits : ils restent la case d'ORIGINE. **S'il tombe**, le
+  porteur est traité comme n'importe quel héros à terre — mais le captif,
+  lui, est **REPRIS** : « monsters take the prospector to room D » (p. 23,
+  généralisée à Millandriel) — `etat` revient à `'captif'`, SUR CETTE CASE
+  D'ORIGINE, à libérer de nouveau. **Jamais un échec de quête** (contrairement
+  au mode figurine, § ci-dessous) : un captif escorté n'a ni PV ni figurine,
+  il ne peut donc jamais être « tué », seulement repris. Détecté et
+  journalisé par `ResolveurTour::reprendreCaptifsPortes()`, au MÊME
+  round-boundary que la détection de TPK (`ouvrirNouveauTour()` → même
+  docblock, même raisonnement : ni l'un ni l'autre ne se vérifie coup par
+  coup). `deplacement`/`attaque`/`defense`/`pv_body`/`pv_mind`/`prix` valent
+  `0` dans `MercenaireSeeder` — pas une valeur sourcée, une colonne que
+  `mode_captif: 'escorte'` fait sortir de tout calcul avant qu'elle n'y
+  entre, jamais lue pour ce mode (CLAUDE.md, « ne jamais seeder une valeur
+  que les livrets ne sourcent pas » : `0` n'est pas une stat, c'est
+  l'absence déclarée de stat).
+
+Rendu : un captif escorté disparaît purement et simplement de `entites`
+(ni `type: 'captif'`, ni `type: 'allie'`) — il se voit sur le HÉROS qui le
+porte (`entites[].captif_porte`, table et manette, badge partagé
+`badgesFigure()`), jamais sur une case de la carte.
 
 **Condition de victoire et d'échec** (`Quete::objectifAccompli()`,
 `captifLibereEtVivant()`, `captifPerdu()` — point de passage unique, lu
@@ -179,9 +208,10 @@ montée de niveau, fin de quête) : accompli dès que le captif est **libéré E
 vivant** — la sortie elle-même suit ensuite le vote ordinaire, comme tout
 autre objectif, choix le plus fidèle au livret parmi les deux lus
 (« escort » jusqu'à la sortie, ou « nettoyer la salle » à défaut — Gothar ne
-nomme que l'escorte, retenue ici). **S'il meurt** une fois libéré (un
-monstre l'achève — les sorts de Dread visent encore les seuls héros, limite
-déjà nommée), la quête **échoue immédiatement** —
+nomme que l'escorte, retenue ici). **S'il meurt** une fois libéré — MODE
+FIGURINE SEULEMENT, un captif escorté n'a ni PV ni figurine à perdre, voir
+§ ci-dessus — (un monstre l'achève — les sorts de Dread visent encore les
+seuls héros, limite déjà nommée), la quête **échoue immédiatement** —
 `ResolveurTour::echouerSiCaptifPerdu()`/`echouerQuete()`, le MÊME point de
 passage et la MÊME cérémonie qu'un TPK (retour au hub, alliés consommés,
 snapshots conservés pour `/reprise`) : généralise « if the Barbarian dies,

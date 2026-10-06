@@ -508,6 +508,22 @@ export function badgesFigure(entite) {
         });
     }
 
+    // CAPTIF PORTÉ (mode escorté, mission « secourir », chantier
+    // « captifs-jetons » 2026-10-05) : le Prospecteur / la Princesse
+    // Millandriel n'ont ni figurine ni tour — « le captif porté se voit sur
+    // la fiche du héros qui le porte », table ET manette, et cette fonction
+    // alimente les DEUX (EtatGroupe.entites[].captif_porte, publié par le
+    // serveur — jamais recalculé ici).
+    if (entite?.captif_porte) {
+        badges.unshift({
+            nom: 'captif_porte',
+            t: 'buff',
+            l: `Porte ${entite.captif_porte.nom} — à ramener vivant jusqu'à l'escalier`,
+            ic: 'volunteer_activism',
+            d: null,
+        });
+    }
+
     return badges;
 }
 
@@ -587,7 +603,13 @@ export function entitesVersFigurines(entites, initiative) {
             hp: (e.type === 'monstre' || e.type === 'allie' || e.type === 'captif') ? e.pv_body : undefined,
             cur: estCourant(e, initiative),
             elite: e.type === 'monstre' ? !!e.elite : false,
-            cond: conditionDeJeton(e.conditions),
+            // CAPTIF PORTÉ (mode escorté, chantier « captifs-jetons »,
+            // 2026-10-05) : pas de figurine propre, donc son indicateur se
+            // pose sur le JETON DU PORTEUR — seulement si ce héros n'affiche
+            // déjà une vraie condition (celle-ci prime, comme ailleurs).
+            cond: conditionDeJeton(e.conditions) ?? (e.type === 'heros' && e.captif_porte
+                ? { ic: 'volunteer_activism', titre: `Porte ${e.captif_porte.nom}` }
+                : undefined),
             // Emprise (3.9) : largeur/hauteur en cases, 1×1 par défaut.
             ew: Math.max(1, e.emprise?.l ?? 1),
             eh: Math.max(1, e.emprise?.h ?? 1),

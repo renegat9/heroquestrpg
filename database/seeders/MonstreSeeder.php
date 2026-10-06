@@ -16,24 +16,37 @@ class MonstreSeeder extends Seeder
     {
         // ----- Bestiaire de base : les 8 CARTES MONSTRE -----
         //
-        // Aligné le 2026-08-09 sur `sjeng-monsters.pdf` (Ye Olde Inn). C'est
-        // la première fois que ces valeurs sont SOURCÉES : le doc 16 §4
-        // portait « ⚠ non trouvé » sur toute la table, parce que le tableau
-        // chiffré des monstres vit sur l'écran du MJ, un carton jamais
-        // numérisé. Deux recoupements indépendants confirment le paquet :
+        // Aligné le 2026-08-09 sur `sjeng-monsters.pdf` (Ye Olde Inn), PUIS
+        // RECORRIGÉ le 2026-10-05 sur les cartes OFFICIELLES elles-mêmes :
+        // René a scanné son propre jeu de cartes de monstre (41 cartes,
+        // `reference/20_cartes_monstres.md`) — une source plus directe que
+        // le PDF de fan, puisque le *Rulebook* 2021 dit que la carte et le
+        // tableau de l'écran du MJ portent le MÊME chiffre (LR p. 7). Les
+        // cartes confirment le paquet de fan sur Gobelin/Squelette/Orque,
+        // mais divergent sur Zombie/Momie/Guerrier du Chaos/Gargouille
+        // (voir chaque ligne) : **la carte gagne, partout** (décision de
+        // René, 2026-10-05 : « Valeurs des cartes, partout »).
+        //
+        // Deux recoupements indépendants restent valides par ailleurs :
         //   - la momie à 3 dés d'attaque, déduite de « It rolls 4 Attack
         //     dice INSTEAD OF 3 » (livret de quêtes p. 5) ;
         //   - squelette / zombie / momie à Mind 0, ce qui explique enfin
         //     « Sleep may not be used against mummies, zombies, or
         //     skeletons » (livret de règles p. 8) — Mind 0 = pas de jet.
         //
-        // ⚠ CONSÉQUENCE D'ÉQUILIBRAGE : au plateau, TOUT monstre de base a
-        // **1 seul point de Body**. On en donnait 2 ou 3 aux plus costauds.
-        // Un gobelin et une gargouille tombent donc désormais du même coup
-        // réussi — c'est le design du jeu (les héros encaissent, les
-        // monstres non), et c'est ce qui rend les paliers sous_boss/boss
-        // lisibles. Les `cout` sont réajustés en conséquence : ils ne
-        // dépendaient plus des vraies stats.
+        // ⚠ PRINCIPE ABANDONNÉ (2026-10-05) : jusqu'ici, "au plateau, TOUT
+        // monstre de base a 1 seul point de Body" justifiait d'écraser les
+        // stats à 1 Body partout. Les cartes officielles le contredisent
+        // directement — Momie 2, Guerrier du Chaos 3, Gargouille 3 — donc ce
+        // n'était pas une règle du plateau, seulement ce qu'un PDF de fan
+        // laissait deviner. Le garde-fou contre un monstre « increvable »
+        // dans le tas des faibles n'est plus un plafond de Body : c'est le
+        // `cout` (recalculé ci-dessous, mesuré comme pour les boss —
+        // `docs/regles/bestiaire-et-rencontres.md`) qui route un monstre de
+        // base devenu coûteux vers les « forts » du budget de rencontre
+        // (`DemarreurQuete::acheterMonstres()`, seuil `seuil_cout_fort`),
+        // achetés UN SEUL à la fois — exactement le mécanisme qui protège
+        // déjà l'Assassin/Archer elfe/Guerrier elfe, tier `base` eux aussi.
         //
         // ⚠ Gobelin, Squelette et Orque sont extraits en VARIABLES (et non
         // laissés comme les cinq autres, de simples lignes du tableau) : leur
@@ -118,17 +131,40 @@ class MonstreSeeder extends Seeder
         $monstres = [
             $gobelin,
             $squelette,
-            ['nom_base' => 'Zombie', 'deplacement' => 4, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
+            // Carte « Zombie » (p02, © 2021) : Déplacement **5**, contre 4 au
+            // paquet de fan (`sjeng-monsters.pdf`) — seule case qui change.
+            // Attaque/Défense/Body/Mind identiques des deux côtés, donc le
+            // `cout` (il ne mesure que la survie/puissance de frappe, pas la
+            // vitesse) reste à 2 — reference/20_cartes_monstres.md.
+            ['nom_base' => 'Zombie', 'deplacement' => 5, 'attaque' => 2, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'boite' => 'base', 'cout' => 2, 'capacites' => [], 'sorts_dread' => []],
             $orque,
             ['nom_base' => 'Fimir', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 3,
                 'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 3,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 3, 'capacites' => [], 'sorts_dread' => []],
-            ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 4, 'pv_body' => 1, 'pv_mind' => 4,
-                'tier' => 'base', 'boite' => 'base', 'cout' => 4, 'capacites' => [], 'sorts_dread' => []],
+            // Carte « Mummy » (p01, © 2021) : Body **2**, contre 1 au paquet
+            // de fan — seule divergence. `cout` recalculé par la même mesure
+            // que les boss (`docs/regles/bestiaire-et-rencontres.md`,
+            // attaques-à-3-dés pour abattre = Body / (1.5 − Défense/6)) :
+            // 1.2 → 2.4 attaques, comparable au Crâne putride/Raptor (1.7
+            // attaques, cout 5) à Défense moindre — 3 → 5.
+            ['nom_base' => 'Momie', 'deplacement' => 4, 'attaque' => 3, 'defense' => 4, 'pv_body' => 2, 'pv_mind' => 0,
+                'tier' => 'base', 'boite' => 'base', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
+            // Carte « Dread Warrior » (p03, © 2021 — 1989 « Chaos Warrior »,
+            // déjà documenté) : Déplacement **7**, Attaque **4**, Body **3**,
+            // contre 6/3/1 au paquet de fan — trois divergences. Mêmes stats
+            // A/D/B/Mi que notre Garde-mage (sous_boss, cout 8) à un point de
+            // Déplacement près : `cout` recalculé par la même mesure (3.6
+            // attaques-à-3-dés, contre 1.2 avant) — 3 → 6, au niveau de
+            // l'Assassin (même tier `base`, même méthode).
+            ['nom_base' => 'Guerrier du Chaos', 'deplacement' => 7, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
+                'tier' => 'base', 'boite' => 'base', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+            // Carte « Gargoyle » (p05, © 2021) : Défense **5**, Body **3**,
+            // contre 4/1 au paquet de fan — deux divergences (Déplacement/
+            // Attaque/Mind identiques). `cout` recalculé par la même mesure
+            // (4.5 attaques-à-3-dés, contre 1.2 avant) — 4 → 7, la créature
+            // la plus endurante du tier `base` (sans capacité).
+            ['nom_base' => 'Gargouille', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'base', 'boite' => 'base', 'cout' => 7, 'capacites' => [], 'sorts_dread' => []],
 
             // ----- Variantes À DISTANCE génériques (Q6) -----
             $gobelinArcher,
@@ -238,10 +274,28 @@ class MonstreSeeder extends Seeder
             // `ethere` (Rise of the Dread Moon) et la double-action du
             // tacticien sont portés le même jour — reference/16 §4.7.
 
-            // ---- Kellar's Keep : l'Abomination n'est PAS semée. Ses stats ne
-            //      sont chiffrées dans aucun livret (doc 18 note †), seulement
-            //      dans la table de tournoi d'une AUTRE boîte. On ne sème pas une
-            //      valeur qu'aucune source n'assume.
+            // ---- L'Abomination (monstre de la boîte de BASE, pas de Kellar's
+            //      Keep) : CORRIGÉ le 2026-10-05. Carte « Abomination » (p11,
+            //      © 2021, reference/20_cartes_monstres.md) : 6/3/3/2/3, pas de
+            //      texte de capacité. Jusqu'ici volontairement absente du
+            //      catalogue (doc 18 note † : « ses stats ne sont chiffrées
+            //      dans aucun livret, seulement dans une table de tournoi
+            //      d'une autre boîte ») — ce n'est plus vrai, la carte donne le
+            //      bloc complet, directement du jeu de base dont elle fait
+            //      partie (LR p. 4 : « 3 abominations », dans le MÊME
+            //      inventaire que les 7 autres monstres de base ; confirmé
+            //      aussi par First Light, reference/18_extensions.md §2).
+            //      `tier => 'base'`, `boite => 'base'` — COMME LES AUTRES
+            //      monstres de base (pas `boite => null`, réservé à nos
+            //      propres créations) : c'est un monstre de la boîte de base,
+            //      au même titre que le Gobelin ou la Gargouille, donc il doit
+            //      apparaître dans les rencontres comme eux.
+            //      `cout` par la même mesure que les quatre lignes ci-dessus
+            //      (Body / (1.5 − Défense/6) = 2.0 attaques-à-3-dés, même
+            //      profil de survie que l'Assassin mais avec 3 dés d'attaque
+            //      au lieu de 5) : alignée sur le Crâne putride/Raptor (cout 5).
+            ['nom_base' => 'Abomination', 'deplacement' => 6, 'attaque' => 3, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
+                'tier' => 'base', 'boite' => 'base', 'cout' => 5, 'capacites' => [], 'sorts_dread' => []],
 
             // ---- Rise of the Dread Moon (doc 18) ----
             // « connaît *Dreadlights* et *Channel Dread*, chacun 1 fois par quête »
@@ -256,8 +310,16 @@ class MonstreSeeder extends Seeder
             ['nom_base' => 'Spectre', 'deplacement' => 8, 'attaque' => 3, 'defense' => 3, 'pv_body' => 1, 'pv_mind' => 0,
                 'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 5, 'capacites' => ['ethere'], 'sorts_dread' => [],
                 'archetype_lanceur' => 'spectre_hurlant'],
+            // CORRIGÉ le 2026-10-05 : la carte « Assassin » (p15, © 2023,
+            // reference/20_cartes_monstres.md) porte un texte de capacité que
+            // la première lecture (doc 18) avait laissé tomber : « Each
+            // Assassin may attack diagonally. » Le mot-clé `attaque_diagonale`
+            // existait déjà pour les armes longues et les mercenaires — jamais
+            // pour un monstre : troisième lecteur au même mot-clé, branché au
+            // point de passage qui décide l'adjacence d'attaque d'un monstre
+            // (`ResolveurTour::jouerMonstre()`, `$diagonalesMonstre`).
             ['nom_base' => 'Assassin', 'deplacement' => 10, 'attaque' => 5, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 3,
-                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 6, 'capacites' => [], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'dread_moon', 'cout' => 6, 'capacites' => ['attaque_diagonale'], 'sorts_dread' => []],
             // « connaît *Ball of Flame* et *Tempest*, chacun 1 fois par quête ».
             ['nom_base' => 'Garde-mage', 'deplacement' => 8, 'attaque' => 4, 'defense' => 4, 'pv_body' => 3, 'pv_mind' => 3,
                 'tier' => 'sous_boss', 'boite' => 'dread_moon', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
@@ -456,8 +518,17 @@ class MonstreSeeder extends Seeder
             // Défense 0 et son Body 1 disent aussi comment on s'en débarrasse :
             // un seul crâne suffit à en détacher un (règle de retrait précisée
             // par René le 2026-08-10).
+            // CORRIGÉ le 2026-10-05 : la carte « Spawnling » (p38, © 2024,
+            // reference/20_cartes_monstres.md) porte mot pour mot « Venomous.
+            // Agile. » — `venimeux` manquait. Sans effet pratique observable
+            // tant que son Attaque reste à 0 (le lecteur de `venimeux` ne se
+            // déclenche que sur un coup au corps-à-corps qui touche, ce que ce
+            // monstre ne porte jamais) : ajoutée quand même, le registre « rien
+            // de non lu » valant aussi pour une capacité sans conséquence
+            // pratique actuelle — la carte le dit, le catalogue le cite.
             ['nom_base' => 'Rejeton putride', 'deplacement' => 3, 'attaque' => 0, 'defense' => 0, 'pv_body' => 1, 'pv_mind' => 0,
-                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2, 'capacites' => ['agile', 's_accroche'], 'sorts_dread' => []],
+                'tier' => 'base', 'boite' => 'jungles_delthrak', 'cout' => 2,
+                'capacites' => ['agile', 's_accroche', 'venimeux'], 'sorts_dread' => []],
             // Monster Chart des Jungles of Delthrak p. 47 : « Sorts *Channel
             // Dread*, *Creeping Grasp* ». Il ne frappe presque pas (2 dés,
             // 1 PV) — il entrave, et laisse les autres faire le travail.

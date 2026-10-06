@@ -52,7 +52,9 @@ Routes protégées par middleware `auth` sauf connexion.
                         "embrasure": {"x": 5, "y": 3}, "verrou": "cle|monstres_vaincus|levier"}]},
   "entites": [
     {"type": "heros", "id": 1, "nom": "...", "classe": "nain", "x": 2, "y": 3,
-     "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false},
+     "pv_body": 6, "pv_body_max": 8, "pv_mind": 4, "pv_mind_max": 4, "tombe": false, "en_choc": false,
+     "captif_porte": {"id": 5, "nom": "Le Prospecteur", "image_url": "/images/..."} ,
+     "...": "ou null — mode ESCORTÉ de la mission « secourir », voir ci-dessous"},
     {"type": "monstre", "id": 9, "nom": "<habillage IA ou nom_base>", "nom_base": "<type catalogue>", "x": 5, "y": 4,
      "pv_body": 2, "pv_body_max": 2, "etat": "actif"},
     {"type": "captif", "id": 3, "nom": "Gothar", "x": 7, "y": 4,
@@ -735,44 +737,70 @@ avec son image et ses PV. ⚠ Les capacités spéciales (étreinte, frappe de
 zone, choix tactique, vol, accroche) et les sorts de Dread visent encore les
 **seuls héros** — limite nommée.
 
-### Mission « secourir » (chantier 3b, 2026-10-04)
+### Mission « secourir » (chantier 3b, 2026-10-04 ; DEUX MODES depuis le
+chantier « captifs-jetons », 2026-10-05)
 
 Nouveau type d'objectif de quête (`quete.objectif = "secourir"`, voir
 §« Objectif de quête » plus haut) : un **captif** sourcé (Gothar, *The Frozen
-Horror* p. 19/37 — le Prospecteur et la Princesse Millandriel de *The Mage of
-the Mirror* suivront quand leur profil sera sourcé) est posé dans la
-salle-objectif de la quête à l'assemblage, comme un coffre. Il apparaît dans
-`EtatGroupe.entites` avec `type: "captif"` (`{id, nom, x, y, pv_body,
-pv_body_max, image_url}` — pas de dés d'attaque/défense, il ne se bat pas),
-**caché tant que sa salle n'est pas découverte** (même garde que les
-monstres dormants). `quete.objectif_libelle` nomme le captif dès qu'il est
-posé (« Retrouver Gothar et le ramener vivant à la sortie. »).
+Horror* p. 19/37 ; le Prospecteur et la Princesse Millandriel, *The Mage of
+the Mirror* p. 4) est posé dans la salle-objectif de la quête à
+l'assemblage, comme un coffre. Il apparaît dans `EtatGroupe.entites` avec
+`type: "captif"` (`{id, nom, x, y, pv_body, pv_body_max, image_url}` — pas de
+dés d'attaque/défense, il ne se bat pas), **caché tant que sa salle n'est pas
+découverte** (même garde que les monstres dormants). `quete.objectif_libelle`
+nomme le captif dès qu'il est posé (« Retrouver Gothar et le ramener vivant à
+l'escalier. »).
 
 Un héros à son contact voit l'option `type: "liberer_captif"` (id
 `liberer_{allie_id}`, `parametres.allie_id`) — sacrifie le tour, comme
 relever un compagnon. `POST /choix {option_id: "liberer_{id}"}` le libère :
-il devient un **allié ordinaire** (`groupe_mercenaires.etat` passe de
-`"captif"` à `"actif"`, `recruteur_personnage_id` = ce héros) et rejoue
-désormais comme n'importe quel allié (§ ci-dessus) — plus jamais sous
-`type: "captif"` dans `entites`, il bascule sous `type: "allie"`.
+le résultat porte `{type: "captif_libere", personnage, allie, allie_id,
+mercenaire_id, mode: "figurine"|"escorte"}` — **la DÉCISION publiée côté
+serveur**, jamais à re-dériver de `allie_id`. Deux profils, deux devenirs :
+
+- **figurine** (Gothar) : `groupe_mercenaires.etat` passe de `"captif"` à
+  `"actif"`, `recruteur_personnage_id` = ce héros, et il rejoue désormais
+  comme n'importe quel allié (§ ci-dessus) — plus jamais sous
+  `type: "captif"` dans `entites`, il bascule sous `type: "allie"`.
+- **escorté** (le Prospecteur, la Princesse Millandriel — tuiles SANS carte,
+  « acts as an ally and is controlled by the hero who finds him/her »,
+  *Mage of the Mirror* p. 4) : `etat` passe à `"porte"`. Jamais une
+  figurine : il disparaît purement et simplement de `entites` (ni
+  `"captif"`, ni `"allie"` — aucun tour, aucune case, aucune cible pour les
+  monstres). Il **se voit sur le héros qui le porte** : l'entité
+  `type: "heros"` de ce héros porte désormais `captif_porte: {id, nom,
+  image_url}` (`null` sinon) — rendu identique table et manette.
+  ⚠ **Si ce porteur tombe** (quelle qu'en soit la cause), le captif est
+  **REPRIS** — « monsters take the prospector to room D » (p. 23,
+  généralisée à Millandriel) : `etat` revient à `"captif"`, SUR SA CASE
+  D'ORIGINE (jamais déplacée depuis sa pose), `recruteur_personnage_id`
+  redevient `null`. **Jamais un échec de quête** — à libérer de nouveau,
+  comme au premier donjon. Annoncé (`{type: "captif_repris", personnage:
+  "<nom du porteur déchu>", allie, allie_id, mercenaire_id}`), vérifié et
+  journalisé à la fermeture du round (`ResolveurTour::ouvrirNouveauTour()`,
+  même round-boundary que la détection de TPK) — le payload remonte sous
+  `resultat.tour_monstres.actions` (round qui enchaînait une phase de
+  monstres) ou `resultat.captifs_repris` (round sans monstre, mais où le
+  porteur est quand même tombé — piège, terrain…).
 
 `quete.objectif_accompli` vaut `true` dès qu'il est **libéré, vivant, ET
 ramené à l'escalier d'entrée** (chantier escalier-entrée, 2026-10-05 —
 §« Escalier d'entrée et sortie du donjon » plus bas ; la sortie DU DONJON
 elle-même suit ensuite le vote ordinaire, comme tout autre objectif) ;
-`false` tant qu'il est captif, ou libéré mais pas encore à l'escalier.
-**S'il meurt** (un monstre l'achève après
-libération — les sorts de Dread visent encore les seuls héros), la quête
-**échoue immédiatement**, même verdict et même cérémonie qu'un TPK (retour
-au hub, alliés consommés, snapshots conservés pour `/reprise`) : « escort the
-Barbarian… If the Barbarian dies, Gothar is automatically captured » (Frozen
-Horror p. 19), généralisé à toute mort du captif désigné.
+`false` tant qu'il est captif, ou libéré mais pas encore à l'escalier. En
+mode **escorté**, c'est le PORTEUR qui doit se tenir sur l'escalier — le
+captif lui-même n'a pas de case à atteindre. **S'il meurt** (mode figurine
+seulement — un captif escorté n'a pas de PV à perdre, il ne peut qu'être
+REPRIS, jamais tué), la quête **échoue immédiatement**, même verdict et même
+cérémonie qu'un TPK (retour au hub, alliés consommés, snapshots conservés
+pour `/reprise`) : « escort the Barbarian… If the Barbarian dies, Gothar is
+automatically captured » (Frozen Horror p. 19), généralisé à toute mort du
+captif désigné — mais uniquement quand ce captif EN A (mode figurine).
 
-⚠ **Simplification nommée** : la mission n'est pas encore filtrée par thème
-de bestiaire (Gothar peut apparaître habillé par l'IA dans un donjon d'un
-autre thème que *The Frozen Horror*) — à resserrer si une seconde fiche
-sourcée (le Prospecteur, la Princesse Millandriel) rend la généralisation
-payante. → `docs/regles/combat-et-tour.md`, `docs/regles/exploration-et-fouille.md`
+⚠ **Simplification nommée** : la mission n'est pas filtrée par thème de
+bestiaire (un captif de n'importe quel profil peut apparaître, habillé par
+l'IA, dans un donjon d'un autre thème que le sien) — inchangé par ce
+chantier. → `docs/regles/combat-et-tour.md`, `docs/regles/exploration-et-fouille.md`
 
 ### Escalier d'entrée et sortie du donjon (2026-10-05)
 
@@ -805,7 +833,8 @@ départ).
   captif libéré et vivant se tienne **sur l'escalier** — généralise
   « escort » (Frozen Horror p. 19) à une vraie extraction plutôt qu'à la
   seule libération. `objectif_libelle` dit « … et le ramener vivant à
-  l'escalier. ».
+  l'escalier. ». **Mode escorté** (§ ci-dessus) : c'est la position DU
+  PORTEUR qui compte, le captif n'en a plus.
 - ⚠ **Repli écrit et testé pour les cartes déjà assemblées SANS cette
   couche** (campagnes EN COURS dans la vraie base) : `Carte::casesEscalier()`
   rend `[]`, et chaque lecteur (`MenuMoteur`, `ResolveurTour`,

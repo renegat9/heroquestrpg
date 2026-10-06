@@ -362,15 +362,24 @@ class Quete extends Model
     }
 
     /**
-     * Libéré (il a rejoint le groupe comme allié, `etat: 'actif'`) ET
-     * toujours vivant ET ramené à l'ESCALIER d'entrée (chantier
+     * Libéré ET toujours vivant ET ramené à l'ESCALIER d'entrée (chantier
      * escalier-entrée, 2026-10-05 — généralise « escort » de Gothar, Frozen
      * Horror p. 19, à une vraie extraction plutôt qu'à la seule libération).
      * `true` si cette quête n'a pas de captif désigné — un gabarit sans
      * mission de sauvetage ne doit jamais sembler en échouer une.
      *
-     * ⚠ REPLI (décision 5 du plan) : une carte assemblée AVANT ce chantier
-     * (campagne EN COURS) ne porte pas la couche `escalier` —
+     * DEUX MODES depuis le chantier « captifs-jetons » (2026-10-05), lus sur
+     * la seule valeur de `etat` — point de passage UNIQUE, aucun second
+     * calcul qui dériverait :
+     *  - `etat: 'actif'` (mode **figurine**, Gothar) : c'est la position DU
+     *    CAPTIF lui-même qui doit être sur l'escalier — il s'y déplace comme
+     *    n'importe quel allié.
+     *  - `etat: 'porte'` (mode **escorté**, le Prospecteur, la Princesse
+     *    Millandriel) : le captif n'a pas de case propre — c'est son
+     *    PORTEUR (`recruteur_personnage_id`) qui doit être sur l'escalier.
+     *
+     * ⚠ REPLI (décision 5 du plan) : une carte assemblée AVANT le chantier
+     * escalier-entrée (campagne EN COURS) ne porte pas la couche `escalier` —
      * `Carte::casesEscalier()` rend alors `[]`, et l'ancien critère
      * (libération seule) s'applique, comme avant.
      */
@@ -382,14 +391,26 @@ class Quete extends Model
             return true;
         }
 
-        if ($captif->etat !== 'actif') {
+        if (! in_array($captif->etat, ['actif', 'porte'], true)) {
             return false;
         }
 
         $escalier = $this->carte?->casesEscalier() ?? [];
 
-        return $escalier === []
-            || ($this->carte?->surEscalier($captif->position_x, $captif->position_y) ?? false);
+        if ($escalier === []) {
+            return true;
+        }
+
+        if ($captif->etat === 'porte') {
+            $porteur = $this->etatsPersonnages()
+                ->where('personnage_id', $captif->recruteur_personnage_id)
+                ->first();
+
+            return $porteur !== null
+                && ($this->carte?->surEscalier($porteur->position_x, $porteur->position_y) ?? false);
+        }
+
+        return $this->carte?->surEscalier($captif->position_x, $captif->position_y) ?? false;
     }
 
     /**
