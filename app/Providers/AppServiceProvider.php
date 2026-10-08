@@ -58,6 +58,10 @@ class AppServiceProvider extends ServiceProvider
         // même patron, même raison de ne pas être `scoped`.
         $this->app->singleton(\App\Partie\TamponCharges::class);
 
+        // Faveurs déclenchées pendant la résolution (App\Partie\TamponFaveurs,
+        // Peacekeeper) : même patron, même raison de ne pas être `scoped`.
+        $this->app->singleton(\App\Partie\TamponFaveurs::class);
+
         // Télémétrie de consommation LLM (App\Agent\TraceurConsommation) :
         // SINGLETON, pas bind() — l'état (contexte annoncé par pourGroupe(),
         // compteur de tentative) doit survivre entre l'annonce du contexte et

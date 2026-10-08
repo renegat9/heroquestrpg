@@ -333,10 +333,13 @@ it("la case du captif n'est franchissable par personne avant sa libération", fu
 it('mode_captif est déclaré pour chaque profil de captif, sans valeur décorative', function () {
     $profils = Mercenaire::where('captif', true)->get()->keyBy('nom');
 
-    expect($profils->keys()->all())->toEqualCanonicalizing(['Gothar', 'Le Prospecteur', 'Princesse Millandriel'])
+    expect($profils->keys()->all())->toEqualCanonicalizing([
+        'Gothar', 'Le Prospecteur', 'Princesse Millandriel', 'Sir Ragnar (Wizards of Morcar)',
+    ])
         ->and($profils['Gothar']->mode_captif)->toBe('figurine')
         ->and($profils['Le Prospecteur']->mode_captif)->toBe('escorte')
-        ->and($profils['Princesse Millandriel']->mode_captif)->toBe('escorte');
+        ->and($profils['Princesse Millandriel']->mode_captif)->toBe('escorte')
+        ->and($profils['Sir Ragnar (Wizards of Morcar)']->mode_captif)->toBe('figurine');
 
     foreach ($profils as $profil) {
         expect($profil->mode_captif)->toBeIn(['figurine', 'escorte']);

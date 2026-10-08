@@ -368,6 +368,11 @@ final class Sauvegarde
                     // avait déjà dépensés.
                     'brule' => (bool) $i->brule,
                     'degat_differe' => (int) $i->degat_differe,
+                    // L'auteur de la braise (Peacekeeper, 2026-10-08) : une reprise
+                    // qui le perdait rendrait la mise à mort de la braise muette.
+                    'degat_differe_personnage_id' => $i->degat_differe_personnage_id !== null
+                        ? (int) $i->degat_differe_personnage_id
+                        : null,
                     'usages_dread' => (int) $i->usages_dread,
                     'invocation_dread_utilisee' => (bool) $i->invocation_dread_utilisee,
                     'fuite_dread_utilisee' => (bool) $i->fuite_dread_utilisee,
@@ -574,6 +579,14 @@ final class Sauvegarde
                 // restaure encore, sur les valeurs par défaut du catalogue.
                 'brule' => $instance['brule'] ?? false,
                 'degat_differe' => $instance['degat_differe'] ?? 0,
+                // `?? null` : un snapshot pris avant 2026-10-08 n'a pas d'auteur
+                // de braise. Et un héros parti depuis le snapshot n'est PAS
+                // réécrit : la clé étrangère refuserait l'auteur, la braise
+                // tomberait alors sans crédit, sans erreur.
+                'degat_differe_personnage_id' => isset($instance['degat_differe_personnage_id'])
+                    && Personnage::whereKey($instance['degat_differe_personnage_id'])->exists()
+                        ? (int) $instance['degat_differe_personnage_id']
+                        : null,
                 'usages_dread' => $instance['usages_dread'] ?? 0,
                 'invocation_dread_utilisee' => $instance['invocation_dread_utilisee'] ?? false,
                 'fuite_dread_utilisee' => $instance['fuite_dread_utilisee'] ?? false,

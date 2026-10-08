@@ -13,9 +13,11 @@ use App\Models\Inventaire;
 use App\Models\PersonnageHistorique;
 use App\Partie\DemarreurQuete;
 use App\Partie\Equipement;
+use App\Partie\FaveursHopekins;
 use App\Partie\Forge;
 use App\Partie\Images\BibliothequeImages;
 use App\Partie\Marche\CapaciteSac;
+use App\Partie\MoteurSorts;
 use App\Partie\Talents;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -215,6 +217,11 @@ class AuthController extends Controller
                         // marché).
                         'benediction_oracle' => (bool) $p->benediction_oracle,
                         'malediction_oracle' => (bool) $p->malediction_oracle,
+                        // FAVEURS DE HOPEKINS REST (chantier 1c, 2026-10-08) : don
+                        // durable, hors arbre de talents, visible sur la fiche
+                        // du héros AU HUB comme en quête (`cle`, `libelle`, `effet`
+                        // — point de passage unique `FaveursHopekins::publier()`).
+                        'faveurs' => FaveursHopekins::publier($p),
                         // Points JAMAIS stockés (contrat) : (niveau − 1) − nœuds acquis.
                         // ⚠ Point de passage UNIQUE. Cette ligne portait sa
                         // propre copie de la formule, et la copie ignorait
@@ -392,9 +399,19 @@ class AuthController extends Controller
                                 // d'un compagnon — le marché autorise déjà
                                 // l'achat pour autrui. La manette grise « Boire ».
                                 'utilisable' => app(Equipement::class)->estAccessible($p, $l->objet),
+                                // ENTRE DEUX QUÊTES (Potion of Charm) : la décision du serveur,
+                                // publiée telle quelle — la manette n'offre « Boire » au hub
+                                // que si ce drapeau le dit, et jamais en quête.
+                                'boire_au_hub' => MotsClesEquipement::estAuHub((array) $l->objet->effet),
                             ])
                             ->values()
                             ->all(),
+                        // Remise de recrutement mercenaire (Potion of Charm) : l'ÉTAT
+                        // durable du héros, consommé un par recrutement au hub.
+                        'rabais_recrutement' => [
+                            'restants' => (int) $p->recrutements_a_rabais,
+                            'po' => (int) $p->rabais_recrutement_po,
+                        ],
                         // Répertoire de sorts (contrat) : l'onglet Sorts de la
                         // manette s'en nourrit, disponibilité par quête comprise.
                         'sorts' => $p->sorts
@@ -408,6 +425,11 @@ class AuthController extends Controller
                             ])
                             ->values()
                             ->all(),
+                        // Répertoires que le hub propose de changer (contrat
+                        // PUT /groupes/{id}/sorts-repertoire) — la décision est
+                        // celle du moteur, la manette l'affiche sans la
+                        // re-dériver. Vide pour un non-lanceur.
+                        'repertoires' => app(MoteurSorts::class)->repertoiresChangeables($p),
                         'disponible' => $disponible,
                         // Contrat DELETE /personnages/{id} : le bouton
                         // « Supprimer » du roster (JoueurView.vue) LIT ce

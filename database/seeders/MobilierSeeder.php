@@ -221,6 +221,31 @@ class MobilierSeeder extends Seeder
             // oublié.
             ['nom' => 'Coffre du Dread', 'nom_anglais' => 'Dread Chest', 'largeur' => 1, 'hauteur' => 1,
                 'fouillable' => false, 'bloque_vue' => false, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
+
+            // MUR DE PIERRE (« Wall of Stone », *Spells of Protection*, sort de
+            // HÉROS) — carton *Magic Reference Chart* ET carte, mot pour mot
+            // identiques : « This barrier may be placed across two squares…
+            // The wall has 1 Body Point and rolls 6 Defend dice. If the wall
+            // takes 1 Body Point or more of damage, it is destroyed. »
+            // ⚠ Posé par le sort lui-même EN COURS DE QUÊTE
+            // (`MoteurMobilier::poserMurMagique()`), jamais par
+            // `AssembleurCarte` — c'est pourquoi cette ligne n'a ni position
+            // ni `l`/`h` fixés ici : le gabarit ne la place pas, le sort si.
+            // Le sort pose DEUX cases (`l`×`h` = 2×1 ou 1×2 selon la paire
+            // choisie, décision de René 2026-10-05) ; `largeur`/`hauteur` ci-
+            // dessous restent la forme d'une case, celle du catalogue.
+            // ⚠ `bloque_vue: true`, à la différence du Haut Autel/Coffre du
+            // Dread (mobilier BAS, `false`) : la carte l'appelle elle-même
+            // « a solid, impassable wall » — un MUR, pas un meuble — et c'est
+            // la seule des trois pièces attaquables de cette boîte dont la
+            // source dit explicitement qu'elle remplace la roche.
+            // ⚠ Wall of Ice (Storm Master) et Wall of Flame (High Mage)
+            // PARTAGENT cette même règle générique (carton *Magic Reference
+            // Chart*) mais restent NON seedés : leurs sorts (vague 2) n'ont
+            // pas encore de lecteur, et une ligne sans producteur est
+            // exactement le défaut que ce projet nomme et évite ailleurs.
+            ['nom' => 'Mur de Pierre', 'nom_anglais' => 'Wall of Stone', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
         ];
 
         // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.

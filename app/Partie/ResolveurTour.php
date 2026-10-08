@@ -190,6 +190,7 @@ final class ResolveurTour
         private readonly SeanceEchange $seanceEchange,
         private readonly AnnoncesTalents $annonces,
         private readonly MoteurOracle $oracle,
+        private readonly FaveursHopekins $faveurs,
     ) {}
 
     /**
@@ -271,10 +272,22 @@ final class ResolveurTour
         // annonces s'afficheraient sur l'action de quelqu'un d'autre.
         $this->annonces->vider();
         app(TamponCharges::class)->vider();
+        app(TamponFaveurs::class)->vider();
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
         if ($quete === null || $quete->etat !== 'en_cours') {
             throw ValidationException::withMessages(['groupe' => 'Aucune quête en cours.']);
+        }
+
+        // INVISIBILITÉ (Spells of Protection, 2026-10-06) : « While invisible,
+        // you may not attack » — refusé AVANT toute variante de la frappe, au
+        // même prédicat que le menu (`MenuMoteur::estAttaqueDuHeros()`). Le
+        // garde de `frapper()` reste en dessous : deux gardes, un seul prédicat.
+        // Ne s'applique pas aux sorts ni aux options d'allié (autre menu).
+        if (MenuMoteur::estAttaqueDuHeros($option) && $this->sorts->attaqueInterdite($personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.",
+            ]);
         }
 
         $etats = $quete->etatsPersonnages()->get();
@@ -311,15 +324,18 @@ final class ResolveurTour
         // arcanique (nœud magicien) : un SECOND sort par tour, au-delà du
         // créneau action normal — une seule fois par tour (bonus_sort_utilise).
         $creneau = self::creneauOption((string) ($option['type'] ?? ''));
-        // Second sort du tour : le nœud magicien *Réserve arcanique* OU la
-        // Baguette de Rappel (« cast two spells instead of one »). Les deux
-        // passent par le MÊME drapeau `bonus_sort_utilise`, donc un magicien
-        // équipé n'obtient pas trois sorts — ils ne se cumulent pas.
+        // Second sort du tour : le nœud magicien *Réserve arcanique*, la
+        // Baguette de Rappel (« cast two spells instead of one »), OU la
+        // Potion of Magical Aptitude (Wizards of Morcar, doc 18 — buff de
+        // potion lu par `aBuff()`). Les trois passent par le MÊME drapeau
+        // `bonus_sort_utilise`, donc un magicien équipé qui boit la potion
+        // n'obtient pas trois sorts — ils ne se cumulent pas.
         $bonusReserveArcanique = $creneau === 'action' && $etat->a_agi
             && ($option['type'] ?? null) === 'sort'
             && ! $etat->bonus_sort_utilise
             && ($this->talents->a($personnage, 'sort_supplementaire_par_tour')
-                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
+                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null
+                || $this->sorts->aBuff($personnage, MotsClesEquipement::SECOND_SORT_PAR_TOUR));
 
         if ($creneau === 'mouvement' && $etat->a_deplace) {
             throw ValidationException::withMessages(['personnage_id' => 'Tu t\'es déjà déplacé ce tour.']);
@@ -401,6 +417,10 @@ final class ResolveurTour
                 'degat_differe' => $this->resoudreDegatDiffere($groupe, $quete, $etat, $personnage, $option, $parametres, $acteur),
                 'jet' => $this->resoudreJet($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'desamorcage' => $this->resoudreDesamorcage($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // Piège d'embrasement désamorcé en DÉFAUSSANT un sort d'Eau ou
+                // Tempête (Magic Reference Chart, Wizards of Morcar) — geste
+                // gratuit (`creneauOption()`), voir `resoudreDesarmerEmbrasement()`.
+                'desarmer_embrasement' => $this->resoudreDesarmerEmbrasement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'franchissement' => $this->resoudreFranchissement($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sort' => $this->resoudreSort($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'parchemin' => $this->resoudreParchemin($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
@@ -538,6 +558,16 @@ final class ResolveurTour
 
         if ($charges !== []) {
             $resultat['charges_depensees'] = $charges;
+        }
+
+        // Faveurs déclenchées pendant la résolution (Peacekeeper, App\Partie\
+        // TamponFaveurs) : même vidage unique, rendu par `JournalCombat` pour le
+        // fil en direct — une récompense versée au milieu d'une frappe se dit au
+        // moment où elle tombe, pas seulement à la reconnexion.
+        $faveurs = app(TamponFaveurs::class)->vider();
+
+        if ($faveurs !== []) {
+            $resultat['faveurs_declenchees'] = $faveurs;
         }
 
         // Toute mutation d'état → journal (fait au fil de l'eau) puis broadcast.
@@ -1278,10 +1308,11 @@ final class ResolveurTour
             }
 
             $grille = $this->grille($quete, exceptPersonnageId: $personnage->id);
+            // FAVEUR « Deadeye » (Hopekins Rest) : revalidée ici comme au menu.
             if (! $grille->ligneDeVue(
                 (int) $etat->position_x, (int) $etat->position_y,
                 (int) $instance->position_x, (int) $instance->position_y,
-                figuresBloquent: true,
+                figuresBloquent: $this->faveurs->figuresBloquentPour($personnage),
             )) {
                 throw ValidationException::withMessages(['option_id' => 'Cible hors de vue : aucune ligne de tir dégagée.']);
             }
@@ -1413,6 +1444,17 @@ final class ResolveurTour
         array $meta = [],
         array $acteur = [],
     ): array {
+        // INVISIBILITÉ (Spells of Protection, 2026-10-06) : « While invisible,
+        // you may not attack. » Posée ICI, au seul choke-point de la frappe
+        // (`ResolveurTour::frapper()`, hard rule) : melee, tir, arme lancée,
+        // Furie, frappe balayée et techniques du Moine y convergent toutes,
+        // donc un seul garde-fou couvre chaque variante sans en oublier une.
+        if ($this->sorts->attaqueInterdite($personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.",
+            ]);
+        }
+
         // Par défaut la main droite : riposte, frappe balayée et technique du
         // Moine ne choisissent pas d'arme, elles frappent avec ce qu'on tient.
         $ligneArme ??= $personnage->inventaire()->where('emplacement', 'arme_principale')->with('objet')->first();
@@ -1563,11 +1605,16 @@ final class ResolveurTour
         // (qui ne tourne qu'à l'équipement), donc le plafond ne peut pas être
         // figé sur `des_attaque` — `Personnage::estEnChoc()` est le seul
         // point de passage correct.
+        // FAVEUR « Weapon Expert » (Hopekins Rest, Wizards of Morcar) : +1 dé
+        // avec le type d'arme choisi par le héros — même famille que les
+        // tags de maîtrise (`$desArme`/Forge), donc écarté EN CHOC comme eux.
+        $bonusArmeExperte = $this->faveurs->bonusArmeExperte($personnage, $armePrincipale);
+
         $desAttaqueEffectifs = $personnage->estEnChoc()
             ? max(0, 1 + $bonusAttaque)
             : max(0, max($desArme, $desArmeContre)
                 + $bonusAttaque + $bonusFrenesie + $bonusTirPrecis + $bonusFlanc
-                + $bonusTier + $bonusElan + $desBonus);
+                + $bonusTier + $bonusElan + $desBonus + $bonusArmeExperte);
 
         // ⚠ Le plafond s'applique EN DERNIER, sur le total. Un malus s'ajoutait
         // à la somme et pouvait être compensé par un bonus ; un plafond, non —
@@ -1600,10 +1647,12 @@ final class ResolveurTour
             $degats = $arretee ? 0 : min($pvAvant, (int) ($fleche->objet?->effet[MotsClesEquipement::DEGATS_SAUF_BOUCLIER_NOIR] ?? 0));
 
             // UNIQUE point de passage de la mort d'un monstre — un monstre à
-            // PHASES n'y meurt pas, il adopte la forme suivante.
+            // PHASES n'y meurt pas, il adopte la forme suivante. `$personnage`
+            // en 5e argument : FAVEUR « Peacekeeper » si cette flèche achève
+            // réellement la cible (chemin resté muet jusqu'au 2026-10-08).
             $resultatMort = $this->degats->infligerAMonstre($instance, $degats, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
                 'arme' => 'Arc elfique de Vindication',
-            ]);
+            ], $personnage);
             $pvApres = $resultatMort['pv_body'];
 
             $payload = $this->payloadVindication($meta, $instance, $face, $resultatMort['degats'], $pvApres, $fleche);
@@ -1732,10 +1781,12 @@ final class ResolveurTour
         $this->sorts->expirerBuffs($personnage, DureeEffet::PROCHAINE_ATTAQUE);
 
         // UNIQUE point de passage de la mort d'un monstre — un monstre à
-        // PHASES n'y meurt pas, il adopte la forme suivante.
+        // PHASES n'y meurt pas, il adopte la forme suivante. `$personnage`
+        // en 5e argument : FAVEUR « Peacekeeper » lue LÀ (2026-10-08),
+        // jamais plus par un second appel ici — voir MoteurDegats.
         $resultatMort = $this->degats->infligerAMonstre(
             $instance, $resultat->degats, MoteurDegats::SOURCE_ATTAQUE_HEROS,
-            ['arme' => $armePrincipale?->nom],
+            ['arme' => $armePrincipale?->nom], $personnage,
         );
 
         // Une attaque réveille un monstre endormi (Sommeil, doc 02 §7).
@@ -1963,6 +2014,12 @@ final class ResolveurTour
      * Fait tomber la braise du *Toucher du Brasier* à la fin du tour de la
      * créature, puis l'éteint. `null` s'il n'y en avait pas.
      *
+     * ⚠ FAVEUR « Peacekeeper » (2026-10-08) : l'auteur de la braise est relu
+     * sur `instances_monstres.degat_differe_personnage_id`, posé par
+     * `resoudreDegatDiffere()` — la mise à mort qu'achève la braise crédite
+     * donc le héros qui l'a allumée, comme celle du premier point. Une braise
+     * sans auteur (colonne nulle, héros supprimé) tombe sans crédit, sans erreur.
+     *
      * @return array<string, mixed>|null
      */
     private function consumerBraise(Groupe $groupe, ?InstanceMonstre $instance): ?array
@@ -1973,12 +2030,18 @@ final class ResolveurTour
 
         $degats = (int) $instance->degat_differe;
 
+        // L'auteur de la braise (posé par `resoudreDegatDiffere()`) : c'est lui
+        // que Peacekeeper crédite si la braise achève la cible.
+        $auteur = $instance->degat_differe_personnage_id === null
+            ? null
+            : Personnage::find($instance->degat_differe_personnage_id);
+
         // UNIQUE point de passage de la mort d'un monstre — un monstre à
         // PHASES n'y meurt pas, il adopte la forme suivante.
         $resultatMort = $this->degats->infligerAMonstre($instance, $degats, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
             'technique' => 'Toucher du Brasier',
-        ]);
-        $instance->update(['degat_differe' => null]);
+        ], $auteur);
+        $instance->update(['degat_differe' => null, 'degat_differe_personnage_id' => null]);
 
         $payload = [
             'type' => 'braise',
@@ -2150,8 +2213,11 @@ final class ResolveurTour
             foreach ($this->monstresSur($quete, $case['x'], $case['y']) as $instance) {
                 // UNIQUE point de passage de la mort d'un monstre — un
                 // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
+                // `$lanceur` en 5e argument : FAVEUR « Peacekeeper » si ce
+                // rayon de zone achève réellement la cible (chemin resté
+                // muet jusqu'au 2026-10-08).
                 $resultatMort = $this->degats->infligerAMonstre(
-                    $instance, $degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $source],
+                    $instance, $degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $source], $lanceur,
                 );
 
                 $touches[] = [
@@ -2297,10 +2363,14 @@ final class ResolveurTour
 
         // UNIQUE point de passage de la mort d'un monstre — un monstre à
         // PHASES n'y meurt pas, il adopte la forme suivante (et reste donc
-        // une cible valide pour la braise).
+        // une cible valide pour la braise). `$personnage` en 5e argument :
+        // FAVEUR « Peacekeeper » si ce premier point (immédiat) achève la
+        // cible (chemin resté muet jusqu'au 2026-10-08 — la braise DIFFÉRÉE
+        // qui suit, elle, n'a aucun auteur stocké sur l'instance et reste
+        // hors de ce chemin, voir `consumerBraise()`).
         $resultatMort = $this->degats->infligerAMonstre($instance, $immediat, MoteurDegats::SOURCE_ATTAQUE_HEROS, [
             'technique' => $source['nom'] ?? 'Toucher du Brasier',
-        ]);
+        ], $personnage);
 
         $instance->update([
             // La braise ne s'allume que sur une créature encore VIVANTE : la
@@ -2308,6 +2378,9 @@ final class ResolveurTour
             // créature qui vient de changer de phase reste une cible valide
             // — « toujours le même monstre ».
             'degat_differe' => $resultatMort['vaincu'] ? null : $differe,
+            // L'auteur de la braise : `consumerBraise()` le relit pour créditer
+            // Peacekeeper si la braise achève la cible à la fin de son tour.
+            'degat_differe_personnage_id' => $resultatMort['vaincu'] ? null : $personnage->id,
         ]);
 
         $this->styles->depenser($personnage, $etat, $source);
@@ -3940,6 +4013,51 @@ final class ResolveurTour
     }
 
     /**
+     * DÉSARMER un piège d'embrasement AMORCÉ en défaussant un sort d'Eau ou
+     * *Tempête* (Magic Reference Chart, Wizards of Morcar, relu à l'image
+     * 2026-10-08 : « If a hero in the room with a Fireburst token discards a
+     * Tempest spell or any Water Spell, the trap is disarmed. »).
+     *
+     * Le menu ne publie l'option que si elle est légale (`MenuMoteur`) ; ici on
+     * REVALIDE la même chose, sur l'état vivant : jeton encore amorcé dans la
+     * zone du héros, sort connu, non épuisé cette quête, et de la bonne famille.
+     * La liste portée par l'option est un whitelist, jamais une confiance.
+     *
+     * @return array<string, mixed>
+     */
+    private function resoudreDesarmerEmbrasement(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $index = (int) data_get($option, 'parametres.piege_index', -1);
+        $sortId = (int) data_get($option, 'parametres.sort_id', 0);
+
+        $jetonLegal = collect($this->pieges->jetonsEmbrasementLegaux($quete, $etat))
+            ->contains(fn (array $jeton) => $jeton['index'] === $index);
+
+        $sort = $personnage->sorts()->where('sorts.id', $sortId)->first();
+        $sortLegal = $sort !== null
+            && (bool) $sort->pivot->disponible
+            && MoteurPieges::sortDesarmeEmbrasement($sort);
+
+        if (! $jetonLegal || ! $sortLegal || $quete->carte === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Aucun piège d\'embrasement à désamorcer avec ce sort, d\'ici et maintenant.',
+            ]);
+        }
+
+        // Journalisé par `MoteurPieges::desarmerEmbrasement()` (type `action`,
+        // comme tout piège) : pas de seconde écriture ici.
+        $payload = $this->pieges->desarmerEmbrasement($groupe, $quete->carte, $index, $personnage, $sort);
+
+        return ['option_id' => $option['id'], ...$payload];
+    }
+
+    /**
      * LAME BALANÇOIRE (Against the Ogre Horde p. 5) — procédure de
      * désamorçage dédiée, appelée par `resoudreDesamorcage()` ci-dessus.
      *
@@ -4748,6 +4866,27 @@ final class ResolveurTour
             return $this->sortOuvrePorte($quete, $sort, $option);
         }
 
+        // MUR MAGIQUE (Wall of Stone, 2026-10-06) : la case est le choix, pas
+        // une figure — même raison exacte que le mode `ouvre_porte` juste
+        // au-dessus, traité AVANT tout garde-fou de ciblage qui exigerait un
+        // `cible_id`.
+        if (data_get($option, 'parametres.mode') === 'pose_mur_magique') {
+            return $this->poserMurMagiqueSort($quete, $sort, $option);
+        }
+
+        // CLAIRVOYANCE (Spells of Detection, 2026-10-06) : la salle est le choix,
+        // et ne vise aucune figure — même raison que le mur ci-dessus.
+        if (data_get($option, 'parametres.mode') === 'vision_salle') {
+            return $this->visionSalleSort($quete, $sort, $option);
+        }
+
+        // UNLEARN (Spells of Protection, 2026-10-08) : la cible perd UN sort tiré
+        // au hasard, pour toute la quête. Cible monstre (Sorcier) ou héros —
+        // `cibleSort()` la valide contre la liste du menu, comme tout sort.
+        if (! empty($sort->effet['oublie_sort'])) {
+            return $this->oublierSortSort($quete, $sort, $option, $parametres);
+        }
+
         // ÉCLAIR : même raison, un cran plus loin — il ne vise pas une figure
         // mais une DIRECTION, et le garde-fou ci-dessous réclamerait un
         // `cible_id` qu'il ne porte pas.
@@ -4792,8 +4931,10 @@ final class ResolveurTour
             [$tx, $ty, $l, $h] = [(int) $cible['etat']->position_x, (int) $cible['etat']->position_y, 1, 1];
         }
 
+        // FAVEUR « Deadeye » (Hopekins Rest) : revalidée ici comme au menu.
         $visible = FabriqueGrille::pour($quete)->ligneDeVueEmprise(
-            (int) $etat->position_x, (int) $etat->position_y, $tx, $ty, $l, $h, figuresBloquent: true,
+            (int) $etat->position_x, (int) $etat->position_y, $tx, $ty, $l, $h,
+            figuresBloquent: $this->faveurs->figuresBloquentPour($etat->personnage),
         );
 
         if (! $visible) {
@@ -4851,6 +4992,15 @@ final class ResolveurTour
         // `Engine\Combat` — comme `degats_fixes` l'est déjà pour les artefacts.
         $desRouges = data_get($sort->effet, 'resistance') === MotsClesSort::RESISTANCE_DES_ROUGES;
 
+        // MIND EN DÉFENSE (*Arrows of the Night*, Spells of Darkness,
+        // 2026-10-06) : « The target defends with as many dice as they have
+        // Mind Points. Monsters with 0 Mind points may not roll defense. »
+        // Un combat NORMAL (boucliers comptés comme toujours) où seul le
+        // NOMBRE de dés de défense change de source — ni un remplacement par
+        // des dés rouges (`desRouges` ci-dessus), ni un jet binaire
+        // (`jet_mind`, réservé aux sorts `mental`).
+        $resistanceMind = data_get($sort->effet, 'resistance') === MotsClesSort::RESISTANCE_DES_MIND;
+
         // `bonus_degats_sort` (Puissance brute du magicien, Marque du damné du
         // warlock) : un bonus PLAT sur les dégâts d'un sort offensif.
         //
@@ -4889,9 +5039,14 @@ final class ResolveurTour
             // seulement le décrire : un sort qui la met à false frappe sans que
             // la cible puisse parer. Par défaut true — comportement inchangé
             // pour les trois sorts de dégâts actuels.
-            $defense = ($sort->effet['defense_applicable'] ?? true)
-                ? $instance->defenseEffective() + $bonusResistance
-                : 0;
+            //
+            // ⚠ `resistanceMind` : « defends with as many dice as Mind Points »
+            // REMPLACE le calcul habituel (stats + conditions), jamais la
+            // résistance magique du boss qui s'y ajouterait sinon deux fois —
+            // la carte ne parle que du nombre de dés de Mind, rien d'autre.
+            $defense = ! ($sort->effet['defense_applicable'] ?? true)
+                ? 0
+                : ($resistanceMind ? (int) $instance->pv_mind : $instance->defenseEffective() + $bonusResistance);
 
             if ($desRouges) {
                 // ⚠ La Résistance magique du boss (+2 dés de défense contre les
@@ -4907,8 +5062,13 @@ final class ResolveurTour
 
                 // UNIQUE point de passage de la mort d'un monstre — un
                 // monstre à PHASES n'y meurt pas, il adopte la forme suivante.
+                // `$lanceur` en 5e argument : FAVEUR « Peacekeeper » si ce
+                // sort de feu achève réellement la cible (chemin resté muet
+                // jusqu'au 2026-10-08, la résistance aux dés rouges n'ayant
+                // jamais été câblée aux deux anciens branchements).
                 $resultatMort = $this->degats->infligerAMonstre(
                     $instance, $reduction['degats'], MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $sort->nom],
+                    $lanceur,
                 );
                 $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENDORMI);
 
@@ -4937,9 +5097,12 @@ final class ResolveurTour
             )->avecDegatsAjoutes($bonusDegatsSort);
 
             // UNIQUE point de passage de la mort d'un monstre — un monstre à
-            // PHASES n'y meurt pas, il adopte la forme suivante.
+            // PHASES n'y meurt pas, il adopte la forme suivante. `$lanceur`
+            // en 5e argument : FAVEUR « Peacekeeper » lue LÀ (2026-10-08),
+            // jamais plus par un second appel ici — voir MoteurDegats.
             $resultatMort = $this->degats->infligerAMonstre(
                 $instance, $resultat->degats, MoteurDegats::SOURCE_SORT_HEROS, ['sort' => $sort->nom],
+                $lanceur,
             );
 
             // Être attaqué réveille un monstre endormi (doc 02 §7).
@@ -5020,12 +5183,13 @@ final class ResolveurTour
         }
 
         // Même règle qu'en face : `defense_applicable` pilote, et un héros visé
-        // par un tir ami se défend exactement comme un monstre (S3).
+        // par un tir ami se défend exactement comme un monstre (S3). Même
+        // substitution `resistanceMind` que côté monstre juste au-dessus.
         $resultat = (new Combat($this->des))->resoudreAttaque(
             desAttaque: $des,
-            desDefense: ($sort->effet['defense_applicable'] ?? true)
-                ? $this->sorts->desDefenseHeros($heros)
-                : 0,
+            desDefense: ! ($sort->effet['defense_applicable'] ?? true)
+                ? 0
+                : ($resistanceMind ? (int) $heros->pv_mind : $this->sorts->desDefenseHeros($heros)),
             typeDefenseur: TypeFigurine::Heros,
             pvBodyDefenseur: (int) $heros->pv_body,
         )->avecDegatsAjoutes($bonusDegatsSort);
@@ -5434,6 +5598,14 @@ final class ResolveurTour
         // pick a card showing gold, a potion, gems, or jewels. »
         if (! empty($effet[self::EFFET_PIOCHE_SANS_PERIL])) {
             return $this->piocherSansPeril($quete, $lanceur, $etat);
+        }
+
+        // TRÉSOR CONVOITÉ (*Treasure Horde*, Spells of Detection, 2026-10-06) :
+        // « You may cast this spell instead of drawing a treasure card to
+        // draw 3 treasure cards. You may shuffle any of the drawn cards back
+        // into the treasure deck and keep the rest. »
+        if (! empty($effet['pioche_triple'])) {
+            return $this->piocherTresorConvoite($quete, $lanceur, $etat);
         }
 
         // Soin de ZONE : « You and all the heroes that you see restore up to 2
@@ -6396,6 +6568,190 @@ final class ResolveurTour
     }
 
     /**
+     * Wall of Stone, DEUX cases (décision de René, 2026-10-05 — « covers 2
+     * squares not occupied by figures »). La paire vient de l'entrée CHOISIE,
+     * que `resoudreSort()` a déjà retrouvée dans les options fraîches : le
+     * menu est la liste blanche, le résolveur ne pose que ce qu'il a offert.
+     * Rebâtit sur le mobilier ATTAQUABLE déjà construit (chantier 2026-10-04) :
+     * `poserMurMagique()` se contente d'ajouter l'entrée, `FabriqueGrille::pour()`
+     * — la SEULE boucle de mobilier — s'occupe du blocage, et
+     * `attaquablesAdjacents()`/`infligerDegats()` du combat, SANS rien écrire
+     * de neuf pour l'un ou l'autre. Le même point de passage
+     * (`MoteurMobilier::poserMurMagique()`) sera appelé par les sorts de Dread
+     * de la vague 2 (*Wall of Ice*, *Wall of Flame*) — nommé pour ça dans le
+     * brief, pas pour ce seul sort.
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function poserMurMagiqueSort(Quete $quete, Sort $sort, array $option): array
+    {
+        $cases = array_values((array) data_get($option, 'parametres.cases', []));
+        $nomMur = (string) data_get($sort->effet, 'pose_mur_magique', '');
+
+        if ($quete->carte === null || $nomMur === '' || count($cases) !== 2) {
+            throw ValidationException::withMessages(['option_id' => 'Mur magique : carte, nom de mobilier ou paire de cases manquant.']);
+        }
+
+        $resultat = $this->mobilier->poserMurMagique($quete->carte, $cases, $nomMur);
+
+        return [
+            'mode' => 'pose_mur_magique',
+            'mur_magique' => true,
+            'cases' => $cases,
+            'mobilier' => $resultat,
+        ];
+    }
+
+    /**
+     * CLAIRVOYANCE (Spells of Detection, 2026-10-06) — « You may ask Zargon to
+     * lay out the contents of one room anywhere on the board. If the room is
+     * empty, you may not try again. Discard after use. »
+     *
+     * Ne montre QUE la salle choisie, parmi celles que
+     * `MoteurSorts::entreesVisionSalle()` a offertes (salles non découvertes) :
+     * ses monstres, par nom, et le NOMBRE de ses pièges — le reste de la carte
+     * ne sort pas d'ici. Aucune écriture sur le brouillard ni sur
+     * `salles_decouvertes` : c'est une information, pas une exploration. Le
+     * résultat part au journal (`resoudreSort()` journalise le payload) et sur
+     * la table (`SceneDeTable::sort()`, scène « vision à distance »).
+     *
+     * « If the room is empty, you may not try again » : une salle vide consomme
+     * le sort comme une salle pleine (« Discard after use », une fois par quête,
+     * S5) — aucune seconde salle dans le même lancer, rien à relancer.
+     *
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function visionSalleSort(Quete $quete, Sort $sort, array $option): array
+    {
+        $index = (int) data_get($option, 'parametres.salle', -1);
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+
+        if (! array_key_exists($index, $salles) || in_array($index, $quete->sallesDecouvertes(), true)) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Clairvoyance : cette salle n\'est pas une salle que le groupe ignore encore.',
+            ]);
+        }
+
+        $monstres = InstanceMonstre::query()
+            ->where('quete_id', $quete->id)
+            ->where('etat', '!=', 'vaincu')
+            ->whereNotNull('position_x')
+            ->with('monstre')
+            ->get()
+            ->filter(fn (InstanceMonstre $m) => Salles::indexDe($salles, (int) $m->position_x, (int) $m->position_y) === $index)
+            ->map(fn (InstanceMonstre $m) => (string) ($m->monstre?->nom_base ?? 'monstre'))
+            ->values()
+            ->all();
+
+        $pieges = collect($quete->carte?->grille['pieges'] ?? [])
+            ->filter(fn ($p) => Salles::indexDe($salles, (int) ($p['x'] ?? -1), (int) ($p['y'] ?? -1)) === $index)
+            ->count();
+
+        $vide = $monstres === [] && $pieges === 0;
+
+        $parties = [];
+
+        if ($monstres !== []) {
+            $parties[] = count($monstres).' monstre'.(count($monstres) > 1 ? 's' : '').' ('.implode(', ', $monstres).')';
+        }
+
+        if ($pieges > 0) {
+            $parties[] = $pieges.' piège'.($pieges > 1 ? 's' : '');
+        }
+
+        return [
+            'mode' => 'vision_salle',
+            'salle' => $index,
+            'vide' => $vide,
+            'monstres' => $monstres,
+            'pieges' => $pieges,
+            'texte' => $vide ? 'La salle est vide.' : 'La salle renferme : '.implode(' ; ', $parties).'.',
+        ];
+    }
+
+    /**
+     * UNLEARN (Spells of Protection, 2026-10-08) — « pick one spell caster and
+     * force them to discard one spell card at random. The spell is removed from
+     * play for the duration of the Quest. »
+     *
+     * Tire UN sort parmi ceux que la cible peut encore perdre (répertoire du
+     * Sorcier, ou sorts connus du héros, moins ce que la quête a déjà oublié),
+     * puis l'inscrit dans `OubliSorts` — durable pour la quête, rien ne le
+     * ramène au début de la suivante. Le texte part au journal et sur la table.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function oublierSortSort(Quete $quete, Sort $sort, array $option, array $parametres): array
+    {
+        $cible = $this->cibleSort($quete, $option, $parametres);
+
+        if (($cible['type'] ?? null) === 'monstre') {
+            /** @var InstanceMonstre $instance */
+            $instance = $cible['monstre'];
+            $nomCible = $instance->nomAffiche();
+            $restants = app(MoteurDread::class)->sortsOubliables($instance, $quete);
+            $cibleType = OubliSorts::CIBLE_INSTANCE;
+            $cibleId = (int) $instance->id;
+            $source = OubliSorts::SOURCE_DREAD;
+        } else {
+            $personnage = $cible['personnage'];
+            $nomCible = (string) $personnage->nom;
+            $restants = $this->sorts->sortsOubliablesHeros($personnage, $quete);
+            $cibleType = OubliSorts::CIBLE_PERSONNAGE;
+            $cibleId = (int) $personnage->id;
+            $source = OubliSorts::SOURCE_SORT;
+        }
+
+        if ($restants === []) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$nomCible} n'a plus aucun sort à oublier pour cette quête.",
+            ]);
+        }
+
+        $nomOublie = $restants[$this->indiceAleatoire(count($restants))];
+        app(OubliSorts::class)->oublier($quete, $cibleType, $cibleId, $source, $nomOublie);
+
+        return [
+            'mode' => 'oubli_sort',
+            'cible' => ['nom' => $nomCible],
+            'sort_oublie' => $nomOublie,
+            'texte' => "{$nomCible} oublie « {$nomOublie} » pour le reste de la quête.",
+        ];
+    }
+
+    /**
+     * Indice UNIFORME dans [0, $n[, tiré au d6 PAR REJET — jamais `random_int()` :
+     * la partie doit rester rejouable depuis le lanceur injecté (tests compris).
+     * Chaque tirage forme un nombre en base 6 sur assez de chiffres pour couvrir
+     * $n ; on rejette tout ce qui dépasse, donc aucun biais de modulo.
+     */
+    private function indiceAleatoire(int $n): int
+    {
+        $chiffres = max(1, (int) ceil(log(max($n, 2), 6)));
+
+        // Borné : un lanceur déterministe qui rejetterait toujours la même face
+        // ne doit JAMAIS bloquer la partie. Au-delà de 64 rejets (probabilité
+        // négligeable avec de vrais dés), on retient le dernier indice valide.
+        for ($essai = 0; $essai < 64; $essai++) {
+            $valeur = 0;
+
+            for ($i = 0; $i < $chiffres; $i++) {
+                $valeur = $valeur * 6 + ($this->des->d6() - 1);
+            }
+
+            if ($valeur < $n) {
+                return $valeur;
+            }
+        }
+
+        return $n - 1;
+    }
+
+    /**
      * Actionner un LEVIER au contact (doc 14 §3.3) : bascule en `ouverte`
      * toute porte liée par verrou {type: levier, levier_id}. État persistant.
      *
@@ -7217,8 +7573,11 @@ final class ResolveurTour
         // monstre à phases du catalogue n'est mort-vivant aujourd'hui, mais
         // rien ne garantit que ça reste vrai demain, et deux implémentations
         // de la mort d'un monstre sont le défaut que ce chantier corrige.
+        // `$etat->personnage` en 5e argument : FAVEUR « Peacekeeper » si
+        // cette eau bénite achève réellement la cible (chemin resté muet
+        // jusqu'au 2026-10-08 — il n'avait jamais été câblé du tout).
         $resultatMort = $this->degats->infligerAMonstre(
-            $instance, (int) $instance->pv_body, MoteurDegats::SOURCE_EAU_BENITE,
+            $instance, (int) $instance->pv_body, MoteurDegats::SOURCE_EAU_BENITE, [], $etat->personnage,
         );
         $this->diffuserBark($groupe, $instance, $resultatMort['vaincu'] ? 'mort' : 'touche');
 
@@ -7925,6 +8284,55 @@ final class ResolveurTour
         // Aucun gain dans tout le paquet : le parchemin est brûlé pour rien, et
         // il vaut mieux le dire que de rendre un compte rendu vide.
         return ['sans_peril' => true, 'cartes_ignorees' => $ignorees, 'issue' => 'rien'];
+    }
+
+    /**
+     * *Treasure Horde* (Spells of Detection, 2026-10-06) : « draw 3 treasure
+     * cards. You may shuffle any of the drawn cards back into the treasure
+     * deck and keep the rest. »
+     *
+     * ⚠ PAS *Trésor sans Péril* : celui-ci pioche JUSQU'À un gain en ignorant
+     * les dangers (boucle bornée par le paquet) ; Treasure Horde pioche
+     * EXACTEMENT TROIS cartes et peut très bien ne RIEN garder si les trois
+     * sont des dangers — la carte ne promet pas un gain, elle promet trois
+     * chances.
+     *
+     * ⚠ « You MAY shuffle back » est résolu AUTOMATIQUEMENT, comme
+     * `piocherAvecSixiemeSens` : une carte « piège »/« errant »/« rien »
+     * n'a qu'une réponse rationnelle (la remettre), et aucune n'est perdue —
+     * `Quete::piocherCarte()` fait déjà cycler le deck SOUS le paquet pour
+     * TOUTE carte piochée, remettre revient donc à ne rien résoudre.
+     *
+     * ⚠ PAS une fouille de SALLE : aucun piège remis n'est déclenché, aucun
+     * errant remis n'apparaît — seules les cartes GARDÉES passent par
+     * `appliquerButin()`, la même table que la fouille et le mobilier.
+     *
+     * @return array<string, mixed>
+     */
+    private function piocherTresorConvoite(Quete $quete, Personnage $personnage, EtatPersonnageQuete $etat): array
+    {
+        $groupe = $quete->groupe;
+        $gardees = [];
+        $remises = [];
+
+        for ($i = 0; $i < 3; $i++) {
+            $carte = $this->deck->piocher($quete->fresh());
+            $issue = (string) ($carte['issue'] ?? 'rien');
+
+            if (in_array($issue, [self::ISSUE_ERRANT, self::ISSUE_PIEGE, 'rien'], true)) {
+                $remises[] = $issue;
+
+                continue;
+            }
+
+            $gardees[] = $this->appliquerButin($carte, [], $groupe, $quete->fresh(), $personnage, $etat);
+        }
+
+        return [
+            'tresor_convoite' => true,
+            'cartes_gardees' => $gardees,
+            'cartes_remises' => $remises,
+        ];
     }
 
     private function appliquerButin(
@@ -8661,6 +9069,14 @@ final class ResolveurTour
     {
         $actions = [];
 
+        // FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) : « the beginning
+        // of Zargon's turn » — EN TOUT PREMIER, avant le moindre monstre
+        // scripté, tout jeton amorcé explose (zone entière, héros ET
+        // monstres, défense normale). Voir `MoteurPieges::explosionsFireburstEnAttente()`.
+        foreach ($this->pieges->explosionsFireburstEnAttente($groupe, $quete) as $explosion) {
+            $actions[] = $explosion;
+        }
+
         // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
         // a déjà joué, du côté des héros. Sans ce filtre il jouerait DEUX fois
         // dans le même round, dont une contre ceux qu'il vient d'aider.
@@ -8676,6 +9092,10 @@ final class ResolveurTour
                 break; // plus personne debout (ou tout le monde est caché), allié compris
             }
 
+            // FAVEUR « Hold the Line » (Hopekins Rest) : position AVANT le
+            // tour du monstre, comparée après coup — voir juste plus bas.
+            $avantMonstre = ['x' => $instance->position_x, 'y' => $instance->position_y];
+
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
 
             // Si le monstre a joué plusieurs actions (p. ex. régénération + sort/attaque),
@@ -8688,11 +9108,21 @@ final class ResolveurTour
                 $actions[] = $resultatMonstre;
             }
 
+            $instanceApres = $instance->fresh();
+
+            // FAVEUR « Hold the Line » (suite) : chaque héros porteur qui
+            // avait ce monstre à portée de 8 cases avant son tour, et plus
+            // après, tente une attaque d'opportunité sur sa retraite — la
+            // SEULE exception nommée à C3 (aucune attaque d'opportunité).
+            foreach ($this->faveurs->tenterHoldTheLine($groupe, $quete, $instanceApres, $avantMonstre) as $action) {
+                $actions[] = $action;
+            }
+
             // TOUCHER DU BRASIER : « an additional 2 Body Points of damage AT
             // THE END OF ITS NEXT TURN ». La braise tombe ici, une fois, et
             // s'éteint — c'est ce qui la distingue du jeton de Rejeton, qui lui
             // ronge tous les tours.
-            $braise = $this->consumerBraise($groupe, $instance->fresh());
+            $braise = $this->consumerBraise($groupe, $instanceApres);
 
             if ($braise !== null) {
                 $actions[] = $braise;
@@ -8953,12 +9383,20 @@ final class ResolveurTour
     }
 
     /**
-     * Échoue la quête EN COURS : retour au hub, alliés (3.5) consommés comme
-     * à la victoire — les snapshots sont CONSERVÉS pour la reprise (doc 05
-     * §6). Point de passage UNIQUE, qu'on échoue sur un TPK ({@see
-     * self::verdictDeChute()}) ou sur la perte du captif d'une mission
-     * « secourir » ({@see self::echouerSiCaptifPerdu()}) : deux causes, une
-     * seule cérémonie de fin.
+     * Échoue la quête EN COURS : retour au hub, les snapshots sont
+     * CONSERVÉS pour la reprise (doc 05 §6). Point de passage UNIQUE, qu'on
+     * échoue sur un TPK ({@see self::verdictDeChute()}) ou sur la perte du
+     * captif d'une mission « secourir » ({@see self::echouerSiCaptifPerdu()}) :
+     * deux causes, une seule cérémonie de fin.
+     *
+     * ⚠ Les mercenaires RECRUTÉS ne sont plus consommés ici depuis le
+     * chantier 1c (Wizards of Morcar, René 2026-10-06) : un TPK peut encore
+     * être DÉFAIT par `POST /reprise` (le snapshot `debut_quete` les
+     * restaure de toute façon), facturer leur entretien sur un échec qui va
+     * être annulé le double-facturerait à la prochaine victoire. Seuls les
+     * CAPTIFS scénarisés de cette quête (`mercenaire.captif`, jamais
+     * recrutés) et les morts (`etat != 'actif'`) sont purgés — une
+     * campagne abandonnée après ce TPK ne traîne pas un cadavre au hub.
      */
     private function echouerQuete(Groupe $groupe, Quete $quete, ?string $cause = null): void
     {
@@ -8973,7 +9411,12 @@ final class ResolveurTour
         Journal::ajouter($groupe, 'systeme', $payload);
         $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
 
-        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+        GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where(function ($q) {
+                $q->where('etat', '!=', 'actif')
+                    ->orWhereHas('mercenaire', fn ($q2) => $q2->where('captif', true));
+            })
+            ->delete();
     }
 
     /**
@@ -9130,6 +9573,23 @@ final class ResolveurTour
             if ($actionDread !== null) {
                 return $actionDread;
             }
+        }
+
+        // ENCHAÎNÉ (*Chains of Darkness*, Spells of Darkness, 2026-10-06) :
+        // « may not move or attack […]. They may defend or cast spells. »
+        // Vérifiée APRÈS la tentative de sort de Dread ci-dessus, jamais
+        // avant : un Sorcier enchaîné qui lance encore un sort ce tour-là
+        // tient sa carte au pied de la lettre — seul ce qui suit (déplacement,
+        // approche, attaque au contact) est encore à bloquer. Consommée à
+        // cette activation, sans compteur — même famille que `saute_tour`/
+        // `enfume` juste au-dessus, qui n'en portent pas non plus.
+        if ($this->sorts->monstreA($instance, MoteurSorts::MONSTRE_ENCHAINE)) {
+            $this->sorts->retirerConditionMonstre($instance, MoteurSorts::MONSTRE_ENCHAINE);
+
+            $payload = ['type' => 'monstre_enchaine', 'monstre' => $nomMonstre, 'action' => 'enchaine'];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
         }
 
         // ⚠ `franchitAllies` : un monstre franchit un AUTRE MONSTRE. Décision de
@@ -10130,7 +10590,11 @@ final class ResolveurTour
             // arbitrage — demander à l'Oracle de révéler une salle derrière
             // une porte fermée, sans l'ouvrir, est la même interaction LIBRE
             // qu'ouvrir cette même porte à la main, pas une action dépensée.
-            'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter' => 'interaction',
+            // `desarmer_embrasement` (Magic Reference Chart, Wizards of Morcar,
+            // 2026-10-08) : « discards a Tempest spell or any Water Spell » —
+            // défausser est gratuit, comme `jeter` juste à côté.
+            'ouvrir_porte', 'oracle_salle', 'sortie', 'retraite', 'style', 'objet_libre', 'jeter',
+            'desarmer_embrasement' => 'interaction',
             // `s_ecarter_du_bloc` REJOINT cette liste le 2026-09-24 : le seul
             // choix qu'un héros debout sur un bloc de pierre tombé peut encore
             // faire, et le livret dit que ce choix FERME son tour (p. 14) —
@@ -10663,8 +11127,25 @@ final class ResolveurTour
             'or' => (int) $groupe->or + $orButin,
         ]);
 
-        // Alliés (3.5) CONSOMMÉS en fin de quête (décision canon) : purge.
-        GroupeMercenaire::where('groupe_id', $groupe->id)->delete();
+        // ⚠ Les mercenaires RECRUTÉS (non captifs) PERSISTENT désormais
+        // d'une quête à l'autre (chantier 1c, Wizards of Morcar, René
+        // 2026-10-06) — seuls les CAPTIFS scénarisés de CETTE quête
+        // (`mercenaire.captif`, jamais recrutés) et les morts (`etat !=
+        // 'actif'`) sont purgés ici ; les survivants restent `actif` pour
+        // être replacés au prochain `DemarreurQuete::demarrer()`.
+        GroupeMercenaire::where('groupe_id', $groupe->id)
+            ->where(function ($q) {
+                $q->where('etat', '!=', 'actif')
+                    ->orWhereHas('mercenaire', fn ($q2) => $q2->where('captif', true));
+            })
+            ->delete();
+
+        // ENTRETIEN des mercenaires survivants (même chantier, décision de
+        // René : « 10 po par mercenaire et par quête, pour TOUS les groupes »)
+        // — réglé ICI, jamais sur un échec ({@see self::echouerQuete()}),
+        // puisque c'est le seul des deux dénouements qu'une reprise ne peut
+        // plus défaire.
+        $entretien = $this->faveurs->reglerEntretien($groupe, (int) $quete->id);
 
         // Fin de quête : les snapshots de la quête sont purgés (rétention
         // du contrat « Snapshots & reprise » — on ne recharge pas une
@@ -10676,6 +11157,12 @@ final class ResolveurTour
         // AVANT le `.groupe.etat` final (null pour une quête normale).
         $niveaux = $this->monteeNiveau->appliquer($groupe, $quete);
 
+        // FAVEUR DE HOPEKINS REST (même chantier) : tirage de fin de quête
+        // réussie, une fois Gardien — voir le docblock de
+        // FaveursHopekins::attribuerFaveurDeFinDeQuete() pour la règle
+        // d'attribution (choix ou tirage, décidés là).
+        $faveur = $this->faveurs->attribuerFaveurDeFinDeQuete($groupe, (int) $quete->id);
+
         // Clôture de campagne (doc 05 §6) : la victoire du BOSS FINAL ouvre
         // automatiquement la fenêtre de clôture (broadcast `.cloture.ouverte`,
         // butin déjà versé au pot — l'or à partager l'inclut).
@@ -10683,7 +11170,10 @@ final class ResolveurTour
             $this->cloture->ouvrirVictoire($groupe);
         }
 
-        return ['etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux];
+        return [
+            'etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux,
+            'mercenaires_entretien' => $entretien, 'faveur_hopekins' => $faveur,
+        ];
     }
 
     /**

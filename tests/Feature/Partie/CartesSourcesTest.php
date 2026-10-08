@@ -45,13 +45,17 @@ it('recense exactement les trois sources, sans doublon de carte', function () {
     // l'Anneau de Feu que Kellar's Keep source ailleurs (doc 18 §3) et qui reste
     // recensé ici, d'où 35.
     expect((array) config('cartes.equipement.cartes'))->toHaveCount(20)
-        ->and((array) config('cartes.potions.cartes'))->toHaveCount(15)
+        // 15 + les 3 potions vendues de Wizards of Morcar (« Boutique de
+        // l'Alchimiste », lot F, 2026-10-06) : SOURCE DIFFÉRENTE (doc 18 §3,
+        // pas potions.pdf), même patron que le Fire Ring côté artefacts.
+        ->and((array) config('cartes.potions.cartes'))->toHaveCount(18)
         // 35 + le Cor des Hearthkin (First Light, lot C, 2026-09-30) + les
-        // deux armes en os d'Against the Ogre Horde (lot B, 2026-10-02) :
-        // SOURCE DIFFÉRENTE à chaque fois (livret de quêtes, pas une carte des
-        // 59 photos), mais fonctionnellement des artefacts — même section que
-        // le Fire Ring.
-        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(38)
+        // deux armes en os d'Against the Ogre Horde (lot B, 2026-10-02) + 2
+        // de Wizards of Morcar (Drakehide Cuirass, Urdyn the Unmaker, lot
+        // 1b, 2026-10-06) : SOURCE DIFFÉRENTE à chaque fois (livret de
+        // quêtes, pas une carte des 59 photos), mais fonctionnellement des
+        // artefacts — même section que le Fire Ring.
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(40)
         // Les parchemins DÉRIVENT d'un sort et n'ont pas de ligne `objets` :
         // ils vivent dans leur propre section, hors des contrôles qui suivent.
         ->and((array) config('cartes.parchemins.cartes'))->toHaveCount(19);
@@ -83,7 +87,12 @@ it('n\'admet aucune arme, armure ou artefact SANS carte source', function () {
     // de soin est une carte du deck de TRÉSOR, pas d'armurerie. La trousse à
     // outils a QUITTÉ cette liste — elle a désormais sa carte officielle
     // (Tool Kit, 250 po), là où elle n'était attestée que par le livret.
-    $horsPaquets = ['Fiole de soin'];
+    // ⚠ Potion d'alchimie / Potion de charme (Wizards of Morcar, doc 18 §8,
+    // lot F, 2026-10-06) rejoignent la Fiole de soin pour la MÊME raison :
+    // des cartes de TRÉSOR sans prix de boutique, `rarete: unique` pour les
+    // exclure du marché, mais aucune ligne `config/cartes.php` — ce ne sont
+    // pas des cartes d'armurerie.
+    $horsPaquets = ['Fiole de soin', "Potion d'alchimie", 'Potion de charme'];
 
     // Les consommables `unique` du paquet d'artefacts comptent aussi.
 
@@ -146,7 +155,11 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
     ));
 
     expect($portees('equipement'))->toBe(20)
-        ->and($portees('potions'))->toBe(15)
+        // 15 + les 3 potions de « Boutique de l'Alchimiste » (Wizards of
+        // Morcar, lot F, 2026-10-06) : immunité au feu réutilisée, second
+        // sort du tour réutilisé, annulation de sort nouvelle — les trois
+        // sans mécanique manquante.
+        ->and($portees('potions'))->toBe(18)
         // 34 artefacts portés sur 35 : seul le Brassard de Glace reste écarté
         // (2 clauses sur 4 sans lecteur — voir sa dette, config/cartes.php).
         // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des
@@ -164,7 +177,13 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // Hearthkin, sourcé par le livret de quêtes et non par les 59 photos.
         // ⚠ Deux de plus le 2026-10-02 (lot B, Against the Ogre Horde) : la
         // hache de bataille et l'épée longue en os, mêmes raisons.
-        ->and($portees('artefacts'))->toBe(37)
+        // ⚠ Une de plus le 2026-10-06 (lot 1b, Wizards of Morcar) : la
+        // Cuirasse de Peau de Dragon (Drakehide Cuirass) — déplacement fixe
+        // nouveau, reste porté sur ses 4 clauses. Urdyn the Unmaker reste
+        // NON porté (compte comme carte, pas comme portée) : bonus
+        // conditionné au type de monstre adverse + Golem/Dreadshifter
+        // absents du catalogue, lot C hors de ce chantier.
+        ->and($portees('artefacts'))->toBe(38)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

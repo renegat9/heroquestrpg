@@ -39,6 +39,9 @@ class InstanceMonstre extends Model
         // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
         // fin du PROCHAIN tour de la créature, puis s'éteignent.
         'degat_differe',
+        // Héros qui a allumé la braise (Peacekeeper, 2026-10-08) : lu par
+        // `ResolveurTour::consumerBraise()`, `null` quand la braise est éteinte.
+        'degat_differe_personnage_id',
         // *Baguette d'Os* : la créature est passée du côté des héros pour un
         // tour. `controle_par` dit CHEZ QUI (la phase des sbires se joue à la
         // fin du tour de ce héros-là), `controle_agi` si elle a déjà joué —

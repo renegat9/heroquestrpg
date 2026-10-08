@@ -147,6 +147,73 @@ class PiegeSeeder extends Seeder
                     'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
                     'degats_selon_armure' => true,
                 ]],
+
+            // ===== Wizards of Morcar (carton « Magic Reference Chart » + livret
+            // G1504 p. 2/7/12, lot B, 2026-10-06) — TROIS pièges magiques,
+            // communs aux trois : « cannot be found by searching » et « may
+            // only be activated once » (`detectable: false`, `usage: 'unique'`,
+            // reconnus par `MoteurPieges::reveler()`/`piegesCachesAdjacents()` —
+            // la fouille, l'Œil du mineur, le Sens du piège et la Potion de
+            // Vision les ignorent TOUS). Portés sur le patron existant :
+            // `declencheur` nomme la résolution spéciale (le nom, pas
+            // `'ouverture_tresor'`, les garde HORS du tirage de coffre/meuble,
+            // et HORS du tirage générique de `AssembleurCarte::placerPieges()`,
+            // qui les exclut nommément). Posés par
+            // `AssembleurCarte::placerPiegesMorcar()`.
+
+            // TELEPORT TRAP — « finishing movement on space A teleports the
+            // character to space B elsewhere on the board, disoriented, their
+            // turn ends ». Paire A/B posée par instance de carte
+            // (`cartes.grille.pieges[].paire_id`), MÊME patron que les Tunnels
+            // de glace (`TerrainSeeder`) — `MoteurPieges::declencherTeleportation()`.
+            // « Leur tour se termine » est hérité GRATUITEMENT : tout
+            // déclenchement de piège de sol force déjà `finTourPiegeSol`
+            // (`ResolveurTour::resoudreDeplacement()`), aucune clé n'y est
+            // donc nécessaire ici.
+            ['nom' => 'Piège de téléportation', 'detectable' => false, 'desarmable' => 'non', 'usage' => 'unique', 'boite' => 'wizards_of_morcar',
+                'effet' => ['teleportation' => true]],
+
+            // HURRICANE TRAP — « repousse tous les personnages du couloir de
+            // 8 cases en arrière (ou jusqu'au premier mur/piège) ». Posé en
+            // COULOIR seulement (`placerPiegesMorcar()`) ; `portee_recul`
+            // nombre MAXIMUM de cases, sourcé par la carte — jamais un
+            // compte à inventer. Scope ASSUMÉ : les HÉROS seulement (aucun
+            // piège de sol existant ne touche jamais un monstre ou un allié)
+            // — voir `MoteurPieges::declencherHurricane()`.
+            ['nom' => "Piège de l'ouragan", 'detectable' => false, 'desarmable' => 'non', 'usage' => 'unique', 'boite' => 'wizards_of_morcar',
+                'effet' => ['declencheur' => 'hurricane', 'portee_recul' => 8]],
+
+            // FIREBURST TRAP — « a Fireburst token remains until the
+            // beginning of Zargon's turn, when it will explode, attacking
+            // all heroes and monsters in the room with 3 Attack dice ».
+            // DEUX nombres de dés, pour DEUX producteurs distincts du même
+            // mishap : `des_attaque_zone` (3, défense NORMALE, salle entière,
+            // héros ET monstres) résout l'explosion DIFFÉRÉE au tour du MJ
+            // (`MoteurPieges::explosionsFireburstEnAttente()`, appelée en
+            // tête de `ResolveurTour::phaseMonstres()`) ; `des_combat` (3,
+            // SANS défense, le fouilleur seul) résout la carte de trésor
+            // « Magical Trap » qui déclenche la MÊME mécanique (doc 18 §8 :
+            // « you set off a Fireburst trap ») via le résolveur éphémère
+            // générique — DIVERGENCE NOMMÉE : la carte ne frappe que le
+            // tireur, jamais toute la salle, faute d'un index de grille à
+            // armer pour une instance qu'aucune case ne porte. Le désamorçage
+            // par *Tempest*/un sort d'Eau n'est PAS câblé : ni l'un ni
+            // l'autre n'existe dans nos 9 sorts de héros transcrits
+            // (Protection/Détection/Ténèbres) ni dans les 30 sorts de
+            // Sorcier du Dread — ⚠ non trouvé, dette nommée plutôt qu'un
+            // sort inventé.
+            ['nom' => 'Piège d\'embrasement', 'detectable' => false, 'desarmable' => 'non', 'usage' => 'unique', 'boite' => 'wizards_of_morcar',
+                'effet' => ['declencheur' => 'fireburst_differe', 'des_attaque_zone' => 3, 'des_combat' => 3, 'type_degat' => 'feu']],
+
+            // POISON (carte de TRÉSOR, doc 18 §8, lot « Cartes de trésor »,
+            // 2026-10-06) : « roll 1 combat die ; on a skull, lose 1 Body
+            // Point, otherwise nothing ». ÉPHÉMÈRE comme Piège de coffre/
+            // Aiguille empoisonnée (`declencheur: 'ouverture_tresor'`, jamais
+            // posé sur la grille) — `des_combat: 1` réutilise le MÊME calcul
+            // de dé que les pièges de sol, désormais partagé par
+            // `MoteurPieges::resoudreDesCombat()`.
+            ['nom' => 'Poison', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique', 'boite' => 'wizards_of_morcar',
+                'effet' => ['declencheur' => 'ouverture_tresor', 'detection' => 'fouille_du_tresor', 'des_combat' => 1]],
         ];
 
         foreach ($pieges as $piege) {

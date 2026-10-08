@@ -72,13 +72,28 @@ class ConditionSeeder extends Seeder
             // l'effet s'applique à quelqu'un d'autre que son porteur.
             ['nom' => 'Désigné', 'type' => 'mental', 'duree_defaut' => 0,
                 'effet' => ['bonus_des_attaque_ennemie' => 1, 'fin' => 'rupture_du_sort']],
-            // ⚠ « Caché » n'a plus de producteur depuis le 2026-09-02 : la carte
-            // de *Voile de Brume* décrit un mode de DÉPLACEMENT (traverser les
-            // cases occupées), pas une invisibilité. La ligne reste au catalogue
-            // — `inattaquable` garde son lecteur et son autre porteur
-            // (« Évanescent ») — mais aucun sort ne la pose plus.
+            // ⚠ « Caché » a RETROUVÉ un producteur le 2026-10-06 : *Invisibility*
+            // (Spells of Protection, Wizards of Morcar) — « makes you
+            // invisible until the start of your next turn. While invisible,
+            // you may not attack. You cannot be attacked and are immune to
+            // all spells. » `inattaquable` (déjà là, inchangé depuis 2026-09-02
+            // pour « Évanescent ») couvre « cannot be attacked » ; les deux
+            // clés suivantes sont NEUVES pour cette carte : `attaque_interdite`
+            // (« may not attack », lecteur `ResolveurTour::frapper()`) et
+            // `immunite_sorts` (« immune to all spells », lecteur
+            // `MoteurSorts::ciblesLegales()`). Rien d'autre n'est retiré au
+            // héros — il fouille, désamorce et lance encore ses sorts.
             ['nom' => 'Caché', 'type' => 'physique', 'duree_defaut' => 0,
-                'effet' => ['inattaquable' => true, 'fin' => 'prochain_tour']],
+                'effet' => ['inattaquable' => true, 'attaque_interdite' => true,
+                    'immunite_sorts' => true, 'fin' => 'prochain_tour']],
+            // *Chains of Darkness* (Spells of Darkness) côté HÉROS, en tir ami
+            // (S3) : « may not move or attack until the start of your next
+            // turn. They may defend or cast spells. » Même DEUX clés que
+            // « Caché » pour l'attaque et le déplacement, mais ni
+            // `inattaquable` ni `immunite_sorts` — rien dans la carte n'empêche
+            // de VISER ce héros, seulement de le laisser agir.
+            ['nom' => 'Enchaîné', 'type' => 'mental', 'duree_defaut' => 1,
+                'effet' => ['deplacement_interdit' => true, 'attaque_interdite' => true, 'fin' => 'prochain_tour']],
             // Voile de Brume : comme « Intangible » pour Traverser la Pierre,
             // c'est un MODE DE DÉPLACEMENT, et il faut que le joueur le lise
             // comme tel — « tu passes à travers les monstres », pas « on ne te
@@ -163,6 +178,23 @@ class ConditionSeeder extends Seeder
             ['nom' => 'Évanescent', 'type' => 'mental', 'duree_defaut' => 0,
                 'effet' => ['action_interdite' => true, 'inattaquable' => true,
                     'ignore_pieges' => true, 'fin' => 'jet_de_deplacement_eleve']],
+
+            // ===== Wizards of Morcar (doc 18, 2026-10-06) — trois conditions
+            // DÉDIÉES plutôt qu'un « Renforcé » générique : c'est précisément
+            // la confusion qu'une carte de joueur a signalée en partie réelle
+            // (2026-08-20, voir « Renforcé »/« Protégé » ci-dessus) — un
+            // buveur de Potion of Fire Resistance ne doit pas lire « Renforcé »
+            // sur sa fiche en se demandant s'il frappe plus fort. L'`effet`
+            // ci-dessous est purement d'AFFICHAGE (même patron que
+            // « Clairvoyance ») : le mécanisme réel est relu sur l'OBJET
+            // source par `MoteurSorts::effetSortSource()`, jamais sur cette
+            // ligne.
+            ['nom' => 'Insensible au feu', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['immunite_degat' => 'feu', 'fin' => 'premier_coup_absorbe']],
+            ['nom' => 'Résistance arcanique', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['annule_prochain_sort_degats' => true, 'fin' => 'premier_sort_absorbe']],
+            ['nom' => 'Esprit vif', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['second_sort_par_tour' => true, 'fin' => 'duree_du_sort']],
         ];
 
         foreach ($conditions as $condition) {

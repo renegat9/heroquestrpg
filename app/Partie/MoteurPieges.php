@@ -15,9 +15,11 @@ use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\InstanceMonstre;
 use App\Models\Personnage;
 use App\Models\Piege;
 use App\Models\Quete;
+use App\Models\Sort;
 use App\Partie\Narration\BibliothequeNarration;
 use App\Support\Journal;
 
@@ -99,6 +101,20 @@ final class MoteurPieges
     public const ETAT_BLOC = 'bloc';
 
     /**
+     * AMORCÉ (Fireburst Trap, Wizards of Morcar, doc 18 §5/§9) : « a token
+     * remains until the beginning of Zargon's turn, when it will explode ».
+     * DISTINCT des autres sorts : ni `declenche` (rien n'a encore explosé),
+     * ni `fosse_ouverte`/`bloc` (ce n'est pas un obstacle de case) — un
+     * troisième type de « dépensé mais pas tout de suite ». Exclu
+     * d'`ETATS_ARMES` : un héros qui repasse sur la case ne redéclenche rien,
+     * le jeton couve déjà. Résolu par
+     * `MoteurPieges::explosionsFireburstEnAttente()`, appelée en tête de
+     * `ResolveurTour::phaseMonstres()` — « le début du tour de Zargon » de ce
+     * moteur.
+     */
+    public const ETAT_AMORCE = 'amorce';
+
+    /**
      * `effet.desarmage_special` de la LAME BALANÇOIRE (Against the Ogre
      * Horde p. 5) : procédure de désamorçage PROPRE à ce piège, lue par
      * `MenuMoteur::generer()` (libellé) et `ResolveurTour::resoudreDesamorcage()`
@@ -168,15 +184,30 @@ final class MoteurPieges
             //    servaient à rien.
             $index = $this->indexPiegeArme($carte, $x, $y);
             if ($index !== null) {
+                $entreeGrille = $carte->grille['pieges'][$index];
+                $catalogueArme = Piege::find($entreeGrille['piege_id']);
+                $declencheurSpecial = (string) data_get($catalogueArme?->effet, 'declencheur', '');
+
                 // LAME BALANÇOIRE : une entrée à ZONE se résout par
                 // `declencherZone()` (plusieurs cibles, défense normale),
                 // jamais `declencher()` (une seule victime, jamais de
                 // défense) — la forme de l'entrée (`zone` posée par
                 // `AssembleurCarte::placerLameBalanciere()`) le dit sans
                 // requête supplémentaire au catalogue.
-                $payload = isset($carte->grille['pieges'][$index]['zone'])
-                    ? $this->declencherZone($groupe, $carte, $index, $personnage, $etat, 'deplacement', ['x' => $x, 'y' => $y])
-                    : $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement');
+                //
+                // Wizards of Morcar (doc 18 §5/§9) : TROIS résolutions
+                // dédiées, reconnues sur l'EFFET du catalogue plutôt que sur
+                // une forme d'entrée — `teleportation` (paire A/B),
+                // `declencheur: 'hurricane'` (recul de tout le couloir),
+                // `declencheur: 'fireburst_differe'` (amorce, explose au
+                // prochain tour du MJ — voir `explosionsFireburstEnAttente()`).
+                $payload = match (true) {
+                    isset($entreeGrille['zone']) => $this->declencherZone($groupe, $carte, $index, $personnage, $etat, 'deplacement', ['x' => $x, 'y' => $y]),
+                    (bool) data_get($catalogueArme?->effet, 'teleportation', false) => $this->declencherTeleportation($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
+                    $declencheurSpecial === 'hurricane' => $this->declencherHurricane($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
+                    $declencheurSpecial === 'fireburst_differe' => $this->declencherFireburst($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
+                    default => $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
+                };
                 $declenchements[] = $payload;
 
                 // Forme démoniaque : « ignores pit traps » — le sol ne l'avale
@@ -203,8 +234,19 @@ final class MoteurPieges
                     ? $this->casesEcart($carte, $personnage, $provenance, ['x' => $x, 'y' => $y])
                     : null;
 
+                // TÉLÉPORTATION / OURAGAN (Wizards of Morcar) : l'ARRÊT n'est
+                // plus la case du piège elle-même mais la DESTINATION que le
+                // producteur a résolue — le héros ne « marche » pas jusqu'à
+                // l'autre bout, il y apparaît (téléportation) ou s'y trouve
+                // rejeté (bourrasque). `'dur' => true` referme le tour
+                // comme pour tout déclenchement — même mécanisme générique
+                // que les trois pièges de sol, aucune clé `fin_tour` dédiée.
+                $arretCoord = in_array($payload['type'] ?? null, ['piege_teleporte', 'piege_bourrasque'], true)
+                    ? ($payload['destination'] ?? ['x' => $x, 'y' => $y])
+                    : ['x' => $x, 'y' => $y];
+
                 return [
-                    'arret' => ['x' => $x, 'y' => $y], 'dur' => true,
+                    'arret' => $arretCoord, 'dur' => true,
                     'declenchements' => $declenchements, 'detections' => $detections,
                     'attente_ecart' => $attenteEcart,
                 ];
@@ -358,14 +400,12 @@ final class MoteurPieges
         }
 
         $nbDesCombat = (int) data_get($piege?->effet, 'des_combat', 0);
-        $faces = null;
-        $touches = null;
+        $jetDesCombat = $this->resoudreDesCombat($nbDesCombat);
+        $faces = $jetDesCombat['faces'];
+        $touches = $jetDesCombat['touches'];
 
         if ($nbDesCombat > 0) {
-            $facesLancees = $this->des->desCombat($nbDesCombat);
-            $touches = count(array_filter($facesLancees, fn (FaceDeCombat $f) => $f->estCrane()));
-            $faces = array_map(fn (FaceDeCombat $f) => $f->value, $facesLancees);
-            $degats = $touches;
+            $degats = $jetDesCombat['degats'];
         } elseif ((bool) data_get($piege?->effet, 'degats_selon_armure', false)) {
             // FOSSE DES TÉNÈBRES (Against the Ogre Horde p. 5) : « Heroes
             // wearing no armor or only non-metal armor take 1 Body Point of
@@ -436,6 +476,28 @@ final class MoteurPieges
         $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
 
         return $payload;
+    }
+
+    /**
+     * Lance `$nbDesCombat` dés de combat, un crâne = 1 PV de Body, SANS jet
+     * de défense — le calcul PARTAGÉ du Piège à lances / Chute de blocs
+     * (`declencher()`) et de la carte « Poison »/« Magical Trap » du deck de
+     * trésor (`declencherEphemere()`). Extrait le 2026-10-06 (Wizards of
+     * Morcar) pour que les deux producteurs du même jet ne divergent jamais.
+     *
+     * @return array{degats: int, faces: list<string>|null, touches: int|null}
+     */
+    private function resoudreDesCombat(int $nbDesCombat): array
+    {
+        if ($nbDesCombat <= 0) {
+            return ['degats' => 0, 'faces' => null, 'touches' => null];
+        }
+
+        $facesLancees = $this->des->desCombat($nbDesCombat);
+        $touches = count(array_filter($facesLancees, fn (FaceDeCombat $f) => $f->estCrane()));
+        $faces = array_map(fn (FaceDeCombat $f) => $f->value, $facesLancees);
+
+        return ['degats' => $touches, 'faces' => $faces, 'touches' => $touches];
     }
 
     /**
@@ -591,7 +653,19 @@ final class MoteurPieges
         // catalogue (dégâts OU condition) — un d6 réparti à parts égales.
         $issue = $this->tirerIssueAleatoire($piege?->effet);
 
-        $degats = (int) data_get($issue, 'degats_pv_body', 0);
+        // POISON / MAGICAL TRAP (cartes de trésor, Wizards of Morcar, doc 18
+        // §8) : un JET de dé de combat plutôt qu'un montant fixe — « roll 1
+        // combat die ; on a skull, lose 1 Body Point, otherwise nothing »
+        // (Poison), ou « you set off a Fireburst trap » (Magical Trap,
+        // référence la MÊME carte que le piège de sol, `des_combat: 3`).
+        // ⚠ DIVERGENCE NOMMÉE pour Magical Trap : frappe le TIREUR seul, sans
+        // défense — le résolveur éphémère générique ne sait viser qu'une
+        // victime ; la salle entière reste le privilège de la version posée
+        // sur la grille (`explosionsFireburstEnAttente()`).
+        $nbDesCombat = (int) data_get($issue, 'des_combat', 0);
+        $jetDesCombat = $this->resoudreDesCombat($nbDesCombat);
+
+        $degats = $nbDesCombat > 0 ? $jetDesCombat['degats'] : (int) data_get($issue, 'degats_pv_body', 0);
         $subis = $this->degats->infligerAHeros(
             $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom, 'coffre' => true],
         );
@@ -621,6 +695,11 @@ final class MoteurPieges
             'condition_appliquee' => $conditionAppliquee,
         ];
 
+        if ($jetDesCombat['faces'] !== null) {
+            $payload['faces'] = $jetDesCombat['faces'];
+            $payload['touches'] = $jetDesCombat['touches'];
+        }
+
         Journal::ajouter($groupe, 'action', $payload, [
             'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
         ]);
@@ -630,6 +709,423 @@ final class MoteurPieges
         }
 
         return $payload;
+    }
+
+    /**
+     * TELEPORT TRAP (Wizards of Morcar, doc 18 §5/§9) — « finishing movement
+     * on space A teleports the character to space B elsewhere on the board,
+     * disoriented, and their turn ends ». La paire A/B est posée par
+     * `AssembleurCarte::placerPiegesMorcar()` : les deux entrées de
+     * `cartes.grille.pieges` partagent `piege_id` ET `paire_id`.
+     *
+     * ⚠ Même garde que `ResolveurTour::teleporterSiTunnel()` (Tunnel de
+     * glace) : destination OCCUPÉE par une figure, ou dans une salle NON
+     * DÉCOUVERTE → RIEN ne se passe, le piège reste ARMÉ (jamais marqué
+     * `declenche`) pour une tentative future — un héros n'apparaît jamais
+     * dans une pièce que le groupe n'a pas ouverte, et deux figurines ne
+     * partagent jamais une case.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    private function declencherTeleportation(
+        Groupe $groupe,
+        Carte $carte,
+        int $index,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $contexte,
+    ): array {
+        $entree = $carte->grille['pieges'][$index];
+        $piege = Piege::find($entree['piege_id']);
+        $quete = $etat->quete;
+
+        $destination = $this->destinationPaire($carte, $entree);
+
+        if ($destination !== null && $quete !== null) {
+            $indexSalle = Salles::indexDe((array) ($carte->grille['salles'] ?? []), $destination['x'], $destination['y']);
+
+            if ($indexSalle !== null && ! in_array($indexSalle, $quete->sallesDecouvertes(), true)) {
+                $destination = null; // salle non découverte : refusé, même garde que le tunnel de glace
+            } elseif (FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id)->estOccupeeParFigure($destination['x'], $destination['y'])) {
+                $destination = null; // deux figurines ne partagent jamais une case
+            }
+        }
+
+        if ($destination === null) {
+            // Publié sous SON type (`piege_teleporte`, sans `destination`) : la
+            // table et le fil doivent dire « le piège reste armé », pas « piège
+            // déclenché » — un « déclenché » sans dégât serait faux.
+            return [
+                'type' => 'piege_teleporte',
+                'contexte' => $contexte,
+                'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => (int) $entree['x'], 'y' => (int) $entree['y']],
+                'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+                'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => false,
+                'immobilise' => false, 'bloc_permanent' => false,
+                'teleportation_echouee' => true,
+            ];
+        }
+
+        // Usage unique (livret : « may only be activated once ») — l'entrée
+        // JUMELLE garde son propre `etat` : une paire n'est consommée que du
+        // côté réellement franchi, l'autre moitié reste un piège normal pour
+        // qui l'atteindrait depuis l'autre sens.
+        $this->changerEtat($carte, $index, self::ETAT_DECLENCHE);
+
+        $payload = [
+            'type' => 'piege_teleporte',
+            'contexte' => $contexte,
+            'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => (int) $entree['x'], 'y' => (int) $entree['y']],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'destination' => $destination,
+            'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => false,
+            'immobilise' => false, 'bloc_permanent' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        $this->narrerPiegeDeclenche($groupe, $quete, $personnage);
+
+        return $payload;
+    }
+
+    /**
+     * L'autre moitié de la paire de téléportation (`paire_id` partagé),
+     * null si la paire est incomplète (ne devrait pas arriver si semée
+     * correctement).
+     *
+     * @param  array<string, mixed>  $entree
+     * @return array{x: int, y: int}|null
+     */
+    private function destinationPaire(Carte $carte, array $entree): ?array
+    {
+        $paireId = $entree['paire_id'] ?? null;
+
+        if ($paireId === null) {
+            return null;
+        }
+
+        foreach ((array) ($carte->grille['pieges'] ?? []) as $autre) {
+            if (($autre['paire_id'] ?? null) === $paireId
+                && ((int) $autre['x'] !== (int) $entree['x'] || (int) $autre['y'] !== (int) $entree['y'])) {
+                return ['x' => (int) $autre['x'], 'y' => (int) $autre['y']];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * HURRICANE TRAP (Wizards of Morcar, doc 18 §5/§9) — « repousse tous les
+     * personnages du couloir de 8 cases en arrière, ou jusqu'au premier mur
+     * rencontré ». Posé en COULOIR seulement (`AssembleurCarte::placerPiegesMorcar()`),
+     * jamais en salle.
+     *
+     * ⚠ SCOPE ASSUMÉ, nommé plutôt que deviné : les HÉROS seulement — aucun
+     * piège de sol de ce catalogue ne touche jamais un monstre ou un allié
+     * (`declencher()`/`declencherZone()` prennent tous deux un seul
+     * `Personnage`), et l'étendre aurait demandé un second modèle de
+     * déplacement forcé (`InstanceMonstre`/`GroupeMercenaire`) hors du
+     * périmètre de ce chantier.
+     *
+     * Chaque héros du couloir est repoussé À L'OPPOSÉ du piège, le long de
+     * l'axe du couloir (déterminé par l'étendue de ses cases — les couloirs
+     * de ce moteur sont toujours droits), jusqu'à `portee_recul` cases ou
+     * jusqu'au premier obstacle. ⚠ FIGURES IGNORÉES pendant le recul (la
+     * grille est reconstruite PAR HÉROS DÉJÀ DÉPLACÉ, du plus loin du piège
+     * au plus proche, pour que deux héros poussés dans le même sens ne se
+     * bloquent pas l'un l'autre alors qu'ils sont tous deux soufflés par la
+     * MÊME bourrasque) : seuls les murs/le mobilier/un autre piège arrêtent
+     * la glissade.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    private function declencherHurricane(
+        Groupe $groupe,
+        Carte $carte,
+        int $index,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $contexte,
+    ): array {
+        $entree = $carte->grille['pieges'][$index];
+        $piege = Piege::find($entree['piege_id']);
+        $quete = $etat->quete;
+        $trapX = (int) $entree['x'];
+        $trapY = (int) $entree['y'];
+
+        $this->changerEtat($carte, $index, self::ETAT_DECLENCHE);
+
+        $portee = max(1, (int) data_get($piege?->effet, 'portee_recul', 8));
+        $repousses = [];
+        $destinationDeclencheur = ['x' => $trapX, 'y' => $trapY];
+
+        if ($quete !== null) {
+            $grille = (array) $carte->grille;
+            $zone = ZoneFouille::de($grille, $trapX, $trapY);
+            $cellules = $zone->cellulesCouloir();
+
+            $xs = array_column($cellules, 'x');
+            $ys = array_column($cellules, 'y');
+            // Axe du couloir : celui dont l'étendue est la plus large — les
+            // couloirs de ce moteur sont toujours droits (une case ou deux
+            // de large), jamais coudés.
+            $axeHorizontal = $cellules === [] || (max($xs) - min($xs)) >= (max($ys) - min($ys));
+
+            $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+                ->filter(fn (EtatPersonnageQuete $e) => $e->personnage !== null && $e->position_x !== null
+                    && $zone->contient((int) $e->position_x, (int) $e->position_y))
+                // Le plus LOIN du piège d'abord (voir docblock) : il libère
+                // la case que le suivant, plus proche, pourrait vouloir
+                // traverser en reculant à son tour.
+                ->sortByDesc(fn (EtatPersonnageQuete $e) => abs((int) ($axeHorizontal ? $e->position_x : $e->position_y)
+                    - (int) ($axeHorizontal ? $trapX : $trapY)));
+
+            foreach ($cibles as $cibleEtat) {
+                $cx = (int) $cibleEtat->position_x;
+                $cy = (int) $cibleEtat->position_y;
+
+                // Sens : à l'opposé du piège sur l'axe du couloir. Égalité
+                // (cas rare d'un couloir à VOIE DOUBLE, la cible alignée sur
+                // l'AUTRE lane) : REPLI assumé vers le sens positif, faute
+                // d'un sens que la carte nommerait pour ce cas précis.
+                $sens = $axeHorizontal
+                    ? ($cx === $trapX ? 1 : ($cx > $trapX ? 1 : -1))
+                    : ($cy === $trapY ? 1 : ($cy > $trapY ? 1 : -1));
+                $dx = $axeHorizontal ? $sens : 0;
+                $dy = $axeHorizontal ? 0 : $sens;
+
+                $grilleActuelle = FabriqueGrille::pour($quete, exceptPersonnageId: (int) $cibleEtat->personnage_id);
+                $arrivee = $this->pousserEnLigne($grilleActuelle, $carte, $cx, $cy, $dx, $dy, $portee);
+
+                if ((int) $cibleEtat->personnage_id === (int) $personnage->id) {
+                    $destinationDeclencheur = $arrivee;
+
+                    continue; // le DÉCLENCHEUR est repositionné par le retour de controlerChemin(), pas ici
+                }
+
+                if ($arrivee['x'] !== $cx || $arrivee['y'] !== $cy) {
+                    $cibleEtat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+                }
+
+                $repousses[] = [
+                    'personnage_id' => (int) $cibleEtat->personnage_id,
+                    'nom' => (string) ($cibleEtat->personnage?->nom ?? 'Un héros'),
+                    'de' => ['x' => $cx, 'y' => $cy],
+                    'vers' => $arrivee,
+                ];
+            }
+        }
+
+        $payload = [
+            'type' => 'piege_bourrasque',
+            'contexte' => $contexte,
+            'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => $trapX, 'y' => $trapY],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'destination' => $destinationDeclencheur,
+            // Un effet automatique que rien n'annonce est injouable : chaque
+            // héros repoussé (hors le déclencheur, publié par `destination`
+            // ci-dessus et par `vers`/`chemin` du déplacement lui-même) doit
+            // apparaître ici pour que la table ET la manette des AUTRES
+            // joueurs sachent pourquoi leur figurine a bougé sans qu'ils
+            // aient rien demandé.
+            'repousses' => $repousses,
+            'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => false,
+            'immobilise' => false, 'bloc_permanent' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        $this->narrerPiegeDeclenche($groupe, $quete, $personnage);
+
+        return $payload;
+    }
+
+    /**
+     * Pousse une figure le long d'une ligne (dx, dy ∈ {-1, 0, 1}), jusqu'à
+     * `$max` cases ou jusqu'à la première case non traversable (mur, meuble
+     * bloquant, embrasure close) ou déjà ARMÉE d'un autre piège — on ne
+     * rechaîne jamais un déclenchement pendant un recul forcé, même patron
+     * que « jusqu'au mur » du livret, étendu par prudence.
+     *
+     * @return array{x: int, y: int}
+     */
+    private function pousserEnLigne(Grille $grille, Carte $carte, int $x, int $y, int $dx, int $dy, int $max): array
+    {
+        for ($i = 0; $i < $max; $i++) {
+            $nx = $x + $dx;
+            $ny = $y + $dy;
+
+            if (! $grille->estTraversable($nx, $ny) || $this->indexPiegeArme($carte, $nx, $ny) !== null) {
+                break;
+            }
+
+            $x = $nx;
+            $y = $ny;
+        }
+
+        return ['x' => $x, 'y' => $y];
+    }
+
+    /**
+     * FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) — déclenché (marché
+     * sur sa case, non détectable), il n'inflige RIEN tout de suite : « a
+     * token remains until the beginning of Zargon's turn, when it will
+     * explode ». Cette méthode AMORCE seulement (`ETAT_AMORCE`) ; l'explosion
+     * elle-même est résolue par `explosionsFireburstEnAttente()`, appelée en
+     * tête de `ResolveurTour::phaseMonstres()`.
+     *
+     * ⚠ Un effet automatique que rien n'annonce est injouable, MÊME discret :
+     * le jeton est amorcé en silence narratif (rien ne dit « piège » tant
+     * qu'il n'a pas explosé — « non détectable » veut aussi dire ça), mais le
+     * payload et le journal portent l'événement comme tout déclenchement —
+     * la surprise est dans le DÉLAI, jamais dans l'absence de trace.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    private function declencherFireburst(
+        Groupe $groupe,
+        Carte $carte,
+        int $index,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $contexte,
+    ): array {
+        $entree = $carte->grille['pieges'][$index];
+        $piege = Piege::find($entree['piege_id']);
+
+        $this->changerEtat($carte, $index, self::ETAT_AMORCE);
+
+        $payload = [
+            'type' => 'piege_amorce',
+            'contexte' => $contexte,
+            'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => (int) $entree['x'], 'y' => (int) $entree['y']],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => false,
+            'immobilise' => false, 'bloc_permanent' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
+
+        return $payload;
+    }
+
+    /**
+     * Résout TOUS les pièges d'embrasement AMORCÉS de la quête — « the
+     * beginning of Zargon's turn » de ce moteur est le début de
+     * `ResolveurTour::phaseMonstres()`, APPELÉE ICI en tout premier, avant
+     * le moindre monstre : trois dés d'attaque de feu, défense NORMALE,
+     * contre TOUS les héros et TOUS les monstres actifs de la salle ou du
+     * couloir où le jeton couvait (`ZoneFouille`, la même zone que la
+     * fouille).
+     *
+     * ⚠ Défense NORMALE (pas « sans défense » comme les trois pièges de sol
+     * d'origine) : c'est une carte de SORCIER DU DREAD, la carte-sœur
+     * *Lightning Strike* de ce même carton dit « defend normally against 3
+     * combat dice », et aucune source ne distingue le piège du sort pour
+     * cette clause.
+     *
+     * @return list<array<string, mixed>> payloads journalisés, un par
+     *         explosion
+     */
+    public function explosionsFireburstEnAttente(Groupe $groupe, Quete $quete): array
+    {
+        $carte = $quete->carte;
+        $grille = (array) ($carte?->grille ?? []);
+        $actions = [];
+
+        foreach ((array) ($grille['pieges'] ?? []) as $index => $entree) {
+            if (($entree['etat'] ?? null) !== self::ETAT_AMORCE) {
+                continue;
+            }
+
+            $piege = Piege::find($entree['piege_id']);
+            $nbDes = max(1, (int) data_get($piege?->effet, 'des_attaque_zone', 3));
+            $typeDegat = (string) data_get($piege?->effet, 'type_degat', 'feu');
+            $x = (int) $entree['x'];
+            $y = (int) $entree['y'];
+            $zone = ZoneFouille::de($grille, $x, $y);
+
+            $cibles = [];
+
+            foreach ($quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get() as $cibleEtat) {
+                $personnage = $cibleEtat->personnage;
+
+                if ($personnage === null || $cibleEtat->position_x === null
+                    || ! $zone->contient((int) $cibleEtat->position_x, (int) $cibleEtat->position_y)) {
+                    continue;
+                }
+
+                $resultat = (new Combat($this->des))->resoudreAttaque(
+                    desAttaque: $nbDes,
+                    desDefense: $this->sorts->desDefenseHerosDetail($personnage)['total'],
+                    typeDefenseur: TypeFigurine::Heros,
+                    pvBodyDefenseur: (int) $personnage->pv_body,
+                );
+
+                $degats = $resultat->degats;
+
+                if ($degats > 0 && $this->sorts->absorbeDegat($personnage, $typeDegat)) {
+                    $degats = 0;
+                }
+
+                $subis = $degats > 0 ? $this->degats->infligerAHeros(
+                    $personnage, $degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom],
+                ) : 0;
+                $tombe = (int) $personnage->pv_body === 0 && $subis > 0;
+
+                if ($tombe) {
+                    $cibleEtat->update(['tombe' => true]);
+                }
+
+                $cibles[] = [
+                    'type' => 'heros', 'personnage_id' => $personnage->id, 'nom' => $personnage->nom,
+                    'degats' => $subis, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => $tombe,
+                ];
+            }
+
+            foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->get() as $instance) {
+                if (! $zone->contient((int) $instance->position_x, (int) $instance->position_y)) {
+                    continue;
+                }
+
+                $resultat = (new Combat($this->des))->resoudreAttaque(
+                    desAttaque: $nbDes,
+                    desDefense: $instance->defenseEffective(),
+                    typeDefenseur: TypeFigurine::Monstre,
+                    pvBodyDefenseur: (int) $instance->pv_body,
+                );
+
+                $issue = $this->degats->infligerAMonstre($instance, $resultat->degats, MoteurDegats::SOURCE_PIEGE, ['piege' => $piege?->nom]);
+
+                $cibles[] = [
+                    'type' => 'monstre', 'instance_id' => $instance->id,
+                    'nom' => $instance->monstre?->nom_base ?? 'Monstre',
+                    'degats' => $issue['degats'], 'vaincu' => $issue['vaincu'],
+                ];
+            }
+
+            $this->changerEtat($carte, $index, self::ETAT_DECLENCHE);
+
+            $payload = [
+                'type' => 'piege_explosion',
+                'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => $x, 'y' => $y],
+                'cibles' => $cibles,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload);
+            $actions[] = $payload;
+        }
+
+        return $actions;
     }
 
     /**
@@ -866,6 +1362,94 @@ final class MoteurPieges
     }
 
     /**
+     * Un sort qui DÉSARME un piège d'embrasement une fois défaussé (Magic
+     * Reference Chart, Wizards of Morcar, relu à l'image 2026-10-08) : « a
+     * Tempest spell or any Water Spell ». « Tempest » est nommé — c'est le sort
+     * *Tempête* du catalogue, rangé en élément `air` dans `SortSeeder` (et non
+     * `eau` comme le supposait le brief) —, « any Water Spell » est l'élément
+     * `eau` (Sommeil, Voile de Brume, Eau de Guérison). Lecteur unique de la
+     * règle : `MenuMoteur` (l'option) et `ResolveurTour` (la résolution).
+     */
+    public static function sortDesarmeEmbrasement(Sort $sort): bool
+    {
+        return $sort->nom === 'Tempête' || $sort->element === 'eau';
+    }
+
+    /**
+     * Les jetons d'embrasement AMORCÉS dont la ZONE (salle ou couloir, celle de
+     * la fouille) contient le héros — la seule condition de désarmement, avec le
+     * sort. Lu par le MENU (option publiée seulement si légale) et REVALIDÉ à
+     * l'identique par le résolveur : une liste portée par l'option est un
+     * whitelist, jamais une confiance.
+     *
+     * @return list<array{index: int, x: int, y: int}>
+     */
+    public function jetonsEmbrasementLegaux(Quete $quete, EtatPersonnageQuete $etat): array
+    {
+        $carte = $quete->carte;
+
+        if ($carte === null || $etat->position_x === null || $etat->position_y === null) {
+            return [];
+        }
+
+        $grille = (array) $carte->grille;
+        $hx = (int) $etat->position_x;
+        $hy = (int) $etat->position_y;
+        $jetons = [];
+
+        foreach ((array) ($grille['pieges'] ?? []) as $index => $entree) {
+            if (($entree['etat'] ?? null) !== self::ETAT_AMORCE) {
+                continue;
+            }
+
+            if (data_get(Piege::find($entree['piege_id'])?->effet, 'declencheur') !== 'fireburst_differe') {
+                continue;
+            }
+
+            if (ZoneFouille::de($grille, (int) $entree['x'], (int) $entree['y'])->contient($hx, $hy)) {
+                $jetons[] = ['index' => (int) $index, 'x' => (int) $entree['x'], 'y' => (int) $entree['y']];
+            }
+        }
+
+        return $jetons;
+    }
+
+    /**
+     * DÉSARME un jeton d'embrasement AMORCÉ en défaussant un sort (Magic
+     * Reference Chart : « the trap is disarmed »). Le sort est ÉPUISÉ pour la
+     * quête (`pivot.disponible`, le même état que tout sort lancé), le jeton
+     * passe en `ETAT_DESARME` : `explosionsFireburstEnAttente()` ne le voit plus
+     * jamais. Le résolveur a déjà validé le jeton et le sort ; ici on ne fait
+     * que l'écriture et l'annonce.
+     *
+     * @return array<string, mixed> payload journalisé
+     */
+    public function desarmerEmbrasement(Groupe $groupe, Carte $carte, int $index, Personnage $personnage, Sort $sort): array
+    {
+        $entree = $carte->grille['pieges'][$index];
+        $piege = Piege::find($entree['piege_id']);
+
+        $personnage->sorts()->updateExistingPivot($sort->id, ['disponible' => false]);
+        $this->changerEtat($carte, $index, self::ETAT_DESARME);
+
+        $payload = [
+            'type' => 'piege_desarme_embrasement',
+            'contexte' => 'sort',
+            'piege' => ['nom' => $piege?->nom ?? "Piège d'embrasement", 'x' => (int) $entree['x'], 'y' => (int) $entree['y']],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'sort' => ['id' => (int) $sort->id, 'nom' => $sort->nom],
+            'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body, 'tombe' => false,
+            'immobilise' => false, 'bloc_permanent' => false,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, [
+            'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+        ]);
+
+        return $payload;
+    }
+
+    /**
      * Désarme d'un coup TOUS les pièges encore actifs d'une salle — l'effet
      * `desarme_pieges_salle` de l'épreuve « Autel fêlé » (2026-08-24).
      *
@@ -1031,10 +1615,20 @@ final class MoteurPieges
                 continue;
             }
 
+            $piege = Piege::find($entree['piege_id']);
+
+            // NON DÉTECTABLE (Wizards of Morcar) : « cannot be found by
+            // searching » couvre aussi l'avertissement du Sens du piège —
+            // sans quoi l'Explorateur apprendrait l'existence d'un piège que
+            // la carte dit introuvable par tout autre moyen que le marcher.
+            if ($piege?->detectable === false) {
+                continue;
+            }
+
             $caches[] = [
                 'x' => (int) $entree['x'],
                 'y' => (int) $entree['y'],
-                'nom' => Piege::find($entree['piege_id'])?->nom ?? 'Piège',
+                'nom' => $piege?->nom ?? 'Piège',
             ];
         }
 
@@ -1067,6 +1661,16 @@ final class MoteurPieges
 
         foreach ($carte->grille['pieges'] ?? [] as $index => $entree) {
             if (($entree['etat'] ?? null) !== self::ETAT_CACHE || ! $filtre($entree)) {
+                continue;
+            }
+
+            // NON DÉTECTABLE (Wizards of Morcar, doc 18 §5/§9) : « cannot be
+            // found by searching » — un piège magique reste `cache` quelle
+            // que soit la méthode de détection (fouille, Œil du mineur,
+            // Potion de Vision partagent ce MÊME révélateur privé). Seul le
+            // pas qui marche dessus le déclenche (`controlerChemin()`,
+            // via `indexPiegeArme()`, qui ne lit JAMAIS `detectable`).
+            if (Piege::find($entree['piege_id'])?->detectable === false) {
                 continue;
             }
 

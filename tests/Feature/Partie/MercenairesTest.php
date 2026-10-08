@@ -62,6 +62,7 @@ it('expose les alliés recrutés au hub dans EtatGroupe.groupe.mercenaires', fun
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
@@ -80,6 +81,7 @@ it('recrute un mercenaire au hub en débitant la bourse commune', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $hallebardier = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
@@ -125,6 +127,7 @@ it('n\'autorise qu\'un seul compagnon animal par groupe', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 1000]);
 
     $loup = Mercenaire::where('animal', true)->firstOrFail();
@@ -136,15 +139,135 @@ it('n\'autorise qu\'un seul compagnon animal par groupe', function () {
     expect($groupe->fresh()->mercenaires()->count())->toBe(1);
 });
 
-it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', function () {
+// ---------------------------------------------------------------------------
+// Statut de GARDIEN et plafond de 4 mercenaires PAR HÉROS (chantier 1c,
+// Wizards of Morcar, livret G1504 p. 8-9, René 2026-10-06) — pour TOUS les
+// groupes, pas seulement le thème `wizards_of_morcar`.
+// ---------------------------------------------------------------------------
+
+it('refuse tout recrutement avant que le groupe ne soit GARDIEN (2 quêtes achevées)', function () {
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $groupe->update(['or' => 500]);
 
+    expect($groupe->estGardien())->toBeFalse();
+
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])
+        ->assertStatus(422);
+
+    expect($groupe->fresh()->mercenaires()->count())->toBe(0)
+        ->and((int) $groupe->fresh()->or)->toBe(500); // rien débité sur un refus
+});
+
+it('débloque le recrutement une fois 2 quêtes ACHEVÉES, et le publie au hub (groupe.gardien)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    // UNE seule quête terminée : toujours pas Gardien (il en faut deux).
+    rendreGardien($groupe, 1);
+    expect($groupe->fresh()->estGardien())->toBeFalse();
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(422);
+
+    // La DEUXIÈME quête achevée débloque.
+    rendreGardien($groupe, 1);
+    expect($groupe->fresh()->estGardien())->toBeTrue();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+
+    $hub = app(App\Partie\EtatGroupe::class)->payload($groupe->fresh());
+    expect($hub['groupe']['gardien'])->toBeTrue();
+});
+
+it('plafonne à 4 mercenaires PAR HÉROS recruteur (le 5ᵉ est refusé)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $albrecht = creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 10000]);
+
+    $merc = Mercenaire::where('nom', 'Éclaireur')->firstOrFail(); // le moins cher, pas un animal
+
+    foreach (range(1, 4) as $_) {
+        $this->postJson('/api/groupes/table-1/mercenaires', [
+            'mercenaire_id' => $merc->id, 'personnage_id' => $albrecht->id,
+        ])->assertStatus(201);
+    }
+
+    // Le CINQUIÈME, pour le MÊME héros, est refusé.
+    $this->postJson('/api/groupes/table-1/mercenaires', [
+        'mercenaire_id' => $merc->id, 'personnage_id' => $albrecht->id,
+    ])->assertStatus(422);
+
+    expect($groupe->fresh()->mercenaires()->where('recruteur_personnage_id', $albrecht->id)->count())->toBe(4);
+});
+
+it('un cinquième mercenaire reste possible pour un AUTRE héros (le plafond est PAR recruteur)', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $albrecht = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $branwen = creerHeros($alice, $groupe, 'Branwen', 2);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 10000]);
+
+    $merc = Mercenaire::where('nom', 'Éclaireur')->firstOrFail();
+
+    foreach (range(1, 4) as $_) {
+        $this->postJson('/api/groupes/table-1/mercenaires', [
+            'mercenaire_id' => $merc->id, 'personnage_id' => $albrecht->id,
+        ])->assertStatus(201);
+    }
+
+    $this->postJson('/api/groupes/table-1/mercenaires', [
+        'mercenaire_id' => $merc->id, 'personnage_id' => $branwen->id,
+    ])->assertStatus(201);
+
+    expect($groupe->fresh()->mercenaires()->count())->toBe(5);
+});
+
+it('une campagne EN COURS garde ses mercenaires déjà recrutés AVANT ce chantier, même sans statut de Gardien', function () {
+    // Repli écrit (brief, décision 2 du chantier 1c) : la garde ne porte QUE
+    // sur un NOUVEAU recrutement — un mercenaire déjà en base (recruté par
+    // une version antérieure du code, ou simplement créé directement comme
+    // ici) n'est jamais retiré rétroactivement.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $albrecht = creerHeros($alice, $groupe, 'Albrecht', 1);
+    $groupe->update(['or' => 500]);
+
+    expect($groupe->estGardien())->toBeFalse();
+
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    App\Models\GroupeMercenaire::create([
+        'groupe_id' => $groupe->id, 'mercenaire_id' => $merc->id,
+        'recruteur_personnage_id' => $albrecht->id, 'pv_body' => $merc->pv_body, 'etat' => 'actif',
+    ]);
+
+    // Toujours là après un hub re-publié : rien ne le purge au seul motif
+    // que le groupe n'est pas (encore) Gardien.
+    $hub = app(App\Partie\EtatGroupe::class)->payload($groupe->fresh());
+    expect(collect($hub['groupe']['mercenaires'])->pluck('nom')->all())->toBe(['Fauchard']);
+});
+
+it('instancie l\'allié au démarrage de quête et l\'expose dans l\'état', function () {
+    $alice = connecterJoueur('alice');
+    // nb_quetes_total=20 : les 2 quêtes fictives de rendreGardien() comptent
+    // dans la numérotation d'arc (`DemarreurQuete::$positionArc`) — sans
+    // marge, la VRAIE quête démarrée ensuite tomberait sur un jalon
+    // sous-boss/boss_final et changerait de budget de rencontre sans rapport
+    // avec ce test.
+    $groupe = creerGroupe('table-1', 20);
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 500]);
+
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
+    oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
     $allie = $groupe->fresh()->mercenaires()->first();
@@ -164,13 +287,15 @@ it('joue l\'allié dans le tour de son joueur : un menu propose d\'attaquer un m
     // termine son tour ('attendre'), et c'est alors SA MANETTE qui reçoit le
     // second menu, celui de l'allié qu'il contrôle.
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = creerGroupe('table-1', 20);
     creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
+    oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
@@ -219,21 +344,24 @@ function terminerTourAllie(): \Illuminate\Testing\TestResponse
     return test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre_allie']);
 }
 
-it('restaure le mercenaire payé à la reprise après un TPK', function () {
+it('restaure le mercenaire payé à la reprise après un TPK, qui PERSISTE déjà avant (chantier 1c)', function () {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = creerGroupe('table-1', 20);
     $hero = creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
 
+    oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     expect($groupe->fresh()->mercenaires()->count())->toBe(1); // instancié au démarrage
 
-    // TPK déterministe : héros à 1 PV, un monstre TRÈS résistant au contact (il
-    // survit à l'allié et tue le héros au tour des monstres).
+    // TPK déterministe : héros à 1 PV, un monstre TRÈS résistant au contact
+    // DU HÉROS (jamais attaqué par l'allié, qui attend) — il tue le héros au
+    // tour des monstres, l'allié n'est jamais visé.
     $hero->update(['pv_body' => 1]);
     $etat = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
     $contact = caseAdjacenteLibre($quete, (int) $etat->position_x, (int) $etat->position_y);
@@ -249,12 +377,15 @@ it('restaure le mercenaire payé à la reprise après un TPK', function () {
     // monstres — et le TPK qu'elle scelle — n'arrive qu'après son tour.
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre_allie'])->assertStatus(202);
 
-    // Quête échouée, retour au hub, allié PURGÉ à l'échec.
+    // Quête échouée, retour au hub — l'allié SURVIVANT (jamais attaqué)
+    // PERSISTE désormais (chantier 1c, 2026-10-06) : plus de purge
+    // inconditionnelle à l'échec, seuls les captifs/les morts le seraient.
     expect($quete->fresh()->etat)->toBe('echouee')
         ->and($groupe->fresh()->phase)->toBe('hub')
-        ->and($groupe->fresh()->mercenaires()->count())->toBe(0);
+        ->and($groupe->fresh()->mercenaires()->count())->toBe(1);
 
-    // Reprise (snapshot debut_quete) : le mercenaire payé revient.
+    // Reprise (snapshot debut_quete) : le même mercenaire revient (delete +
+    // réinsertion à l'identique, id conservé) — pas de doublon.
     $this->postJson('/api/groupes/table-1/reprise')->assertOk();
 
     $recrues = $groupe->fresh()->mercenaires()->with('mercenaire')->get();
@@ -263,17 +394,23 @@ it('restaure le mercenaire payé à la reprise après un TPK', function () {
         ->and($recrues->first()->etat)->toBe('actif');
 });
 
-it('consomme les alliés en fin de quête (victoire)', function () {
+it('le mercenaire RECRUTÉ survivant PERSISTE à la victoire, et l\'entretien est prélevé (chantier 1c)', function () {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = creerGroupe('table-1', 20);
     creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+    $orApresRecrutement = (int) $groupe->fresh()->or; // 500 - prix du Fauchard
 
+    oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    // Butin à ZÉRO : sans ça, `terminerQuete()` crédite l'or du gabarit
+    // AVANT l'entretien, et le calcul ci-dessous ne serait plus prévisible.
+    $quete->gabarit->update(['structure' => [...(array) $quete->gabarit->structure, 'butin' => ['or_base' => 0]]]);
 
     expect($groupe->fresh()->mercenaires()->count())->toBe(1);
 
@@ -284,11 +421,53 @@ it('consomme les alliés en fin de quête (victoire)', function () {
 
     // Le donjon est nettoyé mais la quête reste ouverte : le groupe vote la
     // sortie quand il a fini de fouiller.
-    acheverLaQuete($groupe);
+    $resultat = acheverLaQuete($groupe);
 
+    // Le mercenaire SURVIVANT persiste (plus de purge en fin de quête) et
+    // son entretien (10 po) vient d'être prélevé sur la bourse commune.
     expect($groupe->fresh()->phase)->toBe('hub')
-        // Alliés consommés en fin de quête.
-        ->and($groupe->fresh()->mercenaires()->count())->toBe(0);
+        ->and($groupe->fresh()->mercenaires()->count())->toBe(1)
+        ->and((int) $groupe->fresh()->or)->toBe($orApresRecrutement - 10);
+
+    expect($resultat['mercenaires_entretien']['cout_total'])->toBe(10)
+        ->and(collect($resultat['mercenaires_entretien']['payes'])->pluck('nom')->all())->toBe(['Fauchard'])
+        ->and($resultat['mercenaires_entretien']['partis'])->toBe([]);
+
+    // Et republié au hub suivant (EtatGroupe, contrat).
+    $hub = app(App\Partie\EtatGroupe::class)->payload($groupe->fresh());
+    expect($hub['groupe']['mercenaires_entretien']['cout_total'])->toBe(10);
+});
+
+it('un mercenaire NON PAYÉ (bourse à 0) quitte le groupe à la fin de la quête', function () {
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe('table-1', 20);
+    creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
+    $groupe->update(['or' => 75]); // juste le prix du Fauchard, rien pour l'entretien
+
+    $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
+    $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+    expect((int) $groupe->fresh()->or)->toBe(0);
+
+    oublierQuetesFictivesDeGardien($groupe);
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+    // Butin à ZÉRO : sans ça, le pot pourrait remonter au-dessus de 10 po et
+    // payer l'entretien — on veut ici une bourse qui reste bien à 0.
+    $quete->gabarit->update(['structure' => [...(array) $quete->gabarit->structure, 'butin' => ['or_base' => 0]]]);
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+    desFiges(array_fill(0, 20, 4));
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
+    $resultat = acheverLaQuete($groupe);
+
+    // Bourse à 0 : impossible de payer l'entretien, le mercenaire QUITTE le
+    // groupe (ligne supprimée, à réengager plein tarif).
+    expect($groupe->fresh()->mercenaires()->count())->toBe(0)
+        ->and((int) $groupe->fresh()->or)->toBe(0);
+
+    expect($resultat['mercenaires_entretien']['cout_total'])->toBe(0)
+        ->and($resultat['mercenaires_entretien']['payes'])->toBe([])
+        ->and(collect($resultat['mercenaires_entretien']['partis'])->pluck('nom')->all())->toBe(['Fauchard']);
 });
 
 it('donne aux alliés officiels leur Mind et leurs capacités de carte', function () {
@@ -298,11 +477,12 @@ it('donne aux alliés officiels leur Mind et leurs capacités de carte', functio
     $allies = Mercenaire::all()->keyBy('nom');
 
     // 8 (5 mercenaires humains + 3 compagnons animaux) + le Squelette
-    // Hearthkin (First Light, lot C) + Gothar, le Prospecteur et la
-    // Princesse Millandriel (les trois captifs de la mission « secourir »,
-    // chantier 3b 2026-10-04 puis « captifs-jetons » 2026-10-05) : même
-    // catalogue, aucun des quatre jamais recrutable au hub.
-    expect($allies)->toHaveCount(12, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et les trois captifs');
+    // Hearthkin (First Light, lot C) + Gothar, le Prospecteur, la
+    // Princesse Millandriel et Sir Ragnar (les QUATRE captifs de la mission
+    // « secourir », chantier 3b 2026-10-04, « captifs-jetons » 2026-10-05,
+    // Wizards of Morcar 2026-10-06) : même catalogue, aucun des cinq jamais
+    // recrutable au hub.
+    expect($allies)->toHaveCount(13, 'les 5 mercenaires humains, les 3 compagnons animaux, le Squelette Hearthkin et les quatre captifs');
     expect((bool) $allies['Gothar']->captif)->toBeTrue()
         ->and((bool) $allies['Gothar']->octroi_seul)->toBeTrue();
 
@@ -341,12 +521,14 @@ it('laisse un allié DIAGONAL frapper une cible que l\'orthogonal n\'atteint pas
 function queteAvecAllie(): array
 {
     $alice = connecterJoueur('alice');
-    $groupe = creerGroupe();
+    $groupe = creerGroupe('table-1', 20);
     $heros = creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
     test()->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $merc->id])->assertStatus(201);
+    oublierQuetesFictivesDeGardien($groupe);
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);

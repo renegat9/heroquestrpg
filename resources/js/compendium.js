@@ -254,11 +254,21 @@ export const ELEMENT = {
     druide: { l: 'Répertoire du Druide', ic: 'forest' },
     warlock: { l: 'Répertoire du Warlock', ic: 'local_fire_department' },
     elfique: { l: 'Répertoire elfique', ic: 'nature' },
+    // Répertoires OPTIONNELS (Wizards of Morcar, 2026-10-06) : les CINQ
+    // classes de lanceurs peuvent les choisir à la place d'un répertoire
+    // connu (`PUT /groupes/{id}/sorts-repertoire`) — même piège déjà payé
+    // juste au-dessus : sans ces trois entrées, le guide jetterait les 5
+    // sorts portés en silence.
+    protection: { l: 'Spells of Protection', ic: 'shield' },
+    detection: { l: 'Spells of Detection', ic: 'visibility' },
+    tenebres: { l: 'Spells of Darkness', ic: 'dark_mode' },
 };
 
 /* Ordre d'affichage des groupes de sorts : les écoles d'abord (elles sont le
-   socle), puis les répertoires réservés à une classe. */
-export const ORDRE_ELEMENTS = ['feu', 'eau', 'terre', 'air', 'elfique', 'barde', 'druide', 'warlock'];
+   socle), puis les répertoires réservés à une classe, puis les répertoires
+   OPTIONNELS (ouverts à tous, 2026-10-06). */
+export const ORDRE_ELEMENTS = ['feu', 'eau', 'terre', 'air', 'elfique', 'barde', 'druide', 'warlock',
+    'protection', 'detection', 'tenebres'];
 /* RACE d'une classe (`classes_heros.race`) : elle porte le SOCLE de mouvement
    — nain 3 · halfling 3 · humain 4 · elfe 5 — et n'existait qu'en commentaire
    avant le 2026-08-13. */

@@ -74,12 +74,22 @@ final class MotsClesSort
      * liste légale contient monstres ET héros en ligne de vue. La restriction
      * ne s'applique qu'aux sorts **utilitaires**.
      */
+    /**
+     * Un monstre LANCEUR DE DREAD en ligne de vue, qui lui reste au moins un
+     * sort (*Unlearn*, Wizards of Morcar, *Spells of Protection*, 2026-10-08).
+     * Un sort utilitaire : la liste n'est pas restreinte aux monstres en général,
+     * seulement à ceux qui ont encore un répertoire. Lecteur :
+     * `MoteurSorts::ciblesLegales()` ; l'oubli lui-même : `OubliSorts`.
+     */
+    public const CIBLE_LANCEUR_DREAD = 'lanceur_dread';
+
     public const CIBLES = [
         self::CIBLE_SOI,
         self::CIBLE_HEROS,
         self::CIBLE_HEROS_ADJACENT,
         self::CIBLE_MONSTRE,
         self::CIBLE_MONSTRES_ZONE,
+        self::CIBLE_LANCEUR_DREAD,
     ];
 
     // ----------------------------------------------------------------- COÛT
@@ -141,11 +151,27 @@ final class MotsClesSort
      */
     public const RESISTANCE_RUPTURE_PAR_MIND = 'rupture_6_par_mind';
 
+    /**
+     * MIND EN DÉFENSE : la cible défend avec autant de dés que de points de
+     * Mind actuels — « The target defends with as many dice as they have
+     * Mind Points. Monsters with 0 Mind points may not roll defense » (carte
+     * *Arrows of the Night*, *Spells of Darkness*, Wizards of Morcar
+     * G1504/carton, 2026-10-06). Ni un jet binaire (`jet_mind`) ni un
+     * remplacement de la parade par des dés rouges (`des_rouges`) : c'est un
+     * combat NORMAL (attaque vs défense, boucliers comptés comme d'habitude),
+     * seul le NOMBRE de dés de défense change de source. Lecteur :
+     * `ResolveurTour::sortDegats()`, qui substitue `pv_mind` à
+     * `defenseEffective()`/`desDefenseHeros()` sans toucher au reste du jet —
+     * à 0 Mind, 0 dé de défense, strictement comme la carte le dit.
+     */
+    public const RESISTANCE_DES_MIND = 'des_mind';
+
     public const RESISTANCES = [
         self::RESISTANCE_JET_MIND,
         self::RESISTANCE_AUCUNE,
         self::RESISTANCE_DES_ROUGES,
         self::RESISTANCE_RUPTURE_PAR_MIND,
+        self::RESISTANCE_DES_MIND,
     ];
 
     // ------------------------------------------------------------------ ---

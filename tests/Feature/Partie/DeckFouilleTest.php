@@ -227,6 +227,37 @@ it('bâtit le deck depuis la composition du gabarit, avec plus de cartes que de 
     }
 });
 
+it('ajoute les 8 cartes de trésor de Wizards of Morcar SEULEMENT pour ce thème (lot F, 2026-10-06)', function () {
+    [, $groupe, , $quete] = demarrerFouille();
+
+    $service = app(DeckFouille::class);
+    $gabarit = $quete->gabarit;
+    $carte = $quete->carte->grille;
+
+    $sansTheme = $service->construire($gabarit, $carte, $groupe, 1)['deck'];
+    $avecTheme = $service->construire($gabarit, $carte, $groupe, 1, App\Partie\BestiaireGroupe::manuel(['wizards_of_morcar']))['deck'];
+
+    expect(count($avecTheme))->toBe(count($sansTheme) + 8);
+
+    $cartesMorcar = collect($avecTheme)->pluck('carte')->filter(fn ($c) => str_starts_with((string) $c, 'magical_trap')
+        || str_starts_with((string) $c, 'poison') || str_starts_with((string) $c, 'potion_'))
+        ->filter(fn ($c) => in_array($c, ['magical_trap', 'poison', 'potion_alchimie', 'potion_charme',
+            'potion_predisposition_magique', 'potion_resistance_magie', 'potion_resistance_feu'], true));
+
+    expect($cartesMorcar->filter(fn ($c) => $c === 'magical_trap'))->toHaveCount(2)
+        ->and($cartesMorcar->unique())->toHaveCount(7); // les 7 types SANS Magical Trap compté une fois
+
+    // Chaque carte de potion référence un objet du catalogue réellement seedé.
+    foreach (collect($avecTheme)->where('issue', 'potion')->pluck('objet_id')->filter()->unique() as $id) {
+        expect(Objet::find($id))->not->toBeNull();
+    }
+
+    // Les deux « Magical Trap » référencent le piège de SOL « Piège
+    // d'embrasement » par son nom (même mésaventure que marcher dessus).
+    expect(collect($avecTheme)->where('carte', 'magical_trap')->pluck('piege')->unique()->all())
+        ->toBe(["Piège d'embrasement"]);
+});
+
 it('rend un deck de MÊME composition mais d\'ordre différent à chaque construction', function () {
     [, $groupe, , $quete] = demarrerFouille();
 

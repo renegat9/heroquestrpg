@@ -8,6 +8,7 @@ use App\Engine\RareteButin;
 use App\Models\Carte;
 use App\Models\Mobilier;
 use App\Models\Objet;
+use RuntimeException;
 
 /**
  * Fouille du MOBILIER de salle (doc 17).
@@ -515,6 +516,93 @@ final class MoteurMobilier
         $carte->update(['grille' => $grille]);
 
         return ['pv_restants' => $apres, 'detruit' => $apres <= 0];
+    }
+
+    /**
+     * POINT DE PASSAGE UNIQUE pour poser un mur magique EN COURS DE QUÊTE —
+     * Wall of Stone (sort de héros, Spells of Protection, 2026-10-06)
+     * aujourd'hui ; Wall of Ice (Storm Master) et Wall of Flame (High Mage)
+     * s'y brancheront à la vague 2 des sorts de Sorcier du Dread, comme
+     * nommé dans le brief. DEUX cases (décision de René, 2026-10-05 — « covers
+     * 2 squares not occupied by figures » ; le « une case » du 2026-10-04 est
+     * annulé) : bâti sur le mobilier ATTAQUABLE déjà construit
+     * (`attaquablesAdjacents()`/`pvRestants()`/`infligerDegats()`, chantier
+     * 2026-10-04), donc AUCUN nouveau lecteur de combat — seule la POSE est
+     * neuve, et elle tient en une entrée `l`/`h` de deux cases.
+     *
+     * Ajoute une entrée à `carte.grille['mobilier']`, la MÊME boucle que
+     * `FabriqueGrille::pour()` parcourt déjà pour TOUT le mobilier : bloquer
+     * le mouvement ET la vue (contrairement au Haut Autel/Coffre du Dread,
+     * `bloque_vue: false` — un mur, lui, REMPLACE la roche, voir
+     * `MobilierSeeder`) est donc acquis SANS code supplémentaire.
+     *
+     * ⚠ Aucune case de SALLE n'est requise : un couloir est une cible
+     * légitime (sceller un corridor est l'usage tactique le plus évident du
+     * sort) — `salle` reste `null` dans ce cas, et c'est
+     * `EtatGroupe::mobilier()` qui sait désormais publier un meuble SANS
+     * salle via le brouillard de LA CASE, même correctif que les leviers de
+     * couloir (2026-09-11).
+     *
+     * ⚠ AUCUN contrôle de connexité ici, à dessein : c'est un choix TACTIQUE
+     * du joueur en train de jouer, pas un placement procédural à la
+     * génération — la pièce de carton se pose où le joueur la pose, pour le
+     * meilleur et pour le pire, exactement comme au plateau.
+     *
+     * @return array{index: int, nom: string, pv_body: ?int, defense_dice: ?int} la nouvelle entrée, pour le payload
+     */
+    public function poserMurMagique(Carte $carte, array $cases, string $nomMur): array
+    {
+        $type = Mobilier::where('nom', $nomMur)->first();
+
+        if ($type === null) {
+            throw new RuntimeException("Mur magique inconnu au catalogue : « {$nomMur} ».");
+        }
+
+        // Une PAIRE de cases orthogonalement contiguës (`MoteurSorts::entreesPoseMurMagique()`
+        // fournit la liste légale ; le résolveur ne pose que ce que le menu a
+        // offert). Une seule entrée de mobilier couvre les deux : un PV perdu
+        // détruit donc tout le mur d'un coup, et `FabriqueGrille` le bloque
+        // par `l`/`h` comme n'importe quel meuble de deux cases.
+        if (count($cases) !== 2) {
+            throw new RuntimeException('Un mur magique couvre exactement deux cases.');
+        }
+
+        [$a, $b] = [$cases[0], $cases[1]];
+
+        if (abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']) !== 1) {
+            throw new RuntimeException('Les deux cases d\'un mur magique doivent être orthogonalement contiguës.');
+        }
+
+        $x = min($a['x'], $b['x']);
+        $y = min($a['y'], $b['y']);
+        $l = abs($a['x'] - $b['x']) + 1;
+        $h = abs($a['y'] - $b['y']) + 1;
+
+        $grille = $carte->grille;
+        $mobiliers = (array) ($grille['mobilier'] ?? []);
+        $salles = (array) data_get($grille, 'salles', []);
+
+        $mobiliers[] = [
+            'mobilier_id' => $type->id,
+            'x' => $x,
+            'y' => $y,
+            'l' => $l,
+            'h' => $h,
+            // La salle de la case ORIGINE : `EtatGroupe::mobilier()` publie le
+            // meuble par la salle qu'il porte — un mur à cheval sur deux salles
+            // suit la première, nommé plutôt que deviné.
+            'salle' => Salles::indexDe($salles, $x, $y),
+        ];
+
+        $grille['mobilier'] = $mobiliers;
+        $carte->update(['grille' => $grille]);
+
+        return [
+            'index' => array_key_last($mobiliers),
+            'nom' => $type->nom,
+            'pv_body' => $type->pv_body,
+            'defense_dice' => $type->defense_dice,
+        ];
     }
 
     private function adjacentAEmprise(array $entree, int $x, int $y): bool

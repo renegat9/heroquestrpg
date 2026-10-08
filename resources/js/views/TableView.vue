@@ -5,6 +5,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import MSym from '../components/ui/MSym.vue';
+import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
 import InitiativeBar from '../components/table/InitiativeBar.vue';
 import DungeonMap from '../components/table/DungeonMap.vue';
@@ -933,6 +934,11 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <img v-if="hubImage" :src="hubImage" alt="Lieu de repos" class="hub-illus" />
                         <MSym v-else n="map" :size="40" fill />
                         <p>Le groupe se tient prêt au hub. La prochaine descente attend.</p>
+                        <!-- Annonces de fin de quête (entretien, faveur) : décidées par le serveur. -->
+                        <AnnonceHub
+                            :entretien="etat?.groupe?.mercenaires_entretien ?? null"
+                            :faveur="etat?.groupe?.faveur_hopekins ?? null"
+                        />
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">
                                 <MSym n="play_arrow" /> {{ lancementEnCours ? 'Préparation…' : 'Lancer la quête' }}

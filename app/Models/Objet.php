@@ -25,6 +25,10 @@ class Objet extends Model
         // `DeckFouille::choisirArtefact()`) ; null = utilisable dans toute
         // campagne, quel que soit son thème.
         'boite',
+        // Seule classe à qui la carte refuse la pièce (2026-10-06, Drakehide
+        // Cuirass) ; null = aucune exclusion. Liste blanche INVERSÉE d'une
+        // seule classe — voir la migration `objets_classe_interdite`.
+        'classe_interdite',
     ];
 
     protected function casts(): array

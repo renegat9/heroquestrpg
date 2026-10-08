@@ -769,6 +769,21 @@ class ObjetSeeder extends Seeder
             ['nom' => 'Armure de plates', 'categorie' => 'armure', 'metallique' => true, 'prix_base' => 850, 'emplacement' => 'armure', 'tag_equipement' => 'armure_lourde',
                 'effet' => ['des_defense' => 2, 'deplacement_sans_d6' => true]],
 
+            // ===== Wizards of Morcar (artefact, doc 18 §6, lot 1b, 2026-10-06) =====
+            // DRAKEHIDE CUIRASS — « non-metal armor, +1 Defend die, fixes your
+            // movement at 8 spaces instead of rolling the dice, may be
+            // combined with the helmet and/or shield, cannot be worn by the
+            // Wizard ». Trouvée dans le trésor de Boroush (quête 5), jamais
+            // achetée ni vendue — `prix_base: 0`, comme les armes en OS
+            // juste au-dessus : aucun prix sourcé.
+            // ⚠ `tag_equipement` reste `null` : aucune maîtrise n'est exigée
+            // (la carte ne restreint QU'une classe, par son nom, pas par un
+            // tag de poids) — c'est `classe_interdite` (migration dédiée,
+            // `Equipement::estAccessible()`) qui porte le refus, seul.
+            ['nom' => 'Cuirasse de Peau de Dragon', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'armure', 'tag_equipement' => null, 'classe_interdite' => 'magicien',
+                'effet' => ['bonus_des_defense' => 1, 'deplacement_fixe' => 8]],
+
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
                 'effet' => ['permet_desamorcage' => true]],
@@ -845,6 +860,58 @@ class ObjetSeeder extends Seeder
                 // nous. La clause « cure a hero turned into a werewolf » n'a pas
                 // d'objet : aucun lycanthrope au bestiaire.
                 'effet' => ['restaure_jauges_depart' => true, 'cible' => 'heros_adjacent']],
+
+            // ===== Wizards of Morcar (« Boutique de l'Alchimiste », doc 18
+            // §3, lot F, 2026-10-06) : trois potions VENDUES, prix et texte de
+            // carte. `boite: 'wizards_of_morcar'` les réserve au thème
+            // (`DeckFouille::choisirArtefact()` lit déjà cette colonne pour
+            // les artefacts ; ⚠ NOMMÉ : le marché UNIQUE (`PhaseMarche::ouvrir()`,
+            // René 2026-09-12) ne filtre PAS son étal par `boite` — ces trois
+            // potions resteront donc en rayon dans TOUTE campagne jusqu'à ce
+            // que le marché apprenne à lire cette colonne, pas seulement les
+            // campagnes Morcar. Gap pré-existant du marché, pas introduit ici.
+            ['nom' => 'Potion de résistance au feu', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
+                // « completely unaffected by the next magical fire attack,
+                // spell, or trap ». Même clé que l'Anneau de Feu
+                // (`immunite_degat`), portée par un BUFF plutôt qu'une pièce à
+                // charges — `MoteurSorts::absorbeDegat()` lit les deux.
+                'effet' => ['immunite_degat' => 'feu', 'duree' => 'premier_degat_subi',
+                    'condition_appliquee' => 'Insensible au feu', 'cible' => 'heros_adjacent']],
+            ['nom' => 'Potion de prédisposition magique', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
+                // « cast 2 known spells instead of 1 during this turn » —
+                // TROISIÈME source de `second_sort_par_tour`, au même titre
+                // que Réserve arcanique (nœud) et la Baguette de Rappel.
+                'effet' => ['second_sort_par_tour' => true, 'duree' => 'ce_tour',
+                    'condition_appliquee' => 'Esprit vif', 'cible' => 'heros_adjacent']],
+            ['nom' => 'Potion de résistance à la magie', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
+                // « ignore the effects of the next damaging spell cast on
+                // them ». Nouvelle clé (`annule_prochain_sort_degats`) : voir
+                // sa note au vocabulaire — `immunite_degat` exige une NATURE
+                // de dégât, cette carte-ci n'en nomme aucune.
+                'effet' => ['annule_prochain_sort_degats' => true, 'duree' => 'premier_degat_subi',
+                    'condition_appliquee' => 'Résistance arcanique', 'cible' => 'heros_adjacent']],
+
+            // ===== Wizards of Morcar — cartes de TRÉSOR (doc 18 §8, lot F,
+            // 2026-10-06) : deux potions qui n'ont PAS de carte de boutique —
+            // elles ne viennent QUE du deck de fouille (`DeckFouille::cartesMorcar()`),
+            // comme la Fiole de soin. `rarete: 'unique'` les exclut du marché
+            // (`PhaseMarche::ouvrir()` : « ->where('rarete', '!=', 'unique') »)
+            // sans dépendre du gap de `boite` nommé plus haut.
+            ['nom' => 'Potion d\'alchimie', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
+                // « Potion of Alchemy » — « discard one piece of equipment to
+                // gain 100 gold coins ». Choix de LA pièce défaussée non
+                // exposé au joueur (pas de paramètre d'API) : voir
+                // `MoteurPotions::boire()`.
+                'effet' => ['transmute_equipement_en_or' => 100]],
+            // « Potion of Charm » (doc 18 §8, carte relue à l'image 2026-10-08) :
+            // « Drink this potion between quests when you want to hire
+            // Mercenaries. You may hire up to three Mercenaries for 25 gold
+            // coins each less than normal. » Boite AU HUB seulement
+            // (`MotsClesEquipement::CLES_AU_HUB`) ; son rabais devient un état
+            // durable sur le héros (`MoteurPotions::boire()`), consommé un par
+            // recrutement (`MercenaireController::recruter()`).
+            ['nom' => 'Potion de charme', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
+                'effet' => ['rabais_recrutement_mercenaire' => 25, 'recrutements_a_rabais' => 3]],
         ];
 
         foreach ($objets as $objet) {

@@ -20,8 +20,14 @@ use Illuminate\Validation\ValidationException;
 /**
  * Recrutement d'alliés au hub (Phase 2, 3.5 — doc 14) : un mercenaire ou un
  * compagnon animal est embauché contre l'or de la BOURSE COMMUNE, AVANT une
- * quête (phase `hub`). PNJ scripté, consommé en fin de quête. L'animal est
- * limité à UN par groupe.
+ * quête (phase `hub`). PNJ scripté. L'animal est limité à UN par groupe.
+ *
+ * ⚠ Depuis le chantier 1c (Wizards of Morcar, René 2026-10-06) : le
+ * recrutement n'ouvre qu'une fois le groupe GARDIEN (`Groupe::estGardien()`,
+ * 2 quêtes achevées), plafonné à 4 mercenaires PAR HÉROS recruteur, et le
+ * mercenaire n'est plus consommé en fin de quête — il PERSISTE contre un
+ * entretien de 10 po/quête (`App\Partie\FaveursHopekins::reglerEntretien()`,
+ * réglé par `ResolveurTour::terminerQuete()`). Livret G1504 p. 8-9.
  */
 class MercenaireController extends Controller
 {
@@ -98,6 +104,19 @@ class MercenaireController extends Controller
             ]);
         }
 
+        // STATUT DE GARDIEN (livret G1504 p. 8-9, Wizards of Morcar, chantier
+        // 1c 2026-10-06) : « Once a hero has become a Warden (after
+        // completing Quest 2) » — débloqué pour TOUS les groupes (décision
+        // de René), pas seulement le thème `wizards_of_morcar`. Les
+        // mercenaires déjà recrutés AVANT ce chantier (campagnes en cours)
+        // ne sont jamais retirés : cette garde ne porte que sur un NOUVEAU
+        // recrutement.
+        if (! $groupe->estGardien()) {
+            throw ValidationException::withMessages([
+                'groupe' => 'Le recrutement n\'ouvre qu\'après deux quêtes achevées (statut de Gardien).',
+            ]);
+        }
+
         $mesHeros = $groupe->personnages()
             ->wherePivot('actif', true)
             ->where('joueur_id', $joueur?->id)
@@ -114,6 +133,16 @@ class MercenaireController extends Controller
             ]);
         }
 
+        // 4 MERCENAIRES PAR HÉROS AU PLUS (même livret, même chantier) —
+        // « Wardens may each hire up to four followers at any time between
+        // quests. » Compté sur CE recruteur, mercenaires encore `actif`
+        // (un mercenaire mort ou parti libère son emplacement).
+        if ($groupe->mercenaires()->where('recruteur_personnage_id', $recruteur->id)->where('etat', 'actif')->count() >= 4) {
+            throw ValidationException::withMessages([
+                'personnage_id' => "« {$recruteur->nom} » a déjà engagé 4 mercenaires (maximum de Gardien).",
+            ]);
+        }
+
         $mercenaire = Mercenaire::findOrFail($donnees['mercenaire_id']);
 
         // Le Squelette Hearthkin n'est jamais affiché dans ce catalogue —
@@ -126,9 +155,20 @@ class MercenaireController extends Controller
             ]);
         }
 
-        if ((int) $groupe->or < (int) $mercenaire->prix) {
+        // POTION DE CHARME (Wizards of Morcar, relue à l'image 2026-10-08) :
+        // « You may hire up to three Mercenaries for 25 gold coins each less
+        // than normal » — un ÉTAT DURABLE du recruteur
+        // (`recrutements_a_rabais` > 0 ⇒ la remise `rabais_recrutement_po`),
+        // consommé UN par recrutement dans la transaction ci-dessous. Jamais
+        // une remise tant qu'on possède la fiole, jamais en cache.
+        $rabais = (int) $recruteur->recrutements_a_rabais > 0
+            ? (int) $recruteur->rabais_recrutement_po
+            : 0;
+        $prixAPayerActuel = max(0, (int) $mercenaire->prix - $rabais);
+
+        if ((int) $groupe->or < $prixAPayerActuel) {
             throw ValidationException::withMessages([
-                'mercenaire_id' => "Or insuffisant : {$mercenaire->prix} requis, {$groupe->or} disponible.",
+                'mercenaire_id' => "Or insuffisant : {$prixAPayerActuel} requis, {$groupe->or} disponible.",
             ]);
         }
 
@@ -140,8 +180,14 @@ class MercenaireController extends Controller
             ]);
         }
 
-        $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur) {
-            $groupe->decrement('or', (int) $mercenaire->prix);
+        $recrue = DB::transaction(function () use ($groupe, $mercenaire, $recruteur, $prixAPayerActuel, $rabais) {
+            $groupe->decrement('or', $prixAPayerActuel);
+
+            // La potion se consomme recrutement par recrutement : UN rabais
+            // dépensé ici, dans la même transaction que l'or.
+            if ($rabais > 0) {
+                $recruteur->decrement('recrutements_a_rabais');
+            }
 
             return GroupeMercenaire::create([
                 'groupe_id' => $groupe->id,
@@ -155,7 +201,9 @@ class MercenaireController extends Controller
         Journal::ajouter($groupe, 'systeme', [
             'action' => 'mercenaire_recrute',
             'mercenaire' => $mercenaire->nom,
-            'prix' => (int) $mercenaire->prix,
+            'prix' => $prixAPayerActuel,
+            'prix_catalogue' => (int) $mercenaire->prix,
+            'rabais' => $rabais,
             'recruteur_personnage_id' => $recruteur->id,
         ]);
 

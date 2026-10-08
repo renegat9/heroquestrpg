@@ -281,6 +281,10 @@ final class SceneDeTable
             'attaque_balayee' => $this->attaqueBalayee($a, $acteur),
             'attaque_monstre' => $this->attaqueDuMonstre($a),
             'piege_declenche' => $this->piege($a, $acteur),
+            // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq scènes, une par
+            // événement — voir `pieceMagique()`.
+            'piege_amorce', 'piege_explosion', 'piege_teleporte', 'piege_bourrasque',
+            'piege_desarme_embrasement' => $this->pieceMagique($a, $acteur),
             'fouille_tresor', 'fouille_mobilier' => $this->fouille($a, $acteur),
             'jet', 'desamorcage', 'franchissement' => $this->jet($a, $acteur),
             'actionner_levier' => $this->levier($a, $acteur),
@@ -549,6 +553,139 @@ final class SceneDeTable
                 'libelle' => ! empty($a['tombe'])
                     ? $victime->nom.' tombe'
                     : ($degats > 0 ? "−{$degats} PV" : 'aucun dégât'),
+            ],
+        ];
+    }
+
+    /**
+     * SCÈNES des pièges magiques de Wizards of Morcar (lot 1b) — le même genre
+     * `piege` que les pièges de sol, une scène par événement. Sans elle, la
+     * table ne montrait rien d'un jeton qui explose ou d'un ouragan.
+     *
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function pieceMagique(array $a, Personnage $acteur): array
+    {
+        $piege = (string) ($a['piege']['nom'] ?? "Le piège d'embrasement");
+        $victimeId = (int) ($a['personnage']['id'] ?? 0);
+        $victime = $victimeId > 0 ? Personnage::find($victimeId) : null;
+        $victime ??= $acteur;
+
+        return match ($a['type'] ?? null) {
+            'piege_explosion' => $this->scenePieceExplosion($a, $piege),
+            'piege_teleporte' => [
+                'genre' => 'piege',
+                'titre' => "{$piege} !",
+                'sous_titre' => ! empty($a['teleportation_echouee'])
+                    ? 'La case d\'arrivée est occupée ou inconnue'
+                    : $victime->nom.' est téléporté à l\'autre bout du plateau',
+                'acteurs' => [$this->acteurHeros($victime, 'acteur')],
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [['nom' => $piege, 'image_url' => $this->imagePiege($piege), 'detail' => 'piège unique']],
+                'issue' => [
+                    'ton' => 'info',
+                    'libelle' => ! empty($a['teleportation_echouee']) ? 'piège resté armé' : 'désorienté — tour terminé',
+                ],
+            ],
+            'piege_bourrasque' => $this->scenePieceBourrasque($a, $piege, $victime),
+            'piege_desarme_embrasement' => [
+                'genre' => 'piege',
+                'titre' => "{$piege} désamorcé",
+                'sous_titre' => $victime->nom.' défausse « '.($a['sort']['nom'] ?? 'un sort').' »',
+                'acteurs' => [$this->acteurHeros($victime, 'acteur')],
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [['nom' => $piege, 'image_url' => $this->imagePiege($piege), 'detail' => 'désamorcé']],
+                'issue' => ['ton' => 'succes', 'libelle' => 'aucune explosion'],
+            ],
+            // Le jeton posé : la scène dit le délai, et rien d'autre.
+            default => [
+                'genre' => 'piege',
+                'titre' => "{$piege} !",
+                'sous_titre' => $victime->nom.' déclenche le piège',
+                'acteurs' => [$this->acteurHeros($victime, 'acteur')],
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => [['nom' => $piege, 'image_url' => $this->imagePiege($piege), 'detail' => 'un jeton de feu couve']],
+                'issue' => ['ton' => 'info', 'libelle' => 'explosion au tour du MJ'],
+            ],
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function scenePieceExplosion(array $a, string $piege): array
+    {
+        $cibles = (array) ($a['cibles'] ?? []);
+        $totalDegats = array_sum(array_map(fn ($c) => (int) ($c['degats'] ?? 0), $cibles));
+        $tombes = array_filter($cibles, fn ($c) => ! empty($c['tombe']));
+        $acteurs = [];
+
+        foreach ($cibles as $cible) {
+            if (($cible['type'] ?? null) !== 'heros') {
+                continue;
+            }
+
+            $heros = Personnage::find((int) ($cible['personnage_id'] ?? 0));
+
+            if ($heros !== null) {
+                $acteurs[] = $this->acteurHeros($heros, 'acteur');
+            }
+        }
+
+        return [
+            'genre' => 'piege',
+            'titre' => "{$piege} explose !",
+            'sous_titre' => $cibles === [] ? 'La salle était vide' : count($cibles).' cible(s) touchée(s)',
+            'acteurs' => $acteurs,
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [['nom' => $piege, 'image_url' => $this->imagePiege($piege), 'detail' => $totalDegats.' PV de dégâts cumulés']],
+            'issue' => [
+                'ton' => $tombes !== [] ? 'mort' : ($totalDegats > 0 ? 'degats' : 'info'),
+                'libelle' => $tombes !== [] ? count($tombes).' héros tombé(s)' : ($totalDegats > 0 ? "−{$totalDegats} PV au total" : 'aucun dégât'),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @return array<string, mixed>
+     */
+    private function scenePieceBourrasque(array $a, string $piege, Personnage $victime): array
+    {
+        $acteurs = [$this->acteurHeros($victime, 'acteur')];
+
+        foreach ((array) ($a['repousses'] ?? []) as $repousse) {
+            $heros = Personnage::find((int) ($repousse['personnage_id'] ?? 0));
+
+            if ($heros !== null) {
+                $acteurs[] = $this->acteurHeros($heros, 'acteur');
+            }
+        }
+
+        $nombre = count((array) ($a['repousses'] ?? []));
+
+        return [
+            'genre' => 'piege',
+            'titre' => "{$piege} !",
+            'sous_titre' => 'Un ouragan dévale le couloir',
+            'acteurs' => $acteurs,
+            'jet' => null,
+            'deplacement' => null,
+            'figure' => null,
+            'objets' => [['nom' => $piege, 'image_url' => $this->imagePiege($piege), 'detail' => 'recul forcé du couloir']],
+            'issue' => [
+                'ton' => 'info',
+                'libelle' => $nombre > 0 ? "{$nombre} autre(s) héros rejeté(s)" : 'rejeté en arrière',
             ],
         ];
     }
@@ -997,6 +1134,25 @@ final class SceneDeTable
                 ?? $this->images->vignette('sort', $sortId ?: $nomSort),
             'detail' => $a['sort']['type'] ?? null,
         ]];
+
+        // CLAIRVOYANCE (Spells of Detection, 2026-10-06) : la scène dit ce que
+        // le groupe vient d'apprendre — le contenu de UNE salle, jamais une
+        // figure touchée. Le texte est décidé par le moteur (`visionSalleSort`).
+        // UNLEARN (2026-10-08) : même forme — le texte dit le sort oublié, décidé
+        // par le moteur (`ResolveurTour::oublierSortSort()`).
+        if (in_array($a['mode'] ?? null, ['vision_salle', 'oubli_sort'], true)) {
+            return [
+                'genre' => 'sort',
+                'titre' => $acteur->nom.' lance '.$nomSort,
+                'sous_titre' => ($a['mode'] ?? null) === 'oubli_sort' ? 'Oubli pour la quête' : 'Vision à distance',
+                'acteurs' => $acteurs,
+                'jet' => null,
+                'deplacement' => null,
+                'figure' => null,
+                'objets' => $objets,
+                'issue' => ['ton' => 'info', 'libelle' => (string) ($a['texte'] ?? '')],
+            ];
+        }
 
         // ⚠ SORT DE ZONE : il touche toute une salle, ou tous les héros en vue
         // (Flamme hypnotique, Chant de guérison). Une seule `cible` ne dirait

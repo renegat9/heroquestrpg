@@ -14,6 +14,7 @@
 // pas son tour / pas proposé ce tour).
 import { computed, ref, watch } from 'vue';
 import SortsElfiquesPicker from '../SortsElfiquesPicker.vue';
+import { ELEMENT as REPERTOIRES_FR } from '../../compendium';
 import MSym from '../ui/MSym.vue';
 import ChoiceCard from './ChoiceCard.vue';
 import SpellInfoSheet from './SpellInfoSheet.vue';
@@ -29,11 +30,14 @@ const props = defineProps({
     pending: { type: Boolean, default: false },
     /** Au hub : le rechoix des sorts elfiques n'est offert qu'entre deux quêtes. */
     auHub: { type: Boolean, default: false },
+    /** Répertoires à changer, DÉCIDÉS par le serveur (/moi `repertoires`) :
+     *  `remplacables` = ceux qu'on peut céder, `offerts` = ceux qu'on peut prendre. */
+    repertoires: { type: Object, default: () => ({ remplacables: [], offerts: [] }) },
     /** Envoi du rechoix en cours. */
     rechoixEnCours: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['choose', 'rechoisir-elfiques']);
+const emit = defineEmits(['choose', 'rechoisir-elfiques', 'rechoisir-repertoire']);
 
 /* RECHOIX ELFIQUE (doc 02 §7bis) — réservé à l'Elfe qui a pris la voie du
    répertoire : ses 3 sorts se rechoisissent au hub, là où une école élémentaire
@@ -55,10 +59,26 @@ function confirmerRechoix() {
     rechoixOuvert.value = false;
 }
 
+/* RÉPERTOIRE OPTIONNEL (Wizards of Morcar, livret p. 11) : entre deux quêtes,
+   un répertoire connu cède sa place à l'un des trois optionnels. Deux temps :
+   on choisit le répertoire à céder, puis celui qui le remplace. Ce que la
+   manette affiche (`remplacables`, `offerts`) est DÉCIDÉ par le serveur. */
+const remplacerOuvert = ref(null);
+const peutChangerRepertoire = computed(() => props.auHub && (props.repertoires?.remplacables ?? []).length > 0);
+
+function libelleRepertoire(element) {
+    return REPERTOIRES_FR[element]?.l ?? element;
+}
+
+function choisirRepertoire(elementActuel, nouveau) {
+    remplacerOuvert.value = null;
+    emit('rechoisir-repertoire', elementActuel, nouveau);
+}
+
 // Le rechoix est refermé dès que les sorts du héros changent (le serveur a
 // répondu et /moi a été relu) : garder la feuille ouverte laisserait croire
 // que rien ne s'est passé.
-watch(() => props.sorts, () => { rechoixOuvert.value = false; });
+watch(() => props.sorts, () => { rechoixOuvert.value = false; remplacerOuvert.value = null; });
 
 const groupes = computed(() => sortsParElement(props.sorts ?? []));
 const dispos = computed(() => (props.sorts ?? []).filter((s) => s.disponible !== false).length);
@@ -152,6 +172,32 @@ function lancerConfirme() {
                 </div>
             </template>
         </div>
+        <!-- Répertoires OPTIONNELS (Wizards of Morcar) : entre deux quêtes, un
+             répertoire connu cède sa place. Décision publiée : `repertoires`. -->
+        <div v-if="peutChangerRepertoire" class="spl-rechoix">
+            <p class="spl-note">Entre deux quêtes, un répertoire peut céder sa place à un répertoire optionnel.</p>
+            <p v-if="!repertoires.offerts.length" class="spl-note">Tu connais déjà les trois répertoires optionnels.</p>
+            <template v-else>
+                <div v-for="element in repertoires.remplacables" :key="`rep-${element}`" class="spl-remp">
+                    <button
+                        class="sac-btn ghost"
+                        :disabled="rechoixEnCours"
+                        @click="remplacerOuvert = remplacerOuvert === element ? null : element"
+                    >
+                        <MSym n="swap_horiz" :size="16" /> Remplacer « {{ libelleRepertoire(element) }} »
+                    </button>
+                    <div v-if="remplacerOuvert === element" class="spl-btns">
+                        <button
+                            v-for="nouveau in repertoires.offerts"
+                            :key="`offert-${nouveau}`"
+                            class="sac-btn gold"
+                            :disabled="rechoixEnCours"
+                            @click="choisirRepertoire(element, nouveau)"
+                        >{{ libelleRepertoire(nouveau) }}</button>
+                    </div>
+                </div>
+            </template>
+        </div>
         <div v-for="g in groupes" :key="g.element">
             <div class="sect-title">
                 <span :style="{ width: '9px', height: '9px', borderRadius: '50%', background: g.cle ? `var(--elem-${g.cle})` : 'var(--ink-500)' }" />
@@ -188,5 +234,6 @@ function lancerConfirme() {
    génériques d'une vue à l'autre. */
 .spl-rechoix { margin: 10px 0 14px; }
 .spl-note { margin: 6px 0 0; font-size: 12px; color: var(--ink-300, #b6a88a); }
-.spl-btns { display: flex; gap: 8px; margin-top: 8px; }
+.spl-btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.spl-remp { margin-top: 8px; }
 </style>

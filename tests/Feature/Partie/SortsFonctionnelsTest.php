@@ -76,6 +76,11 @@ const CLES_SORT_ACTIVES = [
     'franchit_figures',        // MoteurSorts::franchitFigures() — Voile de Brume, mode de déplacement
     'degats_fixes',            // ResolveurTour::sortDegats() — montant FIXE, sans dés d'attaque (sorts de feu)
     'des_resistance',          // ResolveurTour::reduireParDesRouges() — d6 bruts, chaque 5-6 annule 1 dégât
+    // ---- Wizards of Morcar — répertoires optionnels (2026-10-06) ----
+    'pose_mur_magique',        // MoteurSorts::entreesPoseMurMagique() + ResolveurTour::poserMurMagiqueSort() — Mur de Pierre
+    'pioche_triple',           // ResolveurTour::piocherTresorConvoite() — Trésor convoité
+    'vision_salle',            // MoteurSorts::entreesVisionSalle() + ResolveurTour::visionSalleSort() — Clairvoyance
+    'oublie_sort',             // MoteurSorts::ciblesLegales() + ResolveurTour::oublierSortSort() — Unlearn (OubliSorts)
 ];
 
 /**
@@ -123,7 +128,17 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         // source qui manque ; même statut que la branche Mind de `relever`.
         'restaure_pv_mind',
         // Un rayon agit : il traverse la ligne et frappe tout ce qui s'y tient.
-        'rayon'];
+        'rayon',
+        // Un mur magique agit : il pose du mobilier attaquable sur la carte.
+        'pose_mur_magique',
+        // Trésor convoité agit : il remplit la bourse (ou pas, s'il ne tombe
+        // que sur des dangers) — trois chances, jamais une promesse.
+        'pioche_triple',
+        // Clairvoyance agit : elle montre le contenu d'UNE salle inconnue, et
+        // ce contenu part au journal et sur la table (SceneDeTable).
+        'vision_salle',
+        // Unlearn agit : un sort de la cible est rangé hors jeu pour la quête.
+        'oublie_sort'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -145,7 +160,17 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         // Psychique* et *Éclair* (2026-09-04), puis *Chaleur* (2026-09-06,
         // phase 5 — le parchemin Warmth) — quatre sorts à n'exister qu'en
         // parchemin (élément `parchemin`, aucune école).
-        ->and(Sort::count())->toBe(31);
+        // ⚠ 38 depuis Unlearn (`protection`) et Clairvoyance (`detection`), 2026-10-08
+        // — sept sorts Morcar portés. 37 depuis Clairvoyance seule. Et 36 depuis le 2026-10-06 : les CINQ sorts portés des répertoires
+        // optionnels Wizards of Morcar (Mur de Pierre + Invisibilité en
+        // `protection`, Trésor convoité en `detection`, Chaînes des Ténèbres
+        // + Flèches de la Nuit en `tenebres`) — Unlearn/Future Sight/
+        // Clairvoyance/Cloak of Shadows restent NON seedés, faute de lecteur
+        // (dette nommée, `docs/regles/sorts-heros.md`).
+        ->and($attendus['protection'] ?? 0)->toBe(3)
+        ->and($attendus['detection'] ?? 0)->toBe(2)
+        ->and($attendus['tenebres'] ?? 0)->toBe(2)
+        ->and(Sort::count())->toBe(38);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

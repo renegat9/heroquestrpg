@@ -271,6 +271,36 @@ final class MoteurReactions
         // serait offert une seconde fois pour être refusé ensuite.
         $soins = $this->soinsDisponibles($heros, $etat);
 
+        // FAVEUR « Healing Hands » (Hopekins Rest, Wizards of Morcar) : un
+        // héros ADJACENT qui porte la faveur peut offrir UNE DE SES potions —
+        // réutilise EXACTEMENT ce lecteur (`soinsDisponibles()`), appelé une
+        // fois par aidant, les potions SEULES (ni artefact ni sort : la carte
+        // dit « one of your available healing potions »), sous une `cle`
+        // distincte (`potion_aide:…`) que `soigner()` route vers l'inventaire
+        // de l'AIDANT plutôt que celui du tombé.
+        $quete = $etat->quete;
+
+        if ($quete !== null) {
+            foreach (app(FaveursHopekins::class)->aidantsPotionAdjacents($quete, $etat) as $aide) {
+                $aidant = $aide['personnage'];
+
+                foreach ($this->soinsDisponibles($aidant, $aide['etat']) as $soin) {
+                    if ($soin['type'] !== 'potion') {
+                        continue;
+                    }
+
+                    [, $inventaireId] = explode(':', $soin['cle'], 2);
+                    $soins[] = [
+                        'cle' => "potion_aide:{$inventaireId}",
+                        'type' => 'potion_aide',
+                        'nom' => "{$soin['nom']} (offerte par {$aidant->nom})",
+                        'soin' => $soin['soin'],
+                        'aidant_personnage_id' => $aidant->id,
+                    ];
+                }
+            }
+        }
+
         if ($soins === []) {
             return;
         }
@@ -1264,6 +1294,33 @@ final class MoteurReactions
             // Le moteur des potions fait foi : c'est lui qui connaît les soins
             // fixes, le 1d6 de la fiole et la consommation de l'exemplaire.
             app(MoteurPotions::class)->boire($heros, $ligne);
+        } elseif ($type === 'potion_aide') {
+            // FAVEUR « Healing Hands » : la potion vient du SAC D'UN AUTRE
+            // héros (voir `proposerSoinUrgence()`) — revalidée ici (situation
+            // possiblement changée entre l'offre et la réponse, même garde
+            // que toute autre réaction), puis `MoteurPotions::boire()` prend
+            // la main avec les rôles inversés : l'AIDANT perd l'exemplaire,
+            // le TOMBÉ (`$heros`) encaisse le soin — même patron que « Passing
+            // Items ».
+            $aidantId = (int) ($detail['aidant_personnage_id'] ?? 0);
+            $quete = $etat->quete;
+            $aidant = $quete === null ? null : app(FaveursHopekins::class)->validerAidantPotion($quete, $etat, $aidantId);
+
+            if ($aidant === null) {
+                throw ValidationException::withMessages([
+                    'reaction' => "Cet allié n'est plus en mesure de te tendre une potion.",
+                ]);
+            }
+
+            $ligne = $aidant->inventaire()->with('objet')->whereKey((int) $id)->first();
+
+            if ($ligne === null) {
+                throw ValidationException::withMessages([
+                    'reaction' => "Cette potion n'est plus dans le sac de {$aidant->nom}.",
+                ]);
+            }
+
+            app(MoteurPotions::class)->boire($aidant, $ligne, [], $heros);
         } elseif ($type === 'artefact') {
             // Artefact PORTÉ : on soigne et on dépense une CHARGE — la pièce
             // reste au sac et devient inerte, elle n'est jamais consommée.

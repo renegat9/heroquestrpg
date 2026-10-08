@@ -579,8 +579,27 @@ final class Equipement
         return $this->valeurEffetPorte($personnage, MotsClesEquipement::ANNULE_GLACE_GLISSANTE) > 0;
     }
 
+    /**
+     * Déplacement FIXE porté par une pièce équipée (Drakehide Cuirass : 8
+     * cases, aucun dé) — 0 si rien ne le porte. Lu au SEUL point de passage
+     * qui calcule ET persiste le jet du tour (`MenuMoteur::deplacementDuTour()`).
+     */
+    public function deplacementFixe(Personnage $personnage): int
+    {
+        return $this->valeurEffetPorte($personnage, MotsClesEquipement::DEPLACEMENT_FIXE);
+    }
+
     public function estAccessible(Personnage $personnage, Objet $objet): bool
     {
+        // LISTE BLANCHE INVERSÉE, une seule classe à la fois (Drakehide
+        // Cuirass : « cannot be worn by the Wizard ») — VETO absolu, avant
+        // toute autre règle : ni la liste blanche du Moine ni la matière
+        // métallique n'atteindraient une armure non métallique interdite à
+        // une classe précise.
+        if ($objet->classe_interdite !== null && $objet->classe_interdite === $personnage->classe) {
+            return false;
+        }
+
         // ⚠ `Personnage::classeHeros` n'existe PAS (piège documenté dans
         // CLAUDE.md, il rend `null` en silence) : la classe se résout par
         // requête sur le nom, comme partout ailleurs dans ce fichier.

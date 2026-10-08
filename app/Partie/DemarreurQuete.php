@@ -208,8 +208,11 @@ final class DemarreurQuete
         $fouille = null;
         $carte = $this->assembleur->assembler(
             $gabarit, crc32($groupe->identifiant.':'.$positionArc), $chance, $bestiaire,
-            function (array $cartePartielle) use ($gabarit, $groupe, $positionArc, &$fouille): array {
-                $fouille = $this->deck->construire($gabarit, $cartePartielle, $groupe, $positionArc);
+            function (array $cartePartielle) use ($gabarit, $groupe, $positionArc, $bestiaire, &$fouille): array {
+                // `$bestiaire` : les 8 cartes de trésor de Wizards of Morcar
+                // (lot F, 2026-10-06) ne rejoignent le deck que pour ce thème
+                // — voir `DeckFouille::cartesMorcar()`.
+                $fouille = $this->deck->construire($gabarit, $cartePartielle, $groupe, $positionArc, $bestiaire);
 
                 return $fouille['salles_coffre'];
             },
@@ -320,8 +323,14 @@ final class DemarreurQuete
 
             // Alliés recrutés (3.5) : instanciés sur les cases de spawn restantes
             // après les héros (juste à côté du groupe), PV réinitialisés.
+            // ⚠ `etat = 'actif'` explicite depuis le chantier 1c (2026-10-06,
+            // entretien des mercenaires) : un mercenaire PERSISTE maintenant
+            // d'une quête à l'autre — sans ce filtre, une ligne `vaincu`
+            // qu'une purge de fin de quête aurait manquée reviendrait à la
+            // vie ici, remise à `'actif'` par l'update ci-dessous.
             $slot = $heros->count();
-            foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->with('mercenaire')->orderBy('id')->get() as $allie) {
+            foreach (GroupeMercenaire::where('groupe_id', $groupe->id)->where('etat', 'actif')
+                ->with('mercenaire')->orderBy('id')->get() as $allie) {
                 if (! isset($carte['spawn_heros'][$slot])) {
                     break; // pas de case de spawn libre : l'allié reste en réserve
                 }

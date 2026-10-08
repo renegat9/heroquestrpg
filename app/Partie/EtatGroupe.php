@@ -126,6 +126,19 @@ final class EtatGroupe
             // compagnon animal est déjà pris (un seul par groupe).
             $preambuleGroupe['mercenaires'] = $this->mercenairesRecrutes($groupe);
 
+            // STATUT DE GARDIEN (chantier 1c, Wizards of Morcar, 2026-10-06) :
+            // la DÉCISION publiée côté serveur — le panneau de recrutement
+            // affiche un message de blocage plutôt que de recalculer la
+            // condition (2 quêtes achevées) côté client.
+            $preambuleGroupe['gardien'] = $groupe->estGardien();
+
+            // Annonces de FIN DE QUÊTE (entretien, faveur de Hopekins Rest) : lues
+            // depuis le journal, jamais recalculées — un effet automatique que
+            // rien n'annonce est injouable. Bornées à la DERNIÈRE quête achevée.
+            $derniereQuete = $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->value('id');
+            $preambuleGroupe['mercenaires_entretien'] = $this->annonceDeQuete($groupe, 'mercenaire_entretien', $derniereQuete);
+            $preambuleGroupe['faveur_hopekins'] = $this->annonceDeQuete($groupe, 'faveur_hopekins', $derniereQuete);
+
             // Prologue de campagne (prémisse + menace) : exposé au hub pour que
             // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
             // quête n'a eu lieu) déclenche l'ouverture automatique au lancement.
@@ -383,7 +396,7 @@ final class EtatGroupe
             // Mobilier (doc 17) : contrairement aux pièges (cachés jusqu'à
             // détection), un meuble n'a rien à découvrir — sa seule condition
             // d'affichage est le même brouillard que le reste de la salle.
-            'mobilier' => $this->mobilier($carte, $decouvertes),
+            'mobilier' => $this->mobilier($carte, $decouvertes, $cases),
             // ÉPREUVES (2026-08-24) : mêmes conditions d'affichage que le
             // mobilier — rien à découvrir, seulement le brouillard de la salle.
             // ⚠ On publie `tentee_par` : la table doit pouvoir montrer QUI a
@@ -663,17 +676,34 @@ final class EtatGroupe
      * d'une salle jamais visitée à travers un marqueur flottant sur la case
      * `b` (contrat, même principe que le filtre `portes` juste au-dessus).
      *
+     * ⚠ **Sans `salle` (2026-10-06)** : un mur magique posé EN COURS DE
+     * QUÊTE (`MoteurMobilier::poserMurMagique()`) peut tomber en COULOIR, qui
+     * n'a pas d'index de salle — exactement le trou déjà connu pour les
+     * leviers de couloir (2026-09-11, « on en déduisait la salle par les
+     * coordonnées, alors que le brouillard répond directement »). Une entrée
+     * `salle: null` est donc affichée dès que sa CASE n'est plus dans le
+     * brouillard, au lieu de ne JAMAIS s'afficher.
+     *
      * @param  list<int>  $decouvertes
+     * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
      * @return list<array{x: int, y: int, l: int, h: int, nom: string, bloque_mouvement: bool, bloque_vue: bool, pv_body: ?int, defense_dice: ?int, pv_restants: ?int}>
      */
-    private function mobilier(Carte $carte, array $decouvertes): array
+    private function mobilier(Carte $carte, array $decouvertes, array $cases): array
     {
         $visibles = collect($carte->grille['mobilier'] ?? [])
             // ⚠ Une pièce MISE EN PIÈCES disparaît de la carte de table : elle
             // ne bloque plus rien (`FabriqueGrille`), et continuer à la dessiner
             // ferait croire au groupe qu'un obstacle barre encore le passage.
             ->reject(fn (array $entree) => MoteurMobilier::estDetruite($entree))
-            ->filter(fn (array $entree) => in_array($entree['salle'] ?? null, $decouvertes, true));
+            ->filter(function (array $entree) use ($decouvertes, $cases) {
+                $salle = $entree['salle'] ?? null;
+
+                if ($salle !== null) {
+                    return in_array($salle, $decouvertes, true);
+                }
+
+                return ($cases[$entree['y']][$entree['x']] ?? 'b') !== 'b';
+            });
 
         $catalogue = Mobilier::query()
             ->whereIn('id', $visibles->pluck('mobilier_id')->filter()->unique())
@@ -1045,6 +1075,7 @@ final class EtatGroupe
         return $groupe->personnages()
             ->wherePivot('actif', true)
             ->orderBy('groupe_personnages.ordre_initiative')
+            ->with('faveurs')
             ->get()
             ->map(function (Personnage $p) use ($etats, $captifsPortes) {
                 $etat = $etats->get($p->id);
@@ -1165,6 +1196,14 @@ final class EtatGroupe
                     'benediction_oracle' => (bool) $p->benediction_oracle,
                     'malediction_oracle' => (bool) $p->malediction_oracle,
                     'conditions' => $this->conditionsHeros($p),
+                    // FAVEURS DE HOPEKINS REST (chantier 1c, Wizards of
+                    // Morcar, 2026-10-06) : don PONCTUEL durable, hors arbre
+                    // de talents — « visible sur la fiche du héros » (brief).
+                    // Forme publiée par le point de passage unique
+                    // `FaveursHopekins::publier()` (cle, libelle, effet) — la
+                    // même que `/moi`, pour que la table et la manette lisent
+                    // une seule chose.
+                    'faveurs' => FaveursHopekins::publier($p),
                     // CAPTIF PORTÉ (mode escorté) — `null` tant qu'il n'en
                     // porte aucun. `image_url` même source que `type:'captif'`/
                     // `type:'allie'` : un captif escorté n'a pas de figure
@@ -1376,5 +1415,67 @@ final class EtatGroupe
         }
 
         return ['texte' => $payload['texte'], 'sequence' => (int) $evenement->sequence];
+    }
+
+    /**
+     * Annonce de FIN DE QUÊTE publiée au hub (entretien des mercenaires, faveur
+     * de Hopekins Rest) : la dernière `systeme` de ce type, SEULEMENT si elle
+     * appartient à la DERNIÈRE quête achevée. Sans cette garde, le hub relirait
+     * indéfiniment la dernière annonce jamais écrite : une quête sans mercenaire
+     * (donc sans entretien) afficherait encore l'entretien de la précédente.
+     * La faveur reçoit son effet EN CLAIR au moment de publier
+     * (`FaveursHopekins::effet()`), jamais figé dans le journal.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function annonceDeQuete(Groupe $groupe, string $action, int|string|null $derniereQueteId): ?array
+    {
+        $annonce = $this->dernierEvenementSysteme($groupe, $action);
+        $derniere = $derniereQueteId === null ? null : (int) $derniereQueteId;
+
+        if ($annonce === null || $derniere === null || (int) ($annonce['quete_id'] ?? 0) !== $derniere) {
+            return null;
+        }
+
+        if ($action === 'faveur_hopekins') {
+            $annonce['faveur_effet'] = FaveursHopekins::effet((string) $annonce['faveur']);
+        }
+
+        return $annonce;
+    }
+
+    /**
+     * Dernier événement `systeme` de ce groupe dont `payload.action === $action`
+     * — même patron que `derniereNarration()`. Toujours la PLUS RÉCENTE : appelé
+     * par `annonceDeQuete()`, qui en décide la validité.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function dernierEvenementSysteme(Groupe $groupe, string $action): ?array
+    {
+        $evenement = Evenement::query()
+            ->where('groupe_id', $groupe->id)
+            ->where('type', 'systeme')
+            ->orderByDesc('sequence')
+            ->get(['payload', 'sequence'])
+            ->first(function (Evenement $e) use ($action) {
+                $payload = $e->payload;
+                if (is_string($payload)) {
+                    $payload = json_decode($payload, true);
+                }
+
+                return ($payload['action'] ?? null) === $action;
+            });
+
+        if ($evenement === null) {
+            return null;
+        }
+
+        $payload = $evenement->payload;
+        if (is_string($payload)) {
+            $payload = json_decode($payload, true);
+        }
+
+        return [...$payload, 'sequence' => (int) $evenement->sequence];
     }
 }

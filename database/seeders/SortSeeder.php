@@ -395,6 +395,108 @@ class SortSeeder extends Seeder
             // apparaît.
             ['element' => 'parchemin', 'nom' => 'Chaleur', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'heros', 'soin_pv_body' => 3]],
+
+            // ================================================================
+            // Wizards of Morcar (G1504, livret p. 11 + cartes TRANSCRITES
+            // 2026-10-05, reference/18_extensions.md) — TROIS répertoires
+            // OPTIONNELS que les CINQ classes de lanceurs peuvent choisir à la
+            // place d'un répertoire existant (`MoteurSorts::remplacerElement()`,
+            // `MoteurSorts::REPERTOIRES_OPTIONNELS`) : « These may replace
+            // existing sets of spells that a spellcaster can draw on (but Elf
+            // and Wizard still have one and three sets of spells respectively).
+            // Spellcasters may change their spells between quests. »
+            //
+            // ⚠ SEPT des NEUF cartes sourcées sont portées (2026-10-08) : *Unlearn*
+            // (héros, `oublie_sort` + `cible: lanceur_dread`, durable par quête via
+            // `OubliSorts`) et *Clairvoyance* (`vision_salle`) s'ajoutent aux cinq
+            // d'avant. Restent NON seedées *Future Sight* (relance TOTALE sans coût
+            // d'action, sur un jet DÉJÀ résolu : question de conception, pas une
+            // ligne de données) et *Cloak of Shadows* (zone à jetons qui bloque vue
+            // ET attaque : nouvelle couche de champ de bataille). Une donnée sans
+            // lecteur est le défaut nommé que ce projet évite partout. Dette NOMMÉE,
+            // pas un oubli : voir `docs/regles/sorts-heros.md`.
+            // ================================================================
+
+            // ---- Spells of Protection ----
+            // WALL OF STONE : « You create a magical wall of stone which
+            // covers 2 squares not occupied by figures. The wall has 1 Body
+            // Point and 6 Defend dice. Discard when the wall is destroyed. »
+            // DEUX cases, comme la carte (René, 2026-10-05 : « covers 2 squares
+            // not occupied by figures », annulant son « une case » du
+            // 2026-10-04) — `pose_mur_magique` nomme le MOBILIER du catalogue
+            // (`MobilierSeeder`) que `ResolveurTour::poserMurMagiqueSort()`
+            // pose via le point de passage unique
+            // `MoteurMobilier::poserMurMagique()`, en une entrée de deux cases.
+            // Aucune `cible` : la paire se choisit via les entrées que
+            // `MoteurSorts::entreesPoseMurMagique()` construit, jamais via une
+            // liste de figures.
+            ['element' => 'protection', 'nom' => 'Mur de Pierre', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['pose_mur_magique' => 'Mur de Pierre']],
+            // INVISIBILITY : « Casting this spell makes you invisible until
+            // the start of your next turn. While invisible, you may not
+            // attack. You cannot be attacked and are immune to all spells. »
+            // `cible: soi` (jamais un allié — la carte dit « makes YOU
+            // invisible ») ; `condition_appliquee: Caché` pose en un geste les
+            // trois clés de la carte (`inattaquable`/`attaque_interdite`/
+            // `immunite_sorts`, ConditionSeeder) ; `duree: prochain_tour`
+            // couvre exactement « until the start of your next turn », comme
+            // Voile de Brume avant elle.
+            ['element' => 'protection', 'nom' => 'Invisibilité', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'soi', 'condition_appliquee' => 'Caché', 'duree' => 'prochain_tour']],
+            // UNLEARN (héros) : « You may pick one spell caster and force them to
+            // discard one spell card at random. The spell is removed from play for
+            // the duration of the Quest. » `cible: lanceur_dread` → un Sorcier de
+            // Dread en ligne de vue qui lui reste au moins un sort ;
+            // `oublie_sort` → UN sort tiré au hasard, rangé dans
+            // `sorts_oublies_de_quete` (`OubliSorts`) : durable pour la quête,
+            // rien ne le rend à la suivante. Le même mécanisme vaudra contre un
+            // héros pour la carte Dread *Unlearn* (vague 2).
+            ['element' => 'protection', 'nom' => 'Unlearn', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'lanceur_dread', 'oublie_sort' => true]],
+
+            // ---- Spells of Detection ----
+            // TREASURE HORDE : « You may cast this spell instead of drawing a
+            // treasure card to draw 3 treasure cards. You may shuffle any of
+            // the drawn cards back into the treasure deck and keep the rest. »
+            // `pioche_triple` → `ResolveurTour::piocherTresorConvoite()` : pioche
+            // EXACTEMENT 3 cartes, applique celles qui payent, remet
+            // automatiquement les dangers/« rien » sous le paquet (même
+            // résolution automatique du « may » que `piocherAvecSixiemeSens`,
+            // une carte remise ne coûte jamais rien à remettre).
+            ['element' => 'detection', 'nom' => 'Trésor convoité', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['pioche_triple' => true]],
+            // CLAIRVOYANCE : « You may ask Zargon to lay out the contents of one
+            // room anywhere on the board. If the room is empty, you may not try
+            // again. Discard after use. » `vision_salle` → une entrée PAR SALLE
+            // NON DÉCOUVERTE (`MoteurSorts::entreesVisionSalle()`), résolue par
+            // `ResolveurTour::visionSalleSort()` : seule la salle choisie se
+            // montre (monstres par nom, nombre de pièges), sans toucher au
+            // brouillard. Une salle vide consomme le sort comme une pleine —
+            // « may not try again » est tenu par « Discard after use » (S5).
+            ['element' => 'detection', 'nom' => 'Clairvoyance', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['vision_salle' => true]],
+
+            // ---- Spells of Darkness ----
+            // CHAINS OF DARKNESS : « You may cast this spell on one monster
+            // you can see. That monster may not move or attack until the
+            // start of your next turn. They may defend or cast spells. »
+            // `resistance: aucune` — la carte ne propose AUCUN jet, l'effet
+            // prend toujours ; `condition_monstre: enchaine` (nouveau mot-clé,
+            // `MoteurSorts::MONSTRE_ENCHAINE`) côté monstre, `condition_appliquee:
+            // Enchaîné` (ConditionSeeder) si le tir ami touche un héros (S3).
+            ['element' => 'tenebres', 'nom' => 'Chaînes des Ténèbres', 'type' => 'mental', 'difficulte_parchemin' => 2,
+                'effet' => ['cible' => 'monstre', 'resistance' => 'aucune',
+                    'condition_monstre' => 'enchaine', 'condition_appliquee' => 'Enchaîné']],
+            // ARROWS OF THE NIGHT : « This spell fires magical bolts at any
+            // monster you can see. Roll 2 Attack dice. The target defends
+            // with as many dice as they have Mind Points. Monsters with 0
+            // Mind points may not roll defense. »
+            // `resistance: des_mind` (nouveau, `MotsClesSort::RESISTANCE_DES_MIND`) :
+            // un combat NORMAL où seul le NOMBRE de dés de défense change de
+            // source — `ResolveurTour::sortDegats()` substitue `pv_mind` à la
+            // défense habituelle, 0 Mind valant 0 dé, mot pour mot la carte.
+            ['element' => 'tenebres', 'nom' => 'Flèches de la Nuit', 'type' => 'degats', 'difficulte_parchemin' => 2,
+                'effet' => ['portee' => 'distance', 'cible' => 'monstre', 'des_degats' => 2, 'resistance' => 'des_mind']],
         ];
 
         foreach ($sorts as $sort) {

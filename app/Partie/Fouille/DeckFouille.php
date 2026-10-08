@@ -37,9 +37,17 @@ final class DeckFouille
      * Bâtit le deck, désigne le coffre et lui attribue une arme unique.
      *
      * @param  array<string, mixed>  $carte  grille assemblée (salles, aretes)
+     * @param  ?BestiaireGroupe  $bestiaire  thème de bestiaire du groupe
+     *         (`DemarreurQuete::BOITES_THEMATIQUES`, auto ou manuel) — dit
+     *         LESQUELLES des cartes de trésor propres à une boîte rejoignent
+     *         le deck (Wizards of Morcar, lot F/§8, 2026-10-06 : 8 cartes
+     *         ajoutées au deck de base, voir `cartesMorcar()`). `null` =
+     *         comportement inchangé (deck de base seul) — tous les appelants
+     *         antérieurs à ce paramètre continuent de fonctionner à
+     *         l'identique.
      * @return array{deck: list<array<string, mixed>>, salle_artefact: int|null, artefact_objet_id: int|null}
      */
-    public function construire(GabaritQuete $gabarit, array $carte, Groupe $groupe, int $positionArc): array
+    public function construire(GabaritQuete $gabarit, array $carte, Groupe $groupe, int $positionArc, ?BestiaireGroupe $bestiaire = null): array
     {
         // Graine TIRÉE AU SORT (décision de René, 2026-08-05) : la pioche ne
         // doit JAMAIS être reproductible. Elle dérivait de
@@ -59,7 +67,7 @@ final class DeckFouille
         $salles = (array) data_get($carte, 'salles', []);
         $nbSalles = count($salles);
 
-        $deck = $prng->melanger($this->cartes($composition, $nbSalles));
+        $deck = $prng->melanger($this->cartes($composition, $nbSalles, $bestiaire));
         // ⚠ QUÊTE À BOSS : le coffre va dans SA salle (René, 2026-09-12 : « quand
         // la mission est de tuer le boss, il faudrait avoir un coffre dans sa
         // salle, contenant trésor ou artefact »).
@@ -232,7 +240,7 @@ final class DeckFouille
      * @param  array<string, mixed>  $composition
      * @return list<array<string, mixed>>
      */
-    private function cartes(array $composition, int $nbSalles): array
+    private function cartes(array $composition, int $nbSalles, ?BestiaireGroupe $bestiaire = null): array
     {
         $nombres = (array) data_get($composition, 'cartes', []);
         $orDefaut = max(1, (int) data_get($composition, 'or', 25));
@@ -261,6 +269,14 @@ final class DeckFouille
             }
         }
 
+        // WIZARDS OF MORCAR (lot F/§8, 2026-10-06) : 8 cartes de trésor
+        // AJOUTÉES au deck de base — le THÈME dit si elles rejoignent le
+        // deck, aucun gabarit ne les compte (même lecture que
+        // `AssembleurCarte::placerTerrains()` pour les tuiles glacées).
+        if ($bestiaire?->contient('wizards_of_morcar') ?? false) {
+            $deck = [...$deck, ...$this->cartesMorcar()];
+        }
+
         // Le deck doit rester PLUS GRAND que le nombre de salles : sinon la
         // dernière fouille est déductible (« il ne reste qu'une carte, c'est
         // forcément le piège »). On complète en « rien ».
@@ -269,6 +285,42 @@ final class DeckFouille
         }
 
         return $deck;
+    }
+
+    /**
+     * Les 8 cartes de trésor DE LA BOÎTE (doc 18 §8) — 9 exemplaires,
+     * « Magical Trap » en double. ⚠ La 8ᵉ, « Nothing! », n'a PAS de ligne
+     * ici : c'est déjà le résultat `rien` que `cartes()` produit par
+     * ailleurs (aucune carte neuve à écrire).
+     *
+     * - **Magical Trap** (×2) référence le piège de SOL « Piège
+     *   d'embrasement » par son NOM : « you set off a Fireburst trap » — la
+     *   MÊME mésaventure que marcher sur le piège, résolue par
+     *   `MoteurPieges::declencherEphemere()` (SANS défense, le tireur seul —
+     *   voir la divergence nommée dans `PiegeSeeder`).
+     * - **Poison** (×1) référence le piège ÉPHÉMÈRE dédié « Poison ».
+     * - Les CINQ potions référencent chacune l'`Objet` seedé par
+     *   `ObjetSeeder` sous le même nom — `issue: 'potion'`, même patron que
+     *   `potion_soin`/`potion_heroisme` plus haut.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cartesMorcar(): array
+    {
+        $potion = fn (string $nom, string $carte) => [
+            'issue' => 'potion', 'objet_id' => Objet::where('nom', $nom)->value('id'), 'carte' => $carte,
+        ];
+
+        return [
+            ['issue' => 'piege', 'piege' => "Piège d'embrasement", 'carte' => 'magical_trap'],
+            ['issue' => 'piege', 'piege' => "Piège d'embrasement", 'carte' => 'magical_trap'],
+            ['issue' => 'piege', 'piege' => 'Poison', 'carte' => 'poison'],
+            $potion("Potion d'alchimie", 'potion_alchimie'),
+            $potion('Potion de charme', 'potion_charme'),
+            $potion('Potion de prédisposition magique', 'potion_predisposition_magique'),
+            $potion('Potion de résistance à la magie', 'potion_resistance_magie'),
+            $potion('Potion de résistance au feu', 'potion_resistance_feu'),
+        ];
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Partie;
 
 use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
+use App\Engine\MotsClesEquipement;
 use App\Models\Condition;
 use App\Models\Inventaire;
 use App\Models\Personnage;
@@ -61,6 +62,17 @@ class MoteurPotions
         }
 
         $buveur = $cible ?? $personnage;
+
+        // ENTRE DEUX QUÊTES (`MotsClesEquipement::CLES_AU_HUB`, Potion of Charm :
+        // « Drink this potion between quests ») : refusée EN QUÊTE, quel que
+        // soit le chemin. Le menu ne l'offre pas (`MenuMoteur`), le résolveur
+        // la refuse ici — deux gardes pour une seule règle.
+        if (MotsClesEquipement::estAuHub((array) $objet->effet)
+            && $buveur->groupeActif?->quete_courante_id !== null) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => "« {$objet->nom} » se boit entre deux quêtes, au hub.",
+            ]);
+        }
 
         // RESTRICTION DE CLASSE — trois potions officielles sont réservées au
         // Barbare et deux à l'Elfe (doc 16 §2.1bis). C'est ici qu'elle est
@@ -144,6 +156,51 @@ class MoteurPotions
             // Un effet automatique que rien n'annonce est injouable : le fil
             // doit dire que le choc se lève, pas seulement que le Mind remonte.
             $applique['choc_leve'] = true;
+        }
+
+        // POTION DE CHARME (Wizards of Morcar, carte de trésor, relue à l'image
+        // 2026-10-08) : « You may hire up to three Mercenaries for 25 gold
+        // coins each less than normal. » — un ÉTAT DURABLE sur le buveur
+        // (`personnages.recrutements_a_rabais`, `rabais_recrutement_po`), écrit
+        // ici et consommé UN par recrutement par `MercenaireController::recruter()`.
+        // Jamais en cache, jamais une remise permanente tant qu'on la possède.
+        if (isset($effet[MotsClesEquipement::RABAIS_RECRUTEMENT_MERCENAIRE])) {
+            $buveur->rabais_recrutement_po = (int) $effet[MotsClesEquipement::RABAIS_RECRUTEMENT_MERCENAIRE];
+            $buveur->recrutements_a_rabais = (int) $buveur->recrutements_a_rabais
+                + (int) ($effet[MotsClesEquipement::RECRUTEMENTS_A_RABAIS] ?? 0);
+            $applique['rabais_recrutement'] = [
+                'po' => (int) $buveur->rabais_recrutement_po,
+                'restants' => (int) $buveur->recrutements_a_rabais,
+            ];
+        }
+
+        // POTION D'ALCHIMIE (carte de trésor, Wizards of Morcar, relue à l'image
+        // 2026-10-08) : « Using this paste on a piece of equipment turns it to
+        // gold! Gain 100 gold. Discard after use, along with the equipment
+        // card. » Le choix de la pièce n'est pas exposé (aucun paramètre
+        // d'API) : la PREMIÈRE pièce d'équipement du buveur, portée d'abord
+        // (déséquipée au passage, pour que les deltas de combat suivent), sac
+        // ensuite. Aucune pièce → la potion ne rend rien, ANNONCÉ comme tel.
+        if (isset($effet[MotsClesEquipement::TRANSMUTE_EQUIPEMENT_EN_OR])) {
+            $or = (int) $effet[MotsClesEquipement::TRANSMUTE_EQUIPEMENT_EN_OR];
+            $piece = $buveur->inventaire()->with('objet')->orderBy('id')->get()
+                ->filter(fn ($l) => $l->objet !== null && in_array($l->objet->emplacement, Equipement::SLOTS, true))
+                ->sortBy(fn ($l) => in_array($l->emplacement, Equipement::SLOTS, true) ? 0 : 1)
+                ->first();
+
+            if ($piece !== null) {
+                $nomPiece = $piece->objet->nom;
+
+                if (in_array($piece->emplacement, Equipement::SLOTS, true)) {
+                    app(Equipement::class)->desequiper($buveur, $piece);
+                }
+
+                $piece->delete();
+                $buveur->groupeActif?->increment('or', $or);
+                $applique['transmute'] = ['piece' => $nomPiece, 'or' => $or];
+            } else {
+                $applique['transmute'] = ['piece' => null, 'or' => 0];
+            }
         }
 
         $buveur->save();
@@ -268,6 +325,26 @@ class MoteurPotions
             'pv_mind' => (int) $buveur->pv_mind,
             'pv_mind_max' => (int) $buveur->pv_mind_max,
         ];
+    }
+
+    /**
+     * Boit une potion AU HUB (`POST /groupes/{id}/potions/boire-au-hub`, contrat
+     * « Wizards of Morcar — lot 1b »). SEULES les potions de
+     * `MotsClesEquipement::CLES_AU_HUB` s'y boivent ; toutes les autres se
+     * boivent en quête, par le menu. Même effet, même consommation : une seule
+     * voie vers `boire()`, qui porte les gardes communes.
+     *
+     * @return array<string, mixed> résumé moteur, comme `boire()`
+     */
+    public function boireAuHub(Personnage $personnage, Inventaire $ligne): array
+    {
+        if (! MotsClesEquipement::estAuHub((array) $ligne->objet?->effet)) {
+            throw ValidationException::withMessages([
+                'inventaire_id' => 'Cette potion ne se boit pas au hub : elle se boit en quête.',
+            ]);
+        }
+
+        return $this->boire($personnage, $ligne);
     }
 
     /**

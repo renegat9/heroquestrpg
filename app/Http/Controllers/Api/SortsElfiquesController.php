@@ -104,4 +104,70 @@ class SortsElfiquesController extends Controller
             ])->values()->all(),
         ]);
     }
+
+    /**
+     * RÉPERTOIRES OPTIONNELS (Wizards of Morcar, livret p. 11, 2026-10-06) :
+     * remplace un élément CONNU par Protection/Détection/Ténèbres —
+     * généralise {@see self::rechoisir()} aux CINQ classes de lanceurs, pas
+     * seulement l'Elfe, « Spellcasters may change their spells between
+     * quests » ne faisant d'exception pour personne. Réutilise le MÊME
+     * mécanisme ({@see MoteurSorts::remplacerElement()}, pivot détaché/réattaché
+     * en bloc) plutôt qu'un second système de choix.
+     *
+     * PUT /api/groupes/{identifiant}/sorts-repertoire
+     * {personnage_id, element_actuel, nouveau_repertoire}
+     */
+    public function rechoisirRepertoire(Request $request, string $identifiant): JsonResponse
+    {
+        $groupe = Groupe::where('identifiant', $identifiant)->firstOrFail();
+        $joueur = Auth::guard('joueur')->user();
+
+        $donnees = $request->validate([
+            'personnage_id' => ['required', 'integer'],
+            'element_actuel' => ['required', 'string'],
+            'nouveau_repertoire' => ['required', 'string', 'in:'.implode(',', MoteurSorts::REPERTOIRES_OPTIONNELS)],
+        ]);
+
+        if ($groupe->phase !== 'hub') {
+            throw ValidationException::withMessages([
+                'phase' => 'On ne rechoisit ses sorts qu\'au hub, entre deux quêtes.',
+            ]);
+        }
+
+        /** @var Personnage|null $personnage */
+        $personnage = $groupe->personnages()
+            ->wherePivot('actif', true)
+            ->where('personnages.id', $donnees['personnage_id'])
+            ->where('joueur_id', $joueur->id)
+            ->first();
+
+        if ($personnage === null) {
+            throw ValidationException::withMessages([
+                'personnage_id' => 'Ce personnage n\'est pas un héros actif de ce groupe contrôlé par vous.',
+            ]);
+        }
+
+        $sorts = $this->sorts->remplacerElement($personnage, $donnees['element_actuel'], $donnees['nouveau_repertoire']);
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'sorts_repertoire_remplace',
+            'personnage_id' => $personnage->id,
+            'ancien_element' => $donnees['element_actuel'],
+            'nouveau_repertoire' => $donnees['nouveau_repertoire'],
+            'sorts' => $sorts->pluck('nom')->all(),
+        ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
+
+        EtatGroupeDiffuse::dispatch($groupe, $this->etatGroupe->payload($groupe->fresh()));
+
+        return response()->json([
+            'personnage_id' => $personnage->id,
+            'repertoire' => $donnees['nouveau_repertoire'],
+            'sorts' => $sorts->map(fn ($s) => [
+                'sort_id' => $s->id,
+                'nom' => $s->nom,
+                'element' => $s->element,
+                'type' => $s->type,
+            ])->values()->all(),
+        ]);
+    }
 }

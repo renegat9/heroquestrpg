@@ -40,6 +40,20 @@ export const PIEGE_ICONES = {
     // visuellement proche suffit, identique aurait confondu les deux sur une
     // carte qui mêlerait les deux thèmes.
     'Fosse des ténèbres': 'nightlight',
+    // Wizards of Morcar (pièges magiques, 2026-10-06, lot B) — trois pièges
+    // qui ne peuvent pas être découverts par la fouille ni trouvés au hasard
+    // (`detectable: false`), posés par la génération de donjon elle-même
+    // (`AssembleurCarte::placerPiegesMorcar()`). Chacun se lit différemment.
+    'Piège de téléportation': 'flight_takeoff',
+    "Piège de l'ouragan": 'air',
+    "Piège d'embrasement": 'local_fire_department',
+    // Poison (carte de TRÉSOR, pas un piège : `detectable: true`,
+    // `declencheur: 'ouverture_tresor'`, tiré au hasard dans les coffres,
+    // 2026-10-06, lot « Cartes de trésor ») — même famille que Piège de
+    // coffre (« roll 1 combat die »), si bien que la tête de crâne les
+    // rassemble d'une icône neutre plutôt que de distinguer "poison"
+    // (vivant) de "piège" (mécanique).
+    'Poison': 'skull',
 };
 export const PIEGE_ICONE_DEFAUT = 'warning';
 
@@ -89,6 +103,10 @@ export const MOBILIER_ICONES = {
     'Amas de cristal': 'diamond',
     'Haut Autel': 'temple_buddhist',
     'Coffre du Dread': 'lock',
+    // Mur de Pierre (Wall of Stone, sort de héros, 2026-10-06) : posé EN
+    // COURS DE QUÊTE, jamais à la génération — un bloc plein, distinct des
+    // trois icônes ci-dessus (aucune ne dit « mur »).
+    'Mur de Pierre': 'block',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

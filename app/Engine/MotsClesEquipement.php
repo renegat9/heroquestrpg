@@ -165,6 +165,21 @@ final class MotsClesEquipement
      */
     public const ANNULE_GLACE_GLISSANTE = 'annule_glace_glissante';
 
+    /**
+     * Déplacement FIXE, qui REMPLACE le calcul base+1d6 en entier — « fixes
+     * your movement at 8 spaces instead of rolling the dice » (*Drakehide
+     * Cuirass*, Wizards of Morcar, doc 18). À la différence de
+     * `BONUS_DEPLACEMENT_PORTE` (qui s'ADDITIONNE au socle avant le jet) ou de
+     * `DEPLACEMENT_SANS_D6` (qui annule le dé mais garde la base DE CLASSE),
+     * cette clé ignore base, dé, Bottes elfiques et menace : le total vaut
+     * littéralement cette valeur, point.
+     * Lecteur : `MenuMoteur::deplacementDuTour()` — SEUL point de passage qui
+     * calcule ET PERSISTE le déplacement du tour (`etat.deplacement_tour`),
+     * lu ensuite partout ailleurs : rien d'autre n'a besoin de connaître cette
+     * clé.
+     */
+    public const DEPLACEMENT_FIXE = 'deplacement_fixe';
+
     // ------------------------------------------------------- ARTEFACTS D'ARME
 
     /**
@@ -315,8 +330,33 @@ final class MotsClesEquipement
      * qui blessent un héros — un sort de héros en tir ami, un sort de Dread, et
      * les dégâts de TERRAIN typés (`ResolveurTour::saignerParTerrain()` /
      * `saignerSurRiviere()`, Chambre forte de glace et Rivière gelée).
+     *
+     * ⚠ Depuis *Potion of Fire Resistance* (Wizards of Morcar, 2026-10-06),
+     * cette même clé se porte aussi sur un BUFF de potion plutôt qu'un objet
+     * ÉQUIPÉ — « completely unaffected by the next magical fire attack, spell
+     * or trap ». `absorbeDegat()` consulte désormais les DEUX : l'équipement
+     * à charges d'abord, puis les buffs actifs (`MoteurSorts::buffsSorts()`,
+     * détachés au premier coup absorbé — une potion n'a pas de compteur de
+     * charges à décrémenter, elle est déjà bue).
      */
     public const IMMUNITE_DEGAT = 'immunite_degat';
+
+    /**
+     * Annule les effets du PROCHAIN sort à DÉGÂTS lancé sur le buveur, quelle
+     * que soit sa nature — « ignore the effects of the next damaging spell
+     * cast on them » (*Potion of Magic Resistance*, Wizards of Morcar, doc 18).
+     *
+     * ⚠ PAS une réutilisation d'`IMMUNITE_DEGAT` : celle-ci exige une NATURE de
+     * dégât précise (`type_degat`) pour s'opposer, et plusieurs sorts de Dread
+     * à dégâts fixes (*Death Bolt*) n'en portent aucune — cette potion-ci
+     * bloque le sort quel qu'il soit, une seule fois.
+     * Lecteur : `MoteurSorts::annuleProchainSortDegats()`, consulté par
+     * `MoteurDread::sortDreadDegats()` AVANT le producteur — portée aux seuls
+     * dégâts de BODY lancés par un sort de Dread (le seul point sourcé par la
+     * carte) ; les dégâts de MIND (`infligerMindAHeros()`) restent hors
+     * périmètre, nommé plutôt qu'oublié.
+     */
+    public const ANNULE_PROCHAIN_SORT_DEGATS = 'annule_prochain_sort_degats';
 
     /**
      * Absorbe des dégâts de MIND un point à la fois, sur un COMPTEUR de
@@ -582,6 +622,57 @@ final class MotsClesEquipement
      * mémoriser un état de départ. `MoteurPotions`.
      */
     public const RESTAURE_JAUGES_DEPART = 'restaure_jauges_depart';
+
+    /**
+     * Transforme une pièce d'équipement du buveur en or — « discard one piece
+     * of equipment to gain 100 gold coins » (*Potion of Alchemy*, carte de
+     * trésor, Wizards of Morcar, doc 18). La VALEUR est le montant d'or rendu.
+     *
+     * ⚠ Choix de la pièce défaussée NON exposé au joueur (pas de paramètre
+     * d'API) : `MoteurPotions::boire()` prend la première arme/armure/outil/
+     * parchemin de l'inventaire du buveur — rien à défausser → la potion ne
+     * fait rien, annoncé comme tel plutôt que silencieux.
+     * Lecteur : `MoteurPotions::boire()`.
+     */
+    public const TRANSMUTE_EQUIPEMENT_EN_OR = 'transmute_equipement_en_or';
+
+    /**
+     * Remise sur le recrutement mercenaire — « Drink this potion between
+     * quests when you want to hire Mercenaries. You may hire up to three
+     * Mercenaries for 25 gold coins each less than normal » (*Potion of Charm*,
+     * carte de trésor, Wizards of Morcar, doc 18, relue à l'image 2026-10-08).
+     * La VALEUR est la remise par recrutement, en pièces d'or.
+     *
+     * ⚠ ÉTAT DURABLE, jamais une remise tant qu'on possède la potion (la
+     * première version, fausse, la lisait sur l'inventaire). `MoteurPotions::
+     * boire()` la transforme en `personnages.rabais_recrutement_po` ET ajoute
+     * `RECRUTEMENTS_A_RABAIS` à `personnages.recrutements_a_rabais` ; c'est
+     * `MercenaireController::recruter()` qui en consomme UN par recrutement.
+     * Lecteurs : `MoteurPotions::boire()` (écriture) et
+     * `MercenaireController::recruter()` (consommation).
+     */
+    public const RABAIS_RECRUTEMENT_MERCENAIRE = 'rabais_recrutement_mercenaire';
+
+    /**
+     * Nombre de recrutements à rabais accordés par la potion — « up to three »
+     * (*Potion of Charm*). Lu par `MoteurPotions::boire()`, seul.
+     */
+    public const RECRUTEMENTS_A_RABAIS = 'recrutements_a_rabais';
+
+    /**
+     * Les clés qui ne se boivent QU'AU HUB, entre deux quêtes (hors de toute
+     * quête) : une potion qui en porte une n'est jamais offerte dans le menu
+     * de quête (`MenuMoteur`), refusée par le résolveur (`MoteurPotions::
+     * boire()`) — et acceptée par `POST /groupes/{id}/potions/boire-au-hub`.
+     * Une seule clé aujourd'hui : la Potion of Charm.
+     */
+    public const CLES_AU_HUB = [self::RABAIS_RECRUTEMENT_MERCENAIRE];
+
+    /** Cette fiche d'effet porte-t-elle une clé qui ne se boit qu'au hub ? */
+    public static function estAuHub(array $effet): bool
+    {
+        return array_intersect(self::CLES_AU_HUB, array_keys($effet)) !== [];
+    }
 
     /**
      * Une seule potion de ce type par tour — Potion de dextérité : « If you
@@ -922,6 +1013,11 @@ final class MotsClesEquipement
         self::RELANCE_ATTAQUE_MONSTRE,
         self::REFLET_SORT_DREAD,
         self::INVOQUE_SQUELETTES_HEARTHKIN,
+        self::DEPLACEMENT_FIXE,
+        self::ANNULE_PROCHAIN_SORT_DEGATS,
+        self::TRANSMUTE_EQUIPEMENT_EN_OR,
+        self::RABAIS_RECRUTEMENT_MERCENAIRE,
+        self::RECRUTEMENTS_A_RABAIS,
     ];
 
     /**
@@ -1011,6 +1107,7 @@ final class MotsClesEquipement
         'bonus_deplacement' => '+%s de déplacement',
         self::BONUS_DEPLACEMENT_PORTE => '+%s de déplacement (quêtes glacées)',
         self::ANNULE_GLACE_GLISSANTE => 'Ignore la Glace glissante',
+        self::DEPLACEMENT_FIXE => 'Déplacement fixe de %s cases (aucun dé)',
         'de_deplacement_supplementaire' => '+%s dé de déplacement',
         'deplacement_multiplie' => 'Déplacement ×%s',
         'franchit_figures' => 'Traverse les figurines',
@@ -1029,6 +1126,9 @@ final class MotsClesEquipement
         'soin_pv_body_de' => 'Rend 1d%s PV de Body',
         'soin_pv_mind' => 'Rend %s PV de Mind',
         'restaure_jauges_depart' => 'Rend toutes les jauges au maximum',
+        self::TRANSMUTE_EQUIPEMENT_EN_OR => 'Défausse une pièce d\'équipement contre %s pièces d\'or',
+        self::RABAIS_RECRUTEMENT_MERCENAIRE => 'Remise de %s po sur chaque recrutement de mercenaire, entre deux quêtes (au hub)',
+        self::RECRUTEMENTS_A_RABAIS => 'Jusqu\'à %s recrutement(s) de mercenaire à prix réduit',
         self::BONUS_PV_BODY_MAX => '+%s PV de Body maximum',
         self::BONUS_PV_MIND_MAX => '+%s PV de Mind maximum',
         // ⚠ Le jet de perte (5 ou 6) est câblé pour TOUT objet à plancher
@@ -1042,6 +1142,7 @@ final class MotsClesEquipement
         self::SECOND_SORT_PAR_TOUR => 'Un second sort par tour',
         self::SORT_NON_EPUISE => 'Le sort lancé n\'est pas épuisé',
         self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
+        self::ANNULE_PROCHAIN_SORT_DEGATS => 'Annule le prochain sort à dégâts subi',
         self::ABSORBE_DEGATS_MIND => 'Absorbe les dégâts de Mind, un point à la fois',
         'reflet_sort_dread' => 'Renvoie un sort du maître du donjon',
         self::SORT_ID => 'Lance un sort',

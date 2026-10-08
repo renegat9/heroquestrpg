@@ -152,6 +152,21 @@ class MercenaireSeeder extends Seeder
                 'deplacement' => 0, 'attaque' => 0, 'defense' => 0, 'pv_body' => 0, 'pv_mind' => 0, 'prix' => 0,
                 'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'escorte',
                 'description' => 'La fille captive de la reine Terrellia — à libérer et porter jusqu\'à l\'escalier.'],
+
+            // ---- SIR RAGNAR (Wizards of Morcar) — captif-figurine de la
+            // mission « secourir » (chantier 1c, 2026-10-06), carte reçue le
+            // 2026-10-05 : stats M7 A3 D5 B6 Mi2, AUCUN texte de capacité
+            // (bloc de stats pur). Même gabarit que Gothar
+            // (`mode_captif: 'figurine'`) : libéré, il devient un allié
+            // ordinaire. ⚠ NOM DISTINCT à dessein — `MonstreSeeder` porte
+            // déjà un « Sir Ragnar » différent (boss de *Rise of the Dread
+            // Moon*, table `monstres`, M5 A5 D5 B4 Mi4) : aucun conflit
+            // technique (tables distinctes) mais une collision NARRATIVE
+            // entre deux boîtes Hasbro, à ne jamais confondre à la table.
+            ['nom' => 'Sir Ragnar (Wizards of Morcar)', 'type' => 'captif_ragnar_morcar',
+                'deplacement' => 7, 'attaque' => 3, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 2, 'prix' => 0,
+                'animal' => false, 'octroi_seul' => true, 'captif' => true, 'mode_captif' => 'figurine',
+                'description' => 'Le capitaine mercenaire retourné en allié — à libérer et ramener vivant à l\'escalier.'],
         ];
 
         // Purge des trois inventés : `updateOrCreate` seul les laisserait en

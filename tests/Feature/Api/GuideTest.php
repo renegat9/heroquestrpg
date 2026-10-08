@@ -89,7 +89,11 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // ⚠ 2026-09-10 : Orbe Céleste, Anneau de Chaleur et Raquettes de
         // Vitesse ne posent non plus aucune restriction de classe sur leur
         // carte — mêmes raisons que ci-dessus.
-        'Orbe Céleste', 'Anneau de Chaleur', 'Raquettes de Vitesse'];
+        'Orbe Céleste', 'Anneau de Chaleur', 'Raquettes de Vitesse',
+        // ⚠ 2026-10-08 (Wizards of Morcar) : la carte n'interdit la Cuirasse
+        // qu'au MAGICIEN. Un tag de poids (`armure_legere`) l'aurait aussi
+        // fermée au Druide, au Rogue… — d'où `classe_interdite`, sans tag.
+        'Cuirasse de Peau de Dragon'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
@@ -144,8 +148,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
     // 20 + 15 + 38 + 19 + 29 — artefacts : +1 Cor des Hearthkin (First Light,
-    // 2026-09-30) puis +2 armes en os (Against the Ogre Horde, lot B, 2026-10-02).
-    expect($cartes)->toHaveCount(121);
+    // 2026-09-30) puis +2 armes en os (Against the Ogre Horde, lot B, 2026-10-02),
+    // puis +5 cartes de Wizards of Morcar (vague 1b, 2026-10-08).
+    expect($cartes)->toHaveCount(126);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

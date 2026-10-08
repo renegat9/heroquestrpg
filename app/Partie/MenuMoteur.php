@@ -63,6 +63,7 @@ final class MenuMoteur
         private readonly StylesElementaires $styles,
         private readonly OrdreDuTour $ordreDuTour,
         private readonly SceneDeTable $scenes,
+        private readonly FaveursHopekins $faveurs,
     ) {}
 
     /**
@@ -238,12 +239,15 @@ final class MenuMoteur
 
         if ($aDistanceArme || $jetable) {
             $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
+            // FAVEUR « Deadeye » (Hopekins Rest) : les figures ne bloquent
+            // plus la ligne de vue de CE héros pour viser.
+            $figuresBloquent = $this->faveurs->figuresBloquentPour($personnage);
             $aDistance = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                 && ! in_array($i->id, $idsAdjacents, true)
                 && $grille->ligneDeVue(
                     (int) $etat->position_x, (int) $etat->position_y,
                     (int) $i->position_x, (int) $i->position_y,
-                    figuresBloquent: true,
+                    figuresBloquent: $figuresBloquent,
                 ));
         }
 
@@ -383,8 +387,10 @@ final class MenuMoteur
         }
 
         $grille = FabriqueGrille::pour($quete);
+        // FAVEUR « Deadeye » (Hopekins Rest) : voir ciblesPourArme() plus haut.
+        $figuresBloquent = $this->faveurs->figuresBloquentPour($personnage);
         $vue = fn (?int $x, ?int $y): bool => $x !== null && $grille->ligneDeVue(
-            (int) $etat->position_x, (int) $etat->position_y, (int) $x, (int) $y, figuresBloquent: true,
+            (int) $etat->position_x, (int) $etat->position_y, (int) $x, (int) $y, figuresBloquent: $figuresBloquent,
         );
 
         if ($cible === MotsClesSort::CIBLE_MONSTRE) {
@@ -616,7 +622,11 @@ final class MenuMoteur
             // `soi` — l'écrasante majorité des potions — `ciblesObjet()` ne
             // construit toujours rien, et c'est l'accessibilité du PORTEUR
             // qui décide, comme avant : comportement inchangé.
-            if ($objet->categorie === 'consommable' && empty($objet->effet['activable'])) {
+            // ENTRE DEUX QUÊTES (Potion of Charm, `MotsClesEquipement::CLES_AU_HUB`) :
+            // jamais offerte en quête — le résolveur la refuse
+            // (`MoteurPotions::boire()`), donc le menu ne la propose pas.
+            if ($objet->categorie === 'consommable' && empty($objet->effet['activable'])
+                && ! MotsClesEquipement::estAuHub((array) $objet->effet)) {
                 $ciblePotion = (string) ($objet->effet['cible'] ?? MotsClesSort::CIBLE_SOI);
                 $ciblesPotion = $this->ciblesObjet($quete, $personnage, $ciblePotion, objet: $objet);
 
@@ -796,12 +806,21 @@ final class MenuMoteur
             // repli de `ResolveurTour::resoudreDeplacement()`.
             $sansMenace = $etat->quete !== null && ! $etat->quete->monstreActifRevele();
 
-            $jet = (new Deplacement($this->des))->calculer(
-                $base + $bonusRaquettes,
-                $deAnnule,
-                (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
-                $sansMenace,
-            );
+            // DRAKEHIDE CUIRASS (Wizards of Morcar, doc 18) : « fixes your
+            // movement at 8 spaces instead of rolling the dice » — REMPLACE
+            // tout le calcul qui précède (base, Raquettes, Bottes, menace),
+            // la carte ne compose avec aucune d'elles. Vérifié EN PREMIER :
+            // c'est le seul endroit qui calcule ET persiste le jet du tour.
+            $deplacementFixe = $this->equipement->deplacementFixe($personnage);
+
+            $jet = $deplacementFixe > 0
+                ? new ResultatDeplacement(base: $deplacementFixe, de: null, total: $deplacementFixe)
+                : (new Deplacement($this->des))->calculer(
+                    $base + $bonusRaquettes,
+                    $deAnnule,
+                    (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
+                    $sansMenace,
+                );
 
             // Détail RÉEL du jet, persisté au lancer — une colonne, jamais un
             // cache (règle consolidée du projet) — pour que la face survive à
@@ -1080,9 +1099,54 @@ final class MenuMoteur
     }
 
     /**
+     * Menu d'un héros — POINT UNIQUE du filtre d'attaque (Wizards of Morcar,
+     * 2026-10-06). Un héros INVISIBLE (condition « Caché », *Invisibility* :
+     * « While invisible, you may not attack ») ne voit AUCUNE de ses options
+     * d'attaque : arme, lancer, Furie, frappe balayée, technique du Moine,
+     * rayon, brasier, meuble attaquable. Le garde-fou de CORRECTION est
+     * `ResolveurTour::resoudre()`, qui lit le MÊME prédicat
+     * ({@see self::estAttaqueDuHeros()}), puis `ResolveurTour::frapper()` pour
+     * toute frappe — « le menu ne propose jamais ce que le résolveur refusera ».
+     *
+     * Le filtre porte sur le menu ENTIER, après tous les chemins de
+     * `genererBrut()` (il y a des `return` anticipés : attaque supplémentaire,
+     * rejetons…), et nulle part ailleurs. Le menu de l'ALLIÉ
+     * ({@see genererMenuAllie()}) n'est pas concerné : « you may not attack »
+     * lie le héros, pas la figure qu'il contrôle.
+     *
      * @return array{situation: string, options: list<array<string, mixed>>}
      */
     public function generer(Groupe $groupe, Personnage $personnage): array
+    {
+        $menu = $this->genererBrut($groupe, $personnage);
+
+        if (! $this->sorts->attaqueInterdite($personnage)) {
+            return $menu;
+        }
+
+        $menu['options'] = array_values(array_filter(
+            $menu['options'],
+            static fn (array $option) => ! self::estAttaqueDuHeros($option),
+        ));
+
+        return $menu;
+    }
+
+    /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
+    public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier'];
+
+    /** Le prédicat UNIQUE « cette option est une attaque du héros » : lu par le menu et par le résolveur. */
+    public static function estAttaqueDuHeros(array $option): bool
+    {
+        return in_array($option['type'] ?? null, self::TYPES_ATTAQUE_HEROS, true);
+    }
+
+    /**
+     * Le menu complet d'un héros, AVANT le filtre d'attaque — voir {@see generer()}.
+     *
+     * @return array{situation: string, options: list<array<string, mixed>>}
+     */
+    private function genererBrut(Groupe $groupe, Personnage $personnage): array
     {
         $quete = $groupe->phase === 'quete' ? $groupe->queteCourante : null;
 
@@ -1301,6 +1365,12 @@ final class MenuMoteur
         // jamais sur le déplacement.
         $actionInterdite = $this->sorts->actionInterdite($personnage);
 
+        // INVISIBILITÉ (Spells of Protection, 2026-10-06) : « you may not
+        // attack » — rien de plus, à la différence d'`$actionInterdite`. Le
+        // filtre des options d'attaque n'est PAS ici : il est posé une seule
+        // fois, sur le menu entier, dans {@see generer()}. Ce commentaire ne
+        // reste que pour dire où il n'est pas.
+
         // ── JETER (créneau INTERACTION, GRATUIT — révision René 2026-09-17) ──
         // « Jeter des items ne prend pas d'action, permettant d'en jeter
         // plusieurs dans le même tour. » `ResolveurTour::creneauOption()`
@@ -1350,6 +1420,36 @@ final class MenuMoteur
                     ])->values()->all(),
                 ],
             ];
+        }
+
+        // ── DÉSARMER UN PIÈGE D'EMBRASEMENT en DÉFAUSSANT UN SORT (Magic
+        // Reference Chart, Wizards of Morcar, relu à l'image 2026-10-08) : « If
+        // a hero in the room with a Fireburst token discards a Tempest spell or
+        // any Water Spell, the trap is disarmed. » « Discards » : un geste
+        // GRATUIT, rangé en `interaction` comme jeter (`ResolveurTour::
+        // creneauOption()`) — ni un lancer, ni l'action du tour. Une option
+        // PAR (jeton, sort) LÉGAL, et seulement ceux-là : le serveur ne publie
+        // que ce que le résolveur acceptera (`jetonsEmbrasementLegaux()` et le
+        // pivot `disponible` sont revalidés à l'identique à la résolution).
+        if ($quete !== null && $etat !== null && $etat->position_x !== null && ! $actionInterdite) {
+            foreach ($this->pieges->jetonsEmbrasementLegaux($quete, $etat) as $jeton) {
+                foreach ($personnage->sorts()->orderBy('sorts.id')->get() as $sort) {
+                    if (! (bool) $sort->pivot->disponible || ! MoteurPieges::sortDesarmeEmbrasement($sort)) {
+                        continue;
+                    }
+
+                    $options[] = [
+                        'id' => "desarmer_embrasement_{$jeton['index']}_{$sort->id}",
+                        'libelle' => "Désarmer le piège d'embrasement — défausser {$sort->nom}",
+                        'type' => 'desarmer_embrasement',
+                        'parametres' => [
+                            'piege_index' => $jeton['index'],
+                            'piege' => ['x' => $jeton['x'], 'y' => $jeton['y']],
+                            'sort_id' => (int) $sort->id,
+                        ],
+                    ];
+                }
+            }
         }
 
         // ── Créneau ACTION (attaque, relever, désamorçage, sorts, fouille) ──
@@ -1968,10 +2068,17 @@ final class MenuMoteur
         // toute option absente du dernier menu — c'est exactement le trou par
         // lequel la seconde attaque de la Potion d'héroïsme était devenue
         // injouable.
+        // …ou par la Potion of Magical Aptitude (Wizards of Morcar, doc 18) :
+        // « cast 2 known spells instead of 1 during this turn » — TROISIÈME
+        // source du MÊME bonus (`etat.bonus_sort_utilise`), buff de potion lu
+        // par `MoteurSorts::aBuff()` plutôt qu'un talent ou une charge
+        // d'objet. Les trois ne se cumulent pas : un magicien équipé qui boit
+        // la potion n'obtient pas un troisième sort.
         $bonusReserveArcaniqueDisponible = $etat !== null && $aAgi
             && ! (bool) ($etat->bonus_sort_utilise ?? false)
             && ($this->talents->a($personnage, 'sort_supplementaire_par_tour')
-                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null);
+                || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null
+                || $this->sorts->aBuff($personnage, MotsClesEquipement::SECOND_SORT_PAR_TOUR));
 
         if ($etat !== null && ! $aAgi && ! $actionInterdite) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {

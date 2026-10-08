@@ -46,6 +46,7 @@ it('assigne le CONTRÔLEUR choisi au recrutement, pas toujours le premier héros
     $groupe = creerGroupe();
     creerHeros($alice, $groupe, 'Albrecht', 1);
     $branwen = creerHeros($alice, $groupe, 'Branwen', 2);
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     $merc = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
@@ -104,6 +105,7 @@ function queteADeuxHerosEtUnAllie(): array
     $bob = \App\Auth\JoueurAuthentifiable::create(['pseudo' => 'bob', 'identifiant' => 'bob', 'mot_de_passe' => 'secret']);
     $branwen = creerHeros($bob, $groupe, 'Branwen', 2);
 
+    rendreGardien($groupe);
     $groupe->update(['or' => 500]);
 
     // Toujours alice ici (le dernier `actingAs` est celui de `connecterJoueur`
@@ -114,6 +116,7 @@ function queteADeuxHerosEtUnAllie(): array
         'personnage_id' => $albrecht->id,
     ])->assertStatus(201);
 
+    oublierQuetesFictivesDeGardien($groupe);
     test()->postJson('/api/groupes/table-1/quetes')->assertCreated();
 
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
@@ -188,6 +191,7 @@ it('deux alliés du MÊME héros jouent l\'un après l\'autre, jamais ensemble',
     $alice = connecterJoueur('alice');
     $groupe = creerGroupe();
     $albrecht = creerHeros($alice, $groupe, 'Albrecht', 1);
+    rendreGardien($groupe);
     $groupe->update(['or' => 1000]);
 
     $fauchard = Mercenaire::where('nom', 'Fauchard')->firstOrFail();
@@ -195,6 +199,7 @@ it('deux alliés du MÊME héros jouent l\'un après l\'autre, jamais ensemble',
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $fauchard->id, 'personnage_id' => $albrecht->id])->assertStatus(201);
     $this->postJson('/api/groupes/table-1/mercenaires', ['mercenaire_id' => $eclaireur->id, 'personnage_id' => $albrecht->id])->assertStatus(201);
 
+    oublierQuetesFictivesDeGardien($groupe);
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $groupe->refresh();
     $allies = $groupe->mercenaires()->orderBy('id')->get();

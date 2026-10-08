@@ -136,6 +136,14 @@ final class MoteurDegats
     public const SOURCE_EAU_BENITE = 'eau_benite';
 
     /**
+     * Faveur « Hold the Line » (Hopekins Rest, Wizards of Morcar) — 1 dégât
+     * FIXE, non résistable (la carte ne mentionne aucune défense), sur un
+     * monstre qui quitte les 8 cases autour du porteur. Voir
+     * App\Partie\FaveursHopekins::tenterHoldTheLine() — l'unique appelant.
+     */
+    public const SOURCE_FAVEUR_HOLD_THE_LINE = 'faveur_hold_the_line';
+
+    /**
      * Applique `$degats` au héros et rend ce qui a RÉELLEMENT été retiré.
      *
      * Le retour n'est pas décoratif : un écouteur peut avoir réduit le coup, et
@@ -405,6 +413,23 @@ final class MoteurDegats
      * de `memoriser()` (`degats_subis` est un compteur de HÉROS, lu par la
      * Plume anti-poison — un monstre n'a pas d'inventaire à soigner).
      *
+     * `$auteurHeros` (2026-10-08) : le héros à qui créditer la faveur
+     * **Peacekeeper** (Hopekins Rest) si ce coup achève RÉELLEMENT le
+     * monstre — « the Realm rewards you with 25 gold coins per monster
+     * defeated ». Lu ICI, au point de passage unique, plutôt qu'aux deux
+     * endroits qui le faisaient avant (2026-10-06 : l'arme au contact/à
+     * distance et le sort à cible unique) : ceux-ci ne couvraient que 2 des
+     * 12 chemins de dégâts, en laissant la flèche de Vindication, l'eau
+     * bénite, le Toucher du Brasier et les sorts de zone — « vous » sans
+     * jamais être crédité. `null` pour les chemins où personne ne frappe EN
+     * SON NOM : un allié recruté (`SOURCE_ATTAQUE_ALLIE`), un piège
+     * (`SOURCE_PIEGE`), un sort du Dread (`SOURCE_SORT_DREAD`) ou un monstre
+     * qui en frappe un autre (`SOURCE_ATTAQUE_MONSTRE_SUR_MONSTRE`) —
+     * décision de portage délibérée : la carte dit « you », jamais une
+     * créature recrutée ou un mécanisme impersonnel. Le paramètre reste
+     * optionnel : passé aussi sur une reddition (Gruzbella), le monstre
+     * étant bien « reduced to 0 Body Points » selon la même donnée.
+     *
      * @param  array<string, mixed>  $contexte
      * @return array{degats: int, pv_body: int, pv_body_max: int, etat: string,
      *     vaincu: bool, changement_phase: array{avant: string, apres: string}|null,
@@ -415,6 +440,7 @@ final class MoteurDegats
         int $degats,
         string $source,
         array $contexte = [],
+        ?Personnage $auteurHeros = null,
     ): array {
         $degats = max(0, $degats);
         $avant = (int) $instance->pv_body;
@@ -532,6 +558,22 @@ final class MoteurDegats
         }
 
         $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
+
+        // FAVEUR « Peacekeeper » (Hopekins Rest) : lue ICI, au seul point de
+        // passage de la mort d'un monstre — voir le docblock de la méthode.
+        // Résolue par le conteneur plutôt qu'injectée au constructeur :
+        // `FaveursHopekins` dépend elle-même de `MoteurDegats` (pour
+        // `tenterHoldTheLine()`), et une injection directe boucherait les
+        // deux classes l'une dans l'autre.
+        if ($auteurHeros !== null) {
+            $groupePourFaveur = $instance->quete?->groupe;
+
+            if ($groupePourFaveur !== null) {
+                app(FaveursHopekins::class)->recompenserPeacekeeperSiVainqueur(
+                    $groupePourFaveur, $instance, true, $auteurHeros,
+                );
+            }
+        }
 
         return [
             'degats' => $avant,

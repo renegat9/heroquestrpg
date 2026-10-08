@@ -104,6 +104,17 @@ final class JournalCombat
             }
         }
 
+        // Faveurs déclenchées pendant la résolution (Peacekeeper, App\Partie\
+        // TamponFaveurs) : rendues par le même `ligneType()` que leur entrée de
+        // journal, pour que le fil en direct et la reconnexion disent la même chose.
+        foreach ((array) ($resultat['faveurs_declenchees'] ?? []) as $faveur) {
+            if (is_array($faveur)) {
+                foreach ($this->ligneType($faveur, $acteurNom) as $ligne) {
+                    $lignes[] = $ligne;
+                }
+            }
+        }
+
         // Charges dépensées (`charges_depensees`, App\Partie\TamponCharges) : ce
         // qu'il reste à l'objet, ou qu'il vient de se briser. Le fil n'en
         // savait rien — l'arc de Sylvan affichait « 4 » avec 2 flèches, et
@@ -517,6 +528,22 @@ final class JournalCombat
                     .(! empty($a['vaincu']) ? ' — elle tombe !' : ''),
                 'ton' => ! empty($a['vaincu']) ? 'mort' : 'degats',
             ]],
+            // FAVEUR « Hold the Line » (Hopekins Rest) : un monstre qui s'éloigne
+            // des 8 cases du porteur, et le dé de combat qui décide. Rien n'était
+            // rendu jusqu'ici : `ligneType()` ignorait ce type → un effet
+            // automatique muet, pire qu'un effet sans payload.
+            'faveur_hold_the_line' => [[
+                'texte' => ($a['personnage'] ?? 'Un héros')." (Hold the Line) — ".($a['monstre'] ?? 'la créature')." s'éloigne : "
+                    .(! empty($a['touche'])
+                        ? 'un crâne, −1 PV'.(! empty($a['vaincu']) ? ' — il tombe !' : '')
+                        : 'aucun crâne'),
+                'ton' => empty($a['touche']) ? 'info' : (empty($a['vaincu']) ? 'degats' : 'mort'),
+            ]],
+            // FAVEUR « Peacekeeper » : la récompense versée à la mise à mort.
+            'faveur_peacekeeper' => [$this->info(
+                ($a['personnage'] ?? 'Un héros')." (Peacekeeper) — ".($a['monstre'] ?? 'la créature')." est vaincu : +"
+                    .(int) ($a['or_gagne'] ?? 0).' po à la bourse commune',
+            )],
             // Frappe balayée : la ligne ANNONCE la salve, les frappes qui
             // suivent la détaillent cible par cible.
             'attaque_balayee' => [$this->info(
@@ -583,6 +610,11 @@ final class JournalCombat
                 'ton' => ! empty($a['reussi']) ? 'succes' : 'echec',
             ]],
             'piege_declenche' => $this->piegeDeclenche($a, $acteurNom),
+            // PIÈGES MAGIQUES (Wizards of Morcar, lot 1b) : cinq événements,
+            // chacun annoncé — jeton posé, explosion, téléportation, ouragan,
+            // désamorçage. Voir `piegeMagique()`.
+            'piege_amorce', 'piege_explosion', 'piege_teleporte', 'piege_bourrasque',
+            'piege_desarme_embrasement' => $this->piegeMagique($a, $acteurNom),
             'monstre_saute_tour' => [$this->info(($a['monstre'] ?? 'Le monstre').' est pris dans la tempête — il passe son tour')],
             'monstre_paralyse' => [$this->info(($a['monstre'] ?? 'Le monstre').' est paralysé par la flamme — il ne peut ni bouger, ni frapper, ni parer')],
             'monstre_endormi' => [$this->info(($a['monstre'] ?? 'Le monstre').' dort')],
@@ -1105,6 +1137,21 @@ final class JournalCombat
             return $this->corHearthkin($a, $acteurNom, $nom);
         }
 
+        // POTION D'ALCHIMIE (Wizards of Morcar, carte de trésor) : « discard one
+        // piece of equipment to gain 100 gold » — la pièce ET l'or se disent, et
+        // « aucune pièce » se dit aussi : une potion qui ne rend rien sans le
+        // dire serait un effet muet.
+        if (array_key_exists('transmute', (array) ($a['potion']['effets'] ?? []))) {
+            $transmute = (array) $a['potion']['effets']['transmute'];
+
+            return [[
+                'texte' => $transmute['piece'] !== null
+                    ? "{$acteurNom} verse {$nom} sur « {$transmute['piece']} » : la pièce devient or — +{$transmute['or']} po pour le groupe"
+                    : "{$acteurNom} verse {$nom} sur rien : aucune pièce d'équipement à transmuter",
+                'ton' => $transmute['piece'] !== null ? 'tresor' : 'info',
+            ]];
+        }
+
         if (! empty($a['tuee'])) {
             return [[
                 'texte' => "{$acteurNom} verse {$nom} sur ".($a['cible']['nom'] ?? 'la créature').' — elle se dissout',
@@ -1525,6 +1572,97 @@ final class JournalCombat
      * @param  array<string, mixed>  $a
      * @return list<array{texte: string, ton: string}>
      */
+    /**
+     * PIÈGES MAGIQUES de Wizards of Morcar (carton « Magic Reference Chart »,
+     * lot 1b) — cinq événements qui n'avaient AUCUNE ligne, et dont l'effet
+     * (un jeton qui couve, un ouragan, une téléportation) serait sinon muet
+     * pour toute la table. Le même patron que `piegeDeclenche()`.
+     *
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function piegeMagique(array $a, string $acteurNom): array
+    {
+        $nom = (string) ($a['personnage']['nom'] ?? $acteurNom);
+        $piege = (string) ($a['piege']['nom'] ?? "Le piège d'embrasement");
+
+        return match ($a['type'] ?? null) {
+            // Jeton posé : « a token remains until the beginning of Zargon's
+            // turn » — l'annonce DIT le délai, c'est toute la surprise permise.
+            'piege_amorce' => [['texte' => "{$nom} déclenche {$piege} — un jeton de feu couve, il explosera au tour du MJ", 'ton' => 'info']],
+            'piege_explosion' => $this->explosionDeFeu($a, $piege),
+            // Téléportation : la destination est refusée (occupée, ou salle
+            // non découverte) → le piège reste ARMÉ, et le dire compte autant.
+            'piege_teleporte' => ! empty($a['teleportation_echouee'])
+                ? [$this->info("{$nom} marche sur {$piege} : la case d'arrivée est occupée ou inconnue — le piège reste armé")]
+                : [['texte' => "{$piege} téléporte {$nom} à l'autre bout du plateau — désorienté, son tour se termine", 'ton' => 'info']],
+            'piege_bourrasque' => $this->bourrasque($a, $nom, $piege),
+            'piege_desarme_embrasement' => [[
+                'texte' => "{$nom} défausse « ".($a['sort']['nom'] ?? 'un sort')." » — {$piege} est désamorcé",
+                'ton' => 'succes',
+            ]],
+            default => [],
+        };
+    }
+
+    /**
+     * L'explosion d'un jeton d'embrasement amorcé : une ligne par cible (héros
+     * ET monstres), défense normale comprise — « pare le coup » quand rien ne
+     * passe.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function explosionDeFeu(array $a, string $piege): array
+    {
+        $cibles = (array) ($a['cibles'] ?? []);
+
+        if ($cibles === []) {
+            return [['texte' => "{$piege} explose sur une salle vide", 'ton' => 'info']];
+        }
+
+        $lignes = [['texte' => "{$piege} explose sur toute la salle !", 'ton' => 'degats']];
+
+        foreach ($cibles as $cible) {
+            $nomCible = (string) ($cible['nom'] ?? 'Un occupant');
+            $degats = (int) ($cible['degats'] ?? 0);
+
+            if (($cible['type'] ?? null) === 'monstre') {
+                $lignes[] = ! empty($cible['vaincu'])
+                    ? ['texte' => "{$nomCible} est vaincu par les flammes", 'ton' => 'mort']
+                    : ($degats > 0
+                        ? ['texte' => "{$nomCible} encaisse −{$degats} PV", 'ton' => 'degats']
+                        : $this->info("{$nomCible} pare le feu"));
+
+                continue;
+            }
+
+            $lignes[] = $degats > 0
+                ? ['texte' => "{$nomCible} encaisse −{$degats} PV", 'ton' => ! empty($cible['tombe']) ? 'chute' : 'degats']
+                : $this->info("{$nomCible} pare le feu");
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * L'ouragan : le déclencheur recule, et CHAQUE autre héros du couloir recule
+     * aussi — chacun doit l'apprendre, sinon sa figurine bouge sans qu'il ait
+     * rien demandé.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function bourrasque(array $a, string $nom, string $piege): array
+    {
+        $lignes = [['texte' => "{$piege} : un ouragan dévale le couloir — {$nom} est rejeté en arrière", 'ton' => 'info']];
+
+        foreach ((array) ($a['repousses'] ?? []) as $repousse) {
+            $lignes[] = ['texte' => ((string) ($repousse['nom'] ?? 'Un héros')).' est rejeté en arrière par l\'ouragan', 'ton' => 'info'];
+        }
+
+        return $lignes;
+    }
+
     private function piegeDeclenche(array $a, string $acteurNom): array
     {
         // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : plusieurs cibles,

@@ -82,9 +82,39 @@ class Groupe extends Model
         return $this->hasMany(Snapshot::class, 'groupe_id');
     }
 
-    /** Alliés recrutés (mercenaires + compagnons), consommés en fin de quête. */
+    /**
+     * Alliés recrutés (mercenaires + compagnons). Depuis le chantier 1c
+     * (Wizards of Morcar, René 2026-10-06) les mercenaires RECRUTÉS (pas les
+     * captifs scénarisés) PERSISTENT d'une quête à l'autre contre un
+     * entretien — voir App\Partie\FaveursHopekins::reglerEntretien() et
+     * ResolveurTour::terminerQuete()/echouerQuete(). Seuls les captifs
+     * (`mercenaire.captif`) et les morts restent consommés en fin de quête.
+     */
     public function mercenaires(): HasMany
     {
         return $this->hasMany(GroupeMercenaire::class, 'groupe_id');
+    }
+
+    /**
+     * Statut de Gardien (« Warden », livret G1504 p. 8-9, Wizards of Morcar) —
+     * débloqué pour TOUT le groupe dès que **2 quêtes sont achevées**
+     * (`etat: 'terminee'`) : « Once a hero has become a Warden (after
+     * completing Quest 2) ». Calculé en DIRECT sur `quetes` (jamais une
+     * colonne ni un cache — ce décompte est déjà une lecture DB déterministe,
+     * pas un état à dupliquer) : débloque le recrutement de mercenaires
+     * (`MercenaireController::recruter()`) et l'entretien devient dû au
+     * premier hub qui suit.
+     *
+     * ⚠ Décision de René (2026-10-06) : **l'entretien de 10 po/mercenaire/
+     * quête s'applique à TOUS les groupes**, pas seulement au thème
+     * `wizards_of_morcar` — mais le statut de Gardien (et donc la PORTE
+     * d'entrée au recrutement) est lui aussi générique, puisque le modèle
+     * économique remplace l'ancien (payant une fois, consommé en fin de
+     * quête) PARTOUT. Une campagne déjà en cours garde ses mercenaires déjà
+     * recrutés quel que soit ce compteur — jamais retirés rétroactivement.
+     */
+    public function estGardien(): bool
+    {
+        return $this->quetes()->where('etat', 'terminee')->count() >= 2;
     }
 }

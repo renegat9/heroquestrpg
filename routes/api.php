@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\GroupeController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\MarcheController;
 use App\Http\Controllers\Api\MercenaireController;
+use App\Http\Controllers\Api\PotionController;
 use App\Http\Controllers\Api\ParametresController;
 use App\Http\Controllers\Api\SauvegardeController;
 use App\Http\Controllers\Api\SortsElfiquesController;
@@ -167,6 +168,11 @@ Route::middleware('auth:joueur')->group(function () {
     // dons. L'école élémentaire, elle, est définitive (doc 02 §7bis).
     Route::put('/groupes/{identifiant}/sorts-elfiques', [SortsElfiquesController::class, 'rechoisir']);
 
+    // Répertoires OPTIONNELS (Wizards of Morcar, livret p. 11, 2026-10-06) :
+    // remplace UN élément connu par Protection/Détection/Ténèbres — HUB
+    // uniquement, ouvert aux CINQ classes de lanceurs (pas seulement l'Elfe).
+    Route::put('/groupes/{identifiant}/sorts-repertoire', [SortsElfiquesController::class, 'rechoisirRepertoire']);
+
     // Forge du Nain (nœud d'arbre, doc 01 §6 + doc 04 §4) — au hub uniquement,
     // améliore DÉFINITIVEMENT une pièce d'un membre actif contre de l'or commun.
     Route::get('/forge', [ForgeController::class, 'catalogue']);
@@ -175,6 +181,11 @@ Route::middleware('auth:joueur')->group(function () {
     // Recrutement d'alliés au hub (3.5) — catalogue + bourse commune.
     Route::get('/mercenaires', [MercenaireController::class, 'catalogue']);
     Route::post('/groupes/{identifiant}/mercenaires', [MercenaireController::class, 'recruter']);
+
+    // Boire une potion AU HUB (Wizards of Morcar, Potion of Charm : « Drink this
+    // potion between quests ») — réservée aux potions de
+    // `MotsClesEquipement::CLES_AU_HUB`, jamais en quête (le menu s'en charge).
+    Route::post('/groupes/{identifiant}/potions/boire-au-hub', [PotionController::class, 'boireAuHub']);
 
     // Phase marché (doc 04 §5 — au hub uniquement) : paniers en cache,
     // application atomique quand TOUS les joueurs ont confirmé.

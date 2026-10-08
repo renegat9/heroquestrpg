@@ -150,6 +150,15 @@ class Personnage extends Model
         return $this->hasMany(Inventaire::class, 'personnage_id');
     }
 
+    /**
+     * Faveurs de Hopekins Rest acquises (chantier 1c, Wizards of Morcar,
+     * 2026-10-06) — hors arbre de talents, voir App\Partie\FaveursHopekins.
+     */
+    public function faveurs(): HasMany
+    {
+        return $this->hasMany(PersonnageFaveur::class, 'personnage_id');
+    }
+
     /** Sorts connus, avec disponibilité (épuisé/dispo par quête). */
     public function sorts(): BelongsToMany
     {

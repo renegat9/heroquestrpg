@@ -342,6 +342,18 @@ export function useApi() {
                 personnage_id: personnageId, sorts,
             }),
 
+        /* PUT /groupes/{id}/sorts-repertoire {personnage_id, element_actuel,
+           nouveau_repertoire} — remplace un répertoire CONNU par l'un des trois
+           répertoires optionnels (Wizards of Morcar, livret p. 11). HUB
+           uniquement, cinq classes de lanceurs. Les choix offerts viennent de
+           `/moi` (`repertoires`), jamais recalculés ici. */
+        rechoisirRepertoire: (identifiant, personnageId, elementActuel, nouveauRepertoire) =>
+            request('PUT', `/groupes/${identifiant}/sorts-repertoire`, {
+                personnage_id: personnageId,
+                element_actuel: elementActuel,
+                nouveau_repertoire: nouveauRepertoire,
+            }),
+
         /**
          * POST /groupes/{id}/competences {personnage_id, competence_id,
          * element?} — acquiert un nœud d'arbre (422 : pas son héros, classe

@@ -5,6 +5,7 @@ use App\Engine\Des\LanceurDes;
 use App\Engine\Des\LanceurDeterministe;
 use App\Models\Competence;
 use App\Models\EtatPersonnageQuete;
+use App\Models\GabaritQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Joueur;
@@ -87,6 +88,45 @@ function creerGroupe(string $identifiant = 'table-1', int $nbQuetes = 3): Groupe
         'nb_quetes_total' => $nbQuetes,
         'phase' => 'hub',
     ]);
+}
+
+/**
+ * Marque le groupe GARDIEN (statut de Hopekins Rest, Wizards of Morcar,
+ * chantier 1c 2026-10-06) en lui créditant `$n` quêtes TERMINÉES fictives —
+ * débloque le recrutement de mercenaires (`Groupe::estGardien()`) sans jouer
+ * de vraie quête. Ces quêtes n'ont ni carte ni personnage : seul leur `etat`
+ * compte pour ce décompte. Nécessite `GabaritQueteSeeder` dans le `beforeEach`
+ * de l'appelant (comme toute suite qui démarre une quête).
+ */
+function rendreGardien(Groupe $groupe, int $n = 2): void
+{
+    $gabaritId = GabaritQuete::query()->value('id');
+
+    for ($i = 1; $i <= $n; $i++) {
+        Quete::create([
+            'groupe_id' => $groupe->id,
+            'gabarit_id' => $gabaritId,
+            'titre' => "Quête fictive {$i}",
+            'position_arc' => $i,
+            'type_jalon' => 'normale',
+            'etat' => 'terminee',
+        ]);
+    }
+}
+
+/**
+ * Efface les quêtes fictives posées par `rendreGardien()` — à appeler APRÈS
+ * un recrutement (qui a besoin du statut de Gardien) mais AVANT `POST
+ * /quetes` : `DemarreurQuete::demarrer()` numérote la VRAIE quête sur
+ * `$groupe->quetes()->count() + 1`, et un `position_arc` décalé choisit un
+ * autre gabarit (y compris, par hasard, une mission « secourir » qui pose un
+ * CAPTIF en plus du mercenaire recruté — faux-positif observé en test). Rien
+ * d'autre ne relit `estGardien()` après le recrutement, donc les effacer ici
+ * ne retire aucune garantie déjà vérifiée.
+ */
+function oublierQuetesFictivesDeGardien(Groupe $groupe): void
+{
+    Quete::where('groupe_id', $groupe->id)->where('titre', 'like', 'Quête fictive%')->delete();
 }
 
 /**

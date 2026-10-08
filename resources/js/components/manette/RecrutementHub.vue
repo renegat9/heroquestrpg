@@ -1,8 +1,12 @@
 <script setup>
 // Recrutement d'alliés au hub (doc 14 §3.5) — bourse commune. Le joueur
 // embauche un mercenaire/compagnon contre l'or COMMUN du groupe, avant une
-// quête ; l'allié est un PNJ scripté consommé en fin de quête. La disponibilité
-// (or suffisant, un seul animal) est calculée ici depuis l'état vivant du groupe.
+// quête ; depuis le chantier 1c (Wizards of Morcar, 2026-10-06) l'allié
+// PERSISTE d'une quête à l'autre contre un entretien de 10 po/quête, et le
+// recrutement n'ouvre qu'une fois le groupe GARDIEN (2 quêtes achevées,
+// `groupe.gardien` — la DÉCISION publiée côté serveur, jamais recalculée
+// ici). La disponibilité (or suffisant, un seul animal) est calculée ici
+// depuis l'état vivant du groupe.
 import { computed } from 'vue';
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
@@ -14,6 +18,8 @@ const props = defineProps({
     recrues: { type: Array, default: () => [] },
     // Or de la bourse COMMUNE (EtatGroupe.groupe.or).
     or: { type: Number, default: 0 },
+    // Statut de Gardien (EtatGroupe.groupe.gardien) — débloque le recrutement.
+    gardien: { type: Boolean, default: false },
     // Un recrutement est en cours (gèle les boutons).
     enCours: { type: Boolean, default: false },
 });
@@ -23,6 +29,7 @@ const animalPris = computed(() => props.recrues.some((r) => r.animal));
 
 // Motif de blocage d'une recrue (null = recrutable).
 function blocage(m) {
+    if (!props.gardien) return 'Réservé aux Gardiens (2 quêtes achevées)';
     if (m.animal && animalPris.value) return 'Un seul compagnon animal';
     if (props.or < m.prix) return 'Or insuffisant';
     return null;
@@ -38,8 +45,9 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
             <MSym n="paid" fill :size="15" /> Bourse commune : <b>{{ or }}</b> or
         </div>
         <p class="recrut-note">
-            L'allié est un renfort scripté, embauché avec l'or du groupe et présent
-            le temps d'une quête.
+            L'allié est un renfort scripté, embauché avec l'or du groupe. Il reste
+            avec vous d'une quête à l'autre contre 10 po d'entretien par quête ;
+            impayé, il quitte le groupe.
         </p>
 
         <div v-for="m in catalogue" :key="m.id" class="recrut-carte" :class="{ off: !!blocage(m) }">

@@ -52,9 +52,27 @@ const condIcon = { poison: 'coronavirus', burn: 'local_fire_department', buff: '
                 </div>
                 <span class="num">{{ p.mind[0] }}/{{ p.mind[1] }}</span>
             </div>
+            <!-- Faveurs de Hopekins Rest : nom + effet, tels que publiés par le serveur. -->
+            <div v-if="p.faveurs?.length" class="grp-faveurs">
+                <div v-for="f in p.faveurs" :key="f.cle" class="grp-faveur" :title="f.effet">
+                    <MSym n="workspace_premium" fill :size="13" />
+                    <b>{{ f.libelle }}</b>
+                    <span>{{ f.effet }}</span>
+                </div>
+            </div>
             <div v-if="p.low" class="downed-tag">
                 <MSym n="warning" fill /> État critique — à protéger
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Faveurs de Hopekins Rest sur la carte du héros (scopé : les blocs <style>
+   globaux du projet font fuir les noms de classe). */
+.grp-faveurs { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.grp-faveur { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.35;
+  color: var(--ink-300, #cfc6b0); }
+.grp-faveur > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.grp-faveur b { color: var(--parch-100, #f0e9d8); font-weight: 700; }
+</style>

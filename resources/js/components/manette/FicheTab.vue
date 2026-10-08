@@ -20,6 +20,12 @@ defineProps({
      * `[{id, nom, description, statut, libelle, raison, cadence}]`.
      */
     competences: { type: Array, default: () => [] },
+    /**
+     * Faveurs de Hopekins Rest acquises, publiées par `/moi` (point de passage
+     * unique `FaveursHopekins::publier()`) : `[{cle, libelle, effet}]`. Le nom
+     * et l'effet viennent du serveur — jamais recomposés ici.
+     */
+    faveurs: { type: Array, default: () => [] },
 });
 
 const condIcon = (t) => (t === 'buff' ? 'shield_with_heart' : t === 'burn' ? 'local_fire_department' : 'coronavirus');
@@ -132,6 +138,19 @@ const statutIcone = (c) => STATUT_ICONE[c.statut] ?? 'workspace_premium';
             </div>
         </div>
         <div v-else class="empty-note" style="padding: 12px">Aucun talent acquis pour l'instant.</div>
+
+        <!-- Faveurs de Hopekins Rest : un don PONCTUEL, hors arbre de talents — nom + effet. -->
+        <div class="sect-title" style="margin-top: 18px"><MSym n="workspace_premium" :size="16" /> Faveurs de Hopekins Rest</div>
+        <div v-if="faveurs.length" class="talent-list">
+            <div v-for="f in faveurs" :key="f.cle" class="talent-item fiche-faveur">
+                <span class="ti"><MSym n="workspace_premium" fill :size="16" /></span>
+                <div class="tbody">
+                    <div class="tn">{{ f.libelle }}</div>
+                    <div v-if="f.effet" class="tdesc">{{ f.effet }}</div>
+                </div>
+            </div>
+        </div>
+        <div v-else class="empty-note" style="padding: 12px">Aucune faveur pour l'instant.</div>
     </div>
 </template>
 

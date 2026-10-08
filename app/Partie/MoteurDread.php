@@ -1359,9 +1359,25 @@ final class MoteurDread
      *
      * @return \Illuminate\Support\Collection<int, SortDread>
      */
+    /**
+     * Les sorts de Dread que ce Sorcier peut ENCORE lancer — répertoire moins
+     * ce que la quête a déjà fait oublier (*Unlearn*, 2026-10-08, `OubliSorts`).
+     * Un répertoire vide (monstre non lanceur) rend une liste vide.
+     *
+     * @return list<string>
+     */
+    public function sortsOubliables(InstanceMonstre $instance, Quete $quete): array
+    {
+        $oublies = app(OubliSorts::class)->oublies($quete, OubliSorts::CIBLE_INSTANCE, (int) $instance->id, OubliSorts::SOURCE_DREAD);
+
+        return array_values(array_diff($this->repertoireSorts($instance->monstre), $oublies));
+    }
+
     private function sortsDisponibles(InstanceMonstre $instance, Quete $quete): \Illuminate\Support\Collection
     {
-        $noms = $this->repertoireSorts($instance->monstre);
+        // Un sort OUBLIÉ pour la quête (Unlearn) n'est plus dans le répertoire
+        // du Sorcier, et ne se tire donc plus — nulle part, jamais.
+        $noms = $this->sortsOubliables($instance, $quete);
 
         if (empty($noms)) {
             return collect();
@@ -1640,7 +1656,13 @@ final class MoteurDread
             // lecteur des deux côtés, pour qu'un anneau ne protège pas d'un feu
             // sur deux. Il absorbe pour SA victime seulement : une tempête qui
             // balaie la salle ne s'éteint pas parce qu'un héros la pare.
-            if ($this->sorts->absorbeDegat($personnage, $typeDegat)) {
+            // Potion of Magic Resistance (Wizards of Morcar) : annule le sort
+            // QUELLE QUE SOIT sa nature — vérifiée en second, après l'immunité
+            // typée, pour la même raison qu'elle était lue en second côté
+            // équipement (un talent/une charge permanente avant une ressource
+            // qui se consomme).
+            if ($this->sorts->absorbeDegat($personnage, $typeDegat)
+                || $this->sorts->annuleProchainSortDegats($personnage)) {
                 $resultats[] = [
                     'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
                     'absorbe' => true,

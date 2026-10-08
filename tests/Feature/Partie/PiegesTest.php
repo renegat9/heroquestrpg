@@ -17,6 +17,7 @@ use App\Partie\AssembleurCarte;
 use App\Partie\FabriqueGrille;
 use App\Partie\MoteurPieges;
 use Database\Seeders\CompetenceSeeder;
+use Database\Seeders\ConditionSeeder;
 use Database\Seeders\GabaritQueteSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
@@ -38,8 +39,12 @@ beforeEach(function () {
     Http::fake();
     config(['services.anthropic.api_key' => null]);
 
+    // ConditionSeeder : nécessaire depuis que la Potion de résistance au feu
+    // (Wizards of Morcar) pose un buff — `appliquerBuffPotion()` lève une
+    // ValidationException si la condition n'existe pas en base, à la
+    // différence des conditions de piège (silencieuses si absentes).
     $this->seed([MonstreSeeder::class, TuileSeeder::class, GabaritQueteSeeder::class,
-        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class]);
+        PiegeSeeder::class, ObjetSeeder::class, CompetenceSeeder::class, ConditionSeeder::class]);
 });
 
 /**
@@ -58,6 +63,9 @@ function poserPieges(Quete $quete, array $entrees): void
         'y' => $e['y'],
         'piege_id' => Piege::where('nom', $e['nom'])->value('id'),
         'etat' => $e['etat'],
+        // Wizards of Morcar (Piège de téléportation, lot B, 2026-10-06) :
+        // paire A/B — absent pour tout autre piège, comme avant.
+        ...(isset($e['paire_id']) ? ['paire_id' => $e['paire_id']] : []),
     ], $entrees);
 
     $carte->update(['grille' => $grille]);
@@ -632,10 +640,20 @@ it('le tirage des pièges de sol est un registre testé dans les deux sens', fun
     // balançoire » en est de toute façon EXCLUE pour une seconde raison : elle
     // porte `effet.zone_lames`, donc elle n'est posée QUE par
     // `placerLameBalanciere()`, jamais par le tirage par case isolée ici.
+    //
+    // ⚠ Depuis Wizards of Morcar (lot B, 2026-10-06), TROIS pièges de plus au
+    // catalogue — Piège de téléportation, Piège de l'ouragan, Piège
+    // d'embrasement — chacun avec une pose DÉDIÉE (`placerPiegesMorcar()`),
+    // donc EUX AUSSI exclus du vivier générique ci-dessous (teleportation
+    // pour le premier, `declencheur` nommé pour les deux autres) — même
+    // raison que la Lame balançoire, reflétée dans le MÊME reject-chain que
+    // `placerPieges()`.
     $sol = Piege::query()
         ->get()
         ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
         ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+        ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
+        ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
         ->pluck('nom')
         ->sort()
         ->values()
@@ -652,6 +670,12 @@ it('le tirage des pièges de sol est un registre testé dans les deux sens', fun
     // Et la Lame balançoire, elle, porte bien `zone_lames` — c'est ce qui la
     // retire du vivier générique ci-dessus.
     expect(data_get(Piege::where('nom', 'Lame balançoire')->value('effet'), 'zone_lames'))->not->toBeNull();
+
+    // Et les trois pièges magiques de Morcar portent bien ce qui les exclut
+    // (registre dans les deux sens, même garde que la Lame balançoire).
+    expect(data_get(Piege::where('nom', 'Piège de téléportation')->value('effet'), 'teleportation'))->toBeTrue()
+        ->and(data_get(Piege::where('nom', "Piège de l'ouragan")->value('effet'), 'declencheur'))->toBe('hurricane')
+        ->and(data_get(Piege::where('nom', "Piège d'embrasement")->value('effet'), 'declencheur'))->toBe('fireburst_differe');
 });
 
 it('un BLOC PERMANENT bloque le passage ET la vue, lu par FabriqueGrille::pour()', function () {
@@ -942,4 +966,186 @@ it('publie une fosse DÉCLENCHÉE sous son propre état : sautable, jamais désa
 
     expect($ids)->toContain("franchir_{$saut['fosse']['x']}_{$saut['fosse']['y']}")
         ->and($ids)->not->toContain("desamorcer_{$saut['fosse']['x']}_{$saut['fosse']['y']}");
+});
+
+// ===== Wizards of Morcar (lot B, 2026-10-06) =====================
+
+it('un piège NON DÉTECTABLE (Wizards of Morcar) ne se révèle jamais par la fouille', function () {
+    // « cannot be found by searching » (doc 18 §5/§9) — vérifié sur les
+    // TROIS pièges magiques, tous `detectable: false`, EN UNE SEULE fouille
+    // (une fouille par héros et par salle, donc une seule tentative possible
+    // ici — les trois sont posés ensemble plutôt que testés tour à tour).
+    [, , , $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+    $grille = $quete->carte->grille;
+    $salle = $grille['salles'][App\Partie\Salles::indexDe($grille['salles'], $x, $y)];
+
+    $libres = [];
+    for ($cy = $salle['y']; $cy < $salle['y'] + $salle['hauteur'] && count($libres) < 3; $cy++) {
+        for ($cx = $salle['x']; $cx < $salle['x'] + $salle['largeur'] && count($libres) < 3; $cx++) {
+            if (caseQueteLibre($quete, $cx, $cy) && ($cx !== $x || $cy !== $y)) {
+                $libres[] = ['x' => $cx, 'y' => $cy];
+            }
+        }
+    }
+    expect($libres)->toHaveCount(3);
+
+    $noms = ["Piège d'embrasement", "Piège de l'ouragan", 'Piège de téléportation'];
+    foreach ($noms as $nom) {
+        expect(Piege::where('nom', $nom)->value('detectable'))->toBeFalse();
+    }
+
+    poserPieges($quete, array_map(fn (array $pos, string $nom) => [
+        'x' => $pos['x'], 'y' => $pos['y'], 'nom' => $nom, 'etat' => 'cache',
+    ], $libres, $noms));
+
+    desFiges([1, 4]); // Mind 2 dés : 1 crâne → réussirait la fouille si quoi que ce soit était à trouver
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'fouiller'])
+        ->assertStatus(202)
+        ->assertJsonCount(0, 'resultat.pieges_reveles');
+
+    expect(collect($quete->fresh()->carte->grille['pieges'])->pluck('etat')->unique()->all())->toBe(['cache']);
+});
+
+it('le Piège de téléportation déplace le héros vers son autre extrémité et ferme son tour', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $paire = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
+    poserPieges($quete, [
+        ['x' => $paire['fosse']['x'], 'y' => $paire['fosse']['y'], 'nom' => 'Piège de téléportation', 'etat' => 'cache', 'paire_id' => 'test-pair'],
+        ['x' => $paire['reception']['x'], 'y' => $paire['reception']['y'], 'nom' => 'Piège de téléportation', 'etat' => 'cache', 'paire_id' => 'test-pair'],
+    ]);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false]);
+
+    $reponse = $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $paire['fosse'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.pieges_declenches.0.type', 'piege_teleporte')
+        ->assertJsonPath('resultat.pieges_declenches.0.destination', $paire['reception'])
+        ->assertJsonPath('resultat.vers', $paire['reception']);
+
+    $etat->refresh();
+    expect($etat->position_x)->toBe($paire['reception']['x'])
+        ->and($etat->position_y)->toBe($paire['reception']['y'])
+        // « disoriented, their turn ends » — héritée gratuitement du même
+        // mécanisme générique que les trois pièges de sol (`finTourPiegeSol`).
+        ->and((bool) $etat->a_joue)->toBeTrue()
+        // Usage unique : l'entrée franchie est dépensée.
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_DECLENCHE);
+});
+
+it('le Piège de téléportation ne fait RIEN si sa destination est occupée, et reste armé', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros(['classe' => 'rogue']);
+
+    $paire = alignementFranchissable($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+    // La seconde héroïne (créée par demarrerQueteAvecHeros) occupe la destination.
+    $brunhilde = EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->whereHas('personnage', fn ($q) => $q->where('nom', 'Brunhilde'))->first();
+    $brunhilde->update(['position_x' => $paire['reception']['x'], 'position_y' => $paire['reception']['y']]);
+
+    poserPieges($quete, [
+        ['x' => $paire['fosse']['x'], 'y' => $paire['fosse']['y'], 'nom' => 'Piège de téléportation', 'etat' => 'cache', 'paire_id' => 'test-pair'],
+        ['x' => $paire['reception']['x'], 'y' => $paire['reception']['y'], 'nom' => 'Piège de téléportation', 'etat' => 'cache', 'paire_id' => 'test-pair'],
+    ]);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $paire['fosse'],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.pieges_declenches.0.teleportation_echouee', true)
+        ->assertJsonPath('resultat.vers', $paire['fosse']);
+
+    $etat->refresh();
+    expect($etat->position_x)->toBe($paire['fosse']['x'])
+        ->and($etat->position_y)->toBe($paire['fosse']['y'])
+        // Jamais consommé : une tentative future pourra réussir.
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe('cache');
+});
+
+it('le Piège d\'embrasement s\'AMORCE en silence (aucun dégât) quand on marche dessus', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+    [$dx, $dy] = collect([[1, 0], [-1, 0], [0, 1], [0, -1]])
+        ->first(fn ($d) => caseQueteLibre($quete, $x + $d[0], $y + $d[1]));
+    $cible = ['x' => $x + $dx, 'y' => $y + $dy];
+
+    poserPieges($quete, [['x' => $cible['x'], 'y' => $cible['y'], 'nom' => "Piège d'embrasement", 'etat' => 'cache']]);
+    $etat->update(['deplacement_tour' => 6, 'deplacement_restant' => null, 'a_deplace' => false]);
+    $pvAvant = $hero->fresh()->pv_body;
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'se_deplacer',
+        'parametres' => $cible,
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.pieges_declenches.0.type', 'piege_amorce')
+        ->assertJsonPath('resultat.pieges_declenches.0.degats', 0);
+
+    expect($hero->fresh()->pv_body)->toBe($pvAvant)
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_AMORCE);
+});
+
+it('explosionsFireburstEnAttente() fait exploser un jeton amorcé sur TOUT ce qui se tient dans sa zone, héros ET monstres, puis le consomme', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+
+    poserPieges($quete, [['x' => $x, 'y' => $y, 'nom' => "Piège d'embrasement", 'etat' => MoteurPieges::ETAT_AMORCE]]);
+
+    $instance = $quete->instancesMonstres()->first();
+    $instance->update(['etat' => 'actif', 'position_x' => $x, 'position_y' => $y, 'pv_body' => $instance->pvBodyMax()]);
+
+    $pvHerosAvant = $hero->fresh()->pv_body;
+
+    // 3 dés d'ATTAQUE, défense NORMALE (Lightning Strike, même carton) : 3
+    // crânes contre une défense réduite au minimum par le dé figé à 1.
+    desFiges(array_fill(0, 20, 1));
+
+    $actions = app(MoteurPieges::class)->explosionsFireburstEnAttente($groupe, $quete->fresh());
+
+    // 3 cibles : Albrecht (le fouilleur), Brunhilde (la seconde héroïne
+    // créée par `demarrerQueteAvecHeros()`, SUR LA MÊME case de départ) et
+    // l'instance de monstre déplacée ici — « all heroes and monsters in the
+    // room », pas seulement l'acteur qui a amorcé le piège.
+    expect($actions)->toHaveCount(1)
+        ->and($actions[0]['type'])->toBe('piege_explosion')
+        ->and($actions[0]['cibles'])->toHaveCount(3)
+        ->and(collect($actions[0]['cibles'])->where('type', 'heros'))->toHaveCount(2)
+        ->and(collect($actions[0]['cibles'])->where('type', 'monstre'))->toHaveCount(1);
+
+    $hero->refresh();
+    $instance->refresh();
+
+    expect($hero->pv_body)->toBeLessThan($pvHerosAvant)
+        ->and($instance->pv_body)->toBeLessThan($instance->pvBodyMax())
+        // Usage unique : plus rien à faire exploser une seconde fois.
+        ->and($quete->fresh()->carte->grille['pieges'][0]['etat'])->toBe(MoteurPieges::ETAT_DECLENCHE)
+        ->and(app(MoteurPieges::class)->explosionsFireburstEnAttente($groupe, $quete->fresh()))->toBe([]);
+});
+
+it('une Potion de résistance au feu absorbe l\'explosion du Piège d\'embrasement', function () {
+    [, $groupe, $hero, $quete, $etat] = demarrerQueteAvecHeros();
+
+    $x = (int) $etat->position_x;
+    $y = (int) $etat->position_y;
+    poserPieges($quete, [['x' => $x, 'y' => $y, 'nom' => "Piège d'embrasement", 'etat' => MoteurPieges::ETAT_AMORCE]]);
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']); // seul le héros compte ici
+
+    app(App\Partie\MoteurSorts::class)->appliquerBuffPotion($hero, Objet::where('nom', 'Potion de résistance au feu')->first());
+
+    $pvAvant = $hero->fresh()->pv_body;
+    desFiges(array_fill(0, 20, 1));
+
+    $actions = app(MoteurPieges::class)->explosionsFireburstEnAttente($groupe, $quete->fresh());
+
+    expect($hero->fresh()->pv_body)->toBe($pvAvant)
+        ->and($actions[0]['cibles'][0]['degats'])->toBe(0);
 });

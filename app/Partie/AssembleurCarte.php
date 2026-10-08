@@ -372,6 +372,12 @@ final class AssembleurCarte
         // ne jamais chevaucher une case qu'ils occupent déjà.
         $pieges = [...$pieges, ...$this->placerLameBalanciere($cases, $salles, $portes, $leviers, $pieges, $suivant, $bestiaire)];
 
+        // PIÈGES MAGIQUES DE WIZARDS OF MORCAR (lot B, 2026-10-06) : même
+        // raison que la Lame balançoire juste au-dessus — poses DÉDIÉES,
+        // exclues du tirage générique de `placerPieges()`. Reçoit `$pieges`
+        // déjà posés (Lame balançoire comprise) pour ne jamais chevaucher.
+        $pieges = [...$pieges, ...$this->placerPiegesMorcar($cases, $salles, $portes, $leviers, $pieges, $milieuxCouloirs, $suivant, $bestiaire)];
+
         $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
@@ -1623,6 +1629,16 @@ final class AssembleurCarte
             ->get()
             ->reject(fn (Piege $p) => data_get($p->effet, 'declencheur') === 'ouverture_tresor')
             ->reject(fn (Piege $p) => data_get($p->effet, 'zone_lames') !== null)
+            // Wizards of Morcar (lot B, 2026-10-06) : les trois pièges
+            // magiques ont chacun une pose DÉDIÉE (`placerPiegesMorcar()`,
+            // juste après `placerLameBalanciere()`) — le Téléporteur exige
+            // une PAIRE de cases plutôt qu'une seule, l'Ouragan un COULOIR
+            // précisément, l'Embrasement n'a besoin de rien de spécial mais
+            // rejoint quand même la pose dédiée par cohérence du lot. Tirés
+            // ici, ils se seraient retrouvés parfois en salle (le Téléporteur,
+            // l'Embrasement) parfois tout court sans garantie de paire.
+            ->reject(fn (Piege $p) => (bool) data_get($p->effet, 'teleportation', false))
+            ->reject(fn (Piege $p) => in_array(data_get($p->effet, 'declencheur'), ['hurricane', 'fireburst_differe'], true))
             ->filter(fn (Piege $p) => $p->boite === null || ($bestiaire?->contient($p->boite) ?? false))
             ->values();
 
@@ -1802,6 +1818,123 @@ final class AssembleurCarte
     private function transposerForme(array $forme): array
     {
         return array_map(fn (array $offset) => [$offset[1], $offset[0]], $forme);
+    }
+
+    /**
+     * PIÈGES MAGIQUES DE WIZARDS OF MORCAR (lot B, 2026-10-06) — poses
+     * DÉDIÉES, à PART du tirage générique de `placerPieges()`, même raison
+     * que `placerLameBalanciere()` juste au-dessus : chacun a une exigence
+     * géométrique qu'un tirage de case isolée ne sait pas honorer.
+     *
+     * - **Piège de téléportation** : une PAIRE de cases de SALLE (jamais la
+     *   0), même patron que les Tunnels de glace (`placerTerrains()`).
+     * - **Piège d'embrasement** : une case de SALLE — « the room » (doc 18) ;
+     *   posé ici plutôt que dans le tirage mixte salle+couloir générique
+     *   pour que sa zone d'explosion reste toujours une VRAIE salle.
+     * - **Piège de l'ouragan** : une case de COULOIR (`$milieuxCouloirs`,
+     *   le même vivier que `placerPieges()`) — « repousse tous les
+     *   personnages DU COULOIR », n'a aucun sens en salle.
+     *
+     * Le THÈME dit LESQUELS (`$bestiaire?->contient('wizards_of_morcar')`,
+     * même lecture que `Terrain::boite`) ; aucun gabarit ne dit COMBIEN — au
+     * plus UN de chaque, hardcodé plutôt qu'un `structure.pieges_magiques`
+     * qu'aucun gabarit ne déclare encore (la leçon des leviers : une couche
+     * qui marche mais qu'aucun gabarit n'alimente équivaut à une couche
+     * absente). Si la carte n'offre pas assez de cases, on RENONCE — jamais
+     * de pose forcée, même garde que toutes les couches de ce fichier.
+     *
+     * @param  list<list<string>>  $cases
+     * @param  list<array{x: int, y: int, largeur: int, hauteur: int}>  $salles
+     * @param  list<array{x: int, y: int, cote?: string}>  $portes
+     * @param  list<array{x: int, y: int, levier_id: string}>  $leviers
+     * @param  list<array{x: int, y: int}>  $pieges  déjà posés (générique + Lame balançoire)
+     * @param  list<array{x: int, y: int}>  $milieuxCouloirs
+     * @return list<array{x: int, y: int, piege_id: int, etat: string, paire_id?: string}>
+     */
+    private function placerPiegesMorcar(
+        array $cases,
+        array $salles,
+        array $portes,
+        array $leviers,
+        array $pieges,
+        array $milieuxCouloirs,
+        \Closure $suivant,
+        ?BestiaireGroupe $bestiaire = null,
+    ): array {
+        if (! ($bestiaire?->contient('wizards_of_morcar') ?? false)) {
+            return [];
+        }
+
+        $catalogue = Piege::query()->where('boite', 'wizards_of_morcar')->get()->keyBy('nom');
+        $teleport = $catalogue->get('Piège de téléportation');
+        $embrasement = $catalogue->get("Piège d'embrasement");
+        $ouragan = $catalogue->get("Piège de l'ouragan");
+
+        if ($teleport === null && $embrasement === null && $ouragan === null) {
+            return [];
+        }
+
+        $prng = new PrngLineaire($suivant());
+
+        $interdites = [];
+        foreach ($pieges as $p) {
+            $interdites["{$p['x']},{$p['y']}"] = true;
+        }
+        foreach ($leviers as $l) {
+            $interdites["{$l['x']},{$l['y']}"] = true;
+        }
+        foreach ($portes as $porte) {
+            foreach (Grille::casesPorte($porte) as $case) {
+                $interdites["{$case['x']},{$case['y']}"] = true;
+            }
+        }
+
+        // Pool des cases de SALLE libres (jamais la 0) : Téléporteur (paire)
+        // et Embrasement (une case) y puisent tous les deux.
+        $candidatsSalle = [];
+        foreach ($salles as $i => $salle) {
+            if ($i === 0) {
+                continue;
+            }
+            foreach ($this->interieur($cases, $salle) as $position) {
+                if (! isset($interdites["{$position['x']},{$position['y']}"])) {
+                    $candidatsSalle[] = $position;
+                }
+            }
+        }
+        $candidatsSalle = $prng->melanger($candidatsSalle);
+
+        $nouveaux = [];
+
+        if ($teleport !== null && count($candidatsSalle) >= 2) {
+            $a = array_shift($candidatsSalle);
+            $b = array_shift($candidatsSalle);
+            $paireId = 'teleport-morcar';
+            $nouveaux[] = ['x' => $a['x'], 'y' => $a['y'], 'piege_id' => (int) $teleport->id, 'etat' => 'cache', 'paire_id' => $paireId];
+            $nouveaux[] = ['x' => $b['x'], 'y' => $b['y'], 'piege_id' => (int) $teleport->id, 'etat' => 'cache', 'paire_id' => $paireId];
+            $interdites["{$a['x']},{$a['y']}"] = true;
+            $interdites["{$b['x']},{$b['y']}"] = true;
+        }
+
+        if ($embrasement !== null && $candidatsSalle !== []) {
+            $c = array_shift($candidatsSalle);
+            $nouveaux[] = ['x' => $c['x'], 'y' => $c['y'], 'piege_id' => (int) $embrasement->id, 'etat' => 'cache'];
+            $interdites["{$c['x']},{$c['y']}"] = true;
+        }
+
+        if ($ouragan !== null) {
+            $candidatsCouloir = $prng->melanger(array_values(array_filter(
+                $milieuxCouloirs,
+                fn (array $m) => ! isset($interdites["{$m['x']},{$m['y']}"]),
+            )));
+
+            if ($candidatsCouloir !== []) {
+                $c = $candidatsCouloir[0];
+                $nouveaux[] = ['x' => $c['x'], 'y' => $c['y'], 'piege_id' => (int) $ouragan->id, 'etat' => 'cache'];
+            }
+        }
+
+        return $nouveaux;
     }
 
     /**
@@ -2021,6 +2154,7 @@ final class AssembleurCarte
         // `Terrain::boite` / `Piege::boite` ci-dessus.
         $catalogue = Mobilier::query()->orderBy('id')->get()
             ->filter(fn (Mobilier $m) => $m->boite === null || ($bestiaire?->contient($m->boite) ?? false))
+            ->reject(fn (Mobilier $m) => in_array($m->nom, self::MOBILIER_POSE_EN_QUETE, true))
             ->values();
 
         if ($catalogue->isEmpty()) {
@@ -3052,6 +3186,18 @@ final class AssembleurCarte
      * là où trois emprises de 1 seraient refusées.
      */
     private const CASES_JOUABLES_MINIMUM = self::RESERVE_CASES_LIBRES + 2;
+
+    /**
+     * Mobilier POSÉ PAR UN SORT EN COURS DE QUÊTE
+     * (`MoteurMobilier::poserMurMagique()`), jamais par ce générateur — Mur de
+     * Pierre (Wall of Stone, sort de héros, 2026-10-06), et demain Mur de
+     * Glace/Mur de Feu (sorts de Sorcier du Dread, vague 2). Sans cette
+     * exclusion, le tirage uniforme de `placerMobilier()` les dresserait
+     * comme n'importe quel coffre ou table dès que le thème
+     * `wizards_of_morcar` est actif — un mur magique SANS lanceur, planté là
+     * depuis la génération, ce que ni la carte ni le livret ne décrivent.
+     */
+    private const MOBILIER_POSE_EN_QUETE = ['Mur de Pierre', 'Mur de Glace', 'Mur de Feu'];
 
     /**
      * Cases de sol qu'une salle doit offrir pour pouvoir porter un `Coffre`

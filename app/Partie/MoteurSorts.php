@@ -147,6 +147,21 @@ final class MoteurSorts
     /** La classe qui a le droit de piocher dans le répertoire elfique. */
     public const CLASSE_ELFIQUE = 'elfe';
 
+    /**
+     * Répertoires OPTIONNELS (Wizards of Morcar, livret p. 11, 2026-10-06) :
+     * *Spells of Protection*, *Spells of Detection*, *Spells of Darkness* —
+     * « These may replace existing sets of spells that a spellcaster can
+     * draw on (but Elf and Wizard still have one and three sets of spells
+     * respectively). Spellcasters may change their spells between quests. »
+     *
+     * Trois sorts chacun, comme toute autre école : AUCUN choix interne n'est
+     * nécessaire (à l'inverse du répertoire elfique, qui pioche 3 parmi 8) —
+     * `attacherElement()` suffit. Ce qui est neuf est le REMPLACEMENT d'un
+     * élément CONNU par l'un de ceux-ci, ouvert aux CINQ classes de lanceurs
+     * (pas seulement l'Elfe) : voir {@see self::remplacerElement()}.
+     */
+    public const REPERTOIRES_OPTIONNELS = ['protection', 'detection', 'tenebres'];
+
     /** Mécanique des nœuds d'arbre qui débloquent un élément (CompetenceSeeder). */
     public const MECANIQUE_ELEMENT = 'emplacement_element';
 
@@ -203,6 +218,19 @@ final class MoteurSorts
      */
     public const MONSTRE_ENFUME = 'enfume';
 
+    /**
+     * Enchaîné (*Chains of Darkness*, *Spells of Darkness*, 2026-10-06) :
+     * « may not move or attack until the start of your next turn. They may
+     * defend or cast spells. » Consommée au tour MÊME du monstre, sans
+     * compteur — même famille que `saute_tour`, SAUF que `saute_tour` est
+     * vérifiée AVANT toute tentative de sort de Dread dans `jouerMonstre()`
+     * (elle bloquerait donc aussi « may … cast spells ») : `enchaine` est
+     * donc testée APRÈS la tentative de sort du Sorcier, jamais à sa place.
+     * La défense n'est PAS touchée par `apresConditions()` — « may defend »
+     * est la valeur PAR DÉFAUT, rien à écrire pour la préserver.
+     */
+    public const MONSTRE_ENCHAINE = 'enchaine';
+
     /** @var list<string> */
     public const CONDITIONS_MONSTRE = [
         self::MONSTRE_ENDORMI,
@@ -211,6 +239,7 @@ final class MoteurSorts
         self::MONSTRE_RALENTI,
         self::MONSTRE_PARALYSE,
         self::MONSTRE_ENFUME,
+        self::MONSTRE_ENCHAINE,
     ];
 
     /**
@@ -334,6 +363,100 @@ final class MoteurSorts
         }
 
         return $sorts;
+    }
+
+    /**
+     * REMPLACE un élément CONNU du héros par un répertoire OPTIONNEL
+     * (`REPERTOIRES_OPTIONNELS`) — le mécanisme générique derrière
+     * « Spellcasters may change their spells between quests » (livret p. 11).
+     *
+     * Réutilise exactement le patron de {@see self::fixerSortsElfiques()}
+     * (détacher l'ancien, attacher le nouveau EN BLOC via
+     * {@see self::attacherElement()}) plutôt que d'inventer un second système
+     * de choix — la différence est que celui-ci vaut pour les CINQ classes de
+     * lanceurs, et jamais seulement pour l'Elfe : un Magicien peut remplacer
+     * UN de ses trois éléments, l'Elfe son unique voie (école OU elfique), et
+     * Barde/Druide/Warlock leur répertoire de classe fixe — le texte ne fait
+     * d'exception pour personne, et « Elf and Wizard still have one and
+     * three sets » n'est qu'une CONSÉQUENCE du remplacement UN POUR UN, jamais
+     * une règle à appliquer à part.
+     *
+     * ⚠ Ne vaut QUE dans un sens : vers un répertoire optionnel. Revenir
+     * d'un répertoire optionnel à une école élémentaire reste hors de ce
+     * point de passage (la création de personnage s'en occupe) — nommé ici
+     * plutôt que deviné.
+     *
+     * @return Collection<int, Sort> sorts nouvellement attachés
+     */
+    public function remplacerElement(Personnage $personnage, string $ancienElement, string $nouveauRepertoire): Collection
+    {
+        if (! in_array($nouveauRepertoire, self::REPERTOIRES_OPTIONNELS, true)) {
+            throw ValidationException::withMessages([
+                'repertoire' => "« {$nouveauRepertoire} » n'est pas un répertoire optionnel (protection/detection/tenebres).",
+            ]);
+        }
+
+        if (! in_array($personnage->classe, self::LANCEURS, true)) {
+            throw ValidationException::withMessages([
+                'personnage_id' => 'Ce héros ne lance aucun sort.',
+            ]);
+        }
+
+        if (! in_array($ancienElement, $this->elementsConnus($personnage), true)) {
+            throw ValidationException::withMessages([
+                'element' => "Ce héros ne connaît aucun sort de « {$ancienElement} ».",
+            ]);
+        }
+
+        // Un PARCHEMIN n'est pas un répertoire : le détacher effacerait un sort
+        // qu'aucun répertoire ne porte (l'élément `parchemin` n'a pas d'école).
+        if ($ancienElement === 'parchemin') {
+            throw ValidationException::withMessages([
+                'element' => 'Un parchemin n\'est pas un répertoire : il ne se remplace pas.',
+            ]);
+        }
+
+        // Déjà connu : `attacherElement()` est idempotent (`syncWithoutDetaching`),
+        // donc ce cas ne DUPLIQUERAIT rien — il PERDRAIT un répertoire en silence
+        // (l'ancien détaché, le nouveau déjà là). Refus explicite.
+        if (in_array($nouveauRepertoire, $this->elementsConnus($personnage), true)) {
+            throw ValidationException::withMessages([
+                'nouveau_repertoire' => "Ce héros connaît déjà le répertoire « {$nouveauRepertoire} ».",
+            ]);
+        }
+
+        $anciens = $personnage->sorts()->where('element', $ancienElement)->pluck('sorts.id');
+        $personnage->sorts()->detach($anciens->all());
+
+        return $this->attacherElement($personnage, $nouveauRepertoire);
+    }
+
+    /**
+     * La DÉCISION que la manette affiche entre deux quêtes, publiée par `/moi`
+     * (le client ne re-dérive ni « qui peut remplacer quoi » ni « qui peut
+     * prendre quoi ») :
+     *  - `remplacables` : les éléments qu'un remplacement peut détacher — tout
+     *    répertoire connu, à l'exception du PARCHEMIN (il n'est pas un
+     *    répertoire) ;
+     *  - `offerts` : les répertoires optionnels que ce héros ne connaît pas
+     *    encore (un répertoire déjà connu ne peut pas être pris une seconde fois).
+     *
+     * Un non-lanceur n'a ni l'un ni l'autre : `remplacerElement()` le refuse.
+     *
+     * @return array{remplacables: list<string>, offerts: list<string>}
+     */
+    public function repertoiresChangeables(Personnage $personnage): array
+    {
+        if (! in_array($personnage->classe, self::LANCEURS, true)) {
+            return ['remplacables' => [], 'offerts' => []];
+        }
+
+        $connus = $this->elementsConnus($personnage);
+
+        return [
+            'remplacables' => array_values(array_filter($connus, fn (string $e) => $e !== 'parchemin')),
+            'offerts' => array_values(array_diff(self::REPERTOIRES_OPTIONNELS, $connus)),
+        ];
     }
 
     // ------------------------------------------------------------------
@@ -579,7 +702,57 @@ final class MoteurSorts
             ->first(fn ($ligne) => ($ligne->objet?->effet['immunite_degat'] ?? null) === $typeDegat
                 && $charges->disponible($ligne));
 
-        return $piece !== null && $charges->consommer($piece);
+        if ($piece !== null) {
+            return $charges->consommer($piece);
+        }
+
+        // POTION OF FIRE RESISTANCE (Wizards of Morcar, doc 18) — même clé
+        // `immunite_degat`, portée par un BUFF de potion plutôt qu'une pièce
+        // ÉQUIPÉE à charges : « completely unaffected by the next magical
+        // fire attack, spell or trap ». Une potion n'a pas de compteur à
+        // décrémenter — elle est consommée au moment où elle est bue — donc
+        // ce qui l'épuise ici est la DÉTACHER dès qu'elle a protégé une fois,
+        // même geste que les autres buffs ponctuels de ce fichier
+        // (`ResolveurTour` détache aussi par `$condition->id`).
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+
+            if (($effet['immunite_degat'] ?? null) === $typeDegat) {
+                $personnage->conditions()->detach($condition->id);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * POTION OF MAGIC RESISTANCE (Wizards of Morcar, doc 18) — « ignore the
+     * effects of the next damaging spell cast on them ». À la différence
+     * d'{@see self::absorbeDegat()} (qui exige une NATURE de dégât précise,
+     * `type_degat`), cette potion annule n'importe quel sort à dégâts, qu'il
+     * en porte une ou non (*Death Bolt* n'en a aucune). Même patron à usage
+     * unique : la première condition qui porte la clé est détachée.
+     *
+     * ⚠ Scopé aux dégâts de BODY lancés par un sort de Dread
+     * (`MoteurDread::sortDreadDegats()`) — le seul point sourcé par la carte ;
+     * les dégâts de MIND (`infligerMindAHeros()`) restent hors périmètre,
+     * nommé plutôt qu'oublié.
+     */
+    public function annuleProchainSortDegats(Personnage $personnage): bool
+    {
+        foreach ($this->buffsSorts($personnage) as $condition) {
+            $effet = $this->effetSortSource((string) $condition->pivot->source);
+
+            if (! empty($effet['annule_prochain_sort_degats'])) {
+                $personnage->conditions()->detach($condition->id);
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -781,7 +954,13 @@ final class MoteurSorts
         $etat = $quete->etatsPersonnages()->where('personnage_id', $personnage->id)->first();
         $grille = FabriqueGrille::pour($quete);
         $lanceur = ($etat !== null && $etat->position_x !== null)
-            ? ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y]
+            ? [
+                'x' => (int) $etat->position_x, 'y' => (int) $etat->position_y,
+                // FAVEUR « Deadeye » (Hopekins Rest, Wizards of Morcar) : les
+                // figures ne bloquent plus la ligne de vue de CE lanceur —
+                // lu par `filtrerLigneDeVue()`, plus bas.
+                'figures_bloquent' => app(FaveursHopekins::class)->figuresBloquentPour($personnage),
+            ]
             : null;
 
         // ⚠ TOUT le répertoire, pas seulement le disponible : un sort épuisé
@@ -791,8 +970,53 @@ final class MoteurSorts
         // est. Il n'entre évidemment pas dans la liste blanche du résolveur.
         $entrees = [];
 
+        // UNLEARN (2026-10-08) : un sort oublié pour la quête est GRISÉ, comme un
+        // sort épuisé — jamais une entrée lançable (« le menu ne propose jamais ce
+        // que le résolveur refusera »). Lecteur unique : `OubliSorts`.
+        $oubliesHeros = app(OubliSorts::class)->oublies($quete, OubliSorts::CIBLE_PERSONNAGE, $personnage->id, OubliSorts::SOURCE_SORT);
+
         foreach ($personnage->sorts()->orderBy('sorts.id')->get() as $sort) {
-            $disponible = (bool) $sort->pivot->disponible;
+            $disponible = (bool) $sort->pivot->disponible && ! in_array($sort->nom, $oubliesHeros, true);
+
+            // CLAIRVOYANCE (Spells of Detection, 2026-10-06) : « lay out the
+            // contents of one room anywhere on the board ». Une entrée PAR SALLE
+            // NON DÉCOUVERTE — le serveur décide seul ce qui est offert, et ne
+            // laisse jamais voir le contenu d'une salle dans le libellé (une
+            // salle vide ne se distingue pas d'une salle pleine ici).
+            if ((bool) data_get($sort->effet, 'vision_salle', false)) {
+                if ($disponible && $lanceur !== null) {
+                    foreach ($this->entreesVisionSalle($quete, $sort, $lanceur) as $entree) {
+                        $entrees[] = $entree;
+                    }
+                } elseif (! $disponible) {
+                    $entrees[] = $this->entreeSort("sort:{$sort->id}", $sort->nom, $sort, false, [], [], $lanceur, $grille);
+                }
+
+                continue;
+            }
+
+            // MUR MAGIQUE (Wall of Stone — Spells of Protection, 2026-10-06) :
+            // poser un mur n'a pas de cible GÉNÉRIQUE à proposer — seulement
+            // CELLE qu'on choisit. Une entrée PAR case libre orthogonalement
+            // adjacente, jamais de base-entry « sans case » qui promettrait un
+            // clic que le résolveur ne pourrait pas honorer (« le menu ne
+            // propose jamais ce que le résolveur refusera »). Même patron que
+            // `entreesPorteAuChoix()`/`entreesDeRayon()` : le second niveau de
+            // choix EST la liste d'entrées, il n'y a pas de troisième niveau
+            // `cibles` à ouvrir derrière.
+            if ((bool) data_get($sort->effet, 'pose_mur_magique', false)) {
+                if ($disponible && $lanceur !== null) {
+                    foreach ($this->entreesPoseMurMagique($grille, $sort, $lanceur) as $entree) {
+                        $entrees[] = $entree;
+                    }
+                } elseif (! $disponible) {
+                    // Grisé, comme tout sort épuisé (René, 2026-09-01) :
+                    // affiché pour information, jamais choisissable.
+                    $entrees[] = $this->entreeSort("sort:{$sort->id}", $sort->nom, $sort, false, [], [], $lanceur, $grille);
+                }
+
+                continue;
+            }
 
             // Le libellé DIT la zone : sans cible à choisir, c'est la seule
             // chose qui prévienne le joueur qu'il va toucher ses alliés.
@@ -969,13 +1193,20 @@ final class MoteurSorts
 
         // `soi` (Traverser la Pierre) : le lanceur, donc aucune liste à choisir.
         if (! in_array($sort->type, ['degats', 'mental'], true)
-            && $cible !== MotsClesSort::CIBLE_HEROS) {
+            && ! in_array($cible, [MotsClesSort::CIBLE_HEROS, MotsClesSort::CIBLE_LANCEUR_DREAD], true)) {
             return null;
         }
 
-        $cibles = in_array($sort->type, ['degats', 'mental'], true)
-            ? [...$monstres, ...$heros]   // tir ami délibéré (S3)
-            : $heros;                      // bénéfique : les héros, LANCEUR COMPRIS
+        // UNLEARN (Spells of Protection, 2026-10-08) : un monstre LANCEUR DE DREAD
+        // qui peut encore perdre un sort — seul un sort de ce genre est offert.
+        // Un Sorcier épuisé (répertoire entièrement oublié) n'est plus une cible.
+        if ($cible === MotsClesSort::CIBLE_LANCEUR_DREAD) {
+            $cibles = $this->lanceursDreadOubliables($monstres);
+        } else {
+            $cibles = in_array($sort->type, ['degats', 'mental'], true)
+                ? [...$monstres, ...$heros]   // tir ami délibéré (S3)
+                : $heros;                      // bénéfique : les héros, LANCEUR COMPRIS
+        }
 
         // LIGNE DE VUE, pour TOUT sort — pas seulement les offensifs.
         // « Nécessaire pour lancer un sort ou observer une cible » (LR p. 14,
@@ -985,7 +1216,10 @@ final class MoteurSorts
         // explorée. Le lanceur se voit toujours lui-même, il reste donc
         // ciblable — « may be cast on any one hero, including yourself ».
         if ($lanceur !== null && $grille !== null) {
-            $cibles = $this->filtrerLigneDeVue($lanceur['x'], $lanceur['y'], $grille, $cibles);
+            $cibles = $this->filtrerLigneDeVue(
+                $lanceur['x'], $lanceur['y'], $grille, $cibles,
+                (bool) ($lanceur['figures_bloquent'] ?? true),
+            );
         }
 
         // « may be cast on any one hero, EXCLUDING YOURSELF » (Conte inspirant
@@ -999,6 +1233,22 @@ final class MoteurSorts
             ));
         }
 
+        // IMMUNITÉ AUX SORTS (Invisibilité — « immune to all spells »,
+        // 2026-10-06) : une cible protégée disparaît de la liste, qu'elle
+        // soit l'adversaire visé par un sort de dégâts OU le compagnon qu'on
+        // voulait soigner — la carte ne distingue pas l'intention, « ALL
+        // spells » n'épargne pas les sorts amis. Monstres non concernés :
+        // seul un héros peut porter cette condition.
+        $cibles = array_values(array_filter($cibles, function ($c) {
+            if (($c['type'] ?? null) !== 'heros') {
+                return true;
+            }
+
+            $personnage = Personnage::find($c['id'] ?? 0);
+
+            return $personnage === null || ! $this->immuniteSorts($personnage);
+        }));
+
         return $this->nettoyerCibles($cibles);
     }
 
@@ -1009,9 +1259,9 @@ final class MoteurSorts
      * @param  list<array<string, mixed>>  $cibles
      * @return list<array<string, mixed>>
      */
-    private function filtrerLigneDeVue(int $cx, int $cy, Grille $grille, array $cibles): array
+    private function filtrerLigneDeVue(int $cx, int $cy, Grille $grille, array $cibles, bool $figuresBloquent = true): array
     {
-        return array_values(array_filter($cibles, function (array $c) use ($cx, $cy, $grille) {
+        return array_values(array_filter($cibles, function (array $c) use ($cx, $cy, $grille, $figuresBloquent) {
             $tx = (int) ($c['x'] ?? -1);
             $ty = (int) ($c['y'] ?? -1);
 
@@ -1019,7 +1269,7 @@ final class MoteurSorts
                 return true; // position inconnue : ne pas masquer par excès de prudence
             }
 
-            return $grille->ligneDeVueEmprise($cx, $cy, $tx, $ty, (int) ($c['l'] ?? 1), (int) ($c['h'] ?? 1), figuresBloquent: true);
+            return $grille->ligneDeVueEmprise($cx, $cy, $tx, $ty, (int) ($c['l'] ?? 1), (int) ($c['h'] ?? 1), figuresBloquent: $figuresBloquent);
         }));
     }
 
@@ -1816,6 +2066,39 @@ final class MoteurSorts
             ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'inattaquable', false));
     }
 
+    /**
+     * Héros qui NE PEUT PAS ATTAQUER (condition « Caché », posée par
+     * *Invisibility* — *Spells of Protection*, 2026-10-06) : « While
+     * invisible, you may not attack. » Distinct d'`actionInterdite()`
+     * (Évanescent) : CELUI-CI bloque tout — fouille, désamorçage, sorts — là
+     * où l'Invisibilité ne retire QUE l'attaque, et laisse le reste intact
+     * (« you may … cast spells »). Lecteur unique : `ResolveurTour::frapper()`.
+     */
+    public function attaqueInterdite(Personnage $personnage): bool
+    {
+        return $personnage->conditions()->get()
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'attaque_interdite', false));
+    }
+
+    /**
+     * Héros IMMUNISÉ À TOUT SORT (condition « Caché », *Invisibility*) :
+     * « You cannot be attacked and are immune to all spells. » La moitié
+     * « cannot be attacked » est déjà couverte par `inattaquable`
+     * (`estInattaquable()`, lu depuis longtemps par `phaseMonstres()`) ; celle-
+     * ci couvre l'AUTRE moitié — un sort, ami ou ennemi, ne peut plus choisir
+     * ce héros pour cible. Lecteur : `MoteurSorts::ciblesLegales()`.
+     *
+     * ⚠ Portée connue et nommée : seul le ciblage d'un SORT DE HÉROS est
+     * filtré ici. Le ciblage des sorts de Dread (`MoteurDread`) n'est pas
+     * recâblé par ce chantier — un Sorcier pourrait donc encore viser un
+     * héros invisible avec un sort. Dette explicite, pas un oubli.
+     */
+    public function immuniteSorts(Personnage $personnage): bool
+    {
+        return $personnage->conditions()->get()
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'immunite_sorts', false));
+    }
+
     /** Réveil d'un héros endormi : être attaqué retire la condition (doc 02 §7). */
     public function reveillerHeros(Personnage $personnage): void
     {
@@ -2048,6 +2331,149 @@ final class MoteurSorts
         }
 
         return $options;
+    }
+
+    /**
+     * Les Sorciers de Dread encore capables de lancer un sort, parmi les cibles
+     * monstres de `ciblesLegales()` — la cible d'*Unlearn* (2026-10-08). Un monstre
+     * sans répertoire, ou dont tout le répertoire est déjà oublié, n'est pas
+     * lanceur pour cette quête.
+     *
+     * @param  list<array<string, mixed>>  $monstres
+     * @return list<array<string, mixed>>
+     */
+    private function lanceursDreadOubliables(array $monstres): array
+    {
+        return array_values(array_filter($monstres, function (array $m) {
+            $instance = InstanceMonstre::query()->with('monstre')->find((int) ($m['id'] ?? 0));
+
+            return $instance !== null
+                && $instance->quete !== null
+                && app(MoteurDread::class)->sortsOubliables($instance, $instance->quete) !== [];
+        }));
+    }
+
+    /**
+     * Les sorts qu'un HÉROS peut encore faire oublier pour la quête (Unlearn,
+     * mécanisme générique : la carte Dread *Unlearn* du High Mage, vague 2, s'y
+     * branchera contre un héros) — ceux qu'il connaît, moins ceux déjà oubliés.
+     *
+     * @return list<string>
+     */
+    public function sortsOubliablesHeros(Personnage $personnage, Quete $quete): array
+    {
+        $oublies = app(OubliSorts::class)->oublies($quete, OubliSorts::CIBLE_PERSONNAGE, $personnage->id, OubliSorts::SOURCE_SORT);
+
+        return $personnage->sorts()->pluck('sorts.nom')
+            ->map(fn ($nom) => (string) $nom)
+            ->diff($oublies)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Une entrée PAR SALLE NON DÉCOUVERTE — Clairvoyance (Spells of Detection).
+     *
+     * « You may ask Zargon to lay out the contents of one room anywhere on the
+     * board » : n'importe quelle salle de la carte, sans trajet ni ligne de vue,
+     * mais une salle que le groupe n'a pas encore vue — montrer le contenu
+     * d'une salle déjà découverte ne révèle rien. Le repère est celui des
+     * portes (`reperePorte()`) appliqué à la MÉDIANE de la salle : « au
+     * nord-est, à 7 cases ». Aucun contenu dans le libellé.
+     *
+     * @param  array{x: int, y: int}  $lanceur
+     * @return list<array<string, mixed>>
+     */
+    private function entreesVisionSalle(Quete $quete, Sort $sort, array $lanceur): array
+    {
+        $decouvertes = $quete->sallesDecouvertes();
+        $salles = (array) data_get($quete->carte?->grille, 'salles', []);
+        $entrees = [];
+
+        foreach ($salles as $index => $salle) {
+            if (in_array((int) $index, $decouvertes, true)) {
+                continue;
+            }
+
+            $mx = (int) ($salle['mediane_x'] ?? ((int) $salle['x'] + intdiv((int) $salle['largeur'], 2)));
+            $my = (int) ($salle['mediane_y'] ?? ((int) $salle['y'] + intdiv((int) $salle['hauteur'], 2)));
+
+            $entrees[] = [
+                'cle' => "sort:{$sort->id}:salle:{$index}",
+                'sort_id' => $sort->id,
+                'nom' => "{$sort->nom} — salle ".$this->reperePorte($lanceur, ['x' => $mx, 'y' => $my]),
+                'element' => $sort->element,
+                'sort_type' => $sort->type,
+                'disponible' => true,
+                'mode' => 'vision_salle',
+                'salle' => (int) $index,
+            ];
+        }
+
+        return $entrees;
+    }
+
+    /**
+     * Une entrée PAR PAIRE de cases libres — Wall of Stone (Spells of
+     * Protection). La carte dit « covers 2 squares not occupied by figures »,
+     * et René a tranché le 2026-10-05 le retour aux DEUX cases (la décision
+     * « une case » du 2026-10-04 avait été prise sur un mur posé sur une
+     * arête, cf. `docs/plan-morcar-execution-2026-10-06.md`).
+     *
+     * Une paire est `[A, B]` : A orthogonalement adjacente au lanceur, B
+     * orthogonalement adjacente à A, et ni B ni A ne portent de figure ou de
+     * mobilier (`estTraversable()` exclut déjà les deux, et les embrasures de
+     * porte non ouvertes). B ne peut jamais être la case du lanceur — il s'y
+     * tient, donc `estTraversable()` le refuse déjà, mais la règle est écrite
+     * en clair parce que c'est précisément le cas tordu. Deux paires ne
+     * peuvent pas se confondre : deux voisines orthogonales du lanceur ne
+     * sont jamais orthogonalement adjacentes entre elles, donc A est toujours
+     * LA case du lanceur et jamais l'autre.
+     *
+     * ⚠ Aucune entrée si aucune paire n'est libre — une liste vide est le
+     * signal correct, pas une erreur à masquer (cf. le rayon de l'Éclair).
+     *
+     * @param  array{x: int, y: int}  $lanceur
+     * @return list<array<string, mixed>>
+     */
+    private function entreesPoseMurMagique(Grille $grille, Sort $sort, array $lanceur): array
+    {
+        $directions = ['nord' => [0, -1], 'sud' => [0, 1], 'ouest' => [-1, 0], 'est' => [1, 0]];
+        $entrees = [];
+
+        foreach ($directions as $nomA => [$dxA, $dyA]) {
+            $ax = $lanceur['x'] + $dxA;
+            $ay = $lanceur['y'] + $dyA;
+
+            if (! $grille->estTraversable($ax, $ay)) {
+                continue;
+            }
+
+            foreach ($directions as $nomB => [$dxB, $dyB]) {
+                $bx = $ax + $dxB;
+                $by = $ay + $dyB;
+
+                // Revenir sur le lanceur, ou sur une case déjà prise : pas une
+                // seconde case, c'est un mur qui n'existe pas.
+                if (($bx === $lanceur['x'] && $by === $lanceur['y'])
+                    || ! $grille->estTraversable($bx, $by)) {
+                    continue;
+                }
+
+                $entrees[] = [
+                    'cle' => "sort:{$sort->id}:mur:{$ax}:{$ay}:{$bx}:{$by}",
+                    'sort_id' => $sort->id,
+                    'nom' => "{$sort->nom} — au {$nomA}, puis au {$nomB}",
+                    'element' => $sort->element,
+                    'sort_type' => $sort->type,
+                    'disponible' => true,
+                    'mode' => 'pose_mur_magique',
+                    'cases' => [['x' => $ax, 'y' => $ay], ['x' => $bx, 'y' => $by]],
+                ];
+            }
+        }
+
+        return $entrees;
     }
 
     /**

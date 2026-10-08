@@ -146,7 +146,14 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // ⚠ 2026-09-16 : l'Arc de Vindication a perdu `des_attaque` — il ne frappe
         // plus que par ses flèches (arbitrage de René). C'est cette clé-là qui
         // dit ce qu'il change au porteur.
-        'degats_sauf_bouclier_noir'];
+        'degats_sauf_bouclier_noir',
+        // ⚠ 2026-10-06 (Wizards of Morcar, Drakehide Cuirass) : première
+        // arme/armure dont tout l'effet tient sur un BONUS relatif
+        // (`bonus_des_defense`, déjà porté par les améliorations de Forge et
+        // les potions, jamais seul sur une pièce équipée jusqu'ici) et un
+        // déplacement FIXE qui remplace le jet. Les deux changent bien ce
+        // que le porteur encaisse/parcourt.
+        'bonus_des_attaque', 'bonus_des_defense', 'deplacement_fixe'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
@@ -164,6 +171,8 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         'restaure_jauges_depart', 'multiplicateur_degats', 'relance_des_attaque',
         'bonus_deplacement', 'saut_fosse_automatique', 'deplacement_multiplie',
         'revele_pieges_et_portes_en_vue',
+        // Potion de charme (lot 1b, 2026-10-08) : lue par `MoteurPotions::boire()`.
+        'rabais_recrutement_mercenaire',
         // ⚠ `activable` n'est PAS un effet de potion : un consommable qui le
         // porte (la Poudre d'Invisibilité) est routé avant la branche des
         // potions par `ResolveurTour::resoudreUsageObjet()`, et `MoteurPotions`
@@ -174,8 +183,20 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // Les Cendres du Phénix ne modifient aucune statistique : elles ouvrent
         // une RÉACTION hors tour. C'est tout autant changer ce que le porteur
         // peut faire — c'est même la seule chose qu'elles font.
-        'plancher_pv'];
+        'plancher_pv',
+        // ⚠ 2026-10-06 (Wizards of Morcar, lot F) : quatre effets de plus,
+        // chacun DÉJÀ un lecteur réel (voir leur déclaration dans
+        // MotsClesEquipement) — `immunite_degat` est désormais aussi lu sur
+        // un buff de potion (Potion of Fire Resistance), `second_sort_par_tour`
+        // sur une TROISIÈME source (Potion of Magical Aptitude),
+        // `annule_prochain_sort_degats` et `transmute_equipement_en_or` sont
+        // nouveaux (Potion of Magic Resistance, Potion d'alchimie).
+        'immunite_degat', 'second_sort_par_tour', 'annule_prochain_sort_degats', 'transmute_equipement_en_or'];
 
+    // Potion de charme (Wizards of Morcar) : sa clé (`rabais_recrutement_mercenaire`)
+    // est lue par `MoteurPotions::boire()` — écriture de l'état du héros,
+    // consommé par `MercenaireController::recruter()`. Elle compte donc ici,
+    // comme les autres. Le test « en jeu » est dans PotionCharmeTest.
     foreach (Objet::where('categorie', 'consommable')->get() as $potion) {
         expect(array_intersect($utiles, array_keys((array) $potion->effet)))
             ->not->toBeEmpty("{$potion->nom} : aucun effet que MoteurPotions sache appliquer.");

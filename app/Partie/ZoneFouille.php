@@ -79,6 +79,28 @@ final class ZoneFouille
         return new self(null, $couloir);
     }
 
+    /**
+     * Cases du COULOIR (vide pour une salle) — Hurricane Trap (Wizards of
+     * Morcar) en a besoin pour déterminer l'AXE du couloir (le sens du recul)
+     * et ses bornes ; aucun autre consommateur de cette classe n'a besoin de
+     * sortir du simple test `contient()`, d'où cet accesseur à part plutôt
+     * qu'un champ public.
+     *
+     * @return list<array{x: int, y: int}>
+     */
+    public function cellulesCouloir(): array
+    {
+        if ($this->salle !== null) {
+            return [];
+        }
+
+        return array_map(function (string $cle) {
+            [$x, $y] = array_map('intval', explode(',', $cle));
+
+            return ['x' => $x, 'y' => $y];
+        }, array_keys($this->couloir));
+    }
+
     public function contient(int $x, int $y): bool
     {
         if ($this->salle !== null) {

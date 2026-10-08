@@ -111,6 +111,19 @@ return [
             ['carte' => 'Potion of Superior Restoration', 'objet' => 'Potion de restauration supérieure'],
             ['carte' => 'Potion of Vision', 'objet' => 'Potion de vision'],
             ['carte' => 'Venom Antidote', 'objet' => 'Antidote au venin'],
+
+            // ===== Wizards of Morcar (« Boutique de l'Alchimiste », doc 18
+            // §3, lot F, 2026-10-06) : TROIS cartes vendues en boutique dans
+            // cette boîte, même patron que le Fire Ring de Kellar's Keep
+            // juste au-dessus (`'paquet'` nomme la SOURCE réelle, distincte
+            // de potions.pdf). *Potion of Alchemy* et *Potion of Charm* n'ont
+            // volontairement PAS d'entrée ici : ce sont des cartes de TRÉSOR
+            // sans prix de boutique (doc 18 §8), même famille que la Fiole de
+            // soin/Potion d'héroïsme/de force/de défense exclues de ce
+            // registre par l'intro du fichier.
+            ['carte' => 'Potion of Fire Resistance', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de résistance au feu'],
+            ['carte' => 'Potion of Magical Aptitude', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de prédisposition magique'],
+            ['carte' => 'Potion of Magic Resistance', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de résistance à la magie'],
         ],
     ],
     /*
@@ -288,6 +301,36 @@ return [
             // weapons have no gold coin value and cannot be bought or sold. »
             ['carte' => 'Bone Battleaxe', 'paquet' => 'Against the Ogre Horde', 'objet' => 'Hache de bataille en os'],
             ['carte' => 'Bone Longsword', 'paquet' => 'Against the Ogre Horde', 'objet' => 'Épée longue en os'],
+
+            // ===== Wizards of Morcar (doc 18 §6, lot 1b, 2026-10-06) =====
+            // DRAKEHIDE CUIRASS — trouvée dans le trésor de Boroush (quête 5).
+            // Les quatre clauses sourcées sont TOUTES portées : +1 dé de
+            // défense (`bonus_des_defense`, réutilisé), déplacement FIXE à 8
+            // cases (`deplacement_fixe`, nouveau, `MenuMoteur::deplacementDuTour()`),
+            // cumul avec casque/bouclier (slots déjà distincts, rien à
+            // coder), et l'interdiction au Magicien (`classe_interdite`,
+            // migration dédiée) — aucune clause laissée de côté, à la
+            // différence du Brassard de Glace plus haut.
+            ['carte' => 'Drakehide Cuirass', 'paquet' => 'Wizards of Morcar', 'objet' => 'Cuirasse de Peau de Dragon'],
+
+            // URDYN THE UNMAKER — « 2 Attack dice normally, 4 Attack dice
+            // against a Dreadshifter or a Golem specifically » (salle E,
+            // quête 3). ⚠ NON PORTÉ : le bonus CONDITIONNÉ au TYPE de monstre
+            // adverse n'a aucun équivalent au vocabulaire (nos bonus
+            // conditionnels existent `au_contact`, jamais `type_monstre_cible`)
+            // — ET il suppose que Golem/Dreadshifter existent au catalogue
+            // des monstres, ce qu'ils ne font pas encore (capacité *Ambush*,
+            // lot C du plan Morcar, hors de ce chantier). Les deux manquent
+            // ensemble ; porter la moitié « 2 dés d'attaque normaux » sans
+            // l'autre serait une carte tenue à moitié.
+            ['carte' => 'Urdyn the Unmaker', 'paquet' => 'Wizards of Morcar', 'nom' => 'Urdyn le Défaiseur',
+                'texte' => 'Arme : 2 dés d\'attaque de combat normal, 4 dés contre un Dreadshifter ou un Golem spécifiquement.',
+                'manque' => "BONUS CONDITIONNÉ AU TYPE DE MONSTRE ADVERSE — aucun mot-clé du vocabulaire d'équipement "
+                    ."ne cible un TYPE de monstre adverse (nos bonus conditionnels existent `au_contact`, jamais "
+                    .'`type_monstre_cible`), ET la carte suppose Golem/Dreadshifter au catalogue des monstres — '
+                    .'ni l\'un ni l\'autre ne sont construits (capacité *Ambush*, lot C du plan Morcar, hors de ce '
+                    .'chantier). Porter seulement « 2 dés d\'attaque normaux » laisserait la seconde clause, '
+                    .'pourtant centrale au nom de l\'arme, sans effet.'],
         ],
     ],
 

@@ -17,6 +17,7 @@ import { reactive, readonly } from 'vue';
 // le RENDU (DungeonGrid) et la LÉGENDE (LegendeCarte) doivent lire la même,
 // sinon la légende se périme au premier symbole ajouté.
 import { MOBILIER_ICONES, MOBILIER_ICONE_DEFAUT, icone } from '../components/carte/symboles.js';
+import { ELEMENT as REPERTOIRES_FR } from '../compendium.js';
 
 const state = reactive({
     /** Identifiant du groupe courant (param de route). */
@@ -700,6 +701,9 @@ export function entitesVersGroupe(entites, initiative) {
             conds: badgesFigure(e),
             acting: estCourant(e, initiative),
             low: !e.tombe && e.pv_body > 0 && e.pv_body * 4 <= e.pv_body_max,
+            // Faveurs de Hopekins Rest (`{cle, libelle, effet}`, décidé par le serveur) :
+            // la fiche de la table les montre avec leur effet, sans rien recalculer.
+            faveurs: e.faveurs ?? [],
         }));
 }
 
@@ -845,9 +849,12 @@ export function sortsParElement(sorts) {
         if (!groupes.has(cle)) {
             groupes.set(cle, {
                 element: cle,
-                l: info?.l ?? (s.element ?? 'Autre'),
+                // Un répertoire hors écoles (barde, druide, warlock, elfique,
+                // Spells of Protection/Detection/Darkness) porte son libellé du
+                // guide — sinon le grimoire afficherait « protection » brut.
+                l: info?.l ?? REPERTOIRES_FR[s.element]?.l ?? (s.element ?? 'Autre'),
                 cle: info?.cle ?? '',
-                ic: info?.ic ?? 'auto_awesome',
+                ic: info?.ic ?? REPERTOIRES_FR[s.element]?.ic ?? 'auto_awesome',
                 sorts: [],
             });
         }

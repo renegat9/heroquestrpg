@@ -20,3 +20,163 @@
 
 **Spells carry three more keyword vocabularies** (`App\Engine\MotsClesSort`, same reference doc): `cible` (`soi` · `heros` · `monstre` · `monstres_zone`) and `resistance` (`jet_mind`), plus the booleans `defense_applicable`, `saute_tour` and `ouvre_porte`. All are now **read**, not merely described. Three notes that bite. **Line of sight is required for EVERY spell**, not just offensive ones — "nécessaire pour lancer un sort ou observer une cible" (LR p. 14, `reference/16_armurerie.md` §6.4); the filter used to run only on the damage/mental branch, so a hero could be healed or buffed **through walls, across the whole dungeon, inside a room never explored**. The caster always sees themselves, so they stay targetable — "may be cast on any one hero, **including yourself**" (Heal Body, LR p. 8), which is also why `heros_ou_soi` was removed: it returned exactly the same list as `heros` and covered no rule at all. For a **damage or mental** spell `cible` states the intent but does **not** restrict — friendly fire is deliberate (doc 02 §5, S3), so the legal list holds monsters *and* heroes in line of sight; and `cout: deplacement_du_tour` had no reader at all, so `franchirMur()` walked the hero through the wall and left their whole allowance intact — Traverser la Pierre was **free** despite its own docblock saying it "vaut son déplacement". An unknown `resistance` now **422s loudly** rather than silently resolving with the wrong rule. `MotsClesSort::NON_IMPLEMENTES` lists words a catalog may carry that the engine does **not** apply (`monstres_zone`, `invocation_ephemere`) — **no spell uses either any more**, and a test forbids it. Checking them against the sourced booklets showed they were never debts but **data errors**: the official text is "**un monstre choisi** passe son prochain tour" (Tempest, Kellar's Keep p. 28-29 — never an area spell), and Genie is "opens a door of your choice **or** attacks with 5 combat dice" — no summon at all. Both were fixed at the source like `attaque_second_rang` before them. **Tempête now makes the monster skip its whole turn** (`saute_tour`), where the old `empeche_attaque` blocked only the attack and let it close the distance — the spell merely delayed by one turn a blow it then landed in contact.
 
+**Three OPTIONAL repertoires joined the choice (Wizards of Morcar, livret G1504
+p. 11, 2026-10-06): `protection` · `detection` · `tenebres`.** "These may
+replace existing sets of spells that a spellcaster can draw on (but Elf and
+Wizard still have one and three sets of spells respectively). Spellcasters
+may change their spells between quests." The mechanism is **not** a second
+choice system: `MoteurSorts::remplacerElement()` reuses the exact pivot
+swap `fixerSortsElfiques()` already did for the Elf (detach the old element,
+`attacherElement()` the new one in bulk) — generalised to the **five**
+casting classes rather than the Elf alone, since the card makes no exception
+for anyone. A new route, `PUT /groupes/{id}/sorts-repertoire` (**hub only**,
+`SortsElfiquesController::rechoisirRepertoire()`), takes `{personnage_id,
+element_actuel, nouveau_repertoire}`; it is deliberately a **sibling** of
+`sorts-elfiques` rather than a parameter bolted onto it, because the Elf's
+own endpoint carries an invariant (a school is definitive) that has nothing
+to do with swapping an *optional* repertoire in and out. Since each of the
+three carries exactly three spells, there is nothing to pick **within** a
+repertoire (unlike the Elf's eight-candidates-for-three-slots) — attaching
+is the whole mechanic.
+
+⚠ **Seven of the nine sourced cards are ported (2026-10-08); two remain a named
+debt.** *Unlearn* is ported: `effet.oublie_sort` with `cible: lanceur_dread`
+(`MotsClesSort::CIBLE_LANCEUR_DREAD`). The forgotten spell is a **durable row per
+quest** in `sorts_oublies_de_quete` (`OubliSorts`), not a flag on
+`personnage_sorts.disponible` — that flag always comes back at
+`DemarreurQuete::reinitialiserQuete()`, which is exactly why it could not carry
+"for the duration of the Quest". One mechanism, two readers: a Sorcier's
+repertoire (`MoteurDread::sortsOubliables()`, read by `sortsDisponibles()`), and
+a hero's spells (`MoteurSorts::sortsOubliablesHeros()`, read by `options()` where
+the spell is greyed, never castable). The High Mage's Dread copy (wave 2) will
+target a hero through the second reader without a new table. The card's
+"at random" is an **unbiased** draw on the injected d6 by rejection
+(`ResolveurTour::indiceAleatoire()`), never `random_int()`, so a fixed-dice test
+stays reproducible — and bounded, so a roller that always repeats a rejected face
+cannot hang the game. A Sorcier with its whole repertoire forgotten is no longer
+a legal target.
+
+*Clairvoyance* is ported: `effet.vision_salle`. The server offers **one entry per
+room the group has not discovered** (`MoteurSorts::entreesVisionSalle()`), named
+by the door's own bearing ("au est, à 2 cases", measured to the room's median) and
+**never** by its contents — an empty room must not be distinguishable from a full
+one in the menu. The resolver (`ResolveurTour::visionSalleSort()`) shows **only
+the chosen room**: its monsters by name and the count of its traps. It writes
+nothing to the fog nor to `salles_decouvertes` — information, not exploration —
+and the result reaches the table as a scene (`SceneDeTable::sort()`, "Vision à
+distance") and the journal. ⚠ "If the room is empty, you may not try again" is
+held by the card's own "Discard after use" (S5, once per quest): an empty room
+spends the spell exactly like a full one, and no second room is offered in the
+same cast. Stated, not hidden: a room is "empty" when it holds no monster alive
+and no trap — furniture and chests do not count, the card does not say what it
+means by "contents".
+
+⚠ **Two remain a named debt, for two reasons that are not the same.**
+*Future Sight* (reroll **every** die of one attack, defence or movement roll, **no
+action cost**, cast "at any time") needs two things we do not have. A cast with no
+action slot — every spell goes through a turn's action today — and, more
+importantly, a **reroll of a roll already resolved**: the reaction pipeline
+(`MoteurReactions`) suspends only on damage taken, and its `ANNULE_DEGATS` undoes
+a blow, not a dice result; re-running a defence means re-running the blow it
+decided. Porting it is a design question (what the table shows while the roll is
+open), not a data row. *Cloak of Shadows* (a darkness tile that blocks **both**
+sight and attacks, a 3-token counter decremented at the caster's own turn) needs
+a **new battlefield layer** (`carte.grille['ombre']`, read by `FabriqueGrille::pour()`
+for sight, like the Ice Wall's `glace`), attack guards on heroes **and** Sorcerers,
+a countdown hooked to the caster's turn start, and table rendering. None of the two
+is seeded: a catalogue row with no reader is the exact trap this project names
+everywhere else.
+
+**Wall of Stone (Spells of Protection) is a magical BARRIER, not a buff** —
+"You create a magical wall of stone which covers 2 squares not occupied by
+figures. The wall has 1 Body Point and 6 Defend dice." The wall occupies
+**TWO** cells, as the card says — René's decision of 2026-10-05, which **annuls**
+his earlier "one cell" of 2026-10-04 (taken when the wall was believed to sit on
+an edge). A wall is still ONE furniture entry, so a single lost Body Point
+destroys the whole wall, and `FabriqueGrille` blocks it through its `l`/`h`
+footprint (2×1 or 1×2, the pair the player chose). It is built entirely on the
+**attackable furniture** seam
+(`mobiliers.pv_body`/`defense_dice`, the "third way to clear an obstacle"):
+`MoteurMobilier::poserMurMagique()` is the single point of passage that
+**appends** a new entry to `carte.grille['mobilier']` **during the quest**,
+the exact array `FabriqueGrille::pour()` already loops for every piece of
+furniture in the engine — so blocking movement **and** sight, and being
+attackable with `attaquablesAdjacents()`/`infligerDegats()`, cost nothing
+new; only the *pose* is new code. `MobilierSeeder` gains "Mur de Pierre"
+(`bloque_vue: true`, unlike the Altar/Dread Chest's `false` — the card calls
+itself "a solid, impassable wall", a wall, not low furniture) but **not**
+"Mur de Glace"/"Mur de Feu": those two are the Storm Master's and High
+Mage's Dread spells (wave 2), and seeding a row with no spell to cast it
+would be the same trap as above. `AssembleurCarte::MOBILIER_POSE_EN_QUETE`
+excludes all three names from the generic room-dressing draw — without it,
+the very same uniform-random `placerMobilier()` that already seeds
+*Haut Autel*/*Coffre du Dread* as ordinary dressing would plant an
+ownerless, uncast wall in a random room the day the theme is active.
+
+Casting it offers **one menu entry per free PAIR of orthogonally contiguous
+cells**, the first one adjacent to the caster (`MoteurSorts::entreesPoseMurMagique()`:
+four neighbours × three onward cells, the caster excluded — twelve pairs on an open
+floor), never a cible-less base entry a player could click with nothing chosen.
+The pair travels in the option (`parametres.cases`), and `poserMurMagique()` refuses
+anything that is not two contiguous cells. Placing a wall is a **choice of cells**,
+not a choice of target. No connectivity check runs at cast time, on purpose: this
+is a player's live tactical choice, not a generation-time placement, and the
+cardboard piece goes wherever the player puts it, for better or worse.
+⚠ **A wall in a corridor has no room index**, and `EtatGroupe::mobilier()`
+used to publish furniture only by "is its *room* discovered" — exactly the
+bug the corridor levers paid for in 2026-08-27 ("on en déduisait la salle par
+les coordonnées"). It now falls back to the cell's own fog state when
+`salle` is `null`, the same fix, one layer later.
+
+**"If a Lightning Strike or Earthquake meets a magical wall, both spells are
+cancelled" (carton p. 10) is named here and ported nowhere**: those two are
+Storm Master Dread spells, wave 2's job. The wall's *shape* is already in
+place for whoever writes that reader — a wall is one entry in
+`carte.grille['mobilier']`, destroyable, with a cell the ray/line code can
+test for — but the cancellation rule itself is not written.
+
+**Two new condition-effect booleans, read like `inattaquable`/`action_interdite`
+before them: `attaque_interdite` and `immunite_sorts`.** *Invisibility*
+(Protection) — "makes you invisible until the start of your next turn. While
+invisible, you may not attack. You cannot be attacked and are immune to all
+spells." — reuses the **abandoned** "Caché" condition row (it had carried
+`inattaquable` with no producer since Voile de Brume stopped posing it on
+2026-09-02) rather than inventing a new one, and extends its `effet` with
+the two new keys: `attaque_interdite` is read at the **one** choke-point of
+a strike, `ResolveurTour::frapper()` — melee, ranged, thrown, Furie, every
+variant funnels through it, so one guard covers all of them; `immunite_sorts`
+is read in `MoteurSorts::ciblesLegales()`, where it drops the bearer from
+**any** spell's legal targets, friendly or hostile. ⚠ Named gap: only a
+hero-cast spell's targeting is filtered — a Dread spellcaster's target
+selection is not rewired by this pass, so a sorcerer could still choose an
+invisible hero. *Chains of Darkness* (Darkness) — "may not move or attack
+until the start of your next turn. They may defend or cast spells." — reuses
+the *same* `attaque_interdite` key (plus `deplacement_interdit`, already
+read) on a **new** condition, "Enchaîné" (hero side, tir ami) and a **new**
+monster condition, `MoteurSorts::MONSTRE_ENCHAINE` (`enchaine`). It is
+checked in `ResolveurTour::jouerMonstre()` **after** the Dread-spell attempt
+and before the movement/approach code — deliberately, since `saute_tour`
+would have blocked "may … cast spells" too had it been reused instead of a
+sibling key; defense is left untouched on purpose, "may defend" being the
+engine's default when nothing says otherwise. *Arrows of the Night*
+(Darkness) — "The target defends with as many dice as they have Mind
+Points. Monsters with 0 Mind points may not roll defense." — is a **new**
+`resistance` value, `MotsClesSort::RESISTANCE_DES_MIND`, read in
+`ResolveurTour::sortDegats()`: an ordinary combat roll (shields counted as
+always — black for a monster defender, white for a hero, per `Engine\Combat`)
+where only the defender's **dice count** is substituted for `pv_mind`, never
+a binary save and never the red-dice replacement the fire spells use.
+*Trésor convoité* (Detection's **Treasure Horde**) — "draw 3 treasure cards.
+You may shuffle any of the drawn cards back … and keep the rest." — draws
+**exactly three**, applies whichever are `tresor`/`potion`/`objet`/
+`artefact`, and auto-returns the rest (trap/wandering-monster/nothing)
+**unresolved** to the bottom of the deck: the same automatic "may" resolution
+`piocherAvecSixiemeSens()` already uses, since a card that can only hurt has
+one rational answer. It is **not** *Trésor sans Péril*: that one draws
+*until* a gain, ignoring hazards; this one promises three chances, not a
+gain — it can come up empty.
+
+
+**Invisibility closes ONE door on attacks, and the menu and the resolver read the same predicate (2026-10-08).** `MenuMoteur::generer()` filters the whole hero menu once, after every return path of `genererBrut()`, and `ResolveurTour::resoudre()` refuses the same options before any variant runs, both through `MenuMoteur::estAttaqueDuHeros()` (`TYPES_ATTAQUE_HEROS`: `attaque`, `attaque_balayee`, `rayon`, `degat_differe`, `attaquer_mobilier`). That list is the whole hero strike family — weapons, throws, Furie, the Moine's blows and the Berserker's sweep, the Fire style's ray and touch, and a strike on a piece of furniture. The ally's own menu (`genererMenuAllie()`) is **not** filtered: "you may not attack" binds the invisible hero, not the figure they control, and the resolver does not refuse the ally's blow. `ResolveurTour::frapper()` keeps its guard underneath.
+
+**The repertoire swap has a screen, and the server decides what it offers (2026-10-08).** `GET /api/moi` publishes `repertoires: {remplacables, offerts}` per hero (`MoteurSorts::repertoiresChangeables()`): the known elements except the scroll element `parchemin`, and the optional repertoires the hero does not hold yet. The grimoire (`SpellsTab`, hub only) lists them as they come. `remplacerElement()` now refuses two things it used to take silently: a repertoire the hero already holds (`attacherElement()` is idempotent, so taking it again would **lose** the old one without a word), and a scroll as the element to replace.

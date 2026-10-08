@@ -14,6 +14,7 @@ import FicheTab from '../components/manette/FicheTab.vue';
 import SpellsTab from '../components/manette/SpellsTab.vue';
 import SacTab from '../components/manette/SacTab.vue';
 import RecrutementHub from '../components/manette/RecrutementHub.vue';
+import AnnonceHub from '../components/ui/AnnonceHub.vue';
 import MarketTab from '../components/manette/MarketTab.vue';
 import JetDes from '../components/ui/JetDes.vue';
 import TalentPopup from '../components/ui/TalentPopup.vue';
@@ -328,6 +329,8 @@ async function basculerPret() {
    sorts: [{sort_id, nom, element, type, disponible}] (toujours un tableau,
    vide si la classe ne lance pas de sorts). ---- */
 const mesSorts = computed(() => monPerso.value?.sorts ?? []);
+// Décision publiée par /moi : quels répertoires céder, lesquels offrir (hub).
+const mesRepertoires = computed(() => monPerso.value?.repertoires ?? { remplacables: [], offerts: [] });
 
 const lvlupToast = computed(() => {
     if (!store.state.niveauMonte) return null;
@@ -845,6 +848,7 @@ const equipEnCours = ref(false);
 /* Rechoix des 3 sorts elfiques (hub) : le serveur diffuse `.groupe.etat`, mais
    c'est /moi qui porte les sorts du héros — on le relit explicitement. */
 const rechoixElfiqueEnCours = ref(false);
+const rechoixRepertoireEnCours = ref(false);
 
 async function rechoisirSortsElfiques(sorts) {
     if (rechoixElfiqueEnCours.value || !monPersonnageId.value) return;
@@ -857,6 +861,22 @@ async function rechoisirSortsElfiques(sorts) {
         store.setNarration(e.message);
     } finally {
         rechoixElfiqueEnCours.value = false;
+    }
+}
+
+// Répertoire optionnel (Wizards of Morcar) : un répertoire connu cède sa place.
+// Même geste que le rechoix elfique, sur l'endpoint frère `sorts-repertoire`.
+async function rechoisirRepertoire(elementActuel, nouveau) {
+    if (rechoixRepertoireEnCours.value || !monPersonnageId.value) return;
+    rechoixRepertoireEnCours.value = true;
+    try {
+        await api.rechoisirRepertoire(props.groupe, monPersonnageId.value, elementActuel, nouveau);
+        const { joueur: moi, personnages: persos } = await api.moi();
+        store.setJoueur(moi, persos ?? []);
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        rechoixRepertoireEnCours.value = false;
     }
 }
 
@@ -933,6 +953,15 @@ const catalogueMercs = ref([]);
 const recrutEnCours = ref(false);
 const recruesHub = computed(() => store.state.etat?.groupe?.mercenaires ?? []);
 const orCommun = computed(() => store.state.etat?.groupe?.or ?? 0);
+// Statut de Gardien (chantier 1c, Wizards of Morcar) : la DÉCISION publiée
+// par le serveur (`groupe.gardien`), jamais recalculée ici (2 quêtes
+// achevées) — le panneau de recrutement se contente de l'afficher.
+const gardien = computed(() => store.state.etat?.groupe?.gardien ?? false);
+// Annonces de fin de quête au hub (chantier 1c, 2026-10-08) : la DÉCISION du
+// serveur (`groupe.mercenaires_entretien`, `groupe.faveur_hopekins`, déjà bornées
+// à la dernière quête achevée) — rendue telle quelle par `AnnonceHub`.
+const entretienHub = computed(() => store.state.etat?.groupe?.mercenaires_entretien ?? null);
+const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? null);
 async function chargerMercenaires() {
     if (catalogueMercs.value.length) return;
     try {
@@ -1244,6 +1273,12 @@ const navItems = computed(() => (scene.value === 'marche'
                                     : "Le marché n'est pas encore ouvert. Le groupe se repose au hub…" }}
                             </p>
 
+                            <!-- ---- annonces d'arrivée au hub : entretien des mercenaires, faveur
+                                 de Hopekins Rest (décidées par le serveur, bornées à la dernière quête) ---- -->
+                            <div v-if="auHub && (entretienHub || faveurHub)" class="manette-annonces-hub">
+                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" />
+                            </div>
+
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
                             <div v-if="auHub" class="pret-hub">
                                 <div class="pret-hub-titre">
@@ -1304,6 +1339,7 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :catalogue="catalogueMercs"
                                 :recrues="recruesHub"
                                 :or="orCommun"
+                                :gardien="gardien"
                                 :en-cours="recrutEnCours"
                                 @recruter="recruter"
                             />
@@ -1317,6 +1353,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             :points="pointsCompetence"
                             :groupe="groupe"
                             :competences="mesCompetences"
+                            :faveurs="monPerso?.faveurs ?? []"
                         />
                         <SpellsTab
                             v-else-if="tab === 'sorts'"
@@ -1325,9 +1362,11 @@ const navItems = computed(() => (scene.value === 'marche'
                             :menu="menuCourant"
                             :pending="boutonsGeles"
                             :au-hub="auHub"
-                            :rechoix-en-cours="rechoixElfiqueEnCours"
+                            :repertoires="mesRepertoires"
+                            :rechoix-en-cours="rechoixElfiqueEnCours || rechoixRepertoireEnCours"
                             @choose="choisirOption"
                             @rechoisir-elfiques="rechoisirSortsElfiques"
+                            @rechoisir-repertoire="rechoisirRepertoire"
                         />
                         <SacTab
                             v-else-if="tab === 'sac'"
