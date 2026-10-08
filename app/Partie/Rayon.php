@@ -68,7 +68,15 @@ final class Rayon
                 return $cases;
             }
 
-            $cases[] = ['x' => $sx, 'y' => $sy];
+            // VOILE D'OMBRE (*Cloak of Shadows*) : un rayon est une attaque, et
+            // « heroes and monsters on the tile may not … be attacked » — la case
+            // sous le voile n'est donc pas frappée. Le rayon, lui, la traverse :
+            // l'ombre coupe la VUE, pas la trajectoire. Seule lecture de la ligne,
+            // donc seul endroit où le dire (menu, résolveur, Éclair, Dread).
+            if (! $grille->estEnOmbre($sx, $sy)) {
+                $cases[] = ['x' => $sx, 'y' => $sy];
+            }
+
             $x = $sx;
             $y = $sy;
         }

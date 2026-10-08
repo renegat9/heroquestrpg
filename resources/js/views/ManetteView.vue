@@ -529,6 +529,15 @@ watch(monPerso, (p) => {
             // Sans la liste des remèdes, une manette rechargée afficherait un
             // « Rester debout » sans rien à boire.
             soins: attente.soins,
+            // VISION DU FUTUR : le jet à relancer, MONTRÉ — décidé par le serveur
+            // (jet, dés, volée d'en face, faces qui comptent, phrase). Sans eux, une
+            // manette rechargée proposerait de relancer un jet qu'elle ne montre pas.
+            jet: attente.jet,
+            des: attente.des,
+            des_adverses: attente.des_adverses,
+            touchante: attente.touchante,
+            defensive: attente.defensive,
+            resume: attente.resume,
             source: attente.source,
             degats: attente.degats,
             expire_dans: 20, // on ignore depuis quand elle attend : fenêtre courte
@@ -545,7 +554,11 @@ async function repondreReaction(accepte, soin = null) {
     const perso = reactionProposee.value?.personnage_id ?? monPersonnageId.value;
     reactionEnCours.value = true;
     try {
-        await api.repondreReaction(props.groupe, perso, accepte, soin);
+        const rep = await api.repondreReaction(props.groupe, perso, accepte, soin);
+        // Une attaque REPRISE après une Vision du futur : son jet, celui qui vient de
+        // s'appliquer, se révèle comme après n'importe quel choix.
+        const reprise = rep?.reaction;
+        if (reprise?.resultat) revelerDesResultat(reprise.resultat, reprise.des);
     } catch (e) {
         store.setNarration(e.message);
     } finally {
@@ -784,14 +797,31 @@ function ciblerOption(cible) {
 
 async function envoyerOption(option, parametres) {
     feuilles.value = [];
+    sortResultat.value = null;
     store.choixEnvoye(); // optimiste : gelés jusqu'à mon prochain menu / fin de tour
     try {
         const rep = await api.envoyerChoix(props.groupe, { option_id: option.id, parametres });
+        // VISION DU FUTUR : le jet est tombé mais RIEN n'est appliqué — la feuille de
+        // réaction le montre et attend la réponse. Rien à révéler ici.
+        if (rep?.resultat?.type === 'jet_en_attente') return;
         revelerDesResultat(rep?.resultat, rep?.des); // affiche le jet quelques secondes (#dés)
+        montrerResultatSort(rep?.resultat);
     } catch (e) {
         store.annulerChoixEnAttente(); // 422 option illégale, etc. : on rend la main
         store.setNarration(e.message);
     }
+}
+
+/* ---- Résultat d'un sort de RENSEIGNEMENT (Clairvoyance : `mode` vision_salle) ou
+   d'OUBLI (Unlearn : `mode` oubli_sort), Wizards of Morcar. Le moteur DÉCIDE le
+   texte (`resultat.texte`) et le nom du sort (`resultat.sort.nom`) : la manette
+   les montre à celui qui a lancé le sort, jusqu'à ce qu'il le ferme ou qu'il
+   joue un autre choix. Rien n'est recalculé ici. ---- */
+const sortResultat = ref(null);
+const MODES_RESULTAT_SORT = ['vision_salle', 'oubli_sort', 'pose_ombre'];
+function montrerResultatSort(r) {
+    if (!r || !MODES_RESULTAT_SORT.includes(r.mode) || !r.texte) return;
+    sortResultat.value = { nom: r.sort?.nom ?? 'Sort', texte: r.texte, mode: r.mode };
 }
 
 /* ---- Révélation des dés (mode connecté) ----
@@ -953,15 +983,16 @@ const catalogueMercs = ref([]);
 const recrutEnCours = ref(false);
 const recruesHub = computed(() => store.state.etat?.groupe?.mercenaires ?? []);
 const orCommun = computed(() => store.state.etat?.groupe?.or ?? 0);
-// Statut de Gardien (chantier 1c, Wizards of Morcar) : la DÉCISION publiée
-// par le serveur (`groupe.gardien`), jamais recalculée ici (2 quêtes
-// achevées) — le panneau de recrutement se contente de l'afficher.
-const gardien = computed(() => store.state.etat?.groupe?.gardien ?? false);
+// DÉCISIONS de recrutement publiées au hub (`groupe.recrutement.offres`) : pour
+// chaque allié, le prix réel de CHAQUE héros (remise de Potion de charme comprise)
+// et le verdict (recrutable, motif). Le panneau choisit la ligne de son héros.
+const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.offres ?? []);
 // Annonces de fin de quête au hub (chantier 1c, 2026-10-08) : la DÉCISION du
 // serveur (`groupe.mercenaires_entretien`, `groupe.faveur_hopekins`, déjà bornées
 // à la dernière quête achevée) — rendue telle quelle par `AnnonceHub`.
 const entretienHub = computed(() => store.state.etat?.groupe?.mercenaires_entretien ?? null);
 const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? null);
+const peacekeeperHub = computed(() => store.state.etat?.groupe?.peacekeeper ?? null);
 async function chargerMercenaires() {
     if (catalogueMercs.value.length) return;
     try {
@@ -974,12 +1005,29 @@ async function recruter(mercenaireId) {
     if (recrutEnCours.value) return;
     recrutEnCours.value = true;
     try {
-        await api.recruterMercenaire(props.groupe, mercenaireId);
+        // Le héros de CETTE manette : le serveur applique la ligne de prix qu'elle affiche.
+        await api.recruterMercenaire(props.groupe, mercenaireId, monPersonnageId.value);
         // recrues + or arrivent par .groupe.etat (EtatGroupeDiffuse) — rien à recharger.
     } catch (e) {
         store.setNarration(e.message);
     } finally {
         recrutEnCours.value = false;
+    }
+}
+
+/* ---- Potion bue ENTRE DEUX QUÊTES (Potion de charme) : le serveur dit quelles
+   potions se boivent au hub (`consommables[].boire_au_hub`) et consomme la fiole.
+   Le rabais restant revient avec /moi (`rabais_recrutement`), rien à calculer. ---- */
+async function boireAuHub(inventaireId) {
+    if (equipEnCours.value || !monPersonnageId.value) return;
+    equipEnCours.value = true;
+    try {
+        await api.boireAuHub(props.groupe, monPersonnageId.value, inventaireId);
+        rafraichirMoi();
+    } catch (e) {
+        store.setNarration(e.message);
+    } finally {
+        equipEnCours.value = false;
     }
 }
 
@@ -1216,6 +1264,19 @@ const navItems = computed(() => (scene.value === 'marche'
 
                     <!-- zone principale -->
                     <div class="body">
+                        <!-- résultat d'un sort de RENSEIGNEMENT (Clairvoyance) ou d'OUBLI
+                             (Unlearn), Wizards of Morcar : celui qui a lancé le sort le lit
+                             ici, texte décidé par le serveur. Le fil ne dit que « X lance … ». -->
+                        <div v-if="sortResultat && tab === 'action'" class="manette-res-sort" role="status">
+                            <MSym :n="sortResultat.mode === 'oubli_sort' ? 'psychology_alt' : 'visibility'" :size="18" fill />
+                            <div class="manette-res-sort-corps">
+                                <div class="manette-res-sort-titre">{{ sortResultat.nom }}</div>
+                                <p>{{ sortResultat.texte }}</p>
+                            </div>
+                            <button class="manette-res-sort-fermer" aria-label="Fermer le résultat" @click="sortResultat = null">
+                                <MSym n="close" :size="16" />
+                            </button>
+                        </div>
                         <!-- quête échouée (TPK) : pas de menu, le sort du
                              groupe se joue sur l'écran de table -->
                         <div v-if="tab === 'action' && queteEchouee" style="text-align: center; padding: 30px 14px; color: var(--ink-500)">
@@ -1275,8 +1336,8 @@ const navItems = computed(() => (scene.value === 'marche'
 
                             <!-- ---- annonces d'arrivée au hub : entretien des mercenaires, faveur
                                  de Hopekins Rest (décidées par le serveur, bornées à la dernière quête) ---- -->
-                            <div v-if="auHub && (entretienHub || faveurHub)" class="manette-annonces-hub">
-                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" />
+                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub)" class="manette-annonces-hub">
+                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" />
                             </div>
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
@@ -1339,7 +1400,9 @@ const navItems = computed(() => (scene.value === 'marche'
                                 :catalogue="catalogueMercs"
                                 :recrues="recruesHub"
                                 :or="orCommun"
-                                :gardien="gardien"
+                                :offres="recrutementOffres"
+                                :personnage-id="monPersonnageId"
+                                :rabais="monPerso?.rabais_recrutement ?? null"
                                 :en-cours="recrutEnCours"
                                 @recruter="recruter"
                             />
@@ -1380,6 +1443,7 @@ const navItems = computed(() => (scene.value === 'marche'
                             @desequiper="desequiper"
                             @donner="donner"
                             @forger="forger"
+                            @boire="boireAuHub"
                         />
                     </div>
 
@@ -1518,6 +1582,21 @@ const navItems = computed(() => (scene.value === 'marche'
 </template>
 
 <style scoped>
+/* Résultat d'un sort de renseignement / d'oubli (Wizards of Morcar). */
+.manette-res-sort {
+  display: flex; gap: 10px; align-items: flex-start; margin: 0 0 10px; padding: 10px 12px;
+  border: 1px solid var(--torch, #c9a25a); border-radius: 10px;
+  background: rgba(201, 162, 90, 0.1); color: var(--ink-100, #f0e9d8);
+  font-size: 13.5px; line-height: 1.45;
+}
+.manette-res-sort > .msym { flex: none; margin-top: 1px; color: var(--torch, #c9a25a); }
+.manette-res-sort-corps { flex: 1; min-width: 0; }
+.manette-res-sort-titre { font-weight: 700; margin-bottom: 2px; }
+.manette-res-sort p { margin: 0; }
+.manette-res-sort-fermer {
+  flex: none; background: none; border: 0; padding: 2px; cursor: pointer;
+  color: var(--ink-500, #9a9384);
+}
 /* Révélation du jet de dés (mode connecté) — overlay lisible ~3 s */
 .des-reveal {
     position: fixed;

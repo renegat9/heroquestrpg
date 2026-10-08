@@ -156,6 +156,50 @@ final class ReactionEffet
      */
     public const RELANCE_BENEDICTION_ORACLE = 'relance_benediction_oracle';
 
+    /**
+     * *Future Sight* / *Vision du futur* (Wizards of Morcar, *Spells of Detection*) :
+     * « This spell may be cast at any time and does not take an action. You may
+     * re-roll all dice for any one attack, defense or movement roll. Discard
+     * after use. » (carte © 2026)
+     *
+     * Décision de René (2026-10-08) : la relance est proposée JUSTE APRÈS le
+     * jet du héros qui connaît le sort — le résultat lui est montré, le serveur
+     * attend sa réponse AVANT de l'appliquer, et s'il relance, tous les dés de
+     * CE jet sont relancés et le nouveau résultat s'applique. Le sort est
+     * consommé quand il sert, jamais quand on le refuse. Trois jets possibles,
+     * nommés par `JETS` (champ `jet` de l'offre) :
+     *
+     *  - `attaque`     : le héros frappe. ⚠ Il se joue dans SA requête, où l'on
+     *    peut réellement attendre : le résolveur s'interrompt à la volée
+     *    (`ResolveurTour::frapper()` → `JetEnAttente`), la transaction est
+     *    annulée, l'offre est déposée AVEC l'action à reprendre, et c'est la
+     *    réponse qui la rejoue — avec la volée vue (refus, ou délai) ou des dés
+     *    neufs pour le seul camp du héros (acceptation). Rien n'est appliqué
+     *    avant la réponse : ni dégâts, ni mort, ni butin.
+     *  - `deplacement` : le d6 du tour, lancé à l'ouverture du tour du héros
+     *    (`MenuMoteur::deplacementDuTour()`). Rien ne s'applique tant que
+     *    l'offre attend : le menu du héros est fermé (`resoudre()` refuse).
+     *  - `defense`     : un monstre frappe le héros, pendant la phase des
+     *    monstres — la seule que rien ne peut suspendre le temps d'un aller-retour
+     *    (voir l'en-tête de ce fichier). Le coup est donc appliqué PUIS la
+     *    question posée, et accepter le DÉFAIT avant de relancer les seuls dés de
+     *    défense du héros : la même couture que `RELANCE_BENEDICTION_ORACLE`.
+     *
+     * Refus par défaut, comme toute réaction : fenêtre `FENETRE_SECONDES`, et
+     * `MoteurReactions::rattraperExpiration()` REPREND l'action suspendue avec
+     * le jet d'origine — un téléphone muet ne fige jamais le groupe.
+     */
+    public const RELANCE_JET = 'relance_jet';
+
+    public const JET_ATTAQUE = 'attaque';
+
+    public const JET_DEFENSE = 'defense';
+
+    public const JET_DEPLACEMENT = 'deplacement';
+
+    /** @var list<string> */
+    public const JETS = [self::JET_ATTAQUE, self::JET_DEFENSE, self::JET_DEPLACEMENT];
+
     public const ACTIONS_RELEVANTES = [
         self::ANNULE_DEGATS,
         self::PLANCHER_PV,
@@ -169,6 +213,11 @@ final class ReactionEffet
         // La Bénédiction de l'Oracle rejoue tout l'échange : le nouveau jet
         // peut tout aussi bien relever un héros que l'achever.
         self::RELANCE_BENEDICTION_ORACLE,
+        // La relance d'une défense rejoue le jet qui a abattu le héros : elle
+        // peut le relever. (Les relances d'attaque et de déplacement, elles,
+        // n'ont jamais lieu quand tout le monde est à terre — un héros debout
+        // joue — donc la même ligne ne les rend pas suspensives à tort.)
+        self::RELANCE_JET,
     ];
 
     /** @return list<string> */
@@ -188,7 +237,7 @@ final class ReactionEffet
     {
         return [self::ANNULE_DEGATS, self::RIPOSTE, self::PLANCHER_PV,
             self::ANNULE_DEGATS_VOISIN, self::DEFI_ERRANT, self::SOIN_URGENCE,
-            self::RELANCE_ATTAQUE, self::REFLET_SORT, self::RELANCE_BENEDICTION_ORACLE];
+            self::RELANCE_ATTAQUE, self::REFLET_SORT, self::RELANCE_BENEDICTION_ORACLE, self::RELANCE_JET];
     }
 
     /**

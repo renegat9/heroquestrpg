@@ -40,7 +40,7 @@ function titreEquiper(it, slot) {
     return remplace ? `Remplace ${remplace}, qui retourne au sac` : `Équiper ${it.nom}`;
 }
 
-const emit = defineEmits(['equiper', 'desequiper', 'donner', 'forger']);
+const emit = defineEmits(['equiper', 'desequiper', 'donner', 'forger', 'boire']);
 
 /* ---- Don d'un objet à un compagnon (hub, doc 01 §7). Le sélecteur s'ouvre
    sous la ligne concernée plutôt que dans une modale : le sac est déjà un
@@ -168,8 +168,11 @@ const deborde = computed(() => {
         <!-- Potions réelles : action gratuite jouable À TOUT MOMENT (canon) -->
         <template v-if="potions.length">
             <div class="sect-title"><MSym n="science" :size="16" /> Potions</div>
-            <p style="font-size: 12px; color: var(--ink-500); margin: 0 0 10px">
+            <p v-if="!auHub" style="font-size: 12px; color: var(--ink-500); margin: 0 0 10px">
                 Se boit depuis « Utiliser un objet », dans tes actions.
+            </p>
+            <p v-else style="font-size: 12px; color: var(--ink-500); margin: 0 0 10px">
+                Entre deux quêtes, seule la potion marquée « Boire » se boit ici ; les autres se boivent en quête.
             </p>
             <template v-for="p in potions" :key="p.inventaire_id">
                 <div class="item">
@@ -195,6 +198,14 @@ const deborde = computed(() => {
                          l'option « Utiliser un objet » du menu d'action, une
                          seule voie et une seule validation. Le Sac garde ce
                          qu'il fait de mieux — le DÉTAIL de l'objet. -->
+                    <!-- Potion bue ENTRE DEUX QUÊTES (Potion de charme) : le serveur dit
+                         laquelle (`boire_au_hub`), le bouton ne fait que l'envoyer. -->
+                    <button
+                        v-if="auHub && p.boire_au_hub"
+                        class="sac-btn"
+                        :disabled="equipEnCours"
+                        @click="emit('boire', p.inventaire_id)"
+                    ><MSym n="science" :size="16" /> Boire</button>
                     <span v-if="p.utilisable === false" class="sac-note" title="Réservée à une autre classe">
                         <MSym n="block" :size="14" /> Réservée à une autre classe
                     </span>

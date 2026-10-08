@@ -158,7 +158,7 @@ it('remplace un élément connu par un répertoire optionnel, pour n\'importe qu
 
     expect($reponse->json('repertoire'))->toBe('protection')
         ->and(collect($reponse->json('sorts'))->pluck('nom')->sort()->values()->all())
-        ->toBe(['Invisibilité', 'Mur de Pierre', 'Unlearn']);
+        ->toBe(['Désapprentissage', 'Invisibilité', 'Mur de Pierre']);
 
     // Le magicien garde bien TROIS répertoires (« Wizard still has three sets
     // of spells ») — un pour un, jamais un de plus ni de moins.
@@ -720,7 +720,7 @@ it('Unlearn fait oublier UN sort à un Sorcier de Dread en vue, pour toute la qu
     $repertoire = app(App\Partie\MoteurDread::class)->sortsOubliables($instance, $ctx['quete']);
     expect($repertoire)->not->toBeEmpty();
 
-    $payload = lancerSortMorcar($ctx, 'Unlearn', '', ['cible_id' => $instance->id, 'cible_type' => 'monstre']);
+    $payload = lancerSortMorcar($ctx, 'Désapprentissage', '', ['cible_id' => $instance->id, 'cible_type' => 'monstre']);
 
     expect($payload['mode'])->toBe('oubli_sort')
         ->and($repertoire)->toContain($payload['sort_oublie'])
@@ -737,7 +737,7 @@ it('Unlearn fait oublier UN sort à un Sorcier de Dread en vue, pour toute la qu
         ->toBe(count($repertoire) - 1);
 
     // Le sort est épuisé comme tout sort de la quête.
-    expect((bool) $ctx['heros']->fresh()->sorts()->where('nom', 'Unlearn')->first()?->pivot->disponible)->toBeFalse();
+    expect((bool) $ctx['heros']->fresh()->sorts()->where('nom', 'Désapprentissage')->first()?->pivot->disponible)->toBeFalse();
 });
 
 it('sans Sorcier de Dread en vue, Unlearn n\'est pas offert — un monstre ordinaire n\'est pas une cible', function () {
@@ -752,7 +752,7 @@ it('sans Sorcier de Dread en vue, Unlearn n\'est pas offert — un monstre ordin
 
     $options = app(App\Partie\MoteurSorts::class)->options($ctx['groupe']->fresh(), $ctx['quete']->fresh()->load('carte'), $ctx['heros']->fresh());
     $ouverts = collect(collect($options)->firstWhere('id', 'lancer_sort')['parametres']['sorts'] ?? [])
-        ->filter(fn ($e) => ($e['nom'] ?? null) === 'Unlearn' && ($e['disponible'] ?? false) === true && ! empty($e['cibles'] ?? []));
+        ->filter(fn ($e) => ($e['nom'] ?? null) === 'Désapprentissage' && ($e['disponible'] ?? false) === true && ! empty($e['cibles'] ?? []));
 
     expect($ouverts)->toBeEmpty();
 });
@@ -781,4 +781,47 @@ it('un sort OUBLIÉ pour la quête est grisé — jamais lançable — et l\'oub
     expect(app(App\Partie\OubliSorts::class)->oublies(
         $suivante, App\Partie\OubliSorts::CIBLE_PERSONNAGE, $ctx['heros']->id, App\Partie\OubliSorts::SOURCE_SORT,
     ))->toBe([]);
+});
+
+// =====================================================================
+// RENDU — le fil et la manette disent le résultat décidé (2026-10-08)
+// =====================================================================
+
+it('Clairvoyance porte son texte au fil : le fil ne dit plus seulement « lance »', function () {
+    $ctx = queteAvecDeuxSallesPourClairvoyance();
+
+    InstanceMonstre::create([
+        'quete_id' => $ctx['quete']->id, 'monstre_id' => Monstre::firstOrFail()->id,
+        'pv_body' => 5, 'pv_body_max' => 5, 'pv_mind' => 2,
+        'position_x' => 5, 'position_y' => 2, 'etat' => 'actif', 'revele' => false,
+    ]);
+
+    $payload = lancerSortMorcar($ctx, 'Clairvoyance', ':salle:1');
+
+    // Ce que la manette lit sur la réponse du POST choix : le mode, le nom, le texte.
+    expect($payload['mode'])->toBe('vision_salle')
+        ->and($payload['sort']['nom'])->toBe('Clairvoyance')
+        ->and($payload['texte'])->toContain('1 monstre');
+
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($payload, 'Aldric'))->pluck('texte')->all();
+
+    expect($fil)->toBe(["Aldric lance Clairvoyance — {$payload['texte']}"]);
+});
+
+it('Unlearn porte son texte au fil : on lit QUEL sort est oublié, et chez qui', function () {
+    $ctx = queteMinimalePourMorcar();
+    app(MoteurSorts::class)->attacherElement($ctx['heros'], 'protection');
+
+    $instance = InstanceMonstre::create([
+        'quete_id' => $ctx['quete']->id, 'monstre_id' => monstreSorcierDread()->id,
+        'pv_body' => 5, 'pv_body_max' => 5, 'pv_mind' => 2,
+        'position_x' => 5, 'position_y' => 3, 'etat' => 'actif', 'revele' => true,
+    ]);
+
+    $payload = lancerSortMorcar($ctx, 'Désapprentissage', '', ['cible_id' => $instance->id, 'cible_type' => 'monstre']);
+
+    $fil = collect(app(\App\Partie\JournalCombat::class)->depuisResultat($payload, 'Aldric'))->pluck('texte')->all();
+
+    expect($fil)->toBe(["Aldric lance Désapprentissage — {$payload['texte']}"])
+        ->and($payload['texte'])->toContain($payload['sort_oublie']);
 });

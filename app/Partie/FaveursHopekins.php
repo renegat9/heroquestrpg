@@ -53,6 +53,9 @@ final class FaveursHopekins
 
     public const PEACEKEEPER = 'peacekeeper';
 
+    /** « 25 gold coins per monster defeated at the end of that quest » (carte Peacekeeper). */
+    public const OR_PAR_MONSTRE = 25;
+
     /** Vocabulaire fermé — seule source, testée dans les deux sens. */
     public const TOUTES = [
         self::DEADEYE,
@@ -352,14 +355,17 @@ final class FaveursHopekins
     // « you », jamais un auxiliaire ni un mécanisme impersonnel.
 
     /**
-     * Si `$vaincu` et que `$personnage` porte Peacekeeper : crédite 25 po à
-     * la bourse COMMUNE (même pot que la reddition, le butin, les
-     * mercenaires — une seule économie, voir CLAUDE.md) et l'annonce.
-     * `null` si rien n'a été versé.
+     * PEACEKEEPER, au moment de la mise à mort : si `$vaincu` et que `$personnage`
+     * porte la faveur, ce monstre est COMPTÉ pour sa quête (`monstres_vaincus` de la
+     * ligne du héros, durable et remis à zéro à chaque quête) et l'annonce part au
+     * fil. RIEN n'est versé ici : la carte dit « at the end of that quest », l'or
+     * se verse à la fin d'une quête RÉUSSIE ({@see self::reglerPeacekeeper()}).
+     *
+     * `null` si rien n'est compté (monstre pas achevé, pas de faveur, pas de héros).
      *
      * @return array<string, mixed>|null
      */
-    public function recompenserPeacekeeperSiVainqueur(
+    public function compterPeacekeeper(
         Groupe $groupe,
         InstanceMonstre $instance,
         bool $vaincu,
@@ -369,14 +375,23 @@ final class FaveursHopekins
             return null;
         }
 
-        $groupe->increment('or', 25);
+        $etat = EtatPersonnageQuete::where('quete_id', $instance->quete_id)
+            ->where('personnage_id', $personnage->id)
+            ->first();
+
+        if ($etat === null) {
+            return null;
+        }
+
+        $etat->increment('monstres_vaincus');
 
         $payload = [
             'type' => 'faveur_peacekeeper',
             'action' => 'peacekeeper',
             'personnage' => $personnage->nom,
             'monstre' => $instance->nomAffiche(),
-            'or_gagne' => 25,
+            'vaincus_quete' => (int) $etat->monstres_vaincus,
+            'or_en_attente' => self::OR_PAR_MONSTRE,
         ];
 
         // Journal `combat` (et non `systeme`) : c'est le fil de combat qui rend
@@ -385,6 +400,60 @@ final class FaveursHopekins
         // pour le fil en direct (`.combat.journal`).
         Journal::ajouter($groupe, 'combat', $payload, ['nom' => $personnage->nom]);
         app(TamponFaveurs::class)->ajouter($payload);
+
+        return $payload;
+    }
+
+    /**
+     * PEACEKEEPER, à la fin d'une quête RÉUSSIE : 25 po par monstre que CE héros a
+     * réduit à 0 PV pendant CETTE quête, versés à la bourse commune. Appelé par
+     * `ResolveurTour::terminerQuete()` uniquement — jamais par `echouerQuete()` :
+     * un TPK ne touche pas la bourse. `null` si aucun héros n'a rien à percevoir.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function reglerPeacekeeper(Groupe $groupe, Quete $quete): ?array
+    {
+        $versements = [];
+
+        EtatPersonnageQuete::where('quete_id', $quete->id)
+            ->where('monstres_vaincus', '>', 0)
+            ->with('personnage')
+            ->orderBy('id')
+            ->get()
+            ->each(function (EtatPersonnageQuete $etat) use (&$versements): void {
+                $personnage = $etat->personnage;
+
+                if ($personnage === null || ! $this->possede($personnage, self::PEACEKEEPER)) {
+                    return;
+                }
+
+                $versements[] = [
+                    'personnage_id' => (int) $personnage->id,
+                    'nom' => (string) $personnage->nom,
+                    'monstres' => (int) $etat->monstres_vaincus,
+                    'or' => (int) $etat->monstres_vaincus * self::OR_PAR_MONSTRE,
+                ];
+            });
+
+        if ($versements === []) {
+            return null;
+        }
+
+        $total = array_sum(array_column($versements, 'or'));
+        $groupe->increment('or', $total);
+
+        // `quete_id` : l'annonce du hub ne vaut que pour la DERNIÈRE quête achevée
+        // (`EtatGroupe::annonceDeQuete()`), comme l'entretien et la faveur.
+        $payload = [
+            'type' => 'peacekeeper_quete',
+            'action' => 'peacekeeper_quete',
+            'quete_id' => (int) $quete->id,
+            'or_total' => $total,
+            'versements' => $versements,
+        ];
+
+        Journal::ajouter($groupe, 'systeme', $payload);
 
         return $payload;
     }

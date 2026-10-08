@@ -16,6 +16,7 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import MSym from '../ui/MSym.vue';
+import JetDes from '../ui/JetDes.vue';
 
 const props = defineProps({
     /** {personnage_id, sort, description, source, degats, expire_dans} */
@@ -61,11 +62,12 @@ const LIBELLE_ACTION = {
     riposte: 'Riposter aussitôt',
     defi_errant: 'Le défier — qu\'il vienne à toi',
     soin_urgence: 'Rester debout',
+    relance_jet: 'Relancer mes dés',
 };
 
 /* Un bouclier sur un bouton qui REND le coup serait un contresens : la
    Représailles du Berserker n'encaisse rien, elle frappe. */
-const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords', soin_urgence: 'healing' };
+const ICONE_ACTION = { riposte: 'swords', defi_errant: 'swords', soin_urgence: 'healing', relance_jet: 'casino' };
 
 const origine = computed(() => LIBELLE_SOURCE[props.reaction.source] ?? 'ce coup');
 
@@ -84,6 +86,31 @@ const monstre = computed(() => props.reaction.contexte?.monstre ?? props.reactio
    du serveur, qui la revalide à la résolution. */
 const soins = computed(() => props.reaction.soins ?? []);
 const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && soins.value.length > 0);
+
+/* VISION DU FUTUR (Future Sight) : on ne demande pas d'annuler ce qui vient d'arriver, on
+   MONTRE un jet et on demande s'il faut le relancer. Tout vient du serveur — les dés,
+   ceux d'en face, la face qui compte pour chaque volée et la phrase du résultat
+   (`resume`) : rien n'est recalculé ici. Un jet de déplacement n'a qu'une volée de d6. */
+const relanceJet = computed(() => props.reaction.action === 'relance_jet');
+const jetCombat = computed(() => relanceJet.value && ['attaque', 'defense'].includes(props.reaction.jet));
+const jetDes = computed(() => {
+    if (!jetCombat.value) return null;
+    const r = props.reaction;
+    const heros = r.victime ?? 'Toi';
+    const monstre = r.contexte?.monstre ?? 'Le monstre';
+
+    // Attaque : ma volée contre la défense du monstre. Défense : l'attaque du monstre
+    // contre MA volée — la volée que je peux relancer est toujours la mienne.
+    return r.jet === 'attaque'
+        ? { atk: r.des ?? [], def: r.des_adverses ?? [], touchante: r.touchante, defensive: r.defensive, attaquant: heros, defenseur: monstre }
+        : { atk: r.des_adverses ?? [], def: r.des ?? [], touchante: r.touchante, defensive: r.defensive, attaquant: monstre, defenseur: heros };
+});
+const TITRE_JET = {
+    attaque: 'Ton jet d\'attaque vient de tomber.',
+    defense: 'Ton jet de défense vient de tomber.',
+    deplacement: 'Ton jet de déplacement vient de tomber.',
+};
+const dsDeplacement = computed(() => (relanceJet.value && props.reaction.jet === 'deplacement' ? (props.reaction.des ?? []) : []));
 </script>
 
 <template>
@@ -95,7 +122,15 @@ const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && s
                 {{ reaction.sort }}
             </h3>
 
-            <p v-if="soinUrgence" class="rx-coup">
+            <template v-if="relanceJet">
+                <p class="rx-coup">{{ TITRE_JET[reaction.jet] ?? 'Ton jet vient de tomber.' }}</p>
+                <JetDes v-if="jetDes" :jet="jetDes" />
+                <div v-else-if="dsDeplacement.length" class="rx-d6">
+                    <span v-for="(d, i) in dsDeplacement" :key="i" class="rx-d6-face">{{ d }}</span>
+                </div>
+                <p v-if="reaction.resume" class="rx-resume">{{ reaction.resume }}</p>
+            </template>
+            <p v-else-if="soinUrgence" class="rx-coup">
                 Tu tombes sous <b>{{ degats }} PV</b> de dégâts — {{ origine }}.
                 Il te reste de quoi tenir.
             </p>
@@ -137,14 +172,16 @@ const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && s
                     {{ LIBELLE_ACTION[reaction.action] || 'Annuler les dégâts' }}
                 </button>
                 <button class="rx-btn non" :disabled="pending" @click="emit('repondre', false)">
-                    {{ soinUrgence ? 'Tomber' : 'Laisser passer' }}
+                    {{ relanceJet ? 'Garder ce jet' : (soinUrgence ? 'Tomber' : 'Laisser passer') }}
                 </button>
             </div>
 
             <p class="rx-note">
-                {{ soinUrgence
-                    ? 'La potion est consommée ; un sort se recharge à la quête suivante.'
-                    : 'Activer dépense cette capacité pour la quête.' }}
+                {{ relanceJet
+                    ? 'Si tu relances, le nouveau jet remplace l\'ancien et le sort est défaussé ; sinon il te reste.'
+                    : (soinUrgence
+                        ? 'La potion est consommée ; un sort se recharge à la quête suivante.'
+                        : 'Activer dépense cette capacité pour la quête.') }}
             </p>
         </div>
     </div>
@@ -167,6 +204,15 @@ const soinUrgence = computed(() => props.reaction.action === 'soin_urgence' && s
     font-size: 12.5px;
     line-height: 1.4;
     color: var(--ink-300, #b6a88a);
+}
+
+.rx-resume { margin: 6px 0 8px; font-size: 13.5px; color: var(--ink-200, #d8ccb0); }
+.rx-d6 { display: flex; justify-content: center; gap: 8px; margin: 6px 0 4px; }
+.rx-d6-face {
+    display: grid; place-items: center; width: 40px; height: 40px;
+    border-radius: 9px; font-size: 20px; font-weight: 800;
+    color: #3a0d0d; background: linear-gradient(150deg, #e9d6c2, #c4553f);
+    box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.35);
 }
 
 .rx-chrono {

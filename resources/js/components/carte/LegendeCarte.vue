@@ -27,7 +27,7 @@ import Vignette from '../ui/Vignette.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, ESCALIER_ICONE, OMBRE_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -80,6 +80,12 @@ const escalier = computed(() => props.carte?.escalier ?? null);
 // de crânes le plus entamé a déjà encaissés — un mur qu'on frappe sans voir
 // céder ne dit pas au groupe si s'acharner vaut le coup.
 const glace = computed(() => (props.carte?.glace ?? []).length);
+
+// Voiles d'ombre (*Cloak of Shadows*) : la légende dit ce que la zone FAIT et
+// combien de jetons il reste au plus entamé — un voile qui s'amincit sans qu'on
+// le voie serait un effet automatique muet.
+const ombre = computed(() => props.carte?.ombre ?? []);
+const ombreJetons = computed(() => (ombre.value.length ? Math.min(...ombre.value.map((o) => o.jetons)) : 0));
 
 // Terrain (doc 18 §4) : trois catégories seulement (voir TERRAIN_TEINTES,
 // symboles.js) — un DANGER exige un jet de dé de combat au contact ou par
@@ -209,6 +215,18 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
                 </div>
             </section>
 
+            <section v-if="ombre.length" class="lg-sect">
+                <div class="lg-sous">Voile d'ombre</div>
+                <div class="lg-ligne">
+                    <span class="lg-chip lg-ombre"><MSym :n="OMBRE_ICONE" fill /></span>
+                    <span>
+                        Nul n'y attaque ni n'y est attaqué, la vue y est coupée, mais on y marche —
+                        {{ ombreJetons }} jeton{{ ombreJetons > 1 ? 's' : '' }} restant{{ ombreJetons > 1 ? 's' : '' }},
+                        un de moins au début de chaque tour de son lanceur
+                    </span>
+                </div>
+            </section>
+
             <section v-if="terrains.length" class="lg-sect">
                 <div class="lg-sous">Terrain</div>
                 <div v-for="t in terrains" :key="t.nom" class="lg-ligne">
@@ -315,6 +333,11 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 /* Mur de glace : même pastille que le bloc de DungeonGrid.vue (.dg-ice). */
 .lg-glace { background: linear-gradient(150deg, oklch(0.62 0.09 220 / 0.85), oklch(0.44 0.08 235 / 0.9));
   box-shadow: inset 0 0 0 1px oklch(0.88 0.06 220 / 0.7); color: oklch(0.96 0.02 220); border-radius: 3px; }
+
+/* Voile d'ombre : même pastille sombre translucide que `.dg-shadow` (DungeonGrid.vue). */
+.lg-ombre { border-radius: 8px; color: oklch(0.82 0.08 305 / 0.9);
+  background: radial-gradient(ellipse at 50% 45%, oklch(0.22 0.07 305 / 0.9), oklch(0.12 0.05 295 / 0.8));
+  box-shadow: inset 0 0 0 1.5px oklch(0.62 0.12 305 / 0.55); }
 
 /* Terrain : la même teinte de CASE que DungeonGrid.vue (.dg-cell.terrain-*),
    réduite à une pastille — le terrain n'a pas de silhouette propre puisqu'il

@@ -490,6 +490,9 @@ final class JournalCombat
         $annules = (int) ($a['degats_annules'] ?? 0);
 
         $issue = match (true) {
+            // VISION DU FUTUR (2026-10-08) : la phrase est DÉCIDÉE par le serveur
+            // (`MoteurReactions`), elle dit ce que la relance a donné.
+            ($a['action'] ?? null) === ReactionEffet::RELANCE_JET && ($a['texte'] ?? '') !== '' => (string) $a['texte'],
             ($a['action'] ?? null) === ReactionEffet::PLANCHER_PV => "{$victime} reste à 1 PV",
             $annules > 0 => "{$annules} dégât".($annules > 1 ? 's' : '').' annulé'.($annules > 1 ? 's' : '')." pour {$victime}",
             default => null,
@@ -539,10 +542,13 @@ final class JournalCombat
                         : 'aucun crâne'),
                 'ton' => empty($a['touche']) ? 'info' : (empty($a['vaincu']) ? 'degats' : 'mort'),
             ]],
-            // FAVEUR « Peacekeeper » : la récompense versée à la mise à mort.
+            // FAVEUR « Peacekeeper » : le monstre est COMPTÉ pour la quête, l'or ne
+            // se verse qu'à la fin d'une quête GAGNÉE (« at the end of that quest ») —
+            // la ligne le dit, sans rien encaisser ici.
             'faveur_peacekeeper' => [$this->info(
-                ($a['personnage'] ?? 'Un héros')." (Peacekeeper) — ".($a['monstre'] ?? 'la créature')." est vaincu : +"
-                    .(int) ($a['or_gagne'] ?? 0).' po à la bourse commune',
+                ($a['personnage'] ?? 'Un héros')." (Peacekeeper) — ".($a['monstre'] ?? 'la créature')." est vaincu : "
+                    .(int) ($a['vaincus_quete'] ?? 0).' vaincu(s) cette quête, '
+                    .(int) ($a['or_en_attente'] ?? 0).' po à la fin si elle est gagnée',
             )],
             // Frappe balayée : la ligne ANNONCE la salve, les frappes qui
             // suivent la détaillent cible par cible.
@@ -551,6 +557,16 @@ final class JournalCombat
                 (((int) ($a['cibles'] ?? 0)) > 1 ? 's' : '').' au contact',
             )],
             'sort', 'parchemin' => $this->sort($a, $acteurNom),
+            // Un jet de héros en attente de sa Vision du futur : l'action n'a pas
+            // encore eu lieu, le fil le dit pour qu'on ne croie pas à un silence.
+            'jet_en_attente' => [$this->info(($a['personnage'] ?? 'Un héros').' a lancé les dés — '.($a['sort'] ?? 'Vision du futur').' lui est proposée')],
+            // VOILE D'OMBRE (2026-10-08) : le jeton retiré au début du tour du
+            // lanceur, et la dissipation — un effet automatique que rien
+            // n'annonce est injouable. Le texte est décidé par `MoteurOmbre`.
+            'ombre_decompte' => [$this->info((string) ($a['texte'] ?? 'Le voile d\'ombre s\'amincit.'))],
+            // Un monstre sous le voile qui ne frappe pas : sans cette ligne il
+            // resterait les bras ballants sans qu'on sache pourquoi.
+            'monstre_dans_l_ombre' => [$this->info(($a['monstre'] ?? 'Un monstre')." est sous un voile d'ombre — il ne peut pas attaquer")],
             // Le déplacement reste MUET par principe (le fil raconterait
             // chaque pas). L'avertissement de *Sens du piège* qui vivait ici
             // (« X pressent 2 pièges tout près ») est CONVERGÉ vers le popup
@@ -1259,6 +1275,14 @@ final class JournalCombat
         $nom = $a['sort']['nom'] ?? 'un sort';
         $cible = $a['cible']['nom'] ?? null;
         $des = $this->detailDes($a);
+
+        // CLAIRVOYANCE et UNLEARN (Wizards of Morcar, 2026-10-08) : pas de dé ni
+        // de cible à lire — le résultat est DÉCIDÉ par le moteur et publié dans
+        // `texte`. Sans cette branche le fil ne disait que « X lance Clairvoyance » :
+        // ni la vision ni l'oubli n'arrivaient au journal, ni sur les manettes.
+        if (in_array($a['mode'] ?? null, ['vision_salle', 'oubli_sort', 'pose_ombre'], true) && ($a['texte'] ?? '') !== '') {
+            return [['texte' => "{$acteurNom} lance {$nom} — {$a['texte']}", 'ton' => 'info']];
+        }
 
         if (! empty($a['cible_vaincue'])) {
             return [['texte' => "{$acteurNom} foudroie {$cible} d'un {$nom} !{$des}", 'ton' => 'mort']];

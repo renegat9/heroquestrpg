@@ -140,7 +140,10 @@ class GuideController extends Controller
         // n'appartiennent à aucun héros et ne s'achètent nulle part — mais ce
         // sont eux que la table subit, et /guide est la seule page qui dise
         // d'où vient ce qui vous tombe dessus.
-        foreach (['equipement', 'potions', 'artefacts', 'parchemins', 'dread'] as $cle) {
+        // ⚠ SIXIÈME paquet depuis le 2026-10-08 : les sorts de héros de Wizards
+        // of Morcar (trois répertoires optionnels). Même raison que `dread` : des
+        // cartes de sort, portées par une ligne de `sorts` et non d'`objets`.
+        foreach (['equipement', 'potions', 'artefacts', 'parchemins', 'dread', 'sorts_heros'] as $cle) {
             $paquet = (array) config("cartes.{$cle}", []);
 
             $paquets[] = [
@@ -150,7 +153,9 @@ class GuideController extends Controller
                 'url' => $paquet['url'] ?? null,
                 'cartes' => array_map(static fn (array $c) => [
                     'carte' => $c['carte'],
-                    'nom' => $c['objet'] ?? $c['sort_dread'] ?? $c['nom'] ?? $c['carte'],
+                    // Un `sort` (parchemin, sort de héros) porte le nom du catalogue :
+                    // « une carte portée prend le nom de notre catalogue ».
+                    'nom' => $c['objet'] ?? $c['sort_dread'] ?? $c['sort'] ?? $c['nom'] ?? $c['carte'],
                     'paquet' => $c['paquet'] ?? null,
                     // ⚠ Un PARCHEMIN est porté par un `sort`, pas par un
                     // `objet` : il dérive d'une ligne de `sorts` et n'a pas

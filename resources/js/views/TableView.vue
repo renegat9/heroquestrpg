@@ -938,6 +938,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <AnnonceHub
                             :entretien="etat?.groupe?.mercenaires_entretien ?? null"
                             :faveur="etat?.groupe?.faveur_hopekins ?? null"
+                            :peacekeeper="etat?.groupe?.peacekeeper ?? null"
                         />
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">

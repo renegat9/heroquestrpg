@@ -299,11 +299,28 @@ it('HOLD THE LINE ne tente rien si le monstre reste dans les 8 cases, ni sans la
     expect(app(FaveursHopekins::class)->tenterHoldTheLine($ctx['groupe'], $ctx['quete'], $ctx['instance']->fresh(), $avant))->toBe([]);
 });
 
+/** Compteur PEACEKEEPER du héros pour CETTE quête (`etat_personnage_quete.monstres_vaincus`). */
+function compteurPeacekeeper(Quete $quete, Personnage $heros): int
+{
+    return (int) EtatPersonnageQuete::where('quete_id', $quete->id)
+        ->where('personnage_id', $heros->id)
+        ->value('monstres_vaincus');
+}
+
+/** Victoire SANS butin de gabarit : l'or qui bouge est celui de la faveur seule. */
+function victoireSansButin(Groupe $groupe): array
+{
+    $quete = $groupe->fresh()->queteCourante;
+    $quete->gabarit->update(['structure' => [...(array) $quete->gabarit->structure, 'butin' => ['or_base' => 0]]]);
+
+    return acheverLaQuete($groupe->fresh());
+}
+
 // ---------------------------------------------------------------------------
 // PEACEKEEPER — « 25 gold coins per monster defeated. »
 // ---------------------------------------------------------------------------
 
-it('PEACEKEEPER crédite 25 po à la bourse commune quand ce héros achève un monstre', function () {
+it('PEACEKEEPER compte le monstre achevé pour la quête, sans rien encaisser à la mise à mort', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     equiperEpeeCourteFaveurs($ctx['heros']);
     $ctx['instance']->update(['pv_body' => 1, 'pv_body_max' => 1]);
@@ -318,10 +335,11 @@ it('PEACEKEEPER crédite 25 po à la bourse commune quand ce héros achève un m
         'option_id' => 'attaquer', 'parametres' => ['cible_id' => $ctx['instance']->id],
     ])->assertStatus(202)->assertJsonPath('resultat.cible_vaincue', true);
 
-    expect((int) $ctx['groupe']->fresh()->or)->toBe(125);
+    expect((int) $ctx['groupe']->fresh()->or)->toBe(100)
+        ->and(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
 });
 
-it('PEACEKEEPER ne crédite rien sans la faveur, ni quand le monstre survit', function () {
+it('PEACEKEEPER ne compte rien sans la faveur, ni quand le monstre survit', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     equiperEpeeCourteFaveurs($ctx['heros']);
     $ctx['instance']->update(['pv_body' => 1, 'pv_body_max' => 1]);
@@ -349,7 +367,7 @@ it('PEACEKEEPER ne crédite rien sans la faveur, ni quand le monstre survit', fu
 // (allié, piège) restent délibérément muets.
 // ---------------------------------------------------------------------------
 
-it('PEACEKEEPER crédite aussi un chemin qui n\'avait JAMAIS été câblé avant (eau bénite)', function () {
+it('PEACEKEEPER compte aussi un chemin qui n\'avait JAMAIS été câblé avant (eau bénite)', function () {
     $ctx = demarrerQueteAvecMonstre('Zombie');
     $ctx['groupe']->update(['or' => 100]);
     donnerFaveur($ctx['heros'], FaveursHopekins::PEACEKEEPER);
@@ -362,10 +380,11 @@ it('PEACEKEEPER crédite aussi un chemin qui n\'avait JAMAIS été câblé avant
     );
 
     expect($resultat['vaincu'])->toBeTrue()
-        ->and((int) $ctx['groupe']->fresh()->or)->toBe(125);
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe(100)
+        ->and(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
 });
 
-it('PEACEKEEPER ne crédite PAS un changement de phase — seulement la mort réelle qui suit', function () {
+it('PEACEKEEPER ne compte PAS un changement de phase — seulement la mort réelle qui suit', function () {
     $ctx = demarrerQueteAvecMonstre('Spawn of the Pit');
     $ctx['groupe']->update(['or' => 100]);
     donnerFaveur($ctx['heros'], FaveursHopekins::PEACEKEEPER);
@@ -383,10 +402,11 @@ it('PEACEKEEPER ne crédite PAS un changement de phase — seulement la mort ré
         $ctx['instance']->fresh()->load('monstre'), 99, MoteurDegats::SOURCE_ATTAQUE_HEROS, [], $ctx['heros'],
     );
     expect($r2['vaincu'])->toBeTrue()
-        ->and((int) $ctx['groupe']->fresh()->or)->toBe(125);
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe(100)
+        ->and(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
 });
 
-it('PEACEKEEPER ne crédite PAS un monstre achevé par un allié ou un piège — « you » désigne le héros, jamais un auxiliaire', function () {
+it('PEACEKEEPER ne compte PAS un monstre achevé par un allié ou un piège — « you » désigne le héros, jamais un auxiliaire', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin');
     $ctx['groupe']->update(['or' => 100]);
     $ctx['instance']->update(['pv_body' => 1, 'pv_body_max' => 1]);
@@ -520,13 +540,13 @@ it('PEACEKEEPER est annoncé au fil : dans le résultat de l\'action (en direct)
         ->assertJsonPath('resultat.faveurs_declenchees.0.type', 'faveur_peacekeeper');
 
     $direct = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), 'Albrecht'))->pluck('texte');
-    expect($direct->contains(fn (string $t) => str_contains($t, 'Peacekeeper') && str_contains($t, '+25 po')))->toBeTrue();
+    expect($direct->contains(fn (string $t) => str_contains($t, 'Peacekeeper') && str_contains($t, '25 po à la fin')))->toBeTrue();
 
     $reconnexion = collect(app(EtatGroupe::class)->payload($ctx['groupe']->fresh())['journal_combat'])->pluck('texte');
     expect($reconnexion->contains(fn (string $t) => str_contains($t, 'Peacekeeper')))->toBeTrue();
 });
 
-it('PEACEKEEPER crédite le héros qui a allumé la BRAISE quand c\'est la braise qui achève la cible', function () {
+it('PEACEKEEPER compte le héros qui a allumé la BRAISE quand c\'est la braise qui achève la cible', function () {
     $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'moine']);
     $ctx['etatHeros']->update(['styles_epuises' => ['air', 'terre', 'eau']]);
     $ctx['instance']->update(['pv_body' => 3, 'pv_body_max' => 3]);
@@ -542,13 +562,14 @@ it('PEACEKEEPER crédite le héros qui a allumé la BRAISE quand c\'est la brais
     expect((int) $ctx['instance']->fresh()->degat_differe_personnage_id)->toBe((int) $ctx['heros']->id)
         ->and((int) $ctx['groupe']->fresh()->or)->toBe(100);
 
-    // Fin du tour du héros : la braise tombe (2 PV), achève la cible, et Peacekeeper crédite CE héros.
+    // Fin du tour du héros : la braise tombe (2 PV), achève la cible, et Peacekeeper compte CE héros.
     desFiges(array_fill(0, 60, 4));
     $this->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])->assertStatus(202);
 
     expect($ctx['instance']->fresh()->etat)->toBe('vaincu')
         ->and($ctx['instance']->fresh()->degat_differe_personnage_id)->toBeNull()
-        ->and((int) $ctx['groupe']->fresh()->or)->toBe(125);
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe(100)
+        ->and(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
 });
 
 it('HOLD THE LINE est rendu au fil, qu\'il touche (crâne) ou rate', function () {
@@ -608,4 +629,56 @@ it('la REPRISE garde l\'auteur de la braise : la mise à mort qu\'elle achève c
 
     expect((int) $ctx['instance']->fresh()->degat_differe)->toBe(2)
         ->and((int) $ctx['instance']->fresh()->degat_differe_personnage_id)->toBe((int) $ctx['heros']->id);
+});
+
+// ---------------------------------------------------------------------------
+// PEACEKEEPER — l'or se verse à la FIN d'une quête GAGNÉE (2026-10-08).
+// ---------------------------------------------------------------------------
+
+it('PEACEKEEPER paie 25 po par monstre compté à la FIN d\'une quête gagnée, et l\'annonce au hub', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['groupe']->update(['or' => 100]);
+    donnerFaveur($ctx['heros'], FaveursHopekins::PEACEKEEPER);
+
+    app(MoteurDegats::class)->infligerAMonstre($ctx['instance'], 1, MoteurDegats::SOURCE_ATTAQUE_HEROS, [], $ctx['heros']);
+    expect((int) $ctx['groupe']->fresh()->or)->toBe(100)
+        ->and(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
+
+    $resultat = victoireSansButin($ctx['groupe']);
+
+    expect($resultat['peacekeeper']['or_total'])->toBe(25)
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe(125);
+
+    // Annoncé au hub comme l'entretien : la DERNIÈRE quête achevée, le détail par héros.
+    $hub = app(EtatGroupe::class)->payload($ctx['groupe']->fresh())['groupe'];
+    expect($hub['peacekeeper']['or_total'])->toBe(25)
+        ->and($hub['peacekeeper']['versements'][0])->toMatchArray(['nom' => 'Albrecht', 'monstres' => 1, 'or' => 25]);
+});
+
+it('PEACEKEEPER ne verse RIEN sur une quête PERDUE : le TPK ne touche pas la bourse', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['groupe']->update(['or' => 100]);
+    donnerFaveur($ctx['heros'], FaveursHopekins::PEACEKEEPER);
+
+    app(MoteurDegats::class)->infligerAMonstre($ctx['instance'], 1, MoteurDegats::SOURCE_ATTAQUE_HEROS, [], $ctx['heros']);
+    expect(compteurPeacekeeper($ctx['quete'], $ctx['heros']))->toBe(1);
+
+    // Le dénouement d'un TPK est `echouerQuete()`, jamais `terminerQuete()`.
+    $groupe = $ctx['groupe']->fresh();
+    (new ReflectionMethod(\App\Partie\ResolveurTour::class, 'echouerQuete'))
+        ->invoke(app(\App\Partie\ResolveurTour::class), $groupe, $ctx['quete']->fresh(), 'TPK');
+
+    expect($ctx['quete']->fresh()->etat)->toBe('echouee')
+        ->and((int) $groupe->fresh()->or)->toBe(100);
+});
+
+it('PEACEKEEPER ne paie PAS un héros qui n\'a rien compté, même si son groupe a gagné', function () {
+    $ctx = demarrerQueteAvecMonstre('Gobelin');
+    $ctx['groupe']->update(['or' => 100]);
+    donnerFaveur($ctx['heros'], FaveursHopekins::PEACEKEEPER);
+
+    $resultat = victoireSansButin($ctx['groupe']);
+
+    expect($resultat['peacekeeper'] ?? null)->toBeNull()
+        ->and((int) $ctx['groupe']->fresh()->or)->toBe(100);
 });

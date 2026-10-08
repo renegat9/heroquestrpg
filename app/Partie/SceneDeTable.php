@@ -1140,11 +1140,17 @@ final class SceneDeTable
         // figure touchée. Le texte est décidé par le moteur (`visionSalleSort`).
         // UNLEARN (2026-10-08) : même forme — le texte dit le sort oublié, décidé
         // par le moteur (`ResolveurTour::oublierSortSort()`).
-        if (in_array($a['mode'] ?? null, ['vision_salle', 'oubli_sort'], true)) {
+        // VOILE D'OMBRE (2026-10-08) : même forme — le texte (taille, jetons) est
+        // décidé par `MoteurOmbre::poser()`.
+        if (in_array($a['mode'] ?? null, ['vision_salle', 'oubli_sort', 'pose_ombre'], true)) {
             return [
                 'genre' => 'sort',
                 'titre' => $acteur->nom.' lance '.$nomSort,
-                'sous_titre' => ($a['mode'] ?? null) === 'oubli_sort' ? 'Oubli pour la quête' : 'Vision à distance',
+                'sous_titre' => match ($a['mode'] ?? null) {
+                    'oubli_sort' => 'Oubli pour la quête',
+                    'pose_ombre' => 'Zone d\'ombre',
+                    default => 'Vision à distance',
+                },
                 'acteurs' => $acteurs,
                 'jet' => null,
                 'deplacement' => null,

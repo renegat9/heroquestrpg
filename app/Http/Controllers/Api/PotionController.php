@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\EtatGroupeDiffuse;
 use App\Http\Controllers\Controller;
 use App\Models\Groupe;
 use App\Models\Inventaire;
 use App\Models\Personnage;
+use App\Partie\EtatGroupe;
 use App\Partie\MoteurPotions;
 use App\Support\Journal;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +33,7 @@ class PotionController extends Controller
     public function __construct(private readonly MoteurPotions $potions) {}
 
     /** POST /api/groupes/{identifiant}/potions/boire-au-hub {personnage_id, inventaire_id} */
-    public function boireAuHub(Request $request, string $identifiant): JsonResponse
+    public function boireAuHub(Request $request, string $identifiant, EtatGroupe $etatGroupe): JsonResponse
     {
         [$groupe, $personnage, $ligne] = $this->contexte($request, $identifiant);
 
@@ -46,6 +48,10 @@ class PotionController extends Controller
         ], ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom]);
 
         $personnage->refresh();
+
+        // La remise restante change le verdict de recrutement publié au hub
+        // (`groupe.recrutement`) : les manettes doivent le recevoir sans attendre.
+        broadcast(new EtatGroupeDiffuse($groupe, $etatGroupe->payload($groupe->fresh())));
 
         return response()->json([
             'potion' => $resultat,

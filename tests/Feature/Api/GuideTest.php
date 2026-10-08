@@ -144,13 +144,14 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // n'appartiennent à aucun héros et ne s'achètent nulle part, mais ce sont
     // eux que la table subit — et /guide est la seule page qui dise d'où vient
     // ce qui vous tombe dessus.
-    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins', 'dread']);
+    expect($paquets->pluck('cle')->all())->toBe(['equipement', 'potions', 'artefacts', 'parchemins', 'dread', 'sorts_heros']);
 
     $cartes = $paquets->flatMap(fn ($p) => $p['cartes']);
-    // 20 + 15 + 38 + 19 + 29 — artefacts : +1 Cor des Hearthkin (First Light,
+    // 20 + 15 + 38 + 19 + 29 + 9 — artefacts : +1 Cor des Hearthkin (First Light,
     // 2026-09-30) puis +2 armes en os (Against the Ogre Horde, lot B, 2026-10-02),
-    // puis +5 cartes de Wizards of Morcar (vague 1b, 2026-10-08).
-    expect($cartes)->toHaveCount(126);
+    // puis +5 cartes de Wizards of Morcar (vague 1b, 2026-10-08) ; les neuf sorts
+    // de héros de Morcar forment le sixième paquet (2026-10-08).
+    expect($cartes)->toHaveCount(135);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.
@@ -171,7 +172,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // qui, eux, désignent des pièces.
     // ⚠ Le paquet des SORTS DE DREAD est exclu pour la même raison : une carte
     // de Dread portée pointe une ligne de `sorts_dread`, pas un objet.
-    $cartesObjet = $paquets->reject(fn ($p) => in_array($p['cle'], ['parchemins', 'dread'], true))
+    // ⚠ Le paquet des SORTS DE HÉROS de Morcar l'est aussi : un sort porté pointe
+    // une ligne de `sorts`.
+    $cartesObjet = $paquets->reject(fn ($p) => in_array($p['cle'], ['parchemins', 'dread', 'sorts_heros'], true))
         ->flatMap(fn ($p) => $p['cartes']);
 
     foreach ($cartesObjet->where('porte', true) as $carte) {

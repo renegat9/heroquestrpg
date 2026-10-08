@@ -99,10 +99,10 @@ it('perce le silence du combat pour un boss, pas pour un gobelin', function () {
     $gobelin = $quete->instancesMonstres()->where('id', '!=', $boss->id)->firstOrFail();
 
     $cle = function (array $resultat): string {
-        $m = new ReflectionMethod(ChoixController::class, 'cleTempsFort');
+        $m = new ReflectionMethod(App\Partie\ExecutionChoix::class, 'cleTempsFort');
         $m->setAccessible(true);
 
-        return $m->invoke(app(ChoixController::class), $resultat);
+        return $m->invoke(app(App\Partie\ExecutionChoix::class), $resultat);
     };
 
     $frappe = fn (int $id) => ['type' => 'attaque', 'degats' => 3, 'cible_vaincue' => true,
@@ -127,10 +127,10 @@ it('voit le boss abattu dans une frappe balayée', function () {
         'etat' => 'vaincu', 'revele' => true,
     ]);
 
-    $m = new ReflectionMethod(ChoixController::class, 'momentFort');
+    $m = new ReflectionMethod(App\Partie\ExecutionChoix::class, 'momentFort');
     $m->setAccessible(true);
 
-    expect($m->invoke(app(ChoixController::class), [
+    expect($m->invoke(app(App\Partie\ExecutionChoix::class), [
         'type' => 'attaque',
         'frappes' => [
             ['cible_vaincue' => false, 'cible' => ['instance_id' => 999999]],

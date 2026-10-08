@@ -415,6 +415,9 @@ final class Sauvegarde
                     // rendrait à la Plume anti-poison un cumul déjà encaissé.
                     'degats_subis' => (array) ($e->degats_subis ?? []),
                     'dernier_degat' => $e->dernier_degat,
+                    // Peacekeeper : compteur PAR QUÊTE — sans lui, une reprise remettrait
+                    // à zéro les monstres déjà vaincus, et Peacekeeper paierait moins.
+                    'monstres_vaincus' => (int) $e->monstres_vaincus,
                 ])->values()->all(),
             'heros' => $this->herosActifs($groupe)
                 ->map(fn (Personnage $p) => $this->serialiserHeros($p))->values()->all(),
@@ -646,6 +649,8 @@ final class Sauvegarde
                 'jetons_rejeton' => $etat['jetons_rejeton'] ?? 0,
                 'degats_subis' => $etat['degats_subis'] ?? [],
                 'dernier_degat' => $etat['dernier_degat'] ?? null,
+                // `??` : un snapshot antérieur au 2026-10-08 ne porte pas le compteur.
+                'monstres_vaincus' => $etat['monstres_vaincus'] ?? 0,
             ]);
         }
     }

@@ -1,10 +1,11 @@
 <script setup>
 // Annonces de FIN DE QUÊTE au hub (chantier 1c, Wizards of Morcar, 2026-10-08) :
-// l'ENTRETIEN des mercenaires et la FAVEUR de Hopekins Rest. Le serveur publie la
-// DÉCISION — `groupe.mercenaires_entretien` et `groupe.faveur_hopekins`, déjà
-// bornées à la dernière quête achevée. Ce composant n'en recalcule rien : ni le
-// coût, ni qui part faute d'or, ni qui reçoit la faveur. Un seul rendu, partagé
-// par l'écran de table et la manette.
+// l'ENTRETIEN des mercenaires, la FAVEUR de Hopekins Rest et le PEACEKEEPER payé
+// à la fin de la quête. Le serveur publie la DÉCISION — `groupe.mercenaires_entretien`,
+// `groupe.faveur_hopekins` et `groupe.peacekeeper`, toutes bornées à la dernière
+// quête achevée. Ce composant n'en recalcule rien : ni le coût, ni qui part faute
+// d'or, ni qui reçoit la faveur, ni combien de monstres chacun a vaincus. Un seul
+// rendu, partagé par l'écran de table et la manette.
 import MSym from './MSym.vue';
 
 defineProps({
@@ -12,13 +13,15 @@ defineProps({
     entretien: { type: Object, default: null },
     /** `groupe.faveur_hopekins` : {personnage, faveur_libelle, faveur_effet} ou null. */
     faveur: { type: Object, default: null },
+    /** `groupe.peacekeeper` : {or_total, versements: [{personnage_id, nom, monstres, or}]} ou null. */
+    peacekeeper: { type: Object, default: null },
 });
 
 const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
 </script>
 
 <template>
-    <div v-if="entretien || faveur" class="annonce-hub">
+    <div v-if="entretien || faveur || peacekeeper" class="annonce-hub">
         <div v-if="entretien" class="annonce-hub-ligne">
             <MSym n="paid" fill :size="16" />
             <div class="annonce-hub-texte">
@@ -40,6 +43,15 @@ const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
             <div class="annonce-hub-texte">
                 <b>Faveur de Hopekins Rest</b> : {{ faveur.personnage }} reçoit « {{ faveur.faveur_libelle }} ».
                 <span class="annonce-hub-effet">{{ faveur.faveur_effet }}</span>
+            </div>
+        </div>
+        <div v-if="peacekeeper" class="annonce-hub-ligne">
+            <MSym n="military_tech" fill :size="16" />
+            <div class="annonce-hub-texte">
+                <b>Peacekeeper</b> : {{ peacekeeper.or_total }} po versées à la bourse commune, à la fin de la quête.
+                <span v-for="v in peacekeeper.versements" :key="v.personnage_id" class="annonce-hub-effet">
+                    {{ v.nom }} : {{ v.monstres }} monstre{{ v.monstres > 1 ? 's' : '' }} vaincu{{ v.monstres > 1 ? 's' : '' }}, {{ v.or }} po.
+                </span>
             </div>
         </div>
     </div>

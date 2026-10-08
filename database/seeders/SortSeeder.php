@@ -406,15 +406,13 @@ class SortSeeder extends Seeder
             // and Wizard still have one and three sets of spells respectively).
             // Spellcasters may change their spells between quests. »
             //
-            // ⚠ SEPT des NEUF cartes sourcées sont portées (2026-10-08) : *Unlearn*
+            // ⚠ LES NEUF cartes sourcées sont portées (2026-10-08) : *Unlearn*
             // (héros, `oublie_sort` + `cible: lanceur_dread`, durable par quête via
             // `OubliSorts`) et *Clairvoyance* (`vision_salle`) s'ajoutent aux cinq
-            // d'avant. Restent NON seedées *Future Sight* (relance TOTALE sans coût
-            // d'action, sur un jet DÉJÀ résolu : question de conception, pas une
-            // ligne de données) et *Cloak of Shadows* (zone à jetons qui bloque vue
-            // ET attaque : nouvelle couche de champ de bataille). Une donnée sans
-            // lecteur est le défaut nommé que ce projet évite partout. Dette NOMMÉE,
-            // pas un oubli : voir `docs/regles/sorts-heros.md`.
+            // d'avant, puis *Future Sight* (`relance_jet`, relance proposée après un
+            // jet — `MoteurReactions`) et *Cloak of Shadows* (`pose_ombre`, couche
+            // `carte.grille['ombre']` — `MoteurOmbre`). Chaque clé a son lecteur et
+            // son test en jeu : voir `docs/regles/sorts-heros.md`.
             // ================================================================
 
             // ---- Spells of Protection ----
@@ -451,7 +449,11 @@ class SortSeeder extends Seeder
             // `sorts_oublies_de_quete` (`OubliSorts`) : durable pour la quête,
             // rien ne le rend à la suivante. Le même mécanisme vaudra contre un
             // héros pour la carte Dread *Unlearn* (vague 2).
-            ['element' => 'protection', 'nom' => 'Unlearn', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+            // ⚠ Nom FRANÇAIS au catalogue (2026-10-08) : la ligne « Unlearn » est
+            // RENOMMÉE par la migration 2026_10_08_110000 avant ce seeder — un
+            // `updateOrCreate` sur le nouveau nom sans cette migration créerait
+            // une seconde ligne. Le nom anglais vit dans config/cartes.php.
+            ['element' => 'protection', 'nom' => 'Désapprentissage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['cible' => 'lanceur_dread', 'oublie_sort' => true]],
 
             // ---- Spells of Detection ----
@@ -475,6 +477,19 @@ class SortSeeder extends Seeder
             // « may not try again » est tenu par « Discard after use » (S5).
             ['element' => 'detection', 'nom' => 'Clairvoyance', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['vision_salle' => true]],
+            // FUTURE SIGHT : « This spell may be cast at any time and does not take
+            // an action. You may re-roll all dice for any one attack, defense or
+            // movement roll. Discard after use. » (carte © 2026, reference/18)
+            // `relance_jet` → AUCUNE entrée de menu (pas d'action) : le sort se
+            // joue APRÈS un jet du héros qui le connaît, par
+            // `MoteurReactions::proposerRelanceJet()` — décision de René, 2026-10-08 :
+            // le résultat est montré, le serveur attend la réponse AVANT de
+            // l'appliquer. « Discard after use » = `disponible` à faux (S5, une
+            // fois par quête). ⚠ `difficulte_parchemin` n'est qu'une valeur de
+            // STRUCTURE (colonne non nulle, un parchemin par sort) : le parchemin
+            // de ce sort n'est pas lisible — `options()` ne l'offre jamais.
+            ['element' => 'detection', 'nom' => 'Vision du futur', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['relance_jet' => true]],
 
             // ---- Spells of Darkness ----
             // CHAINS OF DARKNESS : « You may cast this spell on one monster
@@ -495,6 +510,19 @@ class SortSeeder extends Seeder
             // un combat NORMAL où seul le NOMBRE de dés de défense change de
             // source — `ResolveurTour::sortDegats()` substitue `pv_mind` à la
             // défense habituelle, 0 Mind valant 0 dé, mot pour mot la carte.
+            // CLOAK OF SHADOWS : « This spell summons a patch of darkness. Place the
+            // Cloak of Shadows tile on the gameboard. Heroes and monsters on the
+            // tile may not attack or be attacked. The darkness blocks line of sight
+            // into and through it. Place 3 shadow tokens on this card. At the start
+            // of the spellcaster's turn, remove a shadow token. The spell ends
+            // after the last shadow token is removed. » (carte © 2026)
+            // `pose_ombre` → une entrée PAR emplacement légal
+            // (`MoteurSorts::entreesPoseOmbre()` / `MoteurOmbre::emplacementsLegaux()`),
+            // posé par `MoteurOmbre::poser()` sur `carte.grille['ombre']` ; taille
+            // 3×2 mesurée sur le livret p. 4 (voir `MoteurOmbre`), 3 jetons,
+            // décompte au début du tour du lanceur.
+            ['element' => 'tenebres', 'nom' => "Voile d'ombre", 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
+                'effet' => ['pose_ombre' => true]],
             ['element' => 'tenebres', 'nom' => 'Flèches de la Nuit', 'type' => 'degats', 'difficulte_parchemin' => 2,
                 'effet' => ['portee' => 'distance', 'cible' => 'monstre', 'des_degats' => 2, 'resistance' => 'des_mind']],
         ];

@@ -569,7 +569,7 @@ final class MoteurDegats
             $groupePourFaveur = $instance->quete?->groupe;
 
             if ($groupePourFaveur !== null) {
-                app(FaveursHopekins::class)->recompenserPeacekeeperSiVainqueur(
+                app(FaveursHopekins::class)->compterPeacekeeper(
                     $groupePourFaveur, $instance, true, $auteurHeros,
                 );
             }

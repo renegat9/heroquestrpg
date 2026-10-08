@@ -40,7 +40,7 @@ repertoire (unlike the Elf's eight-candidates-for-three-slots) — attaching
 is the whole mechanic.
 
 ⚠ **Seven of the nine sourced cards are ported (2026-10-08); two remain a named
-debt.** *Unlearn* is ported: `effet.oublie_sort` with `cible: lanceur_dread`
+debt.** *Unlearn* (catalogue: *Désapprentissage* since migration `2026_10_08_110000`; the English name is kept in `config/cartes.php`, section `sorts_heros`) is ported: `effet.oublie_sort` with `cible: lanceur_dread`
 (`MotsClesSort::CIBLE_LANCEUR_DREAD`). The forgotten spell is a **durable row per
 quest** in `sorts_oublies_de_quete` (`OubliSorts`), not a flag on
 `personnage_sorts.disponible` — that flag always comes back at
@@ -71,21 +71,96 @@ same cast. Stated, not hidden: a room is "empty" when it holds no monster alive
 and no trap — furniture and chests do not count, the card does not say what it
 means by "contents".
 
-⚠ **Two remain a named debt, for two reasons that are not the same.**
-*Future Sight* (reroll **every** die of one attack, defence or movement roll, **no
-action cost**, cast "at any time") needs two things we do not have. A cast with no
-action slot — every spell goes through a turn's action today — and, more
-importantly, a **reroll of a roll already resolved**: the reaction pipeline
-(`MoteurReactions`) suspends only on damage taken, and its `ANNULE_DEGATS` undoes
-a blow, not a dice result; re-running a defence means re-running the blow it
-decided. Porting it is a design question (what the table shows while the roll is
-open), not a data row. *Cloak of Shadows* (a darkness tile that blocks **both**
-sight and attacks, a 3-token counter decremented at the caster's own turn) needs
-a **new battlefield layer** (`carte.grille['ombre']`, read by `FabriqueGrille::pour()`
-for sight, like the Ice Wall's `glace`), attack guards on heroes **and** Sorcerers,
-a countdown hooked to the caster's turn start, and table rendering. None of the two
-is seeded: a catalogue row with no reader is the exact trap this project names
-everywhere else.
+**Future Sight → « Vision du futur » is ported (2026-10-08), and it is a reaction, not a spell you cast.**
+"This spell may be cast at any time and does not take an action. You may re-roll all
+dice for any one attack, defense or movement roll. Discard after use." René's decision:
+the reroll is offered **right after the roll** — the result is shown, the server waits for
+the answer **before applying it**, and if the player rerolls, all the dice of that roll are
+rerolled and the new result applies. Effect key `relance_jet`; it has **no menu entry**
+(neither `lancer_sort` nor `lire_parchemin` — "does not take an action", and the menu never
+offers what the resolver would refuse). It extends the existing out-of-turn mechanism
+(`MoteurReactions`, `reaction_en_attente`, private channel, `POST /reaction`, 45 s window,
+refuse by default) rather than writing a second one: action `relance_jet`, three kinds of
+roll in the `jet` field (`docs/regles/vocabulaires-effets.md`).
+Own roll only (the card does not name another hero's; decision, stated). Three decisions:
+
+- **Attack — really suspended.** The hero's own request is the one place the game can
+  wait. `ResolveurTour::frapper()` throws `JetEnAttente` between the roll and its
+  application, `resoudre()` catches it OUTSIDE the transaction (nothing was written: no
+  damage, no kill, no loot, no slot), and the offer is deposited with the action to replay
+  (`reprise`: option, parameters, rolls already fallen). The answer replays it through
+  `ExecutionChoix` — the sequence `/choix` follows, extracted for the occasion — with
+  `Combat::resoudreAttaque(facesAttaqueImposees, facesDefenseImposees)`: the seen roll on
+  refusal, fresh dice for the hero's volée ONLY on acceptance (the monster's defence is
+  already fallen and kept). A sweep numbers its rolls (`rangFrappe`), each suspendable on its own.
+  The offer sits before the Oracle's Curse and every post-roll modifier: those apply to the
+  RETAINED result. ⚠ The Vindication arrow and the Magic Throwing Dagger have no attack roll
+  to reroll: not offered.
+- **Movement — the d6 of the turn.** Rolled when the hero's turn opens
+  (`MenuMoteur::deplacementDuTour()`); the offer follows at once, `resoudre()` refuses every
+  other action while it waits, and the roll's effects (Elven Boots wear, Evanescence
+  rupture) move to `MenuMoteur::effetsDuJet()`, applied to the RETAINED roll on the answer.
+  Nothing to offer when no die counts: armour that cancels it, shock, Drakehide's fixed 8,
+  an unthreatened table (the die is 4 without being rolled).
+- **Defence — applied, then undone.** The monster phase resolves inside another player's
+  request, in a transaction: nothing can suspend it for a phone round-trip. The blow is
+  applied, the question asked, and acceptance gives the HP back (`defaireLeCoup()`) and
+  rerolls only the hero's defence dice against the monster's attack as it fell
+  (`faces_attaque` kept in the context) — the Oracle's Blessing seam. Offered only on
+  melee/ranged blows of a monster (the only rolls whose volée can be replayed) and only when
+  the blow hurt. ⚠ Priority in `proposer()`: after the full cancels (*Dark Wings*,
+  *Twisting Torrent*, the Staff's reflection, *Dawnshield*, the Oracle), before the HP floors
+  — a hero holds ONE offer at a time.
+
+**Never a frozen group.** A late answer is a REFUSAL (not a 422 like the other reactions:
+dropping the suspended action would lose it for good); a silent phone is covered by
+`rattraperExpiration()`, which REPLAYS the action with the original roll (refusal by
+default, the spell kept). `relance_jet` is in `ACTIONS_RELEVANTES`: a rerolled defence can
+bring a downed hero back, so the TPK waits for it. Named gaps: defence rolls against a Dread
+spell, a trap or a friendly spell; the attacks of an ally or a mercenary.
+
+**Cloak of Shadows → « Voile d'ombre » is ported (2026-10-08).** "Heroes and monsters on
+the tile may not attack or be attacked. The darkness blocks line of sight into and through
+it. Place 3 shadow tokens on this card. At the start of the spellcaster's turn, remove a
+shadow token. The spell ends after the last shadow token is removed." A durable layer,
+`carte.grille['ombre']` (`MoteurOmbre`), one rectangle per veil: `{x, y, l, h, jetons, lanceur_id}`.
+
+- **Size: 3×2 (either orientation), MEASURED, not invented.** No card nor rule says it.
+  The booklet's Components page (G1504 p. 4) shows two purple pieces; the large one measures
+  72.2 × 108.1 pt on the page, against 54.2 × 108.4 pt for the Earthquake tile ("covers 6
+  squares", p. 12 — 3 long) and 225 pt for the Artificer's Laboratory tile (6 squares wide):
+  36 pt a square, so exactly 2 × 3. The second piece, a 54 pt square, has no named role and
+  is not ported.
+- **Placement: a written decision.** The card only says "place the tile on the gameboard".
+  Every one of the six cells must be floor the caster can SEE, not hidden by the fog, with
+  no wall, blocking furniture or closed door; figures may stand on it (the card expects it)
+  and so may the caster. One entry per legal emplacement, the closest first, 24 at most
+  (`MoteurOmbre::emplacementsLegaux()` — the menu and `poser()` read the same list, the
+  resolver revalidates against the current state). One veil per caster.
+- **Sight, one reader.** `FabriqueGrille::pour()` puts the cells in `$opaques` ("through") AND
+  `Grille::assombrir()` ("into": an endpoint under the veil is not seen, and since the line
+  of sight is symmetric a figure inside sees nothing outside). Not in `$obstacles` — you
+  walk under it — nor in `$occupees`. Spells need the line of sight, so none can target
+  into or out of the veil.
+- **"May not attack or be attacked", one predicate.** `MoteurOmbre::contient()` /
+  `contientHeros()` / `contientMonstre()`: the hero under it → `MoteurSorts::attaqueInterdite()`
+  (the single predicate of the wave-1 attack filter, now with `raisonAttaqueInterdite()` for
+  the true cause), so the menu offers no attack and `resoudre()` / `frapper()` refuse; a
+  hero or ally under it is never a monster's target (`estInattaquable()`,
+  `alliesCiblables()`); a monster under it is no weapon's target (`ciblesPourArme()`,
+  `ciblesBalayees()`, `frapper()`) nor a ray's (`Rayon::cases()` skips the cells — the ray
+  crosses, the veil cuts sight, not the trajectory) and does not strike (`jouerMonstre()`
+  returns `monstre_dans_l_ombre` — it may still walk). Named gap: the strikes of an ally or a
+  mercenary, from or into the veil.
+- **Countdown.** At the start of the caster's turn, once per round (marker `ombre_decompte`
+  in `capacites_tour`, reset each round — not `deplacement_tour`, which a blocked hero never
+  rolls); a FALLEN caster opens no turn, so his token drops when the round opens (the card
+  does not foresee it: decision). At the last token the veil leaves the layer. Every token is
+  announced (`ombre_decompte`: journal + combat line). Published in `EtatGroupe.carte.ombre`
+  with its counter; table, controller and legend render it.
+- The scroll of the spell reads too (one entry per emplacement, each carrying its
+  `inventaire_id`); Future Sight's scroll exists in the catalogue (one per spell) but is
+  never offered.
 
 **Wall of Stone (Spells of Protection) is a magical BARRIER, not a buff** —
 "You create a magical wall of stone which covers 2 squares not occupied by

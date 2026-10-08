@@ -222,12 +222,19 @@ final class MenuMoteur
         // quitte la main du héros — d'où une option distincte.
         $jetable = (bool) ($arme?->effet['jetable'] ?? false);
 
+        $ombre = app(MoteurOmbre::class);
+
         $actives = $quete->instancesMonstres()
             ->where('etat', 'actif')
             ->where('revele', true) // dormant (salle non découverte) = non ciblable (aligné sur ResolveurTour)
             ->with('monstre')
             ->orderBy('id')
-            ->get();
+            ->get()
+            // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
+            // may not … be attacked » — le monstre sous le voile n'est une cible
+            // d'aucune arme. Même prédicat que `ResolveurTour::frapper()`.
+            ->reject(fn (InstanceMonstre $i) => $ombre->contientMonstre($quete, $i))
+            ->values();
 
         $adjacents = $actives->filter(fn (InstanceMonstre $i) => $i->position_x !== null
             && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonale));
@@ -842,19 +849,25 @@ final class MenuMoteur
 
             $this->annoncerDeplacement($groupe, $personnage, $etat, $jet, $base, $bonusRaquettes, $deAnnulePar);
 
-            $this->userSurDesIdentiques($personnage, $etat, $bottes, $jet);
+            // VISION DU FUTUR (2026-10-08) : « You may re-roll all dice for any one …
+            // movement roll » — proposée JUSTE APRÈS le jet. Tant que l'offre attend,
+            // le héros ne joue pas (`ResolveurTour::resoudre()` refuse) et les EFFETS
+            // du jet (usure des bottes, Évanescence) ne s'appliquent pas encore : ils
+            // sont rendus à l'issue RETENUE, par `effetsDuJet()`, à la réponse.
+            $enAttente = app(MoteurReactions::class)->proposerRelanceDeplacement(
+                $groupe, $personnage, $etat, $jet, [
+                    'base' => $base,
+                    'base_calcul' => $base + $bonusRaquettes,
+                    'bonus_equipement' => $bonusRaquettes,
+                    'de_annule' => $deAnnule,
+                    'de_annule_par' => $deAnnulePar,
+                    'des_supplementaires' => (int) (($bottes?->objet?->effet ?? [])[MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE] ?? 0),
+                    'sans_menace' => $sansMenace,
+                ],
+            );
 
-            // ÉVANESCENCE : « The hero moves unseen if they roll an 8 or lower
-            // on their red movement dice. If a 9, 10, 11, or 12 is rolled, the
-            // spell ends. » Le plateau lance 2 dés rouges ; nous lançons UN d6
-            // et rompons à 5+ (décision de René, 2026-08-12) — une chance sur
-            // trois, contre un peu plus d'une sur quatre au plateau.
-            //
-            // ⚠ C'est bien le JET DU TOUR qui décide, pas le déplacement
-            // effectif : le sort tient ou tombe avant que le héros n'ait fait
-            // un pas.
-            if ($jet->de >= self::RUPTURE_EVANESCENCE) {
-                $this->sorts->rompreEvanescence($personnage);
+            if (! $enAttente) {
+                $this->effetsDuJet($personnage, $etat, $jet);
             }
         }
 
@@ -968,6 +981,72 @@ final class MenuMoteur
                 'erreur' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Les EFFETS d'un jet de déplacement, une fois son résultat RETENU : l'usure
+     * des *Bottes elfiques* (dés identiques) et la rupture d'*Évanescence*. Un seul
+     * point de passage — le jet du tour les appelle tout de suite, ou la réponse à
+     * une *Vision du futur* les appelle à l'issue qu'elle a décidée.
+     */
+    public function effetsDuJet(Personnage $personnage, EtatPersonnageQuete $etat, ResultatDeplacement $jet): void
+    {
+        $bottes = $this->charges->pieceActive(
+            $personnage, MotsClesEquipement::DE_DEPLACEMENT_SUPPLEMENTAIRE, $etat,
+        );
+
+        $this->userSurDesIdentiques($personnage, $etat, $bottes, $jet);
+
+        // ÉVANESCENCE : « The hero moves unseen if they roll an 8 or lower
+        // on their red movement dice. If a 9, 10, 11, or 12 is rolled, the
+        // spell ends. » Le plateau lance 2 dés rouges ; nous lançons UN d6
+        // et rompons à 5+ (décision de René, 2026-08-12) — une chance sur
+        // trois, contre un peu plus d'une sur quatre au plateau.
+        //
+        // ⚠ C'est bien le JET DU TOUR qui décide, pas le déplacement
+        // effectif : le sort tient ou tombe avant que le héros n'ait fait
+        // un pas.
+        if ($jet->de >= self::RUPTURE_EVANESCENCE) {
+            $this->sorts->rompreEvanescence($personnage);
+        }
+    }
+
+    /**
+     * RELANCE du d6 du tour (*Vision du futur*) : même calcul que l'ouverture du
+     * tour — `$params` est exactement ce que `deplacementDuTour()` a passé à
+     * `Deplacement::calculer()` —, nouveau jet persisté, annoncé à la table, ses
+     * effets appliqués.
+     *
+     * @param  array<string, mixed>  $params
+     */
+    public function relancerDeplacementDuTour(Groupe $groupe, Personnage $personnage, EtatPersonnageQuete $etat, array $params): ResultatDeplacement
+    {
+        $jet = (new Deplacement($this->des))->calculer(
+            (int) $params['base_calcul'],
+            (bool) $params['de_annule'],
+            (int) $params['des_supplementaires'],
+            (bool) $params['sans_menace'],
+        );
+
+        $etat->update([
+            'deplacement_tour' => $jet->total,
+            'detail_deplacement_tour' => [
+                'base' => (int) $params['base'],
+                'des' => $jet->des,
+                'de_annule' => $jet->deAnnule,
+                'de_annule_par' => $jet->deAnnule ? ($params['de_annule_par'] ?? null) : null,
+                'sans_menace' => $jet->sansMenace,
+            ],
+        ]);
+
+        $this->annoncerDeplacement(
+            $groupe, $personnage, $etat, $jet, (int) $params['base'],
+            (int) $params['bonus_equipement'], $params['de_annule_par'] ?? null,
+        );
+
+        $this->effetsDuJet($personnage, $etat, $jet);
+
+        return $jet;
     }
 
     /**
@@ -1179,6 +1258,19 @@ final class MenuMoteur
             // résolveur doivent y répondre pareil, sinon le menu annonce une
             // seconde attaque que la résolution refuse.
             $this->sorts->rythmerBuffsDeVue($quete, $etat);
+
+            // VOILE D'OMBRE (*Cloak of Shadows*) : « at the start of the
+            // spellcaster's turn, remove a shadow token ». Posé ICI, tout en haut,
+            // AVANT que le menu ne lise la carte : le voile qui se dissipe ne doit
+            // plus filtrer les cibles de ce même menu. L'unicité n'est pas portée
+            // par `deplacement_tour` (que ce menu ne fixe pas toujours — un héros
+            // bloqué ne lance aucun dé) mais par un marqueur de `capacites_tour`,
+            // remis à zéro à chaque round par `ResolveurTour::ouvrirNouveauTour()`.
+            if (! $etat->tombe && ! $etat->a_joue
+                && $this->ordreDuTour->estSonTour($groupe, (int) $personnage->id)) {
+                app(MoteurOmbre::class)->debutDeTour($groupe, $quete, $personnage, $etat);
+                $quete->unsetRelation('carte');
+            }
         }
 
         // CHUTE DE BLOCS (livret p. 14, 2026-09-24) : « the hero then decides
@@ -1612,6 +1704,7 @@ final class MenuMoteur
                     ->where('revele', true)
                     ->with('monstre')
                     ->get()
+                    ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
                     ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                         && self::monstreAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales))
                     ->count();

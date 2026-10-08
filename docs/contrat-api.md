@@ -378,12 +378,31 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   cases ») et **jamais** son contenu. Le résultat (`vide`, `monstres` par nom,
   `pieges` en nombre, `texte`) ne montre QUE cette salle ; il part au journal et
   à la scène de table « Vision à distance ». Ne modifie ni le brouillard ni
-  `salles_decouvertes`.
+  `salles_decouvertes`. ⚠ **Rendu (2026-10-08)** : le fil porte `« {Acteur} lance
+  Clairvoyance — {texte} »` (sans `texte`, la ligne ne disait que « lance »), et la
+  MANETTE de celui qui lance affiche `resultat.texte` (nom : `resultat.sort.nom`)
+  jusqu'à fermeture ou au choix suivant — le serveur décide le texte, le client le lit.
+- ⚠ **`mode: pose_ombre`** (*Cloak of Shadows* → « Voile d'ombre », 2026-10-08) :
+  une entrée PAR emplacement légal (`MoteurOmbre::emplacementsLegaux()` : les
+  plus proches du lanceur d'abord, **24 au plus**), `cases: [{x, y}×6]` (un
+  rectangle 3×2 ou 2×3), nom « Voile d'ombre — 3×2, au nord-est, à 4 cases ».
+  `POST choix {option_id, parametres: {cle}}` suffit. ⚠ **Pas de `cibles`, pas
+  d'entrée sans emplacement** ; le sort se lit aussi en parchemin (entrées
+  `parchemin:{inventaire_id}:ombre:…`). Le résultat porte `ombre: {x, y, l, h,
+  jetons}` et `texte` (décidé par le serveur) ; il part au journal et à la scène
+  de table « Zone d'ombre ».
+- ⚠ ***Vision du futur* n'a AUCUNE entrée** dans `lancer_sort` ni dans
+  `lire_parchemin` : « cast at any time and does not take an action ». Elle se joue
+  après un jet, par `/reaction` (§Réactions hors tour).
 - ⚠ **`cible: lanceur_dread`** (*Unlearn*, 2026-10-08) : `parametres.cibles` ne
   liste que des monstres **lanceurs de Dread en ligne de vue** qui gardent au
   moins un sort. Le résultat (`mode: oubli_sort`, `sort_oublie`, `texte`) part au
   journal ; le sort oublié reste **pour la quête** (`sorts_oublies_de_quete`) et
   apparaît **grisé** (`disponible: false`) dans la liste d'un héros concerné.
+  ⚠ **Rendu (2026-10-08)** : même traitement que Clairvoyance — `texte` dans le fil
+  et affiché à celui qui lance (`resultat.texte`). Le sort s'appelle
+  **Désapprentissage** au catalogue (`sorts.nom`, migration `2026_10_08_110000`) ;
+  « Unlearn » n'est plus que le nom anglais, conservé dans `config/cartes.php`.
 - ⚠ **Un sort épuisé reste dans la liste**, `disponible: false`, pour être
   **grisé** — le faire disparaître laissait croire au joueur qu'il l'avait
   perdu. Le résolveur le refuse.
@@ -657,7 +676,7 @@ Broadcasts canal `groupe.{identifiant}` : `.marche.ouvert` (EtatMarche),
 |---|---|---|---|
 | GET | /mercenaires | — | catalogue recrutable : `[{id, nom, type, prix, deplacement, attaque, portee, attaque_distance, defense, pv_body, animal, description, image_url}]` (group-agnostique, comme `/competences`) |
 | POST | /groupes/{identifiant}/mercenaires | {mercenaire_id, personnage_id?} | recrute un allié contre l'or de la **bourse commune** (422 si pas au hub, **groupe pas encore Gardien**, **4 mercenaires déjà engagés par ce recruteur**, or insuffisant, 2ᵉ compagnon animal, ou `personnage_id` hors des héros actifs DE CE JOUEUR) — `personnage_id` désigne qui le CONTRÔLERA en quête (chantier 3a) ; absent, le PREMIER héros actif de ce joueur, même patron que `achats[].personnage_id` au marché |
-| POST | /groupes/{identifiant}/potions/boire-au-hub | {personnage_id, inventaire_id} | **boit une potion ENTRE DEUX QUÊTES** (Wizards of Morcar, Potion of Charm : « Drink this potion between quests »). 422 hors phase `hub`, pour un héros qui n'est pas actif et contrôlé par ce joueur, ou pour une potion **hors** `MotsClesEquipement::CLES_AU_HUB` (elle se boit en quête, par le menu). Résultat : `{potion: {objet, effets, …}, personnage: {id, nom, rabais_recrutement: {restants, po}}}` ; journal `systeme` `potion_bue_au_hub`. Consomme l'exemplaire comme `boire()`. |
+| POST | /groupes/{identifiant}/potions/boire-au-hub | {personnage_id, inventaire_id} | **boit une potion ENTRE DEUX QUÊTES** (Wizards of Morcar, Potion of Charm : « Drink this potion between quests »). 422 hors phase `hub`, pour un héros qui n'est pas actif et contrôlé par ce joueur, ou pour une potion **hors** `MotsClesEquipement::CLES_AU_HUB` (elle se boit en quête, par le menu). Résultat : `{potion: {objet, effets, …}, personnage: {id, nom, rabais_recrutement: {restants, po}}}` ; journal `systeme` `potion_bue_au_hub`. Consomme l'exemplaire comme `boire()`. Rediffuse `.groupe.etat` (la remise restante change `groupe.recrutement`). |
 
 ⚠ **Le Squelette Hearthkin (First Light, FL-Q p. 6, lot C) partage ce
 catalogue SANS jamais y figurer** (`mercenaires.octroi_seul`). Il n'existe
@@ -727,12 +746,7 @@ lié — la PREMIÈRE arme maniée après l'acquisition, aucun écran de choix),
 *Healing Hands* (un héros adjacent tombé à 0 PV peut boire UNE potion de
 soin DE CE porteur), *Hold the Line* (jet de dé de combat quand un monstre
 quitte les 8 cases autour de ce héros au tour de Zargon ; sur un crâne, 1
-dégât fixe), *Peacekeeper* (25 po à la bourse commune à chaque monstre que ce
-héros réduit à 0 PV — payés à la mise à mort, et non « at the end of that
-quest » : écart de timing assumé, à arbitrer par René, voir
-`docs/regles/exploration-et-fouille.md` ; crédit au seul point de passage
-`MoteurDegats::infligerAMonstre()`, braise différée comprise, jamais pour un
-allié, un piège, un sort du Dread ou un sbire).
+dégât fixe), *Peacekeeper* (**compté à la mise à mort, PAYÉ à la fin de la quête réussie** — 2026-10-08 : 25 po par monstre que ce héros réduit à 0 PV PENDANT CETTE quête, « at the end of that quest », ce qui tranche l'écart de timing que la version précédente laissait à René). Compteur durable `etat_personnage_quete.monstres_vaincus` (par héros, par quête, repris par le snapshot) ; crédit au seul point de passage `MoteurDegats::infligerAMonstre()` → `FaveursHopekins::compterPeacekeeper()`, braise différée comprise ; versement `FaveursHopekins::reglerPeacekeeper()`, appelé par `ResolveurTour::terminerQuete()` seulement (jamais après un TPK), AVANT l'entretien ; jamais pour un allié, un piège, un sort du Dread ou un sbire. Annoncé au hub : `groupe.peacekeeper` = `{quete_id, or_total, versements: [{personnage_id, nom, monstres, or}]}`, bornée à la dernière quête achevée comme l'entretien ; `null` si personne n'a rien à percevoir.)
 
 **Forme publiée d'une faveur** (2026-10-08, un seul point de passage
 `FaveursHopekins::publier()`) : `{cle, libelle, effet}` — `libelle` le nom de
@@ -756,7 +770,7 @@ rien n'est tiré, silencieusement.
 **Fil de combat** (2026-10-08) : les deux effets qui se déclenchent pendant
 une action se disent, en direct comme à la reconnexion. Peacekeeper : journal
 `combat` `{type: 'faveur_peacekeeper', action: 'peacekeeper', personnage,
-monstre, or_gagne: 25}`, et le résultat de l'action le porte dans
+monstre, vaincus_quete, or_en_attente: 25}` (rien n'est encaissé à la mise à mort), et le résultat de l'action le porte dans
 `faveurs_declenchees: [même forme]` (`App\Partie\TamponFaveurs`, vidé à
 l'entrée et à la sortie de `ResolveurTour::resoudre()`, comme
 `charges_depensees`). Hold the Line : `{type: 'faveur_hold_the_line', action:
@@ -824,10 +838,17 @@ contrôle** : l'allié n'agit pas ce round (il attend), jamais un transfert de
 contrôle à un autre joueur. Dès que son héros se relève, l'allié reprend son
 tour normal au round suivant, juste après lui. → `docs/regles/combat-et-tour.md`
 
-Le front calcule la disponibilité (or suffisant, animal déjà pris) **côté
-client** à partir de l'état vivant : `EtatGroupe.groupe.or` + le bloc **hub**
-`EtatGroupe.groupe.mercenaires` (voir plus bas). La manette montre le panneau de
-recrutement au hub, la table liste les renforts embauchés.
+**Décision publiée (2026-10-08).** Le front ne calcule plus la disponibilité :
+`EtatGroupe.groupe.recrutement.offres` publie, au hub, pour CHAQUE allié non
+octroyé seul et CHAQUE héros actif du groupe, `{personnage_id, nom, prix,
+prix_catalogue, rabais_po, recrutable, motif}` — `prix` est ce que ce héros paie
+RÉELLEMENT (remise de Potion de charme comprise), `recrutable` la décision,
+`motif` la phrase du serveur quand elle est négative (`null` sinon). Un seul
+point de passage, `App\Partie\RecrutementHub` : le POST `…/mercenaires` applique
+la MÊME décision (premier motif = 422, sous la clé `groupe` / `personnage_id` /
+`mercenaire_id`) et débite le `prix` publié. La manette envoie `personnage_id`
+(son héros, celui dont elle affiche la ligne). La table liste les renforts
+embauchés (`groupe.mercenaires`).
 
 Dans **EtatGroupe.entites** (en quête), un allié posé apparaît avec `type:'allie'`
 (`{id, nom, x, y, pv_body, pv_body_max, animal, image_url, des_attaque, des_defense}` —
@@ -1025,7 +1046,7 @@ officielles la réclament — *Dark Wings* (Warlock, « Reduce that damage to
 zero ») et *Twisting Torrent* (Moine, « cancel that damage »), toutes deux
 déclenchées **quand leur porteur encaisse**, donc pendant le tour d'un monstre.
 
-**Huit actions** de réaction existent aujourd'hui (`App\Engine\ReactionEffet`),
+**Neuf actions** de réaction existent aujourd'hui (`App\Engine\ReactionEffet`),
 et la proposition porte laquelle dans `action` — le libellé du bouton en
 dépend, « annuler les dégâts » étant faux pour la plupart d'entre elles :
 
@@ -1040,6 +1061,7 @@ dépend, « annuler les dégâts » étant faux pour la plupart d'entre elles :
 | `relance_attaque` | *Bouclier de l'Aube* (artefact, 2026-09-16) | rend les PV puis force le MONSTRE à relancer TOUTE sa volée d'attaque, défense rejouée — « en mieux comme en pire » (`des_attaque`/`des_defense` du `contexte` de la proposition) |
 | `reflet_sort` | *Bâton Ancien* (artefact, 2026-09-16) | renvoie un sort de Dread (dégâts compris, et les sorts de CONTRÔLE sans dégât via `MoteurDread::sortDreadControle()`) au lanceur et à sa salle ; le porteur et ses compagnons y sont immunisés |
 | `relance_benediction_oracle` | **Bénédiction de l'Oracle**, option (b) (First Light, FL-Q p. 6, lot C 2026-09-30) | rend les PV puis rejoue TOUT le jet de Défense avec des dés neufs — le nouveau résultat remplace l'ancien SANS CHOIX (« keeping the second result obligatorily », un gamble, pas une relance du meilleur) ; la Bénédiction se consomme qu'elle serve ou non. ⚠ SCOPÉ à la Défense — Attaque et Mouvement sont des dettes nommées, voir `docs/regles/artefacts.md` |
+| `relance_jet` | **Vision du futur** (*Future Sight*, Wizards of Morcar, 2026-10-08) | relance TOUS les dés d'UN jet du héros — attaque, défense ou déplacement — juste après qu'il est tombé ; voir §Vision du futur |
 
 ⚠ `relance_attaque` et `reflet_sort` existaient déjà (2026-09-16) mais étaient
 absentes de ce tableau — corrigé au passage du lot First Light C.
@@ -1108,7 +1130,7 @@ héros debout concluait le round en `echouee` avant que le téléphone ait sonn�
 la potion arrivait sur une quête déjà perdue. Le verdict de fin de round est
 désormais **suspendu** tant qu'une proposition capable de relever quelqu'un
 attend — `annule_degats`, `plancher_pv`, `annule_degats_voisin`, `soin_urgence`,
-`relance_attaque`, `reflet_sort`, `relance_benediction_oracle` (ni `riposte` ni
+`relance_attaque`, `reflet_sort`, `relance_benediction_oracle`, `relance_jet` (ni `riposte` ni
 `defi_errant` : ils frappent, ils ne relèvent personne). La
 quête reste `en_cours`, tout le monde à terre, et c'est la **réponse** qui
 tranche : accepter la relève, refuser prononce le TPK.
@@ -1124,6 +1146,75 @@ reprend le verdict ; il est appelé au **battement de cœur de la table**
 (`POST /table/ping`, le seul ticker fiable) et à chaque **`GET /etat`** pour une
 partie jouée sans écran de table. Sans lui, un groupe entièrement à terre
 resterait en quête pour toujours.
+
+### Vision du futur (*Future Sight*, 2026-10-08) — `action: relance_jet`
+
+« This spell may be cast at any time and does not take an action. You may re-roll
+all dice for any one attack, defense or movement roll. Discard after use. »
+**Décision de René : la relance est proposée JUSTE APRÈS le jet** — le résultat
+est montré au héros qui connaît le sort (non encore dépensé cette quête), le
+serveur attend sa réponse **avant de l'appliquer**, et s'il relance, TOUS les dés
+de ce jet sont relancés et le nouveau résultat s'applique. Le sort est défaussé
+quand il sert, jamais quand on le refuse. Neuvième action de réaction ; son champ
+**`jet`** dit lequel des trois :
+
+| `jet` | Quand | Ce qui est suspendu | Ce que la relance remplace |
+|---|---|---|---|
+| `attaque` | le héros frappe (`POST /choix`) | **l'action entière** : `resultat.type = "jet_en_attente"`, rien n'est écrit (ni dégâts, ni mort, ni butin, ni créneau) | les dés d'attaque du héros — la défense du monstre, déjà tombée, est gardée |
+| `deplacement` | le d6 du tour tombe, à l'ouverture du tour du héros | le héros ne peut RIEN jouer (`/choix` → 422) ; les effets du jet (usure des Bottes, rupture d'Évanescence) ne s'appliquent qu'à la réponse | tous les dés de déplacement du tour |
+| `defense` | un monstre blesse le héros, pendant la phase des monstres | **rien** — voir ci-dessous | les dés de défense du héros — l'attaque du monstre, déjà tombée, est gardée |
+
+⚠ **Pourquoi la défense n'est pas suspendue** : la phase des monstres se résout
+dans la requête d'un *autre* joueur, à l'intérieur d'une transaction (voir
+« Ordre des opérations »). Le coup est donc appliqué puis défait si on relance — la
+même couture que la Bénédiction de l'Oracle. L'attaque et le déplacement, eux, se
+jouent dans la requête de leur auteur : l'attaque s'**interrompt** au milieu de son
+jet (`ResolveurTour::frapper()` → `JetEnAttente`), la transaction est annulée, et la
+réponse **rejoue** l'action avec la volée que le joueur a vue (refus) ou des dés
+neufs pour son seul camp (acceptation).
+
+**La proposition** (`.reaction.proposee` sur `joueur.{id}`, et
+`EtatGroupe.entites[].reaction_en_attente`) porte, en plus des champs communs :
+
+- `jet` ∈ `attaque | defense | deplacement`, `sort` (« Vision du futur ») ;
+- `des` : les dés **que le héros peut relancer** (faces de `FaceDeCombat`, ou des
+  entiers pour le déplacement) ; `des_adverses` : la volée d'en face, qui ne sera
+  **pas** relancée ; `touchante` / `defensive` : la face qui compte pour chacune
+  (décidées par le moteur, jamais redéduites) ;
+- `resume` : la phrase du résultat, **décidée par le serveur** (« Tu touches 3 fois,
+  Gobelin pare 1 : 2 points de dégâts. »).
+
+⚠ `EtatGroupe` ne publie **jamais** `reprise` (l'action à rejouer : option du menu,
+paramètres, jets tombés) — ce n'est pas une information de jeu.
+
+**La suspension d'une attaque.** `POST /choix` répond `202` avec
+`resultat: {type: "jet_en_attente", jet: "attaque", sort, faces_attaque,
+faces_defense, face_touchante, face_defensive, resume, expire_dans}` et **`des: null`**.
+Le menu reste en cache (la reprise le consomme) ; aucune narration, aucun menu
+suivant, aucune ligne de combat : l'action n'a pas eu lieu. Tant que l'offre attend,
+toute autre action du héros est refusée en 422.
+
+**La réponse** — `POST /reaction {personnage_id, accepte}`, comme toute réaction —
+rend `{reaction: {type: "reaction", action: "relance_jet", jet, active, sort, …}}` :
+
+- `attaque` : `reaction.resultat` et `reaction.des` sont ceux qu'aurait rendus
+  `/choix` (la manette les révèle comme après n'importe quel choix) ;
+- `deplacement` : `reaction.des_deplacement`, `reaction.total` (le jet retenu) ; un
+  nouveau menu part avec la portée décidée par ce jet ;
+- `defense` : `degats_annules`, `degats_relance`, `pv_body_apres`, `faces_attaque`,
+  `faces_defense`, `texte`.
+
+**Refus par défaut, jamais un groupe figé.** Fenêtre `FENETRE_SECONDES` (45 s).
+Une réponse **tardive** vaut un refus (et non un 422, contrairement aux autres
+réactions : jeter l'action suspendue la perdrait). Si personne ne répond,
+`rattraperExpiration()` **reprend** l'action avec le jet d'origine — mêmes appelants
+que ci-dessus (battement de cœur de la table, `GET /etat`).
+
+`relance_jet` compte parmi les actions qui suspendent le TPK (la défense relancée
+peut relever un héros). Hors périmètre, nommé : les jets de défense contre un sort
+de Dread, un piège ou un tir ami (ils n'ont pas la volée d'un monstre à rejouer), la
+flèche de Vindication et la Dague de jet magique (aucun jet d'attaque), et les
+attaques d'un allié ou d'un mercenaire.
 
 ## Votes de groupe (doc 05 §5)
 
@@ -1509,6 +1600,32 @@ une case derrière un mur invisible et le serveur refusait. `cranes` est le comp
 de crânes encaissés (5 le brisent — carte *Ice Wall*, doc 18 §4) : sans lui,
 frapper le mur n'aurait aucun retour visible. Brouillard : même critère que les
 leviers et le terrain — la case est publiée si elle n'est pas brouillée.
+
+**Voile d'ombre (2026-10-08).** **EtatGroupe.carte** gagne `ombre: [{x, y, l, h,
+jetons, jetons_max, lanceur}]` — la couche `carte.grille['ombre']` posée en cours de
+quête par le sort de héros *Cloak of Shadows* (« Voile d'ombre »), **jamais** le
+catalogue `terrains` ni le mobilier. Un rectangle par voile (`x`,`y` = coin haut
+gauche, `l`×`h` = 3×2 ou 2×3 — taille mesurée sur le livret G1504 p. 4, voir
+`MoteurOmbre`), son **compteur** `jetons`/`jetons_max` (3) et le prénom du lanceur.
+Brouillard : un voile est publié si AU MOINS UNE de ses cases n'est pas brouillée,
+critère de la glace et des leviers. `lanceur_id` n'est pas publié.
+
+Ce que le voile FAIT, et qui est lu par le moteur seul (rien à recalculer côté
+client) : « heroes and monsters on the tile may not attack or be attacked » —
+`MoteurSorts::attaqueInterdite()` (le héros dessus : plus aucune option d'attaque
+au menu, 422 au résolveur), `estInattaquable()` (le héros dessus n'est la cible d'aucun
+monstre), `MoteurOmbre::contientMonstre()` (le monstre dessus n'est une cible d'aucune
+arme ni d'aucun rayon, et ne frappe pas) ; « the darkness blocks line of sight into
+and through it » — `FabriqueGrille::pour()` seul, via `Grille::assombrir()`. On
+**marche** dessus. « At the start of the spellcaster's turn, remove a shadow token »
+— à l'ouverture du tour du lanceur (une fois par round) ; un lanceur tombé perd son
+jeton à l'ouverture du round ; au dernier le voile disparaît de la couche. Chaque
+jeton retiré est un événement `ombre_decompte` (`{personnage, jetons, dissipee,
+texte}`) au journal et au fil du combat ; un monstre qui ne frappe pas à cause du
+voile est un `monstre_dans_l_ombre`. Rendu : zone sombre translucide + chapelet de
+pastilles (jetons) sur la table et la manette, entrée « Voile d'ombre » dans la
+légende. Hors périmètre, nommé : les attaques d'un allié ou d'un mercenaire contre
+une cible sous le voile, ou depuis lui.
 
 **Illustrations.** Pièges et épreuves publient une `image_url` depuis toujours ;
 elle n'était **affichée nulle part**. Le **mobilier** n'en avait aucune — ni

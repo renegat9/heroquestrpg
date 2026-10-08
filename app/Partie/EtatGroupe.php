@@ -132,12 +132,21 @@ final class EtatGroupe
             // condition (2 quêtes achevées) côté client.
             $preambuleGroupe['gardien'] = $groupe->estGardien();
 
-            // Annonces de FIN DE QUÊTE (entretien, faveur de Hopekins Rest) : lues
-            // depuis le journal, jamais recalculées — un effet automatique que
-            // rien n'annonce est injouable. Bornées à la DERNIÈRE quête achevée.
+            // DÉCISIONS de recrutement, héros par héros (prix réel avec la Potion
+            // de charme, recrutable ou non, et le motif) : `RecrutementHub` est
+            // le seul point de passage. La manette affiche la ligne de son héros
+            // sans rien recalculer — l'ancien contrôle « or < prix catalogue »
+            // grisait un recrutement que le serveur aurait accepté.
+            $preambuleGroupe['recrutement'] = app(RecrutementHub::class)->publier($groupe);
+
+            // Annonces de FIN DE QUÊTE (entretien, faveur de Hopekins Rest,
+            // Peacekeeper) : lues depuis le journal, jamais recalculées — un effet
+            // automatique que rien n'annonce est injouable. Bornées à la DERNIÈRE
+            // quête achevée.
             $derniereQuete = $groupe->quetes()->where('etat', 'terminee')->orderByDesc('id')->value('id');
             $preambuleGroupe['mercenaires_entretien'] = $this->annonceDeQuete($groupe, 'mercenaire_entretien', $derniereQuete);
             $preambuleGroupe['faveur_hopekins'] = $this->annonceDeQuete($groupe, 'faveur_hopekins', $derniereQuete);
+            $preambuleGroupe['peacekeeper'] = $this->annonceDeQuete($groupe, 'peacekeeper_quete', $derniereQuete);
 
             // Prologue de campagne (prémisse + menace) : exposé au hub pour que
             // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
@@ -436,6 +445,14 @@ final class EtatGroupe
             // que les leviers l'ont été le 2026-08-27 : elle bloquait le
             // mouvement côté moteur sans être dessinée nulle part.
             'glace' => $this->glace($carte, $cases),
+            // VOILE D'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) :
+            // couche DÉDIÉE `carte.grille['ombre']`, posée en cours de quête par un
+            // sort de héros. Un rectangle par voile avec son COMPTEUR de jetons
+            // (« place 3 shadow tokens on this card ») : un voile qui s'amincit sans
+            // qu'on le voie est un effet automatique muet. Même critère de
+            // publication que la glace — le brouillard. `lanceur_id` n'est PAS
+            // publié (l'entretien du sort n'est pas une information de jeu).
+            'ombre' => app(MoteurOmbre::class)->publier($carte, $cases),
             // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05) : le
             // repère du plateau d'origine — toujours dans la salle de départ,
             // donc toujours visible en pratique, mais filtré par le MÊME
@@ -1188,7 +1205,9 @@ final class EtatGroupe
                     // `.reaction.proposee` : une manette rechargée au mauvais
                     // moment perdrait sinon la proposition — et avec elle le
                     // pouvoir du joueur — sans qu'aucun écran ne le dise.
-                    'reaction_en_attente' => $etat?->reaction_en_attente,
+                    // ⚠ Sans `reprise` (l'action suspendue d'une Vision du futur : option,
+                    // paramètres, jets) — `MoteurReactions::pourEtat()`.
+                    'reaction_en_attente' => app(MoteurReactions::class)->pourEtat($etat?->reaction_en_attente),
                     // ORACLE (First Light, FL-Q p. 6, lot C) : deux états
                     // DURABLES du héros, pas de la quête — un compagnon
                     // maudit ou béni le reste d'une quête à l'autre, la table

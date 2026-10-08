@@ -104,6 +104,21 @@ final class Grille
     private array $opaques = [];
 
     /**
+     * Cases d'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) : « The
+     * darkness blocks line of sight INTO and THROUGH it. » Posé par
+     * `assombrir()`, lu par `ligneDeVue()` seule.
+     *
+     * Distinct de `$opaques` parce que celles-ci ne coupent la vue que EN TRAVERSANT
+     * — un meuble opaque reste visible comme cible, une extrémité ne bloque
+     * jamais —, quand l'ombre cache AUSSI ce qu'elle contient : « into ». Comme la
+     * ligne de vue est symétrique par construction (extrémités ordonnées), une
+     * figure DANS l'ombre ne voit rien au-dehors non plus.
+     *
+     * @var array<string, true>
+     */
+    private array $ombre = [];
+
+    /**
      * État des portes (chantier portes, doc 14 §3.1/3.3), indexé par ARÊTE
      * entre deux cases voisines (une porte ne prend PAS de case : elle vit sur
      * la cloison entre deux cases sol, activable des deux côtés). Chaque entrée
@@ -372,6 +387,25 @@ final class Grille
     }
 
     /**
+     * Marque des cases d'OMBRE — voir `$ombre`. Le même appelant pose aussi ces
+     * cases dans `occulter()` (traversée) : ici ne vit que la moitié « into ».
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function assombrir(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->ombre["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /** La case est-elle sous une ombre ? (lecture seule, pour les appelants qui tracent une carte) */
+    public function estEnOmbre(int $x, int $y): bool
+    {
+        return isset($this->ombre["{$x},{$y}"]);
+    }
+
+    /**
      * Coûts de déplacement du TERRAIN (doc 18 §4), une entrée par case dont le
      * coût diffère de 1 (`{x, y, cout}`) — c'est ce qui rend la Rivière Gelée
      * possible (2 cases de déplacement par case franchie). Même patron que
@@ -619,6 +653,16 @@ final class Grille
         // Une case se voit toujours elle-même.
         if ($x1 === $x2 && $y1 === $y2) {
             return true;
+        }
+
+        // OMBRE (Cloak of Shadows) : « blocks line of sight into and through
+        // it ». Le « through » est le travail d'`occulter()` ci-dessous ; le
+        // « into » est ICI — une extrémité sous l'ombre ne se voit pas, et
+        // (symétrie) ne voit pas non plus. Posé avant l'ordre canonique : le
+        // test est lui-même symétrique.
+        if ($this->ombre !== []
+            && (isset($this->ombre["{$x1},{$y1}"]) || isset($this->ombre["{$x2},{$y2}"]))) {
+            return false;
         }
 
         // Ordre canonique des extrémités → tracé identique dans les deux sens.

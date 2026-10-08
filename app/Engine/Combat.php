@@ -49,6 +49,14 @@ final class Combat
      *                                             noir est un raté parmi trois : relancer « les ratés » aurait
      *                                             donné une arme deux fois plus forte que sa carte.
      * @param  int  $relanceFaceMaximum  Combien de dés de cette face au plus. La Serre en offre UN.
+     * @param  list<FaceDeCombat>|null  $facesAttaqueImposees  Volée d'attaque DÉJÀ tombée, reprise telle quelle — ni
+     *                                                         lancer ni relance : ce sont les faces FINALES. Sert à
+     *                                                         REJOUER une action suspendue (*Vision du futur*,
+     *                                                         `MoteurReactions`) avec le jet que le joueur a vu. Ignorée si
+     *                                                         son effectif ne correspond plus au nombre de dés demandé
+     *                                                         (l'état a changé : mieux vaut un jet neuf qu'un jet faux).
+     * @param  list<FaceDeCombat>|null  $facesDefenseImposees  Idem pour la volée de défense — c'est ce qui permet de ne
+     *                                                         relancer QUE les dés d'un côté du jet.
      */
     public function resoudreAttaque(
         int $desAttaque,
@@ -59,6 +67,8 @@ final class Combat
         bool $defenseurEthere = false,
         ?FaceDeCombat $relanceFaceAttaque = null,
         int $relanceFaceMaximum = 1,
+        ?array $facesAttaqueImposees = null,
+        ?array $facesDefenseImposees = null,
     ): ResultatAttaque {
         if ($desAttaque < 0) {
             throw new \InvalidArgumentException("Dés d'attaque invalides : {$desAttaque}.");
@@ -75,7 +85,8 @@ final class Combat
         // « Coup puissant » relance les mauvais dés (voir ci-dessous).
         $touchante = $defenseurEthere ? FaceDeCombat::BouclierNoir : FaceDeCombat::Crane;
 
-        $facesAttaque = $this->des->desCombat($desAttaque);
+        $attaqueImposee = $facesAttaqueImposees !== null && count($facesAttaqueImposees) === $desAttaque;
+        $facesAttaque = $attaqueImposee ? array_values($facesAttaqueImposees) : $this->des->desCombat($desAttaque);
 
         // ⚠ Compté AVANT la relance, sur la VOLÉE INITIALE : c'est le nombre
         // de dés qui vont réellement changer de face, pas la fenêtre offerte
@@ -83,11 +94,13 @@ final class Combat
         // résultat pour que l'appelant sache si `relance_des_attaque_rates`
         // (Coup puissant, Bras d'acier, Coup sauvage) vient de JOUER — un
         // talent qui ne joue pas n'émet pas de popup.
-        $relancesEffectuees = $relanceDesAttaqueRatee > 0
+        $relancesEffectuees = ($relanceDesAttaqueRatee > 0 && ! $attaqueImposee)
             ? min($relanceDesAttaqueRatee, count(array_filter($facesAttaque, fn ($face) => $face !== $touchante)))
             : 0;
 
-        if ($relanceDesAttaqueRatee > 0) {
+        // Une volée IMPOSÉE est déjà finale : les relances de talent ont déjà joué
+        // sur elle quand elle est tombée, les rejouer la changerait.
+        if ($relanceDesAttaqueRatee > 0 && ! $attaqueImposee) {
             $facesAttaque = $this->relancerRatees($facesAttaque, $touchante, $relanceDesAttaqueRatee);
         }
 
@@ -99,13 +112,16 @@ final class Combat
         //
         // ⚠ Et jamais la face QUI TOUCHE : contre un éthéré c'est le bouclier
         // noir qui blesse, et la Serre relancerait ses propres réussites.
-        if ($relanceFaceAttaque !== null
+        if (! $attaqueImposee
+            && $relanceFaceAttaque !== null
             && $relanceFaceMaximum > 0
             && $relanceFaceAttaque !== $touchante) {
             $facesAttaque = $this->relancerFace($facesAttaque, $relanceFaceAttaque, $relanceFaceMaximum);
         }
 
-        $facesDefense = $this->des->desCombat($desDefense);
+        $facesDefense = ($facesDefenseImposees !== null && count($facesDefenseImposees) === $desDefense)
+            ? array_values($facesDefenseImposees)
+            : $this->des->desCombat($desDefense);
 
         $touches = count(array_filter($facesAttaque, fn ($face) => $face === $touchante));
 

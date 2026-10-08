@@ -81,6 +81,8 @@ const CLES_SORT_ACTIVES = [
     'pioche_triple',           // ResolveurTour::piocherTresorConvoite() — Trésor convoité
     'vision_salle',            // MoteurSorts::entreesVisionSalle() + ResolveurTour::visionSalleSort() — Clairvoyance
     'oublie_sort',             // MoteurSorts::ciblesLegales() + ResolveurTour::oublierSortSort() — Unlearn (OubliSorts)
+    'relance_jet',             // MoteurReactions::proposerRelanceJet() — Vision du futur (relance après un jet, sans action)
+    'pose_ombre',              // MoteurSorts::entreesPoseOmbre() + MoteurOmbre::poser() — Voile d'ombre (carte.grille['ombre'])
 ];
 
 /**
@@ -138,7 +140,11 @@ it('donne à chaque sort un effet mécanique que le moteur sait appliquer', func
         // ce contenu part au journal et sur la table (SceneDeTable).
         'vision_salle',
         // Unlearn agit : un sort de la cible est rangé hors jeu pour la quête.
-        'oublie_sort'];
+        'oublie_sort',
+        // Vision du futur agit : elle remplace les dés d'un jet déjà tombé.
+        'relance_jet',
+        // Le Voile d'ombre agit : il pose une zone qui coupe la vue et les coups.
+        'pose_ombre'];
 
     foreach (Sort::all() as $sort) {
         expect(array_intersect($agissantes, array_keys((array) $sort->effet)))
@@ -168,9 +174,11 @@ it('ne garde AUCUN sort que le seeder ne déclare pas', function () {
         // Clairvoyance/Cloak of Shadows restent NON seedés, faute de lecteur
         // (dette nommée, `docs/regles/sorts-heros.md`).
         ->and($attendus['protection'] ?? 0)->toBe(3)
-        ->and($attendus['detection'] ?? 0)->toBe(2)
-        ->and($attendus['tenebres'] ?? 0)->toBe(2)
-        ->and(Sort::count())->toBe(38);
+        // ⚠ 40 depuis Vision du futur (`detection`) et Voile d'ombre (`tenebres`),
+        // 2026-10-08 — les NEUF sorts Morcar sont portés, plus aucune dette.
+        ->and($attendus['detection'] ?? 0)->toBe(3)
+        ->and($attendus['tenebres'] ?? 0)->toBe(3)
+        ->and(Sort::count())->toBe(40);
 });
 
 it('n\'expose de sorts qu\'aux classes lanceuses', function () {

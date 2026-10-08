@@ -410,10 +410,22 @@ export function useApi() {
         /** GET /api/mercenaires → catalogue recrutable [{id, nom, type, prix, stats…}]. */
         getMercenaires: () => request('GET', '/mercenaires'),
 
-        /** POST /groupes/{id}/mercenaires {mercenaire_id} — recrute contre la
-         *  bourse commune (422 : pas au hub, or insuffisant, 2ᵉ animal). */
-        recruterMercenaire: (identifiant, mercenaireId) =>
-            request('POST', `/groupes/${identifiant}/mercenaires`, { mercenaire_id: mercenaireId }),
+        /** POST /groupes/{id}/mercenaires {mercenaire_id, personnage_id?} — recrute
+         *  contre la bourse commune pour CE héros (le prix et le verdict viennent de
+         *  `groupe.recrutement`). 422 : pas au hub, or insuffisant, 2ᵉ animal, plafond. */
+        recruterMercenaire: (identifiant, mercenaireId, personnageId = null) =>
+            request('POST', `/groupes/${identifiant}/mercenaires`, personnageId
+                ? { mercenaire_id: mercenaireId, personnage_id: personnageId }
+                : { mercenaire_id: mercenaireId }),
+
+        /** POST /groupes/{id}/potions/boire-au-hub {personnage_id, inventaire_id} —
+         *  boit une potion ENTRE DEUX QUÊTES (Potion de charme) ; 422 hors hub ou
+         *  pour une potion qui se boit en quête. */
+        boireAuHub: (identifiant, personnageId, inventaireId) =>
+            request('POST', `/groupes/${identifiant}/potions/boire-au-hub`, {
+                personnage_id: personnageId,
+                inventaire_id: inventaireId,
+            }),
 
         // ---- votes de groupe (contrat « Votes de groupe ») ----
 

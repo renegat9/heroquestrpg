@@ -126,6 +126,15 @@ export const LEVIER_ICONE = 'toggle_on';
 export const GLACE_ICONE = 'ac_unit';
 
 /**
+ * Voile d'ombre (*Cloak of Shadows*, Wizards of Morcar) : une ZONE (rectangle
+ * 3×2) posée par un sort de héros, avec un compteur de jetons. Rendue comme une
+ * surcouche SOMBRE TRANSLUCIDE — jamais un bloc plein : on marche dessous, on y
+ * voit les figures (la carte ne les cache pas au joueur, elle coupe la ligne de
+ * vue du JEU) — et un chapelet de pastilles dit combien de jetons restent.
+ */
+export const OMBRE_ICONE = 'visibility_off';
+
+/**
  * Terrain (doc 18 §4, The Frozen Horror) → catégorie de TEINTE de case.
  *
  * ⚠ FORME DÉLIBÉRÉMENT DIFFÉRENTE des cinq familles ci-dessus : figures,

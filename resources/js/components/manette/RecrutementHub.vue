@@ -1,13 +1,15 @@
 <script setup>
 // Recrutement d'alliés au hub (doc 14 §3.5) — bourse commune. Le joueur
 // embauche un mercenaire/compagnon contre l'or COMMUN du groupe, avant une
-// quête ; depuis le chantier 1c (Wizards of Morcar, 2026-10-06) l'allié
-// PERSISTE d'une quête à l'autre contre un entretien de 10 po/quête, et le
-// recrutement n'ouvre qu'une fois le groupe GARDIEN (2 quêtes achevées,
-// `groupe.gardien` — la DÉCISION publiée côté serveur, jamais recalculée
-// ici). La disponibilité (or suffisant, un seul animal) est calculée ici
-// depuis l'état vivant du groupe.
-import { computed } from 'vue';
+// quête. L'allié persiste d'une quête à l'autre contre un entretien de 10 po
+// par quête, et le recrutement n'ouvre qu'au statut de Gardien.
+//
+// ⚠ Rien ici n'est recalculé. Le serveur publie, héros par héros, le PRIX
+// RÉEL (remise de la Potion de charme comprise) et le VERDICT (recrutable ou
+// non, et le motif) dans `groupe.recrutement.offres`. Ce composant choisit la
+// ligne de SON héros et l'affiche : il ne compare plus l'or au prix catalogue
+// — c'est cette comparaison qui grisait un recrutement que le serveur aurait
+// accepté avec le rabais.
 import MSym from '../ui/MSym.vue';
 import Vignette from '../ui/Vignette.vue';
 
@@ -18,21 +20,31 @@ const props = defineProps({
     recrues: { type: Array, default: () => [] },
     // Or de la bourse COMMUNE (EtatGroupe.groupe.or).
     or: { type: Number, default: 0 },
-    // Statut de Gardien (EtatGroupe.groupe.gardien) — débloque le recrutement.
-    gardien: { type: Boolean, default: false },
+    // Décisions publiées (EtatGroupe.groupe.recrutement.offres) :
+    // [{mercenaire_id, decisions: [{personnage_id, nom, prix, prix_catalogue,
+    //   rabais_po, recrutable, motif}]}].
+    offres: { type: Array, default: () => [] },
+    // Le héros dont on affiche la ligne (celui que cette manette pilote).
+    personnageId: { type: Number, default: null },
+    // Remise de Potion de charme de CE héros (/moi) : {restants, po}.
+    rabais: { type: Object, default: null },
     // Un recrutement est en cours (gèle les boutons).
     enCours: { type: Boolean, default: false },
 });
 const emit = defineEmits(['recruter']);
 
-const animalPris = computed(() => props.recrues.some((r) => r.animal));
+// La décision du serveur pour CE héros sur CET allié. Absente (payload
+// incomplet) : on ne la devine pas, l'allié reste indisponible.
+function decision(m) {
+    const offre = props.offres.find((o) => o.mercenaire_id === m.id);
+    return offre?.decisions.find((d) => d.personnage_id === props.personnageId) ?? null;
+}
 
-// Motif de blocage d'une recrue (null = recrutable).
-function blocage(m) {
-    if (!props.gardien) return 'Réservé aux Gardiens (2 quêtes achevées)';
-    if (m.animal && animalPris.value) return 'Un seul compagnon animal';
-    if (props.or < m.prix) return 'Or insuffisant';
-    return null;
+// Motif de blocage tel que le serveur l'a écrit (null = recrutable).
+function motif(m) {
+    const d = decision(m);
+    if (!d) return 'Indisponible pour l\'instant';
+    return d.recrutable ? null : d.motif;
 }
 
 const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' };
@@ -49,15 +61,26 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
             avec vous d'une quête à l'autre contre 10 po d'entretien par quête ;
             impayé, il quitte le groupe.
         </p>
+        <p v-if="rabais && rabais.restants > 0" class="recrut-rabais">
+            <MSym n="science" fill :size="15" />
+            Potion de charme : {{ rabais.restants }} recrutement{{ rabais.restants > 1 ? 's' : '' }}
+            à {{ rabais.po }} po de moins.
+        </p>
 
-        <div v-for="m in catalogue" :key="m.id" class="recrut-carte" :class="{ off: !!blocage(m) }">
+        <div v-for="m in catalogue" :key="m.id" class="recrut-carte" :class="{ off: !!motif(m) }">
             <div class="recrut-tete">
                 <span class="recrut-ic"><Vignette :src="m.image_url" :icon="TYPE_ICON[m.type] || 'swords'" /></span>
                 <div class="recrut-nom">
                     <div class="rn">{{ m.nom }}</div>
                     <div class="rt">{{ m.animal ? 'Compagnon animal' : 'Mercenaire' }}</div>
                 </div>
-                <div class="recrut-prix"><MSym n="paid" fill :size="13" /> {{ m.prix }}</div>
+                <div class="recrut-prix">
+                    <template v-if="decision(m)">
+                        <s v-if="decision(m).rabais_po > 0" class="recrut-prix-catalogue">{{ decision(m).prix_catalogue }}</s>
+                        <MSym n="paid" fill :size="13" /> {{ decision(m).prix }}
+                    </template>
+                    <template v-else><MSym n="paid" fill :size="13" /> {{ m.prix }}</template>
+                </div>
             </div>
             <p class="recrut-desc">{{ m.description }}</p>
             <div class="recrut-stats">
@@ -71,10 +94,10 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
             </div>
             <button
                 class="recrut-btn"
-                :disabled="enCours || !!blocage(m)"
+                :disabled="enCours || !!motif(m)"
                 @click="emit('recruter', m.id)"
             >
-                <template v-if="blocage(m)">{{ blocage(m) }}</template>
+                <template v-if="motif(m)">{{ motif(m) }}</template>
                 <template v-else><MSym n="handshake" :size="16" /> Recruter</template>
             </button>
         </div>
@@ -101,6 +124,10 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
     font-size: 12px; color: var(--ink-500); font-style: italic;
     margin: 0 0 14px;
 }
+.recrut-rabais {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 700; color: var(--gold, #c9a24a); margin: 0 0 12px;
+}
 .recrut-carte {
     border: 1px solid var(--line-soft, oklch(0.4 0.02 70 / 0.4));
     border-radius: 12px; padding: 12px; margin-bottom: 12px;
@@ -123,6 +150,7 @@ const TYPE_ICON = { archer: 'target', hallebardier: 'shield', compagnon: 'pets' 
     display: flex; align-items: center; gap: 4px; flex: none;
     font-weight: 800; color: var(--gold, #c9a24a); font-size: 15px;
 }
+.recrut-prix-catalogue { font-weight: 600; color: var(--ink-500); font-size: 12px; margin-right: 2px; }
 .recrut-desc {
     font-family: var(--font-narr); font-style: italic; font-size: 13px;
     color: var(--ink-300, #cfc3ad); margin: 8px 0 10px; line-height: 1.35;

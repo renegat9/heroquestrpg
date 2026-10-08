@@ -18,7 +18,7 @@ import MSym from '../ui/MSym.vue';
 import {
     EPREUVE_ICONES, EPREUVE_ICONE_DEFAUT, LEVIER_ICONE, MOBILIER_ICONES,
     MOBILIER_ICONE_DEFAUT, PIEGE_ICONES, PIEGE_ICONE_DEFAUT, TERRAIN_TEINTES,
-    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, icone,
+    TERRAIN_TEINTE_DEFAUT, GLACE_ICONE, BLOC_ICONE, ESCALIER_ICONE, OMBRE_ICONE, icone,
 } from './symboles.js';
 
 const props = defineProps({
@@ -59,6 +59,11 @@ const props = defineProps({
      *  comme une teinte de terrain : c'est un obstacle qui barre la case, et
      *  il était jusqu'ici dessiné NULLE PART alors qu'il bloque le mouvement. */
     ice: { type: Array, default: () => [] },
+    /** Voiles d'ombre posés par *Cloak of Shadows* : [{x, y, l, h, jetons,
+     *  jetons_max, lanceur}]. Une ZONE translucide avec son compteur — voir
+     *  OMBRE_ICONE dans symboles.js. Jamais re-dérivée ici : le serveur publie
+     *  le rectangle ET ce qu'il reste de jetons. */
+    shadow: { type: Array, default: () => [] },
     /** Escalier d'entrée (chantier escalier-entrée, 2026-10-05) : `{x, y, l,
      *  h}` ou `null`. Posé une seule fois dans la salle de départ — TOUJOURS
      *  traversable, aucun des deux drapeaux du mobilier ne s'applique, donc un
@@ -281,6 +286,26 @@ const doors = computed(() => (props.carte.portes ?? [])
         >
             <div class="dg-ice" :title="`Mur de glace — ${g.cranes ?? 0}/5 crânes`">
                 <MSym :n="GLACE_ICONE" fill />
+            </div>
+        </div>
+
+        <!-- voiles d'ombre (*Cloak of Shadows*) : zone TRANSLUCIDE sur toute
+             l'emprise — on y marche, on y voit les figures — et un chapelet de
+             pastilles pour les jetons restants (le sort s'éteint au dernier). -->
+        <div
+            v-for="(o, i) in shadow"
+            :key="`o-${o.x}-${o.y}-${i}`"
+            class="dg-shadow-holder"
+            :style="{ gridColumn: `${o.x + 1} / span ${o.l}`, gridRow: `${o.y + 1} / span ${o.h}` }"
+        >
+            <div
+                class="dg-shadow"
+                :title="`Voile d'ombre${o.lanceur ? ` de ${o.lanceur}` : ''} — ${o.jetons}/${o.jetons_max} jeton${o.jetons > 1 ? 's' : ''} : nul n'y attaque ni n'y est attaqué, et la vue y est coupée`"
+            >
+                <MSym :n="OMBRE_ICONE" fill />
+                <span class="dg-shadow-jetons">
+                    <i v-for="n in o.jetons_max" :key="n" :class="{ plein: n <= o.jetons }" />
+                </span>
             </div>
         </div>
 
@@ -515,6 +540,21 @@ const doors = computed(() => (props.carte.portes ?? [])
   box-shadow: inset 0 0 0 1px oklch(0.88 0.06 220 / 0.7), 0 1px 3px oklch(0 0 0 / 0.5);
   color: oklch(0.96 0.02 220); }
 .dg-ice .msym { font-size: var(--dg-icone); filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.6)); }
+
+/* ---- voiles d'ombre (*Cloak of Shadows*) : une ZONE sombre TRANSLUCIDE, pas un
+   bloc — ce n'est pas un obstacle (on y marche) et les figures restent lisibles
+   dessous. Violet très sombre, comme la tuile du livret ; le chapelet de
+   pastilles en bas à droite compte les jetons (pleine = jeton restant). */
+.dg-shadow-holder { position: relative; pointer-events: none; z-index: 4; }
+.dg-shadow { position: absolute; inset: 2px; border-radius: 8px; display: grid; place-items: center;
+  background: radial-gradient(ellipse at 50% 45%, oklch(0.22 0.07 305 / 0.78), oklch(0.12 0.05 295 / 0.66));
+  box-shadow: inset 0 0 0 1.5px oklch(0.62 0.12 305 / 0.55), 0 0 10px oklch(0.3 0.1 305 / 0.5); }
+.dg-shadow .msym { font-size: calc(var(--dg-icone) * 1.5); color: oklch(0.82 0.08 305 / 0.8);
+  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.7)); }
+.dg-shadow-jetons { position: absolute; right: 5%; bottom: 6%; display: flex; gap: 3px; }
+.dg-shadow-jetons i { width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid oklch(0.82 0.1 305 / 0.8); background: transparent; }
+.dg-shadow-jetons i.plein { background: oklch(0.82 0.1 305); box-shadow: 0 0 4px oklch(0.82 0.1 305 / 0.8); }
 
 /* ---- portes : battant CENTRÉ DANS SA CASE D'EMBRASURE, plus sur une arête
    (René, 2026-09-11 : « la porte doit être centrale à sa case, bloquant

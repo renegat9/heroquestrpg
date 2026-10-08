@@ -288,6 +288,20 @@ final class FabriqueGrille
             }
         }
 
+        // VOILE D'OMBRE (*Cloak of Shadows*, Wizards of Morcar, 2026-10-08) :
+        // « The darkness blocks line of sight into and through it. » Couche
+        // DÉDIÉE `carte.grille['ombre']`, lue dans CETTE MÊME méthode — jamais
+        // ailleurs, même raison que la glace et les blocs ci-dessus. Les cases
+        // vont dans `$opaques` (« through », comme un mur de vue) ET dans
+        // `Grille::assombrir()` (« into » : une figure DANS l'ombre ne se voit
+        // pas, et ne voit rien). Elles ne vont NI dans `$obstacles` — on marche
+        // sous l'ombre — NI dans `$occupees` : ce n'est pas une figure.
+        $ombre = app(MoteurOmbre::class)->cellules($carte);
+        if ($ombre !== []) {
+            $opaques = array_merge($opaques, $ombre);
+            $grille->assombrir($ombre);
+        }
+
         $grille->occuper($occupees);
         $grille->occuperAllie($alliees);
         $grille->obstruer($obstacles);

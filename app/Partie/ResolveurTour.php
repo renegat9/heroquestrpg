@@ -258,12 +258,96 @@ final class ResolveurTour
     private bool $finTourPiegeSol = false;
 
     /**
+     * `resultat.type` d'une action SUSPENDUE sur une *Vision du futur* : le jet
+     * est tombé, le héros doit répondre AVANT que rien ne s'applique. Lu par
+     * `ExecutionChoix` (pas de narration, pas de menu suivant : l'action n'a pas
+     * eu lieu) et par les manettes (`resultat.type`, contrat §Réactions).
+     */
+    public const TYPE_JET_EN_ATTENTE = 'jet_en_attente';
+
+    /**
+     * VISION DU FUTUR (2026-10-08) — le héros dont les jets d'ATTAQUE peuvent
+     * être suspendus par cette résolution (`null` hors action de héros). Posé par
+     * `resoudre()` pour toute option d'attaque, jamais pour la phase des monstres.
+     */
+    private ?int $herosEnJet = null;
+
+    /** Rang de la frappe en cours dans l'action (un balayage en compte plusieurs). */
+    private int $rangFrappe = 0;
+
+    /**
+     * Jets d'attaque DÉJÀ tombés, rejoués dans l'ordre à la reprise d'une action
+     * suspendue : `[{faces_attaque: list<string>|null, faces_defense: list<string>}]`.
+     * `faces_attaque: null` = le héros a relancé, on ne rejoue que SA volée.
+     *
+     * @var list<array<string, mixed>>
+     */
+    private array $attaquesImposees = [];
+
+    /**
      * @param  array<string, mixed>  $option  option du dernier menu proposé (déjà validée)
      * @param  array<string, mixed>  $parametres  paramètres du client (ex. destination x/y)
      * @return array<string, mixed> résultat moteur (echo + narration)
      */
+    /**
+     * REPRISE d'une action suspendue sur une *Vision du futur* : la même
+     * résolution, avec les jets d'attaque déjà tombés rejoués dans l'ordre —
+     * voir `JetEnAttente`. ⚠ La liste est vidée en `finally` : un résolveur
+     * réutilisé ne doit jamais rejouer les dés d'une action précédente.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  list<array<string, mixed>>  $attaquesImposees
+     * @return array<string, mixed>
+     */
+    public function resoudreAvecJets(Groupe $groupe, Personnage $personnage, array $option, array $parametres, array $attaquesImposees): array
+    {
+        $this->attaquesImposees = array_values($attaquesImposees);
+
+        try {
+            return $this->resoudre($groupe, $personnage, $option, $parametres);
+        } finally {
+            $this->attaquesImposees = [];
+        }
+    }
+
+    /**
+     * Des valeurs de `FaceDeCombat` (JSON de l'offre) → faces, ou `null`.
+     *
+     * @param  list<string>|null  $valeurs
+     * @return list<FaceDeCombat>|null
+     */
+    private static function facesDepuis(?array $valeurs): ?array
+    {
+        return $valeurs === null
+            ? null
+            : array_map(static fn (string $v) => FaceDeCombat::from($v), array_values($valeurs));
+    }
+
+    /**
+     * Dépose l'offre d'une *Vision du futur* sur un jet d'attaque tombé, avec de
+     * quoi REJOUER l'action : l'option, ses paramètres, et tous les jets déjà
+     * tombés dans cette action (les précédents rejoués tels quels, celui-ci
+     * montré au joueur).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @return array<string, mixed>
+     */
+    private function suspendreAction(Groupe $groupe, Personnage $personnage, array $option, array $parametres, JetEnAttente $attente): array
+    {
+        $attaques = array_values($this->attaquesImposees);
+        $attaques[] = ['faces_attaque' => $attente->facesAttaque, 'faces_defense' => $attente->facesDefense];
+
+        return app(MoteurReactions::class)->suspendreAttaque(
+            $groupe, $personnage, $option, $parametres, $attaques, $attente,
+        );
+    }
+
     public function resoudre(Groupe $groupe, Personnage $personnage, array $option, array $parametres = []): array
     {
+        $this->herosEnJet = null;
+        $this->rangFrappe = 0;
         $this->mouvementsAnime = [];
         $this->evenementGlace = null;
         $this->finTourPiegeSol = false;
@@ -284,10 +368,9 @@ final class ResolveurTour
         // même prédicat que le menu (`MenuMoteur::estAttaqueDuHeros()`). Le
         // garde de `frapper()` reste en dessous : deux gardes, un seul prédicat.
         // Ne s'applique pas aux sorts ni aux options d'allié (autre menu).
-        if (MenuMoteur::estAttaqueDuHeros($option) && $this->sorts->attaqueInterdite($personnage)) {
-            throw ValidationException::withMessages([
-                'option_id' => "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.",
-            ]);
+        if (MenuMoteur::estAttaqueDuHeros($option)
+            && ($raison = $this->sorts->raisonAttaqueInterdite($personnage)) !== null) {
+            throw ValidationException::withMessages(['option_id' => $raison]);
         }
 
         $etats = $quete->etatsPersonnages()->get();
@@ -304,6 +387,22 @@ final class ResolveurTour
         }
 
         $this->verifierInitiative($groupe, $quete, $personnage, $etats);
+
+        // VISION DU FUTUR (2026-10-08) : tant qu'un jet attend la réponse du héros
+        // — son d6 de déplacement, ou une action suspendue —, RIEN d'autre ne se
+        // joue pour lui : « le serveur attend sa réponse AVANT d'appliquer le
+        // résultat ». La fenêtre est bornée (`ReactionEffet::FENETRE_SECONDES`) et
+        // son expiration reprend l'action avec le jet d'origine : jamais un groupe figé.
+        if (($etat->reaction_en_attente['action'] ?? null) === ReactionEffet::RELANCE_JET) {
+            throw ValidationException::withMessages([
+                'reaction' => 'Réponds d\'abord à la Vision du futur qui t\'est proposée : ton jet attend ta décision.',
+            ]);
+        }
+
+        // Les frappes de CETTE action peuvent être suspendues (`frapper()`).
+        if (MenuMoteur::estAttaqueDuHeros($option)) {
+            $this->herosEnJet = (int) $personnage->id;
+        }
 
         // DÉBUT DE TOUR du Moine — « If there are no monsters in your line of
         // sight at the start of your turn, recover all exhausted Elemental
@@ -349,6 +448,7 @@ final class ResolveurTour
             throw ValidationException::withMessages(['personnage_id' => 'Tu as déjà agi ce tour.']);
         }
 
+        try {
         $resultat = DB::transaction(function () use ($groupe, $quete, $personnage, $etat, $option, $parametres, $creneau, $bonusReserveArcanique, $bonusHeroisme) {
             $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
 
@@ -539,6 +639,13 @@ final class ResolveurTour
 
             return $resultat;
         });
+        } catch (JetEnAttente $attente) {
+            // ⚠ HORS de la transaction : elle a été ANNULÉE — aucun dégât, aucune
+            // mort, aucun butin n'a été écrit. On dépose l'offre avec l'action à
+            // rejouer, et on rend une réponse « suspendue » que `ExecutionChoix`
+            // n'accompagne d'aucune narration ni d'aucun menu.
+            return $this->suspendreAction($groupe, $personnage, $option, $parametres, $attente);
+        }
 
         // Un talent qui s'active tout seul se VOIT (2026-09-25) : point de
         // vidage UNIQUE du collecteur, après la transaction — elle a joué
@@ -1449,9 +1556,18 @@ final class ResolveurTour
         // (`ResolveurTour::frapper()`, hard rule) : melee, tir, arme lancée,
         // Furie, frappe balayée et techniques du Moine y convergent toutes,
         // donc un seul garde-fou couvre chaque variante sans en oublier une.
-        if ($this->sorts->attaqueInterdite($personnage)) {
+        if (($raison = $this->sorts->raisonAttaqueInterdite($personnage)) !== null) {
+            throw ValidationException::withMessages(['option_id' => $raison]);
+        }
+
+        // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
+        // may not … be attacked ». La cible sous le voile est refusée ICI, au même
+        // choke-point que l'attaquant — les listes du menu (`ciblesPourArme()`,
+        // `ciblesBalayees()`, `Rayon`) la retirent déjà : deux gardes, un seul
+        // prédicat (`MoteurOmbre::contientMonstre()`).
+        if (app(MoteurOmbre::class)->contientMonstre($quete, $instance)) {
             throw ValidationException::withMessages([
-                'option_id' => "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.",
+                'option_id' => "{$instance->nomAffiche()} est sous un voile d'ombre : on ne peut pas l'attaquer.",
             ]);
         }
 
@@ -1694,6 +1810,20 @@ final class ResolveurTour
         // une seule fois, ici, avant l'appel qui la dépense réellement.
         $relanceCruelle = $this->equipement->relanceCruelle($etat, $ligneArme);
 
+        // VISION DU FUTUR (2026-10-08) : cette frappe peut être SUSPENDUE entre son
+        // jet et son application. `$imposee` = le jet que le joueur a DÉJÀ vu, à
+        // rejouer tel quel (refus, délai) ou dont seule la volée du héros est
+        // relancée (`faces_attaque: null`, acceptation). Le rang aligne les jets
+        // quand une action en compte plusieurs (frappe balayée).
+        $suspensible = $this->herosEnJet === (int) $personnage->id && $degatsFixes === 0;
+        $rang = 0;
+        $imposee = null;
+
+        if ($suspensible) {
+            $rang = $this->rangFrappe++;
+            $imposee = $this->attaquesImposees[$rang] ?? null;
+        }
+
         $resultat = $degatsFixes > 0
             ? ResultatAttaque::sansJet($degatsFixes, (int) $instance->pv_body)
             : (new Combat($this->des))->resoudreAttaque(
@@ -1729,7 +1859,32 @@ final class ResolveurTour
                 // Fantôme a coûté.
                 relanceFaceAttaque: $relanceFace['face'],
                 relanceFaceMaximum: $relanceFace['nombre'],
+                facesAttaqueImposees: self::facesDepuis($imposee['faces_attaque'] ?? null),
+                facesDefenseImposees: self::facesDepuis($imposee['faces_defense'] ?? null),
             );
+
+        // VISION DU FUTUR : le jet est tombé, RIEN n'est encore appliqué. Si le
+        // héros connaît le sort et ne l'a pas encore dépensé, on s'arrête ICI —
+        // l'action entière est annulée (`resoudre()`) et rejouée à la réponse.
+        // Avant la Malédiction de l'Oracle et les modificateurs qui suivent : ils
+        // s'appliquent au résultat RETENU, qu'il vienne d'être relancé ou non.
+        if ($suspensible && $imposee === null
+            && app(MoteurReactions::class)->visionDuFutur($personnage) !== null) {
+            $jetVu = $resultat->pourJournal();
+
+            throw new JetEnAttente(
+                ReactionEffet::JET_ATTAQUE, $rang,
+                $jetVu['faces_attaque'], $jetVu['faces_defense'],
+                [
+                    'cible' => $instance->nomAffiche(),
+                    'touches' => $resultat->touches,
+                    'boucliers' => $resultat->boucliers,
+                    'degats' => $resultat->degats,
+                    'face_touchante' => $jetVu['face_touchante'],
+                    'face_defensive' => $jetVu['face_defensive'],
+                ],
+            );
+        }
 
         // MALÉDICTION DE L'ORACLE (First Light, FL-Q p. 6, lot C) : Zargon,
         // MOTEUR et non IA, force une fois par quête la relance COMPLÈTE de
@@ -2575,6 +2730,9 @@ final class ResolveurTour
             ->with('monstre')
             ->orderBy('id')
             ->get()
+            // VOILE D'OMBRE : le monstre sous le voile ne se balaie pas (« may not
+            // be attacked »), comme au menu qui compte les mêmes cibles.
+            ->reject(fn (InstanceMonstre $i) => app(MoteurOmbre::class)->contientMonstre($quete, $i))
             ->filter(fn (InstanceMonstre $i) => $i->position_x !== null
                 && $this->heroAuContact($i, (int) $etat->position_x, (int) $etat->position_y, $diagonales));
     }
@@ -4872,6 +5030,16 @@ final class ResolveurTour
         // `cible_id`.
         if (data_get($option, 'parametres.mode') === 'pose_mur_magique') {
             return $this->poserMurMagiqueSort($quete, $sort, $option);
+        }
+
+        // VOILE D'OMBRE (Cloak of Shadows, Spells of Darkness, 2026-10-08) :
+        // l'emplacement est le choix — même raison que le mur. L'état du lanceur
+        // est relu ICI (jamais pris au menu) : `MoteurOmbre::poser()` revérifie
+        // l'emplacement contre sa position COURANTE.
+        if (data_get($option, 'parametres.mode') === 'pose_ombre') {
+            return app(MoteurOmbre::class)->poser(
+                $quete, $lanceur, $etat, array_values((array) data_get($option, 'parametres.cases', [])),
+            );
         }
 
         // CLAIRVOYANCE (Spells of Detection, 2026-10-06) : la salle est le choix,
@@ -9298,6 +9466,16 @@ final class ResolveurTour
         // `personnage_conditions`, jamais `instances_monstres`).
         $this->sorts->decrementerDureesMonstres($quete);
 
+        // VOILE D'OMBRE : « at the start of the spellcaster's turn, remove a
+        // shadow token ». Un lanceur DEBOUT le voit tomber à l'ouverture de SON
+        // tour (`MenuMoteur::deplacementDuTour()`) ; un lanceur TOMBÉ n'ouvre plus
+        // de tour, et son voile ne doit pas durer jusqu'à la fin de la quête —
+        // son jeton tombe donc ici, à l'ouverture du round. Remonte dans
+        // `$actions` : un effet automatique que rien n'annonce est injouable.
+        foreach (app(MoteurOmbre::class)->lanceursTombes($groupe, $quete) as $annonce) {
+            $actions[] = $annonce;
+        }
+
         // DÉBUT DU TOUR DES HÉROS — le seul qu'un moteur par rounds possède.
         // Deux règles des cartes de Dread s'y jouent, et nulle part ailleurs.
         //
@@ -9813,6 +9991,26 @@ final class ResolveurTour
 
         $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
 
+        // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
+        // may not attack ». Le monstre qui se tient sous le voile a pu marcher
+        // jusqu'au contact — il n'a pas pu le faire sous l'ombre ailleurs, la
+        // carte ne l'interdit pas —, mais il ne frappe pas : ni coup simple, ni
+        // frappe de zone, ni double attaque, ni coup sur un allié, qui passent
+        // tous APRÈS ce point. Le tir à distance est déjà fermé par la ligne de
+        // vue (`Grille::ligneDeVue()`). Annoncé : un monstre qui reste les bras
+        // ballants sans qu'on sache pourquoi est un effet automatique muet.
+        if ($adjacent && app(MoteurOmbre::class)->contientMonstre($quete, $instance)) {
+            $payload = [
+                'type' => 'monstre_dans_l_ombre',
+                'monstre' => $nomMonstre,
+                'action' => 'ombre',
+                'id' => $instance->id,
+            ];
+            Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+            return $payload;
+        }
+
         if (! $adjacent) {
             $payload = [
                 'type' => 'deplacement_monstre',
@@ -10015,6 +10213,13 @@ final class ResolveurTour
                 'instance_id' => (int) $instance->id,
                 'des_attaque' => $volee,
                 'des_defense' => $garde,
+                // VISION DU FUTUR (2026-10-08) : le jet TEL QU'IL EST TOMBÉ — la
+                // volée du monstre, que la relance garde, et celle du héros, qu'elle
+                // remplace. Les faces FINALES (Malédiction de l'Oracle comprise).
+                'faces_attaque' => $resultat->pourJournal()['faces_attaque'],
+                'faces_defense' => $resultat->pourJournal()['faces_defense'],
+                'touches' => $resultat->touches,
+                'boucliers' => $resultat->boucliers,
             ],
         );
 
@@ -10429,12 +10634,18 @@ final class ResolveurTour
             return collect();
         }
 
+        $ombre = app(MoteurOmbre::class);
+
         return GroupeMercenaire::where('groupe_id', $quete->groupe_id)
             ->where('etat', 'actif')
             ->whereNotNull('position_x')
             ->with('mercenaire')
             ->orderBy('id')
-            ->get();
+            ->get()
+            // VOILE D'OMBRE : un allié qui s'y tient « may not be attacked » —
+            // même filtre que `MoteurSorts::estInattaquable()` pour un héros.
+            ->reject(fn (GroupeMercenaire $a) => $ombre->contient($quete, (int) $a->position_x, (int) $a->position_y))
+            ->values();
     }
 
     /**
@@ -11145,6 +11356,13 @@ final class ResolveurTour
         // — réglé ICI, jamais sur un échec ({@see self::echouerQuete()}),
         // puisque c'est le seul des deux dénouements qu'une reprise ne peut
         // plus défaire.
+        // PEACEKEEPER (Hopekins Rest, Wizards of Morcar) : 25 po par monstre que
+        // chaque héros a réduit à 0 PV pendant CETTE quête — « at the end of that
+        // quest ». Versé ICI, à la victoire seulement (jamais sur `echouerQuete()`),
+        // et AVANT l'entretien : la prime de la quête sert à payer les mercenaires
+        // qu'elle a menés, au même point du dénouement.
+        $peacekeeper = $this->faveurs->reglerPeacekeeper($groupe, $quete);
+
         $entretien = $this->faveurs->reglerEntretien($groupe, (int) $quete->id);
 
         // Fin de quête : les snapshots de la quête sont purgés (rétention
@@ -11173,6 +11391,7 @@ final class ResolveurTour
         return [
             'etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux,
             'mercenaires_entretien' => $entretien, 'faveur_hopekins' => $faveur,
+            'peacekeeper' => $peacekeeper,
         ];
     }
 

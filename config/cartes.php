@@ -510,4 +510,47 @@ return [
                 'manque' => 'RÉACTION DU MJ (même manque que Dissipation) + RÉFLEXION DE SORT, déjà nommée comme dette par la doc 16 §9.1 (Bouclier de l\'Aube, Serre du Corbeau).'],
         ],
     ],
+
+    /*
+    |---------------------------------------------------------------------------
+    | Sorts de héros — Wizards of Morcar (cartes TRANSCRITES, 2026-10-05)
+    |---------------------------------------------------------------------------
+    |
+    | Les neuf sorts des trois répertoires OPTIONNELS de la boîte (livret p. 11 :
+    | « These may replace existing sets of spells »), transcrits carte par carte
+    | dans reference/18_extensions.md §3. Même format que `dread` : `sort` = nom
+    | au catalogue (`SortSeeder`) quand la carte est portée, `manque` = la
+    | mécanique absente quand elle ne l'est pas. `paquet` = le répertoire ; son
+    | élément dans `sorts.element` est vérifié par SortsHerosCartesTest.
+    |
+    | ⚠ Les NEUF cartes sont portées depuis le 2026-10-08 (*Future Sight* → « Vision du
+    | futur », *Cloak of Shadows* → « Voile d'ombre »). Une carte future non portée
+    | recevrait `nom`, `texte` et `manque` à la place de `sort` — le test « dans les
+    | deux sens » (SortsHerosCartesTest) exige alors qu'elle ne soit PAS en base.
+    */
+    'sorts_heros' => [
+        'source' => 'wizards_of_morcar — cartes de sorts de héros (reference/18_extensions.md §3)',
+        'libelle' => 'Sorts de héros de Wizards of Morcar (cartes officielles Hasbro)',
+        'cartes' => [
+            // ---- Spells of Protection ----
+            ['carte' => 'Wall of Stone', 'paquet' => 'Spells of Protection', 'sort' => 'Mur de Pierre'],
+            ['carte' => 'Invisibility', 'paquet' => 'Spells of Protection', 'sort' => 'Invisibilité'],
+            // Le nom anglais reste ICI, dans `carte` : `sorts` n'a pas de colonne
+            // de nom étranger, et une colonne sans lecteur serait une clé décorative.
+            ['carte' => 'Unlearn', 'paquet' => 'Spells of Protection', 'sort' => 'Désapprentissage'],
+
+            // ---- Spells of Detection ----
+            ['carte' => 'Treasure Horde', 'paquet' => 'Spells of Detection', 'sort' => 'Trésor convoité'],
+            // Portée le 2026-10-08 : `relance_jet` → MoteurReactions (relance proposée
+            // APRÈS un jet d'attaque, de défense ou de déplacement, décision de René).
+            ['carte' => 'Future Sight', 'paquet' => 'Spells of Detection', 'sort' => 'Vision du futur'],
+            ['carte' => 'Clairvoyance', 'paquet' => 'Spells of Detection', 'sort' => 'Clairvoyance'],
+
+            // ---- Spells of Darkness ----
+            // Portée le 2026-10-08 : `pose_ombre` → MoteurOmbre (couche `carte.grille['ombre']`).
+            ['carte' => 'Cloak of Shadows', 'paquet' => 'Spells of Darkness', 'sort' => "Voile d'ombre"],
+            ['carte' => 'Chains of Darkness', 'paquet' => 'Spells of Darkness', 'sort' => 'Chaînes des Ténèbres'],
+            ['carte' => 'Arrows of the Night', 'paquet' => 'Spells of Darkness', 'sort' => 'Flèches de la Nuit'],
+        ],
+    ],
 ];

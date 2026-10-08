@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Partie\Narration\TempsFort;
-use App\Http\Controllers\Api\ChoixController;
 
 /**
  * Chaque temps fort PRÉ-GÉNÉRÉ est-il vraiment atteignable en jeu ?
@@ -21,10 +20,12 @@ use App\Http\Controllers\Api\ChoixController;
  */
 function cleTempsFortPour(array $resultat): string
 {
-    $methode = new ReflectionMethod(ChoixController::class, 'cleTempsFort');
+    // `cleTempsFort()` vit dans `ExecutionChoix` depuis le 2026-10-08 (Vision du
+    // futur : le choix doit pouvoir être REJOUÉ hors du contrôleur).
+    $methode = new ReflectionMethod(App\Partie\ExecutionChoix::class, 'cleTempsFort');
     $methode->setAccessible(true);
 
-    return $methode->invoke(app(ChoixController::class), $resultat);
+    return $methode->invoke(app(App\Partie\ExecutionChoix::class), $resultat);
 }
 
 it('route un résultat moteur vers CHAQUE temps fort que la pré-génération produit', function () {

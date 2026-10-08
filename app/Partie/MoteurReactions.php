@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Partie;
 
 use App\Engine\Combat;
+use App\Engine\Des\FaceDeCombat;
+use App\Engine\ResultatDeplacement;
 use App\Engine\Des\LanceurDes;
 use App\Engine\MotsClesEquipement;
 use App\Engine\ReactionEffet;
@@ -15,8 +17,11 @@ use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
 use App\Models\Personnage;
+use App\Jobs\GenererMenu;
 use App\Models\Sort;
 use App\Support\Journal;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -145,6 +150,17 @@ final class MoteurReactions
         // pour la raison) : l'Attaque et le Mouvement restent une dette NOMMÉE.
         if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
             && $this->deposerRelanceBenedictionOracle($etat, $heros, $degats, $source, $contexte)) {
+            return;
+        }
+
+        // *VISION DU FUTUR* (Wizards of Morcar, 2026-10-08) — relancer les dés de
+        // DÉFENSE du héros. Même famille que la Bénédiction de l'Oracle ci-dessus
+        // (défaire le coup, rejouer l'échange), à deux différences : seuls les dés du
+        // HÉROS sont relancés — l'attaque du monstre reste telle qu'elle est tombée —
+        // et la ressource est un sort, dépensé à l'usage. Après les réactions qui
+        // ANNULENT tout, avant les planchers qui ne laissent qu'1 PV.
+        if ($source === MoteurDegats::SOURCE_ATTAQUE_MONSTRE
+            && $this->deposerRelanceDefense($etat, $heros, $degats, $source, $contexte)) {
             return;
         }
 
@@ -778,6 +794,17 @@ final class MoteurReactions
                 'sort' => $quoi['nom'] ?? null,
                 'description' => $quoi['description'] ?? null,
                 'action' => $quoi['action'],
+                // VISION DU FUTUR : le jet à relancer, MONTRÉ — ses dés, ceux d'en
+                // face, et la phrase décidée par le serveur. `null` pour toute autre
+                // réaction.
+                'jet' => $quoi['jet'] ?? null,
+                'des' => $quoi['des'] ?? null,
+                'des_adverses' => $quoi['des_adverses'] ?? null,
+                // Quelle face COMPTE pour chaque volée — décidé par le moteur
+                // (`ResultatAttaque::pourJournal()`), jamais redéduit par la manette.
+                'touchante' => $quoi['touchante'] ?? null,
+                'defensive' => $quoi['defensive'] ?? null,
+                'resume' => $quoi['resume'] ?? null,
                 'victime' => $victime->nom,
                 'source' => $source,
                 'degats' => $degats,
@@ -808,6 +835,12 @@ final class MoteurReactions
         // Toujours consommer la proposition, acceptée ou non : la laisser en
         // place ferait ressortir la feuille au prochain rafraîchissement.
         $etat->update(['reaction_en_attente' => null]);
+
+        // VISION DU FUTUR : sa propre branche, AVANT le refus générique — refuser
+        // une action suspendue ne la jette pas, elle reprend avec le jet d'origine.
+        if (($attente['action'] ?? null) === ReactionEffet::RELANCE_JET) {
+            return $this->repondreRelanceJet($groupe, $heros, $etat, $attente, $accepte);
+        }
 
         if (! $accepte) {
             // ⚠ Refuser peut CONCLURE le TPK : si le groupe ne tenait encore
@@ -1501,6 +1534,22 @@ final class MoteurReactions
             $etat->update(['reaction_en_attente' => null]);
             $purgees++;
 
+            // VISION DU FUTUR : un jet d'ATTAQUE ou de DÉPLACEMENT en suspens ne
+            // se jette pas — il REPREND avec le jet d'origine (refus par défaut).
+            // Sans cela un téléphone muet figerait le groupe sur une action qui
+            // n'a jamais eu lieu.
+            if (($attente['action'] ?? null) === ReactionEffet::RELANCE_JET && $etat->personnage !== null) {
+                try {
+                    $this->repondreRelanceJet($groupe, $etat->personnage, $etat, $attente, false, expiree: true);
+                } catch (\Throwable $e) {
+                    Log::warning('Reprise d\'un jet suspendu impossible.', [
+                        'personnage_id' => $etat->personnage_id, 'erreur' => $e->getMessage(),
+                    ]);
+                }
+
+                continue;
+            }
+
             Journal::ajouter($groupe, 'combat', [
                 'type' => 'reaction',
                 'personnage' => $etat->personnage?->nom,
@@ -1517,6 +1566,406 @@ final class MoteurReactions
         app(ResolveurTour::class)->verdictDeChute($groupe, $quete);
 
         return true;
+    }
+
+    // =====================================================================
+    // VISION DU FUTUR — Future Sight (Wizards of Morcar, 2026-10-08)
+    // =====================================================================
+
+    /**
+     * Le héros connaît-il la *Vision du futur* et peut-il encore la jouer cette
+     * quête ? Lecteur UNIQUE de la disponibilité : `frapper()`, `proposer()` et le
+     * déplacement du tour le lisent tous ici. `disponible` est « Discard after
+     * use » (S5) ; un sort OUBLIÉ (`OubliSorts`) ne compte pas, comme au menu.
+     */
+    public function visionDuFutur(Personnage $heros): ?Sort
+    {
+        $etat = EtatPersonnageQuete::enQuete($heros);
+        $oublies = $etat?->quete !== null
+            ? app(OubliSorts::class)->oublies($etat->quete, OubliSorts::CIBLE_PERSONNAGE, (int) $heros->id, OubliSorts::SOURCE_SORT)
+            : [];
+
+        foreach ($heros->sorts()->wherePivot('disponible', true)->orderBy('sorts.id')->get() as $sort) {
+            if ((bool) data_get($sort->effet, 'relance_jet', false) && ! in_array($sort->nom, $oublies, true)) {
+                return $sort;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Ce que l'état publie d'une offre : tout SAUF `reprise` (l'action à rejouer —
+     * l'option du menu, ses paramètres, les jets tombés), qui n'est pas une
+     * information de jeu et n'a rien à faire sur le canal de la table.
+     *
+     * @param  array<string, mixed>|null  $attente
+     * @return array<string, mixed>|null
+     */
+    public function pourEtat(?array $attente): ?array
+    {
+        if ($attente === null) {
+            return null;
+        }
+
+        unset($attente['reprise']);
+
+        return $attente;
+    }
+
+    /**
+     * JET DE DÉFENSE (phase des monstres) : le coup est déjà appliqué, on demande
+     * si le héros relance SES dés de défense. Les faces de l'attaque du monstre et
+     * celles de la défense du héros vivent dans le contexte (`faces_attaque`,
+     * `faces_defense`, posées par `ResolveurTour::resoudreAttaqueMonstre()`) : sans
+     * elles il n'y a pas de jet à montrer ni à compléter, donc pas d'offre.
+     *
+     * @param  array<string, mixed>  $contexte
+     */
+    private function deposerRelanceDefense(
+        EtatPersonnageQuete $etat,
+        Personnage $victime,
+        int $degats,
+        string $source,
+        array $contexte,
+    ): bool {
+        if (empty($contexte['faces_attaque']) || ! isset($contexte['faces_defense'], $contexte['des_defense'])) {
+            return false;
+        }
+
+        $sort = $this->visionDuFutur($victime);
+
+        if ($sort === null) {
+            return false;
+        }
+
+        $touches = (int) ($contexte['touches'] ?? 0);
+        $boucliers = (int) ($contexte['boucliers'] ?? 0);
+
+        $this->deposer($etat, $victime, $victime, [
+            'action' => ReactionEffet::RELANCE_JET,
+            'jet' => ReactionEffet::JET_DEFENSE,
+            'sort_id' => $sort->id,
+            'nom' => $sort->nom,
+            'description' => 'Relance TOUS tes dés de défense. Le nouveau jet remplace l\'ancien, en mieux comme en pire — '
+                .'l\'attaque du monstre, elle, reste telle qu\'elle est tombée.',
+            'des' => (array) $contexte['faces_defense'],
+            'des_adverses' => (array) $contexte['faces_attaque'],
+            'touchante' => FaceDeCombat::Crane->value,
+            'defensive' => TypeFigurine::Heros->faceDefensive()->value,
+            'resume' => "Le monstre touche {$touches} fois, tu pares {$boucliers} : {$degats} point".($degats > 1 ? 's' : '').' de dégâts.',
+        ], $degats, $source, $contexte);
+
+        return true;
+    }
+
+    /**
+     * JET D'ATTAQUE du héros, suspendu par `ResolveurTour::frapper()` : dépose l'offre
+     * avec l'action à REJOUER dans `reprise` (jamais publiée, voir `pourEtat()`).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  list<array<string, mixed>>  $attaques  les jets tombés dans cette action, le dernier étant celui qu'on montre
+     * @return array<string, mixed> la réponse « suspendue » du résolveur
+     */
+    public function suspendreAttaque(
+        Groupe $groupe,
+        Personnage $heros,
+        array $option,
+        array $parametres,
+        array $attaques,
+        JetEnAttente $jet,
+    ): array {
+        $etat = EtatPersonnageQuete::enQuete($heros);
+        $sort = $this->visionDuFutur($heros);
+
+        // Garde-fou : si l'offre ne peut pas se déposer (pas d'état, sort parti,
+        // une autre offre en attente), on REJOUE tout de suite avec le jet tel
+        // quel — jamais une action perdue dans l'air.
+        if ($etat === null || $sort === null || $etat->reaction_en_attente !== null) {
+            return app(ResolveurTour::class)->resoudreAvecJets($groupe, $heros, $option, $parametres, $attaques);
+        }
+
+        $resume = $jet->resume;
+        $degats = (int) $resume['degats'];
+
+        $this->deposer($etat, $heros, $heros, [
+            'action' => ReactionEffet::RELANCE_JET,
+            'jet' => ReactionEffet::JET_ATTAQUE,
+            'sort_id' => $sort->id,
+            'nom' => $sort->nom,
+            'description' => 'Relance TOUS tes dés d\'attaque. Le nouveau jet remplace l\'ancien, en mieux comme en pire — '
+                .'les dés de défense du monstre, eux, ne sont pas relancés.',
+            'des' => $jet->facesAttaque,
+            'des_adverses' => $jet->facesDefense,
+            'touchante' => $resume['face_touchante'] ?? FaceDeCombat::Crane->value,
+            'defensive' => $resume['face_defensive'] ?? FaceDeCombat::BouclierNoir->value,
+            'resume' => "Tu touches {$resume['touches']} fois, {$resume['cible']} pare {$resume['boucliers']} : "
+                .($degats > 0 ? "{$degats} point".($degats > 1 ? 's' : '').' de dégâts.' : 'aucun dégât.'),
+            'reprise' => ['option' => $option, 'parametres' => $parametres, 'attaques' => $attaques],
+        ], $degats, 'jet_attaque', []);
+
+        Journal::ajouter($groupe, 'combat', [
+            'type' => 'jet_en_attente',
+            'personnage' => $heros->nom,
+            'jet' => ReactionEffet::JET_ATTAQUE,
+            'sort' => $sort->nom,
+        ], ['nom' => $heros->nom]);
+
+        return [
+            'type' => ResolveurTour::TYPE_JET_EN_ATTENTE,
+            'personnage' => ['id' => $heros->id, 'nom' => $heros->nom],
+            'jet' => ReactionEffet::JET_ATTAQUE,
+            'sort' => $sort->nom,
+            'faces_attaque' => $jet->facesAttaque,
+            'faces_defense' => $jet->facesDefense,
+            'face_touchante' => $resume['face_touchante'] ?? 'crane',
+            'face_defensive' => $resume['face_defensive'] ?? 'bouclier_noir',
+            'resume' => $etat->fresh()->reaction_en_attente['resume'] ?? null,
+            'expire_dans' => ReactionEffet::FENETRE_SECONDES,
+        ];
+    }
+
+    /**
+     * D6 DE DÉPLACEMENT du tour (`MenuMoteur::deplacementDuTour()`) : propose la
+     * relance juste après le lancer. Rend `true` si l'offre est posée — l'appelant
+     * retarde alors les effets du jet (usure des bottes, rupture d'Évanescence)
+     * jusqu'à la réponse, qui les appliquera à l'issue RETENUE.
+     *
+     * Rien à proposer quand aucun dé ne compte : armure qui l'annule, état de choc,
+     * Drakehide (8 fixe), table sans menace (le dé vaut 4 sans être lancé).
+     *
+     * @param  array<string, mixed>  $params  de quoi relancer : base, base_calcul, de_annule, de_annule_par, des_supplementaires, bonus_equipement
+     */
+    public function proposerRelanceDeplacement(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        ResultatDeplacement $jet,
+        array $params,
+    ): bool {
+        if ($jet->deAnnule || $jet->sansMenace || $jet->de === null || $jet->des === []
+            || $etat->reaction_en_attente !== null) {
+            return false;
+        }
+
+        $sort = $this->visionDuFutur($heros);
+
+        if ($sort === null) {
+            return false;
+        }
+
+        $this->deposer($etat, $heros, $heros, [
+            'action' => ReactionEffet::RELANCE_JET,
+            'jet' => ReactionEffet::JET_DEPLACEMENT,
+            'sort_id' => $sort->id,
+            'nom' => $sort->nom,
+            'description' => 'Relance TOUS tes dés de déplacement. Le nouveau jet remplace l\'ancien, en mieux comme en pire.',
+            'des' => array_values($jet->des),
+            'resume' => 'Tu as lancé '.implode(' + ', $jet->des).' : '.$jet->total.' cases de déplacement.',
+            'reprise' => ['jet' => [
+                'base' => $jet->base, 'de' => $jet->de, 'total' => $jet->total, 'de_annule' => $jet->deAnnule,
+                'des' => array_values($jet->des), 'sans_menace' => $jet->sansMenace,
+            ], 'params' => $params],
+        ], 0, 'jet_deplacement', []);
+
+        return true;
+    }
+
+    /**
+     * La RÉPONSE à une offre de *Vision du futur* — accepter relance, refuser (ou
+     * laisser la fenêtre s'écouler) garde le jet d'origine. ⚠ Une réponse TARDIVE vaut
+     * un refus : jeter l'action suspendue parce que le téléphone a répondu en
+     * retard la perdrait pour toujours (le menu est déjà consommé côté joueur).
+     *
+     * @param  array<string, mixed>  $attente
+     * @return array<string, mixed>
+     */
+    private function repondreRelanceJet(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+        bool $accepte,
+        bool $expiree = false,
+    ): array {
+        $expiree = $expiree || (isset($attente['expire_a']) && now()->greaterThan($attente['expire_a']));
+        $accepte = $accepte && ! $expiree;
+        $jet = (string) ($attente['jet'] ?? '');
+
+        $base = [
+            'type' => 'reaction',
+            'personnage' => $heros->nom,
+            'victime' => $heros->nom,
+            'victime_id' => $heros->id,
+            'sort' => $attente['nom'] ?? null,
+            'action' => ReactionEffet::RELANCE_JET,
+            'jet' => $jet,
+            'active' => $accepte,
+            ...($expiree ? ['raison' => 'Fenêtre de réaction écoulée.'] : []),
+        ];
+
+        // Le sort n'est dépensé que SI on s'en sert : refuser le garde.
+        if ($accepte && isset($attente['sort_id'])) {
+            $heros->sorts()->updateExistingPivot((int) $attente['sort_id'], ['disponible' => false]);
+        }
+
+        $payload = match ($jet) {
+            ReactionEffet::JET_DEFENSE => $accepte
+                ? $this->relancerDefense($groupe, $heros, $attente, $base)
+                : $base,
+            ReactionEffet::JET_ATTAQUE => $this->reprendreAttaque($groupe, $heros, $attente, $accepte, $base),
+            ReactionEffet::JET_DEPLACEMENT => $this->reprendreDeplacement($groupe, $heros, $etat, $attente, $accepte, $base),
+            default => $base,
+        };
+
+        $this->reprendreVerdictDeChute($groupe);
+
+        return $payload;
+    }
+
+    /**
+     * Défense relancée : les PV du coup sont rendus, puis SEULS les dés de défense
+     * du héros sont relancés contre l'attaque d'origine.
+     *
+     * @param  array<string, mixed>  $attente
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function relancerDefense(Groupe $groupe, Personnage $heros, array $attente, array $base): array
+    {
+        $contexte = (array) ($attente['contexte'] ?? []);
+        $victime = Personnage::find((int) ($attente['victime_id'] ?? $heros->id)) ?? $heros;
+        $etatVictime = EtatPersonnageQuete::enQuete($victime);
+
+        $rendus = $this->defaireLeCoup($victime, $etatVictime, (int) ($attente['degats'] ?? 0));
+
+        $facesAttaque = array_map(static fn (string $f) => FaceDeCombat::from($f), (array) $contexte['faces_attaque']);
+
+        $resultat = (new Combat(app(LanceurDes::class)))->resoudreAttaque(
+            desAttaque: (int) ($contexte['des_attaque'] ?? count($facesAttaque)),
+            desDefense: max(0, (int) ($contexte['des_defense'] ?? 0)),
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: (int) $victime->fresh()->pv_body,
+            facesAttaqueImposees: $facesAttaque,
+        );
+
+        $subis = app(MoteurDegats::class)->infligerAHeros(
+            $victime, $resultat->degats, (string) ($attente['source'] ?? MoteurDegats::SOURCE_ATTAQUE_MONSTRE),
+            [...$contexte, 'relance' => true, 'relance_futur' => true,
+                'faces_defense' => $resultat->pourJournal()['faces_defense'],
+                'touches' => $resultat->touches, 'boucliers' => $resultat->boucliers],
+        );
+
+        if ((int) $victime->fresh()->pv_body === 0 && $subis > 0) {
+            $etatVictime?->update(['tombe' => true]);
+        }
+
+        $payload = [
+            ...$base,
+            'degats_annules' => $rendus,
+            'degats_relance' => $subis,
+            'pv_body_apres' => (int) $victime->fresh()->pv_body,
+            'texte' => "{$victime->nom} relance ses dés de défense : ".($subis > 0
+                ? "{$subis} point".($subis > 1 ? 's' : '').' de dégâts'
+                : 'aucun dégât').' (contre '.((int) ($attente['degats'] ?? 0)).' avant)',
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, ['nom' => $heros->nom]);
+
+        return $payload;
+    }
+
+    /**
+     * Attaque REPRISE : rejoue l'action suspendue avec les jets déjà tombés — le
+     * jet d'origine si le héros refuse, ses seuls dés d'attaque relancés s'il
+     * accepte. Passe par `ExecutionChoix`, la séquence que `/choix` suit : journal de
+     * combat, scènes de table, narration, menus suivants.
+     *
+     * @param  array<string, mixed>  $attente
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function reprendreAttaque(Groupe $groupe, Personnage $heros, array $attente, bool $accepte, array $base): array
+    {
+        $reprise = (array) ($attente['reprise'] ?? []);
+        $attaques = array_values((array) ($reprise['attaques'] ?? []));
+
+        if ($accepte && $attaques !== []) {
+            $attaques[count($attaques) - 1]['faces_attaque'] = null; // « tous les dés » du héros
+        }
+
+        if ($accepte) {
+            Journal::ajouter($groupe, 'combat', [
+                ...$base,
+                'texte' => "{$heros->nom} relance ses dés d'attaque ({$attente['nom']}).",
+            ], ['nom' => $heros->nom]);
+        }
+
+        try {
+            $execution = app(ExecutionChoix::class)->executer(
+                $groupe, $heros, (array) ($reprise['option'] ?? []), (array) ($reprise['parametres'] ?? []), $attaques,
+            );
+        } catch (ValidationException $e) {
+            // L'action n'est plus légale (le plateau a bougé entre-temps) : rien
+            // n'a été écrit, le menu est encore en cache — le joueur rejouera.
+            GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+
+            return [...$base, 'erreur' => collect($e->errors())->flatten()->first()];
+        }
+
+        return [...$base, 'texte' => $accepte ? "{$heros->nom} relance ses dés d'attaque." : null,
+            'resultat' => $execution['resultat'], 'des' => $execution['des']];
+    }
+
+    /**
+     * Déplacement REPRIS : relance (acceptation) ou garde (refus) le d6 du tour, puis
+     * applique les effets du jet (usure des bottes, Évanescence) à l'issue RETENUE.
+     * Un nouveau menu part : il annonce la portée que le dernier jet a décidée.
+     *
+     * @param  array<string, mixed>  $attente
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function reprendreDeplacement(
+        Groupe $groupe,
+        Personnage $heros,
+        EtatPersonnageQuete $etat,
+        array $attente,
+        bool $accepte,
+        array $base,
+    ): array {
+        $reprise = (array) ($attente['reprise'] ?? []);
+        $menu = app(MenuMoteur::class);
+        $params = (array) ($reprise['params'] ?? []);
+        $ancien = (array) ($reprise['jet'] ?? []);
+
+        if ($accepte) {
+            $nouveau = $menu->relancerDeplacementDuTour($groupe, $heros, $etat->fresh(), $params);
+            $texte = "{$heros->nom} relance son déplacement : ".implode(' + ', $nouveau->des).' = '.$nouveau->total.' cases.';
+        } else {
+            $nouveau = new ResultatDeplacement(
+                base: (int) ($ancien['base'] ?? 0), de: $ancien['de'] ?? null, total: (int) ($ancien['total'] ?? 0),
+                deAnnule: (bool) ($ancien['de_annule'] ?? false), des: (array) ($ancien['des'] ?? []),
+                sansMenace: (bool) ($ancien['sans_menace'] ?? false),
+            );
+            $menu->effetsDuJet($heros, $etat->fresh(), $nouveau);
+            $texte = null;
+        }
+
+        if ($texte !== null) {
+            Journal::ajouter($groupe, 'combat', [
+                ...$base, 'texte' => $texte, 'des_deplacement' => $nouveau->des, 'total' => $nouveau->total,
+            ], ['nom' => $heros->nom]);
+        }
+
+        // Le menu en cache annonçait l'ancienne portée : on le régénère, comme
+        // après tout choix.
+        Cache::forget(GenererMenu::cleMenu($groupe->id, (int) $heros->joueur_id));
+        GenererMenu::dispatch($groupe->id, (int) $heros->joueur_id, (int) $heros->id);
+
+        return [...$base, 'des_deplacement' => $nouveau->des, 'total' => $nouveau->total, ...($texte !== null ? ['texte' => $texte] : [])];
     }
 
     /**

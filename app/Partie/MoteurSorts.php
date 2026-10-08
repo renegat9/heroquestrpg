@@ -995,6 +995,32 @@ final class MoteurSorts
                 continue;
             }
 
+            // FUTURE SIGHT (Spells of Detection, 2026-10-08) : « may be cast at any
+            // time and does not take an action ». Il n'a donc AUCUNE entrée de
+            // menu — le menu ne propose jamais ce que le résolveur refuserait, et
+            // le résolveur de `resoudreSort()` n'a rien à en faire : le sort se
+            // joue APRÈS un jet, par `MoteurReactions::proposerRelanceJet()`.
+            // Sa disponibilité se lit au grimoire (`personnage_sorts.disponible`).
+            if ((bool) data_get($sort->effet, 'relance_jet', false)) {
+                continue;
+            }
+
+            // VOILE D'OMBRE (Cloak of Shadows — Spells of Darkness, 2026-10-08) :
+            // l'emplacement est le choix — une entrée par emplacement LÉGAL
+            // (`MoteurOmbre::emplacementsLegaux()`, le même appel que le résolveur),
+            // jamais de base-entry sans emplacement. Patron du mur magique.
+            if ((bool) data_get($sort->effet, 'pose_ombre', false)) {
+                if ($disponible && $lanceur !== null) {
+                    foreach ($this->entreesPoseOmbre($quete, $grille, $sort, $lanceur) as $entree) {
+                        $entrees[] = $entree;
+                    }
+                } elseif (! $disponible) {
+                    $entrees[] = $this->entreeSort("sort:{$sort->id}", $sort->nom, $sort, false, [], [], $lanceur, $grille);
+                }
+
+                continue;
+            }
+
             // MUR MAGIQUE (Wall of Stone — Spells of Protection, 2026-10-06) :
             // poser un mur n'a pas de cible GÉNÉRIQUE à proposer — seulement
             // CELLE qu'on choisit. Une entrée PAR case libre orthogonalement
@@ -1063,6 +1089,30 @@ final class MoteurSorts
             $sort = Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
 
             if ($sort === null) {
+                continue;
+            }
+
+            // VISION DU FUTUR : se joue APRÈS un jet, jamais en lisant une carte —
+            // un parchemin que le menu offrirait serait un bouton que le résolveur
+            // ne saurait pas honorer. Le parchemin existe au catalogue (un par
+            // sort, `ObjetSeeder`) mais ne se lit pas.
+            if ((bool) data_get($sort->effet, 'relance_jet', false)) {
+                continue;
+            }
+
+            // VOILE D'OMBRE : l'emplacement est le choix, comme au sort connu —
+            // une entrée par emplacement légal, chacune portant `inventaire_id`.
+            if ((bool) data_get($sort->effet, 'pose_ombre', false)) {
+                if ($lanceur !== null) {
+                    foreach ($this->entreesPoseOmbre($quete, $grille, $sort, $lanceur) as $entree) {
+                        $parchemins[] = [
+                            ...$entree,
+                            'cle' => 'parchemin:'.$ligne->id.substr((string) $entree['cle'], strlen("sort:{$sort->id}")),
+                            'inventaire_id' => $ligne->id,
+                        ];
+                    }
+                }
+
                 continue;
             }
 
@@ -2059,11 +2109,18 @@ final class MoteurSorts
             || $this->franchitFigures($personnage);
     }
 
-    /** Héros inattaquable (condition « Évanescent » du catalogue). */
+    /**
+     * Héros inattaquable : condition « Évanescent »/« Caché » du catalogue, OU
+     * sous un VOILE D'OMBRE (*Cloak of Shadows* : « heroes and monsters on the
+     * tile may not … be attacked »). Lecteur unique de la phase des monstres
+     * (`ResolveurTour::phaseMonstres()`) — le voile s'y lit donc au MÊME endroit
+     * que l'invisibilité, sans second filtre.
+     */
     public function estInattaquable(Personnage $personnage): bool
     {
         return $personnage->conditions()->get()
-            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'inattaquable', false));
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'inattaquable', false))
+            || app(MoteurOmbre::class)->contientHeros($personnage);
     }
 
     /**
@@ -2076,8 +2133,30 @@ final class MoteurSorts
      */
     public function attaqueInterdite(Personnage $personnage): bool
     {
-        return $personnage->conditions()->get()
-            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'attaque_interdite', false));
+        return $this->raisonAttaqueInterdite($personnage) !== null;
+    }
+
+    /**
+     * POURQUOI ce héros ne peut pas attaquer, ou `null` : la condition
+     * « Caché » (*Invisibility* — « While invisible, you may not attack »), ou
+     * un VOILE D'OMBRE sous ses pieds (*Cloak of Shadows* — « heroes and
+     * monsters on the tile may not attack »). Les deux se lisent ICI, donc par
+     * le menu (`MenuMoteur::generer()`), le résolveur (`resoudre()`) et la
+     * frappe (`frapper()`) — un seul prédicat, trois portes. Le texte est celui
+     * du refus : il dit la VRAIE cause, pas toujours l'invisibilité.
+     */
+    public function raisonAttaqueInterdite(Personnage $personnage): ?string
+    {
+        if ($personnage->conditions()->get()
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'attaque_interdite', false))) {
+            return "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.";
+        }
+
+        if (app(MoteurOmbre::class)->contientHeros($personnage)) {
+            return "{$personnage->nom} se tient sous un voile d'ombre : nul n'y attaque, nul n'y est attaqué.";
+        }
+
+        return null;
     }
 
     /**
@@ -2474,6 +2553,71 @@ final class MoteurSorts
         }
 
         return $entrees;
+    }
+
+    /**
+     * Une entrée PAR emplacement légal du voile d'ombre (*Cloak of Shadows*).
+     *
+     * ⚠ Les emplacements viennent de `MoteurOmbre::emplacementsLegaux()`, que le
+     * résolveur (`MoteurOmbre::poser()`) relit à l'identique : la liste du menu
+     * EST la liste blanche. Le nom dit la taille, l'orientation et le repère
+     * (direction + distance) — jamais de coordonnées.
+     *
+     * @param  array{x: int, y: int}  $lanceur
+     * @return list<array<string, mixed>>
+     */
+    private function entreesPoseOmbre(Quete $quete, Grille $grille, Sort $sort, array $lanceur): array
+    {
+        $moteur = app(MoteurOmbre::class);
+        $entrees = [];
+
+        foreach ($moteur->emplacementsLegaux($quete, $grille, $lanceur) as $e) {
+            $centre = ['x' => $e['x'] + intdiv($e['l'] - 1, 2), 'y' => $e['y'] + intdiv($e['h'] - 1, 2)];
+            $repere = $this->repereDeZone($lanceur, $centre);
+
+            $entrees[] = [
+                'cle' => "sort:{$sort->id}:ombre:{$e['x']}:{$e['y']}:{$e['l']}:{$e['h']}",
+                'sort_id' => $sort->id,
+                'nom' => "{$sort->nom} — {$e['l']}×{$e['h']}, {$repere}",
+                'element' => $sort->element,
+                'sort_type' => $sort->type,
+                'disponible' => true,
+                'mode' => 'pose_ombre',
+                'cases' => MoteurOmbre::casesDuRectangle($e['x'], $e['y'], $e['l'], $e['h']),
+            ];
+        }
+
+        return $entrees;
+    }
+
+    /**
+     * Repère d'une ZONE (le centre d'un voile) vu du lanceur : « sur toi », « à
+     * l'ouest, à 1 case », « au nord-est, à 4 cases ». Mêmes seuils de direction
+     * que `reperePorte()`, la grammaire en plus (« à l'est », jamais « au est »).
+     *
+     * @param  array{x: int, y: int}  $lanceur
+     * @param  array{x: int, y: int}  $centre
+     */
+    private function repereDeZone(array $lanceur, array $centre): string
+    {
+        $dx = $centre['x'] - $lanceur['x'];
+        $dy = $centre['y'] - $lanceur['y'];
+        $distance = abs($dx) + abs($dy);
+
+        if ($distance === 0) {
+            return 'sur toi';
+        }
+
+        $vertical = abs($dy) * 3 >= abs($dx) ? ($dy < 0 ? 'nord' : 'sud') : '';
+        $horizontal = abs($dx) * 3 >= abs($dy) ? ($dx < 0 ? 'ouest' : 'est') : '';
+        $direction = match (true) {
+            $vertical !== '' && $horizontal !== '' => "au {$vertical}-{$horizontal}",
+            $vertical !== '' => "au {$vertical}",
+            $horizontal === 'ouest' => "à l'ouest",
+            default => "à l'est",
+        };
+
+        return "{$direction}, à {$distance} case".($distance > 1 ? 's' : '');
     }
 
     /**

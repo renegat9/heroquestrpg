@@ -23,6 +23,9 @@ class EtatPersonnageQuete extends Model
         'a_agi',
         'deplacement_tour',
         'deplacement_restant',
+        // Peacekeeper : monstres réduits à 0 PV PAR CE HÉROS pendant CETTE quête
+        // (`FaveursHopekins::compterPeacekeeper()`), lus à la fin de quête réussie.
+        'monstres_vaincus',
         // Détail RÉEL du jet de déplacement du tour — {base, des, de_annule,
         // de_annule_par} — écrit une fois au lancer pour que la face survive à
         // un menu régénéré en cours de tour. Voir la migration
@@ -135,6 +138,7 @@ class EtatPersonnageQuete extends Model
             'capacites_combat' => 'array',
             'degats_subis' => 'array',
             'dernier_degat' => 'array',
+            'monstres_vaincus' => 'integer',
         ];
     }
 
