@@ -230,4 +230,66 @@ final class MotsClesTerrain
     {
         return $cle !== null && array_key_exists($cle, self::NON_IMPLEMENTES);
     }
+
+    /** Les faces de dé de combat, dites comme le joueur les voit (`sur.{face}`). */
+    private const FACES = [
+        'crane' => 'un crâne',
+        'bouclier_blanc' => 'un bouclier blanc',
+        'bouclier_noir' => 'un bouclier noir',
+    ];
+
+    /**
+     * Ce que la tuile FAIT, en phrases courtes, pour le guide (`GET /api/guide`,
+     * `terrains[].avantages`). Le serveur traduit — comme `MotsClesEquipement::avantages()`
+     * pour les pièces : le client affiche, il ne retraduit pas la clé.
+     *
+     * Une clé de `NON_IMPLEMENTES` ne produit AUCUNE phrase : le guide ne promet pas
+     * une règle que le moteur n'applique pas. Une tuile qui ne produit rien le dit.
+     *
+     * @param  array<string, mixed>  $effet
+     * @return list<string>
+     */
+    public static function avantages(array $effet, int $coutDeplacement = 1): array
+    {
+        $phrases = self::phrases($effet, $coutDeplacement);
+
+        return $phrases !== [] ? $phrases : ['sans effet à ce jour'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $effet
+     * @return list<string>
+     */
+    private static function phrases(array $effet, int $coutDeplacement = 1): array
+    {
+        $phrases = [];
+
+        if ($coutDeplacement !== 1) {
+            $phrases[] = "coûte {$coutDeplacement} points pour y entrer";
+        }
+
+        foreach ($effet as $cle => $valeur) {
+            // `sur` : ce qui arrive selon la face du dé — récursif sur le même vocabulaire.
+            if ($cle === 'sur' && is_array($valeur)) {
+                foreach ($valeur as $face => $sousEffet) {
+                    $suite = self::phrases(is_array($sousEffet) ? $sousEffet : []);
+
+                    if ($suite !== []) {
+                        $phrases[] = 'sur '.(self::FACES[$face] ?? (string) $face).' : '.implode(' · ', $suite);
+                    }
+                }
+
+                continue;
+            }
+
+            if (! self::connue((string) $cle) || self::estNonImplementee((string) $cle)) {
+                continue;
+            }
+
+            $texte = is_scalar($valeur) ? (string) $valeur : '';
+            $phrases[] = str_replace(['{valeur}', '%s'], [$texte, $texte], self::VOCABULAIRE[$cle]['libelle']);
+        }
+
+        return $phrases;
+    }
 }

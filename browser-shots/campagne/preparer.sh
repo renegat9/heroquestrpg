@@ -41,7 +41,15 @@ for spec in "$@"; do
   echo "  slot $slot : $NH ($CL) id=$(cat "$D/perso-$slot.txt")" >&2
 done
 
-R=$(P 1 POST /groupes "{\"nom\":\"$NOM\",\"personnage_id\":$(cat "$D/perso-1.txt"),\"theme\":\"$THEME\",\"longueur\":\"${LONGUEUR:-tres_courte}\"}")
+# BOITES (variable d'environnement, 2026-10-09) : impose le bestiaire en mode
+# MANUEL — liste de boîtes séparées par des virgules, p. ex.
+# BOITES=wizards_of_morcar ou BOITES=jungles_delthrak. Absente : rotation
+# automatique, comme avant. Sert à éprouver UN thème précis.
+BOITES_JSON=""
+if [ -n "${BOITES:-}" ]; then
+  BOITES_JSON=",\"bestiaire_boites\":[\"$(echo "$BOITES" | sed 's/,/\",\"/g')\"]"
+fi
+R=$(P 1 POST /groupes "{\"nom\":\"$NOM\",\"personnage_id\":$(cat "$D/perso-1.txt"),\"theme\":\"$THEME\",\"longueur\":\"${LONGUEUR:-tres_courte}\"$BOITES_JSON}")
 CODE=$(echo "$R" | python3 -c "import json,sys; print(json.load(sys.stdin)['groupe']['identifiant'])")
 echo "$CODE" > "$D/groupe.txt"
 

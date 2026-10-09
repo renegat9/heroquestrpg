@@ -229,3 +229,30 @@ it('publie les thèmes de campagne sous leur libellé, jamais un identifiant bru
     $morcar = collect($data['monstres'])->firstWhere('nom_base', 'Artificière');
     expect($morcar['boite_libelle'])->toBe('Wizards of Morcar');
 });
+
+it('décrit chaque terrain en phrases, et dit « sans effet » quand rien ne se voit', function () {
+    $this->seed(\Database\Seeders\TerrainSeeder::class);
+    $terrains = collect($this->getJson('/api/guide')->assertOk()->json('terrains'))->keyBy('nom');
+
+    // La Mare : on la traverse sans y finir, et boire remplace la fouille (1 PV).
+    expect($terrains['Mare']['avantages'])->toContain('on peut la traverser, pas y finir son mouvement')
+        ->and($terrains['Mare']['avantages'])->toContain("rend 1 PV de Body au lieu d'une carte de trésor")
+        // Le Brasier : une face de crâne, puis la nature du dégât — jamais une clé brute.
+        ->and($terrains['Brasier']['avantages'])->toContain('sur un crâne : 1 PV de Body')
+        ->and($terrains['Brasier']['avantages'])->toContain('dégât de nature : feu')
+        // Les sables et toiles coûtent deux points : la phrase le dit, le coût aussi.
+        ->and($terrains['Sable entravant']['cout_deplacement'])->toBe(2)
+        ->and($terrains['Sable entravant']['avantages'])->toContain('coûte 2 points pour y entrer')
+        // Une clé NON implémentée ne produit aucune promesse : le guide dit « sans effet ».
+        ->and($terrains['Glace magique']['avantages'])->toBe(['sans effet à ce jour'])
+        ->and($terrains['Rebord de crevasse']['avantages'])->toBe(['sans effet à ce jour'])
+        ->and($terrains['Mare']['boite_libelle'])->not->toBeNull();
+});
+
+it('dit qu\'un Cocon se détruit d\'une action adjacente, et rien de plus', function () {
+    $mobiliers = collect($this->getJson('/api/guide')->assertOk()->json('mobiliers'))->keyBy('nom');
+
+    expect($mobiliers['Cocon']['detruit_par_action'])->toBeTrue()
+        ->and($mobiliers['Cocon']['attaquable'])->toBeFalse()
+        ->and($mobiliers['Table']['detruit_par_action'])->toBeFalse();
+});

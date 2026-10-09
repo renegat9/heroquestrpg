@@ -12,7 +12,9 @@ use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Models\Terrain;
 use App\Engine\MotsClesEquipement;
+use App\Engine\MotsClesTerrain;
 use App\Partie\DemarreurQuete;
 use App\Partie\EquipementDepart;
 use Illuminate\Http\JsonResponse;
@@ -129,11 +131,27 @@ class GuideController extends Controller
             // rubrique, un Haut Autel qui « se combat comme un monstre » n'était
             // décrit nulle part.
             'mobiliers' => Mobilier::query()->orderBy('id')
-                ->get(['nom', 'largeur', 'hauteur', 'bloque_vue', 'fouillable', 'difficulte_destruction', 'pv_body', 'defense_dice', 'boite'])
+                ->get(['nom', 'largeur', 'hauteur', 'bloque_vue', 'fouillable', 'difficulte_destruction', 'pv_body', 'defense_dice', 'boite', 'effet'])
                 ->map(fn (Mobilier $m) => [
                     ...$m->only(['nom', 'largeur', 'hauteur', 'bloque_vue', 'fouillable', 'difficulte_destruction', 'pv_body', 'defense_dice', 'boite']),
                     'attaquable' => $m->pv_body !== null,
+                    // Le COCON (Jungles of Delthrak) : une action d'un héros adjacent le
+                    // détruit, sans jet. La DÉCISION est publiée, pas la clé brute.
+                    'detruit_par_action' => (bool) (($m->effet ?? [])['detruit_par_action'] ?? false),
                     'boite_libelle' => $m->boite === null ? null : app(DemarreurQuete::class)->libelleBoiteBestiaire((string) $m->boite),
+                ])
+                ->values()
+                ->all(),
+
+            // TERRAINS (2026-10-09) : ce que chaque tuile FAIT, en phrases. La carte les
+            // nomme à sa légende ; sans cette rubrique, le guide ne les nommait nulle part.
+            // Les phrases viennent du vocabulaire fermé (`MotsClesTerrain::avantages()`).
+            'terrains' => Terrain::query()->orderBy('id')
+                ->get(['nom', 'cout_deplacement', 'effet', 'boite'])
+                ->map(fn (Terrain $t) => [
+                    ...$t->only(['nom', 'cout_deplacement', 'boite']),
+                    'avantages' => MotsClesTerrain::avantages((array) $t->effet, (int) $t->cout_deplacement),
+                    'boite_libelle' => $t->boite === null ? null : app(DemarreurQuete::class)->libelleBoiteBestiaire((string) $t->boite),
                 ])
                 ->values()
                 ->all(),

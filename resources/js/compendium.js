@@ -92,6 +92,8 @@ const EFFETS_BOOL = {
     vision_salle: 'Révèle le contenu d\'une salle, où qu\'elle soit',
     teleportation: 'Téléporte le héros ailleurs dans le donjon',
     degats_selon_armure: 'Dégâts selon l\'armure portée',
+    // Piège de lianes (Jungles of Delthrak) : le bouclier blanc esquive, le tour continue.
+    esquive_sur_bouclier: 'Un bouclier blanc l\'esquive : le héros continue',
 };
 
 /**
@@ -208,6 +210,8 @@ const CAPACITES = {
     reactions_defense: 'Réaction en défense (ignore les dégâts d\'un coup, une fois)',
     recompense_reddition: 'Vaincu, s\'incline et verse une rançon à la bourse commune',
     increvable_une_fois: 'Increvable une fois (tombe à 1 PV au lieu de 0)',
+    // Jungles of Delthrak (2026-10-09) : Gretzl et Gruulob tirent à distance, au choix.
+    tir_au_choix: 'Tir au choix : tire à distance sur place, frappe au contact',
     sorts_uniques: 'Sorts du Dread (chacun une seule fois par quête)',
     embuscade: 'Embuscade (déguisé en coffre jusqu\'à ce qu\'un héros approche)',
     coup_de_corne: 'Coup de corne (encorne le héros qui finit son tour à son contact)',
@@ -260,6 +264,8 @@ export function effetVersChips(effet) {
     if (effet.reaction && effet.reaction.action === 'annule_degats') {
         chips.push({ texte: 'Réaction : annule les dégâts subis (sans dépenser d\'action)' });
     }
+    // Un piège de lianes ESQUIVÉ par un bouclier blanc : son « sans défense » serait faux.
+    const esquivable = effet.esquive_sur_bouclier === true;
     for (const [k, v] of Object.entries(effet)) {
         if (IGNORE.has(k) || v == null) continue;
         // `duree: 0` n'est pas une durée : c'est l'absence de durée. Le guide
@@ -269,7 +275,12 @@ export function effetVersChips(effet) {
         // mot-clé — `prochaine_attaque`, `fin_du_combat` — que le guide traduit
         // via VALEURS.duree. Le filtre ne reste que pour les catalogues d'avant.
         if (k === 'duree' && (v === 0 || v === '0')) continue;
-        if (k in EFFETS_DE && typeof v === 'number') {
+        if (k === 'des_combat' && esquivable && typeof v === 'number') {
+            chips.push({ texte: `${v} dé(s) de combat (1 PV par crâne)` });
+        } else if (k === 'retient' && typeof v === 'string') {
+            // Piège de lianes : la sortie est l'action « Détruire les entraves » (MenuMoteur).
+            chips.push({ texte: `Retient le héros : ${v} — une action « Détruire les entraves » le libère` });
+        } else if (k in EFFETS_DE && typeof v === 'number') {
             chips.push({ texte: `1d${v} ${EFFETS_DE[k]}` });
         } else if (k in EFFETS_BONUS && typeof v === 'number') {
             chips.push({ texte: `${v > 0 ? '+' : ''}${v} ${EFFETS_BONUS[k]}` });
@@ -302,9 +313,17 @@ export function capacitesVersChips(capacites) {
     const tags = Array.isArray(capacites)
         ? capacites
         : Object.entries(capacites).map(([k, v]) => (/^\d+$/.test(k) && typeof v === 'string' ? v : k));
-    return tags
-        .filter((t) => typeof t === 'string')
+    const chips = tags
+        .filter((t) => typeof t === 'string' && t !== 'effet_global_quete')
         .map((t) => ({ texte: CAPACITES[t] ?? humaniser(t) }));
+    // Effet de quête (Gruulob, Jungles of Delthrak) : un OBJET { titre, faction, volee, des },
+    // pas un mot. Décrit avec les chiffres que le serveur publie, jamais recalculés.
+    const effet = Array.isArray(capacites) ? null : capacites.effet_global_quete;
+    if (effet && typeof effet === 'object') {
+        const de = effet.volee === 'defense' ? 'de défense' : "d'attaque";
+        chips.push({ texte: `Effet de quête : ${effet.titre} — +${effet.des} dé(s) ${de}, jusqu'à la fin de la quête` });
+    }
+    return chips;
 }
 
 /** Libellés d'affichage des énumérations de catalogue. */

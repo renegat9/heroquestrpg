@@ -710,7 +710,7 @@ ecrire(fig('77-scene-deplacement',
 ecrire('<div class="duo">' +
        fig('31-manette-deplacement',
            "Un tap ne part plus tout droit : le serveur renvoie le <strong>trajet exact</strong> "
-           "— ici 11 cases, budget épuisé au bout — et le peint en orange ; seul un second tap, "
+           "— ici cinq points sur les neuf du tour, quatre restant — et le peint en orange ; seul un second tap, "
            "ou le bouton <em>Y aller</em>, l'engage. La manette ne recalcule rien, elle affiche "
            "une décision déjà prise.", 'fig tel') +
        fig('30-manette-action',
@@ -788,8 +788,19 @@ ecrire('''
 
 <h3>Tomber n'est pas mourir</h3>
 <p>À <strong>0 point de Body</strong>, la figurine est <strong>tombée</strong> : elle occupe
-toujours sa case et reste <strong>relevable</strong> par un soin ou un allié. Elle ne meurt
-définitivement que si personne ne la relève avant la fin du combat.</p>
+toujours sa case et reste <strong>relevable</strong> par un soin ou un allié. <strong>Un héros ne
+meurt jamais</strong> : il reste à terre jusqu'à ce qu'on le relève. Seul un groupe entièrement à
+terre perd la quête (voir l'encadré plus bas).</p>
+<p>Deux règles aident à se relever sans attendre un allié :</p>
+<ul>
+  <li><strong>Le soin d'urgence.</strong> Dès qu'un héros tombe, la table lui propose aussitôt — hors
+      de son tour — de se soigner avec une potion de soin qu'il porte ou un sort de soin qu'il lui
+      reste, même s'il avait déjà joué.</li>
+  <li><strong>Le relèvement par le Corps.</strong> À l'ouverture d'un round où <strong>plus aucun
+      monstre n'est actif</strong>, chaque héros tombé regagne <strong>1 point de Body</strong> et se
+      relève, à condition qu'un autre héros soit encore debout. Un groupe entièrement à terre ne
+      reçoit rien.</li>
+</ul>
 ''')
 ecrire('<div class="duo">' +
        fig('72-scene-attaque-monstre',
@@ -1001,8 +1012,10 @@ ecrire('''
   <h4>Une fois par quête, et pas de repos</h4>
   <p>Chaque sort connu est lançable <strong>une fois par quête</strong>, puis épuisé. Tout
   redevient disponible <strong>entre deux quêtes</strong>. Il n'existe aucun repos en cours de
-  quête : la seule exception est le talent <em>Concentration</em> du magicien, qui sacrifie son
-  tour pour récupérer un sort — une fois par quête.</p>
+  quête. Deux exceptions seulement, chacune <strong>une fois par quête</strong> : le talent
+  <em>Concentration</em> du magicien, qui sacrifie son tour pour récupérer un sort, et la
+  <em>Potion de sagesse ancienne</em> (<em>Jungles of Delthrak</em>), qui rend un sort ou une
+  compétence déjà utilisés — une seule par héros et par quête.</p>
   <p>Les sorts de dégâts se résolvent <strong>sans jet de toucher</strong>. Les sorts mentaux
   sont <strong>binaires</strong> : la cible résiste, ou subit. Et les créatures à
   <strong>Mind 0</strong> — squelette, zombie, momie — y sont totalement insensibles.</p>
@@ -1113,7 +1126,10 @@ l'écran de table, ce qui évite de découvrir à la validation qu'on est deux �
 même armure.</p>
 <p>La revente se fait à <strong>50 % du prix marchand</strong>. Les objets
 <strong>uniques</strong> — les artefacts — ne s'achètent, ne se revendent et ne se forgent
-jamais.</p>
+jamais. Les <strong>trésors-valeurs</strong> de <em>Jungles of Delthrak</em> (le <em>Cœur
+d'émeraude de Delthrak</em>, 75 po ; la <em>Relique naine ancienne</em>, 50 po) ne s'achètent
+pas, mais se revendent à leur <strong>valeur entière</strong> : la carte donne le prix de vente,
+il n'y a rien à diviser.</p>
 <p>Avant que quiconque ouvre l'étal, le même onglet propose déjà de <strong>recruter un
 allié</strong> : un mercenaire payé sur la bourse commune, joué ensuite par le joueur qui l'a
 engagé. Le prix de chaque recrutement est <strong>décidé par le serveur</strong> et affiché tel
@@ -1168,7 +1184,9 @@ son effet, en quête comme au hub.</p>
   <h4>Un seul marchand, tout au prix normal</h4>
   <p>Le jeu décrit quatre profils de lieu — village isolé, bourg, cité marchande, marché noir —
   avec leurs multiplicateurs. <strong>Ils sont volontairement neutralisés</strong> : pour
-  l'instant l'étal est unique et vend tout au prix de base, toutes raretés confondues. Les
+  l'instant l'étal est unique et vend au prix de base. Il vend <strong>toute pièce achetable, de
+  toutes les boîtes</strong>, quel que soit le thème de la campagne — seuls les coffres, la fouille
+  et le terrain suivent le thème. Les artefacts et les trésors ne s'y trouvent jamais. Les
   quatre profils restent déclarés parce qu'ils seront la matière du
   <strong>marchandage</strong>, qui n'existe pas encore.</p>
 </div>
@@ -1314,6 +1332,7 @@ BUTIN_MOB = {
     'Armoire': "consommables, outils, or",
     'Caisse de ravitaillement': "se fouille comme un coffre — se met aussi en pièces d'un jet de Body (<em>Against the Ogre Horde</em>)",
     'Amas de cristal': "rien — un obstacle qui se brise et qui ne se défend pas (<em>Jungles of Delthrak</em>)",
+    'Cocon': "rien — se détruit d'une action d'un héros adjacent, sans jet (<em>Jungles of Delthrak</em>)",
     'Haut Autel': "rien — se combat comme un monstre (<em>Wizards of Morcar</em>)",
     'Coffre du Dread': "rien — se combat comme un monstre (<em>Wizards of Morcar</em>)",
     'Mur de Pierre': "posé par un sort, jamais au hasard : voir le chapitre 8",
@@ -1355,12 +1374,17 @@ ecrire('''
 TER = CAT['terrains']
 EFFET_TER = {
  'Glace glissante': "on glisse : un dé de combat, et sur bouclier blanc le tour s'arrête net",
- 'Glissière de glace': "sens unique, le tour s'arrête au bout — et parfois 1 dégât",
+ 'Glissière de glace': "le tour s'arrête au bout, et parfois 1 dégât ; interdite aux monstres",
  'Rivière gelée': "coûte <strong>2 points</strong> pour y entrer, et peut infliger 1 dégât de froid",
  'Tunnel de glace': "téléporte : la case d'arrivée n'est pas celle qu'on visait",
  'Chambre forte de glace': "1 dégât de froid par tour passé dans la zone",
- 'Glace magique': "support des sorts de glace — mur et pont",
- 'Rebord de crevasse': "décor, infranchissable",
+ 'Glace magique': "sans effet pour l'instant : les sorts de glace qui s'y ancreraient ne sont pas encore en jeu",
+ 'Rebord de crevasse': "décor, sans effet pour l'instant",
+ 'Sable entravant': "terrain gênant : coûte <strong>2 points</strong> pour y entrer, héros et monstres compris",
+ 'Toile entravante': "terrain gênant : coûte <strong>2 points</strong> pour y entrer, héros et monstres compris",
+ 'Jungle entravante': "terrain gênant : coûte <strong>2 points</strong> pour y entrer, héros et monstres compris",
+ 'Mare': "on la traverse sans s'y arrêter. Dans une salle qui en a une, on peut <strong>boire</strong> au lieu de fouiller : 1 PV de Body rendu, si l'on en a perdu un",
+ 'Brasier': "on le traverse sans s'y arrêter. Un dé de combat par case franchie : un crâne fait perdre 1 PV de Body, par le feu — les monstres en subissent autant",
 }
 ecrire('<h3>Le terrain</h3>'
        '<p>Certaines boîtes posent un terrain qui change le déplacement lui-même. '
@@ -1374,6 +1398,29 @@ for t in TER:
            f'<td class="nom">{e(t["nom"])}</td><td class="n">{t["cout_deplacement"]}</td>'
            f'<td>{EFFET_TER.get(t["nom"], "—")}</td></tr>')
 ecrire('</tbody></table>')
+ecrire('''
+<div class="encadre">
+  <h4>La jungle de Delthrak</h4>
+  <p>Sous ce thème seulement, la carte porte une végétation qui gêne — sable, toile, jungle —,
+  deux points d'eau et de feu qu'on traverse sans s'y arrêter, des <strong>cocons</strong> qu'une
+  action suffit à déchirer, et des <strong>lianes</strong> qui retiennent le premier imprudent.</p>
+  <ul>
+    <li><strong>Le terrain gênant</strong> coûte deux points, pour tout le monde. Les monstres
+        <em>Agiles</em>, le talent <em>Ronces complices</em> du druide, les <em>Brassards du
+        Sauvage</em> et l'<em>Élixir de pas d'araignée</em> le franchissent sans ce surcoût.</li>
+    <li><strong>La Mare</strong> et le <strong>Brasier</strong> ne bloquent ni le passage ni la vue :
+        on les traverse, mais personne n'y termine son tour. Le Brasier brûle chaque créature
+        qui le franchit ; la Mare rend 1 PV à un héros blessé qui y boit au lieu de fouiller.</li>
+    <li><strong>Le Cocon</strong> bloque le passage et la vue. Un héros adjacent le détruit d'une
+        <strong>action</strong>, sans aucun jet — et sans butin : la carte ne dit pas ce qu'il
+        contient.</li>
+    <li><strong>Le piège de lianes</strong> : un bouclier blanc l'esquive, le héros continue. Un
+        crâne fait perdre 1 PV et <strong>immobilise</strong> le héros, jusqu'à ce qu'une action
+        « Détruire les entraves » le libère — celle du héros ou d'un voisin, et elle retire le
+        piège.</li>
+  </ul>
+</div>
+''')
 ecrire(fig('74-scene-salle',
            "Quand une porte s'ouvre sur des créatures, la table les présente avec leurs "
            "caractéristiques. Les noms sont ceux que le maître du jeu leur a donnés ; les chiffres "
@@ -1398,6 +1445,9 @@ Une carte piège <strong>termine le tour</strong>.</p>
 trésor d'une salle qui contient une armoire tire <strong>deux cartes</strong>, résolues dans
 l'ordre — même si la première est un piège ou un monstre errant (règle de
 <em>First Light</em>). Les suivants n'en tirent qu'une.</p>
+<p>Sous le thème <em>Jungles of Delthrak</em>, deux <strong>trésors-valeurs</strong> rejoignent ce
+paquet : le <em>Cœur d'émeraude de Delthrak</em> (75 po) et la <em>Relique naine ancienne</em>
+(50 po). Ce sont des objets, rangés dans le sac du fouilleur, qu'on revend à leur valeur entière.</p>
 ''')
 ecrire(fig('75-scene-fouille',
            "Ce qu'une fouille trouve arrive avec ce que l'objet fait : une épée large, trois dés "
@@ -1459,6 +1509,24 @@ ecrire('''
   un artefact qui ne ferait rien nulle part n'est pas une récompense.</p>
 </div>
 ''')
+JUNGLE_ART = [o for o in OBJ if o.get('boite') == 'jungles_delthrak' and o['rarete'] == 'unique']
+ecrire('<h3>Les artefacts de Jungles of Delthrak</h3>'
+       "<p>Cinq artefacts viennent de cette boîte. Ils suivent les règles de tout artefact — au "
+       "groupe, jamais vendus ni forgés — et disent leur effet en toutes lettres.</p>")
+table_objets(JUNGLE_ART, colonne_prix=False)
+ecrire('''
+<div class="encadre">
+  <h4>Deux cartes qui ne se lisent pas au premier regard</h4>
+  <p>Le <strong>Brassard du Garde-Crocs</strong> appelle un <strong>Raptor apprivoisé</strong>, allié
+  joué par son joueur comme les autres (<a href="#ch5">chapitre 5</a>) : une fois par quête, pour
+  une action du tour — c'est notre arbitrage, la carte ne le précise pas. Le Raptor repart à la fin
+  de la quête. S'il tombe, le brassard s'endort, et il ne se réveille qu'après <strong>deux quêtes
+  terminées</strong> sans lui.</p>
+  <p>Le <strong>Diadème de braise forgée</strong> occupe l'emplacement du <strong>casque</strong> :
+  le monter renvoie le casque au sac. La <strong>Ceinture de Puissance</strong> est interdite au
+  magicien, et son dé d'attaque ne vaut que pour une arme, jamais à distance.</p>
+</div>
+''')
 fin()
 
 # ================================================= 12. LES PIÈGES =========
@@ -1505,6 +1573,7 @@ EFFET_PIEGE = {
  "Piège de l'ouragan": "<strong>introuvable</strong>, en couloir seulement : repousse tous les héros du couloir à l'opposé, jusqu'à 8 cases ou jusqu'au premier mur, meuble ou piège.",
  "Piège d'embrasement": "<strong>introuvable</strong> ; il s'amorce en silence puis <strong>explose au début du tour du maître du jeu</strong>, sur toute la salle ou le couloir, héros et monstres — dégâts de feu, 3 dés d'attaque, défense normale. On le désarme en défaussant une <em>Tempête</em> ou un sort d'Eau.",
  'Poison': "à l'ouverture : 1 dé de combat, sans défense",
+ 'Piège de lianes': "un bouclier blanc l'esquive et le héros continue ; un crâne fait perdre 1 PV et <strong>immobilise</strong> (voir <a href=\"#ch10\">chapitre 10</a>)",
 }
 ecrire('<table><thead><tr><th class="vig"></th><th>Piège</th><th class="n">Désamorçable</th>'
        '<th class="n">Usage</th><th>Effet</th></tr></thead><tbody>')
@@ -1552,6 +1621,10 @@ ecrire('''
   <strong>Renforcé</strong> · <strong>Tombé</strong> · <strong>Enchaîné</strong> (ni
   déplacement ni attaque jusqu'au prochain tour du lanceur, mais il se défend et lance des sorts). Chaque condition porte son effet, sa
   durée <em>et sa source</em> — la fiche du héros dit toujours d'où elle vient.</p>
+  <p>Deux conditions de <em>Jungles of Delthrak</em> s'ajoutent : <strong>Envenimé</strong>, le venin
+  d'une créature venimeuse, qui interdit de se déplacer jusqu'au tour suivant ; et <strong>Pas
+  d'araignée</strong>, que confère l'élixir, qui fait franchir le mobilier, le terrain gênant et les
+  figurines jusqu'au premier dégât subi.</p>
   <p>Les morts-vivants (Mind 0) sont immunisés à tout ce qui est <strong>mental</strong> :
   apeuré, endormi, commandé.</p>
 </div>''')
@@ -1575,6 +1648,8 @@ LIB_CAP = {
  'sorts_uniques': 'sorts du Dread, une fois chacun par quête',
  'embuscade': 'embusqué dans un coffre',
  'coup_de_corne': 'encorne qui finit son tour au contact',
+ 'tir_au_choix': 'tire à distance, au choix',
+ 'effet_global_quete': "effet de quête : ses gobelins lancent un dé d'attaque de plus (voir Gruulob)",
 }
 def capacites_de(m):
     """`capacites` est tantôt une liste de mots, tantôt un objet dont les clés
@@ -1665,7 +1740,17 @@ dégâts : coup, sort, piège ou braise.</p>
       rapide, plus brutale, et à peine défendue.</li>
   <li><strong>Gretzl la Porte-Fléau</strong> (<em>Jungles of Delthrak</em>) : trois formes, dont
       les deux dernières ont leur propre nom, <strong>Demonspider</strong> puis
-      <strong>Demonape</strong>.</li>
+      <strong>Demonape</strong>. Dans chaque forme, il <strong>tire à distance</strong> sur place,
+      dans sa ligne de vue, au choix — et frappe au contact.</li>
+  <li><strong>Gruulob, Sorcier Gobelin Corrompu</strong> (<em>Jungles of Delthrak</em>) : deux
+      formes, <strong>Gruulob</strong> puis <strong>Gruulob, Forme Démoniaque</strong>, qui tirent
+      toutes deux à distance, au choix. Son invocation fait surgir des <strong>gobelins</strong>, en
+      nombre égal à celui des orques d'une invocation ordinaire.
+      Dès le démarrage de la quête, il fait de <strong>tous les gobelins de la quête</strong> des
+      guerriers d'élite : <strong>+1 dé d'attaque</strong> chacun, gobelins de base, archers et
+      gobelins invoqués compris. Cet effet de quête est annoncé au démarrage, reste affiché sous
+      l'objectif, et tient jusqu'à la fin de la quête — même une fois Gruulob tombé. Ni Gruulob ni sa
+      forme démoniaque n'en font partie.</li>
   <li><strong>Sir Ragnar</strong> (<em>Rise of the Dread Moon</em>) n'a pas de phases mais
       est <strong>increvable une fois</strong> : la première fois que son Body tombe à 0, il reste
       à 1.</li>
@@ -1885,7 +1970,7 @@ ecrire('''
   <li>Dés de défense = 2 + <strong>armure</strong></li>
   <li>Dégâts = crânes − boucliers (min. 0)</li>
   <li>0 PV de Body = <strong>tombé</strong>, relevable</li>
-  <li>Non relevé en fin de combat = mort</li>
+  <li>Jamais mort : +1 Body à l'ouverture d'un round sans monstre actif, s'il reste un héros debout</li>
 </ul></section>
 
 <section><h4>Un jet de compétence</h4><ul>
@@ -1897,7 +1982,7 @@ ecrire('''
 
 <section><h4>La magie</h4><ul>
   <li>Un sort : <strong>une fois par quête</strong> — sauf <em>Vision du futur</em> : relance <strong>sans action</strong>, juste après le jet</li>
-  <li>Tout revient <strong>entre</strong> les quêtes — aucun repos</li>
+  <li>Tout revient <strong>entre</strong> les quêtes — aucun repos, sauf Concentration et la Potion de sagesse ancienne (une fois par quête)</li>
   <li>Sorts mentaux : binaires, Mind 0 = immunisé</li>
   <li>Parchemin : auto pour un lanceur, <strong>jet de Mind</strong> sinon</li>
   <li>Protection · Détection · Ténèbres : répertoires optionnels des 5 lanceurs, changeables au hub</li>
@@ -1911,6 +1996,7 @@ ecrire('''
   <li>Artefact : <strong>uniquement</strong> dans un coffre désigné</li>
   <li>0 à 2 passages secrets par quête, chacun vers un coffre</li>
   <li>Armoire : le 1<sup>er</sup> fouilleur de la salle tire 2 cartes</li>
+  <li>Mare (jungle) : on peut y boire au lieu de fouiller — 1 PV, si l'on en a perdu un</li>
 </ul></section>
 
 <section><h4>Pièges</h4><ul>
@@ -1928,7 +2014,7 @@ ecrire('''
   <li>Don : au hub, sac du receveur vérifié</li>
   <li>Échange en quête : allié <strong>adjacent</strong>, séance dans les deux sens, <strong>une</strong> action</li>
   <li>Jeter : <strong>gratuit</strong>, répétable — l'objet est détruit</li>
-  <li>Revente : 50 % · artefacts : jamais</li>
+  <li>Revente : 50 % · trésors-valeurs : valeur entière · artefacts : jamais</li>
   <li>Sac = PV Body max ÷ 2 (+ bonus de classe)</li>
 </ul></section>
 

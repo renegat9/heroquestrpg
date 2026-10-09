@@ -73,6 +73,7 @@ onMounted(charger);
 
 /* ---- regroupements ---- */
 const mobiliers = computed(() => guide.value?.mobiliers ?? []);
+const terrains = computed(() => guide.value?.terrains ?? []);
 const classes = computed(() => guide.value?.classes ?? []);
 const talentsParClasse = computed(() => {
     const m = {};
@@ -533,6 +534,22 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         </div>
                         <div v-else-if="m.difficulte_destruction" class="chips">
                             <span class="chip">Se met en pièces d'un jet de Body (difficulté {{ m.difficulte_destruction }})</span>
+                        </div>
+                        <div v-if="m.detruit_par_action" class="chips">
+                            <span class="chip">Se détruit d'une action d'un héros adjacent, sans jet</span>
+                        </div>
+                    </article>
+                </div>
+
+                <h3 class="grp-title"><MSym n="water" :size="16" /> Terrains <span class="grp-n">{{ terrains.length }}</span></h3>
+                <div class="card-grid">
+                    <article v-for="t in terrains" :key="t.nom" class="ent-card">
+                        <div class="ent-head">
+                            <h4>{{ t.nom }}</h4>
+                            <span v-if="t.boite_libelle" class="tag ghost" title="Boîte d'extension">{{ t.boite_libelle }}</span>
+                        </div>
+                        <div class="chips">
+                            <span v-for="(a, i) in t.avantages" :key="i" class="chip">{{ a }}</span>
                         </div>
                     </article>
                 </div>
