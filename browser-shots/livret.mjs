@@ -32,13 +32,21 @@ for (const [lbl, name] of [
     ['Bestiaire', '05-guide-bestiaire'],
     ['Équipement', '06-guide-equipement'],
     ['Sorts', '07-guide-sorts'],
-    ['Pièges', '08-guide-pieges'],
+    ['Donjon', '08-guide-pieges'],
 ]) {
     try {
         await p.click(`.guide-tab:has-text("${lbl}")`);
         await shoot(p, name);
     } catch (e) { console.log('SKIP', name, e.message.split('\n')[0]); }
 }
+
+// Mobilier attaquable, murs magiques et thèmes : la suite de l'onglet « Donjon ».
+try {
+    await p.click('.guide-tab:has-text("Donjon")');
+    await p.locator('h3.grp-title:has-text("Mobilier")').scrollIntoViewIfNeeded();
+    await p.evaluate(() => window.scrollBy(0, -80));
+    await shoot(p, '09-guide-mobilier');
+} catch (e) { console.log('SKIP 09-guide-mobilier', e.message.split('\n')[0]); }
 
 await ctx.close();
 await b.close();

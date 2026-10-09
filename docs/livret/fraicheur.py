@@ -72,6 +72,7 @@ DEPENDANCES = {
     '06-guide-equipement': ['resources/js/views/GuideView.vue'],
     '07-guide-sorts': ['resources/js/views/GuideView.vue'],
     '08-guide-pieges': ['resources/js/views/GuideView.vue'],
+    '09-guide-mobilier': ['resources/js/views/GuideView.vue', 'app/Http/Controllers/Api/GuideController.php'],
     '10-roster': ['resources/js/views/JoueurView.vue'],
     '11-manette-marche': ['resources/js/components/manette/MarketTab.vue'],
     '12-manette-fiche': ['resources/js/components/manette/FicheTab.vue',

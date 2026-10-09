@@ -7,10 +7,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ClasseHeros;
 use App\Models\Competence;
+use App\Models\Mobilier;
 use App\Models\Monstre;
 use App\Models\Objet;
 use App\Models\Piege;
 use App\Models\Sort;
+use App\Engine\MotsClesEquipement;
+use App\Partie\DemarreurQuete;
 use App\Partie\EquipementDepart;
 use Illuminate\Http\JsonResponse;
 
@@ -80,8 +83,15 @@ class GuideController extends Controller
                 ->all(),
 
             'monstres' => Monstre::query()
-                ->get(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites'])
-                ->sortBy(fn ($m) => sprintf('%d|%04d|%s', $rangTier[$m->tier] ?? 9, $m->cout, $m->nom_base))
+                // `boite` + `boite_libelle` (2026-10-09) : la boîte d'extension d'où
+                // vient la créature. Le libellé est celui du serveur
+                // (`DemarreurQuete::LIBELLES_BOITES`), jamais un identifiant brut.
+                ->get(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite'])
+                ->map(fn (Monstre $m) => [
+                    ...$m->only(['nom_base', 'deplacement', 'attaque', 'defense', 'pv_body', 'pv_mind', 'tier', 'cout', 'capacites', 'boite']),
+                    'boite_libelle' => $m->boite === null ? null : app(DemarreurQuete::class)->libelleBoiteBestiaire((string) $m->boite),
+                ])
+                ->sortBy(fn ($m) => sprintf('%d|%04d|%s', $rangTier[$m['tier']] ?? 9, $m['cout'], $m['nom_base']))
                 ->values()
                 ->all(),
 
@@ -93,7 +103,15 @@ class GuideController extends Controller
                 // poids). C'est elle qui ferme la cotte au Druide et au Rogue,
                 // et qui coûte au Barde son dé de défense supplémentaire.
                 ->get(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement', 'metallique'])
-                ->sortBy(fn ($o) => sprintf('%d|%06d|%s', $rangCategorie[$o->categorie] ?? 9, $o->prix_base, $o->nom))
+                // `avantages` (2026-10-09) : ce que fait la pièce, TRADUIT PAR LE
+                // SERVEUR (`MotsClesEquipement::avantages()`, le même texte que le
+                // sac du téléphone et le livret). Le client ne retraduit plus la clé
+                // mécanique : 43 objets s'affichaient en « relance des attaque ».
+                ->map(fn (Objet $o) => [
+                    ...$o->only(['nom', 'categorie', 'rarete', 'prix_base', 'emplacement', 'effet', 'tag_equipement', 'metallique']),
+                    'avantages' => MotsClesEquipement::avantages((array) $o->effet),
+                ])
+                ->sortBy(fn ($o) => sprintf('%d|%06d|%s', $rangCategorie[$o['categorie']] ?? 9, $o['prix_base'], $o['nom']))
                 ->values()
                 ->all(),
 
@@ -103,6 +121,27 @@ class GuideController extends Controller
             'sorts' => Sort::query()
                 ->get(['id', 'element', 'nom', 'type', 'difficulte_parchemin', 'effet'])
                 ->sortBy(fn ($s) => sprintf('%d|%s', $rangElement[$s->element] ?? 9, $s->nom))
+                ->values()
+                ->all(),
+
+            // MOBILIER (2026-10-09) : taille, vue, fouille et, depuis le mobilier
+            // attaquable, les points de vie et les dés de défense. Sans cette
+            // rubrique, un Haut Autel qui « se combat comme un monstre » n'était
+            // décrit nulle part.
+            'mobiliers' => Mobilier::query()->orderBy('id')
+                ->get(['nom', 'largeur', 'hauteur', 'bloque_vue', 'fouillable', 'difficulte_destruction', 'pv_body', 'defense_dice', 'boite'])
+                ->map(fn (Mobilier $m) => [
+                    ...$m->only(['nom', 'largeur', 'hauteur', 'bloque_vue', 'fouillable', 'difficulte_destruction', 'pv_body', 'defense_dice', 'boite']),
+                    'attaquable' => $m->pv_body !== null,
+                    'boite_libelle' => $m->boite === null ? null : app(DemarreurQuete::class)->libelleBoiteBestiaire((string) $m->boite),
+                ])
+                ->values()
+                ->all(),
+
+            // THÈMES de campagne : les boîtes dont le bestiaire peut colorer une
+            // campagne (`BOITES_THEMATIQUES`), nommées comme le serveur les nomme.
+            'themes' => collect(DemarreurQuete::BOITES_THEMATIQUES)
+                ->map(fn (string $cle) => ['cle' => $cle, 'libelle' => DemarreurQuete::LIBELLES_BOITES[$cle] ?? $cle])
                 ->values()
                 ->all(),
 

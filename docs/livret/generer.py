@@ -733,6 +733,15 @@ sac ordinaire — une arme à une main compte double, une pour la main droite, u
 gauche — produisait <strong>neuf boutons</strong> rien que pour s'équiper. Relevé en jeu le
 2026-09-18 : dix options au menu pour une seule pièce au sac.</p>
 
+<h3>Un allié est toujours joué par son joueur</h3>
+<p>Mercenaire recruté, allié animal, captif libéré en cours de quête : <strong>un allié n'est
+jamais joué par la machine</strong>. Il agit <strong>dans le tour du héros qui le contrôle</strong>
+— celui qui l'a recruté ou libéré —, juste après lui, et depuis <strong>le téléphone de ce
+joueur</strong>, qui reçoit alors un second menu. Ce menu ne propose que ce qu'un allié sait faire :
+<strong>se déplacer et attaquer</strong>, avec les mêmes règles que n'importe quel combattant.
+Ni porte, ni potion, ni fouille. Le serveur publie les options légales du second menu comme
+celles du premier : le téléphone n'en invente aucune.</p>
+
 <h3>Les gestes qui ne coûtent rien</h3>
 <p>Une poignée de gestes n'entament <strong>aucun créneau</strong> du tour, ni le mouvement ni
 l'action : ouvrir une porte, jeter un objet, activer un style élémentaire, proposer la retraite
@@ -748,9 +757,9 @@ ecrire('<div class="duo">' +
            "Le sous-choix d'un sort. « Sommeil » est grisé : déjà lancé, il ne redeviendra "
            "disponible qu'à la prochaine quête.", 'fig tel') +
        fig('32-manette-combat',
-           "Hors de son tour, Grom suit le fil du combat : le Tireur d'Au-delà touche Borin, "
-           "qui rend le coup à l'Ossement Scellé. Le détail des dés reste complet, coup par "
-           "coup, jamais résumé.", 'fig tel') +
+           "Hors de son tour, Aldric suit le fil du combat : l'Ossement Enchaîné attaque "
+           "Sylvaine, qui pare avec deux boucliers blancs ; le Dévot de l'Étoile Noire frappe "
+           "Borin. Le détail des dés reste complet, coup par coup, jamais résumé.", 'fig tel') +
        '</div>')
 ecrire('''
 <div class="encadre">
@@ -818,11 +827,10 @@ ecrire('''
 </ul>
 ''')
 ecrire(fig('22-table-donjon',
-           "Une galerie déjà bien entamée, cinq monstres révélés. À gauche, le fil des "
-           "événements donne chaque jet ; en haut, la barre d'initiative mêle héros et monstres, "
-           "sous les deux thèmes de la campagne ; à droite, l'état du groupe — Aldric est tombé "
-           "à 0 point de Body (« il glisse au sol au milieu du fracas », dit le maître de jeu), "
-           "encore relevable jusqu'à la fin du combat."))
+           "Un combat à l'entrée du donjon, sur l'escalier lui-même. À gauche, le fil des "
+           "événements donne chaque jet — Aldric terrasse un Écumeur, le Fileur d'Âmes touche "
+           "Borin (−2 PV) ; en haut, la barre d'initiative mêle héros et monstres, sous les deux "
+           "thèmes de la campagne ; à droite, l'état du groupe, Borin déjà entamé (5/7)."))
 fin()
 
 # ============================================= 7. L'ÉQUIPEMENT ============
@@ -978,8 +986,8 @@ def sorts_de(el):
     return [s for s in SORTS if s['element'] == el]
 
 chapitre(8, 'La magie',
-         "Quatre éléments, douze sorts, une fois chacun par quête — et des parchemins pour "
-         "ceux qui ne lancent rien.")
+         "Quatre éléments, des répertoires de classe et trois répertoires optionnels, une fois "
+         "chaque sort par quête — et des parchemins pour ceux qui ne lancent rien.")
 ecrire('''
 <h3>Qui lance quoi</h3>
 <table><thead><tr><th>Héros</th><th>Accès à la magie</th></tr></thead><tbody>
@@ -1041,6 +1049,47 @@ for cle in ('elfique', 'barde', 'druide', 'warlock'):
         ecrire(f'<div class="vg">{"<img src=\"" + src + "\" alt=\"\">" if src else ""}'
                f'<span>{e(s["nom"])}</span></div>')
     ecrire('</div>')
+TEXTE_SORT_MORCAR = {
+ 'Mur de Pierre': "Bâtit un mur magique qui <strong>couvre 2 cases libres</strong>, sans figure dessus. Il a <strong>1 point de Body et 6 dés de défense</strong> : on l'abat en l'attaquant comme un monstre, ou il tient. Il bloque le passage <em>et</em> la vue.",
+ 'Invisibilité': "Le lanceur devient <strong>invisible jusqu'au début de son prochain tour</strong> : aucune attaque ne peut le viser et aucun sort ne l'atteint. Mais <strong>il ne peut pas attaquer</strong> non plus.",
+ 'Désapprentissage': "Contre un <strong>lanceur de sorts adverse</strong> (un sorcier du Dread) : il perd un sort au hasard, <strong>retiré pour la durée de la quête</strong>. Un sort qu'on ne lui verra plus.",
+ 'Trésor convoité': "Au lieu de tirer une carte de trésor, on en <strong>tire trois</strong> et l'on <strong>remet dans le paquet celles dont on ne veut pas</strong> : on garde le reste.",
+ 'Vision du futur': "Se lance <strong>à tout moment, sans action</strong> : on <strong>relance tous les dés</strong> d'une attaque, d'une défense ou d'un déplacement. Le serveur propose la relance <strong>juste après le jet</strong>, et un refus par défaut tombe après 45 secondes — jamais un groupe figé.",
+ 'Clairvoyance': "Le lanceur choisit une <strong>salle encore inexplorée</strong>, désignée par sa direction (« à l'est, à 2 cases ») et jamais par ce qu'elle contient : le menu ne trahit pas une salle vide. Le contenu s'affiche sur <strong>sa</strong> manette.",
+ "Voile d'ombre": "Pose une zone de ténèbres de <strong>3 cases sur 2</strong>. <strong>Héros et monstres qui s'y tiennent ne peuvent ni attaquer ni être attaqués</strong>, et la zone coupe la vue vers elle comme à travers elle. Trois jetons, un de moins au début de chaque tour du lanceur : le dernier retiré, le voile se dissipe.",
+ 'Chaînes des Ténèbres': "Un monstre en vue <strong>ne peut ni bouger ni attaquer</strong> jusqu'au début du prochain tour du lanceur. Il peut en revanche <strong>se défendre et lancer des sorts</strong>.",
+ 'Flèches de la Nuit': "Deux dés d'attaque contre n'importe quel monstre en vue. La cible se défend avec <strong>autant de dés que de points de Mind</strong> — et un monstre à <strong>Mind 0</strong> ne peut pas du tout se défendre.",
+}
+ecrire('<h3>Trois répertoires optionnels : Protection, Détection, Ténèbres</h3>'
+       '<p>Venus de <em>Wizards of Morcar</em>, ils ne sont rattachés à aucune classe. Les '
+       '<strong>cinq classes de lanceurs</strong> — magicien, elfe, barde, druide, warlock — '
+       'peuvent en choisir un <strong>à la place d\'un de leurs répertoires</strong> : un '
+       'magicien garde ses trois jeux, un elfe son jeu unique, et le choix se rejoue '
+       '<strong>entre deux quêtes</strong>, dans un écran du hub. Comme pour le répertoire '
+       'elfique, on emporte ce que la prochaine quête semble demander.</p>')
+for cle, nom in (('protection', 'Spells of Protection'), ('detection', 'Spells of Detection'),
+                 ('tenebres', 'Spells of Darkness')):
+    liste = sorts_de(cle)
+    if not liste:
+        continue
+    ecrire(f'<h4>{nom}</h4><table><thead><tr><th class="vig"></th><th>Sort</th>'
+           '<th class="n">Parchemin</th><th>Effet</th></tr></thead><tbody>')
+    for s_ in liste:
+        src = IMG['sorts'].get(s_['id'])
+        vig = f'<img src="{src}" alt="">' if src else ''
+        ecrire(f'<tr><td class="vig">{vig}</td><td class="nom">{e(s_["nom"])}</td>'
+               f'<td class="n">{s_["difficulte_parchemin"]}</td>'
+               f'<td>{TEXTE_SORT_MORCAR.get(s_["nom"], "—")}</td></tr>')
+    ecrire('</tbody></table>')
+ecrire('''
+<div class="encadre">
+  <h4>Un sort sans cible légale ne s'offre pas</h4>
+  <p>Le menu ne propose jamais un sort ou un parchemin qui n'aurait aucune cible permise ce
+  tour-là : plus de bouton qui s'ouvre sur une liste vide. Le <em>Conte inspirant</em> du barde
+  ne le vise d'ailleurs plus lui-même. Et un héros qui <strong>ne peut pas attaquer</strong>
+  (l'invisible, par exemple) ne voit <strong>aucune</strong> attaque à son menu.</p>
+</div>
+''')
 ecrire(fig('07-guide-sorts', "Le guide intégré donne le détail chiffré de chaque sort : dés, "
                              "soin, durée, condition appliquée."))
 fin()
@@ -1066,19 +1115,55 @@ même armure.</p>
 <strong>uniques</strong> — les artefacts — ne s'achètent, ne se revendent et ne se forgent
 jamais.</p>
 <p>Avant que quiconque ouvre l'étal, le même onglet propose déjà de <strong>recruter un
-allié</strong> : un mercenaire scripté, payé sur la bourse commune et présent pour la durée
-d'une quête — un renfort de chair pour un groupe réduit, jamais un remplaçant permanent.</p>
+allié</strong> : un mercenaire payé sur la bourse commune, joué ensuite par le joueur qui l'a
+engagé. Le prix de chaque recrutement est <strong>décidé par le serveur</strong> et affiché tel
+quel — la manette ne le recalcule pas.</p>
 ''')
 ecrire('<div class="duo">' +
        fig('11-manette-marche',
-           "Avant l'ouverture de l'étal : la case « Prêt pour la quête », et déjà deux "
-           "mercenaires à recruter contre l'or commun — l'Éclaireur désamorce comme un nain, "
-           "l'Arbalétrier frappe à distance puis à l'épée au contact.", 'fig tel') +
+           "Avant l'ouverture de l'étal : la case « Prêt pour la quête », puis les mercenaires. "
+           "Le rappel est écrit en tête — 10 po d'entretien par quête, et un mercenaire impayé "
+           "part — et l'Éclaireur (désamorce comme un nain) est grisé : le recrutement "
+           "n'ouvre qu'après deux quêtes achevées, le statut de Gardien.", 'fig tel') +
        fig('20-table-hub',
            "Le hub vu de la table, d'où l'on ouvre le marché pour tout le groupe : le bouton "
            "est à côté de « Lancer la quête » et « Clôturer », jamais cachée derrière un menu.") +
        '</div>')
 ecrire('''
+<h3>Les mercenaires se paient, et ils restent</h3>
+<p>Un mercenaire n'est plus un renfort jetable : il <strong>reste au groupe d'une quête à
+l'autre</strong>, et il coûte un <strong>entretien de 10 po par quête</strong>, quel que soit le
+thème de la campagne. L'entretien est prélevé sur la bourse commune à la <strong>victoire</strong>
+seulement — jamais sur une quête perdue, qu'une reprise peut encore défaire, sans quoi on le
+paierait deux fois. Les mercenaires sont payés dans l'ordre d'embauche, le plus ancien d'abord ;
+<strong>celui qu'on ne peut pas payer s'en va</strong>, et se rengage plein tarif. Le hub annonce
+le prélèvement : combien par tête, qui est payé, qui part faute d'or, ce qui reste en bourse.</p>
+<p>Recruter n'est ouvert qu'au <strong>statut de Gardien</strong>, que le groupe obtient en
+<strong>terminant deux quêtes</strong>. Chaque héros peut alors engager jusqu'à
+<strong>quatre mercenaires</strong>. Les captifs d'une mission de sauvetage, eux, ne se recrutent
+jamais contre de l'or : ils sont à libérer (voir <a href="#ch15">chapitre 15</a>).</p>
+
+<h3>Les faveurs de Hopekins Rest</h3>
+<p>Une fois Gardien, la fin d'une quête <strong>réussie</strong> peut valoir au groupe une
+<strong>faveur</strong> — une récompense à part, qui n'occupe <strong>ni colonne, ni rang, ni
+point de compétence</strong> de la grille de talents. Le moteur tire au hasard l'une des cinq
+faveurs qu'aucun héros actif ne détient encore, la remet à un héros actif tiré au hasard, puis
+l'annonce. Quand les cinq sont distribuées, rien ne tombe.</p>
+<table><thead><tr><th>Faveur</th><th>Ce qu'elle fait</th></tr></thead><tbody>
+<tr><td class="nom">Deadeye</td><td>Les figures, héros comme monstres, ne bloquent plus la <strong>ligne de vue</strong> du porteur pour attaquer ou lancer un sort. Murs, portes et meubles bloquent toujours.</td></tr>
+<tr><td class="nom">Weapon Expert</td><td><strong>+1 dé d'attaque</strong> avec l'arme de sa spécialité : le premier type d'arme dont le porteur frappe après avoir reçu la faveur.</td></tr>
+<tr><td class="nom">Healing Hands</td><td>Quand un héros adjacent tombe à 0 PV, il peut boire <strong>une potion de soin du porteur</strong> au lieu de la sienne.</td></tr>
+<tr><td class="nom">Hold the Line</td><td>Quand un monstre s'éloigne des huit cases qui entourent le porteur, un <strong>crâne</strong> au dé de combat lui inflige 1 PV de Body. C'est la seule exception à « aucune attaque d'opportunité ».</td></tr>
+<tr><td class="nom">Peacekeeper</td><td><strong>25 po</strong> versés à la bourse commune, à la fin d'une quête gagnée, pour chaque monstre que le porteur a réduit à 0 PV. Un allié, un piège, un sort du Dread ou un monstre qui en frappe un autre n'ouvrent pas ce droit — ni la forme d'un monstre à phases qui n'est pas encore sa mort.</td></tr>
+</tbody></table>
+<p>Une faveur qui agit sans rien dire serait injouable : <strong>Peacekeeper et Hold the Line
+s'affichent au fil du combat</strong>, et la fiche du héros porte chaque faveur avec son nom et
+son effet, en quête comme au hub.</p>
+
+<h3>La Potion de charme</h3>
+<p>Elle se <strong>boit au hub</strong>, depuis le sac — le bouton « Boire » —, et rabaisse de
+<strong>25 po</strong> le prix des <strong>trois recrutements suivants</strong> du groupe.</p>
+
 <div class="encadre avert">
   <h4>Un seul marchand, tout au prix normal</h4>
   <p>Le jeu décrit quatre profils de lieu — village isolé, bourg, cité marchande, marché noir —
@@ -1175,15 +1260,49 @@ pas une simple arête entre deux salles. Un <strong>levier</strong> posé quelqu
 donjon commande certaines portes verrouillées — mais rien n'indique lequel ouvre laquelle :
 il faut l'actionner pour le savoir, et on peut réessayer sans limite.</p>
 
+<h3>L'escalier d'entrée</h3>
+<p>Chaque quête commence et finit à un <strong>escalier en colimaçon</strong>, posé au centre
+de la salle de départ : un bloc de <strong>2×2 cases que l'on peut traverser</strong> — on s'y tient,
+on y passe, il ne retire donc aucune case libre à la salle. Jamais sur une porte. Il est visible
+dès le départ, sur l'écran de table comme sur la manette, avec son symbole à la légende.</p>
+<ul>
+  <li><strong>On y commence.</strong> Les quatre marches sont les premières cases de départ :
+      héros d'abord, puis alliés, en prenant les marches les mieux connectées en premier, puis la
+      salle du plus proche au plus lointain. Au-delà de quatre figures, les suivantes se placent
+      à côté.</li>
+  <li><strong>On n'en sort que par lui.</strong> « Quitter le donjon » n'est proposé — et
+      n'est accepté — qu'à un héros <strong>debout sur l'escalier</strong>, une fois l'objectif
+      accompli ou le donjon vidé. Le vote reste celui du chapitre 15 : le groupe sort ensemble.</li>
+  <li><strong>La retraite, elle, ne demande rien.</strong> Décrocher doit rester possible au pire
+      moment, loin de l'escalier.</li>
+</ul>
+''')
+ecrire(fig('21-table-quete',
+           "L'escalier d'entrée sur l'écran de table : le bloc 2×2 en colimaçon, marqué d'un symbole "
+           "doré, au centre de la salle de départ. Les quatre héros y commencent la quête, une figure "
+           "par marche, et c'est par lui qu'on quitte le donjon ; ici, le combat est déjà engagé "
+           "autour de lui. L'objectif reste affiché sous les deux thèmes de la campagne."))
+ecrire('''
+<p>Une carte assemblée <em>avant</em> l'arrivée de l'escalier — une campagne en cours — garde le
+comportement d'avant : on y sort de partout. Aucune quête en cours n'est rendue impossible à
+terminer.</p>
+
 <h3>Le mobilier</h3>
 <p>Il <strong>bloque le mouvement</strong> — toujours — et parfois la vue. La plupart des
 meubles se <strong>fouillent</strong>, avec leur propre table de butin : c'est le seul endroit
 du jeu qui rend une pièce d'équipement, là où les coffres ne rendent que de l'or, des potions
 et des artefacts.</p>
+<p>Il y a désormais <strong>trois façons de venir à bout d'un obstacle</strong> : le fouiller,
+le mettre en pièces d'un jet de Body, ou — pour les pièces qui portent des points de vie — le
+<strong>frapper comme un monstre</strong>. Le menu offre alors une option d'attaque contre le
+meuble adjacent, le coup est annoncé au journal et à la table, et un meuble réduit à 0 PV disparaît
+de la carte. Il lance ses dés de défense comme une créature ; l'Amas de cristal n'en a
+aucun.</p>
 ''')
 MOB = CAT['mobiliers']
 ecrire('<table><thead><tr><th class="vig"></th><th>Meuble</th><th class="n">Taille</th>'
-       '<th class="n">Bloque la vue</th><th>Ce qu\'on y trouve</th></tr></thead><tbody>')
+       '<th class="n">Bloque la vue</th><th class="n">Points de vie</th>'
+       '<th>Ce qu\'on y trouve</th></tr></thead><tbody>')
 BUTIN_MOB = {
     'Table': "rien — c'est un obstacle",
     'Coffre': "or, potion, ou une pièce d'équipement",
@@ -1193,15 +1312,38 @@ BUTIN_MOB = {
     'Bibliothèque': "des parchemins, un peu d'or",
     "Râtelier d'armes": "armes et armures",
     'Armoire': "consommables, outils, or",
+    'Caisse de ravitaillement': "se fouille comme un coffre — se met aussi en pièces d'un jet de Body (<em>Against the Ogre Horde</em>)",
+    'Amas de cristal': "rien — un obstacle qui se brise et qui ne se défend pas (<em>Jungles of Delthrak</em>)",
+    'Haut Autel': "rien — se combat comme un monstre (<em>Wizards of Morcar</em>)",
+    'Coffre du Dread': "rien — se combat comme un monstre (<em>Wizards of Morcar</em>)",
+    'Mur de Pierre': "posé par un sort, jamais au hasard : voir le chapitre 8",
+    'Mur de Glace': "posé par le Maître des orages",
+    'Mur de Feu': "posé par le Haut mage",
 }
 for m in MOB:
     src = IMG['mobiliers'].get(m['id'])
     ecrire(f'<tr><td class="vig">{"<img src=\"" + src + "\" alt=\"\">" if src else ""}</td>'
            f'<td class="nom">{e(m["nom"])}</td><td class="n">{m["largeur"]}×{m["hauteur"]}</td>'
            f'<td class="n">{"oui" if m["bloque_vue"] else "non"}</td>'
+           f'<td class="n">{(str(m["pv_body"]) + " PV · " + str(m["defense_dice"]) + " dés") if m.get("pv_body") is not None else "—"}</td>'
            f'<td>{BUTIN_MOB.get(m["nom"], "—")}</td></tr>')
 ecrire('</tbody></table>')
+ecrire(fig('09-guide-mobilier',
+           "Le guide intégré, onglet « Donjon » : sous les pièges, le mobilier avec sa taille, la vue qu'il "
+           "bloque, et — pour les pièces attaquables — ses points de vie et ses dés de défense."))
 ecrire('''
+<div class="encadre">
+  <h4>Les murs magiques</h4>
+  <p>Trois sorts bâtissent un mur <strong>en cours de quête</strong> : le <em>Mur de Pierre</em>
+  d'un héros (répertoire Protection), le <em>Mur de Glace</em> du Maître des orages et le
+  <em>Mur de Feu</em> du Haut mage. Chacun <strong>couvre 2 cases libres</strong> — sans figure dessus —,
+  a <strong>1 PV et 6 dés de défense</strong>, bloque le passage <em>et</em> la vue, et s'abat en
+  l'attaquant. Un seul point de vie perdu détruit le mur entier.</p>
+  <p>Le <em>Voile d'ombre</em> est d'une autre nature : une zone de ténèbres de 3×2 cases où
+  personne n'attaque ni n'est attaqué, et qui coupe la vue. Elle disparaît avec son troisième
+  jeton.</p>
+</div>
+
 <div class="encadre avert">
   <h4>Connecté ne veut pas dire jouable</h4>
   <p>Le placement du mobilier et des monstres garde toujours un <strong>plancher de cases
@@ -1236,10 +1378,6 @@ ecrire(fig('74-scene-salle',
            "Quand une porte s'ouvre sur des créatures, la table les présente avec leurs "
            "caractéristiques. Les noms sont ceux que le maître du jeu leur a donnés ; les chiffres "
            "sont ceux du catalogue, et l'IA n'y touche pas.", 'fig scene'))
-ecrire(fig('21-table-quete',
-           "L'en-tête d'une quête en cours : le titre du « Gardien des Premiers Sceaux », "
-           "l'objectif toujours visible sous les deux thèmes de la campagne, et la barre "
-           "d'initiative qui mêle les quatre héros à cinq monstres déjà révélés."))
 fin()
 
 # ======================================== 11. FOUILLER LE DONJON ==========
@@ -1361,6 +1499,12 @@ EFFET_PIEGE = {
  'Piège de coffre': "à l'ouverture : 1 dégât <em>ou</em> empoisonnement",
  'Aiguille empoisonnée': "à l'ouverture : 1 dégât <em>ou</em> empoisonnement",
  'Fiole de poison': "à l'ouverture : <strong>empoisonné</strong>",
+ 'Lame balançoire': "une lame tranche <strong>trois cases en ligne</strong> : 2 dés d'attaque contre chaque héros touché, qui se défend normalement. Persistante ; elle se neutralise d'un geste qui lui est propre.",
+ 'Fosse des ténèbres': "une fosse dont la chute coûte <strong>1 PV sans armure ou avec une armure non métallique, 2 en armure métallique, 3 en armure de plates</strong>. Se saute une fois détectée ; <strong>ne se désamorce pas</strong>.",
+ 'Piège de téléportation': "<strong>introuvable à la fouille</strong>, posé par paire : celui qui marche sur l'un réapparaît sur l'autre.",
+ "Piège de l'ouragan": "<strong>introuvable</strong>, en couloir seulement : repousse tous les héros du couloir à l'opposé, jusqu'à 8 cases ou jusqu'au premier mur, meuble ou piège.",
+ "Piège d'embrasement": "<strong>introuvable</strong> ; il s'amorce en silence puis <strong>explose au début du tour du maître du jeu</strong>, sur toute la salle ou le couloir, héros et monstres — dégâts de feu, 3 dés d'attaque, défense normale. On le désarme en défaussant une <em>Tempête</em> ou un sort d'Eau.",
+ 'Poison': "à l'ouverture : 1 dé de combat, sans défense",
 }
 ecrire('<table><thead><tr><th class="vig"></th><th>Piège</th><th class="n">Désamorçable</th>'
        '<th class="n">Usage</th><th>Effet</th></tr></thead><tbody>')
@@ -1371,6 +1515,15 @@ for p_ in PIE:
            f'<td class="n">{e(p_["usage"])}</td><td>{EFFET_PIEGE.get(p_["nom"], "—")}</td></tr>')
 ecrire('</tbody></table>')
 ecrire('''
+<div class="encadre">
+  <h4>Les pièges magiques de Morcar</h4>
+  <p>Téléportation, Ouragan, Embrasement : trois pièges que <strong>la fouille ne révèle
+  jamais</strong> — ni l'<em>Œil du mineur</em>, ni la Potion de vision — et à usage unique. Seul
+  le pas qui marche dessus les déclenche, et la table annonce chaque effet : le héros emporté
+  ailleurs, les héros repoussés dans le couloir, l'embrasement amorcé puis son explosion.
+  Ils n'existent que sous le thème <em>Wizards of Morcar</em>.</p>
+</div>
+
 <div class="encadre">
   <h4>Le bloc de pierre reste, et il faut s'en écarter</h4>
   <p>La Chute de blocs ne se relève pas : sa case devient un <strong>bloc de pierre
@@ -1396,7 +1549,8 @@ ecrire('''
   tour) · <strong>Apeuré</strong> (moins de dés, ne peut avancer vers la menace) ·
   <strong>Endormi</strong> · <strong>Commandé</strong> (agit pour l'ennemi un tour) ·
   <strong>Ralenti</strong> · <strong>Immobilisé</strong> · <strong>Caché</strong> ·
-  <strong>Renforcé</strong> · <strong>Tombé</strong>. Chaque condition porte son effet, sa
+  <strong>Renforcé</strong> · <strong>Tombé</strong> · <strong>Enchaîné</strong> (ni
+  déplacement ni attaque jusqu'au prochain tour du lanceur, mais il se défend et lance des sorts). Chaque condition porte son effet, sa
   durée <em>et sa source</em> — la fiche du héros dit toujours d'où elle vient.</p>
   <p>Les morts-vivants (Mind 0) sont immunisés à tout ce qui est <strong>mental</strong> :
   apeuré, endormi, commandé.</p>
@@ -1414,6 +1568,13 @@ LIB_CAP = {
  'tacticien': 'bouge avant ET après son attaque', 'venimeux': 'venimeux',
  'choix_attaque': 'choisit son attaque', 'spawn': 'fait surgir des rejetons',
  'vol_draconique': 'vole par-dessus les figures', 'sort_a_volonte': 'un sort à volonté',
+ 'attaque_diagonale': 'attaque en diagonale', 'deux_attaques': 'deux attaques',
+ 'reactions_defense': 'ignore un coup, une fois',
+ 'recompense_reddition': 'vaincu, il paie sa rançon',
+ 'increvable_une_fois': 'tombe à 1 PV au lieu de 0, une fois',
+ 'sorts_uniques': 'sorts du Dread, une fois chacun par quête',
+ 'embuscade': 'embusqué dans un coffre',
+ 'coup_de_corne': 'encorne qui finit son tour au contact',
 }
 def capacites_de(m):
     """`capacites` est tantôt une liste de mots, tantôt un objet dont les clés
@@ -1431,7 +1592,8 @@ def capacites_de(m):
 LIB_BOITE = {'base': 'Boîte de base', 'horreur_des_glaces': 'Horreur des Glaces',
              'horde_ogre': 'Horde des Ogres', 'mage_du_miroir': 'Mage du Miroir',
              'dread_moon': 'Lune du Dread', 'jungles_delthrak': 'Jungles de Delthrak',
-             'first_light': 'First Light',
+             'first_light': 'First Light', 'prophecy_telor': 'Prophecy of Telor',
+             'wizards_of_morcar': 'Wizards of Morcar',
              None: 'Élites du donjon'}
 MON = CAT['monstres']
 
@@ -1444,6 +1606,17 @@ défense, points de Body, points de Mind. L'IA le <strong>renomme et le redécri
 le thème de la campagne — un gobelin devient « Fouilleur de cendres », un squelette « Ossement
 de la Forge » — mais ses statistiques ne bougent pas d'un pouce. C'est exactement la même
 créature, mieux racontée.</p>
+
+<div class="encadre">
+  <h4>Les valeurs des cartes 2021, partout</h4>
+  <p>Les huit créatures de la boîte de base portent les chiffres de leurs <strong>cartes
+  officielles 2021</strong>, et non plus ceux d'un paquet de fans qui les avait remplacés : Zombie
+  5/2/3/1/0, Momie 4/3/4/2/0, Guerrier du Chaos 7/4/4/3/3, Gargouille 6/4/5/3/4 (déplacement,
+  attaque, défense, Body, Mind). La neuvième, l'<strong>Abomination</strong> (6/3/3/2/3), entre
+  au bestiaire. Plus aucun monstre ordinaire ne se contente d'un seul point de Body : les vraies
+  cartes le contredisent. Le <em>coût</em> de rencontre est recalculé sur ces chiffres, sans qu'aucune
+  créature ne change de palier.</p>
+</div>
 
 <div class="encadre">
   <h4>Mind 0 = immunité mentale</h4>
@@ -1476,6 +1649,71 @@ for tier, titre, intro in (
     ecrire('</tbody></table>')
 
 ecrire('''
+<h3>Les monstres à phases</h3>
+<p>Certains boss ne meurent pas au premier zéro : <strong>à 0 point de Body, ils passent à la
+forme suivante</strong>. Leur Body et leur Mind sont ceux de la fiche ; ce qui change d'une forme à
+l'autre, ce sont le déplacement, l'attaque, la défense — et parfois le nom. Le changement de
+forme est <strong>annoncé</strong> au journal, au téléphone et sur la table, jamais subi en
+silence. Un seul point de passage décide de la mort d'un monstre, quel que soit le chemin des
+dégâts : coup, sort, piège ou braise.</p>
+<ul>
+  <li><strong>Gruzbella Hammerhand</strong> (<em>Against the Ogre Horde</em>) : trois formes,
+      <em>Hammerhand</em> puis <em>Déterminée</em> puis <em>Imprudente</em>. Chacune peut
+      <strong>ignorer les dégâts d'un coup, une fois</strong>. Vaincue sous sa dernière forme, elle
+      ne meurt pas : elle <strong>s'incline et verse 1000 po</strong> à la bourse commune.</li>
+  <li><strong>Spawn of the Pit</strong> : deux formes, la seconde <em>déchaînée</em> — plus
+      rapide, plus brutale, et à peine défendue.</li>
+  <li><strong>Gretzl la Porte-Fléau</strong> (<em>Jungles of Delthrak</em>) : trois formes, dont
+      les deux dernières ont leur propre nom, <strong>Demonspider</strong> puis
+      <strong>Demonape</strong>.</li>
+  <li><strong>Sir Ragnar</strong> (<em>Rise of the Dread Moon</em>) n'a pas de phases mais
+      est <strong>increvable une fois</strong> : la première fois que son Body tombe à 0, il reste
+      à 1.</li>
+</ul>
+<p>Une rencontre ne démarre jamais déjà transformée : seule la première forme se tire, les
+suivantes ne s'atteignent qu'en jeu.</p>
+
+<h3>Quelques traits d'extension</h3>
+<ul>
+  <li><strong>Assassin</strong> (<em>Rise of the Dread Moon</em>) : il peut <strong>attaquer en
+      diagonale</strong>. C'est lu au point même qui décide de son adjacence d'attaque.</li>
+  <li><strong>Rejeton putride</strong> : venimeux, et il <strong>s'accroche</strong> — une figurine
+      qui devient un jeton sur le héros au contact.</li>
+  <li><strong>Dreadshifter</strong> (<em>Wizards of Morcar</em>) : <strong>embusqué dans un
+      coffre</strong>. Le coffre qui ne se fouille jamais livre la créature dès que le premier
+      héros entre dans les huit cases qui l'entourent.</li>
+  <li><strong>Minotaure</strong> (<em>Wizards of Morcar</em>) : son <strong>coup de corne</strong>
+      frappe le héros qui finit son tour à son contact, en plus de son attaque.</li>
+  <li><strong>Golem</strong> (<em>Wizards of Morcar</em>) : Mind 0, donc insensible à la magie
+      mentale, mais une défense de Gargouille.</li>
+</ul>
+
+<h3>Les cinq Sorciers du Dread</h3>
+<p><em>Wizards of Morcar</em> apporte cinq sorciers, chacun avec <strong>six sorts</strong> qui lui sont
+propres. La règle de leur carte : un sorcier lance <strong>un sort par tour, à la place de son
+attaque</strong>, et <strong>chaque sort ne sert qu'une fois par quête</strong>. Ce sont tous des
+lanceurs que le <em>Désapprentissage</em> d'un héros peut priver d'un sort.</p>
+<table><thead><tr><th>Sorcier</th><th>Ce qu'il apporte</th></tr></thead><tbody>
+<tr><td class="nom">Maître des orages</td><td>Mur de glace sur 2 cases, éclair, séisme. Un mur magique coupe l'éclair et le séisme.</td></tr>
+<tr><td class="nom">Haut mage</td><td>Mur de feu sur 2 cases, possession, désapprentissage <em>contre un héros</em>.</td></tr>
+<tr><td class="nom">Nécromancien</td><td>Relève des morts — en réaction, quand une créature tombe.</td></tr>
+<tr><td class="nom">Mage de guerre orque</td><td>Appels d'orques et de gobelins, buffs de faction, bouclier à jetons.</td></tr>
+<tr><td class="nom">Artificière</td><td>Marteau de la Ruine, invocations du Golem et du Dreadshifter.</td></tr>
+</tbody></table>
+<p>Sous le thème <em>Wizards of Morcar</em>, l'<strong>Artificière est le seul boss</strong> de la
+campagne ; les quatre autres, les « Lieutenants de Morcar », sont ses sous-boss et gardent
+leurs six sorts.</p>
+
+<div class="encadre">
+  <h4>Le thème de campagne</h4>
+  <p>Chaque campagne se fige, à son premier lancement, sur le <strong>thème</strong> d'une boîte
+  d'extension : Rise of the Dread Moon, The Mage of the Mirror, Against the Ogre Horde, Jungles
+  of Delthrak, The Frozen Horror, First Light, et désormais <strong>Wizards of Morcar</strong>.
+  C'est lui qui décide quelles créatures et quels pièges de boîte peuplent ses donjons : Haut
+  Autel, Coffre du Dread, pièges magiques et trésors de Morcar n'apparaissent que sous ce
+  thème. Une campagne <em>en cours</em> ne change jamais de thème en route.</p>
+</div>
+
 <h3>Les sorts de Dread</h3>
 <p>C'est la magie de l'adversaire, et elle suit exactement les mêmes règles de résolution que
 celle des héros — <strong>c'est le Mind des héros qui sert de bouclier</strong>. Elle est
@@ -1562,6 +1800,31 @@ qu'on reste</strong> : personne ne voit sa fouille écourtée par un compagnon p
 sous-boss, vaincre le boss, ou atteindre la salle désignée et rapporter ce qu'elle garde — ou,
 en dernier recours, si le donjon est entièrement vidé. Mieux vaut rentrer bredouille que rester
 enfermé.</p>
+<p>Et l'option n'est offerte qu'à un héros <strong>debout sur l'escalier d'entrée</strong> (voir
+le <a href="#ch10">chapitre 10</a>) : l'objectif accompli, il faut encore rentrer. C'est le vote
+du groupe qui fait ensuite sortir tout le monde.</p>
+
+<h3>La mission de sauvetage</h3>
+<p>Une quête peut avoir pour objectif de <strong>secourir quelqu'un</strong>. Le captif est posé
+dans la salle la plus profonde — la même qu'un coffre d'artefact —, <strong>infranchissable</strong>
+comme un meuble tant qu'on ne l'a pas libéré. Un héros à son contact choisit alors
+<strong>« Libérer »</strong> au menu, une action du tour comme relever un compagnon. Le captif devient
+<strong>l'allié temporaire du libérateur</strong>, joué par son joueur (voir le chapitre 5), pour
+le reste de la quête. L'objectif est rempli quand <strong>le captif libéré, et vivant, se tient sur
+l'escalier</strong> : la bannière d'objectif dit « ramener le captif à l'escalier ». S'il meurt avant,
+la quête échoue.</p>
+<p>Il y a deux sortes de captifs.</p>
+<ul>
+  <li><strong>Le captif-figurine</strong> a une vraie carte : <strong>Gothar</strong> (<em>The
+      Frozen Horror</em>) se déplace, combat, et peut mourir. C'est aussi le cas de <strong>Sir
+      Ragnar</strong>, le captif de Morcar, increvable une fois.</li>
+  <li><strong>Le captif escorté</strong> n'a ni figurine ni statistique : le <strong>Prospecteur</strong>
+      et la <strong>Princesse Millandriel</strong> (<em>The Mage of the Mirror</em>) sont des
+      <strong>jetons</strong> que le libérateur porte avec lui. L'objectif est rempli quand
+      <strong>ce héros</strong> atteint l'escalier. S'il tombe, le captif est <strong>repris et
+      retourne dans sa cellule</strong> : il faut aller le rechercher. Un captif escorté ne peut
+      donc jamais mourir, seulement être perdu.</li>
+</ul>
 
 <h3>Battre en retraite</h3>
 <p>Cette option-là <strong>n'a aucune condition</strong>, et c'est tout l'intérêt : elle doit
@@ -1633,10 +1896,11 @@ ecrire('''
 </ul></section>
 
 <section><h4>La magie</h4><ul>
-  <li>Un sort : <strong>une fois par quête</strong></li>
+  <li>Un sort : <strong>une fois par quête</strong> — sauf <em>Vision du futur</em> : relance <strong>sans action</strong>, juste après le jet</li>
   <li>Tout revient <strong>entre</strong> les quêtes — aucun repos</li>
   <li>Sorts mentaux : binaires, Mind 0 = immunisé</li>
   <li>Parchemin : auto pour un lanceur, <strong>jet de Mind</strong> sinon</li>
+  <li>Protection · Détection · Ténèbres : répertoires optionnels des 5 lanceurs, changeables au hub</li>
   <li>Le tir ami existe</li>
 </ul></section>
 
@@ -1666,6 +1930,15 @@ ecrire('''
   <li>Jeter : <strong>gratuit</strong>, répétable — l'objet est détruit</li>
   <li>Revente : 50 % · artefacts : jamais</li>
   <li>Sac = PV Body max ÷ 2 (+ bonus de classe)</li>
+</ul></section>
+
+<section><h4>Escalier, alliés, captifs</h4><ul>
+  <li>On <strong>commence</strong> sur l'escalier 2×2 ; on ne <strong>quitte</strong> le donjon que debout dessus (la retraite, sans condition)</li>
+  <li>Un allié est <strong>toujours joué par son joueur</strong> : second menu, dépl. + attaque</li>
+  <li>Sauvetage : libérer au contact, <strong>ramener le captif à l'escalier</strong></li>
+  <li>Captif escorté (jeton) : s'il tombe, retour en cellule</li>
+  <li>Mercenaire : <strong>10 po d'entretien</strong> par quête, Gardien après 2 quêtes, 4 par héros</li>
+  <li>Meuble à PV : on le frappe comme un monstre</li>
 </ul></section>
 
 <section><h4>Les votes</h4><ul>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
+use Database\Seeders\MobilierSeeder;
 use Database\Seeders\MonstreSeeder;
 use Database\Seeders\ObjetSeeder;
 use Database\Seeders\PiegeSeeder;
@@ -18,6 +19,7 @@ beforeEach(function () {
     $this->seed([
         ClasseHerosSeeder::class, CompetenceSeeder::class,
         MonstreSeeder::class, ObjetSeeder::class, SortSeeder::class, PiegeSeeder::class,
+        MobilierSeeder::class,
     ]);
 });
 
@@ -186,4 +188,37 @@ it('expose la provenance des cartes, portées et non portées', function () {
         expect(in_array($carte['nom'], $noms, true))
             ->toBeTrue("{$carte['carte']} → « {$carte['nom']} » absent du catalogue exposé.");
     }
+});
+
+
+it('publie ce que fait chaque objet, déjà traduit par le serveur', function () {
+    $objets = collect($this->getJson('/api/guide')->assertOk()->json('objets'));
+
+    // Le client ne retraduit plus la clé mécanique : `avantages` est la décision
+    // du serveur, la même que le sac du téléphone et le livret.
+    $sans = $objets->filter(fn ($o) => ! empty($o['effet']) && empty($o['avantages']))->pluck('nom')->all();
+    expect($sans)->toBe([], 'Objets sans texte d\'effet publié : '.implode(', ', $sans));
+});
+
+it('publie le mobilier avec ses points de vie quand il est attaquable', function () {
+    $mobiliers = collect($this->getJson('/api/guide')->assertOk()->json('mobiliers'))->keyBy('nom');
+
+    expect($mobiliers)->not->toBeEmpty()
+        ->and($mobiliers['Haut Autel']['attaquable'])->toBeTrue()
+        ->and($mobiliers['Haut Autel']['pv_body'])->toBe(6)
+        ->and($mobiliers['Mur de Pierre']['defense_dice'])->toBe(6)
+        ->and($mobiliers['Table']['attaquable'])->toBeFalse();
+});
+
+it('publie les thèmes de campagne sous leur libellé, jamais un identifiant brut', function () {
+    $data = $this->getJson('/api/guide')->assertOk()->json();
+
+    $themes = collect($data['themes']);
+    expect($themes->pluck('cle')->all())->toBe(\App\Partie\DemarreurQuete::BOITES_THEMATIQUES)
+        ->and($themes->every(fn ($t) => $t['libelle'] !== $t['cle']))->toBeTrue()
+        ->and($themes->pluck('libelle'))->toContain('Wizards of Morcar');
+
+    // Chaque créature d'extension nomme sa boîte.
+    $morcar = collect($data['monstres'])->firstWhere('nom_base', 'Artificière');
+    expect($morcar['boite_libelle'])->toBe('Wizards of Morcar');
 });

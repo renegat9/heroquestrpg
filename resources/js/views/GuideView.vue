@@ -35,7 +35,7 @@ const ONGLETS = [
     ['bestiaire', 'skull', 'Bestiaire'],
     ['equipement', 'inventory_2', 'Équipements'],
     ['sorts', 'auto_awesome', 'Sorts'],
-    ['pieges', 'crisis_alert', 'Pièges'],
+    ['pieges', 'crisis_alert', 'Donjon'],
     ['cartes', 'style', 'Cartes sources'],
 ];
 
@@ -72,6 +72,7 @@ async function charger() {
 onMounted(charger);
 
 /* ---- regroupements ---- */
+const mobiliers = computed(() => guide.value?.mobiliers ?? []);
 const classes = computed(() => guide.value?.classes ?? []);
 const talentsParClasse = computed(() => {
     const m = {};
@@ -406,6 +407,7 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                         <article v-for="m in liste" :key="m.nom_base" class="ent-card" :class="'tier-' + tier">
                             <div class="ent-head">
                                 <h4>{{ m.nom_base }}</h4>
+                                <span v-if="m.boite_libelle" class="tag ghost" title="Boîte d'extension">{{ m.boite_libelle }}</span>
                                 <span class="cout" title="Coût en budget de rencontre"><MSym n="toll" :size="13" /> {{ m.cout }}</span>
                             </div>
                             <div class="stat-row sm">
@@ -440,7 +442,13 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                                     <MSym n="shield_with_heart" :size="11" /> {{ TAG_EQUIPEMENT[o.tag_equipement] ?? o.tag_equipement }}
                                 </span>
                             </div>
-                            <div v-if="effetVersChips(o.effet).length" class="chips">
+                            <!-- Le texte d'effet est décidé par le SERVEUR
+                                 (`avantages`) ; la traduction des clés côté client
+                                 ne sert plus que de repli. -->
+                            <div v-if="(o.avantages ?? []).length" class="chips">
+                                <span v-for="(a, i) in o.avantages" :key="i" class="chip">{{ a }}</span>
+                            </div>
+                            <div v-else-if="effetVersChips(o.effet).length" class="chips">
                                 <span v-for="(ch, i) in effetVersChips(o.effet)" :key="i" class="chip">{{ ch.texte }}</span>
                             </div>
                             <!-- D'où vient cette pièce : nom de la carte du
@@ -501,6 +509,42 @@ const nomClasse = (c) => CLASSE[c]?.l ?? c;
                             <span v-for="(ch, i) in effetVersChips(p.effet)" :key="i" class="chip">{{ ch.texte }}</span>
                         </div>
                     </article>
+                </div>
+            </section>
+
+            <!-- Mobilier et thèmes : la suite de l'onglet « Donjon ». -->
+            <section v-show="tab === 'pieges'" class="guide-sec">
+                <h3 class="grp-title"><MSym n="chair" :size="16" /> Mobilier <span class="grp-n">{{ mobiliers.length }}</span></h3>
+                <div class="card-grid">
+                    <article v-for="m in mobiliers" :key="m.nom" class="ent-card">
+                        <div class="ent-head">
+                            <h4>{{ m.nom }}</h4>
+                            <span v-if="m.boite_libelle" class="tag ghost" title="Boîte d'extension">{{ m.boite_libelle }}</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="tag ghost">{{ m.largeur }}×{{ m.hauteur }} case(s)</span>
+                            <span class="tag ghost">{{ m.bloque_vue ? 'Bloque la vue' : 'Laisse voir' }}</span>
+                            <span v-if="m.fouillable" class="tag ok">Se fouille</span>
+                        </div>
+                        <div v-if="m.attaquable" class="chips">
+                            <span class="chip cap"><MSym n="swords" :size="11" /> Se combat comme un monstre</span>
+                            <span class="chip">{{ m.pv_body }} PV de Body</span>
+                            <span class="chip">{{ m.defense_dice }} dé(s) de défense</span>
+                        </div>
+                        <div v-else-if="m.difficulte_destruction" class="chips">
+                            <span class="chip">Se met en pièces d'un jet de Body (difficulté {{ m.difficulte_destruction }})</span>
+                        </div>
+                    </article>
+                </div>
+
+                <h3 class="grp-title"><MSym n="map" :size="16" /> Thèmes de campagne <span class="grp-n">{{ (guide.themes ?? []).length }}</span></h3>
+                <p class="cartes-intro">
+                    Chaque campagne se fige sur l'un de ces thèmes à son premier lancement : il décide
+                    quelles créatures d'extension peuplent ses donjons. Le jeu de base fournit le fond
+                    commun de toutes les quêtes.
+                </p>
+                <div class="chips">
+                    <span v-for="t in guide.themes ?? []" :key="t.cle" class="chip">{{ t.libelle }}</span>
                 </div>
             </section>
 

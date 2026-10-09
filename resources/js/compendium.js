@@ -24,6 +24,7 @@ const EFFETS_QTE = {
     // ⚠ Le libellé ne dit plus « garanti » : depuis le 2026-09-02 les deux sorts
     // de feu portent la même clé et leur montant, lui, se réduit — la cible
     // lance des dés rouges. C'est `des_resistance` qui le dit juste à côté.
+    des_attaque_zone: 'dé(s) d\'attaque sur la zone, défendus normalement',
     degats_fixes: 'dégât(s) fixe(s), sans dés d\'attaque',
     // Arc elfique de Vindication (arbitrage de René, 2026-09-16) : dégâts par flèche.
     degats_sauf_bouclier_noir: 'dégât(s) par flèche, sauf bouclier noir de la cible',
@@ -76,6 +77,21 @@ const EFFETS_BOOL = {
     permet_desamorcage: 'Permet le désamorçage',
     aleatoire: 'Aléatoire',
     automatique: 'Automatique',
+    // Sorts (Morcar et antérieurs) dont la clé tombait sur le repli « clé : oui ».
+    exclut_soi: 'Ne vise pas le lanceur',
+    ignore_pieges_fosse: 'Ignore les fosses',
+    image_miroir: 'Une image du héros attire la première attaque',
+    pioche_sans_peril: 'Pioche sans risquer de carte de piège',
+    pioche_triple: 'Tire 3 cartes de trésor au lieu d\'une et garde celles que l\'on veut',
+    oublie_sort: 'Un lanceur adverse perd un sort au hasard pour la quête',
+    pose_ombre: 'Pose un voile d\'ombre (3 cases sur 2) : on n\'y attaque pas, on n\'y voit pas à travers',
+    rayon: 'Rayon : traverse les figures jusqu\'à un mur ou une porte close',
+    relance_jet: 'Relance tous les dés d\'une attaque, d\'une défense ou d\'un déplacement (réaction, sans action)',
+    restaure_pv_mind: 'Rend tout le Mind',
+    tour_supplementaire: 'Un tour supplémentaire',
+    vision_salle: 'Révèle le contenu d\'une salle, où qu\'elle soit',
+    teleportation: 'Téléporte le héros ailleurs dans le donjon',
+    degats_selon_armure: 'Dégâts selon l\'armure portée',
 };
 
 /**
@@ -92,11 +108,38 @@ const VALEURS = {
         ce_tour: 'ce tour',
         prochain_tour: "jusqu'au prochain tour",
         fin_du_combat: "jusqu'à la fin du combat",
+        prochain_deplacement: "jusqu'au prochain déplacement",
+        plus_de_monstre_en_vue: "jusqu'à ce qu'aucun monstre ne soit plus en vue",
     },
+    regain: {
+        body_au_max: 'quand le Body revient à son maximum',
+        monstre_vaincu: 'quand le lanceur vainc un monstre',
+        allie_deux_boucliers_blancs: 'quand un autre héros en vue pare avec 2 boucliers blancs',
+    },
+    condition_monstre: {
+        terrifie: 'terrifié',
+        ralenti: 'ralenti',
+        paralyse: 'paralysé',
+        enchaine: "enchaîné : ni déplacement ni attaque, mais il peut défendre et lancer des sorts",
+    },
+    condition_bonus_attaque: { au_contact: 'seulement au contact' },
+    zone: {
+        heros_en_vue: 'tous les héros en vue',
+        salle_du_lanceur: 'la salle du lanceur',
+    },
+    declencheur: {
+        ouverture_tresor: "à l'ouverture d'un trésor",
+        hurricane: "au passage d'un héros : l'ouragan le repousse",
+        fireburst_differe: "au passage d'un héros : explose au tour du MJ",
+    },
+    detection: { fouille_du_tresor: 'à la fouille du trésor' },
+    desarmage_special: { lame_balanciere: 'lame balancière : se neutralise par un geste précis' },
+
     resistance: {
         jet_mind: 'jet de Mind',
         aucune: 'aucune — l\'effet s\'applique',
         des_rouges: 'dés rouges (chaque 5 ou 6 annule 1 dégât)',
+        des_mind: 'dés de Mind de la cible (0 Mind : aucune défense)',
         rupture_6_par_mind: 'rupture : 1 dé par point de Mind, un 6 réveille — sur-le-champ puis à chaque tour',
     },
     cible: {
@@ -104,6 +147,7 @@ const VALEURS = {
         heros: 'un héros (soi compris)',
         monstre: 'un monstre',
         monstres_zone: 'des monstres (zone)',
+        lanceur_dread: 'un lanceur de sorts adverse',
     },
     portee: { distance: 'à distance', corps_a_corps: 'au contact' },
 };
@@ -126,6 +170,14 @@ const EFFETS_ENUM = {
     si: 'Si',
     condition: 'Condition',
     contexte: 'Contexte',
+    regain: 'Redevient lançable',
+    condition_monstre: 'Condition infligée',
+    condition_bonus_attaque: 'Bonus d\'attaque',
+    zone: 'Zone',
+    pose_mur_magique: 'Pose (2 cases, 1 PV, 6 dés de défense)',
+    desarmage_special: 'Désarmement',
+    reaction: 'Réaction',
+    portee_recul: 'Repousse jusqu\'à (cases)',
     cout: 'Coût', // capté ici quand le coût est textuel (ex. « déplacement du tour »)
 };
 
@@ -150,6 +202,15 @@ const CAPACITES = {
     // First Light, carte Dragon (2026-09-30).
     vol_draconique: 'Vol draconique (traverse les figures, jamais le mobilier)',
     sort_a_volonte: 'Sort à volonté (sans limite d\'usage)',
+    // 2026-10-04 → 10-08 : mobilier attaquable, monstres à phases, Morcar.
+    attaque_diagonale: 'Attaque en diagonale',
+    s_accroche: 'S\'accroche (jeton sur le héros au contact, qui le ralentit)',
+    reactions_defense: 'Réaction en défense (ignore les dégâts d\'un coup, une fois)',
+    recompense_reddition: 'Vaincu, s\'incline et verse une rançon à la bourse commune',
+    increvable_une_fois: 'Increvable une fois (tombe à 1 PV au lieu de 0)',
+    sorts_uniques: 'Sorts du Dread (chacun une seule fois par quête)',
+    embuscade: 'Embuscade (déguisé en coffre jusqu\'à ce qu\'un héros approche)',
+    coup_de_corne: 'Coup de corne (encorne le héros qui finit son tour à son contact)',
 };
 
 /** Humanise une valeur brute (snake_case → « snake case »). */
@@ -178,7 +239,8 @@ export function effetVersChips(effet) {
     // Clauses conditionnelles des artefacts : rendues À PART juste en dessous,
     // pas ignorées — le repli générique en aurait fait du JSON brut.
     const RENDUES_A_PART = new Set(['des_attaque_contre', 'attaque_double_contre']);
-    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES, ...RENDUES_A_PART]);
+    const RENDUES_A_PART_2 = new Set(['zone_lames', 'reaction']);
+    const IGNORE = new Set(['sort_id', 'sort_nom', ...NON_IMPLEMENTES, ...RENDUES_A_PART, ...RENDUES_A_PART_2]);
     const chips = [];
 
     // Clauses CONDITIONNELLES des artefacts : « 4 dés contre Squelette,
@@ -189,6 +251,14 @@ export function effetVersChips(effet) {
     }
     if (Array.isArray(effet.attaque_double_contre)) {
         chips.push({ texte: `Frappe deux fois : ${effet.attaque_double_contre.join(', ')}` });
+    }
+    // Lame balançoire : la zone est une ligne de cases. Ailes sombres : la
+    // réaction est un objet `{sur, action}` que le repli rendait en JSON brut.
+    if (Array.isArray(effet.zone_lames)) {
+        chips.push({ texte: `Frappe ${effet.zone_lames.length} cases en ligne` });
+    }
+    if (effet.reaction && effet.reaction.action === 'annule_degats') {
+        chips.push({ texte: 'Réaction : annule les dégâts subis (sans dépenser d\'action)' });
     }
     for (const [k, v] of Object.entries(effet)) {
         if (IGNORE.has(k) || v == null) continue;
@@ -211,7 +281,9 @@ export function effetVersChips(effet) {
         } else if (k in EFFETS_BOOL) {
             if (v) chips.push({ texte: EFFETS_BOOL[k] });
         } else if (k in EFFETS_ENUM) {
-            chips.push({ texte: `${EFFETS_ENUM[k]} : ${VALEURS[k]?.[v] ?? humaniser(v)}` });
+            const traduire = (x) => VALEURS[k]?.[x] ?? humaniser(x);
+            const texte = Array.isArray(v) ? v.map(traduire).join(' ou ') : (typeof v === 'object' ? humaniser(JSON.stringify(v)) : traduire(v));
+            chips.push({ texte: `${EFFETS_ENUM[k]} : ${texte}` });
         } else {
             chips.push({ texte: `${humaniser(k)} : ${humaniser(v)}` });
         }
@@ -224,7 +296,12 @@ export function effetVersChips(effet) {
  */
 export function capacitesVersChips(capacites) {
     if (!capacites) return [];
-    const tags = Array.isArray(capacites) ? capacites : Object.keys(capacites);
+    // Deux formes existent en base : une liste de mots, ou une map dont les clés
+    // NUMÉRIQUES portent un mot (`{"0":"agile","spawn":{…}}`) et les autres SONT
+    // le mot. Sans cette lecture, le guide affichait « 0 » et « 1 » en chips.
+    const tags = Array.isArray(capacites)
+        ? capacites
+        : Object.entries(capacites).map(([k, v]) => (/^\d+$/.test(k) && typeof v === 'string' ? v : k));
     return tags
         .filter((t) => typeof t === 'string')
         .map((t) => ({ texte: CAPACITES[t] ?? humaniser(t) }));
