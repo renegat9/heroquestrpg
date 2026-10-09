@@ -98,7 +98,12 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         'Cuirasse de Peau de Dragon',
         // ⚠ 2026-10-08 (vague 2B) : Urdyn n'a aucun tag — « When using this
         // hammer », la carte ne restreint aucune classe.
-        'Urdyn le Défaiseur'];
+        'Urdyn le Défaiseur',
+        // ⚠ 2026-10-09 (Jungles of Delthrak, livret p. 50) : aucune de ces cinq
+        // cartes ne réserve la pièce par un tag de poids — le Magicien est écarté
+        // de la Ceinture par `classe_interdite`, comme la Cuirasse de Peau de Dragon.
+        'Diadème de braise forgée', 'Brassards du Sauvage', 'Brassard du Garde-Crocs',
+        'Le Crâne de Saphir', 'Ceinture de Puissance'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
@@ -158,7 +163,9 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // de héros de Morcar forment le sixième paquet (2026-10-08). +18 cartes de
     // sorts de Dread (vague 2A : Storm Master, High Mage, Necromancer) et +12
     // (vague 2B : Orc Warcaster, Artificer) = 165.
-    expect($cartes)->toHaveCount(165);
+    // +10 cartes de Jungles of Delthrak (7 artefacts/trésors p. 50, 3 potions
+    // p. 2, chantier A, 2026-10-09) et +1 sort de Gruulob (chantier règles).
+    expect($cartes)->toHaveCount(176);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

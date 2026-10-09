@@ -148,6 +148,48 @@ final class MotsClesTerrain
             'libelle' => 'interdite aux monstres',
         ],
 
+        // TERRAIN GÊNANT (« hindering terrain », Jungles of Delthrak p. 4 :
+        // sable, toile, jungle — « each single square […] costs heroes and
+        // other creatures, including monsters, 2 squares of movement to
+        // traverse »). Le COÛT est déjà porté par `cout_deplacement` ; ce mot
+        // n'ajoute que le FAIT d'être « gênant », celui que trois sources
+        // lèvent — Agile (monstres, p. 48), le talent `ignore_terrain_entravant`
+        // et les Bracers of the Wild (p. 50) — sans lever la Rivière gelée, qui
+        // coûte 2 elle aussi mais n'est pas dite gênante. Lu à la pose de la
+        // grille (`FabriqueGrille::pour()` marque la case) et levé en UN point
+        // (`Grille::ignorerTerrainEntravant()`).
+        'entravant' => [
+            'lecteur' => [
+                'App\Partie\FabriqueGrille::pour()',
+                'App\Partie\Grille::ignorerTerrainEntravant()',
+            ],
+            'libelle' => 'terrain gênant : coûte plus cher à traverser',
+        ],
+
+        // MARE et BRASIER (Jungles of Delthrak p. 4) : « Creatures may move
+        // through [it] but may not end their turn occupying the same space as
+        // it. » On PASSE, on ne FINIT pas dessus — pour toute créature, héros
+        // comme monstre. Ni obstacle (on traverse), ni figure (« does not block
+        // line of sight »). Posé par `FabriqueGrille::pour()`, lu par
+        // `Grille::arretInterdit()` — la question de toute destination.
+        'interdit_arret' => [
+            'lecteur' => [
+                'App\Partie\FabriqueGrille::pour()',
+                'App\Partie\Grille::arretInterdit()',
+            ],
+            'libelle' => 'on peut la traverser, pas y finir son mouvement',
+        ],
+
+        // MARE (Pool of Water, p. 4) : « If a hero searches for treasure in an
+        // area containing a pool of water, they may choose to restore 1 lost Body
+        // Point instead of drawing from the treasure deck. » La valeur est le
+        // nombre de PV rendus. Lu en UN point (`MoteurTerrain::soinALaFouille()`),
+        // que le menu (l'offre) ET le résolveur (le soin) relisent.
+        'soin_a_la_fouille' => [
+            'lecteur' => 'App\Partie\MoteurTerrain::soinALaFouille()',
+            'libelle' => 'rend {valeur} PV de Body au lieu d\'une carte de trésor',
+        ],
+
         // Chambre forte de glace, Rivière gelée (2026-09-10) — NATURE du
         // dégât (`App\Engine\TypeDegat`), lue AVANT d'infliger : sans elle,
         // aucune pièce d'`immunite_degat` (Anneau de Chaleur) ne pourrait

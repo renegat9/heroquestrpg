@@ -214,6 +214,50 @@ class PiegeSeeder extends Seeder
             // `MoteurPieges::resoudreDesCombat()`.
             ['nom' => 'Poison', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique', 'boite' => 'wizards_of_morcar',
                 'effet' => ['declencheur' => 'ouverture_tresor', 'detection' => 'fouille_du_tresor', 'des_combat' => 1]],
+
+            // ===== Jungles of Delthrak (livret F9907 p. 4-5, lot E) =====
+            // Boîte `jungles_delthrak` : tiré par le vivier générique de
+            // `AssembleurCarte::placerPieges()` sous ce thème seulement.
+
+            // LIANES AGRIPPANTES (« Grasping Vine Trap », p. 4-5) : « If found
+            // during a search, Zargon remarks that the square looks suspicious
+            // and points to the square […] without marking it with a tile.
+            // Once a grasping vines trap has been discovered, a hero may
+            // attempt to jump or disarm the trap. » — détectable par la FOUILLE
+            // ORDINAIRE (`detectable: true`, la carte publiée montre la case :
+            // notre pendant du « points to the square »), se saute et se
+            // désamorce comme tout piège de sol (`franchissable` = le même saut
+            // de Body que la Fosse, `desarmable: oui` = la procédure ordinaire —
+            // le livret n'en donne pas d'autre).
+            // « If a hero steps onto the square […] the trap springs and vines
+            // lash out to attack them. The hero must roll 1 combat die. On a
+            // black or white shield, they successfully dodge the vines and may
+            // continue their movement. If they roll a skull, they suffer 1 Body
+            // Point of damage and are held in place by the vines. Their turn
+            // immediately ends. They cannot move from the square until they or
+            // another adjacent hero spends an action to destroy the vines. The
+            // hero is then freed and the trap is removed from the board. »
+            //  - `des_combat: 1` : UN dé de combat, un crâne = 1 PV de Body, sans
+            //    jet de défense — la forme déjà lue pour les trois pièges de sol ;
+            //  - `esquive_sur_bouclier` : un jet SANS crâne n'a aucune suite —
+            //    ni dégât, ni arrêt (lu par `MoteurPieges::declencher()`) ;
+            //  - `retient: Immobilisé` : sur un crâne, la condition qui interdit
+            //    le déplacement (`deplacement_interdit`) et que l'action
+            //    « Détruire les entraves » lève — celle d'*Étreinte des Ronces*,
+            //    mêmes mots sur la carte (« they or another adjacent hero can
+            //    spend an action to destroy the vines »).
+            // ⚠ `usage: unique` et non `persistant` : `persistant` désigne la
+            // FOSSE (`MoteurPieges::estFosse()` — Forme démoniaque, Potion de
+            // dextérité), et les lianes n'en sont pas une. Qu'elles RESTENT armées
+            // après une esquive est décidé par `esquive_sur_bouclier`, pas par
+            // l'usage.
+            ['nom' => 'Piège de lianes', 'detectable' => true, 'desarmable' => 'oui', 'usage' => 'unique', 'boite' => 'jungles_delthrak',
+                'effet' => [
+                    'des_combat' => 1,
+                    'esquive_sur_bouclier' => true,
+                    'retient' => 'Immobilisé',
+                    'franchissable' => ['jet' => 'body', 'difficulte' => 2, 'si' => 'detectee'],
+                ]],
         ];
 
         foreach ($pieges as $piege) {

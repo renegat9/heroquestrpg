@@ -585,20 +585,76 @@ class MonstreSeeder extends Seeder
             // `cout` : somme des attaques-à-3-dés par phase (5 + 4,8 + 5,14
             // ≈ 14,9), interpolée comme le Dragon (First Light) entre les
             // bosses existants plutôt qu'inventée au hasard.
+            // « *Gretzl may choose to fire at range at any hero in her line of
+            // sight » (livret p. 35, l'astérisque des TROIS formes) : `tir_au_choix`,
+            // construit pour Gruulob (2026-10-09).
             ['nom_base' => 'Gretzl la Porte-Fléau', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 6,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonspider'],
             ['nom_base' => 'Demonspider', 'deplacement' => 8, 'attaque' => 5, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 3,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['agile', 'venimeux', 'reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['agile', 'venimeux', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
                 'phase_suivante' => 'Demonape'],
             ['nom_base' => 'Demonape', 'deplacement' => 8, 'attaque' => 6, 'defense' => 2, 'pv_body' => 6, 'pv_mind' => 1,
                 'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 18,
-                'capacites' => ['agile', 'reactions_defense' => ['ignore_degats_attaque']],
+                'capacites' => ['agile', 'tir_au_choix', 'reactions_defense' => ['ignore_degats_attaque']],
                 'sorts_dread' => [], 'archetype_lanceur' => 'gretzl_porte_fleau',
+                'phase_suivante' => null],
+
+            // GRUULOB, SORCIER GOBELIN CORROMPU (Jungles of Delthrak, quête 8,
+            // p. 27 — second boss à phases du thème, docs/plan-delthrak-execution-
+            // 2026-10-09.md lot C). MONSTRE À PHASES, même mécanisme que Gretzl :
+            // à 0 Body, « do not remove the miniature from the map. Instead, adopt
+            // the statistics of Gruulob, Demon Form and continue the battle ».
+            // Stats relues sur le livret : Phase 1 M6 A3 D4 B4 Mi5 ; Forme
+            // Démoniaque M6 A4 D5 B3 Mi4 (Movement / Attack / Defend / Body / Mind).
+            // Le nom de la forme est la traduction de « Demon Form » déjà portée
+            // par reference/18_extensions.md.
+            //
+            // Sorts (archétype `gruulob_sorcier_gobelin`) : « Gruulob is a powerful
+            // servant of Zargon and knows the following Dread spells: Creeping
+            // Grasp, Channel Dread and Summon Orcs* (*Summons the same number of
+            // Goblins instead) » — le répertoire vaut pour les DEUX formes (« still
+            // considered the same monster for game effects such as spells »), donc
+            // l'archétype est posé sur les deux lignes, comme pour Gretzl. Le
+            // troisième sort est la VARIANTE gobeline, `Invocation de gobelins`
+            // (SortDreadSeeder), et non `Invocation d'orques`.
+            //
+            // TIR AU CHOIX, DEUX FORMES (2026-10-09, René — « In both forms, they may
+            // choose to fire at range at any hero in their line of sight », livret p. 27) :
+            // `tir_au_choix` sur les DEUX lignes. Un monstre de mêlée qui voit un héros tire
+            // sur place avec ses dés d'attaque, et frappe au contact — sans reculer (le recul
+            // est l'archer). Lu par `ResolveurTour::jouerMonstre()`.
+            //
+            // EFFET GLOBAL DE QUÊTE (note A, même page : « All Goblins in this quest are elite
+            // warriors dedicated to Gruulob and roll 1 additional Attack die ») : déclaré sur
+            // la PREMIÈRE forme seulement — c'est elle qui entre dans la quête. Figé au
+            // démarrage (`EffetsGlobauxQuete::etablir()`) : la forme démoniaque n'a pas à le
+            // porter, et l'effet tient jusqu'à la fin de la quête même si Gruulob tombe.
+            // Faction « Gobelin » = le monstre de base et son archer (`estDeFaction()`) :
+            // Gruulob lui-même (« Gruulob, … ») et le Chamane Gobelin (nôtre, pas du livret)
+            // n'en font pas partie — décision à confirmer par René.
+            //
+            // Aucune capacité RÉACTIVE dans le livret (contrairement à Gretzl et *Demon
+            // Wings*) : aucune entrée de `reactions_defense`.
+            //
+            // `cout` : somme des attaques-à-3-dés par phase — Body / (1.5 − Défense/6)
+            // = 4 / 0,833 + 3 / 0,667 = 4,8 + 4,5 = 9,3 — placée entre l'Ogre
+            // commandant (9,0 attaques → cout 15) et le Dragon (10,5 → 16), soit
+            // 15,2 → 15 : la même méthode que Gretzl, sans chiffre inventé.
+            ['nom_base' => 'Gruulob, Sorcier Gobelin Corrompu', 'deplacement' => 6, 'attaque' => 3, 'defense' => 4, 'pv_body' => 4, 'pv_mind' => 5,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 15,
+                'capacites' => ['tir_au_choix',
+                    'effet_global_quete' => ['titre' => 'Les gobelins de Gruulob', 'faction' => 'Gobelin', 'volee' => 'attaque', 'des' => 1]],
+                'sorts_dread' => [], 'archetype_lanceur' => 'gruulob_sorcier_gobelin',
+                'phase_suivante' => 'Gruulob, Forme Démoniaque'],
+            ['nom_base' => 'Gruulob, Forme Démoniaque', 'deplacement' => 6, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 4,
+                'tier' => 'boss', 'boite' => 'jungles_delthrak', 'cout' => 15,
+                'capacites' => ['tir_au_choix'],
+                'sorts_dread' => [], 'archetype_lanceur' => 'gruulob_sorcier_gobelin',
                 'phase_suivante' => null],
 
             // ---- First Light (2024) ----

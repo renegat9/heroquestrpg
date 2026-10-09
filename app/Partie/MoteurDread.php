@@ -3013,7 +3013,9 @@ final class MoteurDread
         for ($i = count($chemin) - 1; $i >= 0; $i--) {
             $case = $chemin[$i];
 
-            if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])) {
+            // Mare, Brasier : traversés, jamais une case d'arrivée.
+            if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])
+                && ! $reelle->arretInterditParTerrain((int) $case['x'], (int) $case['y'])) {
                 return $case;
             }
         }
@@ -4073,6 +4075,12 @@ final class MoteurDread
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
                 $cx = (int) $cible->position_x + $dx;
                 $cy = (int) $cible->position_y + $dy;
+
+                // Mare, Brasier : on ne finit pas sa charge dessus.
+                if ($grille->arretInterditParTerrain($cx, $cy)) {
+                    continue;
+                }
+
                 $chemin = $grille->chemin(
                     (int) $instance->position_x, (int) $instance->position_y,
                     $cx, $cy,
@@ -4209,6 +4217,11 @@ final class MoteurDread
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
                 $cx = (int) $cible->position_x + $dx;
                 $cy = (int) $cible->position_y + $dy;
+
+                if ($vol->arretInterditParTerrain($cx, $cy)) {
+                    continue; // Mare, Brasier : pas une case d'arrivée
+                }
+
                 $chemin = $vol->chemin(
                     (int) $instance->position_x, (int) $instance->position_y,
                     $cx, $cy,
@@ -4631,16 +4644,12 @@ final class MoteurDread
     // l'invocation fixe `invoque` + `invoque_en_vue` de *Call Skeletons*.
 
     /**
-     * La créature appartient-elle à la FACTION nommée ? « Orcs » = les figurines
-     * d'Orque, y compris leur variante à distance (`variante_distance_de`).
-     * Toujours `nom_base`, le nom de CATALOGUE : l'habillage IA rebaptise.
+     * La créature appartient-elle à la FACTION nommée ? Déléguée au point de passage
+     * unique, `InstanceMonstre::estDeFaction()` — lue aussi par l'effet global de quête.
      */
     private function estDeFaction(InstanceMonstre $m, string $faction): bool
     {
-        $monstre = $m->monstre;
-
-        return $monstre !== null
-            && ($monstre->nom_base === $faction || $monstre->variante_distance_de === $faction);
+        return $m->estDeFaction($faction);
     }
 
     /** Une créature peut-elle encore AGIR (ni endormie, ni paralysée, ni passant son tour) ? */

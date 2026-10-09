@@ -48,14 +48,18 @@ it('recense exactement les trois sources, sans doublon de carte', function () {
         // 15 + les 3 potions vendues de Wizards of Morcar (« Boutique de
         // l'Alchimiste », lot F, 2026-10-06) : SOURCE DIFFÉRENTE (doc 18 §3,
         // pas potions.pdf), même patron que le Fire Ring côté artefacts.
-        ->and((array) config('cartes.potions.cartes'))->toHaveCount(18)
+        // +3 potions de la boutique de l'Alchimiste de Jungles of Delthrak (livret
+        // F9907 p. 2, 2026-10-09) : *Potion of Healing* existait déjà (500 po).
+        ->and((array) config('cartes.potions.cartes'))->toHaveCount(21)
         // 35 + le Cor des Hearthkin (First Light, lot C, 2026-09-30) + les
         // deux armes en os d'Against the Ogre Horde (lot B, 2026-10-02) + 2
         // de Wizards of Morcar (Drakehide Cuirass, Urdyn the Unmaker, lot
         // 1b, 2026-10-06) : SOURCE DIFFÉRENTE à chaque fois (livret de
         // quêtes, pas une carte des 59 photos), mais fonctionnellement des
         // artefacts — même section que le Fire Ring.
-        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(40)
+        // +7 de Jungles of Delthrak (livret F9907 p. 50, 2026-10-09) : les six
+        // artefacts et l'Ancient Dwarven Relic, aucune clause écartée.
+        ->and((array) config('cartes.artefacts.cartes'))->toHaveCount(47)
         // Les parchemins DÉRIVENT d'un sort et n'ont pas de ligne `objets` :
         // ils vivent dans leur propre section, hors des contrôles qui suivent.
         ->and((array) config('cartes.parchemins.cartes'))->toHaveCount(19);
@@ -159,7 +163,7 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // Morcar, lot F, 2026-10-06) : immunité au feu réutilisée, second
         // sort du tour réutilisé, annulation de sort nouvelle — les trois
         // sans mécanique manquante.
-        ->and($portees('potions'))->toBe(18)
+        ->and($portees('potions'))->toBe(21)
         // 34 artefacts portés sur 35 : seul le Brassard de Glace reste écarté
         // (2 clauses sur 4 sans lecteur — voir sa dette, config/cartes.php).
         // ⚠ Trois de plus le 2026-09-03 — Poudre d'Invisibilité, Cape des
@@ -183,7 +187,9 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // 2026-10-08 (vague 2B) : Urdyn le Défaiseur — `des_attaque_contre`
         // (Lame des Esprits) nomme Golem et Dreadshifter, maintenant au
         // catalogue : aucune mécanique neuve.
-        ->and($portees('artefacts'))->toBe(39)
+        // ⚠ Sept de plus le 2026-10-09 (Jungles of Delthrak, chantier A) : les six
+        // artefacts et le trésor-valeur de la p. 50, chacun lu par un mot-clé.
+        ->and($portees('artefacts'))->toBe(46)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

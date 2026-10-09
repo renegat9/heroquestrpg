@@ -166,6 +166,40 @@ final class Grille
     private array $couts = [];
 
     /**
+     * Cases de TERRAIN GÊNANT (« hindering terrain », Jungles of Delthrak p. 4,
+     * `terrains.effet.entravant`) — le sous-ensemble de `$couts` qu'**Agile**, le
+     * talent `ignore_terrain_entravant` et les Bracers of the Wild lèvent. Un
+     * ensemble À PART, et pas « tout coût > 1 » : la Rivière gelée coûte 2
+     * aussi, et aucune de ces trois sources ne dit ignorer la glace.
+     *
+     * @var array<string, true>
+     */
+    private array $entravants = [];
+
+    /**
+     * Cases où l'on peut PASSER mais où l'on ne peut pas FINIR son mouvement
+     * sans être une figure (`terrains.effet.interdit_arret` — Pool of Water et
+     * Bonfire : « Creatures may move through […] but may not end their turn
+     * occupying the same space », Jungles of Delthrak p. 4). Un jeu de cases
+     * distinct de `$alliees` (figures : elles, bloquent la VUE) — ni la mare ni
+     * le feu n'arrêtent le regard.
+     *
+     * @var array<string, true>
+     */
+    private array $interditsArret = [];
+
+    /**
+     * Cases occupées par du MOBILIER bloquant — sous-ensemble de `$obstacles`
+     * (un meuble y figure deux fois : barrage ET marque). Existe pour que
+     * « traverser le mobilier » (Bracers of the Wild, Spiderstep Elixir) ne
+     * lève QUE les meubles : un mur de glace, un bloc de pierre tombé et un
+     * terrain bloquant sont aussi des `$obstacles`, et restent des murs.
+     *
+     * @var array<string, true>
+     */
+    private array $meubles = [];
+
+    /**
      * @param  list<list<string>>  $cases  m = mur, s = sol
      */
     public function __construct(private readonly array $cases) {}
@@ -420,8 +454,108 @@ final class Grille
     public function definirCoutsDeplacement(array $couts): void
     {
         foreach ($couts as $entree) {
-            $this->couts["{$entree['x']},{$entree['y']}"] = max(1, (int) $entree['cout']);
+            $cle = "{$entree['x']},{$entree['y']}";
+            $this->couts[$cle] = max(1, (int) $entree['cout']);
+
+            if (! empty($entree['entravant'])) {
+                $this->entravants[$cle] = true;
+            }
         }
+    }
+
+    /**
+     * Le TERRAIN GÊNANT cesse de coûter : « These monsters can move unaffected
+     * through squares containing hindering terrain » (Agile, p. 48) ; « you move
+     * unaffected through squares containing furniture and hindering terrain »
+     * (Bracers of the Wild, p. 50). POINT DE PASSAGE UNIQUE de cette levée —
+     * `autoriserFranchissement()` (Agile), le talent `ignore_terrain_entravant`
+     * et les Bracers l'appellent, aucun ne retouche `$couts` lui-même.
+     *
+     * ⚠ Ne lève QUE les cases marquées `entravant` : la Rivière gelée garde son
+     * coût, un pas sur du sable s'épargne.
+     */
+    public function ignorerTerrainEntravant(): void
+    {
+        foreach (array_keys($this->entravants) as $cle) {
+            unset($this->couts[$cle]);
+        }
+    }
+
+    /** Cette case est-elle du terrain gênant (qu'une source peut lever) ? */
+    public function estEntravant(int $x, int $y): bool
+    {
+        return isset($this->entravants["{$x},{$y}"]);
+    }
+
+    /**
+     * Marque des cases où l'on PASSE sans pouvoir s'ARRÊTER (Mare, Brasier) —
+     * même patron qu'`occuperAllie()` pour l'arrêt, sans l'opacité.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function interdireArret(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->interditsArret["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /**
+     * Marque des cases de MOBILIER bloquant (posé par `FabriqueGrille::pour()`,
+     * en plus de `obstruer()`) — voir `$meubles`.
+     *
+     * @param  list<array{x: int, y: int}>  $positions
+     */
+    public function marquerMobilier(array $positions): void
+    {
+        foreach ($positions as $position) {
+            $this->meubles["{$position['x']},{$position['y']}"] = true;
+        }
+    }
+
+    /** Un meuble bloquant occupe-t-il cette case ? (marque, même levée) */
+    public function estMobilier(int $x, int $y): bool
+    {
+        return isset($this->meubles["{$x},{$y}"]);
+    }
+
+    /**
+     * Le MOBILIER cesse de barrer le chemin : « move unaffected through squares
+     * containing furniture » (Bracers of the Wild, p. 50 ; Spiderstep Elixir,
+     * p. 2). POINT DE PASSAGE UNIQUE de cette levée.
+     *
+     * On TRAVERSE, on ne s'ARRÊTE pas : les cases de meuble passent dans le jeu
+     * des cases interdites à l'arrêt (`interdireArret()`, le même que la Mare et
+     * le Brasier), donc `casesAtteignables()` ne les propose jamais comme
+     * destination. ⚠ Distinct d'`autoriserFranchissement()` (Agile), qui lève
+     * TOUS les obstacles — murs de glace et blocs compris — et d'`autoriserLaRoche()` :
+     * ici seules les cases marquées par `marquerMobilier()` s'effacent.
+     */
+    public function franchirMobilier(): void
+    {
+        foreach (array_keys($this->meubles) as $cle) {
+            unset($this->obstacles[$cle]);
+            $this->interditsArret[$cle] = true;
+        }
+    }
+
+    /** Cette case est-elle interdite à l'ARRÊT par le terrain (Mare, Brasier) ? */
+    public function arretInterditParTerrain(int $x, int $y): bool
+    {
+        return isset($this->interditsArret["{$x},{$y}"]);
+    }
+
+    /**
+     * Peut-on FINIR un mouvement sur cette case ? — la question de toute
+     * DESTINATION, qu'`estTraversable()` ne pose pas (on traverse un
+     * compagnon, une mare, un brasier ; on ne s'y arrête pas). POINT DE
+     * PASSAGE UNIQUE : figures (`estOccupeeParFigure()`) ET terrain
+     * (`arretInterditParTerrain()`) — le menu, le déplacement du héros, celui
+     * du monstre et celui de l'allié la relisent tous.
+     */
+    public function arretInterdit(int $x, int $y): bool
+    {
+        return $this->estOccupeeParFigure($x, $y) || $this->arretInterditParTerrain($x, $y);
     }
 
     /** Coût de déplacement d'une case — 1 (sol ordinaire) si non renseigné. */
@@ -453,6 +587,9 @@ final class Grille
         $this->obstacles = [];
         $this->occupees = [];
         $this->alliees = [];
+        // « …hindering terrain, furniture, and heroes as if they were not
+        // there » : le terrain gênant ne coûte plus rien non plus.
+        $this->ignorerTerrainEntravant();
     }
 
     /**
@@ -940,7 +1077,9 @@ final class Grille
             // destinations proposées ici. Un seul point de passage pour la
             // règle — le menu, le déplacement et le tour des monstres lisent
             // tous cette liste.
-            if ($this->estOccupeeParFigure($x, $y)) {
+            // Idem une Mare ou un Brasier (`interdit_arret`) : on les passe, on
+            // ne finit pas dessus — `arretInterdit()` pose les deux questions.
+            if ($this->arretInterdit($x, $y)) {
                 continue;
             }
 

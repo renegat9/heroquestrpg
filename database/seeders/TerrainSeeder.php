@@ -171,6 +171,85 @@ class TerrainSeeder extends Seeder
                 'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'horreur_des_glaces',
                 'effet' => ['decor' => true],
             ],
+
+            // ===== Jungles of Delthrak (livret F9907 p. 4-5, lots B et D) =====
+            // Boîte `jungles_delthrak` : `AssembleurCarte::placerTerrains()` ne
+            // les pose que sous ce thème (« le gabarit dit COMBIEN, le thème dit
+            // LESQUELS »), et `boite` les range du côté de la jungle pour que la
+            // Rivière gelée ne tombe jamais dans une quête de jungle ni le sable
+            // dans une quête de glace.
+
+            // TERRAIN GÊNANT (« Hindering Terrain Tiles », p. 4) : « There are
+            // three types of hindering terrain: sand, web, and jungle. Each
+            // single square of hindering terrain costs heroes and other
+            // creatures, including monsters, 2 squares of movement to traverse. »
+            // TROIS entrées, UNE règle : le livret ne distingue les trois types
+            // que par l'image, jamais par l'effet — le nom ne pèse que pour le
+            // joueur (teinte de case et légende). `entravant` est le FAIT d'être
+            // « gênant » : Agile (monstres, p. 48), le talent
+            // `ignore_terrain_entravant` et les Bracers of the Wild (p. 50) le
+            // lèvent, jamais la Rivière gelée. ⚠ Aucun ne bloque ni mouvement ni
+            // vue : un terrain gênant ralentit, il ne barre rien.
+            [
+                'nom' => 'Sable entravant', 'nom_anglais' => 'Hindering sand',
+                'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
+                'effet' => ['entravant' => true],
+            ],
+            [
+                'nom' => 'Toile entravante', 'nom_anglais' => 'Hindering web',
+                'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
+                'effet' => ['entravant' => true],
+            ],
+            [
+                'nom' => 'Jungle entravante', 'nom_anglais' => 'Hindering jungle',
+                'cout_deplacement' => 2, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
+                'effet' => ['entravant' => true],
+            ],
+
+            // LE BASIN EN TROIS ENTRÉES (René, 2026-10-09, Q5 : « trois entrées
+            // distinctes ») — *Pool of Water*, *Crystal Cluster* (mobilier
+            // attaquable, `MobilierSeeder`), *Bonfire*. La Mare et le Brasier
+            // sont des TERRAINS et non du mobilier, par la question que pose
+            // cette couche (« que se passe-t-il quand je la TRAVERSE ou que j'y
+            // reste ? ») : ni l'un ni l'autre ne bloque quoi que ce soit — « may
+            // move through » —, alors que l'Amas de cristal bloque la vue et
+            // s'attaque. Un effet de franchissement qui ne bloque pas se lit là
+            // où se lisent déjà la Rivière gelée et la Glissière, pas à la boucle
+            // du mobilier.
+
+            // MARE (« Pool of Water », p. 4) : « Creatures may move through the
+            // pool of water but may not end their turn occupying the same space
+            // as it. If a hero searches for treasure in an area containing a
+            // pool of water, they may choose to restore 1 lost Body Point
+            // instead of drawing from the treasure deck. The pool of water does
+            // not block line of sight. »
+            [
+                'nom' => 'Mare', 'nom_anglais' => 'Pool of Water',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
+                'effet' => ['interdit_arret' => true, 'soin_a_la_fouille' => 1],
+            ],
+
+            // BRASIER (« Bonfire », p. 4) : « Creatures may move through the
+            // bonfire but may not end their turn occupying the same space as
+            // it. Any creature who moves through the bonfire must roll 1 combat
+            // die. If they roll a skull, they suffer 1 Body Point of damage.
+            // The bonfire does not block line of sight. » Le jet est celui, déjà
+            // lu, de la Rivière gelée (`jet_des_combat` + `sur` + `degats_pv_body`,
+            // un jet par case ENTRÉE, jamais d'arrêt) — la seule différence est
+            // la FACE (un crâne, ici) et la nature du dégât : `feu`, parce que
+            // l'Anneau de Chaleur existe et couvre un brasier mieux que tout
+            // autre dégât du jeu. « Any CREATURE » : le monstre brûle comme le
+            // héros (`ResolveurTour::blesserMonstreSurLeChemin()`), à la différence de la rivière.
+            [
+                'nom' => 'Brasier', 'nom_anglais' => 'Bonfire',
+                'cout_deplacement' => 1, 'bloque_mouvement' => false, 'bloque_vue' => false, 'boite' => 'jungles_delthrak',
+                'effet' => [
+                    'interdit_arret' => true,
+                    'jet_des_combat' => 1,
+                    'sur' => ['crane' => ['degats_pv_body' => 1]],
+                    'type_degat' => 'feu',
+                ],
+            ],
         ];
 
         foreach ($terrains as $terrain) {

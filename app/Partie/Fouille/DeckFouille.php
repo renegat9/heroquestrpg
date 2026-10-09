@@ -277,6 +277,14 @@ final class DeckFouille
             $deck = [...$deck, ...$this->cartesMorcar()];
         }
 
+        // JUNGLES OF DELTHRAK (chantier A, 2026-10-09) : les deux trésors-valeurs
+        // du « Treasure and Artifact Reference » (livret p. 50) — même lecture
+        // que Morcar : le THÈME dit s'ils rejoignent le deck, aucun gabarit ne
+        // les compte.
+        if ($bestiaire?->contient('jungles_delthrak') ?? false) {
+            $deck = [...$deck, ...$this->cartesDelthrak()];
+        }
+
         // Le deck doit rester PLUS GRAND que le nombre de salles : sinon la
         // dernière fouille est déductible (« il ne reste qu'une carte, c'est
         // forcément le piège »). On complète en « rien ».
@@ -285,6 +293,35 @@ final class DeckFouille
         }
 
         return $deck;
+    }
+
+    /**
+     * Les deux TRÉSORS-VALEURS de Jungles of Delthrak (livret F9907 p. 50) :
+     * l'*Emerald Heart of Delthrak* (« can be sold for 75 gold coins ») et
+     * l'*Ancient Dwarven Relic* (« worth 50 gold coins »), une carte chacun.
+     * Ce sont des OBJETS (`categorie: tresor`) : le héros qui fouille les
+     * range dans son sac (`issue: objet`, comme tout butin du catalogue) et le
+     * marché les rachète à leur valeur entière (`PhaseMarche::reventePour()`).
+     * Absent du catalogue → la carte devient de l'or plutôt que de disparaître.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cartesDelthrak(): array
+    {
+        $cartes = [];
+
+        foreach ([
+            'Cœur d\'émeraude de Delthrak' => ['carte' => 'emerald_heart_of_delthrak', 'or' => 75],
+            'Relique naine ancienne' => ['carte' => 'ancient_dwarven_relic', 'or' => 50],
+        ] as $nom => $def) {
+            $id = Objet::where('nom', $nom)->value('id');
+
+            $cartes[] = $id === null
+                ? ['issue' => 'tresor', 'or' => $def['or'], 'carte' => $def['carte']]
+                : ['issue' => 'objet', 'objet_id' => $id, 'carte' => $def['carte']];
+        }
+
+        return $cartes;
     }
 
     /**

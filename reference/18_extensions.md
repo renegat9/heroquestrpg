@@ -1529,7 +1529,7 @@ voit son mouvement stoppé net).
   Defend 4 · Body 4 · Mind 5 ; sorts *Creeping Grasp, Channel Dread,
   Summon Orcs* (invoque des Gobelins à la place) ; **multi-phase** : à 0
   Body Points, devient **Gruulob, Forme Démoniaque** — Move 6 · Attack 4 ·
-  Defend 5 · Body 3 · Mind 4.
+  Defend 5 · Body 3 · Mind 4. *Porté le 2026-10-09 (`docs/plan-delthrak-execution-2026-10-09.md`, lot A) :* deux formes, mot-clé `phases`, `cout` 15 ; « Summon Orcs* (*Summons the same number of Goblins instead) » est une LIGNE de catalogue, « Invocation de gobelins », même table que l'orque. *Porté le 2026-10-09, tout le texte de la note C et la note A (brief Gruulob, René) :* le **tir à distance « dans les deux formes »** (`tir_au_choix`, sur place, sans recul, au contact = mêlée) et l'**effet global de quête** « All Goblins in this quest … roll 1 additional Attack die » (`effet_global_quete`, figé au démarrage, tenu jusqu'à la fin de la quête). Décisions de faction (Gruulob et le Chamane Gobelin exclus) et de durée : `docs/regles/bestiaire-et-rencontres.md`, à confirmer par René.
 - **Arcane Mummy** (variante de Dread Warrior, quête 9) — Move 6 · Attack 4
   · Defend 4 · Body 4 · Mind 0 ; sorts *Channel Dread, Creeping Grasp, Ball
   of Flame*.
@@ -1637,6 +1637,25 @@ tiles**, **Stranger tiles**.
   impose aujourd'hui un ordre de tour fixe par personnage ; le rendre
   reconfigurable par round est une extension ciblée du planificateur de
   tour.
+
+  > **Décisions de René du 2026-10-09** (exécution de Delthrak,
+  > `docs/plan-delthrak-execution-2026-10-09.md`).
+  > - **Mode Story retenu ; Heroic et Standard écartés** (« tombé, jamais
+  >   mort »). Le mode Story est porté : le héros à terre gagne 1 Body Point à
+  >   l'ouverture du round quand aucun monstre n'est actif et qu'un autre tient
+  >   debout — il SE RELÈVE ; le lanceur qui tombe se soigne d'un sort
+  >   disponible, offert déjà par le soin d'urgence. Le MOMENT du relèvement
+  >   (ouverture du round) est une décision d'interprétation : le livret ne le
+  >   dit pas. `docs/regles/vocabulaires-effets.md`.
+  > - **Campagne à embranchements : ÉCARTÉE.** Aucun graphe de quêtes pour
+  >   cette boîte. L'idée — des quêtes à conditions d'accès — est notée pour
+  >   **Spirit Queen's Torment**, dont les tours au choix libre sont le point
+  >   de comparaison. `docs/plan-delthrak.md`, mise à jour du 2026-10-09.
+  > - **Ordre de tour choisi par les joueurs : REPORTÉ.** Le « coût mineur »
+  >   ci-dessus est contredit par la décision C1 (initiative figée pour toute la
+  >   quête, `reference/03_combat.md`) : la règle la lève à chaque round, et il
+  >   faut une décision collective, un état de round et un contrat. À arbitrer
+  >   par René avant tout chantier.
 
 ---
 

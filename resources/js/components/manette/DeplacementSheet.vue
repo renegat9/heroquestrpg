@@ -42,6 +42,18 @@ const props = defineProps({
     // c'était CE miroir qui traitait tout monstre comme un mur pour tout le
     // monde.
     franchitFigures: { type: Boolean, default: false },
+    // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : CE héros le traverse-t-il sans
+    // payer ses 2 cases ? DÉCISION serveur (`entites[].ignore_terrain_entravant`,
+    // `MoteurSorts::terrainEntravantIgnore()`) — la manette ne devine ni un
+    // talent ni les Bracers of the Wild. Elle ne lève que les cases que le
+    // serveur publie `entravant` : la Rivière gelée garde son coût.
+    ignoreTerrainEntravant: { type: Boolean, default: false },
+    // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : CE héros traverse-t-il les
+    // meubles bloquants, sans s'y arrêter ? DÉCISION serveur
+    // (`entites[].franchit_mobilier`, `MoteurSorts::mobilierFranchi()`) — jamais
+    // déduite ici d'une pièce portée ou d'un buff. Ne lève QUE les meubles : murs
+    // de glace, blocs de pierre et terrain bloquant restent des obstacles.
+    franchitMobilier: { type: Boolean, default: false },
     /** Code du groupe — sert UNIQUEMENT à demander l'aperçu de trajet au
      *  serveur (`POST deplacement/apercu`). */
     groupe: { type: String, default: '' },
@@ -191,7 +203,7 @@ const alliees = computed(() => {
 // bloque désormais. Le terrain bloquant est ajouté par prévention : aucun
 // terrain du catalogue ne bloque à ce jour, mais le drapeau est publié et le
 // moteur le lit — le miroir ne doit pas attendre le premier qui bloquera.
-const mobilierOccupe = computed(() => {
+const meublesBloquants = computed(() => {
     const s = new Set();
     for (const m of props.carte.mobilier ?? []) {
         if (m.bloque_mouvement === false) continue;
@@ -200,6 +212,17 @@ const mobilierOccupe = computed(() => {
                 s.add(cle(m.x + dx, m.y + dy));
             }
         }
+    }
+    return s;
+});
+
+const mobilierOccupe = computed(() => {
+    const s = new Set();
+    // Un meuble traversé (`franchitMobilier`) n'est PAS un obstacle ici : il passe
+    // dans `meublesTraverses` (passage sans arrêt), comme côté serveur
+    // (`Grille::franchirMobilier()`).
+    if (! props.franchitMobilier) {
+        for (const k of meublesBloquants.value) s.add(k);
     }
     for (const t of props.carte.terrain ?? []) {
         if (t.bloque_mouvement) s.add(cle(t.x, t.y));
@@ -222,9 +245,24 @@ const mobilierOccupe = computed(() => {
 const coutParCase = computed(() => {
     const m = {};
     for (const t of props.carte.terrain ?? []) {
-        m[cle(t.x, t.y)] = Math.max(1, t.cout_deplacement ?? 1);
+        // Terrain gênant ignoré par CE héros : décision serveur, appliquée telle quelle.
+        m[cle(t.x, t.y)] = t.entravant && props.ignoreTerrainEntravant ? 1 : Math.max(1, t.cout_deplacement ?? 1);
     }
     return m;
+});
+
+// MARE, BRASIER (`interdit_arret`, publié par le serveur) : traversables, jamais
+// une DESTINATION — comme la case d'un allié (`alliees`), sans en être une figure.
+const sansArret = computed(() => {
+    const s = new Set();
+    for (const t of props.carte.terrain ?? []) {
+        if (t.interdit_arret) s.add(cle(t.x, t.y));
+    }
+    // Meubles traversés : on passe, on ne finit pas dessus.
+    if (props.franchitMobilier) {
+        for (const k of meublesBloquants.value) s.add(k);
+    }
+    return s;
 });
 const coutDe = (x, y) => coutParCase.value[cle(x, y)] ?? 1;
 
@@ -295,7 +333,7 @@ const accessibles = computed(() => {
                 // — sinon tout ce qui est derrière un compagnon reste
                 // inatteignable à l'écran — mais PAS à `out`, sinon le joueur
                 // taperait une case que le serveur refusera.
-                if (! alliees.value.has(k)) out.add(k);
+                if (! alliees.value.has(k) && ! sansArret.value.has(k)) out.add(k);
                 // Ne PAS étendre au-delà d'une case encore dans le brouillard :
                 // on ignore ce qu'il y a plus loin tant que le serveur n'a pas
                 // révélé la salle (prochain état, après ce déplacement).

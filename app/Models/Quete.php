@@ -36,6 +36,9 @@ class Quete extends Model
         // captifs sur la carte n'arriveraient jamais, mais la colonne dit
         // SANS AMBIGUÏTÉ lequel compte pour l'objectif).
         'captif_mercenaire_id',
+        // Effets GLOBAUX de la quête (Gruulob, « All Goblins in this quest… »), figés
+        // au démarrage par `EffetsGlobauxQuete::etablir()` — en colonne, jamais en cache.
+        'effets_globaux',
     ];
 
     protected function casts(): array
@@ -58,6 +61,9 @@ class Quete extends Model
             // derrière une porte secrète.
             'salles_coffre' => 'array',
             'coffres_ouverts' => 'array',
+            // Effets globaux figés au démarrage (`EffetsGlobauxQuete`). NULL = quête
+            // ouverte avant la colonne : sa liste se lit sur sa roster.
+            'effets_globaux' => 'array',
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Partie\EffetsGlobauxQuete;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -85,6 +86,11 @@ class InstanceMonstre extends Model
         // +2 de *Marteau de la Ruine* — lus ICI, au seul endroit qui compose
         // les dés d'attaque d'un monstre, avant les plafonds de condition.
         $des += $this->bonusDesDread('attaque');
+
+        // EFFET GLOBAL DE QUÊTE (Gruulob : « All Goblins in this quest … roll 1
+        // additional Attack die ») : lu au même endroit que les buffs de faction,
+        // avant les plafonds de condition — un gobelin terrifié reste à 1 dé.
+        $des += $this->bonusEffetGlobalQuete('attaque');
 
         return $this->apresConditions($des, 'attaque');
     }
@@ -182,6 +188,46 @@ class InstanceMonstre extends Model
         }
 
         return (int) data_get($this->etatDread('buff_defense'), 'des', 0);
+    }
+
+    /**
+     * La créature appartient-elle à la FACTION nommée ? « Orcs » = les figurines d'Orque,
+     * y compris leur variante à distance (`variante_distance_de`). Toujours `nom_base`, le
+     * nom de CATALOGUE : l'habillage IA rebaptise.
+     *
+     * ⚠ Point de passage UNIQUE : les buffs de faction de Morcar (`MoteurDread`) et l'effet
+     * global de quête (`bonusEffetGlobalQuete()`) lisent la même identification.
+     */
+    public function estDeFaction(string $faction): bool
+    {
+        $monstre = $this->monstre;
+
+        return $monstre !== null
+            && ($monstre->nom_base === $faction || $monstre->variante_distance_de === $faction);
+    }
+
+    /**
+     * Dés d'attaque ajoutés par l'EFFET GLOBAL de la quête (`EffetsGlobauxQuete`) : chaque
+     * effet de cette quête qui vise la faction de la créature, pour la volée demandée. Lu au
+     * même endroit que les buffs de faction (`attaqueEffective()`).
+     */
+    public function bonusEffetGlobalQuete(string $volee): int
+    {
+        $quete = $this->quete;
+
+        if ($quete === null) {
+            return 0;
+        }
+
+        $bonus = 0;
+
+        foreach (EffetsGlobauxQuete::de($quete) as $effet) {
+            if (($effet['volee'] ?? null) === $volee && $this->estDeFaction((string) ($effet['faction'] ?? ''))) {
+                $bonus += (int) ($effet['des'] ?? 0);
+            }
+        }
+
+        return $bonus;
     }
 
     /** Dés d'attaque à distance effectifs (null si le monstre n'a pas de portée). */

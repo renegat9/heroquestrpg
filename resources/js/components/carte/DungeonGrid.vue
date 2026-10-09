@@ -113,7 +113,11 @@ const classeTerrain = (x, y) => {
 const titreTerrain = (x, y) => {
     const t = terrainDe(x, y);
     if (! t) return undefined;
-    return t.cout_deplacement > 1 ? `${t.nom} (coûte ${t.cout_deplacement} points de déplacement)` : t.nom;
+    const notes = [];
+    if (t.cout_deplacement > 1) notes.push(`coûte ${t.cout_deplacement} points de déplacement`);
+    // Mare, Brasier : décision publiée par le serveur (`interdit_arret`).
+    if (t.interdit_arret) notes.push('on peut la traverser, pas y finir son mouvement');
+    return notes.length ? `${t.nom} (${notes.join(' ; ')})` : t.nom;
 };
 
 // LAME BALANÇOIRE (Against the Ogre Horde) : les cases de sa ZONE autres que
@@ -416,6 +420,25 @@ const doors = computed(() => (props.carte.portes ?? [])
   background: linear-gradient(150deg, oklch(0.27 0.03 220), oklch(0.20 0.02 225));
   box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.3);
 }
+/* Jungles of Delthrak : `gene` (terrain gênant, hachure vert-brun), `eau` (la
+   Mare, teinte d'eau), `feu` (le Brasier, hachure orangée). Même principe que
+   `danger` : la hachure porte l'information en niveaux de gris. */
+.dg-cell.terrain-gene {
+  background:
+    repeating-linear-gradient(45deg, oklch(0.72 0.10 110 / 0.26) 0 3px, transparent 3px 8px),
+    linear-gradient(150deg, oklch(0.31 0.06 120), oklch(0.23 0.05 115));
+  box-shadow: inset 0 0 0 1px oklch(0.72 0.10 110 / 0.45);
+}
+.dg-cell.terrain-eau {
+  background: linear-gradient(150deg, oklch(0.36 0.09 215), oklch(0.26 0.07 220));
+  box-shadow: inset 0 0 0 1px oklch(0.75 0.11 215 / 0.55);
+}
+.dg-cell.terrain-feu {
+  background:
+    repeating-linear-gradient(135deg, oklch(0.80 0.16 60 / 0.30) 0 4px, transparent 4px 9px),
+    linear-gradient(150deg, oklch(0.40 0.12 45), oklch(0.28 0.09 35));
+  box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.55);
+}
 
 /* ---- surcouche manette (accessibilité / départ / occupants) ---- */
 .dg-cell.accessible { background: oklch(0.6 0.15 145 / 0.32); cursor: pointer; outline: 1px solid oklch(0.6 0.15 145 / 0.5); }
@@ -480,6 +503,12 @@ const doors = computed(() => (props.carte.portes ?? [])
    `.dg-trap.declenche` ci-dessus, qui a motivé cette entrée : un bloc qui
    bloque le passage n'est pas un trou dans le sol. Teinte grise, pierre — ni
    le bois du mobilier (`.dg-furn`), ni le bleu glacé du mur (`.dg-ice`). */
+/* LIANES AGRIPPANTES qui TIENNENT un héros (Jungles of Delthrak p. 4) : plein,
+   vert, cerclé — un piège ACTIF sur lequel quelqu'un est pris, jamais le
+   semi-transparent d'un piège simplement détecté. */
+.dg-trap.retient { inset: 6%; border-radius: 50%; color: oklch(0.88 0.14 140);
+  background: radial-gradient(circle at 50% 45%, oklch(0.34 0.10 145 / 0.85) 0 55%, transparent 76%);
+  box-shadow: inset 0 0 0 2px oklch(0.72 0.16 145 / 0.9); }
 .dg-trap.bloc { inset: 5%; border-radius: 4px;
   background: linear-gradient(150deg, oklch(0.42 0.008 255), oklch(0.26 0.008 255));
   box-shadow: inset 0 0 0 1px oklch(0.58 0.008 255 / 0.55), 0 1px 3px oklch(0 0 0 / 0.5);

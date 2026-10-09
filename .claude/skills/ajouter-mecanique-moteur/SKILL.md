@@ -37,7 +37,8 @@ l'inscrire au vocabulaire, c'est le rendre introuvable au prochain passage.
 | `App\Engine\DureeEffet` | **quand un buff s'arrête** (7 mots-clés ; un entier = un compte à rebours en tours) |
 | `App\Engine\RegainEffet` | sur quel ÉVÉNEMENT un sort redevient lançable |
 | `App\Engine\TypeDegat` | nature du dégât (`feu`, `froid`) |
-| `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont) |
+| `App\Engine\MotsClesTerrain` | effets de case de sol (glace, gouffre, pont, terrain gênant, mare, brasier) |
+| `App\Engine\MotsClesMobilier` | `mobiliers.effet` (table de fouille, destruction d'une action — le Cocon) |
 | `App\Engine\ReactionEffet` | actions hors tour |
 
 ⚠ **Inscrire le vocabulaire à CETTE TABLE fait partie de sa création.** `MotsClesTerrain`

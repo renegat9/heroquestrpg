@@ -584,3 +584,19 @@ it('mode ESCORTÉ : si le porteur tombe, le captif est REPRIS — jamais un éch
     $entiteCaptif = collect($etat['entites'])->firstWhere('type', 'captif');
     expect($entiteCaptif)->not->toBeNull()->and($entiteCaptif['id'])->toBe($captif->id);
 });
+
+it('un captif LIBÉRÉ est un allié temporaire : la quête gagnée le retire, sans entretien (2026-10-09)', function () {
+    // Le captif libéré porte `mercenaire.captif` : `terminerQuete()` le purge (et
+    // `reglerEntretien()` ne le facture jamais). C'est la même garde que le
+    // squelette Hearthkin, vérifiée ici EN JEU : libération par le menu, puis fin.
+    [$groupe, $quete, $heros, $captif] = queteAvecCaptif();
+
+    $this->postJson('/api/groupes/table-1/choix', ['option_id' => "liberer_{$captif->id}"])->assertStatus(202);
+    expect($captif->fresh()->etat)->toBe('actif');
+
+    $groupe->update(['or' => 100]);
+    $resultat = app(\App\Partie\ResolveurTour::class)->terminerQuete($groupe->fresh(), $quete->fresh());
+
+    expect(GroupeMercenaire::find($captif->id))->toBeNull()
+        ->and($resultat['mercenaires_entretien'])->toBeNull();
+});

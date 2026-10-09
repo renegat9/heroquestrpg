@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
 use App\Engine\DureeEffet;
+use App\Engine\MotsClesEquipement;
 use App\Engine\MotsClesSort;
 use App\Engine\MotsClesSortDread;
 use App\Engine\RegainEffet;
@@ -2271,6 +2272,46 @@ final class MoteurSorts
     {
         return app(CapacitesInnees::class)->a($personnage, 'franchit_figures')
             || $this->franchitFigures($personnage);
+    }
+
+    /**
+     * Le héros se déplace-t-il SANS PAYER le terrain gênant (« hindering terrain »,
+     * Jungles of Delthrak p. 4) ?
+     *
+     * Aujourd'hui : le talent `ignore_terrain_entravant` (Ronces complices).
+     * Demain, les *Bracers of the Wild* (« you move unaffected through squares
+     * containing furniture and hindering terrain », p. 50) s'ajoutent ICI, et
+     * nulle part ailleurs : c'est le SEUL endroit qui répond à la question, relu
+     * par `ResolveurTour::grilleDeplacement()` (le déplacement et l'aperçu de
+     * trajet) et par `EtatGroupe` (qui publie la DÉCISION à la manette —
+     * `entites[].ignore_terrain_entravant` —, jamais les ingrédients : un
+     * miroir client qui re-déduirait « talent OU bracers » dériverait le jour
+     * où une troisième source apparaîtrait).
+     */
+    public function terrainEntravantIgnore(Personnage $personnage): bool
+    {
+        // TROIS sources, UNE question : le talent des Ronces complices, une pièce
+        // PORTÉE (Bracers of the Wild) et un buff de potion (Spiderstep Elixir —
+        // fini au premier dégât subi, `duree: premier_degat_subi`).
+        return app(Talents::class)->a($personnage, 'ignore_terrain_entravant')
+            || app(Equipement::class)->effetPorte($personnage, MotsClesEquipement::IGNORE_TERRAIN_ENTRAVANT)
+            || $this->aBuff($personnage, MotsClesEquipement::IGNORE_TERRAIN_ENTRAVANT);
+    }
+
+    /**
+     * Le héros TRAVERSE-t-il le mobilier bloquant ? — *Bracers of the Wild*
+     * (pièce portée) et *Spiderstep Elixir* (buff de potion) : « move unaffected
+     * through squares containing furniture » (Jungles of Delthrak, p. 2 et 50).
+     *
+     * Jumeau de {@see self::terrainEntravantIgnore()} : MÊME structure, MÊME
+     * raison d'être — le serveur décide, le menu (`peutSeDeplacer()`), le
+     * résolveur (`grilleDeplacement()`) et la manette (`entites[].franchit_mobilier`)
+     * lisent CETTE réponse. On traverse, on ne s'arrête pas sur le meuble.
+     */
+    public function mobilierFranchi(Personnage $personnage): bool
+    {
+        return app(Equipement::class)->effetPorte($personnage, MotsClesEquipement::FRANCHIT_MOBILIER)
+            || $this->aBuff($personnage, MotsClesEquipement::FRANCHIT_MOBILIER);
     }
 
     /**

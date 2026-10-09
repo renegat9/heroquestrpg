@@ -570,6 +570,17 @@ const objectif = computed(() => {
     };
 });
 
+/* Effets GLOBAUX de la quête (Gruulob) : `quete.effets_globaux[].texte` est la phrase DÉCIDÉE
+ * par le serveur. Rendue telle quelle — le client ne recompose ni ne traduit rien. `[]` hors
+ * quête ou sans effet : rien ne s'affiche. */
+const effetsEnJeu = computed(() => {
+    const quete = etat.value?.quete;
+
+    if (auHub.value || !Array.isArray(quete?.effets_globaux)) return [];
+
+    return quete.effets_globaux;
+});
+
 /* ---- prologue de campagne (écran d'histoire au lancement) ---- */
 const prologue = computed(() => (etat.value ? etat.value.groupe?.prologue ?? null : null));
 const prologueOuvert = ref(false);
@@ -865,6 +876,13 @@ watch(() => store.state.clotureTerminee, (t) => {
                         <span v-if="objectif.accompli" class="obj-tag">Atteint</span>
                         <span v-else-if="objectif.majeur" class="obj-tag obj-tag-niv">Un niveau à la clé</span>
                     </div>
+                    <!-- EFFETS GLOBAUX de la quête (Gruulob : « All Goblins in this quest… ») : la
+                         phrase DÉCIDÉE par le serveur, rendue telle quelle, tant que la quête dure —
+                         même quand la créature qui les porte est tombée. -->
+                    <div v-for="eff in effetsEnJeu" :key="eff.source" class="obj eff-glob">
+                        <MSym n="bolt" fill :size="15" />
+                        <span class="obj-txt">{{ eff.texte }}</span>
+                    </div>
                 </div>
                 <InitiativeBar :order="initOrder" @inspecter="inspecter" />
                 <div class="status-top">
@@ -939,6 +957,7 @@ watch(() => store.state.clotureTerminee, (t) => {
                             :entretien="etat?.groupe?.mercenaires_entretien ?? null"
                             :faveur="etat?.groupe?.faveur_hopekins ?? null"
                             :peacekeeper="etat?.groupe?.peacekeeper ?? null"
+                            :reveil="etat?.groupe?.objets_reveilles ?? null"
                         />
                         <div style="display: flex; gap: 10px">
                             <button class="btn torch" :disabled="lancementEnCours" @click="lancerQuete">

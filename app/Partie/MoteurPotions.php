@@ -107,6 +107,37 @@ class MoteurPotions
             ]);
         }
 
+        // POTION OF ELDER WISDOM (Jungles of Delthrak, p. 2) : « A hero may only
+        // use one of these potions per quest » ET « recover any 1 hero spell or
+        // skill you have used » — la garde et le menu (`offrable()`) posent la
+        // MÊME question, un seul prédicat : rien n'est jamais bu en vain.
+        $aRecuperer = null;
+
+        if (! empty($effet[MotsClesEquipement::UNE_PAR_QUETE]) || ! empty($effet[MotsClesEquipement::RECUPERE_SORT_OU_COMPETENCE])) {
+            if ($etat === null) {
+                throw ValidationException::withMessages([
+                    'inventaire_id' => "« {$objet->nom} » ne se boit qu'en quête.",
+                ]);
+            }
+
+            if (! empty($effet[MotsClesEquipement::UNE_PAR_QUETE])
+                && app(Talents::class)->dejaUtilisee($etat, self::cleParQuete($objet))) {
+                throw ValidationException::withMessages([
+                    'inventaire_id' => "« {$objet->nom} » : une seule par héros et par quête.",
+                ]);
+            }
+
+            if (! empty($effet[MotsClesEquipement::RECUPERE_SORT_OU_COMPETENCE])) {
+                $aRecuperer = $this->aRecuperer($buveur, $etat);
+
+                if ($aRecuperer === null) {
+                    throw ValidationException::withMessages([
+                        'inventaire_id' => "« {$objet->nom} » : aucun sort ni aucune compétence à récupérer.",
+                    ]);
+                }
+            }
+        }
+
         $applique = [];
 
         // ÉTAT DE CHOC (René, 2026-10-01) : capturé AVANT toute branche
@@ -239,6 +270,22 @@ class MoteurPotions
             );
         }
 
+        if ($aRecuperer !== null) {
+            if ($aRecuperer['type'] === 'sort') {
+                $this->sorts->restaurerSorts($buveur, 1, [(int) $aRecuperer['id']]);
+            } else {
+                $etat->update(['capacites_utilisees' => array_values(array_diff(
+                    (array) ($etat->capacites_utilisees ?? []), [$aRecuperer['cle']],
+                ))]);
+            }
+
+            $applique['recupere'] = ['type' => $aRecuperer['type'], 'nom' => $aRecuperer['nom']];
+        }
+
+        if (! empty($effet[MotsClesEquipement::UNE_PAR_QUETE]) && $etat !== null) {
+            app(Talents::class)->marquerUtilisee($etat, self::cleParQuete($objet));
+        }
+
         if (isset($effet['retire_condition'])) {
             $condition = Condition::query()->where('nom', $effet['retire_condition'])->first();
             if ($condition !== null) {
@@ -325,6 +372,69 @@ class MoteurPotions
             'pv_mind' => (int) $buveur->pv_mind,
             'pv_mind_max' => (int) $buveur->pv_mind_max,
         ];
+    }
+
+    /** Clé de la fenêtre « une par héros et par quête » (compteur des compétences). */
+    private static function cleParQuete(\App\Models\Objet $objet): string
+    {
+        return 'potion:'.$objet->nom;
+    }
+
+    /**
+     * Cette potion peut-elle SERVIR à ce buveur maintenant ? Le menu n'offre
+     * jamais ce que le résolveur va refuser : `boire()` rejoue les mêmes gardes.
+     * Vrai pour toute potion sans clause d'usage (l'immense majorité).
+     */
+    public function offrable(Personnage $buveur, \App\Models\Objet $objet, ?\App\Models\EtatPersonnageQuete $etat): bool
+    {
+        $effet = (array) $objet->effet;
+
+        if (! empty($effet[MotsClesEquipement::UNE_PAR_QUETE])
+            && ($etat === null || app(Talents::class)->dejaUtilisee($etat, self::cleParQuete($objet)))) {
+            return false;
+        }
+
+        if (! empty($effet[MotsClesEquipement::RECUPERE_SORT_OU_COMPETENCE])
+            && ($etat === null || $this->aRecuperer($buveur, $etat) === null)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Ce que la Potion of Elder Wisdom rendrait : le premier sort épuisé (ordre
+     * du catalogue), à défaut la première compétence « une fois par quête »
+     * déjà dépensée. `null` = rien à rendre.
+     *
+     * ⚠ Les clés `objet:{id}` et `potion:{nom}` du même compteur sont des
+     * fenêtres d'OBJET, jamais des compétences : on ne « récupère » pas la
+     * fenêtre d'un artefact en buvant une potion de sagesse.
+     *
+     * @return array{type: string, id?: int, nom: string, cle?: string}|null
+     */
+    private function aRecuperer(Personnage $buveur, \App\Models\EtatPersonnageQuete $etat): ?array
+    {
+        $sort = \Illuminate\Support\Facades\DB::table('personnage_sorts')
+            ->join('sorts', 'sorts.id', '=', 'personnage_sorts.sort_id')
+            ->where('personnage_sorts.personnage_id', $buveur->id)
+            ->where('personnage_sorts.disponible', false)
+            ->orderBy('sorts.id')
+            ->first(['sorts.id', 'sorts.nom']);
+
+        if ($sort !== null) {
+            return ['type' => 'sort', 'id' => (int) $sort->id, 'nom' => (string) $sort->nom];
+        }
+
+        $connues = $buveur->competences()->pluck('competences.nom')->all();
+
+        foreach ((array) ($etat->capacites_utilisees ?? []) as $cle) {
+            if (in_array($cle, $connues, true)) {
+                return ['type' => 'competence', 'nom' => (string) $cle, 'cle' => (string) $cle];
+            }
+        }
+
+        return null;
     }
 
     /**

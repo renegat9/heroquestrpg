@@ -398,7 +398,9 @@ class AuthController extends Controller
                                 // pas : un héros a le droit de PORTER la potion
                                 // d'un compagnon — le marché autorise déjà
                                 // l'achat pour autrui. La manette grise « Boire ».
-                                'utilisable' => app(Equipement::class)->estAccessible($p, $l->objet),
+                                'utilisable' => app(Equipement::class)->estAccessible($p, $l->objet)
+                                    // Clause d'usage (Elder Wisdom) : le même prédicat que le menu.
+                                    && app(\App\Partie\MoteurPotions::class)->offrable($p, $l->objet, $etatQuete),
                                 // ENTRE DEUX QUÊTES (Potion of Charm) : la décision du serveur,
                                 // publiée telle quelle — la manette n'offre « Boire » au hub
                                 // que si ce drapeau le dit, et jamais en quête.
@@ -482,10 +484,19 @@ class AuthController extends Controller
      */
     private function avantagesDeLExemplaire(Inventaire $ligne): array
     {
-        return MotsClesEquipement::avantages(
+        $lignes = MotsClesEquipement::avantages(
             (array) $ligne->objet?->effet,
             app(\App\Partie\MoteurCharges::class)->restantes($ligne),
         );
+
+        // Fangwarden Armlet : l'ÉTAT de CET exemplaire (dormant, et pour combien
+        // de quêtes) — la décision du serveur, jamais un calcul de manette.
+        if (app(\App\Partie\AlliesInvoques::class)->estDormant($ligne)) {
+            $n = (int) $ligne->quetes_avant_reveil;
+            array_unshift($lignes, "DORMANT : se réveille après {$n} quête".($n > 1 ? 's' : '').' terminée'.($n > 1 ? 's' : ''));
+        }
+
+        return $lignes;
     }
 
     /**

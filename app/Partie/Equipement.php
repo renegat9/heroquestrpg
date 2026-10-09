@@ -555,16 +555,21 @@ final class Equipement
      */
     public function bonusDeplacementActif(Personnage $personnage, Quete $quete): int
     {
+        // SANS condition de lieu (Bracers of the Wild : « You may also add 2
+        // squares to your movement roll », p. 50) : ajouté tel quel. Les deux
+        // clés se SOMMENT — un héros peut porter Raquettes ET Brassards.
+        $inconditionnel = $this->valeurEffetPorte($personnage, MotsClesEquipement::BONUS_DEPLACEMENT_INCONDITIONNEL);
+
         $bonus = $this->valeurEffetPorte($personnage, MotsClesEquipement::BONUS_DEPLACEMENT_PORTE);
 
         if ($bonus <= 0 || $quete->groupe === null) {
-            return 0;
+            return $inconditionnel;
         }
 
         // Auto : la boîte tirée ; manuel : une boîte cochée (2026-09-28).
-        return BestiaireGroupe::duGroupe($quete->groupe)->contient('horreur_des_glaces')
+        return $inconditionnel + (BestiaireGroupe::duGroupe($quete->groupe)->contient('horreur_des_glaces')
             ? $bonus
-            : 0;
+            : 0);
     }
 
     /**
@@ -1110,6 +1115,7 @@ final class Equipement
         $attaque = self::attaqueDeLArme($attaque, $effet);
 
         $attaque += $this->bonusPermanent($personnage, 'bonus_des_attaque');
+        $attaque += $this->bonusAuContact($personnage, $arme);
 
         $portes = $personnage->inventaire()
             ->whereIn('emplacement', self::SLOTS)
@@ -1123,6 +1129,33 @@ final class Equipement
         }
 
         return max(0, $attaque);
+    }
+
+    /**
+     * Dés d'attaque que les pièces PORTÉES ajoutent à une arme qui n'est PAS à
+     * distance — *Girdle of Might* : « 1 additional Attack die on all
+     * non-ranged weapon attacks » (Jungles of Delthrak, p. 50).
+     *
+     * ⚠ C'est la ARME qui décide : `portee: distance` (arbalète, Crâne de
+     * Saphir) n'en profite jamais, même collée à sa cible — la carte parle du
+     * type d'arme, pas de la distance du tir. Les mains nues (`null`) ne sont
+     * pas « une attaque d'arme ». Un LANCER est une attaque à distance : l'arme
+     * jetée (`jetable`) n'en profite pas non plus, d'où le test séparé que
+     * `ResolveurTour::frapper()` rejoue quand `$lancer` est vrai.
+     */
+    public function bonusAuContact(Personnage $personnage, ?Inventaire $arme): int
+    {
+        if ($arme === null || $this->armeADistance($arme)) {
+            return 0;
+        }
+
+        return $this->valeurEffetPorte($personnage, MotsClesEquipement::DES_ATTAQUE_AU_CONTACT);
+    }
+
+    /** L'arme de cette ligne est-elle une arme à DISTANCE (`portee: distance`) ? */
+    public function armeADistance(Inventaire $arme): bool
+    {
+        return ($arme->objet?->effet['portee'] ?? null) === MotsClesEquipement::PORTEE_DISTANCE;
     }
 
     /**

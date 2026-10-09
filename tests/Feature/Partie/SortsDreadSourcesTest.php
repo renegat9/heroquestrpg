@@ -36,12 +36,21 @@ beforeEach(function () {
 
 it('recense les 29 cartes de dread_spells.pdf, portées et non portées', function () {
     // Les 29 cartes de `dread_spells.pdf` — les cartes de Wizards of Morcar (même
-    // section du registre, paquet « Wizards of Morcar — … ») se comptent à part.
+    // section du registre, paquet « Wizards of Morcar — … ») se comptent à part,
+    // comme la VARIANTE gobeline de *Summon Orcs* (paquet « Delthrak — Gruulob »,
+    // note C du livret p. 27 : la même carte, « the same number of Goblins
+    // instead »), qui n'est pas une carte de plus dans le paquet.
     $cartes = collect(config('cartes.dread.cartes'))
         ->reject(fn ($c) => str_starts_with((string) $c['paquet'], 'Wizards of Morcar'))
+        ->reject(fn ($c) => str_contains((string) $c['paquet'], 'Gruulob'))
         ->values();
 
     expect($cartes)->toHaveCount(29);
+
+    // …et la variante est portée, avec son sort, sans rien ajouter au décompte.
+    $variante = collect(config('cartes.dread.cartes'))->firstWhere('sort_dread', 'Invocation de gobelins');
+    expect($variante)->not->toBeNull()
+        ->and($variante['carte'])->toBe('Summon Orcs');
 
     // 26 depuis le 2026-09-06 : les trois derniers sorts de The Frozen Horror
     // — Gel de l'Esprit, Mur de Glace, Patinage — ont été portés pour rendre à

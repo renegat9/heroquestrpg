@@ -15,13 +15,15 @@ defineProps({
     faveur: { type: Object, default: null },
     /** `groupe.peacekeeper` : {or_total, versements: [{personnage_id, nom, monstres, or}]} ou null. */
     peacekeeper: { type: Object, default: null },
+    /** `groupe.objets_reveilles` : {objets: [{objet, personnage}]} ou null (Fangwarden Armlet). */
+    reveil: { type: Object, default: null },
 });
 
 const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
 </script>
 
 <template>
-    <div v-if="entretien || faveur || peacekeeper" class="annonce-hub">
+    <div v-if="entretien || faveur || peacekeeper || reveil" class="annonce-hub">
         <div v-if="entretien" class="annonce-hub-ligne">
             <MSym n="paid" fill :size="16" />
             <div class="annonce-hub-texte">
@@ -51,6 +53,15 @@ const noms = (liste) => (liste ?? []).map((m) => m.nom).join(', ');
                 <b>Peacekeeper</b> : {{ peacekeeper.or_total }} po versées à la bourse commune, à la fin de la quête.
                 <span v-for="v in peacekeeper.versements" :key="v.personnage_id" class="annonce-hub-effet">
                     {{ v.nom }} : {{ v.monstres }} monstre{{ v.monstres > 1 ? 's' : '' }} vaincu{{ v.monstres > 1 ? 's' : '' }}, {{ v.or }} po.
+                </span>
+            </div>
+        </div>
+        <div v-if="reveil" class="annonce-hub-ligne">
+            <MSym n="alarm_on" fill :size="16" />
+            <div class="annonce-hub-texte">
+                <b>Une puissance se réveille</b> :
+                <span v-for="(o, i) in reveil.objets" :key="i" class="annonce-hub-effet">
+                    {{ o.objet }} de {{ o.personnage }} est de nouveau prêt.
                 </span>
             </div>
         </div>

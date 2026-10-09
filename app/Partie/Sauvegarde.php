@@ -342,6 +342,9 @@ final class Sauvegarde
                 // « Recommencer la quête » redécrirait un donjon que le groupe
                 // vient de parcourir.
                 'recits' => $quete->recits,
+                // Effets GLOBAUX figés au démarrage : un PLACEMENT (comme `salle_artefact`),
+                // restauré tel quel — une reprise ne doit ni les perdre ni les réannoncer.
+                'effets_globaux' => EffetsGlobauxQuete::de($quete),
             ],
             // Grille complète, état des pièges inclus (cachés compris).
             'carte' => $quete->carte === null ? null : [
@@ -432,6 +435,7 @@ final class Sauvegarde
                     'id' => $a->id,
                     'mercenaire_id' => $a->mercenaire_id,
                     'recruteur_personnage_id' => $a->recruteur_personnage_id,
+                    'invoque_par_objet_id' => $a->invoque_par_objet_id,
                     'pv_body' => (int) $a->pv_body,
                     'position_x' => $a->position_x,
                     'position_y' => $a->position_y,
@@ -469,6 +473,9 @@ final class Sauvegarde
                     'emplacement' => $ligne->emplacement,
                     'quantite' => (int) $ligne->quantite,
                     'ameliorations' => $ligne->ameliorations,
+                    // Dormance du Fangwarden Armlet : un état durable, qu'une
+                    // reprise ne doit pas effacer.
+                    'quetes_avant_reveil' => $ligne->quetes_avant_reveil,
                 ])->values()->all(),
         ];
     }
@@ -505,7 +512,7 @@ final class Sauvegarde
         $champs['salles_decouvertes'] = (array) ($quete['salles_decouvertes'] ?? [0]);
         $champs['tresors_fouilles'] = (array) ($quete['tresors_fouilles'] ?? []);
 
-        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits'] as $champ) {
+        foreach (['deck_fouille', 'salle_artefact', 'salles_coffre', 'coffres_ouverts', 'artefact_objet_id', 'recits', 'effets_globaux'] as $champ) {
             if (array_key_exists($champ, $quete)) {
                 $champs[$champ] = $quete[$champ];
             }
@@ -618,6 +625,7 @@ final class Sauvegarde
                 'groupe_id' => $groupe->id,
                 'mercenaire_id' => $m['mercenaire_id'],
                 'recruteur_personnage_id' => $m['recruteur_personnage_id'] ?? null,
+                'invoque_par_objet_id' => $m['invoque_par_objet_id'] ?? null,
                 'pv_body' => $m['pv_body'],
                 'position_x' => $m['position_x'],
                 'position_y' => $m['position_y'],
@@ -700,6 +708,7 @@ final class Sauvegarde
                 'emplacement' => $ligne['emplacement'],
                 'quantite' => $ligne['quantite'],
                 'ameliorations' => $ligne['ameliorations'],
+                'quetes_avant_reveil' => $ligne['quetes_avant_reveil'] ?? null,
             ]);
         }
     }

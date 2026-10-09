@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Monstre;
+use App\Partie\EffetsGlobauxQuete;
 use Database\Seeders\MonstreSeeder;
 
 /**
@@ -261,7 +262,12 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // Wizards of Morcar, vague 2B : l'embuscade du Dreadshifter
         // (`MoteurEmbuscade`, déclencheur de la carte) et le coup de corne du
         // Minotaure (`ResolveurTour::coupsDeCorne()`).
-        'embuscade', 'coup_de_corne'];
+        'embuscade', 'coup_de_corne',
+        // Jungles of Delthrak, Gruulob (2026-10-09) : le TIR AU CHOIX d'un monstre de
+        // mêlée (`Monstre::aTirAuChoix()`, lu par `ResolveurTour::jouerMonstre()`) et
+        // l'EFFET GLOBAL de quête (`EffetsGlobauxQuete`, lu par
+        // `InstanceMonstre::bonusEffetGlobalQuete()`).
+        'tir_au_choix', 'effet_global_quete'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(
@@ -310,7 +316,7 @@ it('chaîne un monstre à PHASES sans trou, et termine la chaîne', function () 
 
     // Chaque chaîne connue se termine en un nombre BORNÉ d'étapes (3 au plus,
     // Gretzl/Gruzbella) — une boucle infinie planterait ce test, jamais le jeu.
-    foreach (['Gruzbella Hammerhand', 'Spawn of the Pit', 'Gretzl la Porte-Fléau'] as $debut) {
+    foreach (['Gruzbella Hammerhand', 'Spawn of the Pit', 'Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu'] as $debut) {
         $nom = $debut;
         $vus = [];
 
@@ -379,8 +385,76 @@ it('porte les stats de Gretzl la Porte-Fléau EXACTEMENT comme ses trois phases 
         $m = Monstre::where('nom_base', $nom)->firstOrFail();
         expect($m->archetype_lanceur)->toBe('gretzl_porte_fleau', "{$nom} : archétype de sorts")
             ->and(in_array('ignore_degats_attaque', (array) ($m->capacites['reactions_defense'] ?? []), true))
-            ->toBeTrue("{$nom} : Demon Wings");
+            ->toBeTrue("{$nom} : Demon Wings")
+            // « *Gretzl may choose to fire at range at any hero in her line of
+            // sight » — l'astérisque porte sur l'attaque des TROIS formes (p. 35).
+            ->and(in_array('tir_au_choix', (array) $m->capacites, true))
+            ->toBeTrue("{$nom} : tir au choix");
     }
+});
+
+it('porte Gruulob, Sorcier Gobelin Corrompu EXACTEMENT comme ses deux formes (Jungles of Delthrak q. 8, p. 27)', function () {
+    // « Gruulob, Blighted Goblin Warlock » : Move 6 · Attack 3 · Defend 4 ·
+    // Body 4 · Mind 5 ; « Gruulob, Demon Form » : Move 6 · Attack 4 · Defend 5 ·
+    // Body 3 · Mind 4 (livret F9907 p. 27, relu à l'image).
+    expect(statsDe('Gruulob, Sorcier Gobelin Corrompu'))->toBe([6, 3, 4, 4, 5])
+        ->and(statsDe('Gruulob, Forme Démoniaque'))->toBe([6, 4, 5, 3, 4]);
+
+    $phase1 = Monstre::where('nom_base', 'Gruulob, Sorcier Gobelin Corrompu')->firstOrFail();
+    $phase2 = Monstre::where('nom_base', 'Gruulob, Forme Démoniaque')->firstOrFail();
+
+    expect($phase1->phase_suivante)->toBe('Gruulob, Forme Démoniaque')
+        ->and($phase2->phase_suivante)->toBeNull()
+        ->and($phase1->tier)->toBe('boss')
+        ->and($phase1->boite)->toBe('jungles_delthrak')
+        // Le répertoire de sorts vaut pour les DEUX formes (« still considered the
+        // same monster for game effects such as spells ») : l'archétype est posé
+        // sur chacune, comme pour Gretzl.
+        ->and($phase1->archetype_lanceur)->toBe('gruulob_sorcier_gobelin')
+        ->and($phase2->archetype_lanceur)->toBe('gruulob_sorcier_gobelin');
+
+    // Aucune capacité RÉACTIVE dans le livret (aucune `reactions_defense`). Le TIR AU CHOIX
+    // vaut pour les DEUX formes (« In both forms… ») ; l'EFFET GLOBAL de quête pour la
+    // première seule — c'est elle qui entre dans la quête, figée au démarrage.
+    expect($phase1->aTirAuChoix())->toBeTrue('Gruulob : tir au choix, première forme')
+        ->and($phase2->aTirAuChoix())->toBeTrue('Gruulob : tir au choix, forme démoniaque')
+        ->and(array_key_exists('reactions_defense', (array) $phase1->capacites))->toBeFalse()
+        ->and(array_key_exists('effet_global_quete', (array) $phase2->capacites))->toBeFalse()
+        ->and($phase1->capacites['effet_global_quete'] ?? null)->toBe([
+            'titre' => 'Les gobelins de Gruulob', 'faction' => 'Gobelin', 'volee' => 'attaque', 'des' => 1,
+        ]);
+
+    // Le répertoire tient en TROIS sorts déjà portés par leur carte (Summon Orcs
+    // dans sa variante gobeline).
+    expect(config('archetypes_lanceurs.gruulob_sorcier_gobelin.sorts'))->toBe([
+        'Étreinte des Ronces', 'Canaliser l\'Effroi', 'Invocation de gobelins',
+    ]);
+});
+
+it('déclare tir_au_choix et effet_global_quete là où le livret les porte, et nulle part ailleurs', function () {
+    // Registre testé DANS LES DEUX SENS (hard rule) : chaque clé nommée dans
+    // `$implementees` est lue par un moteur (liste ci-dessus), et chaque clé lue est
+    // déclarée — ici, exactement sur les lignes que le livret désigne. Une clé qui glisserait
+    // sur une autre créature changerait le combat sans que rien ne le dise.
+    $tirAuChoix = Monstre::all()->filter(fn (Monstre $m) => $m->aTirAuChoix())->pluck('nom_base')->sort()->values()->all();
+    $effets = Monstre::all()
+        ->filter(fn (Monstre $m) => is_array($m->capacites) && array_key_exists('effet_global_quete', $m->capacites))
+        ->pluck('nom_base')->sort()->values()->all();
+
+    // Gretzl (ses trois formes) : « *Gretzl may choose to fire at range… » (p. 35).
+    expect($tirAuChoix)->toBe(['Demonape', 'Demonspider', 'Gretzl la Porte-Fléau', 'Gruulob, Forme Démoniaque', 'Gruulob, Sorcier Gobelin Corrompu'])
+        ->and($effets)->toBe(['Gruulob, Sorcier Gobelin Corrompu']);
+});
+
+it('donne à l\'effet global une faction présente au catalogue, une volée lue et un dé au moins', function () {
+    // Même registre, côté PARAMÈTRES : une faction qui ne désigne aucune ligne du catalogue
+    // ne toucherait aucun gobelin, et une volée sans lecteur serait une promesse muette.
+    $params = Monstre::where('nom_base', 'Gruulob, Sorcier Gobelin Corrompu')->firstOrFail()->capacites['effet_global_quete'];
+
+    expect(Monstre::where('nom_base', $params['faction'])->exists())->toBeTrue("faction « {$params['faction']} » absente du catalogue")
+        ->and(EffetsGlobauxQuete::VOLEES)->toContain($params['volee'])
+        ->and($params['des'])->toBeGreaterThanOrEqual(1)
+        ->and($params['titre'])->not->toBeEmpty();
 });
 
 it('donne au Sorcier du Dread (Prophecy of Telor) le répertoire limité par son palier', function () {
@@ -407,35 +481,43 @@ it('donne à Sir Ragnar `increvable_une_fois`, sans jamais le déclarer `phases`
         ->and($ragnar->tier)->toBe('boss');
 });
 
-it('tire Gretzl comme boss du thème Jungles of Delthrak', function () {
-    // Vérifie l'intégration au générateur (chantier 2026-10-04) : le pool de
-    // rencontre finale du gabarit « Confrontation finale » nomme son
-    // archétype, son `boite` la range bien dans le thème, et son archétype
-    // est bien le SEUL candidat de ce thème — la rotation déterministe de
-    // `DemarreurQuete::acheterMonstres()` n'a donc aucun autre tirage
-    // possible dès que le thème d'une campagne est `jungles_delthrak`.
+it('tire Gretzl ou Gruulob comme boss du thème Jungles of Delthrak — jamais une de leurs FORMES', function () {
+    // Vérifie l'intégration au générateur : le pool de rencontre finale du
+    // gabarit « Confrontation finale » nomme leurs archétypes, leur `boite` les
+    // range dans le thème, et la rotation déterministe de
+    // `DemarreurQuete::acheterMonstres()` ne peut tirer que leurs PREMIÈRES
+    // phases. Une forme suivante porte le même archétype que sa première phase :
+    // sans l'exclusion de `Monstre::nomsDeFormeSuivante()`, Demonape ou Gruulob
+    // Forme Démoniaque auraient été des boss du thème comme les autres.
     $this->seed([\Database\Seeders\GabaritQueteSeeder::class]);
 
     $gabarit = \App\Models\GabaritQuete::where('nom', 'Confrontation finale')->firstOrFail();
     $pool = (array) data_get($gabarit->structure, 'rencontre_finale.archetypes', []);
 
-    expect($pool)->toContain('gretzl_porte_fleau');
+    expect($pool)->toContain('gretzl_porte_fleau')
+        ->and($pool)->toContain('gruulob_sorcier_gobelin');
 
-    $gretzl = Monstre::where('nom_base', 'Gretzl la Porte-Fléau')->firstOrFail();
-    expect($gretzl->boite)->toBe('jungles_delthrak')
-        ->and($gretzl->tier)->toBe('boss');
+    foreach (['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu'] as $nom) {
+        $m = Monstre::where('nom_base', $nom)->firstOrFail();
+        expect($m->boite)->toBe('jungles_delthrak', "{$nom} : thème")
+            ->and($m->tier)->toBe('boss', "{$nom} : palier");
+    }
 
-    // Aucun AUTRE candidat `boss` de ce thème n'existe encore (§1.3 du plan
-    // Delthrak : « actif, mais SANS boss ») — Gretzl (ses trois PHASES,
-    // toutes de tier `boss`/`boite jungles_delthrak`) est donc le seul nom
-    // que la rotation d'`acheterMonstres()` peut jamais tirer pour ce thème.
-    $sesPhases = ['Gretzl la Porte-Fléau', 'Demonspider', 'Demonape'];
-    $autresBossDuTheme = Monstre::where('tier', 'boss')
+    // Pest lit chaque argument de `toContain` comme une valeur cherchée : pas de
+    // message en second argument.
+    expect(Monstre::nomsDeFormeSuivante())
+        ->toContain('Demonspider', 'Demonape', 'Gruulob, Forme Démoniaque');
+
+    // Les SEULS boss du thème sont les deux premières phases (§1.3 du plan
+    // Delthrak : « actif, mais SANS boss » avant ce chantier).
+    $bossDuTheme = Monstre::where('tier', 'boss')
         ->where('boite', 'jungles_delthrak')
-        ->whereNotIn('nom_base', $sesPhases)
-        ->count();
+        ->whereNotIn('nom_base', Monstre::nomsDeFormeSuivante())
+        ->orderBy('nom_base')
+        ->pluck('nom_base')
+        ->all();
 
-    expect($autresBossDuTheme)->toBe(0);
+    expect($bossDuTheme)->toBe(['Gretzl la Porte-Fléau', 'Gruulob, Sorcier Gobelin Corrompu']);
     expect(\App\Partie\DemarreurQuete::BOITES_THEMATIQUES)->toContain('jungles_delthrak');
 });
 

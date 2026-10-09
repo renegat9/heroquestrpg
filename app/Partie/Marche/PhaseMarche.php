@@ -125,9 +125,16 @@ final class PhaseMarche
             ->max();
 
         // Inventaire dérivé du catalogue : raretés du profil, jamais d'unique.
+        // ⚠ AUCUN filtre par boîte (René, 2026-10-09 : « tout vendre partout ») :
+        // le marchand vend toute pièce achetable de TOUTES les boîtes, quel que
+        // soit le thème de la campagne. Seuls les coffres, la fouille et le
+        // terrain suivent le thème ; l'étal, non — décision écrite, à ne pas
+        // « corriger » par symétrie.
         $inventaire = Objet::query()
             ->whereIn('rarete', $config['raretes'])
             ->where('rarete', '!=', 'unique')
+            // Un trésor-valeur (Emerald Heart…) se REVEND, il ne s'achète jamais.
+            ->where('categorie', '!=', 'tresor')
             ->when($maitrises !== [], fn ($q) => $q->where(
                 fn ($w) => $w->whereNull('tag_equipement')
                     ->orWhere('tag_equipement', '')
@@ -489,6 +496,27 @@ final class PhaseMarche
     }
 
     /**
+     * Prix de revente d'UNE pièce — le SEUL point de passage de la règle (le
+     * panier et l'inventaire vendable la relisent tous les deux : deux
+     * `intdiv(…, 2)` recopiés auraient dérivé).
+     *
+     * Ordinairement 50 % du prix du marchand courant (M1), à défaut du prix de
+     * base. Exception : un TRÉSOR-VALEUR (`effet.valeur_marchande`, Emerald
+     * Heart of Delthrak « can be sold for 75 gold coins ») se revend à sa valeur
+     * ENTIÈRE — la carte donne le prix de vente, pas un prix d'achat à diviser.
+     */
+    public static function reventePour(Objet $objet, ?int $prixMarchand = null): int
+    {
+        $valeur = (int) ($objet->effet[MotsClesEquipement::VALEUR_MARCHANDE] ?? 0);
+
+        if ($valeur > 0) {
+            return $valeur;
+        }
+
+        return intdiv((int) ($prixMarchand ?? $objet->prix_base), 2);
+    }
+
+    /**
      * Revente (M1) : 50 % du prix du marchand courant si l'objet figure à
      * son étal, à défaut 50 % du prix de base. La ligne d'inventaire entière
      * est vendue (quantité comprise).
@@ -526,8 +554,7 @@ final class PhaseMarche
                 throw ValidationException::withMessages(['ventes' => self::REFUS_VENTE_UNIQUE]);
             }
 
-            $prixMarchand = $inventaire->get($ligne->objet_id)['prix'] ?? (int) $ligne->objet->prix_base;
-            $prixRevente = intdiv($prixMarchand, 2);
+            $prixRevente = self::reventePour($ligne->objet, $inventaire->get($ligne->objet_id)['prix'] ?? null);
 
             $lignes[] = [
                 'inventaire_id' => $ligne->id,
@@ -774,10 +801,7 @@ final class PhaseMarche
                 'rarete' => $ligne->objet->rarete,
                 'emplacement' => $ligne->emplacement,
                 'quantite' => (int) $ligne->quantite,
-                'revente' => intdiv(
-                    (int) ($marchand[$ligne->objet_id]['prix'] ?? $ligne->objet->prix_base),
-                    2
-                ),
+                'revente' => self::reventePour($ligne->objet, $marchand[$ligne->objet_id]['prix'] ?? null),
             ])
             ->values()
             ->all();

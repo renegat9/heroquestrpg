@@ -592,11 +592,20 @@ final class MenuMoteur
                     continue;
                 }
 
+                // FANGWARDEN ARMLET : dormant, ou aucune case libre près du héros
+                // → l'option disparaît plutôt que de répondre non (même prédicat
+                // que le résolveur, `AlliesInvoques::refus()`).
+                $appel = ! empty($objet->effet[MotsClesEquipement::APPELLE_ALLIE]);
+
+                if ($appel && app(AlliesInvoques::class)->refus($quete, $personnage, $ligne, (array) $objet->effet) !== null) {
+                    continue;
+                }
+
                 $entrees[] = [
                     'cle' => "objet:{$ligne->id}",
                     'inventaire_id' => $ligne->id,
                     'nom' => $objet->nom,
-                    'detail' => 'Activer',
+                    'detail' => $appel ? 'Appeler l\'allié' : 'Activer',
                     'cout' => (string) ($objet->effet['cout'] ?? 'action'),
                     'quantite' => (int) $ligne->quantite,
                     // ⚠ Ce que la pièce fait, en clair : la liste de choix se
@@ -648,6 +657,11 @@ final class MenuMoteur
                     ? $equipement->estAccessible($personnage, $objet)
                     : $ciblesPotion !== [];
 
+                // Potion à clause d'usage (Elder Wisdom : une par héros et par
+                // quête, et seulement s'il y a quelque chose à récupérer) : même
+                // prédicat que `MoteurPotions::boire()`.
+                $offrable = $offrable && app(MoteurPotions::class)->offrable($personnage, $objet, $etat);
+
                 if ($offrable) {
                     $entrees[] = [
                         'cle' => "objet:{$ligne->id}",
@@ -673,6 +687,32 @@ final class MenuMoteur
             'type' => 'objet_libre',
             'parametres' => ['objets' => $entrees],
         ]];
+    }
+
+    /**
+     * La Mare que ce héros peut boire AU LIEU de fouiller (`soin_a_la_fouille`,
+     * lue en UN point : `MoteurTerrain`), ou `null`. Une salle avec une mare, un
+     * héros blessé : ni plus, ni moins — « restore 1 lost Body Point ».
+     *
+     * ⚠ L'appelant a déjà établi que la fouille de trésor de cette salle est
+     * offerte (`salleFouillableTresor()`) : cette méthode ne rejuge pas ce qui
+     * est la même précondition.
+     *
+     * @return array{x: int, y: int, nom: string, soin: int}|null
+     */
+    private function mareOfferte(Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): ?array
+    {
+        if ($etat === null || $etat->position_x === null || $quete->carte === null
+            || (int) $personnage->pv_body >= (int) $personnage->pv_body_max) {
+            return null;
+        }
+
+        $salle = Salles::indexDe(
+            (array) data_get($quete->carte->grille, 'salles', []),
+            (int) $etat->position_x, (int) $etat->position_y,
+        );
+
+        return $salle === null ? null : app(MoteurTerrain::class)->mareDeLaSalle($quete->carte, $salle);
     }
 
     private function salleFouillableTresor(Quete $quete, ?EtatPersonnageQuete $etat): bool
@@ -1146,6 +1186,12 @@ final class MenuMoteur
         // « Se déplacer » vers une case que seul un meuble traversé atteint.
         if ($this->sorts->mobiliteCombatDisponible($personnage)) {
             $grille->autoriserFranchissementFigures();
+        }
+
+        // Bracers of the Wild / Spiderstep Elixir : un héros encerclé de meubles
+        // les traverse — même levée que `ResolveurTour::grilleDeplacement()`.
+        if ($this->sorts->mobilierFranchi($personnage)) {
+            $grille->franchirMobilier();
         }
 
         $pas = $this->pointsRestants($personnage, $etat);
@@ -2427,6 +2473,19 @@ final class MenuMoteur
                     ];
                 }
 
+                // COCON (Jungles of Delthrak p. 4) — « A hero adjacent to a cocoon
+                // can spend an action to destroy it » : la QUATRIÈME voie, une
+                // action et aucun jet (`effet.detruit_par_action`). Pas de
+                // créneau particulier : c'est l'ACTION du tour, comme frapper.
+                foreach ($this->mobilier->detruisiblesParActionAdjacents($quete->carte, $px, $py) as $meuble) {
+                    $options[] = [
+                        'id' => "detruire_par_action_{$meuble['index']}",
+                        'libelle' => "Détruire : {$meuble['nom']}",
+                        'type' => 'detruire_par_action',
+                        'parametres' => ['mobilier' => $meuble['index'], 'nom' => $meuble['nom']],
+                    ];
+                }
+
                 // MUR DE GLACE (Ice Wall, plan glace phase 2) — l'option qui
                 // manquait à `MoteurDread::endommagerMurDeGlace()` : écrite,
                 // testée directement, mais aucune case n'était atteignable
@@ -2556,6 +2615,26 @@ final class MenuMoteur
                     'libelle' => 'Fouiller — trésor',
                     'type' => 'fouille_tresor',
                 ];
+
+                // MARE (Pool of Water, Jungles of Delthrak p. 4) : « If a hero
+                // searches for treasure in an area containing a pool of water,
+                // they may choose to restore 1 lost Body Point INSTEAD of drawing
+                // from the treasure deck. » La même fouille, un autre gain — donc
+                // offerte au MÊME endroit que `fouiller_tresor` et sous les mêmes
+                // conditions (la salle est « vide », ce héros ne l'a pas encore
+                // fouillée). ⚠ Le menu n'offre pas ce que le résolveur refusera :
+                // « restore 1 LOST Body Point » suppose un point perdu, donc rien
+                // pour un héros au maximum.
+                $mare = $this->mareOfferte($quete, $personnage, $etat);
+
+                if ($mare !== null) {
+                    $options[] = [
+                        'id' => 'boire_mare',
+                        'libelle' => "Boire à la mare — rendre {$mare['soin']} PV de Body, au lieu d'une carte de trésor",
+                        'type' => 'boire_mare',
+                        'parametres' => ['soin' => $mare['soin'], 'terrain' => $mare['nom']],
+                    ];
+                }
             }
         }
 

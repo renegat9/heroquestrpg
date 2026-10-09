@@ -2787,6 +2787,10 @@ final class AssembleurCarte
 
         $terrains = [];
         $occupeesGlobal = []; // toute case déjà donnée à un terrain (bloquant ou non), toutes salles confondues
+        // Mares et Brasiers posés, PAR SALLE : on les traverse mais on ne s'y
+        // arrête pas (`interdit_arret`), donc chacun mange une case de
+        // PLANCHER de jouabilité (§2.12 ter) exactement comme un meuble.
+        $sansArretParSalle = [];
 
         $tunnel = $catalogue->firstWhere('nom', self::NOM_TERRAIN_TUNNEL);
         $ordinaires = $catalogue->reject(fn (Terrain $t) => $tunnel !== null && $t->is($tunnel))->values();
@@ -2822,6 +2826,23 @@ final class AssembleurCarte
 
                 if ($this->terrainCasseraitConnexite($type, $parSalle[$i], $cle, $bloquantesParSalle[$i] ?? [])) {
                     continue; // cette pose isolerait une case : abandon, PAS de repli
+                }
+
+                // « Connexe » ne veut pas dire « jouable » (§2.12 ter) : une Mare
+                // ou un Brasier ne coupe rien — on les traverse —, mais personne
+                // ne peut FINIR son tour dessus, c'est donc une case de moins
+                // pour les quatre héros et ce qu'ils combattent. Le plancher se
+                // tient sur les cases RESTANTES de la salle (mobilier bloquant
+                // et terrains sans arrêt déjà posés retirés), jamais sur un
+                // plafond de nombre ; on abandonne la pose plutôt que de la forcer.
+                if (! empty($type->effet['interdit_arret'])) {
+                    $prises = count($bloquantesParSalle[$i] ?? []) + ($sansArretParSalle[$i] ?? 0);
+
+                    if (count($parSalle[$i]['interieur']) - $prises - 1 < self::CASES_JOUABLES_MINIMUM) {
+                        continue;
+                    }
+
+                    $sansArretParSalle[$i] = ($sansArretParSalle[$i] ?? 0) + 1;
                 }
 
                 if ($type->bloque_mouvement) {

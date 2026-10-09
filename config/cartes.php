@@ -124,6 +124,14 @@ return [
             ['carte' => 'Potion of Fire Resistance', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de résistance au feu'],
             ['carte' => 'Potion of Magical Aptitude', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de prédisposition magique'],
             ['carte' => 'Potion of Magic Resistance', 'paquet' => 'Wizards of Morcar', 'objet' => 'Potion de résistance à la magie'],
+
+            // ===== Jungles of Delthrak (« Alchemist's Shop », livret F9907 p. 2,
+            // 2026-10-09) : TROIS potions de plus, vendues. *Potion of Healing*
+            // (500 po) est la même carte que « Potion of Healing » de potions.pdf
+            // plus haut — même prix, même effet — et n'a donc pas de seconde ligne.
+            ['carte' => "Potion of Serpent's Blood", 'paquet' => 'Jungles of Delthrak', 'objet' => 'Potion de sang de serpent'],
+            ['carte' => 'Potion of Elder Wisdom', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Potion de sagesse ancienne'],
+            ['carte' => 'Spiderstep Elixir', 'paquet' => 'Jungles of Delthrak', 'objet' => "Élixir de pas d'araignée"],
         ],
     ],
     /*
@@ -319,6 +327,33 @@ return [
             // Lame des Esprits, nomme les deux cibles — et Golem/Dreadshifter sont
             // désormais au catalogue des monstres.
             ['carte' => 'Urdyn the Unmaker', 'paquet' => 'Wizards of Morcar', 'objet' => 'Urdyn le Défaiseur'],
+
+            // ===== Jungles of Delthrak — « Treasure and Artifact Reference »
+            // (livret F9907 p. 50, page 26 du PDF, relue sur le rendu PNG le
+            // 2026-10-09 : le texte extrait et l'image concordent mot pour mot).
+            // Les SEPT cartes sont portées, aucune clause laissée de côté :
+            //  - Emberwrought Diadem : +1 dé de défense, +1 Body max, « not with
+            //    the helmet » (slot `casque`) ;
+            //  - Bracers of the Wild : +1 dé de défense, mobilier ET terrain
+            //    gênant franchis (`franchit_mobilier`, `ignore_terrain_entravant`),
+            //    +2 cases (`bonus_deplacement_inconditionnel`), « with helmet
+            //    and/or shield » (slots distincts) ;
+            //  - Fangwarden Armlet : un Raptor allié (`appelle_allie`), une fois
+            //    par quête (`frequence`), dormant si le Raptor tombe — deux
+            //    quêtes terminées pour le réveiller (`inventaire.quetes_avant_reveil`) ;
+            //  - The Sapphire Skull : 2 dés d'attaque sur n'importe quel monstre
+            //    en ligne de vue (`portee: distance`) ;
+            //  - Girdle of Might : +1 dé avec une arme qui n'est pas à distance
+            //    (`des_attaque_au_contact`), pas au Magicien (`classe_interdite`) ;
+            //  - Emerald Heart of Delthrak (75 po) et Ancient Dwarven Relic (50 po) :
+            //    trésors-valeurs (`categorie: tresor`, `valeur_marchande`).
+            ['carte' => 'Emberwrought Diadem', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Diadème de braise forgée'],
+            ['carte' => 'Bracers of the Wild', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Brassards du Sauvage'],
+            ['carte' => 'Fangwarden Armlet', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Brassard du Garde-Crocs'],
+            ['carte' => 'The Sapphire Skull', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Le Crâne de Saphir'],
+            ['carte' => 'Girdle of Might', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Ceinture de Puissance'],
+            ['carte' => 'Emerald Heart of Delthrak', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Cœur d\'émeraude de Delthrak'],
+            ['carte' => 'Ancient Dwarven Relic', 'paquet' => 'Jungles of Delthrak', 'objet' => 'Relique naine ancienne'],
         ],
     ],
 
@@ -465,6 +500,11 @@ return [
             // ---- Invocation ----
             ['carte' => 'Summon Undead', 'paquet' => 'Base', 'sort_dread' => 'Invocation de morts-vivants'],
             ['carte' => 'Summon Orcs', 'paquet' => 'Base', 'sort_dread' => "Invocation d'orques"],
+            // VARIANTE du livret Delthrak (note C de la quête 8, F9907 p. 27, Gruulob) :
+            // « Summon Orcs* (*Summons the same number of Goblins instead) ». Même
+            // carte, même table, des gobelins — comptée à part dans SortsDreadSourcesTest
+            // (les 29 cartes de dread_spells.pdf restent 29).
+            ['carte' => 'Summon Orcs', 'paquet' => 'Delthrak — Gruulob (livret p. 27)', 'sort_dread' => 'Invocation de gobelins'],
             ['carte' => 'Summon Wolves', 'paquet' => 'Mage of the Mirror', 'sort_dread' => 'Invocation de loups'],
             ['carte' => 'Summon Specters', 'paquet' => 'Dread Moon', 'sort_dread' => 'Invocation de spectres'],
             ['carte' => 'Reanimation', 'paquet' => 'Dread Moon', 'sort_dread' => 'Réanimation'],

@@ -54,6 +54,8 @@ export const PIEGE_ICONES = {
     // rassemble d'une icône neutre plutôt que de distinguer "poison"
     // (vivant) de "piège" (mécanique).
     'Poison': 'skull',
+    // Jungles of Delthrak (lot E, 2026-10-09) : des lianes qui happent.
+    'Piège de lianes': 'nature',
 };
 export const PIEGE_ICONE_DEFAUT = 'warning';
 
@@ -111,6 +113,10 @@ export const MOBILIER_ICONES = {
     // même rôle de barrière que le Mur de Pierre, un symbole par élément.
     'Mur de Glace': 'ac_unit',
     'Mur de Feu': 'local_fire_department',
+    // Jungles of Delthrak (lot E, 2026-10-09) : le Cocon, un obstacle de toile
+    // détruit d'UNE action sans jet — l'œuf dit « enveloppe », distinct des
+    // blocs ci-dessus.
+    'Cocon': 'egg',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 
@@ -168,6 +174,16 @@ export const TERRAIN_TEINTES = {
     'Tunnel de glace': 'passage',
     'Glace magique': 'decor',
     'Rebord de crevasse': 'decor',
+    // Jungles of Delthrak (lots B et D, 2026-10-09) : trois teintes de plus
+    // pour trois risques que le joueur doit lire d'un coup d'œil — `gene`
+    // (sable, toile, jungle : coûte 2 points), `eau` (la Mare : on la
+    // traverse, on n'y finit pas, on y boit en fouillant) et `feu` (le
+    // Brasier : on le traverse, un dé de combat, un crâne fait mal).
+    'Sable entravant': 'gene',
+    'Toile entravante': 'gene',
+    'Jungle entravante': 'gene',
+    'Mare': 'eau',
+    'Brasier': 'feu',
 };
 export const TERRAIN_TEINTE_DEFAUT = 'decor';
 

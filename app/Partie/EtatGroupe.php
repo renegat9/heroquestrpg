@@ -147,6 +147,8 @@ final class EtatGroupe
             $preambuleGroupe['mercenaires_entretien'] = $this->annonceDeQuete($groupe, 'mercenaire_entretien', $derniereQuete);
             $preambuleGroupe['faveur_hopekins'] = $this->annonceDeQuete($groupe, 'faveur_hopekins', $derniereQuete);
             $preambuleGroupe['peacekeeper'] = $this->annonceDeQuete($groupe, 'peacekeeper_quete', $derniereQuete);
+            // Brassards éveillés par la quête qui vient de finir (Fangwarden Armlet).
+            $preambuleGroupe['objets_reveilles'] = $this->annonceDeQuete($groupe, 'objets_reveilles', $derniereQuete);
 
             // Prologue de campagne (prémisse + menace) : exposé au hub pour que
             // l'écran de table l'affiche/le relise — `auto` (true tant qu'aucune
@@ -198,6 +200,11 @@ final class EtatGroupe
                 // rien ne le laissait deviner — un jalon, lui, s'annonce par
                 // son boss.
                 'objectif_majeur' => (bool) $quete->objectif_majeur,
+                // EFFETS GLOBAUX de la quête (Gruulob : « All Goblins in this quest… »),
+                // figés au démarrage et publiés DÉCIDÉS (`texte` = la phrase affichée).
+                // Tiennent jusqu'à la fin de la quête, même quand leur source tombe.
+                // `[]` quand aucun monstre de la quête n'en porte : le bandeau ne s'affiche pas.
+                'effets_globaux' => EffetsGlobauxQuete::publier($quete),
                 // Illustration de scène de la quête (générée en arrière-plan).
                 'image_url' => app(BibliothequeImages::class)->urlDynOuVignette('quete', $quete->id),
             ],
@@ -657,6 +664,11 @@ final class EtatGroupe
                 // barre le donjon, exactement le défaut déjà payé par les
                 // leviers et le mur de glace.
                 MoteurPieges::ETAT_BLOC,
+                // LIANES AGRIPPANTES qui TIENNENT un héros (Jungles of Delthrak
+                // p. 4) : encore là jusqu'à l'action qui les détruit — un héros
+                // immobilisé sur une case que la carte montrerait vide serait
+                // un effet automatique que rien n'annonce.
+                MoteurPieges::ETAT_RETIENT,
             ], true));
 
         $noms = Piege::query()
@@ -891,7 +903,7 @@ final class EtatGroupe
      * brouillard répond directement à « cette case est-elle vue ? ».
      *
      * @param  list<list<string>>  $cases  grille DÉJÀ passée au brouillard
-     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, image_url: ?string}>
+     * @return list<array{x: int, y: int, terrain_id: int, nom: string, cout_deplacement: int, bloque_mouvement: bool, bloque_vue: bool, paire_id: ?string, entravant: bool, interdit_arret: bool, image_url: ?string}>
      */
     private function terrain(Carte $carte, array $cases): array
     {
@@ -900,7 +912,7 @@ final class EtatGroupe
 
         $catalogue = Terrain::query()
             ->whereIn('id', $visibles->pluck('terrain_id')->filter()->unique())
-            ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue'])
+            ->get(['id', 'nom', 'cout_deplacement', 'bloque_mouvement', 'bloque_vue', 'effet'])
             ->keyBy('id');
 
         return $visibles
@@ -918,6 +930,14 @@ final class EtatGroupe
                     'bloque_mouvement' => $type?->bloque_mouvement ?? false,
                     'bloque_vue' => $type?->bloque_vue ?? false,
                     'paire_id' => isset($entree['paire_id']) ? (string) $entree['paire_id'] : null,
+                    // DÉCISIONS (Jungles of Delthrak p. 4), publiées plutôt que
+                    // laissées à re-déduire d'un nom ou d'un coût : le client ne
+                    // peut pas savoir qu'une case à 2 points est du terrain
+                    // GÊNANT (qu'Agile, un talent ou les Bracers ignorent) plutôt
+                    // qu'une rivière gelée (qu'ils n'ignorent pas), ni qu'une
+                    // Mare ou un Brasier se traverse sans qu'on puisse s'y arrêter.
+                    'entravant' => ! empty($type?->effet['entravant']),
+                    'interdit_arret' => ! empty($type?->effet['interdit_arret']),
                     'image_url' => app(BibliothequeImages::class)->urlTerrain($type?->id, $type?->nom),
                 ];
             })
@@ -1174,6 +1194,17 @@ final class EtatGroupe
                     // calculée par la MÊME méthode que le résolveur — pas un
                     // cinquième miroir qui la re-déduirait.
                     'franchit_figures' => $this->sorts->mobiliteCombatDisponible($p),
+                    // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : CE héros le
+                    // traverse-t-il sans payer ses 2 cases ? DÉCISION serveur
+                    // (`MoteurSorts::terrainEntravantIgnore()`, la même méthode
+                    // que le résolveur) — la manette ne devine ni un talent ni,
+                    // demain, les Bracers of the Wild.
+                    'ignore_terrain_entravant' => $this->sorts->terrainEntravantIgnore($p),
+                    // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : CE héros
+                    // traverse-t-il les meubles bloquants, sans s'y arrêter ?
+                    // Même patron, même raison — la manette ne devine ni une pièce
+                    // portée ni un buff de potion (`MoteurSorts::mobilierFranchi()`).
+                    'franchit_mobilier' => $this->sorts->mobilierFranchi($p),
                     // RÉSERVE ARCANIQUE (talent du magicien) et Baguette de
                     // Rappel : un SECOND sort au-delà du créneau d'action, le
                     // pendant exact de la seconde attaque ci-dessus. Même

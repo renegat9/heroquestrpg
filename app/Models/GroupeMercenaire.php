@@ -45,6 +45,9 @@ class GroupeMercenaire extends Model
         'groupe_id',
         'mercenaire_id',
         'recruteur_personnage_id',
+        // `objets.id` de l'objet qui a APPELÉ cet allié (Fangwarden Armlet) ;
+        // `null` = recruté ou octroyé. Un allié appelé ne survit pas à la quête.
+        'invoque_par_objet_id',
         'pv_body',
         'position_x',
         'position_y',

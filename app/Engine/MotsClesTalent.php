@@ -232,8 +232,10 @@ final class MotsClesTalent
             'icone' => 'door_front',
         ],
         'ignore_terrain_entravant' => [
-            'lecteur' => 'App\Partie\ResolveurTour::tronquerSurRacines()',
-            'libelle' => 'ignore racines et chausse-trappes',
+            // + terrain GÊNANT de Jungles of Delthrak (2026-10-09) : lu par
+            // `MoteurSorts::terrainEntravantIgnore()` → `Grille::ignorerTerrainEntravant()`.
+            'lecteur' => ['App\Partie\ResolveurTour::tronquerSurRacines()', 'App\Partie\MoteurSorts::terrainEntravantIgnore()'],
+            'libelle' => 'ignore racines, chausse-trappes et terrain gênant',
             'icone' => 'grass',
         ],
         'fouille_supplementaire' => [

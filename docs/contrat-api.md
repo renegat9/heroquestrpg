@@ -53,6 +53,8 @@ Routes protégées par middleware `auth` sauf connexion.
             "objectif_libelle": "phrase sans vocabulaire de jeu | null",
             "objectif_accompli": true,
             "objectif_majeur": false,
+            "effets_globaux": [{"source": "Gruulob, Sorcier Gobelin Corrompu", "titre": "Les gobelins de Gruulob",
+                                "texte": "Effet en jeu — Les gobelins de Gruulob : tous les gobelins de cette quête lancent 1 dé d'attaque de plus."}],
             "image_url": "/img/.../....webp|null"} ,
   "carte": {"largeur": 12, "hauteur": 10, "cases": [["m","s","b"]],
             "escalier": {"x": 2, "y": 2, "l": 2, "h": 2},
@@ -84,6 +86,24 @@ déclare aucun objectif : on n'annonce pas « accompli » là où rien n'était
 demandé. `objectif_majeur` marque une quête **ordinaire** qui fait monter d'un
 niveau si son objectif est accompli (doc 01 §5, troisième déclencheur) — un
 jalon, lui, s'annonce déjà par son boss.
+
+**Effets globaux de quête** (2026-10-09, René — livret *Jungles of Delthrak*
+q. 8, p. 27, note A : « All Goblins in this quest are elite warriors dedicated to
+Gruulob and roll 1 additional Attack die »). `quete.effets_globaux` liste les
+effets qu'un monstre de la quête fait peser sur TOUTE la quête : `[]` quand il
+n'y en a aucun. Chaque entrée `{source, titre, texte}` est DÉCIDÉE par le serveur
+(`EffetsGlobauxQuete`) : `source` est le nom de catalogue du monstre qui le porte,
+`texte` la phrase affichée (« Effet en jeu — … »). Le client ne recompose ni ne
+traduit rien ; il rend `texte` dans l'en-tête de la table et de la manette, à
+côté de l'objectif. La liste est **figée au démarrage** (colonne
+`quetes.effets_globaux`, reprise par le snapshot `debut_quete` comme
+`salle_artefact`) : elle reste publiée jusqu'à la fin de la quête, même quand sa
+source tombe (« in this quest »). À l'ouverture, la même phrase part au **journal**
+(entrée `combat` portant `effets_globaux_annonces: [{type: "effet_global_quete",
+texte, ton: "info"}]`, lue par `JournalCombat::ligneType()`) et donc sur
+`.combat.journal`. Un effet ne s'établit qu'au démarrage : une source posée EN COURS
+de quête n'en produit pas (aucune ne le fait aujourd'hui). Une quête ouverte AVANT
+cette colonne (`effets_globaux` NULL) lit la liste sur sa roster, sans annonce.
 
 **Objectif `detruire_element`** (2026-10-09, René — la quête finale de
 *Wizards of Morcar* se gagne en **détruisant le Haut Autel**, G1504 p. 39).
@@ -973,7 +993,13 @@ serveur**, jamais à re-dériver de `allie_id`. Deux profils, deux devenirs :
   même round-boundary que la détection de TPK) — le payload remonte sous
   `resultat.tour_monstres.actions` (round qui enchaînait une phase de
   monstres) ou `resultat.captifs_repris` (round sans monstre, mais où le
-  porteur est quand même tombé — piège, terrain…).
+  porteur est quand même tombé — piège, terrain…). ⚠ **Depuis le 2026-10-09,
+  `resultat.captifs_repris` porte TOUTES les annonces d'ouverture d'un round
+  sans monstre** (captif repris, `rupture_sort_dread`, `tour_perdu`,
+  `regain_corps`) — nom historique conservé — et le fil de combat la lit comme
+  les phases de monstres (`JournalCombat::actionsDuTour()`). Avant cette date
+  personne ne la lisait : ces annonces étaient muettes dans tout round où le
+  groupe n'avait plus de monstre.
 
 `quete.objectif_accompli` vaut `true` dès qu'il est **libéré, vivant, ET
 ramené à l'escalier d'entrée** (chantier escalier-entrée, 2026-10-05 —
@@ -1545,8 +1571,8 @@ fait « Fouiller — trésor » (le deck ordinaire). Les deux coexistaient déj�
 
 **Cinq potions** (`boite: "wizards_of_morcar"`) : trois en boutique (Potion
 de résistance au feu/de prédisposition magique/de résistance à la magie,
-300/400/300 po — ⚠ le marché UNIQUE actuel ne filtre PAS par `boite`, donc
-elles restent en rayon dans toute campagne tant que ce filtre n'existe pas),
+300/400/300 po — en rayon dans toute campagne : le marché ne filtre pas par
+`boite`, décision de René du 2026-10-09),
 deux en carte de trésor SEULEMENT, jamais achetées (Potion d'alchimie,
 Potion de charme — `rarete: "unique"`). `MoteurPotions::boire()` gagne trois
 effets : `second_sort_par_tour` (potion) rejoint le nœud *Réserve arcanique*
@@ -1571,7 +1597,9 @@ version fausse (remise permanente tant que la fiole était possédée), corrigé
 2026-10-08.
 
 **Artefact Drakehide Cuirass** (*Cuirasse de Peau de Dragon*) : armure non
-métallique, +1 dé de défense (`bonus_des_defense`, réutilisé), **déplacement
+métallique, +1 dé de défense (`des_defense`, clé de PIÈCE — `bonus_des_defense` n'est
+lu que sur les potions, les buffs et les améliorations de Forge, jamais sur une pièce :
+corrigé le 2026-10-09), **déplacement
 FIXE de 8 cases** (`deplacement_fixe`, nouveau — remplace tout le calcul
 base+1d6+Raquettes+Bottes+menace, lu au seul point qui calcule ET persiste
 le jet du tour), interdite au Magicien (`objets.classe_interdite`, nouvelle
@@ -2634,6 +2662,17 @@ formes de payload pour la même famille finissent par diverger. S'y ajoutent
 et `{type: "tour_perdu", personnage_id, nom, cause}`. Un jet de dés que
 personne ne voit n'a pas eu lieu pour la table.
 
+⚠ **Relèvement par le Corps — mode Story de *Jungles of Delthrak* (décision de
+René, 2026-10-09).** `{type: "regain_corps", personnage_id, nom, pv_body,
+releve: true}` : à l'ouverture du round, un héros à terre gagne 1 point de Corps
+et SE RELÈVE, si aucun monstre n'est actif (la définition de la fin de combat)
+et si au moins un autre héros est debout (`ResolveurTour::relevementsStory()`).
+Même remontée que les deux payloads ci-dessus (`tour_monstres.actions`, ou
+`captifs_repris` round sans monstre), journalisé ; la scène « se relève » sur la
+table vient de l'observateur `tombe` (`AnnonceurChute`), pas de ce payload. Le
+soin d'urgence ne change pas : la réaction `soin_urgence` offre déjà les sorts de
+soin disponibles au héros qui tombe, sans condition sur `a_joue`.
+
 ⚠ **La Rouille est le seul sort dont l'effet SURVIT À LA QUÊTE.** « Not
 effective against artifacts » : `effet.detruit` déclare la matière
 (`objets.metallique`), les emplacements visés (mains + casque) et l'exemption
@@ -2782,6 +2821,16 @@ cases), la réponse de l'action qui clôt le tour porte `coups_de_corne: [<paylo
 `attaque_monstre`> + {mecanique: "coup_de_corne"}]` (2 dés d'attaque, jet de
 défense ordinaire), précédé d'un `effet_dread` au journal. Pas de coup s'il est
 endormi, paralysé ou enchaîné.
+
+**Tir au choix** (`capacites: [tir_au_choix]`, 2026-10-09 — Gruulob dans ses DEUX
+formes : « they may choose to fire at range at any hero in their line of sight »).
+Un monstre de mêlée qui porte ce trait TIRE sur place, à distance, sur le héros le
+plus avantageux qu'il voit (même choix que `tirerSiCibleEnVue()`), avec ses dés
+d'attaque ordinaires — `attaque_monstre` porte alors `portee: "distance"`. Dès qu'une
+figure (héros ou allié) est à son CONTACT, il frappe au corps-à-corps comme tout
+monstre. Il ne RECULE jamais pour tirer : le recul est le trait de l'archer
+(`portee: distance`), pas celui-ci. Le choix est toujours « tirer » : le serveur
+tranche, jamais l'IA.
 
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états ;
@@ -3188,6 +3237,105 @@ est un `ton` déjà stylé (`ActionTab.vue`, `ICONE_JOURNAL`), et une scène de
 table sans `genre` connu retombe sur l'icône par défaut (`SceneEvenement.vue`,
 `ICONE_GENRE[...] ?? 'bolt'`) — ajouter une forme de scène ne demande donc
 pas de toucher l'icône tant qu'une entrée dédiée n'est pas jugée utile.
+
+## Jungles of Delthrak — le butin (lot A, 2026-10-09)
+
+Source : livret F9907 p. 50 (« Treasure and Artifact Reference », page 26 du PDF) et p. 2
+(« Alchemist's Shop »), relus à l'image. Tout n'apparaît que sous le thème `jungles_delthrak`
+(`objets.boite`). **Migration additive** `2026_10_09_110000_delthrak_butin` : `objets.categorie`
+gagne `tresor`, `inventaire.quetes_avant_reveil`, `groupe_mercenaires.invoque_par_objet_id`.
+
+**Catalogue** (`GET /api/guide`, `/moi`, marché — rien ne change de forme) : 5 artefacts
+`rarete: unique` (*Diadème de braise forgée* — slot `casque`, donc « pas avec le casque » ;
+*Brassards du Sauvage* — slot `armure` ; *Brassard du Garde-Crocs* et *Ceinture de Puissance* —
+slot `talisman` ; *Le Crâne de Saphir* — arme, `portee: distance`), 2 trésors `categorie: tresor`
+(*Cœur d'émeraude de Delthrak* 75 po, *Relique naine ancienne* 50 po), 3 potions (*sang de serpent*
+50 po, *sagesse ancienne* 400 po, *Élixir de pas d'araignée* 100 po). La *Potion of Healing*
+(500 po) est la *Potion de guérison* existante. Les artefacts viennent du coffre de la quête, les
+deux trésors du deck de fouille (`issue: objet`), les potions de l'étal.
+
+**Le marché ne filtre PAS par `objets.boite`** (René, 2026-10-09 : « tout vendre partout ») :
+toute pièce achetable de toutes les boîtes est en rayon, quel que soit le thème. Un `tresor`
+n'est jamais à l'étal. **Revente** (`PhaseMarche::reventePour()`,
+seul point de passage) : `effet.valeur_marchande` si présent (valeur ENTIÈRE, `inventaire[].revente`
+et `paniers[].ventes[].prix_revente`), sinon 50 %.
+
+**Nouveaux mots-clés d'`effet`** (`MotsClesEquipement`, tous lus) : `franchit_mobilier`,
+`ignore_terrain_entravant` (même clé que le talent, même lecteur
+`MoteurSorts::terrainEntravantIgnore()`), `franchit_fosses_revelees`,
+`bonus_deplacement_inconditionnel`, `des_attaque_au_contact`, `appelle_allie`
+(`{mercenaire, dormance_quetes}`), `valeur_marchande`, `recupere_sort_ou_competence`, `une_par_quete`.
+
+**`entites[].franchit_mobilier`** (héros, jumeau d'`ignore_terrain_entravant`) : CE héros traverse
+les meubles bloquants sans s'y arrêter (Brassards du Sauvage portés, ou buff de l'Élixir). Décidé par
+`MoteurSorts::mobilierFranchi()` ; la manette applique, ne recalcule pas. Seuls les MEUBLES sont levés
+(`Grille::franchirMobilier()`) : mur de glace, bloc de pierre et terrain bloquant tiennent. Le
+déplacement refuse de finir sur un meuble (« On traverse un meuble… », aussi dans
+`POST deplacement/apercu` → `atteignable: false`). Un déplacement qui a vraiment franchi du mobilier
+ou du terrain gênant par une pièce/un buff porte `payload.franchit: ["mobilier", "terrain gênant"]`.
+Fosse révélée ignorée (Élixir) : `pieges_declenches[].type === "piege_ignore"`.
+
+**Brassard du Garde-Crocs** (« Utiliser un objet », option « Appeler l'allié », créneau d'action,
+une fois par quête) : crée un allié *Raptor apprivoisé* (fiche existante) à la case libre la plus
+proche, `groupe_mercenaires.recruteur_personnage_id` = le héros, `invoque_par_objet_id` = l'objet ;
+payload `{type: usage_objet, allie: {id, nom, x, y}}`. L'allié est joué par son joueur comme tout
+allié et **ne survit à aucune quête** (purgé à la victoire comme à l'échec). Raptor vaincu : le coup
+fatal porte `objet_dormant: {objet, quetes, personnage}` et `inventaire.quetes_avant_reveil = 2` ;
+tant que > 0 l'option disparaît du menu et `/moi` ajoute la ligne « DORMANT : se réveille après N
+quête(s) terminée(s) » aux `avantages` de l'exemplaire. Chaque victoire de quête décrémente ; à zéro
+le brassard est éveillé. Annonce au hub : `groupe.objets_reveilles` = `{quete_id, objets: [{objet,
+personnage}]}` (dernière quête achevée), et `terminerQuete()` renvoie `objets_reveilles`.
+
+**Potion de sagesse ancienne** (`cible: soi`) : rend le premier sort épuisé, à défaut la première
+compétence « une fois par quête » dépensée (aucun choix exposé, comme la Potion de rappel) ; une par
+héros et par quête (clé `potion:{nom}` du compteur `capacites_utilisees`). `utilisable` (consommables
+de `/moi`) et le menu ne l'offrent que s'il y a quelque chose à rendre ; résultat annoncé
+(`potion.effets.recupere: {type: sort|competence, nom}`). **Ceinture de Puissance** : `des_attaque` du
+menu et de `/moi` incluent déjà le dé quand l'arme n'est pas à distance ; `classe_interdite: magicien`.
+
+## Jungles of Delthrak — la carte (lots B, D, E, 2026-10-09)
+
+Source : livret F9907 p. 4-5, relu à l'image. Tout n'apparaît que sous le thème
+`jungles_delthrak` (`terrains.boite`, `mobiliers.boite`, `pieges.boite`) : « le gabarit
+dit COMBIEN, le thème dit LESQUELS ». Aucune migration — des lignes de catalogue
+(`TerrainSeeder`, `MobilierSeeder`, `PiegeSeeder`), un vocabulaire fermé de mobilier.
+
+**Terrain** (`EtatGroupe.carte.terrain[]`, brouillard inchangé) gagne deux DÉCISIONS
+booléennes publiées par le serveur : `entravant` (terrain gênant : sable, toile,
+jungle — 2 points de déplacement, `cout_deplacement` vaut déjà 2) et `interdit_arret`
+(Mare, Brasier : on les traverse, on n'y finit pas son mouvement). Le client ne les
+déduit ni du nom ni du coût (la Rivière gelée coûte 2 sans être « gênante »).
+
+**`entites[].ignore_terrain_entravant`** (héros, comme `franchit_figures`) : CE héros
+traverse-t-il le terrain gênant sans payer ? Décidé par
+`MoteurSorts::terrainEntravantIgnore()` (talent `ignore_terrain_entravant` ; les Bracers
+of the Wild s'y ajouteront, au même endroit). La manette applique la décision, elle ne la
+recalcule pas. Les monstres **Agile** l'ignorent côté moteur (`Grille::autoriserFranchissement()`).
+
+- **Mare** (*Pool of Water*) : passage sans arrêt ; à la fouille de trésor d'une salle qui en
+  contient une, option **`boire_mare`** (`type: boire_mare`, créneau d'action,
+  `parametres: {soin, terrain}`), offerte au même endroit et sous les mêmes conditions que
+  `fouiller_tresor`, **seulement si le héros a perdu au moins 1 Body**. Elle dépense la fouille
+  du héros dans la salle, rend `soin` PV, ne tire aucune carte. Payload
+  `{type: "boire_mare", salle, terrain, personnage, soin, pv_body_apres}`.
+- **Brasier** (*Bonfire*) : passage sans arrêt ; **toute créature** qui le traverse lance 1 dé de
+  combat, un crâne = −1 Body (nature `feu`). Héros : `payload.terrain_jets[]`
+  (`{terrain, x, y, face, degats}`, un par jet, dégâts nuls compris) et, s'il y a eu dégât,
+  `payload.terrain` (`{nom, chute, fin_tour, degats}`). Monstre : action `terrain_monstre`
+  `{monstre, id, degats, jets[], pv_body, vaincu}`. Les alliés mercenaires ne brûlent pas
+  (non porté, voir `docs/regles/carte-donjon.md`).
+- **Cocon** (*Cocoon*) : mobilier (`carte.mobilier[]`, bloque mouvement ET vue). Option
+  **`detruire_par_action_{index}`** (`type: detruire_par_action`, héros au contact, **aucun jet**,
+  créneau d'action) ; payload `{type: "detruire_par_action", mobilier, x, y, detruit}`. Détruit,
+  il disparaît de `carte.mobilier[]` comme toute pièce détruite.
+- **Piège de lianes** (*Grasping Vine Trap*) : piège de sol ordinaire pour la fouille, le saut
+  (Body, difficulté 2) et le désamorçage. Marcher dessus : 1 dé de combat. **Bouclier** : payload
+  `pieges_esquives[]` (`{type: "piege_esquive", piege, personnage, faces}`), aucun dégât, le héros
+  continue, le piège devient `detecte`. **Crâne** : −1 PV, condition `Immobilisé` (déplacement
+  interdit), tour clos, état de piège **`retient`** (publié dans `carte.pieges[].etat`, entrée
+  durable `retenu: personnage_id`) ; `pieges_declenches[]` porte `retenu`, `retient`,
+  `condition_appliquee`. Sortie : l'option existante **`liberer_entraves`** (action du héros tenu
+  ou d'un voisin au contact) ; son payload gagne `lianes_detruites[]` et le piège passe à `desarme`.
 
 ## Garanties
 

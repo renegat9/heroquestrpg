@@ -455,6 +455,32 @@ it('le Sceptre échoue quand le monstre sort un 6 : la charge est dépensée pou
     expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeFalse();
 });
 
+it('le Sceptre ne propose de jet de rupture que si sa clé `resistance` le dit', function () {
+    // Sans la clé, la carte ne donne aucun jet : un 6 ne sauve pas le monstre.
+    // Avant le 2026-10-09 la rupture était câblée en dur, et ce test échouait.
+    $ctx = demarrerQueteAvecMonstre('Orque');
+    ['heros' => $heros, 'instance' => $proie] = $ctx;
+
+    $proie->update(['pv_mind' => 2]);
+    $sceptre = Objet::where('nom', 'Sceptre de Télékinésie')->firstOrFail();
+    $sceptre->update(['effet' => array_diff_key((array) $sceptre->effet, ['resistance' => true])]);
+
+    $ligne = poserArtefact($heros, 'Sceptre de Télékinésie');
+    entreeObjet($ctx, $ligne);
+
+    desFiges([3, 6, ...array_fill(0, 40, 4)]); // un 6 : il résisterait SI la carte en donnait un
+
+    test()->actingAs($ctx['alice'], 'joueur')->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'utiliser_objet',
+        'parametres' => ['cle' => "objet:{$ligne->id}", 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
+    ])->assertAccepted()
+        ->assertJsonPath('resultat.des_rupture', [])
+        ->assertJsonPath('resultat.resiste', false)
+        ->assertJsonPath('resultat.saute_tour', true);
+
+    expect(app(MoteurSorts::class)->monstreA($proie->fresh(), MoteurSorts::MONSTRE_SAUTE_TOUR))->toBeTrue();
+});
+
 /*
  * ------------------------------------------------------------------
  * Cinq artefacts de plus (2026-09-03), aucun n'ayant demandé de

@@ -131,7 +131,7 @@ function queteAvecCarteEtTerrain(array $cases, array $terrain): Quete
 // ---------------------------------------------------------------------
 
 it('seed les 7 terrains sourcés de The Frozen Horror (doc 18 §4), et seulement eux', function () {
-    $noms = Terrain::query()->orderBy('id')->pluck('nom')->all();
+    $noms = Terrain::query()->where('boite', 'horreur_des_glaces')->orderBy('id')->pluck('nom')->all();
 
     expect($noms)->toBe([
         'Glace glissante',
@@ -157,7 +157,8 @@ it('exclut le Bottomless Chasm, la Living Fog Room et le Sceptre — dettes nomm
 it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulaire), drapeaux booléens', function () {
     $terrains = Terrain::query()->get();
 
-    expect($terrains)->toHaveCount(7);
+    // 7 de The Frozen Horror + 5 de Jungles of Delthrak (2026-10-09).
+    expect($terrains)->toHaveCount(12);
 
     foreach ($terrains as $t) {
         expect($t->cout_deplacement)->toBeGreaterThanOrEqual(1, "cout_deplacement de {$t->nom}")
@@ -169,14 +170,14 @@ it('a un catalogue cohérent : cout_deplacement >= 1, effet non vide (vocabulair
 });
 
 it('donne à la Rivière gelée un coût de déplacement de 2, et 1 à tous les autres', function () {
-    foreach (Terrain::query()->get() as $t) {
+    foreach (Terrain::query()->where('boite', 'horreur_des_glaces')->get() as $t) {
         $attendu = $t->nom === 'Rivière gelée' ? 2 : 1;
         expect($t->cout_deplacement)->toBe($attendu, "coût de déplacement de {$t->nom}");
     }
 });
 
 it('ne bloque le mouvement ni la vue pour aucun des 7 terrains sourcés — ce sont des dangers de sol, pas des murs', function () {
-    foreach (Terrain::query()->get() as $t) {
+    foreach (Terrain::query()->get() as $t) { // les 5 de la jungle non plus : ils ralentissent ou se traversent
         expect($t->bloque_mouvement)->toBeFalse("bloque_mouvement de {$t->nom}")
             ->and($t->bloque_vue)->toBeFalse("bloque_vue de {$t->nom}");
     }
@@ -195,7 +196,7 @@ it('reste seedé SANS purge (clé sur nom) : re-semer garde les mêmes identifia
 
     $idApres = Terrain::where('nom', 'Glace glissante')->value('id');
     expect($idApres)->toBe($idAvant)
-        ->and(Terrain::query()->count())->toBe(7);
+        ->and(Terrain::query()->count())->toBe(12);
 });
 
 // ---------------------------------------------------------------------
@@ -569,7 +570,13 @@ it('ne pose JAMAIS un terrain de glace sous un thème non-glace', function () {
     foreach ($nonGlace as $theme) {
         [, $carte] = queteAvecCarteTerrainAssemblee($gabarit, 42, $theme);
 
-        expect($carte['terrain'])->toBe([], "thème « {$theme} » : un terrain de glace est apparu");
+        // Sous la jungle, le terrain de la JUNGLE apparaît (c'est son thème) ;
+        // jamais celui de la glace.
+        $idsGlace = Terrain::where('boite', 'horreur_des_glaces')->pluck('id')->all();
+
+        foreach ($carte['terrain'] as $entree) {
+            expect(in_array($entree['terrain_id'], $idsGlace, true))->toBeFalse("thème « {$theme} » : un terrain de glace est apparu");
+        }
     }
 });
 
@@ -605,7 +612,7 @@ it('pose un terrain boite=null sous N\'IMPORTE QUEL thème — convient à tout,
         // peut légitimement mélanger l'universel et le thématique. Pour tout
         // AUTRE thème (ou aucun), rien d'autre que l'universel ne doit passer
         // le filtre.
-        if ($theme !== 'horreur_des_glaces') {
+        if (! in_array($theme, ['horreur_des_glaces', 'jungles_delthrak'], true)) {
             foreach ($carte['terrain'] as $entree) {
                 expect($entree['terrain_id'])->toBe($idUniversel, 'thème « '.($theme ?? 'null').' »');
             }

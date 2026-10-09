@@ -165,6 +165,22 @@ return [
         ],
     ],
 
+    'gruulob_sorcier_gobelin' => [
+        'porteur' => 'Gruulob, Sorcier Gobelin Corrompu (ses deux formes — docs/plan-delthrak-execution-2026-10-09.md lot C)',
+        // Jungles of Delthrak, quête 8, note C (livret F9907 p. 27) : « Gruulob
+        // is a powerful servant of Zargon and knows the following Dread spells:
+        // Creeping Grasp, Channel Dread and Summon Orcs* (*Summons the same
+        // number of Goblins instead) ». Le répertoire vaut pour les DEUX formes :
+        // le livret ne dit pas qu'elle désapprend un sort en se transformant.
+        // Le troisième sort est la variante gobeline de *Summon Orcs* (SortDreadSeeder) :
+        // le livret le lui donne en précisant qu'il invoque des GOBELINS, pas des orques.
+        'sorts' => [
+            'Étreinte des Ronces',
+            'Canaliser l\'Effroi',
+            'Invocation de gobelins',
+        ],
+    ],
+
     'sorcier_dread_telor' => [
         'porteur' => 'Sorcier du Dread (Prophecy of Telor, q. 7 et q. 9)',
         // Les CINQ sorts cités dans les deux apparitions de la carte —

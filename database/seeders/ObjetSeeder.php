@@ -780,9 +780,15 @@ class ObjetSeeder extends Seeder
             // (la carte ne restreint QU'une classe, par son nom, pas par un
             // tag de poids) — c'est `classe_interdite` (migration dédiée,
             // `Equipement::estAccessible()`) qui porte le refus, seul.
+            // ⚠ `des_defense` (et NON `bonus_des_defense`) : une pièce PORTÉE ne
+            // se lit que par `des_defense` (`Equipement::defenseDeLaPiece()`).
+            // `bonus_des_defense` est le bonus RELATIF des améliorations de Forge
+            // et des potions ; la Cuirasse le portait et ne gagnait pas son dé
+            // (défense 2 → 2, mesuré 2026-10-09). Le registre le tient désormais
+            // dans les deux sens (`ObjetsFonctionnelsTest`).
             ['nom' => 'Cuirasse de Peau de Dragon', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
                 'prix_base' => 0, 'emplacement' => 'armure', 'tag_equipement' => null, 'classe_interdite' => 'magicien',
-                'effet' => ['bonus_des_defense' => 1, 'deplacement_fixe' => 8]],
+                'effet' => ['des_defense' => 1, 'deplacement_fixe' => 8]],
 
             // URDYN THE UNMAKER (Wizards of Morcar, artefact — vague 2B,
             // 2026-10-08). Carte (artefacts_p01) : « The enchanted hammer of a
@@ -802,6 +808,91 @@ class ObjetSeeder extends Seeder
                 'prix_base' => 0, 'emplacement' => 'arme_principale', 'tag_equipement' => null,
                 'effet' => ['des_attaque' => 2,
                     'des_attaque_contre' => ['noms' => ['Golem', 'Dreadshifter'], 'des' => 4]]],
+
+            // ===== JUNGLES OF DELTHRAK — LE BUTIN (chantier A, 2026-10-09) =====
+            //
+            // Les six artefacts du « Treasure and Artifact Reference » (livret
+            // F9907 p. 50, page 26 du PDF, relue sur le rendu PNG) et les deux
+            // trésors-valeurs. `boite: 'jungles_delthrak'` les réserve à ce
+            // thème (`DeckFouille::choisirArtefact()` et `cartesDelthrak()`) :
+            // le Brassard du Garde-Crocs n'a aucun usage dans une campagne qui
+            // n'a pas de Raptor à appeler, les Brassards du Sauvage aucune
+            // jungle à traverser. Aucun prix de carte (`prix_base: 0`, comme
+            // tout artefact : la carte n'en porte pas, et `rarete: unique` les
+            // tient hors de l'étal et de la revente).
+            //
+            // ⚠ AUCUNE de ces pièces ne restreint une classe par un tag de
+            // poids — leurs cartes ne le font pas ; le Magicien est écarté du
+            // Girdle par `classe_interdite`, comme la Cuirasse de Peau de Dragon.
+
+            // « This ancient circlet is inset with a fiery red gem. It raises
+            // your maximum Body Points by 1 and grants you 1 additional Defend
+            // die. May not be combined with the helmet. » — le SLOT `casque` dit
+            // « pas avec le casque » sans clé neuve : monter l'un renvoie l'autre
+            // au sac. `des_defense` (pièce portée) et `bonus_pv_body_max` existent.
+            ['nom' => 'Diadème de braise forgée', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'casque', 'tag_equipement' => null, 'boite' => 'jungles_delthrak',
+                'effet' => ['des_defense' => 1, 'bonus_pv_body_max' => 1]],
+
+            // « Armor—These magical leather bracers grant you 1 additional
+            // Defend die. While wearing these bracers, you move unaffected
+            // through squares containing furniture and hindering terrain. You
+            // may also add 2 squares to your movement roll. May be combined with
+            // the helmet and/or shield. » — du CUIR (`metallique: false`) en slot
+            // `armure`, comme les Brassards ordinaires : cumulables avec casque
+            // et bouclier, exclusifs d'une cotte de mailles.
+            ['nom' => 'Brassards du Sauvage', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'armure', 'tag_equipement' => null, 'boite' => 'jungles_delthrak',
+                'effet' => ['des_defense' => 1, 'franchit_mobilier' => true, 'ignore_terrain_entravant' => true,
+                    'bonus_deplacement_inconditionnel' => 2]],
+
+            // « Use this magical armlet to call forth a Raptor animal ally. If
+            // the Raptor is defeated, the armlet's power goes dormant. Its power
+            // replenishes if the hero completes two quests without its
+            // assistance. This artifact may only be used once per quest. »
+            // `cout: action` est NOTRE arbitrage (la carte ne dit pas ce que
+            // coûte le geste) : même parti que le Cor des Hearthkin, l'autre
+            // objet qui pose des alliés. La fiche de l'allié est celle du
+            // *Raptor Ally* de la boîte (« Raptor apprivoisé », MercenaireSeeder).
+            ['nom' => 'Brassard du Garde-Crocs', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'talisman', 'tag_equipement' => null, 'boite' => 'jungles_delthrak',
+                'effet' => ['activable' => true, 'cible' => 'soi', 'cout' => 'action',
+                    'frequence' => 'une_fois_par_quete',
+                    'appelle_allie' => ['mercenaire' => 'Raptor apprivoisé', 'dormance_quetes' => 2]]],
+
+            // « This legendary relic is crafted from precious cobalt gemstone. It
+            // imbues you with poise and assurance. While wielding this artifact,
+            // roll 2 Attack dice against any one monster in your line of sight. »
+            // Une arme à distance de 2 dés : `portee: distance` ouvre à elle seule
+            // la ligne de vue ; PAS d'`inutilisable_adjacent` — la carte ne dit pas
+            // qu'on ne peut pas viser un monstre au contact, elle dit « any one
+            // monster in your line of sight ».
+            ['nom' => 'Le Crâne de Saphir', 'categorie' => 'arme', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'arme_principale', 'tag_equipement' => null, 'boite' => 'jungles_delthrak',
+                'effet' => ['des_attaque' => 2, 'portee' => 'distance']],
+
+            // « This enchanted girdle grants you 1 additional Attack die on all
+            // non-ranged weapon attacks. May not be used by the wizard. » Une
+            // ceinture se porte : slot `talisman`, celui des pièces qui ne sont ni
+            // armure ni arme (Baguette d'Os, Anneaux).
+            ['nom' => 'Ceinture de Puissance', 'categorie' => 'armure', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'talisman', 'tag_equipement' => null, 'classe_interdite' => 'magicien',
+                'boite' => 'jungles_delthrak',
+                'effet' => ['des_attaque_au_contact' => 1]],
+
+            // TRÉSORS-VALEURS. « This rare gemstone is prized by Delthrak's
+            // inhabitants and can be sold for 75 gold coins. » / « This piece of
+            // elegant dwarven artistry is worth 50 gold coins. » `categorie:
+            // tresor` (migration 2026_10_09_110000) : ni arme, ni outil, ni potion.
+            // `prix_base` EST la valeur de la carte ; `valeur_marchande` dit que
+            // le marché la verse EN ENTIER (`PhaseMarche::reventePour()`) au lieu
+            // des 50 % ordinaires. Jamais à l'étal (`PhaseMarche::ouvrir()` écarte
+            // la catégorie) ; rareté `commune` par le prix, mais JAMAIS `unique` :
+            // un artefact ne se revend pas, un trésor, si.
+            ['nom' => 'Cœur d\'émeraude de Delthrak', 'categorie' => 'tresor', 'prix_base' => 75, 'emplacement' => 'sac',
+                'boite' => 'jungles_delthrak', 'effet' => ['valeur_marchande' => 75]],
+            ['nom' => 'Relique naine ancienne', 'categorie' => 'tresor', 'prix_base' => 50, 'emplacement' => 'sac',
+                'boite' => 'jungles_delthrak', 'effet' => ['valeur_marchande' => 50]],
 
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
@@ -884,11 +975,9 @@ class ObjetSeeder extends Seeder
             // §3, lot F, 2026-10-06) : trois potions VENDUES, prix et texte de
             // carte. `boite: 'wizards_of_morcar'` les réserve au thème
             // (`DeckFouille::choisirArtefact()` lit déjà cette colonne pour
-            // les artefacts ; ⚠ NOMMÉ : le marché UNIQUE (`PhaseMarche::ouvrir()`,
-            // René 2026-09-12) ne filtre PAS son étal par `boite` — ces trois
-            // potions resteront donc en rayon dans TOUTE campagne jusqu'à ce
-            // que le marché apprenne à lire cette colonne, pas seulement les
-            // campagnes Morcar. Gap pré-existant du marché, pas introduit ici.
+            // les artefacts). Le marché, lui, ne filtre PAS son étal par
+            // `boite` (René, 2026-10-09 : « tout vendre partout ») : ces trois
+            // potions sont en rayon dans TOUTE campagne, par décision.
             ['nom' => 'Potion de résistance au feu', 'categorie' => 'consommable', 'prix_base' => 300, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
                 // « completely unaffected by the next magical fire attack,
                 // spell, or trap ». Même clé que l'Anneau de Feu
@@ -931,6 +1020,35 @@ class ObjetSeeder extends Seeder
             // recrutement (`MercenaireController::recruter()`).
             ['nom' => 'Potion de charme', 'categorie' => 'consommable', 'rarete' => 'unique', 'prix_base' => 0, 'emplacement' => 'consommable', 'boite' => 'wizards_of_morcar',
                 'effet' => ['rabais_recrutement_mercenaire' => 25, 'recrutements_a_rabais' => 3]],
+
+            // ===== JUNGLES OF DELTHRAK — « Alchemist's Shop » (livret F9907 p. 2,
+            // relu sur le rendu PNG, 2026-10-09) : QUATRE potions vendues, prix
+            // et texte de carte. *Potion of Healing* (500 po, « roll 1 red die
+            // and restore that number of Body Points ») EXISTE DÉJÀ — c'est la
+            // Potion de guérison du paquet officiel, même prix, même effet
+            // (1d6) : pas de doublon. `boite: 'jungles_delthrak'` les réserve au
+            // thème — l'étal les filtre (`PhaseMarche::ouvrir()`).
+            //
+            // « Drink this potion to remove paralysis caused by venomous
+            // creatures. » — la condition *Envenimé* est la paralysie du venin
+            // (`MoteurDread::appliquerVenin()`), `retire_condition` existe.
+            ['nom' => 'Potion de sang de serpent', 'categorie' => 'consommable', 'prix_base' => 50, 'emplacement' => 'consommable', 'boite' => 'jungles_delthrak',
+                'effet' => ['retire_condition' => 'Envenimé', 'cible' => 'heros_adjacent']],
+            // « Drink this potion to recover any 1 hero spell or skill you have
+            // used. A hero may only use one of these potions per quest. » Le
+            // choix du sort n'est pas exposé (même parti que la Potion de
+            // rappel) : le premier épuisé, à défaut la première compétence
+            // dépensée. `cible: soi` — « you » —, la fenêtre « par héros et par
+            // quête » vit sur le buveur.
+            ['nom' => 'Potion de sagesse ancienne', 'categorie' => 'consommable', 'prix_base' => 400, 'emplacement' => 'consommable', 'boite' => 'jungles_delthrak',
+                'effet' => ['recupere_sort_ou_competence' => true, 'une_par_quete' => true, 'cible' => 'soi']],
+            // « Drink this potion to move unaffected through squares containing
+            // revealed pit traps, hindering terrain, furniture, and monsters.
+            // This potion's effects end if you suffer any amount of damage. »
+            ['nom' => 'Élixir de pas d\'araignée', 'categorie' => 'consommable', 'prix_base' => 100, 'emplacement' => 'consommable', 'boite' => 'jungles_delthrak',
+                'effet' => ['franchit_mobilier' => true, 'ignore_terrain_entravant' => true, 'franchit_figures' => true,
+                    'franchit_fosses_revelees' => true, 'duree' => 'premier_degat_subi',
+                    'condition_appliquee' => "Pas d'araignée", 'cible' => 'heros_adjacent']],
         ];
 
         foreach ($objets as $objet) {

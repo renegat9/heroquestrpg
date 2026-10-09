@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\MotsClesMobilier;
 use App\Engine\RareteButin;
 use App\Models\Carte;
 use App\Models\Mobilier;
@@ -495,6 +496,57 @@ final class MoteurMobilier
             ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
             ->whereNotNull('pv_body')
             ->get(['id', 'nom', 'pv_body', 'defense_dice', 'effet'])
+            ->keyBy('id');
+
+        $trouves = [];
+
+        foreach ($entrees as $index => $entree) {
+            $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
+
+            if ($type === null || self::estDetruite($entree) || MoteurEmbuscade::estFauxMeuble($entree)) {
+                continue;
+            }
+
+            if ($this->adjacentAEmprise($entree, $x, $y)) {
+                $trouves[] = [
+                    'index' => (int) $index,
+                    'entree' => $entree,
+                    'nom' => (string) $type->nom,
+                    'type' => $type,
+                ];
+            }
+        }
+
+        return $trouves;
+    }
+
+    /**
+     * Meubles DÉTRUITS PAR UNE ACTION, sans jet (`effet.detruit_par_action`,
+     * vocabulaire `MotsClesMobilier`) — le COCON de *Jungles of Delthrak* :
+     * « A hero adjacent to a cocoon can spend an action to destroy it, which
+     * removes the obstacle from board » (livret F9907 p. 4).
+     *
+     * ⚠ Une QUATRIÈME voie de destruction, distincte des trois autres, et c'est
+     * le point : ni la fouille (rien à ouvrir), ni le jet de Body
+     * (`destructiblesAdjacents()`, une tentative par héros), ni le combat
+     * (`attaquablesAdjacents()`, PV et défense). Pas de garde « une tentative
+     * par héros » ici : il n'y a pas de tentative qui échoue, l'action dépensée
+     * EST la destruction.
+     *
+     * @return list<array{index: int, entree: array<string, mixed>, nom: string, type: Mobilier}>
+     */
+    public function detruisiblesParActionAdjacents(Carte $carte, int $x, int $y): array
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return [];
+        }
+
+        $catalogue = Mobilier::query()
+            ->whereIn('id', collect($entrees)->pluck('mobilier_id')->filter()->unique())
+            ->get(['id', 'nom', 'effet'])
+            ->filter(fn (Mobilier $m) => MotsClesMobilier::detruitParAction((array) $m->effet))
             ->keyBy('id');
 
         $trouves = [];

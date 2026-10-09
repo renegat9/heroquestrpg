@@ -73,6 +73,17 @@ final class JournalCombat
             }
         }
 
+        // Round SANS monstre : `ouvrirNouveauTour()` n'a pas de phase de monstres où
+        // ranger ses annonces, et les range dans cette liste plate. Personne ne la
+        // lisait : une rupture de sort, un captif repris ou un héros relevé par la
+        // Story étaient muets dans tout round où le groupe n'avait plus de monstre
+        // (« un effet automatique que rien n'annonce est injouable »).
+        foreach ($resultat['captifs_repris'] ?? [] as $action) {
+            if (is_array($action)) {
+                $actions[] = $action;
+            }
+        }
+
         return $actions;
     }
 
@@ -110,6 +121,16 @@ final class JournalCombat
         foreach ((array) ($resultat['faveurs_declenchees'] ?? []) as $faveur) {
             if (is_array($faveur)) {
                 foreach ($this->ligneType($faveur, $acteurNom) as $ligne) {
+                    $lignes[] = $ligne;
+                }
+            }
+        }
+
+        // Effets GLOBAUX de quête annoncés au démarrage (`EffetsGlobauxQuete::annoncer()`) :
+        // la même phrase au journal, à la reconnexion (`journal_combat`) et en direct.
+        foreach ((array) ($resultat['effets_globaux_annonces'] ?? []) as $annonce) {
+            if (is_array($annonce)) {
+                foreach ($this->ligneType($annonce, $acteurNom) as $ligne) {
                     $lignes[] = $ligne;
                 }
             }
@@ -573,11 +594,31 @@ final class JournalCombat
             // (« X pressent 2 pièges tout près ») est CONVERGÉ vers le popup
             // `talents_declenches` depuis le 2026-09-25 : la même information,
             // annoncée deux fois, nommait le talent nulle part.
-            'deplacement' => [],
+            // ⚠ Seuls les jets de TERRAIN se disent (Brasier, Rivière gelée) :
+            // un dé lancé en marchant est un effet automatique.
+            'deplacement' => $this->jetsDeTerrain($a, $acteurNom),
+            'terrain_monstre' => $this->terrainMonstre($a),
+            // MARE (Jungles of Delthrak p. 4) : la fouille de trésor qui rend 1 PV
+            // au lieu d'une carte — sans cette ligne, le soin serait muet.
+            'boire_mare' => [[
+                'texte' => "{$acteurNom} boit à la mare : +".(int) ($a['soin'] ?? 0).' PV de Body',
+                'ton' => 'succes',
+            ]],
+            // COCON (Jungles of Delthrak p. 4) : une action, aucun jet, l'obstacle
+            // disparaît du plateau.
+            'detruire_par_action' => [$this->info("{$acteurNom} détruit : ".($a['mobilier'] ?? 'un obstacle'))],
+            'piege_esquive' => $this->piegeEsquive($a, $acteurNom),
             'jet' => $this->jet($a, $acteurNom),
             'desamorcage' => $this->desamorcage($a, $acteurNom),
             'franchissement' => $this->issueSimple($a, $acteurNom, 'franchit la fosse', 'chute dans la fosse'),
             'relever' => [$this->info(($a['libelle'] ?? "{$acteurNom} relève un compagnon"))],
+            // RELÈVEMENT STORY (Jungles of Delthrak, F9907 p. 5) : un héros à terre regagne
+            // 1 point de Corps et se relève à l'ouverture du round. Sans cette ligne, le
+            // fil ne dirait pas pourquoi un héros qu'on croyait à terre rejoue.
+            'regain_corps' => [[
+                'texte' => ($a['nom'] ?? 'Un héros').' regagne un point de Corps et se relève',
+                'ton' => 'succes',
+            ]],
             // ⚠ ÉQUIPER/RANGER ÉTAIENT MUETS (ils tombaient sur `default`) :
             // le fil se taisait sur un geste qui coûte pourtant l'action du
             // tour en pleine quête. Corrigé EN MÊME TEMPS que l'ajout
@@ -656,6 +697,12 @@ final class JournalCombat
                 'texte' => (string) ($a['texte'] ?? 'Un effet du Dread se produit'),
                 'ton' => (string) ($a['ton'] ?? 'info'),
             ]],
+            // EFFET GLOBAL DE QUÊTE (Gruulob, « All Goblins in this quest… ») : la phrase
+            // DÉCIDÉE par `EffetsGlobauxQuete::texte()`, rendue telle quelle.
+            'effet_global_quete' => [[
+                'texte' => (string) ($a['texte'] ?? 'Un effet global est en jeu'),
+                'ton' => (string) ($a['ton'] ?? 'info'),
+            ]],
             // POSSESSION (*Possess*, High Mage) : le MJ déplace le héros à sa place.
             'possession_deplacement' => [[
                 'texte' => ($a['personnage'] ?? 'Un héros').' est possédé : il avance de force'
@@ -681,9 +728,13 @@ final class JournalCombat
             // l'artefact restait ou se consumait.
             'reaction' => $this->reaction($a),
             'liberer_entraves' => [$this->info(
-                ! empty($a['sur_soi'])
-                    ? "{$acteurNom} s'arrache aux ronces"
-                    : "{$acteurNom} taille les ronces qui retiennent ".($a['cible']['nom'] ?? 'son compagnon'),
+                ! empty($a['lianes_detruites'])
+                    ? (! empty($a['sur_soi'])
+                        ? "{$acteurNom} arrache les lianes qui le retenaient — le piège disparaît"
+                        : "{$acteurNom} détruit les lianes qui retenaient ".($a['cible']['nom'] ?? 'son compagnon')." — le piège disparaît")
+                    : (! empty($a['sur_soi'])
+                        ? "{$acteurNom} s'arrache aux ronces"
+                        : "{$acteurNom} taille les ronces qui retiennent ".($a['cible']['nom'] ?? 'son compagnon')),
             )],
             // Mur de Glace qui fond, ou qui vole en éclats — plan glace phase
             // 2 : sans cette ligne, une case bloquant un couloir disparaîtrait
@@ -1246,6 +1297,13 @@ final class JournalCombat
             $lignes[] = ['texte' => "{$cible} tombe et quitte le combat !", 'ton' => 'mort'];
         }
 
+        // Fangwarden Armlet : l'allié appelé est tombé, la puissance s'endort.
+        if (! empty($a['objet_dormant'])) {
+            $d = (array) $a['objet_dormant'];
+            $n = (int) ($d['quetes'] ?? 0);
+            $lignes[] = ['texte' => "{$d['objet']} s'endort : il se réveillera après {$n} quête".($n > 1 ? 's' : '').' terminée'.($n > 1 ? 's' : ''), 'ton' => 'info'];
+        }
+
         return $lignes;
     }
 
@@ -1302,6 +1360,35 @@ final class JournalCombat
 
         if (isset($a['squelettes_invoques'])) {
             return $this->corHearthkin($a, $acteurNom, $nom);
+        }
+
+        // FANGWARDEN ARMLET : l'allié appelé se DIT, avec son nom et sa case — il
+        // apparaît sur la carte sans qu'aucun autre fil ne l'annonce.
+        if (isset($a['allie']['nom'])) {
+            return [[
+                'texte' => "{$acteurNom} serre {$nom} : {$a['allie']['nom']} bondit à ses côtés",
+                'ton' => 'tresor',
+            ]];
+        }
+
+        // POTIONS DE DELTHRAK : ce que la potion a réellement fait (un effet
+        // automatique que rien n'annonce est injouable).
+        $effets = (array) ($a['potion']['effets'] ?? []);
+
+        if (isset($effets['recupere'])) {
+            $r = (array) $effets['recupere'];
+
+            return [[
+                'texte' => "{$acteurNom} boit {$nom} : ".($r['type'] === 'sort' ? 'le sort' : 'la compétence')." « {$r['nom']} » est de nouveau disponible",
+                'ton' => 'succes',
+            ]];
+        }
+
+        if (isset($effets['retire_condition'])) {
+            return [[
+                'texte' => "{$acteurNom} boit {$nom} : « {$effets['retire_condition']} » se dissipe",
+                'ton' => 'succes',
+            ]];
         }
 
         // POTION D'ALCHIMIE (Wizards of Morcar, carte de trésor) : « discard one
@@ -1840,6 +1927,13 @@ final class JournalCombat
 
     private function piegeDeclenche(array $a, string $acteurNom): array
     {
+        // Fosse IGNORÉE (Forme démoniaque, Spiderstep Elixir : « revealed pit
+        // traps ») : sans cette ligne, « Fosse se déclenche sur X ! » aurait
+        // annoncé une chute qui n'a pas eu lieu.
+        if (($a['type'] ?? null) === 'piege_ignore') {
+            return [$this->info(($a['personnage'] ?? $acteurNom).' traverse '.($a['piege'] ?? 'la fosse').' sans y tomber')];
+        }
+
         // LAME BALANÇOIRE (Against the Ogre Horde p. 4-5) : plusieurs cibles,
         // chacune avec SA PROPRE défense — forme distincte de celle, à cible
         // unique et sans défense, des deux autres pièges de sol. Un effet
@@ -1893,8 +1987,95 @@ final class JournalCombat
             $lignes[] = ['texte' => "{$nom} est ".$a['condition_appliquee'], 'ton' => 'echec'];
         }
 
+        // LIANES AGRIPPANTES : le héros est TENU — et il faut dire COMMENT en
+        // sortir, sinon un joueur immobilisé cherche une sortie qui n'est pas là.
+        if (! empty($a['retenu'])) {
+            $lignes[] = $this->info("{$nom} est retenu par les lianes — lui ou un voisin au contact doit dépenser une action pour les détruire");
+        }
+
         if ($degats === 0 && empty($a['condition_appliquee'])) {
             $lignes[] = $this->info("{$nom} s'en tire sans une égratignure");
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * LIANES AGRIPPANTES esquivées (Jungles of Delthrak p. 4) : « On a black or
+     * white shield, they successfully dodge the vines and may continue their
+     * movement. » Le jet se voit — un dé lancé sans suite est tout de même une
+     * information, et le piège est désormais CONNU de tous.
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function piegeEsquive(array $a, string $acteurNom): array
+    {
+        $nom = $a['personnage']['nom'] ?? $acteurNom;
+        $piege = $a['piege']['nom'] ?? 'Un piège';
+        $ligne = ['texte' => "{$piege} jaillit — {$nom} esquive les lianes et poursuit sa route", 'ton' => 'succes'];
+
+        if (($des = $this->desJetUnilateral($a, $nom)) !== null) {
+            $ligne['des'] = $des;
+        }
+
+        return [$ligne];
+    }
+
+    /**
+     * Les jets de TERRAIN d'un déplacement (Brasier, Rivière gelée…) : « Any
+     * creature who moves through the bonfire must roll 1 combat die » — le dé
+     * lancé, et ce qu'il a coûté. Un effet automatique que rien n'annonce est
+     * injouable ; le déplacement reste muet pour le reste (le fil raconterait
+     * chaque pas).
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function jetsDeTerrain(array $a, string $acteurNom): array
+    {
+        $lignes = [];
+
+        // Bracers of the Wild / Spiderstep Elixir : ce qui a été franchi sans
+        // peine (jamais un pas sur du sol nu — seulement ce qui aurait gêné).
+        if (! empty($a['franchit'])) {
+            $lignes[] = $this->info("{$acteurNom} passe outre : ".implode(' et ', (array) $a['franchit']));
+        }
+
+        foreach ((array) ($a['terrain_jets'] ?? []) as $jet) {
+            $terrain = (string) ($jet['terrain'] ?? 'Terrain');
+            $degats = (int) ($jet['degats'] ?? 0);
+
+            $lignes[] = $degats > 0
+                ? ['texte' => "{$acteurNom} traverse : {$terrain} — −{$degats} PV", 'ton' => 'degats']
+                : $this->info("{$acteurNom} traverse : {$terrain} — aucun mal");
+        }
+
+        return $lignes;
+    }
+
+    /**
+     * Un MONSTRE qui traverse un terrain qui blesse (Brasier : « Any creature »).
+     *
+     * @param  array<string, mixed>  $a
+     * @return list<array{texte: string, ton: string}>
+     */
+    private function terrainMonstre(array $a): array
+    {
+        $monstre = (string) ($a['monstre'] ?? 'Un monstre');
+        $lignes = [];
+
+        foreach ((array) ($a['jets'] ?? []) as $jet) {
+            $terrain = (string) ($jet['terrain'] ?? 'Terrain');
+            $degats = (int) ($jet['degats'] ?? 0);
+
+            $lignes[] = $degats > 0
+                ? ['texte' => "{$monstre} traverse : {$terrain} — −{$degats} PV", 'ton' => 'degats']
+                : $this->info("{$monstre} traverse : {$terrain} — aucun mal");
+        }
+
+        if (! empty($a['vaincu'])) {
+            $lignes[] = ['texte' => "{$monstre} succombe aux flammes", 'ton' => 'mort'];
         }
 
         return $lignes;

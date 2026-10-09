@@ -324,6 +324,12 @@ class GabaritQueteSeeder extends Seeder
                             // formes « Demonspider »/« Demonape » ne s'atteignent
                             // qu'en jeu, par `monstres.phase_suivante`.
                             'gretzl_porte_fleau',
+                            // GRUULOB, SORCIER GOBELIN CORROMPU (Jungles of Delthrak,
+                            // quête 8, 2026-10-09) : second boss du thème, à deux formes.
+                            // Seule sa PREMIÈRE forme est nommée ici — « Gruulob, Forme
+                            // Démoniaque » ne s'atteint qu'en jeu, par `phase_suivante`
+                            // (et `Monstre::nomsDeFormeSuivante()` l'écarte de la rotation).
+                            'gruulob_sorcier_gobelin',
                             // LA GARDIENNE (Artificer, Wizards of Morcar, 2026-10-08) :
                             // SEUL boss de la boîte — « The Keeper […] When the Keeper
                             // is defeated, she vanishes » (G1504 p. 38, quête 9). Les

@@ -63,6 +63,18 @@ class Monstre extends Model
         return in_array('embuscade', $capacites, true) || array_key_exists('embuscade', $capacites);
     }
 
+    /**
+     * Un monstre de MÊLÉE qui tire AUSSI à distance, au choix (`tir_au_choix`, Gruulob
+     * dans ses deux formes). Distinct de `aDistance()` : l'archer recule pour tirer,
+     * celui-ci tire sur place et frappe au contact. Lu par `ResolveurTour::jouerMonstre()`.
+     */
+    public function aTirAuChoix(): bool
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return in_array('tir_au_choix', $capacites, true) || array_key_exists('tir_au_choix', $capacites);
+    }
+
     /** Emprise en cases : [largeur, hauteur]. Par défaut 1×1. */
     public function emprise(): array
     {
@@ -119,5 +131,29 @@ class Monstre extends Model
         return $this->phase_suivante === null
             ? null
             : self::where('nom_base', $this->phase_suivante)->first();
+    }
+
+    /**
+     * Les noms de bloc qui sont la FORME SUIVANTE d'une autre ligne (la cible de
+     * `phase_suivante`) : une forme n'est jamais une ENTRÉE de rencontre.
+     *
+     * ⚠ Sans cette exclusion, la rotation du boss final tirait les formes elles-
+     * mêmes : chaque forme porte le même `archetype_lanceur` que sa première phase
+     * (c'est lui qui garde le répertoire de sorts à travers le changement), donc
+     * Demonspider et Demonape étaient des candidats `boss` du thème Jungles au
+     * même titre que Gretzl — un groupe pouvait affronter le troisième Gretzl sans
+     * ses deux premières phases. La rencontre ne nomme que la première phase ; les
+     * autres ne s'atteignent qu'en jeu, par `phase_suivante`.
+     *
+     * @return list<string>
+     */
+    public static function nomsDeFormeSuivante(): array
+    {
+        return self::query()
+            ->whereNotNull('phase_suivante')
+            ->distinct()
+            ->pluck('phase_suivante')
+            ->values()
+            ->all();
     }
 }

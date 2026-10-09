@@ -282,7 +282,7 @@ class CompetenceSeeder extends Seeder
                     'description' => '+1 case à ton déplacement de base, à chacun de tes tours.',
                     'effet' => ['mecanique' => 'bonus_deplacement', 'valeur' => 1]],
                 ['nom' => 'Ronces complices', 'type' => 'passif',
-                    'description' => 'Racines entravantes et chausse-trappes ne coupent plus ta course.',
+                    'description' => 'Racines entravantes et chausse-trappes ne coupent plus ta course, et le terrain gênant (sable, toile, jungle) ne te coûte plus rien de plus.',
                     'effet' => ['mecanique' => 'ignore_terrain_entravant']],
                 ['nom' => 'Regard de la bête', 'type' => 'passif',
                     'description' => '+1 dé de Mind sur les jets de perception et de repérage.',

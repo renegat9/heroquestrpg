@@ -1811,7 +1811,8 @@ final class SceneDeTable
             'dépl. '.(int) $m->deplacement,
         ];
 
-        if ($m->portee !== 'corps_a_corps') {
+        // Un monstre de mêlée qui tire au choix (Gruulob) se dit « à distance » comme un archer.
+        if ($m->portee !== 'corps_a_corps' || $m->aTirAuChoix()) {
             $bouts[] = 'à distance';
         }
 

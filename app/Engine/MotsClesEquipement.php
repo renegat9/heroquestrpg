@@ -530,7 +530,11 @@ final class MotsClesEquipement
     /** Bonus TEMPORAIRE de dés d'attaque — s'accompagne toujours d'une `duree`. */
     public const BONUS_DES_ATTAQUE = 'bonus_des_attaque';
 
-    /** Bonus TEMPORAIRE de dés de défense — s'accompagne toujours d'une `duree`. */
+    /**
+     * Bonus TEMPORAIRE de dés de défense — s'accompagne toujours d'une `duree`.
+     * Lu sur les potions, les buffs de sort et les améliorations de Forge : jamais
+     * sur une PIÈCE, qui se lit par `des_defense` (`LUES_SUR_UNE_PIECE`).
+     */
     public const BONUS_DES_DEFENSE = 'bonus_des_defense';
 
     /**
@@ -722,7 +726,13 @@ final class MotsClesEquipement
     /** La cible saute son prochain tour (Sceptre de Télékinésie). */
     public const SAUTE_TOUR = 'saute_tour';
 
-    /** Comment la cible résiste — `rupture_6_par_mind` (MoteurSorts::tenterRupture()). */
+    /**
+     * Comment la cible résiste à son `saute_tour` — `rupture_6_par_mind` : un jet
+     * de rupture, un 6 libère (`MoteurSorts::tenterRupture()`). Lue par
+     * `ResolveurTour::resoudreArtefactActivable()` : SANS clé, pas de jet. La
+     * valeur était ignorée jusqu'au 2026-10-09 (règle câblée en dur, clé
+     * décorative sur le Sceptre) ; elle décide désormais.
+     */
     public const RESISTANCE = 'resistance';
 
     /** Dés de défense retirés à la cible (Lame Fantôme) — ResolveurTour::frapper(). */
@@ -917,8 +927,135 @@ final class MotsClesEquipement
      *    blancs comme un héros (`resoudreAttaqueMonstreSurAllie()`).
      * Lecteurs : `MenuMoteur::objetsDeMateriel()` (l'offre, gratuite en
      * créneau ACTION) et `ResolveurTour::resoudreCorHearthkin()` (la pose).
+     * La pose passe par `AlliesInvoques::poser()` : le squelette est un allié
+     * APPELÉ (`invoque_par_objet_id` = le cor), retiré en fin de quête comme le
+     * Raptor, et jamais entretenu (2026-10-09 : il payait 10 po, faute de marqueur).
      */
     public const INVOQUE_SQUELETTES_HEARTHKIN = 'invoque_squelettes_hearthkin';
+
+    // ------------------------------------------- JUNGLES OF DELTHRAK — LE BUTIN
+    //
+    // Les six artefacts du livret F9907 p. 50 et les quatre potions de
+    // l'Alchimiste (p. 2) ne demandent que neuf mots-clés, tous lus ailleurs
+    // que dans la donnée : les dés de défense, le Body maximum, le dé d'attaque
+    // et le déplacement existaient déjà (`des_defense`, `bonus_pv_body_max`,
+    // `des_attaque`, `portee`), et le terrain gênant a son point de passage
+    // depuis le chantier carte (`ignore_terrain_entravant`, ci-dessous).
+
+    /**
+     * « You move unaffected through squares containing FURNITURE » (*Bracers of
+     * the Wild*, p. 50) — « furniture » parmi d'autres choses dans la
+     * *Spiderstep Elixir* (« revealed pit traps, hindering terrain, furniture,
+     * and monsters »). Le meuble bloquant cesse de barrer le CHEMIN ; on le
+     * traverse, on ne s'y arrête pas (aucune des deux cartes ne dit qu'on peut
+     * finir son mouvement dessus).
+     *
+     * ⚠ Le MEUBLE seul : un mur de glace posé par un sort, un bloc de pierre
+     * tombé d'un piège et un terrain bloquant ne sont pas du mobilier, et
+     * restent des murs (`Grille::franchirMobilier()` ne lève que les cases que
+     * `FabriqueGrille` a marquées comme mobilier).
+     * Lecteur : `MoteurSorts::mobilierFranchi()` — porté OU bu (buff de potion),
+     * relu par `ResolveurTour::grilleDeplacement()`, `MenuMoteur::peutSeDeplacer()`
+     * et publié à la manette (`entites[].franchit_mobilier`, la DÉCISION).
+     */
+    public const FRANCHIT_MOBILIER = 'franchit_mobilier';
+
+    /**
+     * Le héros ne paie pas le TERRAIN GÊNANT (sable, toile, jungle — 2 cases
+     * par case, p. 4) : *Bracers of the Wild* et *Spiderstep Elixir*. Même clé
+     * que le talent des Ronces complices (`MotsClesTalent`), même lecteur —
+     * `MoteurSorts::terrainEntravantIgnore()` — : une seule question, trois
+     * sources (talent, pièce portée, buff de potion).
+     */
+    public const IGNORE_TERRAIN_ENTRAVANT = 'ignore_terrain_entravant';
+
+    /**
+     * Les FOSSES DÉJÀ RÉVÉLÉES ne font pas tomber — *Spiderstep Elixir* : « move
+     * unaffected through squares containing REVEALED pit traps ». Une fosse
+     * cachée, elle, surprend toujours : la carte ne parle que des fosses que
+     * l'on voit (états `detecte` et `fosse_ouverte`). Même sortie que la Forme
+     * démoniaque (`piege_ignore`), au même point de passage.
+     * Lecteur : `MoteurPieges::declencher()`, via un buff de potion.
+     */
+    public const FRANCHIT_FOSSES_REVELEES = 'franchit_fosses_revelees';
+
+    /**
+     * Cases de déplacement en PLUS, SANS condition de boîte — « You may also
+     * add 2 squares to your movement roll » (*Bracers of the Wild*, p. 50).
+     *
+     * ⚠ Distinct de `BONUS_DEPLACEMENT_PORTE`, qui ne vaut que dans une quête
+     * `horreur_des_glaces` (la carte des Raquettes le dit) : la carte des
+     * Bracers n'a pas de clause de lieu. Les deux se SOMMENT si un héros porte
+     * les deux pièces. Lecteur : `Partie\Equipement::bonusDeplacementActif()`,
+     * le même point de passage que celui des Raquettes.
+     */
+    public const BONUS_DEPLACEMENT_INCONDITIONNEL = 'bonus_deplacement_inconditionnel';
+
+    /**
+     * Dés d'attaque en PLUS sur les attaques d'une arme qui n'est PAS à
+     * distance — *Girdle of Might* : « 1 additional Attack die on all
+     * non-ranged weapon attacks » (p. 50).
+     *
+     * ⚠ C'est la ARME qui décide, pas la distance de la cible : une arme
+     * `portee: distance` n'en profite jamais (même collée à sa cible), et une
+     * arme jetée non plus (un lancer est une attaque à distance). Les mains
+     * nues ne sont pas « une attaque d'arme ». Lecteur : `Equipement::
+     * desAttaqueAvec()` — le calcul des dés PAR ARME, que lisent à la fois la
+     * colonne `des_attaque`, le menu d'attaque et `ResolveurTour::frapper()`.
+     */
+    public const DES_ATTAQUE_AU_CONTACT = 'des_attaque_au_contact';
+
+    /**
+     * Appelle un ALLIÉ — *Fangwarden Armlet* : « call forth a Raptor animal
+     * ally. If the Raptor is defeated, the armlet's power goes dormant. Its
+     * power replenishes if the hero completes two quests without its
+     * assistance. » Valeur structurée : `{mercenaire: nom de la fiche d'allié,
+     * dormance_quetes: N}`.
+     *
+     * La cadence « once per quest » est dite par `frequence` (la fenêtre
+     * d'usage), la DORMANCE par `inventaire.quetes_avant_reveil` — deux états
+     * distincts : le Raptor survivant ne dort pas, il est simplement rappelé à
+     * chaque quête. L'allié est joué par son joueur comme tout allié
+     * (`recruteur_personnage_id`) et ne survit pas à la quête
+     * (`groupe_mercenaires.invoque_par_objet_id`).
+     * Lecteurs : `MenuMoteur::objetsDeMateriel()` (l'offre), `ResolveurTour::
+     * resoudreArtefactActivable()` (la pose) et `App\Partie\AlliesInvoques`
+     * (la dormance, le réveil, la purge de fin de quête).
+     */
+    public const APPELLE_ALLIE = 'appelle_allie';
+
+    /**
+     * Valeur marchande ENTIÈRE d'un trésor — « can be sold for 75 gold coins »
+     * (*Emerald Heart of Delthrak*), « is worth 50 gold coins » (*Ancient
+     * Dwarven Relic*). Le marché rachète ordinairement à 50 % du prix : un
+     * trésor-valeur dit sa valeur, et c'est elle que la revente verse.
+     * Lecteur : `PhaseMarche::reventePour()` — le SEUL point de passage de la
+     * revente (le panier et l'inventaire vendable le relisent tous les deux).
+     */
+    public const VALEUR_MARCHANDE = 'valeur_marchande';
+
+    /**
+     * Récupère UN sort de héros ou UNE compétence déjà utilisés —
+     * *Potion of Elder Wisdom* : « recover any 1 hero spell or skill you have
+     * used ». Le buveur reçoit d'abord le premier sort épuisé, à défaut la
+     * première compétence « une fois par quête » dépensée — même parti que la
+     * Potion de rappel : aucun choix exposé au joueur (le menu n'a pas de
+     * sous-liste de sorts), le moteur prend le premier. Rien à récupérer : la
+     * potion n'est pas offerte, et le résolveur refuse.
+     * Lecteur : `MoteurPotions::boire()` (et `MoteurPotions::offrable()`).
+     */
+    public const RECUPERE_SORT_OU_COMPETENCE = 'recupere_sort_ou_competence';
+
+    /**
+     * Une seule potion de ce type PAR HÉROS ET PAR QUÊTE — « A hero may only
+     * use one of these potions per quest » (*Potion of Elder Wisdom*). À ne pas
+     * confondre avec `UNE_PAR_TOUR` (une fenêtre d'un tour) ni avec `frequence`
+     * (fenêtre par EXEMPLAIRE : une pile de potions n'est qu'une ligne, mais un
+     * second flacon trouvé plus tard en serait une autre). Compteur : celui des
+     * compétences (`etat_personnage_quete.capacites_utilisees`), il naît vide
+     * avec la quête. Lecteur : `MoteurPotions::boire()` / `offrable()`.
+     */
+    public const UNE_PAR_QUETE = 'une_par_quete';
 
     // ------------------------------------------------------------------- ---
 
@@ -1018,6 +1155,16 @@ final class MotsClesEquipement
         self::TRANSMUTE_EQUIPEMENT_EN_OR,
         self::RABAIS_RECRUTEMENT_MERCENAIRE,
         self::RECRUTEMENTS_A_RABAIS,
+        // Jungles of Delthrak — le butin (2026-10-09).
+        self::FRANCHIT_MOBILIER,
+        self::IGNORE_TERRAIN_ENTRAVANT,
+        self::FRANCHIT_FOSSES_REVELEES,
+        self::BONUS_DEPLACEMENT_INCONDITIONNEL,
+        self::DES_ATTAQUE_AU_CONTACT,
+        self::APPELLE_ALLIE,
+        self::VALEUR_MARCHANDE,
+        self::RECUPERE_SORT_OU_COMPETENCE,
+        self::UNE_PAR_QUETE,
     ];
 
     /**
@@ -1031,6 +1178,48 @@ final class MotsClesEquipement
     public const INERTES = [
         self::SORT_NOM => 'Libellé de confort : le nom du sort double déjà celui du parchemin.',
         self::DIFFICULTE_NON_LANCEUR => 'Copie d\'affichage ; ResolveurTour roule contre sorts.difficulte_parchemin.',
+    ];
+
+    /**
+     * Clés qu'un LECTEUR lit sur `objets.effet` d'une ARME ou d'une ARMURE
+     * elle-même : équipée, tenue pour frapper, ou activée (un buff qui relit
+     * l'objet source compte — c'est ainsi que `ignore_defense_monstre` ou
+     * `franchit_mur` vivent sur une pièce). Une clé de pièce ABSENTE de cette
+     * liste est décorative SUR LA PIÈCE, même si elle est lue ailleurs :
+     * `bonus_des_defense` se lit sur les améliorations de Forge, les potions et
+     * les talents, jamais sur une pièce — la Cuirasse de Peau de Dragon le portait
+     * et ne gagnait pas son dé (défense 2 → 2, 2026-10-09).
+     *
+     * `ObjetsFonctionnelsTest` tient cette liste dans les DEUX sens : chaque clé
+     * est active, et chaque pièce ne porte que des clés d'ici. Ajouter une clé à
+     * une arme ou une armure oblige donc à dire qui la lit SUR la pièce.
+     *
+     * @var list<string>
+     */
+    public const LUES_SUR_UNE_PIECE = [
+        // Attaque et frappe (arme)
+        self::DES_ATTAQUE, self::DES_ATTAQUE_CONTRE, self::ATTAQUE_DIAGONALE,
+        self::ATTAQUE_DOUBLE_CONTRE, self::DEGATS_FIXES, self::DEGATS_SAUF_BOUCLIER_NOIR,
+        self::DEUX_MAINS, self::EST_UNE, self::IGNORE_DEFENSE_MONSTRE,
+        self::INUTILISABLE_ADJACENT, self::JETABLE, self::PORTEE,
+        self::RELANCE_DES_ATTAQUE, self::RELANCE_DES_ATTAQUE_SUR_FACE,
+        // Défense, jauges, déplacement, réactions (armure, talisman, bottes)
+        self::DES_DEFENSE, self::DES_ATTAQUE_AU_CONTACT, self::DE_DEPLACEMENT_SUPPLEMENTAIRE,
+        self::DEPLACEMENT_FIXE, self::DEPLACEMENT_SANS_D6, self::ANNULE_GLACE_GLISSANTE,
+        self::BONUS_DEPLACEMENT_INCONDITIONNEL, self::BONUS_DEPLACEMENT_PORTE,
+        self::BONUS_DES_RESISTANCE_MENTALE, self::BONUS_PV_BODY_MAX, self::BONUS_PV_MIND_MAX,
+        self::INCOMPATIBLE_DEUX_MAINS, self::IMMUNITE_DEGAT, self::ABSORBE_DEGATS_MIND,
+        self::PLANCHER_PV, self::REFLET_SORT_DREAD, self::RELANCE_ATTAQUE_MONSTRE,
+        self::SAUT_PIEGE_DE_COMBAT, self::SECOND_SORT_PAR_TOUR, self::SORT_NON_EPUISE,
+        self::SOIN_PV_BODY, self::IGNORE_TERRAIN_ENTRAVANT, self::FRANCHIT_MOBILIER,
+        self::USURE_SUR_DES_IDENTIQUES,
+        // Mouvements et effets lus sur l'objet source d'un buff ou d'une activation
+        self::FRANCHIT_FIGURES, self::FRANCHIT_MUR, self::RESISTANCE,
+        self::SAUTE_TOUR, self::CONTROLE_MONSTRES, self::RAMENE_HEROS_AU_DEPART,
+        self::APPELLE_ALLIE,
+        // Mots-clés d'activation et de charge (toute pièce qui s'utilise)
+        self::ACTIVABLE, self::CIBLE, self::CONDITION_APPLIQUEE, self::COUT,
+        self::DUREE, self::FREQUENCE, self::CHARGES,
     ];
 
     /** Cette clé est-elle appliquée par le moteur ? */
@@ -1084,9 +1273,13 @@ final class MotsClesEquipement
         'relance_des_attaque_sur_face' => 'Relance un dé selon la face obtenue',
         'relance_attaque_monstre' => 'Force l\'assaillant à relancer son attaque',
         self::DEGATS_SAUF_BOUCLIER_NOIR => 'Chaque flèche inflige %s PV, sauf si la cible tire un bouclier noir',
+        // Libellé de repli : `avantages()` compose la phrase complète (nom de
+        // l'allié, dormance) — *Fangwarden Armlet*, Jungles of Delthrak.
+        self::APPELLE_ALLIE => 'Appelle un allié',
         'tue_creatures' => 'Tue instantanément : %s',
         'controle_monstres' => 'Enrôle une créature',
         self::INVOQUE_SQUELETTES_HEARTHKIN => 'Un Squelette Hearthkin apparaît pour chaque héros — le cor se brise',
+        self::DES_ATTAQUE_AU_CONTACT => '+%s dé(s) d\'attaque avec une arme qui n\'est pas à distance',
         // --- Forge du Nain
         self::ANNULE_BOUCLIERS_DEFENSE => 'Annule %s bouclier(s) de la défense de la cible',
         self::RELANCE_DE_ATTAQUE_RATE => 'Relance %s dé(s) d\'attaque raté(s) — une fois par combat',
@@ -1108,6 +1301,10 @@ final class MotsClesEquipement
         self::BONUS_DEPLACEMENT_PORTE => '+%s de déplacement (quêtes glacées)',
         self::ANNULE_GLACE_GLISSANTE => 'Ignore la Glace glissante',
         self::DEPLACEMENT_FIXE => 'Déplacement fixe de %s cases (aucun dé)',
+        self::BONUS_DEPLACEMENT_INCONDITIONNEL => '+%s de déplacement',
+        self::FRANCHIT_MOBILIER => 'Traverse le mobilier (sans s\'y arrêter)',
+        self::IGNORE_TERRAIN_ENTRAVANT => 'Ignore le terrain gênant',
+        self::FRANCHIT_FOSSES_REVELEES => 'Traverse les fosses déjà révélées',
         'de_deplacement_supplementaire' => '+%s dé de déplacement',
         'deplacement_multiplie' => 'Déplacement ×%s',
         'franchit_figures' => 'Traverse les figurines',
@@ -1139,6 +1336,7 @@ final class MotsClesEquipement
 
         // --- Magie
         self::RESTAURE_SORTS => 'Rend %s sort(s) épuisé(s)',
+        self::RECUPERE_SORT_OU_COMPETENCE => 'Rend un sort ou une compétence déjà utilisés',
         self::SECOND_SORT_PAR_TOUR => 'Un second sort par tour',
         self::SORT_NON_EPUISE => 'Le sort lancé n\'est pas épuisé',
         self::IMMUNITE_DEGAT => 'Immunise contre les dégâts de %s',
@@ -1163,6 +1361,8 @@ final class MotsClesEquipement
         'frequence' => 'Cadence : %s',
         'cout' => 'Coût : %s',
         'une_par_tour' => 'Une seule fois par tour',
+        self::UNE_PAR_QUETE => 'Une seule par héros et par quête',
+        self::VALEUR_MARCHANDE => 'Se revend %s pièces d\'or (valeur entière)',
         // ⚠ « S'active à volonté » précédait « Cadence : une fois par quête » sur
         // la même ligne. La clé dit seulement que l'objet se DÉCLENCHE.
         'activable' => 'Pouvoir à déclencher',
@@ -1244,6 +1444,22 @@ final class MotsClesEquipement
                     sprintf('Relance %d dé(s) d\'attaque tombé(s) sur %s', $nombre, self::FACES[(string) $valeur['face']]),
                     $nombre,
                 );
+
+                continue;
+            }
+
+            // *Fangwarden Armlet* : le nom de la fiche d'allié ET la dormance se
+            // disent — « Raptor apprivoisé » seul cacherait la moitié de la carte.
+            if ($cle === self::APPELLE_ALLIE && is_array($valeur) && ($valeur['mercenaire'] ?? '') !== '') {
+                $quetes = (int) ($valeur['dormance_quetes'] ?? 0);
+                $lignes[] = 'Appelle un allié : '.$valeur['mercenaire'];
+
+                if ($quetes > 0) {
+                    $lignes[] = self::accorder(
+                        sprintf('Si l\'allié tombe, la puissance dort jusqu\'à %d quête(s) terminée(s)', $quetes),
+                        $quetes,
+                    );
+                }
 
                 continue;
             }

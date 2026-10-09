@@ -666,3 +666,28 @@ it('422 sur une entrée `equiper`/`ranger` hors de la liste publiée', function 
         ->assertStatus(422)
         ->assertJsonValidationErrors('parametres');
 });
+
+it('la Cuirasse de Peau de Dragon ajoute 1 dé de défense au porteur, et fixe son déplacement à 8', function () {
+    // Le défaut : la clé `bonus_des_defense` était lue sur les améliorations de
+    // Forge, jamais sur la pièce — défense 2 → 2. EN JEU : équipée, la colonne ET
+    // la fiche publiée (/moi) portent le nouveau total.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $heros = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'barbare']);
+    $base = (int) $heros->des_defense;
+
+    $equipement = app(Equipement::class);
+    $equipement->equiper($heros, Inventaire::create([
+        'personnage_id' => $heros->id,
+        'objet_id' => Objet::where('nom', 'Cuirasse de Peau de Dragon')->firstOrFail()->id,
+        'emplacement' => 'sac', 'quantite' => 1,
+    ]));
+    $heros->refresh();
+
+    expect((int) $heros->des_defense)->toBe($base + 1)
+        ->and($equipement->deplacementFixe($heros))->toBe(8);
+
+    $perso = collect($this->getJson('/api/moi')->assertOk()->json('joueur.personnages'))
+        ->firstWhere('id', $heros->id);
+    expect($perso['des_defense'] ?? null)->toBe($base + 1);
+});

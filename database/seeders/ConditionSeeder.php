@@ -196,6 +196,18 @@ class ConditionSeeder extends Seeder
             ['nom' => 'Esprit vif', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['second_sort_par_tour' => true, 'fin' => 'duree_du_sort']],
 
+            // Spiderstep Elixir (Jungles of Delthrak, p. 2) : « move unaffected
+            // through squares containing revealed pit traps, hindering terrain,
+            // furniture, and monsters. This potion's effects end if you suffer
+            // any amount of damage. » Même patron que « Clairvoyance » : l'`effet`
+            // est d'AFFICHAGE, les mécanismes sont relus sur l'OBJET source
+            // (`MoteurSorts::mobilierFranchi()`, `terrainEntravantIgnore()`,
+            // `franchitFigures()`, `MoteurPieges::declencher()`), et la fin est
+            // portée par la `duree` de la potion (`premier_degat_subi`).
+            ['nom' => "Pas d'araignée", 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['franchit_mobilier' => true, 'ignore_terrain_entravant' => true,
+                    'franchit_figures' => true, 'franchit_fosses_revelees' => true, 'fin' => 'premier_degat_subi']],
+
             // ===== Wizards of Morcar — les Sorciers du Dread (2026-10-08) =====
             //
             // *Blinding Sleet* (Storm Master) : « Characters in that room may not

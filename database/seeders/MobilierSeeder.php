@@ -189,6 +189,31 @@ class MobilierSeeder extends Seeder
             ['nom' => 'Amas de cristal', 'nom_anglais' => 'Crystal Cluster', 'largeur' => 1, 'hauteur' => 1,
                 'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 6, 'defense_dice' => 0, 'boite' => 'jungles_delthrak'],
 
+            // COCON (« Cocoon Tiles », p. 4) : « These tiles represent cocoons,
+            // concentrations of webbing that may contain treasure or deadly
+            // surprises. A hero adjacent to a cocoon can spend an action to
+            // destroy it, which removes the obstacle from board. Cocoons block
+            // line of sight and cannot be moved through. »
+            // ⚠ MÉCANIQUE DISTINCTE de l'Amas de cristal ci-dessus : ni PV ni
+            // dés de défense (`pv_body`/`defense_dice` restent `null`), ni jet de
+            // Body (`difficulte_destruction` reste `null`, aucune source n'en
+            // décrit un) — « spend an action to destroy it », point. D'où la clé
+            // `detruit_par_action` (vocabulaire fermé `MotsClesMobilier`) : une
+            // action, aucun jet, aucune tentative à compter. Il bloque la vue ET
+            // le passage (`bloque_vue: true` ; `bloque_mouvement` l'est pour
+            // tout le catalogue).
+            // ⚠ « may contain treasure or deadly surprises » : ce que cache un
+            // cocon est écrit dans les NOTES DE QUÊTE du livret (une quête
+            // imprimée), jamais dans la règle du composant. Nos donjons sont
+            // générés : le cocon est ici un OBSTACLE à détruire, sans contenu
+            // inventé — l'ancien plan qui lui prêtait un « butin progressif »
+            // (docs/plan-delthrak.md lot E) n'a aucune source dans le livret.
+            // ⚠ Emprise 1×1 NON mesurée (aucun livret ne la chiffre) : repli par
+            // analogie, comme l'Amas de cristal — c'est UNE tuile de carton.
+            ['nom' => 'Cocon', 'nom_anglais' => 'Cocoon', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'boite' => 'jungles_delthrak',
+                'effet' => ['detruit_par_action' => true]],
+
             // ===== Wizards of Morcar (livret G1504 p. 2-3/35/39, lot A) =====
             // HAUT AUTEL (« High Altar ») : « The High Altar may be attacked
             // using normal combat and has 6 Body Points. It rolls four dice

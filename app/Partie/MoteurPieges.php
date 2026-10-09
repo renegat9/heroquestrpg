@@ -7,6 +7,7 @@ namespace App\Partie;
 use App\Engine\Combat;
 use App\Engine\Des\FaceDeCombat;
 use App\Engine\Des\LanceurDes;
+use App\Engine\MotsClesEquipement;
 use App\Engine\TypeFigurine;
 use App\Events\MjReflechit;
 use App\Events\NarrationDiffusee;
@@ -115,6 +116,21 @@ final class MoteurPieges
     public const ETAT_AMORCE = 'amorce';
 
     /**
+     * RETIENT (Grasping Vine Trap, Jungles of Delthrak p. 4) : « If they roll a
+     * skull, they suffer 1 Body Point of damage and are held in place by the
+     * vines. […] They cannot move from the square until they or another
+     * adjacent hero spends an action to destroy the vines. The hero is then
+     * freed and the trap is removed from the board. » Un état qui n'est NI
+     * armé (le héros qu'il tient ne le redéclenche pas, personne d'autre ne
+     * peut se tenir sur sa case) NI dépensé : les lianes sont encore LÀ, et la
+     * carte doit le montrer — publié, dessiné, jusqu'à ce que
+     * `libererLianes()` le retire (état `desarme`). La clé `retenu` de
+     * l'entrée porte le héros tenu : l'état DURABLE vit dans la grille de la
+     * carte, comme celui de tous les pièges.
+     */
+    public const ETAT_RETIENT = 'retient';
+
+    /**
      * `effet.desarmage_special` de la LAME BALANÇOIRE (Against the Ogre
      * Horde p. 5) : procédure de désamorçage PROPRE à ce piège, lue par
      * `MenuMoteur::generer()` (libellé) et `ResolveurTour::resoudreDesamorcage()`
@@ -170,6 +186,12 @@ final class MoteurPieges
     ): array {
         $declenchements = [];
         $detections = [];
+        // LIANES AGRIPPANTES esquivées (`piege_esquive`) : le piège a jailli et
+        // n'a rien pris, le héros CONTINUE sa course (p. 4 : « they successfully
+        // dodge the vines and may continue their movement »). Une liste à part
+        // de `$declenchements`, jamais dedans : le résolveur ferme le tour de
+        // tout héros qui en a un (`finTourPiegeSol`), et une esquive ne le ferme pas.
+        $esquives = [];
         $aDetection = $this->possedeOeilDuMineur($personnage);
         $provenance = $depart;
 
@@ -185,6 +207,14 @@ final class MoteurPieges
             $index = $this->indexPiegeArme($carte, $x, $y);
             if ($index !== null) {
                 $payload = $this->declencherSurCase($groupe, $carte, $index, $personnage, $etat, 'deplacement', $x, $y);
+
+                if (($payload['type'] ?? null) === 'piege_esquive') {
+                    $esquives[] = $payload;
+                    $provenance = ['x' => $x, 'y' => $y];
+
+                    continue;
+                }
+
                 $declenchements[] = $payload;
 
                 // Forme démoniaque : « ignores pit traps » — le sol ne l'avale
@@ -225,7 +255,7 @@ final class MoteurPieges
                 return [
                     'arret' => $arretCoord, 'dur' => true,
                     'declenchements' => $declenchements, 'detections' => $detections,
-                    'attente_ecart' => $attenteEcart,
+                    'esquives' => $esquives, 'attente_ecart' => $attenteEcart,
                 ];
             }
 
@@ -239,7 +269,7 @@ final class MoteurPieges
                 if ($reveles !== []) {
                     $detections = [...$detections, ...$reveles];
 
-                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'attente_ecart' => null];
+                    return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'esquives' => $esquives, 'attente_ecart' => null];
                 }
             }
 
@@ -279,7 +309,7 @@ final class MoteurPieges
 
                     return ['arret' => ['x' => $x, 'y' => $y], 'dur' => false,
                         'declenchements' => $declenchements, 'detections' => $detections,
-                        'alertes' => $alertes, 'attente_ecart' => null];
+                        'alertes' => $alertes, 'esquives' => $esquives, 'attente_ecart' => null];
                 }
             }
 
@@ -289,7 +319,7 @@ final class MoteurPieges
             $provenance = ['x' => $x, 'y' => $y];
         }
 
-        return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'attente_ecart' => null];
+        return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'esquives' => $esquives, 'attente_ecart' => null];
     }
 
     /**
@@ -368,7 +398,9 @@ final class MoteurPieges
             $payload = $this->declencherSurCase($groupe, $carte, $index, $personnage, $etat, 'repoussement', $x, $y);
 
             // La fosse ignorée (Forme démoniaque) ne retient pas : on continue.
-            if (($payload['type'] ?? null) === 'piege_ignore') {
+            // Les lianes esquivées non plus : le jet a été favorable, le héros
+            // poursuit sa course forcée.
+            if (in_array($payload['type'] ?? null, ['piege_ignore', 'piege_esquive'], true)) {
                 continue;
             }
 
@@ -458,7 +490,14 @@ final class MoteurPieges
         // « The warlock ignores pit traps » (Forme démoniaque). La FOSSE
         // seulement : les flèches et les lames le touchent comme tout le monde,
         // c'est le sol qui ne l'avale plus.
-        if ($this->estFosse($piege) && $this->sorts->aBuff($personnage, 'ignore_pieges_fosse')) {
+        // SPIDERSTEP ELIXIR : « move unaffected through squares containing
+        // REVELED pit traps » — la fosse que l'on VOIT (détectée, ou déjà
+        // ouverte) ne fait pas tomber ; une fosse cachée surprend toujours.
+        $fosseRevelee = $this->estFosse($piege)
+            && in_array($entree['etat'] ?? null, self::ETATS_CONNUS_ARMES, true)
+            && $this->sorts->aBuff($personnage, MotsClesEquipement::FRANCHIT_FOSSES_REVELEES);
+
+        if ($fosseRevelee || ($this->estFosse($piege) && $this->sorts->aBuff($personnage, 'ignore_pieges_fosse'))) {
             return [
                 'type' => 'piege_ignore',
                 'piege' => $piege?->nom,
@@ -470,6 +509,37 @@ final class MoteurPieges
         $jetDesCombat = $this->resoudreDesCombat($nbDesCombat);
         $faces = $jetDesCombat['faces'];
         $touches = $jetDesCombat['touches'];
+
+        // LIANES AGRIPPANTES (Grasping Vine Trap, Jungles of Delthrak p. 4) :
+        // « The hero must roll 1 combat die. On a black or white shield, they
+        // successfully dodge the vines and may continue their movement. » Un
+        // bouclier (pas un crâne) : aucun dégât, aucun arrêt, aucun état
+        // dépensé — le piège a jailli, le groupe le SAIT désormais (il reste
+        // armé, et connu), et le héros poursuit sa course. `esquive_sur_bouclier`
+        // est la clé qui dit « un jet sans crâne épargne tout » ; les trois
+        // pièges de sol, eux, ne lancent un dé que pour compter des crânes.
+        $esquiveSurBouclier = (bool) data_get($piege?->effet, 'esquive_sur_bouclier', false);
+
+        if ($esquiveSurBouclier && $nbDesCombat > 0 && $touches === 0) {
+            if (($entree['etat'] ?? null) === self::ETAT_CACHE) {
+                $this->changerEtat($carte, $index, self::ETAT_DETECTE);
+            }
+
+            $payload = [
+                'type' => 'piege_esquive',
+                'contexte' => $contexte,
+                'piege' => ['nom' => $piege?->nom ?? 'Piège', 'x' => (int) $entree['x'], 'y' => (int) $entree['y']],
+                'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+                'faces' => $faces,
+                'touches' => 0,
+            ];
+
+            Journal::ajouter($groupe, 'action', $payload, [
+                'type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom,
+            ]);
+
+            return $payload;
+        }
 
         if ($nbDesCombat > 0) {
             $degats = $jetDesCombat['degats'];
@@ -504,12 +574,30 @@ final class MoteurPieges
         // de tous ; usage unique sinon : consommé définitivement.
         $blocPermanent = (bool) data_get($piege?->effet, 'bloc_permanent', false);
         $persistant = $piege?->usage === 'persistant';
+
+        // LIANES AGRIPPANTES, sur un crâne : « suffer 1 Body Point of damage and
+        // are held in place by the vines » — `effet.retient` nomme la condition
+        // qui tient le héros (Immobilisé : `deplacement_interdit`, que seule
+        // l'action « Détruire les entraves » lève — « they or another adjacent
+        // hero spends an action to destroy the vines »). ⚠ Posée seulement si le
+        // héros n'y résiste pas (`Competence::resisteA`) : alors rien ne le
+        // retient, et le piège reste armé et connu.
+        $nomRetient = (string) data_get($piege?->effet, 'retient', '');
+        $retenu = $nomRetient !== '' && $touches > 0
+            && $this->appliquerConditionSiApplicable($personnage, $nomRetient, 'piege:'.($piege?->nom ?? 'lianes')) !== null;
+
         $nouvelEtat = match (true) {
             $blocPermanent => self::ETAT_BLOC,
+            $retenu => self::ETAT_RETIENT,
+            $esquiveSurBouclier => self::ETAT_DETECTE,
             $persistant => self::ETAT_FOSSE_OUVERTE,
             default => self::ETAT_DECLENCHE,
         };
         $this->changerEtat($carte, $index, $nouvelEtat);
+
+        if ($retenu) {
+            $this->noterRetenu($carte, $index, (int) $personnage->id);
+        }
 
         $payload = [
             'type' => 'piege_declenche',
@@ -529,6 +617,15 @@ final class MoteurPieges
             // héros doit s'écarter avant que son tour ne se termine (voir
             // `MoteurPieges::casesEcart()` / `ResolveurTour::resoudreDeplacement()`).
             'bloc_permanent' => $blocPermanent,
+            // LIANES : le héros est TENU sur sa case jusqu'à ce que l'une des
+            // deux actions de libération détruise les lianes. Publié pour que
+            // la manette et la table le DISENT (un effet automatique muet est
+            // injouable) : `retient` nomme la condition posée.
+            'retenu' => $retenu,
+            'retient' => $retenu ? $nomRetient : null,
+            // La même clé que les pièges de coffre : le fil dit « X est
+            // Immobilisé » sans nouveau texte (`JournalCombat::piegeDeclenche()`).
+            'condition_appliquee' => $retenu ? $nomRetient : null,
         ];
 
         if ($faces !== null) {
@@ -543,6 +640,48 @@ final class MoteurPieges
         $this->narrerPiegeDeclenche($groupe, $etat->quete, $personnage);
 
         return $payload;
+    }
+
+    /** Inscrit sur l'entrée de piège QUEL héros les lianes tiennent (état durable, dans la grille). */
+    private function noterRetenu(Carte $carte, int $index, int $personnageId): void
+    {
+        $grille = $carte->grille;
+
+        if (! isset($grille['pieges'][$index])) {
+            return;
+        }
+
+        $grille['pieges'][$index]['retenu'] = $personnageId;
+        $carte->update(['grille' => $grille]);
+    }
+
+    /**
+     * Les lianes qui tiennent ce héros sont DÉTRUITES : « The hero is then freed
+     * and the trap is removed from the board » (Jungles of Delthrak p. 4). Appelé
+     * par `ResolveurTour::resoudreLiberationEntraves()` — l'action « Détruire les
+     * entraves » que le héros tenu OU un voisin au contact dépense. Le piège
+     * passe à `desarme` (il n'est plus sur le plateau : plus rien ne se
+     * déclenchera, plus rien ne retient personne). Rend les pièges libérés.
+     *
+     * @return list<array{x: int, y: int, nom: string}>
+     */
+    public function libererLianes(Carte $carte, int $personnageId): array
+    {
+        $liberes = [];
+
+        foreach ((array) ($carte->grille['pieges'] ?? []) as $index => $entree) {
+            if (($entree['etat'] ?? null) !== self::ETAT_RETIENT || (int) ($entree['retenu'] ?? 0) !== $personnageId) {
+                continue;
+            }
+
+            $this->changerEtat($carte, (int) $index, self::ETAT_DESARME);
+            $liberes[] = [
+                'x' => (int) $entree['x'], 'y' => (int) $entree['y'],
+                'nom' => (string) (Piege::find($entree['piege_id'] ?? 0)?->nom ?? 'Piège'),
+            ];
+        }
+
+        return $liberes;
     }
 
     /**

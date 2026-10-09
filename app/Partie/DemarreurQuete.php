@@ -388,6 +388,11 @@ final class DemarreurQuete
 
             $groupe->update(['phase' => 'quete', 'quete_courante_id' => $quete->id]);
 
+            // EFFETS GLOBAUX (Gruulob, « All Goblins in this quest… ») : figés maintenant, une
+            // fois la roster posée — la liste tient jusqu'à la fin de la quête (colonne
+            // `quetes.effets_globaux`). L'annonce part plus bas, une fois la transaction close.
+            EffetsGlobauxQuete::etablir($quete);
+
             return $quete;
         });
 
@@ -410,6 +415,12 @@ final class DemarreurQuete
             'salle_artefact' => $fouille['salle_artefact'],
             'artefact_objet_id' => $fouille['artefact_objet_id'],
         ]);
+
+        // ANNONCE DE DÉMARRAGE (« un message en début de partie pour mentionner qu'un effet
+        // global est en jeu ») : journal + fil direct de la table et des manettes, AVANT la
+        // diffusion d'`EtatGroupe` ci-dessous, qui porte le même texte dans `journal_combat`
+        // et `quete.effets_globaux`. Rien à annoncer = rien écrit.
+        EffetsGlobauxQuete::annoncer($groupe, $quete);
 
         // Snapshot `debut_quete` (contrat « Snapshots & reprise ») : l'état
         // vivant complet, base du « recharger » après TPK (doc 05 §6).
@@ -1015,6 +1026,11 @@ final class DemarreurQuete
                     ->where(function ($q) use ($pool, $creatures) {
                         $q->whereIn('archetype_lanceur', $pool)->orWhereIn('nom_base', $creatures);
                     })
+                    // ⚠ Une FORME SUIVANTE (Demonspider, Demonape, Gruulob Forme
+                    // Démoniaque) porte l'archétype de sa première phase, donc
+                    // passait ce filtre : elle n'est jamais une entrée — voir
+                    // `Monstre::nomsDeFormeSuivante()`.
+                    ->whereNotIn('nom_base', Monstre::nomsDeFormeSuivante())
                     ->orderBy('id')->get()
                     // Bestiaire MANUEL : un FILTRE, avant toute préférence —
                     // une boîte non cochée n'entre jamais (2026-09-28).

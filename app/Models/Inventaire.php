@@ -17,6 +17,9 @@ class Inventaire extends Model
         // Charges RESTANTES de cet exemplaire (arc à 4 flèches, anneau à usage
         // unique). `null` = jamais entamé, pas épuisé — voir MoteurCharges.
         'charges',
+        // Brassard de Fangwarden : quêtes à TERMINER avant que sa puissance ne
+        // se réveille (`null` = éveillé). Voir `App\Partie\AlliesInvoques`.
+        'quetes_avant_reveil',
         'ameliorations',
     ];
 

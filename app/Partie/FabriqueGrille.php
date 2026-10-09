@@ -67,6 +67,7 @@ final class FabriqueGrille
         $occupees = [];
         $alliees = [];
         $obstacles = [];
+        $meubles = [];
         $opaques = [];
 
         // ⚠ QUI BOUGE décide de qui est un allié — et c'est le paramètre
@@ -191,6 +192,10 @@ final class FabriqueGrille
 
                 if ($type->bloque_mouvement) {
                     $obstacles = array_merge($obstacles, $cellules);
+                    // Marque « c'est un MEUBLE » : ce que les Bracers of the Wild
+                    // et l'Élixir de pas d'araignée peuvent lever sans lever un
+                    // mur de glace (`Grille::franchirMobilier()`).
+                    $meubles = array_merge($meubles, $cellules);
                 }
                 if ($type->bloque_vue) {
                     $opaques = array_merge($opaques, $cellules);
@@ -211,6 +216,7 @@ final class FabriqueGrille
         // grille tactique cohérente.
         $terrain = (array) ($carte->grille['terrain'] ?? []);
         $couts = [];
+        $sansArret = [];
         if ($terrain !== []) {
             $typesTerrain = Terrain::query()
                 ->whereIn('id', array_values(array_unique(array_column($terrain, 'terrain_id'))))
@@ -248,7 +254,18 @@ final class FabriqueGrille
                 // pondéré (`Grille::parcoursPondere()`). Un monstre ne le paie
                 // pas quand la tuile porte `ignore_par_monstres`.
                 if ($type->cout_deplacement !== 1 && ! ($pourMonstre && ! empty($effetTerrain['ignore_par_monstres']))) {
-                    $couts[] = [...$case, 'cout' => (int) $type->cout_deplacement];
+                    // `entravant` (terrain GÊNANT de Jungles of Delthrak) : la
+                    // case porte aussi son drapeau, pour que `Grille` sache
+                    // QUOI lever quand Agile, un talent ou les Bracers
+                    // l'ignorent (`Grille::ignorerTerrainEntravant()`).
+                    $couts[] = [...$case, 'cout' => (int) $type->cout_deplacement,
+                        'entravant' => ! empty($effetTerrain['entravant'])];
+                }
+                // Mare, Brasier : on les PASSE, on ne finit pas dessus. Un jeu
+                // de cases à part (`Grille::interdireArret()`) — ni obstacle
+                // (on traverse), ni figure (on voit à travers).
+                if (! empty($effetTerrain['interdit_arret'])) {
+                    $sansArret[] = $case;
                 }
             }
         }
@@ -305,8 +322,10 @@ final class FabriqueGrille
         $grille->occuper($occupees);
         $grille->occuperAllie($alliees);
         $grille->obstruer($obstacles);
+        $grille->marquerMobilier($meubles);
         $grille->occulter($opaques);
         $grille->definirCoutsDeplacement($couts);
+        $grille->interdireArret($sansArret);
 
         return $grille;
     }

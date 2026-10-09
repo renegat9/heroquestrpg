@@ -569,6 +569,9 @@ final class ResolveurTour
                 'poussee' => $this->resoudrePoussee($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'fouille_tresor' => $this->resoudreFouilleTresor($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'fouille_mobilier' => $this->resoudreFouilleMobilier($groupe, $quete, $personnage, $etat, $option, $acteur),
+                // MARE (Jungles of Delthrak p. 4) : la fouille de trésor, mais le
+                // gain est 1 PV de Body plutôt qu'une carte du deck.
+                'boire_mare' => $this->resoudreBoireALaMare($groupe, $quete, $personnage, $etat, $option, $acteur),
                 'sortie' => $this->resoudreQuitterDonjon($groupe, $quete, $etat, $option, $acteur),
                 'retraite' => $this->resoudreRetraite($groupe, $option, $acteur),
                 'equiper' => $this->resoudreEquipement($groupe, $personnage, $option, $parametres, $acteur, equiper: true),
@@ -587,6 +590,8 @@ final class ResolveurTour
                 // frappe au combat jusqu'à épuiser ses PV, comme un monstre —
                 // voir `MenuMoteur` (option `attaquer_mobilier_{index}`).
                 'attaquer_mobilier' => $this->resoudreAttaqueMobilier($groupe, $quete, $personnage, $option, $acteur),
+                // COCON (Jungles of Delthrak p. 4) : une action, aucun jet.
+                'detruire_par_action' => $this->resoudreDestructionParAction($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // CHUTE DE BLOCS (livret p. 14) : le SEUL choix qu'un héros
                 // debout sur le bloc peut encore faire — voir
                 // `MenuMoteur::generer()`, qui n'offre plus que cette option
@@ -802,6 +807,22 @@ final class ResolveurTour
             $grille->autoriserFranchissementFigures();
         }
 
+        // TERRAIN GÊNANT (Jungles of Delthrak p. 4) : le porteur du talent
+        // `ignore_terrain_entravant` (et, demain, des Bracers of the Wild)
+        // traverse le sable, la toile et la jungle sans payer leurs 2 cases.
+        // `MoteurSorts::terrainEntravantIgnore()` est LE point de passage de la
+        // question ; la levée, elle, est UNE méthode de la grille.
+        if ($this->sorts->terrainEntravantIgnore($personnage)) {
+            $grille->ignorerTerrainEntravant();
+        }
+
+        // MOBILIER (Bracers of the Wild, Spiderstep Elixir) : on le traverse, on
+        // ne s'y arrête pas. Les murs de glace et les blocs, eux, tiennent.
+        // `MoteurSorts::mobilierFranchi()` est LE point de passage de la question.
+        if ($this->sorts->mobilierFranchi($personnage)) {
+            $grille->franchirMobilier();
+        }
+
         return $grille;
     }
 
@@ -889,6 +910,20 @@ final class ResolveurTour
                 'restant' => $restant, 'restant_apres' => $restant];
         }
 
+        // Mare, Brasier : on les traverse, on ne s'y arrête pas — l'aperçu le
+        // dit avant que le joueur ne valide, sinon il verrait un trajet que le
+        // résolveur refuserait ensuite.
+        if ($grille->arretInterditParTerrain($x, $y)) {
+            // Un meuble traversé (Bracers, Spiderstep) partage le jeu des cases
+            // interdites à l'arrêt : on le dit avec ses propres mots.
+            $raison = $grille->estMobilier($x, $y)
+                ? 'On traverse un meuble, on ne s\'arrête pas dessus.'
+                : 'On traverse une mare ou un brasier, on ne s\'y arrête pas.';
+
+            return [...$vide, 'atteignable' => false, 'raison' => $raison,
+                'restant' => $restant, 'restant_apres' => $restant];
+        }
+
         // ⚠ COÛT, pas nombre de cases (doc 18 §4, Rivière Gelée) — même lecture
         // que la résolution, sinon l'aperçu annoncerait un trajet payable que le
         // choix refuserait ensuite.
@@ -927,6 +962,7 @@ final class ResolveurTour
                 && in_array($p['etat'] ?? null, [
                     MoteurPieges::ETAT_DETECTE, MoteurPieges::ETAT_FOSSE_OUVERTE,
                     MoteurPieges::ETAT_DESARME, MoteurPieges::ETAT_DECLENCHE,
+                    MoteurPieges::ETAT_RETIENT,
                 ], true));
 
         $noms = Piege::query()
@@ -1029,10 +1065,30 @@ final class ResolveurTour
         // arrêter » — LR p. 12, doc 16 §5). La question à poser n'est donc plus
         // « la case est-elle traversable ? » — elle l'est — mais « une figure
         // s'y tient-elle ? ».
-        if ($this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche)
-            ->estOccupeeParFigure($x, $y)) {
+        $reelle = $this->grille($quete, exceptPersonnageId: $personnage->id, traverseRoche: $traverseRoche);
+
+        if ($reelle->estOccupeeParFigure($x, $y)) {
             throw ValidationException::withMessages([
                 'parametres' => 'On traverse une figure, on ne s\'arrête pas dessus : cette case est occupée.',
+            ]);
+        }
+
+        // MEUBLE traversé (Bracers of the Wild, Spiderstep Elixir) : on passe
+        // dessus, on ne finit pas dedans. La grille RÉELLE, elle, a gardé le
+        // meuble comme obstacle — c'est elle qui sait qu'il y en a un ici.
+        if ($reelle->estMobilier($x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'On traverse un meuble, on ne s\'arrête pas dessus : choisis une autre case.',
+            ]);
+        }
+
+        // MARE, BRASIER (Jungles of Delthrak p. 4) : « Creatures may move through
+        // […] but may not end their turn occupying the same space. » Le menu ne
+        // l'offre pas (`Grille::casesAtteignables()`), la manette ne la propose
+        // pas — le résolveur refuse quand même, comme pour une figure.
+        if ($reelle->arretInterditParTerrain($x, $y)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'On traverse une mare ou un brasier, on ne s\'y arrête pas : choisis une autre case.',
             ]);
         }
 
@@ -1145,6 +1201,18 @@ final class ResolveurTour
         $cheminParcouru = $this->cheminJusqua($chemin, $entreeTunnel);
         $parcourue = count($cheminParcouru); // nombre de CASES — animation et champ `distance` du payload
 
+        // TERRAIN GÊNANT ignoré (talent `ignore_terrain_entravant`) : un effet
+        // automatique que rien n'annonce est injouable — le popup du talent dit
+        // POURQUOI ce trajet n'a pas coûté double, mais seulement quand il a
+        // vraiment traversé du sable, de la toile ou de la jungle.
+        if ($this->sorts->terrainEntravantIgnore($personnage) && $this->traverseTerrainEntravant($quete, $cheminParcouru)) {
+            $noeudTerrain = $this->talents->noeud($personnage, 'ignore_terrain_entravant');
+
+            if ($noeudTerrain !== null) {
+                $this->annonces->annoncer($personnage, $noeudTerrain, 'franchit le terrain gênant sans ralentir');
+            }
+        }
+
         // Animation case-par-case (table) : le trajet réel du héros (type
         // « heros » pour coller aux figurines EtatGroupe — l'acteur, lui, est
         // « personnage »).
@@ -1196,11 +1264,36 @@ final class ResolveurTour
             'interrompu' => $interrompu,
             'arret_detection' => $interrompu && ! $arretDur, // stoppé par un talent de détection (Œil du mineur)
             'pieges_declenches' => $controle['declenchements'],
+            // LIANES esquivées en chemin (p. 4 : « they successfully dodge the
+            // vines and may continue ») : le jet a eu lieu, il se VOIT.
+            'pieges_esquives' => $controle['esquives'] ?? [],
             'pieges_reveles' => $controle['detections'], // révélés en chemin par la détection adjacente
             // *Sens du piège* (Explorateur) : AVERTIS mais toujours cachés — ils
             // ne sont pas posés sur le plateau, seul l'Explorateur les sait là.
             'pieges_pressentis' => $controle['alertes'] ?? [],
         ];
+
+        // MOBILIER / TERRAIN GÊNANT franchis par une PIÈCE ou un BUFF (Bracers of
+        // the Wild, Spiderstep Elixir) : le talent a son popup, eux n'ont aucun
+        // nœud à annoncer — le payload le dit, et le fil le lit
+        // (`JournalCombat::jetsDeTerrain()`). Seulement quand le trajet a
+        // RÉELLEMENT croisé un meuble ou du terrain gênant.
+        $franchi = [];
+
+        if ($this->sorts->mobilierFranchi($personnage)
+            && collect($cheminParcouru)->contains(fn (array $c) => $reelle->estMobilier((int) $c['x'], (int) $c['y']))) {
+            $franchi[] = 'mobilier';
+        }
+
+        if ($this->sorts->terrainEntravantIgnore($personnage)
+            && $this->talents->noeud($personnage, 'ignore_terrain_entravant') === null
+            && $this->traverseTerrainEntravant($quete, $cheminParcouru)) {
+            $franchi[] = 'terrain gênant';
+        }
+
+        if ($franchi !== []) {
+            $payload['franchit'] = $franchi;
+        }
 
         // GLACE GLISSANTE / GLISSIÈRE DE GLACE — annonce ET dégâts. Un effet
         // automatique que rien n'annonce est injouable : la « chute » narrative
@@ -1239,17 +1332,27 @@ final class ResolveurTour
         // chemin RÉELLEMENT foulé (pièges/racines/tunnel déjà résolus) —
         // jamais sur `$chemin` brut, pour ne jamais faire saigner une case
         // que le héros n'a en fait pas atteinte.
-        $degatsRiviere = $this->saignerSurRiviere($quete, $cheminParcouru, $personnage);
+        ['degats' => $degatsRiviere, 'jets' => $jetsTerrain] = $this->saignerSurRiviere($quete, $cheminParcouru, $personnage);
+
+        // CHAQUE jet de terrain est publié (Brasier : « roll 1 combat die », un
+        // crâne fait mal, une autre face ne fait rien — les deux se VOIENT).
+        if ($jetsTerrain !== []) {
+            $payload['terrain_jets'] = $jetsTerrain;
+        }
 
         if ($degatsRiviere > 0) {
+            // Le NOM du terrain qui a blessé, jamais un nom en dur : la rivière
+            // gelée et le brasier passent ici tous les deux.
+            $nomTerrain = (string) ($jetsTerrain[array_key_first(array_filter($jetsTerrain, fn (array $j) => $j['degats'] > 0))]['terrain'] ?? 'Terrain');
+
             $retenus = $this->degats->infligerAHeros(
-                $personnage, $degatsRiviere, self::SOURCE_DEGATS_TERRAIN, ['terrain' => 'Rivière gelée'],
+                $personnage, $degatsRiviere, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $nomTerrain],
             );
             // Additif plutôt qu'écrasant : la Glace glissante/Glissière ci-dessus
             // a pu poser son propre `payload['terrain']` sur une autre case du
             // même trajet (rare, mais possible) — on cumule les dégâts plutôt que
             // de perdre l'un des deux évènements.
-            $payload['terrain'] ??= ['nom' => 'Rivière gelée', 'chute' => false, 'fin_tour' => false];
+            $payload['terrain'] ??= ['nom' => $nomTerrain, 'chute' => false, 'fin_tour' => false];
             $payload['terrain']['degats'] = ($payload['terrain']['degats'] ?? 0) + $retenus;
 
             if ($retenus > 0 && (int) $personnage->fresh()->pv_body === 0) {
@@ -1764,6 +1867,13 @@ final class ResolveurTour
 
             $desArme += $this->equipement->desAttaqueAvec($personnage, $ligneArme)
                 - $this->equipement->desAttaqueAvec($personnage, $mainDroite);
+        }
+
+        // GIRDLE OF MIGHT : « non-ranged weapon attacks ». `desAttaqueAvec()` a
+        // compté le dé pour toute arme qui n'est pas à distance, jetée comprise ;
+        // un LANCER est une attaque à distance, il le rend (même prédicat).
+        if ($lancer && $ligneArme !== null) {
+            $desArme -= $this->equipement->bonusAuContact($personnage, $ligneArme);
         }
 
         // ÉTAT DE CHOC (*Against the Ogre Horde* p. 9, René 2026-10-01) :
@@ -3169,7 +3279,10 @@ final class ResolveurTour
             // ordinaire vit dans les salles que le groupe n'a pas ouvertes, et
             // l'y interdire le clouerait sur place. Ce qui vaut pour tous, c'est
             // de ne pas s'arrêter sur une figure.
+            // Mare, Brasier : « may not end their turn occupying the same space »
+            // — « creatures », monstres compris (`Grille::arretInterditParTerrain()`).
             if ($reelle->estTraversable((int) $case['x'], (int) $case['y'])
+                && ! $reelle->arretInterditParTerrain((int) $case['x'], (int) $case['y'])
                 && (! $traversant || $this->salleDecouverte($quete, $decouvertes, (int) $case['x'], (int) $case['y']))) {
                 return $case;
             }
@@ -3360,6 +3473,22 @@ final class ResolveurTour
         }
 
         return $resultat;
+    }
+
+    /**
+     * Ce chemin traverse-t-il au moins une case de TERRAIN GÊNANT (`entravant`) ?
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     */
+    private function traverseTerrainEntravant(Quete $quete, array $chemin): bool
+    {
+        foreach ($chemin as $case) {
+            if (! empty($this->terrainSur($quete, (int) $case['x'], (int) $case['y'])['effet']['entravant'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Entrée de terrain posée exactement sur (x, y), ou `null`. */
@@ -3630,11 +3759,24 @@ final class ResolveurTour
      * le trajet entier : rien n'empêche qu'un futur terrain porte une AUTRE
      * nature sur le même chemin, et l'immunité ne doit couvrir que la sienne.
      *
+     * ⚠ JUNGLES OF DELTHRAK (2026-10-09) : le BRASIER (« Any CREATURE who moves
+     * through the bonfire must roll 1 combat die. If they roll a skull, they
+     * suffer 1 Body Point », p. 4) emprunte CE MÊME lecteur — un jet par case
+     * entrée, jamais d'arrêt — avec une autre face (un crâne) et une nature de
+     * feu. Deux différences, toutes deux portées par la DONNÉE et non par un
+     * second lecteur : `sur.crane` au lieu de `sur.bouclier_blanc`, et le
+     * MONSTRE y est soumis (`$pourMonstre`), alors que la rivière gelée
+     * l'épargne (`ignore_par_monstres`, lu ici). Le retour détaille CHAQUE jet —
+     * un dé lancé sans effet est aussi une information que la table doit voir
+     * (« effet automatique que rien n'annonce »).
+     *
      * @param  list<array{x: int, y: int}>  $cheminParcouru
+     * @return array{degats: int, jets: list<array{terrain: string, x: int, y: int, face: string, degats: int}>}
      */
-    private function saignerSurRiviere(Quete $quete, array $cheminParcouru, ?Personnage $personnage = null): int
+    private function saignerSurRiviere(Quete $quete, array $cheminParcouru, ?Personnage $personnage = null, bool $pourMonstre = false): array
     {
         $total = 0;
+        $jets = [];
 
         foreach ($cheminParcouru as $case) {
             $entree = $this->terrainSur($quete, (int) $case['x'], (int) $case['y']);
@@ -3647,6 +3789,12 @@ final class ResolveurTour
 
             if (($effet['recurrent'] ?? null) !== null || ($effet['fin_tour'] ?? false)) {
                 continue; // Chambre forte / Glissière : déjà couvertes ailleurs
+            }
+
+            // « Monsters suffer neither movement penalties nor damage from the
+            // icy river » : la tuile le dit, le monstre ne saigne pas.
+            if ($pourMonstre && ! empty($effet['ignore_par_monstres'])) {
+                continue;
             }
 
             $sur = (array) ($effet['sur'] ?? []);
@@ -3676,11 +3824,63 @@ final class ResolveurTour
                     FaceDeCombat::BouclierNoir => 'bouclier_noir',
                     default => 'crane',
                 };
-                $total += (int) ($sur[$nomFace]['degats_pv_body'] ?? 0);
+                $degats = (int) ($sur[$nomFace]['degats_pv_body'] ?? 0);
+                $total += $degats;
+                $jets[] = [
+                    'terrain' => (string) $entree['nom'], 'x' => (int) $entree['x'], 'y' => (int) $entree['y'],
+                    'face' => $nomFace, 'degats' => $degats,
+                ];
             }
         }
 
-        return $total;
+        return ['degats' => $total, 'jets' => $jets];
+    }
+
+    /**
+     * BRASIER, côté MONSTRE (« Any creature who moves through the bonfire… »,
+     * Jungles of Delthrak p. 4) : le chemin qu'un monstre vient de parcourir est
+     * balayé par le MÊME lecteur que celui du héros (`saignerSurRiviere()`), puis
+     * les dégâts passent par `MoteurDegats::infligerAMonstre()` — le point de
+     * passage de tout PV de monstre qui tombe (phases, survie, rédemption).
+     *
+     * ⚠ Un monstre brûlé peut mourir EN MARCHANT : l'appelant relit son état
+     * avant d'attaquer. Rend `null` quand rien n'a été lancé — le fil reste
+     * muet pour un trajet sans terrain.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin
+     * @return array{type: string, monstre: string, id: int, degats: int, jets: list<array<string, mixed>>, pv_body: int, vaincu: bool}|null
+     */
+    private function blesserMonstreSurLeChemin(Groupe $groupe, Quete $quete, InstanceMonstre $instance, array $chemin, array $acteur): ?array
+    {
+        if ($chemin === []) {
+            return null;
+        }
+
+        ['degats' => $degats, 'jets' => $jets] = $this->saignerSurRiviere($quete, $chemin, null, pourMonstre: true);
+
+        if ($jets === []) {
+            return null;
+        }
+
+        $resultat = ['pv_body' => (int) $instance->pv_body, 'vaincu' => false];
+
+        if ($degats > 0) {
+            $resultat = $this->degats->infligerAMonstre($instance, $degats, self::SOURCE_DEGATS_TERRAIN, ['terrain' => $jets[0]['terrain']]);
+        }
+
+        $payload = [
+            'type' => 'terrain_monstre',
+            'monstre' => $instance->nomAffiche(),
+            'id' => (int) $instance->id,
+            'degats' => $degats,
+            'jets' => $jets,
+            'pv_body' => (int) $resultat['pv_body'],
+            'vaincu' => (bool) $resultat['vaincu'],
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
     }
 
     /**
@@ -4227,8 +4427,11 @@ final class ResolveurTour
             // n'est jamais SUR la case du piège (il agit depuis une case
             // adjacente), donc jamais de bloc à écarter ici — juste le tour
             // qui se ferme, comme pour les deux autres chemins de
-            // déclenchement (voir `$finTourPiegeSol`).
-            $this->finTourPiegeSol = true;
+            // déclenchement (voir `$finTourPiegeSol`) — sauf des lianes
+            // ESQUIVÉES (`piege_esquive`) : le jet les a laissées sans prise.
+            if (($payload['declenchement']['type'] ?? null) !== 'piege_esquive') {
+                $this->finTourPiegeSol = true;
+            }
         }
 
         Journal::ajouter($groupe, 'jet', $payload, $acteur);
@@ -4596,13 +4799,23 @@ final class ResolveurTour
             $payload['vers'] = ['x' => $cible['x'], 'y' => $cible['y']];
             $payload['deplacement_restant'] = 0;
 
-            // « Their turn immediately ends » (livret p. 14). Mais une Chute de
-            // blocs ratée laisse le héros DEBOUT SUR LE BLOC (2026-09-27, elle
-            // se saute désormais — et les Bottes de Lièvre sautaient déjà tout
-            // piège découvert) : il doit d'abord s'écarter, exactement comme
-            // après l'avoir déclenchée en marchant (`resoudreDeplacement()`).
-            // C'est ce choix qui fermera son tour.
-            if (! empty($declenchement['bloc_permanent']) && ! $etat->tombe) {
+            // LIANES AGRIPPANTES ESQUIVÉES (p. 4 : « they successfully dodge the
+            // vines and may continue their movement ») : le saut raté a bien
+            // posé le héros sur la case, mais les lianes n'ont rien pris — ni
+            // dégât, ni tour clos. Il garde ce qui lui restait de déplacement,
+            // moins le saut déjà payé.
+            if (($declenchement['type'] ?? null) === 'piege_esquive') {
+                $restantApres = max(0, $restant - self::COUT_FRANCHISSEMENT);
+
+                $etat->update(['deplacement_restant' => $restantApres, 'a_deplace' => $restantApres <= 0]);
+                $payload['deplacement_restant'] = $restantApres;
+            } elseif (! empty($declenchement['bloc_permanent']) && ! $etat->tombe) {
+                // « Their turn immediately ends » (livret p. 14). Mais une Chute de
+                // blocs ratée laisse le héros DEBOUT SUR LE BLOC (2026-09-27, elle
+                // se saute désormais — et les Bottes de Lièvre sautaient déjà tout
+                // piège découvert) : il doit d'abord s'écarter, exactement comme
+                // après l'avoir déclenchée en marchant (`resoudreDeplacement()`).
+                // C'est ce choix qui fermera son tour.
                 $etat->update([
                     'piege_a_ecarter' => $this->pieges->casesEcart(
                         $quete->carte, $personnage, $provenance, ['x' => $cible['x'], 'y' => $cible['y']],
@@ -4977,12 +5190,21 @@ final class ResolveurTour
             $this->dread->retirerConditionHeros($libere, (string) $condition->nom);
         }
 
+        // LIANES AGRIPPANTES (Jungles of Delthrak p. 4) : « they or another
+        // adjacent hero spends an action to destroy the vines. The hero is then
+        // freed and the trap is removed from the board. » C'est LA MÊME action
+        // que celle d'*Étreinte des Ronces* (même condition `Immobilisé`, mêmes
+        // mots) : une seule option, un seul résolveur — celui-ci retire en plus
+        // le PIÈGE qui tenait le héros, s'il y en avait un.
+        $lianes = $quete->carte === null ? [] : $this->pieges->libererLianes($quete->carte, (int) $libere->id);
+
         $payload = [
             'type' => 'liberer_entraves',
             'option_id' => $option['id'],
             'libelle' => $option['libelle'] ?? null,
             'cible' => ['personnage_id' => $libere->id, 'nom' => $libere->nom],
             'sur_soi' => $libere->id === $personnage->id,
+            'lianes_detruites' => $lianes,
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
@@ -6549,6 +6771,59 @@ final class ResolveurTour
     }
 
     /**
+     * COCON (Jungles of Delthrak p. 4) : « A hero adjacent to a cocoon can spend
+     * an action to destroy it, which removes the obstacle from board. »
+     *
+     * Aucun dé : l'action dépensée EST la destruction. ⚠ L'ADJACENCE est
+     * re-validée ici contre la MÊME liste que celle du menu
+     * (`MoteurMobilier::detruisiblesParActionAdjacents()`), jamais reconstruite :
+     * un client qui rejouerait une option périmée ne détruirait pas un cocon
+     * qu'il ne touche plus. `MoteurMobilier::detruire()` pose le drapeau commun
+     * `detruit`, lu par la boucle UNIQUE de `FabriqueGrille::pour()` — la case
+     * cesse de bloquer mouvement ET vue d'un seul geste.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreDestructionParAction(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $index = (int) ($option['parametres']['mobilier'] ?? -1);
+
+        $cible = collect($this->mobilier->detruisiblesParActionAdjacents(
+            $quete->carte, (int) $etat->position_x, (int) $etat->position_y,
+        ))->firstWhere('index', $index);
+
+        if ($cible === null) {
+            throw ValidationException::withMessages([
+                'option_id' => 'Ce meuble n\'est plus là, n\'est pas à ton contact, ou ne se détruit pas d\'une action.',
+            ]);
+        }
+
+        $this->mobilier->detruire($quete->carte, $index);
+
+        $payload = [
+            'type' => 'detruire_par_action',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => $cible['nom'],
+            'x' => (int) $cible['entree']['x'],
+            'y' => (int) $cible['entree']['y'],
+            'detruit' => true,
+        ];
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * La victoire par destruction de l'élément-objectif : annonce (texte de fin
      * du livret, traduit — scripté, jouable sans clé API), journal, puis fin de
      * quête. « Remove all remaining monsters from play » : la quête terminée,
@@ -7208,7 +7483,12 @@ final class ResolveurTour
             // red die for each of their Mind Points. If a 6 is rolled, it
             // resists. » — mot pour mot la rupture de Sommeil, d'où le même
             // lecteur plutôt qu'une seconde écriture de la même règle.
-            $rupture = $this->sorts->tenterRupture($instance, MoteurSorts::MONSTRE_SAUTE_TOUR);
+            // ⚠ La CLÉ `resistance` décide si ce jet existe (2026-10-09) : sa
+            // valeur était ignorée et la rupture câblée en dur, si bien qu'un
+            // Sceptre sans clé résistait quand même — une déclaration sans lecteur.
+            $rupture = ($effet[MotsClesEquipement::RESISTANCE] ?? null) === MotsClesSort::RESISTANCE_RUPTURE_PAR_MIND
+                ? $this->sorts->tenterRupture($instance, MoteurSorts::MONSTRE_SAUTE_TOUR)
+                : ['faces' => [], 'rompu' => false];
 
             return [
                 'cible' => ['type' => 'monstre', 'instance_id' => $instance->id, 'nom' => $instance->nomAffiche()],
@@ -7264,6 +7544,16 @@ final class ResolveurTour
         // any other monsters in the room. »
         if (! empty($effet[MotsClesEquipement::CONTROLE_MONSTRES])) {
             return $this->commanderLesMonstres($quete, $personnage, $effet);
+        }
+
+        // ---- Fangwarden Armlet : un Raptor allié, joué par son joueur
+        //
+        // « Use this magical armlet to call forth a Raptor animal ally. » La
+        // cadence (« once per quest ») est dépensée par l'appelant
+        // (`consommerUsage()`, `effet.frequence`) ; la dormance et la case
+        // d'arrivée vivent dans `AlliesInvoques`.
+        if (! empty($effet[MotsClesEquipement::APPELLE_ALLIE])) {
+            return app(AlliesInvoques::class)->appeler($quete->groupe, $quete, $personnage, $ligne, $effet);
         }
 
         // ---- Poudre / Cape : un MODE DE DÉPLACEMENT posé sur un héros
@@ -7813,7 +8103,7 @@ final class ResolveurTour
         } elseif (! empty($effet['enfume_monstre_adjacent'])) {
             $payload += $this->enfumerMonstre($groupe, $quete, $etat, $cibleId);
         } elseif (! empty($effet['invoque_squelettes_hearthkin'])) {
-            $payload += $this->resoudreCorHearthkin($groupe, $quete);
+            $payload += $this->resoudreCorHearthkin($groupe, $quete, (int) $ligne->objet_id);
         } elseif ($ligne->objet?->categorie === 'consommable') {
             // ⚠ `MoteurPotions` reste L'AUTORITÉ — restrictions de classe,
             // `une_par_tour`, relève sur soin, décrément de la pile. On lui
@@ -8006,10 +8296,12 @@ final class ResolveurTour
      * Squelette par héros DEBOUT de la quête, chacun dans SA propre zone —
      * jamais seulement celle du souffleur, la carte parle de CHAQUE héros.
      *
-     * Réutilise le patron des alliés recrutés (`App\Models\GroupeMercenaire`,
-     * `recruteur_personnage_id` = le héros qui contrôle ce squelette-ci) :
-     * purge déjà acquise en fin/échec de quête (`ResolveurTour::donjonNettoye()`
-     * / `terminerQuete()`), rien à ajouter là. Les DEUX divergences avec le
+     * Un allié APPELÉ, posé par `AlliesInvoques::poser()` comme le Raptor du
+     * brassard : `invoque_par_objet_id` = le cor, donc `AlliesInvoques::purger()`
+     * le retire en fin de quête, victoire ou échec, AVANT l'entretien. Sans ce
+     * marqueur il survivait à la quête et payait 10 po (2026-10-09 : le commentaire
+     * d'alors affirmait une purge qui ne visait pas ces lignes). `recruteur_personnage_id`
+     * = le héros qui contrôle ce squelette-ci. Les DEUX divergences avec le
      * texte de la carte sont nommées sur `App\Engine\MotsClesEquipement::INVOQUE_SQUELETTES_HEARTHKIN`.
      *
      * ⚠ Un héros TOMBÉ ne pose rien (NOTRE arbitrage) : un héros à terre ne
@@ -8020,7 +8312,7 @@ final class ResolveurTour
      *
      * @return array<string, mixed>
      */
-    private function resoudreCorHearthkin(Groupe $groupe, Quete $quete): array
+    private function resoudreCorHearthkin(Groupe $groupe, Quete $quete, int $objetId): array
     {
         $squelette = Mercenaire::where('nom', 'Squelette Hearthkin')->first();
         $carte = $quete->carte;
@@ -8048,15 +8340,7 @@ final class ResolveurTour
                 continue; // zone saturée : ce héros n'a nulle part où poser le sien
             }
 
-            $allie = GroupeMercenaire::create([
-                'groupe_id' => $groupe->id,
-                'mercenaire_id' => $squelette->id,
-                'recruteur_personnage_id' => $heros->id,
-                'pv_body' => (int) $squelette->pv_body,
-                'position_x' => $case['x'],
-                'position_y' => $case['y'],
-                'etat' => 'actif',
-            ]);
+            $allie = app(AlliesInvoques::class)->poser($groupe, $squelette, $heros, $objetId, $case['x'], $case['y']);
 
             $invoques[] = [
                 'personnage_id' => $heros->id,
@@ -8523,6 +8807,76 @@ final class ResolveurTour
                 $carteArmoire, $enteteArmoire, $groupe, $quete, $personnage, $etat,
             );
         }
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * MARE (Pool of Water, Jungles of Delthrak p. 4) : « If a hero searches for
+     * treasure in an area containing a pool of water, they may choose to restore
+     * 1 lost Body Point instead of drawing from the treasure deck. »
+     *
+     * C'EST une fouille de trésor — elle dépense la fouille de CE héros dans CETTE
+     * salle (`marquerTresorFouille()`, comme `resoudreFouilleTresor()`) —, dont le
+     * gain n'est pas une carte du deck mais le soin. ⚠ Elle ne touche donc ni au
+     * deck (aucune carte tirée, aucun piège ni errant possible : c'est tout
+     * l'intérêt du choix) ni au coffre désigné de la salle, que les compagnons
+     * ouvriront en fouillant normalement.
+     *
+     * ⚠ Re-validée comme les autres choix du menu : une salle, une mare dans cette
+     * salle, une fouille non encore dépensée, un point réellement perdu.
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreBoireALaMare(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $option,
+        array $acteur,
+    ): array {
+        $salle = $this->salleA($quete, (int) $etat->position_x, (int) $etat->position_y);
+
+        if ($salle === null) {
+            throw ValidationException::withMessages(['option_id' => 'On ne boit à la mare qu\'en fouillant une salle.']);
+        }
+
+        $mare = $quete->carte === null ? null : app(MoteurTerrain::class)->mareDeLaSalle($quete->carte, $salle);
+
+        if ($mare === null) {
+            throw ValidationException::withMessages(['option_id' => 'Il n\'y a pas de mare dans cette salle.']);
+        }
+
+        if ($quete->aFouille($salle, (int) $personnage->id)) {
+            throw ValidationException::withMessages(['option_id' => 'Tu as déjà fouillé cette salle.']);
+        }
+
+        $avant = (int) $personnage->pv_body;
+
+        if ($avant >= (int) $personnage->pv_body_max) {
+            throw ValidationException::withMessages(['option_id' => 'Tu n\'as perdu aucun point de Body : la mare ne te rendrait rien.']);
+        }
+
+        $quete->marquerTresorFouille($salle, (int) $personnage->id);
+
+        $personnage->update(['pv_body' => min((int) $personnage->pv_body_max, $avant + $mare['soin'])]);
+        $apres = (int) $personnage->fresh()->pv_body;
+
+        $payload = [
+            'type' => 'boire_mare',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'salle' => $salle,
+            'terrain' => $mare['nom'],
+            'personnage' => ['id' => $personnage->id, 'nom' => $personnage->nom],
+            'soin' => $apres - $avant,
+            'pv_body_apres' => $apres,
+        ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
@@ -9568,6 +9922,79 @@ final class ResolveurTour
      * @return string verdict de chute (`debout` / `suspendu` / `tpk`)
      */
     /**
+     * RELÈVEMENT PAR LE CORPS — le mode Story de *Jungles of Delthrak* (livret
+     * F9907 p. 5). Décision de René du 2026-10-09 : on garde « tombé, jamais mort »
+     * et on ajoute ce qui manque au mode Story, sans réglage ni mort permanente.
+     *
+     * « Incapacitated heroes gain 1 Body Point if Zargon has no monsters active and
+     * at least one other hero is not incapacitated. » Le livret ne dit PAS à quel
+     * moment : c'est ici, à l'OUVERTURE DU ROUND — après la phase de Zargon, avant
+     * que les héros ne jouent. C'est le moment où `ouvrirTourDesHeros()` place déjà
+     * ce qui se joue « au début du tour » (ruptures, tour perdu), et le seul où les
+     * deux conditions sont connues : les monstres ont fini d'agir. Décision
+     * d'interprétation, écrite ici et dans docs/regles/vocabulaires-effets.md.
+     *
+     * - « Zargon has no monsters active » : la définition de la fin de combat
+     *   ({@see self::combatTermine()} — ni vaincu, ni dormant derrière une porte close).
+     * - « at least one other hero is not incapacitated » : un héros DEBOUT. Évaluée
+     *   une seule fois, avant le premier relèvement : relever un héros ne peut que la
+     *   garder vraie, jamais la rendre fausse.
+     *
+     * Un héros qui gagne ce point SE RELÈVE — `tombe` repasse à faux, comme au
+     * relèvement d'un compagnon ({@see self::resoudreRelever()}), et c'est
+     * `EtatPersonnageQuete::booted()` qui annonce la scène « se relève ». Un groupe
+     * entièrement à terre ne reçoit RIEN : c'est le TPK, et le livret le dit (« they've
+     * died in their attempt to complete the quest »).
+     *
+     * ⚠ Un héros à terre peut garder des PV (il est tombé dans la roche, un piège…) :
+     * le point s'y ajoute, plafonné au maximum — le livret ne parle pas de 0 PV.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function relevementsStory(Groupe $groupe, Quete $quete): array
+    {
+        if (! $this->combatTermine($quete)) {
+            return [];
+        }
+
+        if (! $quete->etatsPersonnages()->where('tombe', false)->exists()) {
+            return [];
+        }
+
+        $payloads = [];
+
+        foreach ($quete->etatsPersonnages()->where('tombe', true)->with('personnage')->get() as $etat) {
+            $heros = $etat->personnage;
+
+            if ($heros === null) {
+                continue;
+            }
+
+            $heros->update(['pv_body' => min(
+                (int) $heros->pv_body_max,
+                (int) $heros->pv_body + 1,
+            )]);
+            $etat->update(['tombe' => false]);
+
+            $payload = [
+                'type' => 'regain_corps',
+                'personnage_id' => $heros->id,
+                'nom' => $heros->nom,
+                'pv_body' => (int) $heros->fresh()->pv_body,
+                'releve' => true,
+            ];
+
+            // Journalisé comme le sont les ruptures de `ouvrirTourDesHeros()` : le
+            // journal est la trace durable, la liste renvoyée est ce que la table
+            // lit tout de suite.
+            Journal::ajouter($groupe, 'action', $payload);
+            $payloads[] = $payload;
+        }
+
+        return $payloads;
+    }
+
+    /**
      * Ce qui se joue AU DÉBUT DU TOUR de chaque héros — deux règles, toutes
      * deux venues des cartes de Dread (doc 09 §4bis).
      *
@@ -9712,6 +10139,15 @@ final class ResolveurTour
             $actions[] = $annonce;
         }
 
+        // RELÈVEMENT STORY (Jungles of Delthrak, F9907 p. 5) : un héros à terre
+        // gagne 1 point de Corps quand aucun monstre n'est actif et qu'un autre est
+        // debout. AVANT le voile d'ombre et les ruptures : un héros relevé à l'ouverture
+        // du round est debout pour ce round — il ne doit ni garder son voile ni
+        // échapper à son tour, comme s'il n'était jamais tombé.
+        foreach ($this->relevementsStory($groupe, $quete) as $relevement) {
+            $actions[] = $relevement;
+        }
+
         // VOILE D'OMBRE : « at the start of the spellcaster's turn, remove a
         // shadow token ». Un lanceur DEBOUT le voit tomber à l'ouverture de SON
         // tour (`MenuMoteur::deplacementDuTour()`) ; un lanceur TOMBÉ n'ouvre plus
@@ -9834,6 +10270,10 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'systeme', $payload);
         $groupe->update(['phase' => 'hub', 'quete_courante_id' => null]);
+
+        // Les alliés APPELÉS (Raptor du Fangwarden Armlet) ne survivent à aucune
+        // quête, échouée ou non.
+        app(AlliesInvoques::class)->purger($groupe);
 
         GroupeMercenaire::where('groupe_id', $groupe->id)
             ->where(function ($q) {
@@ -10135,13 +10575,25 @@ final class ResolveurTour
         // plutôt que de foncer au contact (au contact, il frappe en corps-à-corps,
         // un dé de moins). Sans cible en vue, il retombe sur l'approche standard
         // ci-dessous (pour gagner une ligne de tir au tour suivant).
-        if ($instance->monstre->aDistance()) {
+        //
+        // TIR AU CHOIX (Gruulob, « they may choose to fire at range at any hero in
+        // their line of sight », `Monstre::aTirAuChoix()`) : un monstre de mêlée qui
+        // voit un héros tire SUR PLACE, avec ses dés d'attaque ordinaires, et ne
+        // recule jamais — c'est le trait de l'archer, pas celui-ci. Dès qu'une figure
+        // est à son contact, il frappe comme tout monstre (le choix reste « tirer »,
+        // jamais une option que l'IA trancherait).
+        $tirAuChoix = $instance->monstre->aTirAuChoix()
+            && ! $this->figureAuContact($instance, $cibles, $quete);
+
+        if ($instance->monstre->aDistance() || $tirAuChoix) {
             // Il se REPLACE d'abord (René, 2026-08-23) : un archer collé frappait
             // au corps-à-corps sans jamais décrocher — 1 dé au lieu de 4 pour
             // l'Archer elfe, dont la fiche « Attack 4 (1 if adjacent) » dit
             // exactement l'inverse. Et sans ligne de mire, il fonçait au contact
-            // comme un corps-à-corps, se privant lui-même de son arme.
-            if ($this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre) !== null) {
+            // comme un corps-à-corps, se privant lui-même de son arme. Le tir au
+            // choix ne recule pas : seul l'archer se replace.
+            if ($instance->monstre->aDistance()
+                && $this->replacerTireur($groupe, $quete, $instance, $cibles, $grille, $acteur, $nomMonstre) !== null) {
                 $grille = $this->grille($quete, exceptInstanceId: $instance->id, franchitAllies: true);
             }
 
@@ -10218,6 +10670,13 @@ final class ResolveurTour
             foreach ([[1, 0], [-1, 0], [0, 1], [0, -1]] as [$dx, $dy]) {
                 $cx = (int) $cible->position_x + $dx;
                 $cy = (int) $cible->position_y + $dy;
+
+                // Mare, Brasier : on ne s'y arrête pas — une case voisine du héros
+                // qui est l'une des deux n'est pas une case d'arrivée possible.
+                if ($grille->arretInterditParTerrain($cx, $cy)) {
+                    continue;
+                }
+
                 $chemin = $grille->chemin((int) $instance->position_x, (int) $instance->position_y, $cx, $cy);
 
                 if ($chemin !== null && ($meilleure === null || ($meilleure[1] !== [] && count($chemin) < count($meilleure[1])))) {
@@ -10340,6 +10799,16 @@ final class ResolveurTour
                 'depart' => $departMonstre,
                 'chemin' => $cheminParcouruMonstre,
             ];
+        }
+
+        // BRASIER (« Any creature who moves through the bonfire… », Jungles of
+        // Delthrak p. 4) : le monstre brûle comme le héros, sur le chemin qu'il
+        // vient RÉELLEMENT de parcourir. ⚠ Un monstre qui meurt en marchant ne
+        // frappe pas : on rend le compte rendu de sa brûlure comme issue du tour.
+        $brulure = $this->blesserMonstreSurLeChemin($groupe, $quete, $instance, $cheminParcouruMonstre, $acteur);
+
+        if ($brulure !== null && $brulure['vaincu']) {
+            return $brulure;
         }
 
         $adjacent = $this->heroAuContact($instance, (int) $cible->position_x, (int) $cible->position_y, $diagonalesMonstre);
@@ -10903,6 +11372,24 @@ final class ResolveurTour
     }
 
     /**
+     * Une figure (héros OU allié) est-elle au CONTACT de ce monstre ? Le tir au choix
+     * (`Monstre::aTirAuChoix()`) ne tire qu'à distance : dès qu'une figure le touche, il
+     * frappe au corps-à-corps comme tout monstre.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     */
+    private function figureAuContact(InstanceMonstre $instance, Collection $cibles, Quete $quete): bool
+    {
+        foreach ([...$cibles->all(), ...$this->alliesCiblables($quete)->all()] as $figure) {
+            if ($this->heroAuContact($instance, (int) $figure->position_x, (int) $figure->position_y)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Comportement de tir d'un monstre à distance (3.4) : s'il a une LIGNE DE VUE
      * dégagée sur au moins un héros, il vise le plus avantageux (PV de Body les
      * plus faibles, puis le plus proche) et l'attaque — au contact en corps-à-corps
@@ -11065,6 +11552,15 @@ final class ResolveurTour
             'allie_vaincu' => $vaincu,
             ...$resultat->pourJournal(),
         ];
+
+        // Fangwarden Armlet : « If the Raptor is defeated, the armlet's power
+        // goes dormant » — un effet automatique que rien n'annonce est
+        // injouable, donc la dormance voyage dans le payload du coup fatal.
+        $dormance = $vaincu ? app(AlliesInvoques::class)->allieVaincu($allie) : null;
+
+        if ($dormance !== null) {
+            $payload['objet_dormant'] = $dormance;
+        }
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
@@ -11715,6 +12211,14 @@ final class ResolveurTour
             })
             ->delete();
 
+        // ALLIÉS APPELÉS (Fangwarden Armlet, Jungles of Delthrak) : le Raptor
+        // survivant quitte le jeu avec la quête — AVANT l'entretien, qui ne
+        // doit jamais payer une figure que personne n'a recrutée — et chaque
+        // héros qui la termine rapproche d'un cran le réveil de ses brassards
+        // dormants (« completes two quests without its assistance »).
+        app(AlliesInvoques::class)->purger($groupe);
+        $objetsReveilles = app(AlliesInvoques::class)->terminerQuete($groupe, $quete);
+
         // ENTRETIEN des mercenaires survivants (même chantier, décision de
         // René : « 10 po par mercenaire et par quête, pour TOUS les groupes »)
         // — réglé ICI, jamais sur un échec ({@see self::echouerQuete()}),
@@ -11756,6 +12260,9 @@ final class ResolveurTour
             'etat' => 'terminee', 'or_butin' => $orButin, 'niveaux' => $niveaux,
             'mercenaires_entretien' => $entretien, 'faveur_hopekins' => $faveur,
             'peacekeeper' => $peacekeeper,
+            // Brassards réveillés par cette victoire (Fangwarden Armlet) :
+            // `[{objet, personnage}]`, vide le plus souvent.
+            'objets_reveilles' => $objetsReveilles,
         ];
     }
 
@@ -12259,7 +12766,8 @@ final class ResolveurTour
 
         // Traverser n'est pas s'arrêter (comme hier, pilotage moteur) : on
         // recule jusqu'à la dernière case LIBRE du trajet payable.
-        while ($pas > 0 && $grille->estOccupeeParFigure((int) $meilleur[$pas - 1]['x'], (int) $meilleur[$pas - 1]['y'])) {
+        // (Et une Mare ou un Brasier : `arretInterdit()` pose les deux questions.)
+        while ($pas > 0 && $grille->arretInterdit((int) $meilleur[$pas - 1]['x'], (int) $meilleur[$pas - 1]['y'])) {
             $pas--;
         }
 

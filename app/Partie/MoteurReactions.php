@@ -590,8 +590,10 @@ final class MoteurReactions
         foreach ($heros->sorts()->wherePivot('disponible', true)->get() as $sort) {
             $soin = (int) (($sort->effet['soin_pv_body'] ?? 0));
 
-            // Un soin de ZONE se lance sur les héros vus : hors sujet ici, le
-            // lanceur est à terre et c'est lui qu'il s'agit de relever.
+            // Pas de filtre sur `zone` : un soin de zone (Chant de guérison) soigne
+            // aussi le lanceur, qui se relève ici lui-même. La réponse ne soigne que
+            // le lanceur (`soigner()`), et non les héros vus — ce que la règle Story
+            // exige (« heal themselves »), et rien de plus.
             if ($soin <= 0) {
                 continue;
             }

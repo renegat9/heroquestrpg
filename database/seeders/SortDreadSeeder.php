@@ -277,6 +277,24 @@ class SortDreadSeeder extends Seeder
                     ],
                 ]],
 
+            // VARIANTE GOBELINE de *Summon Orcs* — Gruulob, Sorcier Gobelin Corrompu
+            // (Jungles of Delthrak, note C, livret F9907 p. 27) : « Summon Orcs*
+            // (*Summons the same number of Goblins instead) ». Même table que
+            // l'Invocation d'orques ci-dessus, donc même nombre de sbires au même
+            // jet, mais des GOBELINS. Une ligne de catalogue de plus — comme *Rust*
+            // a deux lignes, « Rouille » et « Corrosion » — et jamais un paramètre
+            // de l'orque : les deux créatures n'ont pas les mêmes chiffres (Gobelin
+            // 10/2/1/1/1, Orque 8/3/2/1/2), et le registre `config/cartes.php` range
+            // celle-ci sous sa propre source. Palier boss, comme la version orque.
+            ['nom' => 'Invocation de gobelins', 'palier' => 'boss', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => [
+                    'table_d6' => [
+                        ['jusqu_a' => 3, 'invoque' => ['Gobelin' => 4]],
+                        ['jusqu_a' => 5, 'invoque' => ['Gobelin' => 5]],
+                        ['jusqu_a' => 6, 'invoque' => ['Gobelin' => 6]],
+                    ],
+                ]],
+
             // « a number of giant wolves […] 1-2 = 1 ; 3-4 = 2 ; 5-6 = 3. »
             // Le *Loup géant* est au bestiaire depuis le portage des extensions
             // (doc 18 p. 693) — sous-boss, d'où un renfort peu nombreux mais dur.

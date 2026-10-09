@@ -410,6 +410,15 @@ const objectif = computed(() => {
         majeur: quete.objectif_majeur === true,
     };
 });
+/* Effets GLOBAUX de la quête (Gruulob) : `quete.effets_globaux[].texte` est la phrase DÉCIDÉE par
+ * le serveur. Rendue telle quelle sur la manette, comme sur la table — jamais recomposée ici. */
+const effetsEnJeu = computed(() => {
+    const quete = store.state.etat?.quete;
+
+    if (auHub.value || !Array.isArray(quete?.effets_globaux)) return [];
+
+    return quete.effets_globaux;
+});
 /* Journal de combat mécanique (.combat.journal) — les plus récentes en bas. */
 const journalCombat = computed(() => store.state.journalCombat);
 
@@ -993,6 +1002,7 @@ const recrutementOffres = computed(() => store.state.etat?.groupe?.recrutement?.
 const entretienHub = computed(() => store.state.etat?.groupe?.mercenaires_entretien ?? null);
 const faveurHub = computed(() => store.state.etat?.groupe?.faveur_hopekins ?? null);
 const peacekeeperHub = computed(() => store.state.etat?.groupe?.peacekeeper ?? null);
+const reveilHub = computed(() => store.state.etat?.groupe?.objets_reveilles ?? null);
 async function chargerMercenaires() {
     if (catalogueMercs.value.length) return;
     try {
@@ -1261,6 +1271,15 @@ const navItems = computed(() => (scene.value === 'marche'
                             <p>{{ objectif.libelle }}</p>
                         </div>
                     </div>
+                    <!-- EFFETS GLOBAUX de la quête (Gruulob) : la phrase DÉCIDÉE par le serveur,
+                         rendue telle quelle, tant que la quête dure — la manette la voit comme la
+                         table, sans rien recalculer. -->
+                    <div v-for="eff in effetsEnJeu" :key="eff.source" class="obj-peek eff-glob">
+                        <MSym n="bolt" fill :size="16" />
+                        <div class="obj-corps">
+                            <p>{{ eff.texte }}</p>
+                        </div>
+                    </div>
 
                     <!-- zone principale -->
                     <div class="body">
@@ -1336,8 +1355,8 @@ const navItems = computed(() => (scene.value === 'marche'
 
                             <!-- ---- annonces d'arrivée au hub : entretien des mercenaires, faveur
                                  de Hopekins Rest (décidées par le serveur, bornées à la dernière quête) ---- -->
-                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub)" class="manette-annonces-hub">
-                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" />
+                            <div v-if="auHub && (entretienHub || faveurHub || peacekeeperHub || reveilHub)" class="manette-annonces-hub">
+                                <AnnonceHub :entretien="entretienHub" :faveur="faveurHub" :peacekeeper="peacekeeperHub" :reveil="reveilHub" />
                             </div>
 
                             <!-- ---- bouton Prêt (phase hub, mode connecté) ---- -->
@@ -1501,6 +1520,8 @@ const navItems = computed(() => (scene.value === 'marche'
                         :de-annule-par="feuilleOption.option.parametres?.de_annule_par ?? null"
                         :sans-menace="feuilleOption.option.parametres?.sans_menace ?? false"
                         :franchit-figures="monEntite?.franchit_figures === true"
+                        :ignore-terrain-entravant="monEntite?.ignore_terrain_entravant === true"
+                        :franchit-mobilier="monEntite?.franchit_mobilier === true"
                         :groupe="groupe"
                         :cases-ecart="feuilleOption.option.type === 's_ecarter_du_bloc'
                             ? (feuilleOption.option.parametres?.cases ?? [])

@@ -659,7 +659,9 @@ it('le tirage des pièges de sol est un registre testé dans les deux sens', fun
         ->values()
         ->all();
 
-    expect($sol)->toBe(['Chute de blocs', 'Fosse', 'Fosse des ténèbres', 'Piège à lances']);
+    // + Piège de lianes (Jungles of Delthrak, 2026-10-09) : un piège de sol
+    // ordinaire pour le tirage, réservé à son thème par `boite`.
+    expect($sol)->toBe(['Chute de blocs', 'Fosse', 'Fosse des ténèbres', 'Piège de lianes', 'Piège à lances']);
 
     // Sens 2 : aucun des quatre n'a, par erreur, un `declencheur` qui
     // l'écarterait à tort du tirage de sol.

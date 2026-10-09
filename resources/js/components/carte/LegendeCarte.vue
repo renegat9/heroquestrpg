@@ -94,6 +94,9 @@ const TERRAIN_DETAILS = {
     danger: 'jet de dé de combat — risque de chute, de blocage ou de dégâts',
     passage: 'téléporte vers son autre extrémité',
     decor: 'sans effet à ce jour',
+    gene: 'terrain gênant : coûte 2 points de déplacement (Agile et certains talents l\'ignorent)',
+    eau: 'on la traverse sans y finir son mouvement — fouiller dans la salle peut rendre 1 PV',
+    feu: 'on le traverse sans y finir son mouvement — un dé de combat, un crâne fait perdre 1 PV',
 };
 const terrains = computed(() => parNom(props.carte?.terrain).map((t) => ({
     nom: t.nom,
@@ -110,6 +113,7 @@ const ETATS_PIEGE = {
     fosse_ouverte: 'fosse ouverte — y marcher fait tomber ; se saute, ne se désamorce plus',
     desarme: 'désamorcé, inoffensif',
     declenche: 'déjà déclenché',
+    retient: 'lianes qui retiennent un héros — une action (la sienne ou celle d\'un voisin) les détruit',
 };
 // ⚠ Chaque état a son propre RENDU sur la carte (ambré clignotant, gris barré,
 // cratère). Les décrire en simple texte laissait le joueur relier lui-même la
@@ -313,6 +317,8 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
 .lg-piege.desarme::after { content: ''; position: absolute; left: 12%; right: 12%; top: 50%; height: 2px;
   background: var(--ink-500); transform: rotate(-24deg); border-radius: 2px; }
 .lg-piege.detecte { opacity: 0.55; }
+.lg-piege.retient { border-radius: 50%; color: oklch(0.88 0.14 140); background: oklch(0.34 0.10 145 / 0.85);
+  box-shadow: inset 0 0 0 2px oklch(0.72 0.16 145 / 0.9); }
 .lg-piege.fosse_ouverte { border-radius: 50%;
   background: radial-gradient(circle at 50% 45%, oklch(0.06 0.01 255) 0 40%, oklch(0.24 0.045 40 / 0.9) 60%, transparent 76%);
   box-shadow: inset 0 0 0 1.5px oklch(0.78 0.15 75 / 0.8), inset 0 0 6px oklch(0 0 0 / 0.85); }
@@ -349,5 +355,8 @@ const portePierre = computed(() => (props.carte?.portes ?? []).some((p) => p.ver
     oklch(0.30 0.05 220);
   box-shadow: inset 0 0 0 1px oklch(0.78 0.15 220 / 0.5); }
 .lg-terrain.cat-passage { background: oklch(0.32 0.09 290); box-shadow: inset 0 0 0 1px oklch(0.72 0.13 290 / 0.55); }
+.lg-terrain.cat-gene { background: oklch(0.27 0.055 118); box-shadow: inset 0 0 0 1px oklch(0.72 0.10 110 / 0.5); }
+.lg-terrain.cat-eau { background: oklch(0.32 0.08 217); box-shadow: inset 0 0 0 1px oklch(0.75 0.11 215 / 0.55); }
+.lg-terrain.cat-feu { background: oklch(0.34 0.10 40); box-shadow: inset 0 0 0 1px oklch(0.80 0.16 60 / 0.6); }
 .lg-terrain.cat-decor { background: oklch(0.27 0.03 220); box-shadow: inset 0 0 0 1px oklch(0.6 0.04 220 / 0.4); }
 </style>

@@ -147,13 +147,16 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // plus que par ses flèches (arbitrage de René). C'est cette clé-là qui
         // dit ce qu'il change au porteur.
         'degats_sauf_bouclier_noir',
-        // ⚠ 2026-10-06 (Wizards of Morcar, Drakehide Cuirass) : première
-        // arme/armure dont tout l'effet tient sur un BONUS relatif
-        // (`bonus_des_defense`, déjà porté par les améliorations de Forge et
-        // les potions, jamais seul sur une pièce équipée jusqu'ici) et un
-        // déplacement FIXE qui remplace le jet. Les deux changent bien ce
-        // que le porteur encaisse/parcourt.
-        'bonus_des_attaque', 'bonus_des_defense', 'deplacement_fixe'];
+        // ⚠ 2026-10-06 (Wizards of Morcar, Drakehide Cuirass) : un déplacement
+        // FIXE qui remplace le jet. ⚠ 2026-10-09 : la Cuirasse portait aussi
+        // `bonus_des_defense`, clé des améliorations de Forge et des potions —
+        // jamais lue sur une pièce, donc elle ne gagnait pas son dé. Ce bonus-là
+        // n'entre plus dans cette liste : le test « une pièce ne porte que des
+        // clés lues sur une pièce » plus bas l'attrape.
+        'deplacement_fixe',
+        // ⚠ 2026-10-09 (Jungles of Delthrak) : la Ceinture de Puissance ne change
+        // que le dé d'attaque des armes de contact (`des_attaque_au_contact`).
+        'des_attaque_au_contact'];
 
     foreach (Objet::whereIn('categorie', ['arme', 'armure'])->get() as $piece) {
         expect(array_intersect($utilesPortes, array_keys((array) $piece->effet)))
@@ -191,7 +194,11 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         // sur une TROISIÈME source (Potion of Magical Aptitude),
         // `annule_prochain_sort_degats` et `transmute_equipement_en_or` sont
         // nouveaux (Potion of Magic Resistance, Potion d'alchimie).
-        'immunite_degat', 'second_sort_par_tour', 'annule_prochain_sort_degats', 'transmute_equipement_en_or'];
+        'immunite_degat', 'second_sort_par_tour', 'annule_prochain_sort_degats', 'transmute_equipement_en_or',
+        // ⚠ 2026-10-09 (Jungles of Delthrak) : la Potion de sagesse ancienne rend un
+        // sort ou une compétence (`MoteurPotions::boire()`). Le sang de serpent
+        // passe par `retire_condition`, l'Élixir par `duree` + `condition_appliquee`.
+        'recupere_sort_ou_competence', 'franchit_mobilier'];
 
     // Potion de charme (Wizards of Morcar) : sa clé (`rabais_recrutement_mercenaire`)
     // est lue par `MoteurPotions::boire()` — écriture de l'état du héros,
@@ -217,4 +224,63 @@ it('donne à toute arme et armure des dés, et à tout consommable un effet rée
         expect(array_intersect($utilesOutils, array_keys((array) $outil->effet)))
             ->not->toBeEmpty("{$outil->nom} : aucun effet que le moteur sache appliquer.");
     }
+});
+
+/**
+ * Clés de pièce (arme ou armure) qu'aucun lecteur ne lit sur la pièce elle-même,
+ * sous la forme « Nom : clé ». `MotsClesEquipement::LUES_SUR_UNE_PIECE` dit
+ * lesquelles le sont ; le reste est décoratif SUR UNE PIÈCE, même lu ailleurs.
+ *
+ * @return list<string>
+ */
+function clesDePieceNonLuesSurUnePiece(): array
+{
+    $hors = [];
+
+    foreach (Objet::whereIn('categorie', ['arme', 'armure'])->orderBy('id')->get() as $piece) {
+        foreach (array_diff(array_keys((array) $piece->effet), MotsClesEquipement::LUES_SUR_UNE_PIECE) as $cle) {
+            $hors[] = "{$piece->nom} : {$cle}";
+        }
+    }
+
+    return $hors;
+}
+
+it('une arme ou une armure ne porte que des clés qu\'un lecteur lit sur la pièce elle-même', function () {
+    // Le trou que ce test ferme : `bonus_des_defense` était admise par la liste
+    // « au moins une clé utile » ci-dessus, et la Cuirasse ne gagnait donc pas
+    // son dé (défense 2 → 2) sans qu'aucun test ne le voie.
+    expect(clesDePieceNonLuesSurUnePiece())->toBe([],
+        implode(', ', clesDePieceNonLuesSurUnePiece())
+        .' — clé(s) lue(s) AILLEURS (potion, amélioration de Forge, talent) mais pas sur la pièce : '
+        .'décorative ici. Fais-la lire par la pièce, ou corrige la clé (`des_defense` pour une défense de pièce).');
+});
+
+it('le garde-fou attrape la Cuirasse avec son ancienne clé `bonus_des_defense`', function () {
+    // Témoin : l'ancienne donnée doit être refusée, sinon le test ci-dessus ne
+    // prouve rien — il passerait déjà avant la correction.
+    Objet::where('nom', 'Cuirasse de Peau de Dragon')
+        ->update(['effet' => ['bonus_des_defense' => 1, 'deplacement_fixe' => 8]]);
+
+    expect(clesDePieceNonLuesSurUnePiece())->toBe(['Cuirasse de Peau de Dragon : bonus_des_defense']);
+});
+
+it('LUES_SUR_UNE_PIECE se tient dans les DEUX sens : chaque clé est active et portée par une pièce', function () {
+    $portees = collect(Objet::whereIn('categorie', ['arme', 'armure'])->get())
+        ->flatMap(fn (Objet $o) => array_keys((array) $o->effet))
+        ->unique()
+        ->values()
+        ->all();
+
+    // Déclarée mais portée par aucune pièce : une liste qui ne décrit plus le catalogue.
+    $sansPiece = array_values(array_diff(MotsClesEquipement::LUES_SUR_UNE_PIECE, $portees));
+    expect($sansPiece)->toBe([], implode(', ', $sansPiece)
+        .' — déclarée(s) lue(s) sur une pièce mais portée(s) par aucune : retire-la(s) de LUES_SUR_UNE_PIECE.');
+
+    // Déclarée sans être active : un mot que le moteur n'applique pas.
+    $inactives = array_values(array_filter(
+        MotsClesEquipement::LUES_SUR_UNE_PIECE,
+        fn (string $cle) => ! MotsClesEquipement::estActive($cle),
+    ));
+    expect($inactives)->toBe([], implode(', ', $inactives).' — déclarée(s) sur une pièce sans être active.');
 });
