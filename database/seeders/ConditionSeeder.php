@@ -133,8 +133,11 @@ class ConditionSeeder extends Seeder
             // le chemin). L'appeler « Renforcé » ne décrivait rien.
             ['nom' => 'Intangible', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['franchit_mur' => true, 'fin' => 'fin_du_tour']],
+            // « Tombé, jamais mort » (mode Story de Jungles of Delthrak, décision de
+            // René, 2026-10-09 — `docs/regles/vocabulaires-effets.md`) : aucune clé de
+            // mort ici. `mort_si_non_releve` a été retirée : elle n'avait aucun lecteur.
             ['nom' => 'Tombé', 'type' => 'physique', 'duree_defaut' => 0,
-                'effet' => ['hors_combat' => true, 'occupe_sa_case' => true, 'relevable' => true, 'fin' => 'releve_ou_fin_de_combat', 'mort_si_non_releve' => true]],
+                'effet' => ['hors_combat' => true, 'occupe_sa_case' => true, 'relevable' => true, 'fin' => 'releve_ou_fin_de_combat']],
             // Venin (Jungles of Delthrak, p. 48) : « dégât = paralysie, jet de
             // 1 dé rouge pour résister sur 5-6, sinon jeton venin jusqu'à la
             // fin du tour suivant ». `deplacement_interdit` est CÂBLÉ depuis le

@@ -807,7 +807,7 @@ ecrire('<div class="duo">' +
            "Briseur de Sceaux frappe Grom : trois crânes, un seul bouclier blanc. Les deux "
            "dégâts l'amènent à zéro.", 'fig scene') +
        fig('73-scene-chute',
-           "La scène suivante le dit : à terre, mais relevable jusqu'à la fin du combat. La chute "
+           "La scène suivante le dit : à terre, mais relevable, jamais morte. La chute "
            "s'affiche toujours <em>après</em> le coup qui l'a causée.", 'fig scene') +
        '</div>')
 ecrire('''

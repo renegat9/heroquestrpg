@@ -1,7 +1,7 @@
 # Livret de jeu — comment il se fabrique
 
 Le livret existe en **deux formes tirées d'une seule source** : une page web
-(`public/livret/index.html`, celle vers laquelle pointe l'accueil) et un PDF A4 de 42 pages
+(`public/livret/index.html`, celle vers laquelle pointe l'accueil) et un PDF A4 de 67 pages
 (`public/livret/HeroQuest-RPG-Livret-de-jeu.pdf`, à imprimer). Le corps du document est
 généré **une seule fois** ; seules la feuille de style et les chemins d'images diffèrent —
 les deux médias n'ayant presque aucune règle en commun, chacun a sa feuille autonome

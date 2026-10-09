@@ -46,6 +46,7 @@ Déplacement et action peuvent s'enchaîner dans l'ordre choisi (avant/après), 
 - **Dégâts = crânes − boucliers** (minimum 0).
 - Chaque point de dégât retire **1 Point de Body**.
 - À **0 Point de Body**, la figurine est **« tombée »** : elle occupe toujours sa case et reste **relevable** (soin/allié) ; mort définitive si non relevée avant la fin du combat (P1/C4).
+  ⚠ Remplacé le 2026-10-09 (René) : un héros tombé ne meurt jamais (mode Story de *Jungles of Delthrak*) — voir `docs/regles/vocabulaires-effets.md`.
 
 ### Total Party Kill (TPK)
 Si **tous les héros sont tombés** sans relève possible, le groupe tranche par **vote** :
@@ -120,4 +121,5 @@ Adaptation du tour HeroQuest au modèle tablette-hôte + téléphones :
 3. **Attaque d'opportunité (C3)** : **aucune** — le désengagement est libre (fidèle au jeu de base).
 4. **Armure lourde (AP)** : le déplacement du tour perd **2 cases** (`malus_deplacement`, texte de la carte *Plate Mail* : « a 2 square movement penalty »). Le d6 est toujours lancé — on supprimait auparavant le dé entier, ce qui coûtait 3,5 cases en moyenne **et** rendait le déplacement déterministe. Le total ne descend jamais sous 1 case.
 5. **Figure tombée (C4)** : **occupe sa case** et reste **relevable** (voir P1 pour la mort).
+   ⚠ Remplacé le 2026-10-09 (René) : un héros tombé ne meurt jamais (mode Story de *Jungles of Delthrak*) — voir `docs/regles/vocabulaires-effets.md`.
 6. **TPK** : choix de groupe par vote — **recharger** la dernière sauvegarde, ou **abandonner** (clôture, or d'avant la mission réparti) ; égalité → recharger.

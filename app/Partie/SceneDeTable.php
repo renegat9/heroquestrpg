@@ -1401,15 +1401,6 @@ final class SceneDeTable
     }
 
     /**
-     * CHUTE ou RELÈVEMENT d'un héros — la figure en grand.
-     *
-     * ⚠ À 0 PV de Body un héros est TOMBÉ, pas mort : il occupe sa case et reste
-     * relevable jusqu'à la fin du combat (P1/C4). L'écran doit le dire, sinon la
-     * table croit la partie finie pour lui.
-     *
-     * @return array<string, mixed>
-     */
-    /**
      * DÉBUT DU TOUR d'un héros : son portrait et son jet de déplacement (René,
      * 2026-09-16 : « un popup pour afficher le dé de déplacement au début d'un
      * tour de joueur »).
@@ -1506,12 +1497,23 @@ final class SceneDeTable
         ];
     }
 
+    /**
+     * CHUTE ou RELÈVEMENT d'un héros — la figure en grand.
+     *
+     * ⚠ À 0 PV de Body un héros est TOMBÉ, jamais mort (mode Story de Jungles of
+     * Delthrak, `docs/regles/vocabulaires-effets.md`) : il occupe sa case et se relève
+     * par un soin, un allié adjacent, ou 1 PV de Body à l'ouverture d'un round sans
+     * monstre engagé. L'écran doit le dire, sinon la table croit la partie finie
+     * pour lui.
+     *
+     * @return array<string, mixed>
+     */
     public function chute(Personnage $heros, bool $tombe): array
     {
         return [
             'genre' => 'chute',
             'titre' => $tombe ? $heros->nom." s'effondre" : $heros->nom.' se relève',
-            'sous_titre' => $tombe ? "Relevable jusqu'à la fin du combat" : null,
+            'sous_titre' => $tombe ? 'Relevable : soin, allié, ou 1 PV de Body sans monstre engagé' : null,
             'acteurs' => [$this->acteurHeros($heros, 'acteur')],
             'jet' => null,
             'deplacement' => null,

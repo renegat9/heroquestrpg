@@ -236,9 +236,11 @@ class TerrainSeeder extends Seeder
             // The bonfire does not block line of sight. » Le jet est celui, déjà
             // lu, de la Rivière gelée (`jet_des_combat` + `sur` + `degats_pv_body`,
             // un jet par case ENTRÉE, jamais d'arrêt) — la seule différence est
-            // la FACE (un crâne, ici) et la nature du dégât : `feu`, parce que
-            // l'Anneau de Chaleur existe et couvre un brasier mieux que tout
-            // autre dégât du jeu. « Any CREATURE » : le monstre brûle comme le
+            // la FACE (un crâne, ici) et la nature du dégât : `feu`, parce que le
+            // livret l'appelle un feu (`reference/18` §4 : « le feu inflige 1 Body
+            // Point »). Seule une immunité au FEU l'intercepte (Anneau de Feu, Chair
+            // impie, potion de résistance au feu) : l'Anneau de Chaleur couvre le
+            // froid et ne l'arrête pas. « Any CREATURE » : le monstre brûle comme le
             // héros (`ResolveurTour::blesserMonstreSurLeChemin()`), à la différence de la rivière.
             [
                 'nom' => 'Brasier', 'nom_anglais' => 'Bonfire',
