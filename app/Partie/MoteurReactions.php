@@ -798,6 +798,9 @@ final class MoteurReactions
                 // face, et la phrase décidée par le serveur. `null` pour toute autre
                 // réaction.
                 'jet' => $quoi['jet'] ?? null,
+                // Relance tirée du SAC : le parchemin part à l'acceptation. `null`
+                // pour toute autre réaction.
+                'parchemin' => $quoi['parchemin'] ?? null,
                 'des' => $quoi['des'] ?? null,
                 'des_adverses' => $quoi['des_adverses'] ?? null,
                 // Quelle face COMPTE pour chaque volée — décidé par le moteur
@@ -1573,12 +1576,20 @@ final class MoteurReactions
     // =====================================================================
 
     /**
-     * Le héros connaît-il la *Vision du futur* et peut-il encore la jouer cette
-     * quête ? Lecteur UNIQUE de la disponibilité : `frapper()`, `proposer()` et le
-     * déplacement du tour le lisent tous ici. `disponible` est « Discard after
-     * use » (S5) ; un sort OUBLIÉ (`OubliSorts`) ne compte pas, comme au menu.
+     * D'où vient la relance de *Vision du futur* que le héros peut jouer, et qui la
+     * porte. Lecteur UNIQUE de la source : les trois offres (attaque, défense,
+     * déplacement) et le test de suspension de `ResolveurTour::frapper()` passent
+     * tous ici.
+     *
+     * Le GRIMOIRE d'abord (`inventaire_id` null) : `disponible` est « Discard after
+     * use » (S5), et un sort OUBLIÉ (`OubliSorts`) ne compte pas, comme au menu.
+     * Puis le SAC (`inventaire_id` = la ligne du parchemin, retirée à la relance) :
+     * un héros qui PORTE le parchemin reçoit la même proposition que celui qui
+     * connaît le sort (2026-10-08).
+     *
+     * @return array{sort: Sort, inventaire_id: ?int}|null
      */
-    public function visionDuFutur(Personnage $heros): ?Sort
+    public function sourceVisionDuFutur(Personnage $heros): ?array
     {
         $etat = EtatPersonnageQuete::enQuete($heros);
         $oublies = $etat?->quete !== null
@@ -1587,7 +1598,15 @@ final class MoteurReactions
 
         foreach ($heros->sorts()->wherePivot('disponible', true)->orderBy('sorts.id')->get() as $sort) {
             if ((bool) data_get($sort->effet, 'relance_jet', false) && ! in_array($sort->nom, $oublies, true)) {
-                return $sort;
+                return ['sort' => $sort, 'inventaire_id' => null];
+            }
+        }
+
+        foreach ($heros->inventaire()->with('objet')->orderBy('id')->get() as $ligne) {
+            $sort = Sort::find(data_get($ligne->objet?->effet, 'sort_id'));
+
+            if ($sort !== null && (bool) data_get($sort->effet, 'relance_jet', false)) {
+                return ['sort' => $sort, 'inventaire_id' => $ligne->id];
             }
         }
 
@@ -1595,9 +1614,47 @@ final class MoteurReactions
     }
 
     /**
+     * Le sort de *Vision du futur* que le héros connaît ou porte — le TEST de son
+     * existence (`ResolveurTour::frapper()` suspend l'attaque si elle est non nulle).
+     */
+    public function visionDuFutur(Personnage $heros): ?Sort
+    {
+        return $this->sourceVisionDuFutur($heros)['sort'] ?? null;
+    }
+
+    /**
+     * Ce qu'une offre de relance dit de SA source : le sort (ou le parchemin qui le
+     * porte, nommé « parchemin de … »), et la ligne du sac à retirer à l'acceptation
+     * (`null` = le grimoire, dépensé par son `disponible`).
+     *
+     * @param  array{sort: Sort, inventaire_id: ?int}  $source
+     * @return array<string, mixed>
+     */
+    private function enteteRelance(array $source): array
+    {
+        $sort = $source['sort'];
+        $parchemin = $source['inventaire_id'] !== null;
+
+        return [
+            'sort_id' => $sort->id,
+            'nom' => $parchemin ? "parchemin de {$sort->nom}" : $sort->nom,
+            'inventaire_id' => $source['inventaire_id'],
+            'parchemin' => $parchemin,
+        ];
+    }
+
+    /** Ce que la description ajoute quand la relance vient du sac : le parchemin part. */
+    private function precisionParchemin(array $source): string
+    {
+        return $source['inventaire_id'] !== null ? ' Le parchemin est retiré du sac si tu relances.' : '';
+    }
+
+    /**
      * Ce que l'état publie d'une offre : tout SAUF `reprise` (l'action à rejouer —
      * l'option du menu, ses paramètres, les jets tombés), qui n'est pas une
-     * information de jeu et n'a rien à faire sur le canal de la table.
+     * information de jeu et n'a rien à faire sur le canal de la table, et
+     * `inventaire_id` (la ligne du sac d'un parchemin de relance, identifiant interne
+     * que seul le serveur relit à l'acceptation).
      *
      * @param  array<string, mixed>|null  $attente
      * @return array<string, mixed>|null
@@ -1608,7 +1665,7 @@ final class MoteurReactions
             return null;
         }
 
-        unset($attente['reprise']);
+        unset($attente['reprise'], $attente['inventaire_id']);
 
         return $attente;
     }
@@ -1633,9 +1690,11 @@ final class MoteurReactions
             return false;
         }
 
-        $sort = $this->visionDuFutur($victime);
+        // ⚠ Pas `$source` : c'est le paramètre `string $source` (la cause des dégâts),
+        // que `deposer()` reçoit plus bas. Le nom `$relance` garde les deux distincts.
+        $relance = $this->sourceVisionDuFutur($victime);
 
-        if ($sort === null) {
+        if ($relance === null) {
             return false;
         }
 
@@ -1645,10 +1704,9 @@ final class MoteurReactions
         $this->deposer($etat, $victime, $victime, [
             'action' => ReactionEffet::RELANCE_JET,
             'jet' => ReactionEffet::JET_DEFENSE,
-            'sort_id' => $sort->id,
-            'nom' => $sort->nom,
+            ...$this->enteteRelance($relance),
             'description' => 'Relance TOUS tes dés de défense. Le nouveau jet remplace l\'ancien, en mieux comme en pire — '
-                .'l\'attaque du monstre, elle, reste telle qu\'elle est tombée.',
+                .'l\'attaque du monstre, elle, reste telle qu\'elle est tombée.'.$this->precisionParchemin($relance),
             'des' => (array) $contexte['faces_defense'],
             'des_adverses' => (array) $contexte['faces_attaque'],
             'touchante' => FaceDeCombat::Crane->value,
@@ -1677,25 +1735,25 @@ final class MoteurReactions
         JetEnAttente $jet,
     ): array {
         $etat = EtatPersonnageQuete::enQuete($heros);
-        $sort = $this->visionDuFutur($heros);
+        $source = $this->sourceVisionDuFutur($heros);
 
         // Garde-fou : si l'offre ne peut pas se déposer (pas d'état, sort parti,
         // une autre offre en attente), on REJOUE tout de suite avec le jet tel
         // quel — jamais une action perdue dans l'air.
-        if ($etat === null || $sort === null || $etat->reaction_en_attente !== null) {
+        if ($etat === null || $source === null || $etat->reaction_en_attente !== null) {
             return app(ResolveurTour::class)->resoudreAvecJets($groupe, $heros, $option, $parametres, $attaques);
         }
 
+        $sort = $source['sort'];
         $resume = $jet->resume;
         $degats = (int) $resume['degats'];
 
         $this->deposer($etat, $heros, $heros, [
             'action' => ReactionEffet::RELANCE_JET,
             'jet' => ReactionEffet::JET_ATTAQUE,
-            'sort_id' => $sort->id,
-            'nom' => $sort->nom,
+            ...$this->enteteRelance($source),
             'description' => 'Relance TOUS tes dés d\'attaque. Le nouveau jet remplace l\'ancien, en mieux comme en pire — '
-                .'les dés de défense du monstre, eux, ne sont pas relancés.',
+                .'les dés de défense du monstre, eux, ne sont pas relancés.'.$this->precisionParchemin($source),
             'des' => $jet->facesAttaque,
             'des_adverses' => $jet->facesDefense,
             'touchante' => $resume['face_touchante'] ?? FaceDeCombat::Crane->value,
@@ -1749,18 +1807,18 @@ final class MoteurReactions
             return false;
         }
 
-        $sort = $this->visionDuFutur($heros);
+        $source = $this->sourceVisionDuFutur($heros);
 
-        if ($sort === null) {
+        if ($source === null) {
             return false;
         }
 
         $this->deposer($etat, $heros, $heros, [
             'action' => ReactionEffet::RELANCE_JET,
             'jet' => ReactionEffet::JET_DEPLACEMENT,
-            'sort_id' => $sort->id,
-            'nom' => $sort->nom,
-            'description' => 'Relance TOUS tes dés de déplacement. Le nouveau jet remplace l\'ancien, en mieux comme en pire.',
+            ...$this->enteteRelance($source),
+            'description' => 'Relance TOUS tes dés de déplacement. Le nouveau jet remplace l\'ancien, en mieux comme en pire.'
+                .$this->precisionParchemin($source),
             'des' => array_values($jet->des),
             'resume' => 'Tu as lancé '.implode(' + ', $jet->des).' : '.$jet->total.' cases de déplacement.',
             'reprise' => ['jet' => [
@@ -1793,6 +1851,13 @@ final class MoteurReactions
         $accepte = $accepte && ! $expiree;
         $jet = (string) ($attente['jet'] ?? '');
 
+        // Le sort n'est dépensé que SI on s'en sert : refuser le garde. Le parchemin
+        // quitte le sac à l'acceptation ; s'il n'y est plus, la relance ne se fait pas
+        // et l'action reprend avec son jet d'origine (`active` le dit à la table).
+        if ($accepte) {
+            $accepte = $this->depenserSourceRelance($heros, $attente);
+        }
+
         $base = [
             'type' => 'reaction',
             'personnage' => $heros->nom,
@@ -1804,11 +1869,6 @@ final class MoteurReactions
             'active' => $accepte,
             ...($expiree ? ['raison' => 'Fenêtre de réaction écoulée.'] : []),
         ];
-
-        // Le sort n'est dépensé que SI on s'en sert : refuser le garde.
-        if ($accepte && isset($attente['sort_id'])) {
-            $heros->sorts()->updateExistingPivot((int) $attente['sort_id'], ['disponible' => false]);
-        }
 
         $payload = match ($jet) {
             ReactionEffet::JET_DEFENSE => $accepte
@@ -1822,6 +1882,37 @@ final class MoteurReactions
         $this->reprendreVerdictDeChute($groupe);
 
         return $payload;
+    }
+
+    /**
+     * Dépense la source d'une relance ACCEPTÉE : le sort passe épuisé (grimoire), ou
+     * son parchemin quitte le sac (`MoteurSorts::consommerParchemin()`, le point de
+     * passage de la lecture aussi). Rend `false` si la source n'existe plus — une
+     * relance qu'on ne peut pas honorer n'est pas faite, et rien n'est dépensé.
+     *
+     * @param  array<string, mixed>  $attente
+     */
+    private function depenserSourceRelance(Personnage $heros, array $attente): bool
+    {
+        if (! isset($attente['sort_id'])) {
+            return false;
+        }
+
+        if (($attente['inventaire_id'] ?? null) === null) {
+            $heros->sorts()->updateExistingPivot((int) $attente['sort_id'], ['disponible' => false]);
+
+            return true;
+        }
+
+        $ligne = $heros->inventaire()->with('objet')->whereKey((int) $attente['inventaire_id'])->first();
+
+        if ($ligne === null || (int) data_get($ligne->objet?->effet, 'sort_id') !== (int) $attente['sort_id']) {
+            return false;
+        }
+
+        app(MoteurSorts::class)->consommerParchemin($ligne);
+
+        return true;
     }
 
     /**

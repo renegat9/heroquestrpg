@@ -481,13 +481,14 @@ class SortSeeder extends Seeder
             // an action. You may re-roll all dice for any one attack, defense or
             // movement roll. Discard after use. » (carte © 2026, reference/18)
             // `relance_jet` → AUCUNE entrée de menu (pas d'action) : le sort se
-            // joue APRÈS un jet du héros qui le connaît, par
-            // `MoteurReactions::proposerRelanceJet()` — décision de René, 2026-10-08 :
-            // le résultat est montré, le serveur attend la réponse AVANT de
-            // l'appliquer. « Discard after use » = `disponible` à faux (S5, une
-            // fois par quête). ⚠ `difficulte_parchemin` n'est qu'une valeur de
-            // STRUCTURE (colonne non nulle, un parchemin par sort) : le parchemin
-            // de ce sort n'est pas lisible — `options()` ne l'offre jamais.
+            // joue APRÈS un jet du héros qui le connaît OU qui porte son parchemin,
+            // par `MoteurReactions::sourceVisionDuFutur()` (offres d'attaque, de
+            // défense et de déplacement) — décision de René, 2026-10-08 : le résultat
+            // est montré, le serveur attend la réponse AVANT de l'appliquer. Le
+            // grimoire passe d'abord (« Discard after use » = `disponible` à faux, S5,
+            // une fois par quête) ; le parchemin, lui, quitte le sac s'il relance.
+            // ⚠ `difficulte_parchemin` n'est qu'une valeur de STRUCTURE (colonne non
+            // nulle, un parchemin par sort) : `lire_parchemin` ne l'offre jamais.
             ['element' => 'detection', 'nom' => 'Vision du futur', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 'effet' => ['relance_jet' => true]],
 

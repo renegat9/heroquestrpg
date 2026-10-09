@@ -35,7 +35,11 @@ beforeEach(function () {
 // ------------------------------------------------------------------
 
 it('recense les 29 cartes de dread_spells.pdf, portées et non portées', function () {
-    $cartes = collect(config('cartes.dread.cartes'));
+    // Les 29 cartes de `dread_spells.pdf` — les cartes de Wizards of Morcar (même
+    // section du registre, paquet « Wizards of Morcar — … ») se comptent à part.
+    $cartes = collect(config('cartes.dread.cartes'))
+        ->reject(fn ($c) => str_starts_with((string) $c['paquet'], 'Wizards of Morcar'))
+        ->values();
 
     expect($cartes)->toHaveCount(29);
 
@@ -59,6 +63,22 @@ it('recense les 29 cartes de dread_spells.pdf, portées et non portées', functi
         expect($carte['texte'] ?? '')->not->toBeEmpty("{$carte['carte']} : texte de carte manquant")
             ->and($carte['manque'] ?? '')->not->toBeEmpty("{$carte['carte']} : mécanique manquante non dite")
             ->and($carte['nom'] ?? '')->not->toBeEmpty("{$carte['carte']} : nom français manquant");
+    }
+});
+
+it('recense les 18 cartes des trois Sorciers de Morcar de la vague 2A, six par sorcier', function () {
+    $cartes = collect(config('cartes.dread.cartes'))
+        ->filter(fn ($c) => preg_match('/Wizards of Morcar — (Storm Master|High Mage|Necromancer)$/', (string) $c['paquet']) === 1);
+
+    expect($cartes)->toHaveCount(18)
+        ->and($cartes->groupBy('paquet')->map->count()->values()->all())->toBe([6, 6, 6]);
+
+    // Chaque répertoire d'archétype nomme exactement les six sorts de SES cartes.
+    foreach (['Storm Master' => 'orages_morcar', 'High Mage' => 'haut_mage_morcar', 'Necromancer' => 'necromancien_morcar'] as $sorcier => $archetype) {
+        $attendus = $cartes->filter(fn ($c) => str_ends_with((string) $c['paquet'], $sorcier))->pluck('sort_dread')->sort()->values()->all();
+        $declares = collect(config("archetypes_lanceurs.{$archetype}.sorts"))->sort()->values()->all();
+
+        expect($declares)->toBe($attendus, "{$sorcier} : répertoire ≠ cartes");
     }
 });
 

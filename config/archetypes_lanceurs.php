@@ -265,4 +265,84 @@ return [
         ],
     ],
 
+    // ------------------------------------------------------------------
+    // WIZARDS OF MORCAR — les Sorciers du Dread (vague 2A, 2026-10-08)
+    // « Each Sorcerer's set of spells is unique to them, and only they may use
+    // it » (G1504 p. 10) : un archétype PAR sorcier, son porteur unique. Six
+    // sorts chacun ; *Frayeur* (= Fear) et *Fuite* (= Escape) sont des doublons
+    // exacts d'un sort déjà au catalogue. L'ordre est la préférence à score égal.
+    // ------------------------------------------------------------------
+
+    'orages_morcar' => [
+        'porteur' => 'Maître des orages',
+        // Storm Master (Boroush) : Lightning Strike, Wall of Ice, Thieving Wind,
+        // Hurricane, Earthquake, Blinding Sleet.
+        'sorts' => [
+            'Foudroiement',
+            'Tremblement de terre',
+            'Ouragan',
+            'Grésil aveuglant',
+            'Muraille de glace',
+            'Vent voleur',
+        ],
+    ],
+
+    'haut_mage_morcar' => [
+        'porteur' => 'Haut mage',
+        // High Mage (Zanrath) : Wall of Flame, Strands of Binding, Rust, Possess,
+        // Escape, Unlearn.
+        'sorts' => [
+            'Liens magiques',
+            'Possession',
+            'Corrosion',
+            'Désapprentissage',
+            'Muraille de flammes',
+            'Fuite',
+        ],
+    ],
+
+    'guerriere_orque_morcar' => [
+        'porteur' => 'Mage de guerre orque',
+        // Orc Warcaster (Nyashak, Orc Warcaster of the Northern Clan) : Call Orcs,
+        // Call Goblins, Spirit of Vengeance, Shield of Protection, Sharpen Blades,
+        // Orc Berserker. L'ordre est la préférence à score égal (vague 2B).
+        'sorts' => [
+            'Esprit de vengeance',
+            'Orque berserker',
+            'Bouclier de protection',
+            'Lames aiguisées',
+            'Appel des orques',
+            'Appel des gobelins',
+        ],
+    ],
+
+    'artificiere_morcar' => [
+        'porteur' => 'Artificière',
+        // Artificer (la Gardienne / the Keeper) : Beseech Dread Powers!, Scrolls of
+        // Morcar, Hammer of Ruin, Leach Life, Conjure Golem, Summon Dreadshifter.
+        // *Beseech Dread Powers!* est une RÉACTION (jamais choisie comme action).
+        'sorts' => [
+            'Parchemins de Morcar',
+            'Marteau de la Ruine',
+            'Drain de vie',
+            'Invocation de golem',
+            'Appel du Dreadshifter',
+            'Implorer les puissances du Dread',
+        ],
+    ],
+
+    'necromancien_morcar' => [
+        'porteur' => 'Nécromancien',
+        // Necromancer (Fanrax) : Summon Mummy, Skulls of Doom, Raise the Dead, Fear,
+        // Death Bolt, Call Skeletons.
+        'sorts' => [
+            'Crânes maudits',
+            'Trait de mort',
+            'Frayeur',
+            'Appel des squelettes',
+            'Invocation de momie',
+            'Relève des morts',
+        ],
+    ],
+
 ];

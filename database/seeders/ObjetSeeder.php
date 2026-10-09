@@ -784,6 +784,25 @@ class ObjetSeeder extends Seeder
                 'prix_base' => 0, 'emplacement' => 'armure', 'tag_equipement' => null, 'classe_interdite' => 'magicien',
                 'effet' => ['bonus_des_defense' => 1, 'deplacement_fixe' => 8]],
 
+            // URDYN THE UNMAKER (Wizards of Morcar, artefact — vague 2B,
+            // 2026-10-08). Carte (artefacts_p01) : « The enchanted hammer of a
+            // master artificer. […] When using this hammer, roll 2 Attack dice,
+            // or 4 if attacking a magical construct (Dreadshifter, Golem). »
+            // ⚠ AUCUN mot-clé neuf : `des_attaque_contre` (`{des, noms}`) existe
+            // pour la Lame des Esprits — « 4 dés contre Squelette, Zombie,
+            // Momie » —, lu par `ResolveurTour::desArmeContre()` sur `nom_base`
+            // (le nom de CATALOGUE, jamais l'habillage). Le plan écrivait
+            // « jamais `type_monstre_cible` » : la clause par NOMS suffit, puisque
+            // la carte nomme ses deux cibles. Cela reportait la carte « en
+            // attendant Golem/Dreadshifter » : ils sont au catalogue depuis cette
+            // vague (`MonstreSeeder`, boîte `wizards_of_morcar`).
+            // `tag_equipement` reste `null` : la carte ne restreint aucune classe,
+            // et en inventer un serait l'invention que doc 16 §2.1bis interdit.
+            ['nom' => 'Urdyn le Défaiseur', 'categorie' => 'arme', 'metallique' => false, 'rarete' => 'unique',
+                'prix_base' => 0, 'emplacement' => 'arme_principale', 'tag_equipement' => null,
+                'effet' => ['des_attaque' => 2,
+                    'des_attaque_contre' => ['noms' => ['Golem', 'Dreadshifter'], 'des' => 4]]],
+
             // ----- Outils -----
             ['nom' => 'Trousse à outils', 'categorie' => 'outil', 'prix_base' => 250, 'emplacement' => 'sac',
                 'effet' => ['permet_desamorcage' => true]],

@@ -349,7 +349,7 @@ options claires » (doc 13 §3.1). C'est la leçon du ciblage, un cran plus haut
 | option | liste | entrée |
 |---|---|---|
 | `lancer_sort` (`type: sort`) | `parametres.sorts[]` | `{cle, sort_id, nom, element, sort_type, disponible, cibles?, mode?, porte?, case?}` |
-| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` |
+| `lire_parchemin` (`type: parchemin`) | `parametres.parchemins[]` | idem + `inventaire_id` ; un parchemin de sort à emplacement (mur, Clairvoyance, voile) porte les MÊMES entrées que le sort connu, `mode` et `cases`/`salle` compris (2026-10-08) |
 | `utiliser_objet` (`type: objet_libre`) | `parametres.objets[]` | `{cle, inventaire_id, nom, detail, cout: gratuit\|action, quantite, cibles?}` |
 | `se_concentrer` · `sacrifier_pour_sort` | `parametres.sorts[]` | `{cle, sort_id, nom, …}` |
 
@@ -372,7 +372,10 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   le Génie. `POST choix {option_id, parametres: {cle}}` suffit : la paire est
   déjà fixée par l'entrée choisie, le client n'a rien de plus à fournir. Le
   payload rendu porte `cases` (les deux cases) et `mobilier` (une seule entrée,
-  `l`×`h` = 2×1 ou 1×2 selon la paire, `pv_body: 1`, `defense_dice: 6`).
+  `l`×`h` = 2×1 ou 1×2 selon la paire, `pv_body: 1`, `defense_dice: 6`). Le parchemin
+  `Parchemin : Mur de Pierre` (`lire_parchemin`, 2026-10-08) offre les MÊMES paires,
+  `cle: parchemin:{inventaire_id}:mur:…`, et passe par le même point de passage
+  (`ResolveurTour::poserMurMagiqueSort()`) : une règle, deux entrées de menu.
 - ⚠ **`mode: vision_salle`** (*Clairvoyance*, 2026-10-08) : une entrée PAR SALLE
   NON DÉCOUVERTE, `salle: <index>`, nom avec le repère de la salle (« au est, à 2
   cases ») et **jamais** son contenu. Le résultat (`vide`, `monstres` par nom,
@@ -382,6 +385,8 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   Clairvoyance — {texte} »` (sans `texte`, la ligne ne disait que « lance »), et la
   MANETTE de celui qui lance affiche `resultat.texte` (nom : `resultat.sort.nom`)
   jusqu'à fermeture ou au choix suivant — le serveur décide le texte, le client le lit.
+  Le parchemin de Clairvoyance (`lire_parchemin`, 2026-10-08) offre les mêmes salles,
+  `cle: parchemin:{inventaire_id}:salle:{index}`, avec `inventaire_id`.
 - ⚠ **`mode: pose_ombre`** (*Cloak of Shadows* → « Voile d'ombre », 2026-10-08) :
   une entrée PAR emplacement légal (`MoteurOmbre::emplacementsLegaux()` : les
   plus proches du lanceur d'abord, **24 au plus**), `cases: [{x, y}×6]` (un
@@ -393,7 +398,9 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   de table « Zone d'ombre ».
 - ⚠ ***Vision du futur* n'a AUCUNE entrée** dans `lancer_sort` ni dans
   `lire_parchemin` : « cast at any time and does not take an action ». Elle se joue
-  après un jet, par `/reaction` (§Réactions hors tour).
+  après un jet, par `/reaction` (§Réactions hors tour), pour le héros qui la CONNAÎT
+  **ou** qui porte son parchemin au sac (2026-10-08) : le menu ne l'offre jamais, la
+  relance, si.
 - ⚠ **`cible: lanceur_dread`** (*Unlearn*, 2026-10-08) : `parametres.cibles` ne
   liste que des monstres **lanceurs de Dread en ligne de vue** qui gardent au
   moins un sort. Le résultat (`mode: oubli_sort`, `sort_oublie`, `texte`) part au
@@ -406,6 +413,18 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
 - ⚠ **Un sort épuisé reste dans la liste**, `disponible: false`, pour être
   **grisé** — le faire disparaître laissait croire au joueur qu'il l'avait
   perdu. Le résolveur le refuse.
+- ⚠ **Un sort à cible sans cible légale n'a AUCUNE entrée** (2026-10-08) — ni
+  grisée, ni `cibles: []`. Une liste vide n'est pas une liste : la manette
+  l'ouvrirait comme un niveau sans choix, avant que le résolveur ne refuse
+  « Cible requise ». Donc `cibles`, quand il est présent, est **toujours non
+  vide**. Cas réels : *Désapprentissage* sans Sorcier de Dread en vue ; *Conte
+  inspirant* d'un Barde seul, qui ne se vise jamais lui-même (« excluding
+  yourself »). C'est la règle des sorts à emplacement (*Mur de Pierre*,
+  *Voile d'ombre*, *Clairvoyance*) : pas d'emplacement légal, pas d'entrée. Un
+  sort **épuisé** reste lui grisé — il est au héros, il revient ; un sort sans
+  cible **attend** une cible. Si `lancer_sort` n'a plus aucune entrée, l'option
+  ne paraît pas. Même règle pour `lire_parchemin` (même liste de cibles, même
+  résolveur).
 - ⚠ **Le coût d'un objet dépend de l'OBJET**, pas du type d'option : la liste
   mêle le gratuit (potion, chausse-trappes, fumigène) et le payant (eau bénite,
   « instead of attacking »). L'option est `objet_libre` et `resoudreUsageObjet()`
@@ -1156,7 +1175,15 @@ est montré au héros qui connaît le sort (non encore dépensé cette quête), 
 serveur attend sa réponse **avant de l'appliquer**, et s'il relance, TOUS les dés
 de ce jet sont relancés et le nouveau résultat s'applique. Le sort est défaussé
 quand il sert, jamais quand on le refuse. Neuvième action de réaction ; son champ
-**`jet`** dit lequel des trois :
+**`jet`** dit lequel des trois.
+
+**Deux sources, une seule offre** (2026-10-08, `MoteurReactions::sourceVisionDuFutur()`) :
+le héros reçoit la relance s'il **connaît** le sort (grimoire, non épuisé et non oublié
+pour la quête), ou s'il **porte** son parchemin `Parchemin : Vision du futur` au sac. Le
+grimoire passe d'abord — le sort se défausse par son `disponible`, le parchemin se
+**retire du sac** quand il sert. Une relance dont le parchemin a disparu entre l'offre et
+la réponse est refusée : l'action reprend avec son jet d'origine, jamais une relance
+gratuite.
 
 | `jet` | Quand | Ce qui est suspendu | Ce que la relance remplace |
 |---|---|---|---|
@@ -1176,7 +1203,8 @@ neufs pour son seul camp (acceptation).
 **La proposition** (`.reaction.proposee` sur `joueur.{id}`, et
 `EtatGroupe.entites[].reaction_en_attente`) porte, en plus des champs communs :
 
-- `jet` ∈ `attaque | defense | deplacement`, `sort` (« Vision du futur ») ;
+- `jet` ∈ `attaque | defense | deplacement`, `sort` (« Vision du futur » ; « parchemin de Vision du futur » quand la relance vient du sac) ;
+- `parchemin` : `true` si la relance vient du sac (le parchemin sera retiré à l'acceptation), `false` si elle vient du grimoire ;
 - `des` : les dés **que le héros peut relancer** (faces de `FaceDeCombat`, ou des
   entiers pour le déplacement) ; `des_adverses` : la volée d'en face, qui ne sera
   **pas** relancée ; `touchante` / `defensive` : la face qui compte pour chacune
@@ -1185,7 +1213,9 @@ neufs pour son seul camp (acceptation).
   Gobelin pare 1 : 2 points de dégâts. »).
 
 ⚠ `EtatGroupe` ne publie **jamais** `reprise` (l'action à rejouer : option du menu,
-paramètres, jets tombés) — ce n'est pas une information de jeu.
+paramètres, jets tombés) — ce n'est pas une information de jeu — ni `inventaire_id`
+(la ligne du sac d'un parchemin de relance : identifiant interne, relu par le serveur
+seul à l'acceptation).
 
 **La suspension d'une attaque.** `POST /choix` répond `202` avec
 `resultat: {type: "jet_en_attente", jet: "attaque", sort, faces_attaque,
@@ -2637,6 +2667,88 @@ reste une dette nommée (aucun lecteur, tour de monstre non fractionné).
 coûte toujours l'action du tour, et le payload reste `{type: "sort_dread",
 ...}` sans changement de forme. Divergence assumée : le Spectre, dont la carte
 dit aussi « at will », reste bridé à `USAGES_BASE` — ce lot ne le touche pas.
+
+**Sorciers du Dread de Wizards of Morcar — vague 2A (Storm Master, High Mage,
+Necromancer, 2026-10-08).** Capacité `sorts_uniques` : « Each spell may only be
+used once per quest […] a full set of six spells » — `usages_dread` = taille du
+répertoire, `instances_monstres.sorts_dread_lances` (JSON, dans le snapshot) liste
+les sorts dépensés ; le verrou 1×/rencontre des invocations est levé pour eux.
+Tous les payloads restent `{type: "sort_dread", sort, ...}` ; formes ajoutées :
+- Murs magiques (*Muraille de glace/de flammes*) : `{mur_magique: true, cases: [2×{x,y}],
+  mobilier: {index, nom, pv_body, defense_dice}}` — le MÊME mobilier attaquable que
+  le *Mur de Pierre* des héros (`MoteurMobilier::poserMurMagique()`), publié par
+  `carte.mobilier` comme lui.
+- *Foudroiement* / *Tremblement de terre* : `resultats[]` + `cases_affectees` comme
+  un rayon ; `mur_annule: {nom, x, y}` quand la ligne a rencontré un mur magique
+  (« both spells are cancelled »).
+- *Ouragan* : `{repousse: {personnage_id, nom, de, vers, cases, declenchements[]}}`
+  (`declenchements` = les payloads de piège déclenchés en route, même forme que
+  `piege_declenche`).
+- *Désapprentissage* : `{oubli: {cible, sort_oublie}}` (même table `sorts_oublies_de_quete`).
+- *Vent voleur* / *Corrosion* : `resultats[0].objet_detruit` ; `arrache: true` pour le vent.
+- *Relève des morts* (réactif, **sans action**) : `{reaction: "mort_de_monstre",
+  sans_action: true, releve: {monstre, x, y, squelette_id}}` ; publié aussi sous
+  `reaction_dread` dans le payload de l'attaque qui a tué (`attaque_monstre`).
+- *Invocation de momie* / *Appel des squelettes* : `invoques` sans `de` (renfort fixe).
+Payloads de tour ajoutés : `{type: "possession_deplacement", personnage, de, vers,
+vers_monstre}` (le héros *Possédé* est déplacé par le moteur, résultat de son
+action) et `{type: "conditions_levees", levees: [{personnage_id, nom, condition}]}`
+(grésil retombé en tête de la phase des monstres, dans `tour_monstres.actions`).
+Nouveau type d'option de menu : `attaquer_liens` (*Liens magiques*, créneau action),
+`parametres.cibles: [{id, nom, soi}]` = liste blanche ; payload `attaque_mobilier`
+(`mobilier: "Liens magiques de …"`, `detruit`). Nouvelles conditions (`conditions[]`
+d'EtatGroupe) : *Grésil aveuglant*, *Ligoté*, *Possédé*.
+
+**Orc Warcaster et Artificer, créatures de la boîte — vague 2B (2026-10-08).**
+Mêmes règles que la vague 2A (`sorts_uniques`, un sort une seule fois par quête).
+Formes de `sort_dread` ajoutées :
+- *Appel des orques / des gobelins* : `invoques[]` (chaque entrée porte désormais
+  `instance_id`) + `activation_immediate: [id…]` — ces créatures jouent **dans la
+  foulée du lanceur**, leurs actions suivent le sort dans `tour_monstres.actions`
+  (« may move and attack immediately »). *Invocation de golem* / *Appel du
+  Dreadshifter* : `invoques[]` sans `activation_immediate`.
+- *Esprit de vengeance* : `resultats[]` comme tout sort à dés ; la cible n'est pas
+  forcément en ligne de vue (seul sort dans ce cas).
+- *Bouclier de protection* / *Lames aiguisées* : `{renforts: {creatures[], volee:
+  defense|attaque, des, duree}}`. *Orque berserker* : `{double_tour: {monstre,
+  instance_id}, activation_immediate: [id, id]}` — l'orque joue son tour DEUX fois
+  à la suite du lanceur (deux actions dans `tour_monstres.actions`), jamais trois.
+- *Parchemins de Morcar* : `{amelioration: {jetons_ombre: 3}}` ; *Marteau de la
+  Ruine* : `{amelioration: {bonus_attaque: 2, se_brise_sans_degat: true}}`.
+- *Drain de vie* : `resultats[]` (par héros : `{cible, de, touche, degats,
+  pv_body_apres}`), `monstres_touches[]` (créatures du lanceur prises dans la zone,
+  `{monstre, de, touche, degats}`) et `drain: {pv_rendus, pv_body_apres}`.
+- *Implorer les puissances du Dread* (réactif, sans action — publié sous
+  `reaction_dread` du coup qui tue, comme *Relève des morts*) : `{reaction:
+  "zero_pv_du_lanceur", sans_action: true, de, issue: ignoree|invoque|froid,
+  invoques[]?, resultats[]?}`.
+Événements automatiques annoncés par `{type: "effet_dread", mecanique, texte, ton}`
+dans `tour_monstres.actions` (et au journal) : jeton d'ombre absorbé, *Marteau*
+brisé, bouclier dissipé, lames émoussées, **coup de corne** — le serveur décide le
+texte. Un coup absorbé par un jeton rend `reaction_monstre: "jeton_ombre"` dans le
+payload de l'attaque. `attaque_monstre` gagne `marteau_brise: true` quand le coup
+du lanceur n'a rien retiré. **EtatGroupe** : `entites[].conditions[]` d'un monstre
+publie, sous leur libellé, `Parchemins de Morcar (N jetons)`, `Marteau de la Ruine
+(+2 dés d'attaque)`, `Bouclier de protection (+1 dé de défense)`, `Lames aiguisées
+(+1 dé d'attaque)` (`MoteurDread::etiquettesDread()`).
+
+**Embuscade du Dreadshifter** (`capacites: [embuscade]`). Un Dreadshifter posé à la
+génération est **un coffre** : un meuble `Coffre` sur sa case (`carte.mobilier`,
+indiscernable d'un coffre ordinaire — il n'est ni fouillable ni attaquable), la
+créature absente de `entites` (`revele = false`). Quand un héros entre dans l'une
+des 8 cases autour, la réponse du déplacement porte `embuscades: [{type:
+"embuscade", monstre, instance_id, declencheur: {personnage_id, nom}, etait:
+"coffre", position: {x, y}, action: <payload de son tour, immédiat>}]` ; le coffre
+disparaît de `carte.mobilier`, la créature rejoint `entites`. Seul le déclencheur
+« un héros entre dans les 8 cases » de la carte est porté, et seul le coffre (pas
+la porte).
+
+**Coup de corne du Minotaure** (`capacites: [coup_de_corne]`). Quand un héros
+**finit son tour** dans l'anneau de 10 cases autour du Minotaure (figure de 2
+cases), la réponse de l'action qui clôt le tour porte `coups_de_corne: [<payload
+`attaque_monstre`> + {mecanique: "coup_de_corne"}]` (2 dés d'attaque, jet de
+défense ordinaire), précédé d'un `effet_dread` au journal. Pas de coup s'il est
+endormi, paralysé ou enchaîné.
 
 **EtatGroupe** : `entites` (héros ET monstres) gagnent
 `conditions: [{nom, duree}]` — la table et la manette affichent les états ;

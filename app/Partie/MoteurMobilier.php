@@ -31,6 +31,17 @@ use RuntimeException;
 final class MoteurMobilier
 {
     /**
+     * Les MURS MAGIQUES du catalogue (carton *Magic Reference Chart* : « Wall of
+     * Ice, Wall of Flame, and Wall of Stone ») — posés EN COURS DE QUÊTE par
+     * `poserMurMagique()`, jamais par la génération (`AssembleurCarte` lit cette
+     * même liste pour les écarter du tirage de mobilier). UNE liste, deux
+     * lecteurs : la recopier aurait fait diverger les deux le jour d'un 4e mur.
+     *
+     * @var list<string>
+     */
+    public const MURS_MAGIQUES = ['Mur de Pierre', 'Mur de Glace', 'Mur de Feu'];
+
+    /**
      * Meubles fouillables, non encore fouillés, orthogonalement adjacents à
      * (x, y) — index dans la grille + entrée + libellé du catalogue.
      *
@@ -54,7 +65,10 @@ final class MoteurMobilier
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
 
+            // Un FAUX coffre (Dreadshifter déguisé) ne s'ouvre pas : qui
+            // s'en approche déclenche l'embuscade avant de pouvoir le fouiller.
             if ($type === null || ! $type->fouillable || self::estDetruite($entree)
+                || MoteurEmbuscade::estFauxMeuble($entree)
                 || self::dejaFouille($entree, $personnageId)) {
                 continue;
             }
@@ -278,7 +292,7 @@ final class MoteurMobilier
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
 
-            if ($type === null || self::estDetruite($entree)
+            if ($type === null || self::estDetruite($entree) || MoteurEmbuscade::estFauxMeuble($entree)
                 || self::dejaTenteeDestruction($entree, $personnageId)) {
                 continue;
             }
@@ -453,7 +467,7 @@ final class MoteurMobilier
         foreach ($entrees as $index => $entree) {
             $type = $catalogue[$entree['mobilier_id'] ?? 0] ?? null;
 
-            if ($type === null || self::estDetruite($entree)) {
+            if ($type === null || self::estDetruite($entree) || MoteurEmbuscade::estFauxMeuble($entree)) {
                 continue;
             }
 
@@ -516,6 +530,57 @@ final class MoteurMobilier
         $carte->update(['grille' => $grille]);
 
         return ['pv_restants' => $apres, 'detruit' => $apres <= 0];
+    }
+
+    /**
+     * L'index du MUR MAGIQUE debout qui couvre la case (x, y), ou `null`.
+     *
+     * Lu par les sorts de Dread qui « rencontrent » un mur (*Lightning Strike*
+     * et *Earthquake* : « If a Lightning Strike or Earthquake meets a magical
+     * wall, both spells are cancelled », carton p. 10).
+     */
+    public function murMagiqueSur(Carte $carte, int $x, int $y): ?int
+    {
+        $entrees = (array) ($carte->grille['mobilier'] ?? []);
+
+        if ($entrees === []) {
+            return null;
+        }
+
+        $murs = Mobilier::query()
+            ->whereIn('nom', self::MURS_MAGIQUES)
+            ->pluck('id')
+            ->all();
+
+        foreach ($entrees as $index => $entree) {
+            if (! in_array($entree['mobilier_id'] ?? 0, $murs, true) || self::estDetruite($entree)) {
+                continue;
+            }
+
+            $ox = (int) $entree['x'];
+            $oy = (int) $entree['y'];
+
+            if ($x >= $ox && $x < $ox + (int) ($entree['l'] ?? 1) && $y >= $oy && $y < $oy + (int) ($entree['h'] ?? 1)) {
+                return (int) $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Retire un mur magique de la carte, d'un coup, quels que soient ses PV —
+     * « the pieces are removed from the board ». Le même drapeau `detruit` que
+     * toutes les autres voies de destruction.
+     */
+    public function retirerMurMagique(Carte $carte, int $index): void
+    {
+        $entree = (array) ($carte->grille['mobilier'][$index] ?? []);
+        $type = Mobilier::find((int) ($entree['mobilier_id'] ?? 0));
+
+        if ($entree !== [] && $type !== null) {
+            $this->infligerDegats($carte, $index, self::pvRestants($entree, $type));
+        }
     }
 
     /**

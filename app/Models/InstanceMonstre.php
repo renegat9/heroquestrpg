@@ -36,6 +36,9 @@ class InstanceMonstre extends Model
         // changement de phase — seule une nouvelle rencontre la réarme
         // ({@see \App\Partie\MoteurDread::reinitialiserUsagesInstance()}).
         'capacites_reactives_utilisees',
+        // Sorts de Sorcier déjà lancés cette quête (Wizards of Morcar : « each spell
+        // may only be used once per quest ») — noms, voir `MoteurDread::consommerUsage()`.
+        'sorts_dread_lances',
         // Braise du *Toucher du Brasier* (Moine) : points qui tomberont à la
         // fin du PROCHAIN tour de la créature, puis s'éteignent.
         'degat_differe',
@@ -66,6 +69,7 @@ class InstanceMonstre extends Model
             'controle_par' => 'integer',
             'controle_agi' => 'boolean',
             'capacites_reactives_utilisees' => 'array',
+            'sorts_dread_lances' => 'array',
         ];
     }
 
@@ -76,6 +80,11 @@ class InstanceMonstre extends Model
     public function attaqueEffective(): int
     {
         $des = (int) $this->monstre->attaque + ($this->elite ? self::BONUS_ELITE : 0);
+
+        // SORTS DE SORCIER (Wizards of Morcar) : +1 dé d'*Affûtage des lames*,
+        // +2 de *Marteau de la Ruine* — lus ICI, au seul endroit qui compose
+        // les dés d'attaque d'un monstre, avant les plafonds de condition.
+        $des += $this->bonusDesDread('attaque');
 
         return $this->apresConditions($des, 'attaque');
     }
@@ -130,6 +139,51 @@ class InstanceMonstre extends Model
         return max(1, $des);
     }
 
+    // ------------------------------------------------------------------
+    // État des sorts de Sorcier du Dread (`habillage.dread_etat`)
+    // ------------------------------------------------------------------
+    //
+    // Durable (colonne `habillage`, JSON déjà dans le snapshot), jamais en
+    // cache. Un seul dictionnaire, quatre sortes d'entrées :
+    //   - `sorts_lances`   : noms des sorts déjà lancés cette QUÊTE (« each
+    //                        spell may only be used once per quest ») ;
+    //   - `jetons_ombre`   : jetons restants de *Scrolls of Morcar* ;
+    //   - `bonus_attaque`  : dés d'attaque de *Hammer of Ruin* (0 = rompu) ;
+    //   - `buff_defense`, `buff_attaque` : buffs de faction posés PAR un autre
+    //                        lanceur (`['par' => id, 'des' => n]`).
+    // `decrementerDureesMonstres()` ne touche que `habillage.conditions` : ces
+    // états n'y passent pas, leur sortie est un déclencheur nommé.
+
+    /** @return mixed */
+    public function etatDread(string $cle, mixed $defaut = null): mixed
+    {
+        return data_get($this->habillage, "dread_etat.{$cle}", $defaut);
+    }
+
+    public function poserEtatDread(string $cle, mixed $valeur): void
+    {
+        $habillage = $this->habillage ?? [];
+
+        if ($valeur === null) {
+            unset($habillage['dread_etat'][$cle]);
+        } else {
+            $habillage['dread_etat'][$cle] = $valeur;
+        }
+
+        $this->update(['habillage' => $habillage]);
+    }
+
+    /** Dés ajoutés par les sorts de Sorcier du Dread posés sur cette créature. */
+    public function bonusDesDread(string $volee): int
+    {
+        if ($volee === 'attaque') {
+            return (int) $this->etatDread('bonus_attaque', 0)
+                + (int) data_get($this->etatDread('buff_attaque'), 'des', 0);
+        }
+
+        return (int) data_get($this->etatDread('buff_defense'), 'des', 0);
+    }
+
     /** Dés d'attaque à distance effectifs (null si le monstre n'a pas de portée). */
     public function attaqueDistanceEffective(): ?int
     {
@@ -146,6 +200,10 @@ class InstanceMonstre extends Model
     public function defenseEffective(): int
     {
         $des = (int) $this->monstre->defense + ($this->elite ? self::BONUS_ELITE : 0);
+
+        // *Bouclier de protection* (Orc Warcaster) : +1 dé de défense tant que
+        // le sort tient. Même point de lecture que les dés d'attaque.
+        $des += $this->bonusDesDread('defense');
 
         return $this->apresConditions($des, 'defense');
     }

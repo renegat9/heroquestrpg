@@ -376,6 +376,9 @@ final class Sauvegarde
                     'usages_dread' => (int) $i->usages_dread,
                     'invocation_dread_utilisee' => (bool) $i->invocation_dread_utilisee,
                     'fuite_dread_utilisee' => (bool) $i->fuite_dread_utilisee,
+                    // Sorts de Sorcier dépensés (Wizards of Morcar) : sans eux une reprise
+                    // rendrait au Sorcier ses six sorts.
+                    'sorts_dread_lances' => (array) ($i->sorts_dread_lances ?? []),
                     'habillage' => $i->habillage, // reskin + conditions des monstres
                 ])->values()->all(),
             'etat_personnage_quete' => $quete->etatsPersonnages()->orderBy('id')->get()
@@ -593,6 +596,7 @@ final class Sauvegarde
                 'usages_dread' => $instance['usages_dread'] ?? 0,
                 'invocation_dread_utilisee' => $instance['invocation_dread_utilisee'] ?? false,
                 'fuite_dread_utilisee' => $instance['fuite_dread_utilisee'] ?? false,
+                'sorts_dread_lances' => $instance['sorts_dread_lances'] ?? [],
                 'habillage' => $instance['habillage'],
             ])->save();
         }

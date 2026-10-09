@@ -184,30 +184,7 @@ final class MoteurPieges
             //    servaient à rien.
             $index = $this->indexPiegeArme($carte, $x, $y);
             if ($index !== null) {
-                $entreeGrille = $carte->grille['pieges'][$index];
-                $catalogueArme = Piege::find($entreeGrille['piege_id']);
-                $declencheurSpecial = (string) data_get($catalogueArme?->effet, 'declencheur', '');
-
-                // LAME BALANÇOIRE : une entrée à ZONE se résout par
-                // `declencherZone()` (plusieurs cibles, défense normale),
-                // jamais `declencher()` (une seule victime, jamais de
-                // défense) — la forme de l'entrée (`zone` posée par
-                // `AssembleurCarte::placerLameBalanciere()`) le dit sans
-                // requête supplémentaire au catalogue.
-                //
-                // Wizards of Morcar (doc 18 §5/§9) : TROIS résolutions
-                // dédiées, reconnues sur l'EFFET du catalogue plutôt que sur
-                // une forme d'entrée — `teleportation` (paire A/B),
-                // `declencheur: 'hurricane'` (recul de tout le couloir),
-                // `declencheur: 'fireburst_differe'` (amorce, explose au
-                // prochain tour du MJ — voir `explosionsFireburstEnAttente()`).
-                $payload = match (true) {
-                    isset($entreeGrille['zone']) => $this->declencherZone($groupe, $carte, $index, $personnage, $etat, 'deplacement', ['x' => $x, 'y' => $y]),
-                    (bool) data_get($catalogueArme?->effet, 'teleportation', false) => $this->declencherTeleportation($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
-                    $declencheurSpecial === 'hurricane' => $this->declencherHurricane($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
-                    $declencheurSpecial === 'fireburst_differe' => $this->declencherFireburst($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
-                    default => $this->declencher($groupe, $carte, $index, $personnage, $etat, 'deplacement'),
-                };
+                $payload = $this->declencherSurCase($groupe, $carte, $index, $personnage, $etat, 'deplacement', $x, $y);
                 $declenchements[] = $payload;
 
                 // Forme démoniaque : « ignores pit traps » — le sol ne l'avale
@@ -313,6 +290,96 @@ final class MoteurPieges
         }
 
         return ['arret' => null, 'dur' => false, 'declenchements' => $declenchements, 'detections' => $detections, 'attente_ecart' => null];
+    }
+
+    /**
+     * Le déclenchement d'un piège ARMÉ sur la case (x, y) — la résolution
+     * choisie selon la forme de l'entrée ET l'effet du catalogue. UN seul
+     * endroit, deux appelants : le pas d'un héros (`controlerChemin()`) et le
+     * déplacement FORCÉ (`repousserFigure()`, *Hurricane* des Sorciers).
+     *
+     * @return array<string, mixed>
+     */
+    private function declencherSurCase(
+        Groupe $groupe,
+        Carte $carte,
+        int $index,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        string $contexte,
+        int $x,
+        int $y,
+    ): array {
+                $entreeGrille = $carte->grille['pieges'][$index];
+                $catalogueArme = Piege::find($entreeGrille['piege_id']);
+                $declencheurSpecial = (string) data_get($catalogueArme?->effet, 'declencheur', '');
+
+                // LAME BALANÇOIRE : une entrée à ZONE se résout par
+                // `declencherZone()` (plusieurs cibles, défense normale),
+                // jamais `declencher()` (une seule victime, jamais de
+                // défense) — la forme de l'entrée (`zone` posée par
+                // `AssembleurCarte::placerLameBalanciere()`) le dit sans
+                // requête supplémentaire au catalogue.
+                //
+                // Wizards of Morcar (doc 18 §5/§9) : TROIS résolutions
+                // dédiées, reconnues sur l'EFFET du catalogue plutôt que sur
+                // une forme d'entrée — `teleportation` (paire A/B),
+                // `declencheur: 'hurricane'` (recul de tout le couloir),
+                // `declencheur: 'fireburst_differe'` (amorce, explose au
+                // prochain tour du MJ — voir `explosionsFireburstEnAttente()`).
+        return match (true) {
+                    isset($entreeGrille['zone']) => $this->declencherZone($groupe, $carte, $index, $personnage, $etat, $contexte, ['x' => $x, 'y' => $y]),
+                    (bool) data_get($catalogueArme?->effet, 'teleportation', false) => $this->declencherTeleportation($groupe, $carte, $index, $personnage, $etat, $contexte),
+                    $declencheurSpecial === 'hurricane' => $this->declencherHurricane($groupe, $carte, $index, $personnage, $etat, $contexte),
+                    $declencheurSpecial === 'fireburst_differe' => $this->declencherFireburst($groupe, $carte, $index, $personnage, $etat, $contexte),
+                    default => $this->declencher($groupe, $carte, $index, $personnage, $etat, $contexte),
+                };
+    }
+
+    /**
+     * DÉPLACEMENT FORCÉ d'un héros le long d'un chemin déjà calculé (*Hurricane*,
+     * sort du Storm Master : « forced back […] until they hit a wall, another
+     * figure, fall down a pit trap or trigger another trap »).
+     *
+     * Mur et figure arrêtent le chemin AVANT son calcul (l'appelant le coupe) ;
+     * ici, le premier piège ARMÉ rencontré se déclenche et fixe l'arrêt. Aucune
+     * des finesses du pas volontaire (Œil du mineur, Sens du piège) : on
+     * n'arrête pas un héros souffle-en-l'air parce qu'il « repère » quelque chose.
+     *
+     * @param  list<array{x: int, y: int}>  $chemin  étapes SANS la case de départ
+     * @return array{arret: array{x: int, y: int}|null, declenchements: list<array<string, mixed>>}
+     */
+    public function repousserFigure(
+        Groupe $groupe,
+        Carte $carte,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+        array $chemin,
+    ): array {
+        foreach ($chemin as $case) {
+            $x = (int) $case['x'];
+            $y = (int) $case['y'];
+            $index = $this->indexPiegeArme($carte, $x, $y);
+
+            if ($index === null) {
+                continue;
+            }
+
+            $payload = $this->declencherSurCase($groupe, $carte, $index, $personnage, $etat, 'repoussement', $x, $y);
+
+            // La fosse ignorée (Forme démoniaque) ne retient pas : on continue.
+            if (($payload['type'] ?? null) === 'piege_ignore') {
+                continue;
+            }
+
+            $arret = in_array($payload['type'] ?? null, ['piege_teleporte', 'piege_bourrasque'], true)
+                ? ($payload['destination'] ?? ['x' => $x, 'y' => $y])
+                : ['x' => $x, 'y' => $y];
+
+            return ['arret' => $arret, 'declenchements' => [$payload]];
+        }
+
+        return ['arret' => null, 'declenchements' => []];
     }
 
     /**

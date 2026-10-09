@@ -207,7 +207,16 @@ class GabaritQueteSeeder extends Seeder
                         // à phases 2026-10-04) les rejoint : sous-boss générique
                         // à répertoire limité (Q3, Telor) — son archétype se
                         // déclare complet, le filtre par palier fait le reste.
-                        'archetypes' => ['chaman_orque', 'garde_magus', 'sorcier_dread_telor'],
+                        'archetypes' => [
+                            'chaman_orque', 'garde_magus', 'sorcier_dread_telor',
+                            // LES QUATRE LIEUTENANTS DE MORCAR (Wizards of Morcar,
+                            // vague 2C, 2026-10-08) : Maître des orages, Haut mage,
+                            // Mage de guerre orque, Nécromancien — sous-boss, un par
+                            // quête dans le livret G1504 (« the next Lieutenant of
+                            // Morcar you must defeat », p. 28). La Gardienne, elle,
+                            // est le boss du gabarit final.
+                            'orages_morcar', 'haut_mage_morcar', 'guerriere_orque_morcar', 'necromancien_morcar',
+                        ],
                         // ⚠ …et les ONZE brutes du palier, qui n'ont pas de
                         // répertoire et ne pouvaient donc pas être nommées.
                         // C'est là que vit la diversité du sous-boss : la
@@ -227,6 +236,9 @@ class GabaritQueteSeeder extends Seeder
                             'Ogre guerrier', 'Ogre champion', 'Loup géant',
                             'Rampant putride', 'Serpent géant', 'Singe géant',
                             'Doralf', 'Spawn of the Pit',
+                            // MINOTAURE (Wizards of Morcar, 2026-10-08) : brute sans
+                            // répertoire (coup de corne), « Brak-Fellorn » du livret.
+                            'Minotaure',
                         ],
                     ],
                     'pieges' => ['min' => 2, 'max' => 3],
@@ -312,6 +324,13 @@ class GabaritQueteSeeder extends Seeder
                             // formes « Demonspider »/« Demonape » ne s'atteignent
                             // qu'en jeu, par `monstres.phase_suivante`.
                             'gretzl_porte_fleau',
+                            // LA GARDIENNE (Artificer, Wizards of Morcar, 2026-10-08) :
+                            // SEUL boss de la boîte — « The Keeper […] When the Keeper
+                            // is defeated, she vanishes » (G1504 p. 38, quête 9). Les
+                            // quatre autres sorciers sont des sous-boss (jalon
+                            // ci-dessus). Sous le thème, le pool thématique se réduit
+                            // à elle : la campagne finit sur la Gardienne.
+                            'artificiere_morcar',
                         ],
                         // Les bosses sans répertoire : ils frappent, c'est tout,
                         // et c'est une lecture du combat final aussi.

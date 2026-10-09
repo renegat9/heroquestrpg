@@ -246,6 +246,21 @@ class MobilierSeeder extends Seeder
             // exactement le défaut que ce projet nomme et évite ailleurs.
             ['nom' => 'Mur de Pierre', 'nom_anglais' => 'Wall of Stone', 'largeur' => 1, 'hauteur' => 1,
                 'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
+
+            // MUR DE GLACE (*Wall of Ice*, Storm Master) et MUR DE FEU (*Wall of Flame*,
+            // High Mage) — les deux autres pièces du carton *Magic Reference Chart*
+            // (« Wall of Ice, Wall of Flame, and Wall of Stone […] 6 Defend dice […]
+            // if the wall takes 1 Body Point or more of damage, it is destroyed »).
+            // Même fiche que le Mur de Pierre, posées par les sorts de Dread
+            // (`MoteurDread::sortDreadMurMagique()` → `MoteurMobilier::poserMurMagique()`).
+            // ⚠ Elles ont attendu la vague 2 pour entrer au catalogue : une ligne sans
+            // producteur est la clé décorative que ce projet traque.
+            // ⚠ Distinct du *Mur de Glace* du Dread (SortDread, couche `grille['glace']`,
+            // Frozen Horror) : ce sont deux cartes, deux tables, deux règles.
+            ['nom' => 'Mur de Glace', 'nom_anglais' => 'Wall of Ice', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
+            ['nom' => 'Mur de Feu', 'nom_anglais' => 'Wall of Flame', 'largeur' => 1, 'hauteur' => 1,
+                'fouillable' => false, 'bloque_vue' => true, 'pv_body' => 1, 'defense_dice' => 6, 'boite' => 'wizards_of_morcar'],
         ];
 
         // ⚠ On CLÉ SUR LE NOM, on ne purge PAS.

@@ -254,6 +254,7 @@ final class SceneDeTable
             'issue' => ['ton' => 'info', 'libelle' => match ($mecanique) {
                 'ignore_degats_attaque' => 'le coup est intégralement ignoré',
                 'increvable_une_fois' => 'tient debout à 1 PV',
+                'jeton_ombre' => 'le coup est absorbé par un jeton d\'ombre',
                 default => $mecanique,
             }],
         ];

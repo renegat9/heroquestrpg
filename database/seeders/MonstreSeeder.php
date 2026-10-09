@@ -652,6 +652,98 @@ class MonstreSeeder extends Seeder
                 'tier' => 'sous_boss', 'boite' => 'prophecy_telor', 'cout' => 8, 'capacites' => [], 'sorts_dread' => [],
                 'archetype_lanceur' => 'sorcier_dread_telor'],
 
+            // ---- Wizards of Morcar : les Sorciers du Dread (vague 2A) ----
+            // ⚠ PALIERS (vague 2C, 2026-10-08) : QUATRE sous-boss + UN boss. Le livret
+            // G1504 appelle Storm Master, High Mage, Necromancer et Orc Warcaster les
+            // « lieutenants de Morcar » (quêtes 2-8 : « Defeat the High Mage to complete
+            // this quest », p. 24 ; « the next Lieutenant of Morcar you must defeat »,
+            // p. 28 ; « Only one Lieutenant of Morcar remains », p. 30) — un par quête,
+            // jamais l'adversaire de la campagne. Le dernier mot est à la GARDIENNE
+            // (Artificer, « the Keeper », quête 9 : « The Keeper has all the Artificer
+            // spells […] When the Keeper is defeated, she vanishes », p. 38) : elle est
+            // le seul boss ; la fin de campagne est le Haut Autel (quête 10). Cela tient
+            // dans « un seul boss par campagne, jusqu'à quatre sous-boss »
+            // (`JalonsCampagne::nbSousBossAttendu()`). `cout` des quatre lieutenants :
+            // REMESURÉ sur la droite des sous-boss (Ogre champion 7,2 attaques → 11,
+            // Minotaure 9 → 12, Doralf 10,5 → 13) : Storm Master 10 attaques → 13,
+            // Necromancer 8 → 12, Warcaster 7,5 → 12, High Mage 6 → 10.
+            // Un lieutenant garde ses SIX sorts : `MoteurDread::sortsDisponibles()` ne
+            // filtre pas par palier un `sorts_uniques`.
+            // Stats : tableau des monstres du livret G1504 p. 40-41 (Mouvement /
+            // Attaque / Défense / Body / Mind) — Storm Master 6/4/6/5/7, High Mage
+            // 5/5/5/4/8, Necromancer 6/4/6/4/7. `sorts_uniques` : « Each spell may
+            // only be used once per quest […] a full set of six spells » (p. 10),
+            // lu par `MoteurDread` (usages = taille du répertoire, un sort une seule
+            // fois). Tier `boss` : chacun est l'adversaire final de sa quête
+            // (« Defeat the Storm Master to complete this quest »).
+            // `cout` : NOTRE valeur, mesurée comme les autres bosses
+            // (`docs/regles/bestiaire-et-rencontres.md`) — attaques d'un héros à 3 dés
+            // pour l'abattre, Body / (1,5 − Défense/6), sur la droite Ogre commandant
+            // (9 attaques, 15) — Seigneur (15 attaques, 20) : Storm Master 10 → 16,
+            // Necromancer 8 → 14, High Mage 6 → 13.
+            ['nom_base' => 'Maître des orages', 'deplacement' => 6, 'attaque' => 4, 'defense' => 6, 'pv_body' => 5, 'pv_mind' => 7,
+                'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 13, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'orages_morcar'],
+            ['nom_base' => 'Haut mage', 'deplacement' => 5, 'attaque' => 5, 'defense' => 5, 'pv_body' => 4, 'pv_mind' => 8,
+                'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 10, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'haut_mage_morcar'],
+            ['nom_base' => 'Nécromancien', 'deplacement' => 6, 'attaque' => 4, 'defense' => 6, 'pv_body' => 4, 'pv_mind' => 7,
+                'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'necromancien_morcar'],
+
+            // ---- Wizards of Morcar : Orc Warcaster, Artificer et les créatures de la
+            // boîte (vague 2B, 2026-10-08) ----
+            // Stats : tableau des monstres du livret G1504 p. 41 (relu sur PNG) ET
+            // cartes d'ennemis (`ennemies_p*.png`), identiques. Mouvement / Attaque /
+            // Défense / Body / Mind.
+            //
+            // ORC WARCASTER (Nyashak) 7/5/5/5/7 et ARTIFICER (la Gardienne) 6/4/3/5/8 :
+            // tier `boss`, `sorts_uniques` (comme les trois sorciers de la vague 2A).
+            // L'Artificer porte « Attack 4+2* » au tableau : l'astérisque est *Hammer of
+            // Ruin* (+2 dés tant que le sort tient — `bonus_attaque`), jamais une
+            // statistique de base. `cout` : même mesure que la vague 2A — attaques d'un
+            // héros à 3 dés pour l'abattre, Body / (1,5 − Défense/6), sur la droite
+            // Ogre commandant (9 attaques, 15) — Seigneur (15, 20) : Warcaster 7,5 → 14,
+            // Artificer 5 → 12.
+            ['nom_base' => 'Mage de guerre orque', 'deplacement' => 7, 'attaque' => 5, 'defense' => 5, 'pv_body' => 5, 'pv_mind' => 7,
+                'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'guerriere_orque_morcar'],
+            ['nom_base' => 'Artificière', 'deplacement' => 6, 'attaque' => 4, 'defense' => 3, 'pv_body' => 5, 'pv_mind' => 8,
+                'tier' => 'boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'capacites' => ['sorts_uniques'], 'sorts_dread' => [],
+                'archetype_lanceur' => 'artificiere_morcar'],
+
+            // GOLEM 5/4/5/3/0 — carte sans capacité (la règle « un bouclier noir bloque
+            // tout » de la quête 3 est PONCTUELLE, pas une capacité du Golem). Mêmes
+            // A/D/B que la Gargouille (cout 7) : même `cout`. Mind 0 : immunité aux jets
+            // de Mind, comme les morts-vivants. Tier `base`, en tas des « forts » par son
+            // coût.
+            ['nom_base' => 'Golem', 'deplacement' => 5, 'attaque' => 4, 'defense' => 5, 'pv_body' => 3, 'pv_mind' => 0,
+                'tier' => 'base', 'boite' => 'wizards_of_morcar', 'cout' => 7, 'capacites' => [], 'sorts_dread' => []],
+
+            // DREADSHIFTER 5/4/3/2/4 — « appear to be either a chest or a door […] the
+            // first time a hero moves into the 8 squares surrounding this object,
+            // replace it with the Ambush monster miniature. It may move and attack
+            // immediately. » `embuscade` : `MoteurEmbuscade` (coffre seulement, voir
+            // son docblock — la porte et les trois autres déclencheurs du livret ne
+            // sont pas portés). Nom de catalogue anglais : le livret n'en donne pas
+            // d'autre (`des_attaque_contre` d'Urdyn le lit sur `nom_base`). `cout` 6 :
+            // même résistance que l'Abomination/l'Assassin (2 attaques), + l'embuscade.
+            ['nom_base' => 'Dreadshifter', 'deplacement' => 5, 'attaque' => 4, 'defense' => 3, 'pv_body' => 2, 'pv_mind' => 4,
+                'tier' => 'base', 'boite' => 'wizards_of_morcar', 'cout' => 6, 'capacites' => ['embuscade'], 'sorts_dread' => []],
+
+            // MINOTAURE 7/4/5/6/4 — « Gore: in addition to their own turn, a minotaur
+            // may immediately roll 2 Attack dice against a hero who ends their turn in
+            // one of the 10 spaces surrounding it. A minotaur may not gore if they are
+            // incapacitated. » `coup_de_corne` : `ResolveurTour::coupsDeCorne()`.
+            // ⚠ `grande_taille` 1×2 est une DÉDUCTION écrite, pas une lecture : « 10 cases
+            // autour » n'existe que pour une figure de deux cases (8 pour une seule),
+            // et le symbole ovale de la carte est celui de l'Ogre. `cout` 12 : Body 6 /
+            // Défense 5 = 9 attaques, sur la droite des sous-boss (Ogre champion 7,2 →
+            // 11, Doralf 10,5 → 13).
+            ['nom_base' => 'Minotaure', 'deplacement' => 7, 'attaque' => 4, 'defense' => 5, 'pv_body' => 6, 'pv_mind' => 4,
+                'tier' => 'sous_boss', 'boite' => 'wizards_of_morcar', 'cout' => 12, 'grande_taille' => ['l' => 1, 'h' => 2],
+                'capacites' => ['coup_de_corne'], 'sorts_dread' => []],
+
             // ⚠ Fellmarak, le Roi Sorcier (boss, seul boss chiffré du livret,
             // Q3) reste NON semé. Sa règle sourcée dit qu'il NE MEURT PAS
             // normalement : quête 12, « Fellmarak cannot be killed […] he

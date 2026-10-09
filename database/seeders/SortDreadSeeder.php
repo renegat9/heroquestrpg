@@ -414,6 +414,274 @@ class SortDreadSeeder extends Seeder
             // est conservé — `instances_monstres.fuite_dread_utilisee` le porte.
             ['nom' => 'Fuite', 'palier' => 'boss', 'type' => Mot::TYPE_FUITE,
                 'effet' => ['teleportation' => MoteurDread::FUITE_CASE_ELOIGNEE]],
+
+            // ============================================================
+            // WIZARDS OF MORCAR — les trois Sorciers du Dread de la vague 2A
+            // (Storm Master, High Mage, Necromancer — 2026-10-08)
+            // ============================================================
+            //
+            // Source : les 18 cartes de `drive/wizards-of-morcar/rendu/{storm_master,
+            // high_mage,necromancer}_spells_p*.png`, transcrites en doc 18
+            // §« Wizards of Morcar — cartes TRANSCRITES », et le livret G1504 p. 10 :
+            // « Each Sorcerer may cast one spell per turn instead of attacking. Each
+            // spell may only be used once per quest. »
+            //
+            // ⚠ PALIER `base` pour tous : aucune carte ne porte de rang, et le Sorcier
+            // reçoit « a full set of six spells » QUEL QUE SOIT notre tier — un palier
+            // minimum plus haut aurait amputé en silence le répertoire d'un Sorcier
+            // qu'on rangerait demain en sous-boss. La rareté n'est plus portée par le
+            // palier mais par `sorts_uniques` (chaque sort une seule fois par quête).
+            //
+            // ⚠ DEUX cartes ont un doublon exact déjà au catalogue et ne sont donc PAS
+            // reseedées : *Fear* (Necromancer) = « Frayeur » (même plafond d'un dé
+            // d'attaque, même rupture 1 d6 par point de Mind / 6), *Escape* (High Mage) =
+            // « Fuite » (« teleport to a secret destination known only to Zargon »).
+
+            // -- Storm Master (Boroush) ---------------------------------
+
+            // « channels the power of a lightning storm in a straight, orthogonal line
+            // of 6 squares. Anyone hit must defend normally against 3 combat dice.
+            // Resolve each attack separately. » + carton : un mur magique l'annule.
+            ['nom' => 'Foudroiement', 'palier' => 'base', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'zone' => Mot::ZONE_RAYON,
+                    'rayon_orthogonal' => true,
+                    'portee_rayon' => 6,
+                    'des_degats' => 3,
+                    'defense_applicable' => true,
+                    'touche_monstres' => true,
+                ]],
+
+            // « splits the ground asunder in a straight, orthogonal line of 6 squares.
+            // […] All those caught will suffer 1 Body Point of damage as if they had
+            // fallen into a pit trap. » 1 PV, aucun jet (la fosse du catalogue : 1 PV).
+            ['nom' => 'Tremblement de terre', 'palier' => 'base', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'zone' => Mot::ZONE_RAYON,
+                    'rayon_orthogonal' => true,
+                    'portee_rayon' => 6,
+                    'degats_fixes' => 1,
+                    'defense_applicable' => false,
+                    'touche_monstres' => true,
+                ]],
+
+            // « a magical wall of ice which covers two squares unoccupied by figures.
+            // The wall has 1 Body Point and rolls 6 Defend dice. »
+            ['nom' => 'Muraille de glace', 'palier' => 'base', 'type' => Mot::TYPE_MUR_MAGIQUE,
+                'effet' => ['pose_mur_magique' => 'Mur de Glace']],
+
+            // « This spell must be targeted at one hero. The hero loses one piece of
+            // equipment chosen at random. » Toute pièce PORTÉE, artefact compris :
+            // la carte n'en exempte aucun (la Rouille, elle, l'écrit).
+            ['nom' => 'Vent voleur', 'palier' => 'base', 'type' => Mot::TYPE_DESTRUCTION,
+                'effet' => [
+                    'detruit' => [
+                        'emplacements' => ['arme_principale', 'arme_secondaire', 'casque', 'armure', 'talisman', 'bottes'],
+                        'au_hasard' => true,
+                    ],
+                ]],
+
+            // « cast […] on a character they can see who is in a straight line in
+            // front of them. That character is then forced back in a straight line
+            // of squares until they hit a wall, another figure, fall down a pit trap
+            // or trigger another trap. »
+            ['nom' => 'Ouragan', 'palier' => 'base', 'type' => Mot::TYPE_REPOUSSEMENT,
+                'effet' => ['repousse' => true]],
+
+            // « fills a room with blinding sleet. Characters in that room may not
+            // move, make ranged attacks or cast spells until the start of Zargon's
+            // next turn. » La salle du lanceur (« a room » : la carte ne dit pas
+            // laquelle ; une salle, jamais un couloir). Aucun jet.
+            ['nom' => 'Grésil aveuglant', 'palier' => 'base', 'type' => Mot::TYPE_CONTROLE,
+                'effet' => [
+                    'zone' => Mot::ZONE_SALLE,
+                    'hors_couloir' => true,
+                    'condition_appliquee' => 'Grésil aveuglant',
+                    'resistance' => Mot::RESISTANCE_AUCUNE,
+                ]],
+
+            // -- High Mage (Zanrath) ------------------------------------
+
+            // « a magical wall of flame which covers two squares not occupied by
+            // figures within the Spellcaster's line of sight. »
+            ['nom' => 'Muraille de flammes', 'palier' => 'base', 'type' => Mot::TYPE_MUR_MAGIQUE,
+                'effet' => ['pose_mur_magique' => 'Mur de Feu', 'ligne_de_vue' => true]],
+
+            // « fire magical tendrils from the Spellcaster's fingertips. They entangle
+            // one target who may not move or attack until the tendrils are destroyed.
+            // Tendrils have 1 Body Point and roll 4 Defend dice. »
+            ['nom' => 'Liens magiques', 'palier' => 'base', 'type' => Mot::TYPE_CONTROLE,
+                'effet' => [
+                    'condition_appliquee' => 'Ligoté',
+                    'resistance' => Mot::RESISTANCE_AUCUNE,
+                ]],
+
+            // « any ONE piece of METAL equipment to decay to the point of uselessness.
+            // It is not effective against artifacts. » VARIANTE de la Rouille (carte
+            // de base : « sword or helmet ») : ici toute pièce de métal, armure
+            // comprise. Même lecteur (`detruit`), emplacements élargis.
+            ['nom' => 'Corrosion', 'palier' => 'base', 'type' => Mot::TYPE_DESTRUCTION,
+                'effet' => [
+                    'detruit' => [
+                        'metallique' => true,
+                        'emplacements' => ['arme_principale', 'arme_secondaire', 'casque', 'armure'],
+                        'epargne_artefacts' => true,
+                    ],
+                ]],
+
+            // « on one figure to affect it with a frightening terror. Zargon will move
+            // this figure on its next turn. The affected figure may not attack or cast
+            // spells. » Aucun jet de résistance sur la carte.
+            ['nom' => 'Possession', 'palier' => 'base', 'type' => Mot::TYPE_CONTROLE,
+                'effet' => [
+                    'condition_appliquee' => 'Possédé',
+                    'resistance' => Mot::RESISTANCE_AUCUNE,
+                ]],
+
+            // « pick one spell caster and force them to discard 1 spell card at
+            // random. The spell is removed from play for the duration of the quest. »
+            ['nom' => 'Désapprentissage', 'palier' => 'base', 'type' => Mot::TYPE_OUBLI,
+                'effet' => ['oubli' => true]],
+
+            // -- Necromancer (Fanrax) -----------------------------------
+
+            // « summons a mummy. Place a mummy in any square adjacent to the Spellcaster. »
+            ['nom' => 'Invocation de momie', 'palier' => 'base', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Momie' => 1]]],
+
+            // « hurls a magical skull at any opponent they can see. The skull explodes
+            // into a fireball. Roll 2 Attack dice. The target may defend normally. »
+            ['nom' => 'Crânes maudits', 'palier' => 'base', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'des_degats' => 2,
+                    'defense_applicable' => true,
+                    'type_degat' => 'feu',
+                ]],
+
+            // « Cast this spell after a monster has been killed (no action required).
+            // The monster is replaced with a skeleton which can move and attack
+            // immediately. » Sort RÉACTIF : voir `MoteurDread::reactionsALaMort()`.
+            ['nom' => 'Relève des morts', 'palier' => 'base', 'type' => Mot::TYPE_REACTION,
+                'effet' => ['reaction' => 'mort_de_monstre']],
+
+            // « Hurl this spell at one target within the Spellcaster's line of sight to
+            // cause them to instantly lose 1 Body point. » Ni dé ni parade.
+            ['nom' => 'Trait de mort', 'palier' => 'base', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'degats_fixes' => 1,
+                    'defense_applicable' => false,
+                ]],
+
+            // « summons up to 2 skeletons that appear immediately anywhere within sight
+            // of the Spellcaster. »
+            ['nom' => 'Appel des squelettes', 'palier' => 'base', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Squelette' => 2], 'invoque_en_vue' => true]],
+
+            // ============================================================
+            // WIZARDS OF MORCAR — ORC WARCASTER (Nyashak) ET ARTIFICER (la
+            // Gardienne), vague 2B, 2026-10-08. Cartes : reference/18 §1,
+            // rendus `warcaster_spells_p*` et `artificer_spells_p*`. Les
+            // paliers sont NÔTRES (aucune carte ne porte de rang) : mesurés
+            // sur le `cout` de ce que le sort pose ou frappe — les renforts de
+            // 4 points ou moins `base`, une créature de 6-7 points ou un effet
+            // qui retourne la salle `sous_boss`/`boss`. Les deux sorciers sont de
+            // tier `boss` : aucun filtre ne les prive d'un de leurs six sorts.
+            // ============================================================
+
+            // « places up to 2 Orcs on spaces they can see. […] They may move and
+            // attack immediately unless they have already done so this turn. »
+            // ⚠ VARIANTE : « taken from those not in play OR FROM ANYWHERE ON THE
+            // BOARD » — nous n'avons pas de réserve de figurines, les orques
+            // arrivent donc toujours NEUFS ; reprendre un orque du plateau pour le
+            // déplacer n'est pas porté (il serait équivalent ou plus faible).
+            ['nom' => 'Appel des orques', 'palier' => 'base', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Orque' => 2], 'invoque_en_vue' => true, 'activation_immediate' => true]],
+
+            // « places up to 4 Goblins […] » — même carte, quatre Gobelins.
+            ['nom' => 'Appel des gobelins', 'palier' => 'base', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Gobelin' => 4], 'invoque_en_vue' => true, 'activation_immediate' => true]],
+
+            // « send an invisible spirit to attack any one character ON THE BOARD.
+            // The spirit attacks once with 4 Attack dice. The character attacked
+            // defends as normal. »
+            ['nom' => 'Esprit de vengeance', 'palier' => 'boss', 'type' => Mot::TYPE_DEGATS,
+                'effet' => [
+                    'des_degats' => 4,
+                    'defense_applicable' => true,
+                    'sans_ligne_de_vue' => true,
+                ]],
+
+            // « the spellcaster and all Orcs in the same room roll 1 extra combat
+            // die in defense until the start of spellcaster's next turn. May only
+            // be cast in a room. »
+            ['nom' => 'Bouclier de protection', 'palier' => 'sous_boss', 'type' => Mot::TYPE_RENFORT,
+                'effet' => [
+                    'buff_faction' => ['faction' => 'Orque', 'defense' => 1, 'inclut_lanceur' => true, 'duree' => 'prochain_tour_lanceur'],
+                    'hors_couloir' => true,
+                ]],
+
+            // « all Orcs in the same room as the Spellcaster roll an extra Attack
+            // die for this turn only. May only be cast in a room. »
+            ['nom' => 'Lames aiguisées', 'palier' => 'sous_boss', 'type' => Mot::TYPE_RENFORT,
+                'effet' => [
+                    'buff_faction' => ['faction' => 'Orque', 'attaque' => 1, 'inclut_lanceur' => false, 'duree' => 'ce_round'],
+                    'hors_couloir' => true,
+                ]],
+
+            // « chooses an Orc they can see […]. The Orc moves and attacks twice on
+            // this turn only. This spell may not be cast on an Orc that has already
+            // moved or attacked. »
+            ['nom' => 'Orque berserker', 'palier' => 'boss', 'type' => Mot::TYPE_RENFORT,
+                'effet' => ['double_tour' => ['faction' => 'Orque']]],
+
+            // « may immediately cast this spell in response to being reduced to 0
+            // body points. Roll 1 red die. 1-2 Ignored. 3-5 Place a Gargoyle in the
+            // spellcaster's space. 6 The air chills. Each hero in the same room or
+            // corridor loses 2 body points. »
+            ['nom' => 'Implorer les puissances du Dread', 'palier' => 'boss', 'type' => Mot::TYPE_REACTION,
+                'effet' => [
+                    'reaction' => 'zero_pv_du_lanceur',
+                    'zone' => Mot::ZONE_SALLE_OU_COULOIR,
+                    'sur_zero_pv' => [
+                        ['jusqu_a' => 2, 'issue' => 'ignoree'],
+                        ['jusqu_a' => 5, 'issue' => 'invoque', 'invoque' => ['Gargouille' => 1]],
+                        ['jusqu_a' => 6, 'issue' => 'froid', 'pv_perdus' => 2],
+                    ],
+                ]],
+
+            // « keeps this spell face up and places 3 shadow tokens on it. When the
+            // Spellcaster takes any amount of damage, remove 1 shadow token
+            // instead. The spell is broken after the last shadow token is removed. »
+            ['nom' => 'Parchemins de Morcar', 'palier' => 'sous_boss', 'type' => Mot::TYPE_AMELIORATION,
+                'effet' => ['jetons_ombre' => 3]],
+
+            // « keeps this spell face up and may roll 2 extra combat dice when
+            // attacking. If an attack from the spellcaster does not result in the
+            // enemy losing at least 1 Body Point, the spell is broken. » — c'est ce
+            // sort qui produit la ligne « Attack 4+2* » du tableau des monstres.
+            ['nom' => 'Marteau de la Ruine', 'palier' => 'sous_boss', 'type' => Mot::TYPE_AMELIORATION,
+                'effet' => ['bonus_attaque' => 2, 'se_brise_sans_degat' => true]],
+
+            // « rolls 1 red die for each other figure in the same room or corridor.
+            // If the roll is equal to or greater than a target's Mind Points, they
+            // lose 1 Body Point and the Spellcaster recovers 1 Body Point. »
+            ['nom' => 'Drain de vie', 'palier' => 'boss', 'type' => Mot::TYPE_DRAIN,
+                'effet' => [
+                    'zone' => Mot::ZONE_SALLE_OU_COULOIR,
+                    'drain' => ['pv_perdus' => 1, 'pv_rendus' => 1],
+                ]],
+
+            // « conjures up a fearsome creature of stone […]. The Spellcaster places a
+            // Golem on a space they can see. » Aucune activation immédiate : la carte
+            // n'en dit rien, le Golem joue à la phase suivante.
+            ['nom' => 'Invocation de golem', 'palier' => 'sous_boss', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Golem' => 1], 'invoque_en_vue' => true]],
+
+            // « Once a normal object, now a creature of nightmares. The Spellcaster
+            // places a Dreadshifter on a space they can see. » Posé en créature,
+            // jamais déguisé : l'embuscade est celle du coffre de départ.
+            ['nom' => 'Appel du Dreadshifter', 'palier' => 'sous_boss', 'type' => Mot::TYPE_INVOCATION,
+                'effet' => ['invoque' => ['Dreadshifter' => 1], 'invoque_en_vue' => true]],
         ];
 
         foreach ($sorts as $sort) {

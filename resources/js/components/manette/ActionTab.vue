@@ -115,6 +115,8 @@ const ICONE_TYPE = {
     // *Creeping Grasp*) : « spend an action to DESTROY THE VINES ». On coupe,
     // d'où le sécateur plutôt qu'une main tendue.
     liberer_entraves: 'content_cut',
+    // Liens magiques (Strands of Binding, Wizards of Morcar) : on TRANCHE des liens à 1 PV.
+    attaquer_liens: 'content_cut',
     // ⚠ Ces deux-là MANQUAIENT et tombaient sur `touch_app` depuis leur
     // création — même défaut que celui noté plus haut le 2026-09-01, repéré en
     // ajoutant le voisin du dessus.

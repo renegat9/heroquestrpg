@@ -233,6 +233,7 @@ final class JournalCombat
             $lignes[] = $this->info(match ($a['reaction_monstre']) {
                 'ignore_degats_attaque' => 'La créature ignore intégralement le coup — une défense à usage unique vient de jouer',
                 'increvable_une_fois' => 'La créature s\'effondre… et tient debout à 1 PV, une seule fois',
+                'jeton_ombre' => 'Le coup est absorbé par un jeton d\'ombre — la créature ne perd rien',
                 default => 'La créature active une défense à usage unique',
             });
         }
@@ -641,6 +642,31 @@ final class JournalCombat
             // défaut que le piège marché de 2026-08-05, et la même règle qu'il
             // enfreint — un effet automatique que rien n'annonce est injouable.
             'sort_dread' => $this->sortDread($a, $acteurNom),
+            // EMBUSCADE (Dreadshifter) : le coffre se révèle. Un effet
+            // automatique que rien n'annonce est injouable.
+            'embuscade' => [[
+                'texte' => ($a['monstre'] ?? 'Une créature').' jaillit du coffre — c\'était une embuscade'
+                    .(isset($a['declencheur']['nom']) ? ' ('.$a['declencheur']['nom'].' s\'est approché·e)' : ''),
+                'ton' => 'degats',
+            ]],
+            // EFFETS AUTOMATIQUES DES SORCIERS DE MORCAR (jeton d'ombre absorbé,
+            // marteau brisé, coup de corne, buff de faction…) : le texte est
+            // composé par le moteur qui a décidé, jamais re-dérivé ici.
+            'effet_dread' => [[
+                'texte' => (string) ($a['texte'] ?? 'Un effet du Dread se produit'),
+                'ton' => (string) ($a['ton'] ?? 'info'),
+            ]],
+            // POSSESSION (*Possess*, High Mage) : le MJ déplace le héros à sa place.
+            'possession_deplacement' => [[
+                'texte' => ($a['personnage'] ?? 'Un héros').' est possédé : il avance de force'
+                    .(! empty($a['vers_monstre']) ? ' vers '.$a['vers_monstre'] : '').' — sans attaquer',
+                'ton' => 'subit',
+            ]],
+            // GRÉSIL AVEUGLANT qui retombe, en tête de la phase des monstres.
+            'conditions_levees' => array_map(
+                fn (array $l) => $this->info(($l['nom'] ?? 'Un héros').' : '.($l['condition'] ?? 'l\'effet').' se dissipe'),
+                (array) ($a['levees'] ?? []),
+            ),
             'sort_dread_annule' => [$this->info("{$acteurNom} amorce ".($a['sort'] ?? 'un sort').' — sans effet')],
             'rupture_sort_dread' => $this->ruptureSortDread($a),
             'tour_perdu' => [$this->info(($a['nom'] ?? 'Le héros').' est encore étourdi — il passe son tour')],
@@ -757,6 +783,106 @@ final class JournalCombat
         $nom = $a['sort'] ?? 'un sort';
         $lignes = [];
 
+        // SORCIERS DE MORCAR (vague 2A) — chaque effet automatique se DIT.
+        // Mur magique : une POSE, comme le Mur de Glace, mais sur le mobilier.
+        if (! empty($a['mur_magique'])) {
+            return [[
+                'texte' => "{$acteurNom} — {$nom} : un ".mb_strtolower((string) ($a['mobilier']['nom'] ?? 'mur magique')).' se dresse sur deux cases',
+                'ton' => 'info',
+            ]];
+        }
+
+        // Ouragan : le héros est jeté en arrière — d'où, vers où, et ce qu'il a heurté.
+        if (isset($a['repousse'])) {
+            $r = $a['repousse'];
+            $lignes = [[
+                'texte' => "{$nom} balaie {$r['nom']} sur ".(int) ($r['cases'] ?? 0).' case(s)',
+                'ton' => 'subit',
+            ]];
+
+            foreach ((array) ($r['declenchements'] ?? []) as $declenchement) {
+                if (is_array($declenchement)) {
+                    foreach ($this->ligneType($declenchement, $declenchement['personnage']['nom'] ?? $r['nom']) as $ligne) {
+                        $lignes[] = $ligne;
+                    }
+                }
+            }
+
+            return $lignes;
+        }
+
+        // Désapprentissage : un sort perdu pour la quête.
+        if (isset($a['oubli'])) {
+            return [[
+                'texte' => "{$nom} : ".($a['oubli']['cible']['nom'] ?? 'un lanceur').' oublie « '.($a['oubli']['sort_oublie'] ?? 'un sort').' » pour le reste de la quête',
+                'ton' => 'subit',
+            ]];
+        }
+
+        // Relève des morts : un sort lancé HORS TOUR, sans action.
+        if (($a['reaction'] ?? null) === 'mort_de_monstre') {
+            return [[
+                'texte' => "{$acteurNom} — {$nom} (sans action) : ".($a['releve']['monstre'] ?? 'un monstre abattu').' se relève en squelette',
+                'ton' => 'mort',
+            ]];
+        }
+
+        // WIZARDS OF MORCAR, Orc Warcaster et Artificer (vague 2B) : chaque
+        // effet automatique se DIT — le buff de faction, le tour double, les
+        // états du lanceur, la réaction à 0 PV.
+        if (isset($a['renforts'])) {
+            $r = (array) $a['renforts'];
+            $creatures = (array) ($r['creatures'] ?? []);
+            $volee = ($r['volee'] ?? '') === 'defense' ? 'de défense' : 'd\'attaque';
+
+            return [[
+                'texte' => "{$acteurNom} — {$nom} : +{$r['des']} dé {$volee} pour ".($creatures === [] ? 'lui seul' : implode(', ', $creatures))
+                    .(($r['duree'] ?? '') === 'prochain_tour_lanceur' ? ' jusqu\'à son prochain tour' : ', ce tour seulement'),
+                'ton' => 'info',
+            ]];
+        }
+
+        if (isset($a['double_tour'])) {
+            return [[
+                'texte' => "{$acteurNom} — {$nom} : ".($a['double_tour']['monstre'] ?? 'un orque').' se déchaîne — il se déplace et attaque DEUX FOIS',
+                'ton' => 'degats',
+            ]];
+        }
+
+        if (isset($a['amelioration'])) {
+            $am = (array) $a['amelioration'];
+
+            return [[
+                'texte' => isset($am['jetons_ombre'])
+                    ? "{$acteurNom} — {$nom} : {$am['jetons_ombre']} jetons d'ombre l'enveloppent — chacun absorbera un coup entier"
+                    : "{$acteurNom} — {$nom} : +{$am['bonus_attaque']} dés d'attaque, jusqu'à un coup qui ne blesse pas",
+                'ton' => 'info',
+            ]];
+        }
+
+        if (($a['reaction'] ?? null) === 'zero_pv_du_lanceur') {
+            $lignes[] = ['texte' => "{$acteurNom} tombe — et invoque {$nom} en réponse (dé {$a['de']})", 'ton' => 'mort'];
+
+            if (($a['issue'] ?? '') === 'ignoree') {
+                $lignes[] = $this->info('Les puissances du Dread ne répondent pas');
+            } elseif (($a['issue'] ?? '') === 'invoque') {
+                $lignes[] = ['texte' => 'Une Gargouille jaillit de la place du sorcier', 'ton' => 'degats'];
+            } else {
+                $lignes[] = ['texte' => 'L\'air se glace : chaque héros du lieu perd 2 PV', 'ton' => 'subit'];
+
+                foreach ((array) ($a['resultats'] ?? []) as $r) {
+                    $lignes[] = ['texte' => ($r['cible']['nom'] ?? 'Un héros').' perd '.($r['degats'] ?? 0).' PV'
+                        .(! empty($r['cible_tombee']) ? ' et tombe !' : ''), 'ton' => ! empty($r['cible_tombee']) ? 'chute' : 'subit'];
+                }
+            }
+
+            return $lignes;
+        }
+
+        if (isset($a['drain'])) {
+            $lignes[] = $this->info("{$acteurNom} — {$nom} : draine la vie du lieu (+{$a['drain']['pv_rendus']} PV)");
+        }
+
         // Soin, invocation, réanimation, fuite : une seule ligne suffit, et
         // elle doit dire ce qui vient de changer sur le plateau.
         if (isset($a['soin'])) {
@@ -856,6 +982,13 @@ final class JournalCombat
         foreach ($resultats as $r) {
             $cible = $r['cible']['nom'] ?? 'un héros';
 
+            // Leach Life : un dé sous le Mind de la cible — le sort ne l'atteint pas.
+            if (array_key_exists('touche', $r) && ! $r['touche']) {
+                $lignes[] = ['texte' => "{$cible} résiste à {$nom} (dé {$r['de']})", 'ton' => 'pare'];
+
+                continue;
+            }
+
             if (! empty($r['absorbe'])) {
                 $lignes[] = ['texte' => "{$cible} absorbe {$nom}", 'ton' => 'pare'];
 
@@ -918,6 +1051,16 @@ final class JournalCombat
                 'texte' => ($m['monstre'] ?? 'Une créature').' est prise dans '.$nom.' (−'.($m['degats'] ?? 0).' PV)'
                     .(! empty($m['vaincu']) ? ' — elle tombe !' : ''),
                 'ton' => ! empty($m['vaincu']) ? 'mort' : 'degats',
+            ];
+        }
+
+        // Foudroiement / Tremblement de terre arrêtés par un mur magique : le sort
+        // ET le mur disparaissent (carton p. 10).
+        if (isset($a['mur_annule'])) {
+            $lignes[] = [
+                'texte' => "{$nom} rencontre ".mb_strtolower((string) ($a['mur_annule']['nom'] ?? 'un mur magique'))
+                    .' : le sort et le mur s\'annulent',
+                'ton' => 'info',
             ];
         }
 

@@ -313,24 +313,12 @@ return [
             // différence du Brassard de Glace plus haut.
             ['carte' => 'Drakehide Cuirass', 'paquet' => 'Wizards of Morcar', 'objet' => 'Cuirasse de Peau de Dragon'],
 
-            // URDYN THE UNMAKER — « 2 Attack dice normally, 4 Attack dice
-            // against a Dreadshifter or a Golem specifically » (salle E,
-            // quête 3). ⚠ NON PORTÉ : le bonus CONDITIONNÉ au TYPE de monstre
-            // adverse n'a aucun équivalent au vocabulaire (nos bonus
-            // conditionnels existent `au_contact`, jamais `type_monstre_cible`)
-            // — ET il suppose que Golem/Dreadshifter existent au catalogue
-            // des monstres, ce qu'ils ne font pas encore (capacité *Ambush*,
-            // lot C du plan Morcar, hors de ce chantier). Les deux manquent
-            // ensemble ; porter la moitié « 2 dés d'attaque normaux » sans
-            // l'autre serait une carte tenue à moitié.
-            ['carte' => 'Urdyn the Unmaker', 'paquet' => 'Wizards of Morcar', 'nom' => 'Urdyn le Défaiseur',
-                'texte' => 'Arme : 2 dés d\'attaque de combat normal, 4 dés contre un Dreadshifter ou un Golem spécifiquement.',
-                'manque' => "BONUS CONDITIONNÉ AU TYPE DE MONSTRE ADVERSE — aucun mot-clé du vocabulaire d'équipement "
-                    ."ne cible un TYPE de monstre adverse (nos bonus conditionnels existent `au_contact`, jamais "
-                    .'`type_monstre_cible`), ET la carte suppose Golem/Dreadshifter au catalogue des monstres — '
-                    .'ni l\'un ni l\'autre ne sont construits (capacité *Ambush*, lot C du plan Morcar, hors de ce '
-                    .'chantier). Porter seulement « 2 dés d\'attaque normaux » laisserait la seconde clause, '
-                    .'pourtant centrale au nom de l\'arme, sans effet.'],
+            // URDYN THE UNMAKER — « When using this hammer, roll 2 Attack dice,
+            // or 4 if attacking a magical construct (Dreadshifter, Golem) ».
+            // PORTÉ (vague 2B, 2026-10-08) : `des_attaque_contre`, déjà lu pour la
+            // Lame des Esprits, nomme les deux cibles — et Golem/Dreadshifter sont
+            // désormais au catalogue des monstres.
+            ['carte' => 'Urdyn the Unmaker', 'paquet' => 'Wizards of Morcar', 'objet' => 'Urdyn le Défaiseur'],
         ],
     ],
 
@@ -496,6 +484,51 @@ return [
             // jamais son catalogue.
             ['carte' => 'Ice Wall', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Mur de Glace'],
             ['carte' => 'Skate', 'paquet' => 'Frozen Horror', 'sort_dread' => 'Patinage'],
+
+            // ---- Wizards of Morcar : les Sorciers du Dread (18 cartes, vague 2A, 2026-10-08) ----
+            // Storm Master (Boroush), High Mage (Zanrath), Necromancer (Fanrax) : six
+            // sorts chacun, « only they may use it ». Deux doublons EXACTS d'un sort
+            // déjà porté (*Fear* = Frayeur, *Escape* = Fuite) ; *Rust* est une VARIANTE
+            // sourcée (toute pièce de métal, armure comprise) : « Corrosion ».
+            // Les Sorciers de la vague 2B (Orc Warcaster, Artificer) s'ajoutent à la suite.
+            ['carte' => 'Lightning Strike', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Foudroiement'],
+            ['carte' => 'Wall of Ice', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Muraille de glace'],
+            ['carte' => 'Thieving Wind', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Vent voleur'],
+            ['carte' => 'Hurricane', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Ouragan'],
+            ['carte' => 'Earthquake', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Tremblement de terre'],
+            ['carte' => 'Blinding Sleet', 'paquet' => 'Wizards of Morcar — Storm Master', 'sort_dread' => 'Grésil aveuglant'],
+            ['carte' => 'Wall of Flame', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Muraille de flammes'],
+            ['carte' => 'Strands of Binding', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Liens magiques'],
+            ['carte' => 'Rust', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Corrosion'],
+            ['carte' => 'Possess', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Possession'],
+            ['carte' => 'Escape', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Fuite'],
+            ['carte' => 'Unlearn', 'paquet' => 'Wizards of Morcar — High Mage', 'sort_dread' => 'Désapprentissage'],
+            ['carte' => 'Summon Mummy', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Invocation de momie'],
+            ['carte' => 'Skulls of Doom', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Crânes maudits'],
+            ['carte' => 'Raise the Dead', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Relève des morts'],
+            ['carte' => 'Fear', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Frayeur'],
+            ['carte' => 'Death Bolt', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Trait de mort'],
+            ['carte' => 'Call Skeletons', 'paquet' => 'Wizards of Morcar — Necromancer', 'sort_dread' => 'Appel des squelettes'],
+
+            // ---- Wizards of Morcar : Orc Warcaster et Artificer (12 cartes, vague 2B) ----
+            // Six sorts chacun. Deux VARIANTES déclarées (écrites, pas lues) :
+            // *Call Orcs* / *Call Goblins* ne reprennent jamais une figurine « from
+            // anywhere on the board » (aucune réserve de figurines chez nous : elles
+            // arrivent neuves), et *Spirit of Vengeance* garde « any one character on
+            // the board » au pied de la lettre (`sans_ligne_de_vue`). Aucune carte
+            // n'est écartée : les douze sont portées.
+            ['carte' => 'Call Orcs', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Appel des orques'],
+            ['carte' => 'Call Goblins', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Appel des gobelins'],
+            ['carte' => 'Spirit of Vengeance', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Esprit de vengeance'],
+            ['carte' => 'Shield of Protection', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Bouclier de protection'],
+            ['carte' => 'Sharpen Blades', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Lames aiguisées'],
+            ['carte' => 'Orc Berserker', 'paquet' => 'Wizards of Morcar — Orc Warcaster', 'sort_dread' => 'Orque berserker'],
+            ['carte' => 'Beseech Dread Powers!', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Implorer les puissances du Dread'],
+            ['carte' => 'Scrolls of Morcar', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Parchemins de Morcar'],
+            ['carte' => 'Hammer of Ruin', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Marteau de la Ruine'],
+            ['carte' => 'Leach Life', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Drain de vie'],
+            ['carte' => 'Conjure Golem', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Invocation de golem'],
+            ['carte' => 'Summon Dreadshifter', 'paquet' => 'Wizards of Morcar — Artificer', 'sort_dread' => 'Appel du Dreadshifter'],
 
             // ---- Non portées : chacune avec la mécanique qui lui manque ----
             ['carte' => "Werewolf's Curse", 'paquet' => 'Mage of the Mirror', 'nom' => 'Malédiction du loup-garou',

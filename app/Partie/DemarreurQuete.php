@@ -279,7 +279,7 @@ final class DemarreurQuete
                 // groupe (pvAdapte), + bonus élite éventuel. Le courant démarre au max.
                 $pvMax = $this->pvAdapte($monstre, $heros->count()) + ($elite ? InstanceMonstre::BONUS_ELITE : 0);
 
-                InstanceMonstre::create([
+                $instanceCree = InstanceMonstre::create([
                     'quete_id' => $quete->id,
                     'monstre_id' => $monstre->id,
                     // Stats catalogue jamais altérées ; PV (adaptés + élite) portés par l'instance.
@@ -294,6 +294,15 @@ final class DemarreurQuete
                     // de la salle de départ (rare) sont visibles d'emblée.
                     'revele' => Salles::indexDe($carte['salles'] ?? [], $px, $py) === 0,
                 ]);
+
+                // EMBUSCADE (Dreadshifter, Wizards of Morcar) : « place this
+                // monster onto the board as the object it appears to be » — un
+                // coffre sur sa case, la créature cachée jusqu'à ce qu'un héros
+                // entre dans les 8 cases autour (`MoteurEmbuscade`).
+                if ($monstre->aCapaciteEmbuscade()) {
+                    $quete->unsetRelation('carte');
+                    app(MoteurEmbuscade::class)->deguiser($quete, $instanceCree->load('monstre'));
+                }
             }
 
             // Initiative figée pour toute la quête (C1) : renumérotation 1..n.
@@ -656,6 +665,18 @@ final class DemarreurQuete
         // `sort_a_volonte`) — voir `database/seeders/GabaritQueteSeeder.php`
         // (`rencontre_finale.creatures`) pour la rencontre finale.
         'first_light',
+        // Ajoutée le 2026-10-08 (René, Q5 : « le thème entre quand les cinq
+        // sorciers sont jouables »), modulo 6 → 7, même garde-fou : la colonne
+        // figée protège toute campagne démarrée depuis le 2026-09-06, et la
+        // migration `2026_10_08_150000_figer_theme_bestiaire_des_groupes_existants`
+        // fige l'ancien modulo des groupes qui ont déjà joué sans l'avoir
+        // écrit. Rencontre finale : la GARDIENNE (Artificière, seul boss de la
+        // boîte — les quatre autres sorciers sont des SOUS-BOSS, les
+        // « lieutenants de Morcar » du livret G1504) ; signatures de masse :
+        // Golem, Dreadshifter (tier base), Minotaure (sous-boss). Voir
+        // `docs/regles/bestiaire-et-rencontres.md` et
+        // `database/seeders/GabaritQueteSeeder.php`.
+        'wizards_of_morcar',
     ];
 
     /**
@@ -778,6 +799,10 @@ final class DemarreurQuete
         // document, jamais de la boîte elle-même (aucune autre entrée ne
         // porte son année, et Hasbro ne date pas le nom sur la boîte).
         'first_light' => 'First Light',
+        // reference/18_extensions.md ligne 2400 : « Wizards of Morcar (2025) » —
+        // même remarque que First Light : l'année est dans le titre de section,
+        // pas dans le nom de la boîte.
+        'wizards_of_morcar' => 'Wizards of Morcar',
     ];
 
     /**
@@ -1087,7 +1112,15 @@ final class DemarreurQuete
         }
         for ($i = 0; $i < $fortsSouhaites && count($achats) < $maxSpawns - 1; $i++) {
             // le plus fort abordable qui laisse encore de quoi payer un faible
-            $fort = $forts->first(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
+            // ⚠ Un fort DÉJÀ acheté passe après les autres (2026-10-08, thème Morcar) :
+            // `first()` sur une liste jamais consommée rachetait indéfiniment le
+            // même (le Golem), si bien que le Dreadshifter — et en général tout
+            // fort qui n'est pas le plus cher du thème — n'apparaissait JAMAIS
+            // dès que le budget payait le premier. Le repli sur un doublon
+            // garde le comportement d'avant quand il n'y a plus de choix.
+            $abordables = $forts->filter(fn (Monstre $m) => $this->coutEffectif($m) <= $restant - $coutFaibleMin);
+            $dejaAchetes = collect($achats)->pluck('id')->all();
+            $fort = $abordables->first(fn (Monstre $m) => ! in_array($m->id, $dejaAchetes, true)) ?? $abordables->first();
             if ($fort === null) {
                 break;
             }

@@ -42,7 +42,14 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v "$PWD:/app" -v /tmp:/db -w 
 ```
 
 - ⚠ **Ne pas lancer les tests d'API dans le conteneur `app`** : ils rendent des
-  **419** (CSRF/APP_KEY). Conteneur jetable, et `php artisan key:generate` si besoin.
+  **419** (CSRF/APP_KEY). Conteneur jetable, avec la clé de test passée en
+  variable : `-e APP_KEY=base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=`.
+- ⛔ **JAMAIS `php artisan key:generate`, même `--env=testing`** (incident du
+  2026-10-08) : faute de `.env.testing`, la commande écrit dans le VRAI `.env`
+  monté et remplace l'APP_KEY de production — toutes les sessions des joueurs
+  tombent. Si c'est arrivé : la clé d'origine survit dans l'environnement d'un
+  conteneur créé avant l'incident (`docker compose exec reverb printenv APP_KEY`
+  — un `restart` ne recharge pas `env_file`).
 - ⚠ **`composer.json` épingle `platform.php` à 8.3** (l'image runtime) — le garder
   en résolvant des dépendances.
 - Helpers de `tests/Pest.php` à réutiliser plutôt que de remonter une scène à la

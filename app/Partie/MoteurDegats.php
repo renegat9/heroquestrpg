@@ -459,6 +459,17 @@ final class MoteurDegats
             'or_gagne' => 0,
         ];
 
+        // *Scrolls of Morcar* (Artificer, Wizards of Morcar) : « When the
+        // Spellcaster takes ANY AMOUNT of damage, remove 1 shadow token
+        // instead. » Lu en tout premier : le coup est absorbé EN ENTIER, qu'il
+        // achève ou non — c'est ce qui le distingue d'une réduction de dégâts.
+        if ($degats > 0 && ($absorption = app(MoteurDread::class)->absorberParJeton($instance)) !== null) {
+            return array_merge($neutre(0), [
+                'reaction' => 'jeton_ombre',
+                'jetons_restants' => $absorption['jetons_restants'],
+            ]);
+        }
+
         if ($degats === 0 || $apres > 0) {
             if ($apres !== $avant) {
                 $instance->update(['pv_body' => $apres, 'etat' => 'actif']);
@@ -559,6 +570,15 @@ final class MoteurDegats
 
         $instance->update(['pv_body' => 0, 'etat' => 'vaincu']);
 
+        // RAISE THE DEAD (Necromancer, Wizards of Morcar) : un sort lancé HORS TOUR,
+        // sans action, « after a monster has been killed ». Lu ICI, au point de
+        // passage unique de la mort — le Nécromancien décide, le journal annonce.
+        $reactionDread = app(MoteurDread::class)->reactionsALaMort($instance);
+
+        // BESEECH DREAD POWERS! (Artificer) : le Sorcier réduit à 0 PV lance son
+        // sort EN RÉPONSE, sans action — même point de passage, même annonce.
+        $reactionDread ??= app(MoteurDread::class)->reactionALaChute($instance);
+
         // FAVEUR « Peacekeeper » (Hopekins Rest) : lue ICI, au seul point de
         // passage de la mort d'un monstre — voir le docblock de la méthode.
         // Résolue par le conteneur plutôt qu'injectée au constructeur :
@@ -586,6 +606,9 @@ final class MoteurDegats
             'survie_increvable' => false,
             'reddition' => $orGagne > 0,
             'or_gagne' => $orGagne,
+            // Le sort réactif d'un Sorcier déclenché par cette mort (ou `null`) —
+            // publié pour que le résolveur le fasse remonter à la manette.
+            'reaction_dread' => $reactionDread,
         ];
     }
 

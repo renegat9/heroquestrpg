@@ -54,7 +54,10 @@ it('la surcharge Parametre::rencontres_forts_par_quete prime sur config(jeu.renc
     Parametre::actuel()->update(['rencontres_forts_par_quete' => 5]);
 
     $avecSurcharge = count($forts(acheter(budget: 30, maxSpawns: 20, positionArc: 1)));
-    expect($avecSurcharge)->toBe(5);
+    // ⚠ Plus « 5 pile » depuis le 2026-10-08 : les forts successifs sont DISTINCTS
+    // (le Spectre éthéré coûte 10 et épuise le budget avant le cinquième) ; la
+    // surcharge doit seulement être honorée, c'est-à-dire en acheter plus de 1.
+    expect($avecSurcharge)->toBeGreaterThan($sansSurcharge)->toBeLessThanOrEqual(5);
 });
 
 it('escalade le nombre de forts avec la progression d\'arc', function () use ($forts) {

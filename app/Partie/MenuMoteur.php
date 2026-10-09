@@ -244,7 +244,9 @@ final class MenuMoteur
         // ligne de vue dégagée, si l'arme porte.
         $aDistance = collect();
 
-        if ($aDistanceArme || $jetable) {
+        // GRÉSIL AVEUGLANT : « can only attack […] adjacent enemies » — aucune cible
+        // lointaine n'est offerte (le résolveur refuse tir et lancer au même titre).
+        if (($aDistanceArme || $jetable) && ! $this->sorts->tirInterdit($personnage)) {
             $grille = FabriqueGrille::pour($quete, exceptPersonnageId: $personnage->id);
             // FAVEUR « Deadeye » (Hopekins Rest) : les figures ne bloquent
             // plus la ligne de vue de CE héros pour viser.
@@ -1211,6 +1213,15 @@ final class MenuMoteur
         return $menu;
     }
 
+    /** Types d'option qui LANCENT un sort (sort connu, parchemin, concentration). */
+    public const TYPES_LANCER_DE_SORT = ['sort', 'parchemin', 'concentration'];
+
+    /** Le prédicat UNIQUE « cette option lance un sort » : lu par le menu et par le résolveur (grésil aveuglant). */
+    public static function estLancerDeSort(array $option): bool
+    {
+        return in_array($option['type'] ?? null, self::TYPES_LANCER_DE_SORT, true);
+    }
+
     /** Types d'option qui frappent AVEC le héros lui-même (jamais le menu d'un allié). */
     public const TYPES_ATTAQUE_HEROS = ['attaque', 'attaque_balayee', 'rayon', 'degat_differe', 'attaquer_mobilier'];
 
@@ -1841,8 +1852,37 @@ final class MenuMoteur
                     && $e->position_x !== null
                     && abs((int) $e->position_x - (int) $etat->position_x) <= 1
                     && abs((int) $e->position_y - (int) $etat->position_y) <= 1
-                    && $this->sorts->deplacementInterdit($e->personnage))
+                    && $this->sorts->entravesLiberables($e->personnage)->isNotEmpty())
                 ->values();
+
+            // ATTAQUER LES LIENS — *Strands of Binding* (High Mage) : des liens à
+            // 1 PV et 4 dés de défense, qu'on ATTAQUE au lieu de les « détruire »
+            // d'une action gratuite. Même forme : UNE option qui porte ses cibles.
+            $ligotes = $quete->etatsPersonnages()
+                ->with('personnage')
+                ->get()
+                ->filter(fn ($e) => $e->personnage !== null
+                    && ! $e->tombe
+                    && $e->position_x !== null
+                    && abs((int) $e->position_x - (int) $etat->position_x) <= 1
+                    && abs((int) $e->position_y - (int) $etat->position_y) <= 1
+                    && $this->sorts->liensDe($e->personnage) !== null)
+                ->values();
+
+            if ($ligotes->isNotEmpty()) {
+                $options[] = [
+                    'id' => 'attaquer_liens',
+                    'libelle' => 'Trancher les liens magiques',
+                    'type' => 'attaquer_liens',
+                    'parametres' => [
+                        'cibles' => $ligotes->map(fn ($e) => [
+                            'id' => (int) $e->personnage_id,
+                            'nom' => (string) $e->personnage->nom,
+                            'soi' => (int) $e->personnage_id === (int) $personnage->id,
+                        ])->values()->all(),
+                    ],
+                ];
+            }
 
             if ($entraves->isNotEmpty()) {
                 $options[] = [
@@ -2173,11 +2213,19 @@ final class MenuMoteur
                 || $this->charges->pieceActive($personnage, 'second_sort_par_tour') !== null
                 || $this->sorts->aBuff($personnage, MotsClesEquipement::SECOND_SORT_PAR_TOUR));
 
+        // GRÉSIL AVEUGLANT : « may not […] cast spells » — rien de ce qui lance un
+        // sort n'est offert (le résolveur refuse au même prédicat).
+        $sortsInterdits = $this->sorts->sortsInterdits($personnage);
+
         if ($etat !== null && ! $aAgi && ! $actionInterdite) {
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {
+                if ($sortsInterdits && self::estLancerDeSort($option)) {
+                    continue;
+                }
+
                 $options[] = $option;
             }
-        } elseif ($bonusReserveArcaniqueDisponible) {
+        } elseif ($bonusReserveArcaniqueDisponible && ! $sortsInterdits) {
             // Bonus déjà consommé le créneau action normal : seul un second
             // SORT connu (pas un parchemin/la concentration) reste proposable.
             foreach ($this->sorts->options($groupe, $quete, $personnage) as $option) {

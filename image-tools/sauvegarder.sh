@@ -150,6 +150,14 @@ else
   echo "qdrant=ECHEC" >> "$DOSSIER/MANIFEST.txt"
 fi
 
+info ".env → env (mode 600)"
+# Le `.env` n'est dans aucun dépôt, et il porte l'APP_KEY : sans elle, une base
+# restaurée déconnecte tout le monde (cookies de session illisibles). Perdue le
+# 2026-10-08 — `php artisan key:generate --env=testing` l'écrivait dans le VRAI
+# `.env` faute de `.env.testing` — et retrouvée de justesse dans l'environnement
+# d'un conteneur ancien. Copiée ici, elle se restaure avec le reste.
+install -m 600 "$RACINE/.env" "$DOSSIER/env"
+
 LIGNES="$(compter)"
 {
   echo "$HORO — groupes/personnages/joueurs : $(echo "$LIGNES" | tr '\t' '/')"

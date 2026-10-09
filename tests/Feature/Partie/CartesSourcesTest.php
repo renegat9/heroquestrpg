@@ -179,11 +179,11 @@ it('porte les 26 cartes d\'armurerie et 9 artefacts annoncés', function () {
         // hache de bataille et l'épée longue en os, mêmes raisons.
         // ⚠ Une de plus le 2026-10-06 (lot 1b, Wizards of Morcar) : la
         // Cuirasse de Peau de Dragon (Drakehide Cuirass) — déplacement fixe
-        // nouveau, reste porté sur ses 4 clauses. Urdyn the Unmaker reste
-        // NON porté (compte comme carte, pas comme portée) : bonus
-        // conditionné au type de monstre adverse + Golem/Dreadshifter
-        // absents du catalogue, lot C hors de ce chantier.
-        ->and($portees('artefacts'))->toBe(38)
+        // nouveau, reste porté sur ses 4 clauses. ⚠ Une de plus le
+        // 2026-10-08 (vague 2B) : Urdyn le Défaiseur — `des_attaque_contre`
+        // (Lame des Esprits) nomme Golem et Dreadshifter, maintenant au
+        // catalogue : aucune mécanique neuve.
+        ->and($portees('artefacts'))->toBe(39)
         // 15 parchemins sur 19 : 11 désignaient un sort que nous avions déjà,
         // trois ont été écrits le 2026-09-04 — Trésor sans Péril, Récupération
         // Psychique, Éclair — et *Warmth* a rejoint la liste le 2026-09-06

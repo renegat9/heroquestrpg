@@ -19,6 +19,7 @@ use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
 use App\Models\InstanceMonstre;
 use App\Models\Inventaire;
+use App\Models\Mobilier;
 use App\Models\Monstre;
 use App\Models\Personnage;
 use App\Models\Quete;
@@ -185,6 +186,23 @@ final class MoteurDread
         private readonly AnnoncesTalents $annonces,
     ) {}
 
+    /**
+     * Ids des monstres qui ont DÉJÀ joué dans la phase des monstres en cours.
+     * Posé par `ResolveurTour::phaseMonstres()` avant chaque activation : le
+     * seul moyen pour *Orc Berserker* de refuser « an Orc that has already
+     * moved or attacked » sans que le moteur de sorts connaisse la boucle de
+     * phase. Éphémère par nature (une phase = une requête), jamais durable.
+     *
+     * @var list<int>
+     */
+    private array $monstresDejaJoues = [];
+
+    /** @param list<int> $ids */
+    public function definirMonstresDejaJoues(array $ids): void
+    {
+        $this->monstresDejaJoues = array_values(array_map('intval', $ids));
+    }
+
     // ------------------------------------------------------------------
     // Gestion des usages (DemarreurQuete + fin de rencontre)
     // ------------------------------------------------------------------
@@ -207,6 +225,24 @@ final class MoteurDread
     public function reinitialiserUsagesInstance(InstanceMonstre $instance, Quete $quete): void
     {
         $tier = $instance->monstre->tier ?? 'base';
+
+        // SORCIERS DE MORCAR (`sorts_uniques`) : « At the beginning of a new
+        // quest, each Sorcerer in that quest starts with a full set of six
+        // spells » — le budget est le RÉPERTOIRE ENTIER (un usage par sort,
+        // chaque sort une seule fois), et la liste des sorts déjà lancés repart
+        // à vide. Remplace le budget par palier, qui ne dit pas QUEL sort est
+        // dépensé.
+        if ($this->aCapacite($instance, 'sorts_uniques')) {
+            $instance->update([
+                'usages_dread' => count($this->repertoireSorts($instance->monstre)),
+                'sorts_dread_lances' => [],
+                'invocation_dread_utilisee' => false,
+                'fuite_dread_utilisee' => false,
+                'capacites_reactives_utilisees' => [],
+            ]);
+
+            return;
+        }
 
         // ⚠ Un monstre de tier `base` reçoit un usage S'IL A UN RÉPERTOIRE, et
         // seulement dans ce cas : c'est la condition qui garde la porte fermée
@@ -248,9 +284,20 @@ final class MoteurDread
     }
 
     /** Consomme un usage (ne descend pas en dessous de 0). */
-    private function consommerUsage(InstanceMonstre $instance, Quete $quete): void
+    private function consommerUsage(InstanceMonstre $instance, Quete $quete, ?SortDread $sort = null): void
     {
-        $instance->update(['usages_dread' => max(0, (int) $instance->usages_dread - 1)]);
+        $maj = ['usages_dread' => max(0, (int) $instance->usages_dread - 1)];
+
+        // « Each spell may only be used once per quest » : on retient QUEL sort
+        // est parti, pas seulement combien.
+        if ($sort !== null && $this->aCapacite($instance, 'sorts_uniques')) {
+            $maj['sorts_dread_lances'] = array_values(array_unique([
+                ...(array) ($instance->sorts_dread_lances ?? []),
+                $sort->nom,
+            ]));
+        }
+
+        $instance->update($maj);
     }
 
     // ------------------------------------------------------------------
@@ -295,6 +342,15 @@ final class MoteurDread
 
         // Collecte les actions Dread jouées ce tour (régénération + action principale).
         $actions = [];
+
+        // « Until the start of the spellcaster's next turn » (*Shield of
+        // Protection*) : le bouclier tombe ICI, au début du tour de SON lanceur —
+        // le seul « début de tour » qu'un moteur par round possède.
+        $expiration = $this->expirerBuffsAuTourDuLanceur($groupe, $quete, $instance, $acteur);
+
+        if ($expiration !== null) {
+            $actions[] = $expiration;
+        }
 
         // 0. Entretien du Mur de Glace : « chaque case dure tant que le
         //    lanceur la voit ». Rejoué au DÉBUT de CHAQUE tour de CE monstre
@@ -351,7 +407,7 @@ final class MoteurDread
 
             if ($sortChoisi !== null) {
                 if ($sortChoisi->nom !== $sortAVolonte) {
-                    $this->consommerUsage($instance, $quete);
+                    $this->consommerUsage($instance, $quete, $sortChoisi);
                 }
 
                 $actions[] = $this->lancerSortDread($groupe, $quete, $instance, $sortChoisi, $cibles, $enVue, $acteur);
@@ -798,7 +854,11 @@ final class MoteurDread
             // condition d'existence (des cadavres) est déjà la plus exigeante
             // du paquet. Le verrou 1×/rencontre, lui, tient : relever ses morts
             // à chaque tour rendrait toute salle impossible à nettoyer.
-            Mot::TYPE_INVOCATION => ! $instance->invocation_dread_utilisee
+            // ⚠ Un SORCIER DE MORCAR (`sorts_uniques`) n'est plus bridé par le
+            // verrou 1×/rencontre : sa règle propre — chaque sort une seule fois
+            // par quête — le remplace. Deux sorts d'invocation (Summon Mummy,
+            // Call Skeletons) y coexistent, et un seul verrou en aurait muselé un.
+            Mot::TYPE_INVOCATION => (! $instance->invocation_dread_utilisee || $this->aCapacite($instance, 'sorts_uniques'))
                 && (data_get($sort->effet, 'reanime') !== null
                     ? $this->mortsVivantsARelever($quete, $instance, $sort)->isNotEmpty()
                     : ! $this->auContact($instance, $cibles) && $this->assezSeulPourInvoquer($quete, $instance)),
@@ -831,6 +891,23 @@ final class MoteurDread
             Mot::TYPE_DEPLACEMENT => $this->planPatinage(
                 $quete, $instance, $enVue, (int) data_get($sort->effet, 'cases', 12),
             ) !== null,
+            // Murs magiques (Wizards of Morcar) : deux cases libres légales,
+            // calculées par `planMurMagique()` — la même que la résolution.
+            Mot::TYPE_MUR_MAGIQUE => $this->planMurMagique($sort, $quete, $instance, $enVue) !== null,
+            // Ouragan : un héros aligné qui BOUGERAIT réellement.
+            Mot::TYPE_REPOUSSEMENT => $this->planRepoussement($quete, $instance, $enVue) !== null,
+            // Oubli : un héros en vue qui connaît encore un sort à perdre.
+            Mot::TYPE_OUBLI => $this->cibleOubli($quete, $enVue) !== null,
+            // Un sort RÉACTIF ne se lance jamais comme action du tour : son
+            // déclencheur est `reactionsALaMort()`.
+            // Wizards of Morcar, Orc Warcaster et Artificer (vague 2B) : un
+            // renfort de faction qui servirait quelqu'un, un état que le lanceur
+            // ne porte pas déjà, un drain qui ne saigne pas plus les siens que
+            // les héros — `renfortUtilisable()` & co. sont aussi lus par la
+            // résolution (une règle, un point de passage).
+            Mot::TYPE_RENFORT => $this->renfortUtilisable($sort, $quete, $instance, $cibles, $enVue),
+            Mot::TYPE_AMELIORATION => $this->ameliorationUtilisable($sort, $instance, $enVue),
+            Mot::TYPE_DRAIN => $this->figuresDuDrain($sort, $quete, $instance, $cibles)['utilisable'],
             default => false,
         };
     }
@@ -880,6 +957,19 @@ final class MoteurDread
             // tout de suite.
             Mot::TYPE_DEPLACEMENT => 45,
             Mot::TYPE_FUITE => 10,
+            // Un mur ne blesse pas : entre l'invocation (60) et le terrain (50).
+            Mot::TYPE_MUR_MAGIQUE => 55,
+            // Un renfort de faction vaut un cran de plus que l'invocation (60) :
+            // il rend plus dangereux ce qui est déjà sur la table. Une
+            // amélioration de soi (55) passe après — elle ne sert qu'à tenir. Le
+            // drain frappe, donc juste sous les dégâts à cible unique.
+            Mot::TYPE_RENFORT => 70,
+            Mot::TYPE_AMELIORATION => 56,
+            Mot::TYPE_DRAIN => 90,
+            // L'ouragan déplace sans blesser, l'oubli ampute pour la quête :
+            // sous le contrôle (80), au-dessus de l'invocation (60).
+            Mot::TYPE_REPOUSSEMENT => 65,
+            Mot::TYPE_OUBLI => 70,
             default => 0,
         };
     }
@@ -963,7 +1053,7 @@ final class MoteurDread
                 ? $this->casesDuCouloir($quete, $instance)
                 : $this->casesDeLaSalle($quete, $instance),
             Mot::ZONE_CARRE_2X2 => $this->meilleurCarre($quete, $instance, $cibles),
-            Mot::ZONE_RAYON => $this->meilleurRayon($quete, $instance, $cibles),
+            Mot::ZONE_RAYON => $this->meilleurRayonDetail($sort, $quete, $instance, $cibles)['cases'],
             default => [],
         };
     }
@@ -1083,32 +1173,71 @@ final class MoteurDread
     }
 
     /**
-     * La direction de rayon qui touche le plus de héros (*Lightning Bolt*).
+     * La ligne du rayon qui touche le plus de héros, ET le mur magique qui
+     * l'arrête s'il y en a un.
      *
-     * Réutilise `App\Partie\Rayon`, écrit pour le parchemin d'*Éclair* : les
-     * deux cartes portent la même phrase — « straight or diagonal […] until it
-     * meets a wall or closed door » — donc la même ligne, et il n'y a aucune
-     * raison de l'écrire une troisième fois.
+     * Deux familles de rayons y passent. *Lightning Bolt* (« straight, diagonal
+     * […] until it strikes a wall ») garde les huit directions et ne connaît que
+     * les murs de pierre. *Lightning Strike* et *Earthquake* des Sorciers de
+     * Morcar portent `rayon_orthogonal` (4 directions) et `portee_rayon` (6
+     * cases) — et SEULS ces deux-là rencontrent un mur magique : « If a
+     * Lightning Strike or Earthquake meets a magical wall, both spells are
+     * cancelled, and the pieces are removed from the board. However, all
+     * characters in squares between the Sorcerer and the Magical Barrier are
+     * still affected before the spells are cancelled » (carton p. 10). La ligne
+     * est donc COUPÉE avant le mur (les cases d'avant sont frappées), et le mur
+     * est rendu pour que la résolution le retire.
      *
      * @param  Collection<int, EtatPersonnageQuete>  $cibles
-     * @return list<array{x: int, y: int}>
+     * @return array{cases: list<array{x: int, y: int}>, mur: ?int}
      */
-    private function meilleurRayon(Quete $quete, InstanceMonstre $instance, Collection $cibles): array
+    private function meilleurRayonDetail(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
     {
         $grille = $this->grilleQuete($quete);
         $x = (int) $instance->position_x;
         $y = (int) $instance->position_y;
-
-        $meilleur = [];
+        $orthogonal = (bool) data_get($sort->effet, 'rayon_orthogonal', false);
+        $portee = data_get($sort->effet, 'portee_rayon');
+        $meilleur = ['cases' => [], 'mur' => null];
         $meilleurCompte = 0;
 
-        foreach (array_keys(Rayon::DIRECTIONS) as $direction) {
+        foreach (Rayon::DIRECTIONS as $direction => [$dx, $dy]) {
+            if ($orthogonal && $dx !== 0 && $dy !== 0) {
+                continue;
+            }
+
             $ligne = Rayon::cases($grille, $x, $y, (string) $direction);
+            $mur = null;
+
+            if ($portee !== null) {
+                $coupee = [];
+
+                foreach ($ligne as $i => $case) {
+                    if ($i >= (int) $portee) {
+                        break;
+                    }
+
+                    $murIci = $quete->carte === null
+                        ? null
+                        : app(MoteurMobilier::class)->murMagiqueSur($quete->carte, $case['x'], $case['y']);
+
+                    if ($murIci !== null) {
+                        $mur = $murIci;
+
+                        break;
+                    }
+
+                    $coupee[] = $case;
+                }
+
+                $ligne = $coupee;
+            }
+
             $compte = $this->herosSurCases($cibles, $ligne)->count();
 
             if ($compte > $meilleurCompte) {
                 $meilleurCompte = $compte;
-                $meilleur = $ligne;
+                $meilleur = ['cases' => $ligne, 'mur' => $mur];
             }
         }
 
@@ -1176,9 +1305,14 @@ final class MoteurDread
             return $atteints;
         }
 
+        // *Spirit of Vengeance* : « any one character on the board » — le seul
+        // sort qui ignore la ligne de vue du lanceur (`sans_ligne_de_vue`) ; tous
+        // les autres, héros comme MJ, la respectent.
+        $vivier = (bool) data_get($sort->effet, 'sans_ligne_de_vue', false) ? $cibles : $enVue;
+
         $cible = $sort->type === Mot::TYPE_CONTROLE
             ? $this->cibleControle($sort, $enVue)
-            : $this->cibleOffensive($instance, $enVue);
+            : $this->cibleOffensive($instance, $vivier);
 
         return $cible === null ? collect() : collect([$cible]);
     }
@@ -1373,17 +1507,51 @@ final class MoteurDread
         return array_values(array_diff($this->repertoireSorts($instance->monstre), $oublies));
     }
 
+    /**
+     * Les noms que ce Sorcier peut encore LANCER : son répertoire moins ce que la
+     * quête lui a fait oublier (`Unlearn`) ET moins ce qu'il a déjà lancé
+     * (`sorts_uniques` — chaque sort une seule fois par quête). Distinct de
+     * {@see self::sortsOubliables()} : un sort déjà lancé est épuisé, mais on
+     * peut encore le faire OUBLIER (la carte héros ne le sait pas).
+     *
+     * @return list<string>
+     */
+    private function sortsLancables(InstanceMonstre $instance, Quete $quete): array
+    {
+        $noms = $this->sortsOubliables($instance, $quete);
+
+        if ($this->aCapacite($instance, 'sorts_uniques')) {
+            $noms = array_values(array_diff($noms, (array) ($instance->sorts_dread_lances ?? [])));
+        }
+
+        return $noms;
+    }
+
     private function sortsDisponibles(InstanceMonstre $instance, Quete $quete): \Illuminate\Support\Collection
     {
         // Un sort OUBLIÉ pour la quête (Unlearn) n'est plus dans le répertoire
         // du Sorcier, et ne se tire donc plus — nulle part, jamais.
-        $noms = $this->sortsOubliables($instance, $quete);
+        $noms = $this->sortsLancables($instance, $quete);
 
         if (empty($noms)) {
             return collect();
         }
 
         $rangLanceur = self::RANG_PALIER[$instance->monstre->tier ?? 'base'] ?? 0;
+
+        // ⚠ Un SORCIER DE MORCAR (`sorts_uniques`) ignore le filtre par palier
+        // (2026-10-08, vague 2C). Quatre des cinq sont `sous_boss` — le livret
+        // en fait les « lieutenants » de Morcar, un par quête, et seule la
+        // Gardienne (Artificière) ferme la campagne — or « each Sorcerer
+        // starts with a full set of six spells » (G1504 p. 10) : le palier est
+        // un minimum pour les lanceurs GÉNÉRIQUES, pas une restriction de la
+        // carte d'un sorcier nommé. Sans cela, rétrograder le Haut mage lui
+        // aurait retiré *Fuite* (palier boss) et le Mage de guerre *Esprit de
+        // vengeance* et *Orque berserker*, alors que `usages_dread` lui en
+        // compte six.
+        if ($this->aCapacite($instance, 'sorts_uniques')) {
+            $rangLanceur = max(self::RANG_PALIER);
+        }
 
         // ⚠ L'ORDRE est celui du RÉPERTOIRE, pas celui des id en base. Le
         // `whereIn` rendait les sorts dans l'ordre du catalogue, si bien que la
@@ -1449,13 +1617,19 @@ final class MoteurDread
             Mot::TYPE_CONTROLE => $this->sortDreadControle($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
             Mot::TYPE_INVOCATION => data_get($sort->effet, 'reanime') !== null
                 ? $this->sortDreadReanimation($groupe, $quete, $instance, $sort, $acteur)
-                : $this->sortDreadInvocation($groupe, $quete, $instance, $sort, $acteur),
+                : $this->sortDreadInvocation($groupe, $quete, $instance, $sort, $acteur, $cibles),
             Mot::TYPE_SOIN => $this->sortDreadSoin($groupe, $quete, $instance, $sort, $acteur),
             Mot::TYPE_FUITE => $this->sortDreadFuite($groupe, $quete, $instance, $sort, $cibles, $acteur),
             Mot::TYPE_DESTRUCTION => $this->sortDreadDestruction($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
             Mot::TYPE_MIND => $this->sortDreadMind($groupe, $instance, $sort, $enVue, $acteur),
             Mot::TYPE_TERRAIN => $this->sortDreadMurDeGlace($groupe, $quete, $instance, $sort, $enVue, $acteur),
             Mot::TYPE_DEPLACEMENT => $this->sortDreadPatinage($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_MUR_MAGIQUE => $this->sortDreadMurMagique($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_REPOUSSEMENT => $this->sortDreadRepoussement($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_OUBLI => $this->sortDreadOubli($groupe, $quete, $instance, $sort, $enVue, $acteur),
+            Mot::TYPE_RENFORT => $this->sortDreadRenfort($groupe, $quete, $instance, $sort, $cibles, $enVue, $acteur),
+            Mot::TYPE_AMELIORATION => $this->sortDreadAmelioration($groupe, $instance, $sort, $acteur),
+            Mot::TYPE_DRAIN => $this->sortDreadDrain($groupe, $quete, $instance, $sort, $cibles, $acteur),
             default => $this->sortDreadGenericJournal($groupe, $sort, $acteur),
         };
     }
@@ -1493,6 +1667,7 @@ final class MoteurDread
         InstanceMonstre $instance,
         ?Personnage $personnage,
         int $pvCible = 0,
+        ?int $desDefenseMonstre = null,
     ): array {
         $resistance = (string) data_get($sort->effet, 'resistance', '');
 
@@ -1549,8 +1724,11 @@ final class MoteurDread
         // monsters » posent toutes `defense_applicable: false`, et inventer
         // une parade pour la créature reviendrait à écrire une règle que la
         // carte ne porte pas.
-        $defense = $personnage !== null && (bool) data_get($sort->effet, 'defense_applicable', true)
-            ? $this->sorts->desDefenseHeros($personnage)
+        // Exception portée par la carte *Lightning Strike* (Storm Master) : « Anyone
+        // hit must defend normally » — héros OU monstre. Le monstre ne pare que si
+        // l'appelant lui donne sa défense (`desDefenseMonstre`).
+        $defense = (bool) data_get($sort->effet, 'defense_applicable', true)
+            ? ($personnage !== null ? $this->sorts->desDefenseHeros($personnage) : (int) $desDefenseMonstre)
             : 0;
 
         $volee = (new Combat($this->des))->resoudreAttaque(
@@ -1648,6 +1826,12 @@ final class MoteurDread
         $typeDegat = data_get($sort->effet, 'type_degat');
         $resultats = [];
 
+        // Le mur magique que la ligne rencontre, relevé AVANT les coups : les
+        // héros d'avant le mur sont touchés, puis le sort ET le mur s'annulent.
+        $murArrete = data_get($sort->effet, 'zone') === Mot::ZONE_RAYON
+            ? $this->meilleurRayonDetail($sort, $quete, $instance, $cibles)['mur']
+            : null;
+
         foreach ($victimes as $cible) {
             $personnage = $cible->personnage;
 
@@ -1706,7 +1890,13 @@ final class MoteurDread
             // « All victims immediately roll 2 red dice » : la créature prise
             // dans la zone résiste comme un héros, avec les mêmes dés — c'est
             // pour cela que le calcul ne demande pas de personnage.
-            $calcul = $this->degatsInfliges($sort, $quete, $instance, null, (int) $monstre->pv_body);
+            // Lightning Strike : « Anyone hit must defend normally » — la créature
+            // pare avec SA défense de bloc. Les cartes à `defense_applicable:
+            // false` ne lisent pas ce paramètre : rien ne change pour elles.
+            $calcul = $this->degatsInfliges(
+                $sort, $quete, $instance, null, (int) $monstre->pv_body,
+                desDefenseMonstre: (int) $monstre->monstre->defense,
+            );
 
             $collateraux[] = $this->blesserMonstre($monstre, (int) $calcul['degats'], $typeDegat) + [
                 'monstre' => $monstre->nomAffiche(),
@@ -1730,6 +1920,20 @@ final class MoteurDread
 
         if ($collateraux !== []) {
             $payload['monstres_touches'] = $collateraux;
+        }
+
+        // « If a Lightning Strike or Earthquake meets a magical wall, both
+        // spells are cancelled, and the pieces are removed from the board. »
+        // Annoncé : un mur qui disparaît sans un mot serait un effet muet.
+        if ($murArrete !== null && $quete->carte !== null) {
+            $entreeMur = (array) ($quete->carte->grille['mobilier'][$murArrete] ?? []);
+            $typeMur = Mobilier::find((int) ($entreeMur['mobilier_id'] ?? 0));
+            app(MoteurMobilier::class)->retirerMurMagique($quete->carte, $murArrete);
+            $payload['mur_annule'] = [
+                'nom' => (string) ($typeMur?->nom ?? 'Mur magique'),
+                'x' => (int) ($entreeMur['x'] ?? 0),
+                'y' => (int) ($entreeMur['y'] ?? 0),
+            ];
         }
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
@@ -1981,18 +2185,38 @@ final class MoteurDread
         InstanceMonstre $instance,
         SortDread $sort,
         array $acteur,
+        ?Collection $cibles = null,
     ): array {
-        $de = $this->des->d6();
-        $composition = $this->compositionInvoquee($sort, $de);
+        // Renfort FIXE (`invoque`, Summon Mummy / Call Skeletons) : aucun dé.
+        $fixe = (array) data_get($sort->effet, 'invoque', []);
+        $de = $fixe === [] ? $this->des->d6() : null;
+        $composition = $this->compositionInvoquee($sort, $de ?? 0);
 
-        $invoques = $this->invoquerSbires($quete, $instance, $composition);
+        $cases = (bool) data_get($sort->effet, 'invoque_en_vue', false)
+            ? $this->casesDInvocation($quete, $instance, $cibles ?? collect(), array_sum($composition))
+            : null;
+
+        $invoques = $this->invoquerSbires($quete, $instance, $composition, $cases);
 
         $payload = [
             'type' => 'sort_dread',
             'sort' => $sort->nom,
-            'de' => $de,
             'invoques' => $invoques,
         ];
+
+        if ($de !== null) {
+            $payload['de'] = $de;
+        }
+
+        // *Call Orcs* / *Call Goblins* : « They may move and attack immediately
+        // unless they have already done so this turn ». Les créatures qui
+        // viennent d'être posées n'ont, par construction, pas encore joué : le
+        // résolveur de phase (`phaseMonstres()`) leur donne leur tour TOUT DE
+        // SUITE, sur la liste d'ids que ce payload porte.
+        if ((bool) data_get($sort->effet, 'activation_immediate', false)) {
+            $payload['activation_immediate'] = array_values(array_column($invoques, 'instance_id'));
+        }
+
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
         return $payload;
@@ -2009,6 +2233,14 @@ final class MoteurDread
      */
     private function compositionInvoquee(SortDread $sort, int $de): array
     {
+        // Renfort fixe : « places a mummy », « up to 2 skeletons » — la carte
+        // donne un nombre, pas une table.
+        $fixe = (array) data_get($sort->effet, 'invoque', []);
+
+        if ($fixe !== []) {
+            return array_map('intval', $fixe);
+        }
+
         $table = (array) data_get($sort->effet, 'table_d6', []);
         $composition = [];
 
@@ -2127,6 +2359,17 @@ final class MoteurDread
             return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
         }
 
+        // VENT VOLEUR (*Thieving Wind*) : « The hero loses one piece of equipment
+        // chosen AT RANDOM » — la victime est choisie comme pour la Rouille (celle
+        // dont la meilleure pièce vaut le plus), mais la pièce, elle, est TIRÉE
+        // parmi toutes les siennes, au dé injectable.
+        $auHasard = (bool) data_get($sort->effet, 'detruit.au_hasard', false);
+
+        if ($auHasard) {
+            $pieces = $this->piecesRouillables($sort, $victime->personnage)->values();
+            $piece = $pieces[app(OubliSorts::class)->indiceAleatoire($this->des, $pieces->count())];
+        }
+
         $personnage = $victime->personnage;
         $nomPiece = (string) $piece->objet?->nom;
         $emplacement = (string) $piece->emplacement;
@@ -2140,6 +2383,7 @@ final class MoteurDread
             'resultats' => [[
                 'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
                 'objet_detruit' => $nomPiece,
+                'arrache' => $auHasard,
                 'emplacement' => $emplacement,
                 'des_attaque_apres' => (int) $personnage->des_attaque,
                 'des_defense_apres' => (int) $personnage->des_defense,
@@ -2170,15 +2414,27 @@ final class MoteurDread
      */
     private function cibleDeRouille(SortDread $sort, ?Personnage $personnage): ?Inventaire
     {
+        return $this->piecesRouillables($sort, $personnage)->first();
+    }
+
+    /**
+     * TOUTES les pièces que ce sort de destruction peut prendre à ce héros, la
+     * plus CHÈRE d'abord. `cibleDeRouille()` en garde la première (Rouille) ;
+     * le *Vent voleur* (`detruit.au_hasard`) en tire une au dé.
+     *
+     * @return \Illuminate\Support\Collection<int, Inventaire>
+     */
+    private function piecesRouillables(SortDread $sort, ?Personnage $personnage): \Illuminate\Support\Collection
+    {
         if ($personnage === null) {
-            return null;
+            return collect();
         }
 
         $regle = (array) data_get($sort->effet, 'detruit', []);
         $emplacements = (array) ($regle['emplacements'] ?? []);
 
         if ($emplacements === []) {
-            return null;
+            return collect();
         }
 
         return $personnage->inventaire()
@@ -2199,7 +2455,7 @@ final class MoteurDread
                 return empty($regle['epargne_artefacts']) || $objet->rarete !== 'unique';
             })
             ->sortByDesc(fn (Inventaire $ligne) => (int) $ligne->objet?->prix_base)
-            ->first();
+            ->values();
     }
 
     // ------------------------------------------------------------------
@@ -3270,6 +3526,467 @@ final class MoteurDread
     }
 
     /**
+     * Où surgissent les créatures d'un sort qui les place « anywhere within
+     * sight of the Spellcaster » (*Call Skeletons*) : cases libres que le
+     * lanceur VOIT, les plus proches des héros d'abord — un renfort s'appelle
+     * là où il gêne. Même opacité que les sorts (`ligneDeVue`, figures
+     * bloquantes), même grille que tout le moteur.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return list<array{x: int, y: int}>
+     */
+    private function casesDInvocation(Quete $quete, InstanceMonstre $instance, Collection $cibles, int $combien): array
+    {
+        $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $lx = (int) $instance->position_x;
+        $ly = (int) $instance->position_y;
+        $candidates = [];
+
+        for ($y = $ly - 10; $y <= $ly + 10; $y++) {
+            for ($x = $lx - 10; $x <= $lx + 10; $x++) {
+                if (($x === $lx && $y === $ly) || ! $grille->estTraversable($x, $y)
+                    || ! $grille->ligneDeVue($lx, $ly, $x, $y, figuresBloquent: true)) {
+                    continue;
+                }
+
+                $proche = $cibles->isEmpty() ? 0 : $cibles->map(
+                    fn (EtatPersonnageQuete $c) => abs($x - (int) $c->position_x) + abs($y - (int) $c->position_y),
+                )->min();
+
+                $candidates[] = ['x' => $x, 'y' => $y, 'k' => [$proche, abs($x - $lx) + abs($y - $ly)]];
+            }
+        }
+
+        usort($candidates, fn (array $a, array $b) => $a['k'] <=> $b['k']);
+
+        return array_map(
+            fn (array $c) => ['x' => $c['x'], 'y' => $c['y']],
+            array_slice($candidates, 0, max(0, $combien)),
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Wizards of Morcar — les Sorciers du Dread (2026-10-08)
+    // ------------------------------------------------------------------
+
+    /**
+     * LES DEUX CASES d'un mur magique (*Wall of Ice*, *Wall of Flame*) : « a
+     * magical wall […] which covers two squares unoccupied by figures » (Flame
+     * ajoute « within the Spellcaster's line of sight », lu via `ligne_de_vue`).
+     *
+     * Le Sorcier dresse le mur entre lui et le héros EN VUE le plus proche : la
+     * première case du chemin qui les sépare, flanquée perpendiculairement
+     * (un mur en travers), ou, faute de place, prolongée le long du chemin (un
+     * couloir se scelle ainsi). Rend `null` quand rien n'est légal — héros déjà
+     * au contact, cases occupées, hors de vue : `sortUtilisable()` ne retient
+     * alors pas le sort, comme pour le Mur de Glace.
+     *
+     * ⚠ AUCUN contrôle de connexité, comme pour le mur du joueur : le mur est
+     * attaquable (1 PV, 6 dés de défense) et le menu offre toujours « l'attaquer ».
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @return array{cases: list<array{x: int, y: int}>}|null
+     */
+    private function planMurMagique(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $enVue): ?array
+    {
+        $cible = $enVue
+            ->sortBy(fn (EtatPersonnageQuete $e) => [$this->distance($instance, $e), (int) $e->personnage->pv_body])
+            ->first();
+
+        if ($cible === null || $quete->carte === null) {
+            return null;
+        }
+
+        $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $lx = (int) $instance->position_x;
+        $ly = (int) $instance->position_y;
+        $chemin = $this->cheminVersCaseAdjacente($grille, $lx, $ly, (int) $cible->position_x, (int) $cible->position_y);
+
+        if ($chemin === null || $chemin === []) {
+            return null;
+        }
+
+        $enVueExigee = (bool) data_get($sort->effet, 'ligne_de_vue', false);
+        $legale = fn (int $x, int $y): bool => $grille->estTraversable($x, $y)
+            && (! $enVueExigee || $grille->ligneDeVue($lx, $ly, $x, $y, figuresBloquent: true));
+
+        $c = $chemin[0];
+        $dx = $c['x'] - $lx;
+        $dy = $c['y'] - $ly;
+        $perp = $dx !== 0 ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+
+        if (! $legale($c['x'], $c['y'])) {
+            return null;
+        }
+
+        $voisines = [];
+
+        foreach ($perp as [$px, $py]) {
+            $voisines[] = ['x' => $c['x'] + $px, 'y' => $c['y'] + $py];
+        }
+
+        if (isset($chemin[1])) {
+            $voisines[] = $chemin[1];
+        }
+
+        $voisines[] = ['x' => $c['x'] + $dx, 'y' => $c['y'] + $dy];
+
+        foreach ($voisines as $v) {
+            if ($legale($v['x'], $v['y'])
+                && abs($v['x'] - $c['x']) + abs($v['y'] - $c['y']) === 1
+                && ! ($v['x'] === $lx && $v['y'] === $ly)) {
+                return ['cases' => [['x' => $c['x'], 'y' => $c['y']], ['x' => $v['x'], 'y' => $v['y']]]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadMurMagique(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $plan = $this->planMurMagique($sort, $quete, $instance, $enVue);
+        $nomMur = (string) data_get($sort->effet, 'pose_mur_magique', '');
+
+        if ($plan === null || $quete->carte === null || $nomMur === '') {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        // Le point de passage UNIQUE, celui du Mur de Pierre des héros.
+        $mur = app(MoteurMobilier::class)->poserMurMagique($quete->carte, $plan['cases'], $nomMur);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'mur_magique' => true,
+            'cases' => $plan['cases'],
+            'mobilier' => $mur,
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * OURAGAN (*Hurricane*) : le héros EN VUE, aligné orthogonalement avec le
+     * lanceur (« in a straight line in front of them »), est repoussé À
+     * L'OPPOSÉ « until they hit a wall, another figure, fall down a pit trap or
+     * trigger another trap ».
+     *
+     * Le chemin s'arrête avant tout obstacle de la grille (mur, mobilier, figure
+     * — le mur magique compris) ; les pièges, eux, ne l'arrêtent pas ici :
+     * `MoteurPieges::repousserFigure()` les déclenche. Rend `null` si aucun héros
+     * ne BOUGERAIT (déjà adossé à l'obstacle) : l'ouragan ne se lance pas dans
+     * le vide.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @return array{etat: EtatPersonnageQuete, chemin: list<array{x: int, y: int}>}|null
+     */
+    private function planRepoussement(Quete $quete, InstanceMonstre $instance, Collection $enVue): ?array
+    {
+        $lx = (int) $instance->position_x;
+        $ly = (int) $instance->position_y;
+        $meilleur = null;
+
+        foreach ($enVue->sortBy(fn (EtatPersonnageQuete $e) => $this->distance($instance, $e)) as $etat) {
+            $hx = (int) $etat->position_x;
+            $hy = (int) $etat->position_y;
+
+            if (($hx !== $lx && $hy !== $ly) || ($hx === $lx && $hy === $ly)) {
+                continue; // pas aligné « in a straight line »
+            }
+
+            $sx = $hx <=> $lx;
+            $sy = $hy <=> $ly;
+            $grille = FabriqueGrille::pour($quete, exceptPersonnageId: (int) $etat->personnage_id);
+            $chemin = [];
+            $x = $hx;
+            $y = $hy;
+
+            while (count($chemin) < 60 && $grille->estTraversable($x + $sx, $y + $sy)) {
+                $x += $sx;
+                $y += $sy;
+                $chemin[] = ['x' => $x, 'y' => $y];
+            }
+
+            if ($chemin !== [] && $meilleur === null) {
+                $meilleur = ['etat' => $etat, 'chemin' => $chemin];
+            }
+        }
+
+        return $meilleur;
+    }
+
+    /**
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadRepoussement(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $plan = $this->planRepoussement($quete, $instance, $enVue);
+
+        if ($plan === null || $quete->carte === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        /** @var EtatPersonnageQuete $etat */
+        $etat = $plan['etat'];
+        $personnage = $etat->personnage;
+        $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
+        $resultat = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $plan['chemin']);
+        $arrivee = $resultat['arret'] ?? end($plan['chemin']);
+
+        $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+        $this->sorts->reveillerHeros($personnage);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'repousse' => [
+                'personnage_id' => $personnage->id,
+                'nom' => $personnage->nom,
+                'de' => $depart,
+                'vers' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']],
+                'cases' => abs($arrivee['x'] - $depart['x']) + abs($arrivee['y'] - $depart['y']),
+                'declenchements' => $resultat['declenchements'],
+            ],
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Le héros que *Unlearn* vise : un lanceur EN VUE à qui il reste un sort à
+     * perdre. Le mieux pourvu d'abord — c'est lui qui perd le plus.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     */
+    private function cibleOubli(Quete $quete, Collection $enVue): ?EtatPersonnageQuete
+    {
+        return $enVue
+            ->filter(fn (EtatPersonnageQuete $e) => $this->sorts->sortsOubliablesHeros($e->personnage, $quete) !== [])
+            ->sortByDesc(fn (EtatPersonnageQuete $e) => count($this->sorts->sortsOubliablesHeros($e->personnage, $quete)))
+            ->first();
+    }
+
+    /**
+     * *Unlearn* (High Mage) : « force them to discard 1 spell card at random.
+     * The spell is removed from play for the duration of the quest. » Le même
+     * mécanisme que la carte des héros — `OubliSorts`, générique sur la cible —
+     * retourné contre un HÉROS lanceur.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadOubli(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $cible = $this->cibleOubli($quete, $enVue);
+
+        if ($cible === null) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $personnage = $cible->personnage;
+        $restants = $this->sorts->sortsOubliablesHeros($personnage, $quete);
+        $oubli = app(OubliSorts::class);
+        $nomOublie = $restants[$oubli->indiceAleatoire($this->des, count($restants))];
+        $oubli->oublier($quete, OubliSorts::CIBLE_PERSONNAGE, (int) $personnage->id, OubliSorts::SOURCE_SORT, $nomOublie);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'oubli' => [
+                'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+                'sort_oublie' => $nomOublie,
+            ],
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * RAISE THE DEAD (Necromancer) — « Cast this spell after a monster has been
+     * killed (no action required). The monster is replaced with a skeleton which
+     * can move and attack immediately. »
+     *
+     * Appelé par `MoteurDegats::infligerAMonstre()`, le point de passage UNIQUE
+     * de la mort d'un monstre. Lancé par un Nécromancien debout qui garde encore
+     * le sort (ni oublié, ni déjà lancé) ; ne coûte pas l'action de son tour.
+     * Choix écrits : un Sorcier mort n'est jamais relevé (la quête se termine à
+     * sa mort), ni un squelette rendu à un squelette — la carte ne le dit pas,
+     * mais « replaced » n'aurait alors aucun effet.
+     * Le squelette naît pendant le tour des héros : il agit à la phase suivante
+     * des monstres, c'est-à-dire « immediately ».
+     *
+     * @return array<string, mixed>|null le payload, ou null si rien ne se passe
+     */
+    public function reactionsALaMort(InstanceMonstre $mort): ?array
+    {
+        $quete = $mort->quete;
+        $groupe = $quete?->groupe;
+
+        if ($quete === null || $groupe === null || $mort->position_x === null
+            || $this->aCapacite($mort, 'sorts_uniques') || $mort->monstre->nom_base === 'Squelette') {
+            return null;
+        }
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->with('monstre')->orderBy('id')->get() as $lanceur) {
+            if ($lanceur->id === $mort->id || ! $this->aCapacite($lanceur, 'sorts_uniques')) {
+                continue;
+            }
+
+            $sort = $this->sortsDisponiblesTous($lanceur, $quete)
+                ->first(fn (SortDread $s) => $s->type === Mot::TYPE_REACTION
+                    && data_get($s->effet, 'reaction') === 'mort_de_monstre');
+
+            if ($sort === null) {
+                continue;
+            }
+
+            $squelette = Monstre::query()->where('nom_base', 'Squelette')->orderBy('id')->first();
+
+            if ($squelette === null) {
+                return null;
+            }
+
+            $this->consommerUsage($lanceur, $quete, $sort);
+
+            $nouveau = InstanceMonstre::create([
+                'quete_id' => $quete->id,
+                'monstre_id' => $squelette->id,
+                'pv_body' => $squelette->pv_body,
+                'pv_mind' => $squelette->pv_mind,
+                'position_x' => $mort->position_x,
+                'position_y' => $mort->position_y,
+                'etat' => 'actif',
+            ]);
+            $this->reinitialiserUsagesInstance($nouveau->setRelation('monstre', $squelette), $quete);
+
+            $payload = [
+                'type' => 'sort_dread',
+                'sort' => $sort->nom,
+                'reaction' => 'mort_de_monstre',
+                'sans_action' => true,
+                'releve' => [
+                    'monstre' => $mort->nomAffiche(),
+                    'x' => (int) $mort->position_x,
+                    'y' => (int) $mort->position_y,
+                    'squelette_id' => $nouveau->id,
+                ],
+            ];
+            Journal::ajouter($groupe, 'action', $payload, [
+                'type' => 'monstre', 'id' => $lanceur->id, 'nom' => $lanceur->nomAffiche(),
+            ]);
+
+            return $payload;
+        }
+
+        return null;
+    }
+
+    /**
+     * Tous les sorts encore lançables du répertoire, SANS le filtre de palier
+     * ni d'utilité — les réactions n'ont pas de choix à faire, seulement une
+     * disponibilité (ni oubliées, ni déjà lancées).
+     *
+     * @return \Illuminate\Support\Collection<int, SortDread>
+     */
+    private function sortsDisponiblesTous(InstanceMonstre $instance, Quete $quete): \Illuminate\Support\Collection
+    {
+        $noms = $this->sortsLancables($instance, $quete);
+
+        return $noms === [] ? collect() : SortDread::whereIn('nom', $noms)->get();
+    }
+
+    /**
+     * POSSESSION (*Possess*) : « Zargon will move this figure on its next turn.
+     * The affected figure may not attack or cast spells. » Joué à la place du
+     * héros, comme le Commandement — un tour, puis la condition tombe.
+     *
+     * Zargon le jette dans la gueule du loup : il avance, avec le déplacement
+     * de base du héros (la carte ne donne pas de distance, le d6 de son tour
+     * n'a pas été lancé), vers le monstre actif le plus proche, et s'arrête à son
+     * contact SANS attaquer. Les pièges de la route se déclenchent (mouvement
+     * forcé, `MoteurPieges::repousserFigure()`). Cibles : des HÉROS — alliés et
+     * mercenaires ne sont pas visés par les sorts de Dread (nommé, pas oublié).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function jouerHerosPossede(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        EtatPersonnageQuete $etat,
+    ): ?array {
+        if (! $this->herosSousCondition($personnage, 'Possédé')) {
+            return null;
+        }
+
+        $this->retirerConditionHeros($personnage, 'Possédé');
+        $acteur = ['type' => 'personnage', 'id' => $personnage->id, 'nom' => $personnage->nom];
+        $depart = ['x' => (int) $etat->position_x, 'y' => (int) $etat->position_y];
+
+        $grille = $this->grilleQuete($quete, exceptPersonnageId: $personnage->id);
+        $monstre = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $m) => $m->position_x !== null)
+            ->sortBy(fn (InstanceMonstre $m) => abs((int) $m->position_x - $depart['x']) + abs((int) $m->position_y - $depart['y']))
+            ->first();
+
+        $chemin = [];
+
+        if ($monstre !== null) {
+            $complet = $this->cheminVersCaseAdjacente($grille, $depart['x'], $depart['y'], (int) $monstre->position_x, (int) $monstre->position_y) ?? [];
+            $chemin = array_slice($complet, 0, max(1, (int) $personnage->deplacement_base));
+        }
+
+        $arrivee = $depart;
+
+        if ($chemin !== [] && $quete->carte !== null) {
+            $piege = app(MoteurPieges::class)->repousserFigure($groupe, $quete->carte, $personnage, $etat, $chemin);
+            $arrivee = $piege['arret'] ?? end($chemin);
+            $etat->update(['position_x' => $arrivee['x'], 'position_y' => $arrivee['y']]);
+        }
+
+        $payload = [
+            'type' => 'possession_deplacement',
+            'personnage' => $personnage->nom,
+            'de' => $depart,
+            'vers' => ['x' => (int) $arrivee['x'], 'y' => (int) $arrivee['y']],
+            'vers_monstre' => $monstre?->nomAffiche(),
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
      * Fuite : téléportation du lanceur sur la case libre la plus éloignée
      * des héros (distance de Manhattan maximale), 1×/rencontre.
      *
@@ -3609,10 +4326,11 @@ final class MoteurDread
         Quete $quete,
         InstanceMonstre $lanceur,
         array $composition,
+        ?array $casesImposees = null,
     ): array {
         $lanceur->update(['invocation_dread_utilisee' => true]);
 
-        $casesLibres = $this->casesLibresAdjacentes($quete, $lanceur);
+        $casesLibres = $casesImposees ?? $this->casesLibresAdjacentes($quete, $lanceur);
         $invoques = [];
         $i = 0;
 
@@ -3641,7 +4359,7 @@ final class MoteurDread
                 ]);
                 $this->reinitialiserUsagesInstance($sbire->setRelation('monstre', $catalogue), $quete);
 
-                $invoques[] = ['monstre' => $catalogue->nom_base, 'x' => $case['x'], 'y' => $case['y']];
+                $invoques[] = ['monstre' => $catalogue->nom_base, 'x' => $case['x'], 'y' => $case['y'], 'instance_id' => (int) $sbire->id];
             }
         }
 
@@ -3896,6 +4614,706 @@ final class MoteurDread
         ?int $exceptInstanceId = null,
     ): Grille {
         return FabriqueGrille::pour($quete, $exceptPersonnageId, $exceptInstanceId);
+    }
+
+    // ------------------------------------------------------------------
+    // Wizards of Morcar — Orc Warcaster et Artificer (vague 2B, 2026-10-08)
+    // ------------------------------------------------------------------
+    //
+    // Cinq mécaniques que le catalogue n'avait pas, chacune lue ICI et testée en
+    // jeu (`SortsMorcarOrcsArtificeTest`) : le buff de zone pour une FACTION
+    // (*Shield of Protection*, *Sharpen Blades*), le tour double d'une tierce
+    // figure (*Orc Berserker*), les jetons d'ombre qui absorbent un coup entier
+    // (*Scrolls of Morcar*), le bonus d'attaque qui se brise sur un coup sans
+    // effet (*Hammer of Ruin*) et le drain (*Leach Life*) — plus la réaction à
+    // 0 PV (*Beseech Dread Powers!*). Les quatre invocations (*Call Orcs*,
+    // *Call Goblins*, *Conjure Golem*, *Summon Dreadshifter*) réutilisent
+    // l'invocation fixe `invoque` + `invoque_en_vue` de *Call Skeletons*.
+
+    /**
+     * La créature appartient-elle à la FACTION nommée ? « Orcs » = les figurines
+     * d'Orque, y compris leur variante à distance (`variante_distance_de`).
+     * Toujours `nom_base`, le nom de CATALOGUE : l'habillage IA rebaptise.
+     */
+    private function estDeFaction(InstanceMonstre $m, string $faction): bool
+    {
+        $monstre = $m->monstre;
+
+        return $monstre !== null
+            && ($monstre->nom_base === $faction || $monstre->variante_distance_de === $faction);
+    }
+
+    /** Une créature peut-elle encore AGIR (ni endormie, ni paralysée, ni passant son tour) ? */
+    private function peutAgir(InstanceMonstre $m): bool
+    {
+        return $m->etat === 'actif' && $m->revele && $m->controle_par === null
+            && ! $this->sorts->monstreA($m, MoteurSorts::MONSTRE_ENDORMI)
+            && ! $this->sorts->monstreA($m, MoteurSorts::MONSTRE_PARALYSE)
+            && ! $this->sorts->monstreA($m, MoteurSorts::MONSTRE_SAUTE_TOUR);
+    }
+
+    /**
+     * Les membres de la faction qui partagent la SALLE du lanceur (lui exclu).
+     *
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    private function membresDeFaction(Quete $quete, InstanceMonstre $lanceur, string $faction): \Illuminate\Support\Collection
+    {
+        $index = [];
+
+        foreach ($this->casesDeLaSalle($quete, $lanceur) as $c) {
+            $index[$c['x'].':'.$c['y']] = true;
+        }
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->get()
+            ->filter(fn (InstanceMonstre $m) => $m->id !== $lanceur->id
+                && $m->position_x !== null
+                && isset($index[(int) $m->position_x.':'.(int) $m->position_y])
+                && $this->estDeFaction($m, $faction))
+            ->values();
+    }
+
+    /**
+     * Qui reçoit le buff de faction : les membres de la salle, plus le lanceur
+     * quand la carte le dit (« the spellcaster AND all Orcs » — *Shield of
+     * Protection* ; *Sharpen Blades* ne parle que des Orcs).
+     *
+     * @param  array<string, mixed>  $buff
+     * @return \Illuminate\Support\Collection<int, InstanceMonstre>
+     */
+    private function destinatairesDuBuff(array $buff, Quete $quete, InstanceMonstre $lanceur): \Illuminate\Support\Collection
+    {
+        $membres = $this->membresDeFaction($quete, $lanceur, (string) ($buff['faction'] ?? ''));
+
+        return ! empty($buff['inclut_lanceur']) ? $membres->prepend($lanceur)->values() : $membres;
+    }
+
+    /**
+     * *Orc Berserker* — « an Orc they can see […] This spell may not be cast on
+     * an Orc that has already moved or attacked » : une créature de la faction,
+     * EN VUE du lanceur, capable d'agir, qui n'a pas encore joué dans la phase en
+     * cours (`$monstresDejaJoues`). La plus proche des héros d'abord : c'est celle
+     * dont deux tours comptent le plus.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     */
+    private function cibleDoubleTour(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $cibles): ?InstanceMonstre
+    {
+        if ($cibles->isEmpty() || $instance->position_x === null) {
+            return null;
+        }
+
+        $faction = (string) data_get($sort->effet, 'double_tour.faction', '');
+        $grille = $this->grilleQuete($quete, exceptInstanceId: $instance->id);
+        $lx = (int) $instance->position_x;
+        $ly = (int) $instance->position_y;
+
+        $ecart = fn (InstanceMonstre $m): int => (int) $cibles->min(
+            fn (EtatPersonnageQuete $c) => abs((int) $m->position_x - (int) $c->position_x)
+                + abs((int) $m->position_y - (int) $c->position_y),
+        );
+
+        return $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')
+            ->orderBy('id')->get()
+            ->filter(fn (InstanceMonstre $m) => $m->id !== $instance->id
+                && $m->position_x !== null
+                && $this->estDeFaction($m, $faction)
+                && $this->peutAgir($m)
+                && ! in_array((int) $m->id, $this->monstresDejaJoues, true)
+                && $grille->ligneDeVue($lx, $ly, (int) $m->position_x, (int) $m->position_y, figuresBloquent: true))
+            ->sortBy(fn (InstanceMonstre $m) => [$ecart($m), (int) $m->id])
+            ->first();
+    }
+
+    /**
+     * Le renfort sert-il à quelqu'un MAINTENANT ? Filtre dur, lu par le choix ET
+     * par la résolution : un buff que tout le monde porte déjà, ou un tour double
+     * sans orque éligible, brûlerait un sort pour rien.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     */
+    private function renfortUtilisable(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $cibles, Collection $enVue): bool
+    {
+        // Renforcer des alliés quand aucun ennemi n'est en vue n'a pas de sens.
+        if ($enVue->isEmpty()) {
+            return false;
+        }
+
+        $buff = data_get($sort->effet, 'buff_faction');
+
+        if (is_array($buff)) {
+            $cle = isset($buff['defense']) ? 'buff_defense' : 'buff_attaque';
+
+            return $this->destinatairesDuBuff($buff, $quete, $instance)
+                ->contains(fn (InstanceMonstre $m) => $m->etatDread($cle) === null);
+        }
+
+        return data_get($sort->effet, 'double_tour') !== null
+            && $this->cibleDoubleTour($sort, $quete, $instance, $cibles) !== null;
+    }
+
+    /**
+     * *Shield of Protection*, *Sharpen Blades* (buff de faction) et *Orc
+     * Berserker* (double tour).
+     *
+     * Le buff est un ÉTAT durable de chaque bénéficiaire (`habillage.dread_etat`,
+     * `{par: id du lanceur, des: n}`), lu par `InstanceMonstre::attaqueEffective()`
+     * / `defenseEffective()` — le seul endroit qui compose les dés d'un monstre.
+     * Il tombe au début du prochain tour du LANCEUR (défense) ou à l'ouverture du
+     * round suivant (attaque, « this turn only »).
+     *
+     * Le tour double ne joue rien ici : le payload porte `activation_immediate`
+     * avec l'id DEUX fois, et `ResolveurTour::phaseMonstres()` joue la créature
+     * à la suite du lanceur, puis la saute quand la boucle l'atteint.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadRenfort(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $cibles,
+        Collection $enVue,
+        array $acteur,
+    ): array {
+        $buff = data_get($sort->effet, 'buff_faction');
+
+        if (is_array($buff)) {
+            $volee = isset($buff['defense']) ? 'defense' : 'attaque';
+            $des = (int) ($buff['defense'] ?? $buff['attaque'] ?? 0);
+            $noms = [];
+
+            foreach ($this->destinatairesDuBuff($buff, $quete, $instance) as $m) {
+                $m->poserEtatDread($volee === 'defense' ? 'buff_defense' : 'buff_attaque', ['par' => (int) $instance->id, 'des' => $des]);
+                $noms[] = $m->nomAffiche();
+            }
+
+            $payload = [
+                'type' => 'sort_dread',
+                'sort' => $sort->nom,
+                'renforts' => [
+                    'creatures' => $noms,
+                    'volee' => $volee,
+                    'des' => $des,
+                    'duree' => (string) ($buff['duree'] ?? ''),
+                ],
+            ];
+        } else {
+            $orque = $this->cibleDoubleTour($sort, $quete, $instance, $cibles);
+
+            if ($orque === null) {
+                return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+            }
+
+            $payload = [
+                'type' => 'sort_dread',
+                'sort' => $sort->nom,
+                'double_tour' => ['monstre' => $orque->nomAffiche(), 'instance_id' => (int) $orque->id],
+                'activation_immediate' => [(int) $orque->id, (int) $orque->id],
+            ];
+        }
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * *Scrolls of Morcar* / *Hammer of Ruin* : le lanceur peut-il les poser — et
+     * ne les porte-t-il pas déjà ? (« The Spellcaster keeps this spell face up » :
+     * un seul exemplaire à la fois.)
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $enVue
+     */
+    private function ameliorationUtilisable(SortDread $sort, InstanceMonstre $instance, Collection $enVue): bool
+    {
+        if ($enVue->isEmpty()) {
+            return false;
+        }
+
+        if (data_get($sort->effet, 'jetons_ombre') !== null) {
+            return (int) $instance->etatDread('jetons_ombre', 0) === 0;
+        }
+
+        if (data_get($sort->effet, 'bonus_attaque') !== null) {
+            return (int) $instance->etatDread('bonus_attaque', 0) === 0;
+        }
+
+        return false;
+    }
+
+    /**
+     * Pose l'état : trois jetons d'ombre (*Scrolls of Morcar*), ou deux dés
+     * d'attaque qui se briseront sur un coup sans effet (*Hammer of Ruin*).
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadAmelioration(Groupe $groupe, InstanceMonstre $instance, SortDread $sort, array $acteur): array
+    {
+        $payload = ['type' => 'sort_dread', 'sort' => $sort->nom];
+
+        if (($jetons = data_get($sort->effet, 'jetons_ombre')) !== null) {
+            $instance->poserEtatDread('jetons_ombre', (int) $jetons);
+            $payload['amelioration'] = ['jetons_ombre' => (int) $jetons];
+        }
+
+        if (($bonus = data_get($sort->effet, 'bonus_attaque')) !== null) {
+            $instance->poserEtatDread('bonus_attaque', (int) $bonus);
+            $payload['amelioration'] = [
+                'bonus_attaque' => (int) $bonus,
+                'se_brise_sans_degat' => (bool) data_get($sort->effet, 'se_brise_sans_degat', false),
+            ];
+        }
+
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * *Scrolls of Morcar* : « When the Spellcaster takes any amount of damage,
+     * remove 1 shadow token INSTEAD. The spell is broken after the last shadow
+     * token is removed. » Appelé par `MoteurDegats::infligerAMonstre()`, le point
+     * de passage unique des coups portés à un monstre : le coup est absorbé EN
+     * ENTIER, quel que soit son montant, et coûte un jeton.
+     *
+     * @return array{jetons_restants: int}|null `null` si le lanceur n'a aucun jeton
+     */
+    public function absorberParJeton(InstanceMonstre $instance): ?array
+    {
+        $jetons = (int) $instance->etatDread('jetons_ombre', 0);
+
+        if ($jetons <= 0) {
+            return null;
+        }
+
+        $restants = $jetons - 1;
+        $instance->poserEtatDread('jetons_ombre', $restants > 0 ? $restants : null);
+
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe !== null) {
+            Journal::ajouter($groupe, 'action', [
+                'type' => 'effet_dread',
+                'mecanique' => 'jetons_ombre',
+                'texte' => $instance->nomAffiche().' — un jeton d\'ombre absorbe le coup'
+                    .($restants > 0 ? " ({$restants} restant".($restants > 1 ? 's' : '').')' : ' ; le dernier s\'éteint, les Parchemins de Morcar sont brisés'),
+                'ton' => 'pare',
+                'jetons_restants' => $restants,
+            ], ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+        }
+
+        return ['jetons_restants' => $restants];
+    }
+
+    /**
+     * *Hammer of Ruin* : « If an attack from the spellcaster does not result in
+     * the enemy losing at least 1 Body Point, the spell is broken. » Appelé après
+     * chaque attaque du lanceur avec les PV RÉELLEMENT retirés (réductions de
+     * talent comprises) — jamais les dégâts annoncés par le jet.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function apresAttaqueDuLanceur(InstanceMonstre $instance, int $pvRetires): ?array
+    {
+        if ((int) $instance->etatDread('bonus_attaque', 0) <= 0 || $pvRetires >= 1) {
+            return null;
+        }
+
+        $instance->poserEtatDread('bonus_attaque', null);
+
+        $payload = [
+            'type' => 'effet_dread',
+            'mecanique' => 'se_brise_sans_degat',
+            'texte' => $instance->nomAffiche().' — le coup n\'a rien retiré : le Marteau de la Ruine se brise',
+            'ton' => 'echec',
+        ];
+
+        $groupe = $instance->quete?->groupe;
+
+        if ($groupe !== null) {
+            Journal::ajouter($groupe, 'action', $payload, ['type' => 'monstre', 'id' => $instance->id, 'nom' => $instance->nomAffiche()]);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Les figures que *Leach Life* attrape — SEUL point de passage du choix ET de
+     * la résolution : « each OTHER figure in the same room or corridor », donc les
+     * héros debout ET les créatures du lanceur (la carte ne les épargne pas).
+     * Le sort n'est retenu que si les héros y sont au moins aussi nombreux que
+     * les siens : se saigner soi-même pour un seul héros serait un contresens.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @return array{heros: \Illuminate\Support\Collection<int, EtatPersonnageQuete>, monstres: \Illuminate\Support\Collection<int, InstanceMonstre>, utilisable: bool}
+     */
+    private function figuresDuDrain(SortDread $sort, Quete $quete, InstanceMonstre $instance, Collection $cibles): array
+    {
+        $cases = $this->casesDeZone($sort, $quete, $instance, $cibles);
+        $heros = $this->herosSurCases($cibles, $cases);
+        $index = [];
+
+        foreach ($cases as $c) {
+            $index[$c['x'].':'.$c['y']] = true;
+        }
+
+        $monstres = $quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)->with('monstre')->get()
+            ->filter(fn (InstanceMonstre $m) => $m->id !== $instance->id
+                && $m->position_x !== null
+                && isset($index[(int) $m->position_x.':'.(int) $m->position_y]))
+            ->values();
+
+        return [
+            'heros' => $heros,
+            'monstres' => $monstres,
+            'utilisable' => $heros->isNotEmpty() && $heros->count() >= $monstres->count(),
+        ];
+    }
+
+    /**
+     * *Leach Life* : « rolls 1 red die for each other figure in the same room or
+     * corridor. If the roll is equal to or greater than a target's Mind Points,
+     * they lose 1 Body Point and the Spellcaster recovers 1 Body Point. »
+     *
+     * « Mind Points » = la JAUGE (`pv_mind`), comme les jets de rupture depuis le
+     * 2026-10-01 : un esprit entamé résiste moins, et un Mind à 0 est touché à
+     * tout coup. Le d6 est BRUT (une « red die » du texte), pas une face de
+     * combat.
+     *
+     * @param  Collection<int, EtatPersonnageQuete>  $cibles
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function sortDreadDrain(
+        Groupe $groupe,
+        Quete $quete,
+        InstanceMonstre $instance,
+        SortDread $sort,
+        Collection $cibles,
+        array $acteur,
+    ): array {
+        $figures = $this->figuresDuDrain($sort, $quete, $instance, $cibles);
+
+        if ($figures['heros']->isEmpty() && $figures['monstres']->isEmpty()) {
+            return $this->sortDreadGenericJournal($groupe, $sort, $acteur);
+        }
+
+        $regle = (array) data_get($sort->effet, 'drain', []);
+        $perte = max(1, (int) ($regle['pv_perdus'] ?? 1));
+        $gain = max(0, (int) ($regle['pv_rendus'] ?? 1));
+        $resultats = [];
+        $collateraux = [];
+        $rendus = 0;
+
+        foreach ($figures['heros'] as $cible) {
+            $personnage = $cible->personnage;
+            $de = $this->des->d6();
+            $entree = ['cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom], 'de' => $de];
+
+            if ($de < (int) $personnage->pv_mind) {
+                $resultats[] = $entree + ['touche' => false, 'degats' => 0, 'pv_body_apres' => (int) $personnage->pv_body];
+
+                continue;
+            }
+
+            if ($this->sorts->annuleProchainSortDegats($personnage)) {
+                $resultats[] = $entree + ['touche' => true, 'absorbe' => true, 'degats' => 0];
+
+                continue;
+            }
+
+            $subis = $this->degats->infligerAHeros(
+                $personnage, $perte, MoteurDegats::SOURCE_SORT_DREAD,
+                ['sort' => $sort->nom, 'lanceur_id' => (int) $instance->id],
+            );
+            $this->sorts->reveillerHeros($personnage);
+
+            if ((int) $personnage->pv_body === 0 && $subis > 0) {
+                $cible->update(['tombe' => true]);
+            }
+
+            if ($subis > 0) {
+                $rendus += $gain;
+            }
+
+            $resultats[] = $entree + [
+                'touche' => true,
+                'degats' => $subis,
+                'pv_body_apres' => (int) $personnage->pv_body,
+                'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
+            ];
+        }
+
+        foreach ($figures['monstres'] as $monstre) {
+            $de = $this->des->d6();
+
+            if ($de < (int) $monstre->pv_mind) {
+                $collateraux[] = ['monstre' => $monstre->nomAffiche(), 'de' => $de, 'touche' => false, 'degats' => 0];
+
+                continue;
+            }
+
+            $coup = $this->blesserMonstre($monstre, $perte, null);
+
+            if ($coup['degats'] > 0) {
+                $rendus += $gain;
+            }
+
+            $collateraux[] = $coup + ['monstre' => $monstre->nomAffiche(), 'de' => $de, 'touche' => true];
+        }
+
+        $avant = (int) $instance->pv_body;
+        $apres = min($instance->pvBodyMax(), $avant + $rendus);
+        $instance->update(['pv_body' => $apres]);
+
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'resultats' => $resultats,
+            'drain' => ['pv_rendus' => $apres - $avant, 'pv_body_apres' => $apres],
+        ];
+
+        if ($collateraux !== []) {
+            $payload['monstres_touches'] = $collateraux;
+        }
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * *Beseech Dread Powers!* — « The spellcaster may immediately cast this spell
+     * in response to being reduced to 0 body points. Roll 1 red die. 1-2 Ignored.
+     * 3-5 Place a Gargoyle in the spellcaster's space. 6 The air chills. Each
+     * hero in the same room or corridor loses 2 body points. »
+     *
+     * Appelé par `MoteurDegats::infligerAMonstre()` au moment où le coup achève le
+     * lanceur — le même point de passage que *Raise the Dead*. Sans action : le
+     * moteur la lance dès qu'elle est encore en main (ni oubliée, ni déjà
+     * lancée). Le Sorcier tombe quoi qu'il arrive (la carte ne le sauve pas) ; la
+     * Gargouille naît sur SA case, devenue libre.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function reactionALaChute(InstanceMonstre $sorcier): ?array
+    {
+        $quete = $sorcier->quete;
+        $groupe = $quete?->groupe;
+
+        if ($quete === null || $groupe === null || $sorcier->position_x === null
+            || ! $this->aCapacite($sorcier, 'sorts_uniques')) {
+            return null;
+        }
+
+        $sort = $this->sortsDisponiblesTous($sorcier, $quete)
+            ->first(fn (SortDread $s) => $s->type === Mot::TYPE_REACTION
+                && data_get($s->effet, 'reaction') === 'zero_pv_du_lanceur');
+
+        if ($sort === null) {
+            return null;
+        }
+
+        $this->consommerUsage($sorcier, $quete, $sort);
+
+        $de = $this->des->d6();
+        $ligne = [];
+
+        foreach ((array) data_get($sort->effet, 'sur_zero_pv', []) as $candidate) {
+            $ligne = (array) $candidate;
+
+            if ($de <= (int) ($ligne['jusqu_a'] ?? 6)) {
+                break;
+            }
+        }
+
+        $issue = (string) ($ligne['issue'] ?? 'ignoree');
+        $payload = [
+            'type' => 'sort_dread',
+            'sort' => $sort->nom,
+            'reaction' => 'zero_pv_du_lanceur',
+            'sans_action' => true,
+            'de' => $de,
+            'issue' => $issue,
+        ];
+
+        if ($issue === 'invoque') {
+            $invoques = [];
+
+            foreach ((array) ($ligne['invoque'] ?? []) as $nom => $nombre) {
+                $catalogue = Monstre::query()->where('nom_base', $nom)->orderBy('id')->first();
+
+                for ($n = 0; $catalogue !== null && $n < (int) $nombre; $n++) {
+                    $nouveau = InstanceMonstre::create([
+                        'quete_id' => $quete->id,
+                        'monstre_id' => $catalogue->id,
+                        'pv_body' => $catalogue->pv_body,
+                        'pv_mind' => $catalogue->pv_mind,
+                        'position_x' => $sorcier->position_x,
+                        'position_y' => $sorcier->position_y,
+                        'etat' => 'actif',
+                    ]);
+                    $this->reinitialiserUsagesInstance($nouveau->setRelation('monstre', $catalogue), $quete);
+                    $invoques[] = [
+                        'monstre' => $catalogue->nom_base,
+                        'x' => (int) $sorcier->position_x,
+                        'y' => (int) $sorcier->position_y,
+                        'instance_id' => (int) $nouveau->id,
+                    ];
+                }
+            }
+
+            $payload['invoques'] = $invoques;
+        }
+
+        if ($issue === 'froid') {
+            $debout = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get();
+            $perte = max(1, (int) ($ligne['pv_perdus'] ?? 2));
+            $resultats = [];
+
+            foreach ($this->herosSurCases($debout, $this->casesDeZone($sort, $quete, $sorcier, $debout)) as $cible) {
+                $personnage = $cible->personnage;
+                $subis = $this->degats->infligerAHeros(
+                    $personnage, $perte, MoteurDegats::SOURCE_SORT_DREAD,
+                    ['sort' => $sort->nom, 'lanceur_id' => (int) $sorcier->id],
+                );
+
+                if ((int) $personnage->pv_body === 0 && $subis > 0) {
+                    $cible->update(['tombe' => true]);
+                }
+
+                $resultats[] = [
+                    'cible' => ['personnage_id' => $personnage->id, 'nom' => $personnage->nom],
+                    'degats' => $subis,
+                    'pv_body_apres' => (int) $personnage->pv_body,
+                    'cible_tombee' => (int) $personnage->pv_body === 0 && $subis > 0,
+                ];
+            }
+
+            $payload['resultats'] = $resultats;
+        }
+
+        Journal::ajouter($groupe, 'combat', $payload, [
+            'type' => 'monstre', 'id' => $sorcier->id, 'nom' => $sorcier->nomAffiche(),
+        ]);
+
+        return $payload;
+    }
+
+    /**
+     * « Until the start of the spellcaster's next turn » : le bouclier posé par
+     * CE lanceur tombe au début de son tour. Annoncé s'il tombait vraiment.
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>|null
+     */
+    private function expirerBuffsAuTourDuLanceur(Groupe $groupe, Quete $quete, InstanceMonstre $lanceur, array $acteur): ?array
+    {
+        $noms = [];
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {
+            $buff = $m->etatDread('buff_defense');
+
+            if (is_array($buff) && (int) ($buff['par'] ?? 0) === (int) $lanceur->id) {
+                $m->poserEtatDread('buff_defense', null);
+                $noms[] = $m->nomAffiche();
+            }
+        }
+
+        if ($noms === []) {
+            return null;
+        }
+
+        $payload = [
+            'type' => 'effet_dread',
+            'mecanique' => 'buff_faction',
+            'texte' => 'Le bouclier de protection se dissipe ('.implode(', ', $noms).')',
+            'ton' => 'info',
+        ];
+        Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * Ouverture d'un nouveau round : « this turn only » (*Sharpen Blades*) tombe
+     * pour tous ; un bouclier dont le lanceur n'est plus debout tombe aussi (il
+     * n'aura jamais de « prochain tour »). Rend les annonces à publier.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function expirerBuffsDeRound(Groupe $groupe, Quete $quete): array
+    {
+        $annonces = [];
+        $lames = [];
+        $boucliers = [];
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->get() as $m) {
+            if ($m->etatDread('buff_attaque') !== null) {
+                $m->poserEtatDread('buff_attaque', null);
+                $lames[] = $m->nomAffiche();
+            }
+
+            $buff = $m->etatDread('buff_defense');
+
+            if (is_array($buff)
+                && ! $quete->instancesMonstres()->whereKey((int) ($buff['par'] ?? 0))->where('etat', 'actif')->exists()) {
+                $m->poserEtatDread('buff_defense', null);
+                $boucliers[] = $m->nomAffiche();
+            }
+        }
+
+        foreach ([
+            ['Les lames aiguisées s\'émoussent', $lames],
+            ['Le bouclier de protection se dissipe (son lanceur est tombé)', $boucliers],
+        ] as [$texte, $noms]) {
+            if ($noms === []) {
+                continue;
+            }
+
+            $payload = ['type' => 'effet_dread', 'mecanique' => 'buff_faction', 'texte' => $texte.' — '.implode(', ', $noms), 'ton' => 'info'];
+            Journal::ajouter($groupe, 'action', $payload);
+            $annonces[] = $payload;
+        }
+
+        return $annonces;
+    }
+
+    /**
+     * Libellés publiés (conditions d'un monstre, `EtatGroupe`) des états de sort
+     * que porte une créature — un effet automatique que rien n'annonce est
+     * injouable : la table doit voir le Marteau, les jetons, le bouclier.
+     *
+     * @return list<string>
+     */
+    public static function etiquettesDread(InstanceMonstre $m): array
+    {
+        $e = [];
+
+        if (($j = (int) $m->etatDread('jetons_ombre', 0)) > 0) {
+            $e[] = "Parchemins de Morcar ({$j} jeton".($j > 1 ? 's' : '').')';
+        }
+
+        if (($b = (int) $m->etatDread('bonus_attaque', 0)) > 0) {
+            $e[] = "Marteau de la Ruine (+{$b} dés d'attaque)";
+        }
+
+        if ((int) data_get($m->etatDread('buff_defense'), 'des', 0) > 0) {
+            $e[] = 'Bouclier de protection (+'.(int) data_get($m->etatDread('buff_defense'), 'des', 0).' dé de défense)';
+        }
+
+        if ((int) data_get($m->etatDread('buff_attaque'), 'des', 0) > 0) {
+            $e[] = 'Lames aiguisées (+'.(int) data_get($m->etatDread('buff_attaque'), 'des', 0).' dé d\'attaque)';
+        }
+
+        return $e;
     }
 
     /**

@@ -195,6 +195,46 @@ class ConditionSeeder extends Seeder
                 'effet' => ['annule_prochain_sort_degats' => true, 'fin' => 'premier_sort_absorbe']],
             ['nom' => 'Esprit vif', 'type' => 'physique', 'duree_defaut' => 0,
                 'effet' => ['second_sort_par_tour' => true, 'fin' => 'duree_du_sort']],
+
+            // ===== Wizards of Morcar — les Sorciers du Dread (2026-10-08) =====
+            //
+            // *Blinding Sleet* (Storm Master) : « Characters in that room may not
+            // move, make ranged attacks or cast spells until the start of Zargon's
+            // next turn. Those characters can only attack and defend against
+            // adjacent enemies. »
+            // Trois interdits, TROIS lecteurs : `deplacement_interdit`
+            // (MenuMoteur/ResolveurTour, depuis 2026-08-10), `sorts_interdits`
+            // (`MoteurSorts::sortsInterdits()`, lu par MenuMoteur ET le résolveur) et
+            // `tir_interdit` (`MoteurSorts::tirInterdit()`, lu par
+            // `ciblesPourArme()` ET `frapper()`). `fin: debut_tour_mj` : levée en
+            // tête de `phaseMonstres()` (`leverConditionsDeDebutDeTourMJ()`).
+            // ⚠ « …and DEFEND against adjacent enemies » n'est PAS porté, et c'est
+            // écrit : la condition tombe AVANT le tour de Zargon, donc aucun monstre
+            // n'attaque un héros sous grésil — la phrase n'a rien à régir dans ce
+            // moteur (aucun lecteur ne la lirait jamais). Une clé qui ne servirait
+            // jamais est exactement ce que le projet refuse.
+            ['nom' => 'Grésil aveuglant', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['deplacement_interdit' => true, 'sorts_interdits' => true,
+                    'tir_interdit' => true, 'fin' => 'debut_tour_mj']],
+
+            // *Strands of Binding* (High Mage) : « They entangle one target who may
+            // not move or attack until the tendrils are destroyed. Tendrils have
+            // 1 Body Point and roll 4 Defend dice. The target may defend against
+            // other attacks. » Pas de `defense_nulle` : la cible PARE les autres
+            // coups. `liens_defense` (4) est lu par `ResolveurTour::resoudreAttaqueLiens()`
+            // et par le menu (`MoteurSorts::liensDe()`) ; `attaque_interdite` par
+            // `MoteurSorts::raisonAttaqueInterdite()`, avec son motif propre.
+            ['nom' => 'Ligoté', 'type' => 'physique', 'duree_defaut' => 0,
+                'effet' => ['deplacement_interdit' => true, 'attaque_interdite' => true,
+                    'raison_attaque' => '{nom} est ligoté par des liens magiques : il ne peut pas attaquer avant de les avoir tranchés.',
+                    'liens_defense' => 4, 'fin' => 'liens_detruits']],
+
+            // *Possess* (High Mage) : « Zargon will move this figure on its next
+            // turn. The affected figure may not attack or cast spells. » Lue par
+            // NOM comme *Commandé* (`ResolveurTour` → `MoteurDread::jouerHerosPossede()`),
+            // qui prend le tour du héros et retire la condition : un tour, pas plus.
+            ['nom' => 'Possédé', 'type' => 'mental', 'duree_defaut' => 0,
+                'effet' => ['controle_par_ennemi' => true, 'fin' => 'prochain_tour_du_heros']],
         ];
 
         foreach ($conditions as $condition) {

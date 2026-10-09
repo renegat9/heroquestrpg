@@ -55,6 +55,14 @@ class Monstre extends Model
         return $this->portee === 'distance';
     }
 
+    /** Le monstre porte-t-il la capacité *Ambush* (Dreadshifter) ? */
+    public function aCapaciteEmbuscade(): bool
+    {
+        $capacites = (array) ($this->capacites ?? []);
+
+        return in_array('embuscade', $capacites, true) || array_key_exists('embuscade', $capacites);
+    }
+
     /** Emprise en cases : [largeur, hauteur]. Par défaut 1×1. */
     public function emprise(): array
     {

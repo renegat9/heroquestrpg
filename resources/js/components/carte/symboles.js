@@ -107,6 +107,10 @@ export const MOBILIER_ICONES = {
     // COURS DE QUÊTE, jamais à la génération — un bloc plein, distinct des
     // trois icônes ci-dessus (aucune ne dit « mur »).
     'Mur de Pierre': 'block',
+    // Murs de Dread (Wall of Ice / Wall of Flame, Sorciers de Morcar, 2026-10-08) :
+    // même rôle de barrière que le Mur de Pierre, un symbole par élément.
+    'Mur de Glace': 'ac_unit',
+    'Mur de Feu': 'local_fire_department',
 };
 export const MOBILIER_ICONE_DEFAUT = 'category';
 

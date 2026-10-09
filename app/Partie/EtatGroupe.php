@@ -1331,6 +1331,13 @@ final class EtatGroupe
             }
         }
 
+        // États des sorts de Sorcier (Wizards of Morcar) : jetons d'ombre,
+        // Marteau de la Ruine, Bouclier de protection, Lames aiguisées — publiés
+        // sous leur libellé, DÉCIDÉS par le serveur (`MoteurDread::etiquettesDread()`).
+        foreach (MoteurDread::etiquettesDread($instance) as $libelle) {
+            $conditions[] = ['nom' => $libelle, 'duree' => 0];
+        }
+
         return $conditions;
     }
 

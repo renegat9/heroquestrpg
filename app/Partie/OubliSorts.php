@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Partie;
 
+use App\Engine\Des\LanceurDes;
 use App\Models\Quete;
 use Illuminate\Support\Facades\DB;
 
@@ -38,6 +39,38 @@ final class OubliSorts
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    /**
+     * Indice UNIFORME dans [0, $n[, tiré au d6 PAR REJET — jamais `random_int()` :
+     * la partie doit rester rejouable depuis le lanceur injecté (tests compris).
+     * Chaque tirage forme un nombre en base 6 sur assez de chiffres pour couvrir
+     * $n ; on rejette tout ce qui dépasse, donc aucun biais de modulo.
+     *
+     * POINT DE PASSAGE UNIQUE du « au hasard » : l'*Unlearn* des héros
+     * (`ResolveurTour::oublierSortSort()`), celui du High Mage et le *Thieving
+     * Wind* du Storm Master tirent tous d'ici.
+     */
+    public function indiceAleatoire(LanceurDes $des, int $n): int
+    {
+        $chiffres = max(1, (int) ceil(log(max($n, 2), 6)));
+
+        // Borné : un lanceur déterministe qui rejetterait toujours la même face
+        // ne doit JAMAIS bloquer la partie. Au-delà de 64 rejets (probabilité
+        // négligeable avec de vrais dés), on retient le dernier indice valide.
+        for ($essai = 0; $essai < 64; $essai++) {
+            $valeur = 0;
+
+            for ($i = 0; $i < $chiffres; $i++) {
+                $valeur = $valeur * 6 + ($des->d6() - 1);
+            }
+
+            if ($valeur < $n) {
+                return $valeur;
+            }
+        }
+
+        return max(0, $n - 1);
     }
 
     /**

@@ -15,6 +15,7 @@ use App\Models\Competence;
 use App\Models\Condition;
 use App\Models\EtatPersonnageQuete;
 use App\Models\Groupe;
+use App\Models\Inventaire;
 use App\Models\InstanceMonstre;
 use App\Models\Objet;
 use App\Models\Personnage;
@@ -534,6 +535,92 @@ final class MoteurSorts
     }
 
     /**
+     * Une CONDITION portée interdit-elle de LANCER un sort (`sorts_interdits`) ?
+     * *Blinding Sleet* (Storm Master) : « Characters in that room may not […]
+     * cast spells until the start of Zargon's next turn. » Lue par
+     * `MenuMoteur` (rien n'est offert) et par `ResolveurTour::resoudre()` (rien
+     * n'est accepté) — jamais par un seul des deux.
+     */
+    public function sortsInterdits(Personnage $personnage): bool
+    {
+        return $personnage->conditions()->get()
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'sorts_interdits', false));
+    }
+
+    /**
+     * Une CONDITION portée interdit-elle les attaques À DISTANCE (`tir_interdit`) ?
+     * *Blinding Sleet* : « may not […] make ranged attacks » — « can only attack
+     * […] adjacent enemies ». Lue par `MenuMoteur::ciblesPourArme()` (aucune cible
+     * lointaine offerte) et par `ResolveurTour::frapper()` (tir et arme lancée
+     * refusés).
+     */
+    public function tirInterdit(Personnage $personnage): bool
+    {
+        return $personnage->conditions()->get()
+            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'tir_interdit', false));
+    }
+
+    /**
+     * Les conditions qu'une ACTION de « Détruire les entraves » peut lever : celles
+     * qui interdisent le déplacement ET dont la sortie n'est ni un tour du MJ
+     * (`debut_tour_mj`, le grésil) ni la destruction des liens eux-mêmes
+     * (`liens_detruits`, *Strands of Binding* : des liens à 1 PV et 4 dés de
+     * défense, qu'on ATTAQUE). POINT DE PASSAGE UNIQUE du menu et du résolveur.
+     *
+     * @return \Illuminate\Support\Collection<int, Condition>
+     */
+    public function entravesLiberables(Personnage $personnage): \Illuminate\Support\Collection
+    {
+        return $personnage->conditions()->get()
+            ->filter(fn (Condition $c) => (bool) data_get($c->effet, 'deplacement_interdit', false)
+                && ! in_array(data_get($c->effet, 'fin'), ['debut_tour_mj', 'liens_detruits'], true))
+            ->values();
+    }
+
+    /**
+     * Les LIENS qui retiennent ce héros (*Strands of Binding*), ou `null` : la
+     * condition portant `liens_defense` (dés de défense des liens, 1 PV).
+     */
+    public function liensDe(Personnage $personnage): ?Condition
+    {
+        return $personnage->conditions()->get()
+            ->first(fn (Condition $c) => data_get($c->effet, 'liens_defense') !== null);
+    }
+
+    /**
+     * Fin de la phase des héros : les conditions « jusqu'au début du prochain tour
+     * de Zargon » (`fin: debut_tour_mj`, le grésil aveuglant) tombent. Appelé en
+     * TÊTE de `ResolveurTour::phaseMonstres()` — le seul « début de tour du MJ »
+     * qu'un moteur par rounds possède. Une condition posée PENDANT cette phase
+     * survit jusqu'à la suivante : c'est « until the start of Zargon's next turn ».
+     *
+     * @return list<array{personnage_id: int, condition: string}> ce qui a été levé (à annoncer)
+     */
+    public function leverConditionsDeDebutDeTourMJ(Quete $quete): array
+    {
+        $ids = Condition::query()->get()
+            ->filter(fn (Condition $c) => data_get($c->effet, 'fin') === 'debut_tour_mj')
+            ->pluck('nom', 'id');
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $persos = $quete->etatsPersonnages()->pluck('personnage_id');
+        $lignes = DB::table('personnage_conditions')
+            ->whereIn('personnage_id', $persos)
+            ->whereIn('condition_id', $ids->keys())
+            ->get(['id', 'personnage_id', 'condition_id']);
+
+        DB::table('personnage_conditions')->whereIn('id', $lignes->pluck('id'))->delete();
+
+        return $lignes->map(fn ($l) => [
+            'personnage_id' => (int) $l->personnage_id,
+            'condition' => (string) $ids[$l->condition_id],
+        ])->all();
+    }
+
+    /**
      * Dés de défense EFFECTIFS d'un héros — le seul calcul qui fasse foi.
      *
      * Sept endroits reproduisaient `des_defense + bonusDes(...)` à la main :
@@ -865,6 +952,23 @@ final class MoteurSorts
     }
 
     /**
+     * Un PARCHEMIN est DÉTRUIT à l'usage : une unité de sa ligne au sac, la ligne
+     * elle-même à la dernière. Le SEUL point de passage de cette règle — la lecture
+     * (`ResolveurTour::resoudreParchemin()`) comme la relance de *Vision du futur*
+     * (`MoteurReactions::depenserSourceRelance()`) s'en servent (2026-10-08).
+     */
+    public function consommerParchemin(Inventaire $ligne): void
+    {
+        if ((int) $ligne->quantite > 1) {
+            $ligne->decrement('quantite');
+
+            return;
+        }
+
+        $ligne->delete();
+    }
+
+    /**
      * Héros possédant un nœud « Concentration », pas encore utilisé cette quête.
      *
      * ⚠ La garde `classe === 'magicien'` est tombée le 2026-08-23 : c'est la
@@ -960,6 +1064,11 @@ final class MoteurSorts
                 // figures ne bloquent plus la ligne de vue de CE lanceur —
                 // lu par `filtrerLigneDeVue()`, plus bas.
                 'figures_bloquent' => app(FaveursHopekins::class)->figuresBloquentPour($personnage),
+                // CONTE INSPIRANT (« excluding yourself ») : lu par `ciblesLegales()`
+                // pour retirer le lanceur de SA propre liste. Absente, la règle ne
+                // retirait rien — le Barde se voyait proposer le sort sur lui-même
+                // (2026-10-08).
+                'personnage_id' => $personnage->id,
             ]
             : null;
 
@@ -1069,6 +1178,11 @@ final class MoteurSorts
             }
         }
 
+        // UN SORT À CIBLE SANS CIBLE LÉGALE N'A AUCUNE ENTRÉE (2026-10-08) — voir
+        // `sansCiblesVides()`. Filtré ICI, avant le `if` qui décide d'émettre
+        // l'option : une `lancer_sort` sans plus aucune entrée ne paraît pas.
+        $entrees = self::sansCiblesVides($entrees);
+
         if ($entrees !== []) {
             $options[] = [
                 'id' => 'lancer_sort',
@@ -1094,22 +1208,47 @@ final class MoteurSorts
 
             // VISION DU FUTUR : se joue APRÈS un jet, jamais en lisant une carte —
             // un parchemin que le menu offrirait serait un bouton que le résolveur
-            // ne saurait pas honorer. Le parchemin existe au catalogue (un par
-            // sort, `ObjetSeeder`) mais ne se lit pas.
+            // ne saurait pas honorer. Le parchemin (un par sort, `ObjetSeeder`) se
+            // joue donc par la RÉACTION : `MoteurReactions::sourceVisionDuFutur()`
+            // le lit au sac à chaque jet (2026-10-08).
             if ((bool) data_get($sort->effet, 'relance_jet', false)) {
                 continue;
             }
 
             // VOILE D'OMBRE : l'emplacement est le choix, comme au sort connu —
             // une entrée par emplacement légal, chacune portant `inventaire_id`.
+            // Même générateur que le sort connu : seule la racine de la `cle` change.
             if ((bool) data_get($sort->effet, 'pose_ombre', false)) {
                 if ($lanceur !== null) {
-                    foreach ($this->entreesPoseOmbre($quete, $grille, $sort, $lanceur) as $entree) {
-                        $parchemins[] = [
-                            ...$entree,
-                            'cle' => 'parchemin:'.$ligne->id.substr((string) $entree['cle'], strlen("sort:{$sort->id}")),
-                            'inventaire_id' => $ligne->id,
-                        ];
+                    foreach ($this->entreesPoseOmbre($quete, $grille, $sort, $lanceur, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
+                        $parchemins[] = $entree;
+                    }
+                }
+
+                continue;
+            }
+
+            // MUR MAGIQUE (2026-10-08) : le parchemin de Mur de Pierre offre les
+            // MÊMES paires que le sort connu — un seul générateur de paires. Sans
+            // cette branche, l'entrée générique ci-dessous n'a ni `mode` ni `cases`,
+            // et le résolveur n'a aucune paire à poser.
+            if ((bool) data_get($sort->effet, 'pose_mur_magique', false)) {
+                if ($lanceur !== null) {
+                    foreach ($this->entreesPoseMurMagique($grille, $sort, $lanceur, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
+                        $parchemins[] = $entree;
+                    }
+                }
+
+                continue;
+            }
+
+            // CLAIRVOYANCE (2026-10-08) : même raison — une entrée par salle non
+            // découverte, avec `mode: vision_salle` et `salle`. Sans cela le
+            // résolveur ne sait pas quelle salle montrer, et refuse.
+            if ((bool) data_get($sort->effet, 'vision_salle', false)) {
+                if ($lanceur !== null) {
+                    foreach ($this->entreesVisionSalle($quete, $sort, $lanceur, "parchemin:{$ligne->id}", ['inventaire_id' => $ligne->id]) as $entree) {
+                        $parchemins[] = $entree;
                     }
                 }
 
@@ -1140,6 +1279,10 @@ final class MoteurSorts
                 ['inventaire_id' => $ligne->id],
             );
         }
+
+        // Même règle que les sorts connus : un parchemin dont la cible manque
+        // n'est pas offert non plus (même liste de cibles, même résolveur).
+        $parchemins = self::sansCiblesVides($parchemins);
 
         if ($parchemins !== []) {
             $options[] = [
@@ -1276,10 +1419,13 @@ final class MoteurSorts
         // du Barde). L'inverse de la règle par défaut, et il faut le dire : ce
         // sort revient quand un ALLIÉ pare, alors se l'accorder à soi-même en
         // ferait un bonus quasi permanent.
+        // ⚠ Un candidat héros porte son identifiant de PERSONNAGE dans `id` (voir
+        // `ciblesHeros()`) : c'est `id` qu'il faut comparer. Lire `personnage_id`,
+        // une clé qu'aucun candidat ne porte, faisait de cette règle un no-op.
         if (data_get($sort->effet, 'exclut_soi') && $lanceur !== null && isset($lanceur['personnage_id'])) {
             $cibles = array_values(array_filter(
                 $cibles,
-                fn ($c) => ($c['personnage_id'] ?? null) !== $lanceur['personnage_id'],
+                fn ($c) => ($c['type'] ?? null) !== 'heros' || (int) $c['id'] !== (int) $lanceur['personnage_id'],
             ));
         }
 
@@ -2147,9 +2293,17 @@ final class MoteurSorts
      */
     public function raisonAttaqueInterdite(Personnage $personnage): ?string
     {
-        if ($personnage->conditions()->get()
-            ->contains(fn (Condition $c) => (bool) data_get($c->effet, 'attaque_interdite', false))) {
-            return "{$personnage->nom} est invisible : impossible d'attaquer avant le début de son prochain tour.";
+        $interdisante = $personnage->conditions()->get()
+            ->first(fn (Condition $c) => (bool) data_get($c->effet, 'attaque_interdite', false));
+
+        if ($interdisante !== null) {
+            // Le motif est celui que la condition DÉCLARE (`raison_attaque`) :
+            // l'Invisibilité et les liens de *Strands of Binding* interdisent la
+            // même chose pour des raisons que le joueur doit pouvoir lire.
+            return str_replace('{nom}', (string) $personnage->nom, (string) data_get(
+                $interdisante->effet, 'raison_attaque',
+                "{nom} est invisible : impossible d'attaquer avant le début de son prochain tour.",
+            ));
         }
 
         if (app(MoteurOmbre::class)->contientHeros($personnage)) {
@@ -2460,11 +2614,17 @@ final class MoteurSorts
      * portes (`reperePorte()`) appliqué à la MÉDIANE de la salle : « au
      * nord-est, à 7 cases ». Aucun contenu dans le libellé.
      *
+     * `$racine` / `$extra` : la `cle` part de `sort:{id}` (le sort connu, défaut) ou
+     * de `parchemin:{inventaire_id}` (le parchemin du sac, 2026-10-08), et `$extra`
+     * porte `inventaire_id` — MÊME générateur, deux entrées de menu.
+     *
      * @param  array{x: int, y: int}  $lanceur
+     * @param  array<string, mixed>  $extra
      * @return list<array<string, mixed>>
      */
-    private function entreesVisionSalle(Quete $quete, Sort $sort, array $lanceur): array
+    private function entreesVisionSalle(Quete $quete, Sort $sort, array $lanceur, ?string $racine = null, array $extra = []): array
     {
+        $racine ??= "sort:{$sort->id}";
         $decouvertes = $quete->sallesDecouvertes();
         $salles = (array) data_get($quete->carte?->grille, 'salles', []);
         $entrees = [];
@@ -2478,7 +2638,7 @@ final class MoteurSorts
             $my = (int) ($salle['mediane_y'] ?? ((int) $salle['y'] + intdiv((int) $salle['hauteur'], 2)));
 
             $entrees[] = [
-                'cle' => "sort:{$sort->id}:salle:{$index}",
+                'cle' => "{$racine}:salle:{$index}",
                 'sort_id' => $sort->id,
                 'nom' => "{$sort->nom} — salle ".$this->reperePorte($lanceur, ['x' => $mx, 'y' => $my]),
                 'element' => $sort->element,
@@ -2486,6 +2646,7 @@ final class MoteurSorts
                 'disponible' => true,
                 'mode' => 'vision_salle',
                 'salle' => (int) $index,
+                ...$extra,
             ];
         }
 
@@ -2512,11 +2673,16 @@ final class MoteurSorts
      * ⚠ Aucune entrée si aucune paire n'est libre — une liste vide est le
      * signal correct, pas une erreur à masquer (cf. le rayon de l'Éclair).
      *
+     * `$racine` / `$extra` : comme `entreesVisionSalle()` — le parchemin de Mur de
+     * Pierre (2026-10-08) offre les MÊMES paires, `cle` en `parchemin:{id}`.
+     *
      * @param  array{x: int, y: int}  $lanceur
+     * @param  array<string, mixed>  $extra
      * @return list<array<string, mixed>>
      */
-    private function entreesPoseMurMagique(Grille $grille, Sort $sort, array $lanceur): array
+    private function entreesPoseMurMagique(Grille $grille, Sort $sort, array $lanceur, ?string $racine = null, array $extra = []): array
     {
+        $racine ??= "sort:{$sort->id}";
         $directions = ['nord' => [0, -1], 'sud' => [0, 1], 'ouest' => [-1, 0], 'est' => [1, 0]];
         $entrees = [];
 
@@ -2540,7 +2706,7 @@ final class MoteurSorts
                 }
 
                 $entrees[] = [
-                    'cle' => "sort:{$sort->id}:mur:{$ax}:{$ay}:{$bx}:{$by}",
+                    'cle' => "{$racine}:mur:{$ax}:{$ay}:{$bx}:{$by}",
                     'sort_id' => $sort->id,
                     'nom' => "{$sort->nom} — au {$nomA}, puis au {$nomB}",
                     'element' => $sort->element,
@@ -2548,6 +2714,7 @@ final class MoteurSorts
                     'disponible' => true,
                     'mode' => 'pose_mur_magique',
                     'cases' => [['x' => $ax, 'y' => $ay], ['x' => $bx, 'y' => $by]],
+                    ...$extra,
                 ];
             }
         }
@@ -2563,11 +2730,15 @@ final class MoteurSorts
      * EST la liste blanche. Le nom dit la taille, l'orientation et le repère
      * (direction + distance) — jamais de coordonnées.
      *
+     * `$racine` / `$extra` : comme `entreesVisionSalle()`, pour le parchemin du voile.
+     *
      * @param  array{x: int, y: int}  $lanceur
+     * @param  array<string, mixed>  $extra
      * @return list<array<string, mixed>>
      */
-    private function entreesPoseOmbre(Quete $quete, Grille $grille, Sort $sort, array $lanceur): array
+    private function entreesPoseOmbre(Quete $quete, Grille $grille, Sort $sort, array $lanceur, ?string $racine = null, array $extra = []): array
     {
+        $racine ??= "sort:{$sort->id}";
         $moteur = app(MoteurOmbre::class);
         $entrees = [];
 
@@ -2576,7 +2747,7 @@ final class MoteurSorts
             $repere = $this->repereDeZone($lanceur, $centre);
 
             $entrees[] = [
-                'cle' => "sort:{$sort->id}:ombre:{$e['x']}:{$e['y']}:{$e['l']}:{$e['h']}",
+                'cle' => "{$racine}:ombre:{$e['x']}:{$e['y']}:{$e['l']}:{$e['h']}",
                 'sort_id' => $sort->id,
                 'nom' => "{$sort->nom} — {$e['l']}×{$e['h']}, {$repere}",
                 'element' => $sort->element,
@@ -2584,6 +2755,7 @@ final class MoteurSorts
                 'disponible' => true,
                 'mode' => 'pose_ombre',
                 'cases' => MoteurOmbre::casesDuRectangle($e['x'], $e['y'], $e['l'], $e['h']),
+                ...$extra,
             ];
         }
 
@@ -2744,6 +2916,32 @@ final class MoteurSorts
         }
 
         return $entree;
+    }
+
+    /**
+     * Retire les entrées de sort ou de parchemin dont la liste `cibles` est VIDE.
+     *
+     * ⚠ Un sort à cible sans AUCUNE cible légale — *Désapprentissage* sans Sorcier
+     * de Dread en vue, *Conte inspirant* d'un Barde seul — n'a pas à figurer du
+     * tout : ni grisé comme un sort épuisé (il n'est pas épuisé, il attend une
+     * cible), ni `cibles: []`, que la manette ouvrirait comme un niveau sans choix
+     * avant que le résolveur ne refuse « Cible requise ». C'est la règle des sorts
+     * à emplacement, qui n'ont pas d'entrée sans emplacement (Mur de Pierre, Voile
+     * d'ombre, Clairvoyance). Un seul point de passage pour les sorts connus et
+     * les parchemins, quel que soit le `cible`.
+     *
+     * Une entrée SANS clé `cibles` (sort sur soi, zone, mode à emplacement, sort
+     * épuisé) n'est pas concernée : seule une liste présente et vide l'est.
+     *
+     * @param  list<array<string, mixed>>  $entrees
+     * @return list<array<string, mixed>>
+     */
+    private static function sansCiblesVides(array $entrees): array
+    {
+        return array_values(array_filter(
+            $entrees,
+            static fn (array $entree) => ! array_key_exists('cibles', $entree) || $entree['cibles'] !== [],
+        ));
     }
 
     /**

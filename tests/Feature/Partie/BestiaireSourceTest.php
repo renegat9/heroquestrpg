@@ -253,7 +253,15 @@ it('n\'accorde aucune capacité que le moteur n\'applique pas', function () {
         // Assassin may attack diagonally. ») : troisième lecteur du mot-clé
         // déjà porté pour les armes longues et les mercenaires —
         // `ResolveurTour::jouerMonstre()` (`$diagonalesMonstre`).
-        'attaque_diagonale'];
+        'attaque_diagonale',
+        // Wizards of Morcar, les Sorciers du Dread (G1504 p. 10) : « Each spell may
+        // only be used once per quest » — `MoteurDread::reinitialiserUsagesInstance()`
+        // / `sortsLancables()` / `consommerUsage()`.
+        'sorts_uniques',
+        // Wizards of Morcar, vague 2B : l'embuscade du Dreadshifter
+        // (`MoteurEmbuscade`, déclencheur de la carte) et le coup de corne du
+        // Minotaure (`ResolveurTour::coupsDeCorne()`).
+        'embuscade', 'coup_de_corne'];
 
     $inconnues = collect(Monstre::all())
         ->flatMap(fn (Monstre $m) => array_map(

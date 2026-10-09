@@ -77,6 +77,63 @@ final class MotsClesSortDread
      */
     public const TYPE_DEPLACEMENT = 'deplacement';
 
+    /**
+     * Le sort DRESSE un mur magique de deux cases (*Wall of Ice*, *Wall of
+     * Flame* — Wizards of Morcar). Ni un terrain (`TYPE_TERRAIN` pose des cases
+     * de glace sur sa propre couche, à compteur de crânes), ni une invocation :
+     * c'est du MOBILIER attaquable posé par `MoteurMobilier::poserMurMagique()`,
+     * le point de passage unique que le *Mur de Pierre* des héros emprunte aussi.
+     */
+    public const TYPE_MUR_MAGIQUE = 'mur_magique';
+
+    /**
+     * Le sort REPOUSSE un héros en ligne droite jusqu'à l'obstacle (*Hurricane*,
+     * Wizards of Morcar). Un déplacement FORCÉ : ni dégât ni condition, et le
+     * trajet passe par `MoteurPieges::controlerChemin()` — un piège ou une
+     * fosse sur la ligne se déclenche, comme à la carte.
+     */
+    public const TYPE_REPOUSSEMENT = 'repoussement';
+
+    /**
+     * Le sort FAIT OUBLIER un sort à un héros lanceur pour la quête (*Unlearn*
+     * du High Mage). Réutilise `OubliSorts`, générique sur la cible.
+     */
+    public const TYPE_OUBLI = 'oubli';
+
+    /**
+     * Le sort se lance HORS TOUR, sans action, en réaction à un événement
+     * (*Raise the Dead* : « after a monster has been killed, no action
+     * required »). Jamais choisi par `choisirSort()` : son déclencheur est
+     * `effet.reaction`, lu par `MoteurDread::reactionsALaMort()`.
+     */
+    public const TYPE_REACTION = 'reaction';
+
+    /**
+     * Le sort RENFORCE des alliés du lanceur — *Shield of Protection*, *Sharpen
+     * Blades*, *Orc Berserker* (Orc Warcaster, Wizards of Morcar). Ni un soin
+     * (aucun PV rendu), ni une invocation (personne n'est posé) : un buff de
+     * ZONE pour une FACTION de monstres, que le catalogue n'avait pas — nos buffs
+     * de monstre étaient tous individuels —, ou un tour supplémentaire donné à
+     * une tierce figure.
+     */
+    public const TYPE_RENFORT = 'renfort';
+
+    /**
+     * Le sort pose sur le LANCEUR LUI-MÊME un état qui dure — *Scrolls of
+     * Morcar* (jetons d'ombre) et *Hammer of Ruin* (dés d'attaque conditionnés).
+     * Le sort reste « face visible » : il vit dans `habillage.dread_etat`, et
+     * c'est un déclencheur (un coup subi, un coup raté) qui y met fin.
+     */
+    public const TYPE_AMELIORATION = 'amelioration';
+
+    /**
+     * Le sort DRAINE chaque figure d'une zone — *Leach Life* : un dé par autre
+     * figure de la salle ou du couloir, et chaque touche blesse la cible ET
+     * soigne le lanceur du même montant. Famille à part : ses PV rendus
+     * dépendent de ses PV infligés, ce qu'aucun `degats` ni `soin` ne dit.
+     */
+    public const TYPE_DRAIN = 'drain';
+
     public const TYPES = [
         self::TYPE_DEGATS,
         self::TYPE_CONTROLE,
@@ -87,6 +144,13 @@ final class MotsClesSortDread
         self::TYPE_MIND,
         self::TYPE_TERRAIN,
         self::TYPE_DEPLACEMENT,
+        self::TYPE_MUR_MAGIQUE,
+        self::TYPE_REPOUSSEMENT,
+        self::TYPE_OUBLI,
+        self::TYPE_REACTION,
+        self::TYPE_RENFORT,
+        self::TYPE_AMELIORATION,
+        self::TYPE_DRAIN,
     ];
 
     // -------------------------------------------------------- RÉSISTANCES
@@ -329,6 +393,80 @@ final class MotsClesSortDread
         'cases' => [
             'lecteur' => 'App\Partie\MoteurDread::planPatinage',
             'libelle' => 'Portée du déplacement du lanceur, en cases',
+        ],
+
+        // -- Wizards of Morcar, les Sorciers du Dread (2026-10-08) -----
+
+        'rayon_orthogonal' => [
+            'lecteur' => 'App\Partie\MoteurDread::meilleurRayonDetail',
+            'libelle' => 'Le rayon ne part que dans les 4 directions orthogonales',
+        ],
+        'portee_rayon' => [
+            'lecteur' => 'App\Partie\MoteurDread::meilleurRayonDetail',
+            'libelle' => 'Longueur maximale du rayon, en cases',
+        ],
+        'pose_mur_magique' => [
+            'lecteur' => 'App\Partie\MoteurDread::planMurMagique',
+            'libelle' => 'Nom du mobilier (mur) dressé sur deux cases libres',
+        ],
+        'repousse' => [
+            'lecteur' => 'App\Partie\MoteurDread::planRepoussement',
+            'libelle' => 'Le héros visé est repoussé en ligne droite, à l\'opposé du lanceur',
+        ],
+        'oubli' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadOubli',
+            'libelle' => 'Un sort connu du héros lanceur, tiré au hasard, est oublié pour la quête',
+        ],
+        'reaction' => [
+            'lecteur' => 'App\Partie\MoteurDread::reactionsALaMort',
+            'libelle' => 'Événement qui déclenche le sort hors tour (sans action)',
+        ],
+        'invoque' => [
+            'lecteur' => 'App\Partie\MoteurDread::compositionInvoquee',
+            'libelle' => 'Renfort FIXE (nom => nombre), sans jet de dé',
+        ],
+        'invoque_en_vue' => [
+            'lecteur' => 'App\Partie\MoteurDread::casesDInvocation',
+            'libelle' => 'Les créatures surgissent n\'importe où en vue du lanceur, pas à son contact',
+        ],
+
+        // -- Wizards of Morcar, Orc Warcaster et Artificer (vague 2B) ----
+
+        'activation_immediate' => [
+            'lecteur' => 'App\Partie\ResolveurTour::phaseMonstres',
+            'libelle' => 'Les créatures posées jouent leur tour tout de suite (« may move and attack immediately »)',
+        ],
+        'sans_ligne_de_vue' => [
+            'lecteur' => 'App\Partie\MoteurDread::ciblesDuSort',
+            'libelle' => 'Le sort atteint n\'importe quel héros du plateau, vu ou non (*Spirit of Vengeance*)',
+        ],
+        'buff_faction' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadRenfort',
+            'libelle' => 'Dés de défense ou d\'attaque en plus pour toute une faction de la salle (*Shield of Protection*, *Sharpen Blades*)',
+        ],
+        'double_tour' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadRenfort',
+            'libelle' => 'Une créature de la faction, en vue et pas encore passée, joue son tour DEUX FOIS (*Orc Berserker*)',
+        ],
+        'jetons_ombre' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadAmelioration',
+            'libelle' => 'Jetons d\'ombre posés sur le lanceur : chacun absorbe un coup entier (*Scrolls of Morcar*)',
+        ],
+        'bonus_attaque' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadAmelioration',
+            'libelle' => 'Dés d\'attaque en plus pour le lanceur tant que le sort tient (*Hammer of Ruin*)',
+        ],
+        'se_brise_sans_degat' => [
+            'lecteur' => 'App\Partie\MoteurDread::apresAttaqueDuLanceur',
+            'libelle' => 'Le sort se brise dès qu\'une attaque du lanceur ne retire aucun PV de Body',
+        ],
+        'drain' => [
+            'lecteur' => 'App\Partie\MoteurDread::sortDreadDrain',
+            'libelle' => 'Un dé par autre figure de la zone : touche si le dé égale ou dépasse son Mind — elle perd 1 PV, le lanceur en regagne 1',
+        ],
+        'sur_zero_pv' => [
+            'lecteur' => 'App\Partie\MoteurDread::reactionALaChute',
+            'libelle' => 'Table d6 jouée quand le lanceur tombe à 0 PV de Body (*Beseech Dread Powers!*)',
         ],
     ];
 

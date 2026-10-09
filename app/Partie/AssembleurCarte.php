@@ -3197,7 +3197,7 @@ final class AssembleurCarte
      * `wizards_of_morcar` est actif — un mur magique SANS lanceur, planté là
      * depuis la génération, ce que ni la carte ni le livret ne décrivent.
      */
-    private const MOBILIER_POSE_EN_QUETE = ['Mur de Pierre', 'Mur de Glace', 'Mur de Feu'];
+    private const MOBILIER_POSE_EN_QUETE = MoteurMobilier::MURS_MAGIQUES;
 
     /**
      * Cases de sol qu'une salle doit offrir pour pouvoir porter un `Coffre`

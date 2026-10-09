@@ -93,7 +93,10 @@ it('expose les maîtrises d\'équipement des deux côtés (classe et objet)', fu
         // ⚠ 2026-10-08 (Wizards of Morcar) : la carte n'interdit la Cuirasse
         // qu'au MAGICIEN. Un tag de poids (`armure_legere`) l'aurait aussi
         // fermée au Druide, au Rogue… — d'où `classe_interdite`, sans tag.
-        'Cuirasse de Peau de Dragon'];
+        'Cuirasse de Peau de Dragon',
+        // ⚠ 2026-10-08 (vague 2B) : Urdyn n'a aucun tag — « When using this
+        // hammer », la carte ne restreint aucune classe.
+        'Urdyn le Défaiseur'];
 
     $portables = collect($data['objets'])
         ->whereIn('categorie', ['arme', 'armure'])
@@ -150,8 +153,10 @@ it('expose la provenance des cartes, portées et non portées', function () {
     // 20 + 15 + 38 + 19 + 29 + 9 — artefacts : +1 Cor des Hearthkin (First Light,
     // 2026-09-30) puis +2 armes en os (Against the Ogre Horde, lot B, 2026-10-02),
     // puis +5 cartes de Wizards of Morcar (vague 1b, 2026-10-08) ; les neuf sorts
-    // de héros de Morcar forment le sixième paquet (2026-10-08).
-    expect($cartes)->toHaveCount(135);
+    // de héros de Morcar forment le sixième paquet (2026-10-08). +18 cartes de
+    // sorts de Dread (vague 2A : Storm Master, High Mage, Necromancer) et +12
+    // (vague 2B : Orc Warcaster, Artificer) = 165.
+    expect($cartes)->toHaveCount(165);
 
     // Chaque carte dit si elle est portée, et celles qui ne le sont pas
     // annoncent leur texte de plateau ET la mécanique qui leur manque.

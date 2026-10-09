@@ -373,6 +373,14 @@ final class ResolveurTour
             throw ValidationException::withMessages(['option_id' => $raison]);
         }
 
+        // GRÉSIL AVEUGLANT (Storm Master) : « may not […] cast spells » — refusé
+        // au même prédicat que le menu (`MenuMoteur::estLancerDeSort()`).
+        if (MenuMoteur::estLancerDeSort($option) && $this->sorts->sortsInterdits($personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$personnage->nom} est aveuglé par le grésil : aucun sort avant le prochain tour du MJ.",
+            ]);
+        }
+
         $etats = $quete->etatsPersonnages()->get();
         $etat = $etats->firstWhere('personnage_id', $personnage->id);
 
@@ -494,6 +502,25 @@ final class ResolveurTour
                 return $this->apresActionHeros($payload, $groupe, $quete);
             }
 
+            // Possédé (*Possess*, High Mage — Wizards of Morcar) : « Zargon will
+            // move this figure on its next turn. The affected figure may not
+            // attack or cast spells. » Le moteur joue le déplacement à la place
+            // du héros et lui prend le tour, comme pour le Commandement.
+            if ($this->dread->herosSousCondition($personnage, 'Possédé')) {
+                $payload = $this->dread->jouerHerosPossede($groupe, $quete, $personnage, $etat)
+                    ?? ['type' => 'commandement_sans_effet', 'personnage' => $personnage->nom];
+
+                $etat->update(['a_joue' => true, 'a_deplace' => true, 'a_agi' => true]);
+
+                $sbires = $this->sbiresApresLeTour($groupe, $quete, $personnage, $etat);
+
+                if ($sbires !== null) {
+                    $payload['tour_sbires'] = $sbires;
+                }
+
+                return $this->apresActionHeros($payload, $groupe, $quete);
+            }
+
             // Œil du mineur (nœud nain) : détection automatique des pièges
             // adjacents au début de chaque action du héros (doc 10 §3).
             if ($quete->carte !== null && $etat->position_x !== null) {
@@ -528,6 +555,7 @@ final class ResolveurTour
                 'sacrifice_sort' => $this->resoudreSacrificePourSort($groupe, $personnage, $option, $parametres, $acteur),
                 'soin_allie' => $this->resoudreSoinAllie($groupe, $quete, $personnage, $etat, $option, $parametres, $acteur),
                 'liberer_entraves' => $this->resoudreLiberationEntraves($groupe, $quete, $personnage, $option, $parametres, $acteur),
+                'attaquer_liens' => $this->resoudreAttaqueLiens($groupe, $quete, $personnage, $option, $parametres, $acteur),
                 'detacher_rejetons' => $this->resoudreDetacherRejetons($groupe, $quete, $etat, $option, $parametres, $acteur),
                 'relever' => $this->resoudreRelever($groupe, $quete, $personnage, $etat, $option, $acteur),
                 // MISSION « SECOURIR » (chantier 3b, 2026-10-04) : un héros au
@@ -589,7 +617,21 @@ final class ResolveurTour
 
             // Consomme le créneau (mouvement/action) ; le tour ne se termine
             // que quand les DEUX créneaux sont faits, ou via une action terminante.
+            $avantJoue = (bool) $etat->a_joue;
             $this->marquerCreneau($etat, $creneauEffectif, $bonusReserveArcanique, $bonusHeroisme);
+
+            // GORE (Minotaure, Wizards of Morcar) : « in addition to their own
+            // turn, a minotaur may immediately roll 2 Attack dice against a hero
+            // who ENDS THEIR TURN in one of the 10 spaces surrounding it ».
+            // `marquerCreneau()` est le point de passage unique qui ferme le tour
+            // d'un héros — le coup se joue donc ici, et nulle part ailleurs.
+            if (! $avantJoue && $etat->fresh()?->a_joue) {
+                $corne = $this->coupsDeCorne($groupe, $quete, $personnage, $etat->fresh());
+
+                if ($corne !== []) {
+                    $resultat['coups_de_corne'] = $corne;
+                }
+            }
 
             // *Baguette d'Os* : « à la suite du tour du joueur » (René,
             // 2026-09-04). Le tour vient peut-être de se terminer — c'est là,
@@ -1218,6 +1260,14 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
 
+        // EMBUSCADE (Dreadshifter) : « the first time a hero moves into the 8
+        // squares surrounding this object, replace it with the monster — it may
+        // move and attack immediately ». Après le mouvement et son journal : le
+        // groupe lit d'abord le pas, puis ce qui en surgit.
+        foreach (app(MoteurEmbuscade::class)->declenchees($quete, $cheminParcouru) as $embusque) {
+            $payload['embuscades'][] = $this->declencherEmbuscade($groupe, $quete, $embusque, $personnage);
+        }
+
         return $payload;
     }
 
@@ -1558,6 +1608,14 @@ final class ResolveurTour
         // donc un seul garde-fou couvre chaque variante sans en oublier une.
         if (($raison = $this->sorts->raisonAttaqueInterdite($personnage)) !== null) {
             throw ValidationException::withMessages(['option_id' => $raison]);
+        }
+
+        // GRÉSIL AVEUGLANT : « may not […] make ranged attacks » — tir et arme
+        // lancée refusés au choke-point de la frappe.
+        if (($tirADistance || $lancer) && $this->sorts->tirInterdit($personnage)) {
+            throw ValidationException::withMessages([
+                'option_id' => "{$personnage->nom} est aveuglé par le grésil : aucune attaque à distance avant le prochain tour du MJ.",
+            ]);
         }
 
         // VOILE D'OMBRE (*Cloak of Shadows*) : « heroes and monsters on the tile
@@ -2028,6 +2086,8 @@ final class ResolveurTour
             'changement_phase' => $resultatMort['changement_phase'],
             'reaction_monstre' => $resultatMort['reaction'],
             'reddition_monstre' => $resultatMort['reddition'] ? ['or' => $resultatMort['or_gagne']] : null,
+            // Sort RÉACTIF d'un Sorcier (Raise the Dead) déclenché par cette mort.
+            'reaction_dread' => $resultatMort['reaction_dread'] ?? null,
             ...$resultat->pourJournal(),
             ...($modificateurs !== [] ? ['modificateurs' => $modificateurs] : []),
             // En dernier : l'appelant nomme sa frappe (option_id, libellé,
@@ -4740,8 +4800,9 @@ final class ResolveurTour
             $payload += $this->lancerSort($quete, $personnage, $etat, $sort, $option, $parametres);
         }
 
-        // Consommé dans TOUS les cas (S1) — échec = parchemin gaspillé.
-        (int) $ligne->quantite > 1 ? $ligne->decrement('quantite') : $ligne->delete();
+        // Consommé dans TOUS les cas (S1) — échec = parchemin gaspillé. Un seul
+        // point de passage pour cette règle : la relance de Vision du futur s'en sert aussi.
+        $this->sorts->consommerParchemin($ligne);
         $payload['consomme'] = true;
         $payload['gaspille'] = ! $reussi;
 
@@ -4904,10 +4965,10 @@ final class ResolveurTour
         // seulement « Immobilisé » : c'est la MÉCANIQUE qui est visée, comme
         // partout ailleurs dans ce moteur depuis le recâblage des talents. Une
         // seconde carte d'entrave n'aura rien à recâbler.
-        foreach ($libere->conditions()->get() as $condition) {
-            if ((bool) data_get($condition->effet, 'deplacement_interdit', false)) {
-                $this->dread->retirerConditionHeros($libere, (string) $condition->nom);
-            }
+        // (`entravesLiberables()` : le grésil et les liens à PV ne se lèvent pas
+        // d'une action gratuite — l'un expire, les autres s'attaquent.)
+        foreach ($this->sorts->entravesLiberables($libere) as $condition) {
+            $this->dread->retirerConditionHeros($libere, (string) $condition->nom);
         }
 
         $payload = [
@@ -4919,6 +4980,86 @@ final class ResolveurTour
         ];
 
         Journal::ajouter($groupe, 'action', $payload, $acteur);
+
+        return $payload;
+    }
+
+    /**
+     * ATTAQUER LES LIENS — *Strands of Binding* (High Mage) : « They entangle one
+     * target who may not move or attack until the tendrils are destroyed. Tendrils
+     * have 1 Body Point and roll 4 Defend dice. »
+     *
+     * Le héros ligoté OU un voisin au contact lance ses dés d'attaque contre 4 dés
+     * de défense (boucliers blancs, comme un mur magique) ; un seul dégât suffit.
+     * ⚠ Le héros ligoté peut lui-même trancher ses liens : la carte lui interdit
+     * d'attaquer un ENNEMI, pas de se défaire de ses propres liens — l'inverse
+     * figerait un groupe réduit à un seul héros ligoté, sans sortie.
+     * La cible est validée contre la liste blanche du menu (`parametres.cibles`).
+     *
+     * @param  array<string, mixed>  $option
+     * @param  array<string, mixed>  $parametres
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function resoudreAttaqueLiens(
+        Groupe $groupe,
+        Quete $quete,
+        Personnage $personnage,
+        array $option,
+        array $parametres,
+        array $acteur,
+    ): array {
+        $cibleId = (int) ($parametres['cible_id'] ?? $personnage->id);
+        $legales = array_map('intval', array_column((array) ($option['parametres']['cibles'] ?? []), 'id'));
+
+        if (! in_array($cibleId, $legales, true)) {
+            throw ValidationException::withMessages([
+                'parametres' => 'Cible hors de portée : choisissez un héros ligoté à votre contact.',
+            ]);
+        }
+
+        $ligote = $quete->etatsPersonnages()->where('personnage_id', $cibleId)->with('personnage')->firstOrFail()->personnage;
+        $liens = $this->sorts->liensDe($ligote);
+
+        if ($liens === null) {
+            throw ValidationException::withMessages(['parametres' => 'Ce héros n\'est plus ligoté.']);
+        }
+
+        $desDefense = (int) data_get($liens->effet, 'liens_defense', 0);
+        $desAttaque = $personnage->estEnChoc() ? 1 : max(0, (int) $personnage->des_attaque);
+
+        $resultat = (new Combat($this->des))->resoudreAttaque(
+            desAttaque: $desAttaque,
+            desDefense: $desDefense,
+            typeDefenseur: TypeFigurine::Heros,
+            pvBodyDefenseur: 1,
+        );
+
+        $detruit = $resultat->degats > 0;
+
+        if ($detruit) {
+            $this->dread->retirerConditionHeros($ligote, (string) $liens->nom);
+        }
+
+        // Même forme que `attaque_mobilier` : la table et le fil du combat savent
+        // déjà dessiner « une pièce de décor qu'on frappe ».
+        $payload = [
+            'type' => 'attaque_mobilier',
+            'option_id' => $option['id'],
+            'libelle' => $option['libelle'] ?? null,
+            'mobilier' => "Liens magiques de {$ligote->nom}",
+            'des_attaque' => $desAttaque,
+            'des_defense' => $desDefense,
+            'touches' => $resultat->touches,
+            'boucliers' => $resultat->boucliers,
+            'degats' => $resultat->degats,
+            'pv_body_avant' => 1,
+            'pv_body_apres' => $detruit ? 0 : 1,
+            'detruit' => $detruit,
+            ...$resultat->pourJournal(),
+        ];
+
+        Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
         return $payload;
     }
@@ -6899,24 +7040,7 @@ final class ResolveurTour
      */
     private function indiceAleatoire(int $n): int
     {
-        $chiffres = max(1, (int) ceil(log(max($n, 2), 6)));
-
-        // Borné : un lanceur déterministe qui rejetterait toujours la même face
-        // ne doit JAMAIS bloquer la partie. Au-delà de 64 rejets (probabilité
-        // négligeable avec de vrais dés), on retient le dernier indice valide.
-        for ($essai = 0; $essai < 64; $essai++) {
-            $valeur = 0;
-
-            for ($i = 0; $i < $chiffres; $i++) {
-                $valeur = $valeur * 6 + ($this->des->d6() - 1);
-            }
-
-            if ($valeur < $n) {
-                return $valeur;
-            }
-        }
-
-        return $n - 1;
+        return app(OubliSorts::class)->indiceAleatoire($this->des, $n);
     }
 
     /**
@@ -9237,6 +9361,22 @@ final class ResolveurTour
     {
         $actions = [];
 
+        // GRÉSIL AVEUGLANT (*Blinding Sleet*, Storm Master) : « until the start
+        // of Zargon's next turn » — le grésil tombe ICI, avant que le moindre
+        // monstre ne joue, et la chute est ANNONCÉE (un effet qui s'arrête en
+        // silence est aussi muet qu'un effet qui commence en silence).
+        $levees = $this->sorts->leverConditionsDeDebutDeTourMJ($quete);
+
+        if ($levees !== []) {
+            $noms = Personnage::whereIn('id', array_column($levees, 'personnage_id'))->pluck('nom', 'id');
+            $payload = [
+                'type' => 'conditions_levees',
+                'levees' => array_map(fn (array $l) => $l + ['nom' => (string) ($noms[$l['personnage_id']] ?? 'Un héros')], $levees),
+            ];
+            Journal::ajouter($groupe, 'action', $payload);
+            $actions[] = $payload;
+        }
+
         // FIREBURST TRAP (Wizards of Morcar, doc 18 §5/§9) : « the beginning
         // of Zargon's turn » — EN TOUT PREMIER, avant le moindre monstre
         // scripté, tout jeton amorcé explose (zone entière, héros ET
@@ -9248,8 +9388,21 @@ final class ResolveurTour
         // ⚠ `whereNull('controle_par')` : un sbire enrôlé par la *Baguette d'Os*
         // a déjà joué, du côté des héros. Sans ce filtre il jouerait DEUX fois
         // dans le même round, dont une contre ceux qu'il vient d'aider.
+        // Ids des monstres qui ont DÉJÀ joué dans cette phase : lu par *Orc
+        // Berserker* (« may not be cast on an Orc that has already moved or
+        // attacked », `MoteurDread::definirMonstresDejaJoues()`), et ce qui
+        // empêche une créature qui a joué DEUX fois de jouer une troisième
+        // quand la boucle l'atteint.
+        $dejaJoues = [];
+
         foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
             ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $instance) {
+            if (in_array((int) $instance->id, $dejaJoues, true)) {
+                continue;
+            }
+
+            $this->dread->definirMonstresDejaJoues($dejaJoues);
+
             $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
                 // Voile de Brume : un héros caché (condition « inattaquable »)
                 // est ignoré du ciblage jusqu'à son prochain tour.
@@ -9265,6 +9418,7 @@ final class ResolveurTour
             $avantMonstre = ['x' => $instance->position_x, 'y' => $instance->position_y];
 
             $resultatMonstre = $this->jouerMonstre($groupe, $quete, $instance, $cibles);
+            $dejaJoues[] = (int) $instance->id;
 
             // Si le monstre a joué plusieurs actions (p. ex. régénération + sort/attaque),
             // elles sont encapsulées sous 'type'='actions_composites' → on les étale.
@@ -9274,6 +9428,32 @@ final class ResolveurTour
                 }
             } else {
                 $actions[] = $resultatMonstre;
+            }
+
+            // ACTIVATION IMMÉDIATE (`activation_immediate`) : *Call Orcs* /
+            // *Call Goblins* (« they may move and attack immediately unless they
+            // have already done so this turn ») posent des créatures qui jouent
+            // TOUT DE SUITE, à la suite du lanceur ; *Orc Berserker* donne à un
+            // orque son id DEUX fois — « moves and attacks twice on this turn
+            // only ». Chaque id est un tour complet (déplacement + attaque).
+            foreach ($this->activationsImmediates($resultatMonstre) as $idActive) {
+                $active = $quete->instancesMonstres()->whereKey($idActive)
+                    ->where('etat', 'actif')->where('revele', true)->with('monstre')->first();
+                $ciblesActive = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+                    ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+                    ->values();
+
+                if ($active === null || $ciblesActive->isEmpty()) {
+                    continue;
+                }
+
+                $this->dread->definirMonstresDejaJoues($dejaJoues);
+                $actionActive = $this->jouerMonstre($groupe, $quete, $active, $ciblesActive);
+                $dejaJoues[] = (int) $active->id;
+
+                foreach (($actionActive['type'] ?? null) === 'actions_composites' ? $actionActive['actions'] : [$actionActive] as $action) {
+                    $actions[] = $action;
+                }
             }
 
             $instanceApres = $instance->fresh();
@@ -9466,6 +9646,14 @@ final class ResolveurTour
         // `personnage_conditions`, jamais `instances_monstres`).
         $this->sorts->decrementerDureesMonstres($quete);
 
+        // Sorts des Sorciers de Morcar : « this turn only » (*Sharpen Blades*)
+        // tombe à l'ouverture du round, et un bouclier dont le lanceur n'est plus
+        // debout aussi. Annoncé dans `$actions` — un effet qui s'éteint sans un
+        // mot est un effet muet.
+        foreach ($this->dread->expirerBuffsDeRound($groupe, $quete) as $annonce) {
+            $actions[] = $annonce;
+        }
+
         // VOILE D'OMBRE : « at the start of the spellcaster's turn, remove a
         // shadow token ». Un lanceur DEBOUT le voit tomber à l'ouverture de SON
         // tour (`MenuMoteur::deplacementDuTour()`) ; un lanceur TOMBÉ n'ouvre plus
@@ -9629,6 +9817,113 @@ final class ResolveurTour
         }
 
         return false;
+    }
+
+    /**
+     * GORE — les coups de corne que ce héros subit en FINISSANT son tour.
+     *
+     * « The 10 spaces surrounding it » : l'anneau de 10 cases n'existe que pour
+     * une figure de DEUX cases (1×2) — 8 pour une seule, 12 pour 2×2 —, ce qui
+     * est la raison pour laquelle le Minotaure est seedé `grande_taille 1×2`
+     * (déduction écrite, pas lue : la carte ne dit pas la taille de la
+     * figurine). Un Minotaure endormi, paralysé ou enchaîné ne frappe pas :
+     * « may not gore if they are incapacitated ».
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function coupsDeCorne(Groupe $groupe, Quete $quete, Personnage $personnage, ?EtatPersonnageQuete $etat): array
+    {
+        if ($etat === null || $etat->tombe || $etat->position_x === null
+            || $this->sorts->estInattaquable($personnage)) {
+            return [];
+        }
+
+        $coups = [];
+        $hx = (int) $etat->position_x;
+        $hy = (int) $etat->position_y;
+
+        foreach ($quete->instancesMonstres()->where('etat', 'actif')->where('revele', true)
+            ->whereNull('controle_par')->with('monstre')->orderBy('id')->get() as $minotaure) {
+            if (! $minotaure->aCapacite('coup_de_corne') || $minotaure->position_x === null) {
+                continue;
+            }
+
+            if ($this->sorts->monstreA($minotaure, MoteurSorts::MONSTRE_ENDORMI)
+                || $this->sorts->monstreA($minotaure, MoteurSorts::MONSTRE_PARALYSE)
+                || $this->sorts->monstreA($minotaure, MoteurSorts::MONSTRE_ENCHAINE)) {
+                continue;
+            }
+
+            $e = $minotaure->monstre->emprise();
+            $x0 = (int) $minotaure->position_x;
+            $y0 = (int) $minotaure->position_y;
+            $dedans = $hx >= $x0 && $hx < $x0 + $e['l'] && $hy >= $y0 && $hy < $y0 + $e['h'];
+            $autour = $hx >= $x0 - 1 && $hx <= $x0 + $e['l'] && $hy >= $y0 - 1 && $hy <= $y0 + $e['h'];
+
+            if ($dedans || ! $autour || (int) $personnage->fresh()->pv_body <= 0) {
+                continue;
+            }
+
+            $nom = $minotaure->nomAffiche();
+            $acteur = ['type' => 'monstre', 'id' => $minotaure->id, 'nom' => $nom];
+
+            Journal::ajouter($groupe, 'action', [
+                'type' => 'effet_dread',
+                'texte' => "{$nom} encorne {$personnage->nom} qui finit son tour à son contact — Coup de corne",
+                'ton' => 'degats',
+                'mecanique' => 'coup_de_corne',
+            ], $acteur);
+
+            $coups[] = $this->resoudreAttaqueMonstre($groupe, $minotaure, $etat, 2, $acteur, $nom)
+                + ['mecanique' => 'coup_de_corne'];
+        }
+
+        return $coups;
+    }
+
+    /**
+     * Les ids à activer tout de suite d'après le résultat d'un monstre
+     * (`activation_immediate`, posé par les sorts *Call Orcs*, *Call Goblins* et
+     * *Orc Berserker*), qu'il soit seul ou rangé dans `actions_composites`.
+     *
+     * @param  array<string, mixed>  $resultat
+     * @return list<int>
+     */
+    private function activationsImmediates(array $resultat): array
+    {
+        $ids = [];
+        $plats = ($resultat['type'] ?? null) === 'actions_composites' ? (array) ($resultat['actions'] ?? []) : [$resultat];
+
+        foreach ($plats as $action) {
+            foreach ((array) ($action['activation_immediate'] ?? []) as $id) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * L'embuscade se déclenche : le coffre se révèle Dreadshifter, qui JOUE SON
+     * TOUR TOUT DE SUITE (« it may move and attack immediately »). Le payload de
+     * l'action jouée est rangé sous `action`, pour que la manette et le fil du
+     * combat montrent le bond ET le coup dans le même geste.
+     *
+     * @return array<string, mixed>
+     */
+    private function declencherEmbuscade(Groupe $groupe, Quete $quete, InstanceMonstre $instance, Personnage $declencheur): array
+    {
+        $revelation = app(MoteurEmbuscade::class)->reveler($groupe, $quete, $instance, $declencheur);
+
+        $cibles = $quete->etatsPersonnages()->where('tombe', false)->with('personnage')->get()
+            ->reject(fn (EtatPersonnageQuete $c) => $this->sorts->estInattaquable($c->personnage))
+            ->values();
+
+        if ($cibles->isNotEmpty()) {
+            $revelation['action'] = $this->jouerMonstre($groupe, $quete, $instance->fresh()->load('monstre'), $cibles);
+        }
+
+        return $revelation;
     }
 
     /**
@@ -10275,9 +10570,15 @@ final class ResolveurTour
             ? $this->replierTacticien($instance)
             : null;
 
+        // *Hammer of Ruin* : « if an attack from the spellcaster does not result
+        // in the enemy losing at least 1 Body Point, the spell is broken » — sur
+        // les PV RÉELLEMENT retirés (`$subis`), réductions de talent comprises.
+        $marteau = $this->dread->apresAttaqueDuLanceur($instance, $subis);
+
         $payload = [
             'type' => 'attaque_monstre',
             'monstre' => $nomMonstre,
+            ...($marteau !== null ? ['marteau_brise' => true] : []),
             // ⚠ L'INSTANCE, pas seulement le nom : c'est elle qui porte le
             // portrait dynamique d'un boss (`dyn/monstre/{instance_id}`), et le
             // nom AFFICHÉ est celui de l'habillage IA — il ne retrouve donc
@@ -11173,7 +11474,11 @@ final class ResolveurTour
             ->whereBetween('position_x', [(int) $s['x'], (int) $s['x'] + (int) $s['largeur'] - 1])
             ->whereBetween('position_y', [(int) $s['y'], (int) $s['y'] + (int) $s['hauteur'] - 1])
             ->with('monstre')
-            ->get();
+            ->get()
+            // Un Dreadshifter DÉGUISÉ n'est pas un monstre dormant : il est un
+            // coffre, et ne se révèle que par l'embuscade (`MoteurEmbuscade`).
+            ->reject(fn (InstanceMonstre $i) => MoteurEmbuscade::estDeguise($i))
+            ->values();
 
         // §2.6 — on retient les NOMS de ce qui vient d'apparaître : sans eux, le
         // narrateur ne recevait qu'un « salle découverte » nu et a décrit une

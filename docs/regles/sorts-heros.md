@@ -58,8 +58,11 @@ a legal target.
 
 *Clairvoyance* is ported: `effet.vision_salle`. The server offers **one entry per
 room the group has not discovered** (`MoteurSorts::entreesVisionSalle()`), named
-by the door's own bearing ("au est, à 2 cases", measured to the room's median) and
-**never** by its contents — an empty room must not be distinguishable from a full
+by the door's own bearing ("au est, à 2 cases", measured to the room's median) — and
+the SCROLL gets the same entries under `lire_parchemin`, `cle` `parchemin:{inventaire_id}:salle:{index}`
+(2026-10-08: the scroll loop fell through to a base entry with no `mode` nor `salle`,
+so the resolver refused every scroll of Clairvoyance) — and it is
+**never** named by its contents — an empty room must not be distinguishable from a full
 one in the menu. The resolver (`ResolveurTour::visionSalleSort()`) shows **only
 the chosen room**: its monsters by name and the count of its traps. It writes
 nothing to the fog nor to `salles_decouvertes` — information, not exploration —
@@ -76,7 +79,13 @@ means by "contents".
 dice for any one attack, defense or movement roll. Discard after use." René's decision:
 the reroll is offered **right after the roll** — the result is shown, the server waits for
 the answer **before applying it**, and if the player rerolls, all the dice of that roll are
-rerolled and the new result applies. Effect key `relance_jet`; it has **no menu entry**
+rerolled and the new result applies. **Two sources, one offer** (2026-10-08,
+`MoteurReactions::sourceVisionDuFutur()`, the only reader of the source): the hero who
+KNOWS the spell, or who CARRIES its scroll `Parchemin : Vision du futur` in the bag. The
+grimoire comes first (`disponible` spent, a spell forgotten for the quest does not count);
+the scroll leaves the bag when the reroll is **accepted**, never when refused, and a
+scroll that has gone between the offer and the answer refuses the reroll, so the action
+replays with its original roll. Effect key `relance_jet`; it has **no menu entry**
 (neither `lancer_sort` nor `lire_parchemin` — "does not take an action", and the menu never
 offers what the resolver would refuse). It extends the existing out-of-turn mechanism
 (`MoteurReactions`, `reaction_en_attente`, private channel, `POST /reaction`, 45 s window,
@@ -159,8 +168,9 @@ shadow token. The spell ends after the last shadow token is removed." A durable 
   announced (`ombre_decompte`: journal + combat line). Published in `EtatGroupe.carte.ombre`
   with its counter; table, controller and legend render it.
 - The scroll of the spell reads too (one entry per emplacement, each carrying its
-  `inventaire_id`); Future Sight's scroll exists in the catalogue (one per spell) but is
-  never offered.
+  `inventaire_id`). Future Sight's scroll is never read from the menu, but it IS played
+  by the reaction (2026-10-08, see *Future Sight* above): a hero who carries it is offered
+  the reroll exactly as one who knows the spell.
 
 **Wall of Stone (Spells of Protection) is a magical BARRIER, not a buff** —
 "You create a magical wall of stone which covers 2 squares not occupied by
@@ -192,6 +202,11 @@ Casting it offers **one menu entry per free PAIR of orthogonally contiguous
 cells**, the first one adjacent to the caster (`MoteurSorts::entreesPoseMurMagique()`:
 four neighbours × three onward cells, the caster excluded — twelve pairs on an open
 floor), never a cible-less base entry a player could click with nothing chosen.
+The SCROLL `Parchemin : Mur de Pierre` offers the same pairs under `lire_parchemin`
+(2026-10-08), from the same generator with `cle` `parchemin:{inventaire_id}:mur:…`, and
+the same resolver point (`poserMurMagiqueSort()`) — before this, its scroll fell through
+to a base entry with no `cases`, and a scroll that could not place its wall was a button
+that did nothing.
 The pair travels in the option (`parametres.cases`), and `poserMurMagique()` refuses
 anything that is not two contiguous cells. Placing a wall is a **choice of cells**,
 not a choice of target. No connectivity check runs at cast time, on purpose: this
