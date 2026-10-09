@@ -147,9 +147,20 @@ it('aucune entrée de sort ou de parchemin ne porte une liste de cibles vide, po
         // Sans Sorcier, Désapprentissage ne figure dans AUCUNE des deux listes.
         expect(collect($tout)->firstWhere('nom', 'Désapprentissage'))->toBeNull("[$scene]");
 
-        // Le test n'est pas vide : les sorts à cible légale sont bien là, et le
-        // sort épuisé — ici aucun — reste la seule exception à « sans cible = absent ».
-        expect(collect($tout)->firstWhere('nom', 'Boule de Feu'))->not->toBeNull("[$scene]");
+        // Le test n'est pas vide : un sort à cible légale est là dans les DEUX scènes
+        // — un soin vise toujours le lanceur lui-même.
+        expect(collect($tout)->firstWhere('nom', 'Eau de Guérison'))->not->toBeNull("[$scene]");
+
+        // Boule de Feu (« any one monster ») n'a d'entrée que monstre en vue. Sans
+        // monstre, elle ne tombe PAS sur le magicien : pas de cible, pas d'entrée
+        // (décision de René, 2026-10-09).
+        $boule = collect($tout)->firstWhere('nom', 'Boule de Feu');
+
+        if ($scene === 'monstre en vue') {
+            expect($boule)->not->toBeNull("[$scene]");
+        } else {
+            expect($boule)->toBeNull("[$scene]");
+        }
     }
 });
 

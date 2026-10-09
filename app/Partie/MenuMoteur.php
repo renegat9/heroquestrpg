@@ -2576,7 +2576,10 @@ final class MenuMoteur
             // même si l'objectif reste hors d'atteinte (coffre inaccessible,
             // boss disparu d'une carte malformée). Mieux vaut rentrer bredouille
             // qu'être enfermé à vie.
-            || ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
+            // — SAUF objectif « détruire un élément » : seule la chute de
+            // l'élément gagne (`Quete::donjonVideOuvreLaSortie()`).
+            || ($quete->donjonVideOuvreLaSortie()
+                && ! $quete->instancesMonstres()->where('etat', 'actif')->exists());
 
         // ESCALIER D'ENTRÉE (chantier escalier-entrée, 2026-10-05, René : « on
         // ne quitte le donjon QUE par l'escalier »). `quitter_donjon` n'est

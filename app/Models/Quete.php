@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Partie\MoteurMobilier;
 use App\Partie\Talents;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -327,7 +328,7 @@ class Quete extends Model
      */
     public function objectifAccompli(): bool
     {
-        return match ((string) data_get($this->gabarit?->structure, 'objectif')) {
+        return match ((string) $this->objectif()) {
             // Le boss de la rencontre finale est tombé.
             'vaincre_sous_boss' => $this->bossAbattu('sous_boss'),
             'vaincre_boss_final' => $this->bossAbattu('boss'),
@@ -347,6 +348,11 @@ class Quete extends Model
             // ce n'est jamais « accompli » : voir {@see self::captifPerdu()},
             // qui échoue la quête sur-le-champ plutôt que d'attendre ce test.
             'secourir' => $this->captifLibereEtVivant(),
+            // « DÉTRUIRE UN ÉLÉMENT » (René, 2026-10-09) : l'élément désigné
+            // sur la carte est tombé. En pratique la quête s'est alors
+            // TERMINÉE d'elle-même (`ResolveurTour`) — ce verdict sert la
+            // bannière et les garde-fous, jamais un second chemin de fin.
+            'detruire_element' => $this->elementObjectifDetruit(),
             default => true,
         };
     }
@@ -433,6 +439,16 @@ class Quete extends Model
      */
     public function objectif(): ?string
     {
+        // L'élément à détruire est désigné par la CARTE (clé `objectif` d'une
+        // entrée de mobilier, posée à l'assemblage) et PRIME sur l'objectif du
+        // gabarit : le gabarit « Confrontation finale » est commun à tous les
+        // thèmes, seule la quête finale de Morcar se gagne sur le Haut Autel.
+        // Une carte sans élément désigné (campagne EN COURS) garde l'objectif
+        // de son gabarit — repli écrit, jamais une quête rendue injouable.
+        if ($this->elementObjectif() !== null) {
+            return 'detruire_element';
+        }
+
         $objectif = data_get($this->gabarit?->structure, 'objectif');
 
         return is_string($objectif) && $objectif !== '' ? $objectif : null;
@@ -455,6 +471,9 @@ class Quete extends Model
             'vaincre_boss_final' => 'Trouver le maître de ce donjon et le mettre à terre.',
             'atteindre_et_recuperer' => 'Atteindre la salle la plus profonde et en ramener ce qu’elle garde.',
             'quitter_donjon' => 'Ressortir vivants.',
+            // Libellé du type générique « détruire un élément » : le nom du
+            // catalogue (« Détruire : Haut Autel. »).
+            'detruire_element' => 'Détruire : '.($this->elementObjectif()['nom'] ?? 'l\'élément désigné').'.',
             // Mission « secourir » (chantier 3b, texte adapté par le chantier
             // escalier-entrée du 2026-10-05) : le nom du captif quand il est
             // déjà connu (l'IA peut l'avoir habillé), sinon générique — jamais
@@ -466,6 +485,46 @@ class Quete extends Model
                 .' et le ramener vivant à l\'escalier.',
             default => null,
         };
+    }
+
+    /**
+     * L'élément-objectif de la carte (type `detruire_element`), ou `null`.
+     * Lit `MoteurMobilier::elementObjectif()` — point de passage unique de la
+     * désignation — et y ajoute le nom du catalogue pour le libellé.
+     *
+     * @return array{index: int, entree: array<string, mixed>, nom: string, detruit: bool}|null
+     */
+    public function elementObjectif(): ?array
+    {
+        $trouve = MoteurMobilier::elementObjectif((array) ($this->carte?->grille ?? []));
+
+        if ($trouve === null) {
+            return null;
+        }
+
+        return [
+            ...$trouve,
+            'nom' => (string) (Mobilier::find((int) ($trouve['entree']['mobilier_id'] ?? 0))?->nom ?? 'l\'élément désigné'),
+            'detruit' => MoteurMobilier::estDetruite($trouve['entree']),
+        ];
+    }
+
+    private function elementObjectifDetruit(): bool
+    {
+        return $this->elementObjectif()['detruit'] ?? true;
+    }
+
+    /**
+     * Un donjon VIDÉ de ses monstres ouvre-t-il la sortie à lui seul ? Oui,
+     * partout, SAUF quand l'objectif est de détruire un élément : le livret ne
+     * connaît alors pas d'autre victoire (« Destroy the High Altar to complete
+     * this quest », G1504 p. 39), et le repli anti-blocage « mieux vaut rentrer
+     * bredouille » porterait le groupe à la sortie, autel debout. Point de
+     * passage UNIQUE — `MenuMoteur` (l'offre) et `ResolveurTour` (la garde).
+     */
+    public function donjonVideOuvreLaSortie(): bool
+    {
+        return $this->objectif() !== 'detruire_element';
     }
 
     /** Plus aucune instance ACTIVE de ce tier — le boss désigné est vaincu. */

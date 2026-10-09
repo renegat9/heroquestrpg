@@ -42,6 +42,41 @@ final class MoteurMobilier
     public const MURS_MAGIQUES = ['Mur de Pierre', 'Mur de Glace', 'Mur de Feu'];
 
     /**
+     * ÉLÉMENT-OBJECTIF de la quête FINALE d'une boîte (René, 2026-10-09) :
+     * `boîte du bestiaire => nom du meuble attaquable à détruire`. *Wizards of
+     * Morcar* se gagne en détruisant le Haut Autel (G1504 p. 39, quête 10) ;
+     * le Crystal Cluster de *Jungles of Delthrak* viendra ici le jour où René
+     * le décidera. UNE liste, deux lecteurs : `AssembleurCarte` (qui le pose à
+     * coup sûr dans la salle du boss et le désigne par `objectif: true`, tout en
+     * l'écartant du tirage de décor aléatoire) et ses tests. Testée DANS LES DEUX SENS
+     * (`ObjectifDetruireElementTest`) : chaque nom existe au catalogue,
+     * attaquable, de la boîte déclarée.
+     *
+     * @var array<string, string>
+     */
+    public const ELEMENT_OBJECTIF_FINAL = ['wizards_of_morcar' => 'Haut Autel'];
+
+    /**
+     * L'élément désigné comme OBJECTIF dans la grille d'une carte — la clé
+     * `objectif: true` d'une entrée de `grille.mobilier` (état DURABLE, posé à
+     * l'assemblage). POINT DE PASSAGE UNIQUE : `Quete::elementObjectif()` et le
+     * résolveur d'attaque le lisent ici, jamais en refaisant la boucle.
+     *
+     * @param  array<string, mixed>  $grille
+     * @return array{index: int, entree: array<string, mixed>}|null
+     */
+    public static function elementObjectif(array $grille): ?array
+    {
+        foreach ((array) ($grille['mobilier'] ?? []) as $index => $entree) {
+            if (is_array($entree) && ! empty($entree['objectif'])) {
+                return ['index' => (int) $index, 'entree' => $entree];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Meubles fouillables, non encore fouillés, orthogonalement adjacents à
      * (x, y) — index dans la grille + entrée + libellé du catalogue.
      *

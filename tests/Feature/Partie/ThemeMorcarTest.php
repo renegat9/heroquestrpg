@@ -144,7 +144,7 @@ it('la migration de gel écrit l\'ancien modulo pour un groupe qui a joué sans 
         ->and($neuf->fresh()->theme_bestiaire)->toBeNull();
 });
 
-it('ACTIVE sous le thème pièges magiques, Haut Autel et Coffre du Dread — et jamais hors thème', function () {
+it('ACTIVE sous le thème pièges magiques et Coffre du Dread (le Haut Autel, lui, ne se pose que dans la quête finale) — et jamais hors thème', function () {
     $assembleur = app(AssembleurCarte::class);
     $gabarit = GabaritQuete::where('type_jalon', 'normale')->firstOrFail();
     $nomsPieges = Piege::pluck('nom', 'id');
@@ -166,7 +166,10 @@ it('ACTIVE sous le thème pièges magiques, Haut Autel et Coffre du Dread — et
     }
 
     expect(array_intersect($morcar, array_keys($piegesVus)))->not->toBeEmpty()
-        ->and($meublesVus)->toHaveKey('Haut Autel')->toHaveKey('Coffre du Dread');
+        ->and($meublesVus)->toHaveKey('Coffre du Dread')
+        // 2026-10-09 : le Haut Autel n'est plus du décor aléatoire — il est
+        // posé à coup sûr par la quête FINALE (ObjectifDetruireElementTest).
+        ->not->toHaveKey('Haut Autel');
 
     foreach (range(1, 15) as $i) {
         $carte = $assembleur->assembler($gabarit, $i * 1299721);

@@ -49,7 +49,7 @@ Routes protégées par middleware `auth` sauf connexion.
              "prologue": {"texte": "prémisse...", "url": "/audio/.../...wav|null",
                           "menace": {"nom": "...", "description": "..."}, "auto": true}},
   "quete": {"id": 1, "titre": "...", "type_jalon": "normale", "etat": "en_cours",
-            "objectif": "atteindre_et_recuperer|vaincre_sous_boss|vaincre_boss_final|quitter_donjon|secourir|null",
+            "objectif": "atteindre_et_recuperer|vaincre_sous_boss|vaincre_boss_final|quitter_donjon|secourir|detruire_element|null",
             "objectif_libelle": "phrase sans vocabulaire de jeu | null",
             "objectif_accompli": true,
             "objectif_majeur": false,
@@ -84,6 +84,23 @@ déclare aucun objectif : on n'annonce pas « accompli » là où rien n'était
 demandé. `objectif_majeur` marque une quête **ordinaire** qui fait monter d'un
 niveau si son objectif est accompli (doc 01 §5, troisième déclencheur) — un
 jalon, lui, s'annonce déjà par son boss.
+
+**Objectif `detruire_element`** (2026-10-09, René — la quête finale de
+*Wizards of Morcar* se gagne en **détruisant le Haut Autel**, G1504 p. 39).
+Type générique « détruire un élément de la carte » : l'élément visé est un meuble
+attaquable de `carte.grille.mobilier[]` désigné par la clé **`objectif: true`**
+de son entrée (état durable, en base — jamais en cache). `quete.objectif`
+vaut alors `"detruire_element"` **quelle que soit la valeur de
+`gabarit.structure.objectif`** (la désignation est portée par la CARTE, posée à
+l'assemblage ; une carte sans élément désigné — campagne en cours — garde
+l'objectif de son gabarit, repli écrit). `objectif_libelle` : « Détruire :
+Haut Autel. » ; `objectif_accompli` : l'élément désigné est détruit. Pas de
+champ de plus : la bannière lit le libellé et le verdict, comme pour tout
+objectif. **Victoire immédiate** : le coup qui détruit l'élément termine la quête
+(voir §Attaquer un meuble) — pas de vote de sortie, pas d'escalier. Tant que
+l'élément tient, `quitter_donjon` n'est **pas** ouvert par « donjon vidé » (seul
+l'objectif ouvre la sortie, le livret ne connaît pas d'autre victoire) ;
+`battre_en_retraite` reste sans condition.
 
 **Deux thèmes, deux natures** (2026-09-24) : `groupe.theme` est le thème
 NARRATIF libre saisi à la création (« crypte »…), déjà un texte humain —
@@ -359,9 +376,11 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   de `cle` et répond 422 sinon. Sans cela, un client lancerait un sort de son
   répertoire **avec les cibles d'un autre** — hors ligne de vue et hors du
   typage de cible que `ciblesLegales()` avait calculé pour ce sort-là.
-- ⚠ **`cibles` reste PAR ENTRÉE.** Un sort de dégâts vise monstres et héros, un
-  soin les héros seuls, un sort sur soi personne : une liste unique au niveau
-  de l'option serait fausse pour cinq des neuf sorts d'un magicien.
+- ⚠ **`cibles` reste PAR ENTRÉE.** Un sort de dégâts ou mental à **cible unique**
+  (`cible: monstre`) ne liste que des monstres depuis le 2026-10-09 (décision de
+  René : la liste suit la carte) ; un soin liste les héros, lanceur compris ; un
+  sort sur soi personne ; un sort de **zone** n'a pas de liste du tout. Une liste
+  unique au niveau de l'option serait fausse pour cinq des neuf sorts d'un magicien.
 - ⚠ **La profondeur suit la donnée** : le troisième niveau (ciblage) ne s'ouvre
   que si l'entrée porte des `cibles`. *Traverser la Pierre* et une potion de
   soin partent du deuxième.
@@ -417,8 +436,9 @@ Le client répond **à plat** : `POST choix {option_id, parametres: {cle, cible_
   grisée, ni `cibles: []`. Une liste vide n'est pas une liste : la manette
   l'ouvrirait comme un niveau sans choix, avant que le résolveur ne refuse
   « Cible requise ». Donc `cibles`, quand il est présent, est **toujours non
-  vide**. Cas réels : *Désapprentissage* sans Sorcier de Dread en vue ; *Conte
-  inspirant* d'un Barde seul, qui ne se vise jamais lui-même (« excluding
+  vide**. Cas réels : *Désapprentissage* sans Sorcier de Dread en vue ; *Boule de
+  Feu* sans monstre en vue (cible unique, 2026-10-09 — jamais le magicien à sa
+  place) ; *Conte inspirant* d'un Barde seul, qui ne se vise jamais lui-même (« excluding
   yourself »). C'est la règle des sorts à emplacement (*Mur de Pierre*,
   *Voile d'ombre*, *Clairvoyance*) : pas d'emplacement légal, pas d'entrée. Un
   sort **épuisé** reste lui grisé — il est au héros, il revient ; un sort sans
@@ -1786,7 +1806,17 @@ achète *Colosse*, il descend quand le costaud s'en va.
   UNIQUE) et disparaît de `EtatGroupe.carte.mobilier[]` comme une pièce
   fracassée ; un déclenchement de GABARIT DE QUÊTE (le sorcier qui jaillit du
   Coffre du Dread, la quête gagnée à la chute du Haut Autel) est hors du
-  périmètre de ce lecteur générique.
+  périmètre de ce lecteur générique. **Exception (2026-10-09)** : si le meuble
+  est l'**élément désigné de l'objectif** (`quete.objectif = "detruire_element"`),
+  sa destruction **termine la quête sur-le-champ** (`ResolveurTour::terminerQuete()`,
+  point de passage unique des fins de quête) : la réponse porte alors
+  `objectif_detruit: {nom, texte}` (texte de fin du livret, traduit, aussi
+  diffusé en narration et écrit au journal `systeme`/`objectif_detruit`) et
+  `quete: {etat: "terminee", or_butin, niveaux, …}` — la même forme qu'une fin
+  par vote. « Remove all remaining monsters from play » : la quête terminée,
+  les monstres restants quittent le jeu avec elle (aucune instance n'est
+  modifiée, comme à toute victoire). Le groupe est au hub, la clôture de
+  campagne s'ouvre (jalon `boss_final`).
 - **Forcer un levier** — l'option `actionner_levier` demande désormais un **jet de
   Body** (difficulté du levier, 1-3) et **coûte le créneau d'ACTION** : ce n'est
   plus une interaction gratuite. ⚠ **Retentable sans limite**, contrairement aux
@@ -2412,7 +2442,10 @@ sacrifie le tour, récupère UN sort au choix (`parametres: {sort_id}`).
 (`parametres: {sort_id, cible?}`) proposées au héros en quête :
 - `degats` (Boule de Feu 2 dés, Trait de Feu 1 dé, Génie 4 dés — départ
   playtest) : dés de combat vs défense de la cible (règles de combat de base) ;
-  **tir ami possible (S3)** : les héros figurent dans les cibles légales.
+  **cible unique (2026-10-09)** : un sort de dégâts ne liste que des monstres
+  (`cible: monstre`, comme sa carte) ; le tir ami ne subsiste que
+  pour les sorts de **zone** (Flamme hypnotique, sans liste) et de **rayon** (Éclair,
+  choisi par direction).
 - `mental` (Sommeil, Tempête) : jet de Mind de la cible, binaire (S2), Mind 0
   immunisé ; effet = condition (`endormi` : hors combat jusqu'à attaque ;
   `tempete` : n'attaque pas à son prochain tour).

@@ -1357,12 +1357,21 @@ final class MoteurSorts
     }
 
     /**
-     * Cibles légales d'un sort (doc 02 §5, S3) : degats/mental → monstres
-     * actifs ET héros (tir ami possible), RESTREINTS à la ligne de vue du
-     * lanceur (une figure interposée coupe la vue, doc 03 §36) ; utilitaire
-     * ciblé → héros de la quête ; cible `soi` (Traverser la Pierre) → pas de
-     * liste, le lanceur. Les positions internes (x/y/emprise) servent au filtre
-     * de LdV puis sont retirées : la liste rendue reste {type, id, nom}.
+     * Cibles légales d'un sort, RESTREINTES à la ligne de vue du lanceur (une
+     * figure interposée coupe la vue, doc 03 §36).
+     *
+     * ⚠ RÈGLE EN VIGUEUR depuis le 2026-10-09 (décision de René) : un sort à
+     * CIBLE UNIQUE vise ce que dit sa carte. `monstre` → monstres seuls ;
+     * `heros` → héros seuls, lanceur compris ; `soi` → aucune liste. Le tir ami
+     * ne subsiste que pour les sorts de ZONE (`zone`, `rayon`), qui touchent
+     * toutes les figures de leur surface et n'ont donc pas de liste à viser.
+     * Avant cette date, tout sort de dégâts ou mental portait monstres ET héros
+     * (doc 02 §5, S3 appliqué au sens large) : un magicien seul se voyait
+     * proposer Boule de Feu sur lui-même.
+     *
+     * Utilitaire ciblé → héros de la quête ; cible `soi` (Traverser la Pierre)
+     * → pas de liste, le lanceur. Les positions internes (x/y/emprise) servent
+     * au filtre de LdV puis sont retirées : la liste rendue reste {type, id, nom}.
      *
      * @param  list<array<string, mixed>>  $monstres
      * @param  list<array<string, mixed>>  $heros
@@ -1384,9 +1393,10 @@ final class MoteurSorts
             return null;
         }
 
+        $offensif = in_array($sort->type, ['degats', 'mental'], true);
+
         // `soi` (Traverser la Pierre) : le lanceur, donc aucune liste à choisir.
-        if (! in_array($sort->type, ['degats', 'mental'], true)
-            && ! in_array($cible, [MotsClesSort::CIBLE_HEROS, MotsClesSort::CIBLE_LANCEUR_DREAD], true)) {
+        if (! $offensif && ! in_array($cible, [MotsClesSort::CIBLE_HEROS, MotsClesSort::CIBLE_LANCEUR_DREAD], true)) {
             return null;
         }
 
@@ -1395,10 +1405,18 @@ final class MoteurSorts
         // Un Sorcier épuisé (répertoire entièrement oublié) n'est plus une cible.
         if ($cible === MotsClesSort::CIBLE_LANCEUR_DREAD) {
             $cibles = $this->lanceursDreadOubliables($monstres);
+        } elseif ($offensif) {
+            // CIBLE UNIQUE, suivie telle que la carte la dit (2026-10-09). Un
+            // `soi` offensif n'a aucune figure à viser ici : un rayon se choisit
+            // par DIRECTION (`entreesDeRayon()`), et la zone n'arrive jamais ici
+            // (elle a rendu `null` plus haut). Aucun repli sur « tout le monde ».
+            $cibles = match ($cible) {
+                MotsClesSort::CIBLE_MONSTRE, MotsClesSort::CIBLE_MONSTRES_ZONE => $monstres,
+                MotsClesSort::CIBLE_HEROS => $heros,
+                default => [],
+            };
         } else {
-            $cibles = in_array($sort->type, ['degats', 'mental'], true)
-                ? [...$monstres, ...$heros]   // tir ami délibéré (S3)
-                : $heros;                      // bénéfique : les héros, LANCEUR COMPRIS
+            $cibles = $heros;   // bénéfique : les héros, LANCEUR COMPRIS
         }
 
         // LIGNE DE VUE, pour TOUT sort — pas seulement les offensifs.

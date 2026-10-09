@@ -14,6 +14,7 @@ use App\Models\Personnage;
 use App\Models\Quete;
 use App\Models\Sort;
 use App\Partie\MoteurSorts;
+use App\Partie\Salles;
 use Database\Seeders\ClasseHerosSeeder;
 use Database\Seeders\CompetenceSeeder;
 use Database\Seeders\ConditionSeeder;
@@ -220,7 +221,7 @@ function entreeSort($options, string $nom): ?array
 }
 
 
-it('propose au menu une option par sort disponible, avec les cibles légales (monstres ET héros — tir ami S3)', function () {
+it('propose au menu une option par sort disponible, avec les cibles légales (un sort à cible unique ne vise que ce que dit sa carte)', function () {
     [$alice, $groupe, $mage, $quete] = demarrerQueteSorts();
 
     // Un sort offensif ne vise que ce qui est DANS LA LIGNE DE VUE : on isole un
@@ -246,14 +247,15 @@ it('propose au menu une option par sort disponible, avec les cibles légales (mo
         expect($entrees->pluck('cle'))->toContain("sort:{$sort->id}");
     }
 
-    // Sort de dégâts : monstres actifs ET héros dans les cibles légales (tir ami
-    // S3) — ici la proie visible et le mage lui-même (une figure voit sa case).
+    // Sort de dégâts à CIBLE UNIQUE : la liste suit la carte (« any one monster »,
+    // décision de René, 2026-10-09). La proie visible est là ; le mage, qui voit
+    // pourtant sa propre case, n'y figure PAS — il ne peut pas se brûler lui-même.
     $bouleDeFeu = entreeSort($options, 'Boule de Feu');
     $cibles = collect($bouleDeFeu['cibles']);
     expect($bouleDeFeu['sort_id'])->toBe(sortIdParNom('Boule de Feu'))
         ->and($bouleDeFeu['disponible'])->toBeTrue()
-        ->and($cibles->where('type', 'monstre')->pluck('id'))->toContain($proie->id)
-        ->and($cibles->where('type', 'heros')->pluck('id'))->toContain($mage->id);
+        ->and($cibles->pluck('type')->unique()->all())->toBe(['monstre'])
+        ->and($cibles->pluck('id')->all())->toBe([$proie->id]);
 
     // ⚠ Les cibles restent PAR ENTRÉE : un utilitaire ciblé ne vise que des
     // héros. Une liste unique au niveau de l'option serait fausse ici.
@@ -307,25 +309,95 @@ it('résout Boule de Feu à distance : dés du catalogue contre la défense, mon
         ->and($groupe->evenements()->where('type', 'combat')->exists())->toBeTrue();
 });
 
-it('permet le tir ami (S3) : un héros ciblé par un sort de dégâts se défend et encaisse', function () {
-    [$alice, $groupe, $mage, , , $brunhilde] = demarrerQueteSorts(avecSecond: true);
+it('un sort à CIBLE UNIQUE ne touche jamais un héros, même au contact : le menu et le résolveur refusent (décision de René, 2026-10-09)', function () {
+    // Carte : « any one MONSTER » (Fire of Wrath, Sleep). L'ancien tir ami d'un
+    // sort à cible unique — un héros frappé à côté du lanceur — n'existe plus.
+    [$alice, $groupe, $mage, $quete, , $brunhilde] = demarrerQueteSorts(avecSecond: true);
 
-    optionsMenuSorts($groupe, $alice, $mage);
+    // Une proie visible ET un allié au contact : le refus ne doit tenir qu'au
+    // TYPE de cible, pas à l'absence d'un monstre ou à une ligne de vue coupée.
+    $proie = $quete->instancesMonstres()->orderBy('id')->firstOrFail();
+    $quete->instancesMonstres()->whereKeyNot($proie->id)->update(['etat' => 'vaincu']);
+    $etatMage = $quete->etatsPersonnages()->where('personnage_id', $mage->id)->firstOrFail();
+    $contactProie = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $proie->update(['position_x' => $contactProie['x'], 'position_y' => $contactProie['y']]);
+    $contactAllie = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $quete->etatsPersonnages()->where('personnage_id', $brunhilde->id)
+        ->update(['position_x' => $contactAllie['x'], 'position_y' => $contactAllie['y']]);
 
-    // Trait de Feu : 1 dé (crâne) ; défense du héros 2 dés en boucliers
-    // NOIRS — un héros ne compte que les blancs → 1 dégât.
+    $options = optionsMenuSorts($groupe, $alice, $mage);
+
+    // Le menu ne liste que la proie, pour un sort de dégâts comme pour un mental.
+    expect(collect(entreeSort($options, 'Trait de Feu')['cibles'])->pluck('id')->all())->toBe([$proie->id])
+        ->and(collect(entreeSort($options, 'Sommeil')['cibles'])->pluck('id')->all())->toBe([$proie->id]);
+
+    // Forcé hors menu, le résolveur refuse le héros — il n'a donc rien à encaisser.
+    $pvAvant = (int) $brunhilde->fresh()->pv_body;
     desFiges([1, 6, 6]);
 
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
         'parametres' => ['cle' => 'sort:'.sortIdParNom('Trait de Feu'), 'cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
-    ])->assertStatus(202)
-        ->assertJsonPath('resultat.tir_ami', true)
-        ->assertJsonPath('resultat.cible.personnage_id', $brunhilde->id)
-        ->assertJsonPath('resultat.degats', 1)
-        ->assertJsonPath('resultat.pv_body_apres', 7);
+    ])->assertStatus(422)->assertJsonValidationErrors('parametres');
 
-    expect($brunhilde->fresh()->pv_body)->toBe(7);
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Sommeil'), 'cible_id' => $brunhilde->id, 'cible_type' => 'heros'],
+    ])->assertStatus(422)->assertJsonValidationErrors('parametres');
+
+    expect((int) $brunhilde->fresh()->pv_body)->toBe($pvAvant);
+});
+
+it('un sort de ZONE touche toujours un héros de sa salle, lanceur excepté : c\'est le tir ami qui subsiste (décision de René, 2026-10-09)', function () {
+    // Flamme hypnotique : « every figure in the room (EXCEPT for the spellcaster) »
+    // jette 1 d6 contre son Mind ; au-dessus, PARALYSÉ. Aucune cible à choisir.
+    $alice = connecterJoueur('alice');
+    $groupe = creerGroupe();
+    $elfe = creerHeros($alice, $groupe, 'Albrecht', 1, ['classe' => 'elfe']);
+    $allie = creerHeros($alice, $groupe, 'Brunhilde', 2);
+    app(MoteurSorts::class)->attacherElement($elfe, 'elfique');
+
+    $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
+    $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
+
+    // Aucun monstre : le scénario ne fait jouer que les héros, et leurs dés.
+    $quete->instancesMonstres()->update(['etat' => 'vaincu']);
+
+    // L'allié dans la MÊME SALLE que le lanceur (à défaut, au contact).
+    $salles = (array) ($quete->carte?->grille['salles'] ?? []);
+    $etatElfe = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $elfe->id)->firstOrFail();
+    $etatAllie = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $allie->id)->firstOrFail();
+    $salle = Salles::indexDe($salles, (int) $etatElfe->position_x, (int) $etatElfe->position_y);
+
+    $place = null;
+
+    foreach ((array) $quete->carte->grille['cases'] as $y => $ligne) {
+        foreach (array_keys($ligne) as $x) {
+            if ($salle !== null && Salles::indexDe($salles, (int) $x, (int) $y) === $salle && caseQueteLibre($quete, (int) $x, (int) $y)) {
+                $place = ['x' => (int) $x, 'y' => (int) $y];
+                break 2;
+            }
+        }
+    }
+
+    $place ??= caseAdjacenteLibre($quete, (int) $etatElfe->position_x, (int) $etatElfe->position_y);
+    $etatAllie->update(['position_x' => $place['x'], 'position_y' => $place['y']]);
+
+    GenererMenu::dispatchSync($groupe->id, (int) $alice->id, (int) $elfe->id);
+    $flamme = Sort::where('nom', 'Flamme hypnotique')->firstOrFail();
+
+    // Un seul jet : celui de Brunhilde (Mind 2). Un 6 la paralyse. Le lanceur,
+    // lui, ne jette RIEN — s'il jetait, le premier dé le toucherait.
+    desFiges([6, 6]);
+
+    $this->postJson('/api/groupes/table-1/choix', [
+        'option_id' => 'lancer_sort',
+        'parametres' => ['cle' => "sort:{$flamme->id}"],
+    ])->assertStatus(202)
+        ->assertJsonPath('resultat.zone', true);
+
+    expect($allie->fresh()->conditions()->where('nom', 'Paralysé')->exists())->toBeTrue()
+        ->and($elfe->fresh()->conditions()->where('nom', 'Paralysé')->exists())->toBeFalse();
 });
 
 it("endort un monstre (Sommeil raté au jet de Mind) : il ne joue pas, et l'attaquer le réveille", function () {
@@ -453,8 +525,10 @@ it('retire un sort épuisé du menu, et le forcer hors menu est un 422 (le moteu
     // croire au joueur qu'il avait perdu le sort. Il n'entre évidemment pas
     // dans la liste blanche que le résolveur accepte.
     $entrees = entreesDe(optionsMenuSorts($groupe, $alice, $mage), 'lancer_sort', 'sorts');
+    // Un AUTRE sort reste lançable : un soin vise toujours le lanceur lui-même
+    // (Trait de Feu, lui, n'a aucune entrée sans monstre en vue).
     expect($entrees->firstWhere('cle', "sort:{$sortId}")['disponible'])->toBeFalse()
-        ->and($entrees->firstWhere('cle', 'sort:'.sortIdParNom('Trait de Feu'))['disponible'])->toBeTrue();
+        ->and($entrees->firstWhere('cle', 'sort:'.sortIdParNom('Eau de Guérison'))['disponible'])->toBeTrue();
 
     // Menu truqué en cache : l'option épuisée forcée → 422, rien ne bouge.
     $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
@@ -534,6 +608,11 @@ it('consomme le parchemin du non-lanceur même quand le jet de Mind échoue : ga
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
     $quete->instancesMonstres()->update(['revele' => true]);
     $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
+    // Boule de Feu n'a d'entrée que si un MONSTRE est à viser : on le place au
+    // contact du barbare, ligne de vue dégagée.
+    $etatBarbare = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $barbare->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatBarbare->position_x, (int) $etatBarbare->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
     $pvAvant = (int) $proie->pv_body;
 
     $options = optionsMenuSorts($groupe, $alice, $barbare);
@@ -620,6 +699,13 @@ it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même
     // qu'on mesure ici — le second sort dans le même tour.
     donnerTalent($mage, 'Réserve arcanique');
 
+    // Un monstre au contact : le 3e sort visera une VRAIE cible, pour que son
+    // refus ne tienne qu'au bonus épuisé (un héros n'est plus une cible, 2026-10-09).
+    $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
+    $etatMage = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $mage->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatMage->position_x, (int) $etatMage->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+
     optionsMenuSorts($groupe, $alice, $mage);
 
     // 1er sort : Courage sur soi-même — consomme le créneau action normal.
@@ -651,10 +737,10 @@ it('Réserve arcanique (nœud magicien) permet de lancer un SECOND sort le même
         ->and((bool) $mage->sorts()->whereKey(sortIdParNom('Courage'))->first()->pivot->disponible)->toBeFalse()
         ->and((bool) $mage->sorts()->whereKey(sortIdParNom('Eau de Guérison'))->first()->pivot->disponible)->toBeFalse();
 
-    // Le bonus est consommé : un 3e sort ce tour est refusé.
+    // Le bonus est consommé : un 3e sort ce tour est refusé, même sur une cible légale.
     $this->postJson('/api/groupes/table-1/choix', [
         'option_id' => 'lancer_sort',
-        'parametres' => ['cle' => 'sort:'.sortIdParNom('Trait de Feu'), 'cible_id' => $mage->id, 'cible_type' => 'heros'],
+        'parametres' => ['cle' => 'sort:'.sortIdParNom('Trait de Feu'), 'cible_id' => $proie->id, 'cible_type' => 'monstre'],
     ])->assertStatus(422);
 });
 

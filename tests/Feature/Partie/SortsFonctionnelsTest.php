@@ -346,6 +346,14 @@ it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance'
     $this->postJson('/api/groupes/table-1/quetes')->assertCreated();
     $quete = Quete::findOrFail($groupe->fresh()->quete_courante_id);
 
+    // Le mode ATTAQUE ne s'offre qu'avec un monstre à viser : on le révèle et on
+    // le place au contact du magicien (ligne de vue dégagée).
+    $quete->instancesMonstres()->update(['revele' => true]);
+    $proie = $quete->instancesMonstres()->where('etat', 'actif')->orderBy('id')->firstOrFail();
+    $etatMagicien = EtatPersonnageQuete::where('quete_id', $quete->id)->where('personnage_id', $hero->id)->firstOrFail();
+    $contact = caseAdjacenteLibre($quete, (int) $etatMagicien->position_x, (int) $etatMagicien->position_y);
+    $proie->update(['position_x' => $contact['x'], 'position_y' => $contact['y']]);
+
     $options = app(MoteurSorts::class)->options($groupe->fresh(), $quete, $hero->fresh());
     $genie = Sort::where('nom', 'Génie')->firstOrFail();
 
@@ -358,9 +366,11 @@ it('propose les DEUX modes de Génie : attaquer ou ouvrir une porte à distance'
         fn (array $e) => str_starts_with((string) $e['cle'], "sort:{$genie->id}:porte:")
     );
 
-    // Mode 1 : l'attaque, avec ses cibles légales.
+    // Mode 1 : l'attaque, avec ses cibles légales. Génie vise « any monster within
+    // your line of sight » : des MONSTRES, et jamais le magicien (2026-10-09).
     expect($attaque)->not->toBeNull()
-        ->and($attaque)->toHaveKey('sort_id');
+        ->and($attaque)->toHaveKey('sort_id')
+        ->and(collect($attaque['cibles'] ?? [])->pluck('type')->unique()->all())->toBe(['monstre']);
 
     // Mode 2 : une option par porte fermée d'une salle découverte. Le texte
     // officiel dit « ouvre une porte AU CHOIX » : aucune adjacence requise,

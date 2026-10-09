@@ -595,6 +595,12 @@ final class ResolveurTour
                 default => $this->resoudreNarratif($groupe, $option, $acteur),
             };
 
+            // La quête vient d'être GAGNÉE sur le coup (élément-objectif détruit) :
+            // ni créneau à consommer, ni fin de round — voir `gagnerParDestruction()`.
+            if (! empty($resultat['objectif_detruit'])) {
+                return $resultat;
+            }
+
             if ($bonusReserveArcanique) {
                 $resultat['bonus_reserve_arcanique'] = true;
             }
@@ -5206,7 +5212,11 @@ final class ResolveurTour
         // Garde-fou de ligne de vue (doc 03 §36) : un sort offensif (degats /
         // mental) exige que la cible soit VISIBLE — une figure interposée coupe
         // la vue. Revérifié ici même si un menu périmé listait la cible.
-        if (in_array($sort->type, ['degats', 'mental'], true)) {
+        // ⚠ Un sort de ZONE (`zone`, Flamme hypnotique) n'a aucune figure à viser :
+        // il balaie la salle du lanceur, et le menu ne lui donne donc AUCUNE liste
+        // `cibles` (`ciblesLegales()` rend null). Exiger ici un `cible_id` le
+        // rendait injouable par la route : « Cible requise » à chaque lancer.
+        if (in_array($sort->type, ['degats', 'mental'], true) && data_get($sort->effet, 'zone') === null) {
             $this->verifierLigneDeVueSort($quete, $etat, $option, $parametres);
         }
 
@@ -5256,8 +5266,10 @@ final class ResolveurTour
     /**
      * Sort de dégâts (Boule de Feu, Trait de Feu, Génie) : dés de combat de
      * l'effet JSON du catalogue contre la défense de la cible (règles de
-     * combat de base), À DISTANCE — et tir ami possible (S3) : un héros visé
-     * se défend exactement comme face à un monstre.
+     * combat de base), À DISTANCE. ⚠ Cible UNIQUE depuis le 2026-10-09 : la liste
+     * légale ne porte que des monstres (`MoteurSorts::ciblesLegales()`), donc la
+     * branche héros plus bas n'est plus atteinte par ce chemin ; le tir ami de
+     * zone ne passe pas par ici (il a son propre routage).
      *
      * @param  array<string, mixed>  $option
      * @param  array<string, mixed>  $parametres
@@ -6523,7 +6535,53 @@ final class ResolveurTour
 
         Journal::ajouter($groupe, 'combat', $payload, $acteur);
 
+        // ÉLÉMENT-OBJECTIF détruit (René, 2026-10-09) : « When the High Altar
+        // is destroyed […] Remove all remaining monsters from play. The quest
+        // is won. » (G1504 p. 39). La quête se gagne ICI, sur le coup, sans
+        // vote ni escalier : `terminerQuete()` reste le point de passage UNIQUE
+        // des fins de quête, et l'appelant (`resoudre()`) rend la main SANS
+        // jouer la fin de round — plus de monstres à jouer, la quête est close.
+        if ($etatMeuble['detruit'] && ! empty($entree['objectif'])) {
+            $payload = [...$payload, ...$this->gagnerParDestruction($groupe, $quete, $type, $acteur)];
+        }
+
         return $payload;
+    }
+
+    /**
+     * La victoire par destruction de l'élément-objectif : annonce (texte de fin
+     * du livret, traduit — scripté, jouable sans clé API), journal, puis fin de
+     * quête. « Remove all remaining monsters from play » : la quête terminée,
+     * ses monstres quittent le jeu avec elle (aucune instance n'est modifiée —
+     * comme à toute victoire, ils ne sont plus jamais lus).
+     *
+     * @param  array<string, mixed>  $acteur
+     * @return array<string, mixed>
+     */
+    private function gagnerParDestruction(Groupe $groupe, Quete $quete, Mobilier $element, array $acteur): array
+    {
+        $fin = (array) (config("narration.fin_objectif.{$element->nom}") ?? config('narration.fin_objectif.defaut'));
+        $texte = (string) ($fin['texte'] ?? '');
+
+        Journal::ajouter($groupe, 'systeme', [
+            'action' => 'objectif_detruit',
+            'quete_id' => $quete->id,
+            'element' => $element->nom,
+            'texte' => $texte,
+        ], $acteur);
+
+        // Narré AVANT la bascule au hub (même raison que `terminerQuete()` :
+        // `Evenement.quete_id` se résout depuis la quête courante).
+        $this->diffuserRecit($groupe, $texte === '' ? null : [
+            'texte' => $texte,
+            'ambiance' => (string) ($fin['ambiance'] ?? 'victoire'),
+            'url' => null,
+        ]);
+
+        return [
+            'objectif_detruit' => ['nom' => $element->nom, 'texte' => $texte],
+            'quete' => $this->terminerQuete($groupe, $quete),
+        ];
     }
 
     /**
@@ -11367,7 +11425,8 @@ final class ResolveurTour
 
     private function resoudreQuitterDonjon(Groupe $groupe, Quete $quete, ?EtatPersonnageQuete $etat, array $option, array $acteur): array
     {
-        $vide = ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
+        $vide = $quete->donjonVideOuvreLaSortie()
+            && ! $quete->instancesMonstres()->where('etat', 'actif')->exists();
 
         if (! $quete->objectifAccompli() && ! $vide) {
             throw ValidationException::withMessages([

@@ -138,7 +138,11 @@ final class ExecutionChoix
         // rythme ne doit pas taire ce que toute la campagne construisait.
         $instantane = $triviale || ($enCombat && ! $this->momentFort($resultat));
 
-        if (! $instantane) {
+        // Texte de fin déjà narré par le résolveur (quête gagnée en détruisant
+        // l'élément-objectif) : le redire ferait entendre deux fois la victoire.
+        $dejaNarre = ! empty($resultat['objectif_detruit']);
+
+        if (! $instantane && ! $dejaNarre) {
             // Verrou B1 (délibéré, cf. CLAUDE.md) : le joueur suivant attend que
             // le narrateur ait « parlé » — la TABLE l'éteint une fois la lecture
             // finie (POST /table/lecture-terminee). Depuis la bascule du

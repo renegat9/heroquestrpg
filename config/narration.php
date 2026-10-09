@@ -36,6 +36,28 @@ return [
     // Synthèse au vol de la narration dynamique de l'IA (true si clé présente).
     'voix_dynamique' => true,
 
+    // TEXTE DE FIN d'une quête gagnée en DÉTRUISANT son élément-objectif
+    // (objectif `detruire_element`, René 2026-10-09), par NOM de meuble du
+    // catalogue. Scripté : la fin de la campagne se joue sans clé d'API.
+    // « Haut Autel » : traduction du livret G1504 p. 39 (« The High Altar cracks
+    // asunder. There is a low wailing sound that comes from deep below and rises
+    // into a terrible scream. The sound grows ever more intense… and is then
+    // gone. Silence. The debris of the High Altar litters the floor. »).
+    'fin_objectif' => [
+        'Haut Autel' => [
+            'ambiance' => 'victoire',
+            'texte' => 'Le Haut Autel se fend en deux. Un gémissement sourd monte des profondeurs, '
+                .'puis se change en un cri terrible. Le son enfle, de plus en plus intense… puis '
+                .'s\'éteint. Silence. Les débris du Haut Autel jonchent le sol.',
+        ],
+        // Élément sans texte propre (le Crystal Cluster, un jour) : jamais muet.
+        'defaut' => [
+            'ambiance' => 'victoire',
+            'texte' => 'Sous vos coups, la chose se brise et ne laisse que des ruines. Tout ce qui '
+                .'la servait s\'évanouit : la quête est gagnée.',
+        ],
+    ],
+
     // Cérémonie de lancement (jouée immédiatement au démarrage de quête).
     'lancement' => [
         'ambiance' => 'epique',

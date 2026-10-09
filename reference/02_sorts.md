@@ -48,7 +48,7 @@ La magie reste **fidèle à HeroQuest** : sorts regroupés par **éléments**, *
 - **Sorts de dégâts** → infligent des dés de combat sur les **Points de Body** de la cible ; la cible peut lancer ses **dés de défense** (règle de combat de base).
 - **Sorts mentaux** (sommeil, peur, contrôle) → opposés aux **Points de Mind** : la cible tente un **jet de Mind** pour résister ; échec = subit l'effet. C'est le pont entre la magie et la jauge mentale.
 - **Sorts utilitaires** (déplacement, soin, défense) → effet direct, sans opposition.
-- **Tir ami possible** : un sort offensif de zone ou à distance peut toucher un **allié mal placé** ; le placement avant de lancer devient un vrai choix tactique.
+- **Tir ami possible** : un sort offensif de zone peut toucher un **allié mal placé** ; le placement avant de lancer devient un vrai choix tactique. *(Précisé le 2026-10-09 : un sort à cible unique, même à distance, ne vise que ce que dit sa carte — voir §10, S3.)*
 
 ---
 
@@ -190,6 +190,7 @@ dès la première divergence.
 1. **Difficulté des parchemins (S1)** : **variable selon le sort** (1 à 3 succès, voir §7).
 2. **Sorts mentaux (S2)** : **effet binaire** — la cible résiste (jet de Mind) ou subit l'effet. Pas de dégâts de PV de Mind au MVP.
 3. **Ciblage (S3)** : **tir ami possible** — un sort mal placé peut toucher un allié.
+   - *Précisé le 2026-10-09 (décision de René) : le tir ami vaut pour les sorts de zone ; un sort à cible unique vise ce que dit sa carte.* Une Boule de Feu (« any one monster ») ne vise donc que des monstres, jamais le lanceur ni un allié ; Flamme hypnotique (zone) et Éclair (rayon) gardent le tir ami.
 4. **Fabrication (S4)** : **jamais** — les parchemins ne s'obtiennent que par butin ou achat.
 5. **Repos (S5)** : **aucun repos en cours de quête** ; récupération entre quêtes uniquement.
 6. **Concentration (S6)** : le Magicien peut, **une fois par quête, sacrifier son tour** pour récupérer un sort épuisé.

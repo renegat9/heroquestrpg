@@ -27,8 +27,13 @@ class SortSeeder extends Seeder
             // hasard placé du mauvais côté — c'est la cible qui résiste, pas le
             // lanceur qui vise. `defense_applicable: false` parce que les dés
             // rouges REMPLACENT la parade, ils ne s'y ajoutent pas.
+            // « This spell may be cast on any one MONSTER, enveloping it in a ball
+            // of fire » (LR p. 8, doc 16 §3). Cible UNIQUE : le sort ne peut viser
+            // qu'un monstre, jamais un héros, lanceur compris (décision de René,
+            // 2026-10-09). Sans `cible`, la liste retombait sur « soi » et le
+            // menu proposait le sort au magicien lui-même.
             ['element' => 'feu', 'nom' => 'Boule de Feu', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'degats_fixes' => 2, 'resistance' => 'des_rouges',
+                'effet' => ['cible' => 'monstre', 'portee' => 'distance', 'degats_fixes' => 2, 'resistance' => 'des_rouges',
                     'des_resistance' => 2, 'defense_applicable' => false, 'type_degat' => 'feu']],
             ['element' => 'feu', 'nom' => 'Courage', 'type' => 'utilitaire', 'difficulte_parchemin' => 2,
                 // Carte officielle (doc 16 §3bis) : « The next time that hero
@@ -45,8 +50,10 @@ class SortSeeder extends Seeder
             // « It inflicts 1 Body Point of damage, unless the monster can
             // immediately roll a 5 or 6 using 1 red die. » Même mécanique que la
             // Boule de Feu, à l'échelle 1 : 1 point, 1 dé.
+            // « This spell may be cast on any one monster, blasting it with flames »
+            // (*Fire of Wrath*, doc 16 §3) : cible UNIQUE, comme la Boule de Feu.
             ['element' => 'feu', 'nom' => 'Trait de Feu', 'type' => 'degats', 'difficulte_parchemin' => 1,
-                'effet' => ['portee' => 'distance', 'degats_fixes' => 1, 'resistance' => 'des_rouges',
+                'effet' => ['cible' => 'monstre', 'portee' => 'distance', 'degats_fixes' => 1, 'resistance' => 'des_rouges',
                     'des_resistance' => 1, 'defense_applicable' => false, 'type_degat' => 'feu']],
 
             // Eau — contrôle / soin
@@ -148,8 +155,12 @@ class SortSeeder extends Seeder
             // Keep p. 15, reference/18_extensions.md §3). Les 5 dés sont donc
             // exacts ; c'est le second mode, l'ouverture de porte, qui manque
             // encore (à trancher).
+            // « uses 5 combat dice to attack ANY MONSTER within your line of sight »
+            // (LR p. 8, doc 16 §3). `cible: monstre` couvre le MODE ATTAQUE seul ;
+            // le mode « ouvrir une porte » n'a pas de figure à viser (`ouvre_porte`,
+            // ses entrées sont `entreesPorteAuChoix()`), donc rien ne le restreint.
             ['element' => 'air', 'nom' => 'Génie', 'type' => 'degats', 'difficulte_parchemin' => 3,
-                'effet' => ['portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true, 'ouvre_porte' => true]],
+                'effet' => ['cible' => 'monstre', 'portee' => 'distance', 'des_degats' => 5, 'defense_applicable' => true, 'ouvre_porte' => true]],
             ['element' => 'air', 'nom' => 'Vent Véloce', 'type' => 'utilitaire', 'difficulte_parchemin' => 1,
                 // « the next time they move » : `prochain_deplacement`, et non
                 // plus `ce_tour` — errata 2021 B4 (2026-10-01).

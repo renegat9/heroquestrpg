@@ -426,7 +426,7 @@ it('Chaînes des Ténèbres empêche un monstre de bouger et d\'attaquer, mais p
         ->and(app(MoteurSorts::class)->monstreA($instance->fresh(), MoteurSorts::MONSTRE_ENCHAINE))->toBeFalse();
 });
 
-it('en tir ami, Chaînes des Ténèbres pose « Enchaîné » sur le héros visé (immobile et désarmé, pas inciblable)', function () {
+it('Enchaîné (catalogue) : immobile et désarmé, jamais inciblable — et Chaînes des Ténèbres ne vise plus de héros', function () {
     $ctx = queteMinimalePourMorcar();
     app(MoteurSorts::class)->attacherElement($ctx['heros'], 'tenebres');
 
@@ -436,11 +436,19 @@ it('en tir ami, Chaînes des Ténèbres pose « Enchaîné » sur le héros vis�
         'position_x' => 4, 'position_y' => 3,
     ]);
 
-    // ⚠ Résolution directe du LECTEUR plutôt que du ciblage complet (déjà
-    // couvert par `ciblesLegales()` ailleurs) : `appliquerConditionCatalogue()`
-    // est exactement ce que `appliquerEffetMental()` appelle pour une cible
-    // HÉROS (tir ami, S3), avec le nom que *Chaînes des Ténèbres* déclare.
-    app(MoteurSorts::class)->appliquerConditionCatalogue($allie, 'Enchaîné', Sort::where('nom', 'Chaînes des Ténèbres')->firstOrFail());
+    $chaines = Sort::where('nom', 'Chaînes des Ténèbres')->firstOrFail();
+
+    // Cible UNIQUE (« one monster you can see », décision de René, 2026-10-09) :
+    // la liste ne porte AUCUN héros, allié au contact compris. Le tir ami n'a
+    // plus de chemin vers « Enchaîné » pour un héros.
+    expect(app(MoteurSorts::class)->ciblesLegales($chaines, [], [[
+        'type' => 'heros', 'id' => $allie->id, 'nom' => 'Brok', 'x' => 4, 'y' => 3,
+    ]]))->toBe([]);
+
+    // Le LECTEUR du catalogue reste testé : c'est lui qu'un sort de zone emploierait
+    // pour poser « Enchaîné » sur un héros. Résolution directe, avec le nom que
+    // *Chaînes des Ténèbres* déclare.
+    app(MoteurSorts::class)->appliquerConditionCatalogue($allie, 'Enchaîné', $chaines);
 
     $condition = Condition::where('nom', 'Enchaîné')->firstOrFail();
     expect($condition->effet['deplacement_interdit'])->toBeTrue()

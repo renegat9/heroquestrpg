@@ -378,7 +378,21 @@ final class AssembleurCarte
         // déjà posés (Lame balançoire comprise) pour ne jamais chevaucher.
         $pieges = [...$pieges, ...$this->placerPiegesMorcar($cases, $salles, $portes, $leviers, $pieges, $milieuxCouloirs, $suivant, $bestiaire)];
 
-        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire);
+        // ÉLÉMENT-OBJECTIF de la quête FINALE (René, 2026-10-09) : sous le thème
+        // d'une boîte qui en déclare un (`MoteurMobilier::ELEMENT_OBJECTIF_FINAL`,
+        // le Haut Autel de Wizards of Morcar), la quête qui se joue sur la
+        // rencontre finale pose cet élément à COUP SÛR dans la salle du boss.
+        $nomElementObjectif = null;
+        if ((string) data_get($structure, 'objectif') === 'vaincre_boss_final') {
+            foreach (MoteurMobilier::ELEMENT_OBJECTIF_FINAL as $boite => $nom) {
+                if ($bestiaire?->contient($boite)) {
+                    $nomElementObjectif = $nom;
+                    break;
+                }
+            }
+        }
+
+        $mobilier = $this->placerMobilier($cases, $salles, $portes, $leviers, $pieges, $suivant, $sallesCoffreAGarantir, $bestiaire, $nomElementObjectif);
 
         // ⚠ APRÈS les pièges ET le mobilier, et ce n'est pas un détail d'ordre :
         // une épreuve doit savoir quelles salles contiennent un piège (l'Autel
@@ -2146,18 +2160,27 @@ final class AssembleurCarte
      *                                             ne soit appelée.
      * @return list<array{mobilier_id: int, x: int, y: int, l: int, h: int, salle: int}>
      */
-    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = [], ?BestiaireGroupe $bestiaire = null): array
+    private function placerMobilier(array $cases, array $salles, array $portes, array $leviers, array $pieges, \Closure $suivant, array $sallesAGarantirUnCoffre = [], ?BestiaireGroupe $bestiaire = null, ?string $nomElementObjectif = null): array
     {
         // Boîte : une pièce de mobilier `boite` (ex. la Caisse de
         // ravitaillement, `horde_ogre`) n'entre dans le catalogue QUE si le
         // thème de bestiaire du groupe l'inclut — même lecture que
         // `Terrain::boite` / `Piege::boite` ci-dessus.
-        $catalogue = Mobilier::query()->orderBy('id')->get()
-            ->filter(fn (Mobilier $m) => $m->boite === null || ($bestiaire?->contient($m->boite) ?? false))
-            ->reject(fn (Mobilier $m) => in_array($m->nom, self::MOBILIER_POSE_EN_QUETE, true))
+        $disponible = Mobilier::query()->orderBy('id')->get()
+            ->filter(fn (Mobilier $m) => $m->boite === null || ($bestiaire?->contient($m->boite) ?? false));
+
+        // L'élément-objectif d'une quête finale n'est PLUS du décor aléatoire
+        // (René, 2026-10-09) : il se pose à coup sûr dans la salle du boss, ou
+        // nulle part — le Haut Autel qui traînait dans n'importe quelle salle
+        // d'une quête ordinaire du thème n'ouvrait sur rien.
+        $element = $nomElementObjectif === null ? null : $disponible->firstWhere('nom', $nomElementObjectif);
+
+        $catalogue = $disponible
+            ->reject(fn (Mobilier $m) => in_array($m->nom, self::MOBILIER_POSE_EN_QUETE, true)
+                || in_array($m->nom, MoteurMobilier::ELEMENT_OBJECTIF_FINAL, true))
             ->values();
 
-        if ($catalogue->isEmpty()) {
+        if ($catalogue->isEmpty() && $element === null) {
             return [];
         }
 
@@ -2212,6 +2235,41 @@ final class AssembleurCarte
             $interieur = $this->interieur($cases, $salle);
             $occupeesSalle = []; // cases déjà prises par un meuble déjà posé DANS cette salle
 
+            // ÉLÉMENT-OBJECTIF (2026-10-09), posé AVANT tout autre meuble de la
+            // salle du boss — la dernière, celle où `spawnsMonstres()` fait
+            // atterrir le boss (même convention que `DeckFouille::salleDuBoss()`).
+            // Même pose que le Coffre (`tenterPoseMobilier()` : emprise dans la
+            // salle, jamais sur un seuil, salle connexe) et même plancher de
+            // cases jouables (§2.12 ter) ; la pose tire au sort, on la retente
+            // donc quelques fois — « à coup sûr » veut dire qu'on ne renonce
+            // pas au premier tirage malheureux. Désigné par `objectif: true` :
+            // c'est ce que lit `MoteurMobilier::elementObjectif()`.
+            if ($element !== null && $i === count($salles) - 1) {
+                for ($essai = 0; $essai < 8; $essai++) {
+                    $place = $this->tenterPoseMobilier(
+                        $catalogue->isEmpty() ? collect([$element]) : $catalogue,
+                        $cases, $salle, $interieur, $seuils, $interdites, $occupeesSalle, $prng, $element,
+                    );
+
+                    if ($place === null
+                        || count($interieur) - count($occupeesSalle) - count($place['cellules']) < self::CASES_JOUABLES_MINIMUM) {
+                        continue;
+                    }
+
+                    foreach ($place['cellules'] as $cellule) {
+                        $occupeesSalle["{$cellule['x']},{$cellule['y']}"] = true;
+                    }
+
+                    $mobilier[] = [
+                        'mobilier_id' => $place['mobilier_id'],
+                        'x' => $place['x'], 'y' => $place['y'], 'l' => $place['l'], 'h' => $place['h'],
+                        'salle' => $i,
+                        'objectif' => true,
+                    ];
+                    break;
+                }
+            }
+
             // GARANTIE de coffre (René, 2026-09-18), posée EN PREMIER — avant
             // le mobilier ordinaire tiré juste après, pas après lui. Posée en
             // second, la pose forcée pouvait échouer alors même que la salle
@@ -2259,6 +2317,12 @@ final class AssembleurCarte
             // PRNG selon la taille de la salle, et deux donjons de même graine
             // cesseraient d'être identiques (même précaution que le tirage du
             // passage secret).
+            // Catalogue vidé par l'écart de l'élément-objectif (base de test
+            // minimale) : plus rien à tirer, et `% 0` serait une erreur.
+            if ($catalogue->isEmpty()) {
+                continue;
+            }
+
             $cible = $prng->suivant() % 4; // 0..3, salles vides comprises
 
             for ($pose = 0; $pose < $cible; $pose++) {

@@ -1265,7 +1265,15 @@ final class JournalCombat
         $des = $this->detailDes($a);
 
         if (! empty($a['detruit'])) {
-            return [['texte' => "{$acteurNom} détruit {$meuble} !{$des}", 'ton' => 'mort']];
+            $lignes = [['texte' => "{$acteurNom} détruit {$meuble} !{$des}", 'ton' => 'mort']];
+
+            // Élément-objectif : la chute GAGNE la quête — un effet automatique
+            // qu'aucune ligne n'annoncerait serait muet (CLAUDE.md).
+            if (! empty($a['objectif_detruit'])) {
+                $lignes[] = ['texte' => "{$meuble} est détruit : les monstres qui restent quittent le jeu, la quête est gagnée !", 'ton' => 'succes'];
+            }
+
+            return $lignes;
         }
 
         if ($degats > 0) {

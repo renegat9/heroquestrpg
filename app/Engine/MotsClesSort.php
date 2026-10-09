@@ -54,7 +54,15 @@ final class MotsClesSort
      */
     public const CIBLE_HEROS_ADJACENT = 'heros_adjacent';
 
-    /** Un monstre. */
+    /**
+     * Un monstre, et UN SEUL : pour un sort de dégâts ou mental à cible unique,
+     * la liste ne contient que des monstres (décision de René, 2026-10-09).
+     * « This spell may be cast on any one monster » (*Ball of Flame*, *Fire of
+     * Wrath* ; *Sleep*, *Tempest*, *Chains of Darkness* nomment « a monster » /
+     * « one monster », doc 16 §3). Le tir ami n'existe plus pour une cible
+     * unique : il subsiste pour les sorts de ZONE et de RAYON, qui n'ont pas de
+     * liste (`zone`, `rayon`).
+     */
     public const CIBLE_MONSTRE = 'monstre';
 
     /**
@@ -68,12 +76,6 @@ final class MotsClesSort
      */
     public const CIBLE_MONSTRES_ZONE = 'monstres_zone';
 
-    /**
-     * ⚠ Pour un sort de **dégâts ou mental**, `cible` documente l'intention,
-     * il ne RESTREINT pas : le tir ami est délibéré (doc 02 §5, S3), donc la
-     * liste légale contient monstres ET héros en ligne de vue. La restriction
-     * ne s'applique qu'aux sorts **utilitaires**.
-     */
     /**
      * Un monstre LANCEUR DE DREAD en ligne de vue, qui lui reste au moins un
      * sort (*Unlearn*, Wizards of Morcar, *Spells of Protection*, 2026-10-08).

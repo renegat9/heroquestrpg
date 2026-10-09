@@ -380,85 +380,81 @@ it('l\'Anneau de Sort épargne UN sort, contre sa charge', function () {
 // Types de dégâts — le feu (App\Engine\TypeDegat)
 // ---------------------------------------------------------------------------
 
-it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
-    $magicien = $ctx['heros'];
-    armerDeSorts($magicien);
+/**
+ * Le magicien passe son tour ; les monstres jouent. Rend leurs actions.
+ *
+ * Le MJ se relance d'un tour à l'autre : son usage est rendu (un sort de Dread
+ * n'est pas à volonté) et le héros repart en début de tour. Les dés donnés
+ * servent les premiers jets, le reste est un bouclier blanc.
+ *
+ * @param  list<int>  $des
+ * @return list<array<string, mixed>>
+ */
+function passeLeTourAnneau(array $ctx, Personnage $heros, array $des): array
+{
+    rearmerTour($ctx, $heros);
+    app(MoteurDread::class)->reinitialiserUsagesInstance($ctx['instance']->fresh()->load('monstre'), $ctx['quete']);
 
-    // Le magicien se vise lui-même : le tir ami est délibéré (doc 02 §5, S3),
-    // c'est le chemin le plus court pour éprouver l'immunité.
+    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $heros->id);
+    desFiges([...$des, ...array_fill(0, 200, 4)]);
+
+    $reponse = test()->postJson('/api/groupes/table-1/choix', ['option_id' => 'attendre'])
+        ->assertStatus(202);
+
+    return collect($reponse->json('resultat.tour_monstres.actions'))->all();
+}
+
+it('l\'Anneau de Feu annule INTÉGRALEMENT un sort de feu, deux fois', function () {
+    // Le magicien ne peut plus se viser lui-même : sa Boule de Feu a une cible
+    // UNIQUE, « any one monster » (décision de René, 2026-10-09). Le feu qui le
+    // touche vient donc du MJ — sa Tempête de feu, qui brûle toute la salle —, et
+    // l'anneau le protège des deux : même lecteur, « Fire OR CHAOS FIRE spells ».
+    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
+    $magicien = $ctx['heros'];
+    $ctx['instance']->monstre->update(['sorts_dread' => ['Tempête de feu'], 'archetype_lanceur' => null]);
+    $ctx['instance']->update(['pv_body_max' => (int) $ctx['instance']->monstre->pv_body]);
+    $ctx['instance']->refresh()->load('monstre');
+
     $anneau = poser($magicien, 'Anneau de Feu', 'talisman');
     $pvAvant = (int) $magicien->pv_body;
 
-    $boule = Sort::where('nom', 'Boule de Feu')->firstOrFail();
-
-    $filDeLAnneau = [];
-
+    // Deux tempêtes, chacune annulée en entier ; l'anneau tombe en cendres après
+    // la seconde (« the ring turns to ash after the second spell »).
     foreach ([1, 2] as $tour) {
-        rearmerTour($ctx, $magicien);
-        $magicien->sorts()->updateExistingPivot($boule->id, ['disponible' => true]);
+        $sort = collect(passeLeTourAnneau($ctx, $magicien, []))->firstWhere('sort', 'Tempête de feu');
 
-        GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
-        desFiges(array_fill(0, 30, 1)); // que des crânes : sans l'anneau, ça fait mal
-
-        $reponse = test()->postJson('/api/groupes/table-1/choix', [
-            'option_id' => 'lancer_sort',
-            'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros'],
-        ])->assertStatus(202)
-            ->assertJsonPath('resultat.immunite_degat', 'feu')
-            ->assertJsonPath('resultat.degats', 0);
-
-        $filDeLAnneau[] = collect(app(JournalCombat::class)->depuisResultat($reponse->json('resultat'), $magicien->nom))
-            ->pluck('texte')->implode(' | ');
+        expect($sort)->not->toBeNull("tour {$tour}")
+            ->and($sort['resultats'][0]['absorbe'] ?? false)->toBeTrue("tour {$tour}");
     }
 
-    // Le FIL dit ce qu'il reste, puis que l'anneau se brise (2026-09-25) :
-    // « se brise » n'existait que dans l'historique, jamais à la table.
-    expect($filDeLAnneau[0])->toContain('Anneau de Feu de '.$magicien->nom.' : 1 utilisation restante sur 2')
-        ->and($filDeLAnneau[1])->toContain('Anneau de Feu de '.$magicien->nom.' est épuisé et se brise');
-
-    // Deux sorts encaissés sans une égratignure, et l'anneau tombe en cendres :
-    // détruit au dernier usage (René, 2026-09-16), ce que la carte dit mot pour
-    // mot — « the ring turns to ash ».
     expect((int) $magicien->fresh()->pv_body)->toBe($pvAvant)
         ->and($anneau->fresh())->toBeNull();
 
-    // Le troisième passe : « the ring turns to ash after the second spell ».
-    rearmerTour($ctx, $magicien);
-    $magicien->sorts()->updateExistingPivot($boule->id, ['disponible' => true]);
-    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
-    desFiges(array_fill(0, 30, 1));
+    // Le troisième passe : sans anneau, deux dés rouges à 1 ne réduisent rien → 3 PV.
+    $sort = collect(passeLeTourAnneau($ctx, $magicien, [1, 1]))->firstWhere('sort', 'Tempête de feu');
 
-    test()->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'lancer_sort',
-        'parametres' => ['cle' => "sort:{$boule->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros'],
-    ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
-
-    expect((int) $magicien->fresh()->pv_body)->toBeLessThan($pvAvant);
+    expect($sort)->not->toBeNull()
+        ->and((int) $magicien->fresh()->pv_body)->toBe(max(0, $pvAvant - 3));
 });
 
 it('ne protège que du FEU : un sort d\'une autre nature passe', function () {
-    $ctx = demarrerQueteAvecMonstre('Gobelin', ['classe' => 'magicien']);
+    // Morsure de Froid (zone de contact, `type_degat: froid`) : l'anneau de feu n'y
+    // change rien, et sa charge reste entière.
+    $ctx = demarrerQueteAvecMonstre('Seigneur', ['classe' => 'magicien']);
     $magicien = $ctx['heros'];
-    armerDeSorts($magicien);
+    $ctx['instance']->monstre->update(['sorts_dread' => ['Morsure de Froid'], 'archetype_lanceur' => null]);
+    $ctx['instance']->update(['pv_body_max' => (int) $ctx['instance']->monstre->pv_body]);
+    $ctx['instance']->refresh()->load('monstre');
+
     $anneau = poser($magicien, 'Anneau de Feu', 'talisman');
+    $pvAvant = (int) $magicien->pv_body;
 
-    // Génie : 5 dés, élément air, AUCUN `type_degat` — donc neutre.
-    $magicien->sorts()->syncWithoutDetaching([
-        Sort::where('nom', 'Génie')->firstOrFail()->id => ['disponible' => true],
-    ]);
-    $genie = Sort::where('nom', 'Génie')->firstOrFail();
+    $sort = collect(passeLeTourAnneau($ctx, $magicien, []))->firstWhere('sort', 'Morsure de Froid');
 
-    GenererMenu::dispatchSync($ctx['groupe']->id, (int) $ctx['alice']->id, (int) $magicien->id);
-    desFiges(array_fill(0, 30, 1));
-
-    $this->postJson('/api/groupes/table-1/choix', [
-        'option_id' => 'lancer_sort',
-        'parametres' => ['cle' => "sort:{$genie->id}", 'cible_id' => $magicien->id, 'cible_type' => 'heros', 'mode' => 'degats'],
-    ])->assertStatus(202)->assertJsonMissingPath('resultat.immunite_degat');
-
-    // La charge est intacte : un anneau de feu ne se dépense pas sur autre chose.
-    expect((int) ($anneau->fresh()->charges ?? 2))->toBe(2);
+    expect($sort)->not->toBeNull()
+        ->and($sort['resultats'][0]['degats'] ?? null)->toBe(1)
+        ->and((int) $magicien->fresh()->pv_body)->toBe($pvAvant - 1)
+        ->and(app(MoteurCharges::class)->restantes($anneau->fresh()))->toBe(2);
 });
 
 it('un sort de feu BRÛLE le monstre et lui coupe la régénération', function () {
